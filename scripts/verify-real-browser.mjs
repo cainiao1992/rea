@@ -41,6 +41,7 @@ const SECRET_VALUES = [
   "websocket-secret-value",
   "ax-private-label-value",
 ];
+const REAL_BROWSER_STARTUP_TIMEOUT_MS = 30_000;
 const verifierRun = createVerifierRun();
 
 const executable = await browserExecutable();
@@ -79,6 +80,7 @@ try {
     executable,
     activePortPath: join(profile, "DevToolsActivePort"),
     stderr: () => stderr,
+    timeoutMs: REAL_BROWSER_STARTUP_TIMEOUT_MS,
   });
   const endpoint = `http://127.0.0.1:${String(port)}`;
   const provider = new CdpBrowserProvider();

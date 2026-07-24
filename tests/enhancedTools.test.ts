@@ -318,7 +318,10 @@ describe("enhanced MCP tools", () => {
         nodes: [{ address: "0x1", depth: 0 }],
         frontier: ["0x2"],
         truncated: true,
-        residual_unknowns: [expect.stringContaining("reached the node limit")],
+        residual_unknowns: expect.arrayContaining([
+          expect.stringContaining("reached the node limit"),
+          expect.stringContaining("reached the edge limit"),
+        ]),
         limits: {
           max_nodes: 1,
           nodes_visited: 1,

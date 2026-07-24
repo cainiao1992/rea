@@ -181,7 +181,11 @@ const recordEdge = (
   const targetAddress =
     input.direction === "forward" ? edge.relatedAddress : edge.address;
   const edgeKey = `${sourceAddress}\u0000${targetAddress}`;
-  if (state.edges.has(edgeKey) || state.edges.size >= input.max_nodes) return;
+  if (state.edges.has(edgeKey)) return;
+  if (state.edges.size >= input.max_nodes) {
+    state.residual.add("Call-path traversal reached the edge limit.");
+    return;
+  }
   state.edges.set(edgeKey, {
     source_address: sourceAddress,
     target_address: targetAddress,

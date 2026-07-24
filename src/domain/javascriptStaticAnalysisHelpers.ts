@@ -388,6 +388,17 @@ export const rangeForOffsets = (
   end: pointForOffset(source, end),
 });
 
+/** Compare two exact source ranges. */
+export const sourceRangesEqual = (
+  left: JavaScriptSourceRange | null,
+  right: JavaScriptSourceRange,
+): boolean =>
+  left !== null &&
+  left.start.line === right.start.line &&
+  left.start.column === right.start.column &&
+  left.end.line === right.end.line &&
+  left.end.column === right.end.column;
+
 const pointForOffset = (source: string, offset: number) => {
   const before = source.slice(0, offset);
   const lines = before.split("\n");

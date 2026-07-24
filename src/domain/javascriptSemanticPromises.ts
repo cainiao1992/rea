@@ -15,7 +15,11 @@ import {
   type JavaScriptSemanticAnalysisState,
 } from "./javascriptSemanticState.js";
 import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
-import { compareCodePoints, range } from "./javascriptStaticAnalysisHelpers.js";
+import {
+  compareCodePoints,
+  range,
+  sourceRangesEqual,
+} from "./javascriptStaticAnalysisHelpers.js";
 
 type PromiseMethod = JavaScriptSemanticPromiseOperation["method"];
 type PromiseKind = JavaScriptSemanticPromiseOperation["kind"];
@@ -327,7 +331,7 @@ const matchingReturnSite = (
   callables
     .find(({ callableId: candidate }) => candidate === callableId)
     ?.returnSites.find(({ location: candidate }) =>
-      rangesEqual(candidate, location),
+      sourceRangesEqual(candidate, location),
     )?.returnSiteId ?? null;
 
 const promiseSources = (
@@ -467,12 +471,3 @@ const isObviouslyNonPromise = (node: t.Node): boolean =>
   t.isObjectExpression(node) ||
   t.isFunction(node) ||
   t.isClassExpression(node);
-
-const rangesEqual = (
-  left: JavaScriptSemanticPromiseOperation["location"],
-  right: JavaScriptSemanticPromiseOperation["location"],
-): boolean =>
-  left.start.line === right.start.line &&
-  left.start.column === right.start.column &&
-  left.end.line === right.end.line &&
-  left.end.column === right.end.column;

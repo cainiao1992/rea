@@ -11,6 +11,7 @@ import type {
   JavaScriptSemanticCallArgument,
   JavaScriptSemanticIr,
 } from "../domain/javascriptSemanticIr.js";
+import { sourceRangesEqual as rangesEqual } from "../domain/javascriptStaticAnalysisHelpers.js";
 import type { JavaScriptApplicationGraph } from "../domain/javascriptApplicationGraph.js";
 import type { JavaScriptArtifactAnalysis } from "./JavaScriptArtifactAnalysisTypes.js";
 import type { JavaScriptArtifactFile } from "./JavaScriptArtifactFiles.js";
@@ -41,7 +42,6 @@ import {
   owningSemanticCallableNode,
   semanticFamilyStatus,
   semanticNodesWithinRange,
-  semanticRangesEqual as rangesEqual,
 } from "./JavaScriptSemanticGraphProjection.js";
 import {
   addSemanticFallbackRoot as addFallbackRoot,

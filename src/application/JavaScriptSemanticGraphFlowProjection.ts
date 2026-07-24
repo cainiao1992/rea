@@ -1,6 +1,7 @@
 import { createJavaScriptSemanticGraphUnknown } from "../domain/javascriptSemanticGraph.js";
 import type { JavaScriptSemanticGraphNode } from "../domain/javascriptSemanticGraph.js";
 import type { JavaScriptSemanticIr } from "../domain/javascriptSemanticIr.js";
+import { sourceRangesEqual } from "../domain/javascriptStaticAnalysisHelpers.js";
 import type { JavaScriptSourceRange } from "../domain/javascriptStaticAnalysisTypes.js";
 import type { JavaScriptArtifactAnalysis } from "./JavaScriptArtifactAnalysisTypes.js";
 import type { JavaScriptArtifactFile } from "./JavaScriptArtifactFiles.js";
@@ -15,10 +16,7 @@ import {
   inferredSemanticEvidenceAt,
   unknownSemanticEvidence,
 } from "./JavaScriptSemanticGraphEvidence.js";
-import {
-  semanticNodesWithinRange,
-  semanticRangesEqual,
-} from "./JavaScriptSemanticGraphProjection.js";
+import { semanticNodesWithinRange } from "./JavaScriptSemanticGraphProjection.js";
 
 /** File-local graph state needed by return, capture, and frontier projection. */
 export interface SemanticFlowProjectionContext {
@@ -39,7 +37,7 @@ export const semanticCallSiteAt = (
   location: JavaScriptSourceRange,
 ): JavaScriptSemanticGraphNode | undefined => {
   const call = context.ir.callSites.find(({ location: candidate }) =>
-    semanticRangesEqual(candidate, location),
+    sourceRangesEqual(candidate, location),
   );
   return call === undefined
     ? undefined
@@ -231,7 +229,7 @@ export const projectSemanticReturnValues = (
           relation: "aliases",
           resolution:
             site.identityReferenceLocation !== null &&
-            semanticRangesEqual(
+            sourceRangesEqual(
               reference.identity.source_range,
               site.identityReferenceLocation,
             )

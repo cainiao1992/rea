@@ -62,17 +62,6 @@ export const semanticFamilyStatus = (
   return analysis.truncated_scopes === 0 ? "partial" : "unknown";
 };
 
-/** Compare two exact semantic source ranges. */
-export const semanticRangesEqual = (
-  left: JavaScriptSourceRange | null,
-  right: JavaScriptSourceRange,
-): boolean =>
-  left !== null &&
-  left.start.line === right.start.line &&
-  left.start.column === right.start.column &&
-  left.end.line === right.end.line &&
-  left.end.column === right.end.column;
-
 const contains = (
   outer: JavaScriptSourceRange,
   inner: JavaScriptSourceRange,

@@ -34,12 +34,12 @@ export interface RenderedTerminalFrame {
   readonly serialized_state: string;
 }
 
-/** Scheduled input, resize, or signal with its observed dispatch outcome. */
+/** Scheduled terminal interaction with its observed dispatch outcome. */
 export interface InteractionEvent {
   readonly sequence: number;
   readonly scheduled_at_ms: number;
   readonly dispatched_at_ms: number;
-  readonly type: "input" | "resize" | "signal";
+  readonly type: "input" | "resize" | "stdin_close" | "signal";
   readonly data: string;
   readonly outcome: "dispatched" | "target_exited" | "failed";
 }
@@ -307,7 +307,7 @@ export const processCaptureSchema: z.ZodType<ProcessCapture> = z.object({
       sequence: z.number().int().nonnegative(),
       scheduled_at_ms: z.number().int().nonnegative(),
       dispatched_at_ms: z.number().int().nonnegative(),
-      type: z.enum(["input", "resize", "signal"]),
+      type: z.enum(["input", "resize", "stdin_close", "signal"]),
       data: z.string(),
       outcome: z.enum(["dispatched", "target_exited", "failed"]),
     }),
@@ -447,7 +447,13 @@ export const processCaptureSchema: z.ZodType<ProcessCapture> = z.object({
               .max(PROCESS_REACTIVE_LIMITS.actionsPerTransition),
             action_types: z
               .array(
-                z.enum(["send_input", "resize", "send_signal", "checkpoint"]),
+                z.enum([
+                  "send_input",
+                  "resize",
+                  "close_stdin",
+                  "send_signal",
+                  "checkpoint",
+                ]),
               )
               .max(PROCESS_REACTIVE_LIMITS.actionsPerTransition),
           }),

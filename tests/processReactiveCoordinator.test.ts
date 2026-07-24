@@ -114,6 +114,7 @@ const createHarness = (scenario: ProcessReactiveScenario) => {
       write: (data: string) => terminalCalls.push(`write:${data}`),
       resize: (columns: number, rows: number) =>
         terminalCalls.push(`resize:${String(columns)}x${String(rows)}`),
+      closeInput: () => terminalCalls.push("close-input"),
       kill: (signal: "SIGINT" | "SIGTERM" | "SIGKILL") =>
         terminalCalls.push(`kill:${signal}`),
     }),
@@ -223,6 +224,7 @@ describe("process reactive coordinator", () => {
               actions: [
                 { type: "send_input", data: "secret", sensitive: true },
                 { type: "resize", columns: 100, rows: 40 },
+                { type: "close_stdin" },
                 {
                   type: "send_signal",
                   target: { kind: "root" },
@@ -247,11 +249,13 @@ describe("process reactive coordinator", () => {
       "write:secret",
       "resize:100x40",
       "render:100x40",
+      "close-input",
       "kill:SIGINT",
     ]);
     expect(harness.interactions.map(({ data }) => data)).toEqual([
       "<redacted-input:6-bytes>",
       "100x40",
+      "",
       "SIGINT",
     ]);
     expect(harness.checkpoints).toHaveLength(1);
@@ -261,6 +265,7 @@ describe("process reactive coordinator", () => {
       "obs.interaction_events.0",
       "obs.interaction_events.1",
       "obs.interaction_events.2",
+      "obs.interaction_events.3",
       "obs.filesystem_checkpoints.0",
     ]);
     await harness.coordinator.close();

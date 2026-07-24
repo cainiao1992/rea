@@ -112,7 +112,9 @@ const succeededEffect = (action: ProcessReactiveAction, order: number) => ({
               ? "input"
               : action.type === "resize"
                 ? "resize"
-                : "signal",
+                : action.type === "close_stdin"
+                  ? "stdin_close"
+                  : "signal",
           data:
             action.type === "send_input"
               ? action.sensitive
@@ -120,7 +122,9 @@ const succeededEffect = (action: ProcessReactiveAction, order: number) => ({
                 : action.data
               : action.type === "resize"
                 ? `${String(action.columns)}x${String(action.rows)}`
-                : action.signal,
+                : action.type === "close_stdin"
+                  ? ""
+                  : action.signal,
           outcome: "dispatched",
         }),
 });

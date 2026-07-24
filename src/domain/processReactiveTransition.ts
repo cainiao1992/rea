@@ -121,6 +121,23 @@ const applyProcessReactiveTransition = (input: {
       };
 };
 
+const terminalControlObservationMatches = (
+  action: Exclude<
+    ProcessReactiveScenario["states"][number]["on"][number]["actions"][number],
+    { readonly type: "checkpoint" | "send_input" }
+  >,
+  payload: Readonly<Record<string, unknown>>,
+): boolean => {
+  if (action.type === "resize")
+    return (
+      payload["type"] === "resize" &&
+      payload["data"] === `${String(action.columns)}x${String(action.rows)}`
+    );
+  if (action.type === "close_stdin")
+    return payload["type"] === "stdin_close" && payload["data"] === "";
+  return payload["type"] === "signal" && payload["data"] === action.signal;
+};
+
 const effectObservationMatchesAction = (
   action: ProcessReactiveScenario["states"][number]["on"][number]["actions"][number],
   observation: ProcessObservation,
@@ -160,12 +177,7 @@ const effectObservationMatchesAction = (
           committedSensitiveInputs,
         )
     );
-  if (action.type === "resize")
-    return (
-      payload["type"] === "resize" &&
-      payload["data"] === `${String(action.columns)}x${String(action.rows)}`
-    );
-  return payload["type"] === "signal" && payload["data"] === action.signal;
+  return terminalControlObservationMatches(action, payload);
 };
 
 const expectedInputEvidence = (

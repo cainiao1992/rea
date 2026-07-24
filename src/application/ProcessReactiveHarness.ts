@@ -17,6 +17,7 @@ import type { CommandShimReplay } from "./CommandShimReplay.js";
 import { ProcessReactiveCoordinator } from "./ProcessReactiveCoordinator.js";
 import {
   executeProcessReactiveEffects,
+  type ProcessReactiveTerminal,
   unsupportedProcessReactiveFeatures,
 } from "./ProcessReactiveEffects.js";
 import { subscribeProcessReactiveObservations } from "./ProcessReactiveObservations.js";
@@ -33,6 +34,25 @@ export interface ProcessReactiveHarness {
   readonly controls: readonly ProcessReactiveControlRecord[];
   readonly unsubscribe: () => void;
 }
+
+const reactiveTerminalFor = (
+  terminal: IPty | undefined,
+): ProcessReactiveTerminal | undefined => {
+  if (terminal === undefined) return undefined;
+  return {
+    write: (data) => terminal.write(data),
+    resize: (columns, rows) => terminal.resize(columns, rows),
+    closeInput: () => {
+      const end: unknown = Reflect.get(terminal, "end");
+      if (typeof end !== "function")
+        throw new ProcessCaptureError(
+          "PTY backend does not expose an stdin-close operation",
+        );
+      Reflect.apply(end, terminal, []);
+    },
+    kill: (signal) => terminal.kill(signal),
+  };
+};
 
 const controlKind = (
   input: ProcessReactiveInput,
@@ -81,7 +101,7 @@ export const startProcessReactiveHarness = (options: {
       execute: (actions, signal) =>
         executeProcessReactiveEffects(
           {
-            terminal: options.terminal,
+            terminal: () => reactiveTerminalFor(options.terminal()),
             renderer: options.renderer,
             checkpoints: options.checkpoints,
             interactions: options.capture.interactions,

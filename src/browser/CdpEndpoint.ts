@@ -74,13 +74,13 @@ export const discoverCdpEndpoint = async (
   operation: BrowserObservationOperation,
   signal?: AbortSignal,
 ): Promise<CdpEndpointDiscovery> => {
-  const versionInput = await readJson(
+  const versionInput = await readBoundedCdpJson(
     new URL("/json/version", endpoint),
     MAX_VERSION_BYTES,
     operation,
     signal,
   );
-  const targetsInput = await readJson(
+  const targetsInput = await readBoundedCdpJson(
     new URL("/json/list", endpoint),
     MAX_TARGET_LIST_BYTES,
     operation,
@@ -289,7 +289,8 @@ const targetWebSocket = (
   }
 };
 
-const readJson = async (
+/** Read one bounded loopback CDP discovery document without redirects. */
+export const readBoundedCdpJson = async (
   url: URL,
   maximumBytes: number,
   operation: BrowserObservationOperation,

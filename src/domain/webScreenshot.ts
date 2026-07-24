@@ -11,7 +11,7 @@ import {
 const MAX_SCREENSHOT_BYTES = 8 * 1_024 * 1_024;
 
 /** Self-verifying inline PNG artifact for CLI/MCP parity. */
-const webScreenshotArtifactSchema = z
+export const webScreenshotArtifactSchema = z
   .object({
     uri: z.string().regex(/^rea:\/\/web-screenshot\/sha256\/[a-f0-9]{64}$/u),
     sha256: z.string().regex(/^[a-f0-9]{64}$/u),

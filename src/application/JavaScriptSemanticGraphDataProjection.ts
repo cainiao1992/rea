@@ -12,7 +12,10 @@ import {
   constructSemanticGraphNode,
 } from "./JavaScriptSemanticGraphConstruction.js";
 import { unknownSemanticEvidence } from "./JavaScriptSemanticGraphEvidence.js";
-import type { SemanticFlowProjectionContext } from "./JavaScriptSemanticGraphFlowProjection.js";
+import {
+  semanticCallSiteAt,
+  type SemanticFlowProjectionContext,
+} from "./JavaScriptSemanticGraphFlowProjection.js";
 
 /** Project environment, argv, file, default, and precedence candidates. */
 export const projectSemanticConfiguration = (
@@ -170,7 +173,7 @@ const projectRequestConstruction = (
   operation: JavaScriptSemanticRequestOperation,
   request: JavaScriptSemanticGraphNode,
 ): void => {
-  const callSite = callSiteAt(context, operation.location);
+  const callSite = semanticCallSiteAt(context, operation.location);
   addSemanticGraphRelation(context.state, {
     source: callSite,
     target: request,
@@ -197,7 +200,7 @@ const projectResponseConsumer = (
 ): void => {
   addSemanticGraphRelation(context.state, {
     source: response,
-    target: callSiteAt(context, operation.location),
+    target: semanticCallSiteAt(context, operation.location),
     relation: "consumed-by",
     resolution: operation.resolution === "complete" ? "resolved" : "candidate",
     properties: { method: operation.method },
@@ -328,24 +331,3 @@ const addDataUnknown = (input: DataUnknownInput): void => {
     }),
   );
 };
-
-const callSiteAt = (
-  context: SemanticFlowProjectionContext,
-  location: JavaScriptSemanticBoundaryOperation["location"],
-): JavaScriptSemanticGraphNode | undefined => {
-  const call = context.ir.callSites.find(({ location: candidate }) =>
-    rangesEqual(candidate, location),
-  );
-  return call === undefined
-    ? undefined
-    : context.callSiteNodes.get(call.callSiteId);
-};
-
-const rangesEqual = (
-  left: JavaScriptSemanticBoundaryOperation["location"],
-  right: JavaScriptSemanticBoundaryOperation["location"],
-): boolean =>
-  left.start.line === right.start.line &&
-  left.start.column === right.start.column &&
-  left.end.line === right.end.line &&
-  left.end.column === right.end.column;

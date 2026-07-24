@@ -11,7 +11,10 @@ import {
   constructSemanticGraphNode,
 } from "./JavaScriptSemanticGraphConstruction.js";
 import { unknownSemanticEvidence } from "./JavaScriptSemanticGraphEvidence.js";
-import type { SemanticFlowProjectionContext } from "./JavaScriptSemanticGraphFlowProjection.js";
+import {
+  semanticCallSiteAt,
+  type SemanticFlowProjectionContext,
+} from "./JavaScriptSemanticGraphFlowProjection.js";
 
 /** Project literal EventEmitter registrations, removals, and dispatches. */
 export const projectSemanticEvents = (
@@ -194,7 +197,7 @@ const projectTimerSchedule = (
   timerNodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>,
 ): void => {
   addSemanticGraphRelation(context.state, {
-    source: callSiteAt(context, operation.location),
+    source: semanticCallSiteAt(context, operation.location),
     target: timerNodes.get(operation.timerId),
     relation: "schedules-timer",
     resolution: "resolved",
@@ -206,7 +209,7 @@ const projectTimerCancellation = (
   operation: JavaScriptSemanticTimerOperation,
   timerNodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>,
 ): void => {
-  const callSite = callSiteAt(context, operation.location);
+  const callSite = semanticCallSiteAt(context, operation.location);
   const target =
     operation.linkedTimerId === null
       ? undefined
@@ -231,26 +234,3 @@ const projectTimerCancellation = (
     }),
   );
 };
-
-const callSiteAt = (
-  context: SemanticFlowProjectionContext,
-  location: JavaScriptTimerLocation,
-): JavaScriptSemanticGraphNode | undefined => {
-  const call = context.ir.callSites.find(({ location: candidate }) =>
-    rangesEqual(candidate, location),
-  );
-  return call === undefined
-    ? undefined
-    : context.callSiteNodes.get(call.callSiteId);
-};
-
-type JavaScriptTimerLocation = JavaScriptSemanticTimerOperation["location"];
-
-const rangesEqual = (
-  left: JavaScriptTimerLocation,
-  right: JavaScriptTimerLocation,
-): boolean =>
-  left.start.line === right.start.line &&
-  left.start.column === right.start.column &&
-  left.end.line === right.end.line &&
-  left.end.column === right.end.column;

@@ -11,7 +11,10 @@ import {
   constructSemanticGraphNode,
 } from "./JavaScriptSemanticGraphConstruction.js";
 import { unknownSemanticEvidence } from "./JavaScriptSemanticGraphEvidence.js";
-import type { SemanticFlowProjectionContext } from "./JavaScriptSemanticGraphFlowProjection.js";
+import {
+  semanticCallSiteAt,
+  type SemanticFlowProjectionContext,
+} from "./JavaScriptSemanticGraphFlowProjection.js";
 
 interface ChildUnknownInput {
   readonly context: SemanticFlowProjectionContext;
@@ -81,7 +84,7 @@ const projectSpawn = (
   spawn: JavaScriptSemanticChildProcessSpawn,
   child: JavaScriptSemanticGraphNode,
 ): void => {
-  const callSite = callSiteAt(context, spawn.location);
+  const callSite = semanticCallSiteAt(context, spawn.location);
   addSemanticGraphRelation(context.state, {
     source: callSite,
     target: child,
@@ -252,24 +255,3 @@ const addChildUnknown = (input: ChildUnknownInput): void => {
     }),
   );
 };
-
-const callSiteAt = (
-  context: SemanticFlowProjectionContext,
-  location: JavaScriptSemanticChildProcessSpawn["location"],
-): JavaScriptSemanticGraphNode | undefined => {
-  const call = context.ir.callSites.find(({ location: candidate }) =>
-    rangesEqual(candidate, location),
-  );
-  return call === undefined
-    ? undefined
-    : context.callSiteNodes.get(call.callSiteId);
-};
-
-const rangesEqual = (
-  left: JavaScriptSemanticChildProcessSpawn["location"],
-  right: JavaScriptSemanticChildProcessSpawn["location"],
-): boolean =>
-  left.start.line === right.start.line &&
-  left.start.column === right.start.column &&
-  left.end.line === right.end.line &&
-  left.end.column === right.end.column;

@@ -8,7 +8,10 @@ import {
   constructSemanticGraphNode,
 } from "./JavaScriptSemanticGraphConstruction.js";
 import { unknownSemanticEvidence } from "./JavaScriptSemanticGraphEvidence.js";
-import type { SemanticFlowProjectionContext } from "./JavaScriptSemanticGraphFlowProjection.js";
+import {
+  semanticCallSiteAt,
+  type SemanticFlowProjectionContext,
+} from "./JavaScriptSemanticGraphFlowProjection.js";
 
 /** Project built-in resource acquisition and exact local release handles. */
 export const projectSemanticResources = (
@@ -24,7 +27,7 @@ export const projectSemanticResources = (
   for (const operation of context.ir.resourceOperations)
     if (operation.kind === "acquire")
       addSemanticGraphRelation(context.state, {
-        source: callSiteAt(context, operation.location),
+        source: semanticCallSiteAt(context, operation.location),
         target: resourceNodes.get(operation.resourceId),
         relation: "acquires",
         resolution: "resolved",
@@ -61,7 +64,7 @@ const projectRelease = (
   operation: JavaScriptSemanticResourceOperation,
   resourceNodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>,
 ): void => {
-  const callSite = callSiteAt(context, operation.location);
+  const callSite = semanticCallSiteAt(context, operation.location);
   const resources = operation.linkedResourceIds.flatMap((identifier) => {
     const resource = resourceNodes.get(identifier);
     return resource === undefined ? [] : [resource];
@@ -90,24 +93,3 @@ const projectRelease = (
     }),
   );
 };
-
-const callSiteAt = (
-  context: SemanticFlowProjectionContext,
-  location: JavaScriptSemanticResourceOperation["location"],
-): JavaScriptSemanticGraphNode | undefined => {
-  const call = context.ir.callSites.find(({ location: candidate }) =>
-    rangesEqual(candidate, location),
-  );
-  return call === undefined
-    ? undefined
-    : context.callSiteNodes.get(call.callSiteId);
-};
-
-const rangesEqual = (
-  left: JavaScriptSemanticResourceOperation["location"],
-  right: JavaScriptSemanticResourceOperation["location"],
-): boolean =>
-  left.start.line === right.start.line &&
-  left.start.column === right.start.column &&
-  left.end.line === right.end.line &&
-  left.end.column === right.end.column;

@@ -8,7 +8,7 @@ import {
   BrowserObservationError,
   type BrowserObservationOperation,
 } from "../domain/errors.js";
-import { readBoundedCdpJson } from "./CdpEndpoint.js";
+import { parseCdpEndpointValue, readBoundedCdpJson } from "./CdpEndpoint.js";
 
 const MAX_VERSION_BYTES = 64 * 1_024;
 const MAX_TARGET_LIST_BYTES = 2 * 1_024 * 1_024;
@@ -65,8 +65,8 @@ export const discoverV8Inspector = async (
       signal,
     ),
   ]);
-  const version = parse(versionSchema, versionInput, operation);
-  const targets = parse(targetsSchema, targetsInput, operation);
+  const version = parseCdpEndpointValue(versionSchema, versionInput, operation);
+  const targets = parseCdpEndpointValue(targetsSchema, targetsInput, operation);
   return {
     runtime: {
       product: version.Browser,
@@ -86,19 +86,6 @@ export const discoverV8Inspector = async (
       ),
     })),
   };
-};
-
-const parse = <Output>(
-  schema: z.ZodType<Output>,
-  input: unknown,
-  operation: BrowserObservationOperation,
-): Output => {
-  const parsed = schema.safeParse(input);
-  if (!parsed.success)
-    throw new BrowserObservationError(operation, "invalid_endpoint_response", {
-      cause: parsed.error,
-    });
-  return parsed.data;
 };
 
 const validatedInspectorWebSocket = (

@@ -86,12 +86,12 @@ export const discoverCdpEndpoint = async (
     operation,
     signal,
   );
-  const version = parseEndpointValue(
+  const version = parseCdpEndpointValue(
     endpointVersionSchema,
     versionInput,
     operation,
   );
-  const targets = parseEndpointValue(
+  const targets = parseCdpEndpointValue(
     endpointTargetsSchema,
     targetsInput,
     operation,
@@ -199,7 +199,8 @@ const availableCdpTargetWebSocket = (
     : undefined;
 };
 
-const parseEndpointValue = <Output>(
+/** Parse one CDP discovery value through its exact boundary schema. */
+export const parseCdpEndpointValue = <Output>(
   schema: z.ZodType<Output>,
   input: unknown,
   operation: BrowserObservationOperation,

@@ -256,8 +256,10 @@ describe("browserScenarioSchema", () => {
   });
 
   it("rejects embedded URL credentials and query values", () => {
+    const credentialedUrl = new URL("https://app.example.test/");
+    credentialedUrl.username = String.fromCodePoint(120);
     for (const url of [
-      "https://user@app.example.test/",
+      credentialedUrl.href,
       "https://app.example.test/?token=raw",
     ]) {
       const scenario = baseScenario();

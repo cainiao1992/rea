@@ -31,9 +31,9 @@ import {
   canonicalRuntimeRoots,
 } from "./JavaScriptRuntimeScope.js";
 import {
-  finalizeV8InspectorCapture,
-  v8ExclusionCounts,
-  v8TargetLimitations,
+  createInspectorExclusionCounts,
+  describeInspectorTargetLimitations,
+  finalizeInspectorCapture,
 } from "./V8InspectorCaptureProjection.js";
 import {
   discoverV8Inspector,
@@ -93,7 +93,7 @@ export class V8InspectorProvider implements JavaScriptRuntimeObservationPort {
         options.signal,
       );
       const allowed: AuthorizedV8InspectorTarget[] = [];
-      const excluded = v8ExclusionCounts();
+      const excluded = createInspectorExclusionCounts();
       for (const target of discovery.targets) {
         const decision = await authorizeRuntimeLocation(
           target.url,
@@ -128,7 +128,7 @@ export class V8InspectorProvider implements JavaScriptRuntimeObservationPort {
             has_more: nextOffset < allowed.length,
           },
           excluded: { ...excluded, unconnectable: 0 },
-          limitations: v8TargetLimitations(),
+          limitations: describeInspectorTargetLimitations(),
         }),
       );
     } catch (cause: unknown) {
@@ -166,7 +166,7 @@ export class V8InspectorProvider implements JavaScriptRuntimeObservationPort {
       } finally {
         removeListener();
       }
-      const result = await finalizeV8InspectorCapture({
+      const result = await finalizeInspectorCapture({
         input,
         runtime: discovery.runtime,
         target,

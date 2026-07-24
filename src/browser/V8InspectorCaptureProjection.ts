@@ -16,14 +16,17 @@ type ExclusionReason =
   | "unsupported_location";
 
 /** Empty durable-location exclusion counters. */
-export const v8ExclusionCounts = (): Record<ExclusionReason, number> => ({
+export const createInspectorExclusionCounts = (): Record<
+  ExclusionReason,
+  number
+> => ({
   outside_file_roots: 0,
   outside_origins: 0,
   unsupported_location: 0,
 });
 
 /** Stable safety and protocol limitations shared by target-list Evidence. */
-export const v8TargetLimitations = (): string[] => [
+export const describeInspectorTargetLimitations = (): string[] => [
   "REA attaches to an already-running exact target and never launches, resumes, evaluates, pauses, or mutates it.",
   "Only Runtime.enable and Debugger.enable are sent; source text, object values, EventEmitter activity, and Electron IPC are not inspected.",
   "Target IDs and locations are authorized, but the Inspector protocol does not authenticate an operating-system process ID or Electron role.",
@@ -39,14 +42,14 @@ interface FinalizeCaptureInput {
 }
 
 /** Canonically authorize, deduplicate, and sort one bounded raw capture. */
-export const finalizeV8InspectorCapture = async ({
+export const finalizeInspectorCapture = async ({
   input,
   runtime,
   target,
   roots,
   state,
 }: FinalizeCaptureInput): Promise<JavaScriptRuntimeObservation> => {
-  const exclusions = v8ExclusionCounts();
+  const exclusions = createInspectorExclusionCounts();
   const scripts = new Map<
     string,
     JavaScriptRuntimeObservation["scripts"]["items"][number]
@@ -119,7 +122,7 @@ export const finalizeV8InspectorCapture = async ({
       "A bounded observation window cannot establish that an unobserved script or behavior never occurs.",
       "The declared Node/Electron process role is not authenticated by the Inspector protocol.",
     ],
-    limitations: v8TargetLimitations(),
+    limitations: describeInspectorTargetLimitations(),
   };
 };
 

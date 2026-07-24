@@ -92,6 +92,16 @@ const textArtifact = (
   };
 };
 
+const metadataArtifact = <Value>(
+  value: Value,
+  budget: BrowserScenarioCaptureBudget,
+) => {
+  const bytes = Buffer.byteLength(JSON.stringify(value));
+  return budget.claimMetadata(bytes)
+    ? { state: "captured" as const, value }
+    : truncated(bytes, 0, "scenario metadata byte limit reached");
+};
+
 const captureScreenshot = async (
   page: Page,
   scenario: BrowserScenario,
@@ -213,13 +223,7 @@ const captureHistory = async (
         name: sanitizeBrowserUrl(name),
       })),
     };
-    const bytes = Buffer.byteLength(JSON.stringify(value));
-    if (!budget.claimMetadata(bytes))
-      return truncated(bytes, 0, "scenario metadata byte limit reached");
-    return {
-      state: "captured" as const,
-      value,
-    };
+    return metadataArtifact(value, budget);
   } catch {
     return missing("history capture failed");
   }
@@ -266,13 +270,7 @@ const captureStorage = async (input: {
         ...secrets.fingerprint(value),
       })),
     };
-    const bytes = Buffer.byteLength(JSON.stringify(value));
-    if (!budget.claimMetadata(bytes))
-      return truncated(bytes, 0, "scenario metadata byte limit reached");
-    return {
-      state: "captured" as const,
-      value,
-    };
+    return metadataArtifact(value, budget);
   } catch {
     return missing("storage capture failed");
   }
@@ -334,13 +332,9 @@ export const capturePlaywrightStepArtifacts = async (input: {
         budget,
       }),
     ),
-    url: await state("url", async () => {
-      const value = sanitizeBrowserUrl(page.url());
-      const bytes = Buffer.byteLength(JSON.stringify(value));
-      return budget.claimMetadata(bytes)
-        ? { state: "captured" as const, value }
-        : truncated(bytes, 0, "scenario metadata byte limit reached");
-    }),
+    url: await state("url", async () =>
+      metadataArtifact(sanitizeBrowserUrl(page.url()), budget),
+    ),
     history: await state("history", () => captureHistory(page, budget)),
     storage: await state("storage", () =>
       captureStorage({ context, page, scenario, secrets, budget }),

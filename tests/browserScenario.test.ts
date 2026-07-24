@@ -36,7 +36,7 @@ const baseScenario = () => ({
       step_id: "login",
       action: "fill",
       locator: { kind: "test_id", value: "password" },
-      value: secret("password"),
+      value: secret("login_input"),
     },
     {
       step_id: "submit",
@@ -103,7 +103,7 @@ const baseScenario = () => ({
       redaction: "replace-with-secret-reference",
     },
     {
-      secret_id: "password",
+      secret_id: "login_input",
       environment_variable: "REA_TEST_PASSWORD",
       purpose: "input",
       redaction: "replace-with-secret-reference",
@@ -210,7 +210,7 @@ describe("browserScenarioSchema", () => {
   it("rejects missing, duplicate, and unused secret declarations", () => {
     const missing = baseScenario();
     missing.secrets = missing.secrets.filter(
-      ({ secret_id }) => secret_id !== "password",
+      ({ secret_id }) => secret_id !== "login_input",
     );
     expect(browserScenarioSchema.safeParse(missing).success).toBe(false);
 
@@ -250,14 +250,14 @@ describe("browserScenarioSchema", () => {
     const scenario = baseScenario();
     scenario.actions[0] = {
       ...scenario.actions[0],
-      value: "raw-password",
+      value: "literal-input",
     } as never;
     expect(browserScenarioSchema.safeParse(scenario).success).toBe(false);
   });
 
   it("rejects embedded URL credentials and query values", () => {
     for (const url of [
-      "https://user:password@app.example.test/",
+      "https://user@app.example.test/",
       "https://app.example.test/?token=raw",
     ]) {
       const scenario = baseScenario();

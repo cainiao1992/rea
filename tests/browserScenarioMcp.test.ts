@@ -128,17 +128,17 @@ const scenario = (origin = "https://app.example.test") => ({
   },
   actions: [
     {
-      step_id: "password",
+      step_id: "login-input",
       action: "fill",
       locator: { kind: "test_id", value: "password" },
-      value: { source: "secret", secret_id: "password" },
+      value: { source: "secret", secret_id: "login_input" },
     },
   ],
   storage: {},
   request_replay: { mode: "disabled" },
   secrets: [
     {
-      secret_id: "password",
+      secret_id: "login_input",
       environment_variable: "REA_TEST_PASSWORD",
       purpose: "input",
       redaction: "replace-with-secret-reference",
@@ -220,7 +220,7 @@ describe("browser scenario MCP tool", () => {
     expect(captured.structuredContent).toMatchObject({
       result: {
         scenario: {
-          secret_references: ["password"],
+          secret_references: ["login_input"],
         },
       },
     });

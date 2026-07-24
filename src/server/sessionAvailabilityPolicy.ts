@@ -1,17 +1,8 @@
+import type { AvailabilityPolicy } from "../application/CapabilityInventory.js";
 import type { EvidenceFilePolicy } from "../domain/evidenceBundle.js";
 import type { ProcessExecutionPolicy } from "../domain/processCapture.js";
 
-export interface SessionAvailability {
-  readonly processCaptureEnabled: boolean;
-  readonly evidenceFileRoots: number;
-  readonly investigationInputRoots: number;
-  readonly browserObservationEnabled?: boolean;
-  readonly browserScenarioEnabled?: boolean;
-  readonly electronObservationEnabled?: boolean;
-  readonly v8InspectorObservationEnabled?: boolean;
-  readonly javascriptReplayEnabled?: boolean;
-  readonly managedRuntimeEnabled?: boolean;
-}
+export type SessionAvailability = AvailabilityPolicy;
 
 export interface SessionAvailabilityDefaults {
   readonly processPolicy: ProcessExecutionPolicy;

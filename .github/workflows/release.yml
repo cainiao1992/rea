@@ -7,15 +7,17 @@ on:
 env:
   HUSKY: "0"
 
-permissions:
-  contents: write
-  pull-requests: write
-  id-token: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   release-please:
     name: Release Please
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
@@ -25,11 +27,61 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check out release pull request
+        if: steps.release.outputs.prs_created == 'true'
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+          persist-credentials: false
+
+      - name: Set up Node.js for generated documentation
+        if: steps.release.outputs.prs_created == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Install dependencies
+        if: steps.release.outputs.prs_created == 'true'
+        run: npm ci
+
+      - name: Regenerate release documentation
+        if: steps.release.outputs.prs_created == 'true'
+        run: npm run docs:generate
+
+      - name: Commit canonical release catalog
+        if: steps.release.outputs.prs_created == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_PR_BRANCH: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+        run: |
+          changed_paths="$(git diff --name-only)"
+          if [[ -z "${changed_paths}" ]]; then
+            echo "Release documentation is already canonical."
+            exit 0
+          fi
+          if [[ "${changed_paths}" != "docs/product-catalog.json" ]]; then
+            echo "docs:generate changed unexpected tracked paths:" >&2
+            printf '%s\n' "${changed_paths}" >&2
+            exit 1
+          fi
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- docs/product-catalog.json
+          git commit -m "chore: normalize release product catalog"
+          gh auth setup-git
+          git push origin "HEAD:${RELEASE_PR_BRANCH}"
+
   publish:
     name: Publish to npm
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v6
 

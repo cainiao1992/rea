@@ -194,6 +194,12 @@ const validateRequestReplay = (
       );
       return;
     }
+    assertUnique(
+      route.response.headers.map(({ name }) => name.toLowerCase()),
+      ["request_replay", "routes", routeIndex, "response", "headers"],
+      "Replay response header names",
+      context,
+    );
     route.response.headers.forEach((header, headerIndex) => {
       if (FORBIDDEN_REPLAY_HEADERS.has(header.name))
         addIssue(

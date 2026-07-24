@@ -8,6 +8,37 @@ import { browserScenarioSchema } from "../../dist/domain/browserScenario.js";
 
 const execute = promisify(execFile);
 
+const duplicateOriginStorage = (origin) => ({
+  local_storage: [
+    {
+      origin,
+      entries: [
+        {
+          name: "rea-first-seed",
+          value: {
+            source: "literal",
+            value: "first",
+            classification: "public",
+          },
+        },
+      ],
+    },
+    {
+      origin,
+      entries: [
+        {
+          name: "rea-second-seed",
+          value: {
+            source: "literal",
+            value: "second",
+            classification: "public",
+          },
+        },
+      ],
+    },
+  ],
+});
+
 /** Build the source-owned full-capture browser scenario. */
 export function browserScenario(browser, origin) {
   return browserScenarioSchema.parse({
@@ -16,7 +47,7 @@ export function browserScenario(browser, origin) {
     start_url: { url: `${origin}/app`, query: [] },
     allowed_origins: [origin],
     environment: {
-      viewport: { width: 1_280, height: 720 },
+      viewport: { width: 1_280, height: 720, device_scale_factor: 1.25 },
       locale: "en-US",
       timezone: "UTC",
       color_scheme: "light",
@@ -46,7 +77,7 @@ export function browserScenario(browser, origin) {
         },
       },
     ],
-    storage: {},
+    storage: duplicateOriginStorage(origin),
     request_replay: { mode: "disabled" },
     secrets: [],
     redaction: {
@@ -153,6 +184,15 @@ export function assertScenarioCapture(capture) {
     throw new Error(
       `Scenario launch did not capture every requested artifact: ${JSON.stringify(final?.artifacts ?? null)}`,
     );
+  const storageNames =
+    final.artifacts.storage.state === "captured"
+      ? final.artifacts.storage.value.local_storage.map(({ name }) => name)
+      : [];
+  if (
+    !storageNames.includes("rea-first-seed") ||
+    !storageNames.includes("rea-second-seed")
+  )
+    throw new Error("Scenario launch did not retain duplicate-origin seeds");
   if (
     capture.events.items.length === 0 ||
     capture.completeness.equality_eligible !== true

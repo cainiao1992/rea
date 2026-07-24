@@ -246,6 +246,18 @@ describe("browserScenarioSchema", () => {
     }
   });
 
+  it("rejects duplicate replay response headers case-insensitively", () => {
+    const scenario = baseScenario();
+    const response = scenario.request_replay.routes[0]!.response;
+    if (response.kind !== "response")
+      throw new Error("Expected replay response fixture");
+    response.headers.push({
+      name: "Content-Type",
+      value: literal("text/plain"),
+    });
+    expect(browserScenarioSchema.safeParse(scenario).success).toBe(false);
+  });
+
   it("rejects raw secret-shaped action values", () => {
     const scenario = baseScenario();
     scenario.actions[0] = {

@@ -165,9 +165,11 @@ export class PlaywrightScenarioEvents {
       page.on("pageerror", (error) =>
         this.push({
           kind: "page-error",
-          message: this.secrets.redact(error.message),
+          message: this.secrets.redact(error.message).slice(0, 65_536),
           stack:
-            error.stack === undefined ? null : this.secrets.redact(error.stack),
+            error.stack === undefined
+              ? null
+              : this.secrets.redact(error.stack).slice(0, 262_144),
         }),
       );
     if (this.enabled.has("network")) {

@@ -41,6 +41,18 @@ const originAllowed = (
   }
 };
 
+const storageSeeds = (
+  blocks: BrowserScenario["storage"]["local_storage"],
+  secrets: BrowserScenarioSecrets,
+): Record<string, string[][]> => {
+  const seeds: Record<string, string[][]> = {};
+  for (const { origin, entries } of blocks)
+    (seeds[origin] ??= []).push(
+      ...entries.map(({ name, value }) => [name, secrets.value(value)]),
+    );
+  return seeds;
+};
+
 const installStorageSeeds = async (
   context: BrowserContext,
   page: Page,
@@ -58,18 +70,8 @@ const installStorageSeeds = async (
     })),
   );
   const storage = {
-    local: Object.fromEntries(
-      scenario.storage.local_storage.map(({ origin, entries }) => [
-        origin,
-        entries.map(({ name, value }) => [name, secrets.value(value)]),
-      ]),
-    ),
-    session: Object.fromEntries(
-      scenario.storage.session_storage.map(({ origin, entries }) => [
-        origin,
-        entries.map(({ name, value }) => [name, secrets.value(value)]),
-      ]),
-    ),
+    local: storageSeeds(scenario.storage.local_storage, secrets),
+    session: storageSeeds(scenario.storage.session_storage, secrets),
   };
   const payload = JSON.stringify(storage).replaceAll("<", "\\u003c");
   await page.addInitScript(`(() => {
@@ -84,12 +86,11 @@ const installStorageSeeds = async (
 
 const installHttpPolicy = async (input: {
   readonly context: BrowserContext;
-  readonly page: Page;
   readonly scenario: BrowserScenario;
   readonly secrets: BrowserScenarioSecrets;
   readonly ownedPages: Set<Page>;
 }): Promise<void> => {
-  const { context, page, scenario, secrets, ownedPages } = input;
+  const { context, scenario, secrets, ownedPages } = input;
   const routes =
     scenario.request_replay.mode === "exact"
       ? new Map(
@@ -131,7 +132,6 @@ const installHttpPolicy = async (input: {
     }
     await route.continue();
   });
-  page.on("popup", (popup) => ownedPages.add(popup));
 };
 
 type ReplayResponse = Extract<
@@ -163,11 +163,11 @@ const fulfillReplayRoute = async (
 };
 
 const installWebSocketPolicy = async (
-  page: Page,
+  owner: BrowserContext | Page,
   scenario: BrowserScenario,
 ): Promise<void> => {
   const allowed = new Set(scenario.allowed_origins);
-  await page.routeWebSocket("**/*", async (route: WebSocketRoute) => {
+  await owner.routeWebSocket("**/*", async (route: WebSocketRoute) => {
     const url = new URL(route.url());
     const httpOrigin = `${url.protocol === "wss:" ? "https:" : "http:"}//${url.host}`;
     if (
@@ -191,8 +191,18 @@ const initializePage = async (
   context.setDefaultTimeout(scenario.limits.action_timeout_ms);
   context.setDefaultNavigationTimeout(scenario.limits.navigation_timeout_ms);
   const ownedPages = new Set([page]);
-  await installHttpPolicy({ context, page, scenario, secrets, ownedPages });
-  await installWebSocketPolicy(page, scenario);
+  await installHttpPolicy({ context, scenario, secrets, ownedPages });
+  await installWebSocketPolicy(
+    scenario.browser.mode === "launch" ? context : page,
+    scenario,
+  );
+  page.on("popup", (popup) => {
+    ownedPages.add(popup);
+    if (scenario.browser.mode === "connect")
+      void installWebSocketPolicy(popup, scenario).catch(async () => {
+        await popup.close().catch(() => undefined);
+      });
+  });
   await installStorageSeeds(context, page, scenario, secrets);
   return ownedPages;
 };

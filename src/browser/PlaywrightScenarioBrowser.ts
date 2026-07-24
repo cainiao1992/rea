@@ -98,6 +98,12 @@ const configureAttachedEnvironment = async (
   });
   const session = await context.newCDPSession(page);
   try {
+    await session.send("Emulation.setDeviceMetricsOverride", {
+      width: scenario.environment.viewport.width,
+      height: scenario.environment.viewport.height,
+      deviceScaleFactor: scenario.environment.viewport.device_scale_factor,
+      mobile: false,
+    });
     await session.send("Emulation.setLocaleOverride", {
       locale: scenario.environment.locale,
     });

@@ -1,7 +1,7 @@
 # JavaScript static/runtime reconciliation
 
 REA can combine an existing static JavaScript Application Graph with one or
-more passive browser or Electron captures without collapsing their different
+more passive browser, Electron page, or Node/Electron V8 Inspector captures without collapsing their different
 authorities. The `reconcile_javascript_runtime` MCP tool and
 `rea reconcile-javascript-runtime` CLI command accept Evidence v2 records and
 return derived Evidence v2 containing a combined JavaScript Application Graph
@@ -9,7 +9,8 @@ and explicit match, ambiguity, mismatch, and unknown classifications.
 
 The operation performs no filesystem, browser, or Electron I/O. It accepts only
 semantically verified Evidence produced by `analyze_javascript_application`,
-`inspect_web_page`, or `inspect_electron_page`; matching operation names alone
+`inspect_web_page`, `inspect_electron_page`, or
+`observe_javascript_runtime`; matching operation names alone
 is insufficient. Provider identity, predicate version, subject digest, target
 parameters, and normalized-result schemas are checked before reconciliation.
 
@@ -18,12 +19,13 @@ parameters, and normalized-result schemas are checked before reconciliation.
 1. Run `analyze_javascript_application` against exactly one application layer.
    Optional cache or assets directories can be analyzed independently and
    supplied as additional layers.
-2. Run `inspect_web_page` or `inspect_electron_page`. Capturing script sources
+2. Run `inspect_web_page`, `inspect_electron_page`, or the attach-only
+   `observe_javascript_runtime`. Capturing script sources
    is optional, but an approved source capture provides the strongest byte
    identity.
 3. Pass the resulting Evidence records to `reconcile_javascript_runtime`.
    Browser URLs normally need an explicit URL-prefix mapping. Extracted
-   Electron directories are mapped automatically when runtime files remain
+   Electron and V8 Inspector file locations are mapped automatically when runtime files remain
    beneath the analyzed input root; relocated files, ASAR projections, caches,
    and asset roots need explicit mappings.
 
@@ -134,11 +136,18 @@ globally unloaded.
 
 ## Frames, workers, and source maps
 
-Passive inspection now retains the execution-context frame ID supplied by CDP
+Passive inspection retains the execution-context frame ID supplied by CDP
 for each accepted script. Electron captures also inventory authorized worker,
 service-worker, and shared-worker targets, including bounded opener-target and
 parent-frame relationships. These fields improve attribution while preserving
 the original exact-origin or canonical-root filter.
+
+V8 Inspector observations expose execution-context IDs but no authenticated
+frame relationship, so their scripts attach to the exact runtime target in the
+combined graph. They never supply source bytes, require/import caller edges,
+EventEmitter activity, Electron IPC, or script-unload evidence. A unique
+authorized file or URL location can still correlate script presence with a
+static asset, but it does not prove module initialization or feature execution.
 
 Source-map declarations and approved original-source reads stay under static
 source-map authority. They are reported in `source_map_authority` but never used

@@ -3,8 +3,9 @@
 REA derives a bounded feature trace from one authenticated JavaScript
 Application Graph and compares two authenticated graph versions. The MCP tools
 are `trace_application_feature`, `trace_javascript_semantics`,
-`compare_application_versions`, and `compare_javascript_export_shapes`; their
-CLI equivalents use the same names with hyphens.
+`compare_application_versions`, `compare_source_to_bundle`, and
+`compare_javascript_export_shapes`; their CLI equivalents use the same names
+with hyphens.
 
 Both workflows consume Evidence v2 produced by
 `analyze_javascript_application` or `reconcile_javascript_runtime`. They do not
@@ -46,14 +47,22 @@ function, module, seed-match, and page limits are validated against exact
 published ranges. A committed cursor returns the next deterministic relation
 page only for the same graph, query, and limits.
 
-The initial extractor covers lexical definitions and reads, closure captures,
-and uniquely resolved local calls with argument-to-parameter and direct
-return-to-call candidates. Dynamic calls/properties, parser recovery, and bound
-frontiers stay explicit. Promise, event, timer, child-process, request,
-configuration, boundary, resource, and fingerprint families are represented by
-the versioned schema but report unsupported or unknown coverage until their
-extractors supply facts. Missing relations in those families are never reported
-as proven absence.
+The extractor covers lexical definitions and reads, literal seeds, static
+property slots, object reads/writes/spreads/destructuring, closure captures,
+uniquely resolved local calls, argument/return flow, and explicit Promise
+construction, chaining, aggregation, await, return, assignment, and
+detachment. It also recovers bounded static candidates for EventEmitter
+registrations/removals and dispatch, Node timers and cancellation handles, asynchronous
+`node:child_process` creation and ownership, configuration sources and direct
+defaults, request construction and response consumers, parse/coercion/
+validation boundaries, and built-in resource acquisition/release.
+
+Function fingerprints commit normalized syntax, control-flow shape, relation
+shape, literal sets, arity, and detected effects without using local names or
+source offsets. Equal duplicate fingerprints remain ambiguous. Dynamic
+calls/properties/names, parser recovery, unresolved handles, unsupported API
+shapes, and every reached bound stay explicit unknowns; a missing relation is
+never reported as proven behavioral absence.
 
 Semantic relations use static-inference authority. `resolved` means the static
 target identity was unique within admitted analysis; it does not mean the path
@@ -83,6 +92,25 @@ items, candidate references, graph nodes, edges, and observations. With
 `unknown_registry_approved: true`, unresolved comparison items can be retained
 as a residual unknown in a live session.
 
+## Historical source-to-bundle comparison
+
+`compare_source_to_bundle` compares one cryptographically committed
+`HistoricalSourceGraph/v1` with authenticated application-graph Evidence. The
+stable scoring model reports every admitted signal and weight: exact source
+digest, source-map original path, exact current path, path suffix, basename, and
+language extension. Exact digest wins over location inference; weak basename
+or extension evidence never forces a mapping.
+
+Each historical source file is classified as `unchanged`, `modified`,
+`removed`, `split`, `merged`, `duplicated`, or `unknown`. Multiple equally
+scored path mappings form a bounded static split inference. Multiple current
+nodes with the exact historical digest are duplicated; multiple historical
+paths with exact identity to one current node are merged. `removed` requires
+complete historical and application inventories with no relevant comparison
+truncation. Ambiguous candidates, partial inventories, and exhausted limits
+remain unknown. These static mappings do not claim runtime loading or semantic
+equivalence.
+
 ## Export return-shape comparison
 
 `compare_javascript_export_shapes` selects exactly one module path and export
@@ -108,7 +136,7 @@ replay recommendation; it does not execute JavaScript.
 
 ## CLI and verification
 
-All four CLI commands accept inline JSON or a JSON file up to 64 MiB. The input
+All five CLI commands accept inline JSON or a JSON file up to 64 MiB. The input
 is the same object used by the corresponding MCP tool.
 
 For two operator-provided directories or ASARs, run:

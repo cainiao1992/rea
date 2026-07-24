@@ -27,3 +27,9 @@ large fixture contains 1,205 uniquely named functions and strings so provider
 pagination can be checked at boundaries of 500, 1,000, and 1,205. Objective-C,
 Swift, and N-API-like fixtures provide metadata-oriented inputs without package
 or network dependencies.
+
+`readiness/` adds source-only generated JavaScript CLI and Electron fixtures for
+the public reconstruction-readiness journey. `npm run verify:readiness` combines
+them with the compiled native fixtures, exercises CLI and MCP parity, and emits
+the versioned machine-readable readiness report documented in
+`docs/reconstruction-readiness.md`.

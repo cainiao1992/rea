@@ -11,8 +11,14 @@ expected package version, catalog digest, or registered server path to
 reports their command vectors as aligned, stale, missing, or invalid, and keeps
 live-server state `unknown` unless the active connection supplies identity.
 
-Tool names remain stable. `binary_session.tool_availability` explains each
-operation with a stable availability reason instead of silently hiding it.
+Canonical tool names remain stable, while `tools/list` advertises only the
+operations callable for the current target, provider, policy, host, and
+negotiated client capabilities. `binary_session.tool_availability` remains the
+complete inventory: it explains advertised and hidden operations with stable
+availability reasons and remediation. Each entry also reports required and
+optional negotiated client features plus the currently missing features. Form elicitation is optional for
+`capture_process_scenario`: an existing grant remains usable without it, while
+a missing grant cannot be elicited by a client that does not advertise it.
 Opening or closing a target, reloading policy, or observing a provider health
 transition emits `notifications/tools/list_changed`.
 

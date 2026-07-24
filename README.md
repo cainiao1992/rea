@@ -30,7 +30,7 @@
 
 See a feature in an app that you want in your own product? Give the app to your agent—even without its source code. With REA, the agent can investigate the feature, explain how it works, show its evidence, and build a version adapted to your stack and requirements.
 
-REA gives agents one consistent way to investigate software. Today that includes deep native analysis and function dossiers through Hopper or bring-your-own Ghidra on Linux, plus an experimental Windows x64 Ghidra P0 for approved native PE applications; execution-free managed PE/CLI triage; reproducible Evidence v2 records; controlled process capture; passive website and Electron observation; bounded JavaScript/source-map reconstruction; and a versioned domain graph for connecting JavaScript application layers without confusing static inference with runtime observation. The longer-term toolkit extends the same agent workflow to APIs, protocols, mobile artifacts, firmware, richer runtime behavior, and differences between versions.
+REA gives agents one consistent way to investigate software. Today that includes deep native analysis and function dossiers through Hopper or bring-your-own Ghidra on Linux, plus an experimental Windows x64 Ghidra P0 for approved native PE applications; execution-free managed PE/CLI triage; reproducible Evidence v2 records; controlled process capture; passive website, Electron page, and Node/Electron V8 Inspector observation; bounded JavaScript/source-map reconstruction; and a versioned domain graph for connecting JavaScript application layers without confusing static inference with runtime observation. The longer-term toolkit extends the same agent workflow to APIs, protocols, mobile artifacts, firmware, richer runtime behavior, and differences between versions.
 
 Reverse engineering normally makes the operator choose a tool, learn its API, move evidence between programs, and decide what to inspect next. REA gives that work to the agent through commands, skills, structured results, and repeatable investigation workflows.
 
@@ -371,17 +371,18 @@ REA handles the app analysis in steps 1–5. The agent performs step 6 with its 
 
 ## Tool catalog for investigation
 
-| Tool family               | Count | Examples                                                                                                                                                                                                                                  |
-| ------------------------- | ----: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Native inspection         |    34 | procedures, pseudocode, assembly, strings, names, segments, callers, callees, xrefs, annotations                                                                                                                                          |
-| Investigation workflows   |    10 | `binary_overview`, `analyze_function`, `batch_decompile`, `trace_feature`, call graphs, Swift and Objective-C discovery                                                                                                                   |
-| Native macOS utilities    |     5 | Mach-O metadata, code signatures, plists, architectures, Swift demangling; Hopper-free and provenance-bearing                                                                                                                             |
-| Artifact graph            |     2 | deterministic directory, ZIP/APK/IPA/MSIX/AppX, and ASAR inventory; explicitly selected extraction into an absent owned tree                                                                                                              |
-| Managed PE/CLI            |     8 | PE/CLI identity, metadata members, CIL hashes, P/Invoke/native-boundary declarations and verification, application-graph projection, decompiler reconstruction import, token remapping, runtime-correlation plans, and version comparison |
-| Browser observation       |     8 | exact-origin CDP capture, bundle and source-map analysis, WebMCP discovery, session timelines, capture diff, and visual evidence                                                                                                          |
-| Electron analysis         |     4 | passive root-confined observation, bounded static application mapping, and evidence-backed static/runtime reconciliation                                                                                                                  |
-| Application workflows     |     9 | bounded cross-layer traces, unique-only version matching, static export return-shape comparison, approved Linux-isolated extracted-module replay, managed-runtime characterization, and reconstruction coverage closure                   |
-| Workspace and observation |    19 | target lifecycle, Evidence v2 bundles, direct finite replay-machine evaluation, process/artifact/function comparison, evidence-linked residual-unknown lifecycle                                                                          |
+| Tool family               | Count | Examples                                                                                                                                                                                                                                                                                                                         |
+| ------------------------- | ----: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Native inspection         |    36 | procedures, pseudocode, assembly, strings, names, segments, callers, callees, xrefs, annotations, bounded byte reads, file-offset translation                                                                                                                                                                                    |
+| Investigation workflows   |    12 | `binary_overview`, `analyze_function`, `batch_decompile`, `trace_feature`, exact string-to-code lookup, bounded call paths, call graphs, Swift and Objective-C discovery                                                                                                                                                         |
+| Native macOS utilities    |     5 | Mach-O metadata, code signatures, plists, architectures, Swift demangling; Hopper-free and provenance-bearing                                                                                                                                                                                                                    |
+| Artifact graph            |     3 | bounded provider-neutral inspection, deterministic directory/ZIP/APK/IPA/MSIX/AppX/ASAR inventory, and explicitly selected extraction into an absent owned tree                                                                                                                                                                  |
+| Managed PE/CLI            |     8 | PE/CLI identity, metadata members, CIL hashes, P/Invoke/native-boundary declarations and verification, application-graph projection, decompiler reconstruction import, token remapping, runtime-correlation plans, and version comparison                                                                                        |
+| Browser observation       |     9 | exact-origin passive CDP capture, bundle and source-map analysis, WebMCP discovery, session timelines, capture diff, visual evidence, and bounded Playwright scenarios                                                                                                                                                           |
+| Electron analysis         |     4 | passive root-confined observation, bounded static application mapping, and evidence-backed static/runtime reconciliation                                                                                                                                                                                                         |
+| JavaScript runtime        |     2 | approved attach-only Node/Electron Inspector target discovery plus bounded script and execution-context observation without evaluation or instrumentation                                                                                                                                                                        |
+| Application workflows     |    12 | bounded cross-layer traces, unique-only version matching, historical-source to bundle mapping, static export return-shape comparison, approved Linux-isolated extracted-module replay, managed-runtime characterization, reconstruction coverage closure, deterministic obligation ledgers, and end-to-end readiness conformance |
+| Workspace and observation |    19 | target lifecycle, Evidence v2 bundles, direct finite replay-machine evaluation, process/artifact/function comparison, evidence-linked residual-unknown lifecycle                                                                                                                                                                 |
 
 The public interface describes what the agent is trying to learn. Providers decide how to answer. macOS utilities handle common semantic inspection without launching Hopper; Hopper handles deeper native analysis; the process harness implements controlled behavioral capture.
 
@@ -393,10 +394,11 @@ REA is already useful for native application, browser, and Electron investigatio
 - Discover deep-analysis candidates without starting them, choose deterministically, and retain one immutable provider/profile binding until an explicit switch or close; provider failures never trigger transparent fallback.
 - Attach to a user-owned Chrome-family browser over a configured loopback CDP endpoint; capture exact-origin web structure, safe metadata, approved value-free payload shapes, bundle/source-map evidence, WebMCP declarations, user-action timelines, capture diffs, and explicitly approved screenshots without navigation or JavaScript evaluation.
 - Inspect Electron `file://` renderer pages through a separate canonical-root permission boundary without invoking Electron APIs; script contents remain separately approved and byte bounded.
+- Attach to one exact approved Node or Electron V8 Inspector target and retain bounded `scriptParsed` plus execution-context lifecycle metadata without evaluation, breakpoints, resume, source reads, or instrumentation. require/import edges, EventEmitter activity, Electron IPC, PID identity, and role identity remain unknown. See [passive Node and Electron runtime observation](docs/javascript-runtime-observation.md).
 - Validate and canonically serialize a provider-neutral [JavaScript Application Graph v1](docs/javascript-application-graph.md) spanning packages, ASAR entries, Electron roles, JavaScript/source-map entities, browser/runtime instances, IPC, endpoints, storage, and native add-ons. This shipped domain contract performs no extraction or I/O by itself.
 - Reconstruct bounded static package, entrypoint, Webpack/Rspack module, import, worker, endpoint, storage, source-map, BrowserWindow, preload, contextBridge, IPC, utility-process, and native-add-on structure from an approved local directory or ASAR through `analyze_javascript_application` or `rea analyze-javascript-application`. The AST-only [application service](docs/javascript-artifact-reconstruction.md) never executes bootstrap code, pairs only unique exact literal IPC channels, and reports dynamic or ambiguous channels as unresolved.
 - Reconcile that static graph with existing passive web or Electron Evidence through `reconcile_javascript_runtime` or `rea reconcile-javascript-runtime`. Exact captured bytes outrank caller-declared file/URL mappings; target, frame, script, worker, cache, and asset ambiguity stays explicit, source-map authority stays separate, and a module resident in an observed bundle is never reported as executed. See [JavaScript static/runtime reconciliation](docs/javascript-runtime-reconciliation.md).
-- Trace a literal route, string, API, IPC channel, module, or native export through authenticated application Evidence with explicit traversal bounds, then hand exact native artifact digests and requested exports to retained Ghidra or Hopper Evidence without automatic provider switching. Compare application versions using unique-only digest, source-map, structural, and semantic tiers; compare one exact JavaScript export's static return shapes through unique literal discriminants and bounded JSON Pointer changes. Duplicate, dynamic, incomplete, and truncated facts stay unknown. See [cross-layer JavaScript application workflows](docs/javascript-application-workflows.md).
+- Trace a literal route, string, API, IPC channel, module, or native export through authenticated application Evidence with explicit traversal bounds, then hand exact native artifact digests and requested exports to retained Ghidra or Hopper Evidence without automatic provider switching. Compare application versions using unique-only digest, source-map, structural, and semantic tiers; map a committed historical source inventory to bundle nodes with explicit digest and path scores; compare one exact JavaScript export's static return shapes through unique literal discriminants and bounded JSON Pointer changes. Duplicate, dynamic, incomplete, ambiguous, and truncated facts stay unknown. See [cross-layer JavaScript application workflows](docs/javascript-application-workflows.md).
 - Classify PE/CLI managed artifacts with `inspect_managed_artifact` / `rea inspect-managed-artifact`, inspect bounded metadata members, signatures, raw CIL hashes, limited decoded-instruction-tuple v1 hashes, separately reported exception regions, call edges, and field-access anchors with `inspect_managed_members` / `rea inspect-managed-members`, inventory declared ModuleRef/ImplMap/PInvoke and non-IL method boundary indicators with `inspect_managed_native_boundaries` / `rea inspect-managed-native-boundaries`, then compare two authenticated member observations with `compare_managed_members` / `rea compare-managed-members`. `verify_managed_native_boundaries` / `rea verify-managed-native-boundaries` checks managed P/Invoke declarations against authenticated native export or function Evidence while keeping verified, inferred, contradicted, and unresolved states distinct. The comparison treats build-local tokens as build-local and uses unique decoded-CIL/signature and structural method-shape tiers, never names alone; the v1 tuple hash does not itself resolve tokens or fully commit control flow. `project_managed_application_graph` / `rea project-managed-application-graph` projects authenticated managed artifact/member/native-boundary Evidence into the existing application graph for cross-layer feature tracing. `import_managed_reconstruction` / `rea import-managed-reconstruction` admits user-supplied decompiler C#/IL/pseudocode as analyst inference only after exact artifact SHA-256, MVID, signature, and the shipped v1 decoded-IL commitment match. Separately, `plan_managed_runtime_correlation` / `rea plan-managed-runtime-correlation` can admit a default-disabled, permission-gated runtime-correlation plan locked to the same build evidence. These paths never load the assembly, resolve CLR dependencies, execute target code, run a decompiler, or translate managed tokens into native addresses; full normalized-CIL v2 semantics, native-body bridge mapping, and an actual runtime executor remain future managed-code contracts.
 - Configure `REA_ILSPY_CMD_PATH=/absolute/path/to/ilspycmd` only when you want
   doctor and `verify:managed` to inspect a bring-your-own ILSpy command as a
@@ -437,6 +439,55 @@ rea inspect-web-page http://127.0.0.1:9222 TARGET_ID --approved --json
 ```
 
 All eight browser tools expose the same Evidence v2 contracts over CLI and MCP. Inspection is passive: REA does not evaluate page JavaScript, navigate, click, close the page, or close the browser. Query values, credentials, cookies, authorization headers, storage values, and raw JSON or WebSocket values are never retained. Separately approved captures can retain bounded redacted console primitives, value-free JSON/WebSocket shapes, script sources, accessibility text, or screenshot pixels. Existing activity before attach is explicitly unavailable. See [Website observation with CDP](docs/browser-observation.md) for browser startup, schemas, limits, and the threat model.
+
+### Controlled browser scenarios
+
+`capture_browser_scenario` is a separate, explicitly mutating browser boundary.
+It runs only the fixed, versioned scenario vocabulary through Playwright and
+returns step-indexed Evidence for screenshots, DOM, accessibility, URL/history,
+storage, console/errors, network, WebSockets, frames, workers, popups, and
+cancelled downloads. Missing or truncated sections can never support equality
+claims.
+
+```bash
+export REA_BROWSER_SCENARIO_ENABLED=true
+export REA_BROWSER_SCENARIO_EXECUTABLE_ROOTS_JSON='["/usr/bin"]'
+export REA_BROWSER_SCENARIO_CDP_ENDPOINTS_JSON='["http://127.0.0.1:9222"]'
+export REA_BROWSER_SCENARIO_ALLOWED_ORIGINS_JSON='["http://127.0.0.1:3000"]'
+export REA_BROWSER_SCENARIO_ALLOWED_ENV_JSON='["REA_TEST_PASSWORD"]'
+
+rea capture-browser-scenario ./scenario.json --json
+```
+
+Launch mode owns a temporary browser profile and removes it after terminating
+the launched browser. Connect mode accepts one exact loopback CDP target and
+disconnects without closing the external browser. Automation has no default
+grant: use the shared project/session policy, or set
+`REA_BROWSER_SCENARIO_AUTO_GRANT=true` only for a trusted unattended
+environment. Scenario JSON contains secret references and environment-variable
+names, never secret values. See the
+[browser scenario contract](docs/browser-scenario-contract.md).
+
+### Node and Electron V8 Inspector observation
+
+Attach-only JavaScript runtime observation is separately disabled by default:
+
+```bash
+export REA_V8_INSPECTOR_OBSERVE_ENABLED=true
+export REA_V8_INSPECTOR_ENDPOINTS_JSON='["http://127.0.0.1:9229"]'
+export REA_V8_INSPECTOR_FILE_ROOTS_JSON='["/absolute/path/to/app"]'
+export REA_V8_INSPECTOR_ALLOWED_ORIGINS_JSON='[]'
+
+rea list-javascript-runtime-targets http://127.0.0.1:9229 --approved --json
+rea observe-javascript-runtime http://127.0.0.1:9229 TARGET_ID \
+  --runtime-kind node --approved --json
+```
+
+REA sends only `Runtime.enable` and `Debugger.enable`. It retains bounded,
+scope-authorized script locations and execution-context lifecycle events;
+require/import edges, EventEmitter activity, Electron IPC, PID identity, and
+Electron role identity stay explicit unknowns. See
+[passive Node and Electron runtime observation](docs/javascript-runtime-observation.md).
 
 Exact package, tool-family, provider, setup-client, public schema-version, and CLI facts are generated from source in [`docs/product-catalog.json`](docs/product-catalog.json). PR CI verifies this catalog, narrative documentation, generated schemas, and a clean TypeDoc render.
 

@@ -204,7 +204,9 @@ jobs:
       - name: Run the public CLI/MCP reconstruction journey
         env:
           REA_READINESS_REPORT_PATH: readiness-report.json
-        run: npm run verify:readiness | tee readiness-summary.json
+        run: |
+          set -o pipefail
+          npm run verify:readiness | tee readiness-summary.json
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:

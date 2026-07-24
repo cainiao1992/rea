@@ -6,26 +6,15 @@ import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import * as prompts from "./verify-package-prompts.mjs";
-import { json } from "./lib/verify-package-core.mjs";
+import {
+  json,
+  verifyAvailableToolCatalog,
+} from "./lib/verify-package-core.mjs";
 
 const execute = promisify(execFile);
 
 const verifyMcpToolsAndPrompts = async (client, mcpOptions) => {
-  const listed = await client.listTools(undefined, mcpOptions);
-  const status = await client.callTool(
-    { name: "binary_session", arguments: { detail: "full" } },
-    mcpOptions,
-  );
-  const availability = status.structuredContent?.result?.tool_availability;
-  if (!Array.isArray(availability))
-    throw new Error("packaged MCP omitted tool availability");
-  const expected = availability
-    .filter(({ available }) => available === true)
-    .map(({ name }) => name)
-    .sort();
-  const observed = listed.tools.map(({ name }) => name).sort();
-  if (JSON.stringify(observed) !== JSON.stringify(expected))
-    throw new Error("packaged MCP tool inventory diverged from contracts");
+  await verifyAvailableToolCatalog(client, mcpOptions);
   await prompts.verifyPromptCatalog(client, mcpOptions, prompts.names);
   await prompts.verifyPromptCompletion(client, mcpOptions, false);
 };

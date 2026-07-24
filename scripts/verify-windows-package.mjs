@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 
-import { TOOL_CONTRACTS } from "../dist/contracts/toolContracts.js";
+import { verifyAvailableToolCatalog } from "./lib/verify-package-core.mjs";
 import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
 
 const exec = promisify(execFile);
@@ -81,19 +81,10 @@ try {
     stderr: "pipe",
   });
   const client = new Client({ name: "rea-windows-package", version: "1.0.0" });
+  let toolCount = 0;
   try {
     await client.connect(server);
-    const catalog = await client.listTools();
-    const expected = TOOL_CONTRACTS.map(({ name }) => name).sort(
-      (left, right) => left.localeCompare(right),
-    );
-    const actual = catalog.tools
-      .map(({ name }) => name)
-      .sort((left, right) => left.localeCompare(right));
-    if (JSON.stringify(actual) !== JSON.stringify(expected))
-      throw new Error(
-        "Packaged Windows MCP catalog drifted from TOOL_CONTRACTS",
-      );
+    toolCount = (await verifyAvailableToolCatalog(client)).length;
   } finally {
     await client.close();
   }
@@ -104,7 +95,7 @@ try {
       ok: true,
       platform: process.platform,
       package: packageResult.filename,
-      tools: TOOL_CONTRACTS.length,
+      tools: toolCount,
       ghidra_bridge: "present",
     })}\n`,
   );

@@ -71,6 +71,9 @@ describe("owned process-group cleanup", () => {
       ),
     ).toBe(true);
     expect(
+      matchesOwnedProcessCommand("(node)", "/opt/node/bin/node", "darwin"),
+    ).toBe(true);
+    expect(
       matchesOwnedProcessCommand(
         "node /tmp/fake-launcher.mjs",
         "/opt/python/bin/python3",
@@ -83,6 +86,9 @@ describe("owned process-group cleanup", () => {
         "/opt/node/bin/node",
         "linux",
       ),
+    ).toBe(false);
+    expect(
+      matchesOwnedProcessCommand("(node)", "/opt/node/bin/node", "linux"),
     ).toBe(false);
   });
 

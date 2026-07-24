@@ -1,5 +1,79 @@
 # Changelog
 
+## [2.5.0](https://github.com/morluto/rea/compare/rea-agents-2.4.0...rea-agents-2.5.0) (2026-07-24)
+
+
+### Features
+
+* add runtime reconstruction roadmap workflows ([1dbb157](https://github.com/morluto/rea/commit/1dbb15734f484db5f4945bd1d1805d8763bfef0e))
+* **analysis:** add bounded memory and call tracing ([8e7709d](https://github.com/morluto/rea/commit/8e7709d35ae0ab49392418106b67c2eaa9ea82dc))
+* **artifacts:** add provider-neutral inspection ([d997728](https://github.com/morluto/rea/commit/d9977286f95090b5db3afab78573fa29841f7e90))
+* **browser:** capture controlled Playwright scenarios ([1ac3118](https://github.com/morluto/rea/commit/1ac3118aa29d846c266edd1e8cd504c4707cf4df))
+* **browser:** compare scenario and storage evidence ([f27dd74](https://github.com/morluto/rea/commit/f27dd745b8e398bba544a97374eed9a45aa4b688))
+* **javascript:** compare source with shipped bundles ([697be94](https://github.com/morluto/rea/commit/697be942e8780f3b94aaa6e9fd37432c0bb31b47))
+* **javascript:** recover runtime semantic effects ([38c883b](https://github.com/morluto/rea/commit/38c883bbc8a8d059ef21cdd85272e6f31a9ee45c))
+* **process:** support explicit stdin closure ([205bf15](https://github.com/morluto/rea/commit/205bf1529bf0679095f817ef2bc82c9e8166a669))
+* **reconstruction:** add obligation ledgers ([9d48ca7](https://github.com/morluto/rea/commit/9d48ca788cacabb5bc329e9cc0467784359c5d6d))
+* **reconstruction:** evaluate end-to-end readiness ([38ff741](https://github.com/morluto/rea/commit/38ff7418efc3299150f3a8a1eab65e8314ef7aa3))
+* **runtime:** add passive V8 Inspector observation ([8271650](https://github.com/morluto/rea/commit/82716509451fff1d0b1f91d8e9479b9c7d94ec20))
+* **server:** advertise available tools dynamically ([035e114](https://github.com/morluto/rea/commit/035e1144b0295434c6f3c7295d4b576ef72de396))
+
+
+### Bug Fixes
+
+* **analysis:** report call-edge truncation ([6039b92](https://github.com/morluto/rea/commit/6039b92be7af50e9f94095b4c6b375293ae38df4))
+* **browser:** close scenario containment gaps ([1bd65f6](https://github.com/morluto/rea/commit/1bd65f68bc632345b74a62bffe4394c84415a7f2))
+* **browser:** contain scenario pages and preserve inputs ([24b3dc4](https://github.com/morluto/rea/commit/24b3dc41dff1862405d6926aa618a60d06c737b1))
+* **browser:** require storage fingerprint approval ([f0069cb](https://github.com/morluto/rea/commit/f0069cbee4551e7988cfc4865ccf03dda48dc0dd))
+* **ci:** allow slower real browser startup ([095c75d](https://github.com/morluto/rea/commit/095c75df2349b9da5b8a2222eecd8fec67149f0c))
+* **ci:** propagate readiness verifier failures ([9f9f9c3](https://github.com/morluto/rea/commit/9f9f9c39688f9201fbb5dfa2826e576873c2e3d8))
+* **ci:** repair cross-platform package verification ([1c9e508](https://github.com/morluto/rea/commit/1c9e50814e3e3a7797c463e00e06afeb6afd0e20))
+* **comparison:** preserve uncertainty and v1 inputs ([b9217dc](https://github.com/morluto/rea/commit/b9217dcd746a842f92c0ae0012b35fb8ab9fa310))
+* **hopper:** add bounded analysis recovery ([e0bc7fd](https://github.com/morluto/rea/commit/e0bc7fd973b26448fb2192a2059ab1229bec0817))
+* **javascript:** keep digestless bundle matches unknown ([5a76aaf](https://github.com/morluto/rea/commit/5a76aaffde3c728f8984e917ff53aa2a628f5941))
+* **process:** expose launcher identity mismatch ([62ac73c](https://github.com/morluto/rea/commit/62ac73cdd79bee708d50b17a2dde8c23e0b66f1e))
+* **process:** normalize macOS launcher identity ([9c3aec8](https://github.com/morluto/rea/commit/9c3aec81317cd6caf627f13ebb0c6dc0f6735516))
+* **process:** tolerate exit during ownership revalidation ([a0f8b72](https://github.com/morluto/rea/commit/a0f8b72b7a4c90184390d5412690d3df20da047d))
+* **reconstruction:** authenticate obligation proof boundaries ([7b1e3bd](https://github.com/morluto/rea/commit/7b1e3bda00e4f9737a8882983b8750345eb7e1e2))
+* **reconstruction:** bind proof evidence to claims ([83b3368](https://github.com/morluto/rea/commit/83b3368d8debf95df29095ef53a4112ca666bcb2))
+* **runtime:** preserve deterministic context identity ([9bd2ac5](https://github.com/morluto/rea/commit/9bd2ac590c00703826283ef11b35a0ba2149bfa1))
+* **test:** use direct Node launcher on macOS ([13f3372](https://github.com/morluto/rea/commit/13f3372a8beaa165473bd7ecaccaa2997dcbf2ab))
+
+
+### Performance Improvements
+
+* **test:** speed up local and CI validation ([1546a8d](https://github.com/morluto/rea/commit/1546a8db029a56ed705e5246a6bf7020227234ce))
+* **test:** speed up local and CI validation ([42fbbb2](https://github.com/morluto/rea/commit/42fbbb297b8f40bcfbbfa219a1de098f3d0780ad))
+
+
+### Code Refactoring
+
+* **application:** reuse graph evidence resolution ([4e8aa98](https://github.com/morluto/rea/commit/4e8aa98267bb837033bf0ced58afc52d24f42492))
+* **browser:** centralize scenario metadata budgeting ([e79e367](https://github.com/morluto/rea/commit/e79e36785b51cf8c27a27516280a8f83a9ebd2cc))
+* **browser:** clarify inspector capture identifiers ([ca035a7](https://github.com/morluto/rea/commit/ca035a75eb6b7d1a79a928cdde572b9cb1df0d54))
+* **browser:** reuse CDP endpoint parsing ([00abf45](https://github.com/morluto/rea/commit/00abf45d2085464fd6090a44f786a53669111177))
+* **javascript:** centralize source range comparison ([c9500d3](https://github.com/morluto/rea/commit/c9500d32f69e8076255d4206203a41e39bab8dcb))
+* **javascript:** share semantic call-site lookup ([94a2c60](https://github.com/morluto/rea/commit/94a2c6013da122899f3d9aefbe5a0bf608033076))
+* **reconstruction:** isolate ledger coverage ([4f62695](https://github.com/morluto/rea/commit/4f62695a5cfc9e627387b0a04c1cebe253debbc8))
+* **server:** reuse availability policy type ([eeb4349](https://github.com/morluto/rea/commit/eeb4349f1f130b2bde9b0f89382d36a66553cbf1))
+
+
+### Documentation
+
+* document roadmap analysis workflows ([f29f683](https://github.com/morluto/rea/commit/f29f6834230fd0d3850c558c28af8a43746533c5))
+* refresh generated roadmap metadata ([f904668](https://github.com/morluto/rea/commit/f904668fbcba9a7866c6cde21e9628cfa2afe7aa))
+
+
+### Tests
+
+* **browser:** use neutral scenario fixture identifiers ([fd25a7e](https://github.com/morluto/rea/commit/fd25a7e15aa2eba0bef01269e5061254b607bfdd))
+* **package:** stabilize fake Hopper ownership ([0b70131](https://github.com/morluto/rea/commit/0b7013134c58085b72177f2954e55534be053ebe))
+
+
+### Continuous Integration
+
+* verify runtime observation and readiness ([9349ff5](https://github.com/morluto/rea/commit/9349ff5921fbd1bc7ac8b8d1d27bef0f36b76d92))
+
 ## [2.4.0](https://github.com/morluto/rea/compare/rea-agents-2.3.0...rea-agents-2.4.0) (2026-07-23)
 
 

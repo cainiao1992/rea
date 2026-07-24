@@ -71,7 +71,7 @@ export const captureStorage = async (
       : [{ name: name.slice(0, 1_024), id } satisfies CapturedCache];
   });
   const maximum = context.input.limits.max_storage_keys;
-  const fingerprints = context.input.include_storage_keys
+  const fingerprints = context.input.include_storage_fingerprints
     ? await captureStorageFingerprints({
         context,
         origin,

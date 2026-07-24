@@ -222,11 +222,18 @@ export const inspectWebPageInputSchema = z
     websocket_shape_approved: z.boolean().default(false),
     include_script_sources: z.boolean().default(false),
     include_storage_keys: z.boolean().default(false),
+    include_storage_fingerprints: z.boolean().default(false),
     limits: browserInspectionLimitsSchema.default(
       DEFAULT_BROWSER_INSPECTION_LIMITS,
     ),
   })
   .superRefine((input, context) => {
+    if (input.include_storage_fingerprints && !input.include_storage_keys)
+      context.addIssue({
+        code: "custom",
+        path: ["include_storage_fingerprints"],
+        message: "Storage fingerprints require storage key capture",
+      });
     if (
       input.limits.max_script_source_bytes >
       input.limits.max_total_script_source_bytes

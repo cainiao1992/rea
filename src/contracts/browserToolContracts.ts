@@ -164,6 +164,7 @@ export const BROWSER_TOOL_CONTRACTS = [
           websocket_shape_approved: false,
           include_script_sources: false,
           include_storage_keys: false,
+          include_storage_fingerprints: false,
           limits: {
             max_frames: 200,
             max_dom_nodes: 2_000,

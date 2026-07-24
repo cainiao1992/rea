@@ -91,6 +91,7 @@ try {
       target_id: target,
       observation_ms: 1_000,
       include_storage_keys: true,
+      include_storage_fingerprints: true,
     }),
   );
   if (!observed.ok) throw observed.error;

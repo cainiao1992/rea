@@ -74,6 +74,10 @@ export const browserPageInspectionOptions = z.object({
     .boolean()
     .default(false)
     .describe("Include storage key names without values"),
+  includeStorageFingerprints: z
+    .boolean()
+    .default(false)
+    .describe("Include content-derived storage fingerprints"),
   maxFrames: boundedCount("page frames", 1_000, 200),
   maxDomNodes: boundedCount("DOM nodes", 10_000, 2_000),
   maxAxNodes: boundedCount("accessibility nodes", 10_000, 2_000),

@@ -164,6 +164,7 @@ const browserParameters = (
     include_websocket_shapes: input.include_websocket_shapes,
     include_script_sources: input.include_script_sources,
     include_storage_keys: input.include_storage_keys,
+    include_storage_fingerprints: input.include_storage_fingerprints,
     limits: input.limits,
     ...(input.include_script_sources && "source_capture_approved" in input
       ? {

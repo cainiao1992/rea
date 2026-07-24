@@ -257,6 +257,7 @@ describe("CdpBrowserProvider", () => {
         approved: true,
         observation_ms: 0,
         include_storage_keys: true,
+        include_storage_fingerprints: true,
       }),
     );
 
@@ -1262,6 +1263,7 @@ describe("CdpBrowserProvider", () => {
     expect(result.value.storage.session_storage_keys).toHaveLength(1);
     expect(result.value.storage.indexed_db_names).toHaveLength(1);
     expect(result.value.storage.cache_names).toHaveLength(1);
+    expect(result.value.storage.content_fingerprints).toEqual([]);
   });
 
   it("degrades optional domains but propagates protocol and payload failures", async () => {

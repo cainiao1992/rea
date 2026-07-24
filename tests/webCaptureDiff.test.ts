@@ -138,6 +138,7 @@ describe("web capture diff", () => {
         observation_ms: 0,
         include_accessibility_text: true,
         include_storage_keys: true,
+        include_storage_fingerprints: true,
       }),
     );
     if (!captured.ok) throw captured.error;
@@ -211,6 +212,7 @@ describe("web capture diff", () => {
         observation_ms: 0,
         include_accessibility_text: true,
         include_storage_keys: true,
+        include_storage_fingerprints: true,
       }),
     );
     if (!captured.ok) throw captured.error;

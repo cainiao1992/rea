@@ -92,11 +92,11 @@ rea inspect-web-page http://127.0.0.1:9222 TARGET_ID \
   --include-json-body-shapes --json-body-schema-approved \
   --include-websocket-shapes --websocket-shape-approved \
   --include-script-sources \
-  --include-storage-keys \
+  --include-storage-keys --include-storage-fingerprints \
   --json
 ```
 
-Accessibility text and script content may contain application secrets and become part of the returned Evidence. Accessibility and console text have independent per-field and aggregate UTF-8 byte limits; credential-shaped console substrings are redacted. JSON and WebSocket captures retain paths, types, counts, and truncation only, never values or examples. Storage values remain redacted even when key-name capture is approved; SHA-256 identity/value fingerprints support comparison only when cookies, DOM storage, IndexedDB, and Cache Storage were all captured completely.
+Accessibility text and script content may contain application secrets and become part of the returned Evidence. Accessibility and console text have independent per-field and aggregate UTF-8 byte limits; credential-shaped console substrings are redacted. JSON and WebSocket captures retain paths, types, counts, and truncation only, never values or examples. Storage values remain redacted even when key-name capture is approved. `--include-storage-fingerprints` separately approves SHA-256 identity/value fingerprints, which support comparison only when cookies, DOM storage, IndexedDB, and Cache Storage were all captured completely.
 
 Screenshot pixels require both `--approved` and `--screenshot-approved`:
 
@@ -122,7 +122,8 @@ rea capture-web-screenshot http://127.0.0.1:9222 TARGET_ID \
   "include_websocket_shapes": false,
   "websocket_shape_approved": false,
   "include_script_sources": false,
-  "include_storage_keys": false
+  "include_storage_keys": false,
+  "include_storage_fingerprints": false
 }
 ```
 
@@ -141,7 +142,7 @@ REA removes sensitive values before normalized event data is retained:
 - Request/response bodies are not requested or parsed by default. With independent approval, only allowed-origin JSON media types are read within per-body and aggregate budgets, converted immediately to value-free property paths/types, and discarded. `Network.getResponseBody` is never sent without that approval.
 - Console observations with an approved stack source retain call type, argument types, timestamp, and redacted source location. With independent approval, only already-delivered primitive values are retained after credential redaction and byte bounds; objects, getters, and remote properties are never expanded.
 - WebSocket observations retain direction, opcode, and payload byte length. With independent approval, bounded text frames are classified as text or value-free JSON shape; binary bytes, hashes, prefixes, and raw frames are never retained.
-- Storage observations always redact values. Key names, IndexedDB names, cache names, and stable content fingerprints are omitted unless explicitly requested. Cache bodies above 64 KiB and partial IndexedDB remote objects make fingerprint coverage incomplete, so identical observations remain `unknown`.
+- Storage observations always redact values. Key names, IndexedDB names, and cache names require `include_storage_keys`; stable content fingerprints require the additional `include_storage_fingerprints` approval. Cache bodies above 64 KiB and partial IndexedDB remote objects make fingerprint coverage incomplete, so identical observations remain `unknown`.
 - Script metadata is included only when CDP supplies a URL on an allowed origin. Stable keys exclude transient CDP script IDs, and exact transient raw URLs are used only during script/resource reconciliation. URL-less scripts are excluded because their origin cannot be established. When CDP supplies an execution-context association, the accepted script retains its authorized frame ID for later attribution. Source content is omitted unless explicitly requested and becomes a self-verifying `rea://web-content/sha256/...` artifact subject to per-script and aggregate byte limits.
 
 Cross-origin frames, resources, scripts, events, and workers are excluded unless their exact origins are also approved. Excluded target details are counted without being exposed.

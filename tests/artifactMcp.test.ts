@@ -196,6 +196,26 @@ describe("artifact graph MCP integration", () => {
           }),
         ]),
       );
+      const inspected = await client.callTool({
+        name: "inspect_artifact",
+        arguments: {
+          integrity_policy: "record-and-continue",
+          integrity_continue_approved: true,
+        },
+      });
+      expect(inspected.isError).not.toBe(true);
+      expect(compactResult(inspected.structuredContent).result).toMatchObject({
+        contradictions: [
+          expect.objectContaining({ occurrence_id: expect.any(String) }),
+          expect.objectContaining({ occurrence_id: expect.any(String) }),
+        ],
+        substeps: [
+          expect.objectContaining({
+            operation: "inventory_artifact",
+            status: "completed",
+          }),
+        ],
+      });
       const compared = await client.callTool({
         name: "compare_artifacts",
         arguments: {
@@ -326,6 +346,44 @@ describe("artifact graph MCP integration", () => {
         arguments: { path: archive },
       });
       expect(opened.isError).not.toBe(true);
+      const inspected = await client.callTool({
+        name: "inspect_artifact",
+        arguments: { max_observations: 1, max_relationships: 1 },
+      });
+      expect(inspected.isError).not.toBe(true);
+      const inspectionResult = compactResult(inspected.structuredContent);
+      const inspectionEvidence = session.evidenceById(
+        inspectionResult.evidence_id,
+      );
+      if (inspectionEvidence === undefined)
+        throw new Error("missing inspection Evidence");
+      const inspection = z
+        .object({
+          substeps: z.array(
+            z.object({
+              evidence_id: z.string(),
+              status: z.literal("completed"),
+            }),
+          ),
+          coverage: z.object({
+            status: z.literal("truncated"),
+            substeps_completed: z.literal(1),
+          }),
+          unexplored_branches: z.array(z.object({ reason: z.string() })),
+        })
+        .parse(inspectionResult.result);
+      expect(inspection.substeps).toHaveLength(1);
+      expect(
+        session.evidenceById(inspection.substeps[0]?.evidence_id ?? ""),
+      ).toMatchObject({ operation: "inventory_artifact" });
+      expect(inspectionEvidence.evidence_links).toEqual([
+        inspection.substeps[0]?.evidence_id,
+      ]);
+      expect(inspection.unexplored_branches).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ reason: "page-limit" }),
+        ]),
+      );
       const inventory = await client.callTool({
         name: "inventory_artifact",
         arguments: {},
@@ -381,7 +439,7 @@ describe("artifact graph MCP integration", () => {
       const envelope = z
         .object({ result: evidenceBundleSchema })
         .parse(exported.structuredContent);
-      expect(envelope.result.records).toHaveLength(4);
+      expect(envelope.result.records).toHaveLength(6);
       expect(envelope.result.artifacts).toContainEqual({
         digest: { sha256: evidence.subject?.digest.sha256 },
         format: "ipa",

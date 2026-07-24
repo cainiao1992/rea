@@ -10,6 +10,12 @@ export const registerArtifactCommands = (
   cli: CliInstance,
   logger: Logger,
 ): void => {
+  registerInventoryCommand(cli, logger);
+  registerInspectionCommand(cli, logger);
+  registerExtractionCommand(cli, logger);
+};
+
+const registerInventoryCommand = (cli: CliInstance, logger: Logger): void => {
   cli.command(CLI_COMMANDS.inventoryArtifact, {
     description: "Build a bounded deterministic artifact graph",
     args: z.object({
@@ -76,6 +82,9 @@ export const registerArtifactCommands = (
         ),
       ),
   });
+};
+
+const registerExtractionCommand = (cli: CliInstance, logger: Logger): void => {
   cli.command(CLI_COMMANDS.extractArtifact, {
     description: "Extract explicitly selected artifact occurrences safely",
     args: z.object({
@@ -97,6 +106,48 @@ export const registerArtifactCommands = (
             approved: true,
             output_root: args.outputRoot,
             occurrence_ids: args.occurrenceIds,
+          },
+          logger,
+        ),
+      ),
+  });
+};
+
+const registerInspectionCommand = (cli: CliInstance, logger: Logger): void => {
+  cli.command(CLI_COMMANDS.inspectArtifact, {
+    description:
+      "Inspect one artifact with bounded observations and explicit next probes",
+    args: z.object({
+      path: z.string().describe("Application or package path"),
+    }),
+    options: z.object({
+      maxObservations: z
+        .number()
+        .int()
+        .min(1)
+        .max(500)
+        .default(100)
+        .describe("Maximum retained observations"),
+      maxRelationships: z
+        .number()
+        .int()
+        .min(1)
+        .max(500)
+        .default(100)
+        .describe("Maximum retained derived relationships"),
+    }),
+    alias: {
+      maxObservations: "max-observations",
+      maxRelationships: "max-relationships",
+    },
+    run: ({ args, options }) =>
+      logCliCommand(logger, "inspect-artifact", () =>
+        runProviderAnalysis(
+          args.path,
+          "inspect_artifact",
+          {
+            max_observations: options.maxObservations,
+            max_relationships: options.maxRelationships,
           },
           logger,
         ),

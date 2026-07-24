@@ -11,6 +11,7 @@ import { inventoryArtifact } from "../application/ArtifactInventory.js";
 import { extractArtifact } from "../application/ArtifactExtraction.js";
 import {
   ARTIFACT_TOOL_CONTRACTS,
+  artifactInspectionInputSchema,
   artifactInventoryInputSchema,
   artifactExtractionInputSchema,
   type ArtifactToolName,
@@ -28,6 +29,8 @@ import {
   type ArtifactLimits,
 } from "./ArtifactReader.js";
 import { ARTIFACT_GRAPH_PROVIDER } from "../application/InvestigationProviders.js";
+import { createEvidence } from "../domain/evidence.js";
+import { createArtifactInspection } from "../domain/artifactInspection.js";
 
 const IDENTITY: ProviderIdentity = Object.freeze(ARTIFACT_GRAPH_PROVIDER);
 
@@ -47,7 +50,10 @@ export class ArtifactProvider implements AnalysisProvider {
         outputContractVersion: 1,
         available: true as const,
         reason: null,
-        pagination: "offset" as const,
+        pagination:
+          contract.name === "inspect_artifact"
+            ? ("none" as const)
+            : ("offset" as const),
         exhaustive: false,
         effects: Object.freeze({
           mutatesArtifact: false,
@@ -111,6 +117,10 @@ class ArtifactClient implements AnalysisClient {
         ),
       );
     try {
+      if (operation === "inspect_artifact") {
+        const inspected = await this.inspectArtifact(parameters, options);
+        return inspected;
+      }
       if (operation === "extract_artifact") {
         const parsed = artifactExtractionInputSchema.parse(parameters);
         const result = await extractArtifact(
@@ -143,31 +153,7 @@ class ArtifactClient implements AnalysisClient {
         );
       }
       const parsed = artifactInventoryInputSchema.parse(parameters);
-      const result = await inventoryArtifact(
-        this.target.sourcePath ?? this.target.path,
-        limitsFrom(parsed),
-        {
-          nodeOffset: parsed.node_offset,
-          nodeLimit: parsed.node_limit,
-          occurrenceOffset: parsed.occurrence_offset,
-          occurrenceLimit: parsed.occurrence_limit,
-          edgeOffset: parsed.edge_offset,
-          edgeLimit: parsed.edge_limit,
-        },
-        {
-          ...(options?.signal === undefined ? {} : { signal: options.signal }),
-          nativeMount: {
-            nativeMountApproved: parsed.native_mount_approved === true,
-            nativeMountEnabled: this.nativeMountEnabled,
-          },
-          integrity: {
-            mode: parsed.integrity_policy,
-            approved: parsed.integrity_continue_approved === true,
-            enabled: this.integrityContinueEnabled,
-            maxMismatches: parsed.max_integrity_mismatches,
-          },
-        },
-      );
+      const result = await this.inventory(parsed, options);
       return ok(
         createAnalysisExecution(result, IDENTITY, {
           rawResult: null,
@@ -189,6 +175,119 @@ class ArtifactClient implements AnalysisClient {
 
   close(): Promise<void> {
     return Promise.resolve();
+  }
+
+  private async inspectArtifact(
+    parameters: Readonly<Record<string, JsonValue>>,
+    options?: ExecutionOptions,
+  ) {
+    const parsed = artifactInspectionInputSchema.parse(parameters);
+    const inventoryParameters = artifactInventoryInputSchema.parse({
+      node_offset: 0,
+      node_limit: parsed.max_observations,
+      occurrence_offset: 0,
+      occurrence_limit: parsed.max_observations,
+      edge_offset: 0,
+      edge_limit: parsed.max_relationships,
+      native_mount_approved: parsed.native_mount_approved,
+      integrity_policy: parsed.integrity_policy,
+      integrity_continue_approved: parsed.integrity_continue_approved,
+      max_integrity_mismatches: parsed.max_integrity_mismatches,
+      max_entries: parsed.max_entries,
+      max_total_bytes: parsed.max_total_bytes,
+      max_entry_bytes: parsed.max_entry_bytes,
+      max_compression_ratio: parsed.max_compression_ratio,
+      max_depth: parsed.max_depth,
+      max_path_bytes: parsed.max_path_bytes,
+    });
+    await options?.progress?.report({
+      phase: "inspect_artifact.inventory",
+      completed: 0,
+      total: 1,
+      message: "inventory substep started",
+    });
+    const inventory = await this.inventory(inventoryParameters, options);
+    const subject = subjectFor(
+      this.target.sourcePath ?? this.target.path,
+      inventory.manifest,
+    );
+    const locations = inventory.occurrences.items.map(
+      ({ logical_path: path }) => ({
+        kind: "artifact-path" as const,
+        path,
+      }),
+    );
+    const inventoryEvidence = createEvidence(subject, IDENTITY, {
+      operation: "inventory_artifact",
+      parameters: inventoryParameters,
+      result: inventory,
+      rawResult: null,
+      limitations: inventory.limitations,
+      locations,
+    });
+    const result = createArtifactInspection(inventoryEvidence, parsed);
+    await options?.progress?.report({
+      phase: "inspect_artifact.inventory",
+      completed: 1,
+      total: 1,
+      message: "inventory substep completed",
+    });
+    return ok(
+      createAnalysisExecution(result, IDENTITY, {
+        rawResult: null,
+        limitations: result.limitations,
+        subject,
+        locations,
+      }),
+    );
+  }
+
+  private inventory(
+    parsed: {
+      readonly node_offset: number;
+      readonly node_limit: number;
+      readonly occurrence_offset: number;
+      readonly occurrence_limit: number;
+      readonly edge_offset: number;
+      readonly edge_limit: number;
+      readonly native_mount_approved: boolean;
+      readonly integrity_policy: "fail" | "record-and-continue";
+      readonly integrity_continue_approved: boolean;
+      readonly max_integrity_mismatches: number;
+      readonly max_entries: number;
+      readonly max_total_bytes: number;
+      readonly max_entry_bytes: number;
+      readonly max_compression_ratio: number;
+      readonly max_depth: number;
+      readonly max_path_bytes: number;
+    },
+    options?: ExecutionOptions,
+  ) {
+    return inventoryArtifact(
+      this.target.sourcePath ?? this.target.path,
+      limitsFrom(parsed),
+      {
+        nodeOffset: parsed.node_offset,
+        nodeLimit: parsed.node_limit,
+        occurrenceOffset: parsed.occurrence_offset,
+        occurrenceLimit: parsed.occurrence_limit,
+        edgeOffset: parsed.edge_offset,
+        edgeLimit: parsed.edge_limit,
+      },
+      {
+        ...(options?.signal === undefined ? {} : { signal: options.signal }),
+        nativeMount: {
+          nativeMountApproved: parsed.native_mount_approved === true,
+          nativeMountEnabled: this.nativeMountEnabled,
+        },
+        integrity: {
+          mode: parsed.integrity_policy,
+          approved: parsed.integrity_continue_approved === true,
+          enabled: this.integrityContinueEnabled,
+          maxMismatches: parsed.max_integrity_mismatches,
+        },
+      },
+    );
   }
 }
 

@@ -23,6 +23,7 @@ import {
 } from "../src/artifacts/ArtifactPaths.js";
 import {
   artifactExtractionInputSchema,
+  artifactInspectionInputSchema,
   artifactInventoryInputSchema,
 } from "../src/contracts/artifactToolContracts.js";
 import type { BinaryTarget } from "../src/domain/binaryTarget.js";
@@ -34,6 +35,7 @@ import {
   artifactExtractionResultSchema,
   artifactInventoryResultSchema,
 } from "../src/domain/artifactGraph.js";
+import { artifactInspectionResultSchema } from "../src/domain/artifactInspection.js";
 
 describe("artifact graph provider", () => {
   it("inventories app trees deterministically without following symlinks", async () => {
@@ -124,12 +126,43 @@ describe("artifact graph provider", () => {
       provider: { id: "rea-artifact-graph" },
       subject: { format: "apk" },
     });
+    const inspectionEvidence = parseEvidence(
+      await runProviderAnalysis(zipPath, "inspect_artifact", {
+        max_observations: 2,
+        max_relationships: 1,
+      }),
+    );
+    const inspection = artifactInspectionResultSchema.parse(
+      inspectionEvidence.normalized_result,
+    );
+    expect(inspection).toMatchObject({
+      substeps: [
+        {
+          operation: "inventory_artifact",
+          status: "completed",
+          evidence_id: expect.stringMatching(/^ev_[a-f0-9]{64}$/u),
+        },
+      ],
+      coverage: { status: "truncated", substeps_completed: 1 },
+    });
+    expect(inspectionEvidence.evidence_links).toEqual(
+      inspection.evidence_links,
+    );
     const cancellation = new AbortController();
     cancellation.abort();
     await expect(
       runProviderAnalysis(
         zipPath,
         "inventory_artifact",
+        {},
+        undefined,
+        cancellation.signal,
+      ),
+    ).resolves.toMatchObject({ code: "cancelled" });
+    await expect(
+      runProviderAnalysis(
+        zipPath,
+        "inspect_artifact",
         {},
         undefined,
         cancellation.signal,
@@ -176,6 +209,13 @@ describe("artifact graph provider", () => {
           unpacked: true,
         },
       },
+    });
+    const failedInspection = await new ArtifactProvider()
+      .createClient(target(unpackedPath, "asar"))
+      .execute("inspect_artifact", artifactInspectionInputSchema.parse({}));
+    expect(failedInspection).toMatchObject({
+      ok: false,
+      error: { _tag: "ArtifactOperationError", reason: "integrity" },
     });
   });
 

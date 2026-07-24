@@ -7,6 +7,7 @@ import type { BinaryTarget } from "../domain/binaryTarget.js";
 import type { Logger } from "../logger.js";
 import { registerEvidenceTools } from "./registerEvidenceTools.js";
 import type { PermissionAuthority } from "../application/PermissionAuthority.js";
+import { artifactInspectionResultSchema } from "../domain/artifactInspection.js";
 
 /** Register deterministic artifact inventory and safe extraction operations. */
 export const registerArtifactTools = (
@@ -19,5 +20,13 @@ export const registerArtifactTools = (
     readonly permissionAuthority?: PermissionAuthority;
   },
 ): void => {
-  registerEvidenceTools(server, analysis, ARTIFACT_TOOL_CONTRACTS, options);
+  registerEvidenceTools(server, analysis, ARTIFACT_TOOL_CONTRACTS, {
+    ...options,
+    sourceEvidence: (operation, result) =>
+      operation === "inspect_artifact"
+        ? artifactInspectionResultSchema
+            .parse(result)
+            .substeps.map(({ evidence }) => evidence)
+        : [],
+  });
 };

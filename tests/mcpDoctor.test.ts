@@ -32,14 +32,20 @@ describe("production MCP doctor", () => {
       adapter: "production-stdio",
       inventory: {
         tools: {
-          expected: CATALOG_IDENTITY.counts.mcp_tools,
-          observed: CATALOG_IDENTITY.counts.mcp_tools,
+          expected: expect.any(Number),
+          observed: expect.any(Number),
           missing: [],
           unexpected: [],
         },
       },
       request_flow: { tool: "binary_session", ok: true },
     });
+    expect(result.inventory?.tools.expected).toBe(
+      result.inventory?.tools.observed,
+    );
+    expect(result.inventory?.tools.expected).toBeLessThan(
+      CATALOG_IDENTITY.counts.mcp_tools,
+    );
   }, 30_000);
 
   it("reports exact missing, unexpected, and duplicate inventory names", () => {

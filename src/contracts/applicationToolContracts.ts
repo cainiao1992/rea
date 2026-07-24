@@ -1,10 +1,13 @@
 import { applicationVersionComparisonResultSchema } from "../domain/javascriptApplicationVersionComparisonSchemas.js";
+import { z } from "zod";
 import { applicationFeatureTraceResultSchema } from "../domain/javascriptFeatureTraceSchemas.js";
 import { javaScriptSemanticTraceResultSchema } from "../domain/javascriptSemanticTraceSchemas.js";
 import { javaScriptExportShapeComparisonResultSchema } from "../domain/javascriptExportShapeComparisonSchemas.js";
+import { sourceToBundleComparisonResultSchema } from "../domain/sourceToBundleComparisonSchemas.js";
 import {
   compareApplicationVersionsRequestSchema,
   compareJavaScriptExportShapesRequestSchema,
+  compareSourceToBundleRequestSchema,
   traceApplicationFeatureRequestSchema,
   traceJavaScriptSemanticsRequestSchema,
 } from "./applicationWorkflowInputContracts.js";
@@ -24,6 +27,14 @@ import {
   reconstructionCoverageQueryInputSchema,
 } from "../application/ReconstructionCoverageService.js";
 import { reconstructionClosureResultSchema } from "../domain/reconstructionCoverage.js";
+import {
+  reconstructionObligationLedgerInputSchema,
+  reconstructionObligationLedgerPageSchema,
+} from "../domain/reconstructionObligationLedgerSchemas.js";
+import {
+  reconstructionReadinessInputSchema,
+  reconstructionReadinessReportSchema,
+} from "../domain/reconstructionReadinessSchemas.js";
 import { jsonObjectSchema } from "../domain/jsonValue.js";
 import type { ToolContract } from "./toolContracts.js";
 import { toolContractMetadata } from "./toolEffects.js";
@@ -32,7 +43,9 @@ import {
   JAVASCRIPT_APPLICATION_VERSION_COMPARISON_EXAMPLE,
   JAVASCRIPT_EXPORT_SHAPE_COMPARISON_EXAMPLE,
   JAVASCRIPT_FEATURE_TRACE_EXAMPLE,
+  SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE,
 } from "./javascriptApplicationWorkflowExamples.js";
+import { RECONSTRUCTION_READINESS_EXAMPLE } from "./reconstructionReadinessExample.js";
 
 const traceOutputSchema = evidenceResultOf(applicationFeatureTraceResultSchema);
 const semanticTraceOutputSchema = evidenceResultOf(
@@ -41,8 +54,34 @@ const semanticTraceOutputSchema = evidenceResultOf(
 const comparisonOutputSchema = evidenceResultOf(
   applicationVersionComparisonResultSchema,
 );
+const sourceToBundleOutputSchema = evidenceResultOf(
+  sourceToBundleComparisonResultSchema,
+);
 const exportShapeComparisonOutputSchema = evidenceResultOf(
   javaScriptExportShapeComparisonResultSchema,
+);
+const reconstructionObligationLedgerOutputSchema = evidenceResultOf(
+  reconstructionObligationLedgerPageSchema,
+);
+const reconstructionReadinessOutputSchema = evidenceResultOf(
+  reconstructionReadinessReportSchema
+    .pick({
+      schema: true,
+      schema_version: true,
+      report_id: true,
+      source_digest: true,
+      report_digest: true,
+      status: true,
+      summary: true,
+      metrics: true,
+    })
+    .extend({
+      report_resource_uri: z
+        .string()
+        .regex(
+          /^rea:\/\/evidence\/ev_[a-f0-9]{64}\/reconstruction-readiness-report$/u,
+        ),
+    }),
 );
 const HASH = "0".repeat(64);
 const NODE_PREPARATION_EXAMPLE = jsonObjectSchema.parse({
@@ -163,6 +202,22 @@ export const APPLICATION_TOOL_CONTRACTS = [
     ],
   },
   {
+    name: "compare_source_to_bundle",
+    ...toolContractMetadata("compare_source_to_bundle"),
+    description:
+      "Compare a cryptographically committed HistoricalSourceGraph/v1 with authenticated JavaScript Application Graph Evidence supplied directly or by session Evidence ID. Uses explicit exact-digest, source-map path, current-path, suffix, and basename signals with stable weights. Classifies unchanged, modified, removed, split, merged, duplicated, and unknown; incomplete coverage and ambiguous weak signals never become absence or forced matches.",
+    kind: "application",
+    inputSchema: compareSourceToBundleRequestSchema,
+    outputSchema: sourceToBundleOutputSchema,
+    examples: [
+      {
+        title:
+          "Compare committed historical source with a shipped bundle graph",
+        input: SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE,
+      },
+    ],
+  },
+  {
     name: "compare_javascript_export_shapes",
     ...toolContractMetadata("compare_javascript_export_shapes"),
     description:
@@ -261,6 +316,55 @@ export const APPLICATION_TOOL_CONTRACTS = [
           approved_plan_sha256: HASH,
           preparation: NODE_PREPARATION_EXAMPLE,
         },
+      },
+    ],
+  },
+  {
+    name: "build_reconstruction_obligation_ledger",
+    ...toolContractMetadata("build_reconstruction_obligation_ledger"),
+    description:
+      "Generate one deterministic page of a ReconstructionObligationLedger/v1 from an authenticated Evidence v2 bundle, reviewed obligations, and an explicit reconstruction manifest. Static candidates remain candidates; duplicate ownership, missing original or reconstruction cases, missing parser/type, weak verifier authority, unenumerated claims, contradictions, dependencies, and residual unknowns fail closed. Every page carries the same full-ledger closure digest and typed per-obligation diagnostics.",
+    kind: "application",
+    inputSchema: reconstructionObligationLedgerInputSchema,
+    outputSchema: reconstructionObligationLedgerOutputSchema,
+    examples: [
+      {
+        title: "Generate the first obligation-ledger page",
+        input: {
+          evidence_bundle: {
+            bundle_version: 2,
+            artifacts: [],
+            providers: [],
+            environments: [],
+            scenarios: [],
+            captures: [],
+            unknowns: [],
+            records: [],
+          },
+          reviewed_obligations: [],
+          manifest: {
+            schema_version: 1,
+            bindings: [],
+            contradictions: [],
+          },
+          limits: { max_obligations: 1_000 },
+          page: { offset: 0, limit: 50 },
+        },
+      },
+    ],
+  },
+  {
+    name: "evaluate_reconstruction_readiness",
+    ...toolContractMetadata("evaluate_reconstruction_readiness"),
+    description:
+      "Evaluate the fixed nine-stage public reconstruction journey into a deterministic ReconstructionReadinessReport/v1. Exact capability limits, provider routing, CLI/MCP status parity, bounded authority, partial-order comparison, contradictions, obligation closure, cleanup, and replay digests fail closed. Aggregate pass is emitted only when every required stage and check passes with attributable Evidence.",
+    kind: "application",
+    inputSchema: reconstructionReadinessInputSchema,
+    outputSchema: reconstructionReadinessOutputSchema,
+    examples: [
+      {
+        title: "Evaluate the complete synthetic reconstruction journey",
+        input: RECONSTRUCTION_READINESS_EXAMPLE,
       },
     ],
   },

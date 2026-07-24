@@ -351,12 +351,11 @@ export const registerSessionTools = (
     contracts: [openContract, closeContract, statusContract],
     snapshotFilePolicy: analysisSnapshotFilePolicy,
     startedAt: options.startedAt ?? new Date().toISOString(),
-    availabilityPolicy: sessionAvailabilityPolicy(
-      options.availabilityPolicy,
+    availabilityPolicy: sessionAvailabilityPolicy(options.availabilityPolicy, {
       processPolicy,
       evidenceFilePolicy,
-      options.investigationInputRoots ?? [],
-    ),
+      investigationInputRoots: options.investigationInputRoots ?? [],
+    }),
     ...(options.permissionAuthority === undefined
       ? {}
       : { permissionAuthority: options.permissionAuthority }),

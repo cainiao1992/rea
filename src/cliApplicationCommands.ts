@@ -3,12 +3,14 @@ import { Cli, z } from "incur";
 import {
   compareApplicationVersionsEvidenceValidated,
   compareJavaScriptExportShapesEvidenceValidated,
+  compareSourceToBundleEvidenceValidated,
   traceApplicationFeatureEvidenceValidated,
 } from "./application/JavaScriptApplicationWorkflowService.js";
 import { traceJavaScriptSemanticsEvidenceValidated } from "./application/JavaScriptSemanticTraceService.js";
 import {
   resolveCompareApplicationVersionsRequest,
   resolveCompareJavaScriptExportShapesRequest,
+  resolveCompareSourceToBundleRequest,
   resolveTraceApplicationFeatureRequest,
   resolveTraceJavaScriptSemanticsRequest,
 } from "./application/ApplicationWorkflowEvidenceResolver.js";
@@ -25,6 +27,14 @@ import {
   reconstructionCoverageCommitInputSchema,
   reconstructionCoverageQueryInputSchema,
 } from "./application/ReconstructionCoverageService.js";
+import {
+  buildReconstructionObligationLedgerEvidenceValidated,
+  resolveReconstructionObligationLedgerRequest,
+} from "./application/ReconstructionObligationLedgerService.js";
+import {
+  evaluateReconstructionReadinessValidated,
+  resolveReconstructionReadinessRequest,
+} from "./application/ReconstructionReadinessService.js";
 import {
   authorizeFileReadWithDeferredWrite,
   authorizeRootPermission,
@@ -83,6 +93,15 @@ export const registerApplicationCommands = (
   registerJsonCommand({
     cli,
     logger,
+    name: CLI_COMMANDS.compareSourceToBundle,
+    description:
+      "Compare committed historical source with authenticated application Evidence",
+    resolveInput: resolveCompareSourceToBundleRequest,
+    workflow: compareSourceToBundleEvidenceValidated,
+  });
+  registerJsonCommand({
+    cli,
+    logger,
     name: CLI_COMMANDS.compareJavaScriptExportShapes,
     description:
       "Compare exact static JavaScript export return shapes without execution",
@@ -136,8 +155,35 @@ export const registerApplicationCommands = (
     workflow: (config, authority, input) =>
       executeNodeCharacterization(replayDependencies(config, authority), input),
   });
+  registerObligationLedgerCommand(cli, logger);
+  registerReadinessCommand(cli, logger);
   registerCoverageCommands(cli, logger);
 };
+
+const registerObligationLedgerCommand = (
+  cli: CliInstance,
+  logger: Logger,
+): void =>
+  registerJsonCommand({
+    cli,
+    logger,
+    name: CLI_COMMANDS.buildReconstructionObligationLedger,
+    description:
+      "Generate a deterministic Evidence-backed reconstruction obligation ledger page",
+    resolveInput: resolveReconstructionObligationLedgerRequest,
+    workflow: buildReconstructionObligationLedgerEvidenceValidated,
+  });
+
+const registerReadinessCommand = (cli: CliInstance, logger: Logger): void =>
+  registerJsonCommand({
+    cli,
+    logger,
+    name: CLI_COMMANDS.evaluateReconstructionReadiness,
+    description:
+      "Evaluate a complete Evidence-backed reconstruction readiness journey",
+    resolveInput: resolveReconstructionReadinessRequest,
+    workflow: evaluateReconstructionReadinessValidated,
+  });
 
 interface AuthorizedJsonCommandOptions {
   readonly cli: CliInstance;

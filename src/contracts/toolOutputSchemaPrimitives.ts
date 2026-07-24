@@ -207,12 +207,31 @@ const providerTargetSupport = z.discriminatedUnion("status", [
   }),
 ]);
 
+const clientFeatureNameSchema = z.enum([
+  "elicitation_form",
+  "elicitation_url",
+  "roots",
+  "sampling",
+]);
+
+/** Negotiated MCP client features that affect REA workflow availability. */
+export const clientFeatureAvailabilitySchema = z.object({
+  elicitation_form: z.boolean(),
+  elicitation_url: z.boolean(),
+  roots: z.boolean(),
+  sampling: z.boolean(),
+});
+export type ClientFeatureAvailability = z.infer<
+  typeof clientFeatureAvailabilitySchema
+>;
+
 export const toolAvailability = z.object({
   name: z.string(),
   surface: z.string(),
   available: z.boolean(),
   reason: z.enum([
     "available",
+    "client_capability_missing",
     "target_required",
     "provider_missing",
     "provider_unavailable",
@@ -221,6 +240,12 @@ export const toolAvailability = z.object({
     "policy_disabled",
   ]),
   remediation: z.string().nullable(),
+  client_requirements: z.object({
+    required: z.array(clientFeatureNameSchema),
+    optional: z.array(clientFeatureNameSchema),
+    missing_required: z.array(clientFeatureNameSchema),
+    missing_optional: z.array(clientFeatureNameSchema),
+  }),
   effects: z.strictObject({
     mutatesTarget: z.boolean(),
     mutatesSession: z.boolean(),

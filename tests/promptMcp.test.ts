@@ -10,7 +10,6 @@ import { createTestTempDirectory } from "./fixtures/temporaryDirectory.js";
 import type { AnalysisClient } from "../src/application/AnalysisProvider.js";
 import { BinarySession } from "../src/application/BinarySession.js";
 import { PROMPT_CONTRACTS } from "../src/contracts/promptContracts.js";
-import { TOOL_CONTRACTS } from "../src/contracts/toolContracts.js";
 import { createEvidence } from "../src/domain/evidence.js";
 import { createServer } from "../src/server/createServer.js";
 import { registerGuidedPrompts } from "../src/server/registerPrompts.js";
@@ -36,6 +35,7 @@ describe("guided prompts over MCP", () => {
     const client = await connect(createServer(session, session));
     resources.push(session);
 
+    const toolsBeforePrompts = (await client.listTools()).tools;
     const prompts = await client.listPrompts();
     expect(prompts.prompts.map(({ name }) => name)).toEqual(
       PROMPT_CONTRACTS.map(({ name }) => name),
@@ -56,9 +56,7 @@ describe("guided prompts over MCP", () => {
         ),
       );
     }
-    expect((await client.listTools()).tools).toHaveLength(
-      TOOL_CONTRACTS.length,
-    );
+    expect((await client.listTools()).tools).toEqual(toolsBeforePrompts);
     const result = await client.getPrompt({
       name: "investigate_feature",
       arguments: {

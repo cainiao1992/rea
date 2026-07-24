@@ -67,6 +67,15 @@ export const MCP_RESOURCE_TEMPLATE_CATALOG = [
       "rea://reconstruction-coverage/{workspaceId}/revision/{revision}",
   },
   {
+    name: "reconstruction-obligation-ledger-page",
+    uri_template:
+      "rea://evidence/{evidenceId}/reconstruction-obligation-ledger",
+  },
+  {
+    name: "reconstruction-readiness-report",
+    uri_template: "rea://evidence/{evidenceId}/reconstruction-readiness-report",
+  },
+  {
     name: "javascript-application-graph-page",
     uri_template:
       "rea://evidence/{evidenceId}/application-graph/{collection}/offset/{offset}/limit/{limit}",

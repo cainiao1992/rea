@@ -7,7 +7,9 @@ const enabledPolicy: Parameters<typeof buildCapabilityInventory>[1] = {
   evidenceFileRoots: 1,
   investigationInputRoots: 1,
   browserObservationEnabled: true,
+  browserScenarioEnabled: true,
   electronObservationEnabled: true,
+  v8InspectorObservationEnabled: true,
   javascriptReplayEnabled: true,
   managedRuntimeEnabled: true,
 };
@@ -129,7 +131,9 @@ describe("capability inventory", () => {
   it.each([
     ["capture_process_scenario", { processCaptureEnabled: false }],
     ["inspect_web_page", { browserObservationEnabled: false }],
+    ["capture_browser_scenario", { browserScenarioEnabled: false }],
     ["inspect_electron_page", { electronObservationEnabled: false }],
+    ["observe_javascript_runtime", { v8InspectorObservationEnabled: false }],
     ["run_controlled_replay", { javascriptReplayEnabled: false }],
     ["plan_managed_runtime_correlation", { managedRuntimeEnabled: false }],
   ] as const)("reports stable policy denial for %s", (name, override) => {
@@ -153,6 +157,7 @@ describe("capability inventory", () => {
       investigationInputRoots: 0,
       browserObservationEnabled: false,
       electronObservationEnabled: false,
+      v8InspectorObservationEnabled: false,
       javascriptReplayEnabled: false,
       managedRuntimeEnabled: false,
     });
@@ -162,5 +167,31 @@ describe("capability inventory", () => {
         expect(availability.remediation).toEqual(expect.any(String));
         expect(availability.remediation?.length).toBeGreaterThan(0);
       }
+  });
+
+  it("projects negotiated client features into per-tool requirements", () => {
+    const withoutElicitation = buildCapabilityInventory(
+      status(),
+      enabledPolicy,
+    ).find(({ name }) => name === "capture_process_scenario");
+    const withElicitation = buildCapabilityInventory(status(), enabledPolicy, {
+      elicitation_form: true,
+      elicitation_url: false,
+      roots: false,
+      sampling: false,
+    }).find(({ name }) => name === "capture_process_scenario");
+
+    expect(withoutElicitation?.client_requirements).toEqual({
+      required: [],
+      optional: ["elicitation_form"],
+      missing_required: [],
+      missing_optional: ["elicitation_form"],
+    });
+    expect(withElicitation?.client_requirements).toEqual({
+      required: [],
+      optional: ["elicitation_form"],
+      missing_required: [],
+      missing_optional: [],
+    });
   });
 });

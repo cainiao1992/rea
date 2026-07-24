@@ -336,28 +336,11 @@ describe("Electron MCP tools", () => {
       },
     });
 
-    const denied = await client.callTool({
-      name: "analyze_javascript_application",
-      arguments: { input_path: root, approved: true },
-    });
-    expect(denied).toMatchObject({
-      isError: true,
-      structuredContent: {
-        error: {
-          code: "permission_required",
-          remediation: {
-            action: expect.stringContaining("administrator configuration"),
-            elicitation_supported: false,
-            restart_required: true,
-          },
-          details: {
-            capability: "investigation_input",
-            missing: { roots: [root] },
-            ceiling: expect.objectContaining({ roots: [] }),
-          },
-        },
-      },
-    });
+    expect(
+      (await client.listTools()).tools.some(
+        ({ name }) => name === "analyze_javascript_application",
+      ),
+    ).toBe(false);
   });
 
   const evidenceFor = (session: BinarySession, value: unknown) => {

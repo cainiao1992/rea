@@ -10,6 +10,8 @@ import canonicalize from "canonicalize";
 import type { BinarySessionPort } from "../application/BinarySessionPort.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { registerJavaScriptApplicationGraphResource } from "./registerJavaScriptApplicationGraphResource.js";
+import { registerReconstructionObligationLedgerResource } from "./registerReconstructionObligationLedgerResource.js";
+import { registerReconstructionReadinessResource } from "./registerReconstructionReadinessResource.js";
 
 const evidenceUri = (evidenceId: string): string =>
   `rea://evidence/${evidenceId}`;
@@ -27,6 +29,8 @@ export const registerEvidenceResources = (
   registerArtifactPageResource(server, session);
   registerFunctionDossierResource(server, session);
   registerEvidenceSectionResource(server, session);
+  registerReconstructionObligationLedgerResource(server, session);
+  registerReconstructionReadinessResource(server, session);
   registerJavaScriptApplicationGraphResource(server, session);
   registerResidualUnknownResource(server, session);
 };

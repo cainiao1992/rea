@@ -28,9 +28,20 @@ export interface AppConfig {
   readonly browserObservationEnabled: boolean;
   readonly browserCdpEndpoints: readonly string[];
   readonly browserAllowedOrigins: readonly string[];
+  readonly browserScenarioPolicy: {
+    readonly enabled: boolean;
+    readonly executableRoots: readonly string[];
+    readonly cdpEndpoints: readonly string[];
+    readonly allowedOrigins: readonly string[];
+    readonly allowedEnvironment: readonly string[];
+  };
   readonly electronObservationEnabled: boolean;
   readonly electronCdpEndpoints: readonly string[];
   readonly electronFileRoots: readonly string[];
+  readonly v8InspectorObservationEnabled: boolean;
+  readonly v8InspectorEndpoints: readonly string[];
+  readonly v8InspectorFileRoots: readonly string[];
+  readonly v8InspectorAllowedOrigins: readonly string[];
   readonly javascriptReplayPolicy: {
     readonly enabled: boolean;
     readonly roots: readonly string[];

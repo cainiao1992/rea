@@ -16,10 +16,14 @@ import { APPLICATION_TOOL_CONTRACTS } from "../src/contracts/applicationToolCont
 
 describe("tool contract inventory", () => {
   it("publishes the canonical analysis and session tool inventory", () => {
-    expect(OFFICIAL_TOOL_CONTRACTS).toHaveLength(34);
-    expect(ENHANCED_TOOL_CONTRACTS).toHaveLength(10);
+    expect(OFFICIAL_TOOL_CONTRACTS).toHaveLength(36);
+    expect(ENHANCED_TOOL_CONTRACTS).toHaveLength(12);
     expect(NATIVE_TOOL_CONTRACTS).toHaveLength(5);
-    expect(ARTIFACT_TOOL_CONTRACTS).toHaveLength(2);
+    expect(ARTIFACT_TOOL_CONTRACTS.map(({ name }) => name)).toEqual([
+      "inventory_artifact",
+      "inspect_artifact",
+      "extract_artifact",
+    ]);
     expect(MANAGED_TOOL_CONTRACTS.map(({ name }) => name)).toEqual([
       "inspect_managed_artifact",
       "inspect_managed_members",
@@ -52,10 +56,13 @@ describe("tool contract inventory", () => {
       "trace_application_feature",
       "trace_javascript_semantics",
       "compare_application_versions",
+      "compare_source_to_bundle",
       "compare_javascript_export_shapes",
       "run_controlled_replay",
       "prepare_node_characterization",
       "execute_node_characterization",
+      "build_reconstruction_obligation_ledger",
+      "evaluate_reconstruction_readiness",
       "commit_reconstruction_coverage",
       "query_reconstruction_coverage",
     ]);

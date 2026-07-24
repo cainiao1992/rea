@@ -1,11 +1,14 @@
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import type { CallToolResult } from "@modelcontextprotocol/server";
 import { afterEach, describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import { BinarySession } from "../../src/application/BinarySession.js";
 import type {
   AnalysisClient,
   AnalysisOperationPort,
+  AnalysisProvider,
+  CapabilityDescriptor,
 } from "../../src/application/AnalysisProvider.js";
 import {
   AnalysisCapabilityUnavailableError,
@@ -45,6 +48,47 @@ const connect = async (analysis: AnalysisOperationPort) => {
   await server.connect(serverTransport);
   await client.connect(clientTransport);
   return client;
+};
+
+const providerWithCapabilities = (
+  operations: readonly CapabilityDescriptor["operation"][],
+): AnalysisProvider => {
+  const identity = { id: "fixture", name: "Fixture", version: "1" };
+  const capabilities: readonly CapabilityDescriptor[] = operations.map(
+    (operation) => ({
+      provider: identity,
+      operation,
+      inputContractVersion: 1,
+      outputContractVersion: 1,
+      available: true,
+      reason: null,
+      pagination: "none",
+      exhaustive: true,
+      effects: {
+        mutatesArtifact: false,
+        launchesProcess: false,
+        mayShowUi: false,
+        mayAccessNetwork: false,
+        mayWriteFilesystem: false,
+        changesPermissions: false,
+        requiresRoot: false,
+      },
+      limits: {
+        maxResults: null,
+        maxPayloadBytes: null,
+        timeoutMs: null,
+      },
+      limitations: [],
+    }),
+  );
+  return {
+    identity: () => identity,
+    capabilities: () => capabilities,
+    createClient: () => ({
+      execute: () => Promise.resolve(ok(null)),
+      close: () => Promise.resolve(),
+    }),
+  };
 };
 
 const text = (result: CallToolResult): string => {
@@ -189,7 +233,7 @@ describe("full MCP integration with multi-tool sequences", () => {
     });
   });
 
-  it("preserves the complete canonical inventory with a session", async () => {
+  it("advertises the complete currently available inventory with a session", async () => {
     const session = new BinarySession(
       (_path) =>
         ({
@@ -212,13 +256,32 @@ describe("full MCP integration with multi-tool sequences", () => {
     await client.connect(clientTransport);
 
     const listed = await client.listTools();
-    expect(listed.tools).toHaveLength(TOOL_CONTRACTS.length);
     const names = listed.tools.map((t) => t.name);
     expect(names).toContain("open_binary");
     expect(names).toContain("close_binary");
     expect(names).toContain("binary_session");
-    expect(names).toContain("binary_overview");
-    expect(names).toContain("batch_decompile");
+    expect(names).not.toContain("binary_overview");
+    expect(names).not.toContain("batch_decompile");
+    const status = structured(
+      await client.callTool({
+        name: "binary_session",
+        arguments: { detail: "full" },
+      }),
+    );
+    const available = new Set(
+      z
+        .object({
+          result: z.object({
+            tool_availability: z.array(
+              z.object({ name: z.string(), available: z.boolean() }),
+            ),
+          }),
+        })
+        .parse(status)
+        .result.tool_availability.filter((item) => item.available)
+        .map(({ name }) => name),
+    );
+    expect(new Set(names)).toEqual(available);
 
     const contracts = new Map<string, (typeof TOOL_CONTRACTS)[number]>(
       TOOL_CONTRACTS.map((contract) => [contract.name, contract]),
@@ -237,7 +300,7 @@ describe("full MCP integration with multi-tool sequences", () => {
       );
       assertDescribedRootObject(tool.outputSchema, `${tool.name}.output`);
     }
-  });
+  }, 10_000);
 
   it("records approved trace truncation as a deduplicated residual unknown", async () => {
     const analysis: AnalysisOperationPort = {
@@ -254,11 +317,12 @@ describe("full MCP integration with multi-tool sequences", () => {
         ),
     };
     const session = new BinarySession(
-      () =>
-        ({
-          execute: () => Promise.resolve(ok(null)),
-          close: () => Promise.resolve(),
-        }) satisfies AnalysisClient,
+      providerWithCapabilities([
+        "list_strings",
+        "list_procedures",
+        "xrefs",
+        "resolve_containing_procedure",
+      ]),
     );
     const server = createServer(analysis, session);
     const client = new Client({ name: "unknown-workflow", version: "1.0.0" });
@@ -267,6 +331,10 @@ describe("full MCP integration with multi-tool sequences", () => {
     resources.push(client, server);
     await server.connect(serverTransport);
     await client.connect(clientTransport);
+    await client.callTool({
+      name: "open_binary",
+      arguments: { path: process.execPath },
+    });
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const traced = await client.callTool({
@@ -310,11 +378,7 @@ describe("full MCP integration with multi-tool sequences", () => {
       },
     };
     const session = new BinarySession(
-      () =>
-        ({
-          execute: () => Promise.resolve(ok(null)),
-          close: () => Promise.resolve(),
-        }) satisfies AnalysisClient,
+      providerWithCapabilities(["procedure_pseudo_code"]),
     );
     const server = createServer(analysis, session);
     const client = new Client({ name: "unavailable-unknown", version: "1" });
@@ -323,6 +387,10 @@ describe("full MCP integration with multi-tool sequences", () => {
     resources.push(client, server);
     await server.connect(serverTransport);
     await client.connect(clientTransport);
+    await client.callTool({
+      name: "open_binary",
+      arguments: { path: process.execPath },
+    });
 
     const unavailable = await client.callTool({
       name: "procedure_pseudo_code",

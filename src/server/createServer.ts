@@ -25,14 +25,24 @@ import { registerEvidenceResources } from "./registerEvidenceResources.js";
 import { createServerIdentity } from "../serverIdentity.js";
 import type { PermissionAuthority } from "../application/PermissionAuthority.js";
 import type { BrowserObservationPort } from "../application/BrowserObservationPort.js";
+import type { BrowserScenarioCapturePort } from "../application/BrowserScenarioCapturePort.js";
 import { registerBrowserTools } from "./registerBrowserTools.js";
+import { registerBrowserScenarioTool } from "./registerBrowserScenarioTool.js";
 import type { ElectronObservationPort } from "../application/ElectronObservationPort.js";
 import { registerElectronTools } from "./registerElectronTools.js";
+import type { JavaScriptRuntimeObservationPort } from "../application/JavaScriptRuntimeObservationPort.js";
+import { registerJavaScriptRuntimeObservationTools } from "./registerJavaScriptRuntimeObservationTools.js";
 import { registerApplicationTools } from "./registerApplicationTools.js";
 import type { SessionAvailability } from "./sessionAvailabilityPolicy.js";
+import { sessionAvailabilityPolicy } from "./sessionAvailabilityPolicy.js";
+import {
+  DENY_EVIDENCE_FILE_POLICY,
+  DENY_PROCESS_POLICY,
+} from "./sessionToolPolicies.js";
+import { installDynamicToolAvailability } from "./DynamicToolAvailability.js";
 
 const TARGET_FREE_INSTRUCTIONS =
-  "REA analyzes shipped artifacts. Route: ASAR/JavaScript -> analyze_javascript_application (configured root required); archive/package -> inventory_artifact; managed PE/CLI -> inspect_managed_artifact; browser/Electron runtime -> list_browser_targets/list_electron_targets; native binary/database -> open_binary, then binary_overview. Check binary_session for policy. Start with summaries and cite Evidence IDs. Never repeat identical analysis or read full Evidence without a specific need.";
+  "REA analyzes shipped artifacts. Route: ASAR/JavaScript -> analyze_javascript_application (configured root); archive/package -> inspect_artifact; managed PE/CLI -> inspect_managed_artifact; passive browser/Electron -> list_browser_targets/list_electron_targets; approved browser interaction -> capture_browser_scenario; Node/Electron Inspector -> list_javascript_runtime_targets; native binary/database -> open_binary, then binary_overview. Check binary_session policy. Start with summaries and cite Evidence IDs. Never repeat identical analysis or read full Evidence without need.";
 
 const ACTIVE_TARGET_INSTRUCTIONS =
   "REA analyzes the active reverse-engineering target. Start native analysis with binary_overview, then narrow with analyze_function, literal search, callers, callees, and xrefs. Prefer summary views, never repeat an identical call, and read full Evidence only when the task requires it.";
@@ -57,7 +67,9 @@ export interface CreateServerOptions {
   readonly analysisSnapshotFilePolicy?: EvidenceFilePolicy;
   readonly permissionAuthority?: PermissionAuthority;
   readonly browserObservation?: BrowserObservationPort;
+  readonly browserScenarioCapture?: BrowserScenarioCapturePort;
   readonly electronObservation?: ElectronObservationPort;
+  readonly javascriptRuntimeObservation?: JavaScriptRuntimeObservationPort;
   readonly artifactIntegrityContinueEnabled?: () => boolean;
   readonly javascriptReplayPolicy?: JavaScriptReplayPolicy;
   readonly javascriptReplayHost?: JavaScriptReplayHost;
@@ -65,6 +77,32 @@ export interface CreateServerOptions {
   readonly managedRuntimePolicy?: ManagedRuntimePolicy;
   readonly availabilityPolicy?: () => SessionAvailability;
 }
+
+const installSessionToolAvailability = (
+  server: McpServer,
+  session: BinarySessionPort | undefined,
+  options: CreateServerOptions,
+) => {
+  if (session === undefined) return undefined;
+  const policy = sessionAvailabilityPolicy(options.availabilityPolicy, {
+    processPolicy: options.processPolicy ?? DENY_PROCESS_POLICY,
+    evidenceFilePolicy: options.evidenceFilePolicy ?? DENY_EVIDENCE_FILE_POLICY,
+    investigationInputRoots: options.investigationInputRoots ?? [],
+    optionalFeatures: {
+      browserObservationEnabled: options.browserObservation !== undefined,
+      browserScenarioEnabled: options.browserScenarioCapture !== undefined,
+      electronObservationEnabled: options.electronObservation !== undefined,
+      v8InspectorObservationEnabled:
+        options.javascriptRuntimeObservation !== undefined,
+      javascriptReplayEnabled: options.javascriptReplayPolicy?.enabled ?? false,
+      managedRuntimeEnabled: options.managedRuntimePolicy?.enabled ?? false,
+    },
+  });
+  return {
+    policy,
+    controller: installDynamicToolAvailability(server, session, policy),
+  };
+};
 
 /**
  * Construct one MCP server without acquiring subprocess resources.
@@ -106,9 +144,12 @@ export const createServer = (
           : TARGET_FREE_INSTRUCTIONS,
     },
   );
+  const dynamicTools = installSessionToolAvailability(server, session, options);
   server.server.onclose = () => {
     permissionAuthority?.clearSessionGrants();
   };
+  if (dynamicTools !== undefined)
+    server.server.oninitialized = () => server.sendToolListChanged();
   session?.onAvailabilityChanged?.(() => server.sendToolListChanged());
   registerServerIdentityResource(server, startedAt);
   const toolLogger = logger.child({ layer: "server" });
@@ -132,6 +173,9 @@ export const createServer = (
     registerEvidenceResources(server, session);
     registerSessionTools(server, session, toolLogger, {
       ...options,
+      ...(dynamicTools === undefined
+        ? {}
+        : { availabilityPolicy: dynamicTools.policy }),
       ...(permissionAuthority === undefined ? {} : { permissionAuthority }),
       startedAt,
       processCaptureElicitation: {
@@ -155,6 +199,7 @@ export const createServer = (
       },
     });
   }
+  dynamicTools?.controller.synchronize();
   return server;
 };
 
@@ -310,9 +355,21 @@ const registerObservationTools = ({
     permissionAuthority,
     recordEvidence,
   });
+  registerBrowserScenarioTool(server, {
+    logger,
+    provider: options.browserScenarioCapture,
+    permissionAuthority,
+    recordEvidence,
+  });
   registerElectronTools(server, {
     logger,
     electron: options.electronObservation,
+    permissionAuthority,
+    recordEvidence,
+  });
+  registerJavaScriptRuntimeObservationTools(server, {
+    logger,
+    runtime: options.javascriptRuntimeObservation,
     permissionAuthority,
     recordEvidence,
   });

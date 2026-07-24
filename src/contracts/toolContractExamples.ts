@@ -18,6 +18,8 @@ export const TOOL_EXAMPLE_OVERRIDES: Readonly<
   procedure_callers: { procedure: "main" },
   procedure_info: { procedure: "main" },
   read_function_instructions: { procedure: "main" },
+  read_bytes: { address: "0x1000", length: 16 },
+  address_to_file_offset: { address: "0x1000" },
   procedure_references: { procedure: "main" },
   procedure_pseudo_code: { procedure: "main" },
   resolve_containing_procedure: { address: "0x1000" },
@@ -34,6 +36,8 @@ export const TOOL_EXAMPLE_OVERRIDES: Readonly<
   find_xrefs_to_name: { name: "malloc" },
   analyze_function: { procedure: "main" },
   trace_feature: { query: "license" },
+  find_code_for_string: { query: "authorization failed" },
+  trace_call_path: { start: "0x1000", goal: "0x1100" },
   open_binary: { path: "/tmp/fixture" },
   import_evidence_bundle: { path: "evidence.json" },
   capture_process_scenario: {

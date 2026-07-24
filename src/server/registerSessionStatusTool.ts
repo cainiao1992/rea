@@ -10,6 +10,7 @@ import { toCallToolResult } from "./toolResult.js";
 import { jsonObjectSchema } from "../domain/jsonValue.js";
 import { createServerIdentity } from "../serverIdentity.js";
 import { buildCapabilityInventory } from "../application/CapabilityInventory.js";
+import type { ClientFeatureAvailability } from "../contracts/toolOutputSchemaPrimitives.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 import { safeParseToolInput } from "./toolInputValidation.js";
 import type { SessionAvailability } from "./sessionAvailabilityPolicy.js";
@@ -44,11 +45,18 @@ export const registerSessionStatusTool = (
       const parsed = parsedInput.value;
       const client = server.server.getClientVersion();
       const clientCapabilities = server.server.getClientCapabilities();
+      const clientFeatures: ClientFeatureAvailability = {
+        elicitation_form: clientCapabilities?.elicitation?.form !== undefined,
+        elicitation_url: clientCapabilities?.elicitation?.url !== undefined,
+        roots: clientCapabilities?.roots !== undefined,
+        sampling: clientCapabilities?.sampling !== undefined,
+      };
       const status = session.status();
       const statusObject = jsonObjectSchema.parse(status);
       const toolAvailability = buildCapabilityInventory(
         status,
         availabilityPolicy(),
+        clientFeatures,
       );
       const serverIdentity = createServerIdentity({
         startedAt,
@@ -78,14 +86,7 @@ export const registerSessionStatusTool = (
             status: statusObject,
             toolAvailability,
             serverIdentity,
-            clientFeatures: {
-              elicitation_form:
-                clientCapabilities?.elicitation?.form !== undefined,
-              elicitation_url:
-                clientCapabilities?.elicitation?.url !== undefined,
-              roots: clientCapabilities?.roots !== undefined,
-              sampling: clientCapabilities?.sampling !== undefined,
-            },
+            clientFeatures,
           }),
         },
         contract,
@@ -101,7 +102,7 @@ const projectSessionStatus = (options: {
   >;
   readonly toolAvailability: readonly ToolAvailability[];
   readonly serverIdentity: ReturnType<typeof createServerIdentity>;
-  readonly clientFeatures: Readonly<Record<string, boolean>>;
+  readonly clientFeatures: ClientFeatureAvailability;
 }) => {
   if (options.input.detail === "full")
     return jsonObjectSchema.parse({
@@ -139,6 +140,7 @@ const projectSessionStatus = (options: {
         next_cursor: nextCursor < filtered.length ? nextCursor : null,
         has_more: nextCursor < filtered.length,
       },
+      client_features: options.clientFeatures,
     });
   }
   return jsonObjectSchema.parse({
@@ -182,7 +184,7 @@ const recommendedActions = (
     : []),
   ...(!open
     ? [
-        "Route the supplied target directly: ASAR/JavaScript to analyze_javascript_application, packages to inventory_artifact, managed PE/CLI to inspect_managed_artifact, browser/Electron runtimes to their list-target tools, and native binaries to open_binary.",
+        "Route the supplied target directly: ASAR/JavaScript to analyze_javascript_application, unfamiliar packages to inspect_artifact, managed PE/CLI to inspect_managed_artifact, browser/Electron runtimes to their list-target tools, and native binaries to open_binary.",
       ]
     : [
         "Continue from the active target with binary_overview or a bounded target-specific query.",

@@ -32,9 +32,20 @@ describe("runtime configuration", () => {
       expect(result.value.browserObservationEnabled).toBe(false);
       expect(result.value.browserCdpEndpoints).toEqual([]);
       expect(result.value.browserAllowedOrigins).toEqual([]);
+      expect(result.value.browserScenarioPolicy).toEqual({
+        enabled: false,
+        executableRoots: [],
+        cdpEndpoints: [],
+        allowedOrigins: [],
+        allowedEnvironment: [],
+      });
       expect(result.value.electronObservationEnabled).toBe(false);
       expect(result.value.electronCdpEndpoints).toEqual([]);
       expect(result.value.electronFileRoots).toEqual([]);
+      expect(result.value.v8InspectorObservationEnabled).toBe(false);
+      expect(result.value.v8InspectorEndpoints).toEqual([]);
+      expect(result.value.v8InspectorFileRoots).toEqual([]);
+      expect(result.value.v8InspectorAllowedOrigins).toEqual([]);
       expect(result.value.javascriptReplayPolicy).toMatchObject({
         enabled: false,
         roots: [],
@@ -107,6 +118,26 @@ describe("runtime configuration", () => {
       executables: [],
       environment_names: [],
       origins: ["http://127.0.0.1:9223"],
+      network: "loopback",
+      mount: false,
+    });
+  });
+
+  it("builds a separate V8 Inspector endpoint, root, and origin ceiling", () => {
+    const result = parseConfig({
+      REA_V8_INSPECTOR_OBSERVE_ENABLED: "true",
+      REA_V8_INSPECTOR_ENDPOINTS_JSON: '["http://127.0.0.1:9229"]',
+      REA_V8_INSPECTOR_FILE_ROOTS_JSON: '["/tmp/node-app"]',
+      REA_V8_INSPECTOR_ALLOWED_ORIGINS_JSON: '["http://127.0.0.1:3000"]',
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.permissionCeilings).toContainEqual({
+      capability: "v8_inspector_observe",
+      roots: ["/tmp/node-app"],
+      executables: [],
+      environment_names: [],
+      origins: ["http://127.0.0.1:9229", "http://127.0.0.1:3000"],
       network: "loopback",
       mount: false,
     });
@@ -410,6 +441,48 @@ describe("runtime configuration", () => {
       expect.objectContaining({
         capability: "browser_observe",
         network: "loopback",
+      }),
+    );
+  });
+
+  it("requires an explicit grant for exact-scope browser automation", () => {
+    const environment = {
+      REA_BROWSER_SCENARIO_ENABLED: "true",
+      REA_BROWSER_SCENARIO_EXECUTABLE_ROOTS_JSON: '["/opt/chromium"]',
+      REA_BROWSER_SCENARIO_CDP_ENDPOINTS_JSON: '["http://127.0.0.1:9222"]',
+      REA_BROWSER_SCENARIO_ALLOWED_ORIGINS_JSON: '["https://app.example.test"]',
+      REA_BROWSER_SCENARIO_ALLOWED_ENV_JSON: '["REA_TEST_PASSWORD"]',
+    };
+    const result = parseConfig(environment);
+    if (!result.ok) throw result.error;
+    expect(result.value.browserScenarioPolicy).toEqual({
+      enabled: true,
+      executableRoots: ["/opt/chromium"],
+      cdpEndpoints: ["http://127.0.0.1:9222"],
+      allowedOrigins: ["https://app.example.test"],
+      allowedEnvironment: ["REA_TEST_PASSWORD"],
+    });
+    expect(result.value.permissionCeilings).toContainEqual({
+      capability: "browser_automate",
+      roots: [],
+      executables: ["/opt/chromium"],
+      environment_names: ["REA_TEST_PASSWORD"],
+      origins: ["http://127.0.0.1:9222", "https://app.example.test"],
+      network: "external",
+      mount: false,
+    });
+    expect(result.value.administratorPermissionGrants).not.toContainEqual(
+      expect.objectContaining({ capability: "browser_automate" }),
+    );
+    const automatic = parseConfig({
+      ...environment,
+      REA_BROWSER_SCENARIO_AUTO_GRANT: "true",
+    });
+    if (!automatic.ok) throw automatic.error;
+    expect(automatic.value.administratorPermissionGrants).toContainEqual(
+      expect.objectContaining({
+        capability: "browser_automate",
+        lifetime: "administrator",
       }),
     );
   });

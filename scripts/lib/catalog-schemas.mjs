@@ -23,7 +23,11 @@ const valuesAt = (node, path) => {
 
 const versionAt = (schema, path) => {
   const versions = [
-    ...new Set(valuesAt(z.toJSONSchema(schema), path).map(String)),
+    ...new Set(
+      valuesAt(z.toJSONSchema(schema, { unrepresentable: "any" }), path).map(
+        String,
+      ),
+    ),
   ];
   if (versions.length !== 1)
     throw new Error(
@@ -49,6 +53,11 @@ const durableSchemaDefinitions = (sources) => [
     "artifact_extraction",
     sources.artifactGraph.artifactExtractionResultSchema,
     ["extraction_manifest", "schema_version"],
+  ],
+  [
+    "browser_scenario",
+    sources.browserScenario.browserScenarioSchema,
+    ["schema_version"],
   ],
   ["evidence", sources.evidence.evidenceSchema, ["schema_version"]],
   [
@@ -129,6 +138,19 @@ const durableSchemaDefinitions = (sources) => [
   ],
 ];
 
+const browserScenarioObservationSchemaDefinitions = (sources) => [
+  [
+    "browser_scenario_capture",
+    sources.browserScenarioCapture.browserScenarioCaptureSchema,
+    ["schema_version"],
+  ],
+  [
+    "browser_scenario_diff",
+    sources.browserScenarioDiff.browserScenarioDiffSchema,
+    ["schema_version"],
+  ],
+];
+
 const observationSchemaDefinitions = (sources) => [
   [
     "managed_artifact_inspection",
@@ -160,6 +182,7 @@ const observationSchemaDefinitions = (sources) => [
     sources.browserObservation.browserTargetListSchema,
     ["schema_version"],
   ],
+  ...browserScenarioObservationSchemaDefinitions(sources),
   [
     "electron_page_inspection",
     sources.electronObservation.electronPageInspectionSchema,
@@ -174,6 +197,16 @@ const observationSchemaDefinitions = (sources) => [
     "javascript_application_analysis",
     sources.javascriptApplicationAnalysis
       .javaScriptApplicationAnalysisResultV2Schema,
+    ["schema_version"],
+  ],
+  [
+    "javascript_runtime_observation",
+    sources.javascriptRuntimeObservation.javascriptRuntimeObservationSchema,
+    ["schema_version"],
+  ],
+  [
+    "javascript_runtime_target_list",
+    sources.javascriptRuntimeObservation.javascriptRuntimeTargetListSchema,
     ["schema_version"],
   ],
   [

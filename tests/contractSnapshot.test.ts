@@ -12,7 +12,9 @@ import { ARTIFACT_TOOL_CONTRACTS } from "../src/contracts/artifactToolContracts.
 import { MANAGED_TOOL_CONTRACTS } from "../src/contracts/managedToolContracts.js";
 import { MANAGED_WORKFLOW_TOOL_CONTRACTS } from "../src/contracts/managedWorkflowToolContracts.js";
 import { BROWSER_TOOL_CONTRACTS } from "../src/contracts/browserToolContracts.js";
+import { BROWSER_SCENARIO_TOOL_CONTRACTS } from "../src/contracts/browserScenarioToolContracts.js";
 import { ELECTRON_TOOL_CONTRACTS } from "../src/contracts/electronToolContracts.js";
+import { JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS } from "../src/contracts/javascriptRuntimeObservationToolContracts.js";
 import { APPLICATION_TOOL_CONTRACTS } from "../src/contracts/applicationToolContracts.js";
 import {
   enhancedOutputSchemas,
@@ -119,7 +121,9 @@ describe("tool contract surface", () => {
       ...MANAGED_TOOL_CONTRACTS,
       ...MANAGED_WORKFLOW_TOOL_CONTRACTS,
       ...BROWSER_TOOL_CONTRACTS,
+      ...BROWSER_SCENARIO_TOOL_CONTRACTS,
       ...ELECTRON_TOOL_CONTRACTS,
+      ...JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS,
       ...APPLICATION_TOOL_CONTRACTS,
       ...SESSION_TOOL_CONTRACTS,
     ].map(({ name }) => name);
@@ -214,7 +218,9 @@ describe("tool contract surface", () => {
       ...MANAGED_TOOL_CONTRACTS,
       ...MANAGED_WORKFLOW_TOOL_CONTRACTS,
       ...BROWSER_TOOL_CONTRACTS,
+      ...BROWSER_SCENARIO_TOOL_CONTRACTS,
       ...ELECTRON_TOOL_CONTRACTS,
+      ...JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS,
       ...APPLICATION_TOOL_CONTRACTS,
       ...SESSION_TOOL_CONTRACTS,
     ];

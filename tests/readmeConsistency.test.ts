@@ -11,8 +11,9 @@ import { NATIVE_TOOL_CONTRACTS } from "../src/contracts/nativeToolContracts.js";
 import { ARTIFACT_TOOL_CONTRACTS } from "../src/contracts/artifactToolContracts.js";
 import { MANAGED_TOOL_CONTRACTS } from "../src/contracts/managedToolContracts.js";
 import { MANAGED_WORKFLOW_TOOL_CONTRACTS } from "../src/contracts/managedWorkflowToolContracts.js";
-import { BROWSER_TOOL_CONTRACTS } from "../src/contracts/browserToolContracts.js";
+import { BROWSER_PROVIDER_TOOL_CONTRACTS } from "../src/contracts/browserProviderToolContracts.js";
 import { ELECTRON_TOOL_CONTRACTS } from "../src/contracts/electronToolContracts.js";
+import { JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS } from "../src/contracts/javascriptRuntimeObservationToolContracts.js";
 import { APPLICATION_TOOL_CONTRACTS } from "../src/contracts/applicationToolContracts.js";
 import { SUPPORTED_CLIENT_DEFINITIONS } from "../src/application/SupportedClients.js";
 import { PRODUCT_IDENTITY } from "../src/identity.js";
@@ -31,8 +32,9 @@ const expectedToolCounts = [
   NATIVE_TOOL_CONTRACTS.length,
   ARTIFACT_TOOL_CONTRACTS.length,
   MANAGED_TOOL_CONTRACTS.length + MANAGED_WORKFLOW_TOOL_CONTRACTS.length,
-  BROWSER_TOOL_CONTRACTS.length,
+  BROWSER_PROVIDER_TOOL_CONTRACTS.length,
   ELECTRON_TOOL_CONTRACTS.length,
+  JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS.length,
   APPLICATION_TOOL_CONTRACTS.length,
   SESSION_TOOL_CONTRACTS.length,
 ] as const;

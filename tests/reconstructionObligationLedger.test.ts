@@ -256,13 +256,12 @@ describe("reconstruction obligation ledger", () => {
 
   it("closes only when every required case and verifier has comparable authority", () => {
     const capture = processEvidence();
-    const proof = proofEvidence("packaged");
-    const initial = build(request([capture, proof]));
+    const initial = build(request([capture]));
     const obligation = initial.obligations[0];
     if (obligation === undefined)
       throw new Error("Expected process obligation");
     const result = build(
-      request([capture, proof], {
+      request([capture], {
         manifest: {
           schema_version: 1,
           bindings: [
@@ -279,7 +278,7 @@ describe("reconstruction obligation ledger", () => {
                 fixture_id: `packaged.${caseKind}`,
                 case_kind: caseKind,
                 authority: "packaged-process",
-                evidence_ids: [proof.evidence_id],
+                evidence_ids: [capture.evidence_id],
               })),
               verifier: {
                 verifier_id: "verifier.packaged",
@@ -287,7 +286,7 @@ describe("reconstruction obligation ledger", () => {
                 command: "npm run verify:package -- process",
                 authority: "packaged-process",
                 status: "pass",
-                result_evidence_id: proof.evidence_id,
+                result_evidence_id: capture.evidence_id,
                 enumerated_obligation_ids: [obligation.obligation_id],
                 nondeterminism: {
                   mode: "partial-order",
@@ -308,6 +307,140 @@ describe("reconstruction obligation ledger", () => {
     });
     expect(result.status).toBe("ready");
     expect(result.summary.required_open).toBe(0);
+  });
+
+  it("does not authenticate packaged-process proof with generic replay evidence", () => {
+    const capture = processEvidence();
+    const proof = proofEvidence("generic-packaged");
+    const initial = build(request([capture, proof]));
+    const obligation = initial.obligations[0];
+    if (obligation === undefined)
+      throw new Error("Expected process obligation");
+    const result = build(
+      request([capture, proof], {
+        manifest: {
+          schema_version: 1,
+          bindings: [
+            {
+              obligation_id: obligation.obligation_id,
+              owner: {
+                module_path: "src/processOwner.ts",
+                symbol: "runProcess",
+                owner_sha256: "5".repeat(64),
+              },
+              parser_type: null,
+              original_cases: originalCases(obligation, capture.evidence_id),
+              fixtures: obligation.required_case_kinds.map((caseKind) => ({
+                fixture_id: `packaged.${caseKind}`,
+                case_kind: caseKind,
+                authority: "packaged-process",
+                evidence_ids: [proof.evidence_id],
+              })),
+              verifier: {
+                verifier_id: "verifier.packaged",
+                claim_id: "claim.process",
+                command: "npm run verify:package -- process",
+                authority: "packaged-process",
+                status: "pass",
+                result_evidence_id: proof.evidence_id,
+                enumerated_obligation_ids: [obligation.obligation_id],
+                nondeterminism: {
+                  mode: "partial-order",
+                  specification: "Fixture scheduling is partially ordered.",
+                },
+              },
+            },
+          ],
+          contradictions: [],
+        },
+      }),
+    );
+
+    expect(result.obligations[0]?.diagnostics.map(({ code }) => code)).toEqual(
+      expect.arrayContaining([
+        "weak-fixture-authority",
+        "weak-verifier-authority",
+      ]),
+    );
+  });
+
+  it("propagates an open dependency through the full obligation chain", () => {
+    const evidence = createEvidence(
+      undefined,
+      { id: "fixture-chain", name: "Fixture chain", version: "1" },
+      {
+        predicateType: "rea.fixture-verification/v1",
+        operation: "run_fixture_verifier",
+        parameters: {},
+        result: { passed: true },
+        confidence: "observed",
+        authority: "shipped-artifact",
+      },
+    );
+    const ids = ["obl.chain.a", "obl.chain.b", "obl.chain.c"] as const;
+    const reviewed = ids.map((id, index) => ({
+      ...reviewedObligation(id, evidence.evidence_id),
+      dependency_obligation_ids:
+        index === 0 ? [ids[1]] : index === 1 ? [ids[2]] : ["obl.chain.missing"],
+    }));
+    const bindings = reviewed.map((obligation) => ({
+      obligation_id: obligation.obligation_id,
+      owner: {
+        module_path: `src/${obligation.obligation_id}.ts`,
+        symbol: "verify",
+        owner_sha256: "6".repeat(64),
+      },
+      parser_type: null,
+      original_cases: [
+        {
+          kind: "positive" as const,
+          evidence_id: evidence.evidence_id,
+          location: "/fixture/positive",
+        },
+      ],
+      fixtures: [
+        {
+          fixture_id: `fixture.${obligation.obligation_id}`,
+          case_kind: "positive" as const,
+          authority: "unit" as const,
+          evidence_ids: [evidence.evidence_id],
+        },
+      ],
+      verifier: {
+        verifier_id: `verifier.${obligation.obligation_id}`,
+        claim_id: `claim.${obligation.obligation_id}`,
+        command: "npm test -- fixture-chain",
+        authority: "unit" as const,
+        status: "pass" as const,
+        result_evidence_id: evidence.evidence_id,
+        enumerated_obligation_ids: [obligation.obligation_id],
+        nondeterminism: {
+          mode: "total-order" as const,
+          specification: "Fixture execution is ordered.",
+        },
+      },
+    }));
+    const result = build(
+      request([evidence], {
+        reviewed_obligations: reviewed,
+        manifest: { schema_version: 1, bindings, contradictions: [] },
+      }),
+    );
+
+    expect(result.obligations.map(({ status }) => status)).toEqual([
+      "blocked",
+      "blocked",
+      "blocked",
+    ]);
+    expect(
+      result.obligations.map(({ diagnostics }) =>
+        diagnostics.map(({ code }) => code),
+      ),
+    ).toEqual([
+      ["dependency-open"],
+      ["dependency-open"],
+      ["dependency-missing"],
+    ]);
   });
 
   it("fails closed on parser gaps, ambiguous ownership, and contradiction", () => {

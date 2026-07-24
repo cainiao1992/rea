@@ -454,35 +454,31 @@ const applyDependencyDiagnostics = (
   obligations: readonly ReconstructionObligation[],
   context: EvaluationContext,
 ): ReconstructionObligation[] => {
-  const statuses = new Map(
-    obligations.map((obligation) => [
-      obligation.obligation_id,
-      obligation.status,
-    ]),
-  );
-  return obligations.map((obligation) => {
-    const diagnostics = [...obligation.diagnostics];
-    for (const dependencyId of obligation.dependency_obligation_ids) {
-      if (!context.candidates.has(dependencyId))
-        addDiagnostic(
-          diagnostics,
-          "dependency-missing",
-          `Dependency obligation is missing: ${dependencyId}.`,
-        );
-      else if (statuses.get(dependencyId) !== "verified")
-        addDiagnostic(
-          diagnostics,
-          "dependency-open",
-          `Dependency obligation is not verified: ${dependencyId}.`,
-        );
-    }
-    const normalized = uniqueDiagnostics(diagnostics);
-    return {
-      ...obligation,
-      status: dependencyStatus(obligation.status, normalized),
-      diagnostics: normalized,
-    };
-  });
+  let evaluated = [...obligations];
+  for (let pass = 0; pass < obligations.length; pass += 1) {
+    const statuses = new Map(
+      evaluated.map(({ obligation_id: id, status }) => [id, status]),
+    );
+    let changed = false;
+    evaluated = evaluated.map((obligation) => {
+      const diagnostics = [...obligation.diagnostics];
+      for (const dependencyId of obligation.dependency_obligation_ids) {
+        const missing = !context.candidates.has(dependencyId);
+        if (missing || statuses.get(dependencyId) !== "verified")
+          addDiagnostic(
+            diagnostics,
+            missing ? "dependency-missing" : "dependency-open",
+            `Dependency obligation is ${missing ? "missing" : "not verified"}: ${dependencyId}.`,
+          );
+      }
+      const normalized = uniqueDiagnostics(diagnostics);
+      const status = dependencyStatus(obligation.status, normalized);
+      changed ||= status !== obligation.status;
+      return { ...obligation, status, diagnostics: normalized };
+    });
+    if (!changed) break;
+  }
+  return evaluated;
 };
 
 const obligationStatus = (

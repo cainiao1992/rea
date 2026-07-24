@@ -69,16 +69,11 @@ export const resolveTraceApplicationFeatureRequestValidated = (
   input: TraceApplicationFeatureRequest,
   lookup?: EvidenceLookup,
 ): Result<TraceInput, AnalysisError> => {
-  const application =
-    input.application === undefined
-      ? resolveEvidenceReferences(
-          lookup,
-          input.application_evidence_id === undefined
-            ? []
-            : [input.application_evidence_id],
-          APPLICATION_GRAPH_IDENTITIES,
-        )
-      : ok([input.application]);
+  const application = graphEvidence(
+    input.application,
+    input.application_evidence_id,
+    lookup,
+  );
   if (!application.ok) return application;
   const native = resolveEvidenceReferences(
     lookup,
@@ -86,7 +81,7 @@ export const resolveTraceApplicationFeatureRequestValidated = (
   );
   if (!native.ok) return native;
   const raw = {
-    application: application.value[0],
+    application: application.value,
     native_observations: [...input.native_observations, ...native.value],
     seed: input.seed,
     direction: input.direction,
@@ -114,18 +109,13 @@ export const resolveTraceJavaScriptSemanticsRequestValidated = (
   input: TraceJavaScriptSemanticsRequest,
   lookup?: EvidenceLookup,
 ): Result<SemanticTraceInput, AnalysisError> => {
-  const application =
-    input.application === undefined
-      ? resolveEvidenceReferences(
-          lookup,
-          input.application_evidence_id === undefined
-            ? []
-            : [input.application_evidence_id],
-          APPLICATION_GRAPH_IDENTITIES,
-        )
-      : ok([input.application]);
+  const application = graphEvidence(
+    input.application,
+    input.application_evidence_id,
+    lookup,
+  );
   if (!application.ok) return application;
-  const raw = { application: application.value[0], query: input.query };
+  const raw = { application: application.value, query: input.query };
   const parsed = traceJavaScriptSemanticsInputSchema.safeParse(raw);
   return parsed.success
     ? ok(parsed.data)
@@ -260,6 +250,8 @@ export const resolveCompareJavaScriptExportShapesRequestValidated = (
 
 const graphEvidence = (
   evidence:
+    | TraceApplicationFeatureRequest["application"]
+    | TraceJavaScriptSemanticsRequest["application"]
     | CompareApplicationVersionsRequest["left"]
     | CompareJavaScriptExportShapesRequest["left"]
     | CompareSourceToBundleRequest["application"],

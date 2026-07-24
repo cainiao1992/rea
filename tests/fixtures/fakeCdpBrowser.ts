@@ -399,10 +399,20 @@ const resultFor = (
       return storageUsageResult();
     case "DOMStorage.getDOMStorageItems":
       return domStorageResult(options);
+    case "Network.getCookies":
+      return cookieStorageResult();
     case "IndexedDB.requestDatabaseNames":
       return indexedDbResult(options);
+    case "IndexedDB.requestDatabase":
+      return indexedDbDatabaseResult(command);
+    case "IndexedDB.requestData":
+      return indexedDbDataResult();
     case "CacheStorage.requestCacheNames":
       return cacheStorageResult(options);
+    case "CacheStorage.requestEntries":
+      return cacheEntriesResult(port);
+    case "CacheStorage.requestCachedResponse":
+      return cachedResponseResult();
     default:
       return {};
   }
@@ -476,9 +486,51 @@ const domStorageResult = (options: FakeOptions) => ({
       : [["public-key", "storage-secret"]],
 });
 
+const cookieStorageResult = () => ({
+  cookies: [
+    {
+      name: "session",
+      value: "cookie-secret",
+      domain: "127.0.0.1",
+      path: "/",
+      secure: false,
+      httpOnly: true,
+    },
+  ],
+});
+
 const indexedDbResult = (options: FakeOptions) => ({
   databaseNames:
     options.extraCollections === true ? ["app-db", "second-db"] : ["app-db"],
+});
+
+const indexedDbDatabaseResult = (command: FakeCdpCommand) => ({
+  databaseWithObjectStores: {
+    name:
+      typeof command.params.databaseName === "string"
+        ? command.params.databaseName
+        : "app-db",
+    version: 1,
+    objectStores: [
+      {
+        name: "records",
+        keyPath: { type: "string", string: "id" },
+        autoIncrement: false,
+        indexes: [],
+      },
+    ],
+  },
+});
+
+const indexedDbDataResult = () => ({
+  objectStoreDataEntries: [
+    {
+      key: { type: "string", value: "row-1" },
+      primaryKey: { type: "string", value: "row-1" },
+      value: { type: "string", value: "indexed-db-secret" },
+    },
+  ],
+  hasMore: false,
 });
 
 const cacheStorageResult = (options: FakeOptions) => ({
@@ -488,6 +540,26 @@ const cacheStorageResult = (options: FakeOptions) => ({
       ? [{ cacheName: "assets-v2", cacheId: "second-secret-id" }]
       : []),
   ],
+});
+
+const cacheEntriesResult = (port: number) => ({
+  cacheDataEntries: [
+    {
+      requestURL: `http://127.0.0.1:${String(port)}/cached`,
+      requestMethod: "GET",
+      requestHeaders: [],
+      responseTime: 1,
+      responseStatus: 200,
+      responseStatusText: "OK",
+      responseType: "basic",
+      responseHeaders: [],
+    },
+  ],
+  returnCount: 1,
+});
+
+const cachedResponseResult = () => ({
+  response: { body: Buffer.from("cache-body-secret").toString("base64") },
 });
 
 const versionTargetId = (options: FakeOptions): string =>
@@ -670,6 +742,17 @@ const accessibilityTree = (
       role: { type: "role", value: "button" },
       name: { type: "computedString", value: "Submit report" },
       description: { type: "computedString", value: "Sends the form" },
+      childIds: extraCollections ? ["ax-2"] : [],
+      properties: [
+        {
+          name: "disabled",
+          value: { type: "boolean", value: false },
+        },
+        {
+          name: "expanded",
+          value: { type: "booleanOrUndefined", value: false },
+        },
+      ],
     },
     ...(extraCollections
       ? [

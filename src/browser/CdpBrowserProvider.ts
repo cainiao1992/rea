@@ -27,11 +27,11 @@ import {
   type WebMcpDiscovery,
 } from "../domain/webMcpDiscovery.js";
 import {
-  compareWebCaptures,
-  webCaptureDiffSchema,
-  type CompareWebCapturesInput,
-  type WebCaptureDiff,
-} from "../domain/webCaptureDiff.js";
+  browserCaptureComparisonSchema,
+  compareBrowserCaptures,
+  type BrowserCaptureComparison,
+  type BrowserCaptureComparisonInput,
+} from "../domain/browserCaptureComparison.js";
 import {
   webScreenshotDiffSchema,
   webScreenshotSchema,
@@ -248,10 +248,12 @@ export class CdpBrowserProvider implements BrowserObservationPort {
   }
 
   async compareCaptures(
-    input: CompareWebCapturesInput,
-  ): Promise<Result<WebCaptureDiff, AnalysisError>> {
+    input: BrowserCaptureComparisonInput,
+  ): Promise<Result<BrowserCaptureComparison, AnalysisError>> {
     try {
-      return ok(webCaptureDiffSchema.parse(compareWebCaptures(input)));
+      return ok(
+        browserCaptureComparisonSchema.parse(compareBrowserCaptures(input)),
+      );
     } catch (cause: unknown) {
       return err(providerError(cause, "compare_web_captures"));
     }

@@ -10,7 +10,7 @@ import {
 
 const execute = promisify(execFile);
 const browsers: FakeCdpBrowser[] = [];
-const INTEGRATION_TEST_TIMEOUT_MS = 40_000;
+const INTEGRATION_TEST_TIMEOUT_MS = 60_000;
 
 afterEach(async () => {
   await Promise.all(browsers.splice(0).map(async (browser) => browser.close()));
@@ -95,6 +95,26 @@ describe("browser CLI parity", () => {
           dimensions: {
             network: { status: "unknown", total_changes: 0 },
           },
+        },
+      });
+      const scenarioCapture = completeScenarioCapture();
+      const scenarioCompared = await runCli(
+        [
+          "compare-web-captures",
+          JSON.stringify(scenarioCapture),
+          JSON.stringify(scenarioCapture),
+          "--normalization-json",
+          '{"rules":[]}',
+          "--json",
+        ],
+        environment,
+      );
+      expect(scenarioCompared).toMatchObject({
+        operation: "compare_web_captures",
+        normalized_result: {
+          comparison_kind: "browser_scenario",
+          overall_status: "unchanged",
+          alignment: { status: "aligned", aligned_steps: 2 },
         },
       });
       const analyzed = await runCli(
@@ -275,6 +295,67 @@ const normalizedResult = (value: unknown): Record<string, unknown> => {
   if (!isRecord(value) || !isRecord(value.normalized_result))
     throw new TypeError("Missing CLI normalized result");
   return value.normalized_result;
+};
+
+const completeScenarioCapture = () => {
+  const url = {
+    url: "https://app.example.test/",
+    origin: "https://app.example.test",
+    query_parameter_names: [],
+    redacted: false,
+  };
+  const completeness = {
+    status: "complete",
+    equality_eligible: true,
+    missing_sections: [],
+    truncated_sections: [],
+  };
+  const artifacts = {
+    screenshot: { state: "not_requested" },
+    dom: { state: "not_requested" },
+    accessibility: { state: "not_requested" },
+    url: { state: "captured", value: url },
+    history: { state: "not_requested" },
+    storage: { state: "not_requested" },
+  };
+  const step = (stepIndex: number, stepId: string, action: string) => ({
+    step_index: stepIndex,
+    step_id: stepId,
+    action,
+    status: "completed",
+    elapsed_ms: stepIndex,
+    before_url: url,
+    after_url: url,
+    error: null,
+    event_sequence_start: 1,
+    event_sequence_end: 0,
+    artifacts,
+    completeness,
+  });
+  return {
+    schema_version: 1,
+    browser: {
+      mode: "connect",
+      process_ownership: "external",
+      cleanup: "disconnected-external",
+      product: "Chromium",
+      version: "149",
+    },
+    scenario: {
+      start_origin: "https://app.example.test",
+      allowed_origins: ["https://app.example.test"],
+      action_count: 1,
+      secret_references: [],
+    },
+    duration_ms: 1,
+    steps: [
+      step(0, "scenario_start", "scenario_start"),
+      step(1, "open-settings", "click"),
+    ],
+    events: { retained: 0, dropped: 0, items: [] },
+    completeness,
+    limitations: [],
+  };
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

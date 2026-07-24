@@ -303,7 +303,7 @@ export type ListBrowserTargetsInput = z.infer<
 >;
 export type InspectWebPageInput = z.infer<typeof inspectWebPageInputSchema>;
 
-const sanitizedBrowserUrlSchema = z.object({
+export const sanitizedBrowserUrlSchema = z.object({
   url: z.string().max(MAX_SANITIZED_BROWSER_URL_CHARS),
   origin: z.string().max(2_048).nullable(),
   query_parameter_names: z

@@ -232,9 +232,16 @@ export const captureAccessibility = (
   readonly total: number;
   readonly nodes: WebPageInspection["accessibility"]["nodes"];
   readonly textCapture: WebPageInspection["accessibility"]["text_capture"];
+  readonly treeIncomplete: boolean;
 } => {
   const all = results.flatMap((result) =>
     recordsValue(requiredRecord(result).nodes),
+  );
+  const nodeIds = new Set(
+    all.flatMap((node) => {
+      const nodeId = stringValue(node.nodeId);
+      return nodeId === undefined ? [] : [nodeId];
+    }),
   );
   let retainedBytes = 0;
   let excludedFields = 0;
@@ -269,6 +276,7 @@ export const captureAccessibility = (
       name: captureText(node.name),
       description: captureText(node.description),
       ignored: node.ignored === true,
+      states: accessibilityStates(node.properties),
     };
   });
   for (const node of all.slice(maximum)) {
@@ -281,6 +289,14 @@ export const captureAccessibility = (
   return {
     total: all.length,
     nodes,
+    treeIncomplete: all.some(
+      (node) =>
+        Array.isArray(node.childIds) &&
+        node.childIds.some((childId) => {
+          const id = stringValue(childId);
+          return id !== undefined && !nodeIds.has(id);
+        }),
+    ),
     textCapture: {
       status: options.unavailable
         ? "unavailable"
@@ -294,6 +310,56 @@ export const captureAccessibility = (
       truncated_fields: truncatedFields,
     },
   };
+};
+
+const ACCESSIBILITY_STATE_NAMES = new Set([
+  "atomic",
+  "autocomplete",
+  "busy",
+  "checked",
+  "disabled",
+  "editable",
+  "expanded",
+  "focusable",
+  "focused",
+  "hasPopup",
+  "hidden",
+  "invalid",
+  "level",
+  "live",
+  "modal",
+  "multiline",
+  "multiselectable",
+  "orientation",
+  "pressed",
+  "readonly",
+  "required",
+  "selected",
+  "valuemax",
+  "valuemin",
+]);
+
+const accessibilityStates = (
+  value: unknown,
+): WebPageInspection["accessibility"]["nodes"][number]["states"] => {
+  const states = new Map<string, boolean | number | string>();
+  for (const property of recordsValue(value)) {
+    const name = stringValue(property.name);
+    if (name === undefined || !ACCESSIBILITY_STATE_NAMES.has(name)) continue;
+    const raw = recordValue(property.value)?.value;
+    const state =
+      typeof raw === "boolean"
+        ? raw
+        : typeof raw === "number"
+          ? numberValue(raw)
+          : typeof raw === "string"
+            ? raw.slice(0, 256)
+            : undefined;
+    if (state !== undefined) states.set(name, state);
+  }
+  return [...states]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([name, state]) => ({ name, value: state }));
 };
 
 const axText = (value: unknown): string | null =>

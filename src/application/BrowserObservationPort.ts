@@ -19,9 +19,9 @@ import type {
   WebMcpDiscovery,
 } from "../domain/webMcpDiscovery.js";
 import type {
-  CompareWebCapturesInput,
-  WebCaptureDiff,
-} from "../domain/webCaptureDiff.js";
+  BrowserCaptureComparison,
+  BrowserCaptureComparisonInput,
+} from "../domain/browserCaptureComparison.js";
 import type {
   CaptureWebScreenshotInput,
   CompareWebScreenshotsInput,
@@ -55,8 +55,8 @@ export interface BrowserObservationPort {
     options?: ExecutionOptions,
   ): Promise<Result<WebMcpDiscovery, AnalysisError>>;
   compareCaptures(
-    input: CompareWebCapturesInput,
-  ): Promise<Result<WebCaptureDiff, AnalysisError>>;
+    input: BrowserCaptureComparisonInput,
+  ): Promise<Result<BrowserCaptureComparison, AnalysisError>>;
   captureScreenshot(
     input: CaptureWebScreenshotInput,
     options?: ExecutionOptions,

@@ -83,6 +83,11 @@ describe("CDP document capture", () => {
               role: { value: "button" },
               name: { value: "😀a" },
               description: { value: "éé" },
+              childIds: ["missing-child"],
+              properties: [
+                { name: "disabled", value: { value: true } },
+                { name: "valuetext", value: { value: "private value" } },
+              ],
             },
           ],
         },
@@ -95,7 +100,12 @@ describe("CDP document capture", () => {
       },
     );
 
-    expect(capture.nodes[0]).toMatchObject({ name: "😀", description: "é" });
+    expect(capture.nodes[0]).toMatchObject({
+      name: "😀",
+      description: "é",
+      states: [{ name: "disabled", value: true }],
+    });
+    expect(capture.treeIncomplete).toBe(true);
     expect(capture.textCapture).toEqual({
       status: "truncated",
       retained_bytes: 6,

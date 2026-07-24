@@ -364,6 +364,22 @@ describe("CdpBrowserProvider", () => {
         session_storage_keys: ["public-key"],
         indexed_db_names: ["app-db"],
         cache_names: ["assets-v1"],
+        content_fingerprints: expect.arrayContaining([
+          expect.objectContaining({ scope: "cookie", complete: true }),
+          expect.objectContaining({ scope: "local_storage", complete: true }),
+          expect.objectContaining({ scope: "session_storage", complete: true }),
+          expect.objectContaining({
+            scope: "indexed_db_schema",
+            complete: true,
+          }),
+          expect.objectContaining({
+            scope: "indexed_db_record",
+            complete: true,
+          }),
+          expect.objectContaining({ scope: "cache_entry", complete: true }),
+        ]),
+        fingerprint_algorithm: "sha256",
+        fingerprints_complete: true,
         values_redacted: true,
       }),
     );
@@ -388,6 +404,9 @@ describe("CdpBrowserProvider", () => {
       "unknown-origin-console-secret",
       "unknown-console-value-secret",
       "storage-secret",
+      "cookie-secret",
+      "indexed-db-secret",
+      "cache-body-secret",
       "secret-id",
       "dom-url-secret",
       "link-secret",

@@ -386,6 +386,7 @@ const accessibilityForFrames = async (
     );
   if (capture.textCapture.status === "truncated")
     events.completeness.truncate("accessibility");
+  if (capture.treeIncomplete) events.completeness.truncate("accessibility");
   return capture;
 };
 

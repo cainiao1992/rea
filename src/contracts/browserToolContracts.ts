@@ -18,9 +18,9 @@ import {
   webMcpDiscoverySchema,
 } from "../domain/webMcpDiscovery.js";
 import {
-  compareWebCapturesInputSchema,
-  webCaptureDiffSchema,
-} from "../domain/webCaptureDiff.js";
+  browserCaptureComparisonWireSchema,
+  browserCaptureComparisonSchema,
+} from "../domain/browserCaptureComparison.js";
 import {
   captureWebScreenshotInputSchema,
   compareWebScreenshotsInputSchema,
@@ -38,12 +38,82 @@ const observationSessionOutputSchema = evidenceResult(
   webObservationSessionSchema,
 );
 const webMcpOutputSchema = evidenceResult(webMcpDiscoverySchema);
-const captureDiffOutputSchema = evidenceResult(webCaptureDiffSchema);
+const captureDiffOutputSchema = evidenceResult(browserCaptureComparisonSchema);
 const screenshotOutputSchema = evidenceResult(webScreenshotSchema);
 const screenshotDiffOutputSchema = evidenceResult(webScreenshotDiffSchema);
 
 const endpoint = "http://127.0.0.1:9222";
 const origin = "https://app.example.test";
+const scenarioUrl = {
+  url: `${origin}/`,
+  origin,
+  query_parameter_names: [],
+  redacted: false,
+};
+const scenarioCompleteness = {
+  status: "complete",
+  equality_eligible: true,
+  missing_sections: [],
+  truncated_sections: [],
+};
+const scenarioArtifacts = {
+  screenshot: { state: "not_requested" },
+  dom: { state: "not_requested" },
+  accessibility: { state: "not_requested" },
+  url: { state: "not_requested" },
+  history: { state: "not_requested" },
+  storage: { state: "not_requested" },
+};
+const exampleScenarioCapture = () => ({
+  schema_version: 1,
+  browser: {
+    mode: "connect",
+    process_ownership: "external",
+    cleanup: "disconnected-external",
+    product: "Chromium",
+    version: "149",
+  },
+  scenario: {
+    start_origin: origin,
+    allowed_origins: [origin],
+    action_count: 1,
+    secret_references: [],
+  },
+  duration_ms: 10,
+  steps: [
+    {
+      step_index: 0,
+      step_id: "scenario_start",
+      action: "scenario_start",
+      status: "completed",
+      elapsed_ms: 0,
+      before_url: scenarioUrl,
+      after_url: scenarioUrl,
+      error: null,
+      event_sequence_start: 1,
+      event_sequence_end: 0,
+      artifacts: scenarioArtifacts,
+      completeness: scenarioCompleteness,
+    },
+    {
+      step_index: 1,
+      step_id: "open-settings",
+      action: "click",
+      status: "completed",
+      elapsed_ms: 10,
+      before_url: scenarioUrl,
+      after_url: scenarioUrl,
+      error: null,
+      event_sequence_start: 1,
+      event_sequence_end: 0,
+      artifacts: scenarioArtifacts,
+      completeness: scenarioCompleteness,
+    },
+  ],
+  events: { retained: 0, dropped: 0, items: [] },
+  completeness: scenarioCompleteness,
+  limitations: [],
+});
 
 /** Origin-scoped, passive browser reverse-engineering contracts. */
 export const BROWSER_TOOL_CONTRACTS = [
@@ -209,16 +279,26 @@ export const BROWSER_TOOL_CONTRACTS = [
     name: "compare_web_captures",
     ...toolContractMetadata("compare_web_captures"),
     description:
-      "Compare two normalized web captures across DOM, scripts, resources, network, safe metadata, and optional WebMCP inventories. Stable observed changes are distinguished from unknown absence caused by incomplete capture coverage.",
+      "Compare either passive web captures or step-indexed browser scenarios. Scenario comparison aligns exact step IDs, records deterministic literal normalization, and exposes bounded artifact-level changes plus alignment failures. Missing or truncated evidence never proves equality.",
     kind: "browser-provider",
-    inputSchema: compareWebCapturesInputSchema,
+    inputSchema: browserCaptureComparisonWireSchema,
     outputSchema: captureDiffOutputSchema,
     examples: [
       {
-        title: "Compare two normalized captures",
+        title: "Compare two recorded browser scenarios",
         input: {
-          before: { inspection: exampleInspection() },
-          after: { inspection: exampleInspection() },
+          before_scenario: exampleScenarioCapture(),
+          after_scenario: exampleScenarioCapture(),
+          normalization: {
+            rules: [
+              {
+                rule_id: "volatile-build-id",
+                artifacts: ["dom", "accessibility"],
+                match: "build-123",
+                replacement: "[BUILD_ID]",
+              },
+            ],
+          },
           max_changes: 2_000,
         },
       },
@@ -267,99 +347,6 @@ export const BROWSER_TOOL_CONTRACTS = [
     ],
   },
 ] as const satisfies readonly ToolContract[];
-
-function exampleCompleteness() {
-  return {
-    status: "complete_within_window",
-    conditions: ["complete_within_window"],
-    policy_filtered_sections: [],
-    attach_limited_sections: [],
-    truncated_sections: [],
-    unavailable_sections: [],
-    excluded: [],
-    dropped_events: {
-      scripts: 0,
-      network_requests: 0,
-      console_events: 0,
-      websocket_connections: 0,
-      websocket_frames: 0,
-      webmcp_tools: 0,
-      timeline_events: 0,
-      total: 0,
-    },
-  };
-}
-
-function exampleInspection() {
-  return {
-    schema_version: 2,
-    browser: {
-      product: "Chrome/1",
-      protocol_version: "1.3",
-      revision: "example",
-      user_agent: "Chrome",
-      js_version: "1",
-    },
-    target: {
-      target_id: "page-1",
-      type: "page",
-      title: "Example",
-      url: `${origin}/`,
-      origin,
-      attached: false,
-    },
-    capture_window: {
-      started_at: "2026-07-14T00:00:00.000Z",
-      ended_at: "2026-07-14T00:00:01.000Z",
-      observation_ms: 1_000,
-    },
-    completeness: exampleCompleteness(),
-    frames: [],
-    dom: { total_nodes: 0, nodes: [] },
-    accessibility: {
-      total_nodes: 0,
-      text_capture: {
-        status: "not_approved",
-        retained_bytes: 0,
-        excluded_fields: 0,
-        truncated_fields: 0,
-      },
-      nodes: [],
-    },
-    scripts: { total: 0, items: [] },
-    resources: [],
-    network: {
-      requests: [],
-      websocket_events: [],
-      coverage_started_at: "2026-07-14T00:00:00.000Z",
-      prior_activity_available: false,
-    },
-    console: {
-      events: [],
-      coverage_started_at: "2026-07-14T00:00:00.000Z",
-      prior_activity_available: false,
-    },
-    workers: [],
-    metadata: {
-      responses: [],
-      dom_urls: [],
-      agent_hints: [],
-      excluded_dom_urls: 0,
-      headers_allowlisted: true,
-    },
-    storage: {
-      origin,
-      usage_bytes: null,
-      quota_bytes: null,
-      local_storage_keys: [],
-      session_storage_keys: [],
-      indexed_db_names: [],
-      cache_names: [],
-      values_redacted: true,
-    },
-    limitations: [],
-  };
-}
 
 function exampleScreenshot() {
   return {

@@ -388,6 +388,17 @@ export const rangeForOffsets = (
   end: pointForOffset(source, end),
 });
 
+/** Compare two exact source ranges. */
+export const sourceRangesEqual = (
+  left: JavaScriptSourceRange | null,
+  right: JavaScriptSourceRange,
+): boolean =>
+  left !== null &&
+  left.start.line === right.start.line &&
+  left.start.column === right.start.column &&
+  left.end.line === right.end.line &&
+  left.end.column === right.end.column;
+
 const pointForOffset = (source: string, offset: number) => {
   const before = source.slice(0, offset);
   const lines = before.split("\n");
@@ -450,6 +461,8 @@ const vendorPatterns = [
   { name: "webpack", patterns: ["__webpack_require__", "webpackChunk"] },
   { name: "Rspack", patterns: ["__webpack_require__.f", "rspackChunk"] },
   { name: "Vite", patterns: ["__vite__", "import.meta.hot"] },
+  { name: "Rollup", patterns: ["ROLLUP_FILE_URL", "import.meta.ROLLUP"] },
+  { name: "esbuild", patterns: ["__commonJS", "__esm"] },
   { name: "React", patterns: ["React.createElement", "react/jsx-runtime"] },
   { name: "Vue", patterns: ["__VUE__", "createApp("] },
   { name: "Next.js", patterns: ["__NEXT_DATA__", "/_next/"] },

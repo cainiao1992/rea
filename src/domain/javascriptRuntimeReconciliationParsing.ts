@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isAbsolute, relative } from "node:path";
 
 import canonicalize from "canonicalize";
 import { z } from "zod";
@@ -6,14 +7,24 @@ import { z } from "zod";
 import {
   browserAllowedOriginsSchema,
   browserEndpointSchema,
+  browserOriginSchema,
   webPageInspectionSchema,
   type WebPageInspection,
 } from "./browserObservation.js";
+import {
+  classifyBrowserCompleteness,
+  type BrowserCompleteness,
+} from "./browserCompleteness.js";
 import {
   electronFileRootsSchema,
   electronPageInspectionSchema,
   type ElectronPageInspection,
 } from "./electronObservation.js";
+import {
+  javascriptRuntimeObservationSchema,
+  javascriptRuntimeKindSchema,
+  type JavaScriptRuntimeObservation,
+} from "./javascriptRuntimeObservation.js";
 import { parseEvidence, type Evidence } from "./evidence.js";
 import {
   javascriptApplicationAnalysisResultSchema,
@@ -45,6 +56,39 @@ interface RuntimeCaptureBase {
   readonly scriptsCompleteWithinScope: boolean;
 }
 
+interface NormalizedV8Inspection {
+  readonly target:
+    | {
+        readonly target_id: string;
+        readonly type: string;
+        readonly title: string;
+        readonly attached: boolean;
+        readonly file_path: string;
+      }
+    | {
+        readonly target_id: string;
+        readonly type: string;
+        readonly title: string;
+        readonly attached: boolean;
+        readonly url: string;
+      };
+  readonly frames: readonly [];
+  readonly scripts: {
+    readonly items: readonly (Readonly<{
+      script_key: string;
+      frame_id: string | null;
+      cdp_hash: string;
+      length: number;
+      is_module: boolean;
+      language: null;
+      source: { readonly included: false; readonly reason: string };
+    }> &
+      ({ readonly file_path: string } | { readonly url: string }))[];
+  };
+  readonly workers: readonly [];
+  readonly completeness: BrowserCompleteness;
+}
+
 export type ParsedRuntimeCapture =
   | (RuntimeCaptureBase & {
       readonly kind: "browser";
@@ -53,6 +97,10 @@ export type ParsedRuntimeCapture =
   | (RuntimeCaptureBase & {
       readonly kind: "electron";
       readonly inspection: ElectronPageInspection;
+    })
+  | (RuntimeCaptureBase & {
+      readonly kind: "v8-inspector";
+      readonly inspection: NormalizedV8Inspection;
     });
 
 /** Parse and semantically bind every static analysis Evidence layer. */
@@ -184,10 +232,156 @@ const parseRuntimeCapture = (input: Evidence): ParsedRuntimeCapture => {
       scriptsCompleteWithinScope: scriptsComplete(inspection.completeness),
     };
   }
+  if (evidence.operation === "observe_javascript_runtime") {
+    assertEvidenceIdentity(evidence, {
+      operation: "observe_javascript_runtime",
+      predicate: "rea.javascript-runtime-observation/v1",
+      providerId: "rea-v8-inspector",
+      providerName: "REA passive Node/Electron V8 Inspector provider",
+      providerVersion: "1",
+      authority: "external-service",
+      confidence: "observed",
+    });
+    const result = javascriptRuntimeObservationSchema.parse(
+      evidence.normalized_result,
+    );
+    assertV8RuntimeParameters(evidence, result);
+    const inspection = normalizeV8Inspection(result);
+    return {
+      kind: "v8-inspector",
+      evidence,
+      inspection,
+      captureSha256: digestCanonical(result),
+      scriptsCompleteWithinScope: false,
+    };
+  }
   throw new TypeError(
-    "Runtime reconciliation requires inspect_web_page or inspect_electron_page Evidence",
+    "Runtime reconciliation requires inspect_web_page, inspect_electron_page, or observe_javascript_runtime Evidence",
   );
 };
+
+const assertV8RuntimeParameters = (
+  evidence: Evidence,
+  result: JavaScriptRuntimeObservation,
+): void => {
+  const parameters = z
+    .object({
+      inspector_endpoint: browserEndpointSchema,
+      allowed_file_roots: z
+        .array(z.string().min(1).max(16_384).refine(isAbsolute))
+        .max(32),
+      allowed_origins: z.array(browserOriginSchema).max(32),
+      target_id: z.string().trim().min(1).max(256),
+      runtime_kind: javascriptRuntimeKindSchema,
+    })
+    .passthrough()
+    .parse(evidence.parameters);
+  if (
+    parameters.target_id !== result.target.target_id ||
+    parameters.runtime_kind !== result.target.runtime_kind
+  )
+    throw new TypeError(
+      "Runtime Evidence target or declared role disagrees with its result",
+    );
+  for (const location of [
+    result.target.location,
+    ...result.scripts.items.map(({ location }) => location),
+  ])
+    if (
+      (location.kind === "file" &&
+        !parameters.allowed_file_roots.some((root) =>
+          isWithinRoot(root, location.file_path),
+        )) ||
+      (location.kind === "url" &&
+        !parameters.allowed_origins.includes(location.origin)) ||
+      (location.kind === "builtin" && !location.specifier.startsWith("node:"))
+    )
+      throw new TypeError(
+        "Runtime Evidence contains a location outside its recorded scope",
+      );
+};
+
+const isWithinRoot = (root: string, path: string): boolean => {
+  const remainder = relative(root, path);
+  return (
+    remainder === "" || (!remainder.startsWith("..") && !isAbsolute(remainder))
+  );
+};
+
+const normalizeV8Inspection = (
+  result: JavaScriptRuntimeObservation,
+): NormalizedV8Inspection => ({
+  target: {
+    target_id: result.target.target_id,
+    type: result.target.protocol_type,
+    title: result.target.runtime_kind,
+    attached: result.target.attached,
+    ...runtimeLocation(result.target.location),
+  },
+  frames: [],
+  scripts: {
+    items: result.scripts.items.map((script) => ({
+      script_key: script.script_key,
+      frame_id: script.execution_context_key,
+      ...runtimeLocation(script.location),
+      cdp_hash: script.cdp_hash ?? "",
+      length: script.length,
+      is_module: script.is_module,
+      language: null,
+      source: {
+        included: false,
+        reason: "V8 Inspector source capture is outside passive authority.",
+      },
+    })),
+  },
+  workers: [],
+  completeness: classifyBrowserCompleteness({
+    policyFilteredSections: new Set(
+      excludedV8Scripts(result) > 0 ? ["scripts"] : [],
+    ),
+    attachLimitedSections: new Set([
+      "frames",
+      "scripts",
+      "script_sources",
+      "workers",
+    ]),
+    truncatedSections: new Set(result.capture.truncated ? ["scripts"] : []),
+    unavailableSections: new Set(["frames", "script_sources", "workers"]),
+    excluded:
+      excludedV8Scripts(result) === 0
+        ? []
+        : [
+            {
+              section: "scripts",
+              reason: "out_of_target_scope",
+              count: excludedV8Scripts(result),
+            },
+          ],
+    droppedEvents: {
+      scripts: result.capture.events_dropped,
+      network_requests: 0,
+      console_events: 0,
+      websocket_connections: 0,
+      websocket_frames: 0,
+      webmcp_tools: 0,
+      timeline_events: 0,
+    },
+  }),
+});
+
+const runtimeLocation = (
+  location: JavaScriptRuntimeObservation["target"]["location"],
+): { readonly file_path: string } | { readonly url: string } => {
+  if (location.kind === "file") return { file_path: location.file_path };
+  if (location.kind === "url") return { url: location.sanitized_url };
+  return { url: location.specifier };
+};
+
+const excludedV8Scripts = (result: JavaScriptRuntimeObservation): number =>
+  Object.values(result.scripts.excluded).reduce(
+    (total, count) => total + count,
+    0,
+  );
 
 const assertRuntimeParameters = (
   evidence: Evidence,

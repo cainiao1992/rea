@@ -41,22 +41,26 @@ export const semanticFamilyStatus = (
   analysis: JavaScriptArtifactAnalysis,
   truncated: boolean,
 ): "complete" | "partial" | "unknown" | "unsupported" => {
-  if (!["call-flow", "closure", "data-flow", "object-flow"].includes(family))
+  if (
+    ![
+      "call-flow",
+      "boundary",
+      "child-process",
+      "closure",
+      "configuration",
+      "data-flow",
+      "event",
+      "object-flow",
+      "promise-ownership",
+      "request",
+      "resource-lifecycle",
+      "timer",
+    ].includes(family)
+  )
     return "unsupported";
   if (truncated) return "unknown";
   return analysis.truncated_scopes === 0 ? "partial" : "unknown";
 };
-
-/** Compare two exact semantic source ranges. */
-export const semanticRangesEqual = (
-  left: JavaScriptSourceRange | null,
-  right: JavaScriptSourceRange,
-): boolean =>
-  left !== null &&
-  left.start.line === right.start.line &&
-  left.start.column === right.start.column &&
-  left.end.line === right.end.line &&
-  left.end.column === right.end.column;
 
 const contains = (
   outer: JavaScriptSourceRange,

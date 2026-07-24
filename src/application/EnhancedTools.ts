@@ -12,7 +12,6 @@ import {
 } from "../domain/errors.js";
 import {
   addressDistance,
-  parseAddressedPage,
   parseDocuments,
   parseFunctionDossier,
   parseListCount,
@@ -31,11 +30,11 @@ import type { JsonValue } from "../domain/jsonValue.js";
 import {
   invalidEnhancedInput,
   type EnhancedResult,
-  type TraceMatch,
-  type TraceReference,
   type ValidatedEnhancedCall,
 } from "./EnhancedToolTypes.js";
 import { readAllAddressed } from "./EnhancedToolPagination.js";
+import { traceCallPath } from "./CallPathTracing.js";
+import { traceLiteralFeature } from "./EnhancedLiteralTracing.js";
 export type { ValidatedEnhancedCall } from "./EnhancedToolTypes.js";
 
 /**
@@ -52,6 +51,12 @@ export class EnhancedTools {
     input: unknown,
     signal?: AbortSignal,
   ): EnhancedResult {
+    if (
+      name === "trace_feature" ||
+      name === "find_code_for_string" ||
+      name === "trace_call_path"
+    )
+      return this.#executeTracing(name, input, signal);
     switch (name) {
       case "swift_classes": {
         const parsed = enhancedInputSchemas.swift_classes.safeParse(input);
@@ -99,12 +104,6 @@ export class EnhancedTools {
           ? this.executeValidated({ name, input: parsed.data }, signal)
           : invalidEnhancedInput(name, parsed.error);
       }
-      case "trace_feature": {
-        const parsed = enhancedInputSchemas.trace_feature.safeParse(input);
-        return parsed.success
-          ? this.executeValidated({ name, input: parsed.data }, signal)
-          : invalidEnhancedInput(name, parsed.error);
-      }
     }
   }
 
@@ -133,8 +132,53 @@ export class EnhancedTools {
       case "analyze_function":
         return this.#analyzeFunction(call.input, signal);
       case "trace_feature":
-        return this.#traceFeature(call.input, signal);
+        return traceLiteralFeature(
+          (name, arguments_, operationSignal) =>
+            this.#call(name, arguments_, operationSignal),
+          call.input,
+          "feature",
+          signal,
+        );
+      case "find_code_for_string":
+        return traceLiteralFeature(
+          (name, arguments_, operationSignal) =>
+            this.#call(name, arguments_, operationSignal),
+          call.input,
+          "string",
+          signal,
+        );
+      case "trace_call_path":
+        return traceCallPath(
+          (name, arguments_, operationSignal) =>
+            this.#call(name, arguments_, operationSignal),
+          call.input,
+          signal,
+        );
     }
+  }
+
+  #executeTracing(
+    name: "trace_feature" | "find_code_for_string" | "trace_call_path",
+    input: unknown,
+    signal?: AbortSignal,
+  ): EnhancedResult {
+    const parsed = enhancedInputSchemas[name].safeParse(input);
+    if (!parsed.success) return invalidEnhancedInput(name, parsed.error);
+    if (name === "trace_call_path")
+      return this.executeValidated(
+        {
+          name,
+          input: enhancedInputSchemas.trace_call_path.parse(parsed.data),
+        },
+        signal,
+      );
+    return this.executeValidated(
+      {
+        name,
+        input: enhancedInputSchemas[name].parse(parsed.data),
+      },
+      signal,
+    );
   }
 
   async #analyzeFunction(
@@ -343,161 +387,6 @@ export class EnhancedTools {
       segment_count: segments.value.length,
       procedure_count: procedureCount.value,
       string_count: stringCount.value,
-    });
-  }
-
-  async #traceFeature(
-    input: {
-      readonly query: string;
-      readonly case_sensitive: boolean;
-      readonly limit: number;
-      readonly max_operations: number;
-    },
-    signal?: AbortSignal,
-  ): EnhancedResult {
-    const searched = await this.#literalMatches(input, signal);
-    if (!searched.ok) return searched;
-    const residual = new Set<string>();
-    const traced = await this.#traceReferences(
-      searched.value.matches,
-      input.limit,
-      input.max_operations - searched.value.operations,
-      signal,
-    );
-    if (!traced.ok) return traced;
-    for (const reason of traced.value.residual) residual.add(reason);
-    const operations = searched.value.operations + traced.value.operations;
-    if (operations >= input.max_operations)
-      residual.add("Investigation reached the operation budget.");
-    if (searched.value.matches.length >= input.limit)
-      residual.add("Literal matches reached the configured limit.");
-    return ok({
-      query: input.query,
-      search_mode: "literal",
-      operations_used: operations,
-      operation_budget: input.max_operations,
-      matches: searched.value.matches,
-      references: traced.value.references,
-      truncated: residual.size > 0,
-      residual_unknowns: [...residual],
-    });
-  }
-
-  async #literalMatches(
-    input: {
-      readonly query: string;
-      readonly case_sensitive: boolean;
-      readonly limit: number;
-      readonly max_operations: number;
-    },
-    signal?: AbortSignal,
-  ): Promise<
-    Result<{ matches: TraceMatch[]; operations: number }, AnalysisError>
-  > {
-    let operations = 0;
-    const matches: TraceMatch[] = [];
-    const needle = input.case_sensitive
-      ? input.query
-      : input.query.toLowerCase();
-    for (const [tool, type] of [
-      ["list_strings", "string"],
-      ["list_procedures", "procedure"],
-    ] as const) {
-      let offset = 0;
-      while (
-        operations < input.max_operations &&
-        matches.length < input.limit
-      ) {
-        operations += 1;
-        const result = await this.#call(tool, { offset, limit: 500 }, signal);
-        if (!result.ok) return result;
-        const page = parseAddressedPage(result.value);
-        if (!page.ok) return page;
-        for (const item of page.value.items) {
-          const haystack = input.case_sensitive
-            ? item.name
-            : item.name.toLowerCase();
-          if (haystack.includes(needle))
-            matches.push({ type, address: item.address, value: item.name });
-          if (matches.length >= input.limit) break;
-        }
-        if (!page.value.hasMore || page.value.nextOffset === null) break;
-        offset = page.value.nextOffset;
-      }
-    }
-    return ok({ matches, operations });
-  }
-
-  async #traceReferences(
-    matches: readonly TraceMatch[],
-    limit: number,
-    operationBudget: number,
-    signal?: AbortSignal,
-  ): Promise<
-    Result<
-      { references: TraceReference[]; operations: number; residual: string[] },
-      AnalysisError
-    >
-  > {
-    let operations = 0;
-    const references: TraceReference[] = [];
-    const residual = new Set<string>();
-    for (const match of matches) {
-      if (operations >= operationBudget) {
-        residual.add("Reference traversal stopped at the operation budget.");
-        break;
-      }
-      operations += 1;
-      const xrefs = await this.#call(
-        "xrefs",
-        { address: match.address },
-        signal,
-      );
-      if (!xrefs.ok) return xrefs;
-      if (!Array.isArray(xrefs.value))
-        return err(
-          new AnalysisOutputError(
-            "xrefs",
-            "provider returned a non-array result",
-          ),
-        );
-      for (const source of xrefs.value) {
-        if (typeof source !== "string")
-          return err(
-            new AnalysisOutputError(
-              "xrefs",
-              "provider returned a non-address value",
-            ),
-          );
-        if (operations >= operationBudget) {
-          residual.add(
-            "Containing-procedure resolution stopped at the operation budget.",
-          );
-          break;
-        }
-        operations += 1;
-        const resolved = await this.#call(
-          "resolve_containing_procedure",
-          { address: source },
-          signal,
-        );
-        if (!resolved.ok) return resolved;
-        references.push({
-          target_address: match.address,
-          source_address: source,
-          containing_procedure: resolved.value,
-        });
-        if (references.length >= limit) {
-          residual.add("Reference results reached the configured limit.");
-          break;
-        }
-      }
-      if (references.length >= limit) break;
-    }
-    return ok({
-      references,
-      operations,
-      residual: [...residual],
     });
   }
 

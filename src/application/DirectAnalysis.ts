@@ -40,6 +40,7 @@ import {
   workflowAnalysisProfile,
 } from "./InvestigationProviders.js";
 import type { AnalysisProviderSelector } from "../contracts/providerSelection.js";
+import { artifactInspectionResultSchema } from "../domain/artifactInspection.js";
 
 export {
   runCapabilityStatus,
@@ -144,7 +145,7 @@ const authorizeAnalysis = async (
       );
   }
   if (
-    tool === "inventory_artifact" &&
+    ["inventory_artifact", "inspect_artifact"].includes(tool) &&
     arguments_.native_mount_approved === true
   ) {
     const result = await authority.authorize(
@@ -155,7 +156,7 @@ const authorizeAnalysis = async (
         environment_names: [],
         network: "none",
         mount: true,
-        operation_identity: "inventory_artifact:native_mount",
+        operation_identity: `${tool}:native_mount`,
       },
       "read",
     );
@@ -381,6 +382,11 @@ const executeAnalysisTool = async (input: {
       rawResult: result.value.rawResult,
       limitations: result.value.limitations,
       locations: result.value.locations,
+      evidenceLinks:
+        tool === "inspect_artifact"
+          ? artifactInspectionResultSchema.parse(result.value.result)
+              .evidence_links
+          : [],
     },
   );
   return { output: evidence, evidence };

@@ -13,6 +13,48 @@ import { createServer } from "../src/server/createServer.js";
 import { createServerIdentity } from "../src/serverIdentity.js";
 import { observed } from "./fixtures/analysisExecution.js";
 import { buildCapabilityInventory } from "../src/application/CapabilityInventory.js";
+import type {
+  AnalysisProvider,
+  CapabilityDescriptor,
+} from "../src/application/AnalysisProvider.js";
+
+const availabilityProvider = (): AnalysisProvider => {
+  const identity = { id: "fixture", name: "Fixture", version: "1" };
+  const capability: CapabilityDescriptor = {
+    provider: identity,
+    operation: "current_address",
+    inputContractVersion: 1,
+    outputContractVersion: 1,
+    available: true,
+    reason: null,
+    pagination: "none",
+    exhaustive: true,
+    effects: {
+      mutatesArtifact: false,
+      launchesProcess: false,
+      mayShowUi: false,
+      mayAccessNetwork: false,
+      mayWriteFilesystem: false,
+      changesPermissions: false,
+      requiresRoot: false,
+    },
+    limits: {
+      maxResults: null,
+      maxPayloadBytes: null,
+      timeoutMs: null,
+    },
+    limitations: [],
+  };
+  return {
+    identity: () => identity,
+    capabilities: () => [capability],
+    createClient: () => ({
+      health: () => Promise.resolve(),
+      execute: () => Promise.resolve(observed(null)),
+      close: () => Promise.resolve(),
+    }),
+  };
+};
 
 describe("server and catalog identity", () => {
   it("derives package and SDK versions from canonical package metadata", async () => {
@@ -26,14 +68,14 @@ describe("server and catalog identity", () => {
     });
     expect(PRODUCT_IDENTITY.packageVersion).toBe(packageJson.version);
     expect(SDK_IDENTITY.server).toBe("2.0.0-beta.4");
-    expect(CLI_COMMAND_NAMES).toHaveLength(59);
-    expect(new Set(CLI_COMMAND_NAMES).size).toBe(59);
+    expect(CLI_COMMAND_NAMES).toHaveLength(66);
+    expect(new Set(CLI_COMMAND_NAMES).size).toBe(66);
     expect(CATALOG_IDENTITY.counts).toEqual({
-      cli_commands: 59,
+      cli_commands: 66,
       mcp_tools: TOOL_CONTRACTS.length,
       mcp_prompts: 6,
       mcp_resources: 2,
-      mcp_resource_templates: 9,
+      mcp_resource_templates: 11,
     });
     expect(CATALOG_IDENTITY.digests.combined_sha256).toMatch(/^[a-f0-9]{64}$/u);
   });
@@ -132,13 +174,16 @@ describe("server and catalog identity", () => {
   });
 
   it("exposes live identity, labeled inventories, availability, and list changes", async () => {
-    const session = new BinarySession(() => ({
-      health: () => Promise.resolve(),
-      execute: () => Promise.resolve(observed(null)),
-      close: () => Promise.resolve(),
-    }));
+    const session = new BinarySession(availabilityProvider());
     const server = createServer(session, session);
-    const client = new Client({ name: "identity-test", version: "9" });
+    const client = new Client(
+      { name: "identity-test", version: "9" },
+      {
+        capabilities: {
+          elicitation: { form: {} },
+        },
+      },
+    );
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();
     let toolListChanges = 0;
@@ -149,7 +194,7 @@ describe("server and catalog identity", () => {
       await server.connect(serverTransport);
       await client.connect(clientTransport);
       const instructions = client.getInstructions();
-      expect(instructions?.length).toBeLessThanOrEqual(512);
+      expect(instructions?.length).toBeLessThanOrEqual(640);
       expect(instructions).toContain(
         "ASAR/JavaScript -> analyze_javascript_application",
       );
@@ -200,6 +245,12 @@ describe("server and catalog identity", () => {
               name: "capture_process_scenario",
               available: false,
               reason: "policy_disabled",
+              client_requirements: {
+                required: [],
+                optional: ["elicitation_form"],
+                missing_required: [],
+                missing_optional: [],
+              },
             }),
             expect.objectContaining({
               name: "inspect_web_page",
@@ -216,7 +267,7 @@ describe("server and catalog identity", () => {
             }),
           ]),
           client_features: {
-            elicitation_form: false,
+            elicitation_form: true,
             elicitation_url: false,
             roots: false,
             sampling: false,
@@ -260,6 +311,12 @@ describe("server and catalog identity", () => {
             next_cursor: expect.any(Number),
             has_more: true,
           },
+          client_features: {
+            elicitation_form: true,
+            elicitation_url: false,
+            roots: false,
+            sampling: false,
+          },
         },
       });
       for (const capabilityFamily of TOOL_KINDS) {
@@ -284,8 +341,17 @@ describe("server and catalog identity", () => {
           },
         });
       }
-      await client.callTool({ name: "close_binary", arguments: {} });
+      expect(
+        (await client.listTools()).tools.map(({ name }) => name),
+      ).not.toContain("current_address");
+      await client.callTool({
+        name: "open_binary",
+        arguments: { path: process.execPath },
+      });
       await expect.poll(() => toolListChanges).toBeGreaterThan(0);
+      expect(
+        (await client.listTools()).tools.map(({ name }) => name),
+      ).toContain("current_address");
     } finally {
       await Promise.allSettled([
         client.close(),
@@ -293,5 +359,5 @@ describe("server and catalog identity", () => {
         session.close(),
       ]);
     }
-  });
+  }, 10_000);
 });

@@ -1,5 +1,11 @@
 import type { JsonValue } from "./jsonValue.js";
 import type {
+  BrowserObservationFailureReason,
+  BrowserObservationOperation,
+} from "./browserObservationErrors.js";
+
+export type { BrowserObservationOperation } from "./browserObservationErrors.js";
+import type {
   MissingPermissionScope,
   PermissionRequest,
   PermissionScope,
@@ -258,34 +264,13 @@ export class ProviderAdapterError extends AnalysisError {
   }
 }
 
-/** Public browser and Electron operations that can fail at a CDP boundary. */
-export type BrowserObservationOperation =
-  | "list_browser_targets"
-  | "inspect_web_page"
-  | "analyze_web_bundle"
-  | "observe_web_session"
-  | "discover_webmcp_tools"
-  | "compare_web_captures"
-  | "capture_web_screenshot"
-  | "compare_web_screenshots"
-  | "list_electron_targets"
-  | "inspect_electron_page";
-
 /** A bounded passive browser observation failed at its CDP boundary. */
 export class BrowserObservationError extends AnalysisError {
   readonly _tag = "BrowserObservationError";
 
   constructor(
     readonly operation: BrowserObservationOperation,
-    readonly reason:
-      | "endpoint_unreachable"
-      | "invalid_endpoint_response"
-      | "target_not_found"
-      | "target_not_allowed"
-      | "target_changed"
-      | "protocol_error"
-      | "disconnected"
-      | "payload_limit",
+    readonly reason: BrowserObservationFailureReason,
     options?: ErrorOptions,
   ) {
     super(`Browser observation ${operation} failed: ${reason}`, options);
@@ -299,6 +284,7 @@ export class ArtifactOperationError extends AnalysisError {
   constructor(
     readonly operation:
       | "inventory_artifact"
+      | "inspect_artifact"
       | "extract_artifact"
       | "analyze_javascript_application",
     readonly reason:
@@ -441,6 +427,7 @@ export type HopperDiagnosticType =
   | "remote"
   | "authorization"
   | "invalid_request"
+  | "capability_unavailable"
   | "bridge_exception";
 
 /** Hopper's JSON-RPC endpoint returned an expected remote error response. */

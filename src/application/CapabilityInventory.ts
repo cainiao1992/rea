@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { TOOL_CONTRACTS } from "../contracts/toolContracts.js";
+import type { ClientFeatureAvailability } from "../contracts/toolOutputSchemaPrimitives.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 
 const statusSchema = z.object({
@@ -19,6 +20,7 @@ const statusSchema = z.object({
 
 type ToolAvailabilityReason =
   | "available"
+  | "client_capability_missing"
   | "target_required"
   | "provider_missing"
   | "provider_unavailable"
@@ -32,14 +34,40 @@ type ProviderDescriptor = {
   readonly reason: string | null;
   readonly availability_code?: string | null;
 };
-type AvailabilityPolicy = {
+export type AvailabilityPolicy = {
   readonly processCaptureEnabled: boolean;
   readonly evidenceFileRoots: number;
   readonly investigationInputRoots: number;
   readonly browserObservationEnabled?: boolean;
+  readonly browserScenarioEnabled?: boolean;
   readonly electronObservationEnabled?: boolean;
+  readonly v8InspectorObservationEnabled?: boolean;
   readonly javascriptReplayEnabled?: boolean;
   readonly managedRuntimeEnabled?: boolean;
+};
+
+type ClientFeatureName = keyof ClientFeatureAvailability;
+
+const NO_CLIENT_FEATURES: ClientFeatureAvailability = {
+  elicitation_form: false,
+  elicitation_url: false,
+  roots: false,
+  sampling: false,
+};
+
+const CLIENT_FEATURE_REQUIREMENTS: Readonly<
+  Record<
+    string,
+    {
+      readonly required: readonly ClientFeatureName[];
+      readonly optional: readonly ClientFeatureName[];
+    }
+  >
+> = {
+  capture_process_scenario: {
+    required: [],
+    optional: ["elicitation_form"],
+  },
 };
 type Availability = {
   readonly reason: ToolAvailabilityReason;
@@ -82,10 +110,11 @@ const ENHANCED_REQUIREMENTS: Readonly<Record<string, readonly string[]>> = {
   ],
 };
 
-/** Build stable per-operation availability without hiding familiar tools. */
+/** Build stable per-operation availability for discovery and tool visibility. */
 export const buildCapabilityInventory = (
   sessionStatus: JsonValue,
   policy: AvailabilityPolicy,
+  clientFeatures: ClientFeatureAvailability = NO_CLIENT_FEATURES,
 ) => {
   const status = statusSchema.parse(sessionStatus);
   const descriptors = new Map<string, ProviderDescriptor>(
@@ -107,12 +136,22 @@ export const buildCapabilityInventory = (
       descriptors,
       policy,
     });
+    const clientRequirements = clientRequirementsFor(
+      contract.name,
+      clientFeatures,
+    );
+    const clientBlocked = clientRequirements.missing_required.length > 0;
     return {
       name: contract.name,
       surface: contract.kind,
-      available: availability.reason === "available",
-      reason: availability.reason,
-      remediation: availability.remediation,
+      available: availability.reason === "available" && !clientBlocked,
+      reason: clientBlocked
+        ? ("client_capability_missing" as const)
+        : availability.reason,
+      remediation: clientBlocked
+        ? `Use an MCP client that supports: ${clientRequirements.missing_required.join(", ")}.`
+        : availability.remediation,
+      client_requirements: clientRequirements,
       effects: { ...contract.effects },
       annotations: {
         read_only: contract.annotations.readOnlyHint ?? false,
@@ -122,6 +161,26 @@ export const buildCapabilityInventory = (
       },
     };
   }).sort((left, right) => left.name.localeCompare(right.name));
+};
+
+const clientRequirementsFor = (
+  name: string,
+  clientFeatures: ClientFeatureAvailability,
+) => {
+  const requirements = CLIENT_FEATURE_REQUIREMENTS[name] ?? {
+    required: [],
+    optional: [],
+  };
+  return {
+    required: [...requirements.required],
+    optional: [...requirements.optional],
+    missing_required: requirements.required.filter(
+      (feature) => !clientFeatures[feature],
+    ),
+    missing_optional: requirements.optional.filter(
+      (feature) => !clientFeatures[feature],
+    ),
+  };
 };
 
 const availabilityFor = (context: AvailabilityContext): Availability => {
@@ -156,6 +215,8 @@ const policyAvailability = ({
   kind,
   policy,
 }: AvailabilityContext): Availability | null => {
+  const browser = browserPolicyAvailability(name, kind, policy);
+  if (browser !== null) return browser;
   if (name === "capture_process_scenario" && !policy.processCaptureEnabled)
     return {
       reason: "policy_disabled",
@@ -187,14 +248,6 @@ const policyAvailability = ({
       reason: "policy_disabled",
       remediation: "Configure or grant an evidence_read root.",
     };
-  if (kind === "browser-provider")
-    return policy.browserObservationEnabled === true
-      ? { reason: "available", remediation: null }
-      : {
-          reason: "policy_disabled",
-          remediation:
-            "Enable browser observation and configure exact CDP endpoint and page origins.",
-        };
   if (kind === "electron-provider")
     return policy.electronObservationEnabled === true
       ? { reason: "available", remediation: null }
@@ -203,8 +256,39 @@ const policyAvailability = ({
           remediation:
             "Enable Electron observation and configure a loopback CDP endpoint and canonical file roots.",
         };
+  if (kind === "runtime-provider")
+    return policy.v8InspectorObservationEnabled === true
+      ? { reason: "available", remediation: null }
+      : {
+          reason: "policy_disabled",
+          remediation:
+            "Enable V8 Inspector observation and configure exact loopback endpoints plus canonical file roots or exact origins.",
+        };
   if (kind === "session") return { reason: "available", remediation: null };
   return null;
+};
+
+const browserPolicyAvailability = (
+  name: string,
+  kind: ToolKind,
+  policy: AvailabilityPolicy,
+): Availability | null => {
+  if (name === "capture_browser_scenario")
+    return policy.browserScenarioEnabled === true
+      ? { reason: "available", remediation: null }
+      : {
+          reason: "policy_disabled",
+          remediation:
+            "Enable browser scenarios and configure exact executable roots or loopback CDP endpoints, page origins, and environment secret names.",
+        };
+  if (kind !== "browser-provider") return null;
+  return policy.browserObservationEnabled === true
+    ? { reason: "available", remediation: null }
+    : {
+        reason: "policy_disabled",
+        remediation:
+          "Enable browser observation and configure exact CDP endpoint and page origins.",
+      };
 };
 
 const targetAvailability = ({
@@ -212,7 +296,7 @@ const targetAvailability = ({
   targetKind,
   targetOpen,
 }: AvailabilityContext): Availability | null => {
-  if (!targetOpen)
+  if (!targetOpen && (kind === "official-proxy" || kind === "enhanced"))
     return {
       reason: "target_required",
       remediation: "Call open_binary with a supported local target.",
@@ -238,6 +322,13 @@ const providerAvailability = ({
 }: AvailabilityContext): Availability => {
   if (kind === "enhanced") return composedAvailability(name, descriptors);
   const descriptor = descriptors.get(name);
+  if (
+    descriptor === undefined &&
+    (kind === "artifact-provider" ||
+      kind === "managed-provider" ||
+      kind === "native-provider")
+  )
+    return { reason: "available", remediation: null };
   if (descriptor === undefined)
     return {
       reason: "provider_missing",

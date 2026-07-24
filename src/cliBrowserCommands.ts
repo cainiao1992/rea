@@ -134,6 +134,7 @@ const registerPageInspection = (
           websocket_shape_approved: options.websocketShapeApproved,
           include_script_sources: options.includeScriptSources,
           include_storage_keys: options.includeStorageKeys,
+          include_storage_fingerprints: options.includeStorageFingerprints,
           limits: {
             max_frames: options.maxFrames,
             max_dom_nodes: options.maxDomNodes,

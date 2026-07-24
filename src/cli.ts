@@ -14,7 +14,9 @@ import { registerProcessCommands } from "./cliProcessCommands.js";
 import { registerPolicyCommands } from "./cliPolicyCommands.js";
 import { registerBrowserCommands } from "./cliBrowserCommands.js";
 import { registerAdvancedBrowserCommands } from "./cliBrowserAdvancedCommands.js";
+import { registerBrowserScenarioCommands } from "./cliBrowserScenarioCommands.js";
 import { registerElectronCommands } from "./cliElectronCommands.js";
+import { registerJavaScriptRuntimeObservationCommands } from "./cliJavaScriptRuntimeCommands.js";
 import { registerApplicationCommands } from "./cliApplicationCommands.js";
 import type { CliInstance } from "./cli/types.js";
 
@@ -60,7 +62,9 @@ export const createCli = (): CliInstance => {
   registerPolicyCommands(cli, logger);
   registerBrowserCommands(cli, logger);
   registerAdvancedBrowserCommands(cli, logger);
+  registerBrowserScenarioCommands(cli, logger);
   registerElectronCommands(cli, logger);
+  registerJavaScriptRuntimeObservationCommands(cli, logger);
   registerApplicationCommands(cli, logger);
   return cli;
 };

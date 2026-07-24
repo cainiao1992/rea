@@ -35,7 +35,7 @@ import {
   collectSemanticReturns,
   resolveSemanticModuleCallables,
 } from "./javascriptSemanticReturns.js";
-import { collectJavaScriptSemanticCalls } from "./javascriptSemanticCalls.js";
+import { collectJavaScriptDerivedSemantics } from "./javascriptSemanticDerivedAnalysis.js";
 import {
   compareCodePoints,
   propertyName,
@@ -87,16 +87,21 @@ export const analyzeJavaScriptSemantics = (
   const bindings = immutableSemanticBindings(state);
   const callables = collectSemanticReturns(file.program, state, parserPartial);
   const moduleLinks = resolveSemanticModuleCallables(state, callables);
-  const calls = collectJavaScriptSemanticCalls(file.program, state, callables);
+  const derived = collectJavaScriptDerivedSemantics(
+    file.program,
+    state,
+    callables,
+    parserPartial,
+  );
   return {
     schema: "JavaScriptSemanticIR",
-    schemaVersion: 3,
+    schemaVersion: 4,
     scopes: immutableSemanticScopes(state),
     bindings,
     callables,
     references,
     moduleLinks,
-    ...calls,
+    ...derived,
     coverage: {
       status:
         state.limitsReached.size > 0
@@ -119,6 +124,7 @@ export const analyzeJavaScriptSemantics = (
       "Values and aliases were recovered from inert syntax only; no JavaScript was executed.",
       "Return sites include only direct callable returns; nested callable returns remain separate.",
       "Local call, argument, return, and closure relations are static candidates and do not prove runtime invocation.",
+      "Promise ownership covers explicit unshadowed Promise construction, static factories, aggregation, chaining, and await syntax only.",
       "Cross-function mutation and dynamic property resolution remain unknown.",
     ],
   };

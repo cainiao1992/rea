@@ -14,6 +14,7 @@ import type { ProcessCaptureJournal } from "./ProcessCaptureJournal.js";
 export interface ProcessReactiveTerminal {
   write(data: string): void;
   resize(columns: number, rows: number): void;
+  closeInput(): void;
   kill(signal: "SIGINT" | "SIGTERM" | "SIGKILL"): void;
 }
 
@@ -56,6 +57,7 @@ const interactionData = (
       : action.data;
   if (action.type === "resize")
     return `${String(action.columns)}x${String(action.rows)}`;
+  if (action.type === "close_stdin") return "";
   return action.signal;
 };
 
@@ -64,6 +66,7 @@ const interactionType = (
 ): InteractionEvent["type"] => {
   if (action.type === "send_input") return "input";
   if (action.type === "resize") return "resize";
+  if (action.type === "close_stdin") return "stdin_close";
   return "signal";
 };
 
@@ -77,7 +80,8 @@ const performTerminalAction = (
   else if (action.type === "resize") {
     terminal.resize(action.columns, action.rows);
     renderer.resize(action.columns, action.rows, atMs);
-  } else terminal.kill(action.signal);
+  } else if (action.type === "close_stdin") terminal.closeInput();
+  else terminal.kill(action.signal);
 };
 
 const recordInteraction = (

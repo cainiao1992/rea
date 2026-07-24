@@ -41,11 +41,33 @@ interface ParsedArrays {
   readonly secretPatterns: readonly string[];
   readonly browserEndpoints: readonly string[];
   readonly browserOrigins: readonly string[];
+  readonly browserScenarioExecutableRoots: readonly string[];
+  readonly browserScenarioEndpoints: readonly string[];
+  readonly browserScenarioOrigins: readonly string[];
+  readonly browserScenarioEnvironment: readonly string[];
   readonly electronEndpoints: readonly string[];
   readonly electronFileRoots: readonly string[];
+  readonly v8InspectorEndpoints: readonly string[];
+  readonly v8InspectorFileRoots: readonly string[];
+  readonly v8InspectorOrigins: readonly string[];
   readonly javascriptReplayRoots: readonly string[];
   readonly managedRuntimeRoots: readonly string[];
 }
+
+type ParsedObservationArrays = Pick<
+  ParsedArrays,
+  | "browserEndpoints"
+  | "browserOrigins"
+  | "browserScenarioExecutableRoots"
+  | "browserScenarioEndpoints"
+  | "browserScenarioOrigins"
+  | "browserScenarioEnvironment"
+  | "electronEndpoints"
+  | "electronFileRoots"
+  | "v8InspectorEndpoints"
+  | "v8InspectorFileRoots"
+  | "v8InspectorOrigins"
+>;
 
 const parseAllArrays = (
   env: Environment,
@@ -92,31 +114,8 @@ const parseAllArrays = (
     "REA_REFERENCE_SECRET_PATTERNS_JSON",
   );
   if (!secretPatterns.ok) return secretPatterns;
-  const browserEndpoints = parseBrowserArray(
-    env.REA_BROWSER_CDP_ENDPOINTS_JSON,
-    "REA_BROWSER_CDP_ENDPOINTS_JSON",
-    browserEndpointSchema,
-    16,
-  );
-  if (!browserEndpoints.ok) return browserEndpoints;
-  const browserOrigins = parseBrowserArray(
-    env.REA_BROWSER_ALLOWED_ORIGINS_JSON,
-    "REA_BROWSER_ALLOWED_ORIGINS_JSON",
-    browserOriginSchema,
-    32,
-  );
-  if (!browserOrigins.ok) return browserOrigins;
-  const electronEndpoints = parseBrowserArray(
-    env.REA_ELECTRON_CDP_ENDPOINTS_JSON,
-    "REA_ELECTRON_CDP_ENDPOINTS_JSON",
-    browserEndpointSchema,
-    16,
-  );
-  if (!electronEndpoints.ok) return electronEndpoints;
-  const electronFileRoots = parseElectronFileRoots(
-    env.REA_ELECTRON_FILE_ROOTS_JSON,
-  );
-  if (!electronFileRoots.ok) return electronFileRoots;
+  const observations = parseObservationArrays(env);
+  if (!observations.ok) return observations;
   const javascriptReplayRoots = parseAbsoluteRoots(
     env.REA_JAVASCRIPT_REPLAY_ROOTS_JSON,
     "REA_JAVASCRIPT_REPLAY_ROOTS_JSON",
@@ -137,12 +136,95 @@ const parseAllArrays = (
     analysisSnapshotRoots: analysisSnapshotRoots.value,
     referenceRoots: referenceRoots.value,
     secretPatterns: secretPatterns.value,
-    browserEndpoints: browserEndpoints.value,
-    browserOrigins: browserOrigins.value,
-    electronEndpoints: electronEndpoints.value,
-    electronFileRoots: electronFileRoots.value,
+    ...observations.value,
     javascriptReplayRoots: javascriptReplayRoots.value,
     managedRuntimeRoots: managedRuntimeRoots.value,
+  });
+};
+
+const parseObservationArrays = (
+  env: Environment,
+): Result<ParsedObservationArrays, ConfigurationError> => {
+  const browserEndpoints = parseBrowserArray(
+    env.REA_BROWSER_CDP_ENDPOINTS_JSON,
+    "REA_BROWSER_CDP_ENDPOINTS_JSON",
+    browserEndpointSchema,
+    16,
+  );
+  if (!browserEndpoints.ok) return browserEndpoints;
+  const browserOrigins = parseBrowserArray(
+    env.REA_BROWSER_ALLOWED_ORIGINS_JSON,
+    "REA_BROWSER_ALLOWED_ORIGINS_JSON",
+    browserOriginSchema,
+    32,
+  );
+  if (!browserOrigins.ok) return browserOrigins;
+  const browserScenarioExecutableRoots = parseAbsoluteRoots(
+    env.REA_BROWSER_SCENARIO_EXECUTABLE_ROOTS_JSON,
+    "REA_BROWSER_SCENARIO_EXECUTABLE_ROOTS_JSON",
+  );
+  if (!browserScenarioExecutableRoots.ok) return browserScenarioExecutableRoots;
+  const browserScenarioEndpoints = parseBrowserArray(
+    env.REA_BROWSER_SCENARIO_CDP_ENDPOINTS_JSON,
+    "REA_BROWSER_SCENARIO_CDP_ENDPOINTS_JSON",
+    browserEndpointSchema,
+    16,
+  );
+  if (!browserScenarioEndpoints.ok) return browserScenarioEndpoints;
+  const browserScenarioOrigins = parseBrowserArray(
+    env.REA_BROWSER_SCENARIO_ALLOWED_ORIGINS_JSON,
+    "REA_BROWSER_SCENARIO_ALLOWED_ORIGINS_JSON",
+    browserOriginSchema,
+    32,
+  );
+  if (!browserScenarioOrigins.ok) return browserScenarioOrigins;
+  const browserScenarioEnvironment = parseStringArray(
+    env.REA_BROWSER_SCENARIO_ALLOWED_ENV_JSON,
+    "REA_BROWSER_SCENARIO_ALLOWED_ENV_JSON",
+  );
+  if (!browserScenarioEnvironment.ok) return browserScenarioEnvironment;
+  const electronEndpoints = parseBrowserArray(
+    env.REA_ELECTRON_CDP_ENDPOINTS_JSON,
+    "REA_ELECTRON_CDP_ENDPOINTS_JSON",
+    browserEndpointSchema,
+    16,
+  );
+  if (!electronEndpoints.ok) return electronEndpoints;
+  const electronFileRoots = parseElectronFileRoots(
+    env.REA_ELECTRON_FILE_ROOTS_JSON,
+  );
+  if (!electronFileRoots.ok) return electronFileRoots;
+  const v8InspectorEndpoints = parseBrowserArray(
+    env.REA_V8_INSPECTOR_ENDPOINTS_JSON,
+    "REA_V8_INSPECTOR_ENDPOINTS_JSON",
+    browserEndpointSchema,
+    16,
+  );
+  if (!v8InspectorEndpoints.ok) return v8InspectorEndpoints;
+  const v8InspectorFileRoots = parseAbsoluteRoots(
+    env.REA_V8_INSPECTOR_FILE_ROOTS_JSON,
+    "REA_V8_INSPECTOR_FILE_ROOTS_JSON",
+  );
+  if (!v8InspectorFileRoots.ok) return v8InspectorFileRoots;
+  const v8InspectorOrigins = parseBrowserArray(
+    env.REA_V8_INSPECTOR_ALLOWED_ORIGINS_JSON,
+    "REA_V8_INSPECTOR_ALLOWED_ORIGINS_JSON",
+    browserOriginSchema,
+    32,
+  );
+  if (!v8InspectorOrigins.ok) return v8InspectorOrigins;
+  return ok({
+    browserEndpoints: browserEndpoints.value,
+    browserOrigins: browserOrigins.value,
+    browserScenarioExecutableRoots: browserScenarioExecutableRoots.value,
+    browserScenarioEndpoints: browserScenarioEndpoints.value,
+    browserScenarioOrigins: browserScenarioOrigins.value,
+    browserScenarioEnvironment: browserScenarioEnvironment.value,
+    electronEndpoints: electronEndpoints.value,
+    electronFileRoots: electronFileRoots.value,
+    v8InspectorEndpoints: v8InspectorEndpoints.value,
+    v8InspectorFileRoots: v8InspectorFileRoots.value,
+    v8InspectorOrigins: v8InspectorOrigins.value,
   });
 };
 
@@ -187,6 +269,25 @@ const appendBrowserObservationCeiling = (
   );
 };
 
+const appendBrowserScenarioCeiling = (
+  ceilings: PermissionCeiling[],
+  env: Environment,
+  arrays: ParsedArrays,
+): void => {
+  if (env.REA_BROWSER_SCENARIO_ENABLED !== "true") return;
+  ceilings.push(
+    permissionScope("browser_automate", [], {
+      executables: arrays.browserScenarioExecutableRoots,
+      environment_names: arrays.browserScenarioEnvironment,
+      origins: [
+        ...arrays.browserScenarioEndpoints,
+        ...arrays.browserScenarioOrigins,
+      ],
+      network: browserNetworkScope(arrays.browserScenarioOrigins),
+    }),
+  );
+};
+
 const appendElectronObservationCeiling = (
   ceilings: PermissionCeiling[],
   env: Environment,
@@ -196,6 +297,20 @@ const appendElectronObservationCeiling = (
   ceilings.push(
     permissionScope("electron_observe", arrays.electronFileRoots, {
       origins: arrays.electronEndpoints,
+      network: "loopback",
+    }),
+  );
+};
+
+const appendV8InspectorObservationCeiling = (
+  ceilings: PermissionCeiling[],
+  env: Environment,
+  arrays: ParsedArrays,
+): void => {
+  if (env.REA_V8_INSPECTOR_OBSERVE_ENABLED !== "true") return;
+  ceilings.push(
+    permissionScope("v8_inspector_observe", arrays.v8InspectorFileRoots, {
+      origins: [...arrays.v8InspectorEndpoints, ...arrays.v8InspectorOrigins],
       network: "loopback",
     }),
   );
@@ -261,7 +376,9 @@ const buildPermissionCeilings = (
   ];
   appendProcessCaptureCeiling(ceilings, env, arrays);
   appendBrowserObservationCeiling(ceilings, env, arrays);
+  appendBrowserScenarioCeiling(ceilings, env, arrays);
   appendElectronObservationCeiling(ceilings, env, arrays);
+  appendV8InspectorObservationCeiling(ceilings, env, arrays);
   appendNativeMountCeiling(ceilings, env);
   appendJavaScriptReplayCeiling(ceilings, env, arrays);
   appendManagedRuntimeCeiling(ceilings, env, arrays);
@@ -306,9 +423,21 @@ const buildAppConfig = (
   browserObservationEnabled: env.REA_BROWSER_OBSERVE_ENABLED === "true",
   browserCdpEndpoints: arrays.browserEndpoints,
   browserAllowedOrigins: arrays.browserOrigins,
+  browserScenarioPolicy: {
+    enabled: env.REA_BROWSER_SCENARIO_ENABLED === "true",
+    executableRoots: arrays.browserScenarioExecutableRoots,
+    cdpEndpoints: arrays.browserScenarioEndpoints,
+    allowedOrigins: arrays.browserScenarioOrigins,
+    allowedEnvironment: arrays.browserScenarioEnvironment,
+  },
   electronObservationEnabled: env.REA_ELECTRON_OBSERVE_ENABLED === "true",
   electronCdpEndpoints: arrays.electronEndpoints,
   electronFileRoots: arrays.electronFileRoots,
+  v8InspectorObservationEnabled:
+    env.REA_V8_INSPECTOR_OBSERVE_ENABLED === "true",
+  v8InspectorEndpoints: arrays.v8InspectorEndpoints,
+  v8InspectorFileRoots: arrays.v8InspectorFileRoots,
+  v8InspectorAllowedOrigins: arrays.v8InspectorOrigins,
   javascriptReplayPolicy: {
     enabled: env.REA_JAVASCRIPT_REPLAY_ENABLED === "true",
     roots: arrays.javascriptReplayRoots,
@@ -325,11 +454,13 @@ const buildAppConfig = (
   },
   permissionCeilings,
   administratorPermissionGrants: administratorGrants(
-    env.REA_PROCESS_CAPTURE_AUTO_GRANT === "true"
-      ? permissionCeilings
-      : permissionCeilings.filter(
-          ({ capability }) => capability !== "process_capture",
-        ),
+    permissionCeilings.filter(
+      ({ capability }) =>
+        (capability !== "process_capture" ||
+          env.REA_PROCESS_CAPTURE_AUTO_GRANT === "true") &&
+        (capability !== "browser_automate" ||
+          env.REA_BROWSER_SCENARIO_AUTO_GRANT === "true"),
+    ),
   ),
   permissionProjectRoot: env.REA_PERMISSION_PROJECT_ROOT,
   permissionProjectStore: env.REA_PERMISSION_PROJECT_STORE,

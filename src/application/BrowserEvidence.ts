@@ -24,9 +24,10 @@ import type {
   WebMcpDiscovery,
 } from "../domain/webMcpDiscovery.js";
 import type {
-  CompareWebCapturesInput,
-  WebCaptureDiff,
-} from "../domain/webCaptureDiff.js";
+  BrowserCaptureComparison,
+  BrowserCaptureComparisonInput,
+} from "../domain/browserCaptureComparison.js";
+import { commitBrowserScenarioNormalization } from "../domain/browserScenarioNormalization.js";
 import type {
   CaptureWebScreenshotInput,
   CompareWebScreenshotsInput,
@@ -40,7 +41,7 @@ type BrowserEvidenceInput =
   | AnalyzeWebBundleInput
   | ObserveWebSessionInput
   | DiscoverWebMcpToolsInput
-  | CompareWebCapturesInput
+  | BrowserCaptureComparisonInput
   | CaptureWebScreenshotInput
   | CompareWebScreenshotsInput;
 type BrowserEvidenceResult =
@@ -49,7 +50,7 @@ type BrowserEvidenceResult =
   | WebBundleAnalysis
   | WebObservationSession
   | WebMcpDiscovery
-  | WebCaptureDiff
+  | BrowserCaptureComparison
   | WebScreenshot
   | WebScreenshotDiff;
 type BrowserEvidenceOperation =
@@ -92,6 +93,22 @@ const browserParameters = (
   input: BrowserEvidenceInput,
 ): EvidenceObservation["parameters"] => {
   if (!("cdp_endpoint" in input)) {
+    if (
+      "before_scenario" in input &&
+      input.before_scenario !== undefined &&
+      input.after_scenario !== undefined
+    )
+      return {
+        comparison_kind: "browser_scenario",
+        before_browser: input.before_scenario.browser,
+        after_browser: input.after_scenario.browser,
+        before_start_origin: input.before_scenario.scenario.start_origin,
+        after_start_origin: input.after_scenario.scenario.start_origin,
+        max_changes: input.max_changes,
+        normalization_sha256: commitBrowserScenarioNormalization(
+          input.normalization,
+        ).sha256,
+      };
     if ("max_changes" in input)
       return {
         before_target_id: input.before.inspection.target.target_id,
@@ -147,6 +164,7 @@ const browserParameters = (
     include_websocket_shapes: input.include_websocket_shapes,
     include_script_sources: input.include_script_sources,
     include_storage_keys: input.include_storage_keys,
+    include_storage_fingerprints: input.include_storage_fingerprints,
     limits: input.limits,
     ...(input.include_script_sources && "source_capture_approved" in input
       ? {

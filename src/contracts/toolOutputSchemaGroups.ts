@@ -21,6 +21,7 @@ import {
   artifactExtractionResultSchema,
   artifactInventoryResultSchema,
 } from "../domain/artifactGraph.js";
+import { artifactInspectionResultSchema } from "../domain/artifactInspection.js";
 import {
   managedArtifactInspectionSchema,
   managedMemberInspectionSchema,
@@ -46,6 +47,7 @@ import {
   addressedEntry,
   bounded,
   containingProcedureResolution,
+  clientFeatureAvailabilitySchema,
   functionDossierOutput,
   graphNode,
   lifecycleResultOf,
@@ -87,6 +89,21 @@ export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   procedure_callers: resultOf(addressList),
   procedure_info: procedureInfoOutput,
   read_function_instructions: resultOf(functionInstructionWindowSchema),
+  read_bytes: resultOf(
+    z.object({
+      address: z.string(),
+      requested_bytes: z.number().int().min(1).max(4_096),
+      returned_bytes: z.number().int().min(0).max(4_096),
+      bytes_hex: z.string().regex(/^(?:[a-f0-9]{2})*$/u),
+      complete: z.boolean(),
+    }),
+  ),
+  address_to_file_offset: resultOf(
+    z.object({
+      address: z.string(),
+      file_offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+    }),
+  ),
   procedure_references: resultOf(
     z.object({
       procedure: procedureIdentity,
@@ -117,6 +134,71 @@ export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   unset_bookmark: resultOf(z.boolean()),
   xrefs: resultOf(addressList),
 };
+
+const literalTraceOutput = resultOf(
+  z.object({
+    query: z.string(),
+    search_mode: z.literal("literal"),
+    operations_used: z.number().int().min(0),
+    operation_budget: z.number().int().min(1),
+    matches: z.array(
+      z.object({
+        type: z.enum(["string", "procedure"]),
+        address: z.string(),
+        value: z.string(),
+      }),
+    ),
+    references: z.array(
+      z.object({
+        target_address: z.string(),
+        source_address: z.string(),
+        containing_procedure: containingProcedureResolution,
+      }),
+    ),
+    truncated: z.boolean(),
+    residual_unknowns: z.array(z.string()),
+  }),
+);
+
+const callPathTraceOutput = resultOf(
+  z.object({
+    start: z.string(),
+    goal: z.string().nullable(),
+    direction: z.enum(["forward", "backward"]),
+    goal_status: z.enum(["not_requested", "reached", "not_reached"]),
+    nodes: z.array(
+      z.object({
+        address: z.string(),
+        depth: z.number().int().min(0),
+      }),
+    ),
+    edges: z.array(
+      z.object({
+        source_address: z.string(),
+        target_address: z.string(),
+        discovery_depth: z.number().int().min(1),
+      }),
+    ),
+    traversal_path: z.array(z.string()),
+    failures: z.array(
+      z.object({
+        address: z.string(),
+        error: analysisErrorProjectionSchema,
+      }),
+    ),
+    frontier: z.array(z.string()),
+    limits: z.object({
+      max_depth: z.number().int().min(1),
+      max_nodes: z.number().int().min(1),
+      max_operations: z.number().int().min(1),
+      nodes_visited: z.number().int().min(1),
+      operations_used: z.number().int().min(0),
+    }),
+    truncated: z.boolean(),
+    residual_unknowns: z.array(z.string()),
+    limitations: z.array(z.string()),
+  }),
+);
 
 /** Exact structured-content schemas for composed analysis workflows. */
 export const enhancedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
@@ -190,30 +272,9 @@ export const enhancedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
     }),
   ),
   analyze_function: functionDossierOutput,
-  trace_feature: resultOf(
-    z.object({
-      query: z.string(),
-      search_mode: z.literal("literal"),
-      operations_used: z.number().int().min(0),
-      operation_budget: z.number().int().min(1),
-      matches: z.array(
-        z.object({
-          type: z.enum(["string", "procedure"]),
-          address: z.string(),
-          value: z.string(),
-        }),
-      ),
-      references: z.array(
-        z.object({
-          target_address: z.string(),
-          source_address: z.string(),
-          containing_procedure: containingProcedureResolution,
-        }),
-      ),
-      truncated: z.boolean(),
-      residual_unknowns: z.array(z.string()),
-    }),
-  ),
+  trace_feature: literalTraceOutput,
+  find_code_for_string: literalTraceOutput,
+  trace_call_path: callPathTraceOutput,
 };
 
 /** Exact Evidence v2 schemas for provider-neutral native inspection. */
@@ -228,6 +289,7 @@ export const nativeOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
 /** Exact Evidence v2 schemas for provider-neutral artifact graph operations. */
 export const artifactOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   inventory_artifact: resultOf(artifactInventoryResultSchema),
+  inspect_artifact: resultOf(artifactInspectionResultSchema),
   extract_artifact: resultOf(artifactExtractionResultSchema),
 };
 
@@ -319,6 +381,7 @@ export const sessionOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
           next_cursor: z.number().int().min(0).nullable(),
           has_more: z.boolean(),
         }),
+        client_features: clientFeatureAvailabilitySchema,
       }),
       z.union([
         sessionProvider.extend({

@@ -188,6 +188,51 @@ jobs:
       - run: npm ci
       - run: npm run verify:package
 
+  reconstruction-readiness:
+    name: Reconstruction readiness
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Run the public CLI/MCP reconstruction journey
+        env:
+          REA_READINESS_REPORT_PATH: readiness-report.json
+        run: |
+          set -o pipefail
+          npm run verify:readiness | tee readiness-summary.json
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: reconstruction-readiness
+          path: |
+            readiness-summary.json
+            readiness-report.json
+          if-no-files-found: error
+          retention-days: 30
+
+  javascript-runtime-observation:
+    name: JavaScript runtime observation
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Verify real Node Inspector discovery and observation
+        run: npm run verify:inspector
+
   windows-curated:
     name: Windows Ghidra P0 and package lane
     needs: changes

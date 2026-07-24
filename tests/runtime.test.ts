@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import { CATALOG_IDENTITY } from "../src/catalogIdentity.js";
 
@@ -10,6 +11,29 @@ const mainPath = fileURLToPath(new URL("../dist/main.js", import.meta.url));
 const fixturePath = fileURLToPath(
   new URL("./fixtures/fakeLauncher.mjs", import.meta.url),
 );
+
+const expectAvailableToolInventory = async (client: Client): Promise<void> => {
+  const listed = await client.listTools();
+  const status = await client.callTool({
+    name: "binary_session",
+    arguments: { detail: "full" },
+  });
+  const availability = z
+    .object({
+      result: z.object({
+        tool_availability: z.array(
+          z.object({ name: z.string(), available: z.boolean() }),
+        ),
+      }),
+    })
+    .parse(status.structuredContent).result.tool_availability;
+  expect(availability).toHaveLength(CATALOG_IDENTITY.counts.mcp_tools);
+  expect(new Set(listed.tools.map(({ name }) => name))).toEqual(
+    new Set(
+      availability.filter(({ available }) => available).map(({ name }) => name),
+    ),
+  );
+};
 
 describe("production stdio runtime", () => {
   it("starts the built entrypoint, lists the catalog, calls one, and shuts down", async () => {
@@ -33,8 +57,7 @@ describe("production stdio runtime", () => {
 
     try {
       await client.connect(transport);
-      const tools = await client.listTools();
-      expect(tools.tools).toHaveLength(CATALOG_IDENTITY.counts.mcp_tools);
+      await expectAvailableToolInventory(client);
       const result = await client.callTool({
         name: "current_document",
         arguments: {},
@@ -80,9 +103,7 @@ describe("production stdio runtime", () => {
 
     try {
       await client.connect(transport);
-      expect((await client.listTools()).tools).toHaveLength(
-        CATALOG_IDENTITY.counts.mcp_tools,
-      );
+      await expectAvailableToolInventory(client);
     } finally {
       await client.close();
       await transport.close();

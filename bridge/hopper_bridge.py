@@ -11,20 +11,86 @@ import os
 import re
 import sre_parse
 import socket
+from typing import Any, Optional, Protocol, Sequence
 
 MAX_LINE_BYTES = 10 * 1024 * 1024
+MAX_READ_BYTES = 4096
 BAD_ADDRESSES = (-1, 0xFFFFFFFFFFFFFFFF, None)
 _selected_document = None
 _search_inventory_cache = {}
 _pseudocode_cache = {}
+_hopper_api = None
 MAX_SEARCH_PATTERN_LENGTH = 256
 MAX_SEARCH_VALUE_LENGTH = 4096
+
+
+class HopperDocument(Protocol):
+    """Typed minimum used by the provider-neutral Hopper API facade."""
+
+    def getDocumentName(self) -> str: ...
+
+    def getExecutableFilePath(self) -> Optional[str]: ...
+
+    def getDatabaseFilePath(self) -> Optional[str]: ...
+
+    def backgroundProcessActive(self) -> bool: ...
+
+
+class HopperDocumentProvider(Protocol):
+    """Hopper's injected global document provider."""
+
+    @classmethod
+    def getAllDocuments(cls) -> Sequence[HopperDocument]: ...
+
+    @classmethod
+    def getCurrentDocument(cls) -> Optional[HopperDocument]: ...
+
+
+class HopperApiFacade:
+    """Small injected boundary around Hopper globals for standalone tests."""
+
+    def __init__(self, document_provider: HopperDocumentProvider):
+        self._document_provider = document_provider
+
+    def documents(self) -> Sequence[HopperDocument]:
+        return self._document_provider.getAllDocuments()
+
+    def current_document(self) -> Optional[HopperDocument]:
+        return self._document_provider.getCurrentDocument()
+
+    def require_analysis_complete(
+        self, document: HopperDocument, operation: str
+    ) -> None:
+        if document.backgroundProcessActive():
+            raise CapabilityUnavailableError(
+                "%s requires completed Hopper background analysis" % operation
+            )
+
+
+def _configure_hopper_api(document_provider):
+    """Inject Hopper's document provider or a standalone test facade."""
+    global _hopper_api
+    _hopper_api = HopperApiFacade(document_provider)
+
+
+def _api():
+    """Resolve Hopper globals lazily so importing this module needs no Hopper."""
+    global _hopper_api
+    if _hopper_api is not None:
+        return _hopper_api
+    document_provider = globals().get("Document")
+    if document_provider is None:
+        raise CapabilityUnavailableError(
+            "Hopper Document API is unavailable outside the Hopper runtime"
+        )
+    _hopper_api = HopperApiFacade(document_provider)
+    return _hopper_api
 
 
 def _session_document():
     """Find only the document opened for this authenticated REA session."""
     target = os.path.realpath(REA_TARGET_PATH)
-    for document in Document.getAllDocuments():
+    for document in _api().documents():
         paths = (document.getExecutableFilePath(), document.getDatabaseFilePath())
         for path in paths:
             if path and os.path.realpath(path) == target:
@@ -35,6 +101,31 @@ def _session_document():
 MAX_REGEX_BACKTRACKING_PATHS = 10000
 MAX_REGEX_CANDIDATE_LENGTH = 4096
 MAX_REGEX_SEARCH_WORK_UNITS = 1000000
+
+
+class CapabilityUnavailableError(Exception):
+    """The active Hopper build lacks one admitted public API operation."""
+
+
+EXHAUSTIVE_ANALYSIS_METHODS = frozenset(
+    (
+        "analyze_function",
+        "list_names",
+        "list_procedures",
+        "list_strings",
+        "procedure_address",
+        "procedure_assembly",
+        "procedure_callees",
+        "procedure_callers",
+        "procedure_info",
+        "procedure_pseudo_code",
+        "procedure_references",
+        "read_function_instructions",
+        "resolve_containing_procedure",
+        "search_procedures",
+        "search_strings",
+    )
+)
 
 
 def _hex(value):
@@ -55,7 +146,8 @@ def _json_safe(value):
 def _document(name=None):
     """Resolve an explicit or session-selected document without changing Hopper UI."""
     global _selected_document
-    documents = Document.getAllDocuments()
+    api = _api()
+    documents = api.documents()
     if name is not None:
         for candidate in documents:
             if candidate.getDocumentName() == name:
@@ -65,7 +157,7 @@ def _document(name=None):
         for candidate in documents:
             if candidate.getDocumentName() == _selected_document:
                 return candidate
-    current = Document.getCurrentDocument()
+    current = api.current_document()
     if current is None:
         raise ValueError("No Hopper document is loaded")
     return current
@@ -762,11 +854,54 @@ def _dispatch(method, params):
         return _selected_document
 
     document = _document(params.get("document"))
+    if method in EXHAUSTIVE_ANALYSIS_METHODS:
+        _api().require_analysis_complete(document, method)
 
     if method == "analyze_function":
         return _analyze_function(document, params)
     if method == "read_function_instructions":
         return _read_function_instructions(document, params)
+    if method == "read_bytes":
+        length = params.get("length", 256)
+        if isinstance(length, bool) or not isinstance(length, int):
+            raise ValueError("Byte-read length must be an integer")
+        if length < 1 or length > MAX_READ_BYTES:
+            raise ValueError("Byte-read length must be between 1 and 4096")
+        reader = getattr(document, "readBytes", None)
+        if not callable(reader):
+            raise CapabilityUnavailableError(
+                "Hopper's public Python API does not expose readBytes"
+            )
+        address = _address(document, params.get("address"))
+        value = reader(address, length)
+        if not isinstance(value, (bytes, bytearray)):
+            raise CapabilityUnavailableError(
+                "Hopper's public Python API returned an unsupported byte representation"
+            )
+        data = bytes(value)
+        return {
+            "address": _hex(address),
+            "requested_bytes": length,
+            "returned_bytes": len(data),
+            "bytes_hex": data.hex(),
+            "complete": len(data) == length,
+        }
+    if method == "address_to_file_offset":
+        mapper = getattr(document, "getFileOffsetFromAddress", None)
+        if not callable(mapper):
+            raise CapabilityUnavailableError(
+                "Hopper's public Python API does not expose getFileOffsetFromAddress"
+            )
+        address = _address(document, params.get("address"))
+        offset = mapper(address)
+        if (
+            isinstance(offset, bool)
+            or not isinstance(offset, int)
+            or offset in BAD_ADDRESSES
+            or offset < 0
+        ):
+            raise ValueError("Address has no authoritative file-offset mapping")
+        return {"address": _hex(address), "file_offset": offset}
     if method == "resolve_containing_procedure":
         address = _address(document, params.get("address"))
         procedure, reason = _containing_procedure(document, address)
@@ -935,6 +1070,8 @@ def _serve_connection(connection):
 
 
 def _diagnostic_type(error):
+    if isinstance(error, CapabilityUnavailableError):
+        return "capability_unavailable"
     if isinstance(error, PermissionError):
         return "authorization"
     if isinstance(error, (ValueError, TypeError, KeyError)):
@@ -961,4 +1098,5 @@ def _run():
 
 # Hopper's public objects are bound to its dedicated Python execution thread.
 # Keep dispatch on that thread; moving calls to an arbitrary worker can deadlock.
-_run()
+if __name__ == "__main__":
+    _run()

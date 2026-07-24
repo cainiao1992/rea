@@ -210,7 +210,7 @@ describe("JavaScript semantic analysis", () => {
       const result = alias(input, { mode: "fast" });
     `);
 
-    expect(ir.schemaVersion).toBe(3);
+    expect(ir.schemaVersion).toBe(4);
     const render = onlyCallable(ir, "render");
     const call = ir.callSites.find(
       ({ calleeCallableIds }) => calleeCallableIds[0] === render.callableId,
@@ -253,6 +253,139 @@ describe("JavaScript semantic analysis", () => {
     expect(ir.frontiers).toEqual([]);
   });
 
+  it("recovers explicit Promise ownership, chains, aggregation, and awaits", () => {
+    const ir = analyzeJavaScriptSemantics(`
+      async function run(value) {
+        const base = Promise.resolve(value);
+        const chained = base.then(work).finally(cleanup);
+        await chained;
+        Promise.resolve(value).then(work);
+        return Promise.all([base, Promise.resolve(value)]);
+      }
+      const settled = Promise.allSettled([Promise.resolve(1)]);
+    `);
+
+    expect(
+      ir.promiseOperations.map(
+        ({ kind, method, ownership, sourceResolution }) => ({
+          kind,
+          method,
+          ownership,
+          sourceResolution,
+        }),
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        {
+          kind: "static",
+          method: "resolve",
+          ownership: "assigned",
+          sourceResolution: "complete",
+        },
+        {
+          kind: "chain",
+          method: "then",
+          ownership: "chained",
+          sourceResolution: "complete",
+        },
+        {
+          kind: "chain",
+          method: "finally",
+          ownership: "assigned",
+          sourceResolution: "complete",
+        },
+        {
+          kind: "awaited-expression",
+          method: "await",
+          ownership: "awaited",
+          sourceResolution: "complete",
+        },
+        {
+          kind: "chain",
+          method: "then",
+          ownership: "detached",
+          sourceResolution: "complete",
+        },
+        {
+          kind: "aggregate",
+          method: "all",
+          ownership: "returned",
+          sourceResolution: "complete",
+        },
+        {
+          kind: "aggregate",
+          method: "allSettled",
+          ownership: "assigned",
+          sourceResolution: "complete",
+        },
+      ]),
+    );
+    const aggregate = ir.promiseOperations.find(
+      ({ method }) => method === "all",
+    );
+    expect(aggregate?.sourcePromiseIds).toHaveLength(2);
+    expect(aggregate?.returnSiteId).not.toBeNull();
+  });
+
+  it("does not treat a shadowed Promise binding as the intrinsic", () => {
+    const ir = analyzeJavaScriptSemantics(`
+      function run(Promise) {
+        return Promise.resolve(1).then(work);
+      }
+    `);
+
+    expect(ir.promiseOperations).toEqual([
+      expect.objectContaining({
+        kind: "chain",
+        method: "then",
+        ownership: "returned",
+        sourcePromiseIds: [],
+        sourceResolution: "unresolved",
+      }),
+    ]);
+  });
+
+  it("bounds Promise recovery with an explicit frontier", () => {
+    const ir = analyzeJavaScriptSemantics(
+      `
+        Promise.resolve(1);
+        Promise.resolve(2);
+        Promise.resolve(3);
+      `,
+      { maxPromiseOperations: 1 },
+    );
+
+    expect(ir.promiseOperations).toHaveLength(1);
+    expect(ir.coverage).toMatchObject({
+      status: "truncated",
+      limitsReached: ["maxPromiseOperations"],
+    });
+  });
+
+  it("fingerprints formatting and local-name changes identically", () => {
+    const left = analyzeJavaScriptSemantics(`
+      function calculate(value) {
+        const result = value + 1;
+        return result;
+      }
+    `);
+    const right = analyzeJavaScriptSemantics(
+      "function renamed(input){const output=input+1;return output}",
+    );
+    const changed = analyzeJavaScriptSemantics(
+      "function renamed(input){const output=input+2;return output}",
+    );
+
+    expect(left.functionFingerprints).toHaveLength(1);
+    expect(right.functionFingerprints).toHaveLength(1);
+    expect(left.functionFingerprints[0]?.components).toEqual(
+      right.functionFingerprints[0]?.components,
+    );
+    expect(
+      changed.functionFingerprints[0]?.components.literalSetSha256,
+    ).not.toBe(left.functionFingerprints[0]?.components.literalSetSha256);
+  });
+
   it("retains ambiguous local callees and explicit dynamic frontiers", () => {
     const ir = analyzeJavaScriptSemantics(`
       function left(value) { return value; }
@@ -291,6 +424,323 @@ describe("JavaScript semantic analysis", () => {
           kind: "dynamic-call",
           reason: "Unresolved call target external.",
         }),
+      ]),
+    );
+  });
+
+  it("recovers EventEmitter candidates and imported timer handle cancellation", () => {
+    const ir = analyzeJavaScriptSemantics(`
+      import {
+        setTimeout as later,
+        clearTimeout as cancel,
+      } from "node:timers";
+      function run(bus, dynamicName) {
+        const handle = later(work, 25);
+        bus.on("ready", handler);
+        bus.once(dynamicName, handler);
+        bus.emit("ready");
+        bus.off("ready", handler);
+        cancel(handle);
+      }
+    `);
+
+    expect(
+      ir.eventOperations.map(({ kind, method, eventName, resolution }) => ({
+        kind,
+        method,
+        eventName,
+        resolution,
+      })),
+    ).toEqual([
+      {
+        kind: "register",
+        method: "on",
+        eventName: "ready",
+        resolution: "complete",
+      },
+      {
+        kind: "register",
+        method: "once",
+        eventName: null,
+        resolution: "unresolved",
+      },
+      {
+        kind: "dispatch",
+        method: "emit",
+        eventName: "ready",
+        resolution: "complete",
+      },
+      {
+        kind: "remove",
+        method: "off",
+        eventName: "ready",
+        resolution: "complete",
+      },
+    ]);
+    expect(ir.timerOperations).toEqual([
+      expect.objectContaining({
+        kind: "schedule",
+        method: "setTimeout",
+        delayMilliseconds: 25,
+        resolution: "complete",
+      }),
+      expect.objectContaining({
+        kind: "cancel",
+        method: "clearTimeout",
+        delayMilliseconds: null,
+        resolution: "complete",
+        linkedTimerId: ir.timerOperations[0]?.timerId,
+      }),
+    ]);
+    expect(ir.functionFingerprints[0]?.components.effects).toEqual([
+      "event",
+      "timer",
+    ]);
+  });
+
+  it("does not treat shadowed timer globals as Node timers", () => {
+    const ir = analyzeJavaScriptSemantics(`
+      function run(setTimeout, clearTimeout) {
+        const handle = setTimeout(work, 1);
+        clearTimeout(handle);
+      }
+    `);
+
+    expect(ir.timerOperations).toEqual([]);
+  });
+
+  it("recovers child-process argv, env, stdio, listeners, and signals", () => {
+    const ir = analyzeJavaScriptSemantics(`
+      import { spawn as launch } from "node:child_process";
+      function run() {
+        const child = launch(
+          "/bin/tool",
+          ["--mode", "fast"],
+          { env: { MODE: "test" }, stdio: ["ignore", "pipe", "pipe"] },
+        );
+        child.on("exit", onExit);
+        child.once("error", onError);
+        child.kill("SIGINT");
+      }
+    `);
+
+    expect(ir.childProcessSpawns).toEqual([
+      expect.objectContaining({
+        method: "spawn",
+        command: "/bin/tool",
+        argvCount: 2,
+        environmentSupplied: true,
+        stdioMode: "array",
+        resolution: "complete",
+      }),
+    ]);
+    expect(
+      ir.childProcessInteractions.map(
+        ({ kind, eventName, signalName, resolution }) => ({
+          kind,
+          eventName,
+          signalName,
+          resolution,
+        }),
+      ),
+    ).toEqual([
+      {
+        kind: "listener",
+        eventName: "exit",
+        signalName: null,
+        resolution: "complete",
+      },
+      {
+        kind: "listener",
+        eventName: "error",
+        signalName: null,
+        resolution: "complete",
+      },
+      {
+        kind: "signal",
+        eventName: null,
+        signalName: "SIGINT",
+        resolution: "complete",
+      },
+    ]);
+    expect(ir.functionFingerprints[0]?.components.effects).toContain(
+      "child-process",
+    );
+  });
+
+  it("recovers configuration, requests, response consumers, and boundaries", () => {
+    const ir = analyzeJavaScriptSemantics(`
+      import { readFileSync } from "node:fs";
+      import * as http from "node:http";
+      async function run(schema) {
+        const endpoint = process.env.API_URL ?? "https://fallback.test";
+        const mode = process.argv[2];
+        const raw = readFileSync("./config.json", "utf8");
+        const parsed = JSON.parse(raw);
+        const port = Number(process.env.PORT);
+        const validated = schema.parse(parsed);
+        const response = await fetch(endpoint, {
+          method: "POST",
+          body: validated,
+        });
+        const body = await response.json();
+        http.request("https://audit.test", { body });
+        return { mode, port, body };
+      }
+    `);
+
+    expect(
+      ir.configurationOperations.map(({ kind, key }) => ({ kind, key })),
+    ).toEqual(
+      expect.arrayContaining([
+        { kind: "environment", key: "API_URL" },
+        { kind: "default", key: "API_URL" },
+        { kind: "argv", key: "2" },
+        { kind: "file", key: "./config.json" },
+        { kind: "environment", key: "PORT" },
+      ]),
+    );
+    expect(
+      ir.requestOperations.map(({ kind, method, endpoint, resolution }) => ({
+        kind,
+        method,
+        endpoint,
+        resolution,
+      })),
+    ).toEqual(
+      expect.arrayContaining([
+        {
+          kind: "request",
+          method: "fetch",
+          endpoint: null,
+          resolution: "partial",
+        },
+        {
+          kind: "response-consumer",
+          method: "json",
+          endpoint: null,
+          resolution: "complete",
+        },
+        {
+          kind: "request",
+          method: "request",
+          endpoint: "https://audit.test",
+          resolution: "complete",
+        },
+      ]),
+    );
+    expect(
+      ir.boundaryOperations.map(({ kind, method, resolution }) => ({
+        kind,
+        method,
+        resolution,
+      })),
+    ).toEqual(
+      expect.arrayContaining([
+        { kind: "parse", method: "JSON.parse", resolution: "complete" },
+        { kind: "coerce", method: "Number", resolution: "complete" },
+        { kind: "parse", method: "parse", resolution: "partial" },
+      ]),
+    );
+    expect(ir.functionFingerprints[0]?.components.effects).toContain("network");
+  });
+
+  it("recovers built-in resource acquisition and exact local release", () => {
+    const ir = analyzeJavaScriptSemantics(`
+      import { open } from "node:fs/promises";
+      import { connect as dial } from "node:net";
+      async function run(path) {
+        const file = await open(path);
+        const socket = dial({ port: 9000 });
+        await file.close();
+        socket.destroy();
+      }
+    `);
+
+    expect(
+      ir.resourceOperations.map(({ kind, method, resolution }) => ({
+        kind,
+        method,
+        resolution,
+      })),
+    ).toEqual([
+      { kind: "acquire", method: "open", resolution: "complete" },
+      { kind: "acquire", method: "connect", resolution: "complete" },
+      { kind: "release", method: "close", resolution: "complete" },
+      { kind: "release", method: "destroy", resolution: "complete" },
+    ]);
+    expect(ir.functionFingerprints[0]?.components.effects).toContain(
+      "resource",
+    );
+  });
+
+  it("bounds every added semantic effect family independently", () => {
+    const ir = analyzeJavaScriptSemantics(
+      `
+        import { spawn } from "node:child_process";
+        import { open } from "node:fs/promises";
+        Promise.resolve(1);
+        bus.on("ready", handler);
+        setTimeout(work, 1);
+        spawn("/bin/tool");
+        const endpoint = process.env.API_URL;
+        fetch("https://example.test");
+        JSON.parse(raw);
+        open(path);
+      `,
+      {
+        maxPromiseOperations: 0,
+        maxEventOperations: 0,
+        maxTimerOperations: 0,
+        maxChildProcessOperations: 0,
+        maxConfigurationOperations: 0,
+        maxRequestOperations: 0,
+        maxBoundaryOperations: 0,
+        maxResourceOperations: 0,
+        maxObjectOperations: 0,
+      },
+    );
+
+    expect(ir.coverage.limitsReached).toEqual(
+      expect.arrayContaining([
+        "maxBoundaryOperations",
+        "maxChildProcessOperations",
+        "maxConfigurationOperations",
+        "maxEventOperations",
+        "maxPromiseOperations",
+        "maxRequestOperations",
+        "maxResourceOperations",
+        "maxTimerOperations",
+        "maxObjectOperations",
+      ]),
+    );
+  });
+
+  it("recovers static object reads, writes, spreads, and destructuring", () => {
+    const ir = analyzeJavaScriptSemantics(`
+      const source = { token: "TOKEN", count: 1 };
+      const { token } = source;
+      const copy = { ...source };
+      source.count = 2;
+      const read = source.token;
+    `);
+
+    expect(
+      ir.objectOperations.map(({ kind, propertyName, resolution }) => ({
+        kind,
+        propertyName,
+        resolution,
+      })),
+    ).toEqual(
+      expect.arrayContaining([
+        {
+          kind: "destructure",
+          propertyName: "token",
+          resolution: "complete",
+        },
+        { kind: "spread", propertyName: null, resolution: "complete" },
+        { kind: "write", propertyName: "count", resolution: "complete" },
+        { kind: "read", propertyName: "token", resolution: "complete" },
       ]),
     );
   });

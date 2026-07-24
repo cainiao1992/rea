@@ -9,8 +9,11 @@ import { z } from "zod";
 import { createTestTempDirectory } from "./fixtures/temporaryDirectory.js";
 
 import { BinarySession } from "../src/application/BinarySession.js";
-import { TOOL_CONTRACTS } from "../src/contracts/toolContracts.js";
-import type { AnalysisClient } from "../src/application/AnalysisProvider.js";
+import type {
+  AnalysisClient,
+  AnalysisProvider,
+  CapabilityDescriptor,
+} from "../src/application/AnalysisProvider.js";
 import { probeProcessCaptureCapability } from "../src/application/ProcessHarness.js";
 import { observed as ok } from "./fixtures/analysisExecution.js";
 import { createServer } from "../src/server/createServer.js";
@@ -47,7 +50,7 @@ describe("target-free MCP lifecycle", () => {
     const targetPath = join(directory, "mutable.hop");
     await writeFile(targetPath, "first");
     const closed: string[] = [];
-    const session = new BinarySession((target) => client(target.path, closed), {
+    const session = new BinarySession(provider(closed), {
       resolveAnalysisProfile: () =>
         Promise.resolve(
           resultOk({ profile: SNAPSHOT_PROFILE, compatibility: {} }),
@@ -106,7 +109,7 @@ describe("target-free MCP lifecycle", () => {
     await writeFile(first, "one");
     await writeFile(second, "two");
     const closed: string[] = [];
-    const session = new BinarySession((target) => client(target.path, closed), {
+    const session = new BinarySession(provider(closed), {
       resolveAnalysisProfile: () =>
         Promise.resolve(
           resultOk({ profile: SNAPSHOT_PROFILE, compatibility: {} }),
@@ -140,34 +143,23 @@ describe("target-free MCP lifecycle", () => {
     await server.connect(serverTransport);
     await mcp.connect(clientTransport);
 
-    const before = await mcp.callTool({
-      name: "current_document",
-      arguments: {},
-    });
-    expect(before.isError).toBe(true);
-    expect(text(before)).toBe(JSON.stringify(before.structuredContent));
-    expect((await mcp.listTools()).tools).toHaveLength(TOOL_CONTRACTS.length);
-    const deniedCapture = await mcp.callTool({
-      name: "capture_process_scenario",
-      arguments: {
-        approved: true,
-        executable: "/bin/sh",
-        working_directory: "/tmp",
-      },
-    });
-    expect(deniedCapture.isError).toBe(true);
-    expect(structured(deniedCapture)).toMatchObject({
-      error: {
-        category: "permission_required",
-      },
-    });
-    expect(text(deniedCapture)).toBe(
-      JSON.stringify(deniedCapture.structuredContent),
-    );
+    const beforeNames = (await mcp.listTools()).tools.map(({ name }) => name);
+    expect(beforeNames).toContain("open_binary");
+    expect(beforeNames).toContain("binary_session");
+    expect(beforeNames).not.toContain("current_document");
+    expect(beforeNames).not.toContain("capture_process_scenario");
     expect(
       (await mcp.callTool({ name: "open_binary", arguments: { path: first } }))
         .isError,
     ).not.toBe(true);
+    expect(
+      structured(
+        await mcp.callTool({
+          name: "binary_session",
+          arguments: { detail: "full" },
+        }),
+      ),
+    ).toMatchObject({ result: { path: await realpath(first) } });
     expect(
       text(await mcp.callTool({ name: "current_document", arguments: {} })),
     ).toContain("first.hop");
@@ -390,6 +382,40 @@ const client = (path: string, closed: string[]): AnalysisClient => ({
     return Promise.resolve();
   },
 });
+
+const provider = (closed: string[]): AnalysisProvider => {
+  const identity = { id: "fixture", name: "Fixture", version: "1" };
+  const capability: CapabilityDescriptor = {
+    provider: identity,
+    operation: "current_document",
+    inputContractVersion: 1,
+    outputContractVersion: 1,
+    available: true,
+    reason: null,
+    pagination: "none",
+    exhaustive: true,
+    effects: {
+      mutatesArtifact: false,
+      launchesProcess: false,
+      mayShowUi: false,
+      mayAccessNetwork: false,
+      mayWriteFilesystem: false,
+      changesPermissions: false,
+      requiresRoot: false,
+    },
+    limits: {
+      maxResults: null,
+      maxPayloadBytes: null,
+      timeoutMs: null,
+    },
+    limitations: [],
+  };
+  return {
+    identity: () => identity,
+    capabilities: () => [capability],
+    createClient: (target) => client(target.path, closed),
+  };
+};
 
 const text = (result: CallToolResult): string => {
   const content = result.content.find((item) => item.type === "text");

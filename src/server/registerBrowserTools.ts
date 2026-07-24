@@ -22,7 +22,7 @@ import {
 import { analyzeWebBundleInputSchema } from "../domain/webBundleAnalysis.js";
 import { observeWebSessionInputSchema } from "../domain/browserSession.js";
 import { discoverWebMcpToolsInputSchema } from "../domain/webMcpDiscovery.js";
-import { compareWebCapturesInputSchema } from "../domain/webCaptureDiff.js";
+import { browserCaptureComparisonInputSchema } from "../domain/browserCaptureComparison.js";
 import {
   captureWebScreenshotInputSchema,
   compareWebScreenshotsInputSchema,
@@ -127,7 +127,7 @@ export const registerBrowserTools = (
   });
   registerBrowserTool(server, options, {
     contract: captureDiffContract,
-    schema: compareWebCapturesInputSchema,
+    schema: browserCaptureComparisonInputSchema,
     execute: (parsed, _context) =>
       compareWebCaptureEvidence(options.browser, parsed),
   });

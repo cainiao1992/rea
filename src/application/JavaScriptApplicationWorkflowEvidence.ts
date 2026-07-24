@@ -8,6 +8,7 @@ import type { JavaScriptExportShapeComparisonResult } from "../domain/javascript
 import type { ApplicationFeatureTraceResult } from "../domain/javascriptFeatureTraceSchemas.js";
 import type { JavaScriptSemanticTraceResult } from "../domain/javascriptSemanticTraceSchemas.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
+import type { SourceToBundleComparisonResult } from "../domain/sourceToBundleComparisonSchemas.js";
 import { JAVASCRIPT_APPLICATION_WORKFLOW_PROVIDER } from "./InvestigationProviders.js";
 
 /** Create derived Evidence for one bounded application-graph feature trace. */
@@ -54,6 +55,24 @@ export const createApplicationVersionComparisonEvidence = (
   createEvidence(undefined, JAVASCRIPT_APPLICATION_WORKFLOW_PROVIDER, {
     predicateType: "rea.application-version-comparison/v1",
     operation: "compare_application_versions",
+    parameters,
+    result: jsonValueSchema.parse(result),
+    rawResult: null,
+    confidence: "inferred",
+    authority: "analyst-inference",
+    environment: null,
+    limitations: result.limitations,
+    evidenceLinks: result.evidence_links,
+  });
+
+/** Create derived Evidence for one historical-source to bundle comparison. */
+export const createSourceToBundleComparisonEvidence = (
+  parameters: EvidenceObservation["parameters"],
+  result: SourceToBundleComparisonResult,
+): Evidence =>
+  createEvidence(undefined, JAVASCRIPT_APPLICATION_WORKFLOW_PROVIDER, {
+    predicateType: "rea.source-to-bundle-comparison/v1",
+    operation: "compare_source_to_bundle",
     parameters,
     result: jsonValueSchema.parse(result),
     rawResult: null,

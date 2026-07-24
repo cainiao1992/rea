@@ -19,6 +19,7 @@ import { CLI_COMMANDS } from "./cliCommandNames.js";
 const capabilitySchema = z.enum([
   "process_capture",
   "browser_observe",
+  "browser_automate",
   "electron_observe",
   "evidence_read",
   "evidence_write",

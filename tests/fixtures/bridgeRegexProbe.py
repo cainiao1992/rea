@@ -7,11 +7,8 @@ import sys
 
 def _load_bridge(path):
     source = Path(path).read_text(encoding="utf-8")
-    prefix, marker, suffix = source.rpartition("\n_run()")
-    if not marker or suffix.strip():
-        raise RuntimeError("bridge entrypoint shape changed")
-    namespace = {"__file__": path}
-    exec(compile(prefix, path, "exec"), namespace)
+    namespace = {"__file__": path, "__name__": "rea_hopper_bridge"}
+    exec(compile(source, path, "exec"), namespace)
     return namespace
 
 

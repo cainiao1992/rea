@@ -167,6 +167,7 @@ describe("browser observation contracts", () => {
       { include_console_text: true },
       { include_json_body_shapes: true },
       { include_websocket_shapes: true },
+      { include_storage_fingerprints: true },
     ])
       expect(
         inspectWebPageInputSchema.safeParse({ ...base, ...input }).success,

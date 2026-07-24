@@ -4,6 +4,7 @@ import type { ToolContract } from "./toolContracts.js";
 import { artifactOutputSchemas } from "./toolOutputSchemas.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { toolContractMetadata } from "./toolEffects.js";
+import { artifactInspectionLimitsSchema } from "../domain/artifactInspection.js";
 
 const pageInput = {
   node_offset: z.number().int().min(0).default(0),
@@ -68,9 +69,32 @@ export const artifactExtractionInputSchema = z.object({
   ...traversalLimitsInput,
 });
 
+/** Bounded provider-neutral inspection using one atomic inventory substep. */
+export const artifactInspectionInputSchema = z
+  .object({
+    native_mount_approved: z.boolean().default(false),
+    integrity_policy: z.enum(["fail", "record-and-continue"]).default("fail"),
+    integrity_continue_approved: z.boolean().default(false),
+    max_integrity_mismatches: z.number().int().min(1).max(100).default(10),
+    ...artifactInspectionLimitsSchema.shape,
+    ...traversalLimitsInput,
+  })
+  .superRefine((input, context) => {
+    if (
+      input.integrity_policy === "record-and-continue" &&
+      input.integrity_continue_approved !== true
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["integrity_continue_approved"],
+        message: "record-and-continue requires explicit approval",
+      });
+  });
+
 const exampleInputSchema = z.record(z.string(), jsonValueSchema);
 const examples: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
   inventory_artifact: {},
+  inspect_artifact: {},
   extract_artifact: {
     approved: true,
     output_root: "/tmp/rea-extracted",
@@ -108,6 +132,11 @@ export const ARTIFACT_TOOL_CONTRACTS = [
     "inventory_artifact",
     "Inventory the active application or package as a deterministic, content-addressed artifact graph. Returns bounded node and edge pages without extracting or mounting by default.",
     artifactInventoryInputSchema,
+  ),
+  artifact(
+    "inspect_artifact",
+    "Inspect the active artifact through one bounded, cancellable inventory substep. Returns the full substep Evidence and its ID, observations, derived relationships, hypotheses, contradictions, unexplored branches, limitations, and format-specific next probes. Any substep failure fails the whole call.",
+    artifactInspectionInputSchema,
   ),
   artifact(
     "extract_artifact",

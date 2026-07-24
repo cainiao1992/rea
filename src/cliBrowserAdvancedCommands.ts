@@ -11,7 +11,7 @@ import { CdpBrowserProvider } from "./browser/CdpBrowserProvider.js";
 import { logCliCommand } from "./cliLogging.js";
 import { parseConfig } from "./config.js";
 import { AnalysisInputError, projectAnalysisError } from "./domain/errors.js";
-import { compareWebCapturesInputSchema } from "./domain/webCaptureDiff.js";
+import { browserCaptureComparisonInputSchema } from "./domain/browserCaptureComparison.js";
 import { discoverWebMcpToolsInputSchema } from "./domain/webMcpDiscovery.js";
 import {
   captureWebScreenshotInputSchema,
@@ -122,7 +122,8 @@ const registerCaptureDiff = (
   logger: Logger,
 ): void => {
   cli.command(CLI_COMMANDS.compareWebCaptures, {
-    description: "Compare two normalized web capture JSON values",
+    description:
+      "Compare two normalized passive captures or recorded browser scenarios",
     args: z.object({
       beforeJson: z.string().describe("Earlier normalized web capture JSON"),
       afterJson: z.string().describe("Later normalized web capture JSON"),
@@ -135,16 +136,31 @@ const registerCaptureDiff = (
         .max(20_000)
         .default(2_000)
         .describe("Maximum normalized changes to return"),
+      normalizationJson: z
+        .string()
+        .default('{"rules":[]}')
+        .describe(
+          "Recorded literal normalization policy for browser scenarios",
+        ),
     }),
     run: ({ args, options }) =>
       logCliCommand(logger, "compare-web-captures", async () => {
         const before = parseJson(args.beforeJson);
         const after = parseJson(args.afterJson);
-        const parsed = compareWebCapturesInputSchema.safeParse({
-          before,
-          after,
-          max_changes: options.maxChanges,
-        });
+        const scenarioComparison =
+          browserCaptureComparisonInputSchema.safeParse({
+            before_scenario: before,
+            after_scenario: after,
+            normalization: parseJson(options.normalizationJson),
+            max_changes: options.maxChanges,
+          });
+        const parsed = scenarioComparison.success
+          ? scenarioComparison
+          : browserCaptureComparisonInputSchema.safeParse({
+              before,
+              after,
+              max_changes: options.maxChanges,
+            });
         if (!parsed.success) return inputError("compare_web_captures");
         const result = await compareWebCaptureEvidence(
           new CdpBrowserProvider(),

@@ -5,18 +5,16 @@ import { promisify } from "node:util";
 
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
-import { TOOL_CONTRACTS } from "../dist/contracts/toolContracts.js";
 import * as prompts from "./verify-package-prompts.mjs";
-import { json } from "./lib/verify-package-core.mjs";
+import {
+  json,
+  verifyAvailableToolCatalog,
+} from "./lib/verify-package-core.mjs";
 
 const execute = promisify(execFile);
 
 const verifyMcpToolsAndPrompts = async (client, mcpOptions) => {
-  if (
-    (await client.listTools(undefined, mcpOptions)).tools.length !==
-    TOOL_CONTRACTS.length
-  )
-    throw new Error("packaged MCP tool inventory diverged from contracts");
+  await verifyAvailableToolCatalog(client, mcpOptions);
   await prompts.verifyPromptCatalog(client, mcpOptions, prompts.names);
   await prompts.verifyPromptCompletion(client, mcpOptions, false);
 };
@@ -44,12 +42,11 @@ const verifyMcpReplay = async (client, mcpOptions, investigationReplay) => {
 };
 
 const verifyMcpTargetFree = async (client, mcpOptions) => {
-  const result = await client.callTool(
-    { name: "current_document", arguments: {} },
-    mcpOptions,
+  const names = (await client.listTools(undefined, mcpOptions)).tools.map(
+    ({ name }) => name,
   );
-  if (result.isError !== true)
-    throw new Error("packaged target-free MCP omitted no-target error");
+  if (names.includes("current_document"))
+    throw new Error("packaged target-free MCP advertised a target-bound tool");
 };
 
 const verifyMcpUnknownProvider = async (client, mcpOptions) => {
@@ -97,14 +94,12 @@ const verifyMcpOpenAndBind = async (client, mcpOptions) => {
     throw new Error("packaged MCP omitted its explicit Hopper binding");
 };
 
-const verifyMcpLinuxCurrentDocument = async (client, mcpOptions, current) => {
-  if (
-    current.isError !== true ||
-    !prompts
-      .mcpText(current)
-      .includes("not supported for unattended Linux analysis")
-  )
-    throw new Error("packaged Linux MCP did not reject an unpinned Hopper");
+const verifyMcpLinuxToolAvailability = async (client, mcpOptions) => {
+  const names = (await client.listTools(undefined, mcpOptions)).tools.map(
+    ({ name }) => name,
+  );
+  if (names.includes("current_document"))
+    throw new Error("packaged Linux MCP advertised unavailable Hopper tools");
 };
 
 const verifyMcpNonLinuxCurrentDocument = async (
@@ -140,13 +135,13 @@ const verifyMcpBinaryLifecycle = async (client, mcpOptions) => {
     mcpOptions,
     process.platform !== "linux",
   );
-  const current = await client.callTool(
-    { name: "current_document", arguments: {} },
-    mcpOptions,
-  );
   if (process.platform === "linux") {
-    await verifyMcpLinuxCurrentDocument(client, mcpOptions, current);
+    await verifyMcpLinuxToolAvailability(client, mcpOptions);
   } else {
+    const current = await client.callTool(
+      { name: "current_document", arguments: {} },
+      mcpOptions,
+    );
     await verifyMcpNonLinuxCurrentDocument(client, mcpOptions, current);
   }
   const closed = await client.callTool(
@@ -191,7 +186,8 @@ export async function verifyPackageMcp({
   );
   if (
     diagnosed.healthy !== true ||
-    diagnosed.inventory?.tools?.observed !== TOOL_CONTRACTS.length
+    diagnosed.inventory?.tools?.observed !==
+      diagnosed.inventory?.tools?.expected
   )
     throw new Error("packaged production MCP doctor failed");
   const transport = new StdioClientTransport({

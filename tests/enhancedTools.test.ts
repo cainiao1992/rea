@@ -213,7 +213,7 @@ describe("enhanced MCP tools", () => {
     ).toEqual(ENHANCED_TOOL_CONTRACTS.map(({ name }) => name).sort());
   });
 
-  it("executes all ten tools through production registration", async () => {
+  it("executes all twelve tools through production registration", async () => {
     const client = await connect();
     const calls = [
       ["swift_classes", { pattern: "Fixture" }],
@@ -226,6 +226,8 @@ describe("enhanced MCP tools", () => {
       ["binary_overview", {}],
       ["analyze_function", { procedure: "0x1" }],
       ["trace_feature", { query: "hello", max_operations: 10 }],
+      ["find_code_for_string", { query: "hello", max_operations: 10 }],
+      ["trace_call_path", { start: "0x1", goal: "0x2", max_operations: 10 }],
     ] as const;
     const results = await Promise.all(
       calls.map(async ([name, arguments_]) =>
@@ -276,6 +278,56 @@ describe("enhanced MCP tools", () => {
         { target_address: "0x30", source_address: "0x20" },
         { target_address: "0x30", source_address: "0x21" },
       ],
+    });
+    expect(results[10]).toMatchObject({
+      query: "hello",
+      matches: [{ type: "string", address: "0x30", value: "hello" }],
+      truncated: false,
+    });
+    expect(results[11]).toMatchObject({
+      start: "0x1",
+      goal: "0x2",
+      direction: "forward",
+      goal_status: "reached",
+      traversal_path: ["0x1", "0x2"],
+      nodes: [
+        { address: "0x1", depth: 0 },
+        { address: "0x2", depth: 1 },
+      ],
+      truncated: false,
+    });
+  });
+
+  it("returns Evidence IDs and explicit call-path frontiers at limits", async () => {
+    const client = await connect();
+    const result = await client.callTool({
+      name: "trace_call_path",
+      arguments: {
+        start: "0x1",
+        goal: "0x3",
+        max_nodes: 1,
+        max_operations: 10,
+      },
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      evidence_id: expect.stringMatching(/^ev_[a-f0-9]{64}$/u),
+      result: {
+        goal_status: "not_reached",
+        nodes: [{ address: "0x1", depth: 0 }],
+        frontier: ["0x2"],
+        truncated: true,
+        residual_unknowns: expect.arrayContaining([
+          expect.stringContaining("reached the node limit"),
+          expect.stringContaining("reached the edge limit"),
+        ]),
+        limits: {
+          max_nodes: 1,
+          nodes_visited: 1,
+          operations_used: 1,
+        },
+      },
     });
   });
 

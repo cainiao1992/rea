@@ -16,9 +16,13 @@ export const matchesOwnedProcessCommand = (
   if (platform !== "darwin") return false;
   const actualExecutable = actualCommand.split(/\s+/u, 1)[0];
   const expectedExecutable = expectedCommand.split(/\s+/u, 1)[0];
+  const normalizedActualExecutable =
+    actualExecutable?.startsWith("(") === true && actualExecutable.endsWith(")")
+      ? actualExecutable.slice(1, -1)
+      : actualExecutable;
   return (
-    actualExecutable !== undefined &&
+    normalizedActualExecutable !== undefined &&
     expectedExecutable !== undefined &&
-    basename(actualExecutable) === basename(expectedExecutable)
+    basename(normalizedActualExecutable) === basename(expectedExecutable)
   );
 };

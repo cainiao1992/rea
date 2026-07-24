@@ -12,6 +12,7 @@ import {
   JAVASCRIPT_FEATURE_TRACE_FULL_EVIDENCE_EXAMPLE,
   JAVASCRIPT_FEATURE_TRACE_EXAMPLE,
   JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE,
+  SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE,
 } from "../src/contracts/javascriptApplicationWorkflowExamples.js";
 import { createEvidence } from "../src/domain/evidence.js";
 import { createServer } from "../src/server/createServer.js";
@@ -202,6 +203,25 @@ describe("application workflow MCP parity", () => {
           coverage: { status: expect.any(String) },
         },
       });
+      const sourceCompared = await client.callTool({
+        name: "compare_source_to_bundle",
+        arguments: {
+          reference: SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE.reference,
+          application:
+            JAVASCRIPT_FEATURE_TRACE_FULL_EVIDENCE_EXAMPLE.application,
+        },
+      });
+      expect(sourceCompared.isError).not.toBe(true);
+      expect(sourceCompared.structuredContent).toMatchObject({
+        result: {
+          schema_version: 1,
+          reference: {
+            root_sha256:
+              SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE.reference.root_sha256,
+          },
+          scoring: { algorithm: "rea-source-to-bundle-signals/v1" },
+        },
+      });
       expect(session.exportEvidenceBundle().records.length).toBeGreaterThan(2);
 
       await new Promise<void>((resolve) => setImmediate(resolve));
@@ -243,6 +263,16 @@ describe("application workflow MCP parity", () => {
           },
         },
       });
+      const sourceComparedById = await client.callTool({
+        name: "compare_source_to_bundle",
+        arguments: {
+          ...SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE,
+          application_evidence_id:
+            JAVASCRIPT_FEATURE_TRACE_FULL_EVIDENCE_EXAMPLE.application
+              .evidence_id,
+        },
+      });
+      expect(sourceComparedById.isError).not.toBe(true);
 
       const missing = await client.callTool({
         name: "trace_application_feature",

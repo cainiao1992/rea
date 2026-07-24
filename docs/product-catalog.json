@@ -11,14 +11,15 @@
     "skill_version": "23"
   },
   "tools": {
-    "total": 99,
+    "total": 110,
     "families": [
       {
         "id": "direct",
         "surface": "official-proxy",
-        "count": 34,
+        "count": 36,
         "tools": [
           "address_name",
+          "address_to_file_offset",
           "comment",
           "current_address",
           "current_document",
@@ -40,6 +41,7 @@
           "procedure_info",
           "procedure_pseudo_code",
           "procedure_references",
+          "read_bytes",
           "read_function_instructions",
           "resolve_containing_procedure",
           "search_procedures",
@@ -57,17 +59,19 @@
       {
         "id": "enhanced",
         "surface": "enhanced",
-        "count": 10,
+        "count": 12,
         "tools": [
           "analyze_function",
           "analyze_swift_types",
           "batch_decompile",
           "binary_overview",
+          "find_code_for_string",
           "find_xrefs_to_name",
           "get_call_graph",
           "get_objc_classes",
           "get_objc_protocols",
           "swift_classes",
+          "trace_call_path",
           "trace_feature"
         ]
       },
@@ -86,8 +90,8 @@
       {
         "id": "artifact",
         "surface": "artifact-provider",
-        "count": 2,
-        "tools": ["extract_artifact", "inventory_artifact"]
+        "count": 3,
+        "tools": ["extract_artifact", "inspect_artifact", "inventory_artifact"]
       },
       {
         "id": "managed",
@@ -107,9 +111,10 @@
       {
         "id": "browser",
         "surface": "browser-provider",
-        "count": 8,
+        "count": 9,
         "tools": [
           "analyze_web_bundle",
+          "capture_browser_scenario",
           "capture_web_screenshot",
           "compare_web_captures",
           "compare_web_screenshots",
@@ -131,13 +136,25 @@
         ]
       },
       {
+        "id": "javascript-runtime",
+        "surface": "runtime-provider",
+        "count": 2,
+        "tools": [
+          "list_javascript_runtime_targets",
+          "observe_javascript_runtime"
+        ]
+      },
+      {
         "id": "application",
         "surface": "application-workflow",
-        "count": 9,
+        "count": 12,
         "tools": [
+          "build_reconstruction_obligation_ledger",
           "commit_reconstruction_coverage",
           "compare_application_versions",
           "compare_javascript_export_shapes",
+          "compare_source_to_bundle",
+          "evaluate_reconstruction_readiness",
           "execute_node_characterization",
           "prepare_node_characterization",
           "query_reconstruction_coverage",
@@ -207,6 +224,7 @@
       "version": null,
       "capabilities": [
         "address_name",
+        "address_to_file_offset",
         "analyze_function",
         "comment",
         "current_address",
@@ -229,6 +247,7 @@
         "procedure_info",
         "procedure_pseudo_code",
         "procedure_references",
+        "read_bytes",
         "read_function_instructions",
         "resolve_containing_procedure",
         "search_procedures",
@@ -259,7 +278,11 @@
       "id": "rea-artifact-graph",
       "name": "REA safe artifact graph provider",
       "version": "1",
-      "capabilities": ["extract_artifact", "inventory_artifact"]
+      "capabilities": [
+        "extract_artifact",
+        "inspect_artifact",
+        "inventory_artifact"
+      ]
     },
     {
       "id": "rea-cdp-browser",
@@ -315,9 +338,12 @@
       "name": "REA JavaScript application workflows",
       "version": "1",
       "capabilities": [
+        "build_reconstruction_obligation_ledger",
         "commit_reconstruction_coverage",
         "compare_application_versions",
         "compare_javascript_export_shapes",
+        "compare_source_to_bundle",
+        "evaluate_reconstruction_readiness",
         "execute_node_characterization",
         "prepare_node_characterization",
         "query_reconstruction_coverage",
@@ -331,6 +357,21 @@
       "name": "REA JavaScript runtime reconciliation",
       "version": "1",
       "capabilities": ["reconcile_javascript_runtime"]
+    },
+    {
+      "id": "rea-playwright-browser-scenario",
+      "name": "REA Playwright browser scenario capture provider",
+      "version": "1",
+      "capabilities": ["capture_browser_scenario"]
+    },
+    {
+      "id": "rea-v8-inspector",
+      "name": "REA passive Node/Electron V8 Inspector provider",
+      "version": "1",
+      "capabilities": [
+        "list_javascript_runtime_targets",
+        "observe_javascript_runtime"
+      ]
     }
   ],
   "setup_clients": [
@@ -391,6 +432,18 @@
       "version": 1
     },
     {
+      "id": "browser_scenario",
+      "version": 1
+    },
+    {
+      "id": "browser_scenario_capture",
+      "version": 1
+    },
+    {
+      "id": "browser_scenario_diff",
+      "version": 1
+    },
+    {
       "id": "browser_target_list",
       "version": 1
     },
@@ -444,6 +497,14 @@
     },
     {
       "id": "javascript_feature_trace",
+      "version": 1
+    },
+    {
+      "id": "javascript_runtime_observation",
+      "version": 1
+    },
+    {
+      "id": "javascript_runtime_target_list",
       "version": 1
     },
     {
@@ -520,12 +581,14 @@
     }
   ],
   "cli": {
-    "primary_count": 59,
+    "primary_count": 66,
     "commands": [
       "analyze",
       "analyze-javascript-application",
       "analyze-web-bundle",
+      "build-reconstruction-obligation-ledger",
       "capabilities",
+      "capture-browser-scenario",
       "capture-process",
       "capture-web-screenshot",
       "commit-reconstruction-coverage",
@@ -534,12 +597,14 @@
       "compare-javascript-export-shapes",
       "compare-managed-members",
       "compare-process-captures",
+      "compare-source-to-bundle",
       "compare-web-captures",
       "compare-web-screenshots",
       "decompile",
       "demangle-swift",
       "discover-webmcp-tools",
       "doctor",
+      "evaluate-reconstruction-readiness",
       "evidence-export",
       "evidence-import",
       "execute-node-characterization",
@@ -548,6 +613,7 @@
       "import-managed-reconstruction",
       "import-reference-source",
       "inspect",
+      "inspect-artifact",
       "inspect-electron-page",
       "inspect-macho",
       "inspect-managed-artifact",
@@ -562,6 +628,8 @@
       "list-architectures",
       "list-browser-targets",
       "list-electron-targets",
+      "list-javascript-runtime-targets",
+      "observe-javascript-runtime",
       "observe-web-session",
       "plan-managed-runtime-correlation",
       "policy",
@@ -591,17 +659,17 @@
   },
   "runtime_catalog": {
     "counts": {
-      "cli_commands": 59,
-      "mcp_tools": 99,
+      "cli_commands": 66,
+      "mcp_tools": 110,
       "mcp_prompts": 6,
       "mcp_resources": 2,
-      "mcp_resource_templates": 9
+      "mcp_resource_templates": 11
     },
     "digests": {
-      "tools_sha256": "9159861cda3cc76f876dde306efae886dd310419d4e972f89ab7b85ff5789485",
+      "tools_sha256": "9a033ddd40fcb8273365cc895bbf75d943bf1c5c8c2ee1eb9c4b3494064aaf58",
       "prompts_sha256": "f6da3ad38a1000c11364d1710f122ac4990551f04efd8c53ffb2e819b5cf5707",
-      "resources_sha256": "94bebbab1a1b3cf47644c38d3de6469de568caa7bd7b842f529ead8ad320a912",
-      "combined_sha256": "e787c57af8337f17b9da72745fcb328634af3b39be1d9ca8bfe1836274351f92"
+      "resources_sha256": "339a984ea8cd8be5f234adf24395bf0295258d990492005cf6fe1f293d12cd46",
+      "combined_sha256": "e8cac51f2f17a5b9a088c3ff773473c4897823401481fc0875a28fe7daf8eee0"
     }
   }
 }

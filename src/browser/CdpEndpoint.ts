@@ -74,24 +74,24 @@ export const discoverCdpEndpoint = async (
   operation: BrowserObservationOperation,
   signal?: AbortSignal,
 ): Promise<CdpEndpointDiscovery> => {
-  const versionInput = await readJson(
+  const versionInput = await readBoundedCdpJson(
     new URL("/json/version", endpoint),
     MAX_VERSION_BYTES,
     operation,
     signal,
   );
-  const targetsInput = await readJson(
+  const targetsInput = await readBoundedCdpJson(
     new URL("/json/list", endpoint),
     MAX_TARGET_LIST_BYTES,
     operation,
     signal,
   );
-  const version = parseEndpointValue(
+  const version = parseCdpEndpointValue(
     endpointVersionSchema,
     versionInput,
     operation,
   );
-  const targets = parseEndpointValue(
+  const targets = parseCdpEndpointValue(
     endpointTargetsSchema,
     targetsInput,
     operation,
@@ -199,7 +199,8 @@ const availableCdpTargetWebSocket = (
     : undefined;
 };
 
-const parseEndpointValue = <Output>(
+/** Parse one CDP discovery value through its exact boundary schema. */
+export const parseCdpEndpointValue = <Output>(
   schema: z.ZodType<Output>,
   input: unknown,
   operation: BrowserObservationOperation,
@@ -289,7 +290,8 @@ const targetWebSocket = (
   }
 };
 
-const readJson = async (
+/** Read one bounded loopback CDP discovery document without redirects. */
+export const readBoundedCdpJson = async (
   url: URL,
   maximumBytes: number,
   operation: BrowserObservationOperation,

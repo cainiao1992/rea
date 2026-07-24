@@ -23,6 +23,7 @@ const grantSchema = z.object({
   capability: z.enum([
     "process_capture",
     "browser_observe",
+    "browser_automate",
     "electron_observe",
     "evidence_read",
     "evidence_write",

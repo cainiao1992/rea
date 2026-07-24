@@ -1,5 +1,16 @@
 import { z } from "zod";
 
+const traceLiteralInputSchema = z.object({
+  query: z.string().min(1),
+  case_sensitive: z.boolean().default(false),
+  limit: z.number().int().min(1).max(100).default(20),
+  max_operations: z.number().int().min(1).max(100).default(20),
+  unknown_registry_approved: z
+    .literal(true)
+    .optional()
+    .describe("Explicit approval to record bounded residuals durably"),
+});
+
 /** Input schemas shared by MCP registration and enhanced application dispatch. */
 export const enhancedInputSchemas = {
   swift_classes: z.object({ pattern: z.string().default("") }),
@@ -52,11 +63,18 @@ export const enhancedInputSchemas = {
         basic_blocks: 0,
       }),
   }),
-  trace_feature: z.object({
-    query: z.string().min(1),
-    case_sensitive: z.boolean().default(false),
-    limit: z.number().int().min(1).max(100).default(20),
-    max_operations: z.number().int().min(1).max(100).default(20),
+  trace_feature: traceLiteralInputSchema,
+  find_code_for_string: traceLiteralInputSchema,
+  trace_call_path: z.object({
+    start: z.string().describe("A provider-normalized procedure address"),
+    goal: z
+      .string()
+      .describe("An optional provider-normalized destination address")
+      .optional(),
+    direction: z.enum(["forward", "backward"]).default("forward"),
+    max_depth: z.number().int().min(1).max(10).default(5),
+    max_nodes: z.number().int().min(1).max(500).default(100),
+    max_operations: z.number().int().min(1).max(500).default(100),
     unknown_registry_approved: z
       .literal(true)
       .optional()
@@ -66,7 +84,7 @@ export const enhancedInputSchemas = {
 
 export type EnhancedToolName = keyof typeof enhancedInputSchemas;
 
-/** Runtime parser for dispatching only the eight closed enhanced names. */
+/** Runtime parser for dispatching only the closed enhanced names. */
 export const enhancedToolNameSchema = z.enum([
   "swift_classes",
   "get_objc_classes",
@@ -78,4 +96,6 @@ export const enhancedToolNameSchema = z.enum([
   "binary_overview",
   "analyze_function",
   "trace_feature",
+  "find_code_for_string",
+  "trace_call_path",
 ]);

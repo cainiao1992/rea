@@ -29,7 +29,7 @@ See [docs/architecture.mermaid](docs/architecture.mermaid) for a visual architec
 - `src/contracts/`: caller-visible tool schemas and catalog metadata; `toolContracts.ts` owns the canonical inventory and `enhancedInputs.ts` owns enhanced input parsing.
 - `src/process/`: provider-neutral process ownership and lifecycle primitives. It owns private runtime roots, session-assigned run identity and token-verified lineage, absolute startup deadlines, correlated request waits, bounded output capture, and TERM-to-KILL cleanup without defining any provider wire protocol.
 - `src/replay/`: Linux x64 controlled-JavaScript-replay adapter. It owns exact runtime closure inspection, Bubblewrap/seccomp/cgroup admission, the disposable worker, strict parent/worker protocol validation, and complete cleanup observation.
-- `src/browser/`: loopback CDP discovery, bounded WebSocket transport, exact-origin target authorization, and passive browser observation normalization.
+- `src/browser/`: loopback CDP/Inspector discovery, bounded WebSocket transport, exact-origin or canonical-root target authorization, passive browser/Electron and attach-only Node/Electron V8 observation, plus controlled Playwright scenarios with explicit launch/attach ownership and cleanup.
 - `src/hopper/`: Hopper launch and Unix-socket protocol mechanics. `BridgeLauncher.ts` spawns the Hopper app with the in-process bridge, `HopperClient.ts` correlates request/response over the socket with timeouts and cancellation, `protocol.ts` frames bridge messages.
 - `bridge/hopper_bridge.py`: runs inside Hopper and adapts declared operations to Hopper's public Python API. Hopper's bundled MCP server is not used.
 - `src/ghidra/`: exact Ghidra 12.1.2/JDK 21 inspection, analysis-profile commitment, digest-bound target snapshots, isolated `analyzeHeadless` launch, authenticated Unix-socket or Windows loopback transport, bounded serial request queue, and strict inventory/function boundaries.
@@ -74,7 +74,8 @@ See [docs/architecture.mermaid](docs/architecture.mermaid) for a visual architec
 - `npm run verify:hopper`: build and run the real-Hopper verifier with two distinct binaries.
 - `npm run verify:ghidra`: build and run the real-Ghidra verifier against `GHIDRA_INSTALL_DIR` and optional `GHIDRA_TARGET_PATH`.
 - `npm run verify:ghidra:windows`: build and run the real Windows Ghidra verifier against `GHIDRA_INSTALL_DIR` and the source-owned x64 PE fixture.
-- `npm run verify:browser`: build and run the real Chrome verifier against `REA_BROWSER_EXECUTABLE` or a platform-default Chrome-family executable.
+- `npm run verify:browser`: build and run the real Chrome verifier against `REA_BROWSER_EXECUTABLE` or a platform-default Chrome-family executable, including browser-scenario CLI parity, attach disconnect-only ownership, launched-process termination, and temporary-profile cleanup.
+- `npm run verify:inspector`: build and run the real attach-only Node Inspector verifier through the public CLI.
 - `npm run verify:managed`: build and run the source-owned managed PE/CLI conformance verifier for artifact triage, member inspection, managed/native boundary declarations, token drift comparison, malformed metadata, non-managed degradation, managed application-graph projection, manifest-verifier self-test, and optional BYO ILSpy oracle checks; set `REA_MANAGED_APP_MANIFEST_PATH` to verify an operator-local managed app manifest, including optional graph/trace assertions, and set `REA_ILSPY_CMD_PATH` to an absolute `ilspycmd` path to run the real ILSpy reconstruction oracle.
 - `npm run evidence:generate`: regenerate the managed conformance manifest and Evidence v2 completion ledger from live verifier output.
 - `npm run evidence:check`: rerun managed conformance and fail on generated manifest, completion ledger, or bundled skill drift.
@@ -102,9 +103,19 @@ Pre-commit hooks via Husky format then lint staged source files. Pre-push runs `
 - `REA_BROWSER_OBSERVE_ENABLED` (optional, default `false`): add browser observation authority to the administrator ceiling.
 - `REA_BROWSER_CDP_ENDPOINTS_JSON` (optional): approved literal loopback CDP HTTP endpoints.
 - `REA_BROWSER_ALLOWED_ORIGINS_JSON` (optional): exact HTTP(S) page origins approved for passive observation.
+- `REA_BROWSER_SCENARIO_ENABLED` (optional, default `false`): add controlled browser automation to the administrator ceiling.
+- `REA_BROWSER_SCENARIO_AUTO_GRANT` (optional, default `false`): issue the exact configured browser-automation ceiling as an administrator grant for trusted unattended use.
+- `REA_BROWSER_SCENARIO_EXECUTABLE_ROOTS_JSON` (optional): canonical executable roots approved for provider-owned browser launch.
+- `REA_BROWSER_SCENARIO_CDP_ENDPOINTS_JSON` (optional): literal-loopback CDP endpoints approved for external-browser attachment.
+- `REA_BROWSER_SCENARIO_ALLOWED_ORIGINS_JSON` (optional): exact HTTP(S) page origins approved for browser scenarios.
+- `REA_BROWSER_SCENARIO_ALLOWED_ENV_JSON` (optional): environment-variable names that scenario secret references may resolve.
 - `REA_ELECTRON_OBSERVE_ENABLED` (optional, default `false`): add passive Electron file-page observation authority to the administrator ceiling.
 - `REA_ELECTRON_CDP_ENDPOINTS_JSON` (optional): approved literal loopback Electron CDP HTTP endpoints.
 - `REA_ELECTRON_FILE_ROOTS_JSON` (optional): canonical filesystem roots approved for passive Electron page observation.
+- `REA_V8_INSPECTOR_OBSERVE_ENABLED` (optional, default `false`): add passive attach-only Node/Electron Inspector observation authority to the administrator ceiling.
+- `REA_V8_INSPECTOR_ENDPOINTS_JSON` (optional): approved literal-loopback Node/Electron Inspector HTTP endpoints.
+- `REA_V8_INSPECTOR_FILE_ROOTS_JSON` (optional): canonical filesystem roots approved for Inspector targets and script locations.
+- `REA_V8_INSPECTOR_ALLOWED_ORIGINS_JSON` (optional): exact HTTP(S) origins approved for Electron renderer Inspector targets and scripts.
 - `REA_INVESTIGATION_INPUT_ROOTS_JSON` (optional): canonical filesystem roots approved for static JavaScript/Electron application analysis and other investigation inputs.
 - `REA_JAVASCRIPT_REPLAY_ENABLED` (optional, default `false`): add controlled extracted-module execution authority to the administrator ceiling.
 - `REA_JAVASCRIPT_REPLAY_ROOTS_JSON` (optional): exact canonical source roots approved for controlled replay.

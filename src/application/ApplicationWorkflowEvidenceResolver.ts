@@ -3,10 +3,12 @@ import { z } from "zod";
 import {
   compareApplicationVersionsRequestSchema,
   compareJavaScriptExportShapesRequestSchema,
+  compareSourceToBundleRequestSchema,
   traceApplicationFeatureRequestSchema,
   traceJavaScriptSemanticsRequestSchema,
   type CompareApplicationVersionsRequest,
   type CompareJavaScriptExportShapesRequest,
+  type CompareSourceToBundleRequest,
   type TraceApplicationFeatureRequest,
   type TraceJavaScriptSemanticsRequest,
 } from "../contracts/applicationWorkflowInputContracts.js";
@@ -16,6 +18,7 @@ import { compareApplicationVersionsInputSchema } from "../domain/javascriptAppli
 import { compareJavaScriptExportShapesInputSchema } from "../domain/javascriptExportShapeComparisonSchemas.js";
 import { traceApplicationFeatureInputSchema } from "../domain/javascriptFeatureTraceSchemas.js";
 import { traceJavaScriptSemanticsInputSchema } from "../domain/javascriptSemanticTraceSchemas.js";
+import { compareSourceToBundleInputSchema } from "../domain/sourceToBundleComparisonSchemas.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
   resolveEvidenceReferences,
@@ -48,6 +51,7 @@ type ComparisonInput = z.output<typeof compareApplicationVersionsInputSchema>;
 type ExportShapeComparisonInput = z.output<
   typeof compareJavaScriptExportShapesInputSchema
 >;
+type SourceToBundleInput = z.output<typeof compareSourceToBundleInputSchema>;
 
 /** Parse and resolve one trace adapter request into its canonical domain input. */
 export const resolveTraceApplicationFeatureRequest = (
@@ -65,16 +69,11 @@ export const resolveTraceApplicationFeatureRequestValidated = (
   input: TraceApplicationFeatureRequest,
   lookup?: EvidenceLookup,
 ): Result<TraceInput, AnalysisError> => {
-  const application =
-    input.application === undefined
-      ? resolveEvidenceReferences(
-          lookup,
-          input.application_evidence_id === undefined
-            ? []
-            : [input.application_evidence_id],
-          APPLICATION_GRAPH_IDENTITIES,
-        )
-      : ok([input.application]);
+  const application = graphEvidence(
+    input.application,
+    input.application_evidence_id,
+    lookup,
+  );
   if (!application.ok) return application;
   const native = resolveEvidenceReferences(
     lookup,
@@ -82,7 +81,7 @@ export const resolveTraceApplicationFeatureRequestValidated = (
   );
   if (!native.ok) return native;
   const raw = {
-    application: application.value[0],
+    application: application.value,
     native_observations: [...input.native_observations, ...native.value],
     seed: input.seed,
     direction: input.direction,
@@ -110,18 +109,13 @@ export const resolveTraceJavaScriptSemanticsRequestValidated = (
   input: TraceJavaScriptSemanticsRequest,
   lookup?: EvidenceLookup,
 ): Result<SemanticTraceInput, AnalysisError> => {
-  const application =
-    input.application === undefined
-      ? resolveEvidenceReferences(
-          lookup,
-          input.application_evidence_id === undefined
-            ? []
-            : [input.application_evidence_id],
-          APPLICATION_GRAPH_IDENTITIES,
-        )
-      : ok([input.application]);
+  const application = graphEvidence(
+    input.application,
+    input.application_evidence_id,
+    lookup,
+  );
   if (!application.ok) return application;
-  const raw = { application: application.value[0], query: input.query };
+  const raw = { application: application.value, query: input.query };
   const parsed = traceJavaScriptSemanticsInputSchema.safeParse(raw);
   return parsed.success
     ? ok(parsed.data)
@@ -180,6 +174,42 @@ export const resolveCompareApplicationVersionsRequestValidated = (
     : invalid("compare_application_versions", parsed.error, raw);
 };
 
+/** Parse and resolve one historical-source comparison adapter request. */
+export const resolveCompareSourceToBundleRequest = (
+  input: unknown,
+  lookup?: EvidenceLookup,
+): Result<SourceToBundleInput, AnalysisError> => {
+  const parsed = compareSourceToBundleRequestSchema.safeParse(input);
+  return parsed.success
+    ? resolveCompareSourceToBundleRequestValidated(parsed.data, lookup)
+    : invalid("compare_source_to_bundle", parsed.error, input);
+};
+
+/** Resolve a historical-source comparison request parsed by its public contract. */
+export const resolveCompareSourceToBundleRequestValidated = (
+  input: CompareSourceToBundleRequest,
+  lookup?: EvidenceLookup,
+): Result<SourceToBundleInput, AnalysisError> => {
+  const application = graphEvidence(
+    input.application,
+    input.application_evidence_id,
+    lookup,
+  );
+  if (!application.ok) return application;
+  const raw = {
+    reference: input.reference,
+    application: application.value,
+    limits: input.limits,
+    ...(input.unknown_registry_approved === undefined
+      ? {}
+      : { unknown_registry_approved: input.unknown_registry_approved }),
+  };
+  const parsed = compareSourceToBundleInputSchema.safeParse(raw);
+  return parsed.success
+    ? ok(parsed.data)
+    : invalid("compare_source_to_bundle", parsed.error, raw);
+};
+
 /** Parse and resolve an export-shape adapter request into canonical input. */
 export const resolveCompareJavaScriptExportShapesRequest = (
   input: unknown,
@@ -220,8 +250,11 @@ export const resolveCompareJavaScriptExportShapesRequestValidated = (
 
 const graphEvidence = (
   evidence:
+    | TraceApplicationFeatureRequest["application"]
+    | TraceJavaScriptSemanticsRequest["application"]
     | CompareApplicationVersionsRequest["left"]
-    | CompareJavaScriptExportShapesRequest["left"],
+    | CompareJavaScriptExportShapesRequest["left"]
+    | CompareSourceToBundleRequest["application"],
   evidenceId: string | undefined,
   lookup: EvidenceLookup | undefined,
 ) => {

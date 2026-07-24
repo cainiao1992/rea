@@ -4,6 +4,7 @@ import {
   JAVASCRIPT_APPLICATION_EVIDENCE_EXAMPLE,
   JAVASCRIPT_RUNTIME_RECONCILIATION_EXAMPLE,
 } from "./javascriptRuntimeReconciliationExample.js";
+import { createHistoricalSourceGraph } from "../domain/referenceSourceGraph.js";
 
 const reconciliation = reconcileJavaScriptRuntime(
   JAVASCRIPT_RUNTIME_RECONCILIATION_EXAMPLE,
@@ -64,6 +65,48 @@ export const JAVASCRIPT_FEATURE_TRACE_EXAMPLE = {
 export const JAVASCRIPT_APPLICATION_VERSION_COMPARISON_EXAMPLE = {
   left_evidence_id: EXAMPLE_EVIDENCE_ID,
   right_evidence_id: SECOND_EXAMPLE_EVIDENCE_ID,
+};
+
+/** Historical source inventory compared with one producer-returned graph ID. */
+export const SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE = {
+  reference: createHistoricalSourceGraph({
+    schema: "HistoricalSourceGraph/v1",
+    authority: "historical-reference",
+    root_alias: "$REFERENCE_ROOT",
+    inventory_state: "complete",
+    entries: [
+      {
+        path: "src",
+        kind: "directory",
+        classifications: ["source"],
+        tree_state: "enumerated",
+        limitations: [],
+      },
+      {
+        path: "src/main.ts",
+        kind: "file",
+        sha256: "2".repeat(64),
+        size: 128,
+        language: "TypeScript",
+        classifications: ["source"],
+        content_state: "hashed",
+        limitations: [],
+      },
+    ],
+    relationships: [],
+    parse_failures: [],
+    exclusions: [],
+    languages: ["TypeScript"],
+    manifests: [],
+    vcs: { kind: "none", head: null, dirty: null },
+    provenance: {
+      importer: "rea",
+      importer_version: "1",
+      caller: "contract-example",
+    },
+    limitations: [],
+  }),
+  application_evidence_id: EXAMPLE_EVIDENCE_ID,
 };
 
 /** Exact static return-shape comparison using producer-returned Evidence IDs. */

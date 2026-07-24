@@ -50,6 +50,26 @@ describe("Hopper provider discovery", () => {
       code: "architecture_unsupported",
     });
   });
+
+  it("advertises the exact bounded byte-read limit", () => {
+    const capabilities = provider(process.execPath).capabilities();
+    expect(
+      capabilities.find(({ operation }) => operation === "read_bytes"),
+    ).toMatchObject({
+      available: true,
+      pagination: "none",
+      limits: {
+        maxResults: null,
+        maxPayloadBytes: 4_096,
+        timeoutMs: null,
+      },
+    });
+    expect(
+      capabilities.find(
+        ({ operation }) => operation === "address_to_file_offset",
+      ),
+    ).toMatchObject({ available: true, pagination: "none" });
+  });
 });
 
 const provider = (launcherPath: string): HopperProvider => {

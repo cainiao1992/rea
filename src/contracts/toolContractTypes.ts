@@ -26,6 +26,7 @@ export const TOOL_KINDS = [
   "managed-provider",
   "browser-provider",
   "electron-provider",
+  "runtime-provider",
   "application",
   "session",
 ] as const;

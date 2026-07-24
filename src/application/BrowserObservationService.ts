@@ -7,7 +7,7 @@ import {
 import type { AnalyzeWebBundleInput } from "../domain/webBundleAnalysis.js";
 import type { ObserveWebSessionInput } from "../domain/browserSession.js";
 import type { DiscoverWebMcpToolsInput } from "../domain/webMcpDiscovery.js";
-import type { CompareWebCapturesInput } from "../domain/webCaptureDiff.js";
+import type { BrowserCaptureComparisonInput } from "../domain/browserCaptureComparison.js";
 import type {
   CaptureWebScreenshotInput,
   CompareWebScreenshotsInput,
@@ -151,7 +151,7 @@ export const discoverWebMcpTools = async (
 /** Compare two already-normalized web captures without external access. */
 export const compareWebCaptureEvidence = async (
   browser: BrowserObservationPort | undefined,
-  input: CompareWebCapturesInput,
+  input: BrowserCaptureComparisonInput,
 ): Promise<Result<Evidence, AnalysisError>> => {
   const ready = requireBrowser(browser, "compare_web_captures");
   if (!ready.ok) return ready;

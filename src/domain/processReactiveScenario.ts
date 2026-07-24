@@ -190,6 +190,7 @@ const processReactiveActionSchema = z.discriminatedUnion("type", [
     columns: z.number().int().min(1).max(1_000),
     rows: z.number().int().min(1).max(1_000),
   }),
+  z.strictObject({ type: z.literal("close_stdin") }),
   z.strictObject({
     type: z.literal("send_signal"),
     target: signalTargetSchema,

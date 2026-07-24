@@ -24,7 +24,10 @@ export const recordResult = (
   options: ApplicationToolRegistration,
   contract: (typeof APPLICATION_TOOL_CONTRACTS)[number],
   evidence: Evidence,
-  unknownKind?: "application-version-comparison" | "javascript-export-shape",
+  unknownKind?:
+    | "application-version-comparison"
+    | "javascript-export-shape"
+    | "source-to-bundle-comparison",
 ) => {
   const recorded =
     unknownKind === undefined
@@ -42,13 +45,18 @@ export const recordResult = (
 
 const unknownRegistration = (
   evidence: Evidence,
-  kind: "application-version-comparison" | "javascript-export-shape",
+  kind:
+    | "application-version-comparison"
+    | "javascript-export-shape"
+    | "source-to-bundle-comparison",
 ) => ({
   approved: true as const,
   question:
     kind === "application-version-comparison"
       ? "Which application entities remain unmatched or ambiguous across these versions?"
-      : "Which selected JavaScript export return shapes remain dynamic, incomplete, or ambiguously paired?",
+      : kind === "source-to-bundle-comparison"
+        ? "Which historical source files remain unmatched or ambiguously mapped to the shipped bundle?"
+        : "Which selected JavaScript export return shapes remain dynamic, incomplete, or ambiguously paired?",
   severity: "medium" as const,
   domain: kind,
   supporting_evidence_ids: [evidence.evidence_id],
@@ -70,13 +78,15 @@ const unknownRegistration = (
               "Add approved passive runtime Evidence without promoting it to static fact.",
           },
         ]
-      : [
-          {
-            operation: "run_controlled_replay",
-            rationale:
-              "Validate exact approved module behavior separately when runtime semantics are required.",
-          },
-        ]),
+      : kind === "source-to-bundle-comparison"
+        ? []
+        : [
+            {
+              operation: "run_controlled_replay",
+              rationale:
+                "Validate exact approved module behavior separately when runtime semantics are required.",
+            },
+          ]),
   ],
   relationships: [],
 });

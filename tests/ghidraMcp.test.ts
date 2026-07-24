@@ -219,14 +219,10 @@ describe("Ghidra MCP and shared CLI composition", () => {
         },
       });
 
-      const unsupported = await mcp.callTool({
-        name: "set_comment",
-        arguments: { address: "0x401000", comment: "not allowed" },
-      });
-      expect(unsupported.isError).toBe(true);
-      expect(unsupported.structuredContent).toMatchObject({
-        error: { code: "capability_unavailable" },
-      });
+      const availableNames = (await mcp.listTools()).tools.map(
+        ({ name }) => name,
+      );
+      expect(availableNames).not.toContain("set_comment");
       expect(calls).not.toContain("set_comment");
 
       const status = await mcp.callTool({
@@ -265,6 +261,10 @@ describe("Ghidra MCP and shared CLI composition", () => {
               name: "find_xrefs_to_name",
               available: true,
             }),
+            expect.objectContaining({
+              name: "set_comment",
+              available: false,
+            }),
           ]),
         },
       });
@@ -272,7 +272,7 @@ describe("Ghidra MCP and shared CLI composition", () => {
       await Promise.allSettled([mcp.close(), server.close()]);
       await session.close();
     }
-  });
+  }, 10_000);
 });
 
 const sessionEvidence = (session: BinarySession, value: unknown) => {

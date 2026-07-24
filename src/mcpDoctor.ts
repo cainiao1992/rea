@@ -105,11 +105,16 @@ const inspectProductionMcpSession = async (
       client.listResources(undefined, request),
       client.listResourceTemplates(undefined, request),
       client.readResource({ uri: "rea://server/identity" }, request),
-      client.callTool({ name: "binary_session", arguments: {} }, request),
+      client.callTool(
+        { name: "binary_session", arguments: { detail: "full" } },
+        request,
+      ),
     ]);
+  const expectedToolNames =
+    availableToolNames(requestFlow.structuredContent) ?? [];
   const inventory = {
     tools: compareInventory(
-      CATALOG_IDENTITY.tools.map(({ name }) => name),
+      expectedToolNames,
       tools.tools.map(({ name }) => name),
     ),
     prompts: compareInventory(
@@ -175,6 +180,27 @@ const inspectProductionMcpSession = async (
     },
     checks,
   };
+};
+
+const availableToolNames = (
+  structuredContent: unknown,
+): readonly string[] | undefined => {
+  if (typeof structuredContent !== "object" || structuredContent === null)
+    return undefined;
+  const result = Reflect.get(structuredContent, "result");
+  if (typeof result !== "object" || result === null) return undefined;
+  const availability = Reflect.get(result, "tool_availability");
+  if (!Array.isArray(availability)) return undefined;
+  const names: string[] = [];
+  for (const item of availability) {
+    if (typeof item !== "object" || item === null) return undefined;
+    const name = Reflect.get(item, "name");
+    const available = Reflect.get(item, "available");
+    if (typeof name !== "string" || typeof available !== "boolean")
+      return undefined;
+    if (available) names.push(name);
+  }
+  return names;
 };
 
 /**

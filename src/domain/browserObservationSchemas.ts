@@ -63,6 +63,14 @@ const browserAxNodeSchema = z.object({
   name: z.string().nullable(),
   description: z.string().nullable(),
   ignored: z.boolean(),
+  states: z
+    .array(
+      z.object({
+        name: z.string(),
+        value: z.union([z.boolean(), z.number(), z.string()]),
+      }),
+    )
+    .default([]),
 });
 const browserScriptSourceSchema = z.discriminatedUnion("included", [
   z.object({ included: z.literal(false), reason: z.string() }),
@@ -295,6 +303,28 @@ export const webPageInspectionSchema = z.object({
     session_storage_keys: z.array(z.string()),
     indexed_db_names: z.array(z.string()),
     cache_names: z.array(z.string()),
+    content_fingerprints: z
+      .array(
+        z.object({
+          scope: z.enum([
+            "cookie",
+            "local_storage",
+            "session_storage",
+            "indexed_db_schema",
+            "indexed_db_record",
+            "cache_entry",
+          ]),
+          identity_sha256: z.string().regex(/^[a-f0-9]{64}$/u),
+          value_sha256: z
+            .string()
+            .regex(/^[a-f0-9]{64}$/u)
+            .nullable(),
+          complete: z.boolean(),
+        }),
+      )
+      .default([]),
+    fingerprint_algorithm: z.literal("sha256").default("sha256"),
+    fingerprints_complete: z.boolean().default(false),
     values_redacted: z.literal(true),
   }),
   limitations: z.array(z.string()),

@@ -12,6 +12,7 @@ import {
   JAVASCRIPT_FEATURE_TRACE_FULL_EVIDENCE_EXAMPLE,
   JAVASCRIPT_FEATURE_TRACE_EXAMPLE,
   JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE,
+  SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE,
 } from "../src/contracts/javascriptApplicationWorkflowExamples.js";
 import {
   createEvidenceBundle,
@@ -64,6 +65,18 @@ describe("application workflow CLI parity", () => {
         schema_version: 1,
         summary: { unknown: expect.any(Number) },
       },
+    });
+    const sourceCompared = await runCli([
+      "compare-source-to-bundle",
+      JSON.stringify({
+        reference: SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE.reference,
+        application: JAVASCRIPT_FEATURE_TRACE_FULL_EVIDENCE_EXAMPLE.application,
+      }),
+      "--json",
+    ]);
+    expect(sourceCompared).toMatchObject({
+      operation: "compare_source_to_bundle",
+      normalized_result: { schema_version: 1 },
     });
   }, 20_000);
 

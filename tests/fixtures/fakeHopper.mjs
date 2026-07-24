@@ -8,6 +8,14 @@ const shutdownResult = () => ({
   document_closed: shutdownMode !== "unconfirmed",
   ...(shutdownMode === "cleanup-required" ? { cleanup_required: true } : {}),
 });
+const capabilityUnavailableResult = (id) => ({
+  id,
+  error: {
+    code: -32000,
+    message: "fixture API is unavailable",
+    type: "capability_unavailable",
+  },
+});
 const enhancedFixtureResult = (method) => {
   switch (method) {
     case "list_segments":
@@ -153,6 +161,8 @@ const server = createServer((socket) => {
             type: "bridge_exception",
           },
         });
+      } else if (request.method === "capability_unavailable") {
+        send(capabilityUnavailableResult(request.id));
       } else if (request.method === "current_document") {
         send({ id: request.id, result: "fixture" });
       } else if (enhancedFixtureResult(request.method) !== undefined) {

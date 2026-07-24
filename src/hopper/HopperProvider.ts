@@ -75,7 +75,7 @@ const CAPABILITIES: readonly CapabilityDescriptor[] = Object.freeze(
       }),
       limits: Object.freeze({
         maxResults: null,
-        maxPayloadBytes: null,
+        maxPayloadBytes: contract.name === "read_bytes" ? 4_096 : null,
         timeoutMs: null,
       }),
       limitations: Object.freeze([

@@ -34,12 +34,22 @@ export const toolFamilyCatalog = (sources) => {
     {
       id: "browser",
       surface: "browser-provider",
-      contracts: sources.browserContracts.BROWSER_TOOL_CONTRACTS,
+      contracts: [
+        ...sources.browserContracts.BROWSER_TOOL_CONTRACTS,
+        ...sources.browserScenarioContracts.BROWSER_SCENARIO_TOOL_CONTRACTS,
+      ],
     },
     {
       id: "electron",
       surface: "electron-provider",
       contracts: sources.electronContracts.ELECTRON_TOOL_CONTRACTS,
+    },
+    {
+      id: "javascript-runtime",
+      surface: "runtime-provider",
+      contracts:
+        sources.javascriptRuntimeObservationContracts
+          .JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS,
     },
     {
       id: "application",
@@ -122,8 +132,21 @@ export const providerCatalog = (sources) => {
       contracts: sources.browserContracts.BROWSER_TOOL_CONTRACTS,
     },
     {
+      identity:
+        sources.browserScenarioProvider
+          .PLAYWRIGHT_BROWSER_SCENARIO_PROVIDER_IDENTITY,
+      contracts:
+        sources.browserScenarioContracts.BROWSER_SCENARIO_TOOL_CONTRACTS,
+    },
+    {
       identity: sources.electronProvider.CDP_ELECTRON_PROVIDER_IDENTITY,
       contracts: observationContracts,
+    },
+    {
+      identity: sources.v8InspectorProvider.V8_INSPECTOR_PROVIDER_IDENTITY,
+      contracts:
+        sources.javascriptRuntimeObservationContracts
+          .JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS,
     },
     {
       identity: sources.artifactProviders.JAVASCRIPT_APPLICATION_PROVIDER,

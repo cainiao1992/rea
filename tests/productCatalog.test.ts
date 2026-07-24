@@ -18,6 +18,8 @@ import {
 } from "../src/application/InvestigationProviders.js";
 import { CDP_BROWSER_PROVIDER_IDENTITY } from "../src/browser/CdpBrowserProvider.js";
 import { CDP_ELECTRON_PROVIDER_IDENTITY } from "../src/browser/CdpElectronProvider.js";
+import { PLAYWRIGHT_BROWSER_SCENARIO_PROVIDER_IDENTITY } from "../src/browser/PlaywrightBrowserScenarioProvider.js";
+import { V8_INSPECTOR_PROVIDER_IDENTITY } from "../src/browser/V8InspectorProvider.js";
 import { CLI_COMMAND_NAMES } from "../src/cliCommandNames.js";
 import { createCli } from "../src/cli.js";
 import { TOOL_CONTRACTS } from "../src/contracts/toolContracts.js";
@@ -76,7 +78,9 @@ describe("canonical product catalog", () => {
         MANAGED_STATIC_PROVIDER,
         MANAGED_WORKFLOW_PROVIDER,
         CDP_BROWSER_PROVIDER_IDENTITY,
+        PLAYWRIGHT_BROWSER_SCENARIO_PROVIDER_IDENTITY,
         CDP_ELECTRON_PROVIDER_IDENTITY,
+        V8_INSPECTOR_PROVIDER_IDENTITY,
         JAVASCRIPT_APPLICATION_PROVIDER,
         JAVASCRIPT_RUNTIME_RECONCILIATION_PROVIDER,
         JAVASCRIPT_APPLICATION_WORKFLOW_PROVIDER,
@@ -112,9 +116,12 @@ describe("canonical product catalog", () => {
         ({ id }) => id === JAVASCRIPT_APPLICATION_WORKFLOW_PROVIDER.id,
       )?.capabilities,
     ).toEqual([
+      "build_reconstruction_obligation_ledger",
       "commit_reconstruction_coverage",
       "compare_application_versions",
       "compare_javascript_export_shapes",
+      "compare_source_to_bundle",
+      "evaluate_reconstruction_readiness",
       "execute_node_characterization",
       "prepare_node_characterization",
       "query_reconstruction_coverage",

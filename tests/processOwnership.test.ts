@@ -71,6 +71,9 @@ describe("owned process-group cleanup", () => {
       ),
     ).toBe(true);
     expect(
+      matchesOwnedProcessCommand("(node)", "/opt/node/bin/node", "darwin"),
+    ).toBe(true);
+    expect(
       matchesOwnedProcessCommand(
         "node /tmp/fake-launcher.mjs",
         "/opt/python/bin/python3",
@@ -83,6 +86,9 @@ describe("owned process-group cleanup", () => {
         "/opt/node/bin/node",
         "linux",
       ),
+    ).toBe(false);
+    expect(
+      matchesOwnedProcessCommand("(node)", "/opt/node/bin/node", "linux"),
     ).toBe(false);
   });
 
@@ -438,6 +444,35 @@ describe("owned process-group cleanup", () => {
       ],
     });
     expect(environment.mock.calls.map(([pid]) => pid)).toEqual([100, 101, 102]);
+    expect(signalGroup).not.toHaveBeenCalled();
+  });
+
+  it("accepts a member that exits during ownership revalidation", async () => {
+    const liveLauncher = {
+      pid: 100,
+      parentPid: 1,
+      processGroupId: 100,
+      state: "S",
+      command: "fixture",
+    };
+    const listProcesses = vi
+      .fn<ProcessOwnershipHost["listProcesses"]>()
+      .mockResolvedValueOnce([liveLauncher])
+      .mockResolvedValue([]);
+    const signalGroup = vi.fn();
+    const adapter: ProcessOwnershipHost = {
+      listProcesses,
+      environment: () =>
+        Promise.reject(new Error("process exited before environment read")),
+      signalGroup,
+    };
+
+    await expect(cleanupOwnedProcessGroup(ownership, adapter)).resolves.toEqual(
+      {
+        cleaned: true,
+        signaled: false,
+      },
+    );
     expect(signalGroup).not.toHaveBeenCalled();
   });
 

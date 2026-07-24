@@ -1558,6 +1558,7 @@ describe("process capture adapter", () => {
                 },
                 actions: [
                   { type: "send_input", data: "accepted\n", sensitive: true },
+                  { type: "close_stdin" },
                 ],
                 target: { kind: "goto", state: "finishing" },
               },
@@ -1617,6 +1618,13 @@ describe("process capture adapter", () => {
         expect.objectContaining({
           type: "input",
           data: "<redacted-input:9-bytes>",
+          outcome: "dispatched",
+        }),
+      );
+      expect(result.value.interaction_events).toContainEqual(
+        expect.objectContaining({
+          type: "stdin_close",
+          data: "",
           outcome: "dispatched",
         }),
       );

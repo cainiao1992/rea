@@ -27,8 +27,9 @@ import { NATIVE_TOOL_CONTRACTS } from "./nativeToolContracts.js";
 import { ARTIFACT_TOOL_CONTRACTS } from "./artifactToolContracts.js";
 import { MANAGED_TOOL_CONTRACTS } from "./managedToolContracts.js";
 import { MANAGED_WORKFLOW_TOOL_CONTRACTS } from "./managedWorkflowToolContracts.js";
-import { BROWSER_TOOL_CONTRACTS } from "./browserToolContracts.js";
+import { BROWSER_PROVIDER_TOOL_CONTRACTS } from "./browserProviderToolContracts.js";
 import { ELECTRON_TOOL_CONTRACTS } from "./electronToolContracts.js";
+import { JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS } from "./javascriptRuntimeObservationToolContracts.js";
 import { APPLICATION_TOOL_CONTRACTS } from "./applicationToolContracts.js";
 import {
   closeBinaryInputSchema,
@@ -38,6 +39,8 @@ import type { ToolContract, ToolExample } from "./toolContractTypes.js";
 import { toolContractMetadata } from "./toolEffects.js";
 import { binarySessionInputSchema } from "./sessionStatusContract.js";
 import { functionInstructionInputSchema } from "./functionInstructionContract.js";
+import { HOPPER_MEMORY_TOOL_DEFINITIONS } from "./hopperMemoryContracts.js";
+import { analysisSearchInput } from "./analysisSearchContract.js";
 
 export { binarySessionInputSchema } from "./sessionStatusContract.js";
 
@@ -51,26 +54,9 @@ const address = z
   );
 const optionalAddress = address.optional();
 const procedure = z.string().describe("The procedure name or address");
-const searchPattern = z
-  .string()
-  .min(1)
-  .max(256)
-  .describe("The literal text or bounded regex pattern to search for");
-const caseSensitive = z
-  .boolean()
-  .default(false)
-  .describe("Whether to match case");
 const pagination = {
   offset: z.number().int().min(0).default(0),
   limit: z.number().int().min(1).max(500).default(100),
-};
-const searchInput = {
-  pattern: searchPattern,
-  mode: z.enum(["literal", "regex"]).default("literal"),
-  case_sensitive: caseSensitive,
-  offset: z.number().int().min(0).default(0),
-  limit: z.number().int().min(1).max(100).default(100),
-  document,
 };
 
 const exampleInputSchema = z.record(z.string(), jsonValueSchema);
@@ -246,6 +232,9 @@ export const OFFICIAL_TOOL_CONTRACTS = [
     "Read one offset-paginated window of raw instructions for an analyzed procedure without decompilation, caller discovery, or whole-program string/name scans. Use this fast path for instruction-level orientation; follow next_offset when truncated.",
     functionInstructionInputSchema,
   ),
+  ...HOPPER_MEMORY_TOOL_DEFINITIONS.map(({ name, description, inputSchema }) =>
+    official(name, description, inputSchema),
+  ),
   official(
     "procedure_references",
     "Return a bounded set of raw incoming or outgoing reference edges for one procedure. Endpoint procedures are resolved only from provider containment; Ghidra preserves observed reference kinds while providers without kind authority mark them unavailable.",
@@ -271,12 +260,12 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   official(
     "search_procedures",
     "Search analyzed procedure names using literal matching by default or regex opt-in. Providers bound search work and reject regex constructs, paths, candidates, or cumulative work outside their finite budgets. Results are deterministic and offset-paginated.",
-    z.object(searchInput),
+    z.object(analysisSearchInput),
   ),
   official(
     "search_strings",
     "Search analyzed strings using literal matching by default or regex opt-in. Providers bound search work and reject regex constructs, paths, candidates, or cumulative work outside their finite budgets. Results are deterministic, offset-paginated, and explicitly truncated.",
-    z.object(searchInput),
+    z.object(analysisSearchInput),
   ),
   official(
     "set_address_name",
@@ -374,6 +363,16 @@ export const ENHANCED_TOOL_CONTRACTS = [
     "trace_feature",
     "Trace a bounded literal feature query through matching strings and procedures, xrefs, and truthful containing-procedure resolution. Returns the operation budget, truncation, and residual unknowns; unknown_registry_approved: true records them durably without inferring reference kinds.",
     enhancedInputSchemas.trace_feature,
+  ),
+  enhanced(
+    "find_code_for_string",
+    "Resolve one literal string query to bounded analyzed string entries, xrefs, and truthful containing-procedure candidates. Returns an Evidence ID, exact operation budget, truncation, and residual unknowns; it never infers reference kinds or runtime reachability.",
+    enhancedInputSchemas.find_code_for_string,
+  ),
+  enhanced(
+    "trace_call_path",
+    "Trace a deterministic bounded caller or callee path from one exact procedure address, optionally stopping at a goal. Returns visited nodes, direct-call edges, one shortest traversal path, failures, frontier, consumed limits, an Evidence ID, and explicit residual unknowns without claiming unresolved indirect calls are absent.",
+    enhancedInputSchemas.trace_call_path,
   ),
 ] as const satisfies readonly ToolContract[];
 
@@ -521,8 +520,9 @@ export const TOOL_CONTRACTS = [
   ...ARTIFACT_TOOL_CONTRACTS,
   ...MANAGED_TOOL_CONTRACTS,
   ...MANAGED_WORKFLOW_TOOL_CONTRACTS,
-  ...BROWSER_TOOL_CONTRACTS,
+  ...BROWSER_PROVIDER_TOOL_CONTRACTS,
   ...ELECTRON_TOOL_CONTRACTS,
+  ...JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS,
   ...APPLICATION_TOOL_CONTRACTS,
   ...SESSION_TOOL_CONTRACTS,
 ] as const;

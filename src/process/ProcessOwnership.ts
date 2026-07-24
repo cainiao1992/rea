@@ -391,6 +391,10 @@ const processOwnershipFailures = async (
       if ((await host.environment(member.pid)).REA_PROCESS_RUN_ID !== runId)
         failures.push({ pid: member.pid, reason: "run-token-mismatch" });
     } catch {
+      try {
+        const live = liveProcesses(await host.listProcesses());
+        if (!live.some(({ pid }) => pid === member.pid)) continue;
+      } catch {}
       failures.push({ pid: member.pid, reason: "environment-unreadable" });
     }
   }

@@ -447,6 +447,35 @@ describe("owned process-group cleanup", () => {
     expect(signalGroup).not.toHaveBeenCalled();
   });
 
+  it("accepts a member that exits during ownership revalidation", async () => {
+    const liveLauncher = {
+      pid: 100,
+      parentPid: 1,
+      processGroupId: 100,
+      state: "S",
+      command: "fixture",
+    };
+    const listProcesses = vi
+      .fn<ProcessOwnershipHost["listProcesses"]>()
+      .mockResolvedValueOnce([liveLauncher])
+      .mockResolvedValue([]);
+    const signalGroup = vi.fn();
+    const adapter: ProcessOwnershipHost = {
+      listProcesses,
+      environment: () =>
+        Promise.reject(new Error("process exited before environment read")),
+      signalGroup,
+    };
+
+    await expect(cleanupOwnedProcessGroup(ownership, adapter)).resolves.toEqual(
+      {
+        cleaned: true,
+        signaled: false,
+      },
+    );
+    expect(signalGroup).not.toHaveBeenCalled();
+  });
+
   it("ignores exited zombie members during live ownership checks", async () => {
     const environment = vi.fn((pid: number) =>
       Promise.resolve(pid === 101 ? {} : { REA_PROCESS_RUN_ID: "run-token" }),

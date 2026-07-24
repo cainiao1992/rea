@@ -19,6 +19,7 @@ const responseSchema = z.union([
           "remote",
           "authorization",
           "invalid_request",
+          "capability_unavailable",
           "bridge_exception",
         ])
         .default("remote"),

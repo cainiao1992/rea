@@ -278,7 +278,7 @@ describe("HopperClient", () => {
     const results = await Promise.all(
       OFFICIAL_TOOL_CONTRACTS.map(({ name }) => client.callTool(name, {})),
     );
-    expect(results).toHaveLength(34);
+    expect(results).toHaveLength(36);
     expect(results.every((result) => result.ok)).toBe(true);
   });
 
@@ -314,6 +314,19 @@ describe("HopperClient", () => {
       expect(result.error).toMatchObject({
         _tag: "HopperRemoteError",
         diagnosticType: "bridge_exception",
+      });
+  });
+
+  it("projects a missing bridge API as typed capability unavailability", async () => {
+    const client = await startClient();
+    const result = await client.callTool("capability_unavailable");
+    expect(result.ok).toBe(false);
+    if (!result.ok)
+      expect(result.error).toMatchObject({
+        _tag: "AnalysisCapabilityUnavailableError",
+        providerId: "hopper",
+        operation: "capability_unavailable",
+        reason: "fixture API is unavailable",
       });
   });
 

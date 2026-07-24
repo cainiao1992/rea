@@ -33,6 +33,8 @@ const VALID_INPUTS: Readonly<
   procedure_callers: { procedure: "main" },
   procedure_info: { procedure: "main" },
   read_function_instructions: { procedure: "main" },
+  read_bytes: { address: "0x1000", length: 4 },
+  address_to_file_offset: { address: "0x1000" },
   procedure_references: { procedure: "main" },
   procedure_pseudo_code: { procedure: "main" },
   resolve_containing_procedure: { address: "0x1000" },
@@ -130,6 +132,16 @@ const outputFor = (name: string): JsonValue => {
       instruction_scan_truncated: false,
       limitations: ["Provider-specific instruction text."],
     };
+  if (name === "read_bytes")
+    return {
+      address: "0x1000",
+      requested_bytes: 4,
+      returned_bytes: 4,
+      bytes_hex: "c3c3c3c3",
+      complete: true,
+    };
+  if (name === "address_to_file_offset")
+    return { address: "0x1000", file_offset: 0 };
   if (name === "procedure_references")
     return {
       procedure: { address: "0x1000", name: "main" },

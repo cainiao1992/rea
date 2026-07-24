@@ -229,6 +229,18 @@ const ENHANCED_INPUT_PARSERS: {
       input,
       "trace_feature",
     ),
+  find_code_for_string: (input) =>
+    safeParseToolInput(
+      enhancedInputSchemas.find_code_for_string,
+      input,
+      "find_code_for_string",
+    ),
+  trace_call_path: (input) =>
+    safeParseToolInput(
+      enhancedInputSchemas.trace_call_path,
+      input,
+      "trace_call_path",
+    ),
 };
 
 const parseEnhancedCall = (
@@ -286,6 +298,16 @@ const parseEnhancedCall = (
         ENHANCED_INPUT_PARSERS.trace_feature(input),
         (value) => ({ name, input: value }),
       );
+    case "find_code_for_string":
+      return mapEnhancedCall(
+        ENHANCED_INPUT_PARSERS.find_code_for_string(input),
+        (value) => ({ name, input: value }),
+      );
+    case "trace_call_path":
+      return mapEnhancedCall(
+        ENHANCED_INPUT_PARSERS.trace_call_path(input),
+        (value) => ({ name, input: value }),
+      );
   }
 };
 
@@ -313,7 +335,9 @@ const recordWorkflowUnknowns = ({
   | ReturnType<BinarySessionPort["recordUnknown"]>
   | { readonly ok: true; readonly value: null } => {
   if (
-    name !== "trace_feature" ||
+    !["trace_feature", "find_code_for_string", "trace_call_path"].includes(
+      name,
+    ) ||
     input.unknown_registry_approved !== true ||
     recordUnknown === undefined ||
     typeof result !== "object" ||
@@ -336,7 +360,7 @@ const recordWorkflowUnknowns = ({
       required_environment: null,
       recommended_probes: [
         {
-          operation: "trace_feature",
+          operation: name,
           rationale: "Continue with a larger bounded budget.",
         },
       ],

@@ -5,11 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  AnalysisCapabilityUnavailableError,
   HopperCancelledError,
   type AnalysisError,
   type HopperError,
   HopperProcessError,
   HopperProtocolError,
+  HopperRemoteError,
   HopperStartError,
   hopperStartupFailure,
   HopperTimeoutError,
@@ -279,10 +281,21 @@ export class HopperClient {
       readonly timeoutMs?: number;
       readonly progress?: ProgressReporter;
     } = {},
-  ): Promise<Result<JsonValue, HopperError>> {
+  ): Promise<Result<JsonValue, AnalysisError>> {
     const started = await this.start(options.signal);
     if (!started.ok) return started;
-    return this.#request(name, arguments_, options);
+    const result = await this.#request(name, arguments_, options);
+    return !result.ok &&
+      result.error instanceof HopperRemoteError &&
+      result.error.diagnosticType === "capability_unavailable"
+      ? err(
+          new AnalysisCapabilityUnavailableError(
+            "hopper",
+            name,
+            result.error.safeMessage,
+          ),
+        )
+      : result;
   }
 
   /** Stop the bridge, settle outstanding requests, and remove session artifacts. */

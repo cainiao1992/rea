@@ -150,12 +150,53 @@ const verifyRelationships = async (client, options, procedure) => {
   return related;
 };
 
+const verifyByteAccess = async (client, options, firstAddress) => {
+  const byteRead = requireSuccessfulTool(
+    await client.callTool(
+      { name: "read_bytes", arguments: { address: firstAddress, length: 16 } },
+      options,
+    ),
+    "read_bytes",
+  );
+  if (
+    byteRead?.address !== firstAddress ||
+    byteRead.requested_bytes !== 16 ||
+    byteRead.returned_bytes !== 16 ||
+    byteRead.complete !== true ||
+    !/^[a-f0-9]{32}$/u.test(byteRead.bytes_hex)
+  ) {
+    throw new Error("read_bytes returned an invalid bounded byte window");
+  }
+  const mappedOffset = requireSuccessfulTool(
+    await client.callTool(
+      {
+        name: "address_to_file_offset",
+        arguments: { address: firstAddress },
+      },
+      options,
+    ),
+    "address_to_file_offset",
+  );
+  if (
+    mappedOffset?.address !== firstAddress ||
+    !Number.isSafeInteger(mappedOffset.file_offset) ||
+    mappedOffset.file_offset < 0
+  ) {
+    throw new Error("address_to_file_offset returned an invalid mapping");
+  }
+  return {
+    byteReadCount: byteRead.returned_bytes,
+    mappedFileOffset: mappedOffset.file_offset,
+  };
+};
+
 const verifyCurrentTarget = async (client, options) => {
   const procedures = requireSuccessfulTool(
     await client.callTool({ name: "list_procedures", arguments: {} }, options),
     "list_procedures",
   );
   const firstAddress = firstProcedureAddress(procedures);
+  const byteAccess = await verifyByteAccess(client, options, firstAddress);
   const basics = await verifyHopperFunctionBasics(
     client,
     options,
@@ -217,6 +258,7 @@ const verifyCurrentTarget = async (client, options) => {
     xrefCount: relationships.xrefs.length,
     outgoingReferenceCount: basics.outgoingReferenceCount,
     instructionWindowCount: basics.instructionWindowCount,
+    ...byteAccess,
   };
 };
 

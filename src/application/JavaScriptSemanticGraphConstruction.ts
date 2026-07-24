@@ -1,4 +1,5 @@
 import type { JavaScriptApplicationGraph } from "../domain/javascriptApplicationGraph.js";
+import type { JsonValue } from "../domain/jsonValue.js";
 import {
   createJavaScriptSemanticGraphNode,
   createJavaScriptSemanticGraphRelation,
@@ -49,6 +50,7 @@ export interface SemanticNodeConstructionInput {
   readonly location: JavaScriptSourceRange | null;
   readonly label: string | null;
   readonly functionNodeId: string | null;
+  readonly properties?: Readonly<Record<string, JsonValue>>;
 }
 
 /** Input for one directed static semantic relationship. */
@@ -58,6 +60,7 @@ export interface SemanticRelationConstructionInput {
   readonly relation: JavaScriptSemanticGraphRelation["relation"];
   readonly resolution?: JavaScriptSemanticGraphRelation["resolution"];
   readonly evidence?: ApplicationGraphEvidence;
+  readonly properties?: Readonly<Record<string, JsonValue>>;
 }
 
 /** Create empty projection state with structural application-node mappings. */
@@ -94,7 +97,7 @@ export const constructSemanticGraphNode = (
     function_node_id: input.functionNodeId,
     application_node_ids: matchingApplicationNodeIds(file, input, state),
     label: input.label,
-    properties: {},
+    properties: input.properties ?? {},
     evidence: observedSemanticEvidence(file, input.location),
   });
 
@@ -131,7 +134,7 @@ export const addSemanticGraphRelation = (
     target_node_id: input.target.node_id,
     relation: input.relation,
     resolution: input.resolution ?? "candidate",
-    properties: {},
+    properties: input.properties ?? {},
     evidence: input.evidence ?? inferredSemanticEvidence(input.source),
   });
   if (state.relations.has(value.relation_id)) return;

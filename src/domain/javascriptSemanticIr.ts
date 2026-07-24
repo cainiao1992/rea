@@ -13,6 +13,15 @@ export interface JavaScriptSemanticLimits {
   readonly maxArgumentFlows: number;
   readonly maxCallReturnFlows: number;
   readonly maxClosureCaptures: number;
+  readonly maxPromiseOperations: number;
+  readonly maxEventOperations: number;
+  readonly maxTimerOperations: number;
+  readonly maxChildProcessOperations: number;
+  readonly maxConfigurationOperations: number;
+  readonly maxRequestOperations: number;
+  readonly maxBoundaryOperations: number;
+  readonly maxResourceOperations: number;
+  readonly maxObjectOperations: number;
   readonly maxFrontiers: number;
   readonly maxValueDepth: number;
   readonly maxUnionValues: number;
@@ -32,6 +41,15 @@ export const DEFAULT_JAVASCRIPT_SEMANTIC_LIMITS: JavaScriptSemanticLimits = {
   maxArgumentFlows: 100_000,
   maxCallReturnFlows: 100_000,
   maxClosureCaptures: 100_000,
+  maxPromiseOperations: 100_000,
+  maxEventOperations: 100_000,
+  maxTimerOperations: 100_000,
+  maxChildProcessOperations: 100_000,
+  maxConfigurationOperations: 100_000,
+  maxRequestOperations: 100_000,
+  maxBoundaryOperations: 100_000,
+  maxResourceOperations: 100_000,
+  maxObjectOperations: 100_000,
   maxFrontiers: 20_000,
   maxValueDepth: 16,
   maxUnionValues: 32,
@@ -208,6 +226,218 @@ export interface JavaScriptSemanticClosureCapture {
   readonly referenceLocation: JavaScriptSourceRange;
 }
 
+/** One bounded promise/task operation recovered from explicit syntax. */
+export interface JavaScriptSemanticPromiseOperation {
+  readonly promiseId: string;
+  readonly kind:
+    | "constructor"
+    | "static"
+    | "chain"
+    | "aggregate"
+    | "awaited-expression";
+  readonly method:
+    | "new"
+    | "resolve"
+    | "reject"
+    | "then"
+    | "catch"
+    | "finally"
+    | "all"
+    | "allSettled"
+    | "await";
+  readonly location: JavaScriptSourceRange;
+  readonly ownerCallableId: string | null;
+  readonly ownership:
+    | "awaited"
+    | "returned"
+    | "detached"
+    | "assigned"
+    | "chained"
+    | "aggregated"
+    | "unknown";
+  readonly ownerBindingId: string | null;
+  readonly returnSiteId: string | null;
+  readonly sourcePromiseIds: readonly string[];
+  readonly sourceResolution: "complete" | "partial" | "unresolved";
+}
+
+/** Rename-resistant bounded component commitment for one callable. */
+export interface JavaScriptSemanticFunctionFingerprint {
+  readonly callableId: string;
+  readonly status: "complete" | "partial" | "unavailable";
+  readonly components: {
+    readonly parameterArity: number;
+    readonly normalizedAstSha256: string;
+    readonly controlFlowSha256: string;
+    readonly relationShapeSha256: string;
+    readonly literalSetSha256: string;
+    readonly effects: readonly (
+      | "async"
+      | "child-process"
+      | "event"
+      | "network"
+      | "promise"
+      | "resource"
+      | "timer"
+    )[];
+  };
+  readonly limitations: readonly string[];
+}
+
+/** One EventEmitter-style registration, removal, or dispatch candidate. */
+export interface JavaScriptSemanticEventOperation {
+  readonly eventId: string;
+  readonly kind: "register" | "remove" | "dispatch";
+  readonly method:
+    | "on"
+    | "once"
+    | "addListener"
+    | "prependListener"
+    | "prependOnceListener"
+    | "off"
+    | "removeListener"
+    | "removeAllListeners"
+    | "emit";
+  readonly location: JavaScriptSourceRange;
+  readonly ownerCallableId: string | null;
+  readonly emitterKey: string;
+  readonly emitterBindingId: string | null;
+  readonly eventName: string | null;
+  readonly listenerBindingId: string | null;
+  readonly listenerLocation: JavaScriptSourceRange | null;
+  readonly resolution: "complete" | "partial" | "unresolved";
+}
+
+/** One bounded timer scheduling or cancellation candidate. */
+export interface JavaScriptSemanticTimerOperation {
+  readonly timerId: string;
+  readonly kind: "schedule" | "cancel";
+  readonly method:
+    | "setTimeout"
+    | "setInterval"
+    | "setImmediate"
+    | "clearTimeout"
+    | "clearInterval"
+    | "clearImmediate";
+  readonly location: JavaScriptSourceRange;
+  readonly ownerCallableId: string | null;
+  readonly handleBindingId: string | null;
+  readonly linkedTimerId: string | null;
+  readonly delayMilliseconds: number | null;
+  readonly resolution: "complete" | "partial" | "unresolved";
+}
+
+/** One explicit asynchronous node:child_process creation candidate. */
+export interface JavaScriptSemanticChildProcessSpawn {
+  readonly processId: string;
+  readonly method: "spawn" | "exec" | "execFile" | "fork";
+  readonly location: JavaScriptSourceRange;
+  readonly ownerCallableId: string | null;
+  readonly resultBindingId: string | null;
+  readonly command: string | null;
+  readonly argvCount: number | null;
+  readonly environmentSupplied: boolean;
+  readonly stdioMode: string;
+  readonly resolution: "complete" | "partial";
+}
+
+/** One exit/error listener or signal operation linked to child candidates. */
+export interface JavaScriptSemanticChildProcessInteraction {
+  readonly interactionId: string;
+  readonly kind: "listener" | "signal";
+  readonly method: "on" | "once" | "addListener" | "kill";
+  readonly location: JavaScriptSourceRange;
+  readonly ownerCallableId: string | null;
+  readonly processBindingId: string | null;
+  readonly linkedProcessIds: readonly string[];
+  readonly eventName: "exit" | "error" | null;
+  readonly signalName: string | null;
+  readonly listenerLocation: JavaScriptSourceRange | null;
+  readonly resolution: "complete" | "partial";
+}
+
+/** One environment, argv, file, or default configuration source. */
+export interface JavaScriptSemanticConfigurationOperation {
+  readonly configId: string;
+  readonly kind: "environment" | "argv" | "file" | "default";
+  readonly location: JavaScriptSourceRange;
+  readonly ownerCallableId: string | null;
+  readonly resultBindingId: string | null;
+  readonly key: string | null;
+  readonly sourceConfigId: string | null;
+  readonly value: string | number | boolean | null;
+  readonly resolution: "complete" | "partial";
+}
+
+/** One request construction or response-consumer candidate. */
+export interface JavaScriptSemanticRequestOperation {
+  readonly requestId: string;
+  readonly kind: "request" | "response-consumer";
+  readonly method:
+    | "fetch"
+    | "WebSocket"
+    | "request"
+    | "get"
+    | "json"
+    | "text"
+    | "arrayBuffer";
+  readonly location: JavaScriptSourceRange;
+  readonly ownerCallableId: string | null;
+  readonly resultBindingId: string | null;
+  readonly linkedRequestIds: readonly string[];
+  readonly endpoint: string | null;
+  readonly fields: readonly {
+    readonly name: string;
+    readonly sourceBindingId: string | null;
+  }[];
+  readonly resolution: "complete" | "partial" | "unresolved";
+}
+
+/** One parse, coercion, or validation boundary candidate. */
+export interface JavaScriptSemanticBoundaryOperation {
+  readonly boundaryId: string;
+  readonly kind: "parse" | "coerce" | "validate";
+  readonly method: string;
+  readonly location: JavaScriptSourceRange;
+  readonly ownerCallableId: string | null;
+  readonly sourceBindingId: string | null;
+  readonly resultBindingId: string | null;
+  readonly resolution: "complete" | "partial";
+}
+
+/** One explicit built-in resource acquisition or release candidate. */
+export interface JavaScriptSemanticResourceOperation {
+  readonly resourceId: string;
+  readonly kind: "acquire" | "release";
+  readonly method:
+    | "open"
+    | "openSync"
+    | "createReadStream"
+    | "createWriteStream"
+    | "connect"
+    | "createConnection"
+    | "close"
+    | "destroy"
+    | "end";
+  readonly location: JavaScriptSourceRange;
+  readonly ownerCallableId: string | null;
+  readonly resultBindingId: string | null;
+  readonly linkedResourceIds: readonly string[];
+  readonly resolution: "complete" | "partial";
+}
+
+/** One static property read/write, spread, or destructuring candidate. */
+export interface JavaScriptSemanticObjectOperation {
+  readonly objectOperationId: string;
+  readonly kind: "read" | "write" | "spread" | "destructure";
+  readonly location: JavaScriptSourceRange;
+  readonly ownerCallableId: string | null;
+  readonly objectBindingId: string | null;
+  readonly targetBindingId: string | null;
+  readonly propertyName: string | null;
+  readonly resolution: "complete" | "partial";
+}
+
 /** One syntax location where exact local semantic continuation is unavailable. */
 export interface JavaScriptSemanticFrontier {
   readonly kind: "dynamic-call" | "dynamic-property";
@@ -247,10 +477,10 @@ interface JavaScriptSemanticCoverage {
   readonly limitsReached: readonly (keyof JavaScriptSemanticLimits)[];
 }
 
-/** Provider-neutral JavaScript semantic IR v3. */
+/** Provider-neutral JavaScript semantic IR v4. */
 export interface JavaScriptSemanticIr {
   readonly schema: "JavaScriptSemanticIR";
-  readonly schemaVersion: 3;
+  readonly schemaVersion: 4;
   readonly scopes: readonly JavaScriptSemanticScope[];
   readonly bindings: readonly JavaScriptSemanticBinding[];
   readonly callables: readonly JavaScriptSemanticCallable[];
@@ -261,6 +491,17 @@ export interface JavaScriptSemanticIr {
   readonly callReturnFlows: readonly JavaScriptSemanticCallReturnFlow[];
   readonly callResultFlows: readonly JavaScriptSemanticCallResultFlow[];
   readonly closureCaptures: readonly JavaScriptSemanticClosureCapture[];
+  readonly promiseOperations: readonly JavaScriptSemanticPromiseOperation[];
+  readonly eventOperations: readonly JavaScriptSemanticEventOperation[];
+  readonly timerOperations: readonly JavaScriptSemanticTimerOperation[];
+  readonly childProcessSpawns: readonly JavaScriptSemanticChildProcessSpawn[];
+  readonly childProcessInteractions: readonly JavaScriptSemanticChildProcessInteraction[];
+  readonly configurationOperations: readonly JavaScriptSemanticConfigurationOperation[];
+  readonly requestOperations: readonly JavaScriptSemanticRequestOperation[];
+  readonly boundaryOperations: readonly JavaScriptSemanticBoundaryOperation[];
+  readonly resourceOperations: readonly JavaScriptSemanticResourceOperation[];
+  readonly objectOperations: readonly JavaScriptSemanticObjectOperation[];
+  readonly functionFingerprints: readonly JavaScriptSemanticFunctionFingerprint[];
   readonly frontiers: readonly JavaScriptSemanticFrontier[];
   readonly coverage: JavaScriptSemanticCoverage;
   readonly limitations: readonly string[];
@@ -287,7 +528,7 @@ export const semanticBinding = (
 /** Fail-closed result when Babel cannot produce an inert syntax tree. */
 export const failedJavaScriptSemanticIr = (): JavaScriptSemanticIr => ({
   schema: "JavaScriptSemanticIR",
-  schemaVersion: 3,
+  schemaVersion: 4,
   scopes: [],
   bindings: [],
   callables: [],
@@ -298,6 +539,17 @@ export const failedJavaScriptSemanticIr = (): JavaScriptSemanticIr => ({
   callReturnFlows: [],
   callResultFlows: [],
   closureCaptures: [],
+  promiseOperations: [],
+  eventOperations: [],
+  timerOperations: [],
+  childProcessSpawns: [],
+  childProcessInteractions: [],
+  configurationOperations: [],
+  requestOperations: [],
+  boundaryOperations: [],
+  resourceOperations: [],
+  objectOperations: [],
+  functionFingerprints: [],
   frontiers: [],
   coverage: { status: "failed", omittedCount: null, limitsReached: [] },
   limitations: [

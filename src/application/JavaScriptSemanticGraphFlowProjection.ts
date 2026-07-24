@@ -4,8 +4,10 @@ import type { JavaScriptSemanticIr } from "../domain/javascriptSemanticIr.js";
 import type { JavaScriptArtifactAnalysis } from "./JavaScriptArtifactAnalysisTypes.js";
 import type { JavaScriptArtifactFile } from "./JavaScriptArtifactFiles.js";
 import {
+  addSemanticGraphNode,
   addSemanticGraphRelation,
   addSemanticGraphUnknown,
+  constructSemanticGraphNode,
   type SemanticGraphProjectionState,
 } from "./JavaScriptSemanticGraphConstruction.js";
 import {
@@ -22,9 +24,183 @@ export interface SemanticFlowProjectionContext {
   readonly moduleNode: JavaScriptSemanticGraphNode;
   readonly bindingNodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>;
   readonly callableNodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>;
+  readonly callSiteNodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>;
   readonly returnSiteNodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>;
   readonly referenceNodes: readonly JavaScriptSemanticGraphNode[];
 }
+
+/** Project explicit static Promise/task ownership without runtime claims. */
+export const projectSemanticPromises = (
+  context: SemanticFlowProjectionContext,
+): void => {
+  const promiseNodes = new Map(
+    context.ir.promiseOperations.flatMap((operation) => {
+      const owner =
+        operation.ownerCallableId === null
+          ? undefined
+          : context.callableNodes.get(operation.ownerCallableId);
+      const node = addSemanticGraphNode(
+        context.state,
+        constructSemanticGraphNode(
+          context.file,
+          {
+            kind: operation.kind === "awaited-expression" ? "task" : "promise",
+            roleKey: operation.promiseId,
+            location: operation.location,
+            label: promiseLabel(operation),
+            functionNodeId: owner?.node_id ?? null,
+            properties: {
+              method: operation.method,
+              operation_kind: operation.kind,
+              ownership: operation.ownership,
+              source_resolution: operation.sourceResolution,
+            },
+          },
+          context.state,
+        ),
+      );
+      return node === null ? [] : [[operation.promiseId, node] as const];
+    }),
+  );
+  for (const operation of context.ir.promiseOperations) {
+    const promise = promiseNodes.get(operation.promiseId);
+    if (promise === undefined) continue;
+    projectPromiseCreation(context, operation, promise);
+    projectPromiseSources(context, operation, promise, promiseNodes);
+    projectPromiseOwnership(context, operation, promise);
+    if (
+      operation.sourceResolution !== "complete" &&
+      ["chain", "aggregate", "awaited-expression"].includes(operation.kind)
+    )
+      addPromiseUnknown(context, operation, promise, promiseNodes);
+  }
+};
+
+const promiseLabel = (
+  operation: JavaScriptSemanticIr["promiseOperations"][number],
+): string =>
+  operation.kind === "awaited-expression"
+    ? "awaited expression"
+    : `Promise.${operation.method}`;
+
+const projectPromiseCreation = (
+  context: SemanticFlowProjectionContext,
+  operation: JavaScriptSemanticIr["promiseOperations"][number],
+  promise: JavaScriptSemanticGraphNode,
+): void => {
+  if (operation.kind === "awaited-expression") return;
+  const call = context.ir.callSites.find(({ location }) =>
+    rangesEqual(location, operation.location),
+  );
+  addSemanticGraphRelation(context.state, {
+    source:
+      call === undefined
+        ? undefined
+        : context.callSiteNodes.get(call.callSiteId),
+    target: promise,
+    relation: "creates-promise",
+    resolution:
+      operation.kind === "chain" || operation.sourceResolution !== "complete"
+        ? "candidate"
+        : "resolved",
+  });
+};
+
+const projectPromiseSources = (
+  context: SemanticFlowProjectionContext,
+  operation: JavaScriptSemanticIr["promiseOperations"][number],
+  promise: JavaScriptSemanticGraphNode,
+  promiseNodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>,
+): void => {
+  for (const sourceId of operation.sourcePromiseIds) {
+    const source = promiseNodes.get(sourceId);
+    if (operation.kind === "aggregate")
+      addSemanticGraphRelation(context.state, {
+        source: promise,
+        target: source,
+        relation: "aggregates",
+        resolution:
+          operation.sourceResolution === "complete" ? "resolved" : "candidate",
+      });
+    else
+      addSemanticGraphRelation(context.state, {
+        source,
+        target: promise,
+        relation: "chains",
+        resolution:
+          operation.sourceResolution === "complete" ? "resolved" : "candidate",
+      });
+  }
+};
+
+const projectPromiseOwnership = (
+  context: SemanticFlowProjectionContext,
+  operation: JavaScriptSemanticIr["promiseOperations"][number],
+  promise: JavaScriptSemanticGraphNode,
+): void => {
+  const owner =
+    operation.ownerCallableId === null
+      ? context.moduleNode
+      : context.callableNodes.get(operation.ownerCallableId);
+  if (operation.ownership === "awaited")
+    addSemanticGraphRelation(context.state, {
+      source: owner,
+      target: promise,
+      relation: "awaits",
+      resolution: "resolved",
+    });
+  else if (operation.ownership === "assigned")
+    addSemanticGraphRelation(context.state, {
+      source:
+        operation.ownerBindingId === null
+          ? undefined
+          : context.bindingNodes.get(operation.ownerBindingId),
+      target: promise,
+      relation: "owns",
+      resolution: "resolved",
+    });
+  else if (operation.ownership === "returned")
+    addSemanticGraphRelation(context.state, {
+      source:
+        operation.returnSiteId === null
+          ? undefined
+          : context.returnSiteNodes.get(operation.returnSiteId),
+      target: promise,
+      relation: "returns-task",
+      resolution: "resolved",
+    });
+  else if (operation.ownership === "detached")
+    addSemanticGraphRelation(context.state, {
+      source: owner,
+      target: promise,
+      relation: "detaches-task",
+      resolution: "resolved",
+    });
+};
+
+const addPromiseUnknown = (
+  context: SemanticFlowProjectionContext,
+  operation: JavaScriptSemanticIr["promiseOperations"][number],
+  promise: JavaScriptSemanticGraphNode,
+  promiseNodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>,
+): void => {
+  const relation = operation.kind === "aggregate" ? "aggregates" : "chains";
+  addSemanticGraphUnknown(
+    context.state,
+    createJavaScriptSemanticGraphUnknown({
+      node_id: promise.node_id,
+      family: "promise-ownership",
+      relation_kinds: [relation],
+      reason: "ambiguous-target",
+      detail: `Static ${operation.method} source resolution was ${operation.sourceResolution}.`,
+      candidate_node_ids: operation.sourcePromiseIds.flatMap((identifier) => {
+        const candidate = promiseNodes.get(identifier);
+        return candidate === undefined ? [] : [candidate.node_id];
+      }),
+      evidence: unknownSemanticEvidence(context.file, operation.location),
+    }),
+  );
+};
 
 /** Link direct return expressions to their retained semantic references. */
 export const projectSemanticReturnValues = (

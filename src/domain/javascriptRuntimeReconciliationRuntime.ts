@@ -286,8 +286,7 @@ const runtimeEvidence = (
     version:
       capture.evidence.provider.version ??
       (capture.kind === "browser" ? "2" : "1"),
-    operation:
-      capture.kind === "browser" ? "inspect_web_page" : "inspect_electron_page",
+    operation: capture.evidence.operation,
     executable_sha256: null,
   },
   coverage: runtimeSectionCoverage(capture, input.section),
@@ -363,8 +362,7 @@ const runtimeRelationshipEvidence = (
     version:
       capture.evidence.provider.version ??
       (capture.kind === "browser" ? "2" : "1"),
-    operation:
-      capture.kind === "browser" ? "inspect_web_page" : "inspect_electron_page",
+    operation: capture.evidence.operation,
     executable_sha256: null,
   },
   coverage: runtimeSectionCoverage(capture, entity.section),

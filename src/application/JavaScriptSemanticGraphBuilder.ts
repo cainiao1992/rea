@@ -14,10 +14,25 @@ import type {
 import type { JavaScriptApplicationGraph } from "../domain/javascriptApplicationGraph.js";
 import type { JavaScriptArtifactAnalysis } from "./JavaScriptArtifactAnalysisTypes.js";
 import type { JavaScriptArtifactFile } from "./JavaScriptArtifactFiles.js";
+import {
+  projectSemanticEvents,
+  projectSemanticTimers,
+} from "./JavaScriptSemanticGraphAsyncProjection.js";
+import { projectSemanticChildProcesses } from "./JavaScriptSemanticGraphChildProcessProjection.js";
+import {
+  projectSemanticBoundaries,
+  projectSemanticConfiguration,
+  projectSemanticRequests,
+} from "./JavaScriptSemanticGraphDataProjection.js";
+import { projectSemanticResources } from "./JavaScriptSemanticGraphResourceProjection.js";
+import { projectSemanticObjects } from "./JavaScriptSemanticGraphObjectProjection.js";
+import { projectSemanticValues } from "./JavaScriptSemanticGraphValueProjection.js";
 import { inferredSemanticEvidenceAt } from "./JavaScriptSemanticGraphEvidence.js";
+import { projectSemanticFunctionFingerprints } from "./JavaScriptSemanticGraphFingerprintProjection.js";
 import {
   projectSemanticClosureCaptures,
   projectSemanticFrontiers,
+  projectSemanticPromises,
   projectSemanticReturnValues,
   semanticRecoveryLimits,
   type SemanticFlowProjectionContext,
@@ -71,9 +86,12 @@ export const buildJavaScriptSemanticGraph = ({
   analysis,
 }: BuilderInput): JavaScriptSemanticGraph => {
   const state = emptyState(applicationGraph);
+  const fingerprints: JavaScriptSemanticGraph["fingerprints"][number][] = [];
   for (const analyzed of analysis.files) {
     if (analyzed.semantic === null) continue;
-    projectFile(analyzed.file, analyzed.semantic.ir, state);
+    fingerprints.push(
+      ...projectFile(analyzed.file, analyzed.semantic.ir, state),
+    );
   }
   if (state.roots.size === 0) addFallbackRoot(rootArtifactSha256, state);
   const semanticTruncated = analysis.files.some(
@@ -89,7 +107,7 @@ export const buildJavaScriptSemanticGraph = ({
     root_node_ids: [...state.roots],
     nodes: [...state.nodes.values()],
     relations: [...state.relations.values()],
-    fingerprints: [],
+    fingerprints,
     unknowns,
     coverage: {
       status: truncated ? "partial" : "unknown",
@@ -135,7 +153,15 @@ export const buildJavaScriptSemanticGraph = ({
     limitations: [
       "The semantic graph contains static syntax observations and conservative relationship candidates; it does not claim runtime execution.",
       "Local data flow does not claim control-flow-sensitive reaching definitions or arbitrary dynamic property resolution.",
-      "Function fingerprints and promise, event, process, request, boundary, timer, configuration, and resource extraction are not available in this graph version's current extractor coverage.",
+      "Promise ownership covers explicit unshadowed Promise construction, static factories, aggregation, chaining, and await syntax only.",
+      "Function fingerprints are bounded static candidates; equal digests can remain ambiguous and do not prove behavioral equivalence.",
+      "Event extraction covers EventEmitter-style literal registrations, removals, and dispatch candidates; dynamic names remain unknown.",
+      "Timer extraction covers global or node:timers scheduling and exact local-handle cancellation.",
+      "Child-process extraction covers asynchronous node:child_process creation, literal argv/env/stdio options, exit/error listeners, and kill signals.",
+      "Configuration extraction covers process.env, process.argv, node:fs reads, and direct logical defaults.",
+      "Request extraction covers fetch, WebSocket, node:http/node:https construction, direct option fields, and exact local response consumers.",
+      "Boundary extraction covers unshadowed JSON/global coercions plus parse and validation method candidates.",
+      "Resource extraction covers built-in filesystem/network acquisition and exact local close/destroy/end handles.",
       ...(truncated
         ? [
             "Semantic graph projection reached one or more explicit hard limits.",
@@ -149,7 +175,7 @@ const projectFile = (
   file: JavaScriptArtifactFile,
   ir: JavaScriptSemanticIr,
   state: BuilderState,
-): void => {
+): JavaScriptSemanticGraph["fingerprints"][number][] => {
   const moduleNode = addNode(
     state,
     semanticNode(
@@ -164,7 +190,7 @@ const projectFile = (
       state,
     ),
   );
-  if (moduleNode === null) return;
+  if (moduleNode === null) return [];
   state.roots.add(moduleNode.node_id);
   const callableNodes = new Map(
     ir.callables.flatMap((callable) => {
@@ -228,9 +254,20 @@ const projectFile = (
     ),
   };
   projectDefinitionsAndReferences(context);
+  projectSemanticValues(context);
+  projectSemanticObjects(context);
   projectCalls(context);
+  projectSemanticPromises(context);
+  projectSemanticEvents(context);
+  projectSemanticTimers(context);
+  projectSemanticChildProcesses(context);
+  projectSemanticConfiguration(context);
+  projectSemanticRequests(context);
+  projectSemanticBoundaries(context);
+  projectSemanticResources(context);
   projectSemanticClosureCaptures(context);
   projectSemanticFrontiers(context);
+  return projectSemanticFunctionFingerprints(file, ir, callableNodes);
 };
 
 const createReturnSiteNodes = (

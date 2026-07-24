@@ -10,6 +10,7 @@ describe("PlaywrightScenarioEvents", () => {
   it("bounds oversized page errors before validating captured events", () => {
     const listeners = new Map<string, (value: Error) => void>();
     const page = {
+      url: () => "https://app.example.test/",
       on: (name: string, listener: (value: Error) => void) => {
         listeners.set(name, listener);
       },
@@ -78,6 +79,7 @@ describe("PlaywrightScenarioEvents", () => {
       limits: scenario.limits,
       secrets,
       budget: new BrowserScenarioCaptureBudget(1, 1_000_000),
+      allowedOrigins: scenario.allowed_origins,
     });
     const error = new Error("m".repeat(70_000));
     error.stack = "s".repeat(300_000);

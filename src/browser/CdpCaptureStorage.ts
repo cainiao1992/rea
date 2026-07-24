@@ -63,13 +63,7 @@ export const captureStorage = async (
       )
     : undefined;
   const cacheValues = recordsValue(recordValue(cacheRaw)?.caches);
-  const caches = cacheValues.flatMap((cache) => {
-    const name = stringValue(cache.cacheName);
-    const id = stringValue(cache.cacheId);
-    return name === undefined || id === undefined
-      ? []
-      : [{ name: name.slice(0, 1_024), id } satisfies CapturedCache];
-  });
+  const caches = capturedCaches(cacheValues);
   const maximum = context.input.limits.max_storage_keys;
   const fingerprints = context.input.include_storage_fingerprints
     ? await captureStorageFingerprints({
@@ -97,12 +91,18 @@ export const captureStorage = async (
       origin,
       usage_bytes: numberValue(quota?.usage) ?? null,
       quota_bytes: numberValue(quota?.quota) ?? null,
-      local_storage_keys: local.items.map(({ key }) => key).slice(0, maximum),
-      session_storage_keys: session.items
-        .map(({ key }) => key)
+      local_storage_keys: local.items
+        .map(({ key }) => key.slice(0, 1_024))
         .slice(0, maximum),
-      indexed_db_names: indexed.slice(0, maximum),
-      cache_names: caches.map(({ name }) => name).slice(0, maximum),
+      session_storage_keys: session.items
+        .map(({ key }) => key.slice(0, 1_024))
+        .slice(0, maximum),
+      indexed_db_names: indexed
+        .map((name) => name.slice(0, 1_024))
+        .slice(0, maximum),
+      cache_names: caches
+        .map(({ name }) => name.slice(0, 1_024))
+        .slice(0, maximum),
       content_fingerprints: [...fingerprints.items],
       fingerprint_algorithm: "sha256",
       fingerprints_complete:
@@ -117,6 +117,15 @@ const emptyStorageItems: CapturedStorageItems = {
   items: [],
   complete: false,
 };
+
+const capturedCaches = (
+  values: readonly Record<string, unknown>[],
+): CapturedCache[] =>
+  values.flatMap((cache) => {
+    const name = stringValue(cache.cacheName);
+    const id = stringValue(cache.cacheId);
+    return name === undefined || id === undefined ? [] : [{ name, id }];
+  });
 
 const storageItems = async (
   context: Parameters<typeof captureStorage>[0],
@@ -137,9 +146,7 @@ const storageItems = async (
     if (!Array.isArray(entry)) return [];
     const key = stringValue(entry[0]);
     const value = stringValue(entry[1]);
-    return key === undefined || value === undefined
-      ? []
-      : [{ key: key.slice(0, 1_024), value }];
+    return key === undefined || value === undefined ? [] : [{ key, value }];
   });
   return { items, complete: items.length === entries.length };
 };
@@ -148,6 +155,6 @@ const stringArray = (value: unknown): readonly string[] =>
   Array.isArray(value)
     ? value.flatMap((item) => {
         const text = stringValue(item);
-        return text === undefined ? [] : [text.slice(0, 1_024)];
+        return text === undefined ? [] : [text];
       })
     : [];

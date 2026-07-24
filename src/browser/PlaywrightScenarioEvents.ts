@@ -50,6 +50,7 @@ interface EventCaptureOptions {
   >;
   readonly secrets: BrowserScenarioSecrets;
   readonly budget: BrowserScenarioCaptureBudget;
+  readonly allowedOrigins: readonly string[];
 }
 
 /** Bounded, arrival-ordered Playwright event capture with current-step attribution. */
@@ -81,12 +82,14 @@ export class PlaywrightScenarioEvents {
   private readonly limits: EventCaptureOptions["limits"];
   private readonly secrets: BrowserScenarioSecrets;
   private readonly budget: BrowserScenarioCaptureBudget;
+  private readonly allowedOrigins: ReadonlySet<string>;
 
   constructor(options: EventCaptureOptions) {
     this.enabled = options.enabled;
     this.limits = options.limits;
     this.secrets = options.secrets;
     this.budget = options.budget;
+    this.allowedOrigins = new Set(options.allowedOrigins);
     this.observePage(options.page);
   }
 
@@ -160,63 +163,99 @@ export class PlaywrightScenarioEvents {
 
   private observePage(page: Page): void {
     if (this.enabled.has("console"))
-      page.on("console", (message) => this.console(message));
+      page.on("console", (message) => {
+        if (this.pageInScope(page)) this.console(message);
+      });
     if (this.enabled.has("page-errors"))
-      page.on("pageerror", (error) =>
-        this.push({
-          kind: "page-error",
-          message: this.secrets.redact(error.message).slice(0, 65_536),
-          stack:
-            error.stack === undefined
-              ? null
-              : this.secrets.redact(error.stack).slice(0, 262_144),
-        }),
-      );
+      page.on("pageerror", (error) => {
+        if (this.pageInScope(page))
+          this.push({
+            kind: "page-error",
+            message: this.secrets.redact(error.message).slice(0, 65_536),
+            stack:
+              error.stack === undefined
+                ? null
+                : this.secrets.redact(error.stack).slice(0, 262_144),
+          });
+      });
     if (this.enabled.has("network")) {
-      page.on("request", (request) => this.request("request", request));
-      page.on("response", (response) => this.response(response));
-      page.on("requestfailed", (request) =>
-        this.request("request-failed", request),
-      );
+      page.on("request", (request) => {
+        if (this.pageInScope(page)) this.request("request", request);
+      });
+      page.on("response", (response) => {
+        if (this.pageInScope(page)) this.response(response);
+      });
+      page.on("requestfailed", (request) => {
+        if (this.pageInScope(page)) this.request("request-failed", request);
+      });
     }
     if (this.enabled.has("websockets"))
-      page.on("websocket", (socket) => this.webSocket(socket));
+      page.on("websocket", (socket) => {
+        if (this.pageInScope(page)) this.webSocket(page, socket);
+      });
     if (this.enabled.has("frames")) {
-      page.on("frameattached", (frame) => this.frame("frame-attached", frame));
-      page.on("framedetached", (frame) => this.frame("frame-detached", frame));
-      page.on("framenavigated", (frame) =>
-        this.frame("frame-navigated", frame),
-      );
+      page.on("frameattached", (frame) => {
+        if (this.pageInScope(page)) this.frame("frame-attached", frame);
+      });
+      page.on("framedetached", (frame) => {
+        if (this.pageInScope(page)) this.frame("frame-detached", frame);
+      });
+      page.on("framenavigated", (frame) => {
+        if (this.pageInScope(page)) this.frame("frame-navigated", frame);
+      });
     }
     if (this.enabled.has("workers"))
-      page.on("worker", (worker) => this.worker(worker));
+      page.on("worker", (worker) => {
+        if (this.pageInScope(page)) this.worker(page, worker);
+      });
     if (this.enabled.has("popups"))
-      page.on("popup", (popup) => this.popup(popup));
+      page.on("popup", (popup) => {
+        if (this.pageInScope(page)) this.popup(popup);
+      });
     if (this.enabled.has("downloads"))
-      page.on("download", (download) => this.download(download));
+      page.on("download", (download) => {
+        if (this.pageInScope(page)) this.download(download);
+      });
+  }
+
+  private pageInScope(page: Page): boolean {
+    try {
+      return this.allowedOrigins.has(new URL(page.url()).origin);
+    } catch {
+      return false;
+    }
+  }
+
+  private safeUrl(value: string) {
+    return sanitizeBrowserUrl(this.secrets.redact(value));
   }
 
   private console(message: ConsoleMessage): void {
     const location = message.location();
     this.push({
       kind: "console",
-      level: message.type(),
+      level: this.secrets.redact(message.type()).slice(0, 64),
       text: this.secrets.redact(message.text()).slice(0, 65_536),
-      url: location.url === "" ? null : sanitizeBrowserUrl(location.url),
+      url: location.url === "" ? null : this.safeUrl(location.url),
     });
   }
 
   private request(kind: "request" | "request-failed", request: Request): void {
     this.push({
       kind,
-      method: request.method(),
-      url: sanitizeBrowserUrl(request.url()),
-      resource_type: request.resourceType(),
+      method: this.secrets.redact(request.method()).slice(0, 32),
+      url: this.safeUrl(request.url()),
+      resource_type: this.secrets.redact(request.resourceType()).slice(0, 64),
       status: null,
-      header_names: Object.keys(request.headers()).sort().slice(0, 256),
+      header_names: Object.keys(request.headers())
+        .map((name) => this.secrets.redact(name).slice(0, 256))
+        .sort()
+        .slice(0, 256),
       failure:
         kind === "request-failed"
-          ? (request.failure()?.errorText ?? "unknown")
+          ? this.secrets
+              .redact(request.failure()?.errorText ?? "unknown")
+              .slice(0, 1_024)
           : null,
     });
   }
@@ -225,26 +264,33 @@ export class PlaywrightScenarioEvents {
     const request = response.request();
     this.push({
       kind: "response",
-      method: request.method(),
-      url: sanitizeBrowserUrl(response.url()),
-      resource_type: request.resourceType(),
+      method: this.secrets.redact(request.method()).slice(0, 32),
+      url: this.safeUrl(response.url()),
+      resource_type: this.secrets.redact(request.resourceType()).slice(0, 64),
       status: response.status(),
-      header_names: Object.keys(response.headers()).sort().slice(0, 256),
+      header_names: Object.keys(response.headers())
+        .map((name) => this.secrets.redact(name).slice(0, 256))
+        .sort()
+        .slice(0, 256),
       failure: null,
     });
   }
 
-  private webSocket(socket: WebSocket): void {
+  private webSocket(page: Page, socket: WebSocket): void {
     if (!this.admit("websockets", socket, this.limits.max_websockets)) return;
-    const url = sanitizeBrowserUrl(socket.url());
+    const url = this.safeUrl(socket.url());
     this.push({ kind: "websocket-opened", url });
-    socket.on("framesent", ({ payload }) =>
-      this.webSocketFrame("websocket-frame-sent", url, payload),
-    );
-    socket.on("framereceived", ({ payload }) =>
-      this.webSocketFrame("websocket-frame-received", url, payload),
-    );
-    socket.on("close", () => this.push({ kind: "websocket-closed", url }));
+    socket.on("framesent", ({ payload }) => {
+      if (this.pageInScope(page))
+        this.webSocketFrame("websocket-frame-sent", url, payload);
+    });
+    socket.on("framereceived", ({ payload }) => {
+      if (this.pageInScope(page))
+        this.webSocketFrame("websocket-frame-received", url, payload);
+    });
+    socket.on("close", () => {
+      if (this.pageInScope(page)) this.push({ kind: "websocket-closed", url });
+    });
   }
 
   private webSocketFrame(
@@ -272,34 +318,46 @@ export class PlaywrightScenarioEvents {
     if (!this.admit("frames", frame, this.limits.max_frames)) return;
     this.push({
       kind,
-      url: frame.url() === "" ? null : sanitizeBrowserUrl(frame.url()),
-      name: frame.name() || null,
+      url: frame.url() === "" ? null : this.safeUrl(frame.url()),
+      name:
+        frame.name() === ""
+          ? null
+          : this.secrets.redact(frame.name()).slice(0, 1_024),
     });
   }
 
-  private worker(worker: Worker): void {
+  private worker(page: Page, worker: Worker): void {
     if (!this.admit("workers", worker, this.limits.max_workers)) return;
     const details = {
-      url: sanitizeBrowserUrl(worker.url()),
+      url: this.safeUrl(worker.url()),
       name: null,
     };
     this.push({ kind: "worker-created", ...details });
-    worker.on("close", () => this.push({ kind: "worker-closed", ...details }));
+    worker.on("close", () => {
+      if (this.pageInScope(page))
+        this.push({ kind: "worker-closed", ...details });
+    });
   }
 
   private popup(page: Page): void {
+    if (!this.pageInScope(page)) {
+      void page.close().catch(() => undefined);
+      return;
+    }
     if (!this.admit("popups", page, this.limits.max_popups)) return;
     const opened = {
-      url: page.url() === "" ? null : sanitizeBrowserUrl(page.url()),
+      url: page.url() === "" ? null : this.safeUrl(page.url()),
       name: null,
     };
     this.push({ kind: "popup-opened", ...opened });
     page.on("close", () =>
-      this.push({
-        kind: "popup-closed",
-        url: page.url() === "" ? null : sanitizeBrowserUrl(page.url()),
-        name: null,
-      }),
+      this.pageInScope(page)
+        ? this.push({
+            kind: "popup-closed",
+            url: page.url() === "" ? null : this.safeUrl(page.url()),
+            name: null,
+          })
+        : undefined,
     );
     this.observePage(page);
   }
@@ -307,8 +365,10 @@ export class PlaywrightScenarioEvents {
   private download(download: Download): void {
     this.push({
       kind: "download-cancelled",
-      suggested_filename: download.suggestedFilename().slice(0, 1_024),
-      url: sanitizeBrowserUrl(download.url()),
+      suggested_filename: this.secrets
+        .redact(download.suggestedFilename())
+        .slice(0, 1_024),
+      url: this.safeUrl(download.url()),
     });
     void download.cancel().catch(() => undefined);
   }

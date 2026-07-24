@@ -42,7 +42,12 @@ export class BrowserScenarioSecrets {
 
   redact(value: string): string {
     let output = value;
-    for (const [id, secret] of this.values)
+    const replacements = [...this.values].sort(
+      ([leftId, left], [rightId, right]) =>
+        right.length - left.length ||
+        (leftId < rightId ? -1 : leftId > rightId ? 1 : 0),
+    );
+    for (const [id, secret] of replacements)
       if (secret !== "")
         output = output.replaceAll(secret, `${REDACTION_PREFIX}${id}]`);
     return output;

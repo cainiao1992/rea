@@ -89,8 +89,9 @@ const installHttpPolicy = async (input: {
   readonly scenario: BrowserScenario;
   readonly secrets: BrowserScenarioSecrets;
   readonly ownedPages: Set<Page>;
+  readonly claimOwnedPage: (page: Page) => Promise<boolean>;
 }): Promise<void> => {
-  const { context, scenario, secrets, ownedPages } = input;
+  const { context, scenario, secrets, ownedPages, claimOwnedPage } = input;
   const routes =
     scenario.request_replay.mode === "exact"
       ? new Map(
@@ -107,6 +108,12 @@ const installHttpPolicy = async (input: {
     } catch {
       requestPage = undefined;
     }
+    if (
+      scenario.browser.mode === "connect" &&
+      requestPage !== undefined &&
+      !ownedPages.has(requestPage)
+    )
+      await claimOwnedPage(requestPage);
     if (
       scenario.browser.mode === "connect" &&
       (requestPage === undefined || !ownedPages.has(requestPage))
@@ -182,6 +189,25 @@ const installWebSocketPolicy = async (
   });
 };
 
+const blockAttachedServiceWorkers = async (page: Page): Promise<void> => {
+  const controller = await page.evaluate(
+    "Boolean(navigator.serviceWorker?.controller)",
+  );
+  if (controller)
+    throw new BrowserObservationError(OPERATION, "target_not_allowed");
+  const blockRegistration = `(() => {
+    if (!("serviceWorker" in navigator)) return;
+    void navigator.serviceWorker.getRegistrations()
+      .then((registrations) => Promise.all(registrations.map((item) => item.unregister())));
+    Object.defineProperty(ServiceWorkerContainer.prototype, "register", {
+      configurable: false,
+      value: () => Promise.reject(new Error("service workers are blocked by scenario policy"))
+    });
+  })()`;
+  await page.addInitScript(blockRegistration);
+  await page.evaluate(blockRegistration);
+};
+
 const initializePage = async (
   context: BrowserContext,
   page: Page,
@@ -191,17 +217,33 @@ const initializePage = async (
   context.setDefaultTimeout(scenario.limits.action_timeout_ms);
   context.setDefaultNavigationTimeout(scenario.limits.navigation_timeout_ms);
   const ownedPages = new Set([page]);
-  await installHttpPolicy({ context, scenario, secrets, ownedPages });
+  if (scenario.browser.mode === "connect")
+    await blockAttachedServiceWorkers(page);
   await installWebSocketPolicy(
     scenario.browser.mode === "launch" ? context : page,
     scenario,
   );
+  const claimOwnedPage = async (candidate: Page): Promise<boolean> => {
+    if (ownedPages.has(candidate)) return true;
+    const opener = await candidate.opener();
+    if (opener === null || !ownedPages.has(opener)) return false;
+    await installWebSocketPolicy(candidate, scenario);
+    ownedPages.add(candidate);
+    return true;
+  };
+  await installHttpPolicy({
+    context,
+    scenario,
+    secrets,
+    ownedPages,
+    claimOwnedPage,
+  });
   page.on("popup", (popup) => {
-    ownedPages.add(popup);
     if (scenario.browser.mode === "connect")
-      void installWebSocketPolicy(popup, scenario).catch(async () => {
+      void claimOwnedPage(popup).catch(async () => {
         await popup.close().catch(() => undefined);
       });
+    else ownedPages.add(popup);
   });
   await installStorageSeeds(context, page, scenario, secrets);
   return ownedPages;
@@ -273,6 +315,7 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
         limits: scenario.limits,
         secrets,
         budget: options.budget,
+        allowedOrigins: scenario.allowed_origins,
       });
       const session = new PlaywrightScenarioSession(
         opened,

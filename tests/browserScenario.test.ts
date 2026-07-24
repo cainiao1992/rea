@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { BrowserScenarioSecrets } from "../src/browser/BrowserScenarioSecrets.js";
 import { browserScenarioSchema } from "../src/domain/browserScenario.js";
 
 const secret = (secret_id: string) => ({ source: "secret", secret_id });
@@ -157,6 +158,16 @@ describe("browserScenarioSchema", () => {
       "proxy-authorization",
       "set-cookie",
     ]);
+  });
+
+  it("redacts overlapping secrets longest-first", () => {
+    const scenario = browserScenarioSchema.parse(baseScenario());
+    const secrets = BrowserScenarioSecrets.resolve(scenario, {
+      REA_TEST_SESSION: "prefix",
+      REA_TEST_PASSWORD: "prefix-suffix",
+      REA_TEST_COOKIE: "cookie",
+    });
+    expect(secrets?.redact("prefix-suffix")).toBe("[REDACTED:login_input]");
   });
 
   it("rejects unsupported actions", () => {

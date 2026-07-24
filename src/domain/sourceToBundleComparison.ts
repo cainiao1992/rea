@@ -163,7 +163,7 @@ const compareMappings = (
     omittedCandidateReferences += omittedCandidates;
     const classification = classifyMapping(
       retainedCandidates,
-      omittedEvaluations === 0,
+      omittedCandidates === 0,
       projection.absenceComplete,
     );
     const semantic = {

@@ -5,6 +5,7 @@ import { inspectWebPageInputSchema } from "../src/domain/browserObservation.js";
 import {
   compareWebCaptures,
   compareWebCapturesInputSchema,
+  webCaptureDiffSchema,
 } from "../src/domain/webCaptureDiff.js";
 import {
   startFakeCdpBrowser,
@@ -59,6 +60,17 @@ describe("web capture diff", () => {
       status: "unknown",
       total_changes: 0,
     });
+    const {
+      accessibility: _accessibility,
+      storage: _storage,
+      ...legacy
+    } = result.dimensions;
+    const parsedLegacy = webCaptureDiffSchema.parse({
+      ...result,
+      dimensions: legacy,
+    });
+    expect(parsedLegacy.dimensions.accessibility.status).toBe("unknown");
+    expect(parsedLegacy.dimensions.storage.status).toBe("unknown");
   });
 
   it("does not claim unchanged when a relevant section is incomplete", async () => {

@@ -116,6 +116,23 @@ describe("historical source to bundle comparison", () => {
     expect(result.coverage.status).toBe("partial");
   });
 
+  it("keeps exact mappings unknown when candidate output is truncated", () => {
+    const result = compareSourceToBundle({
+      reference: historicalGraph("complete"),
+      application: {
+        evidenceId: EVIDENCE_ID,
+        rootArtifactSha256: HASH.artifact,
+        graph: applicationGraph("complete"),
+      },
+      limits: { ...limits(), max_candidate_nodes: 1 },
+    });
+
+    expect(item(result, "src/duplicated.ts").status).toBe("unknown");
+    expect(
+      item(result, "src/duplicated.ts").omitted_candidates,
+    ).toBeGreaterThan(0);
+  });
+
   it("reports the candidate frontier instead of deciding past a limit", () => {
     const result = compareSourceToBundle({
       reference: historicalGraph("complete", ["src/split.ts"]),

@@ -39,6 +39,13 @@ const dimensionSchema = z.object({
   omitted_changes: z.number().int().min(0),
   reason: z.string().nullable(),
 });
+const legacyUnknownDimension = {
+  status: "unknown" as const,
+  total_changes: 0,
+  changes: [],
+  omitted_changes: 0,
+  reason: "Dimension was not recorded by this version 1 capture diff.",
+};
 
 /** Completeness-aware changes across stable browser evidence dimensions. */
 export const webCaptureDiffSchema = z.object({
@@ -53,8 +60,8 @@ export const webCaptureDiffSchema = z.object({
     network: dimensionSchema,
     metadata: dimensionSchema,
     webmcp: dimensionSchema,
-    accessibility: dimensionSchema,
-    storage: dimensionSchema,
+    accessibility: dimensionSchema.default(legacyUnknownDimension),
+    storage: dimensionSchema.default(legacyUnknownDimension),
   }),
   limitations: z.array(z.string()),
 });

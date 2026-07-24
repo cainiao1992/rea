@@ -4,37 +4,13 @@ import type { ReconstructionObligation } from "../domain/reconstructionObligatio
 type ProofAuthority = ReconstructionObligation["required_fixture_authority"];
 type OriginalAuthority =
   ReconstructionObligation["required_original_authority"];
-type ProofEvidenceShape = readonly [predicate: string, operation: string];
-
-const proofEvidenceShapes: Readonly<
-  Record<ProofAuthority, readonly ProofEvidenceShape[]>
-> = {
-  unit: [["rea.fixture-verification/v1", "run_fixture_verifier"]],
-  integration: [["rea.fixture-verification/v1", "run_fixture_verifier"]],
-  protocol: [["rea.protocol-observation/v1", "observe_protocol"]],
-  renderer: [
-    ["rea.browser-scenario-capture/v1", "capture_browser_scenario"],
-    ["rea.electron-page-inspection/v1", "inspect_electron_page"],
-  ],
-  "packaged-process": [
-    ["rea.process-capture/v4", "capture_process_scenario"],
-    [
-      "rea.reconstruction-readiness-fixture/v1",
-      "run_reconstruction_readiness_fixture",
-    ],
-  ],
-  "native-abi": [
-    ["rea.managed-native-verification/v1", "verify_managed_native_boundaries"],
-  ],
-  "live-observation": [
-    ["javascript-controlled-replay-observation", "run_controlled_replay"],
-    ["rea.browser-scenario-capture/v1", "capture_browser_scenario"],
-    ["rea.electron-page-inspection/v1", "inspect_electron_page"],
-    ["rea.javascript-runtime-observation/v1", "observe_javascript_runtime"],
-    ["rea.runtime-characterization/v1", "execute_node_characterization"],
-  ],
-  external: [["rea.protocol-observation/v1", "observe_protocol"]],
-};
+interface ExpectedProof {
+  readonly obligationId: string;
+  readonly fixtureId?: string;
+  readonly caseKind?: string;
+  readonly verifierId?: string;
+  readonly claimId?: string;
+}
 
 const proofEvidenceAuthorities: Readonly<
   Record<ProofAuthority, readonly Evidence["authority"][]>
@@ -88,13 +64,30 @@ export const proofAuthoritySatisfies = (
 export const evidenceAuthoritySupportsProof = (
   evidence: Evidence,
   authority: ProofAuthority,
-): boolean =>
-  evidence.confidence === "observed" &&
-  proofEvidenceAuthorities[authority].includes(evidence.authority) &&
-  proofEvidenceShapes[authority].some(
-    ([predicate, operation]) =>
-      evidence.predicate_type === predicate && evidence.operation === operation,
+  expected: ExpectedProof,
+): boolean => {
+  if (
+    evidence.confidence !== "observed" ||
+    !proofEvidenceAuthorities[authority].includes(evidence.authority) ||
+    evidence.predicate_type !== "rea.reconstruction-proof/v1" ||
+    evidence.operation !== "verify_reconstruction_obligations"
+  )
+    return false;
+  const result = evidence.normalized_result;
+  if (typeof result !== "object" || result === null || Array.isArray(result))
+    return false;
+  const includes = (key: string, value: string | undefined): boolean =>
+    value === undefined ||
+    (Array.isArray(result[key]) && result[key].includes(value));
+  return (
+    result.passed === true &&
+    includes("obligation_ids", expected.obligationId) &&
+    includes("fixture_ids", expected.fixtureId) &&
+    includes("case_kinds", expected.caseKind) &&
+    includes("verifier_ids", expected.verifierId) &&
+    includes("claim_ids", expected.claimId)
   );
+};
 
 /** Check that Evidence observes the original at the required boundary. */
 export const evidenceSupportsOriginalAuthority = (

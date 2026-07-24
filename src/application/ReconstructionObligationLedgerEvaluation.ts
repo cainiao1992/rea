@@ -46,7 +46,6 @@ interface EvaluationContext {
   readonly contradictions: ReadonlyMap<string, readonly string[]>;
 }
 
-/** Evaluate candidates and manifest bindings into one canonical fail-closed ledger. */
 export const evaluateReconstructionObligationLedger = ({
   candidates: candidatesInput,
   bundle: bundleInput,
@@ -68,12 +67,10 @@ export const evaluateReconstructionObligationLedger = ({
   const candidates = allCandidates.slice(0, maxObligations);
   const omittedCount = allCandidates.length - candidates.length;
   const context = createEvaluationContext(candidates, bundle, manifest);
-  const preliminary = candidates.map((candidate) =>
-    evaluateObligation(candidate, context),
+  const obligations = applyDependencyDiagnostics(
+    candidates.map((candidate) => evaluateObligation(candidate, context)),
+    context,
   );
-  const obligations = applyDependencyDiagnostics(preliminary, context);
-  const summary = summarizeObligations(obligations);
-  const reports = obligationReports(obligations);
   const ownershipGraph = obligations
     .flatMap((obligation) =>
       obligation.binding === null
@@ -109,8 +106,8 @@ export const evaluateReconstructionObligationLedger = ({
   );
   const semantic = {
     coverage,
-    summary,
-    reports,
+    summary: summarizeObligations(obligations),
+    reports: obligationReports(obligations),
     ownership_graph: ownershipGraph,
     dependency_graph: dependencyGraph,
     obligations,
@@ -327,7 +324,11 @@ const evaluateBinding = (
             const evidence = context.evidence.get(id);
             return (
               evidence !== undefined &&
-              evidenceAuthoritySupportsProof(evidence, fixture.authority)
+              evidenceAuthoritySupportsProof(evidence, fixture.authority, {
+                obligationId: candidate.obligation_id,
+                fixtureId: fixture.fixture_id,
+                caseKind: fixture.case_kind,
+              })
             );
           }),
       )
@@ -375,7 +376,11 @@ const evaluateVerifier = (
       candidate.required_verifier_authority,
     ) ||
     (resultEvidence !== undefined &&
-      !evidenceAuthoritySupportsProof(resultEvidence, verifier.authority))
+      !evidenceAuthoritySupportsProof(resultEvidence, verifier.authority, {
+        obligationId: candidate.obligation_id,
+        verifierId: verifier.verifier_id,
+        claimId: verifier.claim_id,
+      }))
   )
     addDiagnostic(
       diagnostics,

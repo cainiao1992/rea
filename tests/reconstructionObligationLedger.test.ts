@@ -44,6 +44,37 @@ const processEvidence = () =>
     authority: "controlled-replay",
   });
 
+const boundProofEvidence = (
+  id: string,
+  result: {
+    readonly obligation_ids: readonly string[];
+    readonly fixture_ids: readonly string[];
+    readonly case_kinds: readonly string[];
+    readonly verifier_ids: readonly string[];
+    readonly claim_ids: readonly string[];
+  },
+  authority: "shipped-artifact" | "controlled-replay" = "controlled-replay",
+) =>
+  createEvidence(
+    undefined,
+    { id: `proof-${id}`, name: "Reconstruction proof", version: "1" },
+    {
+      predicateType: "rea.reconstruction-proof/v1",
+      operation: "verify_reconstruction_obligations",
+      parameters: {},
+      result: {
+        passed: true,
+        obligation_ids: [...result.obligation_ids],
+        fixture_ids: [...result.fixture_ids],
+        case_kinds: [...result.case_kinds],
+        verifier_ids: [...result.verifier_ids],
+        claim_ids: [...result.claim_ids],
+      },
+      confidence: "observed",
+      authority,
+    },
+  );
+
 const request = (
   records: readonly Evidence[],
   overrides: Partial<ReconstructionObligationLedgerInput> = {},
@@ -260,8 +291,18 @@ describe("reconstruction obligation ledger", () => {
     const obligation = initial.obligations[0];
     if (obligation === undefined)
       throw new Error("Expected process obligation");
+    const fixtureIds = obligation.required_case_kinds.map(
+      (caseKind) => `packaged.${caseKind}`,
+    );
+    const proof = boundProofEvidence("packaged", {
+      obligation_ids: [obligation.obligation_id],
+      fixture_ids: fixtureIds,
+      case_kinds: obligation.required_case_kinds,
+      verifier_ids: ["verifier.packaged"],
+      claim_ids: ["claim.process"],
+    });
     const result = build(
-      request([capture], {
+      request([capture, proof], {
         manifest: {
           schema_version: 1,
           bindings: [
@@ -278,7 +319,7 @@ describe("reconstruction obligation ledger", () => {
                 fixture_id: `packaged.${caseKind}`,
                 case_kind: caseKind,
                 authority: "packaged-process",
-                evidence_ids: [capture.evidence_id],
+                evidence_ids: [proof.evidence_id],
               })),
               verifier: {
                 verifier_id: "verifier.packaged",
@@ -286,7 +327,7 @@ describe("reconstruction obligation ledger", () => {
                 command: "npm run verify:package -- process",
                 authority: "packaged-process",
                 status: "pass",
-                result_evidence_id: capture.evidence_id,
+                result_evidence_id: proof.evidence_id,
                 enumerated_obligation_ids: [obligation.obligation_id],
                 nondeterminism: {
                   mode: "partial-order",
@@ -365,19 +406,18 @@ describe("reconstruction obligation ledger", () => {
   });
 
   it("propagates an open dependency through the full obligation chain", () => {
-    const evidence = createEvidence(
-      undefined,
-      { id: "fixture-chain", name: "Fixture chain", version: "1" },
-      {
-        predicateType: "rea.fixture-verification/v1",
-        operation: "run_fixture_verifier",
-        parameters: {},
-        result: { passed: true },
-        confidence: "observed",
-        authority: "shipped-artifact",
-      },
-    );
     const ids = ["obl.chain.a", "obl.chain.b", "obl.chain.c"] as const;
+    const evidence = boundProofEvidence(
+      "fixture-chain",
+      {
+        obligation_ids: ids,
+        fixture_ids: ids.map((id) => `fixture.${id}`),
+        case_kinds: ["positive"],
+        verifier_ids: ids.map((id) => `verifier.${id}`),
+        claim_ids: ids.map((id) => `claim.${id}`),
+      },
+      "shipped-artifact",
+    );
     const reviewed = ids.map((id, index) => ({
       ...reviewedObligation(id, evidence.evidence_id),
       dependency_obligation_ids:

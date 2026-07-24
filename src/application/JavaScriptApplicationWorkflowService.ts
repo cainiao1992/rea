@@ -14,6 +14,8 @@ import { compareJavaScriptExportShapesInputSchema } from "../domain/javascriptEx
 import { traceApplicationFeature } from "../domain/javascriptFeatureTrace.js";
 import { traceApplicationFeatureInputSchema } from "../domain/javascriptFeatureTraceSchemas.js";
 import { err, ok, type Result } from "../domain/result.js";
+import { compareSourceToBundle } from "../domain/sourceToBundleComparison.js";
+import { compareSourceToBundleInputSchema } from "../domain/sourceToBundleComparisonSchemas.js";
 import {
   parseApplicationGraphEvidence,
   parseNativeApplicationEvidence,
@@ -22,6 +24,7 @@ import {
   createApplicationFeatureTraceEvidence,
   createApplicationVersionComparisonEvidence,
   createJavaScriptExportShapeComparisonEvidence,
+  createSourceToBundleComparisonEvidence,
 } from "./JavaScriptApplicationWorkflowEvidence.js";
 
 /** Authenticate Evidence and derive one bounded cross-layer feature trace. */
@@ -131,6 +134,37 @@ export const compareApplicationVersionsEvidenceValidated = (
           right_native_evidence_ids: rightNative.map(
             ({ evidence_id: id }) => id,
           ),
+          limits: input.limits,
+        },
+        result,
+      ),
+    );
+  } catch (cause: unknown) {
+    return workflowFailure(operation, cause);
+  }
+};
+
+/** Compare source and bundle inputs already parsed by a trusted adapter. */
+export const compareSourceToBundleEvidenceValidated = (
+  input: z.output<typeof compareSourceToBundleInputSchema>,
+): Result<Evidence, AnalysisError> => {
+  const operation = "compare_source_to_bundle";
+  try {
+    const application = parseApplicationGraphEvidence(input.application);
+    const result = compareSourceToBundle({
+      reference: input.reference,
+      application: {
+        evidenceId: application.evidence.evidence_id,
+        rootArtifactSha256: application.rootArtifactSha256,
+        graph: application.graph,
+      },
+      limits: input.limits,
+    });
+    return ok(
+      createSourceToBundleComparisonEvidence(
+        {
+          reference_root_sha256: input.reference.root_sha256,
+          application_evidence_id: application.evidence.evidence_id,
           limits: input.limits,
         },
         result,

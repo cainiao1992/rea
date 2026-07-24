@@ -5,6 +5,7 @@ import { compareApplicationVersionsInputSchema } from "../domain/javascriptAppli
 import { compareJavaScriptExportShapesInputSchema } from "../domain/javascriptExportShapeComparisonSchemas.js";
 import { traceApplicationFeatureInputSchema } from "../domain/javascriptFeatureTraceSchemas.js";
 import { javaScriptSemanticQueryInputSchema } from "../domain/javascriptSemanticQuerySchemas.js";
+import { compareSourceToBundleInputSchema } from "../domain/sourceToBundleComparisonSchemas.js";
 
 const evidenceIdSchema = z
   .string()
@@ -102,6 +103,25 @@ export const compareApplicationVersionsRequestSchema = z
     ]);
   });
 
+/** Historical-source comparison accepting full application Evidence or a ledger reference. */
+export const compareSourceToBundleRequestSchema = z
+  .strictObject({
+    reference: compareSourceToBundleInputSchema.shape.reference,
+    application: evidenceSchema.optional(),
+    application_evidence_id: evidenceIdSchema.optional(),
+    limits: compareSourceToBundleInputSchema.shape.limits,
+    unknown_registry_approved:
+      compareSourceToBundleInputSchema.shape.unknown_registry_approved,
+  })
+  .superRefine((input, context) => {
+    requireExactlyOne(context, [
+      "application",
+      input.application,
+      "application_evidence_id",
+      input.application_evidence_id,
+    ]);
+  });
+
 /** MCP/CLI export-shape request accepting full Evidence or ledger references. */
 export const compareJavaScriptExportShapesRequestSchema = z
   .strictObject({
@@ -144,6 +164,9 @@ export type TraceJavaScriptSemanticsRequest = z.output<
 >;
 export type CompareApplicationVersionsRequest = z.output<
   typeof compareApplicationVersionsRequestSchema
+>;
+export type CompareSourceToBundleRequest = z.output<
+  typeof compareSourceToBundleRequestSchema
 >;
 export type CompareJavaScriptExportShapesRequest = z.output<
   typeof compareJavaScriptExportShapesRequestSchema

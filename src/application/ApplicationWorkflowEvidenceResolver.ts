@@ -3,10 +3,12 @@ import { z } from "zod";
 import {
   compareApplicationVersionsRequestSchema,
   compareJavaScriptExportShapesRequestSchema,
+  compareSourceToBundleRequestSchema,
   traceApplicationFeatureRequestSchema,
   traceJavaScriptSemanticsRequestSchema,
   type CompareApplicationVersionsRequest,
   type CompareJavaScriptExportShapesRequest,
+  type CompareSourceToBundleRequest,
   type TraceApplicationFeatureRequest,
   type TraceJavaScriptSemanticsRequest,
 } from "../contracts/applicationWorkflowInputContracts.js";
@@ -16,6 +18,7 @@ import { compareApplicationVersionsInputSchema } from "../domain/javascriptAppli
 import { compareJavaScriptExportShapesInputSchema } from "../domain/javascriptExportShapeComparisonSchemas.js";
 import { traceApplicationFeatureInputSchema } from "../domain/javascriptFeatureTraceSchemas.js";
 import { traceJavaScriptSemanticsInputSchema } from "../domain/javascriptSemanticTraceSchemas.js";
+import { compareSourceToBundleInputSchema } from "../domain/sourceToBundleComparisonSchemas.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
   resolveEvidenceReferences,
@@ -48,6 +51,7 @@ type ComparisonInput = z.output<typeof compareApplicationVersionsInputSchema>;
 type ExportShapeComparisonInput = z.output<
   typeof compareJavaScriptExportShapesInputSchema
 >;
+type SourceToBundleInput = z.output<typeof compareSourceToBundleInputSchema>;
 
 /** Parse and resolve one trace adapter request into its canonical domain input. */
 export const resolveTraceApplicationFeatureRequest = (
@@ -180,6 +184,42 @@ export const resolveCompareApplicationVersionsRequestValidated = (
     : invalid("compare_application_versions", parsed.error, raw);
 };
 
+/** Parse and resolve one historical-source comparison adapter request. */
+export const resolveCompareSourceToBundleRequest = (
+  input: unknown,
+  lookup?: EvidenceLookup,
+): Result<SourceToBundleInput, AnalysisError> => {
+  const parsed = compareSourceToBundleRequestSchema.safeParse(input);
+  return parsed.success
+    ? resolveCompareSourceToBundleRequestValidated(parsed.data, lookup)
+    : invalid("compare_source_to_bundle", parsed.error, input);
+};
+
+/** Resolve a historical-source comparison request parsed by its public contract. */
+export const resolveCompareSourceToBundleRequestValidated = (
+  input: CompareSourceToBundleRequest,
+  lookup?: EvidenceLookup,
+): Result<SourceToBundleInput, AnalysisError> => {
+  const application = graphEvidence(
+    input.application,
+    input.application_evidence_id,
+    lookup,
+  );
+  if (!application.ok) return application;
+  const raw = {
+    reference: input.reference,
+    application: application.value,
+    limits: input.limits,
+    ...(input.unknown_registry_approved === undefined
+      ? {}
+      : { unknown_registry_approved: input.unknown_registry_approved }),
+  };
+  const parsed = compareSourceToBundleInputSchema.safeParse(raw);
+  return parsed.success
+    ? ok(parsed.data)
+    : invalid("compare_source_to_bundle", parsed.error, raw);
+};
+
 /** Parse and resolve an export-shape adapter request into canonical input. */
 export const resolveCompareJavaScriptExportShapesRequest = (
   input: unknown,
@@ -221,7 +261,8 @@ export const resolveCompareJavaScriptExportShapesRequestValidated = (
 const graphEvidence = (
   evidence:
     | CompareApplicationVersionsRequest["left"]
-    | CompareJavaScriptExportShapesRequest["left"],
+    | CompareJavaScriptExportShapesRequest["left"]
+    | CompareSourceToBundleRequest["application"],
   evidenceId: string | undefined,
   lookup: EvidenceLookup | undefined,
 ) => {

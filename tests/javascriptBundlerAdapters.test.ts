@@ -104,6 +104,40 @@ describe("Webpack and Rspack runtime adapters", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it("recovers esbuild wrapper modules and Vite preload dependencies", async () => {
+    const root = await esmRuntimeFixture();
+    try {
+      const { graph } = await reconstructJavaScriptArtifact({
+        input_path: root,
+      });
+      const commonJsModule = moduleNode(graph, "src/dep.js");
+      const esmModule = moduleNode(graph, "src/core.js");
+
+      expect(commonJsModule?.observations[0]?.properties).toMatchObject({
+        bundler: "esbuild",
+        runtime: "esbuild-commonjs",
+        module_key: "src/dep.js",
+      });
+      expect(esmModule?.observations[0]?.properties).toMatchObject({
+        bundler: "esbuild",
+        runtime: "esbuild-esm",
+        module_key: "src/core.js",
+      });
+      expect(
+        graph.edges.filter(
+          ({ relation, properties }) =>
+            relation === "imports" &&
+            properties.kind === "dynamic-import" &&
+            ["./feature.js", "./main.css"].includes(
+              String(properties.specifier),
+            ),
+        ),
+      ).toHaveLength(2);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
 
 const bundlerFixture = async (): Promise<string> => {
@@ -156,6 +190,33 @@ const bundlerFixture = async (): Promise<string> => {
       ]);
     `,
   );
+  return root;
+};
+
+const esmRuntimeFixture = async (): Promise<string> => {
+  const root = await createTestTempDirectory("rea-esm-runtime-adapters-");
+  await writeFile(
+    join(root, "main.js"),
+    `
+      const __vite__mapDeps = (indexes, map = __vite__mapDeps, dependencies =
+        (map.f || (map.f = ["./feature.js", "./main.css"]))) =>
+        indexes.map((index) => dependencies[index]);
+      const require_dep = __commonJS({
+        "src/dep.js"(exports, module) {
+          module.exports = { value: 1 };
+        }
+      });
+      const init_core = __esm({
+        "src/core.js"() {
+          require_dep();
+        }
+      });
+      __vite__mapDeps([0, 1]);
+      init_core();
+    `,
+  );
+  await writeFile(join(root, "feature.js"), "export const feature = true;");
+  await writeFile(join(root, "main.css"), ".app { color: green; }");
   return root;
 };
 

@@ -40,7 +40,8 @@ export const readinessFinding = (
 export const readinessFindingOrder = (
   left: ReadinessFinding,
   right: ReadinessFinding,
-): number =>
-  `${left.stage_id}:${left.code}:${left.detail}`.localeCompare(
-    `${right.stage_id}:${right.code}:${right.detail}`,
-  );
+): number => {
+  const leftKey = `${left.stage_id}:${left.code}:${left.detail}`;
+  const rightKey = `${right.stage_id}:${right.code}:${right.detail}`;
+  return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
+};

@@ -110,7 +110,9 @@ export class V8InspectorProvider implements JavaScriptRuntimeObservationPort {
         }
         allowed.push({ ...target, location: decision.location });
       }
-      allowed.sort((left, right) => left.id.localeCompare(right.id));
+      allowed.sort((left, right) =>
+        left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
+      );
       const items = allowed
         .slice(input.offset, input.offset + input.limit)
         .map(projectTarget);

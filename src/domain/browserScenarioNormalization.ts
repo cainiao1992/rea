@@ -26,7 +26,9 @@ export const commitBrowserScenarioNormalization = (
       ...rule,
       artifacts: [...rule.artifacts].sort(),
     }))
-    .sort((left, right) => left.rule_id.localeCompare(right.rule_id));
+    .sort((left, right) =>
+      left.rule_id < right.rule_id ? -1 : left.rule_id > right.rule_id ? 1 : 0,
+    );
   const commitment = { built_in_rules: [...BUILT_IN_RULES], rules };
   return { ...commitment, sha256: digestCanonicalJson(commitment) };
 };

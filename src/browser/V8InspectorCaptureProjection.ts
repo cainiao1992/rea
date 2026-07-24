@@ -68,7 +68,11 @@ export const finalizeInspectorCapture = async ({
     scripts.set(script.script_key, script);
   }
   const items = [...scripts.values()].sort((left, right) =>
-    left.script_key.localeCompare(right.script_key),
+    left.script_key < right.script_key
+      ? -1
+      : left.script_key > right.script_key
+        ? 1
+        : 0,
   );
   const contexts = [...state.contexts.values()]
     .map((context) => ({
@@ -77,7 +81,13 @@ export const finalizeInspectorCapture = async ({
       name: null,
       origin: context.origin,
     }))
-    .sort((left, right) => left.context_key.localeCompare(right.context_key));
+    .sort((left, right) =>
+      left.context_key < right.context_key
+        ? -1
+        : left.context_key > right.context_key
+          ? 1
+          : 0,
+    );
   return {
     schema_version: 1,
     runtime,
@@ -132,6 +142,7 @@ const scriptFromDraft = (
 ): JavaScriptRuntimeObservation["scripts"]["items"][number] => {
   const stable = JSON.stringify({
     location,
+    execution_context_key: draft.executionContextKey,
     cdp_hash: draft.cdpHash,
     length: draft.length,
     is_module: draft.isModule,

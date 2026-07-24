@@ -279,12 +279,12 @@ const classifyMapping = (
   if (topPathCandidates.length === 1) {
     const candidate = topPathCandidates[0];
     return {
-      status: "modified",
-      confidence: candidate?.confidence === "high" ? "high" : "medium",
+      status: "unknown",
+      confidence: "unknown",
       currentNodeIds:
         candidate === undefined ? [] : [candidate.current_node_id],
       limitations: [
-        "Location evidence links the source to the current node, but exact source bytes do not match or are unavailable.",
+        "Location evidence links the source to the current node, but comparable source digests are unavailable.",
       ],
     };
   }

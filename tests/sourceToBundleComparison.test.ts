@@ -43,12 +43,12 @@ describe("historical source to bundle comparison", () => {
     ).not.toThrow();
     expect(first.summary).toEqual({
       unchanged: 1,
-      modified: 1,
+      modified: 0,
       removed: 1,
       split: 1,
       merged: 2,
       duplicated: 1,
-      unknown: 0,
+      unknown: 1,
     });
     expect(item(first, "src/unchanged.ts")).toMatchObject({
       status: "unchanged",
@@ -65,8 +65,8 @@ describe("historical source to bundle comparison", () => {
       ],
     });
     expect(item(first, "src/modified.ts")).toMatchObject({
-      status: "modified",
-      confidence: "high",
+      status: "unknown",
+      confidence: "unknown",
       candidates: [
         expect.objectContaining({
           signals: expect.arrayContaining([

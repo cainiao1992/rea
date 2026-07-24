@@ -10,6 +10,17 @@ import type {
 
 type DiagnosticCode = ReconstructionObligation["diagnostics"][number]["code"];
 
+export const obligationLedgerCoverage = (
+  omittedCount: number,
+  maxObligations: number,
+  incomplete: boolean,
+): ReconstructionObligationLedger["coverage"] => ({
+  status: incomplete ? "partial" : "complete",
+  truncated: omittedCount > 0,
+  omitted_count: omittedCount,
+  max_obligations: maxObligations,
+});
+
 export const summarizeObligations = (
   obligations: readonly ReconstructionObligation[],
 ): ReconstructionObligationLedger["summary"] => ({

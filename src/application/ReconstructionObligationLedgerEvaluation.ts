@@ -29,6 +29,7 @@ import {
 } from "./ReconstructionObligationOriginalCases.js";
 import {
   digestObligationLedgerValue,
+  obligationLedgerCoverage,
   obligationEdgeOrder,
   obligationLedgerEvidenceLinks,
   obligationLedgerStatus,
@@ -99,7 +100,7 @@ export const evaluateReconstructionObligationLedger = ({
     omittedCount,
     orphanManifestIds,
   );
-  const coverage = coverageFor(
+  const coverage = obligationLedgerCoverage(
     omittedCount,
     maxObligations,
     limitations.length > 0,
@@ -203,17 +204,6 @@ const ledgerLimitations = (
         : []),
     ]),
   ].sort();
-
-const coverageFor = (
-  omittedCount: number,
-  maxObligations: number,
-  incomplete: boolean,
-): ReconstructionObligationLedger["coverage"] => ({
-  status: incomplete ? "partial" : "complete",
-  truncated: omittedCount > 0,
-  omitted_count: omittedCount,
-  max_obligations: maxObligations,
-});
 
 const evaluateObligation = (
   candidate: ReconstructionObligationCandidate,

@@ -24,6 +24,45 @@ const probeResultSchema = z.strictObject({
     diagnostic_type: z.literal("capability_unavailable"),
     message: z.string(),
   }),
+  bridge_messages: z.tuple([
+    z.strictObject({
+      id: z.literal(7),
+      event: z.strictObject({
+        type: z.literal("progress"),
+        phase: z.literal("hopper_bridge"),
+        completed: z.literal(0),
+        total: z.literal(1),
+        message: z.literal("Hopper bridge started request"),
+      }),
+    }),
+    z.strictObject({
+      id: z.literal(7),
+      event: z.strictObject({
+        type: z.literal("diagnostic"),
+        error: z.strictObject({
+          code: z.literal(-32000),
+          message: z.literal("RuntimeError: Hopper bridge operation failed"),
+          type: z.literal("bridge_exception"),
+        }),
+      }),
+    }),
+    z.strictObject({
+      id: z.literal(7),
+      error: z.strictObject({
+        code: z.literal(-32000),
+        message: z.literal("RuntimeError: Hopper bridge operation failed"),
+        type: z.literal("bridge_exception"),
+      }),
+    }),
+  ]),
+  invalid_id_response: z.strictObject({
+    id: z.literal(0),
+    error: z.strictObject({
+      code: z.literal(-32000),
+      message: z.literal("Invalid Hopper bridge request"),
+      type: z.literal("invalid_request"),
+    }),
+  }),
 });
 
 describe("Hopper API facade", () => {
@@ -38,6 +77,7 @@ describe("Hopper API facade", () => {
       },
     );
     const result = probeResultSchema.parse(JSON.parse(stdout));
+    expect(stdout).not.toContain("supersecret");
     expect(result.analysis_guard.message).toContain(
       "requires completed Hopper background analysis",
     );

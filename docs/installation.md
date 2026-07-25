@@ -145,6 +145,26 @@ host mount and the rest of `/tmp` remain unchanged; this fallback never invokes
 `sudo`. `rea doctor --provider hopper --detail full --json` reports the selected
 strategy and both host and effective mount facts.
 
+### Hopper in CI
+
+REA's unattended Linux path is validated against Hopper's offered demo mode.
+A paid license is not required for that path, and REA does not read, install, or
+automate license credentials. Licensed Hopper installations remain supported,
+but license activation is an operator-owned prerequisite rather than part of
+REA setup.
+
+macOS requires Hopper's first-run UI to be completed in the same user session
+that will run REA: choose the demo mode or activate an existing license before
+starting an unattended job. Ephemeral macOS runners therefore need a
+pre-provisioned user session or a deliberate interactive bootstrap step.
+
+When Hopper cannot start in CI, run
+`rea doctor --provider hopper --detail full --json` in the failing runner.
+Structured failures distinguish private-display dependencies, an unsupported
+demo dialog or build, process-ownership conflicts, and an early lifecycle exit.
+Apply the reported remediation rather than exposing the runner's desktop,
+copying license secrets into logs, or killing unrelated Hopper processes.
+
 ## Ghidra
 
 REA's Ghidra provider is bring-your-own and supports Linux x64 with the exact

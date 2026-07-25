@@ -16,6 +16,43 @@ const capabilityUnavailableResult = (id) => ({
     type: "capability_unavailable",
   },
 });
+const bridgeEventFixtureMessages = (request) => {
+  const progress = {
+    type: "progress",
+    phase: "hopper_bridge",
+    completed: 0,
+    total: 1,
+    message: "Hopper bridge started request",
+  };
+  switch (request.method) {
+    case "wrong_event_id":
+      return [{ id: request.id + 100, event: progress }];
+    case "malformed_event":
+      return [
+        {
+          id: request.id,
+          event: {
+            ...progress,
+            completed: 2,
+            message: "invalid progress",
+          },
+        },
+      ];
+    case "remote_error": {
+      const error = {
+        code: -32001,
+        message: "safe fake failure",
+        type: "bridge_exception",
+      };
+      return [
+        { id: request.id, event: { type: "diagnostic", error } },
+        { id: request.id, error },
+      ];
+    }
+    default:
+      return undefined;
+  }
+};
 const enhancedFixtureResult = (method) => {
   switch (method) {
     case "list_segments":
@@ -109,6 +146,33 @@ const enhancedFixtureResult = (method) => {
   }
 };
 
+const sendEchoWithProgress = (send, request) => {
+  send({
+    id: request.id,
+    event: {
+      type: "progress",
+      phase: "hopper_bridge",
+      completed: 0,
+      total: 1,
+      message: "Hopper bridge started request",
+    },
+  });
+  setTimeout(() => {
+    send({
+      id: request.id,
+      event: {
+        type: "progress",
+        phase: "hopper_bridge",
+        completed: 1,
+        total: 1,
+        message: "Hopper bridge completed request",
+        terminal: true,
+      },
+    });
+    send({ id: request.id, result: request.params ?? {} });
+  }, request.params?.delay ?? 0);
+};
+
 const server = createServer((socket) => {
   socket.on("error", () => undefined);
   socket.setEncoding("utf8");
@@ -125,6 +189,7 @@ const server = createServer((socket) => {
     let newline = buffer.indexOf("\n");
     while (newline >= 0) {
       const request = JSON.parse(buffer.slice(0, newline));
+      const bridgeEventMessages = bridgeEventFixtureMessages(request);
       buffer = buffer.slice(newline + 1);
       if (request.token !== token) {
         send({ id: request.id, error: { code: -32001, message: "bad token" } });
@@ -152,15 +217,8 @@ const server = createServer((socket) => {
         socket.write("{not-json}\n");
       } else if (request.method === "wrong_id") {
         send({ id: request.id + 100, result: {} });
-      } else if (request.method === "remote_error") {
-        send({
-          id: request.id,
-          error: {
-            code: -32001,
-            message: "safe fake failure",
-            type: "bridge_exception",
-          },
-        });
+      } else if (bridgeEventMessages !== undefined) {
+        for (const message of bridgeEventMessages) send(message);
       } else if (request.method === "capability_unavailable") {
         send(capabilityUnavailableResult(request.id));
       } else if (request.method === "current_document") {
@@ -194,11 +252,7 @@ const server = createServer((socket) => {
           },
         });
       } else {
-        const delay = request.params?.delay ?? 0;
-        setTimeout(
-          () => send({ id: request.id, result: request.params ?? {} }),
-          delay,
-        );
+        sendEchoWithProgress(send, request);
       }
       newline = buffer.indexOf("\n");
     }

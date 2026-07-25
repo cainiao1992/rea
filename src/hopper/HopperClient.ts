@@ -42,7 +42,11 @@ import {
   type HopperRequestActivity,
 } from "./HopperRequestQueue.js";
 import { HopperResponseStream } from "./HopperResponseStream.js";
-import { responseResult } from "./protocol.js";
+import {
+  type HopperBridgeEvent,
+  type HopperBridgeMessage,
+  responseResult,
+} from "./protocol.js";
 
 export type { HopperServerInfo } from "./HopperSessionValues.js";
 
@@ -125,8 +129,7 @@ export class HopperClient {
       },
     );
     this.#responses = new HopperResponseStream({
-      accept: (response) =>
-        this.#requests.accept(response.id, responseResult(response)),
+      accept: (message) => this.#acceptBridgeMessage(message),
       hasQueued: (id) => this.#requests.hasQueued(id),
       nextRequestId: () => this.#nextId,
       abort: (message, cause) => this.#abortProtocol(message, cause),
@@ -448,6 +451,32 @@ export class HopperClient {
     socket.on("data", this.#onSocketData);
     socket.on("error", this.#onSocketError);
     socket.on("close", this.#onSocketClose);
+  }
+
+  #acceptBridgeMessage(message: HopperBridgeMessage): boolean {
+    if (!("event" in message))
+      return this.#requests.accept(message.id, responseResult(message));
+    if (!this.#requests.acceptEvent(message)) return false;
+    this.#emitBridgeDiagnostic(message);
+    return true;
+  }
+
+  #emitBridgeDiagnostic(message: HopperBridgeEvent): void {
+    if (message.event.type !== "diagnostic") return;
+    try {
+      this.#options.onDiagnostic?.({
+        type: "bridge-diagnostic",
+        request_id: message.id,
+        code: message.event.error.code,
+        category: message.event.error.type,
+        message: message.event.error.message,
+      });
+    } catch {
+      this.#logger.warn(
+        { requestId: message.id },
+        "Hopper bridge diagnostic consumer rejected an event",
+      );
+    }
   }
 
   #detachSocket(socket: Socket): void {

@@ -65,7 +65,7 @@ const failures = [
   [
     75,
     "hopper_exited_during_startup",
-    "Hopper exited before the REA bridge was ready. Run rea doctor and retry the analysis.",
+    "Hopper exited before the REA bridge was ready. In CI, run rea doctor --provider hopper --detail full --json; if Hopper showed a UI or license prompt, complete it in the runner user session, otherwise close stale Hopper sessions and retry.",
   ],
   [
     76,

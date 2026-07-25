@@ -1,4 +1,3 @@
-import { parse } from "@babel/parser";
 import * as t from "@babel/types";
 
 import { inspectElectronStaticNode } from "./electronStaticAnalysis.js";
@@ -29,22 +28,28 @@ import type {
   JavaScriptStaticAnalysis,
   JavaScriptStaticAnalysisLimits,
 } from "./javascriptStaticAnalysisTypes.js";
+import {
+  parseJavaScriptSource,
+  type ParsedJavaScriptSource,
+} from "./javascriptSourceParser.js";
 
 /** Parse one bounded JavaScript artifact and recover static structure only. */
 export const analyzeJavaScriptStaticSource = (
   source: string,
   limits: JavaScriptStaticAnalysisLimits,
 ): JavaScriptStaticAnalysis => {
-  let file: ReturnType<typeof parse>;
-  try {
-    file = parse(source, {
-      sourceType: "unambiguous",
-      errorRecovery: true,
-      plugins: ["jsx", "typescript"],
-    });
-  } catch {
-    return failedJavaScriptStaticAnalysis();
-  }
+  const file = parseJavaScriptSource(source);
+  return file === null
+    ? failedJavaScriptStaticAnalysis()
+    : analyzeParsedJavaScriptStaticSource(source, file, limits);
+};
+
+/** Recover static structure from an already parsed JavaScript artifact. */
+export const analyzeParsedJavaScriptStaticSource = (
+  source: string,
+  file: ParsedJavaScriptSource,
+  limits: JavaScriptStaticAnalysisLimits,
+): JavaScriptStaticAnalysis => {
   const accumulator = createJavaScriptAnalysisAccumulator();
   traverseStaticSource(source, file, accumulator, limits);
   addSourceMapDirectives(source, accumulator, limits.maxFindings);
@@ -53,7 +58,7 @@ export const analyzeJavaScriptStaticSource = (
 
 const traverseStaticSource = (
   source: string,
-  file: ReturnType<typeof parse>,
+  file: ParsedJavaScriptSource,
   accumulator: AnalysisAccumulator,
   limits: JavaScriptStaticAnalysisLimits,
 ): void => {
@@ -76,7 +81,7 @@ const traverseStaticSource = (
 
 const finalizeStaticAnalysis = (
   source: string,
-  file: ReturnType<typeof parse>,
+  file: ParsedJavaScriptSource,
   accumulator: AnalysisAccumulator,
   limits: JavaScriptStaticAnalysisLimits,
 ): JavaScriptStaticAnalysis => {

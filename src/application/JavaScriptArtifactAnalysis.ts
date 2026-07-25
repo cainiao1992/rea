@@ -1,16 +1,18 @@
 import { createHash } from "node:crypto";
 
-import { analyzeJavaScriptStaticSource } from "../domain/javascriptStaticAnalysis.js";
-import { analyzeJavaScriptSemantics } from "../domain/javascriptSemanticAnalysis.js";
+import { analyzeParsedJavaScriptStaticSource } from "../domain/javascriptStaticAnalysis.js";
+import { analyzeParsedJavaScriptSemantics } from "../domain/javascriptSemanticAnalysis.js";
 import {
   DEFAULT_JAVASCRIPT_SEMANTIC_LIMITS,
   type JavaScriptSemanticLimits,
 } from "../domain/javascriptSemanticIr.js";
+import { parseJavaScriptSource } from "../domain/javascriptSourceParser.js";
 import type {
   JavaScriptSourceRange,
   JavaScriptSourcePoint,
   JavaScriptStaticAnalysis,
 } from "../domain/javascriptStaticAnalysisTypes.js";
+import { failedJavaScriptStaticAnalysis } from "../domain/javascriptStaticAnalysisHelpers.js";
 import type {
   JavaScriptArtifactFile,
   JavaScriptArtifactFileSet,
@@ -142,13 +144,24 @@ const analyzeArtifactFile = (
     state.truncatedScopes += 1;
     return;
   }
-  const analysis = analyzeJavaScriptStaticSource(file.text.value, {
-    maxAstNodes: remainingNodes,
-    maxFindings: remainingFindings,
-    maxModules: remainingModules,
-    deadline: context.deadline,
-    now: context.now,
-  });
+  const parsed = parseJavaScriptSource(file.text.value);
+  if (parsed === null) {
+    const analysis = failedJavaScriptStaticAnalysis();
+    state.files.push({ file, javascript: analysis, semantic: null });
+    state.parseFailures += 1;
+    return;
+  }
+  const analysis = analyzeParsedJavaScriptStaticSource(
+    file.text.value,
+    parsed,
+    {
+      maxAstNodes: remainingNodes,
+      maxFindings: remainingFindings,
+      maxModules: remainingModules,
+      deadline: context.deadline,
+      now: context.now,
+    },
+  );
   const staticFindings = findingCount(analysis);
   const semanticFindingBudget = Math.max(
     0,
@@ -164,7 +177,7 @@ const analyzeArtifactFile = (
   };
   const semantics =
     analysis.parse_status === "complete" || analysis.parse_status === "partial"
-      ? analyzeJavaScriptSemantics(file.text.value, semanticLimits)
+      ? analyzeParsedJavaScriptSemantics(parsed, semanticLimits)
       : null;
   state.files.push({
     file,

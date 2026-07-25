@@ -2,6 +2,15 @@ import { z } from "zod";
 
 import type { ToolContract } from "../contracts/toolContracts.js";
 
+const ADVERTISED_INPUT_SCHEMAS = new WeakMap<
+  z.ZodObject,
+  Readonly<Record<string, unknown>>
+>();
+const ADVERTISED_OUTPUT_SCHEMAS = new WeakMap<
+  z.ZodObject,
+  Readonly<Record<string, unknown>>
+>();
+
 /** Project the public contract fields accepted by MCP tool registration. */
 export const toolRegistrationOptions = (contract: ToolContract) => ({
   title: contract.title,
@@ -22,10 +31,8 @@ const advertisedInputSchema = (schema: z.ZodObject) => ({
     vendor: "rea",
     validate: (input: unknown) => ({ value: input }),
     jsonSchema: {
-      input: () =>
-        describeProperties(closeObjectSchemas(inputJsonSchema(schema))),
-      output: () =>
-        describeProperties(closeObjectSchemas(inputJsonSchema(schema))),
+      input: () => advertisedInputJsonSchema(schema),
+      output: () => advertisedInputJsonSchema(schema),
     },
   },
 });
@@ -41,17 +48,40 @@ const advertisedOutputSchema = (schema: z.ZodObject) => {
     "~standard": {
       ...standard,
       jsonSchema: {
-        input: () =>
-          describeRootProperties(
-            closeObjectSchemas(converter({ target: "draft-2020-12" })),
-          ),
-        output: () =>
-          describeRootProperties(
-            closeObjectSchemas(converter({ target: "draft-2020-12" })),
-          ),
+        input: () => advertisedOutputJsonSchema(schema, converter),
+        output: () => advertisedOutputJsonSchema(schema, converter),
       },
     },
   };
+};
+
+const advertisedInputJsonSchema = (
+  schema: z.ZodObject,
+): Readonly<Record<string, unknown>> =>
+  cachedJsonSchema(ADVERTISED_INPUT_SCHEMAS, schema, () =>
+    describeProperties(closeObjectSchemas(inputJsonSchema(schema))),
+  );
+
+const advertisedOutputJsonSchema = (
+  schema: z.ZodObject,
+  converter: NonNullable<z.ZodObject["~standard"]["jsonSchema"]>["output"],
+): Readonly<Record<string, unknown>> =>
+  cachedJsonSchema(ADVERTISED_OUTPUT_SCHEMAS, schema, () =>
+    describeRootProperties(
+      closeObjectSchemas(converter({ target: "draft-2020-12" })),
+    ),
+  );
+
+const cachedJsonSchema = (
+  cache: WeakMap<z.ZodObject, Readonly<Record<string, unknown>>>,
+  schema: z.ZodObject,
+  create: () => Record<string, unknown>,
+): Readonly<Record<string, unknown>> => {
+  const cached = cache.get(schema);
+  if (cached !== undefined) return cached;
+  const created = create();
+  cache.set(schema, created);
+  return created;
 };
 
 const inputJsonSchema = (schema: z.ZodObject): Record<string, unknown> => {

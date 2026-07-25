@@ -1,6 +1,10 @@
 import { performance } from "node:perf_hooks";
 
-import type { ProgressReporter } from "../application/ProgressReporter.js";
+import type {
+  ProgressReporter,
+  ProgressUpdate,
+} from "../application/ProgressReporter.js";
+import type { HopperBridgeEvent } from "./protocol.js";
 import {
   HopperCancelledError,
   type HopperError,
@@ -124,6 +128,28 @@ export class HopperRequestQueue {
     if (!entry.callerSettled) this.#settleCaller(entry, result, "waiting");
     this.#active = undefined;
     this.#drain();
+    return true;
+  }
+
+  /** Forward one correlated bridge event without releasing the wire request. */
+  acceptEvent(event: HopperBridgeEvent): boolean {
+    const entry = this.#active;
+    if (entry === undefined || entry.id !== event.id) return false;
+    if (event.event.type === "progress" && !entry.callerSettled) {
+      if (event.event.terminal === true && entry.heartbeat !== undefined) {
+        clearInterval(entry.heartbeat);
+        entry.heartbeat = undefined;
+      }
+      this.#reportUpdate(entry, {
+        phase: event.event.phase,
+        completed: event.event.completed,
+        total: event.event.total,
+        message: event.event.message,
+        ...(event.event.terminal === undefined
+          ? {}
+          : { terminal: event.event.terminal }),
+      });
+    }
     return true;
   }
 
@@ -267,13 +293,21 @@ export class HopperRequestQueue {
   }
 
   #report(entry: QueuedRequest, message: string): void {
-    void entry.progress
-      ?.report({
-        phase: "hopper_request",
-        completed: 0,
-        total: 1,
-        message,
-      })
-      .catch(() => undefined);
+    this.#reportUpdate(entry, {
+      phase: "hopper_request",
+      completed: 0,
+      total: 1,
+      message,
+    });
+  }
+
+  #reportUpdate(entry: QueuedRequest, update: ProgressUpdate): void {
+    try {
+      void Promise.resolve(entry.progress?.report(update)).catch(
+        () => undefined,
+      );
+    } catch {
+      // Progress observation cannot change the request outcome.
+    }
   }
 }

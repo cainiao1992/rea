@@ -240,6 +240,65 @@ describe("persistent cross-version investigation workspace", () => {
     });
   });
 
+  it("produces stable multi-provider Evidence closure across independent version runs", async () => {
+    const { input } = await fixture();
+    if (directory === undefined) throw new Error("missing fixture root");
+    const repeatedInput = crossVersionInvestigationInputSchema.parse({
+      ...input,
+      workspace_path: join(directory, "repeated-workspace.json"),
+    });
+    const [first, repeated] = await Promise.all([
+      runCrossVersionInvestigation(input, policy(directory), {
+        inputRoots: [directory],
+      }),
+      runCrossVersionInvestigation(repeatedInput, policy(directory), {
+        inputRoots: [directory],
+      }),
+    ]);
+    if (!first.ok) throw first.error;
+    if (!repeated.ok) throw repeated.error;
+
+    expect(repeated.value.evidence).toEqual(first.value.evidence);
+    expect(
+      [
+        ...new Set(
+          first.value.workspace.bundle.records.map(
+            ({ provider }) => provider.id,
+          ),
+        ),
+      ].sort(),
+    ).toEqual([
+      "rea-artifact-comparison",
+      "rea-artifact-graph",
+      "rea-changed-behavior",
+    ]);
+
+    const comparison = first.value.workspace.bundle.records.find(
+      ({ operation }) => operation === "compare_artifacts",
+    );
+    if (comparison === undefined)
+      throw new Error("missing artifact comparison Evidence");
+    const result = changedBehaviorResultSchema.parse(
+      first.value.evidence.normalized_result,
+    );
+    const evidenceIds = new Set(
+      first.value.workspace.bundle.records.map(({ evidence_id: id }) => id),
+    );
+    expect(result.findings.items).not.toHaveLength(0);
+    for (const finding of result.findings.items) {
+      expect(finding).toMatchObject({
+        classification: "derived_relationship",
+        source_comparison_id: comparison.evidence_id,
+      });
+      expect(finding.evidence_links).toContain(comparison.evidence_id);
+      expect(
+        finding.evidence_links.every((evidenceId) =>
+          evidenceIds.has(evidenceId),
+        ),
+      ).toBe(true);
+    }
+  });
+
   it("replays only an explicitly selected and fully verified complete run", async () => {
     const { left, right, input } = await fixture();
     if (directory === undefined) throw new Error("missing fixture root");

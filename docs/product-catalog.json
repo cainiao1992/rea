@@ -11,7 +11,7 @@
     "skill_version": "23"
   },
   "tools": {
-    "total": 110,
+    "total": 111,
     "families": [
       {
         "id": "direct",
@@ -59,7 +59,7 @@
       {
         "id": "enhanced",
         "surface": "enhanced",
-        "count": 12,
+        "count": 13,
         "tools": [
           "analyze_function",
           "analyze_swift_types",
@@ -70,6 +70,7 @@
           "get_call_graph",
           "get_objc_classes",
           "get_objc_protocols",
+          "inspect_native_api",
           "swift_classes",
           "trace_call_path",
           "trace_feature"
@@ -581,7 +582,7 @@
     }
   ],
   "cli": {
-    "primary_count": 66,
+    "primary_count": 67,
     "commands": [
       "analyze",
       "analyze-javascript-application",
@@ -619,6 +620,7 @@
       "inspect-managed-artifact",
       "inspect-managed-members",
       "inspect-managed-native-boundaries",
+      "inspect-native-api",
       "inspect-plist",
       "inspect-signature",
       "inspect-web-page",
@@ -659,17 +661,17 @@
   },
   "runtime_catalog": {
     "counts": {
-      "cli_commands": 66,
-      "mcp_tools": 110,
+      "cli_commands": 67,
+      "mcp_tools": 111,
       "mcp_prompts": 6,
       "mcp_resources": 2,
       "mcp_resource_templates": 11
     },
     "digests": {
-      "tools_sha256": "9a033ddd40fcb8273365cc895bbf75d943bf1c5c8c2ee1eb9c4b3494064aaf58",
+      "tools_sha256": "5a88bf598a1e0fe705761db6af92f1ceabaf026cb6efa425e87b9633f1d7a3de",
       "prompts_sha256": "f6da3ad38a1000c11364d1710f122ac4990551f04efd8c53ffb2e819b5cf5707",
       "resources_sha256": "339a984ea8cd8be5f234adf24395bf0295258d990492005cf6fe1f293d12cd46",
-      "combined_sha256": "e8cac51f2f17a5b9a088c3ff773473c4897823401481fc0875a28fe7daf8eee0"
+      "combined_sha256": "861cd8618e793342daa8b149bc2944360d84b077fd19cf22f6e0a57b6b249c73"
     }
   }
 }

@@ -63,6 +63,17 @@ export const enhancedInputSchemas = {
         basic_blocks: 0,
       }),
   }),
+  inspect_native_api: z.object({
+    procedure: z.string().describe("A procedure name or address"),
+    max_pseudocode_chars: z.number().int().min(1).max(100_000).default(20_000),
+    max_instructions: z.number().int().min(1).max(5_000).default(500),
+    unknown_registry_approved: z
+      .literal(true)
+      .optional()
+      .describe(
+        "Explicit approval to record unsupported native API branches durably",
+      ),
+  }),
   trace_feature: traceLiteralInputSchema,
   find_code_for_string: traceLiteralInputSchema,
   trace_call_path: z.object({
@@ -95,6 +106,7 @@ export const enhancedToolNameSchema = z.enum([
   "find_xrefs_to_name",
   "binary_overview",
   "analyze_function",
+  "inspect_native_api",
   "trace_feature",
   "find_code_for_string",
   "trace_call_path",

@@ -55,6 +55,7 @@ import ghidra.program.model.block.CodeBlockIterator;
 import ghidra.program.model.block.CodeBlockReference;
 import ghidra.program.model.block.CodeBlockReferenceIterator;
 import ghidra.program.model.data.StringDataInstance;
+import ghidra.program.model.data.DataType;
 import ghidra.program.model.listing.CommentType;
 import ghidra.program.model.listing.Data;
 import ghidra.program.model.listing.DataIterator;
@@ -70,15 +71,25 @@ import ghidra.program.model.symbol.ReferenceIterator;
 import ghidra.program.model.symbol.SourceType;
 import ghidra.program.model.symbol.Symbol;
 import ghidra.program.model.symbol.SymbolIterator;
+import ghidra.program.model.pcode.FunctionPrototype;
+import ghidra.program.model.pcode.HighFunction;
+import ghidra.program.model.pcode.HighSymbol;
+import ghidra.program.model.pcode.JumpTable;
 
 public final class ReaGhidraBridge extends HeadlessScript {
-    private static final int BRIDGE_VERSION = 5;
+    private static final int BRIDGE_VERSION = 6;
     private static final int MAX_DESCRIPTOR_BYTES = 16 * 1024;
     private static final int MAX_REQUEST_CHARACTERS = 256 * 1024;
     private static final int MAX_RESPONSE_BYTES = 1024 * 1024;
+    private static final int RESPONSE_ENVELOPE_RESERVE_BYTES = 32 * 1024;
+    private static final int MAX_NATIVE_API_RESPONSE_BYTES = 192 * 1024;
     private static final int MAX_INVENTORY_ITEMS = 1_000_000;
     private static final int MAX_FUNCTION_ITEMS = 100_000;
     private static final int MAX_FUNCTION_INSTRUCTIONS = 100_000;
+    private static final int MAX_NATIVE_API_PARAMETERS = 64;
+    private static final int MAX_NATIVE_API_JUMP_TABLES = 4;
+    private static final int MAX_NATIVE_API_LOAD_TABLES = 4;
+    private static final int MAX_NATIVE_API_MAPPINGS = 32;
     private static final int DECOMPILE_TIMEOUT_SECONDS = 30;
     private static final int DECOMPILE_PAYLOAD_MBYTES = 8;
     private static final int MAX_LIST_VALUE_CODE_POINTS = 1_024;
@@ -377,7 +388,9 @@ public final class ReaGhidraBridge extends HeadlessScript {
     private JsonElement procedurePseudocode(JsonObject params) throws Exception {
         requireKeys(params, Set.of("document", "procedure"));
         requireDocument(params);
-        String value = decompile(resolveProcedure(requireString(params, "procedure")));
+        String value = decompiledText(
+            decompile(resolveProcedure(requireString(params, "procedure")))
+        );
         return value == null ? JsonNull.INSTANCE : GSON.toJsonTree(value);
     }
 
@@ -576,7 +589,8 @@ public final class ReaGhidraBridge extends HeadlessScript {
         );
         JsonObject offsets = requireCollectionOffsets(params);
         InstructionScan scan = scanInstructions(function, maximumInstructions);
-        String pseudocode = decompile(function);
+        DecompileResults decompilation = decompile(function);
+        String pseudocode = decompiledText(decompilation);
         if (pseudocode == null) {
             pseudocode = "";
         }
@@ -662,6 +676,19 @@ public final class ReaGhidraBridge extends HeadlessScript {
         instructionScan.addProperty("scanned", scan.instructions.size());
         instructionScan.addProperty("truncated", scan.truncated);
         result.add("instruction_scan", instructionScan);
+        int nativeApiBudget = Math.min(
+            MAX_NATIVE_API_RESPONSE_BYTES,
+            Math.max(
+                0,
+                MAX_RESPONSE_BYTES -
+                encodedUtf8Length(result) -
+                RESPONSE_ENVELOPE_RESERVE_BYTES
+            )
+        );
+        result.add(
+            "native_api",
+            nativeApiBoundary(function, decompilation, nativeApiBudget)
+        );
         JsonArray limitations = new JsonArray();
         limitations.add(
             "Unresolved computed or indirect flows without target addresses are not represented as reference edges."
@@ -971,7 +998,446 @@ public final class ReaGhidraBridge extends HeadlessScript {
         return matches.get(0);
     }
 
-    private String decompile(Function function) {
+    private JsonObject nativeApiBoundary(
+        Function function,
+        DecompileResults decompilation,
+        int maximumBytes
+    ) throws Exception {
+        if (decompilation == null || decompilation.getHighFunction() == null) {
+            return unavailableNativeApiBoundary(
+                "Ghidra has no HighFunction model for an external or bodyless procedure"
+            );
+        }
+
+        HighFunction highFunction = decompilation.getHighFunction();
+        FunctionPrototype prototype = highFunction.getFunctionPrototype();
+        String signatureSource = function
+            .getSignatureSource()
+            .name()
+            .toLowerCase(Locale.ROOT);
+        JsonObject result = new JsonObject();
+        result.addProperty("available", true);
+        result.addProperty("provenance", "ghidra-high-function");
+        result.addProperty("signature_source", signatureSource);
+        String callingConvention = prototype.getModelName();
+        result.addProperty(
+            "calling_convention",
+            callingConvention == null || callingConvention.isBlank()
+                ? "unknown"
+                : callingConvention
+        );
+        result.add(
+            "return_type",
+            inferredBoundaryType(
+                "return",
+                null,
+                null,
+                prototype.getReturnType(),
+                prototype.getReturnStorage().toString(),
+                false,
+                signatureSource
+            )
+        );
+
+        JsonArray parameters = new JsonArray();
+        result.add("parameters", parameters);
+        result.addProperty("parameters_truncated", false);
+
+        JsonArray jumpTables = new JsonArray();
+        result.add("jump_tables", jumpTables);
+        result.addProperty("jump_tables_truncated", false);
+
+        JsonObject pseudocode = new JsonObject();
+        pseudocode.addProperty("classification", "decompiler-generated-non-source");
+        pseudocode.addProperty("compilable", false);
+        result.add("pseudocode", pseudocode);
+
+        JsonArray artifacts = new JsonArray();
+        artifacts.add("recovered-signature");
+        artifacts.add("register-and-stack-variables");
+        artifacts.add("compiler-generated-control-flow");
+        artifacts.add("pointer-arithmetic");
+        artifacts.add("pseudocode");
+        result.add("decompiler_artifacts", artifacts);
+
+        JsonArray limitations = new JsonArray();
+        limitations.add(
+            "Types and calling conventions are Ghidra decompiler observations, not source declarations."
+        );
+        limitations.add(
+            "Register variables, compiler-generated blocks, and pointer arithmetic remain decompiler artifacts."
+        );
+        limitations.add(
+            "Pseudocode is neither original source nor guaranteed to compile."
+        );
+        result.add("limitations", limitations);
+        if (encodedUtf8Length(result) > maximumBytes) {
+            return unavailableNativeApiBoundary(
+                "The remaining Ghidra response budget cannot contain a structured native API boundary"
+            );
+        }
+
+        int parameterCount = Math.min(
+            prototype.getNumParams(),
+            MAX_NATIVE_API_PARAMETERS
+        );
+        for (int index = 0; index < parameterCount; index += 1) {
+            HighSymbol parameter = prototype.getParam(index);
+            if (parameter == null) {
+                continue;
+            }
+            parameters.add(
+                inferredBoundaryType(
+                    "parameter",
+                    index,
+                    parameter.getName(),
+                    parameter.getDataType(),
+                    parameter.getStorage().toString(),
+                    parameter.isTypeLocked(),
+                    signatureSource
+                )
+            );
+            if (encodedUtf8Length(result) > maximumBytes) {
+                parameters.remove(parameters.size() - 1);
+                break;
+            }
+        }
+        result.addProperty(
+            "parameters_truncated",
+            prototype.getNumParams() > parameters.size()
+        );
+
+        JumpTable[] recoveredJumpTables = highFunction.getJumpTables();
+        int jumpTableCount = Math.min(
+            recoveredJumpTables.length,
+            MAX_NATIVE_API_JUMP_TABLES
+        );
+        for (int index = 0; index < jumpTableCount; index += 1) {
+            jumpTables.add(inferredJumpTable(recoveredJumpTables[index]));
+            if (encodedUtf8Length(result) > maximumBytes) {
+                jumpTables.remove(jumpTables.size() - 1);
+                break;
+            }
+        }
+        result.addProperty(
+            "jump_tables_truncated",
+            recoveredJumpTables.length > jumpTables.size()
+        );
+        return result;
+    }
+
+    private static JsonObject unavailableNativeApiBoundary(String reason) {
+        JsonObject unavailable = new JsonObject();
+        unavailable.addProperty("available", false);
+        unavailable.addProperty("reason", reason);
+        JsonArray unknowns = new JsonArray();
+        unknowns.add("Return and parameter boundary types are unavailable.");
+        unknowns.add("Jump-table mappings are unavailable.");
+        unavailable.add("residual_unknowns", unknowns);
+        return unavailable;
+    }
+
+    private static int encodedUtf8Length(JsonElement value) {
+        return GSON.toJson(value).getBytes(StandardCharsets.UTF_8).length;
+    }
+
+    private static JsonObject inferredBoundaryType(
+        String role,
+        Integer ordinal,
+        String name,
+        DataType dataType,
+        String storage,
+        boolean typeLocked,
+        String signatureSource
+    ) {
+        JsonObject result = new JsonObject();
+        result.addProperty("role", role);
+        if (ordinal == null) {
+            result.add("ordinal", JsonNull.INSTANCE);
+        }
+        else {
+            result.addProperty("ordinal", ordinal);
+        }
+        if (name == null || name.isBlank()) {
+            result.add("name", JsonNull.INSTANCE);
+        }
+        else {
+            result.addProperty("name", name);
+        }
+        result.addProperty("data_type", dataType.getDisplayName());
+        int dataTypeLength = dataType.getLength();
+        if (dataTypeLength < 0) {
+            result.add("size_bytes", JsonNull.INSTANCE);
+        }
+        else {
+            result.addProperty("size_bytes", dataTypeLength);
+        }
+        if (storage.isBlank()) {
+            result.add("storage", JsonNull.INSTANCE);
+        }
+        else {
+            result.addProperty("storage", storage);
+        }
+        result.addProperty(
+            "confidence",
+            inferenceConfidence(signatureSource, typeLocked)
+        );
+
+        JsonArray evidence = new JsonArray();
+        evidence.add(
+            inferenceEvidence(
+                "signature-source",
+                "ghidra-function-manager",
+                "Function signature source is " + signatureSource + "."
+            )
+        );
+        evidence.add(
+            inferenceEvidence(
+                "decompiler-type",
+                "ghidra-high-function",
+                "HighFunction recovered data type " + dataType.getDisplayName() + "."
+            )
+        );
+        if (typeLocked) {
+            evidence.add(
+                inferenceEvidence(
+                    "type-lock",
+                    "ghidra-high-symbol",
+                    "The decompiler marks this parameter type as locked."
+                )
+            );
+        }
+        result.add("evidence", evidence);
+
+        JsonArray artifacts = new JsonArray();
+        artifacts.add("recovered-signature");
+        if (!storage.isBlank()) {
+            artifacts.add("register-or-stack-storage");
+        }
+        if (name != null && (name.startsWith("param_") || name.startsWith("unaff_"))) {
+            artifacts.add("compiler-generated-variable");
+        }
+        result.add("decompiler_artifacts", artifacts);
+        return result;
+    }
+
+    private JsonObject inferredJumpTable(JumpTable jumpTable) throws Exception {
+        JsonObject result = new JsonObject();
+        result.addProperty(
+            "dispatch_address",
+            canonicalAddress(jumpTable.getSwitchAddress())
+        );
+        JumpTable.LoadTable[] loadTables = jumpTable.getLoadTables();
+        List<Address> referencedDataAddresses = loadTables.length == 0
+            ? dispatchPathDataReferences(jumpTable)
+            : List.of();
+        JsonArray dataSources = new JsonArray();
+        int loadTableCount = Math.min(
+            loadTables.length,
+            MAX_NATIVE_API_LOAD_TABLES
+        );
+        for (int index = 0; index < loadTableCount; index += 1) {
+            JumpTable.LoadTable loadTable = loadTables[index];
+            JsonObject source = new JsonObject();
+            source.addProperty("address", canonicalAddress(loadTable.getAddress()));
+            source.addProperty("provenance", "ghidra-decompiler-load-table");
+            source.addProperty("entry_size_bytes", loadTable.getSize());
+            source.addProperty("entry_count", loadTable.getNum());
+            source.addProperty("confidence", "high");
+            JsonArray evidence = new JsonArray();
+            evidence.add(
+                inferenceEvidence(
+                    "jump-table",
+                    "ghidra-high-function",
+                    "Decompiler load table starts at " +
+                    canonicalAddress(loadTable.getAddress()) +
+                    "."
+                )
+            );
+            source.add("evidence", evidence);
+            dataSources.add(source);
+        }
+        int referencedDataCount = Math.min(
+            referencedDataAddresses.size(),
+            MAX_NATIVE_API_LOAD_TABLES - loadTableCount
+        );
+        for (int index = 0; index < referencedDataCount; index += 1) {
+            Address address = referencedDataAddresses.get(index);
+            JsonObject source = new JsonObject();
+            source.addProperty("address", canonicalAddress(address));
+            source.addProperty(
+                "provenance",
+                "ghidra-dispatch-block-data-reference"
+            );
+            source.add("entry_size_bytes", JsonNull.INSTANCE);
+            source.add("entry_count", JsonNull.INSTANCE);
+            source.addProperty("confidence", "medium");
+            JsonArray evidence = new JsonArray();
+            evidence.add(
+                inferenceEvidence(
+                    "jump-table",
+                    "ghidra-reference-manager",
+                    "The dispatch block or an immediate predecessor contains a typed data reference to " +
+                    canonicalAddress(address) +
+                    "."
+                )
+            );
+            source.add("evidence", evidence);
+            dataSources.add(source);
+        }
+        result.add("data_sources", dataSources);
+        result.addProperty(
+            "data_sources_truncated",
+            loadTables.length > loadTableCount ||
+            referencedDataAddresses.size() > referencedDataCount
+        );
+
+        Address[] targets = jumpTable.getCases();
+        Integer[] labels = jumpTable.getLabelValues();
+        JsonArray mappings = new JsonArray();
+        int mappingCount = Math.min(targets.length, MAX_NATIVE_API_MAPPINGS);
+        for (int index = 0; index < mappingCount; index += 1) {
+            JsonObject mapping = new JsonObject();
+            if (labels == null || index >= labels.length || labels[index] == null) {
+                mapping.add("case_value", JsonNull.INSTANCE);
+            }
+            else {
+                mapping.addProperty("case_value", labels[index]);
+            }
+            String targetAddress = canonicalAddress(targets[index]);
+            mapping.addProperty("target_address", targetAddress);
+            JsonArray dataAddresses = new JsonArray();
+            for (int sourceIndex = 0; sourceIndex < loadTableCount; sourceIndex += 1) {
+                dataAddresses.add(
+                    canonicalAddress(loadTables[sourceIndex].getAddress())
+                );
+            }
+            mapping.add("data_addresses", dataAddresses);
+            mapping.addProperty("confidence", "medium");
+            JsonArray evidence = new JsonArray();
+            evidence.add(
+                inferenceEvidence(
+                    "jump-table",
+                    "ghidra-high-function",
+                    "Recovered target " +
+                    targetAddress +
+                    " from dispatch " +
+                    canonicalAddress(jumpTable.getSwitchAddress()) +
+                    "."
+                )
+            );
+            mapping.add("evidence", evidence);
+            mappings.add(mapping);
+        }
+        result.add("mappings", mappings);
+        result.addProperty("mappings_truncated", targets.length > mappingCount);
+
+        JsonArray limitations = new JsonArray();
+        if (loadTables.length == 0 && referencedDataAddresses.isEmpty()) {
+            limitations.add(
+                "Ghidra recovered targets but exposed no backing load-table or dispatch-block data address."
+            );
+        }
+        if (loadTables.length == 0 && !referencedDataAddresses.isEmpty()) {
+            limitations.add(
+                "Load-table metadata was absent; table-level candidate ownership is inferred from typed data references in the dispatch block and its immediate control-flow predecessors, but candidates are not assigned to individual mappings."
+            );
+        }
+        if (labels == null || labels.length != targets.length) {
+            limitations.add(
+                "Case labels were unavailable or incomplete; null labels are preserved."
+            );
+        }
+        if (
+            loadTables.length > loadTableCount ||
+            referencedDataAddresses.size() > referencedDataCount ||
+            targets.length > mappingCount
+        ) {
+            limitations.add(
+                "Native API jump-table observations reached REA's bounded output limits."
+            );
+        }
+        result.add("limitations", limitations);
+        return result;
+    }
+
+    private List<Address> dispatchPathDataReferences(JumpTable jumpTable)
+        throws Exception {
+        BasicBlockModel model = new BasicBlockModel(currentProgram, false);
+        CodeBlock dispatchBlock = model.getFirstCodeBlockContaining(
+            jumpTable.getSwitchAddress(),
+            monitor
+        );
+        if (dispatchBlock == null) {
+            return List.of();
+        }
+        List<CodeBlock> blocks = new ArrayList<>();
+        blocks.add(dispatchBlock);
+        CodeBlockReferenceIterator sources = dispatchBlock.getSources(monitor);
+        while (sources.hasNext()) {
+            monitor.checkCancelled();
+            CodeBlock sourceBlock = sources.next().getSourceBlock();
+            if (sourceBlock != null) {
+                blocks.add(sourceBlock);
+            }
+        }
+        Set<Address> addresses = new HashSet<>();
+        for (CodeBlock block : blocks) {
+            InstructionIterator instructions = currentProgram
+                .getListing()
+                .getInstructions(block, true);
+            while (instructions.hasNext()) {
+                monitor.checkCancelled();
+                Instruction instruction = instructions.next();
+                for (
+                    Reference reference : currentProgram
+                        .getReferenceManager()
+                        .getReferencesFrom(instruction.getAddress())
+                ) {
+                    if (
+                        reference.getReferenceType().isData() &&
+                        currentProgram
+                            .getMemory()
+                            .getLoadedAndInitializedAddressSet()
+                            .contains(reference.getToAddress())
+                    ) {
+                        addresses.add(reference.getToAddress());
+                    }
+                }
+            }
+        }
+        List<Address> ordered = new ArrayList<>(addresses);
+        ordered.sort(Address::compareTo);
+        return List.copyOf(ordered);
+    }
+
+    private static JsonObject inferenceEvidence(
+        String kind,
+        String source,
+        String detail
+    ) {
+        JsonObject evidence = new JsonObject();
+        evidence.addProperty("kind", kind);
+        evidence.addProperty("source", source);
+        evidence.addProperty("detail", detail);
+        return evidence;
+    }
+
+    private static String inferenceConfidence(
+        String signatureSource,
+        boolean typeLocked
+    ) {
+        if (
+            typeLocked ||
+            signatureSource.equals("user_defined") ||
+            signatureSource.equals("imported")
+        ) {
+            return "high";
+        }
+        return signatureSource.equals("analysis") ? "medium" : "low";
+    }
+
+    private DecompileResults decompile(Function function) {
         if (function.isExternal() || function.getBody().isEmpty()) {
             return null;
         }
@@ -994,6 +1460,13 @@ public final class ReaGhidraBridge extends HeadlessScript {
                 "decompile_failed",
                 "Ghidra decompilation failed: " + boundedMessage(results.getErrorMessage())
             );
+        }
+        return results;
+    }
+
+    private static String decompiledText(DecompileResults results) {
+        if (results == null) {
+            return null;
         }
         DecompiledFunction value = results.getDecompiledFunction();
         return value == null ? null : value.getC();

@@ -2,8 +2,13 @@ import {
   parseGhidraFunctionInput,
   parseGhidraFunctionResult,
 } from "../dist/ghidra/GhidraFunctionValues.js";
+import {
+  parseGhidraInventoryInput,
+  parseGhidraInventoryResult,
+} from "../dist/ghidra/GhidraInventoryValues.js";
 
 import {
+  assertDenseSwitchDossier,
   assertDossier,
   assertLocalProcedureInfo,
   assertProviderText,
@@ -27,6 +32,20 @@ async function functionCall(client, operation, parameters) {
   return parsed.value;
 }
 
+async function inventoryCall(client, operation, parameters) {
+  const input = parseGhidraInventoryInput(operation, parameters);
+  if (!input.ok) throw input.error;
+  const called = await client.callTool(operation, input.value);
+  if (!called.ok)
+    throw new Error(
+      `Ghidra ${operation} failed for ${JSON.stringify(input.value)}: ${called.error.message}`,
+      { cause: called.error },
+    );
+  const parsed = parseGhidraInventoryResult(operation, called.value);
+  if (!parsed.ok) throw parsed.error;
+  return parsed.value;
+}
+
 export async function verifyDebugFunctionOperations(
   client,
   { procedures, strings, entry },
@@ -36,6 +55,14 @@ export async function verifyDebugFunctionOperations(
   const indirect = requireProcedure(
     procedures,
     "rea_ghidra_inventory_indirect",
+  );
+  const switchProcedure = requireProcedure(
+    procedures,
+    "rea_ghidra_inventory_switch",
+  );
+  const denseSwitchProcedure = requireProcedure(
+    procedures,
+    "rea_ghidra_inventory_dense_switch",
   );
   const main = requireProcedure(procedures, "main");
   const entryString = strings.find(
@@ -88,6 +115,15 @@ export async function verifyDebugFunctionOperations(
   );
   const branchDossier = await analyzeBranchDossier(client, branch);
   const indirectDossier = await analyzeIndirectDossier(client, indirect);
+  const switchDossier = await analyzeSwitchDossier(client, switchProcedure);
+  const denseSwitchDossier = await functionCall(client, "analyze_function", {
+    procedure: denseSwitchProcedure.address,
+    include_assembly: true,
+    limit: 500,
+    max_pseudocode_chars: 100_000,
+    max_instructions: 5_000,
+  });
+  assertDenseSwitchDossier(denseSwitchDossier, denseSwitchProcedure.address);
   assertIndirectDossier(indirectDossier, leaf.address);
 
   const { cancellation, timeout } = await verifyRequestCancellationAndTimeout(
@@ -100,6 +136,8 @@ export async function verifyDebugFunctionOperations(
     entry: dossierSummary(entryDossier),
     branch: dossierSummary(branchDossier),
     indirect: dossierSummary(indirectDossier),
+    switch: dossierSummary(switchDossier),
+    dense_switch: dossierSummary(denseSwitchDossier),
     instruction_window: {
       returned: instructionWindow.instructions.returned,
       truncated: instructionWindow.instructions.truncated,
@@ -164,7 +202,7 @@ async function resolveXrefOwners(client, entryXrefs) {
   for (const address of entryXrefs) {
     try {
       xrefOwners.push(
-        await functionCall(client, "resolve_containing_procedure", {
+        await inventoryCall(client, "resolve_containing_procedure", {
           document: null,
           address,
         }),
@@ -220,6 +258,23 @@ async function analyzeEntryDossier(client, entry, branch, indirect) {
     requireAssembly: true,
   });
   return entryDossier;
+}
+
+async function analyzeSwitchDossier(client, switchProcedure) {
+  const dossier = await functionCall(client, "analyze_function", {
+    procedure: switchProcedure.address,
+    include_assembly: true,
+    limit: 500,
+    max_pseudocode_chars: 100_000,
+    max_instructions: 5_000,
+  });
+  assertDossier(dossier, {
+    address: switchProcedure.address,
+    requireAssembly: true,
+    requireMultiBlock: true,
+    requireJumpTable: true,
+  });
+  return dossier;
 }
 
 async function analyzeBranchDossier(client, branch) {
@@ -310,7 +365,7 @@ export async function verifyStrippedFunctionOperations(client, entryString) {
   });
   if (stringXrefs.length === 0)
     throw new Error("Ghidra stripped string xref probe is unavailable");
-  const containing = await functionCall(
+  const containing = await inventoryCall(
     client,
     "resolve_containing_procedure",
     {
@@ -339,7 +394,7 @@ export async function verifyStrippedFunctionOperations(client, entryString) {
     expectedString: "REA_GHIDRA_INVENTORY_ENTRY",
     requireAssembly: true,
   });
-  if (symbolTail(dossier.procedure.name) === "rea_ghidra_inventory_entry")
+  if (matchesSymbol(dossier.procedure.name, "rea_ghidra_inventory_entry"))
     throw new Error("Ghidra stripped dossier invented a source symbol");
   return dossierSummary(dossier);
 }
@@ -424,7 +479,7 @@ export async function verifyCrossFormatOperations({
 
 async function findCrossStringOwner(client, messageXrefs) {
   for (const address of messageXrefs) {
-    const candidate = await functionCall(
+    const candidate = await inventoryCall(
       client,
       "resolve_containing_procedure",
       {

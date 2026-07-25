@@ -1046,27 +1046,63 @@ def _serve_connection(connection):
         if not line or len(line) > MAX_LINE_BYTES:
             break
         request_id = None
+        authenticated = False
         should_stop = False
         try:
             request = json.loads(line.decode("utf-8"))
             if set(request) != {"id", "token", "method", "params"}:
                 raise ValueError("Invalid bridge request shape")
             request_id = request["id"]
+            if isinstance(request_id, bool) or not isinstance(request_id, int) or request_id < 0:
+                raise ValueError("Invalid bridge request id")
             if not isinstance(request["token"], str) or not hmac.compare_digest(request["token"], REA_TOKEN):
                 raise PermissionError("Invalid bridge capability")
+            authenticated = True
+            _write_message(file, {"id": request_id, "event": {
+                "type": "progress",
+                "phase": "hopper_bridge",
+                "completed": 0,
+                "total": 1,
+                "message": "Hopper bridge started request",
+            }})
             result = _dispatch(request["method"], request["params"])
             should_stop = request["method"] == "shutdown_document" or (
                 request["method"] == "shutdown" and not result.get("cleanup_required", False)
             )
-            response = {"id": request_id, "result": _json_safe(result)}
+            safe_result = _json_safe(result)
+            _write_message(file, {"id": request_id, "event": {
+                "type": "progress",
+                "phase": "hopper_bridge",
+                "completed": 1,
+                "total": 1,
+                "message": "Hopper bridge completed request",
+                "terminal": True,
+            }})
+            response = {"id": request_id, "result": safe_result}
         except Exception as error:
-            response = {"id": request_id if isinstance(request_id, int) else 0, "error": {"code": -32000, "message": str(error)[:512], "type": _diagnostic_type(error)}}
-        file.write((json.dumps(response, separators=(",", ":")) + "\n").encode("utf-8"))
-        file.flush()
+            diagnostic = _safe_diagnostic(error)
+            if authenticated:
+                _write_message(file, {"id": request_id, "event": {
+                    "type": "diagnostic",
+                    "error": diagnostic,
+                }})
+            response_id = request_id if (
+                isinstance(request_id, int)
+                and not isinstance(request_id, bool)
+                and request_id >= 0
+            ) else 0
+            response = {"id": response_id, "error": diagnostic}
+        _write_message(file, response)
         if should_stop:
             break
     file.close()
     connection.close()
+
+
+def _write_message(file, message):
+    """Write and flush one compact bridge message."""
+    file.write((json.dumps(message, separators=(",", ":")) + "\n").encode("utf-8"))
+    file.flush()
 
 
 def _diagnostic_type(error):
@@ -1077,6 +1113,20 @@ def _diagnostic_type(error):
     if isinstance(error, (ValueError, TypeError, KeyError)):
         return "invalid_request"
     return "bridge_exception"
+
+
+def _safe_diagnostic(error):
+    """Project one exception without retaining provider or credential text."""
+    diagnostic_type = _diagnostic_type(error)
+    if diagnostic_type == "capability_unavailable":
+        message = str(error)[:512]
+    elif diagnostic_type == "authorization":
+        message = "Invalid bridge capability"
+    elif diagnostic_type == "invalid_request":
+        message = "Invalid Hopper bridge request"
+    else:
+        message = "%s: Hopper bridge operation failed" % type(error).__name__[:128]
+    return {"code": -32000, "message": message, "type": diagnostic_type}
 
 
 def _run():

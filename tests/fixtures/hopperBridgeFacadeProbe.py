@@ -2,7 +2,9 @@
 
 import json
 from pathlib import Path
+import socket
 import sys
+import threading
 
 
 class FakeDocument:
@@ -74,6 +76,34 @@ def main():
             "message": str(error),
         }
 
+    bridge["REA_TOKEN"] = "probe-token"
+    bridge["_dispatch"] = lambda method, params: (
+        (_ for _ in ()).throw(RuntimeError("credential=supersecret"))
+        if method == "fail"
+        else params
+    )
+    server_socket, client_socket = socket.socketpair()
+    worker = threading.Thread(
+        target=bridge["_serve_connection"], args=(server_socket,)
+    )
+    worker.start()
+    client_file = client_socket.makefile("rwb")
+    client_file.write(
+        b'{"id":7,"token":"probe-token","method":"fail","params":{}}\n'
+    )
+    client_file.flush()
+    bridge_messages = [
+        json.loads(client_file.readline().decode("utf-8")) for _ in range(3)
+    ]
+    client_file.write(
+        b'{"id":-1,"token":"probe-token","method":"echo","params":{}}\n'
+    )
+    client_file.flush()
+    invalid_id_response = json.loads(client_file.readline().decode("utf-8"))
+    client_file.close()
+    client_socket.close()
+    worker.join(timeout=1)
+
     print(
         json.dumps(
             {
@@ -82,6 +112,8 @@ def main():
                 "current_address": current_address,
                 "session_document": selected,
                 "analysis_guard": analysis_guard,
+                "bridge_messages": bridge_messages,
+                "invalid_id_response": invalid_id_response,
             },
             sort_keys=True,
         )

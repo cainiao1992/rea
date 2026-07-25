@@ -1,5 +1,60 @@
 import { requireFunctionDossierOracle } from "../../dist/application/RealHopperAssertions.js";
 
+/** Require truthful tri-state permissions from real Hopper memory regions. */
+export const requireTruthfulMemoryRegions = (segments) => {
+  if (!Array.isArray(segments) || segments.length === 0) {
+    throw new Error("list_segments returned no real memory regions");
+  }
+  const regions = segments.flatMap((segment) => [
+    segment,
+    ...(Array.isArray(segment.sections) ? segment.sections : []),
+  ]);
+  for (const region of regions) {
+    for (const permission of ["readable", "writable", "executable"]) {
+      if (![true, false, null].includes(region?.[permission])) {
+        throw new Error(`list_segments omitted tri-state ${permission}`);
+      }
+    }
+    if (
+      region.provenance !== "hopper-public-python-api" ||
+      region.permissions?.available !== false ||
+      typeof region.permissions.reason !== "string"
+    ) {
+      throw new Error("list_segments omitted permission provenance");
+    }
+  }
+};
+
+/** Require correlated start and terminal progress from the real bridge. */
+export function requireBridgeProgress(updates) {
+  const messages = updates.map(({ message }) => message);
+  if (
+    !messages.includes("Hopper bridge started request") ||
+    !messages.includes("Hopper bridge completed request")
+  )
+    throw new Error(
+      `The MCP client did not observe correlated Hopper bridge progress: ${JSON.stringify(updates)}`,
+    );
+}
+
+/** Require one sanitized invalid-request diagnostic from the real bridge. */
+export function requireBridgeDiagnostic(chunks) {
+  const diagnostics = chunks
+    .join("")
+    .split("\n")
+    .filter((line) => line.trim().length > 0)
+    .map((line) => JSON.parse(line));
+  if (
+    !diagnostics.some(
+      (diagnostic) =>
+        diagnostic.type === "bridge-diagnostic" &&
+        diagnostic.category === "invalid_request" &&
+        diagnostic.message === "Invalid Hopper bridge request",
+    )
+  )
+    throw new Error("The MCP runtime omitted the correlated Hopper diagnostic");
+}
+
 /** Verify named positive semantics from the source-owned C fixture. */
 export async function verifyRealHopperFixture({
   client,

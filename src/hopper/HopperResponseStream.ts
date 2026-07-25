@@ -1,9 +1,12 @@
-import { parseResponseLine, type HopperResponse } from "./protocol.js";
+import {
+  parseBridgeMessageLine,
+  type HopperBridgeMessage,
+} from "./protocol.js";
 
 const MAX_LINE_BYTES = 10 * 1024 * 1024;
 
 export interface HopperResponseStreamOptions {
-  readonly accept: (response: HopperResponse) => boolean;
+  readonly accept: (message: HopperBridgeMessage) => boolean;
   readonly hasQueued: (id: number) => boolean;
   readonly nextRequestId: () => number;
   readonly abort: (message: string, cause?: Error) => void;
@@ -38,7 +41,7 @@ export class HopperResponseStream {
   }
 
   #acceptLine(line: string): boolean {
-    const parsed = parseResponseLine(line);
+    const parsed = parseBridgeMessageLine(line);
     if (!parsed.ok) {
       this.options.abort(parsed.error.message, parsed.error);
       return false;

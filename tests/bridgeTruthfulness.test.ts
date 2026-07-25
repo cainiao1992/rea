@@ -107,12 +107,6 @@ describe("Hopper bridge truthfulness", () => {
     expect(bridgeSource).toContain("_invalidate_search_inventory(document)");
   });
 
-  it("classifies bridge exceptions without forwarding tracebacks", () => {
-    expect(bridgeSource).toContain("def _diagnostic_type(error):");
-    expect(bridgeSource).toContain('"type": _diagnostic_type(error)');
-    expect(bridgeSource).not.toContain("traceback.format_exc");
-  });
-
   it("stops background analysis and closes the session-owned document", () => {
     expect(bridgeSource).toContain("def _session_document():");
     expect(bridgeSource).toContain("os.path.realpath(REA_TARGET_PATH)");

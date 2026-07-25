@@ -1,3 +1,4 @@
+import type { HopperDiagnosticType } from "../domain/errors.js";
 import type { ProcessCleanupResult } from "../process/ProcessOwnership.js";
 import type { ProviderProcessStopResult } from "../process/ProviderProcess.js";
 import type { BridgeLaunch } from "./BridgeLauncher.js";
@@ -6,6 +7,13 @@ import type { BridgeLaunch } from "./BridgeLauncher.js";
 export type HopperDiagnostic =
   | { readonly type: "launcher-stderr"; readonly bytes: number }
   | { readonly type: "launcher-exit"; readonly code: number | null }
+  | {
+      readonly type: "bridge-diagnostic";
+      readonly request_id: number;
+      readonly code: number;
+      readonly category: HopperDiagnosticType;
+      readonly message: string;
+    }
   | {
       readonly type: "owned-shutdown";
       readonly status: ProviderProcessStopResult["status"];

@@ -14,6 +14,7 @@ import type {
   BridgeSession,
 } from "../src/hopper/BridgeLauncher.js";
 import { HopperClient } from "../src/hopper/HopperClient.js";
+import type { HopperDiagnostic } from "../src/hopper/HopperDiagnostics.js";
 import { LINUX_PRIVATE_DISPLAY_DIAGNOSTIC_PREFIX } from "../src/hopper/LinuxPrivateDisplayDiagnostic.js";
 import { providerCleanupFailure } from "../src/hopper/HopperDiagnostics.js";
 import { cleanupOwnedProcessGroup } from "../src/process/ProcessOwnership.js";
@@ -296,6 +297,8 @@ describe("HopperClient", () => {
   it.each([
     ["malformed", "HopperProtocolError"],
     ["wrong_id", "HopperProtocolError"],
+    ["wrong_event_id", "HopperProtocolError"],
+    ["malformed_event", "HopperProtocolError"],
     ["remote_error", "HopperRemoteError"],
     ["hang", "HopperTimeoutError"],
     ["exit", "HopperProcessError"],
@@ -307,7 +310,15 @@ describe("HopperClient", () => {
   });
 
   it("preserves a sanitized bridge exception diagnostic", async () => {
-    const client = await startClient();
+    const diagnostics: HopperDiagnostic[] = [];
+    const client = new HopperClient({
+      launcher: new FixtureLauncher(),
+      requestTimeoutMs: 100,
+      startupTimeoutMs: 1_000,
+      onDiagnostic: (event) => diagnostics.push(event),
+    });
+    clients.push(client);
+    await expect(client.start()).resolves.toMatchObject({ ok: true });
     const result = await client.callTool("remote_error");
     expect(result.ok).toBe(false);
     if (!result.ok)
@@ -315,6 +326,66 @@ describe("HopperClient", () => {
         _tag: "HopperRemoteError",
         diagnosticType: "bridge_exception",
       });
+    expect(diagnostics).toContainEqual({
+      type: "bridge-diagnostic",
+      request_id: 2,
+      code: -32001,
+      category: "bridge_exception",
+      message: "safe fake failure",
+    });
+  });
+
+  it("forwards correlated Python progress before the terminal response", async () => {
+    const client = await startClient();
+    const updates: Array<{
+      readonly phase: string;
+      readonly completed: number;
+      readonly terminal?: boolean;
+    }> = [];
+    const result = await client.callTool(
+      "echo",
+      { value: "progress" },
+      {
+        progress: {
+          report: (update) => {
+            updates.push(update);
+            return Promise.resolve();
+          },
+        },
+      },
+    );
+
+    expect(result).toEqual({ ok: true, value: { value: "progress" } });
+    expect(updates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          phase: "hopper_bridge",
+          completed: 0,
+        }),
+        expect.objectContaining({
+          phase: "hopper_bridge",
+          completed: 1,
+          terminal: true,
+        }),
+      ]),
+    );
+  });
+
+  it("isolates synchronous progress observer failures from bridge responses", async () => {
+    const client = await startClient();
+    await expect(
+      client.callTool(
+        "echo",
+        { value: "alive" },
+        {
+          progress: {
+            report: () => {
+              throw new Error("observer failed");
+            },
+          },
+        },
+      ),
+    ).resolves.toEqual({ ok: true, value: { value: "alive" } });
   });
 
   it("projects a missing bridge API as typed capability unavailability", async () => {
@@ -459,6 +530,28 @@ describe("HopperClient", () => {
         });
     },
   );
+
+  it("projects actionable CI remediation for Hopper UI, license, and lifecycle failures", async () => {
+    const client = new HopperClient({
+      launcher: new ExitingLauncher(75),
+      startupTimeoutMs: 10_000,
+    });
+    clients.push(client);
+    const result = await client.start();
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    const projected = projectAnalysisError(result.error);
+    expect(projected.message).toContain(
+      "rea doctor --provider hopper --detail full --json",
+    );
+    expect(projected.message).toContain("UI or license prompt");
+    expect(projected.message).toContain("close stale Hopper sessions");
+    expect(projected.details).toMatchObject({
+      failure_code: "hopper_exited_during_startup",
+      exit_code: 75,
+    });
+  });
 
   it("preserves the bounded private-display diagnostic from an adapter exit", async () => {
     const client = new HopperClient({

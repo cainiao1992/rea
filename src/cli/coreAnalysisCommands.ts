@@ -16,6 +16,7 @@ export const registerCoreAnalysisCommands = (
 ): void => {
   registerCoreCommands(cli, logger);
   registerFunctionCommand(cli, logger);
+  registerNativeApiCommand(cli, logger);
   registerInstructionsCommand(cli, logger);
   registerSearchCommand(cli, logger);
   registerXrefsCommand(cli, logger);
@@ -277,6 +278,55 @@ const registerFunctionCommand = (cli: CliInstance, logger: Logger): void => {
             procedure: args.address,
             include_assembly: options.includeAssembly,
             limit: options.limit,
+            max_pseudocode_chars: options.maxPseudocodeChars,
+            max_instructions: options.maxInstructions,
+          },
+          directAnalysisOptions(logger, options.snapshot, options.provider),
+        ),
+      ),
+  });
+};
+
+const registerNativeApiCommand = (cli: CliInstance, logger: Logger): void => {
+  cli.command(CLI_COMMANDS.inspectNativeApi, {
+    description: "Reconstruct one native function API boundary with evidence",
+    args: z.object({
+      path: z.string().describe("App or program path"),
+      address: z.string().describe("Procedure name or address"),
+    }),
+    options: z.object({
+      maxPseudocodeChars: z
+        .number()
+        .int()
+        .min(1)
+        .max(100_000)
+        .default(20_000)
+        .describe("Maximum pseudocode characters to inspect"),
+      maxInstructions: z
+        .number()
+        .int()
+        .min(1)
+        .max(5_000)
+        .default(500)
+        .describe("Maximum assembly instructions to inspect"),
+      snapshot: z
+        .string()
+        .min(1)
+        .optional()
+        .describe("Load and update a local analysis snapshot"),
+      provider: providerSelectionOption,
+    }),
+    alias: {
+      maxPseudocodeChars: "max-pseudocode-chars",
+      maxInstructions: "max-instructions",
+    },
+    run: ({ args, options }) =>
+      logCliCommand(logger, "inspect-native-api", () =>
+        runDirectAnalysis(
+          args.path,
+          "inspect_native_api",
+          {
+            procedure: args.address,
             max_pseudocode_chars: options.maxPseudocodeChars,
             max_instructions: options.maxInstructions,
           },

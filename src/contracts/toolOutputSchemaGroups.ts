@@ -10,6 +10,7 @@ import {
   functionInstructionWindowSchema,
   referenceKindSchema,
 } from "../domain/hopperValues.js";
+import { nativeApiInspectionResultSchema } from "../domain/nativeApiBoundary.js";
 import {
   demangleSwiftSchema,
   inspectMachoSchema,
@@ -272,6 +273,7 @@ export const enhancedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
     }),
   ),
   analyze_function: functionDossierOutput,
+  inspect_native_api: resultOf(nativeApiInspectionResultSchema),
   trace_feature: literalTraceOutput,
   find_code_for_string: literalTraceOutput,
   trace_call_path: callPathTraceOutput,

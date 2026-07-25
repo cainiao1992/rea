@@ -12,6 +12,7 @@ export const CLI_COMMANDS = Object.freeze({
   capabilities: "capabilities",
   providers: "providers",
   function: "function",
+  inspectNativeApi: "inspect-native-api",
   instructions: "instructions",
   search: "search",
   importReferenceSource: "import-reference-source",

@@ -152,7 +152,7 @@ REA 负责第 1–5 步中的二进制分析。第 6 步由智能体使用其常
 | 工具类别          | 数量 | 示例                                                                                                                                                                        |
 | ----------------- | ---: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 二进制检查        |   36 | 过程、伪代码、汇编、字符串、名称、段、调用者、被调用者、交叉引用、注释                                                                                                      |
-| 组合分析          |   12 | `binary_overview`, `analyze_function`, `batch_decompile`, `get_call_graph`, `find_xrefs_to_name`、Swift 与 ObjC 发现                                                        |
+| 组合分析          |   13 | `binary_overview`, `analyze_function`, `inspect_native_api`, `batch_decompile`, `get_call_graph`, `find_xrefs_to_name`、Swift 与 ObjC 发现                                  |
 | macOS 原生工具    |    5 | Mach-O 元数据、代码签名、plist、架构与 Swift 符号还原，无需启动 Hopper                                                                                                      |
 | 制品图谱          |    3 | 确定性目录、ZIP/APK/IPA 与 ASAR 清单，以及显式选择的事务式提取                                                                                                              |
 | Managed PE/CLI    |    8 | PE/CLI 身份、元数据成员、CIL 哈希、P/Invoke/原生边界声明与验证、应用图谱投影、反编译重建导入、结构化 token 重映射、运行时关联计划与跨版本比较                               |

@@ -89,6 +89,7 @@ export const TOOL_EFFECTS: Readonly<Record<string, ToolEffects>> = {
   find_xrefs_to_name: evidence,
   binary_overview: evidence,
   analyze_function: evidence,
+  inspect_native_api: effects({ mutatesSession: true, idempotent: false }),
   trace_feature: effects({ mutatesSession: true, idempotent: false }),
   find_code_for_string: effects({ mutatesSession: true, idempotent: false }),
   trace_call_path: effects({ mutatesSession: true, idempotent: false }),

@@ -4,35 +4,84 @@ import { HopperProtocolError, HopperRemoteError } from "../domain/errors.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 import { err, ok, type Result } from "../domain/result.js";
 
+const remoteErrorSchema = z
+  .object({
+    code: z.number().int(),
+    message: z.string().max(512),
+    type: z
+      .enum([
+        "remote",
+        "authorization",
+        "invalid_request",
+        "capability_unavailable",
+        "bridge_exception",
+      ])
+      .default("remote"),
+  })
+  .strict();
+
 const responseSchema = z.union([
-  z.object({
-    id: z.number().int().nonnegative(),
-    result: jsonValueSchema,
-  }),
-  z.object({
-    id: z.number().int().nonnegative(),
-    error: z.object({
-      code: z.number().int(),
-      message: z.string(),
-      type: z
-        .enum([
-          "remote",
-          "authorization",
-          "invalid_request",
-          "capability_unavailable",
-          "bridge_exception",
-        ])
-        .default("remote"),
-    }),
-  }),
+  z
+    .object({
+      id: z.number().int().nonnegative(),
+      result: jsonValueSchema,
+    })
+    .strict(),
+  z
+    .object({
+      id: z.number().int().nonnegative(),
+      error: remoteErrorSchema,
+    })
+    .strict(),
 ]);
 
-export type HopperResponse = z.infer<typeof responseSchema>;
+const eventSchema = z
+  .object({
+    id: z.number().int().nonnegative(),
+    event: z.discriminatedUnion("type", [
+      z
+        .object({
+          type: z.literal("progress"),
+          phase: z.string().min(1).max(64),
+          completed: z.number().nonnegative().finite(),
+          total: z.number().nonnegative().finite().nullable(),
+          message: z.string().min(1).max(512),
+          terminal: z.boolean().optional(),
+        })
+        .strict(),
+      z
+        .object({
+          type: z.literal("diagnostic"),
+          error: remoteErrorSchema,
+        })
+        .strict(),
+    ]),
+  })
+  .strict()
+  .superRefine((message, context) => {
+    if (
+      message.event.type === "progress" &&
+      message.event.total !== null &&
+      message.event.completed > message.event.total
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Progress total cannot be less than completed",
+        path: ["event", "total"],
+      });
+    }
+  });
 
-/** Parse one complete Hopper NDJSON response line. */
-export const parseResponseLine = (
+const messageSchema = z.union([responseSchema, eventSchema]);
+
+export type HopperResponse = z.infer<typeof responseSchema>;
+export type HopperBridgeEvent = z.infer<typeof eventSchema>;
+export type HopperBridgeMessage = z.infer<typeof messageSchema>;
+
+/** Parse one complete Hopper NDJSON response or event line. */
+export const parseBridgeMessageLine = (
   line: string,
-): Result<HopperResponse, HopperProtocolError> => {
+): Result<HopperBridgeMessage, HopperProtocolError> => {
   let decoded: unknown;
   try {
     decoded = JSON.parse(line);
@@ -42,12 +91,12 @@ export const parseResponseLine = (
     );
   }
 
-  const parsed = responseSchema.safeParse(decoded);
+  const parsed = messageSchema.safeParse(decoded);
   return parsed.success
     ? ok(parsed.data)
     : err(
         new HopperProtocolError(
-          "Hopper returned a response outside the bridge contract",
+          "Hopper returned a message outside the bridge contract",
           { cause: parsed.error },
         ),
       );

@@ -1,8 +1,9 @@
 import { z } from "zod";
 
-import type { JsonValue } from "./jsonValue.js";
+import { jsonValueSchema, type JsonValue } from "./jsonValue.js";
 import { AnalysisOutputError, HopperProtocolError } from "./errors.js";
 import { err, ok, type Result } from "./result.js";
+import { nativeApiBoundarySchema } from "./nativeApiBoundary.js";
 
 export interface AddressedName {
   readonly address: string;
@@ -275,6 +276,7 @@ export const functionDossierSchema = z
     instruction_scan: z
       .object({ scanned: z.number().int().min(0), truncated: z.boolean() })
       .strict(),
+    native_api: nativeApiBoundarySchema.optional(),
     limitations: z.array(z.string()).default([]),
   })
   .strict();
@@ -288,7 +290,7 @@ export const parseFunctionDossier = (
 ): Result<JsonValue, AnalysisOutputError> => {
   const parsed = functionDossierSchema.safeParse(value);
   return parsed.success
-    ? ok(parsed.data)
+    ? ok(jsonValueSchema.parse(parsed.data))
     : err(
         new AnalysisOutputError(
           "analyze_function",

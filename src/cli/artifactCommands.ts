@@ -90,14 +90,16 @@ const registerExtractionCommand = (cli: CliInstance, logger: Logger): void => {
     args: z.object({
       path: z.string().describe("Application or package path"),
       outputRoot: z.string().describe("Absent absolute output root"),
+    }),
+    options: z.object({
       occurrenceIds: z
         .array(z.string().regex(/^occ_[a-f0-9]{64}$/u))
         .min(1)
         .max(500)
         .describe("Exact artifact occurrence IDs selected for extraction"),
     }),
-    alias: { outputRoot: "output-root", occurrenceIds: "occurrence-ids" },
-    run: ({ args }) =>
+    alias: { occurrenceIds: "occurrence-ids" },
+    run: ({ args, options }) =>
       logCliCommand(logger, "extract-artifact", () =>
         runProviderAnalysis(
           args.path,
@@ -105,7 +107,7 @@ const registerExtractionCommand = (cli: CliInstance, logger: Logger): void => {
           {
             approved: true,
             output_root: args.outputRoot,
-            occurrence_ids: args.occurrenceIds,
+            occurrence_ids: options.occurrenceIds,
           },
           logger,
         ),

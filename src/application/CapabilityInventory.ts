@@ -102,6 +102,7 @@ const ENHANCED_REQUIREMENTS: Readonly<Record<string, readonly string[]>> = {
     "list_strings",
   ],
   analyze_function: ["analyze_function"],
+  inspect_native_api: ["analyze_function"],
   trace_feature: [
     "list_strings",
     "list_procedures",

@@ -16,8 +16,11 @@ import { HOPPER_PROVIDER_IDENTITY } from "../dist/hopper/HopperProvider.js";
 import { REA_WORKFLOW_PROVIDER } from "../dist/application/InvestigationProviders.js";
 import { loadRealHopperFixtureTargets } from "./lib/real-hopper-fixture.mjs";
 import {
+  requireBridgeDiagnostic,
+  requireBridgeProgress,
   requireCurrentDocument,
   requireSafeDiagnostics,
+  requireTruthfulMemoryRegions,
   verifyRealHopperFixture,
 } from "./lib/real-hopper-semantic.mjs";
 import {
@@ -97,30 +100,6 @@ const requireOverview = (value, operation) => {
     throw new Error(`${operation} returned no analyzed binary overview`);
   }
   return value;
-};
-
-const requireTruthfulMemoryRegions = (segments) => {
-  if (!Array.isArray(segments) || segments.length === 0) {
-    throw new Error("list_segments returned no real memory regions");
-  }
-  const regions = segments.flatMap((segment) => [
-    segment,
-    ...(Array.isArray(segment.sections) ? segment.sections : []),
-  ]);
-  for (const region of regions) {
-    for (const permission of ["readable", "writable", "executable"]) {
-      if (![true, false, null].includes(region?.[permission])) {
-        throw new Error(`list_segments omitted tri-state ${permission}`);
-      }
-    }
-    if (
-      region.provenance !== "hopper-public-python-api" ||
-      region.permissions?.available !== false ||
-      typeof region.permissions.reason !== "string"
-    ) {
-      throw new Error("list_segments omitted permission provenance");
-    }
-  }
 };
 
 const verifyRelationships = async (client, options, procedure) => {
@@ -312,7 +291,11 @@ try {
     );
   }
 
-  const options = { timeout };
+  const progressUpdates = [];
+  const options = {
+    timeout,
+    onprogress: (update) => progressUpdates.push(update),
+  };
   const fullSessionStatus = () =>
     client.callTool(
       { name: "binary_session", arguments: { detail: "full" } },
@@ -343,6 +326,16 @@ try {
     { name: "list_documents", arguments: {} },
     options,
   );
+  requireBridgeProgress(progressUpdates);
+  const rejectedProcedure = await client.callTool(
+    {
+      name: "procedure_info",
+      arguments: { procedure: "__rea_missing_procedure__" },
+    },
+    options,
+  );
+  if (rejectedProcedure.isError !== true)
+    throw new Error("The real Hopper bridge accepted an unknown procedure");
   const overview = await client.callTool(
     { name: "binary_overview", arguments: {} },
     options,
@@ -435,6 +428,7 @@ try {
     );
   }
   const diagnosticCount = requireSafeDiagnostics(stderrChunks);
+  requireBridgeDiagnostic(stderrChunks);
 
   const closed = await client.callTool(
     { name: "close_binary", arguments: {} },
@@ -460,6 +454,7 @@ try {
     bundledMcpRunning,
     stderrBytes,
     diagnosticCount,
+    bridgeProgressUpdates: progressUpdates.length,
     dynamicSession: true,
     providerBinding,
     targets: [targetA, targetB, largeTarget],

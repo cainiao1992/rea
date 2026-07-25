@@ -1,4 +1,3 @@
-import { parse } from "@babel/parser";
 import * as t from "@babel/types";
 
 import {
@@ -41,6 +40,10 @@ import {
   propertyName,
   range,
 } from "./javascriptStaticAnalysisHelpers.js";
+import {
+  parseJavaScriptSource,
+  type ParsedJavaScriptSource,
+} from "./javascriptSourceParser.js";
 
 interface BindPatternInput {
   readonly pattern: t.Node;
@@ -69,17 +72,18 @@ export const analyzeJavaScriptSemantics = (
   source: string,
   inputLimits: Partial<JavaScriptSemanticLimits> = {},
 ): JavaScriptSemanticIr => {
+  const file = parseJavaScriptSource(source);
+  return file === null
+    ? failedJavaScriptSemanticIr()
+    : analyzeParsedJavaScriptSemantics(file, inputLimits);
+};
+
+/** Recover semantics from an already parsed JavaScript artifact. */
+export const analyzeParsedJavaScriptSemantics = (
+  file: ParsedJavaScriptSource,
+  inputLimits: Partial<JavaScriptSemanticLimits> = {},
+): JavaScriptSemanticIr => {
   const limits = { ...DEFAULT_JAVASCRIPT_SEMANTIC_LIMITS, ...inputLimits };
-  let file: ReturnType<typeof parse>;
-  try {
-    file = parse(source, {
-      sourceType: "unambiguous",
-      errorRecovery: true,
-      plugins: ["jsx", "typescript"],
-    });
-  } catch {
-    return failedJavaScriptSemanticIr();
-  }
   const state = createState(file.program, limits);
   collectDefinitions(file.program, state);
   const references = collectSemanticReferences(file.program, state);

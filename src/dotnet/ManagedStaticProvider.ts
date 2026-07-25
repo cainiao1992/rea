@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 
 import {
@@ -85,6 +86,8 @@ export class ManagedStaticProvider implements AnalysisProvider {
 }
 
 class ManagedStaticClient implements AnalysisClient {
+  #snapshotBytes: Buffer | undefined;
+
   constructor(private readonly target: BinaryTarget) {}
 
   async execute(
@@ -123,11 +126,12 @@ class ManagedStaticClient implements AnalysisClient {
             `Artifact size ${String(metadata.size)} exceeds max_file_bytes ${String(maxFileBytes)}.`,
           ),
         );
-      const bytes = await readFile(
-        this.target.path,
-        options?.signal === undefined ? undefined : { signal: options.signal },
-      );
-      if (bytes.length > maxFileBytes)
+      const snapshot = this.#snapshotBytes;
+      const observed =
+        snapshot === undefined
+          ? await readManagedSnapshot(this.target.path, options?.signal)
+          : await hashManagedSource(this.target.path, options?.signal);
+      if (observed.byteLength > maxFileBytes)
         return err(
           new AnalysisCapabilityUnavailableError(
             IDENTITY.id,
@@ -135,13 +139,16 @@ class ManagedStaticClient implements AnalysisClient {
             `Artifact grew beyond max_file_bytes ${String(maxFileBytes)} while it was read.`,
           ),
         );
-      const observedDigest = createHash("sha256").update(bytes).digest("hex");
-      if (observedDigest !== this.target.sha256)
+      if (observed.sha256 !== this.target.sha256)
         return err(
           new EvidenceIntegrityError(
-            `Managed artifact digest changed after open: expected ${this.target.sha256}, observed ${observedDigest} at ${this.target.path}`,
+            `Managed artifact digest changed after open: expected ${this.target.sha256}, observed ${observed.sha256} at ${this.target.path}`,
           ),
         );
+      const bytes = snapshot ?? observed.bytes;
+      if (bytes === undefined)
+        throw new TypeError("Managed snapshot bytes are unavailable");
+      this.#snapshotBytes = bytes;
       const result = inspectManagedOperation(
         operation,
         parameters,
@@ -164,9 +171,50 @@ class ManagedStaticClient implements AnalysisClient {
   }
 
   close(): Promise<void> {
+    this.#snapshotBytes = undefined;
     return Promise.resolve();
   }
 }
+
+interface ManagedSourceObservation {
+  readonly byteLength: number;
+  readonly sha256: string;
+  readonly bytes?: Buffer;
+}
+
+const readManagedSnapshot = async (
+  path: string,
+  signal?: AbortSignal,
+): Promise<ManagedSourceObservation> => {
+  const bytes = await readFile(
+    path,
+    signal === undefined ? undefined : { signal },
+  );
+  return {
+    byteLength: bytes.length,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    bytes,
+  };
+};
+
+const hashManagedSource = async (
+  path: string,
+  signal?: AbortSignal,
+): Promise<ManagedSourceObservation> => {
+  const digest = createHash("sha256");
+  let byteLength = 0;
+  const stream = createReadStream(
+    path,
+    signal === undefined ? undefined : { signal },
+  );
+  for await (const chunk of stream) {
+    if (!Buffer.isBuffer(chunk))
+      throw new TypeError("Managed source stream returned non-buffer data");
+    byteLength += chunk.length;
+    digest.update(chunk);
+  }
+  return { byteLength, sha256: digest.digest("hex") };
+};
 
 const isManagedOperation = (
   operation: AnalysisOperation,

@@ -3,6 +3,7 @@ import canonicalize from "canonicalize";
 import {
   createEvidenceBundle,
   parseEvidenceBundle,
+  validateResidualUnknownAddition,
   type EvidenceBundle,
 } from "../domain/evidenceBundle.js";
 import {
@@ -216,8 +217,6 @@ export class EvidenceLedger {
     } catch (cause: unknown) {
       return err(new UnknownRegistryError("invalid-transition", { cause }));
     }
-    const pendingRecords = new Map(this.#records);
-    pendingRecords.set(evidence.evidence_id, evidence);
     const existingUnknown = this.#unknownHeads.get(unknown.unknown_id);
     if (existingUnknown !== undefined) {
       if (
@@ -225,20 +224,12 @@ export class EvidenceLedger {
         existingUnknown.revision_digest !== unknown.revision_digest
       )
         return err(new UnknownRegistryError("already-exists"));
-      const checked = this.#validateCandidate(
-        pendingRecords,
-        this.#unknownRevisions,
-      );
+      const checked = this.#appendIncremental([evidence]);
       if (!checked.ok) return checked;
-      this.#commit(pendingRecords, this.#unknownRevisions, checked.value);
       return ok(null);
     }
-    pendingRecords.set(mutation.evidence_id, mutation);
-    const pendingUnknowns = new Map(this.#unknownRevisions);
-    pendingUnknowns.set(unknownRevisionKey(unknown), unknown);
-    const checked = this.#validateCandidate(pendingRecords, pendingUnknowns);
+    const checked = this.#appendIncremental([evidence, mutation], unknown);
     if (!checked.ok) return checked;
-    this.#commit(pendingRecords, pendingUnknowns, checked.value);
     return ok(structuredClone(unknown));
   }
 
@@ -332,14 +323,66 @@ export class EvidenceLedger {
         }),
       );
     }
-    const pendingRecords = new Map(this.#records);
-    pendingRecords.set(mutationEvidence.evidence_id, mutationEvidence);
-    const pendingUnknowns = new Map(this.#unknownRevisions);
-    pendingUnknowns.set(unknownRevisionKey(unknown), unknown);
-    const checked = this.#validateCandidate(pendingRecords, pendingUnknowns);
+    const checked = this.#appendIncremental([mutationEvidence], unknown);
     if (!checked.ok) return checked;
-    this.#commit(pendingRecords, pendingUnknowns, checked.value);
     return ok(structuredClone(unknown));
+  }
+
+  #appendIncremental(
+    records: readonly Evidence[],
+    unknown?: ResidualUnknown,
+  ): Result<
+    void,
+    EvidenceIntegrityError | EvidenceLimitError | UnknownRegistryError
+  > {
+    const additions = new Map<string, Evidence>();
+    let addedBytes = 0;
+    for (const evidence of records) {
+      const existing =
+        additions.get(evidence.evidence_id) ??
+        this.#records.get(evidence.evidence_id);
+      if (existing !== undefined) {
+        if (!recordsAgree(existing, evidence))
+          return err(new EvidenceIntegrityError("Conflicting evidence record"));
+        continue;
+      }
+      additions.set(evidence.evidence_id, evidence);
+      addedBytes += serializedBytes(evidence);
+    }
+    const unknownKey =
+      unknown === undefined ? undefined : unknownRevisionKey(unknown);
+    if (unknownKey !== undefined && this.#unknownRevisions.has(unknownKey))
+      return err(new UnknownRegistryError("integrity"));
+    const unknownBytes = unknown === undefined ? 0 : serializedBytes(unknown);
+    if (
+      this.#exceedsRecordLimit(
+        this.#records.size + additions.size,
+        this.#unknownRevisions.size + (unknown === undefined ? 0 : 1),
+      )
+    )
+      return err(new EvidenceLimitError("records", this.limits.maxRecords));
+    if (this.#bytes + addedBytes + unknownBytes > this.limits.maxBytes)
+      return err(new EvidenceLimitError("bytes", this.limits.maxBytes));
+    if (unknown !== undefined)
+      try {
+        validateResidualUnknownAddition(
+          unknown,
+          {
+            get: (id) => additions.get(id) ?? this.#records.get(id),
+            has: (id) => additions.has(id) || this.#records.has(id),
+          },
+          this.#unknownHeads,
+        );
+      } catch (cause: unknown) {
+        return err(new UnknownRegistryError("integrity", { cause }));
+      }
+    for (const [id, evidence] of additions) this.#records.set(id, evidence);
+    if (unknown !== undefined && unknownKey !== undefined) {
+      this.#unknownRevisions.set(unknownKey, unknown);
+      this.#unknownHeads.set(unknown.unknown_id, unknown);
+    }
+    this.#bytes += addedBytes + unknownBytes;
+    return ok(undefined);
   }
 
   #validateCandidate(

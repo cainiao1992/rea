@@ -62,6 +62,21 @@ const emptySchemaPaths = (value: unknown, path = "$"): string[] => {
 };
 
 describe("tool contract surface", () => {
+  it("reuses finalized advertised schemas", () => {
+    const contract = TOOL_CONTRACTS[0];
+    expect(contract).toBeDefined();
+    if (contract === undefined) return;
+
+    const first = toolRegistrationOptions(contract);
+    const second = toolRegistrationOptions(contract);
+    expect(first.inputSchema["~standard"].jsonSchema.input()).toBe(
+      second.inputSchema["~standard"].jsonSchema.output(),
+    );
+    expect(first.outputSchema["~standard"].jsonSchema.input()).toBe(
+      second.outputSchema["~standard"].jsonSchema.output(),
+    );
+  });
+
   it("gives fallback parameter guidance operational meaning", () => {
     const contract = TOOL_CONTRACTS.find(
       ({ name }) => name === "analyze_function",

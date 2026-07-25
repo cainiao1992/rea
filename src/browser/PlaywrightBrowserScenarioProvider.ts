@@ -29,9 +29,19 @@ import type {
   BrowserScenarioSessionPort,
 } from "./BrowserScenarioSessionPort.js";
 import { BrowserScenarioCaptureBudget } from "./PlaywrightScenarioArtifacts.js";
-import { PlaywrightScenarioSessionFactory } from "./PlaywrightScenarioSession.js";
 
 const OPERATION = "capture_browser_scenario" as const;
+let defaultFactory: Promise<BrowserScenarioSessionFactory> | undefined;
+
+const lazyPlaywrightFactory: BrowserScenarioSessionFactory = {
+  async open(scenario, options) {
+    defaultFactory ??= import("./PlaywrightScenarioSession.js").then(
+      ({ PlaywrightScenarioSessionFactory }) =>
+        new PlaywrightScenarioSessionFactory(),
+    );
+    return (await defaultFactory).open(scenario, options);
+  },
+};
 
 export const PLAYWRIGHT_BROWSER_SCENARIO_PROVIDER_IDENTITY: ProviderIdentity =
   Object.freeze({
@@ -353,7 +363,7 @@ export class PlaywrightBrowserScenarioProvider
   implements BrowserScenarioCapturePort
 {
   constructor(
-    private readonly factory: BrowserScenarioSessionFactory = new PlaywrightScenarioSessionFactory(),
+    private readonly factory: BrowserScenarioSessionFactory = lazyPlaywrightFactory,
   ) {}
 
   identity(): ProviderIdentity {

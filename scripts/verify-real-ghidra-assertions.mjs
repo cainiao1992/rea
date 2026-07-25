@@ -67,6 +67,29 @@ export function assertDossier(
   assertDossierMultiBlock(dossier, requireMultiBlock);
 }
 
+export function assertDenseSwitchDossier(dossier, address) {
+  assertDossier(dossier, {
+    address,
+    requireAssembly: true,
+    requireMultiBlock: true,
+  });
+  const truncated = dossier.native_api.jump_tables.find(
+    ({ mappings_truncated: mappingsTruncated }) => mappingsTruncated,
+  );
+  if (
+    truncated === undefined ||
+    truncated.mappings.length !== 32 ||
+    truncated.mappings.some(
+      ({ target_address: target, evidence }) =>
+        !/^0x[0-9a-f]+$/u.test(target) ||
+        !evidence.some(({ kind }) => kind === "jump-table"),
+    )
+  )
+    throw new Error(
+      `Ghidra dense jump-table truncation drifted: ${JSON.stringify(dossier.native_api.jump_tables)}`,
+    );
+}
+
 function assertNativeApiBoundary(observed, requireJumpTable) {
   if (
     observed?.available !== true ||

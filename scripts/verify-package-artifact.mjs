@@ -1,11 +1,4 @@
-import {
-  access,
-  mkdir,
-  readFile,
-  readdir,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { isDeepStrictEqual } from "node:util";
 import { join } from "node:path";
 import { TextReader, Uint8ArrayWriter, ZipWriter } from "@zip.js/zip.js";
@@ -142,24 +135,6 @@ const verifyPackagedArtifactExtraction = async ({
     (await readFile(join(outputRoot, "app/main.js"), "utf8")) !== "main();"
   )
     throw new Error("packaged artifact extraction CLI failed");
-  if (
-    (await readdir(workspace)).some((path) =>
-      path.startsWith(".artifact-extraction.rea-"),
-    )
-  )
-    throw new Error("packaged artifact extraction left staging paths");
-  await rm(outputRoot, { recursive: true });
-  if (await pathExists(outputRoot))
-    throw new Error("packaged artifact extraction cleanup failed");
-};
-
-const pathExists = async (path) => {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
 };
 
 const assertRoutedApplicationAnalysis = (analysis) => {

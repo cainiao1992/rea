@@ -233,6 +233,8 @@ export class HopperProvider implements AnalysisProviderCandidate {
       }),
       ...(context === undefined ? {} : { runId: context.runId }),
       logger: this.logger.child({ layer: "bridge" }),
+      onDiagnostic: (diagnostic) =>
+        this.logger.info(diagnostic, "Hopper bridge reported a diagnostic"),
     });
     return {
       execute: async (operation, parameters, options) => {

@@ -29,46 +29,9 @@ const INSTALL = "/opt/ghidra_12.1.2_PUBLIC";
 
 describe("Ghidra MCP and shared CLI composition", () => {
   it("preserves provider evidence, composed parity, and capability routing", async () => {
-    const calls: GhidraOperation[] = [];
-    const factory: GhidraProviderClientFactory = (options) => ({
-      start: () =>
-        Promise.resolve(
-          ok(sessionInfo(options.profileDigest, options.targetSha256)),
-        ),
-      callTool: (operation, input) => {
-        calls.push(operation);
-        return Promise.resolve(ok(resultFor(operation, input)));
-      },
-      close: () => Promise.resolve(),
-    });
-    const config = parseConfig({ GHIDRA_INSTALL_DIR: INSTALL });
-    if (!config.ok) throw config.error;
-    const provider = new GhidraProvider(
-      config.value,
-      silentLogger,
-      installationHost(),
-      factory,
-    );
-    const session = new BinarySession(
-      SessionProviderRouter.selectable(
-        new AnalysisProviderRegistry([provider]),
-        [],
-      ),
-    );
-    const server = createServer(session, session, { logger: silentLogger });
-    const mcp = new Client({ name: "ghidra-parity", version: "1.0.0" });
-    const [clientTransport, serverTransport] =
-      InMemoryTransport.createLinkedPair();
-
+    const harness = await connectGhidraMcp("ghidra-parity");
+    const { calls, mcp, session } = harness;
     try {
-      await server.connect(serverTransport);
-      await mcp.connect(clientTransport);
-      const opened = await mcp.callTool({
-        name: "open_binary",
-        arguments: { path: process.execPath },
-      });
-      expect(opened.isError).not.toBe(true);
-
       const listed = sessionEvidence(
         session,
         (
@@ -269,11 +232,146 @@ describe("Ghidra MCP and shared CLI composition", () => {
         },
       });
     } finally {
-      await Promise.allSettled([mcp.close(), server.close()]);
-      await session.close();
+      await harness.close();
+    }
+  }, 10_000);
+
+  it("records approved native API truncation once and links its evidence", async () => {
+    const harness = await connectGhidraMcp("ghidra-native-api");
+    const { mcp, session } = harness;
+    try {
+      const unapprovedInspection = sessionEvidence(
+        session,
+        (
+          await mcp.callTool({
+            name: "inspect_native_api",
+            arguments: { procedure: "fixture_truncated" },
+          })
+        ).structuredContent,
+      );
+      expect(unapprovedInspection.normalized_result).toMatchObject({
+        boundary: {
+          available: true,
+          jump_tables: [{ mappings_truncated: true }],
+        },
+        residual_unknowns: [
+          expect.stringContaining("additional data sources or targets"),
+        ],
+      });
+      expect(
+        (
+          await mcp.callTool({
+            name: "list_unknowns",
+            arguments: {},
+          })
+        ).structuredContent,
+      ).toMatchObject({ result: [] });
+
+      const approvedInspection = sessionEvidence(
+        session,
+        (
+          await mcp.callTool({
+            name: "inspect_native_api",
+            arguments: {
+              procedure: "fixture_truncated",
+              unknown_registry_approved: true,
+            },
+          })
+        ).structuredContent,
+      );
+      await mcp.callTool({
+        name: "inspect_native_api",
+        arguments: {
+          procedure: "fixture_truncated",
+          unknown_registry_approved: true,
+        },
+      });
+      expect(
+        (
+          await mcp.callTool({
+            name: "list_unknowns",
+            arguments: {},
+          })
+        ).structuredContent,
+      ).toMatchObject({
+        result: [
+          {
+            status: "open",
+            domain: "native-api",
+            question: expect.stringContaining(
+              "additional data sources or targets",
+            ),
+            supporting_evidence_ids: [approvedInspection.evidence_id],
+            recommended_probes: [
+              {
+                operation: "inspect_native_api",
+                rationale: expect.stringContaining("ABI probe"),
+              },
+            ],
+          },
+        ],
+      });
+    } finally {
+      await harness.close();
     }
   }, 10_000);
 });
+
+const connectGhidraMcp = async (name: string) => {
+  const calls: GhidraOperation[] = [];
+  const factory: GhidraProviderClientFactory = (options) => ({
+    start: () =>
+      Promise.resolve(
+        ok(sessionInfo(options.profileDigest, options.targetSha256)),
+      ),
+    callTool: (operation, input) => {
+      calls.push(operation);
+      return Promise.resolve(ok(resultFor(operation, input)));
+    },
+    close: () => Promise.resolve(),
+  });
+  const config = parseConfig({ GHIDRA_INSTALL_DIR: INSTALL });
+  if (!config.ok) throw config.error;
+  const provider = new GhidraProvider(
+    config.value,
+    silentLogger,
+    installationHost(),
+    factory,
+  );
+  const session = new BinarySession(
+    SessionProviderRouter.selectable(
+      new AnalysisProviderRegistry([provider]),
+      [],
+    ),
+  );
+  const server = createServer(session, session, { logger: silentLogger });
+  const mcp = new Client({ name, version: "1.0.0" });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  const close = async () => {
+    await Promise.allSettled([mcp.close(), server.close()]);
+    await session.close();
+  };
+  try {
+    await server.connect(serverTransport);
+    await mcp.connect(clientTransport);
+    const opened = await mcp.callTool({
+      name: "open_binary",
+      arguments: { path: process.execPath },
+    });
+    if (opened.isError === true)
+      throw new Error("The Ghidra MCP harness could not open its target");
+  } catch (cause: unknown) {
+    await close();
+    throw cause;
+  }
+  return {
+    calls,
+    mcp,
+    session,
+    close,
+  };
+};
 
 const sessionEvidence = (session: BinarySession, value: unknown) => {
   if (
@@ -453,7 +551,11 @@ const resultBuilders = new Map<GhidraOperation, GhidraResultBuilder>([
   ["xrefs", () => ["0x401001"]],
   [
     "analyze_function",
-    (input, _limit) => ghidraFunctionDossier(input.include_assembly === true),
+    (input, _limit) =>
+      ghidraFunctionDossier(
+        input.include_assembly === true,
+        input.procedure === "fixture_truncated",
+      ),
   ],
 ]);
 

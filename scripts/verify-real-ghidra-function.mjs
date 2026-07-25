@@ -8,6 +8,7 @@ import {
 } from "../dist/ghidra/GhidraInventoryValues.js";
 
 import {
+  assertDenseSwitchDossier,
   assertDossier,
   assertLocalProcedureInfo,
   assertProviderText,
@@ -58,6 +59,10 @@ export async function verifyDebugFunctionOperations(
   const switchProcedure = requireProcedure(
     procedures,
     "rea_ghidra_inventory_switch",
+  );
+  const denseSwitchProcedure = requireProcedure(
+    procedures,
+    "rea_ghidra_inventory_dense_switch",
   );
   const main = requireProcedure(procedures, "main");
   const entryString = strings.find(
@@ -111,6 +116,14 @@ export async function verifyDebugFunctionOperations(
   const branchDossier = await analyzeBranchDossier(client, branch);
   const indirectDossier = await analyzeIndirectDossier(client, indirect);
   const switchDossier = await analyzeSwitchDossier(client, switchProcedure);
+  const denseSwitchDossier = await functionCall(client, "analyze_function", {
+    procedure: denseSwitchProcedure.address,
+    include_assembly: true,
+    limit: 500,
+    max_pseudocode_chars: 100_000,
+    max_instructions: 5_000,
+  });
+  assertDenseSwitchDossier(denseSwitchDossier, denseSwitchProcedure.address);
   assertIndirectDossier(indirectDossier, leaf.address);
 
   const { cancellation, timeout } = await verifyRequestCancellationAndTimeout(
@@ -124,6 +137,7 @@ export async function verifyDebugFunctionOperations(
     branch: dossierSummary(branchDossier),
     indirect: dossierSummary(indirectDossier),
     switch: dossierSummary(switchDossier),
+    dense_switch: dossierSummary(denseSwitchDossier),
     instruction_window: {
       returned: instructionWindow.instructions.returned,
       truncated: instructionWindow.instructions.truncated,

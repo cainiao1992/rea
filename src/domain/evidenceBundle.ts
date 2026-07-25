@@ -239,7 +239,7 @@ const validateUnknownGraph = (
 
 const validateVerifiedResolution = (
   unknown: ResidualUnknown,
-  evidenceById: ReadonlyMap<string, Evidence>,
+  evidenceById: Pick<ReadonlyMap<string, Evidence>, "get">,
 ): void => {
   if (unknown.contradicting_evidence_ids.length > 0)
     throw new TypeError(
@@ -258,6 +258,78 @@ const validateVerifiedResolution = (
     throw new TypeError(
       `Residual unknown ${unknown.unknown_id} has no qualifying resolution evidence`,
     );
+};
+
+/**
+ * Validate one new residual-unknown revision against an already valid ledger.
+ * This keeps ordinary mutations proportional to the affected revision while
+ * full bundle imports continue to validate the complete graph.
+ */
+export const validateResidualUnknownAddition = (
+  unknown: ResidualUnknown,
+  evidenceById: Pick<ReadonlyMap<string, Evidence>, "get" | "has">,
+  currentHeads: ReadonlyMap<string, ResidualUnknown>,
+): void => {
+  const current = currentHeads.get(unknown.unknown_id);
+  if (
+    current === undefined
+      ? unknown.revision !== 1 || unknown.previous_revision_digest !== null
+      : unknown.revision !== current.revision + 1 ||
+        unknown.previous_revision_digest !== current.revision_digest
+  )
+    throw new TypeError(
+      `Residual unknown ${unknown.unknown_id} revision chain is broken`,
+    );
+  for (const evidenceId of referencedEvidenceIds(unknown))
+    if (!evidenceById.has(evidenceId))
+      throw new TypeError(
+        `Residual unknown references missing evidence ${evidenceId}`,
+      );
+  for (const relationship of unknown.relationships)
+    if (
+      relationship.unknown_id !== unknown.unknown_id &&
+      !currentHeads.has(relationship.unknown_id)
+    )
+      throw new TypeError(
+        `Residual unknown references missing unknown ${relationship.unknown_id}`,
+      );
+  if (unknown.resolution?.disposition === "verified")
+    validateVerifiedResolution(unknown, evidenceById);
+  for (const relationship of unknown.relationships)
+    if (
+      relationship.type === "depends-on" &&
+      reachesUnknown(
+        relationship.unknown_id,
+        unknown.unknown_id,
+        currentHeads,
+        unknown,
+      )
+    )
+      throw new TypeError("Residual unknown dependency graph contains a cycle");
+};
+
+const reachesUnknown = (
+  start: string,
+  goal: string,
+  currentHeads: ReadonlyMap<string, ResidualUnknown>,
+  candidate: ResidualUnknown,
+): boolean => {
+  const pending = [start];
+  const visited = new Set<string>();
+  while (pending.length > 0) {
+    const id = pending.pop();
+    if (id === undefined) break;
+    if (id === goal) return true;
+    if (visited.has(id)) continue;
+    visited.add(id);
+    const unknown =
+      id === candidate.unknown_id ? candidate : currentHeads.get(id);
+    if (unknown === undefined) continue;
+    for (const relationship of unknown.relationships)
+      if (relationship.type === "depends-on")
+        pending.push(relationship.unknown_id);
+  }
+  return false;
 };
 
 const evidenceQualifies = (

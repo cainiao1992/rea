@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.5.1](https://github.com/morluto/rea/compare/rea-agents-2.5.0...rea-agents-2.5.1) (2026-07-25)
+
+
+### Bug Fixes
+
+* **ci:** normalize generated release metadata ([d43a461](https://github.com/morluto/rea/commit/d43a461958c7bef56a61f75d7f7da73b43e7c387))
+* **ci:** normalize release pull request metadata ([119954c](https://github.com/morluto/rea/commit/119954c701533491ccbc4de649592e059f3f5d39))
+
+
+### Performance Improvements
+
+* **browser:** lazy-load Playwright sessions ([305e729](https://github.com/morluto/rea/commit/305e72995bd52caee7ad8b42aae531b8924e7d0d))
+* **dotnet:** reuse authenticated artifact snapshots ([c5e8871](https://github.com/morluto/rea/commit/c5e8871bda737c52d6b09303f9c95e225bf845f2))
+* eliminate repeated work in analysis hot paths ([fbe442b](https://github.com/morluto/rea/commit/fbe442b1e2395b93d1bffa2c192ea5ac9a0fab34))
+* **evidence:** validate ledger mutations incrementally ([809dfbf](https://github.com/morluto/rea/commit/809dfbfe4868478bf62be40e5f9db35d1b52f6be))
+* **javascript:** reuse parsed source across analyses ([adc4852](https://github.com/morluto/rea/commit/adc4852f3aea5bd2847ce9efb53fe43ad030dde6))
+* **server:** cache advertised JSON schemas ([6743644](https://github.com/morluto/rea/commit/674364443dc12b89fe6444fdfb364f1b53086f90))
+
 ## [2.5.0](https://github.com/morluto/rea/compare/rea-agents-2.4.0...rea-agents-2.5.0) (2026-07-24)
 
 

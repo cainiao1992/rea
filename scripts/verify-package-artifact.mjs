@@ -1,4 +1,12 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { isDeepStrictEqual } from "node:util";
 import { join } from "node:path";
 import { TextReader, Uint8ArrayWriter, ZipWriter } from "@zip.js/zip.js";
 
@@ -21,12 +29,30 @@ export async function verifyPackageArtifactAndElectron({
       environment,
     ),
   );
+  const repeatedArtifactInventory = json(
+    await run(
+      cli,
+      ["inventory-artifact", artifactArchive, "--limit", "500", "--json"],
+      environment,
+    ),
+  );
   if (
     artifactInventory.operation !== "inventory_artifact" ||
     artifactInventory.provider?.id !== "rea-artifact-graph" ||
-    artifactInventory.normalized_result?.manifest?.root_format !== "zip"
+    artifactInventory.normalized_result?.manifest?.root_format !== "zip" ||
+    !sameArtifactIdentity(
+      artifactInventory.normalized_result,
+      repeatedArtifactInventory.normalized_result,
+    )
   )
     throw new Error("packaged artifact inventory CLI failed");
+  await verifyPackagedArtifactExtraction({
+    artifactArchive,
+    artifactInventory,
+    cli,
+    environment,
+    workspace,
+  });
   const applicationRoot = join(workspace, "electron-app");
   await mkdir(applicationRoot);
   await writeFile(
@@ -72,6 +98,69 @@ export async function verifyPackageArtifactAndElectron({
 
   return { artifactArchive };
 }
+
+const sameArtifactIdentity = (left, right) =>
+  isDeepStrictEqual(left?.manifest, right?.manifest) &&
+  isDeepStrictEqual(left?.nodes?.items, right?.nodes?.items) &&
+  isDeepStrictEqual(left?.occurrences?.items, right?.occurrences?.items) &&
+  isDeepStrictEqual(left?.edges?.items, right?.edges?.items);
+
+const verifyPackagedArtifactExtraction = async ({
+  artifactArchive,
+  artifactInventory,
+  cli,
+  environment,
+  workspace,
+}) => {
+  const occurrence =
+    artifactInventory.normalized_result?.occurrences?.items?.find(
+      ({ logical_path: path }) => path === "app/main.js",
+    );
+  if (occurrence?.occurrence_id === undefined)
+    throw new Error("packaged artifact inventory omitted the selected member");
+  const outputRoot = join(workspace, "artifact-extraction");
+  const extraction = json(
+    await run(
+      cli,
+      [
+        "extract-artifact",
+        artifactArchive,
+        outputRoot,
+        "--occurrence-ids",
+        occurrence.occurrence_id,
+        "--json",
+      ],
+      environment,
+    ),
+  );
+  if (
+    extraction.operation !== "extract_artifact" ||
+    extraction.provider?.id !== "rea-artifact-graph" ||
+    extraction.normalized_result?.containment_verified !== true ||
+    extraction.normalized_result?.artifacts?.items?.[0]?.relative_path !==
+      "app/main.js" ||
+    (await readFile(join(outputRoot, "app/main.js"), "utf8")) !== "main();"
+  )
+    throw new Error("packaged artifact extraction CLI failed");
+  if (
+    (await readdir(workspace)).some((path) =>
+      path.startsWith(".artifact-extraction.rea-"),
+    )
+  )
+    throw new Error("packaged artifact extraction left staging paths");
+  await rm(outputRoot, { recursive: true });
+  if (await pathExists(outputRoot))
+    throw new Error("packaged artifact extraction cleanup failed");
+};
+
+const pathExists = async (path) => {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 const assertRoutedApplicationAnalysis = (analysis) => {
   if (

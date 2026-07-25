@@ -11,6 +11,7 @@ import {
   jsonValueSchema,
   type JsonValue,
 } from "../domain/jsonValue.js";
+import { nativeApiBoundarySchema } from "../domain/nativeApiBoundary.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
   ghidraBoundedIdentifierSchema,
@@ -220,8 +221,40 @@ const procedureInfo = z
   })
   .strict();
 
-const ghidraFunctionDossier = functionDossierSchema.superRefine(
+const ghidraNativeApiBoundary = nativeApiBoundarySchema.superRefine(
   (value, context) => {
+    if (!value.available) return;
+    if (value.provenance !== "ghidra-high-function")
+      context.addIssue({
+        code: "custom",
+        message:
+          "Ghidra native API observations require HighFunction provenance",
+      });
+    const addresses = value.jump_tables.flatMap((table) => [
+      table.dispatch_address,
+      ...table.data_sources.map(({ address }) => address),
+      ...table.mappings.flatMap(({ target_address, data_addresses }) => [
+        target_address,
+        ...data_addresses,
+      ]),
+    ]);
+    if (
+      addresses.some(
+        (address) => !ghidraCanonicalAddressSchema.safeParse(address).success,
+      )
+    )
+      context.addIssue({
+        code: "custom",
+        message:
+          "Ghidra native API observation contains a non-canonical address",
+      });
+  },
+);
+
+const ghidraFunctionDossier = functionDossierSchema
+  .extend({ native_api: ghidraNativeApiBoundary })
+  .strict()
+  .superRefine((value, context) => {
     const addresses = [
       value.procedure.address,
       ...value.comments.items.map(({ address }) => address),
@@ -288,8 +321,7 @@ const ghidraFunctionDossier = functionDossierSchema.superRefine(
         code: "custom",
         message: "Ghidra dossier omitted required uncertainty limitations",
       });
-  },
-);
+  });
 const ghidraFunctionInstructionWindow = functionInstructionWindowSchema
   .extend({ procedure: procedureIdentity })
   .strict();

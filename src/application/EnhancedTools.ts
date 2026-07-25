@@ -1,3 +1,5 @@
+import type { z } from "zod";
+
 import type {
   AnalysisOperation,
   AnalysisOperationPort,
@@ -12,6 +14,7 @@ import {
 } from "../domain/errors.js";
 import {
   addressDistance,
+  functionDossierSchema,
   parseDocuments,
   parseFunctionDossier,
   parseListCount,
@@ -25,7 +28,7 @@ import {
   discoverObjcProtocols,
   discoverSwiftClasses,
 } from "../domain/symbolAnalysis.js";
-import type { JsonValue } from "../domain/jsonValue.js";
+import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 
 import {
   invalidEnhancedInput,
@@ -35,6 +38,7 @@ import {
 import { readAllAddressed } from "./EnhancedToolPagination.js";
 import { traceCallPath } from "./CallPathTracing.js";
 import { traceLiteralFeature } from "./EnhancedLiteralTracing.js";
+import { projectNativeApiInspection } from "./NativeApiInspection.js";
 export type { ValidatedEnhancedCall } from "./EnhancedToolTypes.js";
 
 /**
@@ -57,6 +61,8 @@ export class EnhancedTools {
       name === "trace_call_path"
     )
       return this.#executeTracing(name, input, signal);
+    if (name === "analyze_function" || name === "inspect_native_api")
+      return this.#executeFunctionAnalysis(name, input, signal);
     switch (name) {
       case "swift_classes": {
         const parsed = enhancedInputSchemas.swift_classes.safeParse(input);
@@ -98,12 +104,6 @@ export class EnhancedTools {
           ? this.executeValidated({ name, input: parsed.data }, signal)
           : invalidEnhancedInput(name, parsed.error);
       }
-      case "analyze_function": {
-        const parsed = enhancedInputSchemas.analyze_function.safeParse(input);
-        return parsed.success
-          ? this.executeValidated({ name, input: parsed.data }, signal)
-          : invalidEnhancedInput(name, parsed.error);
-      }
     }
   }
 
@@ -131,6 +131,8 @@ export class EnhancedTools {
         return this.#binaryOverview(call.input, signal);
       case "analyze_function":
         return this.#analyzeFunction(call.input, signal);
+      case "inspect_native_api":
+        return this.#inspectNativeApi(call.input, signal);
       case "trace_feature":
         return traceLiteralFeature(
           (name, arguments_, operationSignal) =>
@@ -181,12 +183,54 @@ export class EnhancedTools {
     );
   }
 
+  #executeFunctionAnalysis(
+    name: "analyze_function" | "inspect_native_api",
+    input: unknown,
+    signal?: AbortSignal,
+  ): EnhancedResult {
+    const parsed = enhancedInputSchemas[name].safeParse(input);
+    if (!parsed.success) return invalidEnhancedInput(name, parsed.error);
+    if (name === "analyze_function")
+      return this.executeValidated(
+        {
+          name,
+          input: enhancedInputSchemas.analyze_function.parse(parsed.data),
+        },
+        signal,
+      );
+    return this.executeValidated(
+      {
+        name,
+        input: enhancedInputSchemas.inspect_native_api.parse(parsed.data),
+      },
+      signal,
+    );
+  }
+
   async #analyzeFunction(
     input: Readonly<Record<string, JsonValue>>,
     signal?: AbortSignal,
   ): EnhancedResult {
     const result = await this.#call("analyze_function", input, signal);
     return result.ok ? parseFunctionDossier(result.value) : result;
+  }
+
+  async #inspectNativeApi(
+    input: z.output<typeof enhancedInputSchemas.inspect_native_api>,
+    signal?: AbortSignal,
+  ): EnhancedResult {
+    const analysisInput = enhancedInputSchemas.analyze_function.parse({
+      procedure: input.procedure,
+      include_assembly: true,
+      max_pseudocode_chars: input.max_pseudocode_chars,
+      max_instructions: input.max_instructions,
+    });
+    const result = await this.#call("analyze_function", analysisInput, signal);
+    if (!result.ok) return result;
+    const parsed = parseFunctionDossier(result.value);
+    if (!parsed.ok) return parsed;
+    const dossier = functionDossierSchema.parse(parsed.value);
+    return ok(jsonValueSchema.parse(projectNativeApiInspection(dossier)));
   }
 
   async #swiftClasses(pattern: string, signal?: AbortSignal): EnhancedResult {

@@ -55,14 +55,65 @@ export function assertDossier(
     expectedString = null,
     requireAssembly = false,
     requireMultiBlock = false,
+    requireJumpTable = false,
   },
 ) {
   assertDossierProcedure(dossier, address);
+  assertNativeApiBoundary(dossier.native_api, requireJumpTable);
   assertDossierReferences(dossier);
   assertDossierCallees(dossier, expectedCallees);
   assertDossierStrings(dossier, expectedString);
   assertDossierAssembly(dossier, requireAssembly);
   assertDossierMultiBlock(dossier, requireMultiBlock);
+}
+
+function assertNativeApiBoundary(observed, requireJumpTable) {
+  if (
+    observed?.available !== true ||
+    observed.provenance !== "ghidra-high-function" ||
+    observed.parameters_truncated !== false ||
+    observed.jump_tables_truncated !== false ||
+    !["low", "medium", "high"].includes(observed.return_type?.confidence) ||
+    !observed.return_type?.evidence?.some(
+      ({ source }) => source === "ghidra-high-function",
+    ) ||
+    observed.pseudocode?.classification !== "decompiler-generated-non-source" ||
+    observed.pseudocode.compilable !== false ||
+    !observed.decompiler_artifacts?.includes("pointer-arithmetic")
+  )
+    throw new Error(
+      `Ghidra native API boundary drifted: ${JSON.stringify(observed)}`,
+    );
+  if (!requireJumpTable) return;
+  if (
+    observed.jump_tables.length === 0 ||
+    !observed.jump_tables.some(
+      ({
+        data_sources: sources,
+        data_sources_truncated: sourcesTruncated,
+        mappings,
+        mappings_truncated: mappingsTruncated,
+      }) =>
+        !sourcesTruncated &&
+        !mappingsTruncated &&
+        sources.length > 0 &&
+        sources.every(
+          ({ address, evidence }) =>
+            /^0x[0-9a-f]+$/u.test(address) &&
+            evidence.some(({ kind }) => kind === "jump-table"),
+        ) &&
+        mappings.length > 0 &&
+        mappings.every(
+          ({ target_address: target, data_addresses: addresses, evidence }) =>
+            /^0x[0-9a-f]+$/u.test(target) &&
+            addresses.every((address) => /^0x[0-9a-f]+$/u.test(address)) &&
+            evidence.some(({ kind }) => kind === "jump-table"),
+        ),
+    )
+  )
+    throw new Error(
+      `Ghidra jump-table evidence drifted: ${JSON.stringify(observed.jump_tables)}`,
+    );
 }
 
 function assertDossierProcedure(dossier, address) {
@@ -144,6 +195,14 @@ export function dossierSummary(dossier) {
     outgoing_references: dossier.outgoing_references.returned,
     referenced_strings: dossier.referenced_strings.returned,
     basic_blocks: dossier.basic_blocks.returned,
+    native_parameters:
+      dossier.native_api.available === true
+        ? dossier.native_api.parameters.length
+        : null,
+    jump_tables:
+      dossier.native_api.available === true
+        ? dossier.native_api.jump_tables.length
+        : null,
   };
 }
 
@@ -189,12 +248,15 @@ export async function assertCleanup(coordinates) {
 }
 
 export function assertDebugFixture(observed) {
+  const expectedDocument = `target-${observed.target.sha256.slice(0, 12)}.bin`;
   if (
     !Array.isArray(observed.documents) ||
     observed.documents.length !== 1 ||
-    !observed.documents[0].includes("debug")
+    observed.documents[0] !== expectedDocument
   )
-    throw new Error("Ghidra did not expose exactly one debug Program identity");
+    throw new Error(
+      `Ghidra did not expose the digest-bound debug Program identity ${expectedDocument}: ${JSON.stringify(observed.documents)}`,
+    );
   const entry = findValue(observed.procedures, "rea_ghidra_inventory_entry");
   const leaf = findValue(observed.procedures, "rea_ghidra_inventory_leaf");
   const external = observed.procedures.find(

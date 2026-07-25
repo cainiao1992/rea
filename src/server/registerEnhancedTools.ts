@@ -223,6 +223,12 @@ const ENHANCED_INPUT_PARSERS: {
       input,
       "analyze_function",
     ),
+  inspect_native_api: (input) =>
+    safeParseToolInput(
+      enhancedInputSchemas.inspect_native_api,
+      input,
+      "inspect_native_api",
+    ),
   trace_feature: (input) =>
     safeParseToolInput(
       enhancedInputSchemas.trace_feature,
@@ -293,6 +299,11 @@ const parseEnhancedCall = (
         ENHANCED_INPUT_PARSERS.analyze_function(input),
         (value) => ({ name, input: value }),
       );
+    case "inspect_native_api":
+      return mapEnhancedCall(
+        ENHANCED_INPUT_PARSERS.inspect_native_api(input),
+        (value) => ({ name, input: value }),
+      );
     case "trace_feature":
       return mapEnhancedCall(
         ENHANCED_INPUT_PARSERS.trace_feature(input),
@@ -335,9 +346,12 @@ const recordWorkflowUnknowns = ({
   | ReturnType<BinarySessionPort["recordUnknown"]>
   | { readonly ok: true; readonly value: null } => {
   if (
-    !["trace_feature", "find_code_for_string", "trace_call_path"].includes(
-      name,
-    ) ||
+    ![
+      "trace_feature",
+      "find_code_for_string",
+      "trace_call_path",
+      "inspect_native_api",
+    ].includes(name) ||
     input.unknown_registry_approved !== true ||
     recordUnknown === undefined ||
     typeof result !== "object" ||
@@ -352,7 +366,7 @@ const recordWorkflowUnknowns = ({
       approved: true,
       question,
       severity: "medium",
-      domain: "control-flow",
+      domain: name === "inspect_native_api" ? "native-api" : "control-flow",
       supporting_evidence_ids: [evidenceId],
       contradicting_evidence_ids: [],
       required_authority: "shipped-artifact",
@@ -361,7 +375,10 @@ const recordWorkflowUnknowns = ({
       recommended_probes: [
         {
           operation: name,
-          rationale: "Continue with a larger bounded budget.",
+          rationale:
+            name === "inspect_native_api"
+              ? "Confirm the unsupported boundary with a capable provider or ABI probe."
+              : "Continue with a larger bounded budget.",
         },
       ],
       relationships: [],

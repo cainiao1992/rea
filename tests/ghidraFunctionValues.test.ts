@@ -13,6 +13,7 @@ import {
   ghidraFunctionClassification,
   ghidraFunctionDossier,
   ghidraFunctionIdentity,
+  ghidraNativeApiBoundary,
   ghidraReferenceEdge,
 } from "./fixtures/ghidraFunction.js";
 
@@ -153,7 +154,35 @@ describe("Ghidra function-analysis boundary values", () => {
     });
     expect(
       parseGhidraFunctionResult("analyze_function", ghidraFunctionDossier()),
-    ).toMatchObject({ ok: true });
+    ).toMatchObject({
+      ok: true,
+      value: {
+        native_api: {
+          available: true,
+          provenance: "ghidra-high-function",
+          return_type: {
+            data_type: "int",
+            confidence: "medium",
+          },
+          jump_tables: [
+            {
+              dispatch_address: "0x401010",
+              data_sources: [{ address: "0x403000" }],
+              mappings: [
+                {
+                  target_address: "0x401020",
+                  data_addresses: ["0x403000"],
+                },
+              ],
+            },
+          ],
+          pseudocode: {
+            classification: "decompiler-generated-non-source",
+            compilable: false,
+          },
+        },
+      },
+    });
   });
 
   it.each(malformedOutputs())(
@@ -174,6 +203,11 @@ const malformedOutputs = (): Array<
   if (typeof dossier !== "object" || dossier === null || Array.isArray(dossier))
     throw new TypeError("Ghidra dossier fixture is invalid");
   const edge = ghidraReferenceEdge();
+  const nativeApi = ghidraNativeApiBoundary();
+  const jumpTable = nativeApi.jump_tables[0];
+  const mapping = jumpTable?.mappings[0];
+  if (jumpTable === undefined || mapping === undefined)
+    throw new TypeError("Ghidra native API fixture is invalid");
   return [
     ["non-canonical address", "procedure_callers", ["401000"]],
     [
@@ -199,6 +233,34 @@ const malformedOutputs = (): Array<
         ]),
         instructions_scanned: 1,
         instruction_scan_truncated: false,
+      },
+    ],
+    [
+      "missing native API boundary",
+      "analyze_function",
+      Object.fromEntries(
+        Object.entries(dossier).filter(([key]) => key !== "native_api"),
+      ),
+    ],
+    [
+      "non-canonical native API target",
+      "analyze_function",
+      {
+        ...dossier,
+        native_api: {
+          ...nativeApi,
+          jump_tables: [
+            {
+              ...jumpTable,
+              mappings: [
+                {
+                  ...mapping,
+                  target_address: "401020",
+                },
+              ],
+            },
+          ],
+        },
       },
     ],
     [

@@ -126,25 +126,27 @@ try {
     format: "elf",
     architecture: "x86_64",
   });
+  assertDebugFixture(debug);
   const stripped = await verifyTarget(strippedPath, "stripped", {
     format: "elf",
     architecture: "x86_64",
   });
+  assertStrippedFixture(stripped);
   const arm64Elf = await verifyTarget(arm64ElfPath, "cross-arm64-elf", {
     format: "elf",
     architecture: "arm64",
   });
+  assertCrossFixture(arm64Elf);
   const pe = await verifyTarget(pePath, "cross-x86_64-pe", {
     format: "pe",
     architecture: "x86_64",
   });
+  assertCrossFixture(pe);
   const machObject = await verifyTarget(machObjectPath, "cross-x86_64-mach-o", {
     format: "mach-o",
     architecture: "x86_64",
   });
-  assertDebugFixture(debug);
-  assertStrippedFixture(stripped);
-  for (const fixture of [arm64Elf, pe, machObject]) assertCrossFixture(fixture);
+  assertCrossFixture(machObject);
   await assertMalformedFixture(malformedPath);
 
   const customPath = process.env.GHIDRA_TARGET_PATH;

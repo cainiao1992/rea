@@ -52,6 +52,7 @@ type DirectAnalysisTool =
   | "procedure_pseudo_code"
   | "read_function_instructions"
   | "analyze_function"
+  | "inspect_native_api"
   | "search_strings"
   | "search_procedures"
   | "xrefs"
@@ -341,6 +342,7 @@ const executeAnalysisTool = async (input: {
   if (
     tool === "binary_overview" ||
     tool === "analyze_function" ||
+    tool === "inspect_native_api" ||
     tool === "trace_feature"
   ) {
     const result = await new EnhancedTools(session).execute(
@@ -438,7 +440,7 @@ const replayProviderFor = (
     | ManagedToolName
     | DirectAnalysisTool,
 ) =>
-  tool === "binary_overview" || tool === "trace_feature"
+  isWorkflowEvidenceTool(tool)
     ? REA_WORKFLOW_PROVIDER
     : session.providerIdentity(tool);
 
@@ -450,11 +452,21 @@ const analysisProfileForEvidence = (
     | ManagedToolName
     | DirectAnalysisTool,
 ): AnalysisProfileCommitment | undefined => {
-  if (tool !== "binary_overview" && tool !== "trace_feature")
-    return session.analysisProfile(tool);
+  if (!isWorkflowEvidenceTool(tool)) return session.analysisProfile(tool);
   const upstream = session.analysisProfile();
   return upstream === undefined ? undefined : workflowAnalysisProfile(upstream);
 };
+
+const isWorkflowEvidenceTool = (
+  tool:
+    | NativeToolName
+    | ArtifactToolName
+    | ManagedToolName
+    | DirectAnalysisTool,
+): boolean =>
+  tool === "binary_overview" ||
+  tool === "inspect_native_api" ||
+  tool === "trace_feature";
 
 const fileExists = async (path: string): Promise<boolean> => {
   try {

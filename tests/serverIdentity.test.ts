@@ -68,10 +68,10 @@ describe("server and catalog identity", () => {
     });
     expect(PRODUCT_IDENTITY.packageVersion).toBe(packageJson.version);
     expect(SDK_IDENTITY.server).toBe("2.0.0-beta.4");
-    expect(CLI_COMMAND_NAMES).toHaveLength(66);
-    expect(new Set(CLI_COMMAND_NAMES).size).toBe(66);
+    expect(CLI_COMMAND_NAMES).toHaveLength(67);
+    expect(new Set(CLI_COMMAND_NAMES).size).toBe(67);
     expect(CATALOG_IDENTITY.counts).toEqual({
-      cli_commands: 66,
+      cli_commands: 67,
       mcp_tools: TOOL_CONTRACTS.length,
       mcp_prompts: 6,
       mcp_resources: 2,

@@ -41,6 +41,7 @@ import { binarySessionInputSchema } from "./sessionStatusContract.js";
 import { functionInstructionInputSchema } from "./functionInstructionContract.js";
 import { HOPPER_MEMORY_TOOL_DEFINITIONS } from "./hopperMemoryContracts.js";
 import { analysisSearchInput } from "./analysisSearchContract.js";
+import { FUNCTION_WORKFLOW_TOOL_CONTRACTS } from "./functionWorkflowToolContracts.js";
 
 export { binarySessionInputSchema } from "./sessionStatusContract.js";
 
@@ -354,11 +355,7 @@ export const ENHANCED_TOOL_CONTRACTS = [
     "Use immediately after opening a target to summarize document, exhaustive procedure/string counts, and a bounded segment sample. detail controls segment fields and limit controls only the returned segment sample.",
     enhancedInputSchemas.binary_overview,
   ),
-  enhanced(
-    "analyze_function",
-    "Preferred bounded analysis for one procedure symbol or address. Returns identity, provider-specific pseudocode, optional assembly, comments, calls, typed-or-explicitly-unavailable references, referenced strings/names, and local CFG blocks with exact truncation metadata.",
-    enhancedInputSchemas.analyze_function,
-  ),
+  ...FUNCTION_WORKFLOW_TOOL_CONTRACTS,
   enhanced(
     "trace_feature",
     "Trace a bounded literal feature query through matching strings and procedures, xrefs, and truthful containing-procedure resolution. Returns the operation budget, truncation, and residual unknowns; unknown_registry_approved: true records them durably without inferring reference kinds.",

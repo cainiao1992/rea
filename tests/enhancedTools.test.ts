@@ -213,7 +213,7 @@ describe("enhanced MCP tools", () => {
     ).toEqual(ENHANCED_TOOL_CONTRACTS.map(({ name }) => name).sort());
   });
 
-  it("executes all twelve tools through production registration", async () => {
+  it("executes all thirteen tools through production registration", async () => {
     const client = await connect();
     const calls = [
       ["swift_classes", { pattern: "Fixture" }],
@@ -225,6 +225,7 @@ describe("enhanced MCP tools", () => {
       ["find_xrefs_to_name", { name: "entry" }],
       ["binary_overview", {}],
       ["analyze_function", { procedure: "0x1" }],
+      ["inspect_native_api", { procedure: "0x1" }],
       ["trace_feature", { query: "hello", max_operations: 10 }],
       ["find_code_for_string", { query: "hello", max_operations: 10 }],
       ["trace_call_path", { start: "0x1", goal: "0x2", max_operations: 10 }],
@@ -271,6 +272,22 @@ describe("enhanced MCP tools", () => {
       pseudocode: { text: "return 0;" },
     });
     expect(results[9]).toMatchObject({
+      procedure: { address: "0x1", name: "entry" },
+      boundary: { available: false },
+      unsupported_branches: [
+        "structured-boundary-types",
+        "jump-table-data-mapping",
+      ],
+      residual_unknowns: expect.arrayContaining([
+        expect.stringContaining("boundary types"),
+      ]),
+      substeps: [
+        { operation: "analyze_function", status: "completed" },
+        { operation: "project_native_api_boundary", status: "unsupported" },
+        { operation: "preserve_residual_unknowns", status: "completed" },
+      ],
+    });
+    expect(results[10]).toMatchObject({
       query: "hello",
       search_mode: "literal",
       truncated: false,
@@ -279,12 +296,12 @@ describe("enhanced MCP tools", () => {
         { target_address: "0x30", source_address: "0x21" },
       ],
     });
-    expect(results[10]).toMatchObject({
+    expect(results[11]).toMatchObject({
       query: "hello",
       matches: [{ type: "string", address: "0x30", value: "hello" }],
       truncated: false,
     });
-    expect(results[11]).toMatchObject({
+    expect(results[12]).toMatchObject({
       start: "0x1",
       goal: "0x2",
       direction: "forward",

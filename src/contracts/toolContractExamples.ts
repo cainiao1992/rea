@@ -35,6 +35,7 @@ export const TOOL_EXAMPLE_OVERRIDES: Readonly<
   get_call_graph: { address: "0x1000" },
   find_xrefs_to_name: { name: "malloc" },
   analyze_function: { procedure: "main" },
+  inspect_native_api: { procedure: "main" },
   trace_feature: { query: "license" },
   find_code_for_string: { query: "authorization failed" },
   trace_call_path: { start: "0x1000", goal: "0x1100" },

@@ -185,6 +185,7 @@ describe("canonical product catalog", () => {
       "xrefs",
       "trace",
       "function",
+      "inspect-native-api",
       "search",
     ]) {
       expect(cliCommandOptionNames(cli, name)).toContain("provider");

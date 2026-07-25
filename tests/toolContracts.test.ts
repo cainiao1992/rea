@@ -17,7 +17,7 @@ import { APPLICATION_TOOL_CONTRACTS } from "../src/contracts/applicationToolCont
 describe("tool contract inventory", () => {
   it("publishes the canonical analysis and session tool inventory", () => {
     expect(OFFICIAL_TOOL_CONTRACTS).toHaveLength(36);
-    expect(ENHANCED_TOOL_CONTRACTS).toHaveLength(12);
+    expect(ENHANCED_TOOL_CONTRACTS).toHaveLength(13);
     expect(NATIVE_TOOL_CONTRACTS).toHaveLength(5);
     expect(ARTIFACT_TOOL_CONTRACTS.map(({ name }) => name)).toEqual([
       "inventory_artifact",

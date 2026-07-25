@@ -183,7 +183,7 @@ rea uninstall --purge-data
   "mcpServers": {
     "rea": {
       "command": "npx",
-      "args": ["-y", "rea-agents@2.5.0", "mcp"]
+      "args": ["-y", "rea-agents@2.5.1", "mcp"]
     }
   }
 }

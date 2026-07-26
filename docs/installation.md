@@ -15,6 +15,24 @@ current package-runner invocation. REA still prints its own setup plan and asks
 for separate approval before changing agent configuration or installing a
 product-owned component.
 
+When bare `npx` resolves `rea-agents` from the current project's
+`node_modules`, the selected dispatcher restarts setup through
+`rea-agents@latest` before REA plans or writes configuration. This protects
+current and future releases from silently persisting stale integration state.
+Code in an already-published older release cannot acquire that check
+retroactively; invoke `npx -y rea-agents@latest setup` once to repair any
+registration it created.
+
+For an intentional rollback, make the package request explicit:
+
+```bash
+npm exec --yes --package=rea-agents@2.4.0 -- rea setup
+```
+
+Setup continues to pin persistent MCP registrations to the exact version that
+performed setup. Running current setup later migrates unversioned or older
+managed registrations through the normal reviewed setup transaction.
+
 REA supports Node.js 22.19+ and 24.11+ (including newer releases). It uses the npm already paired with that runtime and never upgrades Node.js, npm, or Homebrew.
 
 Running `npm install rea-agents` without `--global` installs the executable only

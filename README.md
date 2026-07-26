@@ -103,6 +103,13 @@ detected agents, then asks which capabilities to set up: agent integration
 Nothing is preselected. Choosing agent integration opens a second empty
 checklist for the specific detected agents that should receive a registration.
 
+If bare `npx` finds a project-local REA package, its dispatcher restarts setup
+through `rea-agents@latest` before planning any changes. This prevents an older
+local dependency from silently writing stale integration state. An already
+published older release cannot contain that dispatcher protection; run
+`npx -y rea-agents@latest setup` once to repair registrations created by one.
+Intentional rollbacks remain available through an exact package request.
+
 REA keeps the journey inline so its history remains in the terminal. Selecting
 a capability does not select every detected target or authorize a change.
 Before anything changes, REA validates existing configuration, prints exact

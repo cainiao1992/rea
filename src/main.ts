@@ -10,10 +10,6 @@ import { createBinarySession } from "./application/runtime.js";
 import { createLogger } from "./logger.js";
 import { projectAnalysisError } from "./domain/errors.js";
 import { loadConfiguredPermissionAuthority } from "./application/PermissionConfiguration.js";
-import { CdpBrowserProvider } from "./browser/CdpBrowserProvider.js";
-import { CdpElectronProvider } from "./browser/CdpElectronProvider.js";
-import { V8InspectorProvider } from "./browser/V8InspectorProvider.js";
-import { PlaywrightBrowserScenarioProvider } from "./browser/PlaywrightBrowserScenarioProvider.js";
 import type { RuntimeDependencies } from "./main/types.js";
 import { SERVER_START_FAILED } from "./main/messages.js";
 import { createRuntimeState } from "./main/state.js";
@@ -73,10 +69,6 @@ export const run = async (
   }
 
   const session = createBinarySession(config.value, logger);
-  const browserObservation = new CdpBrowserProvider();
-  const browserScenarioCapture = new PlaywrightBrowserScenarioProvider();
-  const electronObservation = new CdpElectronProvider();
-  const javascriptRuntimeObservation = new V8InspectorProvider();
   const opened = await openInitialTarget(
     session,
     config.value,
@@ -88,10 +80,25 @@ export const run = async (
   const transport = await startMcpTransport(dependencies, session, {
     logger,
     serverLogger,
-    browserObservation,
-    browserScenarioCapture,
-    electronObservation,
-    javascriptRuntimeObservation,
+    loadOptionalProviders: async () => {
+      const [
+        { CdpBrowserProvider },
+        { PlaywrightBrowserScenarioProvider },
+        { CdpElectronProvider },
+        { V8InspectorProvider },
+      ] = await Promise.all([
+        import("./browser/CdpBrowserProvider.js"),
+        import("./browser/PlaywrightBrowserScenarioProvider.js"),
+        import("./browser/CdpElectronProvider.js"),
+        import("./browser/V8InspectorProvider.js"),
+      ]);
+      return {
+        browserObservation: new CdpBrowserProvider(),
+        browserScenarioCapture: new PlaywrightBrowserScenarioProvider(),
+        electronObservation: new CdpElectronProvider(),
+        javascriptRuntimeObservation: new V8InspectorProvider(),
+      };
+    },
     permissionAuthority: permissionAuthority.value,
     runtimeState,
   });

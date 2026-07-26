@@ -5,6 +5,7 @@ import { parse as parseToml } from "smol-toml";
 import { z } from "zod";
 
 import { PRODUCT_IDENTITY } from "../identity.js";
+import { MCP_STARTUP_POLICY } from "../mcpStartupPolicy.js";
 import { supportedClients } from "./SupportedClients.js";
 
 export interface ClientRegistrationStatus {
@@ -80,7 +81,11 @@ const registrationAligned = (
   currentCommandPath: string,
 ): boolean => {
   const command = [registration.command, ...registration.args];
-  if (client === "codex" && registration.startup_timeout_sec !== 30)
+  if (
+    client === "codex" &&
+    registration.startup_timeout_sec !==
+      MCP_STARTUP_POLICY.codexStartupTimeoutSeconds
+  )
     return false;
   if (
     command.length === 4 &&

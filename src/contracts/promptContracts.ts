@@ -1,4 +1,4 @@
-import { TOOL_CONTRACTS } from "./toolContracts.js";
+import type { TOOL_CONTRACTS } from "./toolContracts.js";
 
 type ToolName = (typeof TOOL_CONTRACTS)[number]["name"];
 

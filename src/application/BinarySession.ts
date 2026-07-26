@@ -24,8 +24,7 @@ import type {
   ProviderIdentity,
 } from "./AnalysisProvider.js";
 import type { AnalysisOperation } from "./AnalysisProvider.js";
-import { enhancedToolNameSchema } from "../contracts/enhancedInputs.js";
-import { OFFICIAL_TOOL_CONTRACTS } from "../contracts/toolContracts.js";
+import { GENERATED_MCP_TOOL_CATALOG } from "../generatedMcpToolCatalog.js";
 import type { BinarySessionPort } from "./BinarySessionPort.js";
 import {
   SessionProviderRouter,
@@ -41,7 +40,14 @@ import { prepareSessionExecution } from "./BinarySessionExecution.js";
 import { closeAnalysisClient } from "./AnalysisClientCleanup.js";
 export type { BinarySessionPort } from "./BinarySessionPort.js";
 const OFFICIAL_OPERATIONS: ReadonlySet<string> = new Set(
-  OFFICIAL_TOOL_CONTRACTS.map(({ name }) => name),
+  GENERATED_MCP_TOOL_CATALOG.filter(
+    ({ kind }) => kind === "official-proxy",
+  ).map(({ name }) => name),
+);
+const ENHANCED_OPERATIONS: ReadonlySet<string> = new Set(
+  GENERATED_MCP_TOOL_CATALOG.filter(({ kind }) => kind === "enhanced").map(
+    ({ name }) => name,
+  ),
 );
 
 /**
@@ -100,7 +106,7 @@ export class BinarySession
     if (operation !== undefined) {
       const exact = route.capabilities?.get(operation)?.provider;
       if (exact !== undefined) selected = exact;
-      else if (enhancedToolNameSchema.safeParse(operation).success) {
+      else if (ENHANCED_OPERATIONS.has(operation)) {
         const providers = new Map<string, ProviderIdentity>();
         for (const descriptor of route.capabilities?.values() ?? [])
           if (

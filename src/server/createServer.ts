@@ -10,29 +10,16 @@ import {
 import type { AnalysisOperationPort } from "../application/AnalysisProvider.js";
 import type { BinarySessionPort } from "../application/BinarySession.js";
 import { PRODUCT_IDENTITY } from "../identity.js";
-import { registerEnhancedTools } from "./registerEnhancedTools.js";
-import { registerOfficialTools } from "./registerOfficialTools.js";
-import { registerSessionTools } from "./registerSessionTools.js";
-import { registerNativeTools } from "./registerNativeTools.js";
-import { registerArtifactTools } from "./registerArtifactTools.js";
-import { registerManagedTools } from "./registerManagedTools.js";
-import { registerManagedWorkflowTools } from "./registerManagedWorkflowTools.js";
 import { silentLogger, type Logger } from "../logger.js";
 import type { ProcessExecutionPolicy } from "../domain/processCapture.js";
 import type { EvidenceFilePolicy } from "../domain/evidenceBundle.js";
 import { registerGuidedPrompts } from "./registerPrompts.js";
 import { registerEvidenceResources } from "./registerEvidenceResources.js";
-import { createServerIdentity } from "../serverIdentity.js";
 import type { PermissionAuthority } from "../application/PermissionAuthority.js";
 import type { BrowserObservationPort } from "../application/BrowserObservationPort.js";
 import type { BrowserScenarioCapturePort } from "../application/BrowserScenarioCapturePort.js";
-import { registerBrowserTools } from "./registerBrowserTools.js";
-import { registerBrowserScenarioTool } from "./registerBrowserScenarioTool.js";
 import type { ElectronObservationPort } from "../application/ElectronObservationPort.js";
-import { registerElectronTools } from "./registerElectronTools.js";
 import type { JavaScriptRuntimeObservationPort } from "../application/JavaScriptRuntimeObservationPort.js";
-import { registerJavaScriptRuntimeObservationTools } from "./registerJavaScriptRuntimeObservationTools.js";
-import { registerApplicationTools } from "./registerApplicationTools.js";
 import type { SessionAvailability } from "./sessionAvailabilityPolicy.js";
 import { sessionAvailabilityPolicy } from "./sessionAvailabilityPolicy.js";
 import {
@@ -52,12 +39,11 @@ import type {
   JavaScriptReplayRunner,
 } from "../application/JavaScriptReplayPlanning.js";
 import type { ManagedRuntimePolicy } from "../application/ManagedRuntimeCorrelationService.js";
-import { LinuxJavaScriptReplayRunner } from "../replay/LinuxJavaScriptReplayRunner.js";
-import { SystemJavaScriptReplayHost } from "../replay/SystemJavaScriptReplayHost.js";
 import {
   PROCESS_CAPTURE_ELICITATION_POLICY,
   type ProcessCaptureElicitationState,
 } from "./ProcessCaptureElicitation.js";
+import { LazyToolCatalog } from "./LazyToolCatalog.js";
 
 export interface CreateServerOptions {
   readonly logger?: Logger;
@@ -76,6 +62,12 @@ export interface CreateServerOptions {
   readonly javascriptReplayRunner?: JavaScriptReplayRunner;
   readonly managedRuntimePolicy?: ManagedRuntimePolicy;
   readonly availabilityPolicy?: () => SessionAvailability;
+  readonly loadOptionalProviders?: () => Promise<{
+    readonly browserObservation: BrowserObservationPort;
+    readonly browserScenarioCapture: BrowserScenarioCapturePort;
+    readonly electronObservation: ElectronObservationPort;
+    readonly javascriptRuntimeObservation: JavaScriptRuntimeObservationPort;
+  }>;
 }
 
 const installSessionToolAvailability = (
@@ -155,51 +147,88 @@ export const createServer = (
   const toolLogger = logger.child({ layer: "server" });
   const { activeTarget, recordEvidence, recordEvidenceWithUnknown } =
     createSessionRecorders(server, session);
-  const toolContext = {
-    server,
-    analysis,
-    session,
-    options,
-    logger: toolLogger,
-    permissionAuthority,
-    activeTarget,
-    recordEvidence,
-    recordEvidenceWithUnknown,
+  const processCaptureElicitation = {
+    stateCodec: processCaptureStateCodec,
+    supported: (context: {
+      readonly mcpReq: {
+        readonly envelope?: Readonly<Record<string, unknown>>;
+      };
+    }) => {
+      const envelope = context.mcpReq.envelope;
+      const version = envelope?.[PROTOCOL_VERSION_META_KEY];
+      const capabilities = envelope?.[CLIENT_CAPABILITIES_META_KEY];
+      return (
+        typeof version === "string" &&
+        PROCESS_CAPTURE_ELICITATION_POLICY.protocolVersions.some(
+          (supported) => supported === version,
+        ) &&
+        isRecord(capabilities) &&
+        isRecord(capabilities.elicitation) &&
+        capabilities.elicitation.form !== undefined
+      );
+    },
+    now: Date.now,
+    consumedNonces: new Map<string, number>(),
   };
-  registerBinaryAnalysisTools(toolContext);
-  registerObservationTools(toolContext);
+  let optionalProviders:
+    | ReturnType<NonNullable<CreateServerOptions["loadOptionalProviders"]>>
+    | undefined;
+  const loadOptionalProviders = () => {
+    optionalProviders ??= options
+      .loadOptionalProviders?.()
+      .catch((cause: unknown) => {
+        optionalProviders = undefined;
+        throw cause;
+      });
+    return optionalProviders;
+  };
+  const lazyTools = new LazyToolCatalog(
+    server,
+    async (kind) => {
+      const needsObservationProviders =
+        kind === "browser-provider" ||
+        kind === "electron-provider" ||
+        kind === "runtime-provider";
+      const [{ hydrateServerToolFamily }, loadedOptionalProviders] =
+        await Promise.all([
+          import("./hydrateServerTools.js"),
+          needsObservationProviders ? loadOptionalProviders() : undefined,
+        ]);
+      const hydratedOptions =
+        loadedOptionalProviders === undefined
+          ? options
+          : { ...options, ...loadedOptionalProviders };
+      await hydrateServerToolFamily({
+        kind,
+        server,
+        analysis,
+        session,
+        options: hydratedOptions,
+        context: {
+          logger: toolLogger,
+          permissionAuthority,
+          activeTarget,
+          recordEvidence,
+          recordEvidenceWithUnknown,
+          availabilityPolicy: dynamicTools?.policy,
+          startedAt,
+          processCaptureElicitation,
+        },
+      });
+    },
+    session !== undefined,
+  );
+  lazyTools.register();
   registerGuidedPrompts(server, analysis, session);
   if (session !== undefined) {
     registerEvidenceResources(server, session);
-    registerSessionTools(server, session, toolLogger, {
-      ...options,
-      ...(dynamicTools === undefined
-        ? {}
-        : { availabilityPolicy: dynamicTools.policy }),
-      ...(permissionAuthority === undefined ? {} : { permissionAuthority }),
-      startedAt,
-      processCaptureElicitation: {
-        stateCodec: processCaptureStateCodec,
-        supported: (context) => {
-          const envelope = context.mcpReq.envelope;
-          const version = envelope?.[PROTOCOL_VERSION_META_KEY];
-          const capabilities = envelope?.[CLIENT_CAPABILITIES_META_KEY];
-          return (
-            typeof version === "string" &&
-            PROCESS_CAPTURE_ELICITATION_POLICY.protocolVersions.some(
-              (supported) => supported === version,
-            ) &&
-            isRecord(capabilities) &&
-            isRecord(capabilities.elicitation) &&
-            capabilities.elicitation.form !== undefined
-          );
-        },
-        now: Date.now,
-        consumedNonces: new Map(),
-      },
-    });
   }
   dynamicTools?.controller.synchronize();
+  const close = server.close.bind(server);
+  server.close = async () => {
+    await lazyTools.close();
+    await close();
+  };
   return server;
 };
 
@@ -243,7 +272,8 @@ const registerServerIdentityResource = (
       description: "Live package, SDK, protocol, and catalog identity.",
       mimeType: "application/json",
     },
-    (uri) => {
+    async (uri) => {
+      const { createServerIdentity } = await import("../serverIdentity.js");
       const client = server.server.getClientVersion();
       const protocolVersion = server.server.getNegotiatedProtocolVersion();
       return {
@@ -265,155 +295,6 @@ const registerServerIdentityResource = (
       };
     },
   );
-};
-
-interface ServerToolContext extends ReturnType<typeof createSessionRecorders> {
-  readonly server: McpServer;
-  readonly analysis: AnalysisOperationPort;
-  readonly session: BinarySessionPort | undefined;
-  readonly options: CreateServerOptions;
-  readonly logger: Logger;
-  readonly permissionAuthority: PermissionAuthority | undefined;
-}
-
-const registerBinaryAnalysisTools = ({
-  server,
-  analysis,
-  session,
-  options,
-  logger,
-  permissionAuthority,
-  activeTarget,
-  recordEvidence,
-  recordEvidenceWithUnknown,
-}: ServerToolContext): void => {
-  const recordUnknown =
-    session === undefined
-      ? undefined
-      : (input: Parameters<typeof session.recordUnknown>[0]) =>
-          session.recordUnknown(input);
-  registerOfficialTools(server, analysis, {
-    logger,
-    activeTarget,
-    recordEvidence,
-    recordUnknown,
-  });
-  registerEnhancedTools(server, analysis, {
-    logger,
-    activeTarget,
-    analysisProfile:
-      session === undefined ? undefined : () => session.analysisProfile(),
-    recordEvidence,
-    recordUnknown,
-  });
-  registerNativeTools(server, analysis, {
-    logger,
-    activeTarget,
-    recordEvidence,
-  });
-  registerArtifactTools(server, analysis, {
-    logger,
-    activeTarget,
-    recordEvidence,
-    ...(permissionAuthority === undefined ? {} : { permissionAuthority }),
-  });
-  registerManagedTools(server, analysis, {
-    logger,
-    activeTarget,
-    recordEvidence,
-    session,
-  });
-  if (session !== undefined)
-    registerManagedWorkflowTools(server, {
-      logger,
-      recordEvidence,
-      recordEvidenceWithUnknown,
-      session,
-      runtime: {
-        policy: options.managedRuntimePolicy ?? {
-          enabled: false,
-          roots: [],
-          executablePath: "/usr/bin/dotnet",
-        },
-        authority: permissionAuthority,
-      },
-    });
-};
-
-const registerObservationTools = ({
-  server,
-  session,
-  options,
-  logger,
-  permissionAuthority,
-  recordEvidence,
-  recordEvidenceWithUnknown,
-}: ServerToolContext): void => {
-  registerBrowserTools(server, {
-    logger,
-    browser: options.browserObservation,
-    permissionAuthority,
-    recordEvidence,
-  });
-  registerBrowserScenarioTool(server, {
-    logger,
-    provider: options.browserScenarioCapture,
-    permissionAuthority,
-    recordEvidence,
-  });
-  registerElectronTools(server, {
-    logger,
-    electron: options.electronObservation,
-    permissionAuthority,
-    recordEvidence,
-  });
-  registerJavaScriptRuntimeObservationTools(server, {
-    logger,
-    runtime: options.javascriptRuntimeObservation,
-    permissionAuthority,
-    recordEvidence,
-  });
-  registerApplicationTools(server, {
-    logger,
-    recordEvidence,
-    recordEvidenceWithUnknown,
-    evidenceLookup:
-      session === undefined
-        ? undefined
-        : (evidenceId) => session.evidenceById(evidenceId),
-    evidenceFilePolicy: options.evidenceFilePolicy ?? {
-      roots: [],
-      maxBytes: 1,
-      maxDepth: 1,
-      maxStringLength: 1,
-      maxNodes: 1,
-    },
-    permissionAuthority,
-    retainCoverageWorkspace:
-      session === undefined
-        ? undefined
-        : (workspace) => {
-            const retained =
-              session.retainReconstructionCoverageWorkspace(workspace);
-            if (retained === "added") server.sendResourceListChanged();
-            return retained;
-          },
-    replay: {
-      policy: options.javascriptReplayPolicy ?? {
-        enabled: false,
-        roots: [],
-        nodePath: process.execPath,
-        bubblewrapPath: "/usr/bin/bwrap",
-        systemdRunPath: "/usr/bin/systemd-run",
-        systemctlPath: "/usr/bin/systemctl",
-        shellPath: "/usr/bin/bash",
-      },
-      host: options.javascriptReplayHost ?? new SystemJavaScriptReplayHost(),
-      runner:
-        options.javascriptReplayRunner ?? new LinuxJavaScriptReplayRunner(),
-      authority: permissionAuthority,
-    },
-  });
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import { MCP_STARTUP_POLICY } from "../dist/mcpStartupPolicy.js";
 import * as prompts from "./verify-package-prompts.mjs";
 import {
   json,
@@ -180,7 +181,7 @@ export async function verifyPackageMcp({
     (
       await execute(cli, ["mcp", "doctor", "--json"], {
         env: environment,
-        timeout: 30_000,
+        timeout: MCP_STARTUP_POLICY.doctorDeadlineMs,
       })
     ).stdout,
   );

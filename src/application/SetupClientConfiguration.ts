@@ -6,6 +6,7 @@ import writeFileAtomic from "write-file-atomic";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 
 import { PRODUCT_IDENTITY } from "../identity.js";
+import { MCP_STARTUP_POLICY } from "../mcpStartupPolicy.js";
 import { resolveClientConfigTransactionPath } from "./ClientConfigPath.js";
 import type {
   ClientConfigurationInspection,
@@ -20,8 +21,6 @@ const defaultCommand = (): readonly string[] => [
   PRODUCT_IDENTITY.registrationPackageSpecifier,
   "mcp",
 ];
-
-const CODEX_STARTUP_TIMEOUT_SECONDS = 30;
 
 /** Back up, atomically update, and semantically read back one JSON MCP configuration. */
 export const configureJsonClient = async (
@@ -299,7 +298,9 @@ const clientConfigurationDesired = (
     command: command[0] ?? PRODUCT_IDENTITY.cliBinary,
     args: command.slice(1),
     ...(client.name === "codex"
-      ? { startup_timeout_sec: CODEX_STARTUP_TIMEOUT_SECONDS }
+      ? {
+          startup_timeout_sec: MCP_STARTUP_POLICY.codexStartupTimeoutSeconds,
+        }
       : {}),
     ...(Object.keys(environment).length === 0 ? {} : { env: environment }),
   };

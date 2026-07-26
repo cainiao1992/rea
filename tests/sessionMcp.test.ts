@@ -87,7 +87,9 @@ describe("target-free MCP lifecycle", () => {
     expect(closed).toEqual([canonicalTargetPath]);
     expect(
       z
-        .object({ result: z.object({ path: z.string(), sha256: z.string() }) })
+        .object({
+          result: z.object({ path: z.string(), sha256: z.string() }),
+        })
         .parse(
           structured(
             await mcp.callTool({
@@ -100,7 +102,7 @@ describe("target-free MCP lifecycle", () => {
       path: canonicalTargetPath,
       sha256: z.object({ sha256: z.string() }).parse(second).sha256,
     });
-  });
+  }, 10_000);
 
   it("reports no-target, opens, analyzes, switches, reports status, and closes", async () => {
     directory = await createTestTempDirectory("rea-mcp-session-");

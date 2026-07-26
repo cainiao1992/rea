@@ -18,10 +18,7 @@ import type { BinaryTarget } from "../domain/binaryTarget.js";
 import type { Logger } from "../logger.js";
 import { AnalysisCapabilityUnavailableError } from "../domain/errors.js";
 import { err } from "../domain/result.js";
-import {
-  ENHANCED_TOOL_CONTRACTS,
-  OFFICIAL_TOOL_CONTRACTS,
-} from "../contracts/toolContracts.js";
+import { GENERATED_MCP_TOOL_CATALOG } from "../generatedMcpToolCatalog.js";
 import { HopperApplicationLauncher } from "./BridgeLauncher.js";
 import {
   hopperLoaderArgsForTarget,
@@ -47,22 +44,29 @@ const MUTATING_OPERATIONS = new Set([
 
 /** Tool contracts implemented directly by the Hopper adapter. */
 export const HOPPER_PROVIDER_TOOL_CONTRACTS = Object.freeze([
-  ...OFFICIAL_TOOL_CONTRACTS,
-  ...ENHANCED_TOOL_CONTRACTS.filter(
-    (contract) => contract.name === "analyze_function",
+  ...GENERATED_MCP_TOOL_CATALOG.filter(({ kind }) => kind === "official-proxy"),
+  ...GENERATED_MCP_TOOL_CATALOG.filter(
+    ({ name }) => name === "analyze_function",
   ),
 ]);
 
 const CAPABILITIES: readonly CapabilityDescriptor[] = Object.freeze(
-  HOPPER_PROVIDER_TOOL_CONTRACTS.map((contract) =>
-    Object.freeze({
+  HOPPER_PROVIDER_TOOL_CONTRACTS.map((contract) => {
+    const operation = contract.analysisOperation;
+    if (operation === null)
+      throw new TypeError(`Missing analysis operation for ${contract.name}`);
+    return Object.freeze({
       provider: IDENTITY,
-      operation: contract.name,
+      operation,
       inputContractVersion: 1,
       outputContractVersion: 1,
       available: true,
       reason: null,
-      pagination: "offset" in contract.inputSchema.shape ? "offset" : "none",
+      pagination:
+        isRecord(contract.inputSchema.properties) &&
+        "offset" in contract.inputSchema.properties
+          ? "offset"
+          : "none",
       exhaustive: false,
       effects: Object.freeze({
         mutatesArtifact: MUTATING_OPERATIONS.has(contract.name),
@@ -81,9 +85,13 @@ const CAPABILITIES: readonly CapabilityDescriptor[] = Object.freeze(
       limitations: Object.freeze([
         "Results depend on Hopper's completed static analysis.",
       ]),
-    }),
-  ),
+    });
+  }),
 );
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 /** Concrete analysis provider backed by REA's private Hopper bridge. */
 export class HopperProvider implements AnalysisProviderCandidate {

@@ -105,7 +105,7 @@ describe("process-capture MCP elicitation", () => {
       await Promise.allSettled([client.close(), server.close()]);
       await rm(root, { recursive: true, force: true });
     }
-  });
+  }, 20_000);
 
   it.each(["tampered", "expired"] as const)(
     "rejects %s signed state through the modern MCP client and server",

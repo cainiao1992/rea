@@ -10,8 +10,8 @@ import {
 } from "./catalogIdentity.js";
 import { PROMPT_CONTRACTS } from "./contracts/promptContracts.js";
 import { PRODUCT_IDENTITY } from "./identity.js";
+import { MCP_STARTUP_POLICY } from "./mcpStartupPolicy.js";
 
-const DEFAULT_DEADLINE_MS = 20_000;
 const STDERR_LIMIT_BYTES = 64 * 1_024;
 const OUTPUT_FORMATS = ["toon", "json", "yaml", "md", "jsonl"] as const;
 type OutputFormat = (typeof OUTPUT_FORMATS)[number];
@@ -40,7 +40,8 @@ interface McpDoctorCheck {
 
 /** Diagnose the actual production stdio adapter with one bounded SDK session. */
 export const runProductionMcpDoctor = async (options: McpDoctorOptions) => {
-  const deadline = Date.now() + (options.deadlineMs ?? DEFAULT_DEADLINE_MS);
+  const deadline =
+    Date.now() + (options.deadlineMs ?? MCP_STARTUP_POLICY.doctorDeadlineMs);
   const controller = new AbortController();
   const timer = setTimeout(
     () => controller.abort(new Error("Production MCP doctor deadline expired")),

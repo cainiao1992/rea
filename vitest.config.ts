@@ -6,9 +6,9 @@ import { defineConfig } from "vitest/config";
 
 export const TEST_FILES = ["tests/**/*.test.ts"];
 const IS_CONTINUOUS_INTEGRATION = process.env.CI === "true";
-// Subprocess-heavy parallel tests exceed their existing deadlines above two workers.
+// Lazy MCP integration tests are memory-bound while Vite transforms tool families.
 const MAX_TEST_WORKERS = 2;
-const MAX_UNIT_TEST_WORKERS = 4;
+const MAX_UNIT_TEST_WORKERS = 1;
 const PROCESS_CAPTURE_TEST = "tests/processCapture.test.ts";
 const CANONICAL_TEMPORARY_DIRECTORY = realpathSync(tmpdir());
 export const SERIAL_INTEGRATION_TESTS = [

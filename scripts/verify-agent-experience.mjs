@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createPackage } from "@electron/asar";
 
 import { evaluateCodexEvents } from "../dist/evaluation/CodexAgentEval.js";
+import { MCP_STARTUP_POLICY } from "../dist/mcpStartupPolicy.js";
 import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -346,7 +347,7 @@ async function runCodex(prompt, investigationRoot) {
     "-c",
     `mcp_servers.rea.args=${JSON.stringify([join(repositoryRoot, "scripts/rea.mjs"), "mcp"])}`,
     "-c",
-    "mcp_servers.rea.startup_timeout_sec=30",
+    `mcp_servers.rea.startup_timeout_sec=${String(MCP_STARTUP_POLICY.codexStartupTimeoutSeconds)}`,
     "-c",
     mcpEnvironmentOverride,
     ...(optionalModel === undefined ? [] : ["--model", optionalModel]),

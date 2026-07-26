@@ -1,13 +1,12 @@
 import type { StdioServerHandle } from "@modelcontextprotocol/server/stdio";
 
 import type { BinarySession } from "../application/BinarySession.js";
-import type { CdpBrowserProvider } from "../browser/CdpBrowserProvider.js";
-import type { CdpElectronProvider } from "../browser/CdpElectronProvider.js";
-import type { V8InspectorProvider } from "../browser/V8InspectorProvider.js";
-import type { PlaywrightBrowserScenarioProvider } from "../browser/PlaywrightBrowserScenarioProvider.js";
 import type { PermissionAuthority } from "../application/PermissionAuthority.js";
 import type { Logger } from "../logger.js";
-import { createServer } from "../server/createServer.js";
+import {
+  createServer,
+  type CreateServerOptions,
+} from "../server/createServer.js";
 import type { RuntimeDependencies } from "./types.js";
 import type { RuntimeState } from "./state.js";
 import {
@@ -20,10 +19,9 @@ type McpServerInstance = ReturnType<typeof createServer>;
 interface ServerContext {
   readonly logger: Logger;
   readonly serverLogger: Logger;
-  readonly browserObservation: CdpBrowserProvider;
-  readonly browserScenarioCapture: PlaywrightBrowserScenarioProvider;
-  readonly electronObservation: CdpElectronProvider;
-  readonly javascriptRuntimeObservation: V8InspectorProvider;
+  readonly loadOptionalProviders: NonNullable<
+    CreateServerOptions["loadOptionalProviders"]
+  >;
   readonly permissionAuthority: PermissionAuthority;
   readonly runtimeState: RuntimeState;
 }
@@ -58,11 +56,7 @@ export const startMcpTransport = async (
             analysisSnapshotFilePolicy:
               serverContext.runtimeState.snapshotPolicy,
             permissionAuthority: serverContext.permissionAuthority,
-            browserObservation: serverContext.browserObservation,
-            browserScenarioCapture: serverContext.browserScenarioCapture,
-            electronObservation: serverContext.electronObservation,
-            javascriptRuntimeObservation:
-              serverContext.javascriptRuntimeObservation,
+            loadOptionalProviders: serverContext.loadOptionalProviders,
             artifactIntegrityContinueEnabled: () =>
               serverContext.runtimeState.currentConfig
                 .artifactIntegrityContinueEnabled,

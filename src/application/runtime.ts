@@ -2,11 +2,10 @@ import type { AppConfig } from "../config.js";
 import { BinarySession } from "./BinarySession.js";
 import { HopperProvider } from "../hopper/HopperProvider.js";
 import { GhidraProvider } from "../ghidra/GhidraProvider.js";
-import { NativeMacOSProvider } from "../native/NativeMacOSProvider.js";
-import { ArtifactProvider } from "../artifacts/ArtifactProvider.js";
-import { ManagedStaticProvider } from "../dotnet/ManagedStaticProvider.js";
 import { silentLogger, type Logger } from "../logger.js";
+import { GENERATED_AUXILIARY_PROVIDERS } from "../generatedMcpToolCatalog.js";
 import { AnalysisProviderRegistry } from "./AnalysisProviderRegistry.js";
+import { LazyAnalysisProvider } from "./LazyAnalysisProvider.js";
 import { SessionProviderRouter } from "./SessionProviderRouter.js";
 
 /**
@@ -20,16 +19,46 @@ export const createBinarySession = (
 ): BinarySession => {
   const hopper = new HopperProvider(config, logger);
   const ghidra = new GhidraProvider(config, logger);
+  const auxiliary = new Map(
+    GENERATED_AUXILIARY_PROVIDERS.map((provider) => [
+      provider.identity.id,
+      provider,
+    ]),
+  );
+  const lazyProvider = (
+    id: string,
+    load: ConstructorParameters<typeof LazyAnalysisProvider>[0]["load"],
+  ) => {
+    const generated = auxiliary.get(id);
+    if (generated === undefined)
+      throw new TypeError(`Missing generated provider metadata for ${id}`);
+    return new LazyAnalysisProvider({ ...generated, load });
+  };
   return new BinarySession(
     SessionProviderRouter.selectable(
       new AnalysisProviderRegistry([hopper, ghidra], config.analysisProvider),
       [
-        new ArtifactProvider(
-          config.artifactNativeMountEnabled,
-          config.artifactIntegrityContinueEnabled,
-        ),
-        new NativeMacOSProvider(),
-        new ManagedStaticProvider(),
+        lazyProvider("rea-artifact-graph", async () => {
+          const { ArtifactProvider } = await import(
+            "../artifacts/ArtifactProvider.js"
+          );
+          return new ArtifactProvider(
+            config.artifactNativeMountEnabled,
+            config.artifactIntegrityContinueEnabled,
+          );
+        }),
+        lazyProvider("native-macos", async () => {
+          const { NativeMacOSProvider } = await import(
+            "../native/NativeMacOSProvider.js"
+          );
+          return new NativeMacOSProvider();
+        }),
+        lazyProvider("rea-dotnet-static", async () => {
+          const { ManagedStaticProvider } = await import(
+            "../dotnet/ManagedStaticProvider.js"
+          );
+          return new ManagedStaticProvider();
+        }),
       ],
     ),
   );

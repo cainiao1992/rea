@@ -1,8 +1,9 @@
 import { z } from "zod";
 
-import { TOOL_CONTRACTS } from "../contracts/toolContracts.js";
 import type { ClientFeatureAvailability } from "../contracts/toolOutputSchemaPrimitives.js";
+import type { ToolKind } from "../contracts/toolContractTypes.js";
 import type { JsonValue } from "../domain/jsonValue.js";
+import { GENERATED_MCP_TOOL_CATALOG } from "../generatedMcpToolCatalog.js";
 
 const statusSchema = z.object({
   open: z.boolean(),
@@ -28,7 +29,6 @@ type ToolAvailabilityReason =
   | "unsupported_host"
   | "policy_disabled";
 
-type ToolKind = (typeof TOOL_CONTRACTS)[number]["kind"];
 type ProviderDescriptor = {
   readonly available: boolean;
   readonly reason: string | null;
@@ -128,7 +128,7 @@ export const buildCapabilityInventory = (
       },
     ]),
   );
-  return TOOL_CONTRACTS.map((contract) => {
+  return GENERATED_MCP_TOOL_CATALOG.map((contract) => {
     const availability = availabilityFor({
       name: contract.name,
       kind: contract.kind,

@@ -2,10 +2,7 @@ import type {
   CapabilityDescriptor,
   ProviderIdentity,
 } from "../application/AnalysisProvider.js";
-import {
-  ENHANCED_TOOL_CONTRACTS,
-  OFFICIAL_TOOL_CONTRACTS,
-} from "../contracts/toolContracts.js";
+import { GENERATED_MCP_TOOL_CATALOG } from "../generatedMcpToolCatalog.js";
 import {
   GHIDRA_DECOMPILE_REQUEST_TIMEOUT_MS,
   GHIDRA_MAX_LINE_BYTES,
@@ -22,10 +19,9 @@ export const GHIDRA_PROVIDER_IDENTITY: ProviderIdentity = Object.freeze({
 });
 
 const providerContractByName = new Map(
-  [...OFFICIAL_TOOL_CONTRACTS, ...ENHANCED_TOOL_CONTRACTS].map((contract) => [
-    contract.name,
-    contract,
-  ]),
+  GENERATED_MCP_TOOL_CATALOG.filter(
+    ({ kind }) => kind === "official-proxy" || kind === "enhanced",
+  ).map((contract) => [contract.name, contract]),
 );
 
 /** Provider-neutral read-only contracts implemented by the Ghidra adapter. */
@@ -165,10 +161,13 @@ export const limitationsFor = (operation: string): readonly string[] => {
 
 /** Provider-neutral capabilities advertised by every non-Windows Ghidra session. */
 export const CAPABILITIES: readonly CapabilityDescriptor[] = Object.freeze(
-  GHIDRA_PROVIDER_TOOL_CONTRACTS.map((contract) =>
-    Object.freeze({
+  GHIDRA_PROVIDER_TOOL_CONTRACTS.map((contract) => {
+    const operation = contract.analysisOperation;
+    if (operation === null)
+      throw new TypeError(`Missing analysis operation for ${contract.name}`);
+    return Object.freeze({
       provider: GHIDRA_PROVIDER_IDENTITY,
-      operation: contract.name,
+      operation,
       inputContractVersion: 1,
       outputContractVersion: 1,
       available: true,
@@ -198,8 +197,8 @@ export const CAPABILITIES: readonly CapabilityDescriptor[] = Object.freeze(
           : GHIDRA_REQUEST_TIMEOUT_MS,
       }),
       limitations: Object.freeze(limitationsFor(contract.name)),
-    }),
-  ),
+    });
+  }),
 );
 
 /** Capabilities advertised for the experimental Windows x64 P0 boundary. */

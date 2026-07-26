@@ -1,5 +1,35 @@
 # Changelog
 
+## [2.6.0](https://github.com/morluto/rea/compare/rea-agents-2.5.1...rea-agents-2.6.0) (2026-07-26)
+
+
+### Features
+
+* complete evidence-backed roadmap workflows ([1a0931b](https://github.com/morluto/rea/commit/1a0931b630587701d495d1634fbafe3638ad5516))
+* **hopper:** report bridge progress diagnostics ([7a43420](https://github.com/morluto/rea/commit/7a434200297df85c62c02bb103cf870d14f202f7))
+* **native:** inspect API boundaries with evidence ([521139d](https://github.com/morluto/rea/commit/521139d4a57a8ab2e25bb262d2a1fd09fd06be92))
+
+
+### Bug Fixes
+
+* **setup:** refresh stale local npx bootstrap ([6d37efe](https://github.com/morluto/rea/commit/6d37efe8fa1fb9b09c8eaa3a1ed6b6f63188ae22))
+* **setup:** refresh stale local npx bootstrap ([90bb161](https://github.com/morluto/rea/commit/90bb1610f56448846adf85b31d9ae96be12dfb4a))
+
+
+### Performance Improvements
+
+* **mcp:** reduce cold-start work ([8ec9bb1](https://github.com/morluto/rea/commit/8ec9bb1bfea8bc57441bec72f3fcfbe93cf5d4f4))
+* **mcp:** reduce cold-start work ([fecddc0](https://github.com/morluto/rea/commit/fecddc0549a31e99a5ea72cbda84e448b1a961d5))
+
+
+### Tests
+
+* add critical provider workflow coverage ([4716fa2](https://github.com/morluto/rea/commit/4716fa2ece954f5e53bdda9d1f33afad57d2e151))
+* **hopper:** remove brittle diagnostic source assertion ([40bf55b](https://github.com/morluto/rea/commit/40bf55b74ca6b2c90b3243a29018cb75879ba081))
+* **investigation:** prove multi-version fixture closure ([5184816](https://github.com/morluto/rea/commit/5184816199895ceff6a489810e12fba0c2c41eb7))
+* **mcp:** stabilize lazy-loading verification ([7157ab0](https://github.com/morluto/rea/commit/7157ab0b70833cc8237271e8625ccb7965c318c3))
+* **package:** prove artifact cleanup and identity ([9522adf](https://github.com/morluto/rea/commit/9522adf19ac915247e2c74b18d3ef5cab95befc5))
+
 ## [2.5.1](https://github.com/morluto/rea/compare/rea-agents-2.5.0...rea-agents-2.5.1) (2026-07-25)
 
 

@@ -57,6 +57,7 @@ const auxiliaryProviders = [
   identity: provider.identity(),
   capabilities: provider.capabilities(),
 }));
+const payloadJson = JSON.stringify({ catalog, auxiliaryProviders });
 const source = await format(
   `import type { ToolAnnotations } from "@modelcontextprotocol/server";
 import type {
@@ -66,9 +67,7 @@ import type {
 import type { ToolKind } from "./contracts/toolContractTypes.js";
 import type { ToolEffects } from "./contracts/toolEffects.js";
 
-/** Generated from TOOL_CONTRACTS; do not edit. */
-// prettier-ignore
-export const GENERATED_MCP_TOOL_CATALOG: readonly {
+interface GeneratedTool {
   readonly name: string;
   readonly analysisOperation: CapabilityDescriptor["operation"] | null;
   readonly title: string;
@@ -79,14 +78,69 @@ export const GENERATED_MCP_TOOL_CATALOG: readonly {
   readonly outputSchema: Readonly<Record<string, unknown>>;
   readonly annotations: ToolAnnotations;
   readonly effects: ToolEffects;
-}[] = ${JSON.stringify(catalog)};
+}
 
-/** Generated lightweight metadata for lazily loaded auxiliary providers. */
-// prettier-ignore
-export const GENERATED_AUXILIARY_PROVIDERS: readonly {
+interface GeneratedProvider {
   readonly identity: ProviderIdentity;
   readonly capabilities: readonly CapabilityDescriptor[];
-}[] = ${JSON.stringify(auxiliaryProviders)};
+}
+
+interface GeneratedPayload {
+  readonly catalog: readonly GeneratedTool[];
+  readonly auxiliaryProviders: readonly GeneratedProvider[];
+}
+
+const GENERATED_PAYLOAD_JSON = ${JSON.stringify(payloadJson)};
+const generatedPayload: unknown = JSON.parse(GENERATED_PAYLOAD_JSON);
+if (!isGeneratedPayload(generatedPayload))
+  throw new TypeError("Generated MCP catalog payload is invalid");
+
+/** Generated from TOOL_CONTRACTS; do not edit. */
+export const GENERATED_MCP_TOOL_CATALOG = generatedPayload.catalog;
+
+/** Generated lightweight metadata for lazily loaded auxiliary providers. */
+export const GENERATED_AUXILIARY_PROVIDERS = generatedPayload.auxiliaryProviders;
+
+function isGeneratedPayload(value: unknown): value is GeneratedPayload {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.catalog) &&
+    value.catalog.every(isGeneratedTool) &&
+    Array.isArray(value.auxiliaryProviders) &&
+    value.auxiliaryProviders.every(isGeneratedProvider)
+  );
+}
+
+function isGeneratedTool(value: unknown): value is GeneratedTool {
+  return (
+    isRecord(value) &&
+    typeof value.name === "string" &&
+    (typeof value.analysisOperation === "string" ||
+      value.analysisOperation === null) &&
+    typeof value.title === "string" &&
+    typeof value.description === "string" &&
+    typeof value.kind === "string" &&
+    typeof value.requiresSession === "boolean" &&
+    isRecord(value.inputSchema) &&
+    isRecord(value.outputSchema) &&
+    isRecord(value.annotations) &&
+    isRecord(value.effects)
+  );
+}
+
+function isGeneratedProvider(value: unknown): value is GeneratedProvider {
+  return (
+    isRecord(value) &&
+    isRecord(value.identity) &&
+    Array.isArray(value.capabilities)
+  );
+}
+
+function isRecord(
+  value: unknown,
+): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 `,
   { parser: "typescript" },
 );

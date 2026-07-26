@@ -46,6 +46,9 @@ export interface ProductCatalog {
 }
 
 export function createProductCatalog(root: string): Promise<ProductCatalog>;
+export function providerCatalogDigest(
+  providers: ProductCatalog["providers"],
+): string;
 export function createCliInventory(cli: unknown): {
   readonly primary: readonly string[];
   readonly aliases: readonly {

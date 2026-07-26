@@ -44,6 +44,7 @@ import {
   cliCommandDescriptionIssues,
   cliCommandOptionNames,
   createProductCatalog,
+  providerCatalogDigest,
   serializeProductCatalog,
 } from "../scripts/lib/product-catalog.mjs";
 
@@ -139,6 +140,9 @@ describe("canonical product catalog", () => {
       "project_managed_application_graph",
       "verify_managed_native_boundaries",
     ]);
+    expect(catalog.runtime_catalog.digests.providers_sha256).toBe(
+      providerCatalogDigest(catalog.providers),
+    );
     expect(
       z.toJSONSchema(analysisSnapshotSchema).properties?.snapshot_version,
     ).toMatchObject({
@@ -227,6 +231,19 @@ describe("canonical product catalog", () => {
     expect(issues.some((issue) => issue.includes("Future Client"))).toBe(true);
     expect(issues.some((issue) => issue.includes("Process Capture v5"))).toBe(
       true,
+    );
+  });
+
+  it("changes the provider projection digest when provider facts drift", async () => {
+    const catalog = await createProductCatalog(root);
+    const firstProvider = catalog.providers[0];
+    if (firstProvider === undefined) throw new TypeError("Missing provider");
+    const driftedProviders = [
+      { ...firstProvider, name: `${firstProvider.name} drifted` },
+      ...catalog.providers.slice(1),
+    ];
+    expect(providerCatalogDigest(driftedProviders)).not.toBe(
+      catalog.runtime_catalog.digests.providers_sha256,
     );
   });
 

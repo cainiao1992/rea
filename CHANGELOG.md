@@ -1,5 +1,35 @@
 # Changelog
 
+## [2.7.0](https://github.com/morluto/rea/compare/rea-agents-2.6.0...rea-agents-2.7.0) (2026-07-28)
+
+
+### Features
+
+* **bytecode:** add JVM and Python bytecode providers ([1a75f8d](https://github.com/morluto/rea/commit/1a75f8dc236d8269a5fa07e042471ac79e79d728))
+* **bytecode:** add JVM and Python bytecode providers ([4e0127d](https://github.com/morluto/rea/commit/4e0127d620377e5dc7e09444f9db0977e3d47ed1)), closes [#367](https://github.com/morluto/rea/issues/367)
+* **conformance:** add portable conformance export package format ([91fb87d](https://github.com/morluto/rea/commit/91fb87d17e7885439762667c96167af79a2e044e))
+* **conformance:** add portable conformance export package format ([4ee30e4](https://github.com/morluto/rea/commit/4ee30e4145db9b496158cd980af05e22010856a7))
+* **metadata:** add deeper ObjC/Swift metadata and database save/licensing ([4602efd](https://github.com/morluto/rea/commit/4602efd27cbf8701c2dc15542042bc9d9ef76e7f))
+* **metadata:** add deeper ObjC/Swift metadata and database save/licensing ([d7a0753](https://github.com/morluto/rea/commit/d7a07535b0fb61ee8f9ae648bb673dda23290653)), closes [#353](https://github.com/morluto/rea/issues/353)
+* **mobile:** add Android APK/AAB/DEX and iOS IPA static investigation providers ([18624df](https://github.com/morluto/rea/commit/18624df5724a2c4d14a4e8e178660456424b2344))
+* **mobile:** add Android APK/AAB/DEX and iOS IPA static investigation providers ([fdeeb27](https://github.com/morluto/rea/commit/fdeeb27f23041c19b5857fe7873106f0cd9c6244)), closes [#366](https://github.com/morluto/rea/issues/366)
+* **package:** add MSIX/MSI/AppX package, resource, and signature analysis ([0ef1b91](https://github.com/morluto/rea/commit/0ef1b91cf31f6ca53991ee5ca60b4a22f430c01e))
+* **package:** add MSIX/MSI/AppX package, resource, and signature analysis ([6c03f83](https://github.com/morluto/rea/commit/6c03f83b1bd55095d136aeb3700733383365ecc4)), closes [#363](https://github.com/morluto/rea/issues/363)
+* **pe:** add broader PE/COFF/PDB static inspection ([f942558](https://github.com/morluto/rea/commit/f9425585736a89165390178f245b0f0f5d6cdacf))
+* **pe:** add broader PE/COFF/PDB static inspection ([94e6600](https://github.com/morluto/rea/commit/94e6600faf89436e4e2689fda8050792307b268d)), closes [#362](https://github.com/morluto/rea/issues/362)
+* **process:** replace procfs sampling with event-backed process-tree capture ([a5e355a](https://github.com/morluto/rea/commit/a5e355a3d52b19e89535449cd923c35e56ccc60d))
+* **process:** replace procfs sampling with event-backed process-tree capture ([d5d2e56](https://github.com/morluto/rea/commit/d5d2e56d0461cb0debba540bc658a9938ac30599)), closes [#332](https://github.com/morluto/rea/issues/332)
+* **protocol:** add custom TCP/UDP/IPC/XPC and auth-flow capture ([1fb22b4](https://github.com/morluto/rea/commit/1fb22b4c21e3a5581f3928003cc32ddc1cc9530b))
+* **protocol:** add custom TCP/UDP/IPC/XPC and auth-flow capture ([6fa6f9b](https://github.com/morluto/rea/commit/6fa6f9b6d9595a480a590766dadcfebb8e7111b5)), closes [#365](https://github.com/morluto/rea/issues/365)
+* **protocol:** add gRPC/Protobuf and JSON-RPC/MessagePack capture ([54153ed](https://github.com/morluto/rea/commit/54153ed62cb4f55d1efd4794490c2481ab34e212))
+* **protocol:** add gRPC/Protobuf and JSON-RPC/MessagePack capture ([3f336fe](https://github.com/morluto/rea/commit/3f336fefb132971bc6bb37b2b59aa01a5e3be5ca)), closes [#364](https://github.com/morluto/rea/issues/364)
+
+
+### Bug Fixes
+
+* **catalog:** digest provider projections ([645668b](https://github.com/morluto/rea/commit/645668b70dfdff74582d4ac26cda417947231764))
+* **catalog:** digest provider projections ([c4cd033](https://github.com/morluto/rea/commit/c4cd0330e00eeb8e272abbf6ecc6ce961e72f317))
+
 ## [2.6.0](https://github.com/morluto/rea/compare/rea-agents-2.5.1...rea-agents-2.6.0) (2026-07-26)
 
 

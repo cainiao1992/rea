@@ -1,0 +1,138 @@
+import { z } from "zod";
+
+import {
+  conformancePackageSchema,
+  type ConformancePackage,
+} from "./conformancePackage.js";
+import { trustGateResultSchema } from "./conformanceTrustGate.js";
+
+/** Result of a single scenario replay. */
+export const scenarioReplayResultSchema = z.strictObject({
+  scenario_id: z.string().min(1),
+  status: z.enum(["pass", "fail", "error", "skipped"]),
+  exit_code: z.number().int().nullable(),
+  duration_ms: z.number().int().nonnegative(),
+  output: z.string().default(""),
+  error: z.string().nullable(),
+});
+
+/** Result of replaying an entire conformance package. */
+export const packageReplayResultSchema = z.strictObject({
+  package_id: z.string().min(1),
+  total_scenarios: z.number().int().positive(),
+  passed: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  errored: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+  scenario_results: z.array(scenarioReplayResultSchema),
+  trust_gate_results: z.array(trustGateResultSchema),
+  drift_detected: z.boolean(),
+  first_drift: z
+    .strictObject({
+      scenario_id: z.string().min(1),
+      dimension: z.string().min(1),
+      message: z.string(),
+    })
+    .nullable(),
+});
+
+export type ScenarioReplayResult = z.infer<typeof scenarioReplayResultSchema>;
+export type PackageReplayResult = z.infer<typeof packageReplayResultSchema>;
+
+/** Callback interface for replaying a scenario. */
+export interface ScenarioRunner {
+  (scenarioId: string, fixturePath: string): Promise<ScenarioReplayResult>;
+}
+
+/**
+ * Default no-op scenario runner that skips all scenarios.
+ * Real CI replays inject an actual runner.
+ */
+async function defaultRunner(): Promise<ScenarioReplayResult> {
+  return {
+    scenario_id: "unknown",
+    status: "skipped",
+    exit_code: null,
+    duration_ms: 0,
+    output: "",
+    error: "no runner provided",
+  };
+}
+
+/**
+ * Replay a conformance package from a clean checkout.
+ * Runs each scenario, evaluates trust gates, and detects drift
+ * between the captured run and the committed package.
+ */
+export async function replayConformancePackage(
+  packageInput: unknown,
+  actualEvidence: Record<string, Record<string, unknown>>,
+  runner: ScenarioRunner = defaultRunner,
+  options: { truncated?: boolean } = {},
+): Promise<PackageReplayResult> {
+  const parsed = conformancePackageSchema.safeParse(packageInput);
+  if (!parsed.success)
+    throw new TypeError(
+      `invalid conformance package: ${parsed.error.issues[0]?.message ?? "unknown"}`,
+    );
+  const pkg: ConformancePackage = parsed.data;
+
+  const scenarioResults: ScenarioReplayResult[] = [];
+  let passed = 0;
+  let failed = 0;
+  let errored = 0;
+  let skipped = 0;
+
+  for (const scenario of pkg.scenarios) {
+    const result = await runner(scenario.scenario_id, scenario.fixture_path);
+    scenarioResults.push(result);
+
+    switch (result.status) {
+      case "pass":
+        passed++;
+        break;
+      case "fail":
+        failed++;
+        break;
+      case "error":
+        errored++;
+        break;
+      case "skipped":
+        skipped++;
+        break;
+    }
+  }
+
+  const trustGateResults = evaluatePackageTrustGates(
+    pkg,
+    actualEvidence,
+    options,
+  );
+
+  const driftGates = trustGateResults.filter((r) => r.verdict === "fail");
+  const drift_detected = driftGates.length > 0;
+  const first_drift_gate = driftGates[0];
+  const first_drift = first_drift_gate?.first_divergence
+    ? {
+        scenario_id: first_drift_gate.scenario_id,
+        dimension: first_drift_gate.first_divergence.dimension,
+        message: first_drift_gate.first_divergence.message,
+      }
+    : null;
+
+  return {
+    package_id: pkg.package_id,
+    total_scenarios: pkg.scenarios.length,
+    passed,
+    failed,
+    errored,
+    skipped,
+    scenario_results: scenarioResults,
+    trust_gate_results: trustGateResults,
+    drift_detected,
+    first_drift,
+  };
+}
+
+/** Import trust gate evaluator for replay. */
+import { evaluatePackageTrustGates } from "./conformanceTrustGate.js";

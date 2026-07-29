@@ -29,7 +29,7 @@ export const TEST_PROJECTS = [
       "src/{artifacts,browser,dotnet,ghidra,hopper,native,process,reference,replay}/**/*.test.ts",
     ],
     pool: "forks" as const,
-    maxWorkers: MAX_TEST_WORKERS,
+    maxWorkers: Math.min(2, MAX_TEST_WORKERS),
   },
   {
     name: "composition",
@@ -41,7 +41,7 @@ export const TEST_PROJECTS = [
     name: "boundary",
     include: ["tests/boundary/**/*.test.ts"],
     pool: "forks" as const,
-    maxWorkers: MAX_TEST_WORKERS,
+    maxWorkers: Math.min(2, MAX_TEST_WORKERS),
   },
   {
     name: "acceptance",
@@ -53,6 +53,7 @@ export const TEST_PROJECTS = [
     name: "process-global",
     include: ["tests/process-global/**/*.test.ts"],
     pool: "forks" as const,
+    maxWorkers: 1,
     fileParallelism: false,
   },
   {
@@ -84,7 +85,7 @@ export default defineConfig({
     // Boundary projects may compete with TypeScript, docs, and package checks
     // under Turbo. Keep the deadline bounded while avoiding false failures from
     // host-level CPU and filesystem contention.
-    testTimeout: COVERAGE_ENABLED ? 30_000 : 15_000,
+    testTimeout: COVERAGE_ENABLED ? 60_000 : 30_000,
     coverage: {
       enabled: false,
       provider: "v8",

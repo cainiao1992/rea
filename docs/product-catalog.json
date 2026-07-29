@@ -671,10 +671,10 @@
       "mcp_resource_templates": 11
     },
     "digests": {
-      "tools_sha256": "daef46f5c6af3e04bf5adde36468da9a87c862057f8e64ff423b22028f5680c4",
+      "tools_sha256": "58bc4f72c5f8de4328728ead9f3a28ec5548484b7b9cf2ed85cf0edcc689a63c",
       "prompts_sha256": "3886a3bf55a448def79e3eb429e6a56eb2ba075423c5cb1e5747642b389ef8fe",
       "resources_sha256": "e0e872276ebf6f88e916ef24930a99eed27ce4c93e494e60820e9bd8cc8497c3",
-      "combined_sha256": "5b09f9fa9e75e9cd520fa405cb869e1c6bdbbcc576f52d5a334482975ec7b1fe",
+      "combined_sha256": "e83a177f5eca63bbad17886a61f5a1a376d44afe862c51c56e5d38339f7d41f8",
       "providers_sha256": "918ccd6b8ae442cd5844dcfde55086f458176241c8d166c1e9dd0f242ccd2bb0"
     }
   }

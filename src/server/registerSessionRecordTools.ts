@@ -302,6 +302,12 @@ export const registerUnknownTools = ({
       );
       if (!parsed.ok) return toCallToolResult(parsed, updateContract);
       const result = session.updateUnknown(parsed.value);
+      if (result.ok)
+        void server.server
+          .sendResourceUpdated({
+            uri: `rea://unknown/${result.value.unknown_id}`,
+          })
+          .catch(() => undefined);
       return result.ok
         ? toCallToolResult(result, updateContract, {
             resourceLinks: [

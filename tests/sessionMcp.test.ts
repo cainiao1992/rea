@@ -136,8 +136,13 @@ describe("target-free MCP lifecycle", () => {
     });
     const mcp = new Client({ name: "session-test", version: "1.0.0" });
     let resourceListChanges = 0;
+    let unknownResourceUpdates = 0;
     mcp.setNotificationHandler("notifications/resources/list_changed", () => {
       resourceListChanges += 1;
+    });
+    mcp.setNotificationHandler("notifications/resources/updated", (notice) => {
+      if (notice.params.uri.startsWith("rea://unknown/"))
+        unknownResourceUpdates += 1;
     });
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();
@@ -297,6 +302,7 @@ describe("target-free MCP lifecycle", () => {
     });
     expect(resolved.isError).not.toBe(true);
     await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(unknownResourceUpdates).toBe(1);
     expect(resourceListChanges).toBe(changesBeforeMutation);
     expect(
       structured(

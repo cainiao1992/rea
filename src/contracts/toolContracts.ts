@@ -500,7 +500,7 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "list_unknowns",
-    "List current residual-unknown heads in deterministic ID order, with optional exact status, severity, and domain filters. This is read-only; unresolved, contradicted, and non-truth dispositions remain distinct.",
+    "List current residual-unknown heads in deterministic ID order, with optional exact status, severity, and domain filters. Pages default to 100 items; while has_more is true, pass next_offset as offset and continue until false. This is read-only; unresolved, contradicted, and non-truth dispositions remain distinct.",
     listUnknownsInputSchema,
   ),
   session(

@@ -111,6 +111,16 @@ const ENHANCED_REQUIREMENTS: Readonly<Record<string, readonly string[]>> = {
   ],
 };
 
+const SESSION_COMPOSITION_REQUIREMENTS: Readonly<
+  Record<string, readonly string[]>
+> = {
+  get_navigation_context: [
+    "current_document",
+    "current_address",
+    "resolve_containing_procedure",
+  ],
+};
+
 /** Build stable per-operation availability for discovery and tool visibility. */
 export const buildCapabilityInventory = (
   sessionStatus: JsonValue,
@@ -185,6 +195,9 @@ const clientRequirementsFor = (
 };
 
 const availabilityFor = (context: AvailabilityContext): Availability => {
+  const sessionComposition = SESSION_COMPOSITION_REQUIREMENTS[context.name];
+  if (sessionComposition !== undefined)
+    return composedAvailabilityFor(sessionComposition, context.descriptors);
   const javascriptApplication = javascriptApplicationAvailability(context);
   if (javascriptApplication !== null) return javascriptApplication;
   const policyDecision = policyAvailability(context);
@@ -366,6 +379,13 @@ const composedAvailability = (
       reason: "provider_missing",
       remediation: "No provider composition is declared for this operation.",
     };
+  return composedAvailabilityFor(requirements, descriptors);
+};
+
+const composedAvailabilityFor = (
+  requirements: readonly string[],
+  descriptors: ReadonlyMap<string, ProviderDescriptor>,
+): Availability => {
   const missing = requirements.find((operation) => !descriptors.has(operation));
   if (missing !== undefined)
     return {

@@ -3,9 +3,9 @@ import type {
   AnalysisOperation,
   AnalysisOperationPort,
 } from "./AnalysisProvider.js";
-import type { AnalysisError } from "../domain/errors.js";
+import { AnalysisOutputError, type AnalysisError } from "../domain/errors.js";
 import type { JsonValue } from "../domain/jsonValue.js";
-import { ok, type Result } from "../domain/result.js";
+import { err, ok, type Result } from "../domain/result.js";
 
 type Facet =
   | { readonly state: "available"; readonly value: JsonValue }
@@ -83,7 +83,9 @@ export const inspectAddressContext = async (
   input: { readonly address: string; readonly document?: string | undefined },
   signal?: AbortSignal,
 ): Promise<Result<JsonValue, AnalysisError>> => {
-  const args = parameters(input.document, input.address);
+  const document = await resolveDocument(analysis, input.document, signal);
+  if (!document.ok) return document;
+  const args = parameters(document.value, input.address);
   const operations = [
     "address_name",
     "resolve_containing_procedure",
@@ -95,7 +97,7 @@ export const inspectAddressContext = async (
     operations.map((operation) =>
       analysis.execute(
         operation,
-        operation === "list_bookmarks" ? parameters(input.document) : args,
+        operation === "list_bookmarks" ? parameters(document.value) : args,
         executionOptions(signal),
       ),
     ),
@@ -110,7 +112,7 @@ export const inspectAddressContext = async (
   const bookmarks = facet(results[4], operations[4]);
   return ok({
     address: input.address,
-    document: input.document ?? null,
+    document: document.value,
     name,
     procedure,
     comment,
@@ -126,6 +128,28 @@ export const inspectAddressContext = async (
           }
         : bookmarks,
   });
+};
+
+const resolveDocument = async (
+  analysis: AnalysisOperationPort,
+  document: string | undefined,
+  signal: AbortSignal | undefined,
+): Promise<Result<string, AnalysisError>> => {
+  if (document !== undefined) return ok(document);
+  const current = await analysis.execute(
+    "current_document",
+    {},
+    executionOptions(signal),
+  );
+  if (!current.ok) return current;
+  return typeof current.value.result === "string"
+    ? ok(current.value.result)
+    : err(
+        new AnalysisOutputError(
+          "current_document",
+          "expected a document identity string",
+        ),
+      );
 };
 
 const facet = (

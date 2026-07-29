@@ -94,6 +94,10 @@ describe("analysis context queries", () => {
     const bookmarkInputs: Readonly<Record<string, unknown>>[] = [];
     const analysis: AnalysisOperationPort = {
       execute: (operation, input) => {
+        if (operation === "current_document")
+          return Promise.resolve(
+            ok(createAnalysisExecution("fixture", provider)),
+          );
         if (operation === "comment")
           return Promise.resolve(
             err(new AnalysisProtocolError("comments unavailable")),
@@ -145,6 +149,7 @@ describe("analysis context queries", () => {
     expect(result).toMatchObject({
       ok: true,
       value: {
+        document: "fixture",
         name: { state: "available", value: "entry" },
         comment: {
           state: "unavailable",
@@ -156,7 +161,7 @@ describe("analysis context queries", () => {
         },
       },
     });
-    expect(bookmarkInputs).toEqual([{}]);
+    expect(bookmarkInputs).toEqual([{ document: "fixture" }]);
   });
 
   it("propagates cancellation instead of degrading it to an unavailable facet", async () => {
@@ -171,7 +176,10 @@ describe("analysis context queries", () => {
     };
 
     await expect(
-      inspectAddressContext(analysis, { address: "0x401000" }),
+      inspectAddressContext(analysis, {
+        address: "0x401000",
+        document: "fixture",
+      }),
     ).resolves.toEqual(err(cancelled));
   });
 });

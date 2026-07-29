@@ -220,6 +220,7 @@ const requestErrorDetails = (
       issues: error.issues.map((issue) => ({
         path: [...issue.path],
         reason: issue.reason,
+        ...(issue.message === undefined ? {} : { message: issue.message }),
         ...(issue.expected === undefined ? {} : { expected: issue.expected }),
         ...(issue.minimum === undefined ? {} : { minimum: issue.minimum }),
         ...(issue.maximum === undefined ? {} : { maximum: issue.maximum }),

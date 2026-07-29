@@ -97,6 +97,8 @@ export interface AnalysisInputIssue {
     | "out_of_range"
     | "invalid_value"
     | "invalid_format";
+  /** Schema-authored correction guidance for cross-field or custom checks. */
+  readonly message?: string;
   readonly expected?: JsonValue;
   readonly minimum?: number;
   readonly maximum?: number;
@@ -293,6 +295,7 @@ export class ArtifactOperationError extends AnalysisError {
       | "integrity"
       | "limit"
       | "path"
+      | "policy"
       | "unavailable"
       | "io",
     readonly artifactDetails?: Readonly<{

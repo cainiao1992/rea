@@ -12,6 +12,52 @@ import { createInvestigationWorkspace } from "../src/domain/investigationWorkspa
 const provider = { id: "fixture", name: "Fixture", version: "1" };
 
 describe("evidence MCP resources", () => {
+  it("publishes mutable snapshot changes for every Evidence mutation", () => {
+    const session = new BinarySession(() => ({
+      health: () => Promise.resolve(),
+      execute: () => Promise.resolve(observed(null)),
+      close: () => Promise.resolve(),
+    }));
+    let updates = 0;
+    session.onAnalysisSnapshotChanged(() => {
+      updates += 1;
+    });
+    const first = createEvidence(undefined, provider, {
+      operation: "notification_probe",
+      parameters: {},
+      result: 1,
+    });
+    expect(session.recordEvidence(first)).toEqual({ ok: true, value: "added" });
+    expect(session.recordEvidence(first)).toEqual({
+      ok: true,
+      value: "duplicate",
+    });
+    const imported = createEvidence(undefined, provider, {
+      operation: "import_notification_probe",
+      parameters: {},
+      result: 2,
+    });
+    expect(
+      session.importEvidenceBundle(createEvidenceBundle([imported])),
+    ).toEqual({ ok: true, value: 1 });
+    expect(
+      session.recordUnknown({
+        approved: true,
+        question: "Does mutation publish a snapshot update?",
+        severity: "low",
+        domain: "notifications",
+        supporting_evidence_ids: [first.evidence_id],
+        contradicting_evidence_ids: [],
+        required_authority: "controlled-replay",
+        required_confidence: "observed",
+        required_environment: null,
+        recommended_probes: [],
+        relationships: [],
+      }).ok,
+    ).toBe(true);
+    expect(updates).toBe(3);
+  });
+
   it("retains bundles without eviction and rejects a seventeenth digest", () => {
     const session = new BinarySession(() => ({
       health: () => Promise.resolve(),

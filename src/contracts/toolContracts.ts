@@ -445,7 +445,7 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "export_evidence_bundle",
-    "Return the session's deterministic Evidence v2 bundle, or atomically write it beneath an operator-approved root. Existing files require overwrite: true; records and manifests use canonical byte-stable ordering.",
+    "Atomically write the session's deterministic Evidence v2 bundle beneath an operator-approved root. Existing files require overwrite: true; records and manifests use canonical byte-stable ordering. For an in-session read, use snapshot_evidence_bundle and read its exact resource URI instead.",
     exportEvidenceBundleInputSchema,
   ),
   session(

@@ -34,22 +34,46 @@ export const getNavigationContext = async (
   input: { readonly document?: string | undefined },
   signal?: AbortSignal,
 ): Promise<Result<JsonValue, AnalysisError>> => {
-  const args = parameters(input.document);
-  const [document, address, procedure] = await Promise.all([
-    input.document === undefined
-      ? analysis.execute("current_document", {}, executionOptions(signal))
-      : Promise.resolve(input.document),
-    analysis.execute("current_address", args, executionOptions(signal)),
-    analysis.execute("current_procedure", args, executionOptions(signal)),
-  ]);
+  const document =
+    input.document ??
+    (await analysis.execute("current_document", {}, executionOptions(signal)));
   if (typeof document !== "string" && !document.ok) return document;
+  const documentName =
+    typeof document === "string" ? document : document.value.result;
+  const documentArgs =
+    typeof documentName === "string" ? parameters(documentName) : {};
+  const address = await analysis.execute(
+    "current_address",
+    documentArgs,
+    executionOptions(signal),
+  );
   if (!address.ok) return address;
-  if (!procedure.ok && !isMissingCurrentProcedure(procedure.error))
-    return procedure;
+  if (typeof address.value.result !== "string")
+    return ok({
+      document: documentName,
+      address: address.value.result,
+      procedure: null,
+    });
+  const procedure = await analysis.execute(
+    "resolve_containing_procedure",
+    parameters(
+      typeof documentName === "string" ? documentName : undefined,
+      address.value.result,
+    ),
+    executionOptions(signal),
+  );
+  if (!procedure.ok) {
+    if (!isMissingCurrentProcedure(procedure.error)) return procedure;
+    return ok({
+      document: documentName,
+      address: address.value.result,
+      procedure: null,
+    });
+  }
   return ok({
-    document: typeof document === "string" ? document : document.value.result,
+    document: documentName,
     address: address.value.result,
-    procedure: procedure.ok ? procedure.value.result : null,
+    procedure: containingProcedureName(procedure.value.result),
   });
 };
 
@@ -76,6 +100,9 @@ export const inspectAddressContext = async (
       ),
     ),
   );
+  for (const result of results) {
+    if (!result.ok && isRequestLevelFailure(result.error)) return result;
+  }
   const name = facet(results[0], operations[0]);
   const procedure = facet(results[1], operations[1]);
   const comment = facet(results[2], operations[2]);
@@ -92,7 +119,10 @@ export const inspectAddressContext = async (
       bookmarks.state === "available"
         ? {
             state: "available",
-            value: matchingBookmarks(bookmarks.value, input.address),
+            value: matchingBookmarks(
+              bookmarks.value,
+              resolvedAddress(results[1], input.address),
+            ),
           }
         : bookmarks,
   });
@@ -112,6 +142,39 @@ const facet = (
 
 const isMissingCurrentProcedure = (error: AnalysisError): boolean =>
   /(?:no procedure exists|not in a procedure)/iu.test(error.message);
+
+const isRequestLevelFailure = (error: AnalysisError): boolean =>
+  error._tag === "AnalysisCancelledError" ||
+  error._tag === "AnalysisTimeoutError" ||
+  error._tag === "NoBinaryOpenError" ||
+  error._tag === "PermissionRequiredError";
+
+const containingProcedureName = (value: JsonValue): string | null => {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return null;
+  if (value.found !== true) return null;
+  const procedure = value.procedure;
+  if (
+    typeof procedure !== "object" ||
+    procedure === null ||
+    Array.isArray(procedure)
+  )
+    return null;
+  return typeof procedure.name === "string" ? procedure.name : null;
+};
+
+const resolvedAddress = (
+  result: Result<AnalysisExecution, AnalysisError> | undefined,
+  fallback: string,
+): string => {
+  if (result?.ok !== true) return fallback;
+  const value = result.value.result;
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return fallback;
+  return typeof value.query_address === "string"
+    ? value.query_address
+    : fallback;
+};
 
 const matchingBookmarks = (value: JsonValue, address: string): JsonValue => {
   if (!Array.isArray(value)) return [];

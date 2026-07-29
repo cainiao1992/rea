@@ -149,9 +149,9 @@ export const PROMPT_CONTRACTS = [
           "Build function dossiers and corroborate references and call relationships. Keep indirect or truncated paths unknown.",
       },
       {
-        tools: ["export_evidence_bundle", "record_unknown"],
+        tools: ["snapshot_evidence_bundle", "record_unknown"],
         instruction:
-          "Cite retained Evidence IDs. Record residual unknowns only after separate explicit approval for registry mutation.",
+          "Snapshot the canonical bundle, copy its opaque URI unchanged, and read that resource before citing retained Evidence IDs. Record residual unknowns only after separate explicit approval for registry mutation.",
       },
     ],
   },
@@ -198,9 +198,9 @@ export const PROMPT_CONTRACTS = [
           "For JavaScript/Electron versions, reconstruct each approved artifact independently, optionally reconcile separately retained passive runtime Evidence, then compare authenticated graphs with unique-only identity tiers. Keep ambiguous and incomplete matches unknown.",
       },
       {
-        tools: ["export_evidence_bundle", "compare_artifacts"],
+        tools: ["snapshot_evidence_bundle", "compare_artifacts"],
         instruction:
-          "Resolve any supplied manifest IDs to retained inventory Evidence, validate graph commitments, then compare the complete left and right Evidence page sets.",
+          "Snapshot and read the canonical bundle through its exact resource URI, resolve any supplied manifest IDs to retained inventory Evidence, validate graph commitments, then compare the complete left and right Evidence page sets.",
       },
       {
         tools: ["open_binary", "analyze_function", "compare_functions"],
@@ -241,9 +241,9 @@ export const PROMPT_CONTRACTS = [
     },
     steps: [
       {
-        tools: ["export_evidence_bundle"],
+        tools: ["snapshot_evidence_bundle"],
         instruction:
-          "Load the current canonical bundle and verify that every selected comparison Evidence ID is present and compatible with the intended claim.",
+          "Snapshot the current canonical bundle, copy its opaque URI unchanged, read the resource, and verify that every selected comparison Evidence ID is present and compatible with the intended claim.",
       },
       {
         tools: [
@@ -313,12 +313,12 @@ export const PROMPT_CONTRACTS = [
       },
       {
         tools: [
-          "export_evidence_bundle",
+          "snapshot_evidence_bundle",
           "capture_process_scenario",
           "correlate_static_and_runtime",
         ],
         instruction:
-          "Reuse a retained capture when supplied. Otherwise capture only after operator policy and per-call approval, then correlate through explicit hypotheses rather than timing or name coincidence.",
+          "Snapshot and read retained Evidence through the exact resource URI. Reuse a retained capture when supplied. Otherwise capture only after operator policy and per-call approval, then correlate through explicit hypotheses rather than timing or name coincidence.",
       },
       {
         tools: ["record_unknown"],
@@ -354,9 +354,9 @@ export const PROMPT_CONTRACTS = [
           "List current heads first and select only active, session-owned unknown IDs. Preserve their exact revision and requirements.",
       },
       {
-        tools: ["export_evidence_bundle", "verify_unknown_resolution"],
+        tools: ["snapshot_evidence_bundle", "verify_unknown_resolution"],
         instruction:
-          "Inspect cited supporting, contradicting, and mutation Evidence, then validate any resolved head against bundle integrity and authority requirements.",
+          "Snapshot and read the canonical bundle through its exact resource URI, inspect cited supporting, contradicting, and mutation Evidence, then validate any resolved head against bundle integrity and authority requirements.",
       },
       {
         tools: ["update_unknown"],
@@ -399,9 +399,9 @@ export const PROMPT_CONTRACTS = [
           "Inspect capture capability, declared effects, and limits before proposing execution. An unavailable capability is not permission to widen policy.",
       },
       {
-        tools: ["export_evidence_bundle"],
+        tools: ["snapshot_evidence_bundle"],
         instruction:
-          "Review any prior capture for unanswered dimensions, truncation, scenario commitments, and descendant settlement before designing a repeat.",
+          "Snapshot and read the canonical bundle through its exact resource URI, then review any prior capture for unanswered dimensions, truncation, scenario commitments, and descendant settlement before designing a repeat.",
       },
       {
         tools: ["capture_process_scenario"],

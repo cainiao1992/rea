@@ -8,7 +8,10 @@ import {
   createAnalysisExecution,
   type AnalysisOperationPort,
 } from "../src/application/AnalysisProvider.js";
-import { AnalysisProtocolError } from "../src/domain/errors.js";
+import {
+  AnalysisCancelledError,
+  AnalysisProtocolError,
+} from "../src/domain/errors.js";
 import { err, ok } from "../src/domain/result.js";
 
 const provider = { id: "fixture", name: "Fixture", version: "1" };
@@ -30,9 +33,19 @@ describe("analysis context queries", () => {
           return Promise.resolve(
             ok(createAnalysisExecution("0x401000", provider)),
           );
-        if (operation === "current_procedure")
+        if (operation === "resolve_containing_procedure")
           return Promise.resolve(
-            err(new AnalysisProtocolError("cursor is not in a procedure")),
+            ok(
+              createAnalysisExecution(
+                {
+                  query_address: "0x401000",
+                  found: false,
+                  procedure: null,
+                  reason: "not_in_procedure",
+                },
+                provider,
+              ),
+            ),
           );
         return Promise.resolve(
           err(new AnalysisProtocolError(`unexpected ${operation}`)),
@@ -50,6 +63,10 @@ describe("analysis context queries", () => {
     expect(calls).toContainEqual({
       operation: "current_document",
       parameters: {},
+    });
+    expect(calls).toContainEqual({
+      operation: "resolve_containing_procedure",
+      parameters: { document: "fixture", address: "0x401000" },
     });
   });
 
@@ -70,7 +87,7 @@ describe("analysis context queries", () => {
     await expect(
       getNavigationContext(analysis, { document: "fixture" }),
     ).resolves.toEqual(err(failure));
-    expect(calls).toEqual(["current_address", "current_procedure"]);
+    expect(calls).toEqual(["current_address", "resolve_containing_procedure"]);
   });
 
   it("keeps unsupported address facets local and filters bookmarks", async () => {
@@ -90,7 +107,11 @@ describe("analysis context queries", () => {
             return Promise.resolve(
               ok(
                 createAnalysisExecution(
-                  { address: "0x401000", name: "main" },
+                  {
+                    query_address: "0x401000",
+                    found: true,
+                    procedure: { address: "0x401000", name: "main" },
+                  },
                   provider,
                 ),
               ),
@@ -119,7 +140,7 @@ describe("analysis context queries", () => {
     };
 
     const result = await inspectAddressContext(analysis, {
-      address: "0x401000",
+      address: "401000",
     });
     expect(result).toMatchObject({
       ok: true,
@@ -136,5 +157,21 @@ describe("analysis context queries", () => {
       },
     });
     expect(bookmarkInputs).toEqual([{}]);
+  });
+
+  it("propagates cancellation instead of degrading it to an unavailable facet", async () => {
+    const cancelled = new AnalysisCancelledError("comment");
+    const analysis: AnalysisOperationPort = {
+      execute: (operation) =>
+        Promise.resolve(
+          operation === "comment"
+            ? err(cancelled)
+            : ok(createAnalysisExecution(null, provider)),
+        ),
+    };
+
+    await expect(
+      inspectAddressContext(analysis, { address: "0x401000" }),
+    ).resolves.toEqual(err(cancelled));
   });
 });

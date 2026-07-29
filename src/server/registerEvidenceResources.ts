@@ -184,7 +184,7 @@ const registerAnalysisSnapshotResource = (
           state: "unavailable",
           reason: snapshot.error.message,
           remediation:
-            "Open a native target with a concrete analysis profile, or rerun analysis after metadata mutation.",
+            "Open a native target with a concrete analysis profile. After metadata mutation, call open_binary again for the current target to begin a fresh cache.",
         });
       return jsonResource(uri.href, {
         state: "available",

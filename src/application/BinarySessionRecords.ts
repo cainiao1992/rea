@@ -77,7 +77,9 @@ export abstract class BinarySessionRecords {
     "added" | "duplicate",
     EvidenceIntegrityError | EvidenceLimitError
   > {
-    return this.#evidence.record(evidence);
+    const recorded = this.#evidence.record(evidence);
+    if (recorded.ok && recorded.value === "added") this.#emitSnapshotChanged();
+    return recorded;
   }
 
   hasEvidence(evidenceId: string): boolean {
@@ -138,7 +140,9 @@ export abstract class BinarySessionRecords {
   importEvidenceBundle(
     bundle: unknown,
   ): Result<number, EvidenceIntegrityError | EvidenceLimitError> {
-    return this.#evidence.import(bundle);
+    const imported = this.#evidence.import(bundle);
+    if (imported.ok && imported.value > 0) this.#emitSnapshotChanged();
+    return imported;
   }
 
   protected abstract activeAnalysisBinding(): ActiveAnalysisBinding | undefined;
@@ -229,7 +233,9 @@ export abstract class BinarySessionRecords {
   }
 
   protected resetSnapshotInvalidation(): void {
+    if (!this.#snapshotInvalidated) return;
     this.#snapshotInvalidated = false;
+    this.#emitSnapshotChanged();
   }
 
   protected clearSnapshot(): void {
@@ -302,21 +308,25 @@ export abstract class BinarySessionRecords {
     input: RecordUnknownInput,
   ): Result<ResidualUnknown, AnalysisError> {
     const target = this.activeAnalysisBinding()?.target;
-    return this.#evidence.recordUnknown(
+    const recorded = this.#evidence.recordUnknown(
       input,
       unknownMutationEvidence(target, input),
     );
+    if (recorded.ok) this.#emitSnapshotChanged();
+    return recorded;
   }
 
   recordEvidenceWithUnknown(
     evidence: Evidence,
     input: RecordUnknownInput,
   ): Result<ResidualUnknown | null, AnalysisError> {
-    return this.#evidence.recordWithUnknown(
+    const recorded = this.#evidence.recordWithUnknown(
       evidence,
       input,
       unknownMutationEvidence(undefined, input),
     );
+    if (recorded.ok) this.#emitSnapshotChanged();
+    return recorded;
   }
 
   updateUnknown(
@@ -338,7 +348,9 @@ export abstract class BinarySessionRecords {
         "Registry mutation evidence records analyst intent, not proof of the answer.",
       ],
     });
-    return this.#evidence.updateUnknown(input, evidence);
+    const updated = this.#evidence.updateUnknown(input, evidence);
+    if (updated.ok) this.#emitSnapshotChanged();
+    return updated;
   }
 
   listUnknowns(

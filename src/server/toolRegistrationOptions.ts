@@ -15,7 +15,7 @@ const ADVERTISED_OUTPUT_SCHEMAS = new WeakMap<
 export const toolRegistrationOptions = (contract: ToolContract) => ({
   title: contract.title,
   description: contract.description,
-  inputSchema: advertisedInputSchema(contract.inputSchema),
+  inputSchema: advertisedInputSchema(contract),
   outputSchema: advertisedOutputSchema(contract.outputSchema),
   annotations: contract.annotations,
 });
@@ -25,14 +25,14 @@ export const toolRegistrationOptions = (contract: ToolContract) => ({
  * The SDK otherwise converts validation failures to text-only JSON-RPC errors
  * before REA can return its stable structured error envelope.
  */
-const advertisedInputSchema = (schema: z.ZodObject) => ({
+const advertisedInputSchema = (contract: ToolContract) => ({
   "~standard": {
     version: 1 as const,
     vendor: "rea",
     validate: (input: unknown) => ({ value: input }),
     jsonSchema: {
-      input: () => advertisedInputJsonSchema(schema),
-      output: () => advertisedInputJsonSchema(schema),
+      input: () => advertisedInputJsonSchema(contract),
+      output: () => advertisedInputJsonSchema(contract),
     },
   },
 });
@@ -56,11 +56,14 @@ const advertisedOutputSchema = (schema: z.ZodObject) => {
 };
 
 const advertisedInputJsonSchema = (
-  schema: z.ZodObject,
+  contract: ToolContract,
 ): Readonly<Record<string, unknown>> =>
-  cachedJsonSchema(ADVERTISED_INPUT_SCHEMAS, schema, () =>
-    describeProperties(closeObjectSchemas(inputJsonSchema(schema))),
-  );
+  cachedJsonSchema(ADVERTISED_INPUT_SCHEMAS, contract.inputSchema, () => ({
+    ...describeProperties(
+      closeObjectSchemas(inputJsonSchema(contract.inputSchema)),
+    ),
+    examples: contract.examples.map(({ input }) => input),
+  }));
 
 const advertisedOutputJsonSchema = (
   schema: z.ZodObject,

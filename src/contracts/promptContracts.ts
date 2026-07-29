@@ -184,9 +184,9 @@ export const PROMPT_CONTRACTS = [
     },
     steps: [
       {
-        tools: ["inventory_artifact"],
+        tools: ["open_binary", "inventory_artifact"],
         instruction:
-          "Inventory each target independently before extraction. Follow nodes, occurrences, and edges to completion and retain every Evidence page for each manifest.",
+          "For each supplied target path, open that target before inventory because inventory_artifact uses the active target and accepts no path. Follow nodes, occurrences, and edges to completion and retain every Evidence page for each manifest.",
       },
       {
         tools: [

@@ -284,7 +284,9 @@ describe("server and catalog identity", () => {
           open: false,
           target: null,
           alignment: { state: "mcp_server_restart_required" },
-          recommended_actions: expect.any(Array),
+          recommended_actions: expect.arrayContaining([
+            "For a supplied target, route by format: ASAR/JavaScript to analyze_javascript_application; archive/package to open_binary(path), then inspect_artifact or inventory_artifact on the active target; managed PE/CLI to inspect_managed_artifact; browser/Electron runtimes to their list-target tools; native binaries to open_binary.",
+          ]),
         },
       });
       expect(JSON.stringify(summary.structuredContent)).not.toContain(

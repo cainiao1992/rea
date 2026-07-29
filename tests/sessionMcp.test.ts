@@ -145,7 +145,17 @@ describe("target-free MCP lifecycle", () => {
     await server.connect(serverTransport);
     await mcp.connect(clientTransport);
 
-    const beforeNames = (await mcp.listTools()).tools.map(({ name }) => name);
+    const beforeTools = (await mcp.listTools()).tools;
+    const beforeNames = beforeTools.map(({ name }) => name);
+    expect(mcp.getInstructions()).toContain(
+      "archive/package -> open_binary(path), then inspect_artifact/inventory_artifact (active target)",
+    );
+    expect(
+      beforeTools.find(({ name }) => name === "inventory_artifact")
+        ?.description,
+    ).toContain(
+      "This tool accepts no path; in a target-free session open the target first.",
+    );
     expect(beforeNames).toContain("open_binary");
     expect(beforeNames).toContain("binary_session");
     expect(beforeNames).not.toContain("current_document");

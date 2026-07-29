@@ -8,7 +8,11 @@ const CANONICAL_TEMPORARY_DIRECTORY = realpathSync(tmpdir());
 const COVERAGE_ENABLED = process.argv.some((argument) =>
   argument.startsWith("--coverage"),
 );
-export const MAX_TEST_WORKERS = Math.min(4, availableParallelism());
+// Keep every project on one worker budget. Vitest requires projects selected
+// by an explicit file list to agree on maxWorkers unless they are assigned
+// artificial sequence barriers; a shared cap avoids that trap and limits the
+// descriptor pressure from boundary subprocesses.
+export const MAX_TEST_WORKERS = Math.min(2, availableParallelism());
 
 export const TEST_PROJECTS = [
   {
@@ -29,7 +33,7 @@ export const TEST_PROJECTS = [
       "src/{artifacts,browser,dotnet,ghidra,hopper,native,process,reference,replay}/**/*.test.ts",
     ],
     pool: "forks" as const,
-    maxWorkers: Math.min(2, MAX_TEST_WORKERS),
+    maxWorkers: MAX_TEST_WORKERS,
   },
   {
     name: "composition",
@@ -41,19 +45,20 @@ export const TEST_PROJECTS = [
     name: "boundary",
     include: ["tests/boundary/**/*.test.ts"],
     pool: "forks" as const,
-    maxWorkers: Math.min(2, MAX_TEST_WORKERS),
+    maxWorkers: MAX_TEST_WORKERS,
   },
   {
     name: "acceptance",
     include: ["tests/acceptance/**/*.test.ts"],
     pool: "forks" as const,
-    maxWorkers: 1,
+    maxWorkers: MAX_TEST_WORKERS,
+    fileParallelism: false,
   },
   {
     name: "process-global",
     include: ["tests/process-global/**/*.test.ts"],
     pool: "forks" as const,
-    maxWorkers: 1,
+    maxWorkers: MAX_TEST_WORKERS,
     fileParallelism: false,
   },
   {

@@ -38,15 +38,13 @@ provider and replay execution remains uncached, but their deterministic build
 prerequisite uses Turbo. CI uploads the rendered TypeDoc site as an `api-docs`
 artifact; the generated HTML is not committed.
 
-Local `npm test` runs without coverage, retries, or verbose output. Use `npm run
-test:fast` for pure and subprocess groups, `npm run test:integration` for serial
-filesystem/process/CLI cases. `npm run test:changed` runs changed and related
-non-serial tests once; `npm run test:watch` keeps that selection live. Pure tests
-use Vitest threads, while subprocess tests stay in isolated forks. CI splits the
-complete suite across two native Vitest
-shards, then merges their coverage and JUnit reports. `npm run test:ci` runs the
-equivalent unsharded gate locally. Coverage thresholds remain in
-`vitest.config.ts`.
+Local `npm test` runs every deterministic Vitest project without coverage,
+retries, or verbose output. Focused boundary, acceptance, changed-test, and
+watch commands are documented in [docs/testing.md](docs/testing.md), together
+with the path-based behavioral-depth rules. Changed-test selection follows the
+import graph and is feedback, not the release gate. CI splits the complete suite
+across four native Vitest shards, then merges coverage, JUnit, and JSON timing
+reports. Coverage thresholds remain in `vitest.config.ts`.
 
 CI installs dependencies once for all static checks, cancels superseded PR
 runs, and skips package, Windows, and full test lanes for documentation-only

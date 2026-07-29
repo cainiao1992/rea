@@ -794,7 +794,10 @@ Any agent that can run a local MCP server can use the manual configuration. Setu
 
 ## Development
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, architecture, tests, and release instructions. PR CI publishes generated API documentation as the `api-docs` workflow artifact.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, architecture, and release
+instructions, and [docs/testing.md](docs/testing.md) for the behavioral test
+depths, focused developer commands, coverage floors, and CI evidence. PR CI
+publishes generated API documentation as the `api-docs` workflow artifact.
 
 `npm run verify:agent` runs brandless native, JavaScript-application, managed,
 and browser prompts through a real local Codex CLI. Its JSON report measures

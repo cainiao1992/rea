@@ -49,17 +49,21 @@ describe("function comparison MCP integration", () => {
         arguments: { domain: "function-comparison" },
       });
       expect(unknowns.structuredContent).toMatchObject({
-        result: [
-          expect.objectContaining({
-            domain: "function-comparison",
-            recommended_probes: [
-              expect.objectContaining({
-                rationale:
-                  "Capture complete dossiers for both functions under the same target context and analysis limits.",
+        result: {
+          items: [
+            expect.objectContaining({
+              unknown: expect.objectContaining({
+                domain: "function-comparison",
+                recommended_probes: [
+                  expect.objectContaining({
+                    rationale:
+                      "Capture complete dossiers for both functions under the same target context and analysis limits.",
+                  }),
+                ],
               }),
-            ],
-          }),
-        ],
+            }),
+          ],
+        },
       });
     } finally {
       await Promise.allSettled([

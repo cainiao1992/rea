@@ -209,8 +209,7 @@ const runAutomaticInvestigation = async (input: {
   );
   if (!investigated.ok) return toCallToolResult(investigated, contract);
   const workspace = investigated.value.workspace;
-  if (session.retainInvestigationWorkspace(workspace) === "added")
-    input.server.sendResourceListChanged();
+  session.retainInvestigationWorkspace(workspace);
   const result = changedBehaviorResultSchema.parse(
     investigated.value.evidence.normalized_result,
   );

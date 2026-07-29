@@ -123,7 +123,7 @@ export const createServer = (
     {
       capabilities: {
         tools: { listChanged: true },
-        resources: { listChanged: true },
+        resources: { listChanged: true, subscribe: true },
       },
       inputRequired: {
         maxRounds: 3,
@@ -243,8 +243,6 @@ const createSessionRecorders = (
       ? undefined
       : (evidence: Parameters<typeof session.recordEvidence>[0]) => {
           const recorded = session.recordEvidence(evidence);
-          if (recorded.ok && recorded.value === "added")
-            server.sendResourceListChanged();
           return recorded;
         },
   recordEvidenceWithUnknown:
@@ -255,7 +253,6 @@ const createSessionRecorders = (
           input: Parameters<typeof session.recordEvidenceWithUnknown>[1],
         ) => {
           const recorded = session.recordEvidenceWithUnknown(evidence, input);
-          if (recorded.ok) server.sendResourceListChanged();
           return recorded;
         },
 });

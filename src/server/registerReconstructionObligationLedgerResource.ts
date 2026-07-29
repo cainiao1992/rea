@@ -18,17 +18,6 @@ export const registerReconstructionObligationLedgerResource = (
       "rea://evidence/{evidenceId}/reconstruction-obligation-ledger",
       {
         list: undefined,
-        complete: {
-          evidenceId: (prefix) =>
-            session
-              .exportEvidenceBundle()
-              .records.filter(
-                ({ predicate_type: predicateType }) =>
-                  predicateType === "rea.reconstruction-obligation-ledger/v1",
-              )
-              .map(({ evidence_id: evidenceId }) => evidenceId)
-              .filter((evidenceId) => evidenceId.startsWith(prefix)),
-        },
       },
     ),
     {

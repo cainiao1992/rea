@@ -265,7 +265,7 @@ describe("Ghidra MCP and shared CLI composition", () => {
             arguments: {},
           })
         ).structuredContent,
-      ).toMatchObject({ result: [] });
+      ).toMatchObject({ result: { items: [] } });
 
       const approvedInspection = sessionEvidence(
         session,
@@ -294,22 +294,26 @@ describe("Ghidra MCP and shared CLI composition", () => {
           })
         ).structuredContent,
       ).toMatchObject({
-        result: [
-          {
-            status: "open",
-            domain: "native-api",
-            question: expect.stringContaining(
-              "additional data sources or targets",
-            ),
-            supporting_evidence_ids: [approvedInspection.evidence_id],
-            recommended_probes: [
-              {
-                operation: "inspect_native_api",
-                rationale: expect.stringContaining("ABI probe"),
+        result: {
+          items: [
+            {
+              unknown: {
+                status: "open",
+                domain: "native-api",
+                question: expect.stringContaining(
+                  "additional data sources or targets",
+                ),
+                supporting_evidence_ids: [approvedInspection.evidence_id],
+                recommended_probes: [
+                  {
+                    operation: "inspect_native_api",
+                    rationale: expect.stringContaining("ABI probe"),
+                  },
+                ],
               },
-            ],
-          },
-        ],
+            },
+          ],
+        },
       });
     } finally {
       await harness.close();

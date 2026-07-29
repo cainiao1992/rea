@@ -175,11 +175,21 @@ describe("target-free MCP lifecycle", () => {
     expect(
       text(await mcp.callTool({ name: "current_document", arguments: {} })),
     ).toContain("first.hop");
-    const exported = await mcp.callTool({
-      name: "export_evidence_bundle",
+    const snapshotted = await mcp.callTool({
+      name: "snapshot_evidence_bundle",
       arguments: {},
     });
-    const bundle = evidenceBundleSchema.parse(structured(exported).result);
+    const snapshotResult = z
+      .object({ result: z.object({ bundle_uri: z.string() }) })
+      .parse(structured(snapshotted)).result;
+    const bundleResource = await mcp.readResource({
+      uri: snapshotResult.bundle_uri,
+    });
+    const bundle = evidenceBundleSchema.parse(
+      JSON.parse(
+        z.object({ text: z.string() }).parse(bundleResource.contents[0]).text,
+      ),
+    );
     expect(bundle.records).toHaveLength(1);
     const evidencePath = join(directory, "evidence.json");
     expect(
@@ -221,7 +231,7 @@ describe("target-free MCP lifecycle", () => {
       ).result,
     ).toEqual({ imported: 1, total: 2 });
     await new Promise<void>((resolve) => setImmediate(resolve));
-    expect(resourceListChanges).toBe(changesBeforeMutation + 1);
+    expect(resourceListChanges).toBe(changesBeforeMutation);
     changesBeforeMutation = resourceListChanges;
     const recordedUnknown = z
       .object({
@@ -250,15 +260,18 @@ describe("target-free MCP lifecycle", () => {
       ).result;
     expect(recordedUnknown.revision).toBe(1);
     await new Promise<void>((resolve) => setImmediate(resolve));
-    expect(resourceListChanges).toBe(changesBeforeMutation + 1);
+    expect(resourceListChanges).toBe(changesBeforeMutation);
+    const listedUnknowns = await mcp.callTool({
+      name: "list_unknowns",
+      arguments: {},
+    });
+    expect(listedUnknowns.isError, text(listedUnknowns)).not.toBe(true);
     expect(
       z
-        .object({ result: z.array(z.unknown()) })
-        .parse(
-          structured(
-            await mcp.callTool({ name: "list_unknowns", arguments: {} }),
-          ),
-        ).result,
+        .object({
+          result: z.object({ items: z.array(z.unknown()) }),
+        })
+        .parse(structured(listedUnknowns)).result.items,
     ).toHaveLength(1);
     const resolved = await mcp.callTool({
       name: "update_unknown",
@@ -284,7 +297,7 @@ describe("target-free MCP lifecycle", () => {
     });
     expect(resolved.isError).not.toBe(true);
     await new Promise<void>((resolve) => setImmediate(resolve));
-    expect(resourceListChanges).toBe(changesBeforeMutation + 2);
+    expect(resourceListChanges).toBe(changesBeforeMutation);
     expect(
       structured(
         await mcp.callTool({
@@ -324,7 +337,7 @@ describe("target-free MCP lifecycle", () => {
     expect(
       structured(await mcp.callTool({ name: "list_unknowns", arguments: {} }))
         .result,
-    ).toEqual([]);
+    ).toMatchObject({ items: [] });
     expect(
       (
         await mcp.callTool({
@@ -368,18 +381,30 @@ describe("target-free MCP lifecycle", () => {
       },
     });
     expect(captured.isError, text(captured)).not.toBe(true);
+    const listedUnknowns = await mcp.callTool({
+      name: "list_unknowns",
+      arguments: {},
+    });
+    expect(listedUnknowns.isError, text(listedUnknowns)).not.toBe(true);
     const listed = z
       .object({
-        result: z.array(z.object({ question: z.string(), domain: z.string() })),
+        result: z.object({
+          items: z.array(
+            z.object({
+              unknown: z.object({
+                question: z.string(),
+                domain: z.string(),
+              }),
+            }),
+          ),
+        }),
       })
-      .parse(
-        structured(
-          await mcp.callTool({ name: "list_unknowns", arguments: {} }),
-        ),
-      ).result;
+      .parse(structured(listedUnknowns)).result.items;
     expect(listed).toContainEqual({
-      question: "Was network behavior fully observed during capture?",
-      domain: "process-network",
+      unknown: expect.objectContaining({
+        question: "Was network behavior fully observed during capture?",
+        domain: "process-network",
+      }),
     });
   });
 });

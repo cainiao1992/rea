@@ -2,7 +2,11 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
 import type { BinarySessionPort } from "../application/BinarySession.js";
-import { SESSION_TOOL_CONTRACTS } from "../contracts/toolContracts.js";
+import {
+  addressContextInputSchema,
+  navigationContextInputSchema,
+  SESSION_TOOL_CONTRACTS,
+} from "../contracts/toolContracts.js";
 import { toCallToolResult } from "./toolResult.js";
 import type { Logger } from "../logger.js";
 import { logToolExecution } from "./toolLogging.js";
@@ -52,6 +56,10 @@ import {
 } from "./sessionAvailabilityPolicy.js";
 import { permissionFailure } from "./permissionFailure.js";
 import { registerCloseLifecycleTool } from "./registerCloseLifecycleTool.js";
+import {
+  getNavigationContext,
+  inspectAddressContext,
+} from "../application/AnalysisContextQueries.js";
 
 const recordProcessResidualUnknowns = (
   session: BinarySessionPort,
@@ -317,6 +325,54 @@ const registerRecordAndReplayTools = (
   registerReplayMachineTool(server, logger);
 };
 
+const registerContextTools = (
+  server: McpServer,
+  session: BinarySessionPort,
+): void => {
+  const navigationContract = SESSION_TOOL_CONTRACTS[20];
+  const addressContract = SESSION_TOOL_CONTRACTS[21];
+  server.registerTool(
+    navigationContract.name,
+    toolRegistrationOptions(navigationContract),
+    async (input, context) => {
+      const parsed = safeParseToolInput(
+        navigationContextInputSchema,
+        input,
+        navigationContract.name,
+      );
+      if (!parsed.ok) return toCallToolResult(parsed, navigationContract);
+      return toCallToolResult(
+        await getNavigationContext(
+          session,
+          parsed.value,
+          context.mcpReq.signal,
+        ),
+        navigationContract,
+      );
+    },
+  );
+  server.registerTool(
+    addressContract.name,
+    toolRegistrationOptions(addressContract),
+    async (input, context) => {
+      const parsed = safeParseToolInput(
+        addressContextInputSchema,
+        input,
+        addressContract.name,
+      );
+      if (!parsed.ok) return toCallToolResult(parsed, addressContract);
+      return toCallToolResult(
+        await inspectAddressContext(
+          session,
+          parsed.value,
+          context.mcpReq.signal,
+        ),
+        addressContract,
+      );
+    },
+  );
+};
+
 export const registerSessionTools = (
   server: McpServer,
   session: BinarySessionPort,
@@ -344,6 +400,7 @@ export const registerSessionTools = (
     staticRuntimeContract,
     reconstructionContract,
   ] = SESSION_TOOL_CONTRACTS;
+  const snapshotContract = SESSION_TOOL_CONTRACTS[19];
   registerLifecycleTools({
     server,
     session,
@@ -365,6 +422,7 @@ export const registerSessionTools = (
     session,
     exportContract,
     importContract,
+    snapshotContract,
     filePolicy: evidenceFilePolicy,
     ...(options.permissionAuthority === undefined
       ? {}
@@ -411,4 +469,5 @@ export const registerSessionTools = (
       : { permissionAuthority: options.permissionAuthority }),
   });
   registerRecordAndReplayTools(server, session, logger);
+  registerContextTools(server, session);
 };

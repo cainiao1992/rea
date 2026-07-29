@@ -500,12 +500,12 @@ export const startLoopbackReplay = async (
     async close() {
       closePromise ??= (async () => {
         recorder.stopMachineAdmission();
+        await recorder.drainMachine();
         for (const client of websocket.clients) client.terminate();
         await new Promise<void>((resolveClose) =>
           websocket.close(() => resolveClose()),
         );
         await closeReplayServer(server);
-        await recorder.drainMachine();
       })();
       await closePromise;
     },

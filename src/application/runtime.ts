@@ -1,12 +1,12 @@
 import type { AppConfig } from "../config.js";
-import { BinarySession } from "./BinarySession.js";
+import type { BinarySession } from "./BinarySession.js";
 import { HopperProvider } from "../hopper/HopperProvider.js";
 import { GhidraProvider } from "../ghidra/GhidraProvider.js";
 import { silentLogger, type Logger } from "../logger.js";
 import { GENERATED_AUXILIARY_PROVIDERS } from "../generatedMcpToolCatalog.js";
 import { AnalysisProviderRegistry } from "./AnalysisProviderRegistry.js";
+import { composeBinarySession } from "./BinarySessionComposition.js";
 import { LazyAnalysisProvider } from "./LazyAnalysisProvider.js";
-import { SessionProviderRouter } from "./SessionProviderRouter.js";
 
 /**
  * Compose the target-switching runtime shared directly by CLI and MCP adapters.
@@ -34,32 +34,30 @@ export const createBinarySession = (
       throw new TypeError(`Missing generated provider metadata for ${id}`);
     return new LazyAnalysisProvider({ ...generated, load });
   };
-  return new BinarySession(
-    SessionProviderRouter.selectable(
-      new AnalysisProviderRegistry([hopper, ghidra], config.analysisProvider),
-      [
-        lazyProvider("rea-artifact-graph", async () => {
-          const { ArtifactProvider } = await import(
-            "../artifacts/ArtifactProvider.js"
-          );
-          return new ArtifactProvider(
-            config.artifactNativeMountEnabled,
-            config.artifactIntegrityContinueEnabled,
-          );
-        }),
-        lazyProvider("native-macos", async () => {
-          const { NativeMacOSProvider } = await import(
-            "../native/NativeMacOSProvider.js"
-          );
-          return new NativeMacOSProvider();
-        }),
-        lazyProvider("rea-dotnet-static", async () => {
-          const { ManagedStaticProvider } = await import(
-            "../dotnet/ManagedStaticProvider.js"
-          );
-          return new ManagedStaticProvider();
-        }),
-      ],
-    ),
+  return composeBinarySession(
+    new AnalysisProviderRegistry([hopper, ghidra], config.analysisProvider),
+    [
+      lazyProvider("rea-artifact-graph", async () => {
+        const { ArtifactProvider } = await import(
+          "../artifacts/ArtifactProvider.js"
+        );
+        return new ArtifactProvider(
+          config.artifactNativeMountEnabled,
+          config.artifactIntegrityContinueEnabled,
+        );
+      }),
+      lazyProvider("native-macos", async () => {
+        const { NativeMacOSProvider } = await import(
+          "../native/NativeMacOSProvider.js"
+        );
+        return new NativeMacOSProvider();
+      }),
+      lazyProvider("rea-dotnet-static", async () => {
+        const { ManagedStaticProvider } = await import(
+          "../dotnet/ManagedStaticProvider.js"
+        );
+        return new ManagedStaticProvider();
+      }),
+    ],
   );
 };

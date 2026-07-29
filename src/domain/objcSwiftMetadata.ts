@@ -85,8 +85,6 @@ export const swiftAccessLevelSchema = z.enum([
   "public",
   "open",
 ]);
-export type SwiftAccessLevel = z.infer<typeof swiftAccessLevelSchema>;
-
 /** Swift declaration metadata. */
 export const swiftDeclSchema = z.strictObject({
   kind: swiftDeclKindSchema,

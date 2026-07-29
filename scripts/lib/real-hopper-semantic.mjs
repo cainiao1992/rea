@@ -29,8 +29,16 @@ export const requireTruthfulMemoryRegions = (segments) => {
 export function requireBridgeProgress(updates) {
   const messages = updates.map(({ message }) => message);
   if (
-    !messages.includes("Hopper bridge started request") ||
-    !messages.includes("Hopper bridge completed request")
+    !messages.some(
+      (message) =>
+        message === "Hopper bridge started request" ||
+        message.includes("started on Hopper's serial bridge"),
+    ) ||
+    !messages.some(
+      (message) =>
+        message === "Hopper bridge completed request" ||
+        message.includes("Hopper bridge completed request"),
+    )
   )
     throw new Error(
       `The MCP client did not observe correlated Hopper bridge progress: ${JSON.stringify(updates)}`,

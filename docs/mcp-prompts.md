@@ -20,6 +20,10 @@ also requires the agent to keep observations, inferences, and unknowns
 distinct. Requested prompt arguments and completion choices are rendered as
 untrusted selection data, not instructions or authorization.
 
+For target paths in `compare_application_versions`, the rendered workflow
+opens each target before calling `inventory_artifact`; artifact inventory and
+inspection operate on the active target and do not accept a path themselves.
+
 Use standard MCP discovery and retrieval:
 
 ```json

@@ -4,7 +4,7 @@ description: Reverse engineer native, managed, Electron/JavaScript, packaged, an
 metadata:
   version: "23"
   tool_count: 111
-  catalog_digest: "861cd8618e793342daa8b149bc2944360d84b077fd19cf22f6e0a57b6b249c73"
+  catalog_digest: "461b4dbea03ef60d637f4b74debca4dbea0e1dd423d7d9c9a631e62204528c05"
 ---
 
 # REA
@@ -23,7 +23,8 @@ Choose the first tool from the target the user supplied. Do not call
 - ASAR or extracted JavaScript/Electron tree:
   `analyze_javascript_application`.
 - Archive, application package, ZIP/APK/IPA/MSIX/AppX, or DMG:
-  `inventory_artifact`.
+  `open_binary` with the supplied local path, then `inspect_artifact` or
+  `inventory_artifact` (both operate on the active target and accept no path).
 - Managed PE/CLI assembly: `inspect_managed_artifact`.
 - User-owned browser page already open: `list_browser_targets`.
 - User-owned Electron runtime already open: `list_electron_targets`.
@@ -33,6 +34,12 @@ Choose the first tool from the target the user supplied. Do not call
 If the app is missing, ask which app to inspect. Resolve a human-readable app
 name to one clear installed artifact when possible; ask only when matches are
 ambiguous. Never choose an example app on the user's behalf.
+
+In a target-free session, use `open_binary` to bind any archive/package or
+native target whose analysis tool operates on the active target. Do not call a
+tool hidden from `tools/list`; inspect `binary_session` with
+`detail: "capabilities"` for the exact remediation when a desired capability
+is unavailable.
 
 ## Work summary-first
 

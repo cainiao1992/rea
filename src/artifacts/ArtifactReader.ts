@@ -50,6 +50,7 @@ export class ArtifactReaderFailure extends Error {
       | "integrity"
       | "limit"
       | "path"
+      | "policy"
       | "unavailable",
     message: string,
     options?: ErrorOptions,

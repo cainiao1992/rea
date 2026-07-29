@@ -24,6 +24,8 @@ export const analysisErrorRemediationAction = (
 ): string => {
   if (error instanceof AnalysisInputError)
     return "Correct the listed arguments and retry.";
+  if (error instanceof UnknownRegistryError && error.reason === "not-found")
+    return "Check that the unknown_id belongs to this session, then retry.";
   if (error instanceof ReplayPlanStaleError)
     return "Review the rebuilt replay plan and explicitly approve its new digest.";
   if (error instanceof PermissionRequiredError)
@@ -99,7 +101,7 @@ const artifactErrorCategory = (
   if (reason === "integrity") return "integrity_mismatch";
   if (reason === "limit") return "truncated";
   if (reason === "cancelled") return "cancelled";
-  if (reason === "unavailable") return "unavailable";
+  if (reason === "policy" || reason === "unavailable") return "unavailable";
   return "execution_failure";
 };
 
@@ -139,6 +141,8 @@ export const analysisErrorUserMessage = (error: AnalysisError): string => {
     return evidenceFileMessage(error.reason);
   if (error instanceof InvestigationWorkspaceError)
     return investigationWorkspaceMessage(error.reason);
+  if (error instanceof UnknownRegistryError && error.reason === "not-found")
+    return "The requested residual unknown does not exist in this session. Check the unknown_id and try again.";
   if (error instanceof UnknownRegistryError)
     return "Evidence state changed before the update completed. Refresh the current state and try again.";
   if (error instanceof ConfigurationError)
@@ -203,8 +207,10 @@ const artifactMessage = (reason: ArtifactOperationError["reason"]): string => {
     return "Artifact is too large to process safely. Narrow the requested path or use a smaller artifact.";
   if (reason === "path")
     return "Artifact path is not allowed. Choose a path inside the artifact and try again.";
+  if (reason === "policy")
+    return "Artifact integrity continuation is disabled by policy. Configure REA_ARTIFACT_INTEGRITY_CONTINUE_ENABLED=true and retry only if continuing after mismatches is approved.";
   if (reason === "unavailable")
-    return "Artifact format is not available on this system. Choose another artifact or supported environment.";
+    return "Artifact processing is unavailable for the current target or policy. Check artifact support and required approvals.";
   if (reason === "format" || reason === "integrity")
     return "Artifact is invalid or has changed. Get a fresh copy and try again.";
   return "Artifact could not be read or written. Check file access and try again.";

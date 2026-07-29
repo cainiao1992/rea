@@ -129,6 +129,7 @@ const assertDescribedStrictObjects = (
   path = "$",
 ): void => {
   for (const [key, value] of objectEntries(schema)) {
+    if (key === "examples") continue;
     if (key === "properties") {
       const properties = objectEntries(value);
       for (const [property, propertySchema] of properties) {

@@ -184,7 +184,7 @@ const recommendedActions = (
     : []),
   ...(!open
     ? [
-        "Route the supplied target directly: ASAR/JavaScript to analyze_javascript_application, unfamiliar packages to inspect_artifact, managed PE/CLI to inspect_managed_artifact, browser/Electron runtimes to their list-target tools, and native binaries to open_binary.",
+        "For a supplied target, route by format: ASAR/JavaScript to analyze_javascript_application; archive/package to open_binary(path), then inspect_artifact or inventory_artifact on the active target; managed PE/CLI to inspect_managed_artifact; browser/Electron runtimes to their list-target tools; native binaries to open_binary.",
       ]
     : [
         "Continue from the active target with binary_overview or a bounded target-specific query.",

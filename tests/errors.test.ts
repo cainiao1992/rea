@@ -242,6 +242,61 @@ describe("analysis error projection", () => {
     ).toEqual([]);
   });
 
+  it("gives missing residual unknowns a lookup-specific remediation", () => {
+    expect(
+      projectAnalysisError(new UnknownRegistryError("not-found")),
+    ).toMatchObject({
+      code: "execution_failure",
+      message:
+        "The requested residual unknown does not exist in this session. Check the unknown_id and try again.",
+      remediation: {
+        action:
+          "Check that the unknown_id belongs to this session, then retry.",
+      },
+      details: { reason: "not-found" },
+    });
+  });
+
+  it("retains custom input guidance in the projected error details", () => {
+    expect(
+      projectAnalysisError(
+        new AnalysisInputError("find_changed_behavior", undefined, [
+          {
+            path: [],
+            reason: "invalid_value",
+            message:
+              "Supply either existing comparisons or one investigation_run",
+          },
+        ]),
+      ),
+    ).toMatchObject({
+      details: {
+        issues: [
+          {
+            path: [],
+            reason: "invalid_value",
+            message:
+              "Supply either existing comparisons or one investigation_run",
+          },
+        ],
+      },
+    });
+  });
+
+  it("distinguishes disabled integrity continuation from format support", () => {
+    expect(
+      projectAnalysisError(
+        new ArtifactOperationError("inventory_artifact", "policy"),
+      ),
+    ).toMatchObject({
+      code: "artifact_operation_failed",
+      category: "unavailable",
+      message: expect.stringContaining(
+        "REA_ARTIFACT_INTEGRITY_CONTINUE_ENABLED=true",
+      ),
+    });
+  });
+
   it("validates every closed error-reason variant against the generated contract", () => {
     const variants: AnalysisError[] = [
       ...(
@@ -251,6 +306,7 @@ describe("analysis error projection", () => {
           "integrity",
           "limit",
           "path",
+          "policy",
           "unavailable",
           "io",
         ] as const
@@ -313,7 +369,7 @@ describe("analysis error projection", () => {
       ).map((diagnostic) => new HopperRemoteError(9, "safe", diagnostic)),
     ];
 
-    expect(variants).toHaveLength(38);
+    expect(variants).toHaveLength(39);
     for (const variant of variants) {
       const projected = projectAnalysisError(variant);
       const parsed = analysisErrorProjectionSchema.safeParse(projected);

@@ -29,7 +29,7 @@ import {
 import { installDynamicToolAvailability } from "./DynamicToolAvailability.js";
 
 const TARGET_FREE_INSTRUCTIONS =
-  "REA analyzes shipped artifacts. Route: ASAR/JavaScript -> analyze_javascript_application (configured root); archive/package -> inspect_artifact; managed PE/CLI -> inspect_managed_artifact; passive browser/Electron -> list_browser_targets/list_electron_targets; approved browser interaction -> capture_browser_scenario; Node/Electron Inspector -> list_javascript_runtime_targets; native binary/database -> open_binary, then binary_overview. Check binary_session policy. Start with summaries and cite Evidence IDs. Never repeat identical analysis or read full Evidence without need.";
+  "ASAR/JavaScript -> analyze_javascript_application; archive/package -> open_binary(path), then inspect_artifact/inventory_artifact (active target); managed PE/CLI -> inspect_managed_artifact; passive browser/Electron -> list_browser_targets/list_electron_targets; approved browser interaction -> capture_browser_scenario; Node/Electron Inspector -> list_javascript_runtime_targets; native binary/database -> open_binary, then binary_overview. Start with binary_session; call only tools in tools/list. Hidden routes: binary_session detail=capabilities. Use summaries, cite Evidence IDs. Never repeat identical analysis or read full Evidence.";
 
 const ACTIVE_TARGET_INSTRUCTIONS =
   "REA analyzes the active reverse-engineering target. Start native analysis with binary_overview, then narrow with analyze_function, literal search, callers, callees, and xrefs. Prefer summary views, never repeat an identical call, and read full Evidence only when the task requires it.";

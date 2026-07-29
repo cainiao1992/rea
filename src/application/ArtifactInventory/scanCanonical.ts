@@ -49,7 +49,7 @@ export const scanCanonicalArtifactInventory = async (
     (!integrity.approved || !integrity.enabled)
   )
     throw new ArtifactReaderFailure(
-      "unavailable",
+      "policy",
       "Integrity continuation requires explicit approval and operator policy",
     );
   const metadata = await lstat(path);

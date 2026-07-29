@@ -102,6 +102,28 @@ describe("tool contract surface", () => {
     });
   });
 
+  it("advertises the validated contract examples on the MCP input schema", () => {
+    for (const name of [
+      "record_unknown",
+      "run_replay_machine",
+      "build_reconstruction_obligation_ledger",
+    ]) {
+      const contract = TOOL_CONTRACTS.find(
+        (candidate) => candidate.name === name,
+      );
+      expect(contract).toBeDefined();
+      if (contract === undefined) continue;
+
+      const schema =
+        toolRegistrationOptions(contract).inputSchema[
+          "~standard"
+        ].jsonSchema.input();
+      expect(schema.examples).toEqual(
+        contract.examples.map(({ input }) => input),
+      );
+    }
+  });
+
   it("advertises complete typed schemas and annotations for every public tool", () => {
     const contracts = TOOL_CONTRACTS;
     for (const contract of contracts) {

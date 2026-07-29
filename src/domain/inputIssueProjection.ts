@@ -46,7 +46,13 @@ const projectIssue = (
         expected: issue.values.filter(isSafeExpected),
       },
     ];
-  return [{ path, reason: "invalid_value" }];
+  return [
+    {
+      path,
+      reason: "invalid_value",
+      ...(issue.message.length > 0 ? { message: issue.message } : {}),
+    },
+  ];
 };
 
 const valueAtPath = (

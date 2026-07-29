@@ -5,7 +5,6 @@ import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 
-import { TOOL_CONTRACTS } from "../dist/contracts/toolContracts.js";
 import {
   firstProcedureAddress,
   requireAddressArray,
@@ -282,15 +281,6 @@ let summary;
 
 try {
   await client.connect(transport);
-  const listed = await client.listTools();
-  const expectedNames = TOOL_CONTRACTS.map(({ name }) => name).sort();
-  const actualNames = listed.tools.map(({ name }) => name).sort();
-  if (JSON.stringify(actualNames) !== JSON.stringify(expectedNames)) {
-    throw new Error(
-      "The real server tool inventory did not match its contracts",
-    );
-  }
-
   const progressUpdates = [];
   const options = {
     timeout,
@@ -303,6 +293,21 @@ try {
     );
   const initialSession = await fullSessionStatus();
   const initialStatus = requireMcpResult(initialSession, "binary_session");
+  const listed = await client.listTools();
+  const availableTools = initialStatus.tool_availability;
+  if (!Array.isArray(availableTools))
+    throw new Error("The real session omitted tool availability");
+  const expectedNames = availableTools
+    .filter(({ available }) => available === true)
+    .map(({ name }) => name)
+    .sort();
+  const actualNames = listed.tools.map(({ name }) => name).sort();
+  if (JSON.stringify(actualNames) !== JSON.stringify(expectedNames)) {
+    throw new Error(
+      "The real server tool inventory diverged from session availability",
+    );
+  }
+
   if (initialStatus.open !== false)
     throw new Error("The verifier did not start without a target");
   requireHopperSelection(initialStatus, {

@@ -59,15 +59,21 @@ const availabilityProvider = (): AnalysisProvider => {
 describe("server and catalog identity", () => {
   it("derives package and SDK versions from canonical package metadata", async () => {
     const packageJson = JSON.parse(await readFile("package.json", "utf8"));
+    const packageLock = JSON.parse(await readFile("package-lock.json", "utf8"));
     expect(PACKAGE_METADATA).toMatchObject({
       name: packageJson.name,
       version: packageJson.version,
-      serverSdkVersion: "2.0.0-beta.4",
-      clientSdkVersion: "2.0.0-beta.4",
-      coreSdkVersion: "2.0.0-beta.4",
+      serverSdkVersion:
+        packageJson.dependencies["@modelcontextprotocol/server"],
+      clientSdkVersion:
+        packageJson.dependencies["@modelcontextprotocol/client"],
+      coreSdkVersion:
+        packageLock.packages["node_modules/@modelcontextprotocol/core"].version,
     });
     expect(PRODUCT_IDENTITY.packageVersion).toBe(packageJson.version);
-    expect(SDK_IDENTITY.server).toBe("2.0.0-beta.4");
+    expect(SDK_IDENTITY.server).toBe(
+      packageJson.dependencies["@modelcontextprotocol/server"],
+    );
     expect(CLI_COMMAND_NAMES).toHaveLength(67);
     expect(new Set(CLI_COMMAND_NAMES).size).toBe(67);
     expect(CATALOG_IDENTITY.counts).toEqual({
@@ -213,7 +219,10 @@ describe("server and catalog identity", () => {
       expect(live).toMatchObject({
         package: { version: PRODUCT_IDENTITY.packageVersion },
         server: { version: PRODUCT_IDENTITY.packageVersion },
-        sdk: { server: "2.0.0-beta.4", client_test: "2.0.0-beta.4" },
+        sdk: {
+          server: SDK_IDENTITY.server,
+          client_test: PACKAGE_METADATA.clientSdkVersion,
+        },
         client: { name: "identity-test", version: "9" },
         alignment: { state: "unknown" },
       });

@@ -375,8 +375,22 @@ export const ENHANCED_TOOL_CONTRACTS = [
 
 /** Session-owned Evidence bundle export options. */
 export const exportEvidenceBundleInputSchema = z.strictObject({
-  path: z.string().min(1).optional(),
+  path: z.string().min(1),
   overwrite: z.boolean().default(false),
+});
+
+/** Retain the current canonical Evidence bundle as a session resource. */
+export const snapshotEvidenceBundleInputSchema = z.strictObject({});
+
+/** Optional document selection for volatile navigation context. */
+export const navigationContextInputSchema = z.strictObject({
+  document: z.string().min(1).optional(),
+});
+
+/** Explicit reproducible address context query. */
+export const addressContextInputSchema = z.strictObject({
+  address: z.string().min(1),
+  document: z.string().min(1).optional(),
 });
 
 /** Session-owned Evidence bundle import options. */
@@ -403,6 +417,8 @@ export const listUnknownsInputSchema = z.strictObject({
     .optional(),
   severity: z.enum(["low", "medium", "high", "critical"]).optional(),
   domain: z.string().trim().min(1).max(100).optional(),
+  offset: z.number().int().min(0).default(0),
+  limit: z.number().int().min(1).max(500).default(100),
 });
 
 /** Exact residual-unknown identity to revalidate. */
@@ -429,7 +445,7 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "export_evidence_bundle",
-    "Return the session's deterministic Evidence v2 bundle, or atomically write it beneath an operator-approved root. Existing files require overwrite: true; records and manifests use canonical byte-stable ordering.",
+    "Atomically write the session's deterministic Evidence v2 bundle beneath an operator-approved root. Existing files require overwrite: true; records and manifests use canonical byte-stable ordering. For an in-session read, use snapshot_evidence_bundle and read its exact resource URI instead.",
     exportEvidenceBundleInputSchema,
   ),
   session(
@@ -484,7 +500,7 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "list_unknowns",
-    "List current residual-unknown heads in deterministic ID order, with optional exact status, severity, and domain filters. This is read-only; unresolved, contradicted, and non-truth dispositions remain distinct.",
+    "List current residual-unknown heads in deterministic ID order, with optional exact status, severity, and domain filters. Pages default to 100 items; while has_more is true, pass next_offset as offset and continue until false. This is read-only; unresolved, contradicted, and non-truth dispositions remain distinct.",
     listUnknownsInputSchema,
   ),
   session(
@@ -506,6 +522,21 @@ export const SESSION_TOOL_CONTRACTS = [
     "run_replay_machine",
     "Evaluate ordered HTTP and WebSocket events directly against one validated finite replay machine without opening sockets or launching a target. Returns every decision, a capture-value-free transition journal, one redacted action table entry per used transition, captured aliases, final state, and exact configured and consumed limits.",
     replayMachineRunInputSchema,
+  ),
+  session(
+    "snapshot_evidence_bundle",
+    "Retain the current canonical Evidence v2 bundle as an immutable session resource. Returns a compact digest summary and exact opaque URI; copy that URI unchanged and call MCP resources/read (Codex: read_mcp_resource) for the full bundle. Repeating an unchanged snapshot is idempotent.",
+    snapshotEvidenceBundleInputSchema,
+  ),
+  session(
+    "get_navigation_context",
+    "Return the selected document, current address, and containing/current procedure in one coherent provider-neutral request. A cursor outside any procedure returns procedure: null. Scalar navigation getters remain available for evaluation and compatibility.",
+    navigationContextInputSchema,
+  ),
+  session(
+    "inspect_address_context",
+    "Inspect one explicit reproducible address for its analyzed name, containing procedure, regular and inline comments, and matching bookmarks. Each unsupported facet returns a typed unavailable outcome; xrefs, assembly, and pseudocode remain separate bounded follow-ups.",
+    addressContextInputSchema,
   ),
 ] as const satisfies readonly ToolContract[];
 

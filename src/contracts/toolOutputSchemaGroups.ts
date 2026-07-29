@@ -1,10 +1,10 @@
 import { z } from "zod";
+import { jsonValueSchema } from "../domain/jsonValue.js";
 
 import {
   processCaptureComparisonSchema,
   processCaptureSchema,
 } from "../domain/processCapture.js";
-import { evidenceBundleSchema } from "../domain/evidenceBundle.js";
 import { residualUnknownSchema } from "../domain/residualUnknown.js";
 import {
   functionInstructionWindowSchema,
@@ -66,6 +66,15 @@ import {
   targetFormatSchema,
   targetKindSchema,
 } from "./toolOutputSchemaPrimitives.js";
+
+const contextFacetSchema = z.discriminatedUnion("state", [
+  z.object({ state: z.literal("available"), value: jsonValueSchema }),
+  z.object({
+    state: z.literal("unavailable"),
+    reason: z.string(),
+    remediation: z.string(),
+  }),
+]);
 
 /** Exact structured-content schemas shared by direct analysis providers. */
 export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
@@ -403,14 +412,40 @@ export const sessionOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
     ]),
   ),
   export_evidence_bundle: lifecycleResultOf(
-    z.union([
-      evidenceBundleSchema,
-      z.object({
-        path: z.string(),
-        bytes: z.number().int().min(0),
-        records: z.number().int().min(0),
-      }),
-    ]),
+    z.object({
+      path: z.string(),
+      bytes: z.number().int().min(0),
+      records: z.number().int().min(0),
+      unknowns: z.number().int().min(0),
+    }),
+  ),
+  snapshot_evidence_bundle: lifecycleResultOf(
+    z.object({
+      bundle_digest: z.string().regex(/^[a-f0-9]{64}$/u),
+      bundle_version: z.literal(2),
+      bytes: z.number().int().min(0),
+      records: z.number().int().min(0),
+      unknowns: z.number().int().min(0),
+      bundle_uri: z.string().regex(/^rea:\/\/evidence-bundle\/[a-f0-9]{64}$/u),
+    }),
+  ),
+  get_navigation_context: lifecycleResultOf(
+    z.object({
+      document: z.string(),
+      address: z.string(),
+      procedure: z.union([z.string(), z.null()]),
+    }),
+  ),
+  inspect_address_context: lifecycleResultOf(
+    z.object({
+      address: z.string(),
+      document: z.string().nullable(),
+      name: contextFacetSchema,
+      procedure: contextFacetSchema,
+      comment: contextFacetSchema,
+      inline_comment: contextFacetSchema,
+      bookmarks: contextFacetSchema,
+    }),
   ),
   import_evidence_bundle: lifecycleResultOf(
     z.object({
@@ -427,7 +462,21 @@ export const sessionOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   build_call_path: resultOf(callPathResultSchema),
   correlate_static_and_runtime: resultOf(staticRuntimeCorrelationResultSchema),
   verify_reconstruction: resultOf(reconstructionVerificationResultSchema),
-  list_unknowns: lifecycleResultOf(z.array(residualUnknownSchema)),
+  list_unknowns: lifecycleResultOf(
+    z.object({
+      items: z.array(
+        z.object({
+          unknown: residualUnknownSchema,
+          uri: z.string().regex(/^rea:\/\/unknown\/unk_[a-f0-9]{64}$/u),
+        }),
+      ),
+      offset: z.number().int().min(0),
+      limit: z.number().int().min(1).max(500),
+      total: z.number().int().min(0),
+      next_offset: z.number().int().min(0).nullable(),
+      has_more: z.boolean(),
+    }),
+  ),
   record_unknown: lifecycleResultOf(residualUnknownSchema),
   update_unknown: lifecycleResultOf(residualUnknownSchema),
   verify_unknown_resolution: lifecycleResultOf(

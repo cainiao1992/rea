@@ -4,14 +4,14 @@
     "name": "rea-agents",
     "version": "2.7.0",
     "sdk": {
-      "server": "2.0.0-beta.4",
-      "client": "2.0.0-beta.4",
-      "core": "2.0.0-beta.4"
+      "server": "2.0.0",
+      "client": "2.0.0",
+      "core": "2.0.0"
     },
     "skill_version": "23"
   },
   "tools": {
-    "total": 111,
+    "total": 114,
     "families": [
       {
         "id": "direct",
@@ -167,7 +167,7 @@
       {
         "id": "session",
         "surface": "session",
-        "count": 19,
+        "count": 22,
         "tools": [
           "binary_session",
           "build_call_path",
@@ -180,11 +180,14 @@
           "correlate_static_and_runtime",
           "export_evidence_bundle",
           "find_changed_behavior",
+          "get_navigation_context",
           "import_evidence_bundle",
+          "inspect_address_context",
           "list_unknowns",
           "open_binary",
           "record_unknown",
           "run_replay_machine",
+          "snapshot_evidence_bundle",
           "update_unknown",
           "verify_reconstruction",
           "verify_unknown_resolution"
@@ -662,16 +665,16 @@
   "runtime_catalog": {
     "counts": {
       "cli_commands": 67,
-      "mcp_tools": 111,
+      "mcp_tools": 114,
       "mcp_prompts": 6,
       "mcp_resources": 2,
       "mcp_resource_templates": 11
     },
     "digests": {
-      "tools_sha256": "092dd59990f61b1011ac0cd4f5b8d6a3e4a2cf7ade49c86892963c87b71dc65b",
-      "prompts_sha256": "2dd61fd4e29657e7faf739ef67be7b1f637ddf446e7d73acc0d2fd1d9f06b43e",
-      "resources_sha256": "339a984ea8cd8be5f234adf24395bf0295258d990492005cf6fe1f293d12cd46",
-      "combined_sha256": "461b4dbea03ef60d637f4b74debca4dbea0e1dd423d7d9c9a631e62204528c05",
+      "tools_sha256": "58bc4f72c5f8de4328728ead9f3a28ec5548484b7b9cf2ed85cf0edcc689a63c",
+      "prompts_sha256": "3886a3bf55a448def79e3eb429e6a56eb2ba075423c5cb1e5747642b389ef8fe",
+      "resources_sha256": "e0e872276ebf6f88e916ef24930a99eed27ce4c93e494e60820e9bd8cc8497c3",
+      "combined_sha256": "e83a177f5eca63bbad17886a61f5a1a376d44afe862c51c56e5d38339f7d41f8",
       "providers_sha256": "918ccd6b8ae442cd5844dcfde55086f458176241c8d166c1e9dd0f242ccd2bb0"
     }
   }

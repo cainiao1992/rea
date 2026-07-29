@@ -295,6 +295,11 @@ describe("binary session", () => {
     ).toBe(true);
     expect(replayCalls).toEqual(["health", "set_address_name", "address_name"]);
     expect(replay.exportAnalysisSnapshot().ok).toBe(false);
+    expect((await replay.open(first)).ok).toBe(true);
+    expect(replay.exportAnalysisSnapshot()).toMatchObject({
+      ok: true,
+      value: { entries: [{ operation: "address_name" }] },
+    });
     await replay.close();
 
     const mismatch = new BinarySession(cacheProvider([]));

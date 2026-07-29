@@ -352,13 +352,17 @@ describe("full MCP integration with multi-tool sequences", () => {
       await client.callTool({ name: "list_unknowns", arguments: {} }),
     );
     expect(listed).toMatchObject({
-      result: [
-        {
-          status: "open",
-          domain: "control-flow",
-          question: "Investigation reached the operation budget.",
-        },
-      ],
+      result: {
+        items: [
+          {
+            unknown: {
+              status: "open",
+              domain: "control-flow",
+              question: "Investigation reached the operation budget.",
+            },
+          },
+        ],
+      },
     });
   });
 
@@ -412,19 +416,23 @@ describe("full MCP integration with multi-tool sequences", () => {
         await client.callTool({ name: "list_unknowns", arguments: {} }),
       ),
     ).toMatchObject({
-      result: [
-        {
-          domain: "analysis-capability",
-          question:
-            "The requested analysis is unavailable for the current target.",
-          recommended_probes: [
-            {
-              rationale:
-                "Choose another analysis or target that can answer this question.",
+      result: {
+        items: [
+          {
+            unknown: {
+              domain: "analysis-capability",
+              question:
+                "The requested analysis is unavailable for the current target.",
+              recommended_probes: [
+                {
+                  rationale:
+                    "Choose another analysis or target that can answer this question.",
+                },
+              ],
             },
-          ],
-        },
-      ],
+          },
+        ],
+      },
     });
   });
 
@@ -510,14 +518,18 @@ describe("full MCP integration with multi-tool sequences", () => {
         await client.callTool({ name: "list_unknowns", arguments: {} }),
       ),
     ).toMatchObject({
-      result: [
-        {
-          status: "contradicted",
-          domain: "process-comparison",
-          question: "Process captures disagree across: interaction, shim",
-          contradicting_evidence_ids: [rightEvidence.evidence_id],
-        },
-      ],
+      result: {
+        items: [
+          {
+            unknown: {
+              status: "contradicted",
+              domain: "process-comparison",
+              question: "Process captures disagree across: interaction, shim",
+              contradicting_evidence_ids: [rightEvidence.evidence_id],
+            },
+          },
+        ],
+      },
     });
   });
 

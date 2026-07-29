@@ -6,15 +6,11 @@ import {
 import { createHash } from "node:crypto";
 
 import canonicalize from "canonicalize";
-
 import type { BinarySessionPort } from "../application/BinarySessionPort.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { registerJavaScriptApplicationGraphResource } from "./registerJavaScriptApplicationGraphResource.js";
 import { registerReconstructionObligationLedgerResource } from "./registerReconstructionObligationLedgerResource.js";
 import { registerReconstructionReadinessResource } from "./registerReconstructionReadinessResource.js";
-
-const evidenceUri = (evidenceId: string): string =>
-  `rea://evidence/${evidenceId}`;
 
 /** Expose immutable session-owned Evidence v2 records as MCP resources. */
 export const registerEvidenceResources = (
@@ -24,7 +20,7 @@ export const registerEvidenceResources = (
   registerReconstructionCoverageResource(server, session);
   registerInvestigationWorkspaceResource(server, session);
   registerSessionEvidenceResource(server, session);
-  registerActiveResidualUnknownsResource(server, session);
+  registerEvidenceBundleResource(server, session);
   registerAnalysisSnapshotResource(server, session);
   registerArtifactPageResource(server, session);
   registerFunctionDossierResource(server, session);
@@ -33,6 +29,11 @@ export const registerEvidenceResources = (
   registerReconstructionReadinessResource(server, session);
   registerJavaScriptApplicationGraphResource(server, session);
   registerResidualUnknownResource(server, session);
+  session.onAnalysisSnapshotChanged?.(() => {
+    void server.server
+      .sendResourceUpdated({ uri: "rea://snapshot/current" })
+      .catch(() => undefined);
+  });
 };
 
 const registerReconstructionCoverageResource = (
@@ -44,21 +45,7 @@ const registerReconstructionCoverageResource = (
     new ResourceTemplate(
       "rea://reconstruction-coverage/{workspaceId}/revision/{revision}",
       {
-        list: () => ({
-          resources: session
-            .reconstructionCoverageWorkspaces()
-            .map((workspace) => ({
-              uri: coverageWorkspaceUri(
-                workspace.workspace_id,
-                workspace.revision,
-              ),
-              name: `${workspace.workspace_id} revision ${String(workspace.revision)}`,
-              title: `${workspace.name} coverage revision ${String(workspace.revision)}`,
-              description:
-                "Immutable evidence-backed reconstruction coverage workspace revision.",
-              mimeType: "application/json",
-            })),
-        }),
+        list: undefined,
       },
     ),
     {
@@ -89,34 +76,7 @@ const registerInvestigationWorkspaceResource = (
   server.registerResource(
     "investigation-workspace-revision",
     new ResourceTemplate("rea://workspace/{workspaceId}/revision/{revision}", {
-      list: () => ({
-        resources: session.investigationWorkspaces().map((workspace) => ({
-          uri: workspaceUri(workspace.workspace_id, workspace.revision),
-          name: `${workspace.workspace_id} revision ${String(workspace.revision)}`,
-          title: `${workspace.name} revision ${String(workspace.revision)}`,
-          description: "Immutable CAS-linked investigation workspace revision.",
-          mimeType: "application/json",
-        })),
-      }),
-      complete: {
-        workspaceId: (prefix) =>
-          [
-            ...new Set(
-              session
-                .investigationWorkspaces()
-                .map(({ workspace_id }) => workspace_id),
-            ),
-          ].filter((workspaceId) => workspaceId.startsWith(prefix)),
-        revision: (prefix, context) =>
-          session
-            .investigationWorkspaces()
-            .filter(
-              ({ workspace_id }) =>
-                context?.arguments?.workspaceId === workspace_id,
-            )
-            .map(({ revision }) => String(revision))
-            .filter((revision) => revision.startsWith(prefix)),
-      },
+      list: undefined,
     }),
     {
       title: "Investigation workspace revision",
@@ -145,22 +105,7 @@ const registerSessionEvidenceResource = (
   server.registerResource(
     "session-evidence",
     new ResourceTemplate("rea://evidence/{evidenceId}", {
-      list: () => ({
-        resources: session.exportEvidenceBundle().records.map((evidence) => ({
-          uri: evidenceUri(evidence.evidence_id),
-          name: evidence.evidence_id,
-          title: `${evidence.operation} evidence`,
-          description: `Session-owned Evidence v2 record for ${evidence.operation}.`,
-          mimeType: "application/json",
-        })),
-      }),
-      complete: {
-        evidenceId: (prefix) =>
-          session
-            .exportEvidenceBundle()
-            .records.map(({ evidence_id }) => evidence_id)
-            .filter((evidenceId) => evidenceId.startsWith(prefix)),
-      },
+      list: undefined,
     }),
     {
       title: "Session evidence",
@@ -186,23 +131,36 @@ const registerSessionEvidenceResource = (
   );
 };
 
-const registerActiveResidualUnknownsResource = (
+const registerEvidenceBundleResource = (
   server: McpServer,
   session: BinarySessionPort,
 ): void => {
   server.registerResource(
-    "active-residual-unknowns",
-    "rea://unknowns/active",
+    "evidence-bundle",
+    new ResourceTemplate("rea://evidence-bundle/{bundleDigest}", {
+      list: undefined,
+    }),
     {
-      title: "Active residual unknowns",
-      description: "Current unresolved session-owned residual unknown heads.",
+      title: "Evidence bundle",
+      description: "Immutable session-retained canonical Evidence v2 bundle.",
       mimeType: "application/json",
     },
-    (uri) =>
-      jsonResource(
-        uri.href,
-        session.listUnknowns().filter(({ status }) => status !== "resolved"),
-      ),
+    (uri, variables) => {
+      const digest = stringVariable(variables.bundleDigest, uri.href);
+      if (!/^[a-f0-9]{64}$/u.test(digest))
+        throw new ResourceNotFoundError(uri.href);
+      const text = session.retainedEvidenceBundle(digest);
+      if (text === undefined) throw new ResourceNotFoundError(uri.href);
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: "application/json",
+            text,
+          },
+        ],
+      };
+    },
   );
 };
 
@@ -212,36 +170,30 @@ const registerAnalysisSnapshotResource = (
 ): void => {
   server.registerResource(
     "analysis-snapshot",
-    new ResourceTemplate("rea://snapshot/{snapshotDigest}", {
-      list: () => {
-        const snapshot = session.exportAnalysisSnapshot();
-        if (!snapshot.ok) return { resources: [] };
-        const digest = contentDigest(snapshot.value);
-        return {
-          resources: [
-            {
-              uri: `rea://snapshot/${digest}`,
-              name: digest,
-              title: "Current analysis snapshot",
-              description: "Immutable projection of the current target cache.",
-              mimeType: "application/json",
-            },
-          ],
-        };
-      },
-    }),
+    "rea://snapshot/current",
     {
       title: "Analysis snapshot",
       description:
-        "Current provider-neutral analysis snapshot by content digest.",
+        "Mutable provider-neutral analysis snapshot for the current native target.",
       mimeType: "application/json",
     },
-    (uri, variables) => {
-      const requested = stringVariable(variables.snapshotDigest, uri.href);
+    (uri) => {
       const snapshot = session.exportAnalysisSnapshot();
-      if (!snapshot.ok || contentDigest(snapshot.value) !== requested)
-        throw new ResourceNotFoundError(uri.href);
-      return jsonResource(uri.href, snapshot.value);
+      if (!snapshot.ok)
+        return jsonResource(uri.href, {
+          state: "unavailable",
+          reason: snapshot.error.message,
+          remediation:
+            "Open a native target with a concrete analysis profile. After metadata mutation, call open_binary again for the current target to begin a fresh cache.",
+        });
+      return jsonResource(uri.href, {
+        state: "available",
+        target: snapshot.value.target,
+        profile: snapshot.value.binding,
+        content_digest: contentDigest(snapshot.value),
+        entry_count: snapshot.value.entries.length,
+        snapshot: snapshot.value,
+      });
     },
   );
 };
@@ -333,7 +285,6 @@ const registerEvidenceSectionResource = (
     new ResourceTemplate("rea://evidence/{evidenceId}/section/{section}", {
       list: undefined,
       complete: {
-        evidenceId: (prefix) => evidenceIds(session, prefix),
         section: (prefix) =>
           EVIDENCE_SECTIONS.filter((section) => section.startsWith(prefix)),
       },
@@ -372,22 +323,7 @@ const registerResidualUnknownResource = (
   server.registerResource(
     "residual-unknown",
     new ResourceTemplate("rea://unknown/{unknownId}", {
-      list: () => ({
-        resources: session.listUnknowns().map((unknown) => ({
-          uri: `rea://unknown/${unknown.unknown_id}`,
-          name: unknown.unknown_id,
-          title: unknown.question,
-          description: `Current ${unknown.status} residual unknown revision.`,
-          mimeType: "application/json",
-        })),
-      }),
-      complete: {
-        unknownId: (prefix) =>
-          session
-            .listUnknowns()
-            .map(({ unknown_id }) => unknown_id)
-            .filter((unknownId) => unknownId.startsWith(prefix)),
-      },
+      list: undefined,
     }),
     {
       title: "Residual unknown",
@@ -408,12 +344,6 @@ const registerResidualUnknownResource = (
   );
 };
 
-const coverageWorkspaceUri = (workspaceId: string, revision: number): string =>
-  `rea://reconstruction-coverage/${workspaceId}/revision/${String(revision)}`;
-
-const workspaceUri = (workspaceId: string, revision: number): string =>
-  `rea://workspace/${workspaceId}/revision/${String(revision)}`;
-
 const EVIDENCE_SECTIONS = [
   "result",
   "terminal",
@@ -424,12 +354,6 @@ const EVIDENCE_SECTIONS = [
   "occurrences",
   "edges",
 ] as const;
-
-const evidenceIds = (session: BinarySessionPort, prefix: string): string[] =>
-  session
-    .exportEvidenceBundle()
-    .records.map(({ evidence_id }) => evidence_id)
-    .filter((evidenceId) => evidenceId.startsWith(prefix));
 
 const stringVariable = (value: unknown, uri: string): string => {
   if (typeof value !== "string") throw new ResourceNotFoundError(uri);

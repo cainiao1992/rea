@@ -10,6 +10,7 @@ import {
   exportEvidenceBundleInputSchema,
   importEvidenceBundleInputSchema,
   listUnknownsInputSchema,
+  snapshotEvidenceBundleInputSchema,
   SESSION_TOOL_CONTRACTS,
   verifyUnknownResolutionInputSchema,
 } from "../contracts/toolContracts.js";
@@ -33,6 +34,7 @@ interface EvidenceToolRegistration {
   readonly session: BinarySessionPort;
   readonly exportContract: (typeof SESSION_TOOL_CONTRACTS)[3];
   readonly importContract: (typeof SESSION_TOOL_CONTRACTS)[4];
+  readonly snapshotContract: (typeof SESSION_TOOL_CONTRACTS)[19];
   readonly filePolicy: EvidenceFilePolicy;
   readonly permissionAuthority?: PermissionAuthority;
 }
@@ -43,6 +45,7 @@ export const registerEvidenceTools = (
 ): void => {
   registerExportEvidenceTool(registration);
   registerImportEvidenceTool(registration);
+  registerSnapshotEvidenceTool(registration);
 };
 
 const registerExportEvidenceTool = ({
@@ -64,8 +67,6 @@ const registerExportEvidenceTool = ({
       if (!parsedInput.ok) return toCallToolResult(parsedInput, exportContract);
       const parsed = parsedInput.value;
       const bundle = session.exportEvidenceBundle();
-      if (parsed.path === undefined)
-        return toCallToolResult(ok(bundle), exportContract);
       const denied = await authorizeEvidencePath({
         authority: permissionAuthority,
         capability: "evidence_write",
@@ -86,10 +87,49 @@ const registerExportEvidenceTool = ({
               path: written.value.path,
               bytes: written.value.bytes,
               records: bundle.records.length,
+              unknowns: bundle.unknowns.length,
             }),
             exportContract,
           )
         : toCallToolResult(written, exportContract);
+    },
+  );
+};
+
+const registerSnapshotEvidenceTool = ({
+  server,
+  session,
+  snapshotContract,
+}: EvidenceToolRegistration): void => {
+  server.registerTool(
+    snapshotContract.name,
+    toolRegistrationOptions(snapshotContract),
+    (input) => {
+      const parsed = safeParseToolInput(
+        snapshotEvidenceBundleInputSchema,
+        input,
+        snapshotContract.name,
+      );
+      if (!parsed.ok) return toCallToolResult(parsed, snapshotContract);
+      const snapshot = session.snapshotEvidenceBundle();
+      if (!snapshot.ok) return toCallToolResult(snapshot, snapshotContract);
+      const value = {
+        bundle_digest: snapshot.value.bundleDigest,
+        bundle_version: snapshot.value.bundleVersion,
+        bytes: snapshot.value.bytes,
+        records: snapshot.value.records,
+        unknowns: snapshot.value.unknowns,
+        bundle_uri: snapshot.value.uri,
+      } as const;
+      return toCallToolResult(ok(value), snapshotContract, {
+        resourceLinks: [
+          {
+            uri: snapshot.value.uri,
+            name: snapshot.value.bundleDigest,
+            description: "Immutable session-retained Evidence v2 bundle",
+          },
+        ],
+      });
     },
   );
 };
@@ -123,7 +163,6 @@ const registerImportEvidenceTool = ({
       const loaded = await readEvidenceBundle(path, filePolicy);
       if (!loaded.ok) return toCallToolResult(loaded, importContract);
       const imported = session.importEvidenceBundle(loaded.value);
-      if (imported.ok && imported.value > 0) server.sendResourceListChanged();
       return imported.ok
         ? toCallToolResult(
             ok({
@@ -191,17 +230,40 @@ export const registerUnknownTools = ({
       );
       if (!parsed.ok) return toCallToolResult(parsed, listContract);
       const filters = parsed.value;
+      const all = session.listUnknowns({
+        ...(filters.status === undefined ? {} : { status: filters.status }),
+        ...(filters.severity === undefined
+          ? {}
+          : { severity: filters.severity }),
+        ...(filters.domain === undefined ? {} : { domain: filters.domain }),
+      });
+      const items = all
+        .slice(filters.offset, filters.offset + filters.limit)
+        .map((unknown) => ({
+          unknown,
+          uri: `rea://unknown/${unknown.unknown_id}`,
+        }));
+      const nextOffset =
+        filters.offset + items.length < all.length
+          ? filters.offset + items.length
+          : null;
       return toCallToolResult(
-        ok(
-          session.listUnknowns({
-            ...(filters.status === undefined ? {} : { status: filters.status }),
-            ...(filters.severity === undefined
-              ? {}
-              : { severity: filters.severity }),
-            ...(filters.domain === undefined ? {} : { domain: filters.domain }),
-          }),
-        ),
+        ok({
+          items,
+          offset: filters.offset,
+          limit: filters.limit,
+          total: all.length,
+          next_offset: nextOffset,
+          has_more: nextOffset !== null,
+        }),
         listContract,
+        {
+          resourceLinks: items.map((unknown) => ({
+            uri: unknown.uri,
+            name: unknown.unknown.unknown_id,
+            description: `Current ${unknown.unknown.status} residual unknown revision`,
+          })),
+        },
       );
     },
   );
@@ -216,8 +278,17 @@ export const registerUnknownTools = ({
       );
       if (!parsed.ok) return toCallToolResult(parsed, recordContract);
       const result = session.recordUnknown(parsed.value);
-      if (result.ok) server.sendResourceListChanged();
-      return toCallToolResult(result, recordContract);
+      return result.ok
+        ? toCallToolResult(result, recordContract, {
+            resourceLinks: [
+              {
+                uri: `rea://unknown/${result.value.unknown_id}`,
+                name: result.value.unknown_id,
+                description: "Current residual unknown head",
+              },
+            ],
+          })
+        : toCallToolResult(result, recordContract);
     },
   );
   server.registerTool(
@@ -231,8 +302,23 @@ export const registerUnknownTools = ({
       );
       if (!parsed.ok) return toCallToolResult(parsed, updateContract);
       const result = session.updateUnknown(parsed.value);
-      if (result.ok) server.sendResourceListChanged();
-      return toCallToolResult(result, updateContract);
+      if (result.ok)
+        void server.server
+          .sendResourceUpdated({
+            uri: `rea://unknown/${result.value.unknown_id}`,
+          })
+          .catch(() => undefined);
+      return result.ok
+        ? toCallToolResult(result, updateContract, {
+            resourceLinks: [
+              {
+                uri: `rea://unknown/${result.value.unknown_id}`,
+                name: result.value.unknown_id,
+                description: "Updated residual unknown head",
+              },
+            ],
+          })
+        : toCallToolResult(result, updateContract);
     },
   );
   server.registerTool(

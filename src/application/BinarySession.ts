@@ -189,6 +189,7 @@ export class BinarySession
           const imported = this.importAnalysisSnapshot(options.snapshot);
           if (!imported.ok) return imported;
         }
+        this.resetSnapshotInvalidation();
         return ok(target);
       }
       await this.#drainCalls();

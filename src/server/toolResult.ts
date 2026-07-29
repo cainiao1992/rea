@@ -89,6 +89,14 @@ const successResult = (
                 options.evidenceTextProjection),
         ),
       },
+      ...(hasResourceLinks(value, contract, options)
+        ? [
+            {
+              type: "text" as const,
+              text: "Full detail is available through MCP resources/read. Copy the opaque URI exactly. In Codex, call read_mcp_resource.",
+            },
+          ]
+        : []),
       ...evidenceResourceLinks(
         value,
         contract.kind === "session" ||
@@ -103,6 +111,19 @@ const successResult = (
     structuredContent: candidate,
   };
 };
+
+const hasResourceLinks = (
+  value: JsonValue,
+  contract: ToolContract,
+  options: ToolResultOptions,
+): boolean =>
+  options.resourceLinks !== undefined && options.resourceLinks.length > 0
+    ? true
+    : evidenceResourceLinks(
+        value,
+        contract.kind === "session" ||
+          options.evidenceResourcesAvailable === true,
+      ).length > 0;
 
 const compactEvidence = (
   value: JsonValue,

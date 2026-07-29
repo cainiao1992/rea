@@ -18,17 +18,6 @@ export const registerReconstructionReadinessResource = (
       "rea://evidence/{evidenceId}/reconstruction-readiness-report",
       {
         list: undefined,
-        complete: {
-          evidenceId: (prefix) =>
-            session
-              .exportEvidenceBundle()
-              .records.filter(
-                ({ predicate_type: predicateType }) =>
-                  predicateType === "rea.reconstruction-readiness-report/v1",
-              )
-              .map(({ evidence_id: evidenceId }) => evidenceId)
-              .filter((evidenceId) => evidenceId.startsWith(prefix)),
-        },
       },
     ),
     {

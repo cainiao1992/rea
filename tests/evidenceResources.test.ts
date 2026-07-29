@@ -1,5 +1,6 @@
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import { BinarySession } from "../src/application/BinarySession.js";
 import { createEvidence } from "../src/domain/evidence.js";
@@ -11,6 +12,87 @@ import { createInvestigationWorkspace } from "../src/domain/investigationWorkspa
 const provider = { id: "fixture", name: "Fixture", version: "1" };
 
 describe("evidence MCP resources", () => {
+  it("publishes mutable snapshot changes for every Evidence mutation", () => {
+    const session = new BinarySession(() => ({
+      health: () => Promise.resolve(),
+      execute: () => Promise.resolve(observed(null)),
+      close: () => Promise.resolve(),
+    }));
+    let updates = 0;
+    session.onAnalysisSnapshotChanged(() => {
+      updates += 1;
+    });
+    const first = createEvidence(undefined, provider, {
+      operation: "notification_probe",
+      parameters: {},
+      result: 1,
+    });
+    expect(session.recordEvidence(first)).toEqual({ ok: true, value: "added" });
+    expect(session.recordEvidence(first)).toEqual({
+      ok: true,
+      value: "duplicate",
+    });
+    const imported = createEvidence(undefined, provider, {
+      operation: "import_notification_probe",
+      parameters: {},
+      result: 2,
+    });
+    expect(
+      session.importEvidenceBundle(createEvidenceBundle([imported])),
+    ).toEqual({ ok: true, value: 1 });
+    expect(
+      session.recordUnknown({
+        approved: true,
+        question: "Does mutation publish a snapshot update?",
+        severity: "low",
+        domain: "notifications",
+        supporting_evidence_ids: [first.evidence_id],
+        contradicting_evidence_ids: [],
+        required_authority: "controlled-replay",
+        required_confidence: "observed",
+        required_environment: null,
+        recommended_probes: [],
+        relationships: [],
+      }).ok,
+    ).toBe(true);
+    expect(updates).toBe(3);
+  });
+
+  it("retains bundles without eviction and rejects a seventeenth digest", () => {
+    const session = new BinarySession(() => ({
+      health: () => Promise.resolve(),
+      execute: () => Promise.resolve(observed(null)),
+      close: () => Promise.resolve(),
+    }));
+    const first = session.snapshotEvidenceBundle();
+    expect(first.ok).toBe(true);
+    for (let index = 0; index < 15; index += 1) {
+      session.recordEvidence(
+        createEvidence(undefined, provider, {
+          operation: `retention_probe_${String(index)}`,
+          parameters: {},
+          result: index,
+        }),
+      );
+      expect(session.snapshotEvidenceBundle().ok).toBe(true);
+    }
+    session.recordEvidence(
+      createEvidence(undefined, provider, {
+        operation: "retention_probe_overflow",
+        parameters: {},
+        result: true,
+      }),
+    );
+    expect(session.snapshotEvidenceBundle()).toMatchObject({
+      ok: false,
+      error: { _tag: "EvidenceLimitError", limit: "records", maximum: 16 },
+    });
+    if (first.ok)
+      expect(session.retainedEvidenceBundle(first.value.bundleDigest)).toEqual(
+        expect.any(String),
+      );
+  });
+
   it("lists and reads only evidence owned by the current session", async () => {
     const session = new BinarySession(() => ({
       health: () => Promise.resolve(),
@@ -71,7 +153,7 @@ describe("evidence MCP resources", () => {
         expect.arrayContaining([
           "rea://artifact/{manifestId}/{collection}",
           "rea://function/{targetSha256}/{address}",
-          "rea://snapshot/{snapshotDigest}",
+          "rea://evidence-bundle/{bundleDigest}",
           "rea://workspace/{workspaceId}/revision/{revision}",
         ]),
       );
@@ -82,6 +164,11 @@ describe("evidence MCP resources", () => {
       );
       const listed = await client.listResources();
       expect(listed.resources).toContainEqual(
+        expect.objectContaining({
+          uri: "rea://snapshot/current",
+        }),
+      );
+      expect(listed.resources).not.toContainEqual(
         expect.objectContaining({
           uri: `rea://evidence/${evidence.evidence_id}`,
         }),
@@ -96,6 +183,33 @@ describe("evidence MCP resources", () => {
           text: expect.stringContaining(evidence.evidence_id),
         }),
       ]);
+      const firstSnapshot = await client.callTool({
+        name: "snapshot_evidence_bundle",
+        arguments: {},
+      });
+      const secondSnapshot = await client.callTool({
+        name: "snapshot_evidence_bundle",
+        arguments: {},
+      });
+      expect(secondSnapshot.structuredContent).toEqual(
+        firstSnapshot.structuredContent,
+      );
+      expect(firstSnapshot.content).toContainEqual(
+        expect.objectContaining({
+          type: "text",
+          text: expect.stringContaining("Copy the opaque URI exactly"),
+        }),
+      );
+      const bundleUri = z
+        .object({ result: z.object({ bundle_uri: z.string() }) })
+        .parse(firstSnapshot.structuredContent).result.bundle_uri;
+      const retainedBundle = await client.readResource({ uri: bundleUri });
+      expect(retainedBundle.contents[0]).toEqual(
+        expect.objectContaining({
+          uri: bundleUri,
+          text: expect.stringContaining(evidence.evidence_id),
+        }),
+      );
       const terminal = await client.readResource({
         uri: `rea://evidence/${capture.evidence_id}/section/terminal`,
       });
@@ -117,14 +231,6 @@ describe("evidence MCP resources", () => {
         expect(unknownResource.contents[0]).toEqual(
           expect.objectContaining({
             text: expect.stringContaining(unknown.value.revision_digest),
-          }),
-        );
-        const active = await client.readResource({
-          uri: "rea://unknowns/active",
-        });
-        expect(active.contents[0]).toEqual(
-          expect.objectContaining({
-            text: expect.stringContaining(unknown.value.unknown_id),
           }),
         );
       }

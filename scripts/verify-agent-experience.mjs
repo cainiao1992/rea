@@ -34,7 +34,16 @@ try {
     skillDestination,
     { recursive: true },
   );
-  const targets = await createTargets(fixtureRoot);
+  const requestedScenarioIds = new Set(
+    (process.env.REA_AGENT_EVAL_SCENARIOS ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0),
+  );
+  const targets = await createTargets(
+    fixtureRoot,
+    requestedScenarioIds.size === 0 || requestedScenarioIds.has("managed"),
+  );
   const allScenarios = [
     {
       id: "native",
@@ -94,13 +103,23 @@ try {
       prompt:
         "A user-owned page is already open at http://127.0.0.1:3000 through the approved local debugging endpoint http://127.0.0.1:9222. Inspect what is available without navigating or executing page code, and report any authority or availability limits.",
     },
+    {
+      id: "navigation-context",
+      expectedFirstTool: "get_navigation_context",
+      requiresEvidence: false,
+      requiredAnswerTermGroups: [["unavailable", "could not", "session"]],
+      prompt:
+        "Report the selected document, current address, and containing procedure from the current native-analysis session in one coherent request. If no native session is available, report that limitation plainly.",
+    },
+    {
+      id: "address-context",
+      expectedFirstTool: "inspect_address_context",
+      requiresEvidence: false,
+      requiredAnswerTermGroups: [["unavailable", "could not", "session"]],
+      prompt:
+        "Inspect explicit address 0x401000 in the current native-analysis session. Report its analyzed name, containing procedure, regular comment, inline comment, and matching bookmarks. If no native session is available, report that limitation plainly.",
+    },
   ];
-  const requestedScenarioIds = new Set(
-    (process.env.REA_AGENT_EVAL_SCENARIOS ?? "")
-      .split(",")
-      .map((value) => value.trim())
-      .filter((value) => value.length > 0),
-  );
   const scenarios =
     requestedScenarioIds.size === 0
       ? allScenarios
@@ -234,7 +253,7 @@ try {
     await rm(evaluationRoot, { recursive: true, force: true });
 }
 
-async function createTargets(root) {
+async function createTargets(root, includeManaged) {
   const javascript = join(root, "desktop-app");
   await mkdir(join(javascript, "renderer"), { recursive: true });
   await Promise.all([
@@ -275,33 +294,35 @@ async function createTargets(root) {
     ),
   ]);
 
-  const managedProject = join(root, "managed-project");
   const managedOutput = join(root, "managed-output");
-  await mkdir(managedProject, { recursive: true });
-  await Promise.all([
-    writeFile(
-      join(managedProject, "AgentEval.csproj"),
-      '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup></Project>\n',
-    ),
-    writeFile(
-      join(managedProject, "Program.cs"),
-      'namespace AgentEval; public sealed record Profile(string Id); public static class Program { public static void Main() => Console.WriteLine(new Profile("fixture")); }\n',
-    ),
-  ]);
-  await runProcess(
-    "dotnet",
-    [
-      "build",
-      join(managedProject, "AgentEval.csproj"),
-      "--configuration",
-      "Release",
-      "--output",
-      managedOutput,
-      "--nologo",
-    ],
-    root,
-    120_000,
-  );
+  if (includeManaged) {
+    const managedProject = join(root, "managed-project");
+    await mkdir(managedProject, { recursive: true });
+    await Promise.all([
+      writeFile(
+        join(managedProject, "AgentEval.csproj"),
+        '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup></Project>\n',
+      ),
+      writeFile(
+        join(managedProject, "Program.cs"),
+        'namespace AgentEval; public sealed record Profile(string Id); public static class Program { public static void Main() => Console.WriteLine(new Profile("fixture")); }\n',
+      ),
+    ]);
+    await runProcess(
+      "dotnet",
+      [
+        "build",
+        join(managedProject, "AgentEval.csproj"),
+        "--configuration",
+        "Release",
+        "--output",
+        managedOutput,
+        "--nologo",
+      ],
+      root,
+      120_000,
+    );
+  }
   return {
     native: "/bin/true",
     javascript: javascriptAsar,

@@ -430,17 +430,31 @@ describe("artifact graph MCP integration", () => {
         arguments: { domain: "artifact-comparison" },
       });
       expect(unknowns.structuredContent).toMatchObject({
-        result: [expect.objectContaining({ domain: "artifact-comparison" })],
+        result: {
+          items: [
+            expect.objectContaining({
+              unknown: expect.objectContaining({
+                domain: "artifact-comparison",
+              }),
+            }),
+          ],
+        },
       });
-      const exported = await client.callTool({
-        name: "export_evidence_bundle",
+      const snapshotted = await client.callTool({
+        name: "snapshot_evidence_bundle",
         arguments: {},
       });
-      const envelope = z
-        .object({ result: evidenceBundleSchema })
-        .parse(exported.structuredContent);
-      expect(envelope.result.records).toHaveLength(6);
-      expect(envelope.result.artifacts).toContainEqual({
+      const bundleUri = z
+        .object({ result: z.object({ bundle_uri: z.string() }) })
+        .parse(snapshotted.structuredContent).result.bundle_uri;
+      const bundleResource = await client.readResource({ uri: bundleUri });
+      const bundle = evidenceBundleSchema.parse(
+        JSON.parse(
+          z.object({ text: z.string() }).parse(bundleResource.contents[0]).text,
+        ),
+      );
+      expect(bundle.records).toHaveLength(6);
+      expect(bundle.artifacts).toContainEqual({
         digest: { sha256: evidence.subject?.digest.sha256 },
         format: "ipa",
         architecture: null,

@@ -60,8 +60,10 @@ shutdown rules still apply; REA never kills a process it cannot prove it owns.
 
 ## Evidence resources
 
-Evidence remains inline for compatibility and successful Evidence-producing
-tools also return `resource_link` content. Session resources are connection-local:
+Evidence-producing tools return compact summaries plus `resource_link` content.
+Every link is accompanied by an ordinary instruction to copy its opaque URI
+unchanged and call MCP `resources/read` (Codex: `read_mcp_resource`). Session
+resources are connection-local:
 
 - `rea://evidence/{evidenceId}` returns the complete immutable Evidence v2 record.
 - `rea://evidence/{evidenceId}/section/{section}` returns a bounded result section.
@@ -69,9 +71,10 @@ tools also return `resource_link` content. Session resources are connection-loca
   `protocol`, `nodes`, `occurrences`, and `edges` when present.
 - `rea://unknown/{unknownId}` returns the current residual-unknown head and its
   immutable revision history.
-- `rea://unknowns/active` returns current unresolved heads.
-- `rea://snapshot/{snapshotDigest}` returns the current immutable analysis
-  snapshot when its canonical content digest matches.
+- `rea://evidence-bundle/{bundleDigest}` returns immutable canonical bytes
+  retained by `snapshot_evidence_bundle`.
+- `rea://snapshot/current` returns the mutable native analysis cache as an
+  `available` or `unavailable` state.
 - `rea://artifact/{manifestId}/{collection}` returns a canonical artifact
   `nodes`, `occurrences`, or `edges` page with Evidence provenance.
 - `rea://function/{targetSha256}/{address}` returns a retained function dossier
@@ -84,10 +87,23 @@ workspace `resource_link` blocks. Workspace resources preserve revision and
 `previous_revision_digest` commitments; persistent workspace files remain
 subject to configured read/write roots.
 
+`export_evidence_bundle` is file-only and requires `path`; existing files
+require `overwrite: true`. Use `snapshot_evidence_bundle` and then
+`resources/read` when the complete bundle is needed within the current session.
+
 An Evidence URI is discoverability, not authorization. It cannot authorize file
 access, extraction, mounting, execution, or networking. IDs disappear when the
 session ends unless the existing Evidence bundle or workspace persistence flow
 explicitly retains them.
+
+## Aggregate native context
+
+`get_navigation_context` combines the selected document, current address, and
+current/containing procedure. A cursor outside a procedure is represented as
+`procedure: null`. `inspect_address_context` requires an explicit address and
+returns bounded name, procedure, comment, inline-comment, and bookmark facets;
+unsupported facets are local `unavailable` outcomes. The scalar getters remain
+available while the aggregate contracts are evaluated.
 
 ## Permission policy
 

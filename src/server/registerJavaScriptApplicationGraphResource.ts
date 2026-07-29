@@ -19,11 +19,6 @@ export const registerJavaScriptApplicationGraphResource = (
       {
         list: undefined,
         complete: {
-          evidenceId: (prefix) =>
-            session
-              .exportEvidenceBundle()
-              .records.map(({ evidence_id }) => evidence_id)
-              .filter((evidenceId) => evidenceId.startsWith(prefix)),
           collection: (prefix) =>
             ["nodes", "edges"].filter((name) => name.startsWith(prefix)),
         },

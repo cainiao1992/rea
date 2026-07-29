@@ -40,6 +40,8 @@ export const TOOL_EXAMPLE_OVERRIDES: Readonly<
   find_code_for_string: { query: "authorization failed" },
   trace_call_path: { start: "0x1000", goal: "0x1100" },
   open_binary: { path: "/tmp/fixture" },
+  export_evidence_bundle: { path: "/tmp/evidence.json" },
+  inspect_address_context: { address: "0x1000" },
   import_evidence_bundle: { path: "evidence.json" },
   capture_process_scenario: {
     approved: true,

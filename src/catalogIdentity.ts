@@ -35,7 +35,7 @@ const promptCatalog = PROMPT_CONTRACTS.map((contract) => ({
 /** Canonical fixed resources exposed by every target-free MCP session. */
 export const MCP_RESOURCE_CATALOG = [
   { name: "server-identity", uri: "rea://server/identity" },
-  { name: "active-residual-unknowns", uri: "rea://unknowns/active" },
+  { name: "analysis-snapshot", uri: "rea://snapshot/current" },
 ] as const;
 /** Canonical resource templates exposed by every target-free MCP session. */
 export const MCP_RESOURCE_TEMPLATE_CATALOG = [
@@ -46,8 +46,8 @@ export const MCP_RESOURCE_TEMPLATE_CATALOG = [
   },
   { name: "residual-unknown", uri_template: "rea://unknown/{unknownId}" },
   {
-    name: "analysis-snapshot",
-    uri_template: "rea://snapshot/{snapshotDigest}",
+    name: "evidence-bundle",
+    uri_template: "rea://evidence-bundle/{bundleDigest}",
   },
   {
     name: "artifact-page",

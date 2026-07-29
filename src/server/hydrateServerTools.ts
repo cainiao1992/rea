@@ -276,10 +276,7 @@ const registerApplicationFamily = async ({
       session === undefined
         ? undefined
         : (workspace) => {
-            const retained =
-              session.retainReconstructionCoverageWorkspace(workspace);
-            if (retained === "added") server.sendResourceListChanged();
-            return retained;
+            return session.retainReconstructionCoverageWorkspace(workspace);
           },
     replay: {
       policy: options.javascriptReplayPolicy ?? {

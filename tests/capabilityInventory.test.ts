@@ -194,4 +194,36 @@ describe("capability inventory", () => {
       missing_optional: [],
     });
   });
+
+  it("advertises navigation context only when every cursor operation is available", () => {
+    const capabilities = [
+      "current_document",
+      "current_address",
+      "resolve_containing_procedure",
+    ].map((operation) => ({
+      operation,
+      available: true,
+      reason: null,
+    }));
+    expect(
+      entry(
+        "get_navigation_context",
+        status({ open: true, kind: "executable", capabilities }),
+      ),
+    ).toMatchObject({ available: true, reason: "available" });
+    expect(
+      entry(
+        "get_navigation_context",
+        status({
+          open: true,
+          kind: "executable",
+          capabilities: capabilities.slice(0, 2),
+        }),
+      ),
+    ).toMatchObject({
+      available: false,
+      reason: "provider_missing",
+      remediation: expect.stringContaining("resolve_containing_procedure"),
+    });
+  });
 });

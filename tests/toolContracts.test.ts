@@ -86,6 +86,9 @@ describe("tool contract inventory", () => {
       "update_unknown",
       "verify_unknown_resolution",
       "run_replay_machine",
+      "snapshot_evidence_bundle",
+      "get_navigation_context",
+      "inspect_address_context",
     ]);
     expect(new Set(TOOL_CONTRACTS.map(({ name }) => name)).size).toBe(
       TOOL_CONTRACTS.length,

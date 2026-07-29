@@ -3,11 +3,14 @@ import type { AnalysisSnapshot } from "../domain/analysisSnapshot.js";
 import type { BinaryTarget } from "../domain/binaryTarget.js";
 import { createEvidence, type Evidence } from "../domain/evidence.js";
 import type { EvidenceBundle } from "../domain/evidenceBundle.js";
-import { evidenceBundleForTarget } from "../domain/evidenceBundle.js";
+import {
+  evidenceBundleForTarget,
+  serializeEvidenceBundle,
+} from "../domain/evidenceBundle.js";
 import {
   EvidenceIntegrityError,
+  EvidenceLimitError,
   type AnalysisError,
-  type EvidenceLimitError,
   type UnknownRegistryError,
 } from "../domain/errors.js";
 import {
@@ -24,7 +27,8 @@ import type {
   UnknownStatus,
   UpdateUnknownInput,
 } from "../domain/residualUnknown.js";
-import { err, type Result } from "../domain/result.js";
+import { err, ok, type Result } from "../domain/result.js";
+import type { EvidenceBundleSnapshot } from "./BinarySessionPort.js";
 import type {
   AnalysisExecution,
   AnalysisOperation,
@@ -44,17 +48,28 @@ export interface ActiveAnalysisBinding {
 
 /** Owns session evidence, snapshots, workspaces, and residual unknowns. */
 export abstract class BinarySessionRecords {
+  static readonly MAX_RETAINED_BUNDLES = 16;
+  static readonly MAX_RETAINED_BUNDLE_BYTES = 64 * 1024 * 1024;
   readonly #evidence = new EvidenceLedger({
     maxRecords: 10_000,
     maxBytes: 64 * 1024 * 1024,
   });
   readonly #snapshot = new AnalysisSnapshotCache();
+  readonly #retainedBundles = new Map<string, string>();
+  #retainedBundleBytes = 0;
   readonly #investigationWorkspaces = new Map<string, InvestigationWorkspace>();
   readonly #coverageWorkspaces = new Map<
     string,
     ReconstructionCoverageWorkspace
   >();
   #snapshotInvalidated = false;
+  readonly #snapshotListeners = new Set<() => void | Promise<void>>();
+
+  /** Observe changes to the mutable current analysis snapshot resource. */
+  onAnalysisSnapshotChanged(listener: () => void | Promise<void>): () => void {
+    this.#snapshotListeners.add(listener);
+    return () => this.#snapshotListeners.delete(listener);
+  }
 
   recordEvidence(
     evidence: Evidence,
@@ -62,7 +77,9 @@ export abstract class BinarySessionRecords {
     "added" | "duplicate",
     EvidenceIntegrityError | EvidenceLimitError
   > {
-    return this.#evidence.record(evidence);
+    const recorded = this.#evidence.record(evidence);
+    if (recorded.ok && recorded.value === "added") this.#emitSnapshotChanged();
+    return recorded;
   }
 
   hasEvidence(evidenceId: string): boolean {
@@ -77,10 +94,55 @@ export abstract class BinarySessionRecords {
     return this.#evidence.export();
   }
 
+  snapshotEvidenceBundle(): Result<EvidenceBundleSnapshot, EvidenceLimitError> {
+    const bundle = this.#evidence.export();
+    const encoded = serializeEvidenceBundle(bundle);
+    const digest = createHash("sha256").update(encoded).digest("hex");
+    const existing = this.#retainedBundles.get(digest);
+    if (existing === undefined) {
+      if (
+        this.#retainedBundles.size >= BinarySessionRecords.MAX_RETAINED_BUNDLES
+      )
+        return err(
+          new EvidenceLimitError(
+            "records",
+            BinarySessionRecords.MAX_RETAINED_BUNDLES,
+          ),
+        );
+      const bytes = Buffer.byteLength(encoded);
+      if (
+        this.#retainedBundleBytes + bytes >
+        BinarySessionRecords.MAX_RETAINED_BUNDLE_BYTES
+      )
+        return err(
+          new EvidenceLimitError(
+            "bytes",
+            BinarySessionRecords.MAX_RETAINED_BUNDLE_BYTES,
+          ),
+        );
+      this.#retainedBundles.set(digest, encoded);
+      this.#retainedBundleBytes += bytes;
+    }
+    return ok({
+      bundleDigest: digest,
+      bundleVersion: 2,
+      bytes: Buffer.byteLength(existing ?? encoded),
+      records: bundle.records.length,
+      unknowns: bundle.unknowns.length,
+      uri: `rea://evidence-bundle/${digest}`,
+    });
+  }
+
+  retainedEvidenceBundle(digest: string): string | undefined {
+    return this.#retainedBundles.get(digest);
+  }
+
   importEvidenceBundle(
     bundle: unknown,
   ): Result<number, EvidenceIntegrityError | EvidenceLimitError> {
-    return this.#evidence.import(bundle);
+    const imported = this.#evidence.import(bundle);
+    if (imported.ok && imported.value > 0) this.#emitSnapshotChanged();
+    return imported;
   }
 
   protected abstract activeAnalysisBinding(): ActiveAnalysisBinding | undefined;
@@ -120,13 +182,15 @@ export abstract class BinarySessionRecords {
           "Analysis snapshot profile_mismatch: the active target has no concrete analysis profile",
         ),
       );
-    return this.#snapshot.import(
+    const imported = this.#snapshot.import(
       snapshot,
       active === undefined
         ? undefined
         : { target: active.target, profile: active.profile },
       (bundle) => this.#evidence.import(bundle),
     );
+    if (imported.ok) this.#emitSnapshotChanged();
+    return imported;
   }
 
   protected matchesSnapshot(
@@ -141,6 +205,7 @@ export abstract class BinarySessionRecords {
     profile: AnalysisProfileCommitment,
   ): void {
     this.#snapshot.select(target, profile);
+    this.#emitSnapshotChanged();
   }
 
   protected lookupSnapshot(
@@ -158,25 +223,37 @@ export abstract class BinarySessionRecords {
     input: Parameters<AnalysisSnapshotCache["record"]>[0],
   ): void {
     this.#snapshot.record(input);
+    this.#emitSnapshotChanged();
   }
 
   protected invalidateSnapshot(): void {
     this.#snapshot.clear();
     this.#snapshotInvalidated = true;
+    this.#emitSnapshotChanged();
   }
 
   protected resetSnapshotInvalidation(): void {
+    if (!this.#snapshotInvalidated) return;
     this.#snapshotInvalidated = false;
+    this.#emitSnapshotChanged();
   }
 
   protected clearSnapshot(): void {
     this.#snapshot.clear();
+    this.#emitSnapshotChanged();
   }
 
   protected clearSessionRecords(): void {
     this.#evidence.clear();
     this.#snapshot.clear();
     this.#snapshotInvalidated = false;
+    this.#retainedBundles.clear();
+    this.#retainedBundleBytes = 0;
+    this.#emitSnapshotChanged();
+  }
+
+  #emitSnapshotChanged(): void {
+    for (const listener of this.#snapshotListeners) void listener();
   }
 
   retainInvestigationWorkspace(
@@ -231,21 +308,25 @@ export abstract class BinarySessionRecords {
     input: RecordUnknownInput,
   ): Result<ResidualUnknown, AnalysisError> {
     const target = this.activeAnalysisBinding()?.target;
-    return this.#evidence.recordUnknown(
+    const recorded = this.#evidence.recordUnknown(
       input,
       unknownMutationEvidence(target, input),
     );
+    if (recorded.ok) this.#emitSnapshotChanged();
+    return recorded;
   }
 
   recordEvidenceWithUnknown(
     evidence: Evidence,
     input: RecordUnknownInput,
   ): Result<ResidualUnknown | null, AnalysisError> {
-    return this.#evidence.recordWithUnknown(
+    const recorded = this.#evidence.recordWithUnknown(
       evidence,
       input,
       unknownMutationEvidence(undefined, input),
     );
+    if (recorded.ok) this.#emitSnapshotChanged();
+    return recorded;
   }
 
   updateUnknown(
@@ -267,7 +348,9 @@ export abstract class BinarySessionRecords {
         "Registry mutation evidence records analyst intent, not proof of the answer.",
       ],
     });
-    return this.#evidence.updateUnknown(input, evidence);
+    const updated = this.#evidence.updateUnknown(input, evidence);
+    if (updated.ok) this.#emitSnapshotChanged();
+    return updated;
   }
 
   listUnknowns(
@@ -307,3 +390,4 @@ const sortedWorkspaces = <
         left.revision - right.revision,
     )
     .map((workspace) => structuredClone(workspace));
+import { createHash } from "node:crypto";

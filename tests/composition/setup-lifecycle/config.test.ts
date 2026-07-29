@@ -1,0 +1,408 @@
+import { describe, expect, it } from "vitest";
+
+import { parseConfig } from "../../../src/config.js";
+
+describe("runtime configuration", () => {
+  it("allows target-free startup and defaults to Hopper's documented launcher", () => {
+    const empty = parseConfig({});
+    expect(empty.ok).toBe(true);
+    if (empty.ok) {
+      expect(empty.value.hopperTargetPath).toBeUndefined();
+      expect(empty.value.analysisProvider).toBe("auto");
+    }
+    const result = parseConfig({ HOPPER_TARGET_PATH: "/usr/bin/true" });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.hopperLauncherPath).toBe(
+        process.platform === "linux"
+          ? "/opt/hopper/bin/Hopper"
+          : "/Applications/Hopper Disassembler.app/Contents/MacOS/hopper",
+      );
+      expect(result.value.hopperTargetKind).toBe("executable");
+      expect(result.value.hopperLoaderArgs).toEqual([]);
+      expect(result.value.logLevel).toBe("info");
+      expect(result.value.referenceSourcePolicy).toEqual({
+        roots: [],
+        secretPatterns: [],
+        maxBytes: 16 * 1024 * 1024,
+        maxEntries: 10_000,
+        maxDepth: 32,
+        maxPathBytes: 4_096,
+      });
+      expect(result.value.browserObservationEnabled).toBe(false);
+      expect(result.value.browserCdpEndpoints).toEqual([]);
+      expect(result.value.browserAllowedOrigins).toEqual([]);
+      expect(result.value.browserScenarioPolicy).toEqual({
+        enabled: false,
+        executableRoots: [],
+        cdpEndpoints: [],
+        allowedOrigins: [],
+        allowedEnvironment: [],
+      });
+      expect(result.value.electronObservationEnabled).toBe(false);
+      expect(result.value.electronCdpEndpoints).toEqual([]);
+      expect(result.value.electronFileRoots).toEqual([]);
+      expect(result.value.v8InspectorObservationEnabled).toBe(false);
+      expect(result.value.v8InspectorEndpoints).toEqual([]);
+      expect(result.value.v8InspectorFileRoots).toEqual([]);
+      expect(result.value.v8InspectorAllowedOrigins).toEqual([]);
+      expect(result.value.javascriptReplayPolicy).toMatchObject({
+        enabled: false,
+        roots: [],
+      });
+      expect(result.value.managedRuntimePolicy).toMatchObject({
+        enabled: false,
+        roots: [],
+        executablePath: "/usr/bin/dotnet",
+      });
+    }
+  });
+
+  it("parses one shared provider selector and rejects unstable IDs", () => {
+    expect(parseConfig({ REA_ANALYSIS_PROVIDER: "ghidra" })).toMatchObject({
+      ok: true,
+      value: { analysisProvider: "ghidra" },
+    });
+    expect(parseConfig({ REA_ANALYSIS_PROVIDER: "auto" })).toMatchObject({
+      ok: true,
+      value: { analysisProvider: "auto" },
+    });
+    for (const invalid of ["", "Auto", "ghidra_1", "ghidra "])
+      expect(parseConfig({ REA_ANALYSIS_PROVIDER: invalid }).ok).toBe(false);
+  });
+
+  it("parses absolute BYO Ghidra and optional Java paths", () => {
+    expect(
+      parseConfig({
+        GHIDRA_INSTALL_DIR: "/opt/ghidra_12.1.2_PUBLIC",
+        JAVA_HOME: "/usr/lib/jvm/jdk-21",
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        ghidraInstallDir: "/opt/ghidra_12.1.2_PUBLIC",
+        ghidraJavaHome: "/usr/lib/jvm/jdk-21",
+      },
+    });
+    expect(parseConfig({ GHIDRA_INSTALL_DIR: "relative/ghidra" }).ok).toBe(
+      false,
+    );
+    expect(parseConfig({ JAVA_HOME: "relative/jdk" }).ok).toBe(false);
+  });
+
+  it("parses an optional absolute BYO ilspycmd path", () => {
+    expect(
+      parseConfig({ REA_ILSPY_CMD_PATH: "/home/user/.dotnet/tools/ilspycmd" }),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        ilspyCmdPath: "/home/user/.dotnet/tools/ilspycmd",
+      },
+    });
+    expect(parseConfig({ REA_ILSPY_CMD_PATH: "relative/ilspycmd" }).ok).toBe(
+      false,
+    );
+  });
+});
+
+describe("runtime permission configuration", () => {
+  it("builds a separate Electron endpoint and file-root ceiling", () => {
+    const result = parseConfig({
+      REA_ELECTRON_OBSERVE_ENABLED: "true",
+      REA_ELECTRON_CDP_ENDPOINTS_JSON: '["http://127.0.0.1:9223"]',
+      REA_ELECTRON_FILE_ROOTS_JSON: '["/tmp/electron-app"]',
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.permissionCeilings).toContainEqual({
+      capability: "electron_observe",
+      roots: ["/tmp/electron-app"],
+      executables: [],
+      environment_names: [],
+      origins: ["http://127.0.0.1:9223"],
+      network: "loopback",
+      mount: false,
+    });
+  });
+
+  it("builds a separate V8 Inspector endpoint, root, and origin ceiling", () => {
+    const result = parseConfig({
+      REA_V8_INSPECTOR_OBSERVE_ENABLED: "true",
+      REA_V8_INSPECTOR_ENDPOINTS_JSON: '["http://127.0.0.1:9229"]',
+      REA_V8_INSPECTOR_FILE_ROOTS_JSON: '["/tmp/node-app"]',
+      REA_V8_INSPECTOR_ALLOWED_ORIGINS_JSON: '["http://127.0.0.1:3000"]',
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.permissionCeilings).toContainEqual({
+      capability: "v8_inspector_observe",
+      roots: ["/tmp/node-app"],
+      executables: [],
+      environment_names: [],
+      origins: ["http://127.0.0.1:9229", "http://127.0.0.1:3000"],
+      network: "loopback",
+      mount: false,
+    });
+  });
+
+  it("can configure a process-capture ceiling without an implicit grant", () => {
+    const result = parseConfig({
+      REA_PROCESS_CAPTURE_ENABLED: "true",
+      REA_PROCESS_CAPTURE_AUTO_GRANT: "false",
+      REA_PROCESS_EXECUTABLE_ROOTS_JSON: '["/opt/tools"]',
+      REA_PROCESS_WORKING_ROOTS_JSON: '["/tmp/work"]',
+    });
+    if (!result.ok) throw result.error;
+    expect(result.value.permissionCeilings).toContainEqual(
+      expect.objectContaining({ capability: "process_capture" }),
+    );
+    expect(result.value.administratorPermissionGrants).not.toContainEqual(
+      expect.objectContaining({ capability: "process_capture" }),
+    );
+  });
+
+  it("preserves the configured process-capture administrator grant by default", () => {
+    const result = parseConfig({
+      REA_PROCESS_CAPTURE_ENABLED: "true",
+      REA_PROCESS_EXECUTABLE_ROOTS_JSON: '["/opt/tools"]',
+      REA_PROCESS_WORKING_ROOTS_JSON: '["/tmp/work"]',
+    });
+    if (!result.ok) throw result.error;
+    expect(result.value.administratorPermissionGrants).toContainEqual(
+      expect.objectContaining({
+        capability: "process_capture",
+        lifetime: "administrator",
+      }),
+    );
+  });
+
+  it("builds a no-network JavaScript replay ceiling only when enabled", () => {
+    const result = parseConfig({
+      REA_JAVASCRIPT_REPLAY_ENABLED: "true",
+      REA_JAVASCRIPT_REPLAY_ROOTS_JSON: '["/tmp/extracted-modules"]',
+      REA_JAVASCRIPT_REPLAY_NODE_PATH: "/opt/node/bin/node",
+    });
+    if (!result.ok) throw result.error;
+    expect(result.value.permissionCeilings).toContainEqual({
+      capability: "javascript_replay",
+      roots: ["/tmp/extracted-modules"],
+      executables: [
+        "/opt/node/bin/node",
+        "/usr/bin/bwrap",
+        "/usr/bin/systemd-run",
+        "/usr/bin/systemctl",
+        "/usr/bin/bash",
+      ],
+      environment_names: [],
+      network: "none",
+      mount: true,
+    });
+    expect(result.value.administratorPermissionGrants).toContainEqual(
+      expect.objectContaining({
+        capability: "javascript_replay",
+        lifetime: "administrator",
+      }),
+    );
+  });
+
+  it("rejects relative JavaScript replay roots and executables", () => {
+    expect(
+      parseConfig({ REA_JAVASCRIPT_REPLAY_ROOTS_JSON: '["relative/module"]' })
+        .ok,
+    ).toBe(false);
+    expect(
+      parseConfig({ REA_JAVASCRIPT_REPLAY_NODE_PATH: "relative/node" }).ok,
+    ).toBe(false);
+  });
+});
+
+describe("runtime target configuration", () => {
+  it("builds a no-network managed runtime ceiling only when enabled", () => {
+    const result = parseConfig({
+      REA_MANAGED_RUNTIME_ENABLED: "true",
+      REA_MANAGED_RUNTIME_ROOTS_JSON: '["/tmp/managed-targets"]',
+      REA_MANAGED_RUNTIME_EXECUTABLE_PATH: "/opt/dotnet/dotnet",
+    });
+    if (!result.ok) throw result.error;
+    expect(result.value.managedRuntimePolicy).toEqual({
+      enabled: true,
+      roots: ["/tmp/managed-targets"],
+      executablePath: "/opt/dotnet/dotnet",
+    });
+    expect(result.value.permissionCeilings).toContainEqual({
+      capability: "managed_runtime",
+      roots: ["/tmp/managed-targets"],
+      executables: ["/opt/dotnet/dotnet"],
+      environment_names: [],
+      network: "none",
+      mount: false,
+    });
+    expect(result.value.administratorPermissionGrants).toContainEqual(
+      expect.objectContaining({
+        capability: "managed_runtime",
+        lifetime: "administrator",
+      }),
+    );
+  });
+
+  it("rejects relative managed runtime roots and executables", () => {
+    expect(
+      parseConfig({ REA_MANAGED_RUNTIME_ROOTS_JSON: '["relative/assembly"]' })
+        .ok,
+    ).toBe(false);
+    expect(
+      parseConfig({ REA_MANAGED_RUNTIME_EXECUTABLE_PATH: "relative/dotnet" })
+        .ok,
+    ).toBe(false);
+  });
+
+  it("rejects relative Electron file roots", () => {
+    expect(
+      parseConfig({ REA_ELECTRON_FILE_ROOTS_JSON: '["relative/app"]' }).ok,
+    ).toBe(false);
+  });
+
+  it("parses database kind and loader arguments", () => {
+    expect(
+      parseConfig({
+        HOPPER_TARGET_PATH: "/fixture/sample.hop",
+        HOPPER_TARGET_KIND: "database",
+        HOPPER_LOADER_ARGS_JSON: '["-l","FAT","--aarch64","-l","Mach-O"]',
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        hopperLauncherPath:
+          process.platform === "linux"
+            ? "/opt/hopper/bin/Hopper"
+            : "/Applications/Hopper Disassembler.app/Contents/MacOS/hopper",
+        hopperTargetPath: "/fixture/sample.hop",
+        hopperTargetKind: "database",
+        hopperLoaderArgs: ["-l", "FAT", "--aarch64", "-l", "Mach-O"],
+        logLevel: "info",
+        artifactNativeMountEnabled: false,
+        processExecutionPolicy: {
+          enabled: false,
+          executableRoots: [],
+          workingRoots: [],
+          allowedEnvironment: [],
+          allowExternalNetwork: false,
+        },
+        evidenceFilePolicy: {
+          roots: [],
+          maxBytes: 64 * 1024 * 1024,
+          maxDepth: 64,
+          maxStringLength: 1024 * 1024,
+          maxNodes: 1_000_000,
+        },
+        investigationInputRoots: [],
+        analysisSnapshotFilePolicy: {
+          roots: [],
+          maxBytes: 64 * 1024 * 1024,
+          maxDepth: 64,
+          maxStringLength: 1024 * 1024,
+          maxNodes: 1_000_000,
+        },
+        referenceSourcePolicy: {
+          roots: [],
+          secretPatterns: [],
+          maxBytes: 16 * 1024 * 1024,
+          maxEntries: 10_000,
+          maxDepth: 32,
+          maxPathBytes: 4_096,
+        },
+      },
+    });
+  });
+});
+
+describe("runtime collection configuration", () => {
+  it.each(["not-json", "{}", '["ok",1]'])(
+    "rejects invalid loader args: %s",
+    (encoded) => {
+      expect(
+        parseConfig({
+          HOPPER_TARGET_PATH: "/tmp/a",
+          HOPPER_LOADER_ARGS_JSON: encoded,
+        }).ok,
+      ).toBe(false);
+    },
+  );
+
+  it("reports the configured string-array size limit", () => {
+    const result = parseConfig({
+      REA_INVESTIGATION_INPUT_ROOTS_JSON: JSON.stringify(
+        Array.from({ length: 129 }, (_, index) => `/input/${String(index)}`),
+      ),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok)
+      expect(result.error.message).toBe(
+        "REA_INVESTIGATION_INPUT_ROOTS_JSON must encode at most 128 strings",
+      );
+  });
+
+  it("parses supported log levels and rejects unknown levels", () => {
+    const configured = parseConfig({ REA_LOG_LEVEL: "debug" });
+    expect(configured.ok && configured.value.logLevel).toBe("debug");
+    expect(parseConfig({ REA_LOG_LEVEL: "verbose" }).ok).toBe(false);
+  });
+
+  it("parses reference source policy roots and secret patterns", () => {
+    const result = parseConfig({
+      REA_REFERENCE_ROOTS_JSON: '["/approved", "/srv/reference"]',
+      REA_REFERENCE_SECRET_PATTERNS_JSON: '["*.env", "*.pem", "secrets/"]',
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.referenceSourcePolicy).toEqual({
+        roots: ["/approved", "/srv/reference"],
+        secretPatterns: ["*.env", "*.pem", "secrets/"],
+        maxBytes: 16 * 1024 * 1024,
+        maxEntries: 10_000,
+        maxDepth: 32,
+        maxPathBytes: 4_096,
+      });
+    }
+  });
+
+  it("parses investigation input roots independently from evidence roots", () => {
+    const result = parseConfig({
+      REA_EVIDENCE_ROOTS_JSON: '["/evidence"]',
+      REA_INVESTIGATION_INPUT_ROOTS_JSON: '["/releases", "/builds"]',
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.evidenceFilePolicy.roots).toEqual(["/evidence"]);
+      expect(result.value.investigationInputRoots).toEqual([
+        "/releases",
+        "/builds",
+      ]);
+    }
+  });
+
+  it.each(["not-json", "{}", '["/ok", 1]'])(
+    "rejects invalid investigation input roots: %s",
+    (encoded) => {
+      expect(
+        parseConfig({ REA_INVESTIGATION_INPUT_ROOTS_JSON: encoded }).ok,
+      ).toBe(false);
+    },
+  );
+
+  it.each(["not-json", "{}", '["/ok", 1]'])(
+    "rejects invalid reference source roots: %s",
+    (encoded) => {
+      expect(parseConfig({ REA_REFERENCE_ROOTS_JSON: encoded }).ok).toBe(false);
+    },
+  );
+
+  it.each(["not-json", "{}", '["*.ok", 1]'])(
+    "rejects invalid reference source secret patterns: %s",
+    (encoded) => {
+      expect(
+        parseConfig({ REA_REFERENCE_SECRET_PATTERNS_JSON: encoded }).ok,
+      ).toBe(false);
+    },
+  );
+});

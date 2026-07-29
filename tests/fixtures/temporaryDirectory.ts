@@ -1,8 +1,12 @@
-import { mkdtemp, realpath, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
 
 import { onTestFinished } from "vitest";
+
+import {
+  createTestWorkspace,
+  removeTestWorkspace,
+} from "../support/workspace/workspaceFixture.js";
 
 const TEMPORARY_PREFIX = /^[A-Za-z0-9][A-Za-z0-9._-]*-$/u;
 
@@ -16,18 +20,15 @@ export const createTestTempDirectory = async (
     );
   }
 
-  const canonicalTemporaryRoot = await realpath(tmpdir());
-  const created = await mkdtemp(join(canonicalTemporaryRoot, prefix));
-  const canonicalDirectory = await realpath(created);
-
+  const workspace = await createTestWorkspace(prefix);
+  const canonicalDirectory = workspace.root;
+  // Preserve the legacy helper's empty-root contract; callers own all content.
+  await Promise.all([
+    rm(join(canonicalDirectory, "home"), { recursive: true, force: true }),
+    rm(join(canonicalDirectory, "xdg"), { recursive: true, force: true }),
+  ]);
   onTestFinished(async () => {
-    await rm(canonicalDirectory, {
-      recursive: true,
-      force: true,
-      maxRetries: 3,
-      retryDelay: 25,
-    });
+    await removeTestWorkspace(canonicalDirectory);
   });
-
   return canonicalDirectory;
 };

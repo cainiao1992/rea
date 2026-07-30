@@ -42,16 +42,16 @@ manual; Vitest covers only deterministic evaluator logic.
 `npm test` runs every deterministic project once. The narrower feedback loops
 are:
 
-| Command                   | Scope                                                          |
-| ------------------------- | -------------------------------------------------------------- |
-| `npm run test:fast`       | Domain, service, and composition projects                      |
-| `npm run test:boundary`   | Boundary and process-global projects                           |
-| `npm run test:acceptance` | Complete CLI and MCP acceptance workflows                      |
-| `npm run test:changed`    | Tests related through Vitest's import graph                    |
-| `npm run test:watch`      | Changed domain and service tests in watch mode                 |
-| `npm run test:watch:all`  | Changed tests from every deterministic project in watch mode   |
-| `npm run check:changed`   | Cached static checks followed by changed tests                 |
-| `npm run check:pr`        | Static, generated-document, and complete deterministic PR gate |
+| Command                   | Scope                                                                                                    |
+| ------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `npm run test:fast`       | Domain, service, adapter, and composition projects                                                       |
+| `npm run test:boundary`   | Boundary and process-global projects                                                                     |
+| `npm run test:acceptance` | Complete CLI and MCP acceptance workflows                                                                |
+| `npm run test:changed`    | Changed tests in non-serial projects via Vitest's import graph                                           |
+| `npm run test:watch`      | Changed domain, service, adapter, composition, boundary, conformance, and evaluation tests in watch mode |
+| `npm run test:watch:all`  | Changed tests from every deterministic project in watch mode                                             |
+| `npm run check:changed`   | Cached static checks followed by changed tests                                                           |
+| `npm run check:pr`        | Static, generated-document, and complete deterministic PR gate                                           |
 
 Changed-test selection is a fast feedback aid, not release evidence. It can
 miss behavior connected through runtime registration, generated data, shell

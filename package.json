@@ -91,7 +91,7 @@
     "pretest:acceptance": "npm run build:cached",
     "test:acceptance": "vitest run --project acceptance",
     "pretest:changed": "npm run build:cached",
-    "test:changed": "vitest run --changed",
+    "test:changed": "vitest run --project domain --project services --project adapters --project composition --project boundary --project conformance --project evaluation --changed",
     "pretest:integration": "npm run build:cached",
     "test:integration": "vitest run --project boundary --project process-global --project acceptance",
     "pretest:coverage": "npm run build:cached",

@@ -100,7 +100,7 @@
     "pretest:ci:shard": "npm run build:cached",
     "test:ci:shard": "npm run test:ci:shard:run",
     "test:ci:shard:run": "vitest run --coverage.enabled --coverage.provider=v8 --coverage.thresholds.lines=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0 --coverage.thresholds.statements=0 --reporter=default --reporter=blob",
-    "test:ci:merge": "vitest --merge-reports --coverage.enabled --coverage.provider=v8 --reporter=default --reporter=junit --outputFile.junit=test-results.xml",
+    "test:ci:merge": "vitest --merge-reports --coverage.enabled --coverage.provider=v8",
     "pretest:verbose": "npm run build:cached",
     "test:verbose": "vitest run --reporter=verbose",
     "pretest:watch": "npm run build:cached",

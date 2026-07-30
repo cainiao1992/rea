@@ -302,6 +302,11 @@ jobs:
           tests/boundary/providers/ghidra/ghidraClient.test.ts
           tests/boundary/providers/ghidra/ghidraLauncher.test.ts
           tests/boundary/process/processOwnership.test.ts
+          tests/boundary/process/processOwnershipPart2.test.ts
+          tests/boundary/process/processOwnershipPart3.test.ts
+          tests/boundary/process/processOwnershipValidation.test.ts
+          tests/boundary/process/processOwnershipValidationPart2.test.ts
+          tests/boundary/process/processOwnershipValidationPart3.test.ts
           tests/conformance/providers/ghidra/realGhidraWindowsWorkflow.test.ts
       - run: npm run verify:package:windows
       - uses: actions/upload-artifact@v4

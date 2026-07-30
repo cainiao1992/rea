@@ -83,6 +83,7 @@ export const createTestProcessRegistry = (): TestProcesses => {
     });
     children.add(child);
     child.once("exit", () => children.delete(child));
+    child.once("close", () => children.delete(child));
     return child;
   };
 

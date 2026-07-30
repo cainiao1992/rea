@@ -44,7 +44,7 @@ are:
 
 | Command                   | Scope                                                                                                    |
 | ------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `npm run test:fast`       | Domain, service, adapter, and composition projects                                                       |
+| `npm run test:fast`       | Domain, service, adapter, composition, boundary, and conformance projects                                |
 | `npm run test:boundary`   | Boundary and process-global projects                                                                     |
 | `npm run test:acceptance` | Complete CLI and MCP acceptance workflows                                                                |
 | `npm run test:changed`    | Changed tests in non-serial projects via Vitest's import graph                                           |

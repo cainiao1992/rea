@@ -85,7 +85,7 @@
     "test": "vitest run",
     "test:run": "vitest run",
     "pretest:fast": "npm run build:cached",
-    "test:fast": "vitest run --project domain --project services --project adapters --project composition",
+    "test:fast": "vitest run --project domain --project services --project adapters --project composition --project boundary --project conformance",
     "pretest:boundary": "npm run build:cached",
     "test:boundary": "vitest run --project boundary --project process-global",
     "pretest:acceptance": "npm run build:cached",

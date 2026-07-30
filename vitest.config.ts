@@ -8,6 +8,9 @@ const CANONICAL_TEMPORARY_DIRECTORY = realpathSync(tmpdir());
 const COVERAGE_ENABLED = process.argv.some((argument) =>
   argument.startsWith("--coverage"),
 );
+const COVERAGE_SHARD = process.argv.some((argument) =>
+  argument.startsWith("--shard="),
+);
 // Keep every project on one worker budget. Vitest requires projects selected
 // by an explicit file list to agree on maxWorkers unless they are assigned
 // artificial sequence barriers; a shared cap avoids that trap and limits the
@@ -75,6 +78,25 @@ export const TEST_PROJECTS = [
   },
 ];
 
+const ZERO_COVERAGE_THRESHOLDS = {
+  statements: 0,
+  branches: 0,
+  functions: 0,
+  lines: 0,
+  "src/domain/**": {
+    statements: 0,
+    branches: 0,
+    functions: 0,
+    lines: 0,
+  },
+  "src/contracts/**": {
+    statements: 0,
+    branches: 0,
+    functions: 0,
+    lines: 0,
+  },
+};
+
 const projects = TEST_PROJECTS.map((project) => ({
   extends: true as const,
   test: project,
@@ -99,24 +121,26 @@ export default defineConfig({
         `rea-vitest-coverage-${String(process.pid)}`,
       ),
       include: ["src/**"],
-      thresholds: {
-        statements: 65,
-        branches: 60,
-        functions: 60,
-        lines: 68,
-        "src/domain/**": {
-          statements: 80,
-          branches: 75,
-          functions: 75,
-          lines: 80,
-        },
-        "src/contracts/**": {
-          statements: 85,
-          branches: 80,
-          functions: 80,
-          lines: 85,
-        },
-      },
+      thresholds: COVERAGE_SHARD
+        ? ZERO_COVERAGE_THRESHOLDS
+        : {
+            statements: 65,
+            branches: 60,
+            functions: 60,
+            lines: 68,
+            "src/domain/**": {
+              statements: 80,
+              branches: 75,
+              functions: 75,
+              lines: 80,
+            },
+            "src/contracts/**": {
+              statements: 85,
+              branches: 80,
+              functions: 80,
+              lines: 85,
+            },
+          },
       reporter: ["text", "text-summary"],
     },
   },

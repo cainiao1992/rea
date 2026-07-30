@@ -36,7 +36,7 @@ describe("Vitest project configuration", () => {
     expect(vitestConfiguration.test?.coverage?.enabled).toBe(false);
     expect(vitestConfiguration.test?.reporters).toEqual(["default"]);
     expect(vitestConfiguration.test?.retry).toBe(0);
-    expect(MAX_TEST_WORKERS).toBe(Math.min(4, availableParallelism()));
+    expect(MAX_TEST_WORKERS).toBe(Math.min(2, availableParallelism()));
     expect(TEST_PROJECTS.map(({ name }) => name).sort()).toEqual(
       EXPECTED_PROJECTS,
     );

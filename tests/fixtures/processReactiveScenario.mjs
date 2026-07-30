@@ -24,3 +24,6 @@ await new Promise((resolve, reject) => {
   worker.once("exit", resolve);
   worker.once("error", reject);
 });
+// Let the parent capture coordinator ingest final protocol and filesystem events
+// before the root process exits and submits its terminal loss signal.
+await new Promise((resolve) => setTimeout(resolve, 25));

@@ -49,8 +49,8 @@ export interface SessionProviderRoute {
   ): AnalysisClient;
 }
 
-interface LegacyProviderRuntime {
-  readonly kind: "legacy";
+interface SingleProviderRuntime {
+  readonly kind: "single";
   readonly provider: AnalysisProvider | AnalysisClientFactory;
   readonly identity: ProviderIdentity;
   readonly capabilities: ReadonlyMap<string, CapabilityDescriptor> | undefined;
@@ -71,7 +71,7 @@ interface SelectableProviderRuntime {
 /** Resolve either the compatibility single-provider seam or a selectable set. */
 export class SessionProviderRouter {
   private constructor(
-    private readonly runtime: LegacyProviderRuntime | SelectableProviderRuntime,
+    private readonly runtime: SingleProviderRuntime | SelectableProviderRuntime,
   ) {}
 
   /** Preserve the existing provider/factory seam used by focused embedders. */
@@ -104,7 +104,7 @@ export class SessionProviderRouter {
             provider.resolveAnalysisProfile?.(target, resolutionOptions) ??
             Promise.resolve(ok({ profile: null, compatibility: {} })));
     return new SessionProviderRouter({
-      kind: "legacy",
+      kind: "single",
       provider,
       identity,
       capabilities,
@@ -148,7 +148,7 @@ export class SessionProviderRouter {
 
   /** Provider identities exposed through the flat 1.x compatibility field. */
   providerIdentities(route: SessionProviderRoute): readonly ProviderIdentity[] {
-    if (this.runtime.kind === "legacy") {
+    if (this.runtime.kind === "single") {
       if (route.capabilities === undefined) return [route.identity];
       return uniqueProviderIdentities(
         [...route.capabilities.values()].map(({ provider }) => provider),
@@ -177,7 +177,7 @@ export class SessionProviderRouter {
       binding: null,
       selection: undefined,
       createClient: (target, context) =>
-        createLegacyClient(runtime, target, undefined, context),
+        createSingleProviderClient(runtime, target, undefined, context),
     };
   }
 
@@ -231,7 +231,7 @@ export class SessionProviderRouter {
       binding: null,
       selection: undefined,
       createClient: (openedTarget, context) =>
-        createLegacyClient(
+        createSingleProviderClient(
           runtime,
           openedTarget,
           normalized.value.profile ?? undefined,
@@ -244,7 +244,7 @@ export class SessionProviderRouter {
   candidateStatuses(
     route: SessionProviderRoute,
   ): readonly AnalysisProviderCandidateStatus[] {
-    if (this.runtime.kind === "legacy") return [];
+    if (this.runtime.kind === "single") return [];
     return route.selection?.candidates ?? this.runtime.registry.candidates();
   }
 
@@ -292,8 +292,8 @@ const selectableRoute = (
   };
 };
 
-const createLegacyClient = (
-  runtime: LegacyProviderRuntime,
+const createSingleProviderClient = (
+  runtime: SingleProviderRuntime,
   target: BinaryTarget,
   profile: AnalysisProfileCommitment | undefined,
   context: AnalysisClientContext,

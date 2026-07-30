@@ -88,7 +88,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1/2, 2/2]
+        shard: [1/4, 2/4, 3/4, 4/4]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -160,13 +160,47 @@ jobs:
           path: .vitest-reports
           pattern: vitest-report-*
           merge-multiple: true
-      - if: needs.changes.outputs.code == 'true' && success()
-        run: npm run test:ci:merge
+      - name: Merge coverage, JUnit, and timing reports
+        if: needs.changes.outputs.code == 'true' && success()
+        run: >-
+          npm run test:ci:merge --
+          --coverage.reportsDirectory=coverage
+          --coverage.reporter=text
+          --coverage.reporter=json-summary
+          --coverage.reporter=lcov
+          --reporter=default
+          --reporter=junit
+          --reporter=json
+          --outputFile.junit=test-results.xml
+          --outputFile.json=test-results.json
+      - name: Summarize slowest test files
+        if: needs.changes.outputs.code == 'true' && success()
+        shell: bash
+        run: |
+          node <<'NODE' >> "${GITHUB_STEP_SUMMARY}"
+          const report = JSON.parse(require("node:fs").readFileSync("test-results.json", "utf8"));
+          const files = (report.testResults ?? [])
+            .map((result) => ({
+              name: result.name,
+              duration: Math.max(0, (result.endTime ?? result.startTime) - result.startTime),
+            }))
+            .sort((left, right) => right.duration - left.duration)
+            .slice(0, 20);
+          console.log("## Slowest deterministic test files\n");
+          console.log("| File | Duration (ms) |");
+          console.log("| --- | ---: |");
+          for (const file of files) {
+            console.log(`| \`${file.name}\` | ${file.duration} |`);
+          }
+          NODE
       - uses: actions/upload-artifact@v4
         if: needs.changes.outputs.code == 'true' && always()
         with:
           name: test-results
-          path: test-results.xml
+          path: |
+            test-results.xml
+            test-results.json
+            coverage/
           if-no-files-found: error
           retention-days: 30
 
@@ -258,17 +292,17 @@ jobs:
       - name: Run curated Windows P0 tests
         run: >-
           npx vitest run --coverage.enabled=false
-          tests/binaryTarget.test.ts
-          tests/windowsCapabilities.test.ts
-          tests/ghidraWindowsFixture.test.ts
-          tests/ghidraInstallation.test.ts
-          tests/ghidraProvider.test.ts
-          tests/ghidraTransport.test.ts
-          tests/ghidraTargetSnapshot.test.ts
-          tests/ghidraClient.test.ts
-          tests/ghidraLauncher.test.ts
-          tests/processOwnership.test.ts
-          tests/realGhidraWindowsWorkflow.test.ts
+          tests/composition/analysis-sessions/binaryTarget.test.ts
+          tests/conformance/providers/ghidra/windowsCapabilities.test.ts
+          tests/conformance/providers/ghidra/ghidraWindowsFixture.test.ts
+          tests/boundary/providers/ghidra/ghidraInstallation.test.ts
+          tests/boundary/providers/ghidra/ghidraProvider.test.ts
+          tests/boundary/providers/ghidra/ghidraTransport.test.ts
+          tests/boundary/providers/ghidra/ghidraTargetSnapshot.test.ts
+          tests/boundary/providers/ghidra/ghidraClient.test.ts
+          tests/boundary/providers/ghidra/ghidraLauncher.test.ts
+          tests/boundary/process/processOwnership.test.ts
+          tests/conformance/providers/ghidra/realGhidraWindowsWorkflow.test.ts
       - run: npm run verify:package:windows
       - uses: actions/upload-artifact@v4
         if: always()

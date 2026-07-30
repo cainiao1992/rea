@@ -18,10 +18,84 @@
   },
   "overrides": [
     {
-      "files": ["tests/**/*.ts"],
+      "files": ["tests/**/*.ts", "src/**/*.test.ts"],
       "rules": {
-        "max-lines-per-function": "off",
-        "max-lines": "off"
+        "max-lines": [
+          "error",
+          { "max": 500, "skipBlankLines": true, "skipComments": true }
+        ],
+        "max-lines-per-function": [
+          "error",
+          { "max": 150, "skipBlankLines": true, "skipComments": true }
+        ]
+      }
+    },
+    {
+      "files": ["src/domain/**/*.test.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "**/application/**",
+                  "**/server/**",
+                  "**/process/**",
+                  "**/browser/**",
+                  "**/ghidra/**",
+                  "**/hopper/**",
+                  "**/replay/**",
+                  "**/cli.*",
+                  "**/main.*"
+                ],
+                "message": "Domain tests may import only their owning domain and inward dependencies."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/application/**/*.test.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["**/server/**", "**/cli.*", "**/main.*"],
+                "message": "Service tests must use application ports rather than CLI or MCP entrypoints."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["tests/composition/**/*.test.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "**/server/**",
+                  "**/cli.*",
+                  "**/main.*",
+                  "node:child_process",
+                  "node:net",
+                  "node:http",
+                  "node:https",
+                  "ws",
+                  "playwright"
+                ],
+                "message": "Composition tests may wire provider-neutral sessions but must not invoke CLI, MCP, process, network, or browser boundaries."
+              }
+            ]
+          }
+        ]
       }
     }
   ],

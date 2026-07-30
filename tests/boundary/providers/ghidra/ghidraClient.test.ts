@@ -219,7 +219,10 @@ describe("GhidraClient", () => {
     ["analysis_timeout", "analysis_timeout"],
     ["exit", "process"],
   ] as const)("projects %s startup as %s", async (mode, expectedKind) => {
-    const client = clientFor(new FixtureLauncher(mode));
+    const client = clientFor(
+      new FixtureLauncher(mode),
+      mode === "future_id" ? { requestTimeoutMs: 1_000 } : {},
+    );
     const result = await client.start();
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.kind).toBe(expectedKind);

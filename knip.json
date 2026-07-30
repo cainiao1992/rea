@@ -5,6 +5,10 @@
   "ignoreDependencies": [],
   "ignoreBinaries": ["ps"],
   "ignoreExportsUsedInFile": true,
+  "ignoreIssues": {
+    "src/domain/mobileApplicationInvestigation.ts": ["types"],
+    "src/domain/objcSwiftMetadata.ts": ["types"]
+  },
   "rules": {
     "files": "error",
     "dependencies": "error",

@@ -10,11 +10,15 @@ import {
   exportEvidenceBundleInputSchema,
   importEvidenceBundleInputSchema,
   listUnknownsInputSchema,
+  releaseEvidenceBundleInputSchema,
   snapshotEvidenceBundleInputSchema,
   SESSION_TOOL_CONTRACTS,
   verifyUnknownResolutionInputSchema,
 } from "../contracts/toolContracts.js";
-import type { EvidenceFilePolicy } from "../domain/evidenceBundle.js";
+import type {
+  EvidenceBundle,
+  EvidenceFilePolicy,
+} from "../domain/evidenceBundle.js";
 import {
   AnalysisProtocolError,
   PermissionRequiredError,
@@ -35,6 +39,7 @@ interface EvidenceToolRegistration {
   readonly exportContract: (typeof SESSION_TOOL_CONTRACTS)[3];
   readonly importContract: (typeof SESSION_TOOL_CONTRACTS)[4];
   readonly snapshotContract: (typeof SESSION_TOOL_CONTRACTS)[19];
+  readonly releaseContract: (typeof SESSION_TOOL_CONTRACTS)[20];
   readonly filePolicy: EvidenceFilePolicy;
   readonly permissionAuthority?: PermissionAuthority;
 }
@@ -46,6 +51,72 @@ export const registerEvidenceTools = (
   registerExportEvidenceTool(registration);
   registerImportEvidenceTool(registration);
   registerSnapshotEvidenceTool(registration);
+  registerReleaseEvidenceTool(registration);
+};
+
+const registerReleaseEvidenceTool = ({
+  server,
+  session,
+  releaseContract,
+  permissionAuthority,
+}: EvidenceToolRegistration): void => {
+  server.registerTool(
+    releaseContract.name,
+    toolRegistrationOptions(releaseContract),
+    async (input) => {
+      const parsed = safeParseToolInput(
+        releaseEvidenceBundleInputSchema,
+        input,
+        releaseContract.name,
+      );
+      if (!parsed.ok) return toCallToolResult(parsed, releaseContract);
+      const denied = await authorizeEvidenceWrite({
+        authority: permissionAuthority,
+        operationIdentity: `release_evidence:${parsed.value.bundle_digest}`,
+      });
+      if (denied !== undefined)
+        return toCallToolResult(denied, releaseContract);
+      const released = session.releaseEvidenceBundle(
+        parsed.value.bundle_digest,
+      );
+      if (released)
+        void server.server
+          .sendResourceUpdated({
+            uri: `rea://evidence-bundle/${parsed.value.bundle_digest}`,
+          })
+          .catch(() => undefined);
+      return toCallToolResult(
+        ok({
+          bundle_digest: parsed.value.bundle_digest,
+          released,
+        }),
+        releaseContract,
+      );
+    },
+  );
+};
+
+const authorizeEvidenceWrite = async ({
+  authority,
+  operationIdentity,
+}: {
+  readonly authority: PermissionAuthority | undefined;
+  readonly operationIdentity: string;
+}): Promise<Result<never, AnalysisError> | undefined> => {
+  if (authority === undefined) return undefined;
+  const authorized = await authority.authorize(
+    {
+      capability: "evidence_write",
+      roots: [],
+      executables: [],
+      environment_names: [],
+      network: "none",
+      mount: false,
+      operation_identity: operationIdentity,
+    },
+    "write",
+  );
+  return authorized.ok ? undefined : permissionFailure(authorized);
 };
 
 const registerExportEvidenceTool = ({
@@ -119,6 +190,8 @@ const registerSnapshotEvidenceTool = ({
         bytes: snapshot.value.bytes,
         records: snapshot.value.records,
         unknowns: snapshot.value.unknowns,
+        scope: snapshot.value.scope,
+        survives_session: snapshot.value.survivesSession,
         bundle_uri: snapshot.value.uri,
       } as const;
       return toCallToolResult(ok(value), snapshotContract, {
@@ -162,11 +235,20 @@ const registerImportEvidenceTool = ({
       if (denied !== undefined) return toCallToolResult(denied, importContract);
       const loaded = await readEvidenceBundle(path, filePolicy);
       if (!loaded.ok) return toCallToolResult(loaded, importContract);
+      const retainedUnknownRevisions = new Set(
+        session
+          .exportEvidenceBundle()
+          .unknowns.map((unknown) => unknownRevisionKey(unknown)),
+      );
       const imported = session.importEvidenceBundle(loaded.value);
       return imported.ok
         ? toCallToolResult(
             ok({
               imported: imported.value,
+              unknowns_added: loaded.value.unknowns.filter(
+                (unknown) =>
+                  !retainedUnknownRevisions.has(unknownRevisionKey(unknown)),
+              ).length,
               total: session.exportEvidenceBundle().records.length,
             }),
             importContract,
@@ -175,6 +257,10 @@ const registerImportEvidenceTool = ({
     },
   );
 };
+
+const unknownRevisionKey = (
+  unknown: EvidenceBundle["unknowns"][number],
+): string => `${unknown.unknown_id}:${String(unknown.revision)}`;
 
 interface EvidenceAuthorizationInput {
   readonly authority: PermissionAuthority | undefined;
@@ -210,15 +296,12 @@ interface UnknownToolRegistration {
 }
 
 /** Register residual-unknown query and mutation tools. */
-export const registerUnknownTools = ({
+const registerListUnknownsTool = ({
   server,
   session,
   contracts,
 }: UnknownToolRegistration): void => {
   const listContract = contracts[14];
-  const recordContract = contracts[15];
-  const updateContract = contracts[16];
-  const verifyContract = contracts[17];
   server.registerTool(
     listContract.name,
     toolRegistrationOptions(listContract),
@@ -267,6 +350,14 @@ export const registerUnknownTools = ({
       );
     },
   );
+};
+
+const registerRecordUnknownTool = ({
+  server,
+  session,
+  contracts,
+}: UnknownToolRegistration): void => {
+  const recordContract = contracts[15];
   server.registerTool(
     recordContract.name,
     toolRegistrationOptions(recordContract),
@@ -291,6 +382,14 @@ export const registerUnknownTools = ({
         : toCallToolResult(result, recordContract);
     },
   );
+};
+
+const registerUpdateUnknownTool = ({
+  server,
+  session,
+  contracts,
+}: UnknownToolRegistration): void => {
+  const updateContract = contracts[16];
   server.registerTool(
     updateContract.name,
     toolRegistrationOptions(updateContract),
@@ -321,6 +420,14 @@ export const registerUnknownTools = ({
         : toCallToolResult(result, updateContract);
     },
   );
+};
+
+const registerVerifyUnknownTool = ({
+  server,
+  session,
+  contracts,
+}: UnknownToolRegistration): void => {
+  const verifyContract = contracts[17];
   server.registerTool(
     verifyContract.name,
     toolRegistrationOptions(verifyContract),
@@ -338,6 +445,15 @@ export const registerUnknownTools = ({
         : toCallToolResult(parsed, verifyContract);
     },
   );
+};
+
+export const registerUnknownTools = (
+  registration: UnknownToolRegistration,
+): void => {
+  registerListUnknownsTool(registration);
+  registerRecordUnknownTool(registration);
+  registerUpdateUnknownTool(registration);
+  registerVerifyUnknownTool(registration);
 };
 
 const permissionFailure = (

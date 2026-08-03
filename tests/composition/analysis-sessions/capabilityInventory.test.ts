@@ -197,7 +197,7 @@ describe("capability inventory: caller guidance", () => {
     });
   });
 
-  it("advertises navigation context only when every cursor operation is available", () => {
+  it("allows explicit documents when the provider has no current-document getter", () => {
     const capabilities = [
       "current_document",
       "current_address",
@@ -212,20 +212,75 @@ describe("capability inventory: caller guidance", () => {
         "get_navigation_context",
         status({ open: true, kind: "executable", capabilities }),
       ),
-    ).toMatchObject({ available: true, reason: "available" });
+    ).toMatchObject({
+      available: true,
+      reason: "available",
+      default_mode_available: true,
+      modes: [
+        { name: "current_selection", available: true },
+        { name: "explicit_document", available: true },
+      ],
+    });
     expect(
       entry(
         "get_navigation_context",
         status({
           open: true,
           kind: "executable",
-          capabilities: capabilities.slice(0, 2),
+          capabilities: capabilities.slice(1),
+        }),
+      ),
+    ).toMatchObject({
+      available: true,
+      reason: "available",
+      default_mode_available: false,
+      modes: [
+        { name: "current_selection", available: false },
+        { name: "explicit_document", available: true },
+      ],
+    });
+    expect(
+      entry(
+        "get_navigation_context",
+        status({
+          open: true,
+          kind: "executable",
+          capabilities: capabilities.slice(1, 2),
         }),
       ),
     ).toMatchObject({
       available: false,
       reason: "provider_missing",
       remediation: expect.stringContaining("resolve_containing_procedure"),
+    });
+  });
+
+  it("preserves the most specific navigation mode failure", () => {
+    expect(
+      entry(
+        "get_navigation_context",
+        status({
+          open: true,
+          kind: "executable",
+          capabilities: [
+            {
+              operation: "current_address",
+              available: false,
+              availability_code: "unsupported_host",
+              reason: "Navigation requires macOS.",
+            },
+            {
+              operation: "resolve_containing_procedure",
+              available: true,
+              reason: null,
+            },
+          ],
+        }),
+      ),
+    ).toMatchObject({
+      available: false,
+      reason: "unsupported_host",
+      remediation: "Navigation requires macOS.",
     });
   });
 });

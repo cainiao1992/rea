@@ -10,6 +10,10 @@ import {
   listElectronTargetsInputSchema,
 } from "../domain/electronObservation.js";
 import {
+  electronActiveObservationInputSchema,
+  electronActiveObservationResultSchema,
+} from "../domain/electronActiveObservation.js";
+import {
   analyzeJavaScriptApplicationInputSchema,
   javaScriptApplicationAnalysisResultV1Schema,
   javascriptApplicationAnalysisResultSchema,
@@ -113,6 +117,23 @@ const reconciliationOutputSchema = evidenceResultOf(
 
 const endpoint = "http://127.0.0.1:9223";
 const root = "/Applications/Example.app/Contents/Resources";
+const activeExample = {
+  schema_version: 1,
+  executable_path: "/Applications/Electron.app/Contents/MacOS/Electron",
+  application_path: "/Applications/Example.app/Contents/Resources/main.js",
+  application_root: "/Applications/Example.app/Contents/Resources",
+  args: [],
+  actions: [{ step_id: "exercise-ipc", kind: "click", selector: "#run" }],
+  limits: {
+    max_duration_ms: 60_000,
+    action_timeout_ms: 5_000,
+    max_actions: 20,
+    max_ipc_events: 2_000,
+    max_processes: 32,
+    max_windows: 32,
+  },
+  approved: true,
+};
 
 /** Root-confined Electron file-page discovery and inspection contracts. */
 export const ELECTRON_TOOL_CONTRACTS = [
@@ -194,7 +215,7 @@ export const ELECTRON_TOOL_CONTRACTS = [
     name: "reconcile_javascript_runtime",
     ...toolContractMetadata("reconcile_javascript_runtime"),
     description:
-      "Reconcile verified static JavaScript application graphs with existing passive web or Electron CDP Evidence. Exact captured-source digests take priority over caller-declared file/URL mappings; target, frame, script, and worker ambiguity remains explicit, and source-map authority stays separate.",
+      "Reconcile verified static JavaScript application graphs with existing passive web/Electron CDP, passive V8 Inspector, or provider-owned active Electron Evidence. Active Electron captures contribute an explicitly partial target-only runtime record; they never invent renderer scripts, frames, workers, or execution claims. Exact captured-source digests take priority over caller-declared file/URL mappings; target, frame, script, and worker ambiguity remains explicit, and source-map authority stays separate.",
     kind: "electron-provider",
     inputSchema: reconcileJavaScriptRuntimeInputSchema,
     outputSchema: reconciliationOutputSchema,
@@ -203,6 +224,18 @@ export const ELECTRON_TOOL_CONTRACTS = [
         title: "Reconcile one passive Electron capture",
         input: JAVASCRIPT_RUNTIME_RECONCILIATION_EXAMPLE,
       },
+    ],
+  },
+  {
+    name: "capture_electron_scenario",
+    ...toolContractMetadata("capture_electron_scenario"),
+    description:
+      "Use this for an explicitly approved, provider-owned Electron run when passive CDP or Inspector observation cannot exercise application behavior. REA owns startup and teardown, accepts bounded click/wait actions plus window-targeted renderer reload/crash and synthetic open-url/second-instance delivery, and returns correlated window/WebContents/process/preload/session/navigation/shell/IPC evidence without retaining payload values. Results identify observed and unavailable event families, coverage status, action targets, and truncation. External shell, navigation, permission, download, popup, updater, and OS-integration effects are blocked and recorded. Use passive Electron tools for observation-only work.",
+    kind: "electron-provider",
+    inputSchema: electronActiveObservationInputSchema,
+    outputSchema: evidenceResultOf(electronActiveObservationResultSchema),
+    examples: [
+      { title: "Exercise an owned Electron application", input: activeExample },
     ],
   },
 ] as const satisfies readonly ToolContract[];

@@ -67,6 +67,15 @@ describe("provider process runtime and wait primitives", () => {
     });
   });
 
+  it("fails closed for a Windows runtime root without native DACL authority", async () => {
+    await expect(
+      PrivateRuntimeRoot.create({ platform: "win32" }),
+    ).rejects.toMatchObject({
+      code: "private-runtime-root-authority-unavailable",
+      message: expect.stringContaining("chmod(0700)"),
+    });
+  });
+
   it("clears the startup timer and external cancellation listener", async () => {
     vi.useFakeTimers();
     const controller = new AbortController();
@@ -332,6 +341,45 @@ describe("provider process spawning primitives", () => {
         if (detachedChildPid !== undefined)
           await waitForPidExit(detachedChildPid);
       }
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "stops a detached fixture descendant when its launcher receives SIGTERM",
+    async () => {
+      const launcher = spawnProviderProcessFixture("detached-child");
+      let detachedChildPid: number | undefined;
+      const cleanup = async (): Promise<void> => {
+        await stopProviderProcessFixture(launcher);
+        if (detachedChildPid === undefined) return;
+        try {
+          process.kill(detachedChildPid, "SIGKILL");
+        } catch (cause: unknown) {
+          if (
+            !(
+              cause instanceof Error &&
+              "code" in cause &&
+              cause.code === "ESRCH"
+            )
+          )
+            throw cause;
+        }
+      };
+      try {
+        detachedChildPid = await waitForDetachedProviderChild(launcher);
+        const launcherPid = launcher.pid;
+        if (launcherPid === undefined)
+          throw new Error("Detached fixture launcher did not expose a PID");
+        launcher.kill("SIGTERM");
+        await Promise.all([
+          waitForPidExit(launcherPid),
+          waitForPidExit(detachedChildPid),
+        ]);
+      } catch (cause: unknown) {
+        await cleanup();
+        throw cause;
+      }
+      await cleanup();
     },
   );
 

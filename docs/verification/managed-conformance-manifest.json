@@ -1,20 +1,20 @@
 {
   "schema_version": 1,
-  "manifest_id": "ecm_bdccc0a41764d8c182b92a1c9b25e0f08a4b6e8224b35cb83904079a93547d4c",
+  "manifest_id": "ecm_aba877529714e59795e8a7b51c5513b17081bd701cea1ffee31422a1d95dfa31",
   "verifier": {
     "id": "rea-managed-conformance",
     "version": "1"
   },
   "environment": {
-    "platform": "linux",
-    "architecture": "x64",
+    "platform": "portable",
+    "architecture": "portable",
     "runtime": "node",
-    "runtime_version": "24"
+    "runtime_version": "portable"
   },
   "skill_digests": [
     {
       "skill_id": "reverse-engineer-anything",
-      "sha256": "94132dd32216783a2e6ed65a5e78e6a0ad645c22ee7ebaf1f1f4ddf6fd110daf"
+      "sha256": "43fccde70ab600dfc86785a37b414865cb8c0f2cb479eb4ed6c2a90998e0f6a6"
     }
   ],
   "claims": [

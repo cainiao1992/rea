@@ -58,3 +58,14 @@ export const authorizeRuntimeLocation = async (
     },
   };
 };
+
+/** Authorize a target whose Node Inspector URL omits its main entry path. */
+export const authorizeRuntimeTargetLocation = async (
+  value: string,
+  targetType: string,
+  roots: readonly string[],
+  origins: readonly string[],
+): Promise<RuntimeLocationDecision> =>
+  // A bare file:// URL contains no source identity. Do not attach to the
+  // first configured root merely because the target happens to be Node.
+  authorizeRuntimeLocation(value, roots, origins);

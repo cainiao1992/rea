@@ -93,6 +93,43 @@ describe("passive V8 Inspector provider", () => {
     }
   });
 
+  test("excludes an Electron main target that reports only bare file://", async () => {
+    const fixture = await runtimeFixture();
+    const fake = await startFakeV8Inspector({
+      targetUrl: "file://",
+      scriptUrls: [pathToFileURL(fixture.entry).href],
+    });
+    try {
+      const provider = new V8InspectorProvider();
+      const listed = await provider.listTargets({
+        inspector_endpoint: fake.endpoint,
+        allowed_file_roots: [fixture.root],
+        allowed_origins: [],
+        approved: true,
+        offset: 0,
+        limit: 100,
+      });
+      expect(listed.ok).toBe(true);
+      if (!listed.ok) return;
+      expect(listed.value.targets.total).toBe(0);
+      expect(listed.value.targets.items).toEqual([]);
+
+      const observed = await provider.observe(
+        observeInput(
+          fake.endpoint,
+          fake.targetId,
+          fixture.root,
+          "electron-main",
+        ),
+      );
+      expect(observed.ok).toBe(false);
+      if (observed.ok) return;
+      expect(observed.error.message).toMatch(/outside_file_roots|target/u);
+    } finally {
+      await fake.close();
+    }
+  });
+
   test.each([
     ["node", "node"],
     ["electron-main", "node"],

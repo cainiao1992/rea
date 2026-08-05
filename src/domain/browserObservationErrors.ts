@@ -12,7 +12,8 @@ export type BrowserObservationOperation =
   | "inspect_electron_page"
   | "list_javascript_runtime_targets"
   | "observe_javascript_runtime"
-  | "capture_browser_scenario";
+  | "capture_browser_scenario"
+  | "capture_electron_scenario";
 
 /** Stable failure reasons shared by browser-family provider adapters. */
 export type BrowserObservationFailureReason =
@@ -24,5 +25,10 @@ export type BrowserObservationFailureReason =
   | "protocol_error"
   | "disconnected"
   | "payload_limit"
+  | "window_not_found"
+  | "window_metadata_missing"
+  | "process_ownership_unavailable"
+  | "cleanup_failed"
   | "cancelled"
+  | "timeout"
   | "secret_unavailable";

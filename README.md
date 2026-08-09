@@ -89,13 +89,13 @@ REA shows how it reached its conclusions. It does not claim to recover original 
 ### Run setup — recommended
 
 ```bash
-npx rea-agents setup
+npx --yes --prefer-online rea-agents@latest setup
 ```
 
 The npm package-runner prompt, when shown, approves downloading REA for this
 invocation; it does not approve any setup changes. The REA wizard separately
 shows its complete plan and asks before applying it. Setup does not update
-Homebrew, Node.js, or npm. `npx rea-agents setup` opens with the work it
+Homebrew, Node.js, or npm. The setup command opens with the work it
 enables: investigate local apps from an agent, recover evidence through a
 deep-analysis provider, and reuse REA's guided workflow. It summarizes the
 detected agents, then asks which capabilities to set up: agent integration
@@ -103,12 +103,10 @@ detected agents, then asks which capabilities to set up: agent integration
 Nothing is preselected. Choosing agent integration opens a second empty
 checklist for the specific detected agents that should receive a registration.
 
-If bare `npx` finds a project-local REA package, its dispatcher restarts setup
-through `rea-agents@latest` before planning any changes. This prevents an older
-local dependency from silently writing stale integration state. An already
-published older release cannot contain that dispatcher protection; run
-`npx -y rea-agents@latest setup` once to repair registrations created by one.
-Intentional rollbacks remain available through an exact package request.
+`@latest` makes the requested release explicit, and `--prefer-online` asks npm
+to refresh package metadata instead of relying on a cached resolution. REA does
+not silently replace the package version npm selected. Intentional rollbacks
+therefore remain available through an exact package request.
 
 REA keeps the journey inline so its history remains in the terminal. Selecting
 a capability does not select every detected target or authorize a change.
@@ -139,7 +137,7 @@ Pass installer options after `bash -s --`, for example `--dry-run`, `--no-setup`
 ### With an agent — recommended
 
 ```bash
-npx rea-agents setup
+npx --yes --prefer-online rea-agents@latest setup
 ```
 
 Choose Agent Integration in the reviewed setup plan. REA installs the pinned MCP
@@ -151,7 +149,7 @@ Review the setup plan, approve it if appropriate, then describe the app or featu
 ### From Terminal — no installation
 
 ```bash
-npx rea-agents setup
+npx --yes --prefer-online rea-agents@latest setup
 npx -y rea-agents@latest doctor
 npx -y rea-agents@latest analyze /Applications/Notes.app
 ```

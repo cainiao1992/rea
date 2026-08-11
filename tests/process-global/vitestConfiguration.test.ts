@@ -53,7 +53,11 @@ describe("Vitest project configuration", () => {
     expect(TEST_PROJECTS.map(({ name }) => name).sort()).toEqual(
       EXPECTED_PROJECTS,
     );
-    const sharedModuleProjects = new Set(["domain", "services"]);
+    const sharedModuleProjects = new Set([
+      "domain",
+      "mcp-boundary",
+      "services",
+    ]);
     expect(
       TEST_PROJECTS.every(({ name, isolate }) =>
         sharedModuleProjects.has(name)

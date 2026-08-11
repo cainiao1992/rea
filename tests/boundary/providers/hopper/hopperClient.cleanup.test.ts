@@ -270,7 +270,7 @@ describe("HopperClient cleanup", () => {
     }
   });
 
-  it("makes sequential double-close leave no runtime or process listeners", async () => {
+  it("makes sequential double-close release its process runtime", async () => {
     const launcher = new FixtureLauncher();
     const client = new HopperClient({ launcher, startupTimeoutMs: 1_000 });
     clients.push(client);

@@ -379,7 +379,7 @@ describe("GhidraClient established requests", () => {
 });
 
 describe("GhidraClient cleanup and diagnostics", () => {
-  it("makes double close idempotent and detaches process listeners", async () => {
+  it("makes double close idempotent and releases its process runtime", async () => {
     const launcher = new FixtureLauncher();
     const client = clientFor(launcher);
     await expect(client.start()).resolves.toMatchObject({ ok: true });

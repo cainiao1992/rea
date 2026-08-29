@@ -1,34 +1,73 @@
-## Description
+<!--
+PR title: type(optional-scope): imperative outcome
+The title becomes the squash-merge commit subject and generated changelog entry.
+-->
 
-<!-- What does this change do? Why is it needed? -->
+## Summary
 
-## Type of Change
+<!-- What user, agent, or maintainer problem does this solve? Link the issue
+with "Fixes #123" when applicable. Keep the prior behavior, expected contract,
+and new behavior understandable without private context. -->
 
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Documentation update
-- [ ] Performance improvement
-- [ ] Refactoring (no functional change)
-- [ ] Tool contract change (MCP schema modification)
+## Problem and expected behavior
 
-## Testing Performed
+<!-- For fixes, give the smallest trigger and violated invariant. For features,
+describe the use case and observable outcome. -->
 
-<!-- Describe the testing you have done to verify this change. -->
+## Change and scope
 
-- [ ] Unit tests added or updated
-- [ ] TypeScript typecheck passes (`npm run typecheck`)
-- [ ] Linting passes (`npm run lint`)
-- [ ] Full test suite passes (`npm test`)
-- [ ] Real Hopper verification performed (`npm run verify:hopper`)
-- [ ] Linux real Hopper verification performed (`npm run verify:hopper:linux`) or unavailability explained
-- [ ] Real browser verification performed (`npm run verify:browser`) or unavailability explained
-- [ ] Package verification performed (`npm run verify:package`)
+<!-- Explain the chosen approach, why it fits REA's architecture, and what is
+intentionally not included. -->
 
-## Tool Contract Impact
+## Contract and boundary impact
 
-<!-- If this PR adds, removes, or modifies MCP tools, list them here. -->
-<!-- Canonical inventory and family counts are generated in docs/product-catalog.json. -->
+<!-- Complete the applicable lines; use "none" or "not applicable" explicitly. -->
 
-## Related Issues
+- Semantic owner and earliest changed stage:
+- CLI and MCP/tool-catalog contract:
+- Provider, bridge, target-format, or platform compatibility:
+- Evidence, artifact, provenance, or reconstruction contract:
+- Process execution, authorization, cleanup, or containment impact:
+- Generated metadata, package, or installation impact:
 
-<!-- Link issues this PR closes or relates to. Use "Closes #123" syntax. -->
+## Evidence and regression coverage
+
+<!-- State whether evidence is executed, source-derived, or proposed. For fixes,
+explain how the regression would fail on the affected base revision when practical. -->
+
+- Tests added or updated:
+- Base reproduction or other evidence:
+- User-visible CLI/MCP output (if applicable):
+- Remaining proof gaps:
+
+For evidence-bearing changes:
+
+- [ ] Observed, derived, and inferred claims remain distinguishable.
+- [ ] Artifact identity, source provenance, and failed attempts remain preserved.
+- [ ] Unsupported, incomplete, unavailable, or uncertain outcomes remain visible.
+
+## Validation performed
+
+<!-- List only commands that actually ran, with observed results. Include the
+relevant real-provider or platform workflow, or explain why it was unavailable. -->
+
+- `command` — result
+
+## Compatibility, safety, and release
+
+<!-- Call out breaking changes, migrations, package effects, platform/provider
+limits, security/privacy/containment implications, and meaningful proof gaps. -->
+
+- Breaking changes or migration steps:
+- Real Hopper/Ghidra, browser, or OS coverage:
+- Package or release metadata impact:
+- Security, privacy, process, or containment review:
+
+## Review checklist
+
+- [ ] The PR has one focused outcome and the title follows `type(scope): outcome`.
+- [ ] Related issue is linked, or the reason for not linking one is stated above.
+- [ ] Tests cover changed observable behavior and meaningful failure paths.
+- [ ] Owning docs, contracts, and generated metadata are updated where needed.
+- [ ] User-visible CLI/MCP changes include representative output.
+- [ ] I checked the final diff for secrets, unrelated cleanup, and unsupported claims.

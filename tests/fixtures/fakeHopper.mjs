@@ -69,33 +69,12 @@ const enhancedFixtureResult = (method) => {
     case "list_documents":
       return ["fixture"];
     case "list_procedures":
-      return {
-        items: [{ address: "0x1000", value: "fixture" }],
-        offset: 0,
-        limit: 500,
-        total: 1,
-        next_offset: null,
-        has_more: false,
-      };
+      return [{ address: "0x1000", value: "fixture" }];
     case "list_strings":
-      return {
-        items: [{ address: "0x1000", value: "fixture" }],
-        offset: 0,
-        limit: 500,
-        total: 1,
-        next_offset: null,
-        has_more: false,
-      };
+      return [{ address: "0x1000", value: "fixture" }];
     case "procedure_pseudo_code":
       return "return 0;";
     case "analyze_function": {
-      const empty = () => ({
-        items: [],
-        total: 0,
-        returned: 0,
-        truncated: false,
-        next_offset: null,
-      });
       return {
         procedure: {
           address: "0x1000",
@@ -103,42 +82,21 @@ const enhancedFixtureResult = (method) => {
           signature: null,
           locals: [],
         },
-        pseudocode: {
-          text: "return 0;",
-          total_chars: 9,
-          returned_chars: 9,
-          truncated: false,
-          next_offset: null,
-        },
-        assembly: { ...empty(), items: ["ret"], total: 1, returned: 1 },
-        comments: empty(),
-        callers: empty(),
-        callees: empty(),
-        incoming_references: empty(),
-        outgoing_references: empty(),
-        referenced_strings: empty(),
-        referenced_names: empty(),
-        basic_blocks: {
-          ...empty(),
-          items: [{ start: "0x1000", end: "0x1001", successors: [] }],
-          total: 1,
-          returned: 1,
-        },
-        instruction_scan: { scanned: 1, truncated: false },
+        pseudocode: "return 0;",
+        assembly: ["ret"],
+        comments: [],
+        callers: [],
+        callees: [],
+        incoming_references: [],
+        outgoing_references: [],
+        referenced_strings: [],
+        referenced_names: [],
+        basic_blocks: [{ start: "0x1000", end: "0x1001", successors: [] }],
       };
     }
     case "search_strings":
     case "search_procedures":
-      return {
-        items: [
-          { address: "0x1000", value: "fixture", value_truncated: false },
-        ],
-        offset: 0,
-        limit: 100,
-        total: 1,
-        next_offset: null,
-        has_more: false,
-      };
+      return [];
     case "xrefs":
       return ["0x1000"];
     default:
@@ -240,15 +198,7 @@ const server = createServer((socket) => {
           result: {
             procedure: { address: "0x1000", name: "fixture" },
             direction: request.params.direction ?? "outgoing",
-            references: {
-              items: [],
-              total: 0,
-              returned: 0,
-              truncated: false,
-              next_offset: null,
-            },
-            instructions_scanned: 1,
-            instruction_scan_truncated: false,
+            references: [],
           },
         });
       } else {

@@ -129,22 +129,7 @@ const registerElectronTargetList = (
         .string()
         .describe("Configured loopback Electron CDP endpoint"),
     }),
-    options: z.object({
-      ...electronScopeOptions,
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Zero-based Electron-target offset"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(200)
-        .default(100)
-        .describe("Maximum Electron targets to return"),
-    }),
+    options: z.object({ ...electronScopeOptions }),
     run: ({ args, options }) =>
       logCliCommand(logger, "list-electron-targets", async () => {
         const context = await electronObservationContext(
@@ -156,8 +141,6 @@ const registerElectronTargetList = (
           allowed_file_roots:
             options.allowedFileRoots ?? context.allowedFileRoots,
           approved: options.approved,
-          offset: options.offset,
-          limit: options.limit,
         });
         if (!parsed.success) return inputError("list_electron_targets");
         const result = await listElectronTargets(
@@ -225,7 +208,7 @@ const registerJavaScriptApplicationCommand = (
 ): void => {
   cli.command(CLI_COMMANDS.analyzeJavaScriptApplication, {
     description:
-      "Statically reconstruct an approved JavaScript/Electron application",
+      "Statically reconstruct a local JavaScript/Electron application",
     args: z.object({
       path: z.string().describe("Absolute ASAR or extracted application path"),
     }),
@@ -234,9 +217,7 @@ const registerJavaScriptApplicationCommand = (
       logCliCommand(logger, CLI_COMMANDS.analyzeJavaScriptApplication, () =>
         runCliJavaScriptApplicationAnalysis({
           input_path: args.path,
-          approved: options.approved,
           format: options.artifactFormat,
-          source_map_read_approved: options.sourceMapReadApproved,
           limits: {
             max_entries: options.maxEntries,
             max_total_artifact_bytes: options.maxTotalArtifactBytes,

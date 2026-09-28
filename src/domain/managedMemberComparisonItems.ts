@@ -1,18 +1,15 @@
 import canonicalize from "canonicalize";
 
 import type { ManagedMemberInspection } from "./managedArtifact.js";
-import type {
-  CompareManagedMembersInput,
-  ManagedMemberComparisonResult,
-} from "./managedMemberComparison.js";
+import type { ManagedMemberComparisonResult } from "./managedMemberComparison.js";
 import {
   type ManagedFieldMatches,
   type ManagedMethodMatches,
   sha256,
 } from "./managedMemberComparisonMatch.js";
 
-type Method = ManagedMemberInspection["methods"]["items"][number];
-type Field = ManagedMemberInspection["fields"]["items"][number];
+type Method = ManagedMemberInspection["methods"][number];
+type Field = ManagedMemberInspection["fields"][number];
 type MethodItem = ManagedMemberComparisonResult["methods"][number];
 type FieldItem = ManagedMemberComparisonResult["fields"][number];
 type UnmatchedComparison = Extract<
@@ -29,7 +26,6 @@ interface ComparisonItemContext {
   readonly rightEvidenceId: string;
   readonly leftComplete: boolean;
   readonly rightComplete: boolean;
-  readonly limits: CompareManagedMembersInput["limits"];
 }
 
 const changedMethodDimensions = (
@@ -113,7 +109,7 @@ const methodOnlyItem = (
       limitations: absenceObserved
         ? []
         : [
-            "unknown-within-unobserved-page: The right method page is incomplete, so absence was not observed.",
+            "unknown-within-incomplete-metadata: The right method inventory is incomplete, so absence was not observed.",
           ],
     };
   }
@@ -130,7 +126,7 @@ const methodOnlyItem = (
     limitations: absenceObserved
       ? []
       : [
-          "unknown-within-unobserved-page: The left method page is incomplete, so absence was not observed.",
+          "unknown-within-incomplete-metadata: The left method inventory is incomplete, so absence was not observed.",
         ],
   };
 };
@@ -151,7 +147,7 @@ const fieldOnlyItem = (
       limitations: absenceObserved
         ? []
         : [
-            "unknown-within-unobserved-page: The right field page is incomplete, so absence was not observed.",
+            "unknown-within-incomplete-metadata: The right field inventory is incomplete, so absence was not observed.",
           ],
     };
   }
@@ -167,7 +163,7 @@ const fieldOnlyItem = (
     limitations: absenceObserved
       ? []
       : [
-          "unknown-within-unobserved-page: The left field page is incomplete, so absence was not observed.",
+          "unknown-within-incomplete-metadata: The left field inventory is incomplete, so absence was not observed.",
         ],
   };
 };
@@ -175,7 +171,7 @@ const fieldOnlyItem = (
 export const buildMethodItems = (
   matches: ManagedMethodMatches,
   context: ComparisonItemContext,
-): { readonly items: MethodItem[]; readonly omitted: number } => {
+): MethodItem[] => {
   const items: MethodItem[] = [];
   for (const pair of matches.pairs) {
     const dimensions = changedMethodDimensions(pair.left.item, pair.right.item);
@@ -228,13 +224,13 @@ export const buildMethodItems = (
     items.push(methodOnlyItem({ left: item.item }, context));
   for (const item of matches.rightOnly)
     items.push(methodOnlyItem({ right: item.item }, context));
-  return limitItems(items, context.limits.max_method_matches);
+  return items;
 };
 
 export const buildFieldItems = (
   matches: ManagedFieldMatches,
   context: ComparisonItemContext,
-): { readonly items: FieldItem[]; readonly omitted: number } => {
+): FieldItem[] => {
   const items: FieldItem[] = [];
   for (const pair of matches.pairs) {
     const changed =
@@ -285,13 +281,5 @@ export const buildFieldItems = (
     items.push(fieldOnlyItem({ left: item.item }, context));
   for (const item of matches.rightOnly)
     items.push(fieldOnlyItem({ right: item.item }, context));
-  return limitItems(items, context.limits.max_field_matches);
+  return items;
 };
-
-const limitItems = <Item>(
-  items: readonly Item[],
-  limit: number,
-): { readonly items: Item[]; readonly omitted: number } => ({
-  items: items.slice(0, limit),
-  omitted: Math.max(0, items.length - limit),
-});

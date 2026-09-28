@@ -191,7 +191,6 @@ const replaySchema = z.strictObject({
 });
 
 export const reconstructionReadinessInputSchema = z.strictObject({
-  schema_version: z.literal(1),
   identity: z.strictObject({
     cli_version: boundedTextSchema,
     server_version: boundedTextSchema,
@@ -245,7 +244,6 @@ const findingSchema = z.strictObject({
 
 export const reconstructionReadinessReportSchema = z.strictObject({
   schema: z.literal("ReconstructionReadinessReport"),
-  schema_version: z.literal(1),
   report_id: z.string().regex(/^rr_[a-f0-9]{64}$/u),
   source_digest: digestSchema,
   report_digest: digestSchema,

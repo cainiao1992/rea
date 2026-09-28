@@ -2,14 +2,11 @@
 
 ## Identity and discovery
 
-`rea://server/identity` and `binary_session` report the package, server, SDK,
-negotiated protocol, skill, and schema-sensitive catalog identities separately.
-An absent live comparison is `unknown`, never aligned. Callers can supply the
-expected package version, catalog digest, or registered server path to
-`binary_session`; a mismatch means the registered MCP process must be restarted.
-`rea doctor` separately inspects supported JSON/TOML client registrations,
-reports their command vectors as aligned, stale, missing, or invalid, and keeps
-live-server state `unknown` unless the active connection supplies identity.
+`binary_session` reports the active package, server, SDK, and negotiated
+protocol details. `rea doctor` separately inspects supported JSON/TOML client
+registrations, reports their command vectors as aligned, stale, missing, or
+invalid, and keeps live-server state `unknown` unless the active connection
+supplies identity.
 
 Canonical tool names remain stable, while `tools/list` advertises only the
 operations callable for the current target, provider, policy, host, and
@@ -58,49 +55,10 @@ CLI calls work without a progress token and translate SIGINT into the same
 AbortSignal used by providers. Existing controlled-process cleanup and provider
 shutdown rules still apply; REA never kills a process it cannot prove it owns.
 
-## Evidence resources
+## Tool results
 
-Evidence-producing tools return compact summaries plus `resource_link` content.
-Every link is accompanied by an ordinary instruction to copy its opaque URI
-unchanged and call MCP `resources/read` (Codex: `read_mcp_resource`). Session
-resources are connection-local:
-
-- `rea://evidence/{evidenceId}` returns the complete immutable Evidence v2 record.
-- `rea://evidence/{evidenceId}/section/{section}` returns a bounded result section.
-  Stable sections include `result`, `terminal`, `filesystem`, `process`,
-  `protocol`, `nodes`, `occurrences`, and `edges` when present.
-- `rea://unknown/{unknownId}` returns the current residual-unknown head and its
-  immutable revision history.
-- `rea://evidence-bundle/{bundleDigest}` returns immutable canonical bytes
-  retained by `snapshot_evidence_bundle`.
-- `rea://snapshot/current` returns the mutable native analysis cache as an
-  `available` or `unavailable` state.
-- `rea://artifact/{manifestId}/{collection}` returns a canonical artifact
-  `nodes`, `occurrences`, or `edges` page with Evidence provenance.
-- `rea://function/{targetSha256}/{address}` returns a retained function dossier
-  for the exact target and address.
-- `rea://workspace/{workspaceId}/revision/{revision}` returns an immutable,
-  CAS-linked investigation workspace revision retained by this session.
-
-Successful automatic cross-version investigations include both Evidence and
-workspace `resource_link` blocks. Workspace resources preserve revision and
-`previous_revision_digest` commitments; persistent workspace files remain
-subject to configured read/write roots.
-
-Retained bundle URIs are session-scoped and are invalidated by
-`release_evidence_bundle` or session close. When retention reaches its bounded
-capacity, release an unneeded digest and retry; for cross-session recovery use
-`export_evidence_bundle` followed by `import_evidence_bundle` and
-`snapshot_evidence_bundle` in the new session.
-
-`export_evidence_bundle` is file-only and requires `path`; existing files
-require `overwrite: true`. Use `snapshot_evidence_bundle` and then
-`resources/read` when the complete bundle is needed within the current session.
-
-An Evidence URI is discoverability, not authorization. It cannot authorize file
-access, extraction, mounting, execution, or networking. IDs disappear when the
-session ends unless the existing Evidence bundle or workspace persistence flow
-explicitly retains them.
+Evidence-producing tools return their result and Evidence context inline. A
+workflow can retrieve retained Evidence records with `get_evidence_bundle`.
 
 ## Aggregate native context
 
@@ -162,11 +120,7 @@ administrator ceiling. A request outside that ceiling reports
 `elicitation_supported: false` and `restart_required: true`; interactive consent
 cannot silently widen administrator policy.
 
-`analyze_javascript_application` uses the `investigation_input` capability. Its
-absolute `input_path` must be inside `REA_INVESTIGATION_INPUT_ROOTS_JSON` and the
-request must set `approved: true` before any artifact read. Reading source-map
-contents additionally requires `source_map_read_approved: true`; ordinary input
-approval does not imply that separate authority.
+`analyze_javascript_application` reads the selected local directory or ASAR directly. It has no per-call approval flag or configured investigation root.
 
 ## Integrity record-and-continue
 

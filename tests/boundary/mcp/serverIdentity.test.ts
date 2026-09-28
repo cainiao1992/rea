@@ -11,7 +11,6 @@ import {
 import { PACKAGE_METADATA } from "../../../src/generatedPackageMetadata.js";
 import { PRODUCT_IDENTITY, SDK_IDENTITY } from "../../../src/identity.js";
 import { TOOL_CONTRACTS } from "../../../src/contracts/toolContracts.js";
-import { TOOL_KINDS } from "../../../src/contracts/toolContractTypes.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { createServerIdentity } from "../../../src/serverIdentity.js";
 import { observed } from "../../fixtures/analysisExecution.js";
@@ -26,8 +25,6 @@ const availabilityProvider = (): AnalysisProvider => {
   const capability: CapabilityDescriptor = {
     provider: identity,
     operation: "current_address",
-    inputContractVersion: 1,
-    outputContractVersion: 1,
     available: true,
     reason: null,
     pagination: "none",
@@ -118,8 +115,6 @@ describe("server and catalog identity", () => {
       cli_commands: 68,
       mcp_tools: TOOL_CONTRACTS.length,
       mcp_prompts: 6,
-      mcp_resources: 2,
-      mcp_resource_templates: 11,
     });
     expect(CATALOG_IDENTITY.digests.combined_sha256).toMatch(/^[a-f0-9]{64}$/u);
   });
@@ -238,7 +233,6 @@ describe("live server identity over MCP", () => {
       await client.connect(clientTransport);
       await assertLiveIdentity(client);
       await assertSessionIdentity(client);
-      await assertCapabilityViews(client);
       expect(
         (await client.listTools()).tools.map(({ name }) => name),
       ).toContain("current_address");
@@ -269,29 +263,30 @@ const assertLiveIdentity = async (client: Client): Promise<void> => {
   expect(instructions).toContain(
     "native binary/database -> open_binary, then binary_overview",
   );
-  expect(instructions).toContain("Never repeat identical analysis");
-  expect(instructions).toContain("cite Evidence IDs");
-  const resource = await client.readResource({ uri: "rea://server/identity" });
-  const content = resource.contents[0];
-  expect(content).toBeDefined();
-  if (content === undefined || !("text" in content))
-    throw new Error("missing identity resource text");
-  expect(JSON.parse(content.text)).toMatchObject({
-    package: { version: PRODUCT_IDENTITY.packageVersion },
-    server: { version: PRODUCT_IDENTITY.packageVersion },
-    sdk: {
-      server: SDK_IDENTITY.server,
-      client_test: PACKAGE_METADATA.clientSdkVersion,
+  const identity = await client.callTool({
+    name: "binary_session",
+    arguments: {},
+  });
+  expect(identity.structuredContent).toMatchObject({
+    result: {
+      server_identity: {
+        package: { version: PRODUCT_IDENTITY.packageVersion },
+        server: { version: PRODUCT_IDENTITY.packageVersion },
+        sdk: {
+          server: SDK_IDENTITY.server,
+          client_test: PACKAGE_METADATA.clientSdkVersion,
+        },
+        client: null,
+        alignment: { state: "unknown" },
+      },
     },
-    client: null,
-    alignment: { state: "unknown" },
   });
 };
 
 const assertSessionIdentity = async (client: Client): Promise<void> => {
   const status = await client.callTool({
     name: "binary_session",
-    arguments: { detail: "full", expected_package_version: "1.2.0" },
+    arguments: { expected_package_version: "1.2.0" },
   });
   expect(status.structuredContent).toMatchObject({
     result: {
@@ -328,11 +323,9 @@ const assertSessionIdentity = async (client: Client): Promise<void> => {
         }),
         expect.objectContaining({
           name: "analyze_javascript_application",
-          available: false,
-          reason: "policy_disabled",
-          remediation: expect.stringContaining(
-            "REA_INVESTIGATION_INPUT_ROOTS_JSON",
-          ),
+          available: true,
+          reason: "available",
+          remediation: null,
         }),
       ]),
       client_features: {
@@ -343,76 +336,4 @@ const assertSessionIdentity = async (client: Client): Promise<void> => {
       },
     },
   });
-  const summary = await client.callTool({
-    name: "binary_session",
-    arguments: { expected_package_version: "1.2.0" },
-  });
-  expect(summary.structuredContent).toMatchObject({
-    result: {
-      view: "summary",
-      open: false,
-      target: null,
-      alignment: { state: "mcp_server_restart_required" },
-      recommended_actions: expect.arrayContaining([
-        "For a supplied target, route by format: ASAR/JavaScript to analyze_javascript_application; archive/package to open_binary(path), then inspect_artifact or inventory_artifact on the active target; managed PE/CLI to inspect_managed_artifact; browser/Electron runtimes to their list-target tools; native binaries to open_binary.",
-      ]),
-    },
-  });
-  expect(JSON.stringify(summary.structuredContent)).not.toContain(
-    "tool_availability",
-  );
-};
-
-const assertCapabilityViews = async (client: Client): Promise<void> => {
-  const capabilities = await client.callTool({
-    name: "binary_session",
-    arguments: {
-      detail: "capabilities",
-      capability_family: "browser-provider",
-      cursor: 0,
-      limit: 1,
-    },
-  });
-  expect(capabilities.structuredContent).toMatchObject({
-    result: {
-      view: "capabilities",
-      capability_family: "browser-provider",
-      capabilities: {
-        items: [expect.objectContaining({ surface: "browser-provider" })],
-        cursor: 0,
-        limit: 1,
-        total: expect.any(Number),
-        next_cursor: expect.any(Number),
-        has_more: true,
-      },
-      client_features: {
-        elicitation_form: false,
-        elicitation_url: false,
-        roots: false,
-        sampling: false,
-      },
-    },
-  });
-  for (const capabilityFamily of TOOL_KINDS) {
-    const familyCapabilities = await client.callTool({
-      name: "binary_session",
-      arguments: {
-        detail: "capabilities",
-        capability_family: capabilityFamily,
-        limit: 100,
-      },
-    });
-    expect(familyCapabilities.structuredContent).toMatchObject({
-      result: {
-        view: "capabilities",
-        capability_family: capabilityFamily,
-        capabilities: {
-          items: expect.arrayContaining([
-            expect.objectContaining({ surface: capabilityFamily }),
-          ]),
-          total: expect.any(Number),
-        },
-      },
-    });
-  }
 };

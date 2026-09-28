@@ -29,6 +29,27 @@ afterEach(async () => {
 });
 
 describe("CdpElectronProvider target access", () => {
+  it("returns every approved Electron page target inline", async () => {
+    const root = await electronFixture();
+    const index = join(root, "index.html");
+    const browser = await startFakeCdpBrowser({
+      electronFileUrl: pathToFileURL(index).href,
+      additionalElectronPageCount: 205,
+    });
+    browsers.push(browser);
+    const listed = await new CdpElectronProvider().listTargets(
+      listElectronTargetsInputSchema.parse({
+        cdp_endpoint: browser.endpoint,
+        allowed_file_roots: [root],
+        approved: true,
+      }),
+    );
+    if (!listed.ok) throw listed.error;
+    expect(listed.value.targets).toHaveLength(206);
+    expect(listed.value.targets[0]?.target_id).toBe("electron-page");
+    expect(listed.value.targets.at(-1)?.target_id).toBe("electron-page-0204");
+  });
+
   it("lists and inspects only canonical file targets beneath approved roots", async () => {
     const root = await electronFixture();
     const index = join(root, "index.html");
@@ -46,7 +67,7 @@ describe("CdpElectronProvider target access", () => {
       }),
     );
     if (!listed.ok) throw listed.error;
-    expect(listed.value.targets.items).toEqual([
+    expect(listed.value.targets).toEqual([
       expect.objectContaining({
         target_id: "electron-page",
         file_path: index,

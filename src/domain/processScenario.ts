@@ -43,10 +43,6 @@ const outputChunkSchema = z.object({
   data: z.string().max(1_000_000),
 });
 
-/** Actionable refusal shared by CLI, MCP, and Evidence import boundaries. */
-export const LEGACY_PROCESS_CAPTURE_MESSAGE =
-  "Process Capture v3 is unsupported. Re-run the scenario with this REA version using capture_process_scenario to produce Process Capture v4; captures cannot be upgraded because v4 requires new manifest and settlement evidence.";
-
 /** Compute a canonical SHA-256 commitment independent of object key order. */
 export const digestProcessCommitment = (value: unknown): string => {
   const serialized = canonicalize(value);
@@ -78,7 +74,7 @@ const reactiveScenarioCommitment = (
         })),
       };
 
-/** Build the secret-safe scenario projection committed by Process Capture v4. */
+/** Build the secret-safe scenario projection committed by process-capture Evidence. */
 export const processScenarioCommitment = (
   scenario: ProcessScenario,
   executableSha256?: string,

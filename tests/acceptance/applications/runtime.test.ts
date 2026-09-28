@@ -19,7 +19,7 @@ const expectAvailableToolInventory = async (client: Client): Promise<void> => {
   const listed = await client.listTools();
   const status = await client.callTool({
     name: "binary_session",
-    arguments: { detail: "full" },
+    arguments: {},
   });
   const availability = z
     .object({

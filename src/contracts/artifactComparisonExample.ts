@@ -7,7 +7,6 @@ const inventory = (digit: string) => {
   const occurrenceId = `occ_${sha}`;
   return jsonValueSchema.parse({
     manifest: {
-      schema_version: 1,
       manifest_id: `agm_${sha}`,
       root_artifact_id: artifactId,
       root_sha256: sha,

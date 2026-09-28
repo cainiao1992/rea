@@ -32,7 +32,7 @@ export const traceJavaScriptSemanticsEvidenceValidated = (
             path: ["application"],
             reason: "invalid_value",
             expected:
-              "analyze_javascript_application v2 Evidence; reanalyze the artifact with the current REA version",
+              "inline Evidence from analyze_javascript_application with a semantic graph",
           },
         ]),
       );

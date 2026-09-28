@@ -32,7 +32,7 @@ export const createShutdown = (input: {
       unregisterReload();
       unregisterShutdown();
       await handle.close();
-      await session.close();
+      await session.close({ retainProviderDocuments: true });
       permissionAuthority.clearSessionGrants();
     })();
     return shutdownPromise;

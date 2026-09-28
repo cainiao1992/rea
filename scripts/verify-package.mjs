@@ -54,7 +54,6 @@ try {
     args: ["mcp"],
     environment: {
       ...environmentData.environment,
-      REA_INVESTIGATION_INPUT_ROOTS_JSON: JSON.stringify([]),
     },
     policy: MCP_STARTUP_POLICY,
   });
@@ -63,7 +62,6 @@ try {
     args: ["mcp"],
     environment: {
       ...environmentData.environment,
-      REA_INVESTIGATION_INPUT_ROOTS_JSON: JSON.stringify([]),
     },
     policy: MCP_STARTUP_POLICY,
     packageName: PRODUCT_IDENTITY.packageName,

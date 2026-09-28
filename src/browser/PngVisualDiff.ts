@@ -21,7 +21,6 @@ export const comparePngScreenshots = (
   const after = decodePng(input.after, input.maximum_pixels);
   if (before.width !== after.width || before.height !== after.height)
     return {
-      schema_version: 1,
       status: "dimension_mismatch",
       before: dimensions(before),
       after: dimensions(after),
@@ -51,7 +50,6 @@ export const comparePngScreenshots = (
   }
   const pixels = before.width * before.height;
   const context = {
-    schema_version: 1 as const,
     before: dimensions(before),
     after: dimensions(after),
     channel_threshold: input.channel_threshold,

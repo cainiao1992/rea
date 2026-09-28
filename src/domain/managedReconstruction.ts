@@ -80,7 +80,6 @@ const importedMethodSchema = z.strictObject({
 });
 
 export const managedReconstructionImportResultSchema = z.strictObject({
-  schema_version: z.literal(1),
   reconstruction_id: z.string().regex(/^mre_[a-f0-9]{64}$/u),
   phase: z.literal("reconstruction-import"),
   executed: z.literal(false),
@@ -116,7 +115,7 @@ export type ManagedReconstructionImportResult = z.infer<
   typeof managedReconstructionImportResultSchema
 >;
 
-type Member = ManagedMemberInspection["methods"]["items"][number];
+type Member = ManagedMemberInspection["methods"][number];
 type ImportedMethod = ManagedReconstructionImportResult["methods"][number];
 type StaticObservation =
   ManagedReconstructionImportResult["static_observation"];
@@ -138,7 +137,7 @@ const findObservedMethod = (
   members: ManagedMemberInspection,
   candidate: ManagedReconstructionMethodInput,
 ): Member | undefined =>
-  members.methods.items.find(
+  members.methods.find(
     (item) =>
       item.token === candidate.token &&
       item.signature.raw_sha256 === candidate.signature_sha256 &&
@@ -244,7 +243,6 @@ const buildReconstructionWithoutId = (
   members: ManagedMemberInspection,
   methods: readonly ImportedMethod[],
 ): Omit<ManagedReconstructionImportResult, "reconstruction_id"> => ({
-  schema_version: 1 as const,
   phase: "reconstruction-import" as const,
   executed: false as const,
   static_observation: buildStaticObservation(staticEvidence, members),

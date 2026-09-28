@@ -13,7 +13,6 @@ import { javascriptRuntimeReconciliationResultSchema } from "../../../src/domain
 import { electronActiveObservationInputSchema } from "../../../src/domain/electronActiveObservation.js";
 import { inspectElectronPageInputSchema } from "../../../src/domain/electronObservation.js";
 import { createWebTextArtifact } from "../../../src/domain/webContentArtifact.js";
-import { permissionAuthorityForRoot } from "../../fixtures/permissionAuthority.js";
 import { createElectronActiveObservationFixtureResult } from "../../../src/domain/electronActiveObservation.fixture.js";
 
 const SOURCE = `const worker = new Worker("./worker.js");\nexport const observed = worker;\n`;
@@ -165,7 +164,7 @@ it("keeps source-map declarations outside primary matching authority", async () 
 
   expect(result.source_map_authority).toMatchObject({
     used_for_primary_matching: false,
-    static_layers_with_read_approval: 0,
+    static_layer_count: 1,
     runtime_script_declarations: 0,
   });
 });
@@ -175,7 +174,6 @@ it("reconciles active Electron as a partial target-only runtime capture", async 
   const staticEvidence = await analyzeFixture(fixture);
   const applicationPath = join(fixture, "main.js");
   const input = electronActiveObservationInputSchema.parse({
-    schema_version: 1,
     executable_path: process.execPath,
     application_path: applicationPath,
     application_root: fixture,
@@ -217,7 +215,6 @@ it("hashes the retained Electron scenario projection, not raw selectors or secre
   const applicationPath = join(fixture, "main.js");
   const makeInput = (secret: string, selector: string) =>
     electronActiveObservationInputSchema.parse({
-      schema_version: 1,
       executable_path: process.execPath,
       application_path: applicationPath,
       application_root: fixture,
@@ -331,14 +328,8 @@ const applicationFixture = async (): Promise<string> => {
 };
 
 const analyzeFixture = async (root: string) => {
-  const authority = await permissionAuthorityForRoot(
-    root,
-    ["investigation_input"],
-    ["investigation_input"],
-  );
-  const result = await analyzeJavaScriptApplication(authority, {
+  const result = await analyzeJavaScriptApplication({
     input_path: root,
-    approved: true,
   });
   if (!result.ok) throw result.error;
   return result.value;
@@ -381,7 +372,6 @@ const electronRuntimeEvidence = (
     "inspect_electron_page",
     input,
     {
-      schema_version: 1,
       browser: {
         product: "Electron/fixture",
         protocol_version: "1.3",

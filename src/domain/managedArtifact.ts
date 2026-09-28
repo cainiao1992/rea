@@ -9,17 +9,6 @@ export const cliMetadataGuidSchema = z
   .string()
   .regex(/^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/u);
 
-const managedPage = <Item extends z.ZodType>(item: Item) =>
-  z.object({
-    items: z.array(item),
-    offset: offsetSchema,
-    limit: z.number().int().min(1),
-    total: z.number().int().min(0),
-    returned: z.number().int().min(0),
-    dropped: z.number().int().min(0),
-    complete: z.boolean(),
-  });
-
 const publicKeyIdentitySchema = z.object({
   kind: z.enum(["none", "public-key", "public-key-token"]),
   byte_length: z.number().int().min(0),
@@ -314,7 +303,6 @@ const managedParseIssueSchema = z.object({
 
 /** Provider-neutral, execution-free PE/CLI triage and identity result. */
 export const managedArtifactInspectionSchema = z.object({
-  schema_version: z.literal(1),
   artifact: z.object({
     path: z.string().min(1),
     sha256: digestSchema,
@@ -398,9 +386,9 @@ export const managedArtifactInspectionSchema = z.object({
   module: moduleIdentitySchema.nullable(),
   assembly: assemblyIdentitySchema.nullable(),
   target_frameworks: z.array(z.string()),
-  references: managedPage(assemblyReferenceSchema),
-  resources: managedPage(managedResourceSchema),
-  attributes: managedPage(customAttributeSchema),
+  references: z.array(assemblyReferenceSchema),
+  resources: z.array(managedResourceSchema),
+  attributes: z.array(customAttributeSchema),
   coverage: z.object({
     state: z.enum(["complete", "partial", "unavailable"]),
     issues: z.array(managedParseIssueSchema),
@@ -410,7 +398,6 @@ export const managedArtifactInspectionSchema = z.object({
 
 /** Provider-neutral, execution-free metadata/signature/IL member inspection. */
 export const managedMemberInspectionSchema = z.object({
-  schema_version: z.literal(1),
   artifact: z.object({
     path: z.string().min(1),
     sha256: digestSchema,
@@ -431,12 +418,12 @@ export const managedMemberInspectionSchema = z.object({
     requires_artifact_sha256: digestSchema,
     requires_mvid: cliMetadataGuidSchema.nullable(),
   }),
-  types: managedPage(managedTypeSchema),
-  fields: managedPage(managedFieldSchema),
-  methods: managedPage(managedMethodSchema),
-  member_refs: managedPage(managedMemberReferenceSchema),
-  call_edges: managedPage(managedCallEdgeSchema),
-  field_accesses: managedPage(managedFieldAccessSchema),
+  types: z.array(managedTypeSchema),
+  fields: z.array(managedFieldSchema),
+  methods: z.array(managedMethodSchema),
+  member_refs: z.array(managedMemberReferenceSchema),
+  call_edges: z.array(managedCallEdgeSchema),
+  field_accesses: z.array(managedFieldAccessSchema),
   coverage: z.object({
     state: z.enum(["complete", "partial", "unavailable"]),
     issues: z.array(managedParseIssueSchema),
@@ -446,7 +433,6 @@ export const managedMemberInspectionSchema = z.object({
 
 /** Provider-neutral managed/native boundary observations from PE/CLI metadata. */
 export const managedNativeBoundaryInspectionSchema = z.object({
-  schema_version: z.literal(1),
   artifact: z.object({
     path: z.string().min(1),
     sha256: digestSchema,
@@ -476,9 +462,9 @@ export const managedNativeBoundaryInspectionSchema = z.object({
     managed_native_header_rva: z.number().int().min(0).max(0xffff_ffff),
     managed_native_header_size: z.number().int().min(0).max(0xffff_ffff),
   }),
-  module_refs: managedPage(managedModuleReferenceSchema),
-  pinvoke_imports: managedPage(managedNativeImportSchema),
-  native_implementations: managedPage(managedNativeImplementationSchema),
+  module_refs: z.array(managedModuleReferenceSchema),
+  pinvoke_imports: z.array(managedNativeImportSchema),
+  native_implementations: z.array(managedNativeImplementationSchema),
   summary: z.object({
     module_ref_count: z.number().int().min(0),
     pinvoke_import_count: z.number().int().min(0),

@@ -4,7 +4,6 @@ import { compareManagedMembersInputSchema } from "../domain/managedMemberCompari
 import { managedNativeVerificationInputSchema } from "../domain/managedNativeVerification.js";
 import { managedReconstructionImportInputSchema } from "../domain/managedReconstruction.js";
 import { managedRuntimeCorrelationInputSchema } from "../domain/managedRuntimeCorrelation.js";
-import { projectManagedApplicationGraphInputSchema } from "../domain/managedApplicationGraph.js";
 import type { ToolContract } from "./toolContracts.js";
 import { managedWorkflowOutputSchemas } from "./toolOutputSchemas.js";
 import {
@@ -36,7 +35,6 @@ export const compareManagedMembersReferenceInputSchema = z
   .strictObject({
     left_evidence_id: managedEvidenceIdSchema,
     right_evidence_id: managedEvidenceIdSchema,
-    limits: compareManagedMembersInputSchema.shape.limits,
     unknown_registry_approved:
       compareManagedMembersInputSchema.shape.unknown_registry_approved,
   })
@@ -68,9 +66,7 @@ export const managedNativeVerificationReferenceInputSchema = z
     native_observation_evidence_ids: z
       .array(nativeObservationEvidenceIdSchema)
       .min(1)
-      .max(50)
       .describe("Unique session-owned native observation Evidence IDs"),
-    limits: managedNativeVerificationInputSchema.shape.limits,
     unknown_registry_approved:
       managedNativeVerificationInputSchema.shape.unknown_registry_approved,
   })
@@ -97,9 +93,7 @@ export const managedNativeVerificationReferenceInputSchema = z
     }
   });
 
-const managedApplicationGraphReferenceFacts = {
-  limits: projectManagedApplicationGraphInputSchema.shape.limits,
-} as const;
+const managedApplicationGraphReferenceFacts = {} as const;
 
 /** MCP references requiring at least one managed Evidence source. */
 export const managedApplicationGraphReferenceInputSchema = z
@@ -176,7 +170,6 @@ export const MANAGED_WORKFLOW_TOOL_CONTRACTS = [
           left_evidence_id: MANAGED_MEMBER_COMPARISON_EXAMPLE.left.evidence_id,
           right_evidence_id:
             MANAGED_MEMBER_COMPARISON_EXAMPLE.right.evidence_id,
-          limits: MANAGED_MEMBER_COMPARISON_EXAMPLE.limits,
         },
       },
     ],
@@ -199,7 +192,6 @@ export const MANAGED_WORKFLOW_TOOL_CONTRACTS = [
             MANAGED_NATIVE_VERIFICATION_EXAMPLE.native_observations.map(
               ({ evidence_id: evidenceId }) => evidenceId,
             ),
-          limits: MANAGED_NATIVE_VERIFICATION_EXAMPLE.limits,
         },
       },
     ],
@@ -262,7 +254,6 @@ export const MANAGED_WORKFLOW_TOOL_CONTRACTS = [
         input: {
           managed_members_evidence_id:
             MANAGED_APPLICATION_GRAPH_EXAMPLE.managed_members.evidence_id,
-          limits: MANAGED_APPLICATION_GRAPH_EXAMPLE.limits,
         },
       },
     ],

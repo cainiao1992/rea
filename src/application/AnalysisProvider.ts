@@ -102,7 +102,9 @@ export interface AnalysisClient extends AnalysisOperationPort {
   requestActivitySnapshots?(): readonly ProviderRequestActivitySnapshot[];
   /** Close with a typed result when the provider can verify cleanup. */
   closeWithOutcome?(
-    options?: Pick<ExecutionOptions, "progress">,
+    options?: Pick<ExecutionOptions, "progress"> & {
+      readonly retainDocument?: boolean;
+    },
   ): Promise<Result<null, AnalysisError>>;
   close(): Promise<void>;
 }
@@ -166,8 +168,6 @@ interface CapabilityLimits {
 export type CapabilityDescriptor = CapabilityAvailability & {
   readonly provider: ProviderIdentity;
   readonly operation: Exclude<AnalysisOperation, "health">;
-  readonly inputContractVersion: number;
-  readonly outputContractVersion: number;
   readonly pagination: "none" | "offset" | "cursor";
   readonly exhaustive: boolean;
   readonly effects: CapabilityEffects;

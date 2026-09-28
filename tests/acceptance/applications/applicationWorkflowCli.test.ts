@@ -19,7 +19,6 @@ import {
   serializeEvidenceBundle,
 } from "../../../src/domain/evidenceBundle.js";
 import { analyzeJavaScriptApplication } from "../../../src/application/JavaScriptApplicationService.js";
-import { permissionAuthorityForRoot } from "../../fixtures/permissionAuthority.js";
 import { REPLAY_MACHINE_RUN_EXAMPLE } from "../../../src/contracts/replayMachineExample.js";
 import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascriptApplicationAnalysis.js";
 
@@ -43,7 +42,7 @@ describe("application workflow CLI parity", () => {
     ]);
     expect(traced).toMatchObject({
       operation: "trace_application_feature",
-      normalized_result: { schema_version: 1 },
+      normalized_result: { source_evidence_id: expect.any(String) },
     });
 
     const root = await createTestTempDirectory("rea-application-cli-");
@@ -86,21 +85,13 @@ describe("application workflow CLI parity", () => {
       join(root, "app.js"),
       "function add(value) { return value + 1; } add(2);",
     );
-    const authority = await permissionAuthorityForRoot(
-      root,
-      ["investigation_input"],
-      ["investigation_input"],
-    );
-    const analyzed = await analyzeJavaScriptApplication(authority, {
+    const analyzed = await analyzeJavaScriptApplication({
       input_path: root,
-      approved: true,
     });
     if (!analyzed.ok) throw analyzed.error;
     const result = javascriptApplicationAnalysisResultSchema.parse(
       analyzed.value.normalized_result,
     );
-    if (result.schema_version !== 2)
-      throw new TypeError("Expected semantic application Evidence");
     const seed = result.semantic_graph.relations[0]?.source_node_id;
     if (seed === undefined)
       throw new TypeError("Expected at least one semantic relation");
@@ -163,7 +154,7 @@ describe("application workflow CLI Evidence resolution", () => {
     );
     expect(traced).toMatchObject({
       operation: "trace_application_feature",
-      normalized_result: { schema_version: 1 },
+      normalized_result: { source_evidence_id: expect.any(String) },
     });
 
     const compared = await runCli(
@@ -244,19 +235,12 @@ describe("application workflow CLI export Evidence", () => {
         join(rightRoot, "parser.mjs"),
       ),
     ]);
-    const authority = await permissionAuthorityForRoot(
-      root,
-      ["investigation_input"],
-      ["investigation_input"],
-    );
     const [left, right] = await Promise.all([
-      analyzeJavaScriptApplication(authority, {
+      analyzeJavaScriptApplication({
         input_path: leftRoot,
-        approved: true,
       }),
-      analyzeJavaScriptApplication(authority, {
+      analyzeJavaScriptApplication({
         input_path: rightRoot,
-        approved: true,
       }),
     ]);
     if (!left.ok) throw left.error;

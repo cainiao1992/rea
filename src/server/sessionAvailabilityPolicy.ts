@@ -7,7 +7,6 @@ export type SessionAvailability = AvailabilityPolicy;
 export interface SessionAvailabilityDefaults {
   readonly processPolicy: ProcessExecutionPolicy;
   readonly evidenceFilePolicy: EvidenceFilePolicy;
-  readonly investigationInputRoots: readonly string[];
   readonly optionalFeatures?: Pick<
     SessionAvailability,
     | "browserObservationEnabled"
@@ -29,7 +28,6 @@ export const sessionAvailabilityPolicy = (
   (() => ({
     processCaptureEnabled: defaults.processPolicy.status === "enabled",
     evidenceFileRoots: defaults.evidenceFilePolicy.roots.length,
-    investigationInputRoots: defaults.investigationInputRoots.length,
     browserObservationEnabled:
       defaults.optionalFeatures?.browserObservationEnabled ?? false,
     browserScenarioEnabled:

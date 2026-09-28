@@ -228,7 +228,7 @@ const collectDoctorIdentity = async (
       live_server: {
         state: "unknown",
         remediation:
-          "Compare rea://server/identity or binary_session from the active client; an on-disk registration cannot prove the running server version.",
+          "Call binary_session in the active client to inspect the running server identity.",
       },
       installations: {
         paths: installationPaths,

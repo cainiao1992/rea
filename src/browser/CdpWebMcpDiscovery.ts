@@ -374,7 +374,6 @@ const buildWebMcpResult = (options: WebMcpResultOptions): WebMcpDiscovery => {
     new Set(context.input.allowed_origins),
   );
   return {
-    schema_version: 1,
     browser: context.discovery.version,
     target: {
       target_id: context.target.id,

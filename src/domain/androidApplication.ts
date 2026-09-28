@@ -29,7 +29,6 @@ export const androidApplicationProjectionInputSchema = z.strictObject({
 
 /** Deterministic, execution-free Android application inventory projection. */
 export const androidApplicationProjectionResultSchema = z.strictObject({
-  schema_version: z.literal(1),
   projection_id: z.string().regex(/^adp_[a-f0-9]{64}$/u),
   root_sha256: digestSchema,
   root_format: z.literal("apk"),
@@ -141,7 +140,6 @@ export const projectAndroidApplication = (
     "Bridge candidates are path-based hypotheses, not decoded JNI declarations or observed runtime calls.",
   ];
   const withoutId = {
-    schema_version: 1 as const,
     root_sha256: inventory.manifest.root_sha256,
     root_format: "apk" as const,
     source_evidence_ids: evidence

@@ -249,9 +249,7 @@ const executeEnhancedTool = async (
       recordUnknown: registration.recordUnknown,
     });
     if (!unknowns.ok) return toCallToolResult(unknowns, contract);
-    return toCallToolResult({ ok: true, value: evidence }, contract, {
-      evidenceResourcesAvailable: recorded !== undefined,
-    });
+    return toCallToolResult({ ok: true, value: evidence }, contract);
   }
   return toCallToolResult(result, contract);
 };
@@ -315,7 +313,7 @@ const recordWorkflowUnknowns = ({
           rationale:
             name === "inspect_native_api"
               ? "Confirm the unsupported boundary with a capable provider or ABI probe."
-              : "Continue with a larger bounded budget.",
+              : "Continue with a focused query or another available provider.",
         },
       ],
       relationships: [],

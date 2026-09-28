@@ -21,10 +21,9 @@ import type { ManagedResourceDirectory } from "./ManagedMetadataInventory.js";
 
 type ModuleIdentity = NonNullable<ManagedArtifactInspection["module"]>;
 type AssemblyIdentity = NonNullable<ManagedArtifactInspection["assembly"]>;
-type AssemblyReference =
-  ManagedArtifactInspection["references"]["items"][number];
-type ManagedResource = ManagedArtifactInspection["resources"]["items"][number];
-type CustomAttribute = ManagedArtifactInspection["attributes"]["items"][number];
+type AssemblyReference = ManagedArtifactInspection["references"][number];
+type ManagedResource = ManagedArtifactInspection["resources"][number];
+type CustomAttribute = ManagedArtifactInspection["attributes"][number];
 
 const publicKeyIdentity = (
   bytes: Buffer,

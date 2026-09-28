@@ -24,7 +24,6 @@ export {
 /** Step-indexed, explicitly bounded browser scenario observation. */
 export const browserScenarioCaptureSchema = z
   .strictObject({
-    schema_version: z.literal(1),
     browser: z.strictObject({
       mode: z.enum(["launch", "connect"]),
       process_ownership: z.enum(["provider-owned", "external"]),

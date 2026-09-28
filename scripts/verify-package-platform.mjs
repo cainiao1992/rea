@@ -21,23 +21,11 @@ export async function verifyPackagePlatform({ cli, environment }) {
         `packaged Hopper-backed analyze CLI failed: ${JSON.stringify(overview)}`,
       );
     const inspected = json(
-      await run(
-        cli,
-        [
-          "inspect",
-          process.execPath,
-          "--detail",
-          "detailed",
-          "--limit",
-          "1",
-          "--json",
-        ],
-        environment,
-      ),
+      await run(cli, ["inspect", process.execPath, "--json"], environment),
     );
     if (
       inspected.operation !== "binary_overview" ||
-      inspected.normalized_result?.detail !== "detailed"
+      inspected.normalized_result?.procedure_count < 1
     )
       throw new Error("packaged inspect CLI failed");
     const functionResult = json(

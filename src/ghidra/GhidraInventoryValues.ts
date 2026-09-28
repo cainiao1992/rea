@@ -29,38 +29,26 @@ export const isGhidraInventoryOperation = (
   operation: string,
 ): operation is GhidraInventoryOperation => operationSet.has(operation);
 
-export const ghidraBoundedIdentifierSchema = z.string().min(1).max(4096);
-const boundedIdentifier = ghidraBoundedIdentifierSchema;
-const document = boundedIdentifier.nullable().default(null);
-const explicitAddress = boundedIdentifier;
+export const ghidraIdentifierSchema = z.string().min(1);
+const identifier = ghidraIdentifierSchema;
+const document = identifier.nullable().default(null);
+const explicitAddress = identifier;
 const filteredAddress = explicitAddress.nullable().default(null);
-const pagination = {
-  offset: z.number().int().min(0).default(0),
-  limit: z.number().int().min(1).max(500).default(100),
-};
 const searchInput = {
-  pattern: z.string().min(1).max(256),
+  pattern: z.string().min(1),
   mode: z.enum(["literal", "regex"]).default("literal"),
   case_sensitive: z.boolean().default(false),
-  offset: z.number().int().min(0).default(0),
-  limit: z.number().int().min(1).max(100).default(100),
   document,
 };
 
 const inputSchemas = {
   address_name: z.object({ document, address: explicitAddress }).strict(),
   list_documents: z.object({}).strict(),
-  list_names: z
-    .object({ document, address: filteredAddress, ...pagination })
-    .strict(),
-  list_procedures: z.object({ document, ...pagination }).strict(),
+  list_names: z.object({ document, address: filteredAddress }).strict(),
+  list_procedures: z.object({ document }).strict(),
   list_segments: z.object({ document }).strict(),
-  list_strings: z
-    .object({ document, address: filteredAddress, ...pagination })
-    .strict(),
-  procedure_address: z
-    .object({ document, procedure: boundedIdentifier })
-    .strict(),
+  list_strings: z.object({ document, address: filteredAddress }).strict(),
+  procedure_address: z.object({ document, procedure: identifier }).strict(),
   resolve_containing_procedure: z
     .object({ document, address: explicitAddress })
     .strict(),
@@ -83,7 +71,6 @@ export const ghidraCanonicalAddressSchema = z
   .string()
   .regex(/^(?:0x[0-9a-f]+|(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+:0x[0-9a-f]+)$/u);
 const canonicalAddress = ghidraCanonicalAddressSchema;
-const valueTruncation = { value_truncated: z.boolean() };
 const symbolFacts = z
   .object({
     primary: z.boolean(),
@@ -113,7 +100,6 @@ const stringFacts = z
 const baseItem = {
   address: canonicalAddress,
   value: z.string(),
-  ...valueTruncation,
 };
 const symbolItem = z.object({ ...baseItem, symbol: symbolFacts }).strict();
 const procedureItem = z
@@ -121,65 +107,6 @@ const procedureItem = z
   .strict();
 const stringItem = z.object({ ...baseItem, string: stringFacts }).strict();
 const searchItem = z.object(baseItem).strict();
-
-const pageSchema = <Item extends z.ZodType>(
-  item: Item,
-  maximumLimit: number,
-) => {
-  const pageFacts = {
-    items: z.array(item),
-    offset: z.number().int().min(0),
-    limit: z.number().int().min(1).max(maximumLimit),
-    total: z.number().int().min(0),
-  } as const;
-  return z
-    .discriminatedUnion("has_more", [
-      z.strictObject({
-        ...pageFacts,
-        has_more: z.literal(true),
-        next_offset: z.number().int().min(0),
-      }),
-      z.strictObject({
-        ...pageFacts,
-        has_more: z.literal(false),
-        next_offset: z.null(),
-      }),
-    ])
-    .superRefine((page, context) => {
-      const next = page.offset + page.items.length;
-      const hasMore = next < page.total;
-      if (page.items.length > page.limit)
-        context.addIssue({
-          code: "custom",
-          path: ["items"],
-          message: "page exceeds its declared limit",
-        });
-      if (page.items.length > 0 && next > page.total)
-        context.addIssue({
-          code: "custom",
-          path: ["total"],
-          message: "page items exceed its exact total",
-        });
-      if (hasMore && page.items.length === 0)
-        context.addIssue({
-          code: "custom",
-          path: ["items"],
-          message: "page continuation must advance its offset",
-        });
-      if (page.has_more !== hasMore)
-        context.addIssue({
-          code: "custom",
-          path: ["has_more"],
-          message: "page continuation does not match its exact total",
-        });
-      if (page.next_offset !== (hasMore ? next : null))
-        context.addIssue({
-          code: "custom",
-          path: ["next_offset"],
-          message: "page continuation offset is inconsistent",
-        });
-    });
-};
 
 const availablePermissions = z
   .object({
@@ -233,14 +160,14 @@ const containingProcedure = z.discriminatedUnion("found", [
 const resultSchemas = {
   address_name: z.string().nullable(),
   list_documents: z.array(z.string().min(1)).length(1),
-  list_names: pageSchema(symbolItem, 500),
-  list_procedures: pageSchema(procedureItem, 500),
+  list_names: z.array(symbolItem),
+  list_procedures: z.array(procedureItem),
   list_segments: z.array(segment),
-  list_strings: pageSchema(stringItem, 500),
+  list_strings: z.array(stringItem),
   procedure_address: canonicalAddress,
   resolve_containing_procedure: containingProcedure,
-  search_procedures: pageSchema(searchItem, 100),
-  search_strings: pageSchema(searchItem, 100),
+  search_procedures: z.array(searchItem),
+  search_strings: z.array(searchItem),
 } satisfies Readonly<Record<GhidraInventoryOperation, z.ZodType>>;
 
 /** Require exact, bounded Java-bridge output before creating Evidence. */

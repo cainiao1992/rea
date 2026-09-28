@@ -258,9 +258,7 @@ const buildManifest = ({
   readonly orderedEdges: readonly { edge_id: string }[];
 }): ArtifactInventoryResult["manifest"] =>
   artifactInventoryResultSchema.shape.manifest.parse({
-    schema_version: 1,
     manifest_id: `agm_${digestCanonical({
-      schema_version: 1,
       root_artifact_id: rootNode.artifact_id,
       graph_sha256: graphSha256,
     })}`,

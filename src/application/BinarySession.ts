@@ -228,7 +228,9 @@ export class BinarySession
 
   /** Close the active target, if any. */
   close(
-    options: Pick<ExecutionOptions, "progress"> = {},
+    options: Pick<ExecutionOptions, "progress"> & {
+      readonly retainProviderDocuments?: boolean;
+    } = {},
   ): Promise<Result<null, AnalysisError>> {
     return this.#serialize(async () => {
       const previous = this.#active;
@@ -240,7 +242,14 @@ export class BinarySession
           : await closeAnalysisClient(
               previous.client,
               previous.route.identity.id,
-              options,
+              {
+                ...(options.progress === undefined
+                  ? {}
+                  : { progress: options.progress }),
+                ...(options.retainProviderDocuments === true
+                  ? { retainDocument: true }
+                  : {}),
+              },
             );
       this.clearSessionRecords();
       this.#clearRuntimeAvailability();
@@ -340,7 +349,6 @@ export class BinarySession
         "ProviderAdapterError",
         "HopperProcessError",
         "HopperStartError",
-        "HopperRemoteError",
       ].includes(result.error._tag)
     ) {
       const capabilities = this.#active?.route.capabilities;
@@ -351,7 +359,7 @@ export class BinarySession
           changed =
             this.#markRuntimeUnavailable(
               descriptor.operation,
-              "Provider became unavailable during this session.",
+              `${result.error._tag}: ${result.error.message}`,
             ) || changed;
       if (changed) this.#emitAvailabilityChanged();
     }

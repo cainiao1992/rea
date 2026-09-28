@@ -1,5 +1,4 @@
 {
-  "catalog_schema_version": 1,
   "package": {
     "name": "rea-agents",
     "version": "3.1.0",
@@ -11,7 +10,7 @@
     "skill_version": "23"
   },
   "tools": {
-    "total": 116,
+    "total": 115,
     "families": [
       {
         "id": "direct",
@@ -168,7 +167,7 @@
       {
         "id": "session",
         "surface": "session",
-        "count": 23,
+        "count": 22,
         "tools": [
           "binary_session",
           "build_call_path",
@@ -181,15 +180,14 @@
           "correlate_static_and_runtime",
           "export_evidence_bundle",
           "find_changed_behavior",
+          "get_evidence_bundle",
           "get_navigation_context",
           "import_evidence_bundle",
           "inspect_address_context",
           "list_unknowns",
           "open_binary",
           "record_unknown",
-          "release_evidence_bundle",
           "run_replay_machine",
-          "snapshot_evidence_bundle",
           "update_unknown",
           "verify_reconstruction",
           "verify_unknown_resolution"
@@ -430,168 +428,6 @@
       "configuration": "detect-only"
     }
   ],
-  "schemas": [
-    {
-      "id": "analysis_snapshot",
-      "version": 2
-    },
-    {
-      "id": "artifact_extraction",
-      "version": 1
-    },
-    {
-      "id": "artifact_graph",
-      "version": 1
-    },
-    {
-      "id": "browser_scenario",
-      "version": 1
-    },
-    {
-      "id": "browser_scenario_capture",
-      "version": 1
-    },
-    {
-      "id": "browser_scenario_diff",
-      "version": 1
-    },
-    {
-      "id": "browser_target_list",
-      "version": 1
-    },
-    {
-      "id": "electron_page_inspection",
-      "version": 1
-    },
-    {
-      "id": "electron_target_list",
-      "version": 1
-    },
-    {
-      "id": "evidence",
-      "version": 2
-    },
-    {
-      "id": "evidence_bundle",
-      "version": 2
-    },
-    {
-      "id": "evidence_completion_ledger",
-      "version": 1
-    },
-    {
-      "id": "evidence_completion_manifest",
-      "version": 1
-    },
-    {
-      "id": "investigation_run",
-      "version": 1
-    },
-    {
-      "id": "investigation_run_summary",
-      "version": 1
-    },
-    {
-      "id": "investigation_workspace",
-      "version": 1
-    },
-    {
-      "id": "javascript_application_analysis",
-      "version": 2
-    },
-    {
-      "id": "javascript_application_graph",
-      "version": 1
-    },
-    {
-      "id": "javascript_application_version_comparison",
-      "version": 1
-    },
-    {
-      "id": "javascript_feature_trace",
-      "version": 1
-    },
-    {
-      "id": "javascript_runtime_observation",
-      "version": 1
-    },
-    {
-      "id": "javascript_runtime_target_list",
-      "version": 1
-    },
-    {
-      "id": "javascript_semantic_graph",
-      "version": 1
-    },
-    {
-      "id": "javascript_semantic_query",
-      "version": 1
-    },
-    {
-      "id": "javascript_semantic_trace",
-      "version": 1
-    },
-    {
-      "id": "managed_artifact_inspection",
-      "version": 1
-    },
-    {
-      "id": "managed_member_comparison",
-      "version": 1
-    },
-    {
-      "id": "managed_member_inspection",
-      "version": 1
-    },
-    {
-      "id": "managed_native_boundary_inspection",
-      "version": 1
-    },
-    {
-      "id": "managed_native_verification",
-      "version": 1
-    },
-    {
-      "id": "process_capture",
-      "version": 4
-    },
-    {
-      "id": "reconstruction_verification",
-      "version": 1
-    },
-    {
-      "id": "residual_unknown",
-      "version": 1
-    },
-    {
-      "id": "web_bundle_analysis",
-      "version": 1
-    },
-    {
-      "id": "web_capture_diff",
-      "version": 1
-    },
-    {
-      "id": "web_mcp_discovery",
-      "version": 1
-    },
-    {
-      "id": "web_observation_session",
-      "version": 1
-    },
-    {
-      "id": "web_page_inspection",
-      "version": 2
-    },
-    {
-      "id": "web_screenshot",
-      "version": 1
-    },
-    {
-      "id": "web_screenshot_diff",
-      "version": 1
-    }
-  ],
   "cli": {
     "primary_count": 68,
     "commands": [
@@ -674,16 +510,13 @@
   "runtime_catalog": {
     "counts": {
       "cli_commands": 68,
-      "mcp_tools": 116,
-      "mcp_prompts": 6,
-      "mcp_resources": 2,
-      "mcp_resource_templates": 11
+      "mcp_tools": 115,
+      "mcp_prompts": 6
     },
     "digests": {
-      "tools_sha256": "b21e7a4794bf82b27931a373a7812978b54f136904a88681094f2c545e4413a6",
-      "prompts_sha256": "3886a3bf55a448def79e3eb429e6a56eb2ba075423c5cb1e5747642b389ef8fe",
-      "resources_sha256": "e0e872276ebf6f88e916ef24930a99eed27ce4c93e494e60820e9bd8cc8497c3",
-      "combined_sha256": "6624247db5bcf7b52ce53173bbc0ac11bd51e9217e9e3be4298b755bcc60ea50",
+      "tools_sha256": "4722f1a2fe1d16d493e4a1f51450376e2cd0c617b9659d292a61908d8bb05fcf",
+      "prompts_sha256": "77c76df62f92484a43cebf5ca110bdf562c38fbee2531d293eeb51d6e712d459",
+      "combined_sha256": "94f7cd1ac629a6bbffa77ba3b3d3f2e208e15df821bc0b14db4f81692d6f8eaa",
       "providers_sha256": "7446b51788734ebf6f4f702e3a5a8c9f0b61967490c245f30bd37b2060827e6b"
     }
   }

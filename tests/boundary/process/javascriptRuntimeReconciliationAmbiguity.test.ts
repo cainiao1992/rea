@@ -12,7 +12,6 @@ import { analyzeJavaScriptApplication } from "../../../src/application/JavaScrip
 import { reconcileJavaScriptRuntime } from "../../../src/domain/javascriptRuntimeReconciliation.js";
 import { inspectElectronPageInputSchema } from "../../../src/domain/electronObservation.js";
 import { createWebTextArtifact } from "../../../src/domain/webContentArtifact.js";
-import { permissionAuthorityForRoot } from "../../fixtures/permissionAuthority.js";
 
 const SOURCE = `const worker = new Worker("./worker.js");\nexport const observed = worker;\n`;
 const execute = promisify(execFile);
@@ -206,14 +205,8 @@ const applicationFixture = async (): Promise<string> => {
 };
 
 const analyzeFixture = async (root: string) => {
-  const authority = await permissionAuthorityForRoot(
-    root,
-    ["investigation_input"],
-    ["investigation_input"],
-  );
-  const result = await analyzeJavaScriptApplication(authority, {
+  const result = await analyzeJavaScriptApplication({
     input_path: root,
-    approved: true,
   });
   if (!result.ok) throw result.error;
   return result.value;
@@ -256,7 +249,6 @@ const electronRuntimeEvidence = (
     "inspect_electron_page",
     input,
     {
-      schema_version: 1,
       browser: {
         product: "Electron/fixture",
         protocol_version: "1.3",

@@ -57,8 +57,6 @@ const requireRuntimeScope = (
 export const listJavaScriptRuntimeTargetsInputSchema = z
   .strictObject({
     ...approvedRuntimeScope,
-    offset: z.number().int().min(0).default(0),
-    limit: z.number().int().min(1).max(200).default(100),
   })
   .superRefine(requireRuntimeScope);
 export type ListJavaScriptRuntimeTargetsInput = z.infer<
@@ -138,18 +136,10 @@ const javascriptRuntimeTargetSchema = z.strictObject({
   location: javascriptRuntimeLocationSchema,
 });
 
-/** Root/origin-filtered V8 Inspector target inventory. */
+/** Complete root/origin-filtered V8 Inspector target inventory. */
 export const javascriptRuntimeTargetListSchema = z.strictObject({
-  schema_version: z.literal(1),
   runtime: javascriptRuntimeVersionSchema,
-  targets: z.strictObject({
-    items: z.array(javascriptRuntimeTargetSchema),
-    offset: z.number().int().min(0),
-    limit: z.number().int().min(1),
-    total: z.number().int().min(0),
-    next_offset: z.number().int().min(0).nullable(),
-    has_more: z.boolean(),
-  }),
+  targets: z.array(javascriptRuntimeTargetSchema),
   excluded: z.strictObject({
     outside_file_roots: z.number().int().min(0),
     outside_origins: z.number().int().min(0),
@@ -181,7 +171,6 @@ const javascriptRuntimeContextSchema = z.strictObject({
 
 /** Deterministic passive script/context snapshot from one bounded window. */
 export const javascriptRuntimeObservationSchema = z.strictObject({
-  schema_version: z.literal(1),
   runtime: javascriptRuntimeVersionSchema,
   target: javascriptRuntimeTargetSchema.extend({
     runtime_kind: javascriptRuntimeKindSchema,

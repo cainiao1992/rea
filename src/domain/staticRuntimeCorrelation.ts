@@ -162,7 +162,7 @@ const EXPECTED: Readonly<Record<string, ComparisonIdentity>> = {
     "REA function comparison",
   ],
   compare_process_captures: [
-    ["rea.process-comparison/v3", "rea.process-comparison/v4"],
+    "rea.process-comparison",
     "rea-process",
     "REA deterministic process harness",
   ],
@@ -445,12 +445,24 @@ const comparisonParameterLinks = (evidence: Evidence): string[] => {
   }
   const parameters = z
     .object({
-      left_evidence_ids: z.array(evidenceIdSchema).min(1).max(100),
-      right_evidence_ids: z.array(evidenceIdSchema).min(1).max(100),
+      left_evidence_id: evidenceIdSchema.optional(),
+      right_evidence_id: evidenceIdSchema.optional(),
+      left_evidence_ids: z.array(evidenceIdSchema).min(1).max(100).optional(),
+      right_evidence_ids: z.array(evidenceIdSchema).min(1).max(100).optional(),
     })
     .passthrough()
     .parse(evidence.parameters);
-  return [...parameters.left_evidence_ids, ...parameters.right_evidence_ids];
+  const left =
+    parameters.left_evidence_id === undefined
+      ? (parameters.left_evidence_ids ?? [])
+      : [parameters.left_evidence_id];
+  const right =
+    parameters.right_evidence_id === undefined
+      ? (parameters.right_evidence_ids ?? [])
+      : [parameters.right_evidence_id];
+  if (left.length === 0 || right.length === 0)
+    throw new TypeError("Comparison Evidence omitted its source parameters");
+  return [...left, ...right];
 };
 
 const sameSet = (left: readonly string[], right: readonly string[]): boolean =>

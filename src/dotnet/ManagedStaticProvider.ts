@@ -37,6 +37,7 @@ import { err, ok } from "../domain/result.js";
 import { inspectManagedArtifactBytes } from "./ManagedArtifactInspector.js";
 import { inspectManagedMembersBytes } from "./ManagedMemberInspector.js";
 import { inspectManagedNativeBoundariesBytes } from "./ManagedNativeBoundaryInspector.js";
+import { MANAGED_INSPECTION_DEFAULTS } from "./ManagedInspectionDefaults.js";
 
 const IDENTITY: ProviderIdentity = Object.freeze(MANAGED_STATIC_PROVIDER);
 
@@ -47,12 +48,10 @@ export class ManagedStaticProvider implements AnalysisProvider {
       Object.freeze({
         provider: IDENTITY,
         operation: contract.name,
-        inputContractVersion: 1,
-        outputContractVersion: 1,
         available: true as const,
         reason: null,
-        pagination: "offset" as const,
-        exhaustive: false,
+        pagination: "none" as const,
+        exhaustive: true,
         effects: Object.freeze({
           mutatesArtifact: false,
           launchesProcess: false,
@@ -63,7 +62,7 @@ export class ManagedStaticProvider implements AnalysisProvider {
           requiresRoot: false,
         }),
         limits: Object.freeze({
-          maxResults: 500,
+          maxResults: null,
           maxPayloadBytes: 4 * 1024 * 1024,
           timeoutMs: null,
         }),
@@ -116,7 +115,7 @@ class ManagedStaticClient implements AnalysisClient {
     try {
       if (options?.signal?.aborted === true)
         return err(new AnalysisCancelledError(operation));
-      const maxFileBytes = maxRequestedFileBytes(operation, parameters);
+      const maxFileBytes = MANAGED_INSPECTION_DEFAULTS.maxFileBytes;
       const metadata = await stat(this.target.path);
       if (metadata.size > maxFileBytes)
         return err(
@@ -239,17 +238,6 @@ const limitationsFor = (operation: ManagedToolName): readonly string[] =>
           ],
   );
 
-const maxRequestedFileBytes = (
-  operation: ManagedToolName,
-  parameters: Readonly<Record<string, JsonValue>>,
-): number => {
-  if (operation === "inspect_managed_artifact")
-    return managedArtifactInputSchema.parse(parameters).max_file_bytes;
-  if (operation === "inspect_managed_native_boundaries")
-    return managedNativeBoundaryInputSchema.parse(parameters).max_file_bytes;
-  return managedMemberInputSchema.parse(parameters).max_file_bytes;
-};
-
 const inspectManagedOperation = (
   operation: ManagedToolName,
   parameters: Readonly<Record<string, JsonValue>>,
@@ -260,51 +248,28 @@ const inspectManagedOperation = (
   | ManagedMemberInspection
   | ManagedNativeBoundaryInspection => {
   if (operation === "inspect_managed_artifact") {
-    const input = managedArtifactInputSchema.parse(parameters);
+    managedArtifactInputSchema.parse(parameters);
     return inspectManagedArtifactBytes(bytes, target, {
-      referenceOffset: input.reference_offset,
-      referenceLimit: input.reference_limit,
-      resourceOffset: input.resource_offset,
-      resourceLimit: input.resource_limit,
-      attributeOffset: input.attribute_offset,
-      attributeLimit: input.attribute_limit,
-      maxMetadataBytes: input.max_metadata_bytes,
-      maxTableRows: input.max_table_rows,
-      maxHeapItemBytes: input.max_heap_item_bytes,
+      maxMetadataBytes: MANAGED_INSPECTION_DEFAULTS.maxMetadataBytes,
+      maxTableRows: MANAGED_INSPECTION_DEFAULTS.maxTableRows,
+      maxHeapItemBytes: MANAGED_INSPECTION_DEFAULTS.maxHeapItemBytes,
     });
   }
   if (operation === "inspect_managed_native_boundaries") {
-    const input = managedNativeBoundaryInputSchema.parse(parameters);
+    managedNativeBoundaryInputSchema.parse(parameters);
     return inspectManagedNativeBoundariesBytes(bytes, target, {
-      moduleRefOffset: input.module_ref_offset,
-      moduleRefLimit: input.module_ref_limit,
-      importOffset: input.import_offset,
-      importLimit: input.import_limit,
-      implementationOffset: input.implementation_offset,
-      implementationLimit: input.implementation_limit,
-      maxMetadataBytes: input.max_metadata_bytes,
-      maxTableRows: input.max_table_rows,
-      maxHeapItemBytes: input.max_heap_item_bytes,
+      maxMetadataBytes: MANAGED_INSPECTION_DEFAULTS.maxMetadataBytes,
+      maxTableRows: MANAGED_INSPECTION_DEFAULTS.maxTableRows,
+      maxHeapItemBytes: MANAGED_INSPECTION_DEFAULTS.maxHeapItemBytes,
     });
   }
-  const input = managedMemberInputSchema.parse(parameters);
+  managedMemberInputSchema.parse(parameters);
   return inspectManagedMembersBytes(bytes, target, {
-    typeOffset: input.type_offset,
-    typeLimit: input.type_limit,
-    methodOffset: input.method_offset,
-    methodLimit: input.method_limit,
-    fieldOffset: input.field_offset,
-    fieldLimit: input.field_limit,
-    memberRefOffset: input.member_ref_offset,
-    memberRefLimit: input.member_ref_limit,
-    edgeOffset: input.edge_offset,
-    edgeLimit: input.edge_limit,
-    instructionAnchorLimit: input.instruction_anchor_limit,
-    maxMetadataBytes: input.max_metadata_bytes,
-    maxTableRows: input.max_table_rows,
-    maxHeapItemBytes: input.max_heap_item_bytes,
-    maxMethodBodyBytes: input.max_method_body_bytes,
-    maxMethodInstructions: input.max_method_instructions,
+    maxMetadataBytes: MANAGED_INSPECTION_DEFAULTS.maxMetadataBytes,
+    maxTableRows: MANAGED_INSPECTION_DEFAULTS.maxTableRows,
+    maxHeapItemBytes: MANAGED_INSPECTION_DEFAULTS.maxHeapItemBytes,
+    maxMethodBodyBytes: MANAGED_INSPECTION_DEFAULTS.maxMethodBodyBytes,
+    maxMethodInstructions: MANAGED_INSPECTION_DEFAULTS.maxMethodInstructions,
   });
 };
 
@@ -335,7 +300,7 @@ const managedLocations = (
       ...(result.module === null
         ? [{ kind: "file-offset" as const, offset: 0 }]
         : [{ kind: "file-offset" as const, offset: result.module.row_offset }]),
-      ...result.methods.items
+      ...result.methods
         .filter((method) => method.body.file_offset !== null)
         .slice(0, 8)
         .map((method) => ({
@@ -347,7 +312,7 @@ const managedLocations = (
     ...(result.module === null
       ? [{ kind: "file-offset" as const, offset: 0 }]
       : [{ kind: "file-offset" as const, offset: result.module.row_offset }]),
-    ...result.pinvoke_imports.items.slice(0, 8).map((mapping) => ({
+    ...result.pinvoke_imports.slice(0, 8).map((mapping) => ({
       kind: "file-offset" as const,
       offset: mapping.row_offset,
     })),

@@ -15,7 +15,7 @@ const TARGET: BinaryTarget = {
   availableArchitectures: ["arm64"],
 };
 const PROVIDER = { id: "fixture", name: "Fixture provider", version: "1" };
-const PROFILE = createAnalysisProfile(PROVIDER, 1, { loader: "default" });
+const PROFILE = createAnalysisProfile(PROVIDER, { loader: "default" });
 
 describe("analysis evidence identity", () => {
   it("normalizes prototype-named parameter keys", () => {
@@ -70,7 +70,7 @@ describe("analysis evidence identity", () => {
     },
   );
 
-  it("creates deterministic provider-neutral Evidence v2", () => {
+  it("creates deterministic provider-neutral Evidence", () => {
     const observation = {
       operation: "procedure_info",
       parameters: { document: null, procedure: "0x1000" },
@@ -81,7 +81,6 @@ describe("analysis evidence identity", () => {
     expect(evidenceSchema.parse(evidence)).toEqual(evidence);
     expect(parseEvidence(evidence)).toEqual(evidence);
     expect(evidence).toMatchObject({
-      schema_version: 2,
       provider: PROVIDER,
       subject: { digest: { sha256: "a".repeat(64) } },
       confidence: "observed",
@@ -145,7 +144,7 @@ describe("analysis evidence identity", () => {
     ).not.toBe(first.evidence_id);
   });
 
-  it("rejects semantic tampering and obsolete schema versions", () => {
+  it("rejects semantic tampering", () => {
     const evidence = createEvidence(TARGET, PROVIDER, {
       operation: "health",
       parameters: {},
@@ -154,9 +153,6 @@ describe("analysis evidence identity", () => {
     expect(() =>
       parseEvidence({ ...evidence, normalized_result: false }),
     ).toThrow("semantic identifier");
-    expect(() => parseEvidence({ schema_version: 1 })).toThrow(
-      "Evidence v1 is not accepted. Produce Evidence v2.",
-    );
   });
 });
 

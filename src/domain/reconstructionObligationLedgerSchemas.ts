@@ -135,7 +135,6 @@ export const reconstructionObligationManifestBindingSchema = z.strictObject({
 });
 
 export const reconstructionObligationManifestSchema = z.strictObject({
-  schema_version: z.literal(1),
   bindings: z.array(reconstructionObligationManifestBindingSchema).max(10_000),
   contradictions: z
     .array(
@@ -239,15 +238,11 @@ const countBySchema = <Schema extends z.ZodType>(
 
 export const reconstructionObligationLedgerSchema = z.strictObject({
   schema: z.literal("ReconstructionObligationLedger"),
-  schema_version: z.literal(1),
   ledger_id: z.string().regex(/^rol_[a-f0-9]{64}$/u),
   closure_digest: digestSchema,
   status: z.enum(["ready", "open", "failed", "unknown"]),
   coverage: z.strictObject({
     status: z.enum(["complete", "partial"]),
-    truncated: z.boolean(),
-    omitted_count: z.number().int().min(0),
-    max_obligations: z.number().int().min(1),
   }),
   summary: z.strictObject({
     total: z.number().int().min(0),
@@ -286,13 +281,8 @@ export const reconstructionObligationLedgerSchema = z.strictObject({
 
 export const reconstructionObligationLedgerInputSchema = z.strictObject({
   evidence_bundle: evidenceBundleSchema,
-  reviewed_obligations: z
-    .array(reviewedReconstructionObligationSchema)
-    .max(10_000),
+  reviewed_obligations: z.array(reviewedReconstructionObligationSchema),
   manifest: reconstructionObligationManifestSchema,
-  limits: z.strictObject({
-    max_obligations: z.number().int().min(1).max(10_000),
-  }),
   page: z.strictObject({
     offset: z.number().int().min(0).max(10_000),
     limit: z.number().int().min(1).max(100),

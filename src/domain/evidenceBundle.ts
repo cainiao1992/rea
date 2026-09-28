@@ -34,7 +34,6 @@ const captureManifestSchema = z.object({
 });
 
 export const evidenceBundleSchema = z.object({
-  bundle_version: z.literal(2),
   artifacts: z.array(artifactManifestSchema),
   providers: z.array(providerManifestSchema),
   environments: z.array(environmentManifestSchema),
@@ -63,7 +62,6 @@ export const createEvidenceBundle = (
     left.evidence_id.localeCompare(right.evidence_id),
   );
   return {
-    bundle_version: 2,
     artifacts: uniqueSorted(
       sortedRecords.flatMap(({ subject }) =>
         subject === null

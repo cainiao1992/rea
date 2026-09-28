@@ -1,6 +1,6 @@
 # Cross-layer JavaScript application workflows
 
-REA derives a bounded feature trace from one authenticated JavaScript
+REA derives a complete reachable feature trace from one authenticated JavaScript
 Application Graph and compares two authenticated graph versions. The MCP tools
 are `trace_application_feature`, `trace_javascript_semantics`,
 `compare_application_versions`, `compare_source_to_bundle`, and
@@ -25,11 +25,11 @@ semantic data as an empty graph.
 
 Select one literal seed kind: node ID, route, string, API, IPC channel, module,
 or native export. Matching is exact or literal substring matching; regular
-expressions and executable predicates are not accepted. Direction, depth,
-nodes, edges, paths, and seed matches all have caller-visible limits.
+expressions and executable predicates are not accepted. The trace includes all
+matching seeds and the complete graph reachable in the selected direction.
 
-The result contains the matching basis, a bounded subgraph, terminal paths,
-authority summaries, truncation frontier, and native handoffs. A handoff binds
+The result contains the matching basis, complete reachable subgraph, terminal
+paths, authority summaries, and native handoffs. A handoff binds
 the exact native artifact digest and requested exports from the application
 graph. Existing Hopper or Ghidra Evidence is linked only when its subject digest
 matches exactly. Otherwise the result recommends provider-neutral follow-up

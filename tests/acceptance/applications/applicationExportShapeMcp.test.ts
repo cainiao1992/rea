@@ -10,7 +10,6 @@ import { createServer } from "../../../src/server/createServer.js";
 import { observed } from "../../fixtures/analysisExecution.js";
 import { analyzeJavaScriptApplication } from "../../../src/application/JavaScriptApplicationService.js";
 import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascriptApplicationAnalysis.js";
-import { permissionAuthorityForRoot } from "../../fixtures/permissionAuthority.js";
 
 describe("application workflow MCP parity", () => {
   it("compares exact parser export shapes through full Evidence and session IDs", async () => {
@@ -28,19 +27,12 @@ describe("application workflow MCP parity", () => {
         join(rightRoot, "parser.mjs"),
       ),
     ]);
-    const authority = await permissionAuthorityForRoot(
-      root,
-      ["investigation_input"],
-      ["investigation_input"],
-    );
     const [left, right] = await Promise.all([
-      analyzeJavaScriptApplication(authority, {
+      analyzeJavaScriptApplication({
         input_path: leftRoot,
-        approved: true,
       }),
-      analyzeJavaScriptApplication(authority, {
+      analyzeJavaScriptApplication({
         input_path: rightRoot,
-        approved: true,
       }),
     ]);
     if (!left.ok) throw left.error;
@@ -107,8 +99,6 @@ describe("application workflow MCP parity", () => {
       const analyzed = javascriptApplicationAnalysisResultSchema.parse(
         left.value.normalized_result,
       );
-      if (analyzed.schema_version !== 2)
-        throw new TypeError("Expected semantic application Evidence");
       const seed = analyzed.semantic_graph.relations[0]?.source_node_id;
       if (seed === undefined)
         throw new TypeError("Expected at least one semantic relation");

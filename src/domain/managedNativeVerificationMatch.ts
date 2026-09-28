@@ -23,11 +23,9 @@ const digest = (value: JsonValue): string => {
   return createHash("sha256").update(serialized).digest("hex");
 };
 
-type PinvokeImport =
-  ManagedNativeBoundaryInspection["pinvoke_imports"]["items"][number];
+type PinvokeImport = ManagedNativeBoundaryInspection["pinvoke_imports"][number];
 type VerifiedPinvoke = {
   readonly verification: PinvokeVerification;
-  readonly omittedCandidates: number;
 };
 
 const moduleName = (
@@ -157,24 +155,21 @@ type PinvokeMatch<
   : never;
 
 interface PinvokeCandidateMatch {
-  readonly allCandidates: readonly NativeSymbol[];
   readonly match: PinvokeMatch;
 }
 
 const matchPinvoke = (
   managed: PinvokeImport,
   symbols: readonly NativeSymbol[],
-  maxCandidates: number,
   supportedNativeEvidence: number,
 ): PinvokeCandidateMatch => {
   const names = candidateNames(managed);
   const allCandidates = symbols.filter((symbol) =>
     names.some((name) => sameSymbolName(name, symbol.name)),
   );
-  const [first, ...remaining] = allCandidates.slice(0, maxCandidates);
+  const [first, ...remaining] = allCandidates;
   if (first === undefined)
     return {
-      allCandidates,
       match: {
         status: "unresolved",
         basis:
@@ -199,7 +194,6 @@ const matchPinvoke = (
   const selected = exact ?? decorated ?? first;
   if (!moduleCompatible(managed.import_scope_name, selected))
     return {
-      allCandidates,
       match: {
         status: "contradicted",
         basis: "module-mismatch",
@@ -210,7 +204,6 @@ const matchPinvoke = (
     };
   if (exact !== undefined)
     return {
-      allCandidates,
       match: {
         status: "verified",
         basis:
@@ -223,7 +216,6 @@ const matchPinvoke = (
       },
     };
   return {
-    allCandidates,
     match: {
       basis: "decorated-name-candidate",
       status: "inferred",
@@ -265,14 +257,12 @@ interface VerifyPinvokeContext {
     readonly symbols: readonly NativeSymbol[];
     readonly accepted: number;
   };
-  readonly input: ManagedNativeVerificationInput;
 }
 
 export const verifyPinvoke = ({
   item,
   managedEvidenceId,
   native,
-  input,
 }: VerifyPinvokeContext): VerifiedPinvoke => {
   const managed = {
     token: item.token,
@@ -285,12 +275,7 @@ export const verifyPinvoke = ({
     call_convention: item.call_convention,
     declaration_verification: item.verification,
   };
-  const selection = matchPinvoke(
-    item,
-    native.symbols,
-    input.limits.max_candidates_per_import,
-    native.accepted,
-  );
+  const selection = matchPinvoke(item, native.symbols, native.accepted);
   const limitations = pinvokeLimitations(selection.match.status, item);
   return {
     verification: pinvokeVerificationSchema.parse({
@@ -309,10 +294,6 @@ export const verifyPinvoke = ({
       ],
       limitations,
     }),
-    omittedCandidates: Math.max(
-      0,
-      selection.allCandidates.length - selection.match.candidates.length,
-    ),
   };
 };
 
@@ -337,7 +318,6 @@ interface VerificationResultInput {
     readonly unsupported: number;
   };
   readonly pinvokeImports: readonly PinvokeVerification[];
-  readonly verifiedPinvokes: readonly VerifiedPinvoke[];
   readonly input: ManagedNativeVerificationInput;
 }
 
@@ -346,44 +326,22 @@ export const buildVerificationResult = ({
   managed,
   native,
   pinvokeImports,
-  verifiedPinvokes,
   input,
 }: VerificationResultInput): Omit<
   ManagedNativeVerificationResult,
   "verification_id"
 > => {
   const counts = countStatuses(pinvokeImports);
-  const omittedNativeObservations = Math.max(
-    0,
-    input.native_observations.length - input.limits.max_native_observations,
-  );
-  const omittedCandidates = verifiedPinvokes.reduce(
-    (sum, item) => sum + item.omittedCandidates,
-    0,
-  );
-  const nativeBodyUnresolved = managed.native_implementations.items.filter(
+  const nativeBodyUnresolved = managed.native_implementations.filter(
     ({ boundary_kind: kind }) => kind !== "pinvoke",
   ).length;
-  const coverage: ManagedNativeVerificationResult["coverage"] =
-    omittedNativeObservations > 0 || omittedCandidates > 0
-      ? {
-          status: "truncated",
-          omitted_native_observations: omittedNativeObservations,
-          omitted_candidates: omittedCandidates,
-        }
-      : managed.coverage.state === "complete" && native.unsupported === 0
-        ? {
-            status: "complete-within-inputs",
-            omitted_native_observations: 0,
-            omitted_candidates: 0,
-          }
-        : {
-            status: "partial",
-            omitted_native_observations: 0,
-            omitted_candidates: 0,
-          };
+  const coverage: ManagedNativeVerificationResult["coverage"] = {
+    status:
+      managed.coverage.state === "complete" && native.unsupported === 0
+        ? "complete-within-inputs"
+        : "partial",
+  };
   return {
-    schema_version: 1 as const,
     algorithm: {
       name: "rea-managed-native-verification" as const,
       version: 1 as const,
@@ -396,8 +354,8 @@ export const buildVerificationResult = ({
       artifact_path: managed.artifact.path,
       mvid: managed.module?.mvid ?? null,
       metadata_status: managed.metadata.status,
-      pinvoke_imports_total: managed.pinvoke_imports.total,
-      native_implementations_total: managed.native_implementations.total,
+      pinvoke_imports_total: managed.pinvoke_imports.length,
+      native_implementations_total: managed.native_implementations.length,
       coverage_state: managed.coverage.state,
     },
     native_observations: {
@@ -405,7 +363,6 @@ export const buildVerificationResult = ({
       accepted: native.accepted,
       unsupported: native.unsupported,
       symbols: native.symbols.length,
-      truncated: omittedNativeObservations > 0,
     },
     summary: {
       ...counts,
@@ -420,9 +377,7 @@ export const buildVerificationResult = ({
     coverage,
     evidence_links: [
       managedEvidence.evidence_id,
-      ...input.native_observations
-        .slice(0, input.limits.max_native_observations)
-        .map(({ evidence_id: id }) => id),
+      ...input.native_observations.map(({ evidence_id: id }) => id),
     ],
     limitations: [
       "P/Invoke verification checks declared import names against supplied native export or function-name Evidence only.",

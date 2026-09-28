@@ -9,7 +9,6 @@ import { runElectronActions } from "./PlaywrightElectronActiveActions.js";
 
 it("parses bounded window, renderer, and deep-link actions for agents", () => {
   const input = electronActiveObservationInputSchema.parse({
-    schema_version: 1,
     executable_path: "/opt/electron",
     application_path: "/opt/app/main.js",
     application_root: "/opt/app",
@@ -47,7 +46,6 @@ it("parses bounded window, renderer, and deep-link actions for agents", () => {
 
 it("rejects non-absolute deep-link values", () => {
   const result = electronActiveObservationInputSchema.safeParse({
-    schema_version: 1,
     executable_path: "/opt/electron",
     application_path: "/opt/app/main.js",
     application_root: "/opt/app",
@@ -68,7 +66,6 @@ it("rejects non-absolute deep-link values", () => {
 it("redacts action inputs from Playwright failures", async () => {
   const selector = "#secret-selector";
   const input = electronActiveObservationInputSchema.parse({
-    schema_version: 1,
     executable_path: "/opt/electron",
     application_path: "/opt/app/main.js",
     application_root: "/opt/app",
@@ -103,7 +100,6 @@ it("redacts action inputs from Playwright failures", async () => {
 
 it("runs an untargeted deep-link without requiring a BrowserWindow", async () => {
   const input = electronActiveObservationInputSchema.parse({
-    schema_version: 1,
     executable_path: "/opt/electron",
     application_path: "/opt/app/main.js",
     application_root: "/opt/app",

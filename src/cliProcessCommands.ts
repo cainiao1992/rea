@@ -15,14 +15,14 @@ import {
 import { AnalysisInputError, projectAnalysisError } from "./domain/errors.js";
 import { projectInputIssues } from "./domain/inputIssueProjection.js";
 
-/** Register Process Capture v4 one-shot commands through shared application services. */
+/** Register process capture one-shot commands through shared application services. */
 export const registerProcessCommands = (
   cli: ReturnType<typeof Cli.create>,
   logger: Logger,
 ): void => {
   registerReplayMachineCommand(cli, logger);
   cli.command(CLI_COMMANDS.captureProcess, {
-    description: "Capture one approved Process Capture v4 JSON scenario",
+    description: "Capture one approved process capture JSON scenario",
     args: z.object({ scenario: z.string().describe("Scenario JSON path") }),
     run: ({ args }) =>
       logCliCommand(logger, "capture-process", () =>
@@ -30,7 +30,7 @@ export const registerProcessCommands = (
       ),
   });
   cli.command(CLI_COMMANDS.compareProcessCaptures, {
-    description: "Compare two Process Capture v4 Evidence JSON files",
+    description: "Compare two process capture Evidence JSON files",
     args: z.object({
       left: z.string().describe("Left capture Evidence JSON path"),
       right: z.string().describe("Right capture Evidence JSON path"),

@@ -31,7 +31,6 @@ export interface AppConfig {
   readonly artifactNativeMountEnabled: boolean;
   readonly artifactIntegrityContinueEnabled: boolean;
   readonly evidenceFilePolicy: EvidenceFilePolicy;
-  readonly investigationInputRoots: readonly string[];
   readonly analysisSnapshotFilePolicy: EvidenceFilePolicy;
   readonly referenceSourcePolicy: ReferenceSourcePolicy;
   readonly browserObservationPolicy: BrowserObservationPolicy;

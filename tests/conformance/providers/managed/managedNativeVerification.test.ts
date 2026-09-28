@@ -64,7 +64,6 @@ describe("managed/native boundary verification", () => {
     const result = verifyManagedNativeBoundaries(exampleInput());
 
     expect(result).toMatchObject({
-      schema_version: 1,
       algorithm: {
         name: "rea-managed-native-verification",
         token_to_address_mapping: "not-inferred",
@@ -174,20 +173,18 @@ describe("managed/native boundary verification", () => {
     });
   });
 
-  it("reports omitted native candidates when candidate limits truncate matches", () => {
+  it("retains every observed native candidate", () => {
     const result = verifyManagedNativeBoundaries({
       ...exampleInput(),
       native_observations: [
         nativeEvidenceWithExports(["open_native", "_open_native"]),
       ],
-      limits: { max_native_observations: 20, max_candidates_per_import: 1 },
     });
 
     expect(result.coverage).toMatchObject({
-      status: "truncated",
-      omitted_candidates: 1,
+      status: "complete-within-inputs",
     });
-    expect(result.pinvoke_imports[0]?.candidates).toHaveLength(1);
+    expect(result.pinvoke_imports[0]?.candidates).toHaveLength(2);
   });
 
   it("wraps verification in derived workflow Evidence", () => {

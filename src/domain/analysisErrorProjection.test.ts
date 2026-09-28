@@ -6,6 +6,9 @@ import {
   ArtifactOperationError,
   BinaryTargetError,
   HopperProcessError,
+  HopperRemoteError,
+  HopperStartError,
+  HopperTimeoutError,
   PermissionRequiredError,
   ProviderAdapterError,
   ReplayPlanStaleError,
@@ -14,6 +17,72 @@ import {
 } from "./errors.js";
 
 describe("analysis error projection: provider failures", () => {
+  it("reports a timed-out active Hopper request and actionable retry guidance", () => {
+    const projected = projectAnalysisError(
+      new HopperTimeoutError(30_000, "find_code_for_string", 42, "busy"),
+    );
+
+    expect(projected).toMatchObject({
+      code: "provider_timeout",
+      category: "timeout",
+      retryable: true,
+      details: {
+        stage: "analysis",
+        operation: "find_code_for_string",
+        request_id: 42,
+        provider_state: "busy",
+        timeout_ms: 30_000,
+      },
+    });
+    expect(projected.message).toContain("binary_session.analysis_activity");
+    expect(projected.remediation.action).toContain(
+      "wait for the active Hopper request",
+    );
+  });
+
+  it("identifies the REA session that already owns a Hopper target", () => {
+    const error = new HopperStartError({
+      ownerRunId: "session-owner",
+      userMessage:
+        "This Hopper target is already open in REA session session-owner. Use that REA session or close it before opening this target again.",
+    });
+    expect(projectAnalysisError(error)).toMatchObject({
+      category: "unavailable",
+      message: expect.stringContaining("session-owner"),
+      remediation: {
+        action: expect.stringContaining(
+          "Use the active REA session session-owner",
+        ),
+      },
+    });
+  });
+
+  it("retains the Hopper request and provider diagnostic on a remote failure", () => {
+    expect(
+      projectAnalysisError(
+        new HopperRemoteError(
+          7,
+          "Hopper analysis failed in the selected document",
+          {
+            diagnosticType: "bridge_exception",
+            operation: "find_code_for_string",
+            requestId: 43,
+          },
+        ),
+      ),
+    ).toMatchObject({
+      code: "execution_failure",
+      details: {
+        stage: "analysis",
+        provider_code: 7,
+        diagnostic_type: "bridge_exception",
+        operation: "find_code_for_string",
+        request_id: 43,
+      },
+      message: expect.stringContaining("Hopper analysis failed"),
+    });
+  });
+
   it("preserves detached, actionable provider diagnostics", () => {
     const diagnostics = {
       runtime_root: "/tmp/rea-ghidra-fixture",

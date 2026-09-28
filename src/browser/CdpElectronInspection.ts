@@ -113,7 +113,6 @@ const runElectronInspection = async (
   await assertStableMainFrame(context, state, main.file_path);
   await report(context.progress, 3, "Electron inspection complete");
   return {
-    schema_version: 1,
     browser: context.discovery.version,
     target: {
       target_id: context.target.id,

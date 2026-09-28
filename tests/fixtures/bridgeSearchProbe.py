@@ -16,20 +16,16 @@ def _probe(namespace, payload):
     action = payload["action"]
     try:
         if action == "match":
-            parsed = namespace["sre_parse"].parse(payload["pattern"])
-            paths, steps = namespace["_validate_regex_node"](parsed)
             flags = (
                 0
                 if payload.get("case_sensitive", False)
                 else namespace["re"].IGNORECASE
             )
             expression = namespace["re"].compile(payload["pattern"], flags)
-            matcher = namespace["_bounded_regex_matcher"](expression, paths, steps)
-            matched = matcher(payload["value"])
+            matched = expression.search(payload["value"]) is not None
             return {
                 "action": action,
                 "ok": True,
-                "backtracking_paths": paths,
                 "matched": matched,
             }
         if action == "search":
@@ -38,7 +34,7 @@ def _probe(namespace, payload):
             return {
                 "action": action,
                 "ok": True,
-                "result": namespace["_search_page"](
+                "result": namespace["_search_results"](
                     object(), "string", payload["params"]
                 ),
             }

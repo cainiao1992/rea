@@ -278,9 +278,7 @@ The adapter returns this provider-neutral envelope:
 
 ```json
 {
-  "schema_version": 1,
   "provider": { "id": "ghidra", "version": "<concrete version>" },
-  "provider_profile_schema_version": 1,
   "parameters": {},
   "digest": "<sha256 of RFC 8785 canonical JSON excluding digest>"
 }
@@ -295,8 +293,8 @@ parameters as opaque data.
 A selected deep binding requires a concrete provider version. If the adapter
 cannot determine it, the candidate is unavailable with `version_unresolved`;
 REA does not persist a cache that merely commits `null` or "whatever is
-installed". Provider identity, provider-profile schema version, normalized
-parameters, or provider version changes produce a different digest.
+installed". Provider identity, normalized parameters, or provider version
+changes produce a different digest.
 
 The same target, configuration, and provider must resolve the same profile over
 CLI and MCP. Profile resolution must be side-effect-free and complete before
@@ -321,7 +319,7 @@ A cached entry is reusable only when all of the following match exactly:
 
 - target digest, generic format and kind, and selected architecture;
 - provider ID and provider version;
-- profile schema versions and profile digest;
+- profile digest;
 - operation and canonical parameters; and
 - the existing cacheability and immutability rules.
 

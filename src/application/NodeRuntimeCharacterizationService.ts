@@ -129,7 +129,6 @@ export const executeNodeCharacterization = async (
   return ok(
     jsonValueSchema.parse(
       nodeCharacterizationExecutionOutputSchema.parse({
-        schema_version: 1,
         phase: "execution",
         plan: prepared.value.plan,
         transformation: host.instrumentation.manifest,
@@ -148,7 +147,6 @@ const prepareValidated = async (
 ): Promise<
   Result<
     {
-      readonly schema_version: 1;
       readonly phase: "preparation";
       readonly plan: RuntimeCharacterizationPlan;
       readonly transformation: NonNullable<
@@ -192,7 +190,6 @@ const prepareValidated = async (
     output.plan,
   );
   return ok({
-    schema_version: 1,
     phase: "preparation",
     plan,
     transformation: host.instrumentation.manifest,

@@ -4,9 +4,7 @@ import { readFile, realpath } from "node:fs/promises";
 import { parseArgs } from "node:util";
 
 import { analyzeJavaScriptApplication } from "../dist/application/JavaScriptApplicationService.js";
-import { PermissionAuthority } from "../dist/application/PermissionAuthority.js";
 import { reconcileJavaScriptRuntimeEvidence } from "../dist/application/JavaScriptRuntimeReconciliationService.js";
-import { createPermissionPolicy } from "../dist/domain/permissionPolicy.js";
 import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
 
 const verifierRun = createVerifierRun();
@@ -18,7 +16,6 @@ const options = parseArgs({
     assets: { type: "string", multiple: true, default: [] },
     "runtime-evidence": { type: "string", multiple: true, default: [] },
     mapping: { type: "string", multiple: true, default: [] },
-    "source-map-read-approved": { type: "boolean", default: false },
   },
   strict: true,
   allowPositionals: false,
@@ -42,14 +39,11 @@ const canonicalLayers = await Promise.all(
     path: await realpath(layer.path),
   })),
 );
-const authority = permissionAuthority(canonicalLayers.map(({ path }) => path));
 const staticLayers = [];
 for (const layer of canonicalLayers) {
-  const analyzed = await analyzeJavaScriptApplication(authority, {
+  const analyzed = await analyzeJavaScriptApplication({
     input_path: layer.path,
     format: "auto",
-    approved: true,
-    source_map_read_approved: options["source-map-read-approved"],
   });
   if (!analyzed.ok) throw analyzed.error;
   staticLayers.push({
@@ -103,31 +97,6 @@ process.stdout.write(
     verified: true,
   })}\n`,
 );
-
-function permissionAuthority(roots) {
-  const scope = {
-    capability: "investigation_input",
-    roots,
-    executables: [],
-    environment_names: [],
-    network: "none",
-    mount: false,
-  };
-  return new PermissionAuthority(
-    createPermissionPolicy(
-      [scope],
-      [
-        {
-          ...scope,
-          grant_id: "local-javascript-runtime-verifier",
-          lifetime: "session",
-          operation_identity: null,
-          expires_at: null,
-        },
-      ],
-    ),
-  );
-}
 
 async function readEvidenceFile(path) {
   const bytes = await readFile(await realpath(path));

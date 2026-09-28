@@ -29,7 +29,7 @@ describe("managed CIL decoding", () => {
       MANAGED_MEMBER_FIXTURE_LIMITS,
     );
 
-    expect(result.methods.items[0]?.body).toMatchObject({
+    expect(result.methods[0]?.body).toMatchObject({
       status: "present",
       header_format: "fat",
       il_size: il.length,
@@ -56,7 +56,7 @@ describe("managed CIL decoding", () => {
       MANAGED_MEMBER_FIXTURE_LIMITS,
     );
 
-    expect(result.methods.items[0]?.body).toMatchObject({
+    expect(result.methods[0]?.body).toMatchObject({
       status: "malformed",
       il_size: 2,
       normalized_il_sha256: null,
@@ -89,7 +89,7 @@ describe("managed CIL decoding", () => {
       MANAGED_MEMBER_FIXTURE_LIMITS,
     );
 
-    expect(tiny.methods.items[0]?.body).toMatchObject({
+    expect(tiny.methods[0]?.body).toMatchObject({
       status: "present",
       header_format: "tiny",
       max_stack: 8,
@@ -102,13 +102,13 @@ describe("managed CIL decoding", () => {
       opcode_counts: { nop: 1, ret: 1 },
       exception_regions: [],
     });
-    expect(fat.methods.items[0]?.body).toMatchObject({
+    expect(fat.methods[0]?.body).toMatchObject({
       header_format: "fat",
       max_stack: 32,
       init_locals: true,
       local_var_sig_token: "0x11000001",
-      il_sha256: tiny.methods.items[0]?.body.il_sha256,
-      normalized_il_sha256: tiny.methods.items[0]?.body.normalized_il_sha256,
+      il_sha256: tiny.methods[0]?.body.il_sha256,
+      normalized_il_sha256: tiny.methods[0]?.body.normalized_il_sha256,
     });
   });
 });

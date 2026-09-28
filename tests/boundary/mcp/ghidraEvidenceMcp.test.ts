@@ -26,23 +26,17 @@ describe("Ghidra MCP evidence parity", () => {
             analyzer_preset: "ghidra-default",
           },
         },
-        normalized_result: {
-          items: [
-            {
-              address: "0x401000",
-              value: "fixture_main",
-              procedure: {
-                external: false,
-                thunk: false,
-                thunk_target: null,
-              },
+        normalized_result: [
+          {
+            address: "0x401000",
+            value: "fixture_main",
+            procedure: {
+              external: false,
+              thunk: false,
+              thunk_target: null,
             },
-          ],
-          total: 1,
-        },
-        raw_result: {
-          items: [{ value_truncated: false }],
-        },
+          },
+        ],
       });
 
       const mcpOverview = sessionEvidence(
@@ -50,13 +44,13 @@ describe("Ghidra MCP evidence parity", () => {
         (
           await mcp.callTool({
             name: "binary_overview",
-            arguments: { detail: "detailed", limit: 5 },
+            arguments: {},
           })
         ).structuredContent,
       );
       const directOverview = await new EnhancedTools(session).execute(
         "binary_overview",
-        { detail: "detailed", limit: 5 },
+        {},
       );
       expect(directOverview.ok).toBe(true);
       if (!directOverview.ok) return;
@@ -97,7 +91,7 @@ describe("Ghidra MCP evidence parity", () => {
         (
           await mcp.callTool({
             name: "analyze_function",
-            arguments: { procedure: "fixture_main", include_assembly: true },
+            arguments: { procedure: "fixture_main" },
           })
         ).structuredContent,
       );
@@ -114,17 +108,12 @@ describe("Ghidra MCP evidence parity", () => {
               provenance: "ghidra-function-manager",
             },
           },
-          pseudocode: { truncated: false },
-          outgoing_references: {
-            items: [
-              {
-                kind: {
-                  available: true,
-                  provenance: "ghidra-reference-manager",
-                },
-              },
-            ],
-          },
+          pseudocode: "int fixture_main(void) { return 42; }",
+          outgoing_references: [
+            {
+              kind: { available: true, provenance: "ghidra-reference-manager" },
+            },
+          ],
           limitations: expect.arrayContaining([
             expect.stringContaining("indirect flows without target addresses"),
             expect.stringContaining(
@@ -138,7 +127,7 @@ describe("Ghidra MCP evidence parity", () => {
       });
       const directAnalyzed = await new EnhancedTools(session).execute(
         "analyze_function",
-        { procedure: "fixture_main", include_assembly: true },
+        { procedure: "fixture_main" },
       );
       expect(directAnalyzed.ok).toBe(true);
       if (!directAnalyzed.ok) return;

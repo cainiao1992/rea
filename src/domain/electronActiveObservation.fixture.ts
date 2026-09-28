@@ -5,7 +5,6 @@ export const createElectronActiveObservationFixtureResult = (
   applicationPath: string,
 ) =>
   electronActiveObservationResultSchema.parse({
-    schema_version: 1,
     application: {
       executable_path: process.execPath,
       application_path: applicationPath,

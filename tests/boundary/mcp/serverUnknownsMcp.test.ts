@@ -35,8 +35,6 @@ const providerWithCapabilities = (
     (operation) => ({
       provider: identity,
       operation,
-      inputContractVersion: 1,
-      outputContractVersion: 1,
       available: true,
       reason: null,
       pagination: "none",
@@ -76,69 +74,6 @@ const structured = (result: CallToolResult): Record<string, unknown> => {
     throw new Error("missing structured result");
   return Object.fromEntries(Object.entries(result.structuredContent));
 };
-
-it("records approved trace truncation as a deduplicated residual unknown", async () => {
-  const analysis: AnalysisOperationPort = {
-    execute: () =>
-      Promise.resolve(
-        ok({
-          items: [],
-          offset: 0,
-          limit: 500,
-          total: 0,
-          next_offset: null,
-          has_more: false,
-        }),
-      ),
-  };
-  const session = createTestBinarySession(
-    providerWithCapabilities([
-      "list_strings",
-      "list_procedures",
-      "xrefs",
-      "resolve_containing_procedure",
-    ]),
-  );
-  const server = createServer(analysis, session);
-  const client = new Client({ name: "unknown-workflow", version: "1.0.0" });
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair();
-  resources.push(client, server);
-  await server.connect(serverTransport);
-  await client.connect(clientTransport);
-  await client.callTool({
-    name: "open_binary",
-    arguments: { path: process.execPath },
-  });
-
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const traced = await client.callTool({
-      name: "trace_feature",
-      arguments: {
-        query: "license",
-        max_operations: 1,
-        unknown_registry_approved: true,
-      },
-    });
-    expect(traced.isError).not.toBe(true);
-  }
-  const listed = structured(
-    await client.callTool({ name: "list_unknowns", arguments: {} }),
-  );
-  expect(listed).toMatchObject({
-    result: {
-      items: [
-        {
-          unknown: {
-            status: "open",
-            domain: "control-flow",
-            question: "Investigation reached the operation budget.",
-          },
-        },
-      ],
-    },
-  });
-}, 10_000);
 
 it("records approved typed capability unavailability without forwarding the flag", async () => {
   const received: Array<Readonly<Record<string, unknown>>> = [];
@@ -191,17 +126,15 @@ it("records approved typed capability unavailability without forwarding the flag
     result: {
       items: [
         {
-          unknown: {
-            domain: "analysis-capability",
-            question:
-              "The requested analysis is unavailable for the current target.",
-            recommended_probes: [
-              {
-                rationale:
-                  "Choose another analysis or target that can answer this question.",
-              },
-            ],
-          },
+          domain: "analysis-capability",
+          question:
+            "The requested analysis is unavailable for the current target.",
+          recommended_probes: [
+            {
+              rationale:
+                "Choose another analysis or target that can answer this question.",
+            },
+          ],
         },
       ],
     },
@@ -243,7 +176,7 @@ it("records approved capture disagreement as a contradicted unknown", async () =
   });
   const captureEvidence = (capture: typeof left) =>
     createEvidence(undefined, PROCESS_PROVIDER, {
-      predicateType: "rea.process-capture/v4",
+      predicateType: "rea.process-capture",
       operation: "capture_process_scenario",
       parameters: {},
       result: jsonValueSchema.parse(capture),
@@ -291,12 +224,10 @@ it("records approved capture disagreement as a contradicted unknown", async () =
     result: {
       items: [
         {
-          unknown: {
-            status: "contradicted",
-            domain: "process-comparison",
-            question: "Process captures disagree across: interaction, shim",
-            contradicting_evidence_ids: [rightEvidence.evidence_id],
-          },
+          status: "contradicted",
+          domain: "process-comparison",
+          question: "Process captures disagree across: interaction, shim",
+          contradicting_evidence_ids: [rightEvidence.evidence_id],
         },
       ],
     },

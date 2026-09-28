@@ -317,7 +317,6 @@ const runScenario = async (
   const events = session.events();
   const completeness = globalCompleteness(scenario, session, steps);
   return browserScenarioCaptureSchema.parse({
-    schema_version: 1,
     browser: {
       mode: session.mode,
       process_ownership: session.processOwnership,

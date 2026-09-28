@@ -17,15 +17,11 @@ const LIMITS = {
 } as const;
 
 describe("authorized artifact inventory", () => {
-  it("uses a valid input root when another configured root is missing", async () => {
+  it("scans a local artifact without configured input roots", async () => {
     const root = await createTestTempDirectory("rea-artifact-roots-");
     const path = join(root, "artifact.js");
     await writeFile(path, "export const value = 1;\n");
-    const inventory = await scanAuthorizedArtifactInventory(
-      path,
-      [join(root, "missing"), root],
-      LIMITS,
-    );
+    const inventory = await scanAuthorizedArtifactInventory(path, LIMITS);
     expect(inventory.manifest.root_format).toBe("javascript-bundle");
   });
 });

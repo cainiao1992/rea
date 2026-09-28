@@ -28,8 +28,6 @@ describe("binary session", () => {
         {
           provider: { id: "partial", name: "Partial", version: "1" },
           operation: "address_name",
-          inputContractVersion: 1,
-          outputContractVersion: 1,
           available: false,
           reason: "fixture intentionally omits symbol lookup",
           pagination: "none",

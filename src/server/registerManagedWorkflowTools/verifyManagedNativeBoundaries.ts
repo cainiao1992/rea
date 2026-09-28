@@ -101,9 +101,7 @@ export const registerVerifyManagedNativeBoundaries = (
           : options.recordEvidence?.(result.value);
       if (output !== undefined && !output.ok)
         return toCallToolResult(output, nativeVerificationContract);
-      return toCallToolResult(result, nativeVerificationContract, {
-        evidenceResourcesAvailable: output !== undefined,
-      });
+      return toCallToolResult(result, nativeVerificationContract);
     },
   );
 };

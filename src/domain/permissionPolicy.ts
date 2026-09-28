@@ -12,7 +12,6 @@ export const PERMISSION_CAPABILITIES = [
   "v8_inspector_observe",
   "evidence_read",
   "evidence_write",
-  "investigation_input",
   "investigation_workspace_read",
   "investigation_workspace_write",
   "snapshot_read",

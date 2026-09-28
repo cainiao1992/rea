@@ -143,7 +143,6 @@ const nativeApiInspectionSubstepSchema = z
 /** Agent-facing projection of structured native API reconstruction substeps. */
 export const nativeApiInspectionResultSchema = z
   .object({
-    schema_version: z.literal(1),
     procedure: z
       .object({
         address: z.string().min(1),

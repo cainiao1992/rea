@@ -44,13 +44,10 @@ describe("managed artifact inventory", () => {
       token: "0x20000001",
     });
     expect(result.target_frameworks).toEqual([".NETCoreApp,Version=v8.0"]);
-    expect(result.references).toMatchObject({
-      total: 1,
-      returned: 1,
-      complete: true,
-      items: [expect.objectContaining({ name: "System.Runtime" })],
-    });
-    expect(result.resources.items).toEqual([
+    expect(result.references).toEqual([
+      expect.objectContaining({ name: "System.Runtime" }),
+    ]);
+    expect(result.resources).toEqual([
       expect.objectContaining({
         name: "Fixture.resources",
         embedded: true,
@@ -62,26 +59,19 @@ describe("managed artifact inventory", () => {
     expect(result.coverage).toMatchObject({ state: "complete", issues: [] });
   });
 
-  it("keeps classification evidence complete when caller pages visible references", () => {
+  it("returns all references inline while classifying from the full inventory", () => {
     const bytes = buildManagedPeFixture({
       references: ["System.Runtime", "UnityEngine.CoreModule"],
     });
     const result = inspectManagedArtifactBytes(
       bytes,
       managedPeFixtureTarget(bytes),
-      {
-        ...MANAGED_ARTIFACT_FIXTURE_LIMITS,
-        referenceLimit: 1,
-      },
+      MANAGED_ARTIFACT_FIXTURE_LIMITS,
     );
 
     expect(result.classification.runtime_family).toBe("unity-mono");
-    expect(result.references).toMatchObject({
-      total: 2,
-      returned: 1,
-      complete: false,
-    });
-    expect(result.coverage.state).toBe("partial");
+    expect(result.references).toHaveLength(2);
+    expect(result.coverage.state).toBe("complete");
     expect(result.coverage.issues).toEqual([]);
   });
 
@@ -124,11 +114,11 @@ describe("managed artifact inventory", () => {
       MANAGED_MEMBER_FIXTURE_LIMITS,
     );
 
-    expect(result.fields.items[0]?.signature).toMatchObject({
+    expect(result.fields[0]?.signature).toMatchObject({
       parse_status: "decoded",
       field_type: "i4**[]",
     });
-    expect(result.methods.items[0]?.signature).toMatchObject({
+    expect(result.methods[0]?.signature).toMatchObject({
       parse_status: "decoded",
       return_type: "i4&",
       parameter_types: ["i4*", "string&"],

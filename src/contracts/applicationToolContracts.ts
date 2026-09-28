@@ -1,5 +1,4 @@
 import { applicationVersionComparisonResultSchema } from "../domain/javascriptApplicationVersionComparisonSchemas.js";
-import { z } from "zod";
 import { applicationFeatureTraceResultSchema } from "../domain/javascriptFeatureTraceSchemas.js";
 import { javaScriptSemanticTraceResultSchema } from "../domain/javascriptSemanticTraceSchemas.js";
 import { javaScriptExportShapeComparisonResultSchema } from "../domain/javascriptExportShapeComparisonSchemas.js";
@@ -64,24 +63,7 @@ const reconstructionObligationLedgerOutputSchema = evidenceResultOf(
   reconstructionObligationLedgerPageSchema,
 );
 const reconstructionReadinessOutputSchema = evidenceResultOf(
-  reconstructionReadinessReportSchema
-    .pick({
-      schema: true,
-      schema_version: true,
-      report_id: true,
-      source_digest: true,
-      report_digest: true,
-      status: true,
-      summary: true,
-      metrics: true,
-    })
-    .extend({
-      report_resource_uri: z
-        .string()
-        .regex(
-          /^rea:\/\/evidence\/ev_[a-f0-9]{64}\/reconstruction-readiness-report$/u,
-        ),
-    }),
+  reconstructionReadinessReportSchema,
 );
 const HASH = "0".repeat(64);
 const NODE_PREPARATION_EXAMPLE = jsonObjectSchema.parse({
@@ -118,14 +100,12 @@ const NODE_PREPARATION_EXAMPLE = jsonObjectSchema.parse({
 });
 
 const COVERAGE_WORKSPACE_EXAMPLE = jsonObjectSchema.parse({
-  schema_version: 1,
   workspace_id: `rcw_${HASH}`,
   name: "replacement",
   revision: 1,
   previous_revision_sha256: null,
   revision_sha256: HASH,
   evidence_bundle: {
-    bundle_version: 2,
     artifacts: [],
     providers: [],
     environments: [],
@@ -152,7 +132,7 @@ export const APPLICATION_TOOL_CONTRACTS = [
     name: "trace_application_feature",
     ...toolContractMetadata("trace_application_feature"),
     description:
-      "Trace a typed literal seed through an authenticated JavaScript Application Graph supplied as full Evidence or an Evidence ID returned earlier in this session. Explicit direction, depth, node, edge, and path bounds apply. Original static, native, passive-runtime, inferred, and unknown authorities remain distinct; native addon handoffs never open a provider or execute the application.",
+      "Trace a typed literal seed through every reachable part of an authenticated JavaScript Application Graph supplied as full Evidence or an Evidence ID returned earlier in this session. Original static, native, passive-runtime, inferred, and unknown authorities remain distinct; native addon handoffs never open a provider or execute the application.",
     kind: "application",
     inputSchema: traceApplicationFeatureRequestSchema,
     outputSchema: traceOutputSchema,
@@ -167,7 +147,7 @@ export const APPLICATION_TOOL_CONTRACTS = [
     name: "trace_javascript_semantics",
     ...toolContractMetadata("trace_javascript_semantics"),
     description:
-      "Trace bounded static JavaScript data-flow, direct call/return, and closure relations from authenticated analyze_javascript_application v2 Evidence. Queries declare direction and exact node, relation, depth, function, module, and page limits. Dynamic or unsupported semantics remain explicit unknowns; static reachability never claims runtime execution.",
+      "Trace static JavaScript data-flow, direct call/return, and closure relations from the inline Evidence returned by analyze_javascript_application. Dynamic or unsupported semantics remain explicit unknowns; static reachability never claims runtime execution.",
     kind: "application",
     inputSchema: traceJavaScriptSemanticsRequestSchema,
     outputSchema: semanticTraceOutputSchema,
@@ -302,7 +282,7 @@ export const APPLICATION_TOOL_CONTRACTS = [
     name: "execute_node_characterization",
     ...toolContractMetadata("execute_node_characterization"),
     description:
-      "Recompute and execute one separately approved exact Node characterization plan in the owned controlled-replay boundary. Returns transformation, replay, cleanup, and provider-neutral characterization Evidence v2; stale plans fail before execution.",
+      "Recompute and execute one separately approved exact Node characterization plan in the owned controlled-replay boundary. Returns transformation, replay, cleanup, and provider-neutral characterization Evidence; stale plans fail before execution.",
     kind: "application",
     inputSchema: nodeCharacterizationExecutionInputSchema,
     outputSchema: nodeCharacterizationExecutionOutputSchema,
@@ -321,7 +301,7 @@ export const APPLICATION_TOOL_CONTRACTS = [
     name: "build_reconstruction_obligation_ledger",
     ...toolContractMetadata("build_reconstruction_obligation_ledger"),
     description:
-      "Generate one deterministic page of a ReconstructionObligationLedger/v1 from an authenticated Evidence v2 bundle, reviewed obligations, and an explicit reconstruction manifest. Static candidates remain candidates; duplicate ownership, missing original or reconstruction cases, missing parser/type, weak verifier authority, unenumerated claims, contradictions, dependencies, and residual unknowns fail closed. Every page carries the same full-ledger closure digest and typed per-obligation diagnostics.",
+      "Generate one deterministic page of a ReconstructionObligationLedger from an authenticated Evidence bundle, reviewed obligations, and an explicit reconstruction manifest. Static candidates remain candidates; duplicate ownership, missing original or reconstruction cases, missing parser/type, weak verifier authority, unenumerated claims, contradictions, dependencies, and residual unknowns fail closed. Every page carries the same full-ledger closure digest and typed per-obligation diagnostics.",
     kind: "application",
     inputSchema: reconstructionObligationLedgerInputSchema,
     outputSchema: reconstructionObligationLedgerOutputSchema,
@@ -330,7 +310,6 @@ export const APPLICATION_TOOL_CONTRACTS = [
         title: "Generate the first obligation-ledger page",
         input: {
           evidence_bundle: {
-            bundle_version: 2,
             artifacts: [],
             providers: [],
             environments: [],
@@ -341,11 +320,9 @@ export const APPLICATION_TOOL_CONTRACTS = [
           },
           reviewed_obligations: [],
           manifest: {
-            schema_version: 1,
             bindings: [],
             contradictions: [],
           },
-          limits: { max_obligations: 1_000 },
           page: { offset: 0, limit: 50 },
         },
       },

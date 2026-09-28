@@ -6,10 +6,7 @@ import { describe, expect, it } from "vitest";
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 
 import { ArtifactProvider } from "../../../../src/artifacts/ArtifactProvider.js";
-import {
-  artifactExtractionInputSchema,
-  artifactInventoryInputSchema,
-} from "../../../../src/contracts/artifactToolContracts.js";
+import { artifactExtractionInputSchema } from "../../../../src/contracts/artifactToolContracts.js";
 import {
   artifactExtractionResultSchema,
   artifactInventoryResultSchema,
@@ -110,20 +107,17 @@ describe("artifact extraction", () => {
       ok: false,
       error: { _tag: "ArtifactOperationError", reason: "path" },
     });
-    expect(await readdir(root)).not.toEqual(
-      expect.arrayContaining([expect.stringMatching(/^\.output\.rea-/u)]),
-    );
+    expect((await readdir(root)).sort()).toEqual([
+      "output",
+      "relocated-output",
+      "source",
+    ]);
   });
 });
 const inventory = async (targetValue: BinaryTarget) => {
-  const result = await new ArtifactProvider().createClient(targetValue).execute(
-    "inventory_artifact",
-    artifactInventoryInputSchema.parse({
-      node_limit: 500,
-      occurrence_limit: 500,
-      edge_limit: 500,
-    }),
-  );
+  const result = await new ArtifactProvider()
+    .createClient(targetValue)
+    .execute("inventory_artifact", {});
   if (!result.ok) throw result.error;
   return artifactInventoryResultSchema.parse(result.value.result);
 };

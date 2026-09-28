@@ -194,7 +194,6 @@ export type WebSourceMaps = z.infer<typeof webSourceMapsSchema>;
 
 /** Provider-neutral result of bounded JavaScript bundle reverse engineering. */
 export const webBundleAnalysisSchema = z.object({
-  schema_version: z.literal(1),
   capture: z.object({
     target_url: z.string(),
     scripts_observed: z.number().int().min(0),

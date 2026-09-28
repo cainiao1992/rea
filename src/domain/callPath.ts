@@ -5,7 +5,6 @@ import {
   callPathInputSchema,
   callPathResultSchema,
   parseCallPathAddress,
-  type CallPathEvidenceGroup,
   type CallPathInput,
   type CallPathResult,
   type OutputCallPath,
@@ -14,9 +13,6 @@ import {
   parseFunctionEvidence,
   type FunctionSnapshot,
 } from "./functionDossierEvidence.js";
-
-const MAX_GRAPH_EDGES = 10_000;
-const MAX_PATH_EXPANSIONS = 100_000;
 
 export { callPathInputSchema, callPathResultSchema };
 export type { CallPathInput, CallPathResult };
@@ -29,7 +25,7 @@ interface SearchState {
   readonly limitations: readonly string[];
 }
 
-/** Reconstruct bounded direct-callee paths from explicit analyze_function Evidence. */
+/** Reconstruct direct-callee paths from explicit analyze_function Evidence. */
 export const buildCallPath = (input: CallPathInput): CallPathResult => {
   const parsed = callPathInputSchema.parse(input);
   const { snapshots, graph } = prepareCallGraph(parsed);
@@ -38,37 +34,24 @@ export const buildCallPath = (input: CallPathInput): CallPathResult => {
     snapshots,
     start: parsed.start.address,
     goal: parsed.goal.address,
-    maxDepth: parsed.max_depth,
   });
   const shortest =
     graph.hasNode(parsed.start.address) && graph.hasNode(parsed.goal.address)
       ? bidirectional(graph, parsed.start.address, parsed.goal.address)
       : null;
-  const enumeration =
-    shortest === null || shortest.length - 1 > parsed.max_depth
-      ? { paths: [], budgetExhausted: false }
+  const paths =
+    shortest === null
+      ? []
       : enumeratePaths({
           graph,
           start: parsed.start.address,
           goal: parsed.goal.address,
           shortestDepth: shortest.length - 1,
-          maxDepth: parsed.max_depth,
-          limit: parsed.max_paths + 1,
-        });
-  const hasKnownExtraPath = enumeration.paths.length > parsed.max_paths;
-  const capped = hasKnownExtraPath || enumeration.budgetExhausted;
-  const retained = enumeration.paths.slice(0, parsed.max_paths);
-  const paths = retained.map((path) => citePath(path, snapshots));
-  const total = paths.length;
-  const items = paths.slice(parsed.offset, parsed.offset + parsed.limit);
+        }).paths.map((path) => citePath(path, snapshots));
   const shortestHops = paths[0]?.hops;
   const found = shortestHops !== undefined;
-  const exhaustive = search.exhaustive && !capped;
-  const limitations = deriveLimitations(
-    search,
-    { budgetExhausted: enumeration.budgetExhausted, capped, found, shortest },
-    parsed,
-  );
+  const exhaustive = search.exhaustive;
+  const limitations = search.limitations;
   const resultContext = {
     start: parsed.start.address,
     goal: parsed.goal.address,
@@ -78,82 +61,22 @@ export const buildCallPath = (input: CallPathInput): CallPathResult => {
       left.localeCompare(right),
     ),
   };
-  const searchScope = {
-    max_depth: parsed.max_depth,
-    max_paths: parsed.max_paths,
-  };
-  const pathPage = {
-    items,
-    offset: parsed.offset,
-    limit: parsed.limit,
-    returned: items.length,
-    lower_bound: total + (hasKnownExtraPath ? 1 : 0),
-    next_offset:
-      parsed.offset + items.length < total
-        ? parsed.offset + items.length
-        : null,
-  };
-  if (capped)
-    return callPathResultSchema.parse({
-      ...resultContext,
-      status: "truncated",
-      shortest_hops: shortestHops ?? null,
-      search_scope: { ...searchScope, exhaustive: false },
-      paths: { ...pathPage, total: null, truncated: true },
-    });
+  const searchScope = { exhaustive };
   if (found)
     return callPathResultSchema.parse({
       ...resultContext,
       status: "found",
       shortest_hops: shortestHops,
-      search_scope: { ...searchScope, exhaustive },
-      paths: { ...pathPage, total, truncated: false },
+      search_scope: searchScope,
+      paths,
     });
   return callPathResultSchema.parse({
     ...resultContext,
     status: exhaustive ? "not_found" : "unknown",
     shortest_hops: null,
-    search_scope: { ...searchScope, exhaustive },
-    paths: {
-      ...pathPage,
-      items: [],
-      total: 0,
-      returned: 0,
-      truncated: false,
-      lower_bound: 0,
-      next_offset: null,
-    },
+    search_scope: searchScope,
+    paths: [],
   });
-};
-
-interface PathOutcome {
-  readonly budgetExhausted: boolean;
-  readonly capped: boolean;
-  readonly found: boolean;
-  readonly shortest: readonly string[] | null;
-}
-
-const deriveLimitations = (
-  search: SearchState,
-  outcome: PathOutcome,
-  input: CallPathInput,
-): string[] => {
-  const limitations = [...search.limitations];
-  if (outcome.capped)
-    limitations.push(
-      outcome.budgetExhausted
-        ? `Path enumeration stopped at ${MAX_PATH_EXPANSIONS} expansions`
-        : `Path enumeration stopped at max_paths=${input.max_paths}`,
-    );
-  if (
-    !outcome.found &&
-    outcome.shortest !== null &&
-    outcome.shortest.length - 1 > input.max_depth
-  )
-    limitations.push(
-      `The shortest observed path exceeds max_depth=${input.max_depth}`,
-    );
-  return limitations;
 };
 
 const summarizeSearch = (
@@ -179,7 +102,7 @@ const prepareCallGraph = (input: CallPathInput) => {
 };
 
 const parseSnapshots = (
-  groups: readonly CallPathEvidenceGroup[],
+  groups: CallPathInput["functions"],
 ): Map<string, FunctionSnapshot> => {
   const snapshots = new Map<string, FunctionSnapshot>();
   for (const group of groups) {
@@ -226,10 +149,6 @@ const createGraph = (
       const calleeAddress = normalizeAddress(callee.address);
       graph.mergeNode(calleeAddress);
       graph.mergeDirectedEdge(address, calleeAddress);
-      if (graph.size > MAX_GRAPH_EDGES)
-        throw new TypeError(
-          `Call graph exceeds ${MAX_GRAPH_EDGES} directed edges`,
-        );
     }
   }
   return graph;
@@ -240,7 +159,6 @@ interface SearchInput {
   readonly snapshots: ReadonlyMap<string, FunctionSnapshot>;
   readonly start: string;
   readonly goal: string;
-  readonly maxDepth: number;
 }
 
 const inspectSearch = ({
@@ -248,7 +166,6 @@ const inspectSearch = ({
   snapshots,
   start,
   goal,
-  maxDepth,
 }: SearchInput): SearchState => {
   if (!graph.hasNode(start))
     return {
@@ -275,18 +192,9 @@ const inspectSearch = ({
       );
       continue;
     }
-    if (!snapshot.collections.callees.complete)
-      limitations.push(
-        `Callee coverage is incomplete for reachable function ${node}`,
-      );
     const neighbors = graph
       .outNeighbors(node)
       .sort((left, right) => left.localeCompare(right));
-    if (depth === maxDepth) {
-      if (neighbors.length > 0)
-        limitations.push(`Search reached max_depth=${maxDepth} at ${node}`);
-      continue;
-    }
     for (const neighbor of neighbors)
       if (!reached.has(neighbor)) {
         reached.set(neighbor, depth + 1);
@@ -307,8 +215,6 @@ interface EnumerationInput {
   readonly start: string;
   readonly goal: string;
   readonly shortestDepth: number;
-  readonly maxDepth: number;
-  readonly limit: number;
 }
 
 const enumeratePaths = ({
@@ -316,11 +222,8 @@ const enumeratePaths = ({
   start,
   goal,
   shortestDepth,
-  maxDepth,
-  limit,
 }: EnumerationInput): {
   readonly paths: string[][];
-  readonly budgetExhausted: boolean;
 } => {
   const output: string[][] = [];
   const state: EnumerationState = {
@@ -329,17 +232,9 @@ const enumeratePaths = ({
     path: [start],
     visited: new Set([start]),
     output,
-    limit,
-    expansions: 0,
-    budgetExhausted: false,
   };
-  for (
-    let depth = shortestDepth;
-    depth <= maxDepth && output.length < limit;
-    depth += 1
-  )
-    enumerateAtDepth(state, depth);
-  return { paths: output, budgetExhausted: state.budgetExhausted };
+  enumerateAtDepth(state, shortestDepth);
+  return { paths: output };
 };
 
 interface EnumerationState {
@@ -348,20 +243,12 @@ interface EnumerationState {
   readonly path: string[];
   readonly visited: Set<string>;
   readonly output: string[][];
-  readonly limit: number;
-  expansions: number;
-  budgetExhausted: boolean;
 }
 
 const enumerateAtDepth = (state: EnumerationState, remaining: number): void => {
-  const { graph, goal, path, visited, output, limit } = state;
-  state.expansions += 1;
-  if (state.expansions > MAX_PATH_EXPANSIONS) {
-    state.budgetExhausted = true;
-    return;
-  }
+  const { graph, goal, path, visited, output } = state;
   const current = path.at(-1);
-  if (current === undefined || output.length >= limit) return;
+  if (current === undefined) return;
   if (remaining === 0) {
     if (current === goal) output.push([...path]);
     return;
@@ -376,7 +263,6 @@ const enumerateAtDepth = (state: EnumerationState, remaining: number): void => {
     enumerateAtDepth(state, remaining - 1);
     path.pop();
     visited.delete(neighbor);
-    if (output.length >= limit || state.budgetExhausted) return;
   }
 };
 

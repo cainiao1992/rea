@@ -75,12 +75,6 @@ const DEFAULT_MVID = Buffer.from([
 
 /** Generous bounds for inventory assertions over the source-owned PE fixture. */
 export const MANAGED_ARTIFACT_FIXTURE_LIMITS = {
-  referenceOffset: 0,
-  referenceLimit: 100,
-  resourceOffset: 0,
-  resourceLimit: 100,
-  attributeOffset: 0,
-  attributeLimit: 100,
   maxMetadataBytes: 1024 * 1024,
   maxTableRows: 1_000,
   maxHeapItemBytes: 1024 * 1024,
@@ -88,17 +82,6 @@ export const MANAGED_ARTIFACT_FIXTURE_LIMITS = {
 
 /** Generous bounds for member assertions over the source-owned PE fixture. */
 export const MANAGED_MEMBER_FIXTURE_LIMITS = {
-  typeOffset: 0,
-  typeLimit: 100,
-  methodOffset: 0,
-  methodLimit: 100,
-  fieldOffset: 0,
-  fieldLimit: 100,
-  memberRefOffset: 0,
-  memberRefLimit: 100,
-  edgeOffset: 0,
-  edgeLimit: 100,
-  instructionAnchorLimit: 100,
   maxMetadataBytes: 1024 * 1024,
   maxTableRows: 1_000,
   maxHeapItemBytes: 1024 * 1024,
@@ -114,12 +97,6 @@ export const MANAGED_MEMBER_PATH_FIXTURE_LIMITS = {
 
 /** Generous native-boundary bounds for the source-owned PE fixture. */
 export const MANAGED_NATIVE_BOUNDARY_FIXTURE_LIMITS = {
-  moduleRefOffset: 0,
-  moduleRefLimit: 100,
-  importOffset: 0,
-  importLimit: 100,
-  implementationOffset: 0,
-  implementationLimit: 100,
   maxMetadataBytes: 1024 * 1024,
   maxTableRows: 1_000,
   maxHeapItemBytes: 1024 * 1024,

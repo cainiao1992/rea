@@ -46,7 +46,7 @@ const MAX_CANONICAL_BYTES = 32 * 1024 * 1024;
 const providers = {
   behavioral: {
     operation: "compare_process_captures",
-    predicates: ["rea.process-comparison/v3", "rea.process-comparison/v4"],
+    predicates: ["rea.process-comparison"],
     id: "rea-process",
     name: "REA deterministic process harness",
   },
@@ -206,7 +206,7 @@ const validateSourceKinds = (
 ): void => {
   const expected =
     claim.kind === "behavioral"
-      ? ["capture_process_scenario", "rea.process-capture/v4"]
+      ? ["capture_process_scenario", "rea.process-capture"]
       : claim.kind === "structural-function"
         ? ["analyze_function", "rea.analysis/v2"]
         : ["inventory_artifact", "rea.analysis/v2"];

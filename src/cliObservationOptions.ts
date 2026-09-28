@@ -195,20 +195,10 @@ export const electronPageInspectionOptions = z.object({
 });
 
 export const javascriptApplicationOptions = z.object({
-  approved: z
-    .boolean()
-    .default(false)
-    .describe("Approve reading the application artifact"),
   artifactFormat: z
     .enum(["auto", "asar", "directory"])
     .default("auto")
     .describe("Application artifact format"),
-  sourceMapReadApproved: z
-    .boolean()
-    .default(false)
-    .describe(
-      "Approve reading local source maps referenced by the application",
-    ),
   maxEntries: positiveCount("artifact entries to inspect", 8_000),
   maxTotalArtifactBytes: positiveCount(
     "total uncompressed artifact content to inspect",

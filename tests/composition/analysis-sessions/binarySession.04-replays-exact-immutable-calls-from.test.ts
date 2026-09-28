@@ -89,7 +89,6 @@ describe("binary session", () => {
               name: identity.name,
               version: identity.version ?? "fixture-unresolved",
             },
-            1,
             { fixture: "different-profile" },
           ),
           compatibility: {},

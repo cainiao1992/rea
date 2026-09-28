@@ -189,7 +189,7 @@ or a CLR load. Complete-coverage claims require every applicable bounded region
 to have been admitted; otherwise coverage is partial, unknown, or unavailable
 with exact offsets and reasons.
 
-The input path remains under REA's approved investigation roots. Local artifact
+The caller selects the local input path directly. Local artifact
 paths, digests, MVIDs, tokens, malformed offsets, and analysis metadata are
 actionable diagnostics and are not secrets. Credentials, authorization data,
 and genuine secrets remain redacted.

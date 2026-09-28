@@ -1,6 +1,6 @@
 # JavaScript Application Graph
 
-JavaScript Application Graph v1 is REA's provider-neutral domain model for
+JavaScript Application Graph is REA's provider-neutral domain model for
 connecting shipped application bytes, JavaScript structure, Electron process
 boundaries, passive browser observations, and native add-ons. It is a durable,
 canonical data contract; it is not an extractor or a new CLI/MCP tool.
@@ -32,13 +32,12 @@ adds capture-scoped targets, frames, scripts, workers, and inferred
 verification remains a separate later layer. The domain graph itself never
 reaches outward to obtain any of those facts.
 
-## Versioned record
+## Stored record
 
 A stored graph has this top-level shape:
 
 ```text
 schema: "JavaScriptApplicationGraph"
-schema_version: 1
 graph_id: jag_<sha256 of normalized graph semantics>
 root_node_ids: jag_node_<sha256>[]
 nodes: application entities with one or more observations
@@ -47,14 +46,14 @@ coverage: complete, partial, unknown, or unavailable
 limitations: explicit graph-wide constraints
 ```
 
-Parsing rejects unknown fields, unsupported versions, non-canonical ordering,
-duplicate IDs, stale semantic commitments, missing roots, dangling endpoints,
-self-edges, and `changed_from` edges between unlike node kinds. Constructors
-normalize set-like arrays before deriving their IDs.
+Parsing rejects unknown fields, non-canonical ordering, duplicate IDs, stale
+semantic commitments, missing roots, dangling endpoints, self-edges, and
+`changed_from` edges between unlike node kinds. Constructors normalize set-like
+arrays before deriving their IDs.
 
 ## Entities and relationships
 
-The v1 node vocabulary covers:
+The node vocabulary covers:
 
 - package, installer, and artifact;
 - ASAR entry;
@@ -160,7 +159,7 @@ so callers cannot preserve a stale ID after changing semantic content.
 
 ## Bounds
 
-The v1 boundary admits at most 1,000 roots, 100,000 nodes, 200,000 edges, and 64
+The graph boundary admits at most 1,000 roots, 100,000 nodes, 200,000 edges, and 64
 observations per node. Each properties object is valid bounded JSON with at most
 64 keys, depth 6, 512 structural nodes, and 4,096 characters per string. Arrays
 of evidence links, limits, and limitations have independent caps.
@@ -184,7 +183,3 @@ The public domain functions are:
 - `serializeJavaScriptApplicationGraph` for canonical JSON;
 - `computeJavaScriptApplicationGraphSha256` for a byte-stable verified graph
   digest.
-
-Schema evolution is explicit. A future incompatible shape receives a new
-`schema_version`; v1 parsing fails with an unsupported-version diagnostic rather
-than guessing how to reinterpret it.

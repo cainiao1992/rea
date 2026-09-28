@@ -4,7 +4,6 @@ import type { PermissionAuthority } from "../../application/PermissionAuthority.
 /** Policy inputs shared by all investigation workflow tools. */
 export interface InvestigationToolPolicies {
   readonly evidenceFiles: EvidenceFilePolicy;
-  readonly inputRoots: readonly string[];
   readonly permissionAuthority?: PermissionAuthority;
   readonly integrityContinueEnabled?: () => boolean;
 }

@@ -58,16 +58,8 @@ describe("tool registration options", () => {
       const analyzeFunction = advertised.find(
         ({ name }) => name === "analyze_function",
       );
-      expect(analyzeFunction?.inputSchema.properties).toMatchObject({
-        include_assembly: {
-          description: "Whether to include assembly in the result.",
-        },
-        max_instructions: {
-          description: "Maximum permitted instructions for this operation.",
-        },
-        pseudocode_offset: {
-          description: "Zero-based index of the first pseudocode to return.",
-        },
+      expect(analyzeFunction?.inputSchema.properties).toEqual({
+        procedure: expect.objectContaining({ type: "string" }),
       });
       expect(advertised).toEqual(
         GENERATED_MCP_TOOL_CATALOG.map((tool) => ({

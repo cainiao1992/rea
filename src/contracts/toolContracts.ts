@@ -31,9 +31,8 @@ import {
   processScenarioSchema,
   reconstructionVerificationInputSchema,
   recordUnknownInputSchema,
-  releaseEvidenceBundleInputSchema,
   replayMachineRunInputSchema,
-  snapshotEvidenceBundleInputSchema,
+  getEvidenceBundleInputSchema,
   staticRuntimeCorrelationInputSchema,
   updateUnknownInputSchema,
   verifyUnknownResolutionInputSchema,
@@ -43,7 +42,6 @@ import {
   document,
   examplesFor,
   optionalAddress,
-  pagination,
   procedure,
 } from "./toolContractHelpers.js";
 import type { ToolContract } from "./toolContractTypes.js";
@@ -60,8 +58,7 @@ export {
   listUnknownsInputSchema,
   navigationContextInputSchema,
   processComparisonInputSchema,
-  releaseEvidenceBundleInputSchema,
-  snapshotEvidenceBundleInputSchema,
+  getEvidenceBundleInputSchema,
   verifyUnknownResolutionInputSchema,
 } from "./sessionToolSchemas.js";
 
@@ -170,13 +167,13 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "list_names",
-    "Page through analyzed memory and external symbols as address/value pairs. Provider metadata distinguishes Ghidra primary, dynamic, external, type, and source facts when available; follow next_offset before claiming exhaustive coverage.",
-    z.object({ document, address: optionalAddress, ...pagination }),
+    "List every analyzed memory and external symbol as address/value pairs. Provider metadata distinguishes Ghidra primary, dynamic, external, type, and source facts when available.",
+    z.object({ document, address: optionalAddress }),
   ),
   official(
     "list_procedures",
-    "Page through analyzed procedures as address/value pairs after provider analysis. Ghidra metadata distinguishes thunks and external functions; follow next_offset for exhaustive coverage and use returned addresses in later function operations.",
-    z.object({ document, ...pagination }),
+    "List every analyzed procedure as address/value pairs after provider analysis. Ghidra metadata distinguishes thunks and external functions; use returned addresses in later function operations.",
+    z.object({ document }),
   ),
   official(
     "list_segments",
@@ -185,8 +182,8 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "list_strings",
-    "Page through provider-defined strings, or filter to one address, as address/value pairs. Ghidra reports charset, missing-terminator status, byte length, and explicit value truncation; follow next_offset for exhaustive results.",
-    z.object({ document, address: optionalAddress, ...pagination }),
+    "List every provider-defined string, or filter to one address, as address/value pairs. Ghidra reports charset, missing-terminator status, byte length, and explicit value truncation.",
+    z.object({ document, address: optionalAddress }),
   ),
   official(
     "next_address",
@@ -225,7 +222,7 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "read_function_instructions",
-    "Read one offset-paginated window of raw instructions for an analyzed procedure without decompilation, caller discovery, or whole-program string/name scans. Use this fast path for instruction-level orientation; follow next_offset when truncated.",
+    "Read every raw instruction for an analyzed procedure without decompilation, caller discovery, or whole-program string/name scans. Instruction text is provider-specific.",
     functionInstructionInputSchema,
   ),
   ...HOPPER_MEMORY_TOOL_DEFINITIONS.map(({ name, description, inputSchema }) =>
@@ -233,13 +230,10 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "procedure_references",
-    "Return a bounded set of raw incoming or outgoing reference edges for one procedure. Endpoint procedures are resolved only from provider containment; Ghidra preserves observed reference kinds while providers without kind authority mark them unavailable.",
+    "Return every raw incoming or outgoing reference edge for one procedure. Endpoint procedures are resolved only from provider containment; Ghidra preserves observed reference kinds while providers without kind authority mark them unavailable.",
     z.object({
       procedure,
       direction: z.enum(["incoming", "outgoing"]).default("outgoing"),
-      offset: z.number().int().min(0).default(0),
-      limit: z.number().int().min(1).max(500).default(100),
-      max_instructions: z.number().int().min(1).max(5000).default(500),
       document,
     }),
   ),
@@ -255,12 +249,12 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "search_procedures",
-    "Search analyzed procedure names using literal matching by default or regex opt-in. Providers bound search work and reject regex constructs, paths, candidates, or cumulative work outside their finite budgets. Results are deterministic and offset-paginated.",
+    "Search every analyzed procedure name using literal matching by default or regex when requested. Results are deterministic and complete.",
     z.object(analysisSearchInput),
   ),
   official(
     "search_strings",
-    "Search analyzed strings using literal matching by default or regex opt-in. Providers bound search work and reject regex constructs, paths, candidates, or cumulative work outside their finite budgets. Results are deterministic, offset-paginated, and explicitly truncated.",
+    "Search every analyzed string using literal matching by default or regex when requested. Results are deterministic and complete.",
     z.object(analysisSearchInput),
   ),
   official(
@@ -312,32 +306,32 @@ export type OfficialToolName = (typeof OFFICIAL_TOOL_CONTRACTS)[number]["name"];
 export const ENHANCED_TOOL_CONTRACTS = [
   enhanced(
     "swift_classes",
-    "Discover legacy-mangled Swift class procedures after exhaustively paging analyzed procedures. Returns at most 100 entries and scans at most 5,000 symbols; use analyze_swift_types for other Swift kinds.",
+    "Discover legacy-mangled Swift class procedures by scanning analyzed procedures; returns every matching entry. Use analyze_swift_types for other Swift kinds.",
     enhancedInputSchemas.swift_classes,
   ),
   enhanced(
     "get_objc_classes",
-    "Discover and deduplicate Objective-C class labels after exhaustively paging names, optionally filtering by literal substring. Returns at most 100 classes; inspect matching metadata and references next.",
+    "Discover and deduplicate every Objective-C class label, optionally filtering by literal substring; inspect matching metadata and references next.",
     enhancedInputSchemas.get_objc_classes,
   ),
   enhanced(
     "get_objc_protocols",
-    "Discover and deduplicate Objective-C and Swift protocol labels after exhaustively paging names. Returns at most 100 entries; use xrefs or analyze_function to connect a protocol to implementations.",
+    "Discover and deduplicate every Objective-C and Swift protocol label; use xrefs or analyze_function to connect a protocol to implementations.",
     enhancedInputSchemas.get_objc_protocols,
   ),
   enhanced(
     "batch_decompile",
-    "Decompile up to 20 explicit procedure symbols or addresses concurrently. Returns ordered per-item ok/error variants and aggregate counts; use analyze_function for a richer single-function dossier.",
+    "Decompile each explicit procedure symbol or address concurrently. Returns ordered per-item ok/error variants and aggregate counts; use analyze_function for a richer single-function dossier.",
     enhancedInputSchemas.batch_decompile,
   ),
   enhanced(
     "get_call_graph",
-    "Traverse the bound provider's caller or callee relationships from one symbol or address for at most five levels. Every node has an ok/error status and failures use safe typed projections; unresolved indirect calls may be missing and results are not a whole-program CFG.",
+    "Traverse the bound provider's caller or callee relationships from one symbol or address until the reachable graph is exhausted. Every node has an ok/error status and failures use safe typed projections; unresolved indirect calls may be missing and results are not a whole-program CFG.",
     enhancedInputSchemas.get_call_graph,
   ),
   enhanced(
     "analyze_swift_types",
-    "Categorize exhaustively paged procedure names into Swift classes, structs, enums, protocols, extensions, and other symbols. Scans at most 5,000 names and returns at most 50 entries per category.",
+    "Categorize all analyzed procedure names into Swift classes, structs, enums, protocols, extensions, and other symbols.",
     enhancedInputSchemas.analyze_swift_types,
   ),
   enhanced(
@@ -347,23 +341,23 @@ export const ENHANCED_TOOL_CONTRACTS = [
   ),
   enhanced(
     "binary_overview",
-    "Use immediately after opening a target to summarize document, exhaustive procedure/string counts, and a bounded segment sample. detail controls segment fields and limit controls only the returned segment sample.",
+    "Use immediately after opening a target to summarize the document, every segment with its length, and exhaustive procedure/string counts.",
     enhancedInputSchemas.binary_overview,
   ),
   ...FUNCTION_WORKFLOW_TOOL_CONTRACTS,
   enhanced(
     "trace_feature",
-    "Trace a bounded literal feature query through matching strings and procedures, xrefs, and truthful containing-procedure resolution. Returns the operation budget, truncation, and residual unknowns; unknown_registry_approved: true records them durably without inferring reference kinds.",
+    "Trace a literal feature query through every matching string and procedure, their xrefs, and truthful containing-procedure resolution. Returns observations, operation count, and residual unknowns; unknown_registry_approved: true records residual unknowns without inferring reference kinds.",
     enhancedInputSchemas.trace_feature,
   ),
   enhanced(
     "find_code_for_string",
-    "Resolve one literal string query to bounded analyzed string entries, xrefs, and truthful containing-procedure candidates. Returns an Evidence ID, exact operation budget, truncation, and residual unknowns; it never infers reference kinds or runtime reachability.",
+    "Resolve one literal string query across analyzed string entries, xrefs, and truthful containing-procedure candidates. Returns observations, operation count, and residual unknowns; it never infers reference kinds or runtime reachability.",
     enhancedInputSchemas.find_code_for_string,
   ),
   enhanced(
     "trace_call_path",
-    "Trace a deterministic bounded caller or callee path from one exact procedure address, optionally stopping at a goal. Returns visited nodes, direct-call edges, one shortest traversal path, failures, frontier, consumed limits, an Evidence ID, and explicit residual unknowns without claiming unresolved indirect calls are absent.",
+    "Trace direct callers or callees from one exact procedure address until the graph is exhausted or the optional goal is reached. Returns visited nodes, direct-call edges, a shortest traversal path, provider failures, and residual unknowns; unresolved indirect calls remain unknown.",
     enhancedInputSchemas.trace_call_path,
   ),
 ] as const satisfies readonly ToolContract[];
@@ -388,12 +382,12 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "binary_session",
-    "Report compact target, provider, and alignment state without starting analysis. The default summary is the routing check agents should use; detail=capabilities returns one family-filtered availability page, while detail=full is reserved for complete provider diagnostics.",
+    "Report the complete current target, provider, capability availability, client-feature, analysis, and server-identity status without starting analysis.",
     binarySessionInputSchema,
   ),
   session(
     "export_evidence_bundle",
-    "Atomically write the session's deterministic Evidence v2 bundle beneath an operator-approved root. Existing files require overwrite: true; records and manifests use canonical byte-stable ordering. For an in-session read, use snapshot_evidence_bundle and read its exact resource URI instead.",
+    "Atomically write the session's deterministic Evidence bundle to the requested local path. Existing files require overwrite: true; records and manifests use canonical byte-stable ordering.",
     exportEvidenceBundleInputSchema,
   ),
   session(
@@ -403,12 +397,12 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "capture_process_scenario",
-    "Run one bounded process under a PTY using operator-approved executable and working roots. Produces Process Capture v4; legacy v3 captures cannot be upgraded and must be recaptured with this tool. Requires approved: true; unknown_registry_approved: true separately records capture residuals. Captures raw and xterm-rendered terminal frames, scripted interactions, lifecycle filesystem checkpoints, process ownership, declarative command shims, and loopback replay. Disabled unless operator policy enables it; not a security sandbox.",
+    "Run one bounded process under a PTY using operator-approved executable and working roots. Produces process capture Evidence. Requires approved: true; unknown_registry_approved: true separately records capture residuals. Captures raw and xterm-rendered terminal frames, scripted interactions, lifecycle filesystem checkpoints, process ownership, declarative command shims, and loopback replay. Disabled unless operator policy enables it; not a security sandbox.",
     processScenarioSchema,
   ),
   session(
     "compare_process_captures",
-    "Compare two compatible Process Capture v4 observations across terminal, interaction, lifecycle, process, filesystem, command-shim, HTTP, and WebSocket evidence. Optional trace_spec validates exact events against an explicit partial order or finite trace language; concurrency is never inferred from timestamps or broad sorting. Missing, journal-free, or truncated observations are never treated as equivalent.",
+    "Compare two compatible process capture observations across terminal, interaction, lifecycle, process, filesystem, command-shim, HTTP, and WebSocket evidence. Optional trace_spec validates exact events against an explicit partial order or finite trace language; concurrency is never inferred from timestamps or broad sorting. Missing, journal-free, or truncated observations are never treated as equivalent.",
     processComparisonInputSchema,
   ),
   session(
@@ -433,7 +427,7 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "build_call_path",
-    "Build bounded shortest-first direct-callee paths from explicit analyze_function Evidence groups using exact canonical addresses. Missing dossiers, incomplete callee pages, provider mixing, and depth frontiers remain unknown; every node and edge cites source Evidence.",
+    "Build every shortest direct-callee path inline from complete analyze_function Evidence records using exact canonical addresses. Missing dossiers and provider mixing remain unknown; every node and edge cites source Evidence.",
     callPathInputSchema,
   ),
   session(
@@ -448,7 +442,7 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "list_unknowns",
-    "List current residual-unknown heads in deterministic ID order, with optional exact status, severity, and domain filters. Pages default to 100 items; while has_more is true, pass next_offset as offset and continue until false. This is read-only; unresolved, contradicted, and non-truth dispositions remain distinct.",
+    "List every current residual-unknown head in deterministic ID order, with optional exact status, severity, and domain filters. Results are complete and inline. This is read-only; unresolved, contradicted, and non-truth dispositions remain distinct.",
     listUnknownsInputSchema,
   ),
   session(
@@ -472,14 +466,9 @@ export const SESSION_TOOL_CONTRACTS = [
     replayMachineRunInputSchema,
   ),
   session(
-    "snapshot_evidence_bundle",
-    "Retain the current canonical Evidence v2 bundle as an immutable session resource. Returns a compact digest summary and exact opaque URI; copy that URI unchanged and call MCP resources/read (Codex: read_mcp_resource) for the full bundle. Repeating an unchanged snapshot is idempotent.",
-    snapshotEvidenceBundleInputSchema,
-  ),
-  session(
-    "release_evidence_bundle",
-    "Release one immutable session-retained Evidence v2 bundle by exact digest. This is the recovery operation when bounded bundle retention is exhausted; releasing an unknown digest is idempotent and reports released: false.",
-    releaseEvidenceBundleInputSchema,
+    "get_evidence_bundle",
+    "Return every Evidence record and residual unknown currently retained by this session as one inline bundle for direct inspection or follow-up workflows.",
+    getEvidenceBundleInputSchema,
   ),
   session(
     "get_navigation_context",

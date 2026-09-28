@@ -14,7 +14,7 @@ export const REA_WORKFLOW_PROVIDER = {
 export const workflowAnalysisProfile = (
   upstream: AnalysisProfileCommitment,
 ): AnalysisProfileCommitment =>
-  createAnalysisProfile(REA_WORKFLOW_PROVIDER, 1, {
+  createAnalysisProfile(REA_WORKFLOW_PROVIDER, {
     upstream_analysis_profile: upstream,
   });
 

@@ -42,11 +42,7 @@ describe("Android application projection", () => {
     await writeFile(path, await writer.close());
 
     const inventory = parseEvidence(
-      await runProviderAnalysis(path, "inventory_artifact", {
-        node_limit: 500,
-        occurrence_limit: 500,
-        edge_limit: 500,
-      }),
+      await runProviderAnalysis(path, "inventory_artifact", {}),
     );
     const first = projectAndroidApplicationEvidence({
       inventory_evidence: [inventory],

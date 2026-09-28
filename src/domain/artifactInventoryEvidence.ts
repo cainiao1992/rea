@@ -72,10 +72,7 @@ const validateInventoryPage = (inventory: ArtifactInventoryResult): void => {
     "edge ID",
   );
   for (const node of inventory.nodes.items)
-    if (
-      node.artifact_id !==
-      `art_${digestCanonical({ schema_version: 1, sha256: node.sha256 })}`
-    )
+    if (node.artifact_id !== `art_${digestCanonical({ sha256: node.sha256 })}`)
       throw new TypeError("Artifact node ID is not content-addressed");
 };
 
@@ -212,7 +209,6 @@ const validateCompleteInventory = (inventory: InventorySet): void => {
   if (graphSha256 !== inventory.manifest.graph_sha256)
     throw new TypeError("Artifact graph commitment does not match its members");
   const manifestId = `agm_${digestCanonical({
-    schema_version: 1,
     root_artifact_id: inventory.manifest.root_artifact_id,
     graph_sha256: graphSha256,
   })}`;

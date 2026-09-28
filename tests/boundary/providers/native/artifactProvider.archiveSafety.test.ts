@@ -12,10 +12,8 @@ import {
   normalizeArtifactPath,
 } from "../../../../src/artifacts/ArtifactPaths.js";
 import { ArtifactProvider } from "../../../../src/artifacts/ArtifactProvider.js";
-import {
-  artifactExtractionInputSchema,
-  artifactInventoryInputSchema,
-} from "../../../../src/contracts/artifactToolContracts.js";
+import { ArtifactReaderFailure } from "../../../../src/artifacts/ArtifactReader.js";
+import { artifactExtractionInputSchema } from "../../../../src/contracts/artifactToolContracts.js";
 import { artifactInventoryResultSchema } from "../../../../src/domain/artifactGraph.js";
 import type { BinaryTarget } from "../../../../src/domain/binaryTarget.js";
 import { parseBinaryTarget } from "../../../../src/application/BinaryTargetResolver.js";
@@ -74,11 +72,7 @@ describe("artifact archive safety", () => {
       );
       expect(
         parseEvidence(
-          await runProviderAnalysis(path, "inventory_artifact", {
-            node_limit: 10,
-            occurrence_limit: 10,
-            edge_limit: 10,
-          }),
+          await runProviderAnalysis(path, "inventory_artifact", {}),
         ),
       ).toMatchObject({
         operation: "inventory_artifact",
@@ -87,24 +81,39 @@ describe("artifact archive safety", () => {
     },
   );
 
-  it("rejects unsafe, colliding, and over-ratio entries", async () => {
-    expect(() => normalizeArtifactPath("../escape", limits())).toThrow(
-      /normalized/u,
-    );
+  it("rejects unsafe paths, collisions, and default compression bombs", async () => {
+    let unsafePathError: unknown;
+    try {
+      normalizeArtifactPath("../escape", limits());
+    } catch (error: unknown) {
+      unsafePathError = error;
+    }
+    expect(unsafePathError).toBeInstanceOf(ArtifactReaderFailure);
+    expect(unsafePathError).toMatchObject({
+      reason: "path",
+      message: "Artifact path is not normalized",
+    });
     const registry = new ArtifactPathRegistry();
     registry.add("A.js", "file");
-    expect(() => registry.add("a.js", "file")).toThrow(/collision/u);
+    let collisionError: unknown;
+    try {
+      registry.add("a.js", "file");
+    } catch (error: unknown) {
+      collisionError = error;
+    }
+    expect(collisionError).toBeInstanceOf(ArtifactReaderFailure);
+    expect(collisionError).toMatchObject({
+      reason: "path",
+      message: "Artifact path collision: a.js",
+    });
 
     const root = await createTestTempDirectory("rea-bomb-");
     const zipPath = join(root, "bomb.zip");
     const writer = new ZipWriter(new Uint8ArrayWriter());
-    await writer.add("zeros", new TextReader("0".repeat(100_000)));
+    await writer.add("zeros", new TextReader("0".repeat(10_000_000)));
     await writeFile(zipPath, await writer.close());
     const client = new ArtifactProvider().createClient(target(zipPath, "zip"));
-    const result = await client.execute(
-      "inventory_artifact",
-      artifactInventoryInputSchema.parse({ max_compression_ratio: 2 }),
-    );
+    const result = await client.execute("inventory_artifact", {});
     expect(result).toMatchObject({
       ok: false,
       error: { _tag: "ArtifactOperationError", reason: "limit" },
@@ -112,14 +121,9 @@ describe("artifact archive safety", () => {
   });
 });
 const inventory = async (targetValue: BinaryTarget) => {
-  const result = await new ArtifactProvider().createClient(targetValue).execute(
-    "inventory_artifact",
-    artifactInventoryInputSchema.parse({
-      node_limit: 500,
-      occurrence_limit: 500,
-      edge_limit: 500,
-    }),
-  );
+  const result = await new ArtifactProvider()
+    .createClient(targetValue)
+    .execute("inventory_artifact", {});
   if (!result.ok) throw result.error;
   return artifactInventoryResultSchema.parse(result.value.result);
 };

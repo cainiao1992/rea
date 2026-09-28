@@ -36,7 +36,6 @@ export const createJavaScriptRuntimeReconciliationResult = (
 ): JavaScriptRuntimeReconciliationResult => {
   const completion = completionFlags(input);
   const semantic = {
-    schema_version: 1 as const,
     static_layers: staticLayerSummaries(input.layers),
     runtime_captures: captureSummaries(input.captures, input.runtime),
     graph: input.graph,
@@ -127,9 +126,7 @@ const sourceMapAuthority = (
   input: ReconciliationProjection,
 ): JavaScriptRuntimeReconciliationResult["source_map_authority"] => ({
   used_for_primary_matching: false,
-  static_layers_with_read_approval: input.layers.filter(
-    ({ sourceMapReadApproved }) => sourceMapReadApproved,
-  ).length,
+  static_layer_count: input.layers.length,
   runtime_script_declarations: input.captures.reduce(
     (total, capture) =>
       total +

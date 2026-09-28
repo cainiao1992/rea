@@ -17,24 +17,11 @@ export const registerArtifactCommands = (
 
 const registerInventoryCommand = (cli: CliInstance, logger: Logger): void => {
   cli.command(CLI_COMMANDS.inventoryArtifact, {
-    description: "Build a bounded deterministic artifact graph",
+    description: "Build a complete deterministic artifact graph",
     args: z.object({
       path: z.string().describe("Application or package path"),
     }),
     options: z.object({
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Zero-based offset for graph nodes, occurrences, and edges"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(500)
-        .default(100)
-        .describe("Maximum nodes, occurrences, and edges per result section"),
       integrityPolicy: z
         .enum(["fail", "record-and-continue"])
         .default("fail")
@@ -67,12 +54,6 @@ const registerInventoryCommand = (cli: CliInstance, logger: Logger): void => {
           args.path,
           "inventory_artifact",
           {
-            node_offset: options.offset,
-            node_limit: options.limit,
-            occurrence_offset: options.offset,
-            occurrence_limit: options.limit,
-            edge_offset: options.offset,
-            edge_limit: options.limit,
             integrity_policy: options.integrityPolicy,
             integrity_continue_approved: options.integrityContinueApproved,
             max_integrity_mismatches: options.maxIntegrityMismatches,
@@ -118,41 +99,14 @@ const registerExtractionCommand = (cli: CliInstance, logger: Logger): void => {
 const registerInspectionCommand = (cli: CliInstance, logger: Logger): void => {
   cli.command(CLI_COMMANDS.inspectArtifact, {
     description:
-      "Inspect one artifact with bounded observations and explicit next probes",
+      "Inspect one artifact and return all available observations and next probes",
     args: z.object({
       path: z.string().describe("Application or package path"),
     }),
-    options: z.object({
-      maxObservations: z
-        .number()
-        .int()
-        .min(1)
-        .max(500)
-        .default(100)
-        .describe("Maximum retained observations"),
-      maxRelationships: z
-        .number()
-        .int()
-        .min(1)
-        .max(500)
-        .default(100)
-        .describe("Maximum retained derived relationships"),
-    }),
-    alias: {
-      maxObservations: "max-observations",
-      maxRelationships: "max-relationships",
-    },
-    run: ({ args, options }) =>
+    options: z.object({}),
+    run: ({ args }) =>
       logCliCommand(logger, "inspect-artifact", () =>
-        runProviderAnalysis(
-          args.path,
-          "inspect_artifact",
-          {
-            max_observations: options.maxObservations,
-            max_relationships: options.maxRelationships,
-          },
-          logger,
-        ),
+        runProviderAnalysis(args.path, "inspect_artifact", {}, logger),
       ),
   });
 };

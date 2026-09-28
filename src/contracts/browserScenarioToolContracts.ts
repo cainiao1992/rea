@@ -6,7 +6,6 @@ import { browserScenarioCaptureSchema } from "../domain/browserScenarioCapture.j
 import type { JsonValue } from "../domain/jsonValue.js";
 
 const example: Record<string, JsonValue> = {
-  schema_version: 1,
   browser: {
     mode: "launch",
     executable_path: "/opt/chromium/chrome",

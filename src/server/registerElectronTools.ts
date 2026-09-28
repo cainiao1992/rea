@@ -16,10 +16,8 @@ import { ELECTRON_TOOL_CONTRACTS } from "../contracts/electronToolContracts.js";
 import type { ToolContract } from "../contracts/toolContracts.js";
 import type { AnalysisError } from "../domain/errors.js";
 import type { Evidence } from "../domain/evidence.js";
-import type { JsonValue } from "../domain/jsonValue.js";
 import type { Result } from "../domain/result.js";
 import type { Logger } from "../logger.js";
-import { summarizeJavaScriptApplicationEvidence } from "./javascriptApplicationResult.js";
 import { mcpProgressReporter } from "./mcpProgress.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
@@ -98,22 +96,9 @@ export const registerElectronTools = (
       runElectronTool(
         options,
         analyzeContract,
-        {
-          input,
-          context,
-          projectEvidence: (evidence, parsed) => {
-            const summary = summarizeJavaScriptApplicationEvidence(evidence);
-            return parsed.detail === "full"
-              ? { structured: evidence.normalized_result, text: summary }
-              : { structured: summary };
-          },
-        },
+        { input, context },
         (parsed, { signal, progress }) =>
-          analyzeJavaScriptApplicationValidated(
-            options.permissionAuthority,
-            parsed,
-            { signal, progress },
-          ),
+          analyzeJavaScriptApplicationValidated(parsed, { signal, progress }),
       ),
   );
   server.registerTool(
@@ -153,17 +138,13 @@ const runElectronTool = async <Input>(
   request: {
     readonly input: Input;
     readonly context: ServerContext;
-    readonly projectEvidence?: (
-      evidence: Evidence,
-      input: Input,
-    ) => { readonly structured: JsonValue; readonly text?: JsonValue };
   },
   execute: (
     input: Input,
     context: ElectronToolContext,
   ) => Promise<Result<Evidence, AnalysisError>>,
 ) => {
-  const { input, context, projectEvidence } = request;
+  const { input, context } = request;
   const result = await logToolExecution(options.logger, contract.name, () =>
     execute(input, {
       signal: context.mcpReq.signal,
@@ -171,34 +152,16 @@ const runElectronTool = async <Input>(
     }),
   );
   if (!result.ok) return toCallToolResult(result, contract);
-  return evidenceResult(
-    options,
-    contract,
-    result.value,
-    projectEvidence?.(result.value, input),
-  );
+  return evidenceResult(options, contract, result.value);
 };
 
 const evidenceResult = (
   options: ElectronToolRegistration,
   contract: ToolContract,
   evidence: Evidence,
-  projection:
-    | { readonly structured: JsonValue; readonly text?: JsonValue }
-    | undefined,
 ) => {
   const recorded = options.recordEvidence?.(evidence);
   return recorded !== undefined && !recorded.ok
     ? toCallToolResult(recorded, contract)
-    : toCallToolResult({ ok: true, value: evidence }, contract, {
-        evidenceResourcesAvailable: recorded !== undefined,
-        ...(projection === undefined
-          ? {}
-          : {
-              evidenceResultProjection: projection.structured,
-              ...(projection.text === undefined
-                ? {}
-                : { evidenceTextProjection: projection.text }),
-            }),
-      });
+    : toCallToolResult({ ok: true, value: evidence }, contract);
 };

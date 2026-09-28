@@ -9,6 +9,22 @@ import { startFakeCdpBrowser } from "../../fixtures/fakeCdpBrowser.js";
 import { describeBrowser, trackBrowser } from "./cdpBrowserProvider.support.js";
 
 describeBrowser("CdpBrowserProvider: discovery authorization 1", () => {
+  it("returns every approved page target inline", async () => {
+    const browser = await startFakeCdpBrowser({ additionalPageCount: 205 });
+    trackBrowser(browser);
+    const listed = await new CdpBrowserProvider().listTargets(
+      listBrowserTargetsInputSchema.parse({
+        cdp_endpoint: browser.endpoint,
+        allowed_origins: [browser.allowedOrigin],
+        approved: true,
+      }),
+    );
+    if (!listed.ok) throw listed.error;
+    expect(listed.value.targets).toHaveLength(206);
+    expect(listed.value.targets[0]?.target_id).toBe("allowed-page");
+    expect(listed.value.targets.at(-1)?.target_id).toBe("allowed-page-0204");
+  });
+
   it("lists only exact-origin pages and sanitizes URLs", async () => {
     const browser = await startFakeCdpBrowser();
     trackBrowser(browser);
@@ -22,7 +38,7 @@ describeBrowser("CdpBrowserProvider: discovery authorization 1", () => {
     );
 
     if (!result.ok) throw result.error;
-    expect(result.value.targets.items).toEqual([
+    expect(result.value.targets).toEqual([
       expect.objectContaining({
         target_id: "allowed-page",
         origin: browser.allowedOrigin,
@@ -60,7 +76,7 @@ describeBrowser("CdpBrowserProvider: discovery authorization 1", () => {
         listBrowserTargetsInputSchema.parse(input),
       );
       if (!listed.ok) throw listed.error;
-      expect(listed.value.targets.items[0]?.title).toBe(expected);
+      expect(listed.value.targets[0]?.title).toBe(expected);
 
       const inspected = await provider.inspectPage(
         inspectWebPageInputSchema.parse({ ...input, observation_ms: 0 }),
@@ -90,9 +106,10 @@ describeBrowser("CdpBrowserProvider: discovery authorization 1", () => {
       }),
     );
     if (!listed.ok) throw listed.error;
-    expect(
-      listed.value.targets.items.map(({ target_id }) => target_id),
-    ).toEqual(["allowed-page", "allowed-page-with-socket"]);
+    expect(listed.value.targets.map(({ target_id }) => target_id)).toEqual([
+      "allowed-page",
+      "allowed-page-with-socket",
+    ]);
     expect(listed.value.limitations).toContain(
       "1 otherwise allowed page target(s) lacked a validated direct CDP WebSocket and were excluded.",
     );

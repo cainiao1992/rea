@@ -106,7 +106,6 @@ export const captureCdpScreenshot = async (
     terminal: true,
   });
   return {
-    schema_version: 1,
     browser: context.discovery.version,
     target: {
       target_id: context.target.id,

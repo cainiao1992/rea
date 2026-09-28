@@ -58,7 +58,6 @@ it("exposes root-confined Electron discovery and inspection as Evidence v2", asy
     REA_ELECTRON_OBSERVE_ENABLED: "true",
     REA_ELECTRON_CDP_ENDPOINTS_JSON: JSON.stringify([browser.endpoint]),
     REA_ELECTRON_FILE_ROOTS_JSON: JSON.stringify([root]),
-    REA_INVESTIGATION_INPUT_ROOTS_JSON: JSON.stringify([root]),
   });
   if (!config.ok) throw config.error;
   const authority = await loadConfiguredPermissionAuthority(config.value);
@@ -95,7 +94,7 @@ it("exposes root-confined Electron discovery and inspection as Evidence v2", asy
   expect(listed.isError).not.toBe(true);
   expect(listed.structuredContent).toMatchObject({
     result: {
-      targets: { items: [{ target_id: "electron-page" }] },
+      targets: [{ target_id: "electron-page" }],
     },
   });
   const inspected = await client.callTool({
@@ -112,7 +111,7 @@ it("exposes root-confined Electron discovery and inspection as Evidence v2", asy
   });
   const analyzed = await client.callTool({
     name: "analyze_javascript_application",
-    arguments: { input_path: root, approved: true, detail: "full" },
+    arguments: { input_path: root },
   });
   expect(analyzed.isError).not.toBe(true);
   expect(analyzed.structuredContent).toMatchObject({
@@ -122,7 +121,7 @@ it("exposes root-confined Electron discovery and inspection as Evidence v2", asy
   expect(analysisText).toBeDefined();
   if (analysisText?.type !== "text")
     throw new TypeError("Missing JavaScript analysis text projection");
-  expect(analysisText.text).not.toContain('"nodes":[');
+  expect(analysisText.text).toContain('"nodes":[');
   const reconciled = await client.callTool({
     name: "reconcile_javascript_runtime",
     arguments: {
@@ -242,7 +241,6 @@ it("exposes active Electron scenarios through the separately granted MCP boundar
   const captured = await client.callTool({
     name: "capture_electron_scenario",
     arguments: {
-      schema_version: 1,
       executable_path: process.execPath,
       application_path: join(aliasedRoot, "main.js"),
       application_root: aliasedRoot,
@@ -292,9 +290,7 @@ it("exposes the target-free static JavaScript application workflow", async () =>
   const root = await createTestTempDirectory("rea-electron-static-mcp-");
   temporary.push(root);
   await writeElectronBoundaryFixture(root);
-  const config = parseConfig({
-    REA_INVESTIGATION_INPUT_ROOTS_JSON: JSON.stringify([root]),
-  });
+  const config = parseConfig({});
   if (!config.ok) throw config.error;
   const authority = await loadConfiguredPermissionAuthority(config.value);
   if (!authority.ok) throw authority.error;
@@ -322,7 +318,7 @@ it("exposes the target-free static JavaScript application workflow", async () =>
 
   const analyzed = await client.callTool({
     name: "analyze_javascript_application",
-    arguments: { input_path: root, approved: true },
+    arguments: { input_path: root },
   });
 
   expect(analyzed.isError).not.toBe(true);
@@ -330,9 +326,7 @@ it("exposes the target-free static JavaScript application workflow", async () =>
     .object({
       evidence_id: z.string(),
       result: z.object({
-        schema_version: z.literal(2),
         input_path: z.string(),
-        unknowns: z.array(z.string()),
         summary: z.object({
           browser_windows: z.number(),
           context_bridge_apis: z.number(),
@@ -340,18 +334,18 @@ it("exposes the target-free static JavaScript application workflow", async () =>
         }),
         graph: z.object({
           graph_id: z.string(),
-          node_count: z.number(),
-          edge_count: z.number(),
-          top_findings: z.array(z.unknown()),
-          pages: z.object({ nodes: z.string(), edges: z.string() }),
+          nodes: z.array(z.unknown()),
+          edges: z.array(z.unknown()),
         }),
         semantic_graph: z.object({
           graph_id: z.string(),
-          nodes: z.number(),
-          relations: z.number(),
-          unknown_frontiers: z.number(),
-          query_tool: z.literal("trace_javascript_semantics"),
+          nodes: z.array(z.unknown()),
+          relations: z.array(z.unknown()),
         }),
+      }),
+      evidence: z.object({
+        operation: z.literal("analyze_javascript_application"),
+        parameters: z.object({ format: z.string() }),
       }),
     })
     .parse(analyzed.structuredContent);
@@ -363,83 +357,9 @@ it("exposes the target-free static JavaScript application workflow", async () =>
       ipc: { paired_renderer_transmissions: 4 },
     },
   });
-  expect(projected.result.graph.node_count).toBeGreaterThan(0);
-  expect(projected.result.semantic_graph.nodes).toBeGreaterThan(0);
-  expect(JSON.stringify(analyzed.structuredContent)).not.toContain('"nodes":[');
-
-  const nodePage = await client.readResource({
-    uri: projected.result.graph.pages.nodes,
-  });
-  const nodeContent = nodePage.contents[0];
-  if (nodeContent === undefined || !("text" in nodeContent))
-    throw new TypeError("Missing JavaScript application graph node page");
-  expect(JSON.parse(nodeContent.text)).toMatchObject({
-    evidence_id: projected.evidence_id,
-    graph_id: projected.result.graph.graph_id,
-    collection: "nodes",
-    items: expect.any(Array),
-    offset: 0,
-    limit: 100,
-  });
-});
-
-it("reports an unconfigured investigation ceiling before static analysis", async () => {
-  const root = await createTestTempDirectory("rea-electron-denied-mcp-");
-  temporary.push(root);
-  await writeElectronBoundaryFixture(root);
-  const config = parseConfig({});
-  if (!config.ok) throw config.error;
-  const authority = await loadConfiguredPermissionAuthority(config.value);
-  if (!authority.ok) throw authority.error;
-  const session = createTestBinarySession(() => ({
-    execute: () => Promise.resolve(observed(null)),
-    close: () => Promise.resolve(),
-  }));
-  const server = createServer(session, session, {
-    permissionAuthority: authority.value,
-  });
-  const client = new Client({
-    name: "electron-denied-mcp-test",
-    version: "1",
-  });
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair();
-  resources.push(client, server, session);
-  await server.connect(serverTransport);
-  await client.connect(clientTransport);
-
-  const status = await client.callTool({
-    name: "binary_session",
-    arguments: {
-      detail: "capabilities",
-      capability_family: "electron-provider",
-      limit: 100,
-    },
-  });
-  expect(status.structuredContent).toMatchObject({
-    result: {
-      capabilities: {
-        items: expect.arrayContaining([
-          expect.objectContaining({
-            name: "analyze_javascript_application",
-            available: false,
-            reason: "policy_disabled",
-          }),
-          expect.objectContaining({
-            name: "reconcile_javascript_runtime",
-            available: true,
-            reason: "available",
-          }),
-        ]),
-      },
-    },
-  });
-
-  expect(
-    (await client.listTools()).tools.some(
-      ({ name }) => name === "analyze_javascript_application",
-    ),
-  ).toBe(true);
+  expect(projected.result.graph.nodes.length).toBeGreaterThan(0);
+  expect(projected.result.semantic_graph.nodes.length).toBeGreaterThan(0);
+  expect(projected.evidence.operation).toBe("analyze_javascript_application");
 });
 
 const evidenceFor = (session: BinarySession, value: unknown) => {

@@ -23,7 +23,7 @@ describe("managed CIL limits", () => {
     const il = bytes.subarray(0x0a01, 0x0a0d);
 
     expect(result.metadata.status).toBe("complete");
-    expect(result.methods.items[0]?.body).toMatchObject({
+    expect(result.methods[0]?.body).toMatchObject({
       status: "partial",
       il_size: 12,
       il_sha256: createHash("sha256").update(il).digest("hex"),

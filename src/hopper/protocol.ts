@@ -108,10 +108,8 @@ export const responseResult = (
 ): Result<JsonValue, HopperRemoteError> =>
   "error" in response
     ? err(
-        new HopperRemoteError(
-          response.error.code,
-          response.error.message,
-          response.error.type,
-        ),
+        new HopperRemoteError(response.error.code, response.error.message, {
+          diagnosticType: response.error.type,
+        }),
       )
     : ok(response.result);

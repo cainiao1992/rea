@@ -30,7 +30,7 @@ export const resolveReconstructionObligationLedgerRequest = (
     : err(new AnalysisInputError(OPERATION, { cause: parsed.error }));
 };
 
-/** Build one deterministic ledger page and wrap it in portable Evidence v2. */
+/** Build one deterministic ledger page and wrap it in portable Evidence. */
 export const buildReconstructionObligationLedgerEvidenceValidated = (
   input: ReconstructionObligationLedgerInput,
 ): Result<Evidence, AnalysisError> => {
@@ -43,7 +43,6 @@ export const buildReconstructionObligationLedgerEvidenceValidated = (
       candidates: generated.candidates,
       bundle: input.evidence_bundle,
       manifest: input.manifest,
-      maxObligations: input.limits.max_obligations,
       generationLimitations: generated.limitations,
     });
     const page = pageLedger(ledger, input.page.offset, input.page.limit);
@@ -94,7 +93,6 @@ const createLedgerEvidence = (
     parameters: jsonObjectSchema.parse({
       ledger_id: page.ledger_id,
       closure_digest: page.closure_digest,
-      limits: input.limits,
       page: input.page,
     }),
     result: jsonValueSchema.parse(page),

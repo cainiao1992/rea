@@ -10,6 +10,7 @@ import {
   type HopperError,
   HopperProcessError,
   HopperProtocolError,
+  HopperRemoteError,
   HopperTimeoutError,
 } from "../domain/errors.js";
 import type { JsonValue } from "../domain/jsonValue.js";
@@ -58,15 +59,12 @@ interface QueuedRequest {
   heartbeat: NodeJS.Timeout | undefined;
 }
 
-/** Bounded FIFO that keeps the wire serialized until Hopper actually replies. */
+/** FIFO that keeps the wire serialized until Hopper actually replies. */
 export class HopperRequestQueue {
   readonly #queue: QueuedRequest[] = [];
   #active: QueuedRequest | undefined;
 
-  constructor(
-    private readonly maximum: number,
-    private readonly send: RequestSender,
-  ) {}
+  constructor(private readonly send: RequestSender) {}
 
   /** Queue one request, counting queue wait against its caller deadline. */
   run(
@@ -78,14 +76,8 @@ export class HopperRequestQueue {
     if (options.signal?.aborted === true)
       return Promise.resolve(err(new HopperCancelledError()));
     if (options.timeoutMs <= 0)
-      return Promise.resolve(err(new HopperTimeoutError(options.timeoutMs)));
-    if (this.#size() >= this.maximum)
       return Promise.resolve(
-        err(
-          new HopperProtocolError(
-            `Hopper serial request queue reached its ${String(this.maximum)}-request limit`,
-          ),
-        ),
+        err(new HopperTimeoutError(options.timeoutMs, method, id)),
       );
     return new Promise((resolve) => {
       let entry: QueuedRequest;
@@ -125,7 +117,23 @@ export class HopperRequestQueue {
     const entry = this.#active;
     if (entry === undefined || entry.id !== id) return false;
     this.#releaseWire(entry);
-    if (!entry.callerSettled) this.#settleCaller(entry, result, "waiting");
+    if (!entry.callerSettled) {
+      const contextual =
+        !result.ok && result.error instanceof HopperRemoteError
+          ? err(
+              new HopperRemoteError(
+                result.error.code,
+                result.error.safeMessage,
+                {
+                  diagnosticType: result.error.diagnosticType,
+                  operation: entry.method,
+                  requestId: entry.id,
+                },
+              ),
+            )
+          : result;
+      this.#settleCaller(entry, contextual, "waiting");
+    }
     this.#active = undefined;
     this.#drain();
     return true;
@@ -160,10 +168,18 @@ export class HopperRequestQueue {
     if (active !== undefined) {
       this.#releaseWire(active);
       if (!active.callerSettled)
-        this.#settleCaller(active, err(error), "waiting");
+        this.#settleCaller(
+          active,
+          err(withRequestContext(error, active)),
+          "waiting",
+        );
     }
     for (const entry of this.#queue.splice(0))
-      this.#settleCaller(entry, err(error), "waiting");
+      this.#settleCaller(
+        entry,
+        err(withRequestContext(error, entry)),
+        "waiting",
+      );
   }
 
   /** Snapshot the one request still occupying Hopper's serial Python thread. */
@@ -204,7 +220,9 @@ export class HopperRequestQueue {
         entry,
         entry.signal?.aborted === true
           ? err(new HopperCancelledError())
-          : err(new HopperTimeoutError(entry.timeoutMs)),
+          : err(
+              new HopperTimeoutError(entry.timeoutMs, entry.method, entry.id),
+            ),
         entry.signal?.aborted === true ? "cancelled" : "timed_out",
       );
       this.#drain();
@@ -239,7 +257,14 @@ export class HopperRequestQueue {
     if (this.#active === entry) {
       this.#settleCaller(
         entry,
-        err(new HopperTimeoutError(entry.timeoutMs)),
+        err(
+          new HopperTimeoutError(
+            entry.timeoutMs,
+            entry.method,
+            entry.id,
+            "busy",
+          ),
+        ),
         "timed_out",
       );
       return;
@@ -249,7 +274,7 @@ export class HopperRequestQueue {
     this.#queue.splice(index, 1);
     this.#settleCaller(
       entry,
-      err(new HopperTimeoutError(entry.timeoutMs)),
+      err(new HopperTimeoutError(entry.timeoutMs, entry.method, entry.id)),
       "timed_out",
     );
   }
@@ -311,3 +336,16 @@ export class HopperRequestQueue {
     }
   }
 }
+
+const withRequestContext = (
+  error: HopperError,
+  entry: QueuedRequest,
+): HopperError =>
+  error instanceof HopperProcessError
+    ? new HopperProcessError(
+        error.exitCode,
+        error.diagnostic,
+        entry.method,
+        entry.id,
+      )
+    : error;

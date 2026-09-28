@@ -74,10 +74,8 @@ export const methodBody = (
       opcodeCounts[instruction.opcode] =
         (opcodeCounts[instruction.opcode] ?? 0) + 1;
     const anchors = decoded.parsed
-      .map((instruction, index) => ({ instruction, index }))
-      .filter(({ instruction }) => instruction.operandKind !== "none")
-      .slice(0, limits.instructionAnchorLimit)
-      .map(({ instruction }) => ({
+      .filter((instruction) => instruction.operandKind !== "none")
+      .map((instruction) => ({
         il_offset: instruction.offset,
         opcode: instruction.opcode,
         operand_kind: instruction.operandKind,

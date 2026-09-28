@@ -208,7 +208,6 @@ const scenarioCapture = (
   });
   const eventSequence = options.eventSequence ?? 1;
   return browserScenarioCaptureSchema.parse({
-    schema_version: 1,
     browser: {
       mode: "launch",
       process_ownership: "provider-owned",

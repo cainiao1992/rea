@@ -109,7 +109,6 @@ describe("direct replay machine execution", () => {
     const result = runReplayMachine(loginRun());
 
     expect(result).toMatchObject({
-      schema_version: 1,
       initial_state: "login",
       final_state: "complete",
       terminal: true,

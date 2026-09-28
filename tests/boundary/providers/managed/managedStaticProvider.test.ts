@@ -41,9 +41,9 @@ describe("managed static provider path boundary", () => {
     if (!members.ok) return;
     expect(asManagedMemberResult(members.value)).toMatchObject({
       artifact: { path, sha256: parsed.value.sha256, format: "pe" },
-      methods: { total: 1 },
-      call_edges: { total: 1 },
-      field_accesses: { total: 1 },
+      methods: [expect.objectContaining({ token: "0x06000001" })],
+      call_edges: [expect.objectContaining({ target_name: ".ctor" })],
+      field_accesses: [expect.objectContaining({ field_name: "counter" })],
     });
 
     const boundaries = await client.execute(
@@ -54,9 +54,9 @@ describe("managed static provider path boundary", () => {
     if (!boundaries.ok) return;
     expect(asManagedNativeBoundaryResult(boundaries.value)).toMatchObject({
       artifact: { path, sha256: parsed.value.sha256, format: "pe" },
-      module_refs: { total: 0 },
-      pinvoke_imports: { total: 0 },
-      native_implementations: { total: 0 },
+      module_refs: [],
+      pinvoke_imports: [],
+      native_implementations: [],
     });
 
     const cancelled = new AbortController();

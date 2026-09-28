@@ -13,11 +13,9 @@ describe("reconstruction obligation ledger CLI parity", () => {
       evidence_bundle: createEvidenceBundle([]),
       reviewed_obligations: [],
       manifest: {
-        schema_version: 1,
         bindings: [],
         contradictions: [],
       },
-      limits: { max_obligations: 100 },
       page: { offset: 0, limit: 50 },
     };
     const { stdout } = await execute(

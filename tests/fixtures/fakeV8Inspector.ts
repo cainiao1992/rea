@@ -13,6 +13,7 @@ interface FakeV8InspectorOptions {
   readonly targetType?: "node" | "page";
   readonly scriptUrls?: readonly string[];
   readonly additionalTargetUrl?: string;
+  readonly additionalTargetCount?: number;
   readonly closeOnMethod?: string;
 }
 
@@ -63,6 +64,16 @@ export const startFakeV8Inspector = async (
                   port,
                 ),
               ]),
+          ...Array.from(
+            { length: options.additionalTargetCount ?? 0 },
+            (_, index) =>
+              target(
+                `00000000-0000-4000-8000-${String(index + 3).padStart(12, "0")}`,
+                options.targetUrl,
+                options.targetType ?? "node",
+                port,
+              ),
+          ),
         ]),
       );
       return;

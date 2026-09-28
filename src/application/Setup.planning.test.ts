@@ -1,25 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  registrationPermissionEnvironment,
-  runSetup,
-  type SetupProgressEvent,
-} from "./Setup.js";
+import { runSetup, type SetupProgressEvent } from "./Setup.js";
 import { FakeSetupHost, options } from "./Setup.fixture.js";
 
 describe("setup workflow", () => {
-  it("propagates only the explicit non-secret investigation root policy", () => {
-    expect(
-      registrationPermissionEnvironment({
-        REA_INVESTIGATION_INPUT_ROOTS_JSON: '["/approved/apps"]',
-        AUTHORIZATION: "secret",
-      }),
-    ).toEqual({
-      REA_INVESTIGATION_INPUT_ROOTS_JSON: '["/approved/apps"]',
-    });
-    expect(registrationPermissionEnvironment({})).toEqual({});
-  });
-
   it("returns a complete plan without mutation", async () => {
     const host = new FakeSetupHost();
     host.clients = [{ name: "cursor", configPath: "/cursor.json" }];

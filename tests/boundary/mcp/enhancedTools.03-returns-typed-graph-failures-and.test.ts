@@ -22,24 +22,18 @@ const PROCEDURES = {
   "0x6": "prefix_TtOther",
 };
 
-const page = (values: Readonly<Record<string, string>>) => ({
-  items: Object.entries(values).map(([address, value]) => ({ address, value })),
-  offset: 0,
-  limit: 100,
-  total: Object.keys(values).length,
-  next_offset: null,
-  has_more: false,
-});
+const inventory = (values: Readonly<Record<string, string>>) =>
+  Object.entries(values).map(([address, value]) => ({ address, value }));
 
 const fixturePort = (): AnalysisOperationPort => ({
   execute: (name, arguments_) => {
     switch (name) {
       case "list_procedures":
-        return Promise.resolve(ok(page(PROCEDURES)));
+        return Promise.resolve(ok(inventory(PROCEDURES)));
       case "list_names":
         return Promise.resolve(
           ok(
-            page({
+            inventory({
               "0x10": "_OBJC_CLASS_$_Fixture",
               "0x11": "_OBJC_CLASS_$_Fixture",
               "0x12": "_OBJC_PROTOCOL_$_FixtureDelegate",
@@ -90,7 +84,7 @@ const fixturePort = (): AnalysisOperationPort => ({
       case "list_documents":
         return Promise.resolve(ok(["fixture"]));
       case "list_strings":
-        return Promise.resolve(ok(page({ "0x30": "hello" })));
+        return Promise.resolve(ok(inventory({ "0x30": "hello" })));
       case "analyze_function":
         return Promise.resolve(
           ok({
@@ -195,13 +189,12 @@ describe("enhanced MCP tools", () => {
       execute: (name) =>
         name === "procedure_callees"
           ? Promise.resolve(err(new AnalysisOutputError(name, "failed")))
-          : Promise.resolve(ok(page({}))),
+          : Promise.resolve(ok(inventory({}))),
     });
 
     const graph = await tools.execute("get_call_graph", {
       address: "0x1",
       direction: "forward",
-      depth: 1,
     });
     const unresolved = await tools.execute("find_xrefs_to_name", {
       name: "missing",
@@ -233,53 +226,72 @@ describe("enhanced MCP tools", () => {
     });
   });
 
-  it("follows procedure pagination for whole-binary workflows", async () => {
-    const offsets: number[] = [];
-    const client = await connect({
-      execute: (_name, arguments_) => {
-        const offset = arguments_.offset;
-        offsets.push(typeof offset === "number" ? offset : 0);
+  it("traverses the complete reachable call graph and stops at cycles", async () => {
+    const calls: string[] = [];
+    const tools = new EnhancedTools({
+      execute: (name, arguments_) => {
+        if (name !== "procedure_callees") return Promise.resolve(ok([]));
+        const address = String(arguments_.procedure);
+        calls.push(address);
+        const next = Number.parseInt(address.slice(2), 16) + 1;
         return Promise.resolve(
-          ok({
-            items: [
-              {
-                address: offset === 500 ? "0x2" : "0x1",
-                value: offset === 500 ? "_TtC4Last" : "_TtC5First",
-              },
-            ],
-            offset: typeof offset === "number" ? offset : 0,
-            limit: 500,
-            total: 2,
-            next_offset: offset === 500 ? null : 500,
-            has_more: offset !== 500,
-          }),
+          ok(next <= 8 ? [`0x${next.toString(16)}`] : ["0x2"]),
+        );
+      },
+    });
+
+    const result = await tools.execute("get_call_graph", {
+      address: "0x1",
+      direction: "forward",
+    });
+
+    expect(calls).toEqual([
+      "0x1",
+      "0x2",
+      "0x3",
+      "0x4",
+      "0x5",
+      "0x6",
+      "0x7",
+      "0x8",
+    ]);
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        "0": [{ address: "0x1", calls: ["0x2"], status: "ok" }],
+        "7": [{ address: "0x8", calls: ["0x2"], status: "ok" }],
+      },
+    });
+  });
+
+  it("uses every procedure in one complete inventory", async () => {
+    const calls: string[] = [];
+    const client = await connect({
+      execute: (name) => {
+        calls.push(name);
+        return Promise.resolve(
+          ok([
+            { address: "0x1", value: "_TtC5First" },
+            { address: "0x2", value: "_TtC4Last" },
+          ]),
         );
       },
     });
     const result = jsonResult(
       await client.callTool({ name: "swift_classes", arguments: {} }),
     );
-    expect(offsets).toEqual([0, 500]);
+    expect(calls).toEqual(["list_procedures"]);
     expect(result).toMatchObject({ count: 2 });
   });
 
-  it("does not start another page after cancellation", async () => {
+  it("returns cancellation when a complete inventory call is cancelled", async () => {
     const controller = new AbortController();
     let calls = 0;
     const analysis: AnalysisOperationPort = {
       execute: () => {
         calls += 1;
         controller.abort();
-        return Promise.resolve(
-          ok({
-            items: [{ address: "0x1", value: "_TtC5First" }],
-            offset: 0,
-            limit: 500,
-            total: 2,
-            next_offset: 500,
-            has_more: true,
-          }),
-        );
+        return Promise.resolve(ok([{ address: "0x1", value: "_TtC5First" }]));
       },
     };
 

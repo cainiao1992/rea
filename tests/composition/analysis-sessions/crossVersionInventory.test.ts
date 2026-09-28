@@ -45,10 +45,9 @@ describe("cross-version inventory", () => {
     const calls: string[] = [];
     const controller = new AbortController();
     const scanner: VersionInventoryScanner = (...arguments_) => {
-      const [path, roots, limits, options] = arguments_;
+      const [path, limits, options] = arguments_;
       if (options === undefined) throw new Error("Expected scanner options");
       calls.push(path);
-      expect(roots).toEqual([root]);
       expect(limits).toBe(LIMITS);
       expect(options.signal).toBe(controller.signal);
       expect(options.integrity).toBe(INTEGRITY);
@@ -59,7 +58,6 @@ describe("cross-version inventory", () => {
       {
         leftPath: "left",
         rightPath: "right",
-        inputRoots: [root],
         limits: LIMITS,
         signal: controller.signal,
         integrity: INTEGRITY,
@@ -87,7 +85,6 @@ describe("cross-version inventory", () => {
         {
           leftPath: "left",
           rightPath: "right",
-          inputRoots: ["/approved"],
           limits: LIMITS,
           integrity: INTEGRITY,
         },

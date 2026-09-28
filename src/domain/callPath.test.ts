@@ -10,18 +10,9 @@ import { createEvidence, type Evidence } from "./evidence.js";
 import { functionDossierSchema } from "./hopperValues.js";
 import { jsonValueSchema } from "./jsonValue.js";
 
-const bounded = <Item>(items: readonly Item[], complete = true) => ({
-  items,
-  total: complete ? items.length : null,
-  returned: items.length,
-  truncated: !complete,
-  next_offset: null,
-});
-
 const observe = (
   address: string,
   callees: readonly string[],
-  complete = true,
   provider = "rea-workflow",
 ): Evidence => {
   const value = functionDossierSchema.parse({
@@ -31,29 +22,19 @@ const observe = (
       signature: null,
       locals: [],
     },
-    pseudocode: {
-      text: "",
-      total_chars: 0,
-      returned_chars: 0,
-      truncated: false,
-      next_offset: null,
-    },
-    assembly: bounded([]),
-    comments: bounded([]),
-    callers: bounded([]),
-    callees: bounded(
-      callees.map((callee) => ({
-        address: callee,
-        name: `fn_${callee.slice(2)}`,
-      })),
-      complete,
-    ),
-    incoming_references: bounded([]),
-    outgoing_references: bounded([]),
-    referenced_strings: bounded([]),
-    referenced_names: bounded([]),
-    basic_blocks: bounded([]),
-    instruction_scan: { scanned: 0, truncated: false },
+    pseudocode: "",
+    assembly: [],
+    comments: [],
+    callers: [],
+    callees: callees.map((callee) => ({
+      address: callee,
+      name: `fn_${callee.slice(2)}`,
+    })),
+    incoming_references: [],
+    outgoing_references: [],
+    referenced_strings: [],
+    referenced_names: [],
+    basic_blocks: [],
   });
   return createEvidence(
     { path: "/tmp/a", sha256: "a".repeat(64), format: "mach-o" },
@@ -62,7 +43,6 @@ const observe = (
       operation: "analyze_function",
       parameters: enhancedInputSchemas.analyze_function.parse({
         procedure: address,
-        include_assembly: false,
       }),
       result: jsonValueSchema.parse(value),
       confidence: "derived",
@@ -98,30 +78,20 @@ describe("call path reconstruction", () => {
         .success,
     ).toBe(false);
     expect(
-      callPathResultSchema.safeParse({
-        ...result,
-        paths: { ...result.paths, total: null },
-      }).success,
+      callPathResultSchema.safeParse({ ...result, paths: [] }).success,
     ).toBe(false);
     expect(
-      result.paths.items.map((path) =>
-        path.nodes.map(({ address }) => address),
-      ),
-    ).toEqual([
-      ["0x1000", "0x2000", "0x4000"],
-      ["0x1000", "0x3000", "0x5000", "0x6000", "0x4000"],
-    ]);
+      result.paths.map((path) => path.nodes.map(({ address }) => address)),
+    ).toEqual([["0x1000", "0x2000", "0x4000"]]);
     expect(
-      result.paths.items[0]?.edges.every(
-        (edge) => edge.evidence_links.length > 0,
-      ),
+      result.paths[0]?.edges.every((edge) => edge.evidence_links.length > 0),
     ).toBe(true);
   });
 
   it("accepts a direct cited edge without a goal dossier", () => {
     const result = run([observe("0x1000", ["0x4000"])]);
     expect(result).toMatchObject({ status: "found", shortest_hops: 1 });
-    expect(result.paths.items[0]?.nodes[1]).toMatchObject({
+    expect(result.paths[0]?.nodes[1]).toMatchObject({
       address: "0x4000",
       name: null,
     });
@@ -143,32 +113,22 @@ describe("call path reconstruction", () => {
     );
   });
 
-  it("reports incomplete and depth-bounded absence as unknown", () => {
-    expect(run([observe("0x1000", [], false)]).status).toBe("unknown");
+  it("searches the complete supplied graph", () => {
     expect(
-      run([observe("0x1000", ["0x2000"]), observe("0x2000", [])], {
-        max_depth: 0,
-      }).status,
-    ).toBe("unknown");
+      run([observe("0x1000", ["0x2000"]), observe("0x2000", [])]).status,
+    ).toBe("not_found");
   });
 
-  it("truncates deterministically at max_paths and paginates retained paths", () => {
-    const result = run(
-      [
-        observe("0x1000", ["0x2000", "0x3000"]),
-        observe("0x2000", ["0x4000"]),
-        observe("0x3000", ["0x4000"]),
-      ],
-      { max_paths: 1, offset: 0, limit: 1 },
-    );
-    expect(result.status).toBe("truncated");
-    expect(result.paths).toMatchObject({
-      total: null,
-      returned: 1,
-      truncated: true,
-      lower_bound: 2,
-    });
-    expect(result.paths.items[0]?.nodes[1]?.address).toBe("0x2000");
+  it("returns all shortest paths inline without paging", () => {
+    const result = run([
+      observe("0x1000", ["0x2000", "0x3000"]),
+      observe("0x2000", ["0x4000"]),
+      observe("0x3000", ["0x4000"]),
+    ]);
+    expect(result.paths.map((path) => path.nodes[1]?.address)).toEqual([
+      "0x2000",
+      "0x3000",
+    ]);
   });
 
   it("normalizes hex addresses and rejects duplicates and mixed providers", () => {
@@ -182,7 +142,7 @@ describe("call path reconstruction", () => {
     ).toThrow();
     const one = observe("0x1000", []);
     expect(() => run([one, one])).toThrow(/Duplicate/u);
-    expect(() => run([one, observe("0x2000", [], true, "other")])).toThrow(
+    expect(() => run([one, observe("0x2000", [], "other")])).toThrow(
       /providers/u,
     );
   });

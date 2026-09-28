@@ -49,17 +49,10 @@ it("executes a realistic workflow: list methods, decompile selected, get xrefs",
       switch (name) {
         case "list_procedures":
           return Promise.resolve(
-            ok({
-              items: [
-                { address: "0x1000", value: "main" },
-                { address: "0x2000", value: "helper" },
-              ],
-              offset: 0,
-              limit: 100,
-              total: 2,
-              next_offset: null,
-              has_more: false,
-            }),
+            ok([
+              { address: "0x1000", value: "main" },
+              { address: "0x2000", value: "helper" },
+            ]),
           );
         case "procedure_pseudo_code":
           return Promise.resolve(
@@ -79,14 +72,10 @@ it("executes a realistic workflow: list methods, decompile selected, get xrefs",
   });
   expect(listResult.isError).not.toBe(true);
   expect(structured(listResult)).toMatchObject({
-    result: {
-      items: [
-        { address: "0x1000", value: "main" },
-        { address: "0x2000", value: "helper" },
-      ],
-      total: 2,
-      has_more: false,
-    },
+    result: [
+      { address: "0x1000", value: "main" },
+      { address: "0x2000", value: "helper" },
+    ],
   });
 
   const decompileResult = await client.callTool({
@@ -138,7 +127,7 @@ it("advertises the complete currently available inventory with a session", async
   const status = structured(
     await client.callTool({
       name: "binary_session",
-      arguments: { detail: "full" },
+      arguments: {},
     }),
   );
   const available = new Set(

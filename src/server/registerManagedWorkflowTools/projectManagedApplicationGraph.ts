@@ -54,7 +54,6 @@ export const registerProjectManagedApplicationGraph = (
       if (managedBoundaries !== undefined && !managedBoundaries.ok)
         return toCallToolResult(managedBoundaries, graphContract);
       const parsed = {
-        limits: input.limits,
         managed_artifact: managedArtifact?.value[0],
         managed_members: managedMembers?.value[0],
         managed_native_boundaries: managedBoundaries?.value[0],
@@ -74,9 +73,7 @@ export const registerProjectManagedApplicationGraph = (
       const recorded = options.recordEvidence?.(result.value);
       if (recorded !== undefined && !recorded.ok)
         return toCallToolResult(recorded, graphContract);
-      return toCallToolResult(result, graphContract, {
-        evidenceResourcesAvailable: recorded !== undefined,
-      });
+      return toCallToolResult(result, graphContract);
     },
   );
 };

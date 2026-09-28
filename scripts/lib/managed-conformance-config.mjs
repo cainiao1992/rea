@@ -41,14 +41,6 @@ export const nativeBoundaryLimits = {
   maxHeapItemBytes: 1024 * 1024,
 };
 
-export const applicationGraphLimits = {
-  max_types: 100,
-  max_methods: 100,
-  max_fields: 100,
-  max_pinvoke_imports: 100,
-  max_native_implementations: 100,
-};
-
 export const comparisonLimits = {
   max_method_matches: 100,
   max_field_matches: 100,
@@ -60,13 +52,6 @@ export const defaultIlBody = Buffer.from([
 ]);
 
 export function functionDossier(name) {
-  const emptyPage = {
-    items: [],
-    total: 0,
-    returned: 0,
-    truncated: false,
-    next_offset: null,
-  };
   return {
     procedure: {
       address: "0x401000",
@@ -80,23 +65,16 @@ export function functionDossier(name) {
       signature: null,
       locals: [],
     },
-    pseudocode: {
-      text: "",
-      total_chars: 0,
-      returned_chars: 0,
-      truncated: false,
-      next_offset: null,
-    },
-    assembly: emptyPage,
-    comments: emptyPage,
-    callers: emptyPage,
-    callees: emptyPage,
-    incoming_references: emptyPage,
-    outgoing_references: emptyPage,
-    referenced_strings: emptyPage,
-    referenced_names: emptyPage,
-    basic_blocks: emptyPage,
-    instruction_scan: { scanned: 0, truncated: false },
+    pseudocode: "",
+    assembly: [],
+    comments: [],
+    callers: [],
+    callees: [],
+    incoming_references: [],
+    outgoing_references: [],
+    referenced_strings: [],
+    referenced_names: [],
+    basic_blocks: [],
     limitations: [],
   };
 }

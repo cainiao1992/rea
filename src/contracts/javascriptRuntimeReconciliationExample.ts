@@ -4,6 +4,11 @@ import {
   createJavaScriptApplicationNode,
 } from "../domain/javascriptApplicationGraph.js";
 import { createWebTextArtifact } from "../domain/webContentArtifact.js";
+import {
+  createJavaScriptSemanticGraph,
+  createJavaScriptSemanticGraphNode,
+} from "../domain/javascriptSemanticGraph.js";
+import { JAVASCRIPT_SEMANTIC_RELATION_FAMILIES } from "../domain/javascriptSemanticGraphSchemas.js";
 
 const applicationSha256 = "1".repeat(64);
 const script = createWebTextArtifact(
@@ -59,12 +64,50 @@ const asset = createJavaScriptApplicationNode({
 });
 const graph = createJavaScriptApplicationGraph({
   schema: "JavaScriptApplicationGraph",
-  schema_version: 1,
   root_node_ids: [asset.node_id],
   nodes: [asset],
   edges: [],
   coverage: completeCoverage,
   limitations: [],
+});
+const semanticNode = createJavaScriptSemanticGraphNode({
+  kind: "module",
+  identity: {
+    artifact_sha256: applicationSha256,
+    module_path: "renderer.js",
+    source_range: null,
+    role_key: "example-module",
+  },
+  function_node_id: null,
+  application_node_ids: [asset.node_id],
+  label: "renderer.js",
+  properties: {},
+  evidence: graphEvidence,
+});
+const semanticGraph = createJavaScriptSemanticGraph({
+  schema: "JavaScriptSemanticRelationGraph",
+  root_artifact_sha256: applicationSha256,
+  application_graph_id: graph.graph_id,
+  root_node_ids: [semanticNode.node_id],
+  nodes: [semanticNode],
+  relations: [],
+  fingerprints: [],
+  unknowns: [],
+  coverage: {
+    status: "unknown",
+    truncated: false,
+    omitted_nodes: 0,
+    omitted_relations: 0,
+    limits: [],
+    families: JAVASCRIPT_SEMANTIC_RELATION_FAMILIES.map((family) => ({
+      family,
+      status: "unknown" as const,
+      retained_relations: 0,
+      omitted_relations: 0,
+      unknown_ids: [],
+    })),
+  },
+  limitations: ["Semantic relations are unavailable in this minimal example."],
 });
 
 const staticEvidence = createEvidence(
@@ -75,17 +118,17 @@ const staticEvidence = createEvidence(
     version: "1",
   },
   {
-    predicateType: "rea.javascript-application-analysis/v1",
+    predicateType: "rea.javascript-application-analysis",
     operation: "analyze_javascript_application",
-    parameters: { approved: true, source_map_read_approved: false },
+    parameters: {},
     result: {
-      schema_version: 1,
       input_path: inputPath,
       format: "directory",
       root_artifact_sha256: applicationSha256,
       inventory_manifest_id: `agm_${"2".repeat(64)}`,
       inventory_graph_sha256: "3".repeat(64),
       graph,
+      semantic_graph: semanticGraph,
       summary: {
         browser_windows: 0,
         explicit_web_preferences: 0,
@@ -116,7 +159,6 @@ const staticEvidence = createEvidence(
         text_bytes_read: script.bytes,
         omitted_text_files: 0,
         limit_omitted_text_files: 0,
-        policy_filtered_text_files: 0,
         invalid_utf8_files: 0,
         parsed_javascript_files: 1,
         visited_ast_nodes: 1,
@@ -153,7 +195,6 @@ const runtimeEvidence = createEvidence(
       source_capture_approved: true,
     },
     result: {
-      schema_version: 1,
       browser: {
         product: "Electron/example",
         protocol_version: "1.3",

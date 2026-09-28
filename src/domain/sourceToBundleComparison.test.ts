@@ -250,7 +250,6 @@ const applicationGraph = (coverage: "complete" | "partial") => {
   ];
   return createJavaScriptApplicationGraph({
     schema: "JavaScriptApplicationGraph",
-    schema_version: 1,
     root_node_ids: nodes.map(({ node_id: nodeId }) => nodeId),
     nodes,
     edges: [],

@@ -396,8 +396,15 @@ export class UnknownRegistryError extends AnalysisError {
 export class HopperTimeoutError extends HopperError {
   readonly _tag = "HopperTimeoutError";
 
-  constructor(readonly timeoutMs: number) {
-    super(`Hopper did not respond within ${String(timeoutMs)}ms`);
+  constructor(
+    readonly timeoutMs: number,
+    readonly operation?: string,
+    readonly requestId?: number,
+    readonly providerState: "busy" | "not_started" = "not_started",
+  ) {
+    super(
+      `Hopper ${operation === undefined ? "startup" : operation} timed out after ${String(timeoutMs)}ms`,
+    );
   }
 }
 
@@ -423,15 +430,27 @@ export type HopperDiagnosticType =
   | "bridge_exception";
 
 /** Hopper's JSON-RPC endpoint returned an expected remote error response. */
+export interface HopperRemoteErrorContext {
+  readonly diagnosticType?: HopperDiagnosticType;
+  readonly operation?: string;
+  readonly requestId?: number;
+}
+
 export class HopperRemoteError extends HopperError {
   readonly _tag = "HopperRemoteError";
+  readonly diagnosticType: HopperDiagnosticType;
+  readonly operation: string | undefined;
+  readonly requestId: number | undefined;
 
   constructor(
     readonly code: number,
     readonly safeMessage: string,
-    readonly diagnosticType: HopperDiagnosticType = "remote",
+    context: HopperRemoteErrorContext = {},
   ) {
     super(`Hopper request failed (${String(code)}): ${safeMessage}`);
+    this.diagnosticType = context.diagnosticType ?? "remote";
+    this.operation = context.operation;
+    this.requestId = context.requestId;
   }
 }
 
@@ -444,6 +463,8 @@ export class HopperProcessError extends HopperError {
   constructor(
     readonly exitCode: number | null,
     readonly diagnostic?: HopperStartupFailureDiagnostic,
+    readonly operation?: string,
+    readonly requestId?: number,
   ) {
     super(`Hopper bridge stopped unexpectedly with code ${String(exitCode)}`);
     const failure = hopperStartupFailure(exitCode);
@@ -455,9 +476,18 @@ export class HopperProcessError extends HopperError {
 /** Hopper or the repository bridge could not be started. */
 export class HopperStartError extends HopperError {
   readonly _tag = "HopperStartError";
+  override readonly userMessage: string | undefined;
+  readonly ownerRunId: string | undefined;
 
-  constructor(options?: ErrorOptions) {
+  constructor(
+    options?: ErrorOptions & {
+      readonly userMessage?: string;
+      readonly ownerRunId?: string;
+    },
+  ) {
     super("Hopper application bridge could not be started", options);
+    this.userMessage = options?.userMessage;
+    this.ownerRunId = options?.ownerRunId;
   }
 }
 

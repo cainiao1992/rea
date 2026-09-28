@@ -365,7 +365,6 @@ const candidate = (
               ? null
               : createAnalysisProfile(
                   { id, name: identity.name, version: "1" },
-                  1,
                   { fixture: id },
                 ),
           compatibility: {},
@@ -395,8 +394,6 @@ const candidate = (
 const capability = (provider: ProviderIdentity): CapabilityDescriptor => ({
   provider,
   operation: "address_name",
-  inputContractVersion: 1,
-  outputContractVersion: 1,
   available: true,
   reason: null,
   pagination: "none",

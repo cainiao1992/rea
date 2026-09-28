@@ -216,7 +216,6 @@ const comparisonCoverageSchema = z.union([
 /** Tiered module/entity matching plus a bounded cross-version change graph. */
 export const applicationVersionComparisonResultSchema = z
   .strictObject({
-    schema_version: z.literal(1),
     comparison_id: z.string().regex(/^javc_[a-f0-9]{64}$/u),
     left: z.strictObject({
       evidence_id: evidenceIdSchema,

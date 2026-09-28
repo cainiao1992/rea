@@ -52,15 +52,12 @@ export const verifyManagedNativeBoundaries = (
 ): ManagedNativeVerificationResult => {
   const managed = managedBoundaryFromInput(input);
   const managedEvidence = parseEvidence(input.managed_boundaries);
-  const native = collectNativeSymbols(
-    input.native_observations.slice(0, input.limits.max_native_observations),
-  );
-  const verifiedPinvokes = managed.pinvoke_imports.items.map((item) =>
+  const native = collectNativeSymbols(input.native_observations);
+  const verifiedPinvokes = managed.pinvoke_imports.map((item) =>
     verifyPinvoke({
       item,
       managedEvidenceId: managedEvidence.evidence_id,
       native,
-      input,
     }),
   );
   const pinvokeImports = verifiedPinvokes.map(
@@ -71,7 +68,6 @@ export const verifyManagedNativeBoundaries = (
     managed,
     native,
     pinvokeImports,
-    verifiedPinvokes,
     input,
   });
   return managedNativeVerificationResultSchema.parse({

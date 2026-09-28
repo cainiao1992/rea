@@ -133,7 +133,6 @@ const input = (
 
 const completedRunner = (): JavaScriptReplayRunner => ({
   execute: async (prepared) => ({
-    schema_version: 1,
     plan_digest: prepared.publicPlan.plan_digest,
     outcomes: [
       {
@@ -403,7 +402,6 @@ describe("controlled JavaScript replay cancellation and export", () => {
   it("projects an observed cancelled termination through the shared error algebra", async () => {
     const execute = vi.fn<JavaScriptReplayRunner["execute"]>(
       async (prepared) => ({
-        schema_version: 1,
         plan_digest: prepared.publicPlan.plan_digest,
         outcomes: [
           {

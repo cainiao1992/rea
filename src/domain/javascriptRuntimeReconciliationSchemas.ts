@@ -256,7 +256,6 @@ const staticLoadStateSchema = z.strictObject({
 
 /** Deterministic static/passive-runtime reconciliation with a combined JAG. */
 export const javascriptRuntimeReconciliationResultSchema = z.strictObject({
-  schema_version: z.literal(1),
   reconciliation_id: z.string().regex(/^jrr_[a-f0-9]{64}$/u),
   static_layers: z.array(layerSummarySchema).min(1).max(8),
   runtime_captures: z.array(captureSummarySchema).min(1).max(32),
@@ -279,7 +278,7 @@ export const javascriptRuntimeReconciliationResultSchema = z.strictObject({
   static_load_states: z.array(staticLoadStateSchema).max(50_000),
   source_map_authority: z.strictObject({
     used_for_primary_matching: z.literal(false),
-    static_layers_with_read_approval: z.number().int().min(0),
+    static_layer_count: z.number().int().min(0),
     runtime_script_declarations: z.number().int().min(0),
     limitation: boundedTextSchema,
   }),

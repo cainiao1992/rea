@@ -3,11 +3,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { Formatter } from "incur";
 import { resolve } from "node:path";
 
-import {
-  CATALOG_IDENTITY,
-  MCP_RESOURCE_CATALOG,
-  MCP_RESOURCE_TEMPLATE_CATALOG,
-} from "./catalogIdentity.js";
+import { CATALOG_IDENTITY } from "./catalogIdentity.js";
 import { PROMPT_CONTRACTS } from "./contracts/promptContracts.js";
 import { TOOL_CONTRACTS } from "./contracts/toolContracts.js";
 import { PRODUCT_IDENTITY } from "./identity.js";
@@ -100,18 +96,11 @@ const inspectProductionMcpSession = async (
   signal: AbortSignal,
 ) => {
   const request = requestOptions(deadline, signal);
-  const [tools, prompts, resources, templates, identity, requestFlow] =
-    await Promise.all([
-      client.listTools(undefined, request),
-      client.listPrompts(undefined, request),
-      client.listResources(undefined, request),
-      client.listResourceTemplates(undefined, request),
-      client.readResource({ uri: "rea://server/identity" }, request),
-      client.callTool(
-        { name: "binary_session", arguments: { detail: "full" } },
-        request,
-      ),
-    ]);
+  const [tools, prompts, requestFlow] = await Promise.all([
+    client.listTools(undefined, request),
+    client.listPrompts(undefined, request),
+    client.callTool({ name: "binary_session", arguments: {} }, request),
+  ]);
   const inventory = {
     tools: compareInventory(
       TOOL_CONTRACTS.map(({ name }) => name),
@@ -121,16 +110,10 @@ const inspectProductionMcpSession = async (
       PROMPT_CONTRACTS.map(({ name }) => name),
       prompts.prompts.map(({ name }) => name),
     ),
-    resources: compareInventory(
-      MCP_RESOURCE_CATALOG.map(({ name }) => name),
-      resources.resources.map(({ name }) => name),
-    ),
-    resource_templates: compareInventory(
-      MCP_RESOURCE_TEMPLATE_CATALOG.map(({ name }) => name),
-      templates.resourceTemplates.map(({ name }) => name),
-    ),
   };
-  const observedIdentity = parseIdentityResource(identity.contents);
+  const observedIdentity = parseIdentityToolResult(
+    requestFlow.structuredContent,
+  );
   const serverVersion = client.getServerVersion();
   const protocolVersion = client.getNegotiatedProtocolVersion();
   const checks: McpDoctorCheck[] = [
@@ -245,37 +228,29 @@ const inventoryCheck = (
   detail: `expected=${String(comparison.expected)} observed=${String(comparison.observed)} missing=${comparison.missing.join(",") || "none"} unexpected=${comparison.unexpected.join(",") || "none"} duplicates=${comparison.duplicates.join(",") || "none"}`,
 });
 
-const parseIdentityResource = (
-  contents: readonly unknown[],
+const parseIdentityToolResult = (
+  input: unknown,
 ): {
   readonly packageVersion: string | null;
   readonly catalogDigest: string | null;
 } => {
-  const first = contents.find(
-    (candidate) => isRecord(candidate) && typeof candidate.text === "string",
-  );
-  if (!isRecord(first) || typeof first.text !== "string")
+  if (!isRecord(input) || !isRecord(input.result))
     return { packageVersion: null, catalogDigest: null };
-  try {
-    const identity: unknown = JSON.parse(first.text);
-    if (!isRecord(identity))
-      return { packageVersion: null, catalogDigest: null };
-    const packageIdentity = identity.package;
-    const catalog = identity.catalog;
-    const digests = isRecord(catalog) ? catalog.digests : undefined;
-    return {
-      packageVersion:
-        isRecord(packageIdentity) && typeof packageIdentity.version === "string"
-          ? packageIdentity.version
-          : null,
-      catalogDigest:
-        isRecord(digests) && typeof digests.combined_sha256 === "string"
-          ? digests.combined_sha256
-          : null,
-    };
-  } catch {
-    return { packageVersion: null, catalogDigest: null };
-  }
+  const identity = input.result.server_identity;
+  if (!isRecord(identity)) return { packageVersion: null, catalogDigest: null };
+  const packageIdentity = identity.package;
+  const catalog = identity.catalog;
+  const digests = isRecord(catalog) ? catalog.digests : undefined;
+  return {
+    packageVersion:
+      isRecord(packageIdentity) && typeof packageIdentity.version === "string"
+        ? packageIdentity.version
+        : null,
+    catalogDigest:
+      isRecord(digests) && typeof digests.combined_sha256 === "string"
+        ? digests.combined_sha256
+        : null,
+  };
 };
 
 const parseOutputArguments = (

@@ -8,7 +8,7 @@ import type {
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { digestJson } from "./JavaScriptReplayPlanning.js";
 
-/** Create Evidence v2 without retaining arbitrary runtime argument values. */
+/** Create Evidence without retaining arbitrary runtime argument values. */
 export const createElectronActiveEvidence = (
   input: ElectronActiveObservationInput,
   result: ElectronActiveObservationResult,
@@ -34,7 +34,6 @@ const scenarioProjection = (
   input: ElectronActiveObservationInput,
 ): EvidenceObservation["parameters"] => ({
   approved: input.approved,
-  schema_version: input.schema_version,
   executable_path: input.executable_path,
   application_path: input.application_path,
   application_root: input.application_root,

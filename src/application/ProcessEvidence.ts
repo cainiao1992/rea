@@ -6,7 +6,7 @@ import type {
   ProcessScenario,
 } from "../domain/processCapture.js";
 
-/** Provider identity for controlled Process Capture v4 evidence. */
+/** Provider identity for controlled process capture evidence. */
 export const PROCESS_PROVIDER = {
   id: "rea-process",
   name: "REA deterministic process harness",
@@ -26,13 +26,13 @@ const processEvidenceParameters = (
   normalization: scenario.normalization,
 });
 
-/** Create one canonical observed Process Capture v4 Evidence record. */
+/** Create one canonical observed process capture Evidence record. */
 export const createProcessCaptureEvidence = (
   scenario: ProcessScenario,
   capture: ProcessCapture,
 ) => {
   return createEvidence(undefined, PROCESS_PROVIDER, {
-    predicateType: "rea.process-capture/v4",
+    predicateType: "rea.process-capture",
     operation: "capture_process_scenario",
     parameters: processEvidenceParameters(scenario),
     result: jsonValueSchema.parse(capture),

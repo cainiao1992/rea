@@ -8,6 +8,9 @@ import {
   EvidenceIntegrityError,
   EvidenceLimitError,
   HopperRemoteError,
+  HopperProcessError,
+  HopperStartError,
+  HopperTimeoutError,
   InvestigationWorkspaceError,
   NoBinaryOpenError,
   PermissionRequiredError,
@@ -22,6 +25,18 @@ import {
 export const analysisErrorRemediationAction = (
   error: AnalysisError,
 ): string => {
+  if (error instanceof HopperTimeoutError)
+    return error.providerState === "busy"
+      ? "Check binary_session.analysis_activity, wait for the active Hopper request to finish, then retry."
+      : "Check binary_session for Hopper health, then retry the operation.";
+  if (error instanceof HopperProcessError)
+    return "Check binary_session provider health. Restart the owned Hopper process only when it has stopped.";
+  if (error instanceof HopperStartError)
+    return error.ownerRunId === undefined
+      ? "Check the Hopper launcher and target details, then retry opening the target."
+      : `Use the active REA session ${error.ownerRunId} or close it before opening this target again.`;
+  if (error instanceof HopperRemoteError)
+    return "Review the Hopper diagnostic details; correct the request or retry if the failure was transient.";
   if (error instanceof AnalysisInputError)
     return "Correct the listed arguments and retry.";
   if (error instanceof UnknownRegistryError && error.reason === "not-found")
@@ -60,6 +75,8 @@ export const analysisErrorCategory = (
     error.diagnosticType === "authorization"
   )
     return "permission_required";
+  if (error instanceof HopperProcessError || error instanceof HopperStartError)
+    return "unavailable";
   if (error instanceof ArtifactOperationError)
     return artifactErrorCategory(error.reason);
   if (error instanceof EvidenceFileError && error.reason === "disabled")
@@ -132,6 +149,8 @@ export const analysisErrorUserMessage = (error: AnalysisError): string => {
     return "This operation needs additional local permission. Review the requested scope and remediation.";
   if (error instanceof AnalysisInputError)
     return "Analysis input is invalid. Check the arguments and try again.";
+  const hopperMessage = hopperErrorUserMessage(error);
+  if (hopperMessage !== undefined) return hopperMessage;
   if (error.userMessage !== undefined) return error.userMessage;
   const standardMessage = standardErrorMessage(error._tag);
   if (standardMessage !== undefined) return standardMessage;
@@ -160,6 +179,25 @@ export const analysisErrorUserMessage = (error: AnalysisError): string => {
       "Process capture could not complete. Run `rea doctor`, then review capture policy and try again."
     );
   return "Analysis could not complete. Run `rea doctor`, then try again.";
+};
+
+const hopperErrorUserMessage = (error: AnalysisError): string | undefined => {
+  if (error instanceof HopperTimeoutError) {
+    const request = error.operation ?? "startup";
+    return error.providerState === "busy"
+      ? `Hopper timed out during ${request} while the provider remained busy. Check binary_session.analysis_activity, wait for the active request to finish, then retry.`
+      : `Hopper timed out during ${request} before it started. Check binary_session for provider health, then retry.`;
+  }
+  if (error instanceof HopperProcessError)
+    return `Hopper stopped during ${error.operation ?? "connection"}${error.exitCode === null ? "; its exit was not observed" : ` with exit code ${String(error.exitCode)}`}.${error.userMessage === undefined ? "" : ` ${error.userMessage}`} Check binary_session provider health before retrying.`;
+  if (error instanceof HopperStartError)
+    return (
+      error.userMessage ??
+      "Hopper could not start. Check the launcher and target details, then retry opening the target."
+    );
+  if (error instanceof HopperRemoteError)
+    return `Hopper ${error.operation ?? "analysis"} failed (${String(error.code)}, ${error.diagnosticType}): ${error.safeMessage}`;
+  return undefined;
 };
 
 const standardErrorMessage = (tag: AnalysisErrorTag): string | undefined => {
@@ -210,7 +248,7 @@ const artifactMessage = (reason: ArtifactOperationError["reason"]): string => {
   if (reason === "limit")
     return "Artifact is too large to process safely. Narrow the requested path or use a smaller artifact.";
   if (reason === "path")
-    return "Artifact path is not allowed. Choose a path inside the artifact and try again.";
+    return "Artifact contains an unsafe or conflicting internal path. Inspect the reported path and correct the artifact before retrying.";
   if (reason === "policy")
     return "Artifact integrity continuation is disabled by policy. Configure REA_ARTIFACT_INTEGRITY_CONTINUE_ENABLED=true and retry only if continuing after mismatches is approved.";
   if (reason === "unavailable")

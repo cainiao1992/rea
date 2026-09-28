@@ -32,14 +32,14 @@ describe("managed native boundaries", () => {
       managed_native_header_rva: 0x2700,
       managed_native_header_size: 4,
     });
-    expect(result.module_refs.items).toEqual([
+    expect(result.module_refs).toEqual([
       {
         token: "0x1a000001",
         row_offset: expect.any(Number),
         name: "user32.dll",
       },
     ]);
-    expect(result.pinvoke_imports.items).toEqual([
+    expect(result.pinvoke_imports).toEqual([
       expect.objectContaining({
         token: "0x1c000001",
         member_token: "0x06000001",
@@ -55,7 +55,7 @@ describe("managed native boundaries", () => {
         verification: "managed-declaration-only",
       }),
     ]);
-    expect(result.native_implementations.items).toEqual([
+    expect(result.native_implementations).toEqual([
       expect.objectContaining({
         token: "0x06000001",
         name: "Main",
@@ -76,23 +76,14 @@ describe("managed native boundaries", () => {
     );
   });
 
-  it("keeps member evidence bounded and typed for pagination and unavailable metadata", () => {
+  it("returns complete member inventories inline and reports unavailable metadata", () => {
     const bytes = buildManagedPeFixture();
     const paged = inspectManagedMembersBytes(
       bytes,
       managedPeFixtureTarget(bytes),
-      {
-        ...MANAGED_MEMBER_FIXTURE_LIMITS,
-        methodLimit: 0 + 1,
-        instructionAnchorLimit: 1,
-      },
+      MANAGED_MEMBER_FIXTURE_LIMITS,
     );
-    expect(paged.methods).toMatchObject({
-      total: 1,
-      returned: 1,
-      complete: true,
-    });
-    expect(paged.methods.items[0]?.body.anchors).toHaveLength(1);
+    expect(paged.methods).toHaveLength(1);
 
     const nativeBytes = buildNativePeFixture();
     const native = inspectManagedMembersBytes(

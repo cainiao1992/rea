@@ -13,7 +13,6 @@ import {
 import { runUninstall } from "../application/Uninstall.js";
 import { runUpgrade, systemUpgradeHost } from "../application/Upgrade.js";
 import {
-  conciseSetupResult,
   confirmInteractiveSetup,
   renderInteractiveSetupResult,
   renderSetupProgress,
@@ -25,7 +24,6 @@ import { CLI_COMMANDS } from "../cliCommandNames.js";
 import type { Logger } from "../logger.js";
 import type { CliInstance } from "./types.js";
 import { SUPPORTED_CLIENT_DEFINITIONS } from "../application/SupportedClients.js";
-import { projectDoctorReport } from "../application/DoctorProjection.js";
 
 const supportedClientIds = SUPPORTED_CLIENT_DEFINITIONS.map(({ name }) => name);
 const supportedClientSchema = z
@@ -80,10 +78,6 @@ const registerSetupCommand = (cli: CliInstance, logger: Logger): void => {
         .boolean()
         .default(false)
         .describe("Use sequential accessible setup prompts"),
-      detail: z
-        .enum(["summary", "full"])
-        .default("summary")
-        .describe("Summary or complete setup and doctor diagnostics"),
     }),
     alias: { yes: "y" },
     run: ({ options, formatExplicit }) =>
@@ -110,10 +104,6 @@ const registerDoctorCommand = (cli: CliInstance, logger: Logger): void => {
         .boolean()
         .optional()
         .describe("Require the installed REA skill identity to be aligned"),
-      detail: z
-        .enum(["summary", "full"])
-        .default("summary")
-        .describe("Summary or complete doctor diagnostics"),
     }),
     run: ({ options }) =>
       logCliCommand(logger, "doctor", () =>
@@ -121,7 +111,7 @@ const registerDoctorCommand = (cli: CliInstance, logger: Logger): void => {
           options.target,
           createSystemDoctorHost(),
           doctorScope(options),
-        ).then((report) => projectDoctorReport(report, options.detail)),
+        ),
       ),
   });
 };
@@ -163,7 +153,6 @@ interface SetupCommandOptions {
   readonly skill?: boolean | undefined;
   readonly dryRun: boolean;
   readonly accessible: boolean;
-  readonly detail: "summary" | "full";
 }
 
 const runSetupCommand = async (input: {
@@ -185,7 +174,7 @@ const runSetupCommand = async (input: {
       : undefined,
   );
   if (interactive) renderInteractiveSetupResult(result);
-  return options.detail === "full" ? result : conciseSetupResult(result);
+  return result;
 };
 
 const setupRunOptions = (

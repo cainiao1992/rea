@@ -54,7 +54,6 @@ export const buildReconciledApplicationGraph = (
   );
   const graph = createJavaScriptApplicationGraph({
     schema: "JavaScriptApplicationGraph",
-    schema_version: 1,
     root_node_ids: bounded.rootNodeIds,
     nodes: bounded.nodes,
     edges: bounded.edges,

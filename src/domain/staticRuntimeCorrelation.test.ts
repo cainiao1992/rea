@@ -18,7 +18,7 @@ const capture = (digit: string): Evidence =>
     undefined,
     { id: "fixture", name: "Fixture", version: "1" },
     {
-      predicateType: "rea.process-capture/v4",
+      predicateType: "rea.process-capture",
       operation: "capture_process_scenario",
       parameters: {},
       result: { digit },
@@ -71,7 +71,7 @@ const processComparison = (
       version: "3",
     },
     {
-      predicateType: "rea.process-comparison/v3",
+      predicateType: "rea.process-comparison",
       operation: "compare_process_captures",
       parameters: {
         left_evidence_id: leftCapture.evidence_id,

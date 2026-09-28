@@ -311,11 +311,22 @@ const providerErrorDetails = (
   if (error instanceof BrowserObservationError)
     return { operation: error.operation, reason: error.reason };
   if (error instanceof HopperRemoteError)
-    return { provider_code: error.code, diagnostic_type: error.diagnosticType };
-  if (error instanceof HopperProcessError && error.failureCode !== undefined)
     return {
-      failure_code: error.failureCode,
+      stage: "analysis",
+      provider_code: error.code,
+      diagnostic_type: error.diagnosticType,
+      ...(error.operation === undefined ? {} : { operation: error.operation }),
+      ...(error.requestId === undefined ? {} : { request_id: error.requestId }),
+    };
+  if (error instanceof HopperProcessError)
+    return {
       exit_code: error.exitCode,
+      stage: error.operation === undefined ? "connection" : "analysis",
+      ...(error.failureCode === undefined
+        ? {}
+        : { failure_code: error.failureCode }),
+      ...(error.operation === undefined ? {} : { operation: error.operation }),
+      ...(error.requestId === undefined ? {} : { request_id: error.requestId }),
       ...(error.diagnostic === undefined
         ? {}
         : { diagnostics: { ...error.diagnostic } }),
@@ -333,7 +344,13 @@ const lifecycleErrorDetails = (
   if (error instanceof AnalysisTimeoutError)
     return { operation: error.operation, timeout_ms: error.timeoutMs };
   if (error instanceof HopperTimeoutError)
-    return { operation: "hopper", timeout_ms: error.timeoutMs };
+    return {
+      stage: error.operation === undefined ? "startup" : "analysis",
+      timeout_ms: error.timeoutMs,
+      provider_state: error.providerState,
+      ...(error.operation === undefined ? {} : { operation: error.operation }),
+      ...(error.requestId === undefined ? {} : { request_id: error.requestId }),
+    };
   if (error._tag === "ProcessCaptureError" && error.cleanupIncomplete)
     return {
       cleanup: "incomplete",

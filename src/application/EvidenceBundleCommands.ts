@@ -49,7 +49,7 @@ export const exportEvidenceBundleCommand = async (
   );
 };
 
-/** Compare two validated canonical Evidence v2 bundles without session state. */
+/** Compare two validated canonical Evidence bundles without session state. */
 export const compareEvidenceBundlesCommand = async (input: {
   readonly leftPath: string;
   readonly rightPath: string;

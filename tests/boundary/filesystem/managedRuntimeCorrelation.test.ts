@@ -234,7 +234,7 @@ const inspect = (
 ) => {
   const target = managedPeFixtureTarget(bytes, path);
   const result = inspectManagedMembersBytes(bytes, target, limits);
-  const method = result.methods.items[0];
+  const method = result.methods[0];
   if (method === undefined) throw new Error("fixture has no method");
   return {
     result,

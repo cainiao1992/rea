@@ -21,18 +21,10 @@ const browserTargetSchema = z.object({
   attached: z.boolean(),
 });
 
-/** Bounded and policy-filtered browser target discovery result. */
+/** Complete policy-filtered browser target discovery result. */
 export const browserTargetListSchema = z.object({
-  schema_version: z.literal(1),
   browser: browserVersionSchema,
-  targets: z.object({
-    items: z.array(browserTargetSchema),
-    offset: z.number().int().min(0),
-    limit: z.number().int().min(1),
-    total: z.number().int().min(0),
-    next_offset: z.number().int().min(0).nullable(),
-    has_more: z.boolean(),
-  }),
+  targets: z.array(browserTargetSchema),
   excluded: z.object({
     disallowed_origin: z.number().int().min(0),
     unsupported_url: z.number().int().min(0),
@@ -253,7 +245,6 @@ const browserSafeMetadataSchema = z.object({
 
 /** Provider-neutral normalized result for one passive web-page observation. */
 export const webPageInspectionSchema = z.object({
-  schema_version: z.literal(2),
   browser: browserVersionSchema,
   target: browserTargetSchema,
   capture_window: z.object({

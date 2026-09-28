@@ -72,7 +72,7 @@ const processReactiveRunShape = {
     .max(PROCESS_REACTIVE_LIMITS.transitions),
 };
 
-/** Serialized reactive reducer state admitted by Process Capture v4. */
+/** Serialized reactive reducer state admitted by process capture. */
 export const processReactiveRunSchema = z.discriminatedUnion("status", [
   z.object({
     status: z.literal("running"),

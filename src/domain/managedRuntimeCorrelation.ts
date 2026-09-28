@@ -57,7 +57,6 @@ export const managedRuntimeCorrelationInputSchema = z.strictObject({
 });
 
 export const managedRuntimeCorrelationResultSchema = z.strictObject({
-  schema_version: z.literal(1),
   correlation_id: z.string().regex(/^mrc_[a-f0-9]{64}$/u),
   phase: z.literal("admission-plan"),
   executed: z.literal(false),
@@ -140,7 +139,7 @@ export const planManagedRuntimeCorrelation = (
   const members = managedMemberInspectionSchema.parse(
     staticEvidence.normalized_result,
   );
-  const method = members.methods.items.find(
+  const method = members.methods.find(
     (item) =>
       item.token === input.method.token &&
       item.signature.raw_sha256 === input.method.signature_sha256 &&
@@ -154,7 +153,6 @@ export const planManagedRuntimeCorrelation = (
       "Requested method lock does not match a static managed member observation",
     );
   const withoutId = {
-    schema_version: 1 as const,
     phase: "admission-plan" as const,
     executed: false as const,
     authority_model: {

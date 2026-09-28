@@ -46,6 +46,14 @@ export const targets = (
         },
       ]
     : []),
+  ...Array.from({ length: options.additionalPageCount ?? 0 }, (_, index) => ({
+    id: `allowed-page-${String(index).padStart(4, "0")}`,
+    type: "page",
+    title: `Additional application page ${String(index)}`,
+    url: `http://127.0.0.1:${String(port)}/additional-${String(index)}`,
+    attached: false,
+    webSocketDebuggerUrl: `ws://localhost:${String(port)}/devtools/page/allowed-page`,
+  })),
   {
     id: "unsupported-page",
     type: "page",
@@ -100,6 +108,17 @@ export const targets = (
                 webSocketDebuggerUrl: `ws://localhost:${String(port)}/devtools/page/electron-page`,
               }),
         },
+        ...Array.from(
+          { length: options.additionalElectronPageCount ?? 0 },
+          (_, index) => ({
+            id: `electron-page-${String(index).padStart(4, "0")}`,
+            type: "page",
+            title: `Additional Electron page ${String(index)}`,
+            url: options.electronFileUrl,
+            attached: false,
+            webSocketDebuggerUrl: `ws://localhost:${String(port)}/devtools/page/electron-page`,
+          }),
+        ),
         {
           id: "electron-worker",
           type: "worker",

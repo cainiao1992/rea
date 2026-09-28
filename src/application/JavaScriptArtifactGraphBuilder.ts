@@ -38,7 +38,7 @@ import {
   collectElectronIpcRecords,
 } from "./ElectronBoundaryAnalysis.js";
 
-/** Project bounded artifact and AST facts into JavaScript Application Graph v1. */
+/** Project bounded artifact and AST facts into JavaScript Application Graph. */
 export const buildJavaScriptArtifactGraph = (
   snapshot: ArtifactInventorySnapshot,
   fileSet: JavaScriptArtifactFileSet,
@@ -75,7 +75,6 @@ export const buildJavaScriptArtifactGraph = (
   const coverage = graphCoverage(context);
   return createJavaScriptApplicationGraph({
     schema: "JavaScriptApplicationGraph",
-    schema_version: 1,
     root_node_ids:
       packageRoots.length === 0
         ? [root.node_id]
@@ -92,7 +91,7 @@ const graphCoverage = (context: JavaScriptArtifactGraphContext) => {
     context.fileSet.limit_omitted_text_files +
     context.accumulator.omittedObservations();
   const sourceMapPolicyGap = context.analysis.source_maps.some(
-    ({ status }) => status === "not-approved",
+    ({ status }) => status === "invalid",
   );
   const malformedStructuredData =
     context.analysis.packages.some(({ status }) => status !== "included") ||

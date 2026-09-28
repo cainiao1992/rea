@@ -200,8 +200,6 @@ const capability = (
 ): CapabilityDescriptor => ({
   provider: providerIdentity,
   operation,
-  inputContractVersion: 1,
-  outputContractVersion: 1,
   available: true,
   reason: null,
   pagination: "none",

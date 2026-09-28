@@ -35,7 +35,7 @@ export async function verifyPackedBridge({
   const probe = JSON.parse(
     (
       await exec("python3", [
-        join(root, "tests/fixtures/bridgeRegexProbe.py"),
+        join(root, "tests/fixtures/bridgeSearchProbe.py"),
         join(workspace, packedHopperBridge),
         JSON.stringify({
           action: "match",

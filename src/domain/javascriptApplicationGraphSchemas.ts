@@ -10,7 +10,7 @@ import { jsonValueSchema } from "./jsonValue.js";
 
 const boundedTextSchema = z.string().min(1).max(4_096);
 
-/** Node kinds admitted by JavaScript Application Graph v1. */
+/** Node kinds admitted by JavaScript Application Graph. */
 export const JAVASCRIPT_APPLICATION_NODE_KINDS = [
   "package",
   "installer",
@@ -51,7 +51,7 @@ export const JAVASCRIPT_APPLICATION_NODE_KINDS = [
 /** Provider-neutral application entity categories. */
 const applicationNodeKindSchema = z.enum(JAVASCRIPT_APPLICATION_NODE_KINDS);
 
-/** Directed relations admitted by JavaScript Application Graph v1. */
+/** Directed relations admitted by JavaScript Application Graph. */
 export const JAVASCRIPT_APPLICATION_RELATIONS = [
   "contains",
   "loads",
@@ -144,18 +144,14 @@ export const applicationEdgeSchema = applicationEdgeInputSchema.extend({
 /** Graph content before its top-level semantic identifier is derived. */
 export const javascriptApplicationGraphInputSchema = z.strictObject({
   schema: z.literal("JavaScriptApplicationGraph"),
-  schema_version: z.literal(1),
-  root_node_ids: z
-    .array(z.string().regex(/^jag_node_[a-f0-9]{64}$/u))
-    .min(1)
-    .max(1_000),
-  nodes: z.array(applicationNodeSchema).min(1).max(100_000),
-  edges: z.array(applicationEdgeSchema).max(200_000),
+  root_node_ids: z.array(z.string().regex(/^jag_node_[a-f0-9]{64}$/u)).min(1),
+  nodes: z.array(applicationNodeSchema).min(1),
+  edges: z.array(applicationEdgeSchema),
   coverage: applicationCoverageSchema,
   limitations: z.array(boundedTextSchema).max(1_000),
 });
 
-/** Strict stored shape for JavaScript Application Graph v1. */
+/** Strict stored shape for a JavaScript Application Graph. */
 export const javascriptApplicationGraphRecordSchema =
   javascriptApplicationGraphInputSchema.extend({
     graph_id: z.string().regex(/^jag_[a-f0-9]{64}$/u),
@@ -165,7 +161,7 @@ export const javascriptApplicationGraphRecordSchema =
 export type ApplicationNode = z.infer<typeof applicationNodeSchema>;
 /** Immutable relationship in a JavaScript Application Graph. */
 export type ApplicationEdge = z.infer<typeof applicationEdgeSchema>;
-/** Complete v1 graph content before its graph identifier is derived. */
+/** Complete graph content before its graph identifier is derived. */
 export type JavaScriptApplicationGraphInput = z.infer<
   typeof javascriptApplicationGraphInputSchema
 >;

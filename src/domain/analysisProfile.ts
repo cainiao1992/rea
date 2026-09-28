@@ -41,9 +41,7 @@ const boundedParametersSchema = jsonObjectSchema.superRefine(
 );
 
 const unsignedAnalysisProfileSchema = z.object({
-  schema_version: z.literal(1),
   provider: committedProviderSchema,
-  provider_profile_schema_version: z.number().int().min(1),
   parameters: boundedParametersSchema,
 });
 
@@ -66,13 +64,10 @@ export type AnalysisProfileCommitment = z.infer<typeof analysisProfileSchema>;
 /** Create a validated RFC 8785 profile commitment at a provider boundary. */
 export const createAnalysisProfile = (
   provider: CommittedProviderIdentity,
-  providerProfileSchemaVersion: number,
   parameters: Readonly<Record<string, JsonValue>>,
 ): AnalysisProfileCommitment => {
   const unsigned = unsignedAnalysisProfileSchema.parse({
-    schema_version: 1,
     provider,
-    provider_profile_schema_version: providerProfileSchemaVersion,
     parameters,
   });
   return analysisProfileSchema.parse({
@@ -89,10 +84,7 @@ export const analysisProfilesEqual = (
   left.digest === right.digest &&
   left.provider.id === right.provider.id &&
   left.provider.name === right.provider.name &&
-  left.provider.version === right.provider.version &&
-  left.schema_version === right.schema_version &&
-  left.provider_profile_schema_version ===
-    right.provider_profile_schema_version;
+  left.provider.version === right.provider.version;
 
 const profileDigest = (
   profile: z.infer<typeof unsignedAnalysisProfileSchema>,

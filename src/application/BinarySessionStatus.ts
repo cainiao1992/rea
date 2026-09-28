@@ -169,7 +169,6 @@ const processLineageStatus = (
                 : {
                     status: observation.status,
                     observed_at: observation.observedAt,
-                    schema_version: observation.lineage.schemaVersion,
                     launcher_pid: observation.lineage.launcherPid,
                     launcher_parent_pid: observation.lineage.launcherParentPid,
                     process_group_id: observation.lineage.processGroupId,
@@ -194,8 +193,6 @@ const capabilityStatus = (
   available: descriptor.available,
   reason: descriptor.reason,
   availability_code: descriptor.availabilityCode ?? null,
-  input_contract_version: descriptor.inputContractVersion,
-  output_contract_version: descriptor.outputContractVersion,
   pagination: descriptor.pagination,
   exhaustive: descriptor.exhaustive,
   effects: {

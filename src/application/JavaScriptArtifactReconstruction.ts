@@ -39,7 +39,6 @@ export interface JavaScriptArtifactReconstructionResult {
     readonly text_bytes_read: number;
     readonly omitted_text_files: number;
     readonly limit_omitted_text_files: number;
-    readonly policy_filtered_text_files: number;
     readonly invalid_utf8_files: number;
     readonly parsed_javascript_files: number;
     readonly visited_ast_nodes: number;
@@ -109,7 +108,6 @@ export const reconstructJavaScriptArtifact = async (
         text_bytes_read: files.text_bytes_read,
         omitted_text_files: files.omitted_text_files,
         limit_omitted_text_files: files.limit_omitted_text_files,
-        policy_filtered_text_files: files.policy_filtered_text_files,
         invalid_utf8_files: files.invalid_utf8_files,
         parsed_javascript_files: analysis.files.filter(
           ({ javascript }) => javascript !== null,

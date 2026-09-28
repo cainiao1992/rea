@@ -53,11 +53,7 @@ describe("runtime identification", () => {
     await writeFile(path, await writer.close());
 
     const inventory = parseEvidence(
-      await runProviderAnalysis(path, "inventory_artifact", {
-        node_limit: 100,
-        occurrence_limit: 100,
-        edge_limit: 100,
-      }),
+      await runProviderAnalysis(path, "inventory_artifact", {}),
     );
     const first = identifyRuntimes({ inventory_evidence: [inventory] });
     const second = identifyRuntimes({ inventory_evidence: [inventory] });

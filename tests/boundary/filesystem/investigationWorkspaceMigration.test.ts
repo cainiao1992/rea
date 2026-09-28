@@ -2,7 +2,7 @@ import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import canonicalize from "canonicalize";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
@@ -21,7 +21,6 @@ import {
   parseInvestigationWorkspace,
   serializeInvestigationWorkspace,
 } from "../../../src/domain/investigationWorkspace.js";
-import { ok } from "../../../src/domain/result.js";
 
 const digestCanonical = (value: unknown): string => {
   const encoded = canonicalize(value);
@@ -65,7 +64,7 @@ describe("persistent cross-version investigation workspace", () => {
     const completed = await runCrossVersionInvestigation(
       input,
       policy(directory),
-      { inputRoots: [directory] },
+      {},
     );
     if (!completed.ok) throw completed.error;
     const current = completed.value.workspace;
@@ -159,7 +158,7 @@ describe("persistent cross-version investigation workspace", () => {
       runCrossVersionInvestigation(
         { ...input, expected_workspace_revision: current.revision },
         policy(directory),
-        { inputRoots: [directory] },
+        {},
       ),
     ).resolves.toMatchObject({ ok: true, value: { reused: true } });
     await expect(
@@ -172,7 +171,7 @@ describe("persistent cross-version investigation workspace", () => {
           },
         },
         policy(directory),
-        { inputRoots: [directory] },
+        {},
       ),
     ).resolves.toMatchObject({ ok: true, value: { reused: false } });
   });
@@ -181,9 +180,11 @@ describe("persistent cross-version investigation workspace", () => {
 describe("persistent investigation workspace reuse", () => {
   it("checkpoints, validates, and reuses a completed deterministic run", async () => {
     const { directory, path, input } = await fixture();
-    const first = await runCrossVersionInvestigation(input, policy(directory), {
-      inputRoots: [directory],
-    });
+    const first = await runCrossVersionInvestigation(
+      input,
+      policy(directory),
+      {},
+    );
     expect(first).toMatchObject({
       ok: true,
       value: { reused: false, workspace: { revision: 3 } },
@@ -212,7 +213,7 @@ describe("persistent investigation workspace reuse", () => {
     const second = await runCrossVersionInvestigation(
       input,
       policy(directory),
-      { inputRoots: [directory] },
+      {},
     );
     expect(second).toMatchObject({
       ok: true,
@@ -235,12 +236,8 @@ describe("persistent investigation workspace reuse", () => {
       workspace_path: join(directory, "repeated-workspace.json"),
     });
     const [first, repeated] = await Promise.all([
-      runCrossVersionInvestigation(input, policy(directory), {
-        inputRoots: [directory],
-      }),
-      runCrossVersionInvestigation(repeatedInput, policy(directory), {
-        inputRoots: [directory],
-      }),
+      runCrossVersionInvestigation(input, policy(directory), {}),
+      runCrossVersionInvestigation(repeatedInput, policy(directory), {}),
     ]);
     if (!first.ok) throw first.error;
     if (!repeated.ok) throw repeated.error;
@@ -293,21 +290,16 @@ describe("persistent investigation workspace replay", () => {
     const completed = await runCrossVersionInvestigation(
       input,
       policy(directory),
-      { inputRoots: [directory] },
+      {},
     );
     if (!completed.ok) throw completed.error;
     const run = completed.value.workspace.runs[0];
     if (run === undefined || run.comparison_evidence_id === null)
       throw new Error("missing completed run");
 
-    const defaultAuthorization = vi.fn(() => Promise.resolve(ok(null)));
     await expect(
-      runCrossVersionInvestigation(input, policy(directory), {
-        inputRoots: [directory],
-        authorizeInputRead: defaultAuthorization,
-      }),
+      runCrossVersionInvestigation(input, policy(directory), {}),
     ).resolves.toMatchObject({ ok: true, value: { reused: true } });
-    expect(defaultAuthorization).toHaveBeenCalledOnce();
 
     const inconsistentRun = investigationRunSchema.parse({
       ...run,
@@ -335,7 +327,7 @@ describe("persistent investigation workspace replay", () => {
           replay_run_id: run.run_id,
         },
         policy(directory),
-        { inputRoots: [] },
+        {},
       ),
     ).resolves.toMatchObject({
       ok: false,
@@ -346,7 +338,6 @@ describe("persistent investigation workspace replay", () => {
       rm(left, { recursive: true, force: true }),
       rm(right, { recursive: true, force: true }),
     ]);
-    const replayAuthorization = vi.fn(() => Promise.resolve(ok(null)));
     await expect(
       runCrossVersionInvestigation(
         {
@@ -355,7 +346,7 @@ describe("persistent investigation workspace replay", () => {
           replay_run_id: run.run_id,
         },
         policy(directory),
-        { inputRoots: [], authorizeInputRead: replayAuthorization },
+        {},
       ),
     ).resolves.toMatchObject({
       ok: true,
@@ -365,7 +356,6 @@ describe("persistent investigation workspace replay", () => {
         workspace: { revision: completed.value.workspace.revision },
       },
     });
-    expect(replayAuthorization).not.toHaveBeenCalled();
 
     for (const replayInput of [
       { ...input, replay_run_id: `run_${"f".repeat(64)}` },
@@ -377,10 +367,7 @@ describe("persistent investigation workspace replay", () => {
       },
     ])
       await expect(
-        runCrossVersionInvestigation(replayInput, policy(directory), {
-          inputRoots: [],
-          authorizeInputRead: replayAuthorization,
-        }),
+        runCrossVersionInvestigation(replayInput, policy(directory), {}),
       ).resolves.toMatchObject({
         ok: false,
         error: {
@@ -388,6 +375,5 @@ describe("persistent investigation workspace replay", () => {
           reason: "revision-conflict",
         },
       });
-    expect(replayAuthorization).not.toHaveBeenCalled();
   });
 });

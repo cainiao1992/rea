@@ -39,17 +39,11 @@ const registerCapabilityCommands = (cli: CliInstance, logger: Logger): void => {
         command === "capabilities"
           ? "List provider capabilities and side effects"
           : "List configured analysis providers",
-      options: z.object({
-        detail: z
-          .enum(["summary", "full"])
-          .default("summary")
-          .describe("Summary or complete provider descriptors"),
-      }),
-      run: ({ options }) =>
+      run: () =>
         logCliCommand(logger, command, () =>
           command === CLI_COMMANDS.providers
-            ? runProviderStatus(logger, options.detail)
-            : runCapabilityStatus(logger, options.detail),
+            ? runProviderStatus(logger)
+            : runCapabilityStatus(logger),
         ),
     });
   }

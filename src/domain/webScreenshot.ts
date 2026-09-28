@@ -66,7 +66,6 @@ const browserVersionSchema = z.object({
 
 /** Bounded screenshot observation with embedded immutable artifact bytes. */
 export const webScreenshotSchema = z.object({
-  schema_version: z.literal(1),
   browser: browserVersionSchema,
   target: z.object({
     target_id: z.string(),
@@ -97,7 +96,6 @@ export type CompareWebScreenshotsInput = z.infer<
 
 /** Value-only visual difference metrics; no OCR or image mutation. */
 const webScreenshotDiffContextShape = {
-  schema_version: z.literal(1),
   before: z.object({
     width: z.number().int().min(1),
     height: z.number().int().min(1),

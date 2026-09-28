@@ -78,9 +78,6 @@ export const registerCompareManagedMembers = (
       return toCallToolResult(
         { ok: true, value: result.value },
         compareContract,
-        {
-          evidenceResourcesAvailable: output !== undefined,
-        },
       );
     },
   );

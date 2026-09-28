@@ -7,18 +7,24 @@ import {
   functionDossierSchema,
 } from "../domain/hopperValues.js";
 import { analysisProfileSchema } from "../domain/analysisProfile.js";
+import { evidenceEnvelopeSchema } from "../domain/evidence.js";
+import { jsonValueSchema } from "../domain/jsonValue.js";
 import {
   PROVIDER_REJECTION_CODES,
   type ProviderRejectionCode,
 } from "./providerSelection.js";
 import { analysisErrorProjectionSchema } from "./errorSchemas.js";
 
-/** Compact MCP result with an immutable link to complete session Evidence. */
+/** Inline result with its complete Evidence record. */
+export const inlineEvidenceRecordSchema = evidenceEnvelopeSchema.omit({
+  normalized_result: true,
+});
+
 export const evidenceResultOf = (schema: z.ZodType) =>
   z.strictObject({
     result: schema,
     evidence_id: z.string().regex(/^ev_[a-f0-9]{64}$/u),
-    evidence_uri: z.string().regex(/^rea:\/\/evidence\/ev_[a-f0-9]{64}$/u),
+    evidence: inlineEvidenceRecordSchema,
   });
 
 const resultOf = evidenceResultOf;
@@ -64,8 +70,6 @@ export const targetKindSchema = z.enum([
 
 const providerCapabilityFacts = {
   operation: z.string(),
-  input_contract_version: z.number().int().min(1),
-  output_contract_version: z.number().int().min(1),
   pagination: z.enum(["none", "offset", "cursor"]),
   exhaustive: z.boolean(),
   effects: z.object({
@@ -122,7 +126,6 @@ const processLineageObservation = z.discriminatedUnion("status", [
   z.object({
     status: z.literal("verified"),
     observed_at: z.iso.datetime(),
-    schema_version: z.literal(1),
     ...processCoordinates,
     launcher_parent_pid: z.number().int().min(0),
     descendants: z.array(
@@ -176,7 +179,7 @@ const providerRejectionCode: z.ZodType<ProviderRejectionCode> = z.enum(
   PROVIDER_REJECTION_CODES,
 );
 
-const providerDiagnostics = z.record(z.string(), z.json());
+const providerDiagnostics = z.record(z.string(), jsonValueSchema);
 
 const providerAvailability = z.discriminatedUnion("status", [
   z.object({
@@ -312,74 +315,75 @@ export type ToolUnavailabilityReason = z.output<
   typeof toolUnavailabilityReason
 >;
 
-export const sessionProvider = z.object({
-  provider: providerIdentity,
-  providers: z.array(providerIdentity),
-  capabilities: z.array(providerCapability),
-  analysis_run: analysisRun,
-  analysis_activity: analysisActivity,
-  analysis_provider_binding: z
-    .object({
-      provider: providerIdentity,
-      selection_source: z.enum([
-        "request",
-        "environment",
-        "auto-single-candidate",
-      ]),
-      analysis_profile: analysisProfileSchema,
-    })
-    .nullable(),
-  analysis_provider_candidates: z.array(
-    z.object({
-      provider: providerIdentity,
-      availability: providerAvailability,
-      target_support: providerTargetSupport,
-      selected: z.boolean(),
-      capabilities: z.array(providerCapability),
+export const sessionProvider = z
+  .object({
+    provider: providerIdentity,
+    providers: z.array(providerIdentity),
+    capabilities: z.array(providerCapability),
+    analysis_run: analysisRun,
+    analysis_activity: analysisActivity,
+    analysis_provider_binding: z
+      .object({
+        provider: providerIdentity,
+        selection_source: z.enum([
+          "request",
+          "environment",
+          "auto-single-candidate",
+        ]),
+        analysis_profile: analysisProfileSchema,
+      })
+      .nullable(),
+    analysis_provider_candidates: z.array(
+      z.object({
+        provider: providerIdentity,
+        availability: providerAvailability,
+        target_support: providerTargetSupport,
+        selected: z.boolean(),
+        capabilities: z.array(providerCapability),
+      }),
+    ),
+    tool_availability: z.array(toolAvailability),
+    client_features: z.object({
+      elicitation_form: z.boolean(),
+      elicitation_url: z.boolean(),
+      roots: z.boolean(),
+      sampling: z.boolean(),
     }),
-  ),
-  tool_availability: z.array(toolAvailability),
-  client_features: z.object({
-    elicitation_form: z.boolean(),
-    elicitation_url: z.boolean(),
-    roots: z.boolean(),
-    sampling: z.boolean(),
-  }),
-  server_identity: z.object({
-    package: z.object({
-      name: z.string(),
-      version: z.string(),
-      root_path: z.string(),
-      build_commit: z.string().nullable(),
+    server_identity: z.object({
+      package: z.object({
+        name: z.string(),
+        version: z.string(),
+        root_path: z.string(),
+        build_commit: z.string().nullable(),
+      }),
+      server: z.object({
+        name: z.string(),
+        version: z.string(),
+        started_at: z.string(),
+        command_path: z.string(),
+      }),
+      sdk: z.object({
+        server: z.string(),
+        client_test: z.string(),
+        core: z.string(),
+      }),
+      negotiated_protocol_version: z.string().nullable(),
+      client: z.object({ name: z.string(), version: z.string() }).nullable(),
+      skill: z.object({ name: z.string(), expected_version: z.string() }),
+      catalog: z.record(z.string(), z.json()),
+      protocol_features: z.object({
+        progress: z.boolean(),
+        cancellation: z.boolean(),
+        elicitation: z.boolean(),
+      }),
+      alignment: z.object({
+        state: z.enum(["aligned", "mcp_server_restart_required", "unknown"]),
+        reasons: z.array(z.string()),
+        remediation: z.string().nullable(),
+      }),
     }),
-    server: z.object({
-      name: z.string(),
-      version: z.string(),
-      started_at: z.string(),
-      command_path: z.string(),
-    }),
-    sdk: z.object({
-      server: z.string(),
-      client_test: z.string(),
-      core: z.string(),
-    }),
-    negotiated_protocol_version: z.string().nullable(),
-    client: z.object({ name: z.string(), version: z.string() }).nullable(),
-    skill: z.object({ name: z.string(), expected_version: z.string() }),
-    catalog: z.record(z.string(), z.json()),
-    protocol_features: z.object({
-      progress: z.boolean(),
-      cancellation: z.boolean(),
-      evidence_resources: z.boolean(),
-      elicitation: z.boolean(),
-    }),
-    alignment: z.object({
-      state: z.enum(["aligned", "mcp_server_restart_required", "unknown"]),
-      reasons: z.array(z.string()),
-      remediation: z.string().nullable(),
-    }),
-  }),
-});
+  })
+  .passthrough();
 
 export const nullableText = z.string().nullable();
 export const addressList = z.array(z.string());
@@ -434,10 +438,9 @@ export const bounded = (item: z.ZodType) => {
   ]);
 };
 
-const addressedValue = z.object({
+export const addressedValue = z.object({
   address: z.string(),
   value: z.string(),
-  value_truncated: z.boolean().optional(),
   symbol: z
     .object({
       primary: z.boolean(),
@@ -461,25 +464,6 @@ const addressedValue = z.object({
       byte_length: z.number().int().min(0),
     })
     .optional(),
-});
-
-export const pageOutput = z.object({
-  items: z.array(addressedValue),
-  offset: z.number().int().min(0),
-  limit: z.number().int().min(1),
-  total: z.number().int().min(0),
-  next_offset: z.number().int().min(0).nullable(),
-  has_more: z.boolean(),
-});
-
-export const searchPageOutput = pageOutput.extend({
-  items: z.array(
-    z.object({
-      address: z.string(),
-      value: z.string(),
-      value_truncated: z.boolean(),
-    }),
-  ),
 });
 
 const memoryRegionOutput = z.object({

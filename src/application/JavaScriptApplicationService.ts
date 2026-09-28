@@ -6,11 +6,9 @@ import {
   javascriptApplicationAnalysisResultSchema,
 } from "../domain/javascriptApplicationAnalysis.js";
 import {
-  AnalysisCapabilityUnavailableError,
   AnalysisInputError,
   AnalysisProtocolError,
   ArtifactOperationError,
-  PermissionRequiredError,
   type AnalysisError,
 } from "../domain/errors.js";
 import type { Evidence } from "../domain/evidence.js";
@@ -19,13 +17,11 @@ import { err, ok, type Result } from "../domain/result.js";
 import type { ExecutionOptions } from "./AnalysisProvider.js";
 import { createJavaScriptApplicationEvidence } from "./JavaScriptApplicationEvidence.js";
 import { reconstructJavaScriptArtifact } from "./JavaScriptArtifactReconstruction.js";
-import type { PermissionAuthority } from "./PermissionAuthority.js";
 
 const OPERATION = "analyze_javascript_application" as const;
 
-/** Authorize and statically analyze one local JavaScript/Electron application. */
+/** Statically analyze one local JavaScript/Electron application. */
 export const analyzeJavaScriptApplication = async (
-  authority: PermissionAuthority | undefined,
   rawInput: unknown,
   options: ExecutionOptions = {},
 ): Promise<Result<Evidence, AnalysisError>> => {
@@ -38,65 +34,31 @@ export const analyzeJavaScriptApplication = async (
         projectInputIssues(parsed.error.issues, rawInput),
       ),
     );
-  return analyzeJavaScriptApplicationValidated(authority, parsed.data, options);
+  return analyzeJavaScriptApplicationValidated(parsed.data, options);
 };
 
 /** Analyze input already parsed by a trusted adapter boundary. */
 export const analyzeJavaScriptApplicationValidated = async (
-  authority: PermissionAuthority | undefined,
   input: z.output<typeof analyzeJavaScriptApplicationInputSchema>,
   options: ExecutionOptions = {},
 ): Promise<Result<Evidence, AnalysisError>> => {
-  if (authority === undefined)
-    return err(
-      new AnalysisCapabilityUnavailableError(
-        "rea-javascript-application",
-        OPERATION,
-        "JavaScript application permission policy is not configured",
-      ),
-    );
-  const authorized = await authority.authorize(
-    {
-      capability: "investigation_input",
-      roots: [input.input_path],
-      executables: [],
-      environment_names: [],
-      network: "none",
-      mount: false,
-      operation_identity: `${OPERATION}:${input.input_path}`,
-    },
-    "read",
-  );
-  if (!authorized.ok)
-    return err(
-      authorized.error instanceof PermissionRequiredError
-        ? authorized.error
-        : new ArtifactOperationError(OPERATION, "path", {
-            logicalPath: input.input_path,
-            declaredSha256: null,
-            calculatedSha256: null,
-            unpacked: false,
-          }),
-    );
   await options.progress?.report({
     phase: "analyze_javascript_application",
     completed: 0,
     total: 1,
-    message: "Inventorying and parsing approved application artifacts",
+    message: "Inventorying and parsing application artifacts",
   });
   try {
     const reconstructed = await reconstructJavaScriptArtifact(
       {
         input_path: input.input_path,
         format: input.format,
-        source_map_read_approved: input.source_map_read_approved,
         limits: input.limits,
       },
       options.signal,
     );
     const { electron_summary: summary, ...application } = reconstructed;
     const result = javascriptApplicationAnalysisResultSchema.parse({
-      schema_version: 2,
       ...application,
       summary,
       limitations: reconstructed.graph.limitations,

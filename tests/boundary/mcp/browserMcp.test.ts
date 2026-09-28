@@ -53,7 +53,7 @@ it(
     );
     const status = await connected.client.callTool({
       name: "binary_session",
-      arguments: { detail: "full" },
+      arguments: {},
     });
     expect(status.structuredContent).toMatchObject({
       result: {
@@ -77,7 +77,7 @@ it(
     expect(listed.isError).not.toBe(true);
     expect(listed.structuredContent).toMatchObject({
       result: {
-        targets: { items: [{ target_id: "allowed-page" }] },
+        targets: [{ target_id: "allowed-page" }],
       },
     });
     const unapprovedSourceCapture = await connected.client.callTool({
@@ -246,12 +246,10 @@ const verifySessionAndComparisonTools = async (
     result: { status: "identical", changed_pixels: 0 },
   });
   const evidenceId = evidenceIdOf(inspected.structuredContent);
-  const evidence = await connected.client.readResource({
-    uri: `rea://evidence/${evidenceId}`,
+  expect(inspected.structuredContent).toMatchObject({
+    evidence_id: evidenceId,
+    result: expect.any(Object),
   });
-  expect(evidence.contents[0]).toEqual(
-    expect.objectContaining({ text: expect.stringContaining(evidenceId) }),
-  );
 };
 
 it("denies origins outside the administrator ceiling before CDP attach", async () => {

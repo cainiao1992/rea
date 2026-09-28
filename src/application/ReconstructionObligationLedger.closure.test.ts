@@ -34,7 +34,7 @@ const proofEvidence = (id: string) =>
 
 const processEvidence = () =>
   createEvidence(undefined, PROCESS_PROVIDER, {
-    predicateType: "rea.process-capture/v4",
+    predicateType: "rea.process-capture",
     operation: "capture_process_scenario",
     parameters: {},
     result: jsonValueSchema.parse(
@@ -81,8 +81,7 @@ const request = (
 ): ReconstructionObligationLedgerInput => ({
   evidence_bundle: createEvidenceBundle(records),
   reviewed_obligations: [],
-  manifest: { schema_version: 1, bindings: [], contradictions: [] },
-  limits: { max_obligations: 100 },
+  manifest: { bindings: [], contradictions: [] },
   page: { offset: 0, limit: 50 },
   ...overrides,
 });
@@ -233,7 +232,6 @@ describe("reconstruction obligation ledger", () => {
     const result = build(
       request([capture, proof], {
         manifest: {
-          schema_version: 1,
           bindings: [unitBinding],
           contradictions: [],
         },
@@ -262,7 +260,6 @@ describe("reconstruction obligation ledger case closure", () => {
     const result = build(
       request([capture, proof], {
         manifest: {
-          schema_version: 1,
           bindings: [
             {
               obligation_id: obligation.obligation_id,
@@ -335,7 +332,6 @@ describe("reconstruction obligation ledger case closure", () => {
     const result = build(
       request([capture, proof], {
         manifest: {
-          schema_version: 1,
           bindings: [
             {
               obligation_id: obligation.obligation_id,

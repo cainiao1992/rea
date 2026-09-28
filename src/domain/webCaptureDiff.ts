@@ -32,7 +32,6 @@ export const compareWebCaptures = (
   const dimensions = compareWebCaptureDimensions(input, remaining);
   const statuses = Object.values(dimensions).map(({ status }) => status);
   return webCaptureDiffSchema.parse({
-    schema_version: 1,
     overall_status: statuses.includes("changed")
       ? "changed"
       : statuses.includes("unknown")

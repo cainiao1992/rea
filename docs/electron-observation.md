@@ -5,7 +5,6 @@ REA can attach to a user-owned Electron/Chromium CDP endpoint and inspect existi
 This passive runtime surface is distinct from the target-free static
 [`analyze_javascript_application`](javascript-artifact-reconstruction.md)
 workflow. Static analysis reads an approved ASAR or extracted directory under
-`REA_INVESTIGATION_INPUT_ROOTS_JSON`; it does not attach to CDP. Runtime
 observations and static inferences are never silently treated as the same fact.
 Use the separate
 [`reconcile_javascript_runtime`](javascript-runtime-reconciliation.md) workflow
@@ -24,6 +23,10 @@ export REA_ELECTRON_FILE_ROOTS_JSON='["/Applications/Example.app/Contents/Resour
 Endpoints accept only explicit-port loopback HTTP URLs. Roots are canonicalized by the shared permission authority. Each target, frame, script, and resource is independently converted from a hostless `file://` URL to a real path and checked after symlink resolution. UNC hosts, percent-encoded path separators, nonexistent paths, and root escapes are rejected.
 
 ## Workflow
+
+`list_electron_targets` returns every target inside the approved roots in one
+inline array. CDP response-size limits remain internal and oversized discovery
+responses fail explicitly.
 
 ```bash
 rea list-electron-targets http://127.0.0.1:9223 --approved --json

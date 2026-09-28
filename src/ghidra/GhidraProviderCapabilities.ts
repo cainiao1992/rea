@@ -39,20 +39,7 @@ export const GHIDRA_PROVIDER_TOOL_CONTRACTS = Object.freeze(
   ),
 );
 
-const PAGINATED_OPERATIONS: ReadonlySet<string> = new Set([
-  "list_names",
-  "list_procedures",
-  "list_strings",
-  "search_procedures",
-  "search_strings",
-  "procedure_references",
-  "read_function_instructions",
-  "analyze_function",
-]);
-const SEARCH_OPERATIONS: ReadonlySet<string> = new Set([
-  "search_procedures",
-  "search_strings",
-]);
+const PAGINATED_OPERATIONS: ReadonlySet<string> = new Set([]);
 const DECOMPILE_OPERATIONS: ReadonlySet<string> = new Set([
   "procedure_pseudo_code",
   "analyze_function",
@@ -98,7 +85,6 @@ export const limitationsFor = (operation: string): readonly string[] => {
       return [
         ...common,
         "Only Ghidra-defined string Data is observed; charset is reported, while a non-missing terminator cannot distinguish a present terminator from a fixed or Pascal layout.",
-        "Returned values are bounded to 1,024 Unicode code points and mark value_truncated instead of silently crossing the wire budget.",
       ];
     case "list_segments":
       return [
@@ -169,8 +155,6 @@ export const CAPABILITIES: readonly CapabilityDescriptor[] = Object.freeze(
     return Object.freeze({
       provider: GHIDRA_PROVIDER_IDENTITY,
       operation,
-      inputContractVersion: 1,
-      outputContractVersion: 1,
       available: true,
       reason: null,
       pagination: PAGINATED_OPERATIONS.has(contract.name)
@@ -187,11 +171,7 @@ export const CAPABILITIES: readonly CapabilityDescriptor[] = Object.freeze(
         requiresRoot: false,
       }),
       limits: Object.freeze({
-        maxResults: PAGINATED_OPERATIONS.has(contract.name)
-          ? SEARCH_OPERATIONS.has(contract.name)
-            ? 100
-            : 500
-          : null,
+        maxResults: PAGINATED_OPERATIONS.has(contract.name) ? 500 : null,
         maxPayloadBytes: GHIDRA_MAX_LINE_BYTES,
         timeoutMs: DECOMPILE_OPERATIONS.has(contract.name)
           ? GHIDRA_DECOMPILE_REQUEST_TIMEOUT_MS

@@ -2,14 +2,6 @@ import { enhancedInputSchemas } from "./enhancedInputs.js";
 import { createEvidence } from "../domain/evidence.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 
-const bounded = <Item>(items: readonly Item[]) => ({
-  items,
-  total: items.length,
-  returned: items.length,
-  truncated: false,
-  next_offset: null,
-});
-
 const dossier = (text: string) =>
   jsonValueSchema.parse({
     procedure: {
@@ -18,23 +10,16 @@ const dossier = (text: string) =>
       signature: "int main(void)",
       locals: [],
     },
-    pseudocode: {
-      text,
-      total_chars: [...text].length,
-      returned_chars: [...text].length,
-      truncated: false,
-      next_offset: null,
-    },
-    assembly: bounded([]),
-    comments: bounded([]),
-    callers: bounded([]),
-    callees: bounded([]),
-    incoming_references: bounded([]),
-    outgoing_references: bounded([]),
-    referenced_strings: bounded([]),
-    referenced_names: bounded([]),
-    basic_blocks: bounded([{ start: "0x1000", end: "0x1001", successors: [] }]),
-    instruction_scan: { scanned: 1, truncated: false },
+    pseudocode: text,
+    assembly: [],
+    comments: [],
+    callers: [],
+    callees: [],
+    incoming_references: [],
+    outgoing_references: [],
+    referenced_strings: [],
+    referenced_names: [],
+    basic_blocks: [{ start: "0x1000", end: "0x1001", successors: [] }],
   });
 
 const observe = (digit: string, text: string) =>

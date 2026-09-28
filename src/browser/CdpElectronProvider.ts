@@ -90,20 +90,10 @@ export class CdpElectronProvider implements ElectronObservationPort {
       allowed.sort((left, right) =>
         left.target_id.localeCompare(right.target_id),
       );
-      const items = allowed.slice(input.offset, input.offset + input.limit);
-      const next = input.offset + items.length;
       return ok(
         electronTargetListSchema.parse({
-          schema_version: 1,
           browser: discovery.version,
-          targets: {
-            items,
-            offset: input.offset,
-            limit: input.limit,
-            total: allowed.length,
-            next_offset: next < allowed.length ? next : null,
-            has_more: next < allowed.length,
-          },
+          targets: allowed,
           excluded: {
             outside_root: outsideRoot,
             unsupported_url: unsupportedUrl,

@@ -27,7 +27,6 @@ export const projectNativeApiInspection = (
     ? availableResidualUnknowns(boundary)
     : boundary.residual_unknowns;
   return nativeApiInspectionResultSchema.parse({
-    schema_version: 1,
     procedure: {
       address: dossier.procedure.address,
       name: dossier.procedure.name,

@@ -39,7 +39,7 @@ export async function verifyPackageDiscovery({ cli, environment }) {
   );
   const doctorExecution = await runWithStatus(
     cli,
-    ["doctor", "--detail", "full", "--json"],
+    ["doctor", "--json"],
     environment,
   );
   const summary = json(summaryExecution.stdout);

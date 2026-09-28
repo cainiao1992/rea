@@ -6,10 +6,7 @@ import { parseConfig } from "./config.js";
 import { projectAnalysisError, type AnalysisError } from "./domain/errors.js";
 import type { Logger } from "./logger.js";
 import { loadConfiguredPermissionAuthority } from "./application/PermissionConfiguration.js";
-import {
-  authorizeFileReadWithDeferredWrite,
-  authorizeRootPermission,
-} from "./application/DeferredFileAuthorization.js";
+import { authorizeFileReadWithDeferredWrite } from "./application/DeferredFileAuthorization.js";
 import { CLI_COMMANDS } from "./cliCommandNames.js";
 
 const investigationOptionsSchema = z.object({
@@ -178,15 +175,7 @@ const runInvestigation = async (
     },
     config.value.evidenceFilePolicy,
     {
-      inputRoots: config.value.investigationInputRoots,
       integrityContinueEnabled: config.value.artifactIntegrityContinueEnabled,
-      authorizeInputRead: () =>
-        authorizeRootPermission(authority.value, {
-          capability: "investigation_input",
-          roots: [args.leftPath, args.rightPath],
-          access: "read",
-          operation: "investigate_versions",
-        }),
       authorizeWorkspaceWrite: workspaceAuthorization.value.authorizeWrite,
     },
   );

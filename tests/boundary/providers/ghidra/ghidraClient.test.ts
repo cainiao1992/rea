@@ -169,22 +169,16 @@ describe("GhidraClient", () => {
     await expect(
       client.callTool("list_procedures", {
         document: null,
-        offset: 0,
-        limit: 500,
       }),
     ).resolves.toMatchObject({
       ok: true,
-      value: {
-        items: [
-          {
-            address: "0x1000",
-            value: "fixture_main",
-            procedure: { external: false, thunk: false },
-          },
-        ],
-        total: 1,
-        has_more: false,
-      },
+      value: [
+        {
+          address: "0x1000",
+          value: "fixture_main",
+          procedure: { external: false, thunk: false },
+        },
+      ],
     });
   });
 
@@ -347,33 +341,6 @@ describe("GhidraClient established requests", () => {
     });
     activeController.abort();
     await active;
-  });
-
-  it("bounds the serial per-Program request queue", async () => {
-    const client = clientFor(new FixtureLauncher("hang_tools"), {
-      requestTimeoutMs: 10_000,
-    });
-    await expect(client.start()).resolves.toMatchObject({ ok: true });
-    const controller = new AbortController();
-    const requests = Array.from({ length: 33 }, () =>
-      client.callTool(
-        "procedure_pseudo_code",
-        { document: null, procedure: "fixture_main" },
-        { signal: controller.signal },
-      ),
-    );
-    const overflow = requests[32];
-    if (overflow === undefined) throw new Error("Queue probe was not created");
-
-    await expect(overflow).resolves.toMatchObject({
-      ok: false,
-      error: {
-        kind: "protocol",
-        message: expect.stringContaining("32-request limit"),
-      },
-    });
-    controller.abort();
-    await Promise.all(requests.slice(0, 32));
   });
 });
 

@@ -23,7 +23,6 @@ import {
   assessManagedGraphOmissions,
   managedGraphEvidenceCoverage,
   managedGraphResultCoverage,
-  totalManagedGraphOmitted,
 } from "./managedApplicationGraphCoverage.js";
 import {
   addArtifactNode,
@@ -36,32 +35,12 @@ const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
 const boundedTextSchema = z.string().min(1).max(4_096);
 
-const managedApplicationGraphLimitsSchema = z.strictObject({
-  max_types: z.number().int().min(0).max(100_000).default(5_000),
-  max_methods: z.number().int().min(0).max(100_000).default(10_000),
-  max_fields: z.number().int().min(0).max(100_000).default(5_000),
-  max_pinvoke_imports: z.number().int().min(0).max(100_000).default(5_000),
-  max_native_implementations: z
-    .number()
-    .int()
-    .min(0)
-    .max(100_000)
-    .default(5_000),
-});
-
 /** Authenticated managed Evidence records projected into the application graph. */
 export const projectManagedApplicationGraphInputSchema = z
   .strictObject({
     managed_artifact: evidenceSchema.optional(),
     managed_members: evidenceSchema.optional(),
     managed_native_boundaries: evidenceSchema.optional(),
-    limits: managedApplicationGraphLimitsSchema.default({
-      max_types: 5_000,
-      max_methods: 10_000,
-      max_fields: 5_000,
-      max_pinvoke_imports: 5_000,
-      max_native_implementations: 5_000,
-    }),
   })
   .superRefine((input, context) => {
     if (
@@ -78,7 +57,6 @@ export const projectManagedApplicationGraphInputSchema = z
 
 /** Managed-code projection result containing a validated application graph. */
 export const managedApplicationGraphResultSchema = z.strictObject({
-  schema_version: z.literal(1),
   projection_id: z.string().regex(/^magp_[a-f0-9]{64}$/u),
   root_artifact_sha256: digestSchema,
   source_evidence: z.strictObject({
@@ -99,12 +77,7 @@ export const managedApplicationGraphResultSchema = z.strictObject({
   }),
   graph: javascriptApplicationGraphSchema,
   coverage: z.strictObject({
-    status: z.enum(["complete-within-inputs", "partial", "truncated"]),
-    omitted_types: z.number().int().min(0),
-    omitted_methods: z.number().int().min(0),
-    omitted_fields: z.number().int().min(0),
-    omitted_pinvoke_imports: z.number().int().min(0),
-    omitted_native_implementations: z.number().int().min(0),
+    status: z.enum(["complete-within-inputs", "partial"]),
   }),
   evidence_links: z.array(evidenceIdSchema).min(1).max(3),
   limitations: z.array(boundedTextSchema).max(1_000),
@@ -174,23 +147,12 @@ export const projectManagedApplicationGraph = (
   };
   const artifactNode = addArtifactNode(state);
   addArtifactIdentityNodes(state, artifactNode, parsed);
-  const memberCounts = addMemberNodes(
-    state,
-    artifactNode,
-    parsed,
-    input.limits,
-  );
-  const boundaryCounts = addBoundaryNodes(
-    state,
-    artifactNode,
-    parsed,
-    input.limits,
-  );
-  const omissions = omittedCounts(parsed, input.limits);
+  const memberCounts = addMemberNodes(state, artifactNode, parsed);
+  const boundaryCounts = addBoundaryNodes(state, artifactNode, parsed);
+  const omissions = omittedCounts(parsed);
   const limitations = projectionLimitations(parsed, omissions);
   const graph = createJavaScriptApplicationGraph({
     schema: "JavaScriptApplicationGraph",
-    schema_version: 1,
     root_node_ids: [artifactNode.node_id],
     nodes: state.nodes,
     edges: state.edges,
@@ -198,7 +160,6 @@ export const projectManagedApplicationGraph = (
     limitations,
   });
   const withoutId = {
-    schema_version: 1 as const,
     root_artifact_sha256: state.artifactSha256,
     source_evidence: {
       managed_artifact_evidence_id:
@@ -293,18 +254,12 @@ const assertSameArtifact = (
       );
 };
 
-const omittedCounts = (
-  parsed: ParsedManagedGraphInput,
-  limits: ProjectManagedApplicationGraphInput["limits"],
-) =>
-  assessManagedGraphOmissions(
-    {
-      artifact: parsed.artifact?.result ?? null,
-      members: parsed.members?.result ?? null,
-      boundaries: parsed.boundaries?.result ?? null,
-    },
-    limits,
-  );
+const omittedCounts = (parsed: ParsedManagedGraphInput) =>
+  assessManagedGraphOmissions({
+    artifact: parsed.artifact?.result ?? null,
+    members: parsed.members?.result ?? null,
+    boundaries: parsed.boundaries?.result ?? null,
+  });
 
 const projectionLimitations = (
   parsed: ParsedManagedGraphInput,
@@ -323,10 +278,5 @@ const projectionLimitations = (
     : []),
   ...(omissions.partialInput
     ? ["At least one supplied managed Evidence record has partial coverage."]
-    : []),
-  ...(totalManagedGraphOmitted(omissions) > 0
-    ? [
-        "Projection output omits managed entities because of source pagination or managed application graph limits.",
-      ]
     : []),
 ];

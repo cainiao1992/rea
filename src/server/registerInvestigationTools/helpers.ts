@@ -17,25 +17,21 @@ import { AnalysisInputError } from "../../domain/errors.js";
 export const investigationContext = ({
   session,
   signal,
-  inputRoots,
   integrityContinueEnabled,
   progress,
 }: {
   readonly session: BinarySessionPort;
   readonly signal: AbortSignal;
-  readonly inputRoots: readonly string[];
   readonly integrityContinueEnabled: boolean;
   readonly progress?: ProgressReporter;
 }): {
   readonly session: BinarySessionPort;
   readonly signal: AbortSignal;
-  readonly inputRoots: readonly string[];
   readonly integrityContinueEnabled: boolean;
   readonly progress?: ProgressReporter;
 } => ({
   session,
   signal,
-  inputRoots,
   integrityContinueEnabled,
   ...(progress === undefined ? {} : { progress }),
 });
@@ -51,14 +47,8 @@ export const comparisonClosure = (comparisons: readonly Evidence[]): string[] =>
     ]),
   );
 
-export const functionEvidenceIds = (
-  groups: readonly (Evidence | readonly Evidence[])[],
-): string[] =>
-  uniqueIds(
-    groups.flatMap((group) =>
-      (Array.isArray(group) ? group : [group]).map(({ evidence_id: id }) => id),
-    ),
-  );
+export const functionEvidenceIds = (records: readonly Evidence[]): string[] =>
+  uniqueIds(records.map(({ evidence_id }) => evidence_id));
 
 const uniqueIds = (ids: readonly string[]): string[] =>
   [...new Set(ids)].sort((left, right) => left.localeCompare(right));

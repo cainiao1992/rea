@@ -41,7 +41,6 @@ describe("reconstruction coverage closure", () => {
     const {
       revision_sha256: _revisionSha256,
       workspace_id: _workspaceId,
-      schema_version: _schemaVersion,
       ...semantic
     } = workspace;
     const boundary = workspace.boundaries[0];
@@ -91,7 +90,6 @@ describe("reconstruction coverage closure", () => {
     const {
       revision_sha256: _revisionSha256,
       workspace_id: _workspaceId,
-      schema_version: _schemaVersion,
       ...semantic
     } = workspace;
     const changed = createReconstructionCoverageWorkspace({
@@ -131,7 +129,6 @@ describe("reconstruction coverage closure", () => {
     const {
       revision_sha256: _revisionSha256,
       workspace_id: _workspaceId,
-      schema_version: _schemaVersion,
       ...semantic
     } = workspace;
     const stale = createReconstructionCoverageWorkspace({
@@ -166,7 +163,6 @@ describe("reconstruction coverage verifier observations", () => {
     const {
       revision_sha256: _revisionSha256,
       workspace_id: _workspaceId,
-      schema_version: _schemaVersion,
       ...semantic
     } = workspace;
     const changed = createReconstructionCoverageWorkspace({
@@ -203,7 +199,6 @@ describe("reconstruction coverage verifier observations", () => {
     const {
       revision_sha256: _revisionSha256,
       workspace_id: _workspaceId,
-      schema_version: _schemaVersion,
       ...semantic
     } = workspace;
     const changed = createReconstructionCoverageWorkspace({
@@ -232,7 +227,6 @@ describe("reconstruction coverage verifier observations", () => {
     const {
       revision_sha256: _revisionSha256,
       workspace_id: _workspaceId,
-      schema_version: _schemaVersion,
       ...semantic
     } = workspace;
     const incomplete = createReconstructionCoverageWorkspace({

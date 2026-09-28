@@ -63,7 +63,7 @@ async function runInlineEvidenceScenarios(
   expect(traced.isError).not.toBe(true);
   expect(traced.structuredContent).toMatchObject({
     result: {
-      schema_version: 1,
+      source_graph_id: expect.any(String),
       coverage: { status: expect.any(String) },
     },
   });

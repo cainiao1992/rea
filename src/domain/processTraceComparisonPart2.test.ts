@@ -257,7 +257,7 @@ describe("process trace comparison", () => {
       event_journal: (complete.event_journal ?? []).slice(1),
     };
     expect(() => parseProcessCapture(incompleteJournal)).toThrow(
-      "Invalid Process Capture v4: event_journal.0.capture_order",
+      "Invalid process capture: event_journal.0.capture_order",
     );
   });
 });

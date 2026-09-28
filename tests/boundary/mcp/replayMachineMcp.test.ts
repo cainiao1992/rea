@@ -27,7 +27,6 @@ describe("direct replay machine MCP parity", () => {
       expect(result).toMatchObject({
         structuredContent: {
           result: {
-            schema_version: 1,
             final_state: "complete",
             terminal: true,
             decisions: [{ outcome: "matched", transition_sequence: 0 }],

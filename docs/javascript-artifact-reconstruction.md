@@ -17,15 +17,11 @@ separate static, runtime, and cross-layer inference authorities.
 
 ## Public workflow
 
-The administrator first grants a canonical input root. Every request still
-requires explicit per-call approval, and the requested ASAR or directory must
-remain beneath that root after canonicalization:
+The tool reads the caller-selected local directory or ASAR path directly:
 
 ```bash
-export REA_INVESTIGATION_INPUT_ROOTS_JSON='["/absolute/path/to/apps"]'
-rea analyze /absolute/path/to/apps/app.asar --approved --json
+rea analyze /absolute/path/to/apps/app.asar --json
 rea analyze-javascript-application /absolute/path/to/apps/app.asar \
-  --approved \
   --json
 ```
 
@@ -35,26 +31,18 @@ command when setting explicit format or reconstruction limits. Native targets,
 single JavaScript files, `.app` bundles, and explicit deep-provider or snapshot
 requests retain the native deep-analysis route.
 
-When configuring an MCP client, set the variable before approved setup so REA
-copies the explicit non-secret root policy into the managed registration:
+Configure an MCP client with the ordinary REA setup command:
 
 ```bash
-export REA_INVESTIGATION_INPUT_ROOTS_JSON='["/absolute/path/to/apps"]'
 rea setup
 ```
-
-Restart the configured MCP client after changing this administrator ceiling.
-An already-running server cannot acquire a new process environment through
-MCP elicitation or `SIGHUP`.
 
 The equivalent MCP input is:
 
 ```json
 {
   "input_path": "/absolute/path/to/apps/app.asar",
-  "format": "auto",
-  "approved": true,
-  "source_map_read_approved": false
+  "format": "auto"
 }
 ```
 
@@ -90,7 +78,7 @@ Selected bounded text is then parsed as inert data to recover:
 - static imports, dynamic imports, CommonJS `require` calls, workers, and
   service workers;
 - route, network endpoint, storage, and vendor-marker observations;
-- local source-map declarations and, when separately approved, bounded original
+- local source-map declarations and original
   source names and content digests;
 - explicit BrowserWindow options and `webPreferences`, including statically
   resolvable preload entrypoints;
@@ -119,11 +107,7 @@ JavaScript file, package record, or source map produces an `unknown` graph scope
 with `state: unavailable`; it is not treated as evidence that modules or source
 are absent.
 
-Source-map content has a separate `source_map_read_approved` input. Without that
-approval, REA inventories the map, links a static declaration when present, and
-records partial non-truncated coverage plus an unavailable parse scope. With
-approval, the graph stores original source names and optional content digests,
-not the raw `sourcesContent` text.
+Source-map contents are parsed as local input. The graph stores original source names and optional content digests, not raw `sourcesContent` text.
 
 Only explicitly present BrowserWindow values are observations. REA does not
 substitute version-dependent Electron defaults for omitted `webPreferences`.
@@ -183,7 +167,7 @@ knowable, `omitted_count` is `null` rather than a guessed value.
 The source-owned fixture covers an extracted directory, a direct ASAR with an
 unpacked native add-on, a direct ASAR whose unpacked native companion is
 missing, and an ASAR nested beneath a directory. Tests also cover deterministic
-reruns, parse-not-execute behavior, source-map approval, global source-map
+reruns, parse-not-execute behavior, source-map parsing, global source-map
 limits, malformed structured data, invalid containers, traversal, symlink
 escape, oversized text, cancellation, AST truncation, and repeated content
 identities. A separate synthetic Electron fixture covers explicit safe and

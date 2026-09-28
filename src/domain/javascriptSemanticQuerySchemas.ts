@@ -128,7 +128,6 @@ const queryFrontierSchema = z.strictObject({
 
 /** Deterministic, pageable semantic trace result. */
 export const javaScriptSemanticQueryResultSchema = z.strictObject({
-  schema_version: z.literal(1),
   query_id: z.string().regex(/^jsrq_[a-f0-9]{64}$/u),
   source_graph_id: z.string().regex(/^jsrg_[a-f0-9]{64}$/u),
   seed: javaScriptSemanticQuerySeedSchema,

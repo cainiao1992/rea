@@ -141,7 +141,6 @@ it("renders terminal state, records shim invocations, and captures literal check
     );
     expect(result.ok).toBe(true);
     if (!result.ok) throw result.error;
-    expect(result.value.schema_version).toBe(4);
     expect(result.value.rendered_frames.at(-1)?.lines.join("\n")).toContain(
       "probe:codex 1.2.3",
     );

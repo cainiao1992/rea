@@ -19,12 +19,6 @@ export interface SegmentSummary {
   readonly executable: boolean | null;
 }
 
-export interface AddressedPage {
-  readonly items: readonly AddressedName[];
-  readonly nextOffset: number | null;
-  readonly hasMore: boolean;
-}
-
 /** Return a bounded byte distance between canonical addresses in one space. */
 export const addressDistance = (start: string, end: string): number => {
   const left = addressCoordinate(start);
@@ -62,24 +56,6 @@ const segmentSchema = z.object({
   writable: z.boolean().nullable().default(null),
   executable: z.boolean().nullable().default(null),
 });
-const addressedPageFacts = {
-  items: z.array(z.object({ address: z.string(), value: z.string() })),
-  offset: z.number().int().min(0),
-  limit: z.number().int().min(1),
-  total: z.number().int().min(0),
-} as const;
-const addressedPageSchema = z.discriminatedUnion("has_more", [
-  z.object({
-    ...addressedPageFacts,
-    has_more: z.literal(true),
-    next_offset: z.number().int().min(0),
-  }),
-  z.object({
-    ...addressedPageFacts,
-    has_more: z.literal(false),
-    next_offset: z.null(),
-  }),
-]);
 const unavailableAnalysisFactSchema = z
   .object({ available: z.literal(false), reason: z.string() })
   .strict();
@@ -104,50 +80,11 @@ export const localVariableSchema = z
     provenance: z.string().min(1),
   })
   .strict();
-const boundedSchema = <T extends z.ZodType>(item: T) => {
-  const boundedFacts = {
-    items: z.array(item),
-    total: z.number().int().min(0).nullable(),
-    returned: z.number().int().min(0),
-  } as const;
-  return z
-    .discriminatedUnion("truncated", [
-      z.strictObject({
-        ...boundedFacts,
-        truncated: z.literal(false),
-        next_offset: z.null(),
-      }),
-      z.strictObject({
-        ...boundedFacts,
-        truncated: z.literal(true),
-        next_offset: z.number().int().min(0).nullable(),
-      }),
-    ])
-    .superRefine((value, context) => {
-      if (value.returned !== value.items.length) {
-        context.addIssue({
-          code: "custom",
-          message: "returned must equal the number of items",
-          path: ["returned"],
-        });
-      }
-      if (value.total !== null && value.total < value.returned) {
-        context.addIssue({
-          code: "custom",
-          message: "total cannot be smaller than returned",
-          path: ["total"],
-        });
-      }
-    });
-};
-
-/** Provider-neutral bounded raw-instruction window for one analyzed function. */
+/** Provider-neutral complete raw-instruction list for one analyzed function. */
 export const functionInstructionWindowSchema = z
   .object({
     procedure: procedureIdentitySchema,
-    instructions: boundedSchema(z.string()),
-    instructions_scanned: z.number().int().min(0),
-    instruction_scan_truncated: z.boolean(),
+    instructions: z.array(z.string()),
     limitations: z.array(z.string()),
   })
   .strict();
@@ -196,41 +133,9 @@ export const functionDossierSchema = z
         locals: z.array(localVariableSchema),
       })
       .strict(),
-    pseudocode: z
-      .discriminatedUnion("truncated", [
-        z.strictObject({
-          text: z.string(),
-          total_chars: z.number().int().min(0),
-          returned_chars: z.number().int().min(0),
-          truncated: z.literal(false),
-          next_offset: z.null(),
-        }),
-        z.strictObject({
-          text: z.string(),
-          total_chars: z.number().int().min(0),
-          returned_chars: z.number().int().min(0),
-          truncated: z.literal(true),
-          next_offset: z.number().int().min(0).nullable(),
-        }),
-      ])
-      .superRefine((value, context) => {
-        if (value.returned_chars !== [...value.text].length) {
-          context.addIssue({
-            code: "custom",
-            message: "returned_chars must equal the text length",
-            path: ["returned_chars"],
-          });
-        }
-        if (value.total_chars < value.returned_chars) {
-          context.addIssue({
-            code: "custom",
-            message: "total_chars cannot be smaller than returned_chars",
-            path: ["total_chars"],
-          });
-        }
-      }),
-    assembly: boundedSchema(z.string()),
-    comments: boundedSchema(
+    pseudocode: z.string(),
+    assembly: z.array(z.string()),
+    comments: z.array(
       z
         .object({
           address: z.string(),
@@ -239,11 +144,11 @@ export const functionDossierSchema = z
         })
         .strict(),
     ),
-    callers: boundedSchema(procedureIdentitySchema),
-    callees: boundedSchema(procedureIdentitySchema),
-    incoming_references: boundedSchema(referenceEdgeSchema),
-    outgoing_references: boundedSchema(referenceEdgeSchema),
-    referenced_strings: boundedSchema(
+    callers: z.array(procedureIdentitySchema),
+    callees: z.array(procedureIdentitySchema),
+    incoming_references: z.array(referenceEdgeSchema),
+    outgoing_references: z.array(referenceEdgeSchema),
+    referenced_strings: z.array(
       z
         .object({
           address: z.string(),
@@ -252,7 +157,7 @@ export const functionDossierSchema = z
         })
         .strict(),
     ),
-    referenced_names: boundedSchema(
+    referenced_names: z.array(
       z
         .object({
           address: z.string(),
@@ -261,7 +166,7 @@ export const functionDossierSchema = z
         })
         .strict(),
     ),
-    basic_blocks: boundedSchema(
+    basic_blocks: z.array(
       z
         .object({
           start: z.string(),
@@ -270,9 +175,6 @@ export const functionDossierSchema = z
         })
         .strict(),
     ),
-    instruction_scan: z
-      .object({ scanned: z.number().int().min(0), truncated: z.boolean() })
-      .strict(),
     native_api: nativeApiBoundarySchema.nullable().default(null),
     limitations: z.array(z.string()).default([]),
   })
@@ -297,29 +199,10 @@ export const parseFunctionDossier = (
       );
 };
 
-/** Parse page entries and continuation metadata returned by list operations. */
-export const parseAddressedPage = (
-  value: JsonValue,
-): Result<AddressedPage, HopperProtocolError> => {
-  const parsed = addressedPageSchema.safeParse(value);
-  return parsed.success
-    ? ok({
-        items: parsed.data.items.map(({ address, value: name }) => ({
-          address,
-          name,
-        })),
-        nextOffset: parsed.data.next_offset,
-        hasMore: parsed.data.has_more,
-      })
-    : invalid("addressed page", parsed.error);
-};
-
 /** Parse Hopper's direct or wrapped procedure map into stable entries. */
 export const parseProcedures = (
   value: JsonValue,
 ): Result<readonly AddressedName[], HopperProtocolError> => {
-  const page = parseAddressedPage(value);
-  if (page.ok) return ok(page.value.items);
   const parsed = procedureMapSchema.safeParse(
     unwrapProperty(value, "procedures"),
   );
@@ -330,7 +213,7 @@ export const parseProcedures = (
           name,
         })),
       )
-    : page;
+    : invalid("procedure map", parsed.error);
 };
 
 /** Parse Hopper's direct or wrapped list of address/name records. */
@@ -396,12 +279,6 @@ export const parseListCount = (
   property: string,
 ): Result<number, HopperProtocolError> => {
   const unwrapped = unwrapProperty(value, property);
-  const pageTotal = z
-    .object({ total: z.number().int().min(0) })
-    .safeParse(unwrapped);
-  if (pageTotal.success) return ok(pageTotal.data.total);
-  const page = z.object({ items: z.array(z.unknown()) }).safeParse(unwrapped);
-  if (page.success) return ok(page.data.items.length);
   const list = z.array(z.unknown()).safeParse(unwrapped);
   if (list.success) return ok(list.data.length);
   const map = z.record(z.string(), z.unknown()).safeParse(unwrapped);

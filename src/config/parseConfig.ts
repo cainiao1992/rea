@@ -54,7 +54,6 @@ const defaultHopperLauncherPath = (): string =>
 interface ParsedArrays {
   readonly loaderArgs: readonly string[];
   readonly evidenceRoots: readonly string[];
-  readonly investigationInputRoots: readonly string[];
   readonly analysisSnapshotRoots: readonly string[];
   readonly referenceRoots: readonly string[];
   readonly secretPatterns: readonly string[];
@@ -80,11 +79,6 @@ const parseAllArrays = (
     "REA_EVIDENCE_ROOTS_JSON",
   );
   if (!evidenceRoots.ok) return evidenceRoots;
-  const investigationInputRoots = parseStringArray(
-    env.REA_INVESTIGATION_INPUT_ROOTS_JSON,
-    "REA_INVESTIGATION_INPUT_ROOTS_JSON",
-  );
-  if (!investigationInputRoots.ok) return investigationInputRoots;
   const analysisSnapshotRoots = parseStringArray(
     env.REA_ANALYSIS_SNAPSHOT_ROOTS_JSON,
     "REA_ANALYSIS_SNAPSHOT_ROOTS_JSON",
@@ -108,7 +102,6 @@ const parseAllArrays = (
   return ok({
     loaderArgs: loaderArgs.value,
     evidenceRoots: evidenceRoots.value,
-    investigationInputRoots: investigationInputRoots.value,
     analysisSnapshotRoots: analysisSnapshotRoots.value,
     referenceRoots: referenceRoots.value,
     secretPatterns: secretPatterns.value,
@@ -132,7 +125,6 @@ const buildPermissionCeilings = (
   const ceilings: PermissionCeiling[] = [
     permissionScope("evidence_read", arrays.evidenceRoots),
     permissionScope("evidence_write", arrays.evidenceRoots),
-    permissionScope("investigation_input", arrays.investigationInputRoots),
     permissionScope("investigation_workspace_read", arrays.evidenceRoots),
     permissionScope("investigation_workspace_write", arrays.evidenceRoots),
     permissionScope("snapshot_read", arrays.analysisSnapshotRoots),
@@ -170,7 +162,6 @@ const buildAppConfig = (
   artifactIntegrityContinueEnabled:
     env.REA_ARTIFACT_INTEGRITY_CONTINUE_ENABLED === "true",
   evidenceFilePolicy: filePolicy(arrays.evidenceRoots),
-  investigationInputRoots: arrays.investigationInputRoots,
   analysisSnapshotFilePolicy: filePolicy(arrays.analysisSnapshotRoots),
   referenceSourcePolicy: {
     roots: arrays.referenceRoots,

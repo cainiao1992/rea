@@ -27,18 +27,6 @@ import type {
   ProviderIdentity,
 } from "./AnalysisProvider.js";
 
-/** Compact identity and summary for one retained immutable Evidence bundle. */
-export interface EvidenceBundleSnapshot {
-  readonly bundleDigest: string;
-  readonly bundleVersion: 2;
-  readonly bytes: number;
-  readonly records: number;
-  readonly unknowns: number;
-  readonly scope: "session";
-  readonly survivesSession: false;
-  readonly uri: string;
-}
-
 /** Target lifecycle used by CLI and MCP without exposing a concrete provider. */
 export interface BinarySessionPort extends AnalysisOperationPort {
   open(
@@ -51,7 +39,9 @@ export interface BinarySessionPort extends AnalysisOperationPort {
     },
   ): Promise<Result<BinaryTarget, AnalysisError>>;
   close(
-    options?: Pick<ExecutionOptions, "progress">,
+    options?: Pick<ExecutionOptions, "progress"> & {
+      readonly retainProviderDocuments?: boolean;
+    },
   ): Promise<Result<null, AnalysisError>>;
   status(): JsonValue;
   activeTarget(): BinaryTarget | undefined;
@@ -61,9 +51,6 @@ export interface BinarySessionPort extends AnalysisOperationPort {
   hasEvidence(evidenceId: string): boolean;
   evidenceById(evidenceId: string): Evidence | undefined;
   exportEvidenceBundle(): EvidenceBundle;
-  snapshotEvidenceBundle(): Result<EvidenceBundleSnapshot, EvidenceLimitError>;
-  releaseEvidenceBundle(bundleDigest: string): boolean;
-  retainedEvidenceBundle(digest: string): string | undefined;
   importEvidenceBundle(
     bundle: unknown,
   ): Result<number, EvidenceIntegrityError | EvidenceLimitError>;

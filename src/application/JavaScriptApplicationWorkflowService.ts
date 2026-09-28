@@ -60,7 +60,6 @@ export const traceApplicationFeatureEvidenceValidated = (
       nativeEvidence,
       seed: input.seed,
       direction: input.direction,
-      limits: input.limits,
     });
     return ok(
       createApplicationFeatureTraceEvidence(
@@ -69,7 +68,6 @@ export const traceApplicationFeatureEvidenceValidated = (
           native_evidence_ids: nativeEvidence.map(({ evidence_id: id }) => id),
           seed: input.seed,
           direction: input.direction,
-          limits: input.limits,
         },
         result,
       ),

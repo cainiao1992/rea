@@ -202,13 +202,6 @@ function verifyManagedAppManifestApplicationGraph({
         case_sensitive: expectedTrace.case_sensitive,
       },
       direction: "incoming",
-      limits: {
-        max_seed_matches: 10,
-        max_depth: 4,
-        max_nodes: 100,
-        max_edges: 200,
-        max_paths: 20,
-      },
     });
     ensure(
       traced.ok,
@@ -245,11 +238,8 @@ function verifyManagedAppManifestApplicationGraph({
 }
 
 const projectManifestMethod = (state, token) => {
-  const {
-    appManifestInspectionLimits,
-    appManifestMemberLimits,
-    applicationGraphLimits,
-  } = state.context;
+  const { appManifestInspectionLimits, appManifestMemberLimits } =
+    state.context;
   const existing = state.graphByToken.get(token);
   if (existing !== undefined) return existing;
   const method = state.inspectedMethods.get(token);
@@ -289,7 +279,6 @@ const projectManifestMethod = (state, token) => {
   const projected = projectManagedApplicationGraphEvidence({
     managed_artifact: artifactEvidence,
     managed_members: memberEvidence,
-    limits: applicationGraphLimits,
   });
   ensure(
     projected.ok,
@@ -316,7 +305,7 @@ function inspectManagedMethodByToken(context, bytes, target, expectedMethod) {
     target,
     expectedMethod.token,
   );
-  const method = members.methods.items.find(
+  const method = members.methods.find(
     ({ token }) => token === expectedMethod.token,
   );
   ensure(

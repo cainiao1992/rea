@@ -90,7 +90,6 @@ export const finalizeInspectorCapture = async ({
           : 0,
     );
   return {
-    schema_version: 1,
     runtime,
     target: {
       target_id: target.id,

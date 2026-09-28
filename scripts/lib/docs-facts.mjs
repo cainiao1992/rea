@@ -56,23 +56,6 @@ export const documentationFactIssues = async (root, catalog) => {
   requireText(issues, templatePath, template, "docs/product-catalog.json");
 
   const english = await readFile(join(root, "README.md"), "utf8");
-  const schemaVersion = (id) => {
-    const schema = catalog.schemas.find((candidate) => candidate.id === id);
-    if (schema === undefined) throw new Error(`Missing ${id} catalog schema`);
-    return String(schema.version);
-  };
-  requireText(
-    issues,
-    "README.md",
-    english,
-    `Evidence v${schemaVersion("evidence")}`,
-  );
-  requireText(
-    issues,
-    "README.md",
-    english,
-    `Process Capture v${schemaVersion("process_capture")}`,
-  );
   requireText(issues, "README.md", english, "docs/product-catalog.json");
   return issues;
 };

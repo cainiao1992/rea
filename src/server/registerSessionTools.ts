@@ -281,7 +281,6 @@ const registerOpenLifecycleTool = ({
 export interface SessionToolOptions {
   readonly processPolicy?: () => ProcessExecutionPolicy;
   readonly evidenceFilePolicy?: EvidenceFilePolicy;
-  readonly investigationInputRoots?: readonly string[];
   readonly analysisSnapshotFilePolicy?: EvidenceFilePolicy;
   readonly startedAt?: string;
   readonly permissionAuthority?: PermissionAuthority;
@@ -307,8 +306,8 @@ const registerContextTools = (
   server: McpServer,
   session: BinarySessionPort,
 ): void => {
-  const navigationContract = SESSION_TOOL_CONTRACTS[21];
-  const addressContract = SESSION_TOOL_CONTRACTS[22];
+  const navigationContract = SESSION_TOOL_CONTRACTS[20];
+  const addressContract = SESSION_TOOL_CONTRACTS[21];
   server.registerTool(
     navigationContract.name,
     toolRegistrationOptions(navigationContract),
@@ -359,7 +358,6 @@ export const registerSessionTools = (
     reconstructionContract,
   ] = SESSION_TOOL_CONTRACTS;
   const snapshotContract = SESSION_TOOL_CONTRACTS[19];
-  const releaseContract = SESSION_TOOL_CONTRACTS[20];
   registerLifecycleTools({
     server,
     session,
@@ -370,7 +368,6 @@ export const registerSessionTools = (
     availabilityPolicy: sessionAvailabilityPolicy(options.availabilityPolicy, {
       processPolicy: processPolicy(),
       evidenceFilePolicy,
-      investigationInputRoots: options.investigationInputRoots ?? [],
     }),
     ...(options.permissionAuthority === undefined
       ? {}
@@ -382,7 +379,6 @@ export const registerSessionTools = (
     exportContract,
     importContract,
     snapshotContract,
-    releaseContract,
     filePolicy: evidenceFilePolicy,
     ...(options.permissionAuthority === undefined
       ? {}
@@ -418,7 +414,6 @@ export const registerSessionTools = (
   ] as const;
   registerInvestigationTools(server, session, investigationContracts, {
     evidenceFiles: evidenceFilePolicy,
-    inputRoots: options.investigationInputRoots ?? [],
     ...(options.artifactIntegrityContinueEnabled === undefined
       ? {}
       : {

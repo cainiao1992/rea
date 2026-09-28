@@ -14,7 +14,7 @@ import type {
 
 type ElectronOperation = "list_electron_targets" | "inspect_electron_page";
 
-/** Create Evidence v2 for one root-confined Electron observation. */
+/** Create Evidence for one Electron observation. */
 export const createElectronEvidence = (
   operation: ElectronOperation,
   input: ListElectronTargetsInput | InspectElectronPageInput,
@@ -56,5 +56,5 @@ const parameters = (
         source_capture_approved: input.source_capture_approved,
         limits: input.limits,
       }
-    : { offset: input.offset, limit: input.limit }),
+    : {}),
 });

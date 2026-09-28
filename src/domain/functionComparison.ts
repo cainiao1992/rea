@@ -16,25 +16,19 @@ export {
   functionComparisonResultSchema,
 } from "./functionComparisonSchemas.js";
 
-/** Compare two explicit function Evidence page sets without fuzzy matching. */
+/** Compare two complete function Evidence records without fuzzy matching. */
 export const compareFunctions = (
   leftInput: unknown,
   rightInput: unknown,
-  offset: number,
-  limit: number,
 ): FunctionComparisonResult => {
   const left = parseFunctionEvidence(leftInput);
   const right = parseFunctionEvidence(rightInput);
-  const links = [
-    ...left.evidence.map(({ evidence_id: id }) => id),
-    ...right.evidence.map(({ evidence_id: id }) => id),
-  ];
+  const links = [left.evidence[0].evidence_id, right.evidence[0].evidence_id];
   const providersDiffer =
     canonicalJson(left.provider) !== canonicalJson(right.provider);
   const dimensions = compareDimensions(left, right, links, providersDiffer);
   const match = functionMatch(left, right);
   const changes = dimensions.filter(({ status }) => status !== "unchanged");
-  const page = changes.slice(offset, offset + limit);
   return functionComparisonResultSchema.parse({
     status: overallStatus(dimensions, match.status),
     function_match: match,
@@ -42,14 +36,7 @@ export const compareFunctions = (
     right_subject_sha256: right.subject.digest.sha256,
     summary: summarize(dimensions),
     dimensions,
-    changes: {
-      items: page,
-      offset,
-      limit,
-      total: changes.length,
-      next_offset:
-        offset + page.length < changes.length ? offset + page.length : null,
-    },
+    changes,
     limitations: [
       ...new Set([
         ...left.limitations.map((item) => `Left: ${item}`),

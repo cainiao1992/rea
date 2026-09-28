@@ -78,7 +78,7 @@ describe("JavaScript runtime observation MCP tools", () => {
     expect(listed.isError).not.toBe(true);
     expect(listed.structuredContent).toMatchObject({
       result: {
-        targets: { items: [{ target_id: inspector.targetId }] },
+        targets: [{ target_id: inspector.targetId }],
       },
     });
 

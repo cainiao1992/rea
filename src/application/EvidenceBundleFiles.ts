@@ -6,10 +6,7 @@ import {
 } from "../domain/evidenceBundle.js";
 import { EvidenceFileError, EvidenceIntegrityError } from "../domain/errors.js";
 import { err, ok, type Result } from "../domain/result.js";
-import {
-  LEGACY_PROCESS_CAPTURE_MESSAGE,
-  parseProcessCapture,
-} from "../domain/processCapture.js";
+import { parseProcessCapture } from "../domain/processCapture.js";
 import { readBoundedJson, writeBoundedText } from "./BoundedJsonFiles.js";
 
 type EvidenceReadFailure = EvidenceFileError | EvidenceIntegrityError;
@@ -27,9 +24,7 @@ export const readEvidenceBundle = async (
   try {
     const bundle = parseEvidenceBundle(loaded.value);
     for (const record of bundle.records) {
-      if (record.predicate_type === "rea.process-capture/v3")
-        throw new TypeError(LEGACY_PROCESS_CAPTURE_MESSAGE);
-      if (record.predicate_type === "rea.process-capture/v4")
+      if (record.predicate_type === "rea.process-capture")
         parseProcessCapture(record.normalized_result);
     }
     return ok(bundle);

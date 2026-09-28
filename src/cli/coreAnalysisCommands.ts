@@ -25,17 +25,6 @@ export const registerCoreAnalysisCommands = (
 
 const registerCoreCommands = (cli: CliInstance, logger: Logger): void => {
   const overviewOptions = z.object({
-    detail: z
-      .enum(["concise", "detailed"])
-      .default("concise")
-      .describe("Overview detail level"),
-    limit: z
-      .number()
-      .int()
-      .min(1)
-      .max(50)
-      .default(10)
-      .describe("Maximum overview items to return"),
     snapshot: z
       .string()
       .min(1)
@@ -43,20 +32,12 @@ const registerCoreCommands = (cli: CliInstance, logger: Logger): void => {
       .describe("Load and update a local analysis snapshot"),
     provider: providerSelectionOption,
   });
-  const analyzeOptions = overviewOptions.extend({
-    approved: z
-      .boolean()
-      .default(false)
-      .describe(
-        "Approve static analysis when the path is a JavaScript directory or ASAR",
-      ),
-  });
   cli.command(CLI_COMMANDS.analyze, {
     description: "Get an overview of an app",
     args: z.object({
       path: z.string().describe("App, program, or analysis database path"),
     }),
-    options: analyzeOptions,
+    options: overviewOptions,
     run: ({ args, options }) =>
       logCliCommand(logger, "analyze", () =>
         runRoutedOverview(args.path, options, logger),
@@ -73,7 +54,7 @@ const registerCoreCommands = (cli: CliInstance, logger: Logger): void => {
         runDirectAnalysis(
           args.path,
           "binary_overview",
-          { detail: options.detail, limit: options.limit },
+          {},
           directAnalysisOptions(logger, options.snapshot, options.provider),
         ),
       ),
@@ -107,9 +88,6 @@ const registerCoreCommands = (cli: CliInstance, logger: Logger): void => {
 const runRoutedOverview = async (
   path: string,
   options: {
-    readonly approved: boolean;
-    readonly detail: "concise" | "detailed";
-    readonly limit: number;
     readonly snapshot?: string | undefined;
     readonly provider?: string | undefined;
   },
@@ -122,12 +100,11 @@ const runRoutedOverview = async (
   )
     return runCliJavaScriptApplicationAnalysis({
       input_path: resolve(path),
-      approved: options.approved,
     });
   return runDirectAnalysis(
     path,
     "binary_overview",
-    { detail: options.detail, limit: options.limit },
+    {},
     directAnalysisOptions(logger, options.snapshot, options.provider),
   );
 };
@@ -172,7 +149,7 @@ const registerXrefsCommand = (cli: CliInstance, logger: Logger): void => {
 
 const registerTraceCommand = (cli: CliInstance, logger: Logger): void => {
   cli.command(CLI_COMMANDS.trace, {
-    description: "Trace a bounded literal feature through analyzed references",
+    description: "Trace a literal feature through analyzed references",
     args: z.object({
       path: z.string().describe("App or program path"),
       query: z.string().min(1).describe("Literal feature query"),
@@ -186,16 +163,8 @@ const registerTraceCommand = (cli: CliInstance, logger: Logger): void => {
         .number()
         .int()
         .min(1)
-        .max(100)
-        .default(20)
-        .describe("Maximum matching roots to examine"),
-      maxOperations: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .default(20)
-        .describe("Maximum analysis operations in the trace"),
+        .default(10_000)
+        .describe("Maximum matching results to return"),
       snapshot: z
         .string()
         .min(1)
@@ -205,7 +174,6 @@ const registerTraceCommand = (cli: CliInstance, logger: Logger): void => {
     }),
     alias: {
       caseSensitive: "case-sensitive",
-      maxOperations: "max-operations",
     },
     run: ({ args, options }) =>
       logCliCommand(logger, "trace", () =>
@@ -216,7 +184,6 @@ const registerTraceCommand = (cli: CliInstance, logger: Logger): void => {
             query: args.query,
             case_sensitive: options.caseSensitive,
             limit: options.limit,
-            max_operations: options.maxOperations,
           },
           directAnalysisOptions(logger, options.snapshot, options.provider),
         ),
@@ -226,37 +193,12 @@ const registerTraceCommand = (cli: CliInstance, logger: Logger): void => {
 
 const registerFunctionCommand = (cli: CliInstance, logger: Logger): void => {
   cli.command(CLI_COMMANDS.function, {
-    description: "Analyze one bounded function with evidence",
+    description: "Analyze one complete function with evidence",
     args: z.object({
       path: z.string().describe("App or program path"),
       address: z.string().describe("Procedure name or address"),
     }),
     options: z.object({
-      includeAssembly: z
-        .boolean()
-        .default(false)
-        .describe("Include bounded assembly instructions"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(500)
-        .default(100)
-        .describe("Maximum referenced items to return"),
-      maxPseudocodeChars: z
-        .number()
-        .int()
-        .min(1)
-        .max(100_000)
-        .default(20_000)
-        .describe("Maximum pseudocode characters to return"),
-      maxInstructions: z
-        .number()
-        .int()
-        .min(1)
-        .max(5_000)
-        .default(500)
-        .describe("Maximum assembly instructions to return"),
       snapshot: z
         .string()
         .min(1)
@@ -264,23 +206,12 @@ const registerFunctionCommand = (cli: CliInstance, logger: Logger): void => {
         .describe("Load and update a local analysis snapshot"),
       provider: providerSelectionOption,
     }),
-    alias: {
-      includeAssembly: "include-assembly",
-      maxPseudocodeChars: "max-pseudocode-chars",
-      maxInstructions: "max-instructions",
-    },
     run: ({ args, options }) =>
       logCliCommand(logger, "function", () =>
         runDirectAnalysis(
           args.path,
           "analyze_function",
-          {
-            procedure: args.address,
-            include_assembly: options.includeAssembly,
-            limit: options.limit,
-            max_pseudocode_chars: options.maxPseudocodeChars,
-            max_instructions: options.maxInstructions,
-          },
+          { procedure: args.address },
           directAnalysisOptions(logger, options.snapshot, options.provider),
         ),
       ),
@@ -295,20 +226,6 @@ const registerNativeApiCommand = (cli: CliInstance, logger: Logger): void => {
       address: z.string().describe("Procedure name or address"),
     }),
     options: z.object({
-      maxPseudocodeChars: z
-        .number()
-        .int()
-        .min(1)
-        .max(100_000)
-        .default(20_000)
-        .describe("Maximum pseudocode characters to inspect"),
-      maxInstructions: z
-        .number()
-        .int()
-        .min(1)
-        .max(5_000)
-        .default(500)
-        .describe("Maximum assembly instructions to inspect"),
       snapshot: z
         .string()
         .min(1)
@@ -316,20 +233,12 @@ const registerNativeApiCommand = (cli: CliInstance, logger: Logger): void => {
         .describe("Load and update a local analysis snapshot"),
       provider: providerSelectionOption,
     }),
-    alias: {
-      maxPseudocodeChars: "max-pseudocode-chars",
-      maxInstructions: "max-instructions",
-    },
     run: ({ args, options }) =>
       logCliCommand(logger, "inspect-native-api", () =>
         runDirectAnalysis(
           args.path,
           "inspect_native_api",
-          {
-            procedure: args.address,
-            max_pseudocode_chars: options.maxPseudocodeChars,
-            max_instructions: options.maxInstructions,
-          },
+          { procedure: args.address },
           directAnalysisOptions(logger, options.snapshot, options.provider),
         ),
       ),
@@ -386,7 +295,7 @@ const registerInstructionsCommand = (
 
 const registerSearchCommand = (cli: CliInstance, logger: Logger): void => {
   cli.command(CLI_COMMANDS.search, {
-    description: "Search bounded analyzed strings or procedure names",
+    description: "Search analyzed strings or procedure names",
     args: z.object({
       path: z.string().describe("App or program path"),
       pattern: z.string().min(1).describe("Literal text or regex pattern"),

@@ -13,7 +13,6 @@ import {
   createJavaScriptApplicationGraph,
   createJavaScriptApplicationNode,
 } from "../../../src/domain/javascriptApplicationGraph.js";
-import { permissionAuthorityForRoot } from "../../fixtures/permissionAuthority.js";
 
 describe("JavaScript export return-shape comparison", () => {
   it("reports exactly the heading depth addition from source-owned parser fixtures", async () => {
@@ -194,7 +193,6 @@ describe("JavaScript export return-shape selection", () => {
     });
     const ambiguousGraph = createJavaScriptApplicationGraph({
       schema: "JavaScriptApplicationGraph",
-      schema_version: 1,
       root_node_ids: left.graph.root_node_ids,
       nodes: [...left.graph.nodes, duplicate],
       edges: left.graph.edges,
@@ -271,14 +269,8 @@ const compare = (
   });
 
 const analyzeGraph = async (root: string) => {
-  const authority = await permissionAuthorityForRoot(
-    root,
-    ["investigation_input"],
-    ["investigation_input"],
-  );
-  const result = await analyzeJavaScriptApplication(authority, {
+  const result = await analyzeJavaScriptApplication({
     input_path: root,
-    approved: true,
   });
   if (!result.ok) throw result.error;
   return parseApplicationGraphEvidence(result.value);

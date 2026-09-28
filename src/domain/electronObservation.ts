@@ -28,8 +28,6 @@ const approvedElectronInput = {
 /** Input for listing root-confined file:// page targets from Electron CDP. */
 export const listElectronTargetsInputSchema = z.object({
   ...approvedElectronInput,
-  offset: z.number().int().min(0).default(0),
-  limit: z.number().int().min(1).max(200).default(100),
 });
 export type ListElectronTargetsInput = z.infer<
   typeof listElectronTargetsInputSchema
@@ -113,18 +111,10 @@ const electronTargetSchema = z.object({
   attached: z.boolean(),
 });
 
-/** Root-filtered Electron file target inventory. */
+/** Complete root-filtered Electron file target inventory. */
 export const electronTargetListSchema = z.object({
-  schema_version: z.literal(1),
   browser: browserVersionSchema,
-  targets: z.object({
-    items: z.array(electronTargetSchema),
-    offset: z.number().int().min(0),
-    limit: z.number().int().min(1),
-    total: z.number().int().min(0),
-    next_offset: z.number().int().min(0).nullable(),
-    has_more: z.boolean(),
-  }),
+  targets: z.array(electronTargetSchema),
   excluded: z.object({
     outside_root: z.number().int().min(0),
     unsupported_url: z.number().int().min(0),
@@ -141,7 +131,6 @@ const electronSourceSchema = z.discriminatedUnion("included", [
 
 /** Provider-neutral passive Electron file-page structure and script inventory. */
 export const electronPageInspectionSchema = z.object({
-  schema_version: z.literal(1),
   browser: browserVersionSchema,
   target: electronTargetSchema,
   capture_window: z.object({

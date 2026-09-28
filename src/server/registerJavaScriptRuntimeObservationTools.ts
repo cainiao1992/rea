@@ -84,7 +84,5 @@ const runRuntimeTool = async <Input>(
   const recorded = options.recordEvidence?.(result.value);
   return recorded !== undefined && !recorded.ok
     ? toCallToolResult(recorded, contract)
-    : toCallToolResult({ ok: true, value: result.value }, contract, {
-        evidenceResourcesAvailable: recorded !== undefined,
-      });
+    : toCallToolResult({ ok: true, value: result.value }, contract);
 };

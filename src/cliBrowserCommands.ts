@@ -44,16 +44,7 @@ const registerTargetList = (
     args: z.object({
       endpoint: z.string().describe("Configured loopback CDP HTTP endpoint"),
     }),
-    options: z.object({
-      ...browserScopeOptions,
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Zero-based browser-target offset"),
-      limit: boundedCount("browser targets to return", 200, 100),
-    }),
+    options: z.object({ ...browserScopeOptions }),
     run: ({ args, options }) =>
       logCliCommand(logger, "list-browser-targets", async () => {
         const context = await browserContext("list_browser_targets");
@@ -63,8 +54,6 @@ const registerTargetList = (
           allowed_origins:
             options.allowedOrigins ?? context.allowedBrowserOrigins,
           approved: options.approved,
-          offset: options.offset,
-          limit: options.limit,
         });
         if (!parsed.success)
           return browserCliError(

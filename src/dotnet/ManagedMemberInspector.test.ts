@@ -21,7 +21,7 @@ describe("managed member inspection", () => {
       requires_artifact_sha256: managedPeFixtureTarget(bytes).sha256,
       requires_mvid: "00112233-4455-6677-8899-aabbccddeeff",
     });
-    expect(result.types.items).toEqual([
+    expect(result.types).toEqual([
       expect.objectContaining({
         token: "0x02000001",
         full_name: "Fixture.Program",
@@ -29,7 +29,7 @@ describe("managed member inspection", () => {
         method_list: { first_row: 1, last_row: 1, count: 1 },
       }),
     ]);
-    expect(result.fields.items).toEqual([
+    expect(result.fields).toEqual([
       expect.objectContaining({
         token: "0x04000001",
         declaring_type: "Fixture.Program",
@@ -41,7 +41,7 @@ describe("managed member inspection", () => {
         }),
       }),
     ]);
-    expect(result.methods.items).toEqual([
+    expect(result.methods).toEqual([
       expect.objectContaining({
         token: "0x06000001",
         declaring_type: "Fixture.Program",
@@ -79,7 +79,7 @@ describe("managed member inspection", () => {
         }),
       }),
     ]);
-    expect(result.member_refs.items).toEqual([
+    expect(result.member_refs).toEqual([
       expect.objectContaining({
         token: "0x0a000001",
         name: ".ctor",
@@ -90,7 +90,7 @@ describe("managed member inspection", () => {
         }),
       }),
     ]);
-    expect(result.call_edges.items).toEqual([
+    expect(result.call_edges).toEqual([
       {
         caller_token: "0x06000001",
         caller: "Fixture.Program.Main",
@@ -100,7 +100,7 @@ describe("managed member inspection", () => {
         target_name: ".ctor",
       },
     ]);
-    expect(result.field_accesses.items).toEqual([
+    expect(result.field_accesses).toEqual([
       {
         method_token: "0x06000001",
         method: "Fixture.Program.Main",

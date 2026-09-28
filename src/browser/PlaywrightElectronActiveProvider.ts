@@ -327,7 +327,6 @@ const createResult = (
     ipcEventKinds.has(kind),
   );
   return electronActiveObservationResultSchema.parse({
-    schema_version: 1,
     application: {
       executable_path: paths.executable,
       application_path: paths.application,

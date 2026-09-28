@@ -25,24 +25,18 @@ const PROCEDURES = {
   "0x6": "prefix_TtOther",
 };
 
-const page = (values: Readonly<Record<string, string>>) => ({
-  items: Object.entries(values).map(([address, value]) => ({ address, value })),
-  offset: 0,
-  limit: 100,
-  total: Object.keys(values).length,
-  next_offset: null,
-  has_more: false,
-});
+const inventory = (values: Readonly<Record<string, string>>) =>
+  Object.entries(values).map(([address, value]) => ({ address, value }));
 
 const fixturePort = (): AnalysisOperationPort => ({
   execute: (name, arguments_) => {
     switch (name) {
       case "list_procedures":
-        return Promise.resolve(ok(page(PROCEDURES)));
+        return Promise.resolve(ok(inventory(PROCEDURES)));
       case "list_names":
         return Promise.resolve(
           ok(
-            page({
+            inventory({
               "0x10": "_OBJC_CLASS_$_Fixture",
               "0x11": "_OBJC_CLASS_$_Fixture",
               "0x12": "_OBJC_PROTOCOL_$_FixtureDelegate",
@@ -93,7 +87,11 @@ const fixturePort = (): AnalysisOperationPort => ({
       case "list_documents":
         return Promise.resolve(ok(["fixture"]));
       case "list_strings":
-        return Promise.resolve(ok(page({ "0x30": "hello" })));
+        return Promise.resolve(ok(inventory({ "0x30": "hello" })));
+      case "search_strings":
+        return Promise.resolve(ok(inventory({ "0x30": "hello" })));
+      case "search_procedures":
+        return Promise.resolve(ok(inventory({})));
       case "analyze_function":
         return Promise.resolve(
           ok({
@@ -103,43 +101,22 @@ const fixturePort = (): AnalysisOperationPort => ({
               signature: null,
               locals: [],
             },
-            pseudocode: {
-              text: "return 0;",
-              total_chars: 9,
-              returned_chars: 9,
-              truncated: false,
-              next_offset: null,
-            },
-            assembly: {
-              items: [],
-              total: 0,
-              returned: 0,
-              truncated: false,
-              next_offset: null,
-            },
-            comments: emptyBounded(),
-            callers: emptyBounded(),
-            callees: emptyBounded(),
-            incoming_references: emptyBounded(),
-            outgoing_references: emptyBounded(),
-            referenced_strings: emptyBounded(),
-            referenced_names: emptyBounded(),
-            basic_blocks: emptyBounded(),
-            instruction_scan: { scanned: 0, truncated: false },
+            pseudocode: "return 0;",
+            assembly: [],
+            comments: [],
+            callers: [],
+            callees: [],
+            incoming_references: [],
+            outgoing_references: [],
+            referenced_strings: [],
+            referenced_names: [],
+            basic_blocks: [],
           }),
         );
       default:
         return Promise.resolve(ok(null));
     }
   },
-});
-
-const emptyBounded = () => ({
-  items: [],
-  total: 0,
-  returned: 0,
-  truncated: false,
-  next_offset: null,
 });
 
 const resources: Array<{ close(): Promise<void> }> = [];
@@ -218,15 +195,15 @@ describe("enhanced MCP tools", () => {
       ["get_objc_classes", { pattern: "Fixture" }],
       ["get_objc_protocols", {}],
       ["batch_decompile", { addresses: ["0x1", "0x2"] }],
-      ["get_call_graph", { address: "0x1", direction: "forward", depth: 2 }],
+      ["get_call_graph", { address: "0x1", direction: "forward" }],
       ["analyze_swift_types", {}],
       ["find_xrefs_to_name", { name: "entry" }],
       ["binary_overview", {}],
       ["analyze_function", { procedure: "0x1" }],
       ["inspect_native_api", { procedure: "0x1" }],
-      ["trace_feature", { query: "hello", max_operations: 10 }],
-      ["find_code_for_string", { query: "hello", max_operations: 10 }],
-      ["trace_call_path", { start: "0x1", goal: "0x2", max_operations: 10 }],
+      ["trace_feature", { query: "hello" }],
+      ["find_code_for_string", { query: "hello" }],
+      ["trace_call_path", { start: "0x1", goal: "0x2" }],
     ] as const;
     const results = await Promise.all(
       calls.map(async ([name, arguments_]) =>
@@ -267,7 +244,7 @@ describe("enhanced MCP tools", () => {
     });
     expect(results[8]).toMatchObject({
       procedure: { address: "0x1", name: "entry" },
-      pseudocode: { text: "return 0;" },
+      pseudocode: "return 0;",
     });
     expect(results[9]).toMatchObject({
       procedure: { address: "0x1", name: "entry" },

@@ -67,7 +67,6 @@ const legacyUnknownDimension: z.input<typeof dimensionSchema> = {
 /** Completeness-aware changes across stable browser evidence dimensions. */
 export const webCaptureDiffSchema = z
   .object({
-    schema_version: z.literal(1),
     overall_status: z.enum(["changed", "unchanged", "unknown"]),
     before_target: z.object({ target_id: z.string(), url: z.string() }),
     after_target: z.object({ target_id: z.string(), url: z.string() }),

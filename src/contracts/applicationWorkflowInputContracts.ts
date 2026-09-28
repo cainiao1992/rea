@@ -15,13 +15,9 @@ const evidenceIdSchema = z
 const traceApplicationFeatureFacts = {
   native_observations:
     traceApplicationFeatureInputSchema.shape.native_observations,
-  native_observation_evidence_ids: z
-    .array(evidenceIdSchema)
-    .max(64)
-    .default([]),
+  native_observation_evidence_ids: z.array(evidenceIdSchema).default([]),
   seed: traceApplicationFeatureInputSchema.shape.seed,
   direction: traceApplicationFeatureInputSchema.shape.direction,
-  limits: traceApplicationFeatureInputSchema.shape.limits,
 } as const;
 
 /** MCP/CLI trace request accepting full Evidence or a ledger reference. */
@@ -51,16 +47,10 @@ export const traceJavaScriptSemanticsRequestSchema = z.union([
 const compareApplicationVersionsFacts = {
   left_native_observations:
     compareApplicationVersionsInputSchema.shape.left_native_observations,
-  left_native_observation_evidence_ids: z
-    .array(evidenceIdSchema)
-    .max(64)
-    .default([]),
+  left_native_observation_evidence_ids: z.array(evidenceIdSchema).default([]),
   right_native_observations:
     compareApplicationVersionsInputSchema.shape.right_native_observations,
-  right_native_observation_evidence_ids: z
-    .array(evidenceIdSchema)
-    .max(64)
-    .default([]),
+  right_native_observation_evidence_ids: z.array(evidenceIdSchema).default([]),
   limits: compareApplicationVersionsInputSchema.shape.limits,
   unknown_registry_approved:
     compareApplicationVersionsInputSchema.shape.unknown_registry_approved,

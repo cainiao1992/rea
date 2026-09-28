@@ -100,11 +100,6 @@ const finalizeArtifactAnalysis = (
     limitations: [
       "JavaScript and HTML were parsed as inert text; bundle bootstrap code was never executed.",
       "Static paths and relationships may remain unresolved when expressions are dynamic or obfuscated.",
-      ...(input.source_map_read_approved
-        ? []
-        : [
-            "Source maps were inventoried but their contents were not read without separate approval.",
-          ]),
       ...(truncatedScopes === 0
         ? []
         : ["One or more static-analysis scopes reached an approved bound."]),
@@ -419,16 +414,14 @@ const unavailableSourceMap = (
 ): JavaScriptSourceMapObservation => {
   if (file.text.included)
     throw new TypeError("Expected unavailable source-map text");
-  const notApproved = file.text.reason === "not-approved";
   return {
     path: file.path,
     sha256: file.sha256,
-    status: notApproved ? "not-approved" : "invalid",
+    status: "invalid",
     sources: [],
     omitted_sources: 0,
-    limitation: notApproved
-      ? "Source-map content requires separate approval."
-      : "Source-map text was unavailable within approved limits.",
+    limitation:
+      "Source-map text was unavailable within the selected input limits.",
   };
 };
 

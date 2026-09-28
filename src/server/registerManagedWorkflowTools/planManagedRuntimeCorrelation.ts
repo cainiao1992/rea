@@ -51,9 +51,7 @@ export const registerPlanManagedRuntimeCorrelation = (
       const recorded = options.recordEvidence?.(result.value);
       if (recorded !== undefined && !recorded.ok)
         return toCallToolResult(recorded, runtimeContract);
-      return toCallToolResult(result, runtimeContract, {
-        evidenceResourcesAvailable: recorded !== undefined,
-      });
+      return toCallToolResult(result, runtimeContract);
     },
   );
 };

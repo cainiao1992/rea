@@ -19,12 +19,10 @@ const dimensionNameSchema = z.enum([
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 
-/** Strict bounded input for explicit function-to-function comparison. */
+/** Inputs for explicit function-to-function comparison. */
 export const functionComparisonInputSchema = z.strictObject({
-  left_evidence_ids: z.array(evidenceIdSchema).min(1).max(100),
-  right_evidence_ids: z.array(evidenceIdSchema).min(1).max(100),
-  offset: z.number().int().min(0).default(0),
-  limit: z.number().int().min(1).max(100).default(100),
+  left_evidence_id: evidenceIdSchema,
+  right_evidence_id: evidenceIdSchema,
   unknown_registry_approved: z.literal(true).optional(),
 });
 
@@ -97,13 +95,7 @@ export const functionComparisonResultSchema = z.object({
     unknown: z.number().int().min(0),
   }),
   dimensions: z.array(functionDimensionSchema).length(8),
-  changes: z.object({
-    items: z.array(functionDimensionSchema).max(100),
-    offset: z.number().int().min(0),
-    limit: z.number().int().min(1).max(100),
-    total: z.number().int().min(0),
-    next_offset: z.number().int().min(0).nullable(),
-  }),
+  changes: z.array(functionDimensionSchema),
   limitations: z.array(z.string()),
 });
 

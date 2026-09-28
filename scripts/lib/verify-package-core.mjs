@@ -32,7 +32,7 @@ export const json = (text) => JSON.parse(text);
 export const verifyCompleteToolCatalog = async (client, options) => {
   const listed = await client.listTools(undefined, options);
   const status = await client.callTool(
-    { name: "binary_session", arguments: { detail: "full" } },
+    { name: "binary_session", arguments: {} },
     options,
   );
   const availability = status.structuredContent?.result?.tool_availability;
@@ -61,13 +61,6 @@ export const pathExists = async (path) => {
 
 /** Synthetic function dossier for managed/native verification fixtures. */
 export const functionDossier = (name) => {
-  const emptyPage = {
-    items: [],
-    total: 0,
-    returned: 0,
-    truncated: false,
-    next_offset: null,
-  };
   return {
     procedure: {
       address: "0x401000",
@@ -81,23 +74,16 @@ export const functionDossier = (name) => {
       signature: null,
       locals: [],
     },
-    pseudocode: {
-      text: "",
-      total_chars: 0,
-      returned_chars: 0,
-      truncated: false,
-      next_offset: null,
-    },
-    assembly: emptyPage,
-    comments: emptyPage,
-    callers: emptyPage,
-    callees: emptyPage,
-    incoming_references: emptyPage,
-    outgoing_references: emptyPage,
-    referenced_strings: emptyPage,
-    referenced_names: emptyPage,
-    basic_blocks: emptyPage,
-    instruction_scan: { scanned: 0, truncated: false },
+    pseudocode: "",
+    assembly: [],
+    comments: [],
+    callers: [],
+    callees: [],
+    incoming_references: [],
+    outgoing_references: [],
+    referenced_strings: [],
+    referenced_names: [],
+    basic_blocks: [],
     limitations: [],
   };
 };

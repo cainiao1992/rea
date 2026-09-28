@@ -134,7 +134,7 @@ try {
   const results = [];
   for (const scenario of scenarios) {
     process.stderr.write(`Running Codex agent evaluation: ${scenario.id}\n`);
-    const execution = await runCodex(scenario.prompt, fixtureRoot);
+    const execution = await runCodex(scenario.prompt);
     const transcriptDirectory = process.env.REA_AGENT_EVAL_TRANSCRIPT_DIR;
     if (transcriptDirectory !== undefined) {
       const transcriptPath = resolve(
@@ -332,9 +332,8 @@ async function createTargets(root, includeManaged) {
   };
 }
 
-async function runCodex(prompt, investigationRoot) {
+async function runCodex(prompt) {
   const mcpEnvironment = [
-    ["REA_INVESTIGATION_INPUT_ROOTS_JSON", JSON.stringify([investigationRoot])],
     ["REA_BROWSER_OBSERVE_ENABLED", "true"],
     [
       "REA_BROWSER_CDP_ENDPOINTS_JSON",
@@ -378,7 +377,6 @@ async function runCodex(prompt, investigationRoot) {
     cwd: evaluationRoot,
     env: {
       ...process.env,
-      REA_INVESTIGATION_INPUT_ROOTS_JSON: JSON.stringify([investigationRoot]),
       REA_BROWSER_OBSERVE_ENABLED: "true",
       REA_BROWSER_CDP_ENDPOINTS_JSON: JSON.stringify(["http://127.0.0.1:9222"]),
       REA_BROWSER_ALLOWED_ORIGINS_JSON: JSON.stringify([

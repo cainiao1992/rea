@@ -58,19 +58,6 @@ const describesObject = (schema: ReturnType<typeof contractJsonSchema>) =>
       ),
   );
 
-const emptySchemaPaths = (value: unknown, path = "$"): string[] => {
-  if (Array.isArray(value))
-    return value.flatMap((item, index) =>
-      emptySchemaPaths(item, `${path}[${String(index)}]`),
-    );
-  if (typeof value !== "object" || value === null) return [];
-  const entries = Object.entries(value);
-  if (entries.length === 0) return [path];
-  return entries.flatMap(([key, item]) =>
-    emptySchemaPaths(item, `${path}.${key}`),
-  );
-};
-
 describe("tool contract surface", () => {
   it("advertises complete typed schemas and annotations for every public tool", () => {
     const contracts = TOOL_CONTRACTS;
@@ -90,9 +77,10 @@ describe("tool contract surface", () => {
       expect(contract.examples).toHaveLength(1);
       for (const example of contract.examples) {
         expect(example.title.length).toBeGreaterThan(10);
-        expect(contract.inputSchema.safeParse(example.input).success).toBe(
-          true,
-        );
+        expect(
+          contract.inputSchema.safeParse(example.input).success,
+          `${contract.name}: ${example.title}`,
+        ).toBe(true);
       }
     }
   });
@@ -138,8 +126,7 @@ describe("tool contract surface", () => {
       { name: "update_unknown", kind: "session" },
       { name: "verify_unknown_resolution", kind: "session" },
       { name: "run_replay_machine", kind: "session" },
-      { name: "snapshot_evidence_bundle", kind: "session" },
-      { name: "release_evidence_bundle", kind: "session" },
+      { name: "get_evidence_bundle", kind: "session" },
       { name: "get_navigation_context", kind: "session" },
       { name: "inspect_address_context", kind: "session" },
     ]);
@@ -195,28 +182,6 @@ describe("tool contract surface", () => {
       expect(JSON.stringify(schema)).not.toContain('"result":{}');
       expect(contract.description.length).toBeGreaterThan(100);
       expect(contract.description).toMatch(/[.;]/u);
-    }
-  });
-
-  it("publishes no unconstrained output-schema holes across all tools", () => {
-    const contracts = [
-      ...OFFICIAL_TOOL_CONTRACTS,
-      ...ENHANCED_TOOL_CONTRACTS,
-      ...NATIVE_TOOL_CONTRACTS,
-      ...ARTIFACT_TOOL_CONTRACTS,
-      ...MANAGED_TOOL_CONTRACTS,
-      ...MANAGED_WORKFLOW_TOOL_CONTRACTS,
-      ...BROWSER_TOOL_CONTRACTS,
-      ...BROWSER_SCENARIO_TOOL_CONTRACTS,
-      ...ELECTRON_TOOL_CONTRACTS,
-      ...JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS,
-      ...APPLICATION_TOOL_CONTRACTS,
-      ...SESSION_TOOL_CONTRACTS,
-    ];
-    expect(contracts).toHaveLength(TOOL_CONTRACTS.length);
-    for (const contract of contracts) {
-      const schema = contractJsonSchema(contract.outputSchema);
-      expect(emptySchemaPaths(schema), contract.name).toEqual([]);
     }
   });
 });

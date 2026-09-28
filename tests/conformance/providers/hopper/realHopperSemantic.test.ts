@@ -27,7 +27,7 @@ describe("real Hopper semantic fixture resolution", () => {
     expect(requests).toEqual([
       {
         name: "analyze_function",
-        arguments: { procedure: "0x1000", include_assembly: true },
+        arguments: { procedure: "0x1000" },
       },
     ]);
   });
@@ -57,7 +57,6 @@ describe("real Hopper semantic fixture resolution", () => {
         {
           address: "0x1000",
           value: "_rea_entry",
-          value_truncated: false,
         },
       ]),
       {},
@@ -71,20 +70,13 @@ describe("real Hopper semantic fixture resolution", () => {
   it.each([
     ["empty", []],
     [
-      "truncated",
-      [{ address: "0x1000", value: "rea_entry", value_truncated: true }],
-    ],
-    [
       "duplicate",
       [
-        { address: "0x1000", value: "rea_entry", value_truncated: false },
-        { address: "0x2000", value: "_rea_entry", value_truncated: false },
+        { address: "0x1000", value: "rea_entry" },
+        { address: "0x2000", value: "_rea_entry" },
       ],
     ],
-    [
-      "wrong name",
-      [{ address: "0x1000", value: "rea_other", value_truncated: false }],
-    ],
+    ["wrong name", [{ address: "0x1000", value: "rea_other" }]],
   ])("rejects %s search evidence", async (_label, items) => {
     await expect(
       resolveFixtureProcedure(
@@ -98,7 +90,7 @@ describe("real Hopper semantic fixture resolution", () => {
 });
 
 const clientWithItems = (items: readonly unknown[]) => ({
-  callTool: async () => ({ items }),
+  callTool: async () => items,
 });
 
 const clientReturning = (value: unknown) => ({

@@ -14,17 +14,6 @@ const boundedTextSchema = z.string().min(1).max(4_096);
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
 const artifactIdSchema = z.string().regex(/^art_[a-f0-9]{64}$/u);
 
-const inspectionLimitsSchema = z.strictObject({
-  max_observations: z.number().int().min(1).max(500).default(100),
-  max_relationships: z.number().int().min(1).max(500).default(100),
-  max_hypotheses: z.number().int().min(1).max(100).default(20),
-  max_unexplored_branches: z.number().int().min(1).max(100).default(20),
-  max_next_probes: z.number().int().min(1).max(50).default(20),
-  max_substeps: z.literal(1).default(1),
-});
-
-export const artifactInspectionLimitsSchema = inspectionLimitsSchema;
-
 const inspectionObservationSchema = z.strictObject({
   observation_id: z.string().regex(/^aio_[a-f0-9]{64}$/u),
   kind: z.enum(["root-manifest", "artifact", "occurrence", "integrity"]),
@@ -81,11 +70,7 @@ const nextProbeSchema = z.strictObject({
 
 const unexploredBranchSchema = z.strictObject({
   branch_id: z.string().regex(/^aib_[a-f0-9]{64}$/u),
-  reason: z.enum([
-    "page-limit",
-    "format-specific-analysis-required",
-    "unknown-format",
-  ]),
+  reason: z.enum(["format-specific-analysis-required", "unknown-format"]),
   detail: boundedTextSchema,
   next_probe: nextProbeSchema.nullable(),
   evidence_id: evidenceIdSchema,
@@ -93,7 +78,6 @@ const unexploredBranchSchema = z.strictObject({
 
 /** Provider-neutral inspection result with its atomic source Evidence. */
 export const artifactInspectionResultSchema = z.strictObject({
-  schema_version: z.literal(1),
   inspection_id: z.string().regex(/^ai_[a-f0-9]{64}$/u),
   subject: z.strictObject({
     manifest_id: z.string().regex(/^agm_[a-f0-9]{64}$/u),
@@ -111,14 +95,13 @@ export const artifactInspectionResultSchema = z.strictObject({
         evidence: evidenceSchema,
       }),
     )
-    .min(1)
-    .max(1),
-  observations: z.array(inspectionObservationSchema).max(500),
-  derived_relationships: z.array(inspectionRelationshipSchema).max(500),
-  hypotheses: z.array(inspectionHypothesisSchema).max(100),
-  contradictions: z.array(inspectionContradictionSchema).max(100),
-  unexplored_branches: z.array(unexploredBranchSchema).max(100),
-  next_probes: z.array(nextProbeSchema).max(50),
+    .min(1),
+  observations: z.array(inspectionObservationSchema),
+  derived_relationships: z.array(inspectionRelationshipSchema),
+  hypotheses: z.array(inspectionHypothesisSchema),
+  contradictions: z.array(inspectionContradictionSchema),
+  unexplored_branches: z.array(unexploredBranchSchema),
+  next_probes: z.array(nextProbeSchema),
   coverage: z.strictObject({
     status: z.enum(["complete-within-substeps", "partial", "truncated"]),
     substeps_completed: z.literal(1),
@@ -133,13 +116,10 @@ export const artifactInspectionResultSchema = z.strictObject({
     next_probes_retained: z.number().int().min(0),
     next_probes_omitted: z.number().int().min(0),
   }),
-  evidence_links: z.array(evidenceIdSchema).min(1).max(1),
-  limitations: z.array(boundedTextSchema).max(1_000),
+  evidence_links: z.array(evidenceIdSchema).min(1),
+  limitations: z.array(boundedTextSchema),
 });
 
-export type ArtifactInspectionLimits = z.infer<
-  typeof artifactInspectionLimitsSchema
->;
 export type ArtifactInspectionResult = z.infer<
   typeof artifactInspectionResultSchema
 >;
@@ -147,7 +127,6 @@ export type ArtifactInspectionResult = z.infer<
 /** Project one successful inventory Evidence record into an inspection report. */
 export const createArtifactInspection = (
   inventoryInput: unknown,
-  limits: ArtifactInspectionLimits,
 ): ArtifactInspectionResult => {
   const inventoryEvidence = parseInventoryEvidence(inventoryInput);
   const inventory = artifactInventoryResultSchema.parse(
@@ -169,21 +148,20 @@ export const createArtifactInspection = (
     nextProbes,
   );
   const retained = {
-    observations: observations.slice(0, limits.max_observations),
-    relationships: relationships.slice(0, limits.max_relationships),
-    hypotheses: hypotheses.slice(0, limits.max_hypotheses),
-    branches: branches.slice(0, limits.max_unexplored_branches),
-    probes: nextProbes.slice(0, limits.max_next_probes),
+    observations,
+    relationships,
+    hypotheses,
+    branches,
+    probes: nextProbes,
   };
   const omissions = {
-    observations: observations.length - retained.observations.length,
-    relationships: relationships.length - retained.relationships.length,
-    hypotheses: hypotheses.length - retained.hypotheses.length,
-    branches: branches.length - retained.branches.length,
-    probes: nextProbes.length - retained.probes.length,
+    observations: 0,
+    relationships: 0,
+    hypotheses: 0,
+    branches: 0,
+    probes: 0,
   };
   const semantic = {
-    schema_version: 1 as const,
     subject: {
       manifest_id: inventory.manifest.manifest_id,
       root_artifact_id: inventory.manifest.root_artifact_id,
@@ -395,23 +373,7 @@ const allUnexploredBranches = (
   evidenceId: string,
   nextProbes: ArtifactInspectionResult["next_probes"],
 ): ArtifactInspectionResult["unexplored_branches"] => {
-  const pages = [
-    ["nodes", inventory.nodes.next_offset],
-    ["occurrences", inventory.occurrences.next_offset],
-    ["relationships", inventory.edges.next_offset],
-  ] as const;
-  const branches = pages.flatMap(([collection, nextOffset]) =>
-    nextOffset === null
-      ? []
-      : [
-          branch(
-            "page-limit",
-            `${collection} continue at offset ${String(nextOffset)}.`,
-            null,
-            evidenceId,
-          ),
-        ],
-  );
+  const branches: ArtifactInspectionResult["unexplored_branches"] = [];
   branches.push(
     ...nextProbes.map((probe) =>
       branch(

@@ -40,6 +40,7 @@ export interface HopperCleanupInput {
   readonly processSupervisor: ProviderProcessSupervisor | undefined;
   readonly runtimeRoot: PrivateRuntimeRoot | undefined;
   readonly activeRequest: HopperRequestActivity | null;
+  readonly retainDocument: boolean;
   readonly progress: ProgressReporter | undefined;
   readonly logger: Logger;
   readonly onDiagnostic: ((event: HopperDiagnostic) => void) | undefined;
@@ -59,7 +60,13 @@ export const cleanupHopperSession = async (
     cleanupResult: undefined,
     shutdownConfirmed: false,
   };
-  await report(input.progress, 0, "requesting Hopper document shutdown");
+  await report(
+    input.progress,
+    0,
+    input.retainDocument
+      ? "detaching REA from the Hopper document"
+      : "requesting Hopper document shutdown",
+  );
   await requestShutdown(input, state);
   await report(input.progress, 0.35, "releasing Hopper bridge transport");
   input.releaseTransport(input.socket);
@@ -90,7 +97,11 @@ const requestShutdown = async (
     return;
   }
   const shutdown = await input
-    .request("shutdown")
+    .request(
+      input.retainDocument || input.launch?.shutdownMode === "process-cleanup"
+        ? "shutdown"
+        : "shutdown_document",
+    )
     .catch(() => err(new HopperProcessError(null)));
   if (
     shutdown.ok &&

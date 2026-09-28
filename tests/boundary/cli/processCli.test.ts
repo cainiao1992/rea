@@ -134,15 +134,15 @@ describe("process CLI errors", () => {
     });
   });
 
-  it("explains unsupported and unrelated capture evidence", async () => {
+  it("rejects unrelated capture evidence", async () => {
     const root = await fixture();
-    const legacy = join(root, "legacy.json");
+    const invalidCapture = join(root, "invalid-capture.json");
     const unrelated = join(root, "unrelated.json");
     await writeFile(
-      legacy,
+      invalidCapture,
       JSON.stringify(
         createEvidence(undefined, PROCESS_PROVIDER, {
-          predicateType: "rea.process-capture/v3",
+          predicateType: "rea.process-capture/other",
           operation: "capture_process_scenario",
           parameters: {},
           result: {},
@@ -161,14 +161,12 @@ describe("process CLI errors", () => {
       ),
     );
 
-    const legacyResult = await compareProcessEvidenceFiles(legacy, legacy);
-    expect(legacyResult).toMatchObject({
+    expect(
+      await compareProcessEvidenceFiles(invalidCapture, invalidCapture),
+    ).toMatchObject({
       error: "Process command failed",
       category: "invalid_input",
     });
-    expect(JSON.stringify(legacyResult)).toContain(
-      "Process Capture v3 is unsupported",
-    );
     expect(await compareProcessEvidenceFiles(unrelated, unrelated)).toEqual({
       error: "Process command failed",
       category: "invalid_input",

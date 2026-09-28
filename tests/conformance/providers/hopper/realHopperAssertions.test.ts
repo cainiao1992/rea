@@ -17,20 +17,11 @@ describe("real Hopper semantic assertions", () => {
     expect(() => requireDistinctTargetHashes("", "other")).toThrow();
     expect(() => requireDistinctTargetHashes("first", "second")).not.toThrow();
   });
-  it("extracts only a real procedure address from a structured page", () => {
-    expect(
-      firstProcedureAddress({
-        items: [{ address: "0x1000", name: "main" }],
-        offset: 0,
-        limit: 100,
-        total: 1,
-        next_offset: null,
-        has_more: false,
-      }),
-    ).toBe("0x1000");
-    expect(() =>
-      firstProcedureAddress({ items: { address: "0x1000" } }),
-    ).toThrow();
+  it("extracts a real procedure address from the complete inventory", () => {
+    expect(firstProcedureAddress([{ address: "0x1000", name: "main" }])).toBe(
+      "0x1000",
+    );
+    expect(() => firstProcedureAddress({ address: "0x1000" })).toThrow();
     expect(() =>
       firstProcedureAddress({ items: [{ address: "items" }] }),
     ).toThrow();
@@ -54,38 +45,20 @@ describe("real Hopper semantic assertions", () => {
       requireFunctionDossier(
         {
           ...dossier,
-          pseudocode: {
-            text: "Error: failed",
-            returned_chars: 13,
-            total_chars: 13,
-          },
+          pseudocode: "Error: failed",
         },
         "0x1000",
       ),
     ).toThrow(/embedded failure/u);
-    expect(() =>
-      requireFunctionDossier(
-        { ...dossier, instruction_scan: { scanned: 0, truncated: false } },
-        "0x1000",
-      ),
-    ).toThrow(/instruction scan/u);
+    expect(requireFunctionDossier(dossier, "0x1000")).not.toHaveProperty(
+      "instruction_scan",
+    );
   });
 
-  it("counts Unicode code points and accepts terminal scan truncation", () => {
+  it("accepts a complete inline dossier", () => {
     const dossier = validDossier();
-    const scanLimited = {
-      ...dossier,
-      pseudocode: { text: "😀", returned_chars: 1, total_chars: 1 },
-      comments: {
-        items: [],
-        total: null,
-        returned: 0,
-        truncated: true,
-        next_offset: null,
-      },
-      instruction_scan: { scanned: 1, truncated: true },
-    };
-    expect(requireFunctionDossier(scanLimited, "0x1000")).toEqual(scanLimited);
+    const complete = { ...dossier, pseudocode: "😀" };
+    expect(requireFunctionDossier(complete, "0x1000")).toEqual(complete);
   });
 });
 
@@ -124,7 +97,7 @@ describe("real Hopper fixture assertions", () => {
     ] as const) {
       expect(() =>
         requireFunctionDossierOracle(
-          { ...entry, [field]: emptyCollection() },
+          { ...entry, [field]: [] },
           {
             procedure_address: "0x1000",
             callee_address: "0x2000",
@@ -142,13 +115,13 @@ describe("real Hopper fixture assertions", () => {
       requireFunctionDossierOracle(
         {
           ...entry,
-          referenced_names: bounded([
+          referenced_names: [
             {
               address: "0x4000",
               value: "_rea_c_global",
               source_address: "0x2000",
             },
-          ]),
+          ],
         },
         {
           procedure_address: "0x1000",
@@ -160,7 +133,7 @@ describe("real Hopper fixture assertions", () => {
       requireFunctionDossierOracle(
         {
           ...entry,
-          basic_blocks: bounded([{ start: "0x1000", successors: [] }]),
+          basic_blocks: [{ start: "0x1000", successors: [] }],
         },
         {
           procedure_address: "0x1000",
@@ -185,13 +158,11 @@ const fixtureDossier = (input: {
 }) => ({
   ...validDossier(),
   procedure: { address: input.address, name: input.name },
-  assembly: bounded(["mov eax, eax"]),
-  comments: bounded([
-    { address: input.address, kind: "comment", text: input.comment },
-  ]),
-  callees: bounded([input.callee]),
-  callers: bounded([input.caller]),
-  outgoing_references: bounded([
+  assembly: ["mov eax, eax"],
+  comments: [{ address: input.address, kind: "comment", text: input.comment }],
+  callees: [input.callee],
+  callers: [input.caller],
+  outgoing_references: [
     {
       source_address: input.address,
       target_address: input.callee.address,
@@ -213,62 +184,39 @@ const fixtureDossier = (input: {
       target_procedure: null,
       kind: { available: false, reason: "public API did not classify kind" },
     },
-  ]),
-  referenced_strings: bounded([
+  ],
+  referenced_strings: [
     {
       address: "0x3000",
       value: input.referencedString,
       source_address: "0x1004",
     },
-  ]),
-  referenced_names: bounded([
+  ],
+  referenced_names: [
     {
       address: "0x4000",
       value: "_rea_c_global",
       source_address: "0x1008",
     },
-  ]),
-  basic_blocks: bounded([
+  ],
+  basic_blocks: [
     { start: input.address, successors: [input.successor] },
     { start: input.successor, successors: [] },
-  ]),
+  ],
 });
-
-const bounded = (items: readonly unknown[]) => ({
-  items,
-  total: items.length,
-  returned: items.length,
-  truncated: false,
-  next_offset: null,
-});
-
-const emptyCollection = () => bounded([]);
 
 const validDossier = () => {
-  const collection = {
-    items: [],
-    total: 0,
-    returned: 0,
-    truncated: false,
-    next_offset: null,
-  };
   return {
     procedure: { address: "0x1000", name: "main" },
-    pseudocode: { text: "return 0;", returned_chars: 9, total_chars: 9 },
-    assembly: collection,
-    comments: collection,
-    callers: collection,
-    callees: collection,
-    incoming_references: collection,
-    outgoing_references: collection,
-    referenced_strings: collection,
-    referenced_names: collection,
-    basic_blocks: {
-      ...collection,
-      items: [{ successors: [] }],
-      total: 1,
-      returned: 1,
-    },
-    instruction_scan: { scanned: 1, truncated: false },
+    pseudocode: "return 0;",
+    assembly: [],
+    comments: [],
+    callers: [],
+    callees: [],
+    incoming_references: [],
+    outgoing_references: [],
+    referenced_strings: [],
+    referenced_names: [],
+    basic_blocks: [{ successors: [] }],
   };
 };

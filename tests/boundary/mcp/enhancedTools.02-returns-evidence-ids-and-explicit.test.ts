@@ -17,24 +17,18 @@ const PROCEDURES = {
   "0x6": "prefix_TtOther",
 };
 
-const page = (values: Readonly<Record<string, string>>) => ({
-  items: Object.entries(values).map(([address, value]) => ({ address, value })),
-  offset: 0,
-  limit: 100,
-  total: Object.keys(values).length,
-  next_offset: null,
-  has_more: false,
-});
+const inventory = (values: Readonly<Record<string, string>>) =>
+  Object.entries(values).map(([address, value]) => ({ address, value }));
 
 const fixturePort = (): AnalysisOperationPort => ({
   execute: (name, arguments_) => {
     switch (name) {
       case "list_procedures":
-        return Promise.resolve(ok(page(PROCEDURES)));
+        return Promise.resolve(ok(inventory(PROCEDURES)));
       case "list_names":
         return Promise.resolve(
           ok(
-            page({
+            inventory({
               "0x10": "_OBJC_CLASS_$_Fixture",
               "0x11": "_OBJC_CLASS_$_Fixture",
               "0x12": "_OBJC_PROTOCOL_$_FixtureDelegate",
@@ -85,7 +79,7 @@ const fixturePort = (): AnalysisOperationPort => ({
       case "list_documents":
         return Promise.resolve(ok(["fixture"]));
       case "list_strings":
-        return Promise.resolve(ok(page({ "0x30": "hello" })));
+        return Promise.resolve(ok(inventory({ "0x30": "hello" })));
       case "analyze_function":
         return Promise.resolve(
           ok({
@@ -154,15 +148,13 @@ const connect = async (analysis: AnalysisOperationPort = fixturePort()) => {
 };
 
 describe("enhanced MCP tools", () => {
-  it("returns Evidence IDs and explicit call-path frontiers at limits", async () => {
+  it("returns Evidence IDs and a complete call path", async () => {
     const client = await connect();
     const result = await client.callTool({
       name: "trace_call_path",
       arguments: {
         start: "0x1",
         goal: "0x3",
-        max_nodes: 1,
-        max_operations: 10,
       },
     });
 
@@ -170,19 +162,12 @@ describe("enhanced MCP tools", () => {
     expect(result.structuredContent).toMatchObject({
       evidence_id: expect.stringMatching(/^ev_[a-f0-9]{64}$/u),
       result: {
-        goal_status: "not_reached",
-        nodes: [{ address: "0x1", depth: 0 }],
-        frontier: ["0x2"],
-        truncated: true,
-        residual_unknowns: expect.arrayContaining([
-          expect.stringContaining("reached the node limit"),
-          expect.stringContaining("reached the edge limit"),
+        goal_status: "reached",
+        nodes: expect.arrayContaining([
+          expect.objectContaining({ address: "0x1" }),
+          expect.objectContaining({ address: "0x3" }),
         ]),
-        limits: {
-          max_nodes: 1,
-          nodes_visited: 1,
-          operations_used: 1,
-        },
+        truncated: false,
       },
     });
   });

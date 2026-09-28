@@ -9,11 +9,9 @@ import {
   compareJavaScriptExportShapesEvidence,
   traceApplicationFeatureEvidence,
 } from "../dist/application/JavaScriptApplicationWorkflowService.js";
-import { PermissionAuthority } from "../dist/application/PermissionAuthority.js";
 import { applicationVersionComparisonResultSchema } from "../dist/domain/javascriptApplicationVersionComparisonSchemas.js";
 import { applicationFeatureTraceResultSchema } from "../dist/domain/javascriptFeatureTraceSchemas.js";
 import { javaScriptExportShapeComparisonResultSchema } from "../dist/domain/javascriptExportShapeComparisonSchemas.js";
-import { createPermissionPolicy } from "../dist/domain/permissionPolicy.js";
 import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
 
 const verifierRun = createVerifierRun();
@@ -24,7 +22,6 @@ const options = parseArgs({
     right: { type: "string" },
     "seed-kind": { type: "string", default: "module" },
     "seed-value": { type: "string" },
-    "source-map-read-approved": { type: "boolean", default: false },
     "left-module-path": { type: "string" },
     "left-export-name": { type: "string" },
     "right-module-path": { type: "string" },
@@ -44,10 +41,9 @@ const [leftPath, rightPath] = await Promise.all([
 ]);
 if (leftPath === rightPath)
   throw new Error("--left and --right must resolve to distinct paths");
-const authority = permissionAuthority([leftPath, rightPath]);
 const [left, right] = await Promise.all([
-  analyze(leftPath, authority),
-  analyze(rightPath, authority),
+  analyze(leftPath),
+  analyze(rightPath),
 ]);
 const comparison = compareApplicationVersionsEvidence({ left, right });
 if (!comparison.ok) throw comparison.error;
@@ -199,37 +195,10 @@ function selectorKey(selector) {
   return `${selector.modulePath}\0${selector.exportName}`;
 }
 
-async function analyze(path, authority) {
-  const result = await analyzeJavaScriptApplication(authority, {
+async function analyze(path) {
+  const result = await analyzeJavaScriptApplication({
     input_path: path,
-    approved: true,
-    source_map_read_approved: options["source-map-read-approved"],
   });
   if (!result.ok) throw result.error;
   return result.value;
-}
-
-function permissionAuthority(roots) {
-  const scope = {
-    capability: "investigation_input",
-    roots,
-    executables: [],
-    environment_names: [],
-    network: "none",
-    mount: false,
-  };
-  return new PermissionAuthority(
-    createPermissionPolicy(
-      [scope],
-      [
-        {
-          ...scope,
-          grant_id: "local-application-workflow-verifier",
-          lifetime: "session",
-          operation_identity: null,
-          expires_at: null,
-        },
-      ],
-    ),
-  );
 }

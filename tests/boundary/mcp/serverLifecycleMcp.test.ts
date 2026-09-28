@@ -116,18 +116,7 @@ it("handles concurrent tool calls without corruption", async () => {
     execute: (name) => {
       invocations.push(name);
       return Promise.resolve(
-        ok(
-          ["list_procedures", "list_strings"].includes(name)
-            ? {
-                items: [],
-                offset: 0,
-                limit: 100,
-                total: 0,
-                next_offset: null,
-                has_more: false,
-              }
-            : [],
-        ),
+        ok(["list_procedures", "list_strings"].includes(name) ? [] : []),
       );
     },
   });

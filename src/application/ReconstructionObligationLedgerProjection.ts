@@ -11,14 +11,9 @@ import type {
 type DiagnosticCode = ReconstructionObligation["diagnostics"][number]["code"];
 
 export const obligationLedgerCoverage = (
-  omittedCount: number,
-  maxObligations: number,
   incomplete: boolean,
 ): ReconstructionObligationLedger["coverage"] => ({
   status: incomplete ? "partial" : "complete",
-  truncated: omittedCount > 0,
-  omitted_count: omittedCount,
-  max_obligations: maxObligations,
 });
 
 export const summarizeObligations = (
@@ -103,7 +98,6 @@ export const obligationLedgerEvidenceLinks = (
 
 export const obligationLedgerStatus = (
   obligations: readonly ReconstructionObligation[],
-  omittedCount: number,
 ): ReconstructionObligationLedger["status"] => {
   if (obligations.length === 0) return "unknown";
   const requiredOpen = obligations.filter(
@@ -117,11 +111,7 @@ export const obligationLedgerStatus = (
     )
   )
     return "failed";
-  if (
-    omittedCount > 0 ||
-    requiredOpen.some(({ status }) => status === "unknown")
-  )
-    return "unknown";
+  if (requiredOpen.some(({ status }) => status === "unknown")) return "unknown";
   return requiredOpen.length === 0 ? "ready" : "open";
 };
 

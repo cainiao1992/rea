@@ -10,7 +10,7 @@ import type {
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { JAVASCRIPT_RUNTIME_RECONCILIATION_PROVIDER } from "./InvestigationProviders.js";
 
-/** Create derived Evidence v2 for one exact set of static/runtime inputs. */
+/** Create derived Evidence for one exact set of static/runtime inputs. */
 export const createJavaScriptRuntimeReconciliationEvidence = (
   input: ReconcileJavaScriptRuntimeInput,
   result: JavaScriptRuntimeReconciliationResult,

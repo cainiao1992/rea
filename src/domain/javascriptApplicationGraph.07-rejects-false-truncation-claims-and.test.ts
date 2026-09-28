@@ -59,7 +59,6 @@ describe("JavaScript Application Graph", () => {
     expect(() =>
       createJavaScriptApplicationGraph({
         schema: "JavaScriptApplicationGraph",
-        schema_version: 1,
         root_node_ids: [validNode.node_id],
         nodes: [validNode],
         edges: [],

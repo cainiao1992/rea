@@ -255,7 +255,6 @@ const normalizedInspection = (
   state: CaptureState,
   captured: CapturedSections,
 ): WebPageInspection => ({
-  schema_version: 2,
   browser: state.context.discovery.version,
   target: normalizedTarget(
     state.context.target,

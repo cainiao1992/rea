@@ -30,11 +30,7 @@ import {
 const APPLICATION_GRAPH_IDENTITIES = [
   {
     operation: "analyze_javascript_application",
-    predicate: "rea.javascript-application-analysis/v1",
-  },
-  {
-    operation: "analyze_javascript_application",
-    predicate: "rea.javascript-application-analysis/v2",
+    predicate: "rea.javascript-application-analysis",
   },
   {
     operation: "reconcile_javascript_runtime",
@@ -82,7 +78,6 @@ export const resolveTraceApplicationFeatureRequestValidated = (
     native_observations: [...input.native_observations, ...native.value],
     seed: input.seed,
     direction: input.direction,
-    limits: input.limits,
   };
   const parsed = traceApplicationFeatureInputSchema.safeParse(raw);
   return parsed.success

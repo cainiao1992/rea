@@ -52,7 +52,7 @@ describe("browser observation contracts", () => {
       expect(isLiteralLoopbackHostname(hostname), hostname).toBe(false);
   });
 
-  it("applies conservative bounded defaults to public tool input", () => {
+  it("applies defaults to public observation input", () => {
     expect(
       listBrowserTargetsInputSchema.parse({
         cdp_endpoint: "http://127.0.0.1:9222",
@@ -63,8 +63,6 @@ describe("browser observation contracts", () => {
       cdp_endpoint: "http://127.0.0.1:9222",
       allowed_origins: ["https://app.example.test"],
       approved: true,
-      offset: 0,
-      limit: 100,
     });
     expect(
       inspectWebPageInputSchema.parse({

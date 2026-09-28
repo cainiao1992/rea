@@ -13,25 +13,12 @@ import {
 } from "./ManagedMetadataHeaps.js";
 import { managedTableRowCounts } from "./ManagedMetadataInventory.js";
 import type { ManagedMetadataInventory } from "./ManagedMetadataInventory.js";
-import type { ManagedNativeBoundaryInspectionLimits } from "./ManagedNativeBoundaryInspector.js";
 import type { ManagedPeLayout } from "./ManagedPeReader.js";
 
-type Page<Item> = {
-  readonly items: readonly Item[];
-  readonly offset: number;
-  readonly limit: number;
-  readonly total: number;
-  readonly returned: number;
-  readonly dropped: number;
-  readonly complete: boolean;
-};
-
-type ModuleRef =
-  ManagedNativeBoundaryInspection["module_refs"]["items"][number];
-type NativeImport =
-  ManagedNativeBoundaryInspection["pinvoke_imports"]["items"][number];
+type ModuleRef = ManagedNativeBoundaryInspection["module_refs"][number];
+type NativeImport = ManagedNativeBoundaryInspection["pinvoke_imports"][number];
 type NativeImplementation =
-  ManagedNativeBoundaryInspection["native_implementations"]["items"][number];
+  ManagedNativeBoundaryInspection["native_implementations"][number];
 
 interface MemberCore {
   readonly token: string;
@@ -45,24 +32,6 @@ interface MemberCore {
 
 const flagsHex = (value: number): string =>
   `0x${value.toString(16).padStart(4, "0")}`;
-
-const page = <Item>(
-  items: readonly Item[],
-  offset: number,
-  limit: number,
-): Page<Item> => {
-  const safeOffset = Math.min(offset, items.length);
-  const selected = items.slice(safeOffset, safeOffset + limit);
-  return {
-    items: selected,
-    offset,
-    limit,
-    total: items.length,
-    returned: selected.length,
-    dropped: Math.max(0, items.length - safeOffset - selected.length),
-    complete: safeOffset === 0 && selected.length === items.length,
-  };
-};
 
 export const parseModuleRefs = (
   bytes: Buffer,
@@ -378,7 +347,6 @@ export const cliNative = (
 interface BoundaryInspectionContext {
   readonly target: BinaryTarget;
   readonly bytes: Buffer;
-  readonly limits: ManagedNativeBoundaryInspectionLimits;
   readonly pe: ManagedPeLayout;
   readonly layout: ManagedMetadataLayout;
   readonly inventory: ManagedMetadataInventory;
@@ -392,7 +360,6 @@ interface BoundaryInspectionContext {
 export const buildNativeBoundaryInspection = ({
   target,
   bytes,
-  limits,
   layout,
   inventory,
   moduleRefs,
@@ -421,17 +388,9 @@ export const buildNativeBoundaryInspection = ({
       requires_mvid: inventory.module?.mvid ?? null,
     },
     cli_native: native,
-    module_refs: page(
-      moduleRefs,
-      limits.moduleRefOffset,
-      limits.moduleRefLimit,
-    ),
-    pinvoke_imports: page(imports, limits.importOffset, limits.importLimit),
-    native_implementations: page(
-      implementations,
-      limits.implementationOffset,
-      limits.implementationLimit,
-    ),
+    module_refs: moduleRefs,
+    pinvoke_imports: imports,
+    native_implementations: implementations,
     summary: {
       module_ref_count: moduleRefs.length,
       pinvoke_import_count: imports.length,

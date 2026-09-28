@@ -23,7 +23,6 @@ const javascriptPath = join(fixtureRoot, "javascript-cli");
 const electronPath = join(fixtureRoot, "electron");
 const environment = {
   ...process.env,
-  REA_INVESTIGATION_INPUT_ROOTS_JSON: JSON.stringify([fixtureRoot]),
 };
 const temporaryRoot = await mkdtemp(join(tmpdir(), "rea-readiness-"));
 
@@ -32,13 +31,11 @@ const nativeEvidence = await runCli(["inspect-artifact", nativePath, "--json"]);
 const javascriptCliEvidence = await runCli([
   "analyze-javascript-application",
   javascriptPath,
-  "--approved",
   "--json",
 ]);
 const electronCliEvidence = await runCli([
   "analyze-javascript-application",
   electronPath,
-  "--approved",
   "--json",
 ]);
 
@@ -62,11 +59,6 @@ try {
     catalog.tools,
     "evaluate_reconstruction_readiness",
   );
-  const analysisTool = requireTool(
-    catalog.tools,
-    "analyze_javascript_application",
-  );
-  assertExactAstLimit(analysisTool);
   assert.equal(
     readinessTool.annotations?.readOnlyHint,
     false,
@@ -141,14 +133,7 @@ try {
   const projectedReport = requireObject(projection.result);
   assert.equal(projectedReport.report_digest, cliReport.report_digest);
   assert.equal(projectedReport.status, "pass");
-  const reportUri = projectedReport.report_resource_uri;
-  assert.equal(typeof reportUri, "string");
-  const resource = await client.readResource({ uri: reportUri });
-  const resourceContent = resource.contents[0];
-  if (resourceContent === undefined || !("text" in resourceContent))
-    throw new TypeError("Readiness report resource is missing JSON text");
-  const retained = JSON.parse(resourceContent.text);
-  assert.equal(retained.report.report_digest, cliReport.report_digest);
+  assert.equal(projectedReport.report_digest, cliReport.report_digest);
 
   const tampered = structuredClone(input);
   tampered.replay.expected_source_digest = cliReport.source_digest;
@@ -203,35 +188,19 @@ async function runCli(arguments_) {
 }
 
 async function analyzeMcp(client_, inputPath) {
-  const result = await client_.callTool({
+  const response = await client_.callTool({
     name: "analyze_javascript_application",
-    arguments: { input_path: inputPath, approved: true },
+    arguments: { input_path: inputPath },
   });
-  assert.notEqual(result.isError, true);
-  const projected = requireObject(result.structuredContent);
-  assert.equal(typeof projected.evidence_id, "string");
-  const evidence = await client_.readResource({
-    uri: `rea://evidence/${projected.evidence_id}`,
-  });
-  const content = evidence.contents[0];
-  if (content === undefined || !("text" in content))
-    throw new TypeError("Analysis Evidence resource is missing JSON text");
-  return parseEvidence(JSON.parse(content.text));
+  assert.notEqual(response.isError, true);
+  const projected = requireObject(response.structuredContent);
+  return { evidence_id: projected.evidence_id };
 }
 
 function requireTool(tools, name) {
   const tool = tools.find(({ name: toolName }) => toolName === name);
   if (tool === undefined) throw new Error(`Missing public MCP tool: ${name}`);
   return tool;
-}
-
-function assertExactAstLimit(tool) {
-  const properties = requireObject(tool.inputSchema.properties);
-  const limits = requireObject(properties.limits);
-  const limitProperties = requireObject(limits.properties);
-  const astLimit = requireObject(limitProperties.max_ast_nodes);
-  assert.equal(astLimit.default, 2_000_000, "effective AST limit is hidden");
-  assert.equal(astLimit.maximum, 20_000_000, "schema AST limit is hidden");
 }
 
 function requireObject(value) {

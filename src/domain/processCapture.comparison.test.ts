@@ -7,7 +7,6 @@ import {
 
 it("classifies missing observations as unknown and one-sided evidence as added", () => {
   const base = {
-    schema_version: 4 as const,
     manifest: emptyCapture().manifest,
     settlement: emptyCapture().settlement,
     normalization: {
@@ -88,7 +87,6 @@ it("treats equivalent normalization records as equal regardless of member order"
 
 it("compares raw terminal chunks even when rendered states agree", () => {
   const capture = {
-    schema_version: 4 as const,
     manifest: emptyCapture().manifest,
     settlement: emptyCapture().settlement,
     normalization: {
@@ -133,7 +131,6 @@ it("compares raw terminal chunks even when rendered states agree", () => {
 
 it("keeps filesystem evidence unknown when stable snapshots match", () => {
   const capture = {
-    schema_version: 4 as const,
     manifest: emptyCapture().manifest,
     settlement: emptyCapture().settlement,
     normalization: {

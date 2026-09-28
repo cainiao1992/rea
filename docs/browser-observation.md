@@ -13,7 +13,11 @@ REA can attach to a user-owned Chrome-family browser through the Chrome DevTools
 - `capture_web_screenshot` / `rea capture-web-screenshot` returns an explicitly approved, bounded, content-addressed visible-viewport PNG.
 - `compare_web_screenshots` / `rea compare-web-screenshots` performs bounded local PNG pixel comparison without OCR or external services.
 - Every surface has equivalent CLI and MCP contracts and returns Evidence v2 provenance.
-- MCP session results are retained as `rea://evidence/{evidenceId}` resources. One-shot CLI output is not retained by a long-lived REA session.
+- MCP tools return complete results inline and include the Evidence ID. Session evidence can be exported with `export_evidence_bundle`.
+
+Target discovery returns the complete approved target array in one result. The
+CDP endpoint's response-size ceiling remains internal; an oversized discovery
+response fails explicitly instead of appearing complete.
 
 Electron `file://` pages use a separate provider, permission capability, and root model; see [electron-observation.md](electron-observation.md).
 Existing static application Evidence and passive web/Electron captures can be

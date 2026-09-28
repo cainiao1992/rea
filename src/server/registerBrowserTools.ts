@@ -220,7 +220,5 @@ const evidenceResult = (
   const recorded = options.recordEvidence?.(evidence);
   return recorded !== undefined && !recorded.ok
     ? toCallToolResult(recorded, contract)
-    : toCallToolResult({ ok: true, value: evidence }, contract, {
-        evidenceResourcesAvailable: recorded !== undefined,
-      });
+    : toCallToolResult({ ok: true, value: evidence }, contract);
 };

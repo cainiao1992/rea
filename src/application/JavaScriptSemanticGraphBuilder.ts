@@ -101,7 +101,6 @@ export const buildJavaScriptSemanticGraph = ({
   const unknowns = [...state.unknowns.values()];
   return createJavaScriptSemanticGraph({
     schema: "JavaScriptSemanticRelationGraph",
-    schema_version: 1,
     root_artifact_sha256: rootArtifactSha256,
     application_graph_id: applicationGraph.graph_id,
     root_node_ids: [...state.roots],

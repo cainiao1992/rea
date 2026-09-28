@@ -42,7 +42,7 @@ describe("tool result projection", () => {
       error: {
         code: "provider_unavailable",
         details: { failure_code: "unsupported_demo_dialog" },
-        category: "execution_failure",
+        category: "unavailable",
       },
     });
     expect(JSON.stringify(result)).not.toContain("expected Hopper");
@@ -87,7 +87,7 @@ describe("tool result projection", () => {
     });
     expect(JSON.stringify(result)).not.toContain("cookie");
   });
-  it("links successful evidence only when its session resource exists", () => {
+  it("returns result and complete Evidence context in one call", () => {
     const evidence = createEvidence(
       undefined,
       { id: "fixture", name: "Fixture", version: "1" },
@@ -95,7 +95,6 @@ describe("tool result projection", () => {
         operation: "fixture",
         parameters: {},
         result: { value: "observed" },
-        limitations: [],
       },
     );
     const evidenceContract: ToolContract = {
@@ -103,22 +102,27 @@ describe("tool result projection", () => {
       outputSchema: evidenceResultOf(z.object({ value: z.string() })),
     };
 
-    expect(
-      toCallToolResult(ok(evidence), evidenceContract).content,
-    ).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ type: "resource_link" }),
-      ]),
-    );
-    expect(
-      toCallToolResult(ok(evidence), evidenceContract, {
-        evidenceResourcesAvailable: true,
-      }).content,
-    ).toContainEqual(
-      expect.objectContaining({
-        type: "resource_link",
-        uri: `rea://evidence/${evidence.evidence_id}`,
-      }),
-    );
+    const result = toCallToolResult(ok(evidence), evidenceContract);
+    expect(result.structuredContent).toMatchObject({
+      result: { value: "observed" },
+      evidence_id: evidence.evidence_id,
+      evidence: {
+        provider: { id: "fixture", name: "Fixture", version: "1" },
+        operation: "fixture",
+        predicate_type: "rea.analysis/v2",
+        parameters: {},
+        raw_result: null,
+        confidence: "observed",
+        authority: "shipped-artifact",
+        environment: null,
+        limitations: evidence.limitations,
+        locations: [],
+        evidence_links: [],
+      },
+    });
+    expect(result.content[0]).toMatchObject({
+      type: "text",
+      text: expect.stringContaining('"value":"observed"'),
+    });
   });
 });

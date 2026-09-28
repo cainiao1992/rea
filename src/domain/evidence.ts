@@ -82,7 +82,6 @@ const executionEnvironmentSchema = z.object({
 
 const evidenceBaseSchema = z
   .object({
-    schema_version: z.literal(2),
     evidence_id: z.string().regex(/^ev_[a-f0-9]{64}$/u),
     subject: subjectSchema.nullable(),
     provider: providerSchema,
@@ -141,7 +140,7 @@ export const evidenceRecordSchema = z.union([
 export type Evidence = z.infer<typeof evidenceRecordSchema>;
 export type EvidenceLocation = z.infer<typeof evidenceLocationSchema>;
 
-/** Minimal immutable local artifact identity accepted by Evidence v2. */
+/** Minimal immutable local artifact identity accepted by Evidence. */
 export interface EvidenceSubjectTarget {
   readonly path: string;
   readonly sha256: string;
@@ -189,7 +188,6 @@ const canonicalJson = (value: JsonValue): string => {
 };
 
 const semanticProjection = (evidence: EvidenceWithoutId): JsonValue => ({
-  schema_version: evidence.schema_version,
   subject:
     evidence.subject === null
       ? null
@@ -221,15 +219,6 @@ const computeEvidenceId = (evidence: EvidenceWithoutId): string =>
 
 /** Parse evidence and reject a syntactically valid but tampered semantic ID. */
 export const parseEvidence = (input: unknown): Evidence => {
-  if (
-    typeof input === "object" &&
-    input !== null &&
-    "schema_version" in input &&
-    input.schema_version !== 2
-  )
-    throw new TypeError(
-      `Unsupported evidence schema_version ${String(input.schema_version)}; Evidence v1 is not accepted. Produce Evidence v2.`,
-    );
   const evidence = evidenceRecordSchema.parse(input);
   const { evidence_id: evidenceId, ...withoutId } = evidence;
   if (computeEvidenceId(withoutId) !== evidenceId)
@@ -239,7 +228,7 @@ export const parseEvidence = (input: unknown): Evidence => {
   return evidence;
 };
 
-/** Build deterministic Evidence v2 from an immutable artifact subject. */
+/** Build deterministic Evidence from an immutable artifact subject. */
 export const createEvidence = (
   target: EvidenceSubjectTarget | BinaryTarget | undefined,
   provider: EvidenceProvider,
@@ -256,7 +245,6 @@ export const createEvidence = (
           local_path: target.path,
         };
   const semantic = {
-    schema_version: 2,
     subject:
       subject === null
         ? null

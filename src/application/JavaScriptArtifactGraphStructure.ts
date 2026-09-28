@@ -187,10 +187,7 @@ export const addJavaScriptArtifactFiles = (
     const sourceMap = context.analysis.source_maps.find(
       ({ path }) => path === file.path,
     );
-    if (
-      sourceMap !== undefined &&
-      (sourceMap.status === "invalid" || sourceMap.status === "not-approved")
-    )
+    if (sourceMap !== undefined && sourceMap.status === "invalid")
       addUnavailableStaticParseScope(context, {
         file,
         asset: target,

@@ -5,7 +5,6 @@ import type { BinarySessionPort } from "../application/BinarySession.js";
 import { runCrossVersionInvestigationValidated } from "../application/CrossVersionInvestigation.js";
 import {
   authorizeFileReadWithDeferredWrite,
-  authorizeRootPermission,
   type DeferredFileWriteAuthorization,
 } from "../application/DeferredFileAuthorization.js";
 import { SESSION_TOOL_CONTRACTS } from "../contracts/toolContracts.js";
@@ -15,11 +14,9 @@ import {
   changedBehaviorResultSchema,
   findChangedBehavior,
 } from "../domain/changedBehavior.js";
-import { type AnalysisError } from "../domain/errors.js";
 import { createEvidence } from "../domain/evidence.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { verifyReconstruction } from "../domain/reconstructionVerification.js";
-import type { Result } from "../domain/result.js";
 import { correlateStaticAndRuntime } from "../domain/staticRuntimeCorrelation.js";
 import { mcpProgressReporter } from "./mcpProgress.js";
 import {
@@ -150,9 +147,6 @@ const runAutomaticInvestigation = async (input: {
   const { policies, investigationRun, contract, session } = input;
   const progress = mcpProgressReporter(input.context);
   let workspaceAuthorization: DeferredFileWriteAuthorization | undefined;
-  let authorizeInputRead:
-    | (() => Promise<Result<null, AnalysisError>>)
-    | undefined;
   if (policies.permissionAuthority !== undefined) {
     const authority = policies.permissionAuthority;
     const authorizedWorkspace = await authorizeFileReadWithDeferredWrite(
@@ -167,13 +161,6 @@ const runAutomaticInvestigation = async (input: {
     if (!authorizedWorkspace.ok)
       return toCallToolResult(authorizedWorkspace, contract);
     workspaceAuthorization = authorizedWorkspace.value;
-    authorizeInputRead = () =>
-      authorizeRootPermission(authority, {
-        capability: "investigation_input",
-        roots: [investigationRun.left_path, investigationRun.right_path],
-        access: "read",
-        operation: contract.name,
-      });
   }
   const investigated = await runCrossVersionInvestigationValidated(
     investigationRun,
@@ -182,7 +169,6 @@ const runAutomaticInvestigation = async (input: {
       ...investigationContext({
         session,
         signal: input.context.mcpReq.signal,
-        inputRoots: policies.inputRoots,
         integrityContinueEnabled:
           policies.integrityContinueEnabled?.() ?? false,
         progress,
@@ -190,12 +176,10 @@ const runAutomaticInvestigation = async (input: {
       ...(workspaceAuthorization === undefined
         ? {}
         : { authorizeWorkspaceWrite: workspaceAuthorization.authorizeWrite }),
-      ...(authorizeInputRead === undefined ? {} : { authorizeInputRead }),
     },
   );
   if (!investigated.ok) return toCallToolResult(investigated, contract);
-  const workspace = investigated.value.workspace;
-  session.retainInvestigationWorkspace(workspace);
+  session.retainInvestigationWorkspace(investigated.value.workspace);
   const result = changedBehaviorResultSchema.parse(
     investigated.value.evidence.normalized_result,
   );
@@ -221,19 +205,7 @@ const runAutomaticInvestigation = async (input: {
     ),
     contract,
   );
-  return {
-    ...toolResult,
-    content: [
-      ...toolResult.content,
-      {
-        type: "resource_link" as const,
-        uri: `rea://workspace/${workspace.workspace_id}/revision/${String(workspace.revision)}`,
-        name: `${workspace.workspace_id} revision ${String(workspace.revision)}`,
-        description: "Immutable CAS-linked investigation workspace revision",
-        mimeType: "application/json",
-      },
-    ],
-  };
+  return toolResult;
 };
 
 const registerCallPath = (
@@ -262,10 +234,6 @@ const registerCallPath = (
         parameters: {
           start: input.start.address,
           goal: input.goal.address,
-          max_depth: input.max_depth,
-          max_paths: input.max_paths,
-          offset: input.offset,
-          limit: input.limit,
         },
         result: jsonValueSchema.parse(result),
         confidence: "derived",
@@ -277,7 +245,7 @@ const registerCallPath = (
         session,
         evidence,
         input.unknown_registry_approved,
-        result.status === "unknown" || result.status === "truncated",
+        result.status === "unknown",
         {
           question:
             "Can the requested call path be established from complete analysis?",

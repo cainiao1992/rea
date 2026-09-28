@@ -48,7 +48,7 @@ export const resolveHopperAnalysisProfile = async (
     version: `launcher-sha256:${launcherDigest.value}`,
   };
   return ok({
-    profile: createAnalysisProfile(provider, 1, {
+    profile: createAnalysisProfile(provider, {
       target_kind: target.kind,
       target_format: target.format,
       architecture: target.architecture ?? null,

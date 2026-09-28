@@ -96,7 +96,7 @@ describe("persistent cross-version investigation workspace", () => {
     const completed = await runCrossVersionInvestigation(
       input,
       policy(directory),
-      { inputRoots: [directory] },
+      {},
     );
     if (!completed.ok) throw completed.error;
 
@@ -116,7 +116,7 @@ describe("persistent cross-version investigation workspace", () => {
     const completed = await runCrossVersionInvestigation(
       input,
       policy(directory),
-      { inputRoots: [directory] },
+      {},
     );
     if (!completed.ok) throw completed.error;
     const run = completed.value.workspace.runs[0];
@@ -162,7 +162,7 @@ describe("persistent cross-version investigation workspace", () => {
           replay_run_id: partialRun.run_id,
         },
         policy(directory),
-        { inputRoots: [], authorizeInputRead: replayAuthorization },
+        {},
       ),
     ).resolves.toMatchObject({
       ok: false,
@@ -176,7 +176,7 @@ describe("persistent cross-version investigation workspace", () => {
     const resumed = await runCrossVersionInvestigation(
       { ...input, workspace_path: resumePath },
       policy(directory),
-      { inputRoots: [directory] },
+      {},
     );
     expect(resumed).toMatchObject({
       ok: true,
@@ -192,9 +192,11 @@ describe("persistent cross-version investigation workspace", () => {
 describe("persistent investigation workspace history", () => {
   it("appends a changed-content run without replacing earlier Evidence", async () => {
     const { directory, right, input } = await fixture();
-    const first = await runCrossVersionInvestigation(input, policy(directory), {
-      inputRoots: [directory],
-    });
+    const first = await runCrossVersionInvestigation(
+      input,
+      policy(directory),
+      {},
+    );
     if (!first.ok) throw first.error;
     const firstRun = first.value.workspace.runs[0];
     if (firstRun === undefined || firstRun.result_evidence_id === null)
@@ -204,7 +206,7 @@ describe("persistent investigation workspace history", () => {
     const second = await runCrossVersionInvestigation(
       input,
       policy(directory),
-      { inputRoots: [directory] },
+      {},
     );
     expect(second).toMatchObject({
       ok: true,
@@ -251,7 +253,7 @@ describe("persistent investigation workspace history", () => {
     const strict = await runCrossVersionInvestigation(
       crossVersionInvestigationInputSchema.parse(base),
       policy(directory),
-      { inputRoots: [directory] },
+      {},
     );
     expect(strict).toMatchObject({
       ok: false,
@@ -268,7 +270,7 @@ describe("persistent investigation workspace history", () => {
     const continued = await runCrossVersionInvestigation(
       continuedInput,
       policy(directory),
-      { inputRoots: [directory], integrityContinueEnabled: true },
+      { integrityContinueEnabled: true },
     );
     expect(continued).toMatchObject({
       ok: true,
@@ -289,7 +291,6 @@ describe("persistent investigation workspace history", () => {
     ).toMatchObject({ status: "contradiction" });
     await expect(
       runCrossVersionInvestigation(continuedInput, policy(directory), {
-        inputRoots: [directory],
         integrityContinueEnabled: true,
       }),
     ).resolves.toMatchObject({ ok: true, value: { reused: true } });
@@ -299,9 +300,11 @@ describe("persistent investigation workspace history", () => {
       workspace_path: continuedInput.workspace_path,
     });
     await expect(
-      runCrossVersionInvestigation(strictAfterContinuation, policy(directory), {
-        inputRoots: [directory],
-      }),
+      runCrossVersionInvestigation(
+        strictAfterContinuation,
+        policy(directory),
+        {},
+      ),
     ).resolves.toMatchObject({
       ok: false,
       error: { _tag: "ArtifactOperationError", reason: "integrity" },

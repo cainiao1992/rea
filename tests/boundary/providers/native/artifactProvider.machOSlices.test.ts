@@ -5,54 +5,12 @@ import { describe, expect, it } from "vitest";
 
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 
-import { ArtifactProvider } from "../../../../src/artifacts/ArtifactProvider.js";
 import { MachOSliceArtifactReader } from "../../../../src/artifacts/MachOSliceArtifactReader.js";
-import { artifactInventoryInputSchema } from "../../../../src/contracts/artifactToolContracts.js";
-import { artifactInventoryResultSchema } from "../../../../src/domain/artifactGraph.js";
-import type { BinaryTarget } from "../../../../src/domain/binaryTarget.js";
 import { ok } from "../../../../src/domain/result.js";
 import type { NativeCommandRunner } from "../../../../src/native/CommandRunner.js";
 
-describe("artifact pagination and slices", () => {
-  it("paginates wide graphs without changing manifest identity", async () => {
-    const root = await createTestTempDirectory("rea-wide-");
-    await Promise.all(
-      Array.from({ length: 520 }, async (_, index) =>
-        writeFile(
-          join(root, `file-${String(index).padStart(4, "0")}.txt`),
-          `${index}`,
-        ),
-      ),
-    );
-    const client = new ArtifactProvider().createClient(
-      target(root, "directory"),
-    );
-    const [first, secondPage] = await Promise.all([
-      client.execute(
-        "inventory_artifact",
-        artifactInventoryInputSchema.parse({ occurrence_limit: 500 }),
-      ),
-      client.execute(
-        "inventory_artifact",
-        artifactInventoryInputSchema.parse({
-          occurrence_offset: 500,
-          occurrence_limit: 500,
-        }),
-      ),
-    ]);
-    expect(first.ok && secondPage.ok).toBe(true);
-    if (!first.ok || !secondPage.ok) return;
-    const left = artifactInventoryResultSchema.parse(first.value.result);
-    const right = artifactInventoryResultSchema.parse(secondPage.value.result);
-    expect(left.manifest).toEqual(right.manifest);
-    expect(left.occurrences).toMatchObject({ total: 521, next_offset: 500 });
-    expect(right.occurrences).toMatchObject({
-      offset: 500,
-      next_offset: null,
-    });
-  }, 15_000);
-
-  it("uses bounded native lipo metadata for universal slice ranges", async () => {
+describe("artifact Mach-O slices", () => {
+  it("uses lipo metadata to read universal slice ranges", async () => {
     const root = await createTestTempDirectory("rea-slices-");
     const binary = join(root, "fat");
     await writeFile(binary, Buffer.from("0123456789abcdef"));
@@ -102,15 +60,4 @@ describe("artifact pagination and slices", () => {
       Reflect.set(provenance[0], "tool", "forged");
     expect(reader.provenance()[0]?.tool).toBe("lipo");
   });
-});
-
-const target = (
-  path: string,
-  format: Extract<BinaryTarget, { kind: "archive" }>["format"] | "directory",
-): BinaryTarget => ({
-  path,
-  sourcePath: path,
-  sha256: "0".repeat(64),
-  kind: "archive",
-  format: format === "directory" ? "asar" : format,
 });

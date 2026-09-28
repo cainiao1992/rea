@@ -257,7 +257,6 @@ const comparisonChangeSchema = z.strictObject({
 
 /** Bounded static export-return comparison with explicit unknown semantics. */
 export const javaScriptExportShapeComparisonResultSchema = z.strictObject({
-  schema_version: z.literal(1),
   comparison_id: z.string().regex(/^jesc_[a-f0-9]{64}$/u),
   left: selectorResultSchema,
   right: selectorResultSchema,

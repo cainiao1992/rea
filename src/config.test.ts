@@ -407,7 +407,6 @@ describe("runtime target configuration", () => {
           maxStringLength: 1024 * 1024,
           maxNodes: 1_000_000,
         },
-        investigationInputRoots: [],
         analysisSnapshotFilePolicy: {
           roots: [],
           maxBytes: 64 * 1024 * 1024,
@@ -441,19 +440,6 @@ describe("runtime collection configuration", () => {
     },
   );
 
-  it("reports the configured string-array size limit", () => {
-    const result = parseConfig({
-      REA_INVESTIGATION_INPUT_ROOTS_JSON: JSON.stringify(
-        Array.from({ length: 129 }, (_, index) => `/input/${String(index)}`),
-      ),
-    });
-    expect(result.ok).toBe(false);
-    if (!result.ok)
-      expect(result.error.message).toBe(
-        "REA_INVESTIGATION_INPUT_ROOTS_JSON must encode at most 128 strings",
-      );
-  });
-
   it("parses supported log levels and rejects unknown levels", () => {
     const configured = parseConfig({ REA_LOG_LEVEL: "debug" });
     expect(configured.ok && configured.value.logLevel).toBe("debug");
@@ -478,29 +464,15 @@ describe("runtime collection configuration", () => {
     }
   });
 
-  it("parses investigation input roots independently from evidence roots", () => {
+  it("parses evidence roots", () => {
     const result = parseConfig({
       REA_EVIDENCE_ROOTS_JSON: '["/evidence"]',
-      REA_INVESTIGATION_INPUT_ROOTS_JSON: '["/releases", "/builds"]',
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.evidenceFilePolicy.roots).toEqual(["/evidence"]);
-      expect(result.value.investigationInputRoots).toEqual([
-        "/releases",
-        "/builds",
-      ]);
     }
   });
-
-  it.each(["not-json", "{}", '["/ok", 1]'])(
-    "rejects invalid investigation input roots: %s",
-    (encoded) => {
-      expect(
-        parseConfig({ REA_INVESTIGATION_INPUT_ROOTS_JSON: encoded }).ok,
-      ).toBe(false);
-    },
-  );
 
   it.each(["not-json", "{}", '["/ok", 1]'])(
     "rejects invalid reference source roots: %s",

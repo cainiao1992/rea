@@ -31,6 +31,10 @@ origin scope. Targets already marked attached are rejected rather than
 displacing another debugger. Canonical file paths are checked after symlink resolution.
 Excluded locations are counted but never retained.
 
+`list_javascript_runtime_targets` returns every approved target in one inline
+array. The Inspector discovery response-size ceiling remains internal; an
+oversized response fails explicitly.
+
 ## Passive protocol boundary
 
 The provider sends exactly two protocol commands:

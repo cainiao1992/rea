@@ -75,7 +75,6 @@ const captureFor = (scenario: BrowserScenario): BrowserScenarioCapture => {
     },
   });
   return browserScenarioCaptureSchema.parse({
-    schema_version: 1,
     browser: {
       mode: scenario.browser.mode,
       process_ownership: "provider-owned",
@@ -108,7 +107,6 @@ const captureFor = (scenario: BrowserScenario): BrowserScenarioCapture => {
 };
 
 const scenario = (origin = "https://app.example.test") => ({
-  schema_version: 1,
   browser: {
     mode: "launch",
     executable_path: process.execPath,

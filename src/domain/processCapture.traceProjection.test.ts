@@ -8,7 +8,6 @@ import {
 
 it("detects changes in normalized process sample metadata", () => {
   const capture = {
-    schema_version: 4 as const,
     manifest: emptyCapture().manifest,
     settlement: emptyCapture().settlement,
     normalization: {

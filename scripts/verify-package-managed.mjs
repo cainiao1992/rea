@@ -327,7 +327,7 @@ export async function verifyManaged({ cli, workspace, environment }) {
     managedPath,
     environment,
   });
-  const managedMethod = managedMembers.normalized_result.methods.items[0];
+  const managedMethod = managedMembers.normalized_result.methods[0];
   await verifyManagedReconstruction({
     cli,
     managedMembers,

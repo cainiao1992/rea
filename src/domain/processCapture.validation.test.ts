@@ -2,9 +2,7 @@ import { expect, it } from "vitest";
 
 import {
   digestProcessCommitment,
-  LEGACY_PROCESS_CAPTURE_MESSAGE,
   parseProcessCapture,
-  processCaptureSchema,
   type UnverifiedProcessCapture,
 } from "./processCapture.js";
 import {
@@ -15,7 +13,6 @@ import {
 
 it("never considers truncated captures equivalent", () => {
   const capture = {
-    schema_version: 4 as const,
     manifest: emptyCapture().manifest,
     settlement: emptyCapture().settlement,
     normalization: {
@@ -219,17 +216,6 @@ it.each([
     );
   },
 );
-
-it("tells agents and users to recapture unsupported v3 evidence", () => {
-  const legacy = { ...emptyCapture(), schema_version: 3 };
-  expect(() => parseProcessCapture(legacy)).toThrow(
-    LEGACY_PROCESS_CAPTURE_MESSAGE,
-  );
-  const parsed = processCaptureSchema.safeParse(legacy);
-  expect(parsed.success).toBe(false);
-  if (parsed.success) throw new Error("expected legacy capture rejection");
-  expect(parsed.error.issues[0]?.message).toBe(LEGACY_PROCESS_CAPTURE_MESSAGE);
-});
 
 it("requires compatible contracts and enforces capture age through a clock seam", () => {
   const capture = emptyCapture();

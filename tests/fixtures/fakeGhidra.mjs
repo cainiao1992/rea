@@ -226,39 +226,29 @@ const inventoryResultFor = (method) => {
     case "list_documents":
       return ["fixture"];
     case "list_names":
-      return page(method, [nameItem()]);
+      return [nameItem()];
     case "list_procedures":
-      return page(method, [procedureItem()]);
+      return [procedureItem()];
     case "list_segments":
       return [segmentItem()];
     case "list_strings":
-      return page(method, [stringItem("0x2000", "fixture value")]);
+      return [stringItem("0x2000", "fixture value")];
     case "procedure_address":
       return "0x1000";
     case "resolve_containing_procedure":
       return containingProcedureResult();
     case "search_procedures":
-      return page(method, [procedureSearchItem()]);
+      return [procedureSearchItem()];
     case "search_strings":
-      return page(method, [stringSearchItem()]);
+      return [stringSearchItem()];
     default:
       return undefined;
   }
 };
 
-const page = (method, items) => ({
-  items,
-  offset: 0,
-  limit: method.startsWith("search_") ? 100 : 500,
-  total: items.length,
-  next_offset: null,
-  has_more: false,
-});
-
 const nameItem = () => ({
   address: "0x1000",
   value: "fixture_main",
-  value_truncated: false,
   symbol: {
     primary: true,
     dynamic: false,
@@ -271,7 +261,6 @@ const nameItem = () => ({
 const procedureItem = () => ({
   address: "0x1000",
   value: "fixture_main",
-  value_truncated: false,
   procedure: { external: false, thunk: false, thunk_target: null },
 });
 
@@ -294,7 +283,6 @@ const segmentItem = () => ({
 const stringItem = (address, value) => ({
   address,
   value,
-  value_truncated: false,
   string: {
     encoding: "UTF-8",
     termination: "present_or_not_required",
@@ -320,11 +308,9 @@ const containingProcedureResult = () => ({
 const procedureSearchItem = () => ({
   address: "0x1000",
   value: "fixture_main",
-  value_truncated: false,
 });
 
 const stringSearchItem = () => ({
   address: "0x2000",
   value: "fixture value",
-  value_truncated: false,
 });

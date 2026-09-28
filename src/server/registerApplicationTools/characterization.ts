@@ -52,9 +52,7 @@ export const registerCharacterizationTools = (
       );
       if (recorded !== undefined && !recorded.ok)
         return toCallToolResult(recorded, prepareContract);
-      return toCallToolResult(result, prepareContract, {
-        evidenceResourcesAvailable: options.recordEvidence !== undefined,
-      });
+      return toCallToolResult(result, prepareContract);
     },
   );
   server.registerTool(
@@ -85,9 +83,7 @@ export const registerCharacterizationTools = (
         sources,
       );
       if (!recorded.ok) return toCallToolResult(recorded, executeContract);
-      return toCallToolResult(result, executeContract, {
-        evidenceResourcesAvailable: options.recordEvidence !== undefined,
-      });
+      return toCallToolResult(result, executeContract);
     },
   );
 };

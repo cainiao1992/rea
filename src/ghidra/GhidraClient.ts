@@ -17,7 +17,6 @@ import {
 } from "../process/ProviderProcess.js";
 import {
   GHIDRA_MAX_LINE_BYTES,
-  GHIDRA_MAX_QUEUED_REQUESTS,
   GHIDRA_REQUEST_TIMEOUT_MS,
   GHIDRA_STARTUP_TIMEOUT_MS,
 } from "./GhidraDefaults.js";
@@ -138,7 +137,6 @@ export class GhidraClient {
       failure: this.#failure,
     });
     this.#requestQueue = new GhidraRequestQueue(
-      GHIDRA_MAX_QUEUED_REQUESTS,
       (method, parameters, requestOptions) =>
         this.#wire.request(method, parameters, requestOptions),
       (kind, message, timeoutMs) =>

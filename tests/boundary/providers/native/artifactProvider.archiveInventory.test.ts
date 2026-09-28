@@ -9,10 +9,7 @@ import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js
 
 import { runProviderAnalysis } from "../../../../src/application/DirectAnalysis.js";
 import { ArtifactProvider } from "../../../../src/artifacts/ArtifactProvider.js";
-import {
-  artifactInspectionInputSchema,
-  artifactInventoryInputSchema,
-} from "../../../../src/contracts/artifactToolContracts.js";
+import { artifactInspectionInputSchema } from "../../../../src/contracts/artifactToolContracts.js";
 import { artifactInventoryResultSchema } from "../../../../src/domain/artifactGraph.js";
 import { artifactInspectionResultSchema } from "../../../../src/domain/artifactInspection.js";
 import type { BinaryTarget } from "../../../../src/domain/binaryTarget.js";
@@ -20,7 +17,7 @@ import { parseBinaryTarget } from "../../../../src/application/BinaryTargetResol
 import { parseEvidence } from "../../../../src/domain/evidence.js";
 
 describe("artifact archive inventory", () => {
-  it("streams ZIP and official ASAR inventories within shared limits", async () => {
+  it("returns complete ZIP and official ASAR inventories inline", async () => {
     const root = await createTestTempDirectory("rea-containers-");
     const zipPath = join(root, "fixture.apk");
     const zipWriter = new ZipWriter(new Uint8ArrayWriter());
@@ -44,10 +41,7 @@ describe("artifact archive inventory", () => {
       subject: { format: "apk" },
     });
     const inspectionEvidence = parseEvidence(
-      await runProviderAnalysis(zipPath, "inspect_artifact", {
-        max_observations: 2,
-        max_relationships: 1,
-      }),
+      await runProviderAnalysis(zipPath, "inspect_artifact", {}),
     );
     const inspection = artifactInspectionResultSchema.parse(
       inspectionEvidence.normalized_result,
@@ -60,7 +54,7 @@ describe("artifact archive inventory", () => {
           evidence_id: expect.stringMatching(/^ev_[a-f0-9]{64}$/u),
         },
       ],
-      coverage: { status: "truncated", substeps_completed: 1 },
+      coverage: { status: "complete-within-substeps", substeps_completed: 1 },
     });
     expect(inspectionEvidence.evidence_links).toEqual(
       inspection.evidence_links,
@@ -115,7 +109,7 @@ describe("artifact archive inventory", () => {
     );
     const corrupted = await new ArtifactProvider()
       .createClient(target(unpackedPath, "asar"))
-      .execute("inventory_artifact", artifactInventoryInputSchema.parse({}));
+      .execute("inventory_artifact", {});
     expect(corrupted).toMatchObject({
       ok: false,
       error: {
@@ -137,14 +131,9 @@ describe("artifact archive inventory", () => {
   });
 });
 const inventory = async (targetValue: BinaryTarget) => {
-  const result = await new ArtifactProvider().createClient(targetValue).execute(
-    "inventory_artifact",
-    artifactInventoryInputSchema.parse({
-      node_limit: 500,
-      occurrence_limit: 500,
-      edge_limit: 500,
-    }),
-  );
+  const result = await new ArtifactProvider()
+    .createClient(targetValue)
+    .execute("inventory_artifact", {});
   if (!result.ok) throw result.error;
   return artifactInventoryResultSchema.parse(result.value.result);
 };

@@ -55,9 +55,7 @@ describe("persistent cross-version investigation workspace", () => {
       mode: 0o600,
     });
     expect(
-      await runCrossVersionInvestigation(input, policy(directory), {
-        inputRoots: [directory],
-      }),
+      await runCrossVersionInvestigation(input, policy(directory), {}),
     ).toMatchObject({
       ok: false,
       error: { _tag: "InvestigationWorkspaceError", reason: "locked" },
@@ -65,9 +63,7 @@ describe("persistent cross-version investigation workspace", () => {
     await rm(`${path}.lock`);
     await writeFile(`${path}.lock`, "occupied\n", { mode: 0o600 });
     expect(
-      await runCrossVersionInvestigation(input, policy(directory), {
-        inputRoots: [directory],
-      }),
+      await runCrossVersionInvestigation(input, policy(directory), {}),
     ).toMatchObject({
       ok: false,
       error: { _tag: "InvestigationWorkspaceError", reason: "locked" },
@@ -77,7 +73,7 @@ describe("persistent cross-version investigation workspace", () => {
     const completed = await runCrossVersionInvestigation(
       input,
       policy(directory),
-      { inputRoots: [directory] },
+      {},
     );
     if (!completed.ok) throw completed.error;
     await expect(stat(`${path}.lock`)).rejects.toMatchObject({
@@ -87,7 +83,7 @@ describe("persistent cross-version investigation workspace", () => {
       await runCrossVersionInvestigation(
         { ...input, expected_workspace_revision: 2 },
         policy(directory),
-        { inputRoots: [directory] },
+        {},
       ),
     ).toMatchObject({
       ok: false,
@@ -116,7 +112,7 @@ describe("persistent cross-version investigation workspace", () => {
       await runCrossVersionInvestigation(
         { ...input, workspace_path: cancelledPath },
         policy(directory),
-        { inputRoots: [directory], signal: controller.signal },
+        { signal: controller.signal },
       ),
     ).toMatchObject({
       ok: false,
@@ -129,9 +125,7 @@ describe("persistent cross-version investigation workspace", () => {
     const approved = join(directory, "approved");
     await mkdir(approved);
     expect(
-      await runCrossVersionInvestigation(input, policy(approved), {
-        inputRoots: [directory],
-      }),
+      await runCrossVersionInvestigation(input, policy(approved), {}),
     ).toMatchObject({
       ok: false,
       error: {
@@ -148,26 +142,11 @@ describe("persistent cross-version investigation workspace", () => {
       await runCrossVersionInvestigation(
         { ...input, workspace_path: escaped },
         policy(approved),
-        { inputRoots: [directory] },
+        {},
       ),
     ).toMatchObject({
       ok: false,
       error: { _tag: "InvestigationWorkspaceError", reason: "not-file" },
     });
-  });
-
-  it("rejects artifact inputs outside independently approved roots", async () => {
-    const { directory, input, path } = await fixture();
-    const approvedInputs = join(directory, "approved-inputs");
-    await mkdir(approvedInputs);
-    expect(
-      await runCrossVersionInvestigation(input, policy(directory), {
-        inputRoots: [approvedInputs],
-      }),
-    ).toMatchObject({
-      ok: false,
-      error: { _tag: "ArtifactOperationError", reason: "path" },
-    });
-    await expect(stat(path)).rejects.toMatchObject({ code: "ENOENT" });
   });
 });

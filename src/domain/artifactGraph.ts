@@ -172,7 +172,6 @@ const artifactEdgeSchema = z.object({
 
 /** Stable cryptographic commitment and counts for a complete artifact graph. */
 const artifactGraphManifestSchema = z.object({
-  schema_version: z.literal(1),
   manifest_id: manifestIdSchema,
   root_artifact_id: artifactIdSchema,
   root_sha256: sha256Schema,
@@ -186,9 +185,9 @@ const artifactGraphManifestSchema = z.object({
 /** Independently bounded offset page used for deterministic graph traversal. */
 const artifactPageSchema = <Item extends z.ZodType>(item: Item) =>
   z.object({
-    items: z.array(item).max(500),
+    items: z.array(item),
     offset: z.number().int().min(0),
-    limit: z.number().int().min(1).max(500),
+    limit: z.number().int().min(1),
     total: z.number().int().min(0),
     next_offset: z.number().int().min(0).nullable(),
   });
@@ -219,7 +218,6 @@ const extractedArtifactSchema = z.object({
 
 /** Path-independent commitment to one selected extraction operation. */
 const artifactExtractionManifestSchema = z.object({
-  schema_version: z.literal(1),
   extraction_id: extractionIdSchema,
   source_manifest_id: manifestIdSchema,
   selected_occurrence_ids: z.array(occurrenceIdSchema).min(1).max(500),

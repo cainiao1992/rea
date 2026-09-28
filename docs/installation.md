@@ -149,6 +149,13 @@ and digest, validates the application bundle, and atomically installs it to
 operator can choose its demo mode or activate an existing license. Homebrew and
 administrator access are not used.
 
+The Hopper launcher action used by REA creates a document from an executable;
+its supported command-line interface does not attach to an already-open
+document. While another live REA session owns the same target and loader
+profile, a second session reports the owning run ID instead of opening a
+duplicate document. Closing the owning REA session releases this guard; Hopper
+keeps its document open.
+
 On supported Linux distributions, approved setup verifies Hopper's official
 `.deb`, `.rpm`, or Arch package before invoking the native package manager.
 REA runs the supported demo build on a private Xvfb display and selects Hopper's
@@ -158,7 +165,7 @@ desktop display. Unattended package-manager access requires
 mount, REA first verifies the conflict and then uses an unprivileged user and
 mount namespace with a private mode-1777 tmpfs over that directory only. The
 host mount and the rest of `/tmp` remain unchanged; this fallback never invokes
-`sudo`. `rea doctor --provider hopper --detail full --json` reports the selected
+`sudo`. `rea doctor --provider hopper --json` reports the selected
 strategy and both host and effective mount facts.
 
 ### Hopper in CI
@@ -175,7 +182,7 @@ starting an unattended job. Ephemeral macOS runners therefore need a
 pre-provisioned user session or a deliberate interactive bootstrap step.
 
 When Hopper cannot start in CI, run
-`rea doctor --provider hopper --detail full --json` in the failing runner.
+`rea doctor --provider hopper --json` in the failing runner.
 Structured failures distinguish private-display dependencies, an unsupported
 demo dialog or build, process-ownership conflicts, and an early lifecycle exit.
 Apply the reported remediation rather than exposing the runner's desktop,

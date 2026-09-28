@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
-import { z } from "zod";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
@@ -24,8 +23,6 @@ import { V8_INSPECTOR_PROVIDER_IDENTITY } from "../../../src/browser/V8Inspector
 import { CLI_COMMAND_NAMES } from "../../../src/cliCommandNames.js";
 import { createCli } from "../../../src/cli.js";
 import { TOOL_CONTRACTS } from "../../../src/contracts/toolContracts.js";
-import { analysisSnapshotSchema } from "../../../src/domain/analysisSnapshot.js";
-import { investigationWorkspaceSchema } from "../../../src/domain/investigationWorkspace.js";
 import {
   HOPPER_PROVIDER_IDENTITY,
   HOPPER_PROVIDER_TOOL_CONTRACTS,
@@ -151,19 +148,6 @@ describe("canonical product catalog", () => {
       providerCatalogDigest(catalog.providers),
     );
     expect(
-      z.toJSONSchema(analysisSnapshotSchema).properties?.snapshot_version,
-    ).toMatchObject({
-      const: catalog.schemas.find(({ id }) => id === "analysis_snapshot")
-        ?.version,
-    });
-    expect(
-      z.toJSONSchema(investigationWorkspaceSchema).properties
-        ?.workspace_version,
-    ).toMatchObject({
-      const: catalog.schemas.find(({ id }) => id === "investigation_workspace")
-        ?.version,
-    });
-    expect(
       JSON.parse(await readFile("docs/product-catalog.json", "utf8")),
     ).toEqual(catalog);
     expect(await serializeProductCatalog(catalog)).toBe(
@@ -207,7 +191,7 @@ describe("canonical CLI catalog", () => {
 });
 
 describe("canonical product catalog drift", () => {
-  it("reports tool-family, setup-client, and schema fact drift", async () => {
+  it("reports tool-family and setup-client fact drift", async () => {
     const catalog = await createProductCatalog(root);
     const firstFamily = catalog.tools.families[0];
     if (firstFamily === undefined) throw new TypeError("Missing tool family");
@@ -229,20 +213,12 @@ describe("canonical product catalog drift", () => {
           configuration: "managed",
         },
       ],
-      schemas: catalog.schemas.map((schema) =>
-        schema.id === "process_capture"
-          ? { ...schema, version: Number(schema.version) + 1 }
-          : schema,
-      ),
     };
     const issues = await documentationFactIssues(root, drifted);
     expect(issues.some((issue) => issue.includes("tool family counts"))).toBe(
       true,
     );
     expect(issues.some((issue) => issue.includes("Future Client"))).toBe(true);
-    expect(issues.some((issue) => issue.includes("Process Capture v5"))).toBe(
-      true,
-    );
   });
 
   it("changes the provider projection digest when provider facts drift", async () => {

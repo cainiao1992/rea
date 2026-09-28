@@ -72,7 +72,6 @@ describe("bundle comparison MCP integration", () => {
       expect(result.structuredContent).toMatchObject({
         result: { status: "changed" },
         evidence_id: expect.stringMatching(/^ev_[a-f0-9]{64}$/u),
-        evidence_uri: expect.stringMatching(/^rea:\/\/evidence\/ev_/u),
       });
     } finally {
       await connected.close();

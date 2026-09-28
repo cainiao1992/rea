@@ -474,7 +474,7 @@ const checkGraph = (graph: GraphRecord, context: z.RefinementCtx): void => {
 export const javaScriptSemanticGraphSchema =
   javaScriptSemanticGraphRecordSchema.superRefine(checkGraph);
 
-/** Fully validated JavaScript Semantic Relation Graph v1. */
+/** Fully validated JavaScript Semantic Relation Graph. */
 export type JavaScriptSemanticGraph = z.infer<
   typeof javaScriptSemanticGraphSchema
 >;

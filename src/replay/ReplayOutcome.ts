@@ -121,7 +121,6 @@ export const terminationResult = (
         }));
   const differential = prepared.publicPlan.right !== undefined;
   return {
-    schema_version: 1,
     plan_digest: prepared.publicPlan.plan_digest,
     outcomes: [...outcomes, ...(differential ? outcomes : [])],
     ...(differential

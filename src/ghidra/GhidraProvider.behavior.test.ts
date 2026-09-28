@@ -65,23 +65,23 @@ describe("Ghidra provider", () => {
       expect.arrayContaining([
         expect.objectContaining({
           operation: "list_procedures",
-          pagination: "offset",
+          pagination: "none",
           effects: expect.objectContaining({
             mutatesArtifact: false,
             mayShowUi: false,
             mayWriteFilesystem: true,
           }),
           limits: {
-            maxResults: 500,
+            maxResults: null,
             maxPayloadBytes: 1024 * 1024,
             timeoutMs: 10_000,
           },
         }),
         expect.objectContaining({
           operation: "analyze_function",
-          pagination: "offset",
+          pagination: "none",
           limits: {
-            maxResults: 500,
+            maxResults: null,
             maxPayloadBytes: 1024 * 1024,
             timeoutMs: 35_000,
           },
@@ -235,25 +235,17 @@ describe("Ghidra client projection", () => {
     ) => {
       toolCalls.push({ operation, input, options });
       return Promise.resolve(
-        ok({
-          items: [
-            {
-              address: "0x1000",
-              value: "fixture_main",
-              value_truncated: false,
-              procedure: {
-                external: false,
-                thunk: false,
-                thunk_target: null,
-              },
+        ok([
+          {
+            address: "0x1000",
+            value: "fixture_main",
+            procedure: {
+              external: false,
+              thunk: false,
+              thunk_target: null,
             },
-          ],
-          offset: 0,
-          limit: 100,
-          total: 1,
-          next_offset: null,
-          has_more: false,
-        }),
+          },
+        ]),
       );
     };
     const clientFactory: GhidraProviderClientFactory = (options) => {
@@ -276,7 +268,6 @@ describe("Ghidra client projection", () => {
     if (!resolved.ok || resolved.value.profile === null) return;
     expect(resolved.value.profile).toMatchObject({
       provider: { id: "ghidra", name: "Ghidra", version: "12.1.2" },
-      provider_profile_schema_version: 1,
       parameters: {
         import_mode: "ephemeral-read-only",
         analyzer_preset: "ghidra-default",
@@ -303,7 +294,7 @@ describe("Ghidra client projection", () => {
     expect(toolCalls).toEqual([
       {
         operation: "list_procedures",
-        input: { document: null, offset: 0, limit: 100 },
+        input: { document: null },
         options: {},
       },
     ]);
@@ -316,13 +307,8 @@ describe("Ghidra client projection", () => {
           version: "12.1.2",
         },
         analysisProfile: resolved.value.profile,
-        result: {
-          items: [{ address: "0x1000", value: "fixture_main" }],
-          total: 1,
-        },
-        rawResult: {
-          items: [{ procedure: { external: false, thunk: false } }],
-        },
+        result: [{ address: "0x1000", value: "fixture_main" }],
+        rawResult: [{ procedure: { external: false, thunk: false } }],
       },
     });
     expect(startCount).toBe(0);
@@ -333,7 +319,7 @@ describe("Ghidra result projection", () => {
   it("rejects malformed inventory output before Evidence creation", async () => {
     const ghidra = provider(installationHost(), () => ({
       start: () => Promise.resolve(ok(sessionInfo())),
-      callTool: () => Promise.resolve(ok({ items: "not-a-page" })),
+      callTool: () => Promise.resolve(ok({ items: "not-an-inventory" })),
       close: () => Promise.resolve(),
     }));
     const resolved = await ghidra.resolveAnalysisProfile(

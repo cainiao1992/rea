@@ -27,7 +27,6 @@ describe("managed decompiler reconstruction import", () => {
     const result = importManagedReconstruction(exampleInput());
 
     expect(result).toMatchObject({
-      schema_version: 1,
       phase: "reconstruction-import",
       executed: false,
       static_observation: {
@@ -104,25 +103,22 @@ describe("managed decompiler reconstruction import", () => {
     const observed = managedMemberInspectionSchema.parse(
       input.static_members.normalized_result,
     );
-    const method = observed.methods.items[0];
+    const method = observed.methods[0];
     if (method === undefined) throw new Error("missing observed method");
     const partial = {
       ...observed,
-      methods: {
-        ...observed.methods,
-        items: [
-          {
-            ...method,
-            body: {
-              ...method.body,
-              status: "partial" as const,
-              normalized_il_sha256: null,
-              truncated_instructions: 1,
-              issue: "instruction limit reached",
-            },
+      methods: [
+        {
+          ...method,
+          body: {
+            ...method.body,
+            status: "partial" as const,
+            normalized_il_sha256: null,
+            truncated_instructions: 1,
+            issue: "instruction limit reached",
           },
-        ],
-      },
+        },
+      ],
       coverage: { state: "partial" as const, issues: [] },
     };
     const partialEvidence = createEvidence(

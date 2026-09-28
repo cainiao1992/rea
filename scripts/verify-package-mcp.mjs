@@ -41,7 +41,7 @@ const verifyMcpReplay = async (client, mcpOptions, investigationReplay) => {
 
 const verifyMcpTargetFree = async (client, mcpOptions) => {
   const status = await client.callTool(
-    { name: "binary_session", arguments: { detail: "full" } },
+    { name: "binary_session", arguments: {} },
     mcpOptions,
   );
   const currentDocument =
@@ -89,7 +89,7 @@ const verifyMcpOpenAndBind = async (client, mcpOptions) => {
   const providerStatusEnvelope = json(
     prompts.mcpText(
       await client.callTool(
-        { name: "binary_session", arguments: { detail: "full" } },
+        { name: "binary_session", arguments: {} },
         mcpOptions,
       ),
     ),
@@ -204,7 +204,6 @@ export async function verifyPackageMcp({
     args: ["mcp"],
     env: {
       ...environment,
-      REA_INVESTIGATION_INPUT_ROOTS_JSON: JSON.stringify([]),
     },
     stderr: "pipe",
   });

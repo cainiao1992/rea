@@ -14,24 +14,18 @@ const PROCEDURES = {
   "0x6": "prefix_TtOther",
 };
 
-const page = (values: Readonly<Record<string, string>>) => ({
-  items: Object.entries(values).map(([address, value]) => ({ address, value })),
-  offset: 0,
-  limit: 100,
-  total: Object.keys(values).length,
-  next_offset: null,
-  has_more: false,
-});
+const inventory = (values: Readonly<Record<string, string>>) =>
+  Object.entries(values).map(([address, value]) => ({ address, value }));
 
 const fixturePort = (): AnalysisOperationPort => ({
   execute: (name, arguments_) => {
     switch (name) {
       case "list_procedures":
-        return Promise.resolve(ok(page(PROCEDURES)));
+        return Promise.resolve(ok(inventory(PROCEDURES)));
       case "list_names":
         return Promise.resolve(
           ok(
-            page({
+            inventory({
               "0x10": "_OBJC_CLASS_$_Fixture",
               "0x11": "_OBJC_CLASS_$_Fixture",
               "0x12": "_OBJC_PROTOCOL_$_FixtureDelegate",
@@ -82,7 +76,7 @@ const fixturePort = (): AnalysisOperationPort => ({
       case "list_documents":
         return Promise.resolve(ok(["fixture"]));
       case "list_strings":
-        return Promise.resolve(ok(page({ "0x30": "hello" })));
+        return Promise.resolve(ok(inventory({ "0x30": "hello" })));
       case "analyze_function":
         return Promise.resolve(
           ok({
@@ -92,43 +86,22 @@ const fixturePort = (): AnalysisOperationPort => ({
               signature: null,
               locals: [],
             },
-            pseudocode: {
-              text: "return 0;",
-              total_chars: 9,
-              returned_chars: 9,
-              truncated: false,
-              next_offset: null,
-            },
-            assembly: {
-              items: [],
-              total: 0,
-              returned: 0,
-              truncated: false,
-              next_offset: null,
-            },
-            comments: emptyBounded(),
-            callers: emptyBounded(),
-            callees: emptyBounded(),
-            incoming_references: emptyBounded(),
-            outgoing_references: emptyBounded(),
-            referenced_strings: emptyBounded(),
-            referenced_names: emptyBounded(),
-            basic_blocks: emptyBounded(),
-            instruction_scan: { scanned: 0, truncated: false },
+            pseudocode: "return 0;",
+            assembly: [],
+            comments: [],
+            callers: [],
+            callees: [],
+            incoming_references: [],
+            outgoing_references: [],
+            referenced_strings: [],
+            referenced_names: [],
+            basic_blocks: [],
           }),
         );
       default:
         return Promise.resolve(ok(null));
     }
   },
-});
-
-const emptyBounded = () => ({
-  items: [],
-  total: 0,
-  returned: 0,
-  truncated: false,
-  next_offset: null,
 });
 
 const resources: Array<{ close(): Promise<void> }> = [];
@@ -208,7 +181,7 @@ describe("enhanced MCP tools", () => {
     );
   });
 
-  it("accepts a final dossier page whose total exceeds returned", async () => {
+  it("rejects legacy paged collection wrappers", async () => {
     const malformedPort = fixturePort();
     const client = await connect({
       execute: async (name, arguments_, options) => {
@@ -223,13 +196,7 @@ describe("enhanced MCP tools", () => {
           return result;
         return ok({
           ...dossier,
-          callers: {
-            items: [],
-            total: 1,
-            returned: 0,
-            truncated: false,
-            next_offset: null,
-          },
+          callers: { items: [], total: 1, returned: 0 },
         });
       },
     });
@@ -237,6 +204,6 @@ describe("enhanced MCP tools", () => {
       name: "analyze_function",
       arguments: { procedure: "0x1" },
     });
-    expect(result.isError).not.toBe(true);
+    expect(result.isError).toBe(true);
   });
 });

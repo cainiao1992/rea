@@ -125,7 +125,6 @@ describe("JavaScript Application Graph", () => {
     expect(
       createJavaScriptApplicationGraph({
         schema: "JavaScriptApplicationGraph",
-        schema_version: 1,
         root_node_ids: [preload.node_id],
         nodes: [preload, earlierPreload],
         edges: [changedFrom],
@@ -147,7 +146,6 @@ describe("JavaScript Application Graph", () => {
     expect(() =>
       createJavaScriptApplicationGraph({
         schema: "JavaScriptApplicationGraph",
-        schema_version: 1,
         root_node_ids: [preload.node_id],
         nodes: [preload, runtime],
         edges: [invalid],

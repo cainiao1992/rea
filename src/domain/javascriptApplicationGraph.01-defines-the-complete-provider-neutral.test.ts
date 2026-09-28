@@ -27,7 +27,7 @@ const nodeByLabel = (
 };
 
 describe("JavaScript Application Graph", () => {
-  it("defines the complete provider-neutral v1 node and relation vocabulary", () => {
+  it("defines the complete provider-neutral node and relation vocabulary", () => {
     expect(JAVASCRIPT_APPLICATION_NODE_KINDS).toEqual([
       "package",
       "installer",
@@ -80,7 +80,7 @@ describe("JavaScript Application Graph", () => {
     ]);
   });
 
-  it("round-trips one canonical, versioned, byte-stable graph", () => {
+  it("round-trips one canonical, byte-stable graph", () => {
     const graph = buildSyntheticJavaScriptApplicationGraph();
     const serialized = serializeJavaScriptApplicationGraph(graph);
     const decoded: unknown = JSON.parse(serialized);

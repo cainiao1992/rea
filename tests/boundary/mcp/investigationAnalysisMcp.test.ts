@@ -75,7 +75,7 @@ it("builds a zero-hop exact-address path with dossier citations", async () => {
       normalized_result: {
         status: "found",
         shortest_hops: 0,
-        paths: { total: 1 },
+        paths: [expect.objectContaining({ hops: 0 })],
       },
       evidence_links: [FUNCTION_COMPARISON_EXAMPLE.left.evidence_id],
     });
@@ -104,13 +104,7 @@ it("records a safe unresolved call-path question", async () => {
       parameters: base.parameters,
       result: jsonValueSchema.parse({
         ...jsonObjectSchema.parse(base.normalized_result),
-        callees: {
-          items: [{ address: "0x2000", name: "next" }],
-          total: 1,
-          returned: 1,
-          truncated: false,
-          next_offset: null,
-        },
+        callees: [{ address: "0x2000", name: "next" }],
       }),
       rawResult: base.raw_result,
       confidence: base.confidence,
@@ -175,7 +169,7 @@ it("records an explicit non-causal static/runtime hypothesis", async () => {
   }
 });
 
-it("records a safe unresolved static/runtime question", async () => {
+it("uses inline assembly observations without recording a false unknown", async () => {
   const { session, server, client } = await connected();
   for (const evidence of [
     FUNCTION_COMPARISON_EXAMPLE.left,
@@ -209,11 +203,7 @@ it("records a safe unresolved static/runtime question", async () => {
     expect(response.isError).not.toBe(true);
     expect(
       session.listUnknowns({ domain: "static-runtime-correlation" }),
-    ).toMatchObject([
-      {
-        question: "Does runtime behavior match the available static analysis?",
-      },
-    ]);
+    ).toEqual([]);
   } finally {
     await close(session, server, client);
   }

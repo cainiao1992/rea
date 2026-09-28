@@ -49,7 +49,6 @@ export interface ParsedStaticLayer {
   readonly result: JavaScriptApplicationAnalysisResult;
   readonly graph: JavaScriptApplicationGraph;
   readonly runtimeMappings: readonly RuntimeMapping[];
-  readonly sourceMapReadApproved: boolean;
 }
 
 interface RuntimeCaptureBase {
@@ -153,7 +152,7 @@ const parseStaticLayer = (layer: StaticLayerInput): ParsedStaticLayer => {
   );
   assertEvidenceIdentity(evidence, {
     operation: "analyze_javascript_application",
-    predicate: `rea.javascript-application-analysis/v${String(result.schema_version)}`,
+    predicate: "rea.javascript-application-analysis",
     providerId: "rea-javascript-application",
     providerName: "REA JavaScript application analyzer",
     providerVersion: "1",
@@ -169,13 +168,6 @@ const parseStaticLayer = (layer: StaticLayerInput): ParsedStaticLayer => {
     throw new TypeError(
       "JavaScript application Evidence subject disagrees with its result",
     );
-  const parameters = z
-    .object({
-      approved: z.literal(true),
-      source_map_read_approved: z.boolean(),
-    })
-    .passthrough()
-    .parse(evidence.parameters);
   return {
     layerId: `jrl_${digestCanonical({
       role: layer.role,
@@ -187,7 +179,6 @@ const parseStaticLayer = (layer: StaticLayerInput): ParsedStaticLayer => {
     result,
     graph: result.graph,
     runtimeMappings: layer.runtime_mappings,
-    sourceMapReadApproved: parameters.source_map_read_approved,
   };
 };
 

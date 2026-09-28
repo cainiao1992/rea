@@ -1,12 +1,7 @@
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
-import type { CallToolResult } from "@modelcontextprotocol/server";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { AnalysisOperationPort } from "../../../src/application/AnalysisProvider.js";
-import {
-  jsonValueSchema,
-  type JsonValue,
-} from "../../../src/domain/jsonValue.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { observed as ok } from "../../fixtures/analysisExecution.js";
 
@@ -19,24 +14,18 @@ const PROCEDURES = {
   "0x6": "prefix_TtOther",
 };
 
-const page = (values: Readonly<Record<string, string>>) => ({
-  items: Object.entries(values).map(([address, value]) => ({ address, value })),
-  offset: 0,
-  limit: 100,
-  total: Object.keys(values).length,
-  next_offset: null,
-  has_more: false,
-});
+const inventory = (values: Readonly<Record<string, string>>) =>
+  Object.entries(values).map(([address, value]) => ({ address, value }));
 
 const fixturePort = (): AnalysisOperationPort => ({
   execute: (name, arguments_) => {
     switch (name) {
       case "list_procedures":
-        return Promise.resolve(ok(page(PROCEDURES)));
+        return Promise.resolve(ok(inventory(PROCEDURES)));
       case "list_names":
         return Promise.resolve(
           ok(
-            page({
+            inventory({
               "0x10": "_OBJC_CLASS_$_Fixture",
               "0x11": "_OBJC_CLASS_$_Fixture",
               "0x12": "_OBJC_PROTOCOL_$_FixtureDelegate",
@@ -87,7 +76,10 @@ const fixturePort = (): AnalysisOperationPort => ({
       case "list_documents":
         return Promise.resolve(ok(["fixture"]));
       case "list_strings":
-        return Promise.resolve(ok(page({ "0x30": "hello" })));
+        return Promise.resolve(ok(inventory({ "0x30": "hello" })));
+      case "search_strings":
+      case "search_procedures":
+        return Promise.resolve(ok(inventory({ "0x1": "needle" })));
       case "analyze_function":
         return Promise.resolve(
           ok({
@@ -155,80 +147,17 @@ const connect = async (analysis: AnalysisOperationPort = fixturePort()) => {
   return client;
 };
 
-const jsonResult = (result: CallToolResult): JsonValue => {
-  if (result.structuredContent === undefined)
-    throw new Error("Tool result omitted structured content");
-  const structured = jsonValueSchema.safeParse(result.structuredContent);
-  if (!structured.success)
-    throw new Error("Tool structured result was not JSON");
-  if (
-    typeof structured.data === "object" &&
-    structured.data !== null &&
-    !Array.isArray(structured.data) &&
-    "normalized_result" in structured.data
-  ) {
-    return structured.data.normalized_result ?? null;
-  }
-  if (
-    typeof structured.data === "object" &&
-    structured.data !== null &&
-    !Array.isArray(structured.data) &&
-    "evidence_id" in structured.data &&
-    "result" in structured.data
-  )
-    return structured.data.result ?? null;
-  const text = result.content.find((item) => item.type === "text");
-  if (text?.type !== "text")
-    throw new Error("Tool result omitted text content");
-  const decoded: unknown = JSON.parse(text.text);
-  const parsed = jsonValueSchema.safeParse(decoded);
-  if (!parsed.success) throw new Error("Tool result was not JSON");
-  return parsed.data;
-};
-
-describe("enhanced MCP tools", () => {
-  it("stops trace_feature at its explicit operation budget", async () => {
-    let operations = 0;
-    const client = await connect({
-      execute: () => {
-        operations += 1;
-        return Promise.resolve(
-          ok({
-            items: [{ address: "0x1", value: "needle" }],
-            offset: 0,
-            limit: 500,
-            total: 2,
-            next_offset: 1,
-            has_more: true,
-          }),
-        );
-      },
-    });
-    const result = jsonResult(
-      await client.callTool({
-        name: "trace_feature",
-        arguments: { query: "needle", max_operations: 1 },
-      }),
-    );
-    expect(operations).toBe(1);
-    expect(result).toMatchObject({
-      operations_used: 1,
-      operation_budget: 1,
-      truncated: true,
-    });
-    expect(JSON.stringify(result)).toContain("operation budget");
-  });
-
-  it("lets the SDK reject misspelled and out-of-range inputs", async () => {
+describe("enhanced MCP input validation", () => {
+  it("lets the SDK reject misspelled tool inputs", async () => {
     const client = await connect();
     const valid = await client.callTool({
       name: "trace_feature",
-      arguments: { query: "needle", max_operations: 1 },
+      arguments: { query: "needle" },
     });
     expect(valid.isError).not.toBe(true);
     const misspelled = await client.callTool({
       name: "trace_feature",
-      arguments: { query: "needle", max_operatons: 1 },
+      arguments: { query: "needle", unrecognized_option: true },
     });
     expect(misspelled.isError).toBe(true);
     expect(misspelled.structuredContent).toBeUndefined();
@@ -241,12 +170,6 @@ describe("enhanced MCP tools", () => {
     });
     expect(nestedMisspelled.isError).toBe(true);
     expect(nestedMisspelled.structuredContent).toBeUndefined();
-    const bounded = await client.callTool({
-      name: "trace_feature",
-      arguments: { query: "needle", max_operations: 101 },
-    });
-    expect(bounded.isError).toBe(true);
-    expect(bounded.structuredContent).toBeUndefined();
   });
 
   it("returns a typed tool error for malformed Hopper boundary values", async () => {

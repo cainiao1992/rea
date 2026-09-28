@@ -35,7 +35,7 @@ export const resolveGhidraAnalysisProfile = (
   const provider = { ...identity, version: installation.providerVersion };
   return Promise.resolve(
     ok({
-      profile: createAnalysisProfile(provider, 1, {
+      profile: createAnalysisProfile(provider, {
         target_kind: target.kind,
         target_format: target.format,
         architecture: target.architecture ?? null,

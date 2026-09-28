@@ -390,7 +390,6 @@ export const buildSyntheticJavaScriptApplicationGraph =
 
     return createJavaScriptApplicationGraph({
       schema: "JavaScriptApplicationGraph",
-      schema_version: 1,
       root_node_ids: [packageNode.node_id],
       nodes,
       edges: buildEdges(nodes),

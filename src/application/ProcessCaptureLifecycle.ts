@@ -110,7 +110,6 @@ export type PendingProcessCapture = Omit<
 export const buildCaptureResult = (
   options: CaptureResultOptions,
 ): PendingProcessCapture => ({
-  schema_version: 4,
   manifest: options.manifest,
   normalization: options.scenario.normalization,
   frames: options.frames,

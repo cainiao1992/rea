@@ -147,33 +147,24 @@ export const ghidraFunctionDossier = (
       signature: "int fixture_main(void)",
       locals: [],
     },
-    pseudocode: {
-      text: pseudocode,
-      total_chars: [...pseudocode].length,
-      returned_chars: [...pseudocode].length,
-      truncated: false,
-      next_offset: null,
-    },
-    assembly: ghidraBounded(
-      includeAssembly ? ["0x401000: CALL 0x401020", "0x401005: RET"] : [],
-    ),
-    comments: ghidraBounded([]),
-    callers: ghidraBounded([]),
-    callees: ghidraBounded([]),
-    incoming_references: ghidraBounded([]),
-    outgoing_references: ghidraBounded([ghidraReferenceEdge()]),
-    referenced_strings: ghidraBounded([
+    pseudocode,
+    assembly: includeAssembly
+      ? ["0x401000: CALL 0x401020", "0x401005: RET"]
+      : [],
+    comments: [],
+    callers: [],
+    callees: [],
+    incoming_references: [],
+    outgoing_references: [ghidraReferenceEdge()],
+    referenced_strings: [
       {
         address: "0x402000",
         value: "inventory fixture",
         source_address: "0x401001",
       },
-    ]),
-    referenced_names: ghidraBounded([]),
-    basic_blocks: ghidraBounded([
-      { start: "0x401000", end: "0x401006", successors: [] },
-    ]),
-    instruction_scan: { scanned: 2, truncated: false },
+    ],
+    referenced_names: [],
+    basic_blocks: [{ start: "0x401000", end: "0x401006", successors: [] }],
     native_api: ghidraNativeApiBoundary(mappingsTruncated),
     limitations: [
       "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",

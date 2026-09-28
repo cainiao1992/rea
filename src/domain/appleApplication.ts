@@ -30,7 +30,6 @@ export const appleApplicationProjectionInputSchema = z.strictObject({
 
 /** Deterministic, execution-free Apple application inventory projection. */
 export const appleApplicationProjectionResultSchema = z.strictObject({
-  schema_version: z.literal(1),
   projection_id: z.string().regex(/^aap_[a-f0-9]{64}$/u),
   root_sha256: digestSchema,
   root_format: z.literal("ipa"),
@@ -142,7 +141,6 @@ export const projectAppleApplication = (
     roots,
   );
   const withoutId = {
-    schema_version: 1 as const,
     root_sha256: inventory.manifest.root_sha256,
     root_format: "ipa" as const,
     source_evidence_ids: evidence

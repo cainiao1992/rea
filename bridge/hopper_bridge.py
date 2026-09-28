@@ -9,7 +9,6 @@ import json
 import hmac
 import os
 import re
-import sre_parse
 import socket
 from typing import Any, Optional, Protocol, Sequence
 
@@ -17,11 +16,10 @@ MAX_LINE_BYTES = 10 * 1024 * 1024
 MAX_READ_BYTES = 4096
 BAD_ADDRESSES = (-1, 0xFFFFFFFFFFFFFFFF, None)
 _selected_document = None
+_rea_session_document = None
 _search_inventory_cache = {}
 _pseudocode_cache = {}
 _hopper_api = None
-MAX_SEARCH_PATTERN_LENGTH = 256
-MAX_SEARCH_VALUE_LENGTH = 4096
 
 
 class HopperDocument(Protocol):
@@ -69,8 +67,9 @@ class HopperApiFacade:
 
 def _configure_hopper_api(document_provider):
     """Inject Hopper's document provider or a standalone test facade."""
-    global _hopper_api
+    global _hopper_api, _rea_session_document
     _hopper_api = HopperApiFacade(document_provider)
+    _rea_session_document = None
 
 
 def _api():
@@ -88,19 +87,43 @@ def _api():
 
 
 def _session_document():
-    """Find only the document opened for this authenticated REA session."""
+    """Return the exact document bound to this authenticated REA session."""
+    global _rea_session_document
+    documents = _api().documents()
+    if _rea_session_document is not None:
+        return (
+            _rea_session_document
+            if any(document is _rea_session_document for document in documents)
+            else None
+        )
+    return _bind_session_document(documents)
+
+
+def _bind_session_document(documents=None):
+    """Bind this bridge to Hopper's current document for its target."""
+    global _rea_session_document
+    api = _api()
+    if documents is None:
+        documents = api.documents()
     target = os.path.realpath(REA_TARGET_PATH)
-    for document in _api().documents():
+
+    def matches_target(document):
         paths = (document.getExecutableFilePath(), document.getDatabaseFilePath())
-        for path in paths:
-            if path and os.path.realpath(path) == target:
-                return document
+        return any(path and os.path.realpath(path) == target for path in paths)
+
+    current = api.current_document()
+    if current is not None and matches_target(current):
+        _rea_session_document = current
+        return current
+    matching = [document for document in documents if matches_target(document)]
+    if len(matching) == 1:
+        _rea_session_document = matching[0]
+        return matching[0]
+    if len(matching) > 1:
+        raise CapabilityUnavailableError(
+            "The REA session document is ambiguous; Hopper did not identify the launched document"
+        )
     return None
-
-
-MAX_REGEX_BACKTRACKING_PATHS = 10000
-MAX_REGEX_CANDIDATE_LENGTH = 4096
-MAX_REGEX_SEARCH_WORK_UNITS = 1000000
 
 
 class CapabilityUnavailableError(Exception):
@@ -149,14 +172,22 @@ def _document(name=None):
     api = _api()
     documents = api.documents()
     if name is not None:
-        for candidate in documents:
-            if candidate.getDocumentName() == name:
-                return candidate
+        matches = [candidate for candidate in documents if candidate.getDocumentName() == name]
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            current = api.current_document()
+            if current is not None and current.getDocumentName() == name:
+                return current
+            raise ValueError("Hopper document name is ambiguous")
         raise ValueError("Unknown Hopper document")
     if _selected_document is not None:
         for candidate in documents:
             if candidate.getDocumentName() == _selected_document:
                 return candidate
+    session_document = _session_document()
+    if session_document is not None:
+        return session_document
     current = api.current_document()
     if current is None:
         raise ValueError("No Hopper document is loaded")
@@ -225,7 +256,7 @@ def _containing_procedure(document, address):
     return (procedure, None) if procedure is not None else (None, "not_in_procedure")
 
 
-def _instruction_addresses(procedure, limit):
+def _instruction_addresses(procedure, limit=None):
     result = []
     seen = set()
     segment = procedure.getSegment()
@@ -234,7 +265,7 @@ def _instruction_addresses(procedure, limit):
         address = block.getStartingAddress()
         end = block.getEndingAddress()
         while address < end and address not in seen:
-            if len(result) >= limit:
+            if limit is not None and len(result) >= limit:
                 truncated = True
                 return result, truncated
             seen.add(address)
@@ -252,18 +283,9 @@ def _instruction_addresses(procedure, limit):
 def _procedure_references(document, params):
     procedure = _procedure(document, params.get("procedure"))
     direction = params.get("direction", "outgoing")
-    offset = params.get("offset", 0)
-    limit = params.get("limit", 100)
-    max_instructions = params.get("max_instructions", 500)
     if direction not in ("incoming", "outgoing"):
         raise ValueError("direction must be incoming or outgoing")
-    if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
-        raise ValueError("offset must be a non-negative integer")
-    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1 or limit > 500:
-        raise ValueError("limit must be an integer between 1 and 500")
-    if not isinstance(max_instructions, int) or isinstance(max_instructions, bool) or max_instructions < 1 or max_instructions > 5000:
-        raise ValueError("max_instructions must be an integer between 1 and 5000")
-    addresses, scan_truncated = _instruction_addresses(procedure, max_instructions)
+    addresses, _ = _instruction_addresses(procedure)
     edges = set()
     for address in addresses:
         segment = _segment(document, address)
@@ -272,8 +294,7 @@ def _procedure_references(document, params):
             edges.add((address, reference) if direction == "outgoing" else (reference, address))
     ordered = sorted(edges)
     items = []
-    selected = ordered[offset:offset + limit]
-    for source, target in selected:
+    for source, target in ordered:
         source_procedure, _ = _containing_procedure(document, source)
         target_procedure, _ = _containing_procedure(document, target)
         items.append({
@@ -283,13 +304,9 @@ def _procedure_references(document, params):
             "target_procedure": _procedure_identity(target_procedure) if target_procedure is not None else None,
             "kind": _unavailable("Hopper's public Python API does not classify reference kinds"),
         })
-    next_offset = offset + len(selected)
-    has_more = next_offset < len(ordered)
-    truncated = scan_truncated or has_more
     return {
         "procedure": _procedure_identity(procedure), "direction": direction,
-        "references": {"items": items, "total": None if scan_truncated else len(ordered), "returned": len(items), "truncated": truncated, "next_offset": next_offset if has_more and not scan_truncated else None},
-        "instructions_scanned": len(addresses), "instruction_scan_truncated": scan_truncated,
+        "references": items,
     }
 
 
@@ -352,230 +369,39 @@ def _search_inventory(document, kind):
     return inventory
 
 
-def _checked_regex_paths(left, right, operation):
-    """Apply one path-count operation without crossing the static work budget."""
-    if operation == "add":
-        exceeded = left > MAX_REGEX_BACKTRACKING_PATHS - right
-        result = left + right
-    else:
-        exceeded = right != 0 and left > MAX_REGEX_BACKTRACKING_PATHS // right
-        result = left * right
-    if exceeded or result > MAX_REGEX_BACKTRACKING_PATHS:
-        raise ValueError(
-            "Regex exceeds the %d-path backtracking budget"
-            % MAX_REGEX_BACKTRACKING_PATHS
-        )
-    return result
-
-
-def _repeat_regex_paths(child_paths, minimum, maximum):
-    """Count every bounded repetition path, including alternative child paths."""
-    paths = 0
-    repeated_paths = 1
-    for count in range(maximum + 1):
-        if count >= minimum:
-            paths = _checked_regex_paths(paths, repeated_paths, "add")
-        if count < maximum:
-            repeated_paths = _checked_regex_paths(
-                repeated_paths, child_paths, "multiply"
-            )
-    return paths
-
-
-def _validate_regex_class(items):
-    """Accept only constant-time character-class operations."""
-    allowed = {
-        sre_parse.CATEGORY,
-        sre_parse.LITERAL,
-        sre_parse.NEGATE,
-        sre_parse.RANGE,
-    }
-    if any(operation not in allowed for operation, _ in items):
-        raise ValueError("Regex operation is not supported by the bounded matcher")
-
-
-def _validate_regex_node(node, inside_repeat=False):
-    """Return capped path and step bounds for Python regex evaluation."""
-    leaf_operations = {
-        sre_parse.ANY,
-        sre_parse.AT,
-        sre_parse.CATEGORY,
-        sre_parse.LITERAL,
-        sre_parse.NOT_LITERAL,
-    }
-    forbidden = {
-        sre_parse.ASSERT,
-        sre_parse.ASSERT_NOT,
-        sre_parse.GROUPREF,
-        sre_parse.GROUPREF_EXISTS,
-    }
-    for name in ("GROUPREF_IGNORE", "GROUPREF_LOC_IGNORE", "GROUPREF_UNI_IGNORE"):
-        operation = getattr(sre_parse, name, None)
-        if operation is not None:
-            forbidden.add(operation)
-    repeat_tokens = {sre_parse.MAX_REPEAT, sre_parse.MIN_REPEAT}
-    possessive = getattr(sre_parse, "POSSESSIVE_REPEAT", None)
-    if possessive is not None:
-        repeat_tokens.add(possessive)
-    atomic = getattr(sre_parse, "ATOMIC_GROUP", None)
-
-    paths = 1
-    steps = 0
-    for operation, argument in node:
-        if operation in forbidden:
-            raise ValueError("Regex lookarounds and backreferences are not supported")
-        if operation in leaf_operations:
-            operation_paths = 1
-            operation_steps = 1
-        elif operation == sre_parse.IN:
-            _validate_regex_class(argument)
-            operation_paths = 1
-            operation_steps = 1
-        elif operation in repeat_tokens:
-            if inside_repeat:
-                raise ValueError("Nested regex repetitions are not supported")
-            minimum, maximum, child = argument
-            if maximum == sre_parse.MAXREPEAT or maximum > 1000:
-                raise ValueError(
-                    "Unbounded or excessive regex repetitions are not supported"
-                )
-            child_paths, child_steps = _validate_regex_node(child, True)
-            operation_paths = _repeat_regex_paths(
-                child_paths, minimum, maximum
-            )
-            operation_steps = maximum * child_steps
-        elif operation == sre_parse.SUBPATTERN:
-            operation_paths, operation_steps = _validate_regex_node(
-                argument[-1], inside_repeat
-            )
-        elif operation == sre_parse.BRANCH:
-            operation_paths = 0
-            operation_steps = 0
-            for branch in argument[1]:
-                branch_paths, branch_steps = _validate_regex_node(
-                    branch, inside_repeat
-                )
-                operation_paths = _checked_regex_paths(
-                    operation_paths,
-                    branch_paths,
-                    "add",
-                )
-                operation_steps = max(operation_steps, branch_steps)
-        elif atomic is not None and operation == atomic:
-            operation_paths, operation_steps = _validate_regex_node(
-                argument, inside_repeat
-            )
-        else:
-            raise ValueError("Regex operation is not supported by the bounded matcher")
-        paths = _checked_regex_paths(paths, operation_paths, "multiply")
-        steps += operation_steps
-    return paths, steps
-
-
-def _bounded_regex_matcher(expression, backtracking_paths, steps_per_path):
-    """Create a matcher with per-candidate and cumulative work bounds."""
-    remaining_work = MAX_REGEX_SEARCH_WORK_UNITS
-    work_per_character = backtracking_paths * max(steps_per_path, 1)
-
-    def matches(value):
-        nonlocal remaining_work
-        if not isinstance(value, str):
-            raise ValueError("Regex candidates must be strings")
-        if len(value) > MAX_REGEX_CANDIDATE_LENGTH:
-            raise ValueError(
-                "Regex candidate exceeds the %d-character safety limit"
-                % MAX_REGEX_CANDIDATE_LENGTH
-            )
-        required_work = work_per_character * max(len(value), 1)
-        if required_work > remaining_work:
-            raise ValueError(
-                "Regex search exceeds the %d-unit work budget"
-                % MAX_REGEX_SEARCH_WORK_UNITS
-            )
-        remaining_work -= required_work
-        return expression.search(value) is not None
-
-    return matches
-
-
-def _search_page(document, kind, params):
+def _search_results(document, kind, params):
     pattern = params.get("pattern")
-    if not isinstance(pattern, str) or not pattern or len(pattern) > MAX_SEARCH_PATTERN_LENGTH:
-        raise ValueError("pattern must contain between 1 and 256 characters")
+    if not isinstance(pattern, str) or not pattern:
+        raise ValueError("pattern must be a non-empty string")
     mode = params.get("mode", "literal")
     if mode not in ("literal", "regex"):
         raise ValueError("mode must be literal or regex")
     case_sensitive = params.get("case_sensitive", False)
     if not isinstance(case_sensitive, bool):
         raise ValueError("case_sensitive must be a boolean")
-    offset = params.get("offset", 0)
-    limit = params.get("limit", 100)
-    if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
-        raise ValueError("offset must be a non-negative integer")
-    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1 or limit > 100:
-        raise ValueError("limit must be an integer between 1 and 100")
 
     if mode == "literal":
         needle = pattern if case_sensitive else pattern.casefold()
         matches = lambda value: needle in (value if case_sensitive else value.casefold())
     else:
         try:
-            parsed = sre_parse.parse(pattern)
-            backtracking_paths, steps_per_path = _validate_regex_node(parsed)
             expression = re.compile(pattern, 0 if case_sensitive else re.IGNORECASE)
         except (re.error, OverflowError) as error:
             raise ValueError("Invalid regex pattern") from error
-        matches = _bounded_regex_matcher(
-            expression, backtracking_paths, steps_per_path
-        )
+        matches = lambda value: expression.search(value) is not None
 
     selected = []
-    total = 0
-    page_end = offset + limit
     for item in _search_inventory(document, kind):
         if not matches(item[1]):
             continue
-        if offset <= total < page_end:
-            selected.append(item)
-        total += 1
-    next_offset = offset + len(selected)
-    has_more = next_offset < total
-    return {
-        "items": [
+        selected.append(item)
+    return [
             {
                 "address": address,
-                "value": value[:MAX_SEARCH_VALUE_LENGTH],
-                "value_truncated": len(value) > MAX_SEARCH_VALUE_LENGTH,
+                "value": value,
             }
             for address, value in selected
-        ],
-        "offset": offset,
-        "limit": limit,
-        "total": total,
-        "next_offset": next_offset if has_more else None,
-        "has_more": has_more,
-    }
-
-
-def _page(values, offset, limit):
-    """Return one deterministically address-sorted page without crossing an unbounded map."""
-    if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
-        raise ValueError("offset must be a non-negative integer")
-    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1 or limit > 500:
-        raise ValueError("limit must be an integer between 1 and 500")
-    ordered = sorted(values.items(), key=lambda item: int(item[0], 16))
-    selected = ordered[offset:offset + limit]
-    total = len(ordered)
-    next_offset = offset + len(selected)
-    has_more = next_offset < total
-    return {
-        "items": [{"address": address, "value": value} for address, value in selected],
-        "offset": offset,
-        "limit": limit,
-        "total": total,
-        "next_offset": next_offset if has_more else None,
-        "has_more": has_more,
-    }
+        ]
 
 
 def _unavailable(reason):
@@ -587,16 +413,6 @@ def _offset(params, name):
     value = params.get(name, 0)
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         raise ValueError("%s must be a non-negative integer" % name)
-    return value
-
-
-def _collection_offset(params, name):
-    values = params.get("collection_offset", {})
-    if not isinstance(values, dict):
-        raise ValueError("collection_offset must be an object")
-    value = values.get(name, 0)
-    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-        raise ValueError("collection_offset.%s must be a non-negative integer" % name)
     return value
 
 
@@ -665,37 +481,18 @@ def _assembly(procedure, limit=None):
 
 
 def _read_function_instructions(document, params):
-    """Read one bounded raw-instruction window without invoking decompilation."""
+    """Read all raw instructions without invoking decompilation."""
     procedure = _procedure(document, params.get("procedure"))
-    offset = _offset(params, "offset")
-    limit = params.get("limit", 64)
-    if offset > 100000:
-        raise ValueError("offset must not exceed 100000")
-    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1 or limit > 500:
-        raise ValueError("limit must be an integer between 1 and 500")
-    addresses, scan_truncated = _instruction_addresses(
-        procedure, offset + limit + 1
-    )
-    start = min(offset, len(addresses))
-    end = min(len(addresses), start + limit)
+    addresses, _ = _instruction_addresses(procedure)
     segment = procedure.getSegment()
     items = []
-    for address in addresses[start:end]:
+    for address in addresses:
         line = _render_instruction(segment, address)
         if line is not None:
             items.append(line)
-    has_more = scan_truncated or end < len(addresses)
     return {
         "procedure": _procedure_identity(procedure),
-        "instructions": {
-            "items": items,
-            "total": None if scan_truncated else len(addresses),
-            "returned": len(items),
-            "truncated": has_more,
-            "next_offset": end if has_more else None,
-        },
-        "instructions_scanned": len(addresses),
-        "instruction_scan_truncated": scan_truncated,
+        "instructions": items,
         "limitations": [
             "Instruction text and ordering are Hopper-specific representations.",
             "The fast path does not decompile the procedure or scan whole-program names and strings.",
@@ -704,20 +501,9 @@ def _read_function_instructions(document, params):
 
 
 def _analyze_function(document, params):
-    """Collect a bounded, single-pass function dossier for agent callers."""
+    """Collect the complete function dossier for agent callers."""
     procedure = _procedure(document, params.get("procedure"))
-    limit = params.get("limit", 100)
-    max_chars = params.get("max_pseudocode_chars", 20000)
-    max_instructions = params.get("max_instructions", 500)
-    pseudocode_offset = _offset(params, "pseudocode_offset")
-    assembly_offset = _offset(params, "assembly_offset")
-    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1 or limit > 500:
-        raise ValueError("limit must be an integer between 1 and 500")
-    if not isinstance(max_chars, int) or isinstance(max_chars, bool) or max_chars < 1 or max_chars > 100000:
-        raise ValueError("max_pseudocode_chars must be between 1 and 100000")
-    if not isinstance(max_instructions, int) or isinstance(max_instructions, bool) or max_instructions < 1 or max_instructions > 5000:
-        raise ValueError("max_instructions must be between 1 and 5000")
-    addresses, instruction_scan_truncated = _instruction_addresses(procedure, max_instructions)
+    addresses, instruction_scan_truncated = _instruction_addresses(procedure)
     blocks = []
     all_blocks = list(procedure.basicBlockIterator())
     for block in all_blocks:
@@ -732,7 +518,7 @@ def _analyze_function(document, params):
             "successors": sorted(set(successors), key=lambda value: int(value, 16)),
         })
     pseudo = _pseudocode(document, procedure) or ""
-    assembly_lines = _assembly(procedure, max_instructions).splitlines() if params.get("include_assembly", False) else []
+    assembly_lines = _assembly(procedure).splitlines()
     callers = sorted((_procedure_identity(item) for item in procedure.getAllCallerProcedures()), key=lambda item: int(item["address"], 16))
     callees = sorted((_procedure_identity(item) for item in procedure.getAllCalleeProcedures()), key=lambda item: int(item["address"], 16))
     comments = []
@@ -785,28 +571,17 @@ def _analyze_function(document, params):
     comments.sort(key=lambda item: (int(item["address"], 16), item["kind"]))
     referenced_strings.sort(key=lambda item: (int(item["address"], 16), int(item["source_address"], 16)))
     referenced_names.sort(key=lambda item: (int(item["address"], 16), int(item["source_address"], 16)))
-    pseudo_text = pseudo[pseudocode_offset:pseudocode_offset + max_chars]
-    pseudo_next = pseudocode_offset + len(pseudo_text)
-    def collection(name, items, scan_limited=False):
-        return _bounded(items, _collection_offset(params, name), limit, None, scan_limited)
     return {
         "procedure": {"address": _hex(procedure.getEntryPoint()), "name": _procedure_name(procedure), "classification": None, "signature": procedure.signatureString(), "locals": _procedure_locals(procedure)},
-        "pseudocode": {"text": pseudo_text, "total_chars": len(pseudo), "returned_chars": len(pseudo_text), "truncated": pseudo_next < len(pseudo), "next_offset": pseudo_next if pseudo_next < len(pseudo) else None},
-        "assembly": _bounded(
-            assembly_lines,
-            assembly_offset,
-            max_instructions,
-            None,
-            instruction_scan_truncated if params.get("include_assembly", False) else False,
-        ),
-        "comments": collection("comments", comments, instruction_scan_truncated),
-        "callers": collection("callers", callers), "callees": collection("callees", callees),
-        "incoming_references": collection("incoming_references", incoming, instruction_scan_truncated),
-        "outgoing_references": collection("outgoing_references", outgoing, instruction_scan_truncated),
-        "referenced_strings": collection("referenced_strings", referenced_strings, instruction_scan_truncated),
-        "referenced_names": collection("referenced_names", referenced_names, instruction_scan_truncated),
-        "basic_blocks": collection("basic_blocks", blocks),
-        "instruction_scan": {"scanned": len(addresses), "truncated": instruction_scan_truncated},
+        "pseudocode": pseudo,
+        "assembly": assembly_lines,
+        "comments": comments,
+        "callers": callers, "callees": callees,
+        "incoming_references": incoming,
+        "outgoing_references": outgoing,
+        "referenced_strings": referenced_strings,
+        "referenced_names": referenced_names,
+        "basic_blocks": blocks,
         "limitations": [
             "Hopper's public Python API does not classify reference kinds.",
             "Hopper's public Python API does not expose equivalent external or thunk classification in this dossier.",
@@ -825,6 +600,13 @@ def _dispatch(method, params):
         document = _session_document()
         if document is None:
             return {"shutdown": True, "analysis_stopped": True, "document_closed": True}
+        if method == "shutdown" and not REA_OWNS_PROCESS_LIFETIME:
+            return {
+                "shutdown": True,
+                "analysis_stopped": not document.backgroundProcessActive(),
+                "document_closed": False,
+                "document_retained": True,
+            }
         if document.backgroundProcessActive():
             document.requestBackgroundProcessStop()
         if method == "shutdown" and REA_OWNS_PROCESS_LIFETIME:
@@ -968,24 +750,24 @@ def _dispatch(method, params):
             })
         return result
     if method == "list_procedures":
-        return _page(dict(_search_inventory(document, "procedure")), params.get("offset", 0), params.get("limit", 100))
+        return [{"address": address, "value": value} for address, value in _search_inventory(document, "procedure")]
     if method == "list_strings":
         values = dict(_search_inventory(document, "string"))
         requested = params.get("address")
         if requested is not None:
             key = _hex(_address(document, requested))
             values = {key: values[key]} if key in values else {}
-        return _page(values, params.get("offset", 0), params.get("limit", 100))
+        return [{"address": _hex(address), "value": value} for address, value in sorted(values.items())]
     if method == "list_names":
         result = dict(_search_inventory(document, "name"))
         requested = params.get("address")
         if requested is not None:
             key = _hex(_address(document, requested))
             result = {key: result[key]} if key in result else {}
-        return _page(result, params.get("offset", 0), params.get("limit", 100))
+        return [{"address": _hex(address), "value": value} for address, value in sorted(result.items(), key=lambda item: int(item[0]))]
     if method in ("search_procedures", "search_strings"):
         kind = "procedure" if method == "search_procedures" else "string"
-        return _search_page(document, kind, params)
+        return _search_results(document, kind, params)
     if method.startswith("procedure_"):
         procedure = _procedure(document, params.get("procedure"))
         if method == "procedure_address":
@@ -1147,6 +929,7 @@ def _run():
 
 
 # Hopper's public objects are bound to its dedicated Python execution thread.
-# Keep dispatch on that thread; moving calls to an arbitrary worker can deadlock.
+# Keep dispatch on that thread; moving calls to a worker can deadlock.
 if __name__ == "__main__":
+    _bind_session_document()
     _run()

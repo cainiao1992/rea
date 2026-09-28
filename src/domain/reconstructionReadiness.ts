@@ -64,7 +64,6 @@ export const createReconstructionReadinessReport = (
   });
   return reconstructionReadinessReportSchema.parse({
     schema: "ReconstructionReadinessReport",
-    schema_version: 1,
     report_id: `rr_${reportDigest}`,
     report_digest: reportDigest,
     ...semantic,

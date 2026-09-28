@@ -11,7 +11,6 @@ the write:
 
 ```bash
 export REA_EVIDENCE_ROOTS_JSON='["/absolute/path/to/evidence"]'
-export REA_INVESTIGATION_INPUT_ROOTS_JSON='["/absolute/path/to/releases"]'
 
 rea investigate-versions \
   /absolute/path/to/version-1 \
@@ -22,13 +21,11 @@ rea investigate-versions \
 ```
 
 The two versions may be regular artifacts or directories supported by the
-artifact graph provider. Both must resolve beneath an explicitly configured
-`REA_INVESTIGATION_INPUT_ROOTS_JSON` root. The workspace parent must already
-exist beneath `REA_EVIDENCE_ROOTS_JSON`. REA never creates an allowlisted root
-implicitly.
+artifact graph provider. Workspace files remain restricted by
+`REA_EVIDENCE_ROOTS_JSON`; input paths are used directly by the local process.
 
 Use `--expected-revision N` when an external coordinator needs an explicit
-compare-and-swap guard. Traversal, byte, page, and comparison limits are also
+compare-and-swap guard. Traversal, byte, page, and comparison controls are
 available as CLI options.
 
 After a completed run returns its stable run ID, `--replay-run-id RUN_ID`
@@ -104,7 +101,6 @@ digest. Parsing verifies:
 
 Writes are canonical JSON, atomic, fsynced, and mode `0600`. REA rejects
 workspace paths outside `REA_EVIDENCE_ROOTS_JSON`, symlink destinations,
-artifact inputs outside `REA_INVESTIGATION_INPUT_ROOTS_JSON`,
 oversized or deeply nested JSON, stale expected revisions, and concurrent lock
 holders. Lock or CAS conflicts fail without mutating the workspace; callers may
 retry the same idempotent request.

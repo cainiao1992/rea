@@ -6,11 +6,10 @@ import {
   javascriptApplicationAnalysisLimitsSchema,
 } from "../domain/javascriptApplicationAnalysis.js";
 
-/** Local ASAR/directory reconstruction request with explicit source-map authority. */
+/** Local ASAR/directory reconstruction request. */
 export const javascriptArtifactReconstructionInputSchema = z.strictObject({
-  input_path: z.string().min(1).max(16_384),
+  input_path: z.string().min(1),
   format: z.enum(["auto", "asar", "directory"]).default("auto"),
-  source_map_read_approved: z.boolean().default(false),
   limits: javascriptApplicationAnalysisLimitsSchema.default(
     JAVASCRIPT_APPLICATION_ANALYSIS_DEFAULT_LIMITS,
   ),

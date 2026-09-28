@@ -92,24 +92,10 @@ export class CdpBrowserProvider implements BrowserObservationPort {
       );
       const allowedOrigins = new Set(input.allowed_origins);
       const selected = selectTargets(discovery, allowedOrigins);
-      const items = selected.allowed.slice(
-        input.offset,
-        input.offset + input.limit,
-      );
-      const nextOffset = input.offset + items.length;
       return ok(
         browserTargetListSchema.parse({
-          schema_version: 1,
           browser: discovery.version,
-          targets: {
-            items,
-            offset: input.offset,
-            limit: input.limit,
-            total: selected.allowed.length,
-            next_offset:
-              nextOffset < selected.allowed.length ? nextOffset : null,
-            has_more: nextOffset < selected.allowed.length,
-          },
+          targets: selected.allowed,
           excluded: selected.excluded,
           limitations: [
             "Only page targets whose current URL matches an approved exact origin are listed.",
@@ -352,7 +338,7 @@ const selectTargets = (
   discovery: CdpEndpointDiscovery,
   allowedOrigins: ReadonlySet<string>,
 ): {
-  readonly allowed: readonly BrowserTargetList["targets"]["items"][number][];
+  readonly allowed: readonly BrowserTargetList["targets"][number][];
   readonly excluded: BrowserTargetList["excluded"];
   readonly unconnectable: number;
 } => {

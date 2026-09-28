@@ -33,7 +33,7 @@ const browserScenarioParameters = (
   limits: scenario.limits,
 });
 
-/** Create Evidence v2 without retaining resolved scenario secret values. */
+/** Create Evidence without retaining resolved scenario secret values. */
 export const createBrowserScenarioEvidence = (
   scenario: BrowserScenario,
   capture: BrowserScenarioCapture,

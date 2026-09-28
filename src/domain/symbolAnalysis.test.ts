@@ -8,7 +8,7 @@ import {
 } from "./symbolAnalysis.js";
 
 describe("symbol analysis", () => {
-  it("filters Swift classes and reports the uncapped match count", () => {
+  it("returns every matching Swift class", () => {
     const symbols = Array.from({ length: 120 }, (_, index) => ({
       address: `0x${String(index)}`,
       name: `_TtCFixture${String(index)}`,
@@ -20,7 +20,7 @@ describe("symbol analysis", () => {
       !Array.isArray(result)
     ) {
       expect(result.count).toBe(120);
-      expect(result.classes).toHaveLength(100);
+      expect(result.classes).toHaveLength(120);
       expect(Array.isArray(result.classes) ? result.classes[0] : null).toEqual({
         address: "0x0",
         name: "_TtCFixture0",

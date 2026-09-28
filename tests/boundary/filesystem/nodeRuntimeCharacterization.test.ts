@@ -235,7 +235,6 @@ const dependenciesFor = (root: string, onExecute: () => void) => {
     execute: async (prepared) => {
       onExecute();
       return {
-        schema_version: 1,
         plan_digest: prepared.publicPlan.plan_digest,
         outcomes: [
           {

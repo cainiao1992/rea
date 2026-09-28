@@ -23,7 +23,6 @@ interface EvidenceToolRegistration {
   readonly exportContract: (typeof SESSION_TOOL_CONTRACTS)[3];
   readonly importContract: (typeof SESSION_TOOL_CONTRACTS)[4];
   readonly snapshotContract: (typeof SESSION_TOOL_CONTRACTS)[19];
-  readonly releaseContract: (typeof SESSION_TOOL_CONTRACTS)[20];
   readonly filePolicy: EvidenceFilePolicy;
   readonly permissionAuthority?: PermissionAuthority;
 }
@@ -35,66 +34,6 @@ export const registerEvidenceTools = (
   registerExportEvidenceTool(registration);
   registerImportEvidenceTool(registration);
   registerSnapshotEvidenceTool(registration);
-  registerReleaseEvidenceTool(registration);
-};
-
-const registerReleaseEvidenceTool = ({
-  server,
-  session,
-  releaseContract,
-  permissionAuthority,
-}: EvidenceToolRegistration): void => {
-  server.registerTool(
-    releaseContract.name,
-    toolRegistrationOptions(releaseContract),
-    async (input) => {
-      const denied = await authorizeEvidenceWrite({
-        authority: permissionAuthority,
-        operationIdentity: `release_evidence:${input.bundle_digest}`,
-      });
-      if (denied !== undefined)
-        return toCallToolResult(denied, releaseContract);
-      const released = session.releaseEvidenceBundle(input.bundle_digest);
-      if (released)
-        void server.server
-          .sendResourceUpdated({
-            uri: `rea://evidence-bundle/${input.bundle_digest}`,
-          })
-          .catch(() => undefined);
-      return toCallToolResult(
-        ok({
-          bundle_digest: input.bundle_digest,
-          released,
-        }),
-        releaseContract,
-      );
-    },
-  );
-};
-
-const authorizeEvidenceWrite = async ({
-  authority,
-  operationIdentity,
-}: {
-  readonly authority: PermissionAuthority | undefined;
-  readonly operationIdentity: string;
-}): Promise<Result<never, AnalysisError> | undefined> => {
-  if (authority === undefined) return undefined;
-  const authorized = await authority.authorize(
-    {
-      capability: "evidence_write",
-      roots: [],
-      executables: [],
-      environment_names: [],
-      network: "none",
-      mount: false,
-      operation_identity: operationIdentity,
-    },
-    "write",
-  );
-  return authorized.ok
-    ? undefined
-    : err(projectPermissionFailure(authorized.error));
 };
 
 const registerExportEvidenceTool = ({
@@ -146,29 +85,8 @@ const registerSnapshotEvidenceTool = ({
   server.registerTool(
     snapshotContract.name,
     toolRegistrationOptions(snapshotContract),
-    () => {
-      const snapshot = session.snapshotEvidenceBundle();
-      if (!snapshot.ok) return toCallToolResult(snapshot, snapshotContract);
-      const value = {
-        bundle_digest: snapshot.value.bundleDigest,
-        bundle_version: snapshot.value.bundleVersion,
-        bytes: snapshot.value.bytes,
-        records: snapshot.value.records,
-        unknowns: snapshot.value.unknowns,
-        scope: snapshot.value.scope,
-        survives_session: snapshot.value.survivesSession,
-        bundle_uri: snapshot.value.uri,
-      } as const;
-      return toCallToolResult(ok(value), snapshotContract, {
-        resourceLinks: [
-          {
-            uri: snapshot.value.uri,
-            name: snapshot.value.bundleDigest,
-            description: "Immutable session-retained Evidence v2 bundle",
-          },
-        ],
-      });
-    },
+    () =>
+      toCallToolResult(ok(session.exportEvidenceBundle()), snapshotContract),
   );
 };
 
@@ -275,33 +193,12 @@ const registerListUnknownsTool = ({
           : { severity: filters.severity }),
         ...(filters.domain === undefined ? {} : { domain: filters.domain }),
       });
-      const items = all
-        .slice(filters.offset, filters.offset + filters.limit)
-        .map((unknown) => ({
-          unknown,
-          uri: `rea://unknown/${unknown.unknown_id}`,
-        }));
-      const nextOffset =
-        filters.offset + items.length < all.length
-          ? filters.offset + items.length
-          : null;
       return toCallToolResult(
         ok({
-          items,
-          offset: filters.offset,
-          limit: filters.limit,
+          items: all,
           total: all.length,
-          next_offset: nextOffset,
-          has_more: nextOffset !== null,
         }),
         listContract,
-        {
-          resourceLinks: items.map((unknown) => ({
-            uri: unknown.uri,
-            name: unknown.unknown.unknown_id,
-            description: `Current ${unknown.unknown.status} residual unknown revision`,
-          })),
-        },
       );
     },
   );
@@ -318,17 +215,7 @@ const registerRecordUnknownTool = ({
     toolRegistrationOptions(recordContract),
     (input) => {
       const result = session.recordUnknown(input);
-      return result.ok
-        ? toCallToolResult(result, recordContract, {
-            resourceLinks: [
-              {
-                uri: `rea://unknown/${result.value.unknown_id}`,
-                name: result.value.unknown_id,
-                description: "Current residual unknown head",
-              },
-            ],
-          })
-        : toCallToolResult(result, recordContract);
+      return toCallToolResult(result, recordContract);
     },
   );
 };
@@ -344,23 +231,7 @@ const registerUpdateUnknownTool = ({
     toolRegistrationOptions(updateContract),
     (input) => {
       const result = session.updateUnknown(input);
-      if (result.ok)
-        void server.server
-          .sendResourceUpdated({
-            uri: `rea://unknown/${result.value.unknown_id}`,
-          })
-          .catch(() => undefined);
-      return result.ok
-        ? toCallToolResult(result, updateContract, {
-            resourceLinks: [
-              {
-                uri: `rea://unknown/${result.value.unknown_id}`,
-                name: result.value.unknown_id,
-                description: "Updated residual unknown head",
-              },
-            ],
-          })
-        : toCallToolResult(result, updateContract);
+      return toCallToolResult(result, updateContract);
     },
   );
 };

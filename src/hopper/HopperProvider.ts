@@ -58,8 +58,6 @@ const CAPABILITIES: readonly CapabilityDescriptor[] = Object.freeze(
     return Object.freeze({
       provider: IDENTITY,
       operation,
-      inputContractVersion: 1,
-      outputContractVersion: 1,
       available: true,
       reason: null,
       pagination:

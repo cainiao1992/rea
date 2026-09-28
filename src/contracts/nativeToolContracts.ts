@@ -54,11 +54,7 @@ export const NATIVE_TOOL_CONTRACTS = [
     "inspect_plist",
     "Parse a plist at a bounded relative path beneath the active artifact container. Symlink and traversal escapes are rejected; output is normalized JSON rather than plutil text.",
     z.object({
-      relative_path: z
-        .string()
-        .min(1)
-        .max(1_024)
-        .default("Contents/Info.plist"),
+      relative_path: z.string().min(1).default("Contents/Info.plist"),
     }),
   ),
   native(
@@ -70,7 +66,7 @@ export const NATIVE_TOOL_CONTRACTS = [
     "demangle_swift",
     "Demangle an ordered bounded batch of Swift symbols without requiring Hopper. Each input returns demangled, unchanged, or invalid status.",
     z.object({
-      symbols: z.array(z.string().min(1).max(4_096)).min(1).max(500),
+      symbols: z.array(z.string().min(1)).min(1),
     }),
   ),
 ] as const satisfies readonly ToolContract[];

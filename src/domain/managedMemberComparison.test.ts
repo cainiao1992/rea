@@ -13,12 +13,6 @@ import {
   MANAGED_MEMBER_FIXTURE_LIMITS,
 } from "../dotnet/ManagedPe.fixture.js";
 
-const comparisonLimits = {
-  max_method_matches: 100,
-  max_field_matches: 100,
-  max_candidates: 10,
-};
-
 describe("managed member comparison", () => {
   it("remaps renamed methods by exact CIL/signature without using names", () => {
     const leftBytes = buildManagedPeFixture();
@@ -34,7 +28,6 @@ describe("managed member comparison", () => {
     const result = compareManagedMembers(
       { evidenceId: left.evidenceId, result: left.result },
       { evidenceId: right.evidenceId, result: right.result },
-      comparisonLimits,
     );
 
     expect(result.algorithm.name_matching).toBe("not-used");
@@ -72,7 +65,6 @@ describe("managed member comparison", () => {
     const result = compareManagedMembers(
       { evidenceId: left.evidenceId, result: left.result },
       { evidenceId: right.evidenceId, result: right.result },
-      comparisonLimits,
     );
 
     expect(result.matching.exact_il_signature).toBe(0);
@@ -90,7 +82,6 @@ describe("managed member comparison", () => {
     const result = compareManagedMembers(
       { evidenceId: left.evidenceId, result: left.result },
       { evidenceId: right.evidenceId, result: right.result },
-      comparisonLimits,
     );
     const method = result.methods[0];
     expect(method).toBeDefined();
@@ -137,7 +128,6 @@ describe("managed member comparison", () => {
     const result = compareManagedMembers(
       { evidenceId: left.evidenceId, result: left.result },
       { evidenceId: right.evidenceId, result: right.result },
-      comparisonLimits,
     );
 
     expect(result.matching.exact_il_signature).toBe(0);
@@ -151,33 +141,22 @@ describe("managed member comparison", () => {
 });
 
 describe("managed member comparison uncertainty", () => {
-  it("keeps unmatched members unknown when the opposite page is incomplete", () => {
-    const left = inspect(buildManagedPeFixture(), "/tmp/left-paged.dll");
-    const right = inspect(buildManagedPeFixture(), "/tmp/right-paged.dll");
+  it("keeps unmatched members unknown when opposite metadata is incomplete", () => {
+    const left = inspect(buildManagedPeFixture(), "/tmp/left-partial.dll");
+    const right = inspect(buildManagedPeFixture(), "/tmp/right-partial.dll");
     const leftPartial = {
       ...left.result,
-      fields: {
-        ...left.result.fields,
-        items: [],
-        returned: 0,
-        dropped: 1,
-        complete: false,
-      },
+      fields: [],
+      coverage: { ...left.result.coverage, state: "partial" as const },
     };
     const rightPartial = {
       ...right.result,
-      methods: {
-        ...right.result.methods,
-        items: [],
-        returned: 0,
-        dropped: 1,
-        complete: false,
-      },
+      methods: [],
+      coverage: { ...right.result.coverage, state: "partial" as const },
     };
     const result = compareManagedMembers(
       { evidenceId: left.evidenceId, result: leftPartial },
       { evidenceId: right.evidenceId, result: rightPartial },
-      comparisonLimits,
     );
 
     expect(result.summary).toMatchObject({
@@ -189,69 +168,59 @@ describe("managed member comparison uncertainty", () => {
       status: "unknown",
       left: { token: "0x06000001" },
       right: null,
-      limitations: [expect.stringContaining("unknown-within-unobserved-page")],
+      limitations: [
+        expect.stringContaining("unknown-within-incomplete-metadata"),
+      ],
     });
     expect(result.fields[0]).toMatchObject({
       status: "unknown",
       left: null,
       right: { token: "0x04000001" },
-      limitations: [expect.stringContaining("unknown-within-unobserved-page")],
+      limitations: [
+        expect.stringContaining("unknown-within-incomplete-metadata"),
+      ],
     });
     expect(result.coverage).toEqual({
-      status: "truncated",
+      status: "partial",
       left_status: "partial",
       right_status: "partial",
-      omitted_methods: 1,
-      omitted_fields: 1,
-      omitted_candidates: 0,
     });
   });
 
   it("does not guess ambiguous field signature matches", () => {
     const left = inspect(buildManagedPeFixture(), "/tmp/left.dll");
-    const leftField = left.result.fields.items[0];
+    const leftField = left.result.fields[0];
     expect(leftField).toBeDefined();
     if (leftField === undefined) return;
     const duplicatedLeft = {
       ...left.result,
-      fields: {
-        ...left.result.fields,
-        items: [
-          leftField,
-          {
-            ...leftField,
-            token: "0x04000002",
-            name: "other",
-          },
-        ],
-        total: 2,
-        returned: 2,
-      },
+      fields: [
+        leftField,
+        {
+          ...leftField,
+          token: "0x04000002",
+          name: "other",
+        },
+      ],
     };
     const right = inspect(buildManagedPeFixture(), "/tmp/right.dll");
-    const rightField = right.result.fields.items[0];
+    const rightField = right.result.fields[0];
     expect(rightField).toBeDefined();
     if (rightField === undefined) return;
     const duplicatedRight = {
       ...right.result,
-      fields: {
-        ...right.result.fields,
-        items: [
-          rightField,
-          {
-            ...rightField,
-            token: "0x04000002",
-            name: "renamed",
-          },
-        ],
-        total: 2,
-        returned: 2,
-      },
+      fields: [
+        rightField,
+        {
+          ...rightField,
+          token: "0x04000002",
+          name: "renamed",
+        },
+      ],
     };
     const result = compareManagedMembers(
       { evidenceId: left.evidenceId, result: duplicatedLeft },
       { evidenceId: right.evidenceId, result: duplicatedRight },
-      comparisonLimits,
     );
 
     expect(result.matching.ambiguous).toBe(1);

@@ -7,7 +7,7 @@ import {
   type ProviderIdentity,
   type ExecutionOptions,
 } from "../application/AnalysisProvider.js";
-import { inventoryArtifact } from "../application/ArtifactInventory.js";
+import { inventoryArtifactFully } from "../application/ArtifactInventory.js";
 import { extractArtifact } from "../application/ArtifactExtraction.js";
 import {
   ARTIFACT_TOOL_CONTRACTS,
@@ -50,8 +50,6 @@ export class ArtifactProvider implements AnalysisProvider {
       Object.freeze({
         provider: IDENTITY,
         operation: contract.name,
-        inputContractVersion: 1,
-        outputContractVersion: 1,
         available: true as const,
         reason: null,
         pagination:
@@ -133,9 +131,9 @@ class ArtifactClient implements AnalysisClient {
             inputFormat: this.target.format,
             outputRoot: parsed.output_root,
             occurrenceIds: parsed.occurrence_ids,
-            offset: parsed.offset,
-            limit: parsed.limit,
-            limits: limitsFrom(parsed),
+            offset: 0,
+            limit: parsed.occurrence_ids.length,
+            limits: DEFAULT_ARTIFACT_LIMITS,
           },
           options?.signal,
         );
@@ -187,22 +185,10 @@ class ArtifactClient implements AnalysisClient {
   ) {
     const parsed = artifactInspectionInputSchema.parse(parameters);
     const inventoryParameters = artifactInventoryInputSchema.parse({
-      node_offset: 0,
-      node_limit: parsed.max_observations,
-      occurrence_offset: 0,
-      occurrence_limit: parsed.max_observations,
-      edge_offset: 0,
-      edge_limit: parsed.max_relationships,
       native_mount_approved: parsed.native_mount_approved,
       integrity_policy: parsed.integrity_policy,
       integrity_continue_approved: parsed.integrity_continue_approved,
       max_integrity_mismatches: parsed.max_integrity_mismatches,
-      max_entries: parsed.max_entries,
-      max_total_bytes: parsed.max_total_bytes,
-      max_entry_bytes: parsed.max_entry_bytes,
-      max_compression_ratio: parsed.max_compression_ratio,
-      max_depth: parsed.max_depth,
-      max_path_bytes: parsed.max_path_bytes,
     });
     await options?.progress?.report({
       phase: "inspect_artifact.inventory",
@@ -229,7 +215,7 @@ class ArtifactClient implements AnalysisClient {
       limitations: inventory.limitations,
       locations,
     });
-    const result = createArtifactInspection(inventoryEvidence, parsed);
+    const result = createArtifactInspection(inventoryEvidence);
     await options?.progress?.report({
       phase: "inspect_artifact.inventory",
       completed: 1,
@@ -248,36 +234,16 @@ class ArtifactClient implements AnalysisClient {
 
   private inventory(
     parsed: {
-      readonly node_offset: number;
-      readonly node_limit: number;
-      readonly occurrence_offset: number;
-      readonly occurrence_limit: number;
-      readonly edge_offset: number;
-      readonly edge_limit: number;
       readonly native_mount_approved: boolean;
       readonly integrity_policy: "fail" | "record-and-continue";
       readonly integrity_continue_approved: boolean;
       readonly max_integrity_mismatches: number;
-      readonly max_entries: number;
-      readonly max_total_bytes: number;
-      readonly max_entry_bytes: number;
-      readonly max_compression_ratio: number;
-      readonly max_depth: number;
-      readonly max_path_bytes: number;
     },
     options?: ExecutionOptions,
   ) {
-    return inventoryArtifact(
+    return inventoryArtifactFully(
       this.target.sourcePath ?? this.target.path,
-      limitsFrom(parsed),
-      {
-        nodeOffset: parsed.node_offset,
-        nodeLimit: parsed.node_limit,
-        occurrenceOffset: parsed.occurrence_offset,
-        occurrenceLimit: parsed.occurrence_limit,
-        edgeOffset: parsed.edge_offset,
-        edgeLimit: parsed.edge_limit,
-      },
+      DEFAULT_ARTIFACT_LIMITS,
       {
         ...(options?.signal === undefined ? {} : { signal: options.signal }),
         nativeMount: resolveNativeMountPolicy(
@@ -298,21 +264,14 @@ class ArtifactClient implements AnalysisClient {
   }
 }
 
-const limitsFrom = (input: {
-  readonly max_entries: number;
-  readonly max_total_bytes: number;
-  readonly max_entry_bytes: number;
-  readonly max_compression_ratio: number;
-  readonly max_depth: number;
-  readonly max_path_bytes: number;
-}): ArtifactLimits => ({
-  maxEntries: input.max_entries,
-  maxTotalBytes: input.max_total_bytes,
-  maxEntryBytes: input.max_entry_bytes,
-  maxCompressionRatio: input.max_compression_ratio,
-  maxDepth: input.max_depth,
-  maxPathBytes: input.max_path_bytes,
-});
+const DEFAULT_ARTIFACT_LIMITS: ArtifactLimits = {
+  maxEntries: 10_000,
+  maxTotalBytes: 1_073_741_824,
+  maxEntryBytes: 268_435_456,
+  maxCompressionRatio: 1_000,
+  maxDepth: 20,
+  maxPathBytes: 4_096,
+};
 
 const isArtifactOperation = (
   operation: AnalysisOperation,

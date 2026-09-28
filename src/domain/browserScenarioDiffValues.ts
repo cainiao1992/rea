@@ -146,7 +146,6 @@ const builtInNormalizationSchema = z.enum([
 
 /** Step alignment, recorded normalization, and bounded artifact differences. */
 export const browserScenarioDiffSchema = z.strictObject({
-  schema_version: z.literal(1),
   comparison_kind: z.literal("browser_scenario"),
   overall_status: z.enum(["changed", "unchanged", "unknown"]),
   normalization: z.strictObject({

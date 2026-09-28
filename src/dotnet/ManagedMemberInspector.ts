@@ -19,8 +19,6 @@ import {
   managedFailure,
 } from "./ManagedReaderFailure.js";
 import {
-  emptyPage,
-  page,
   parseTypes,
   typeRanges,
   type ManagedMemberInspectionLimits,
@@ -41,7 +39,6 @@ const unavailable = (
   issue: ManagedParseIssue | null,
 ): ManagedMemberInspection =>
   managedMemberInspectionSchema.parse({
-    schema_version: 1,
     artifact: {
       path: target.path,
       sha256: target.sha256,
@@ -59,12 +56,12 @@ const unavailable = (
       requires_artifact_sha256: target.sha256,
       requires_mvid: null,
     },
-    types: emptyPage(limits.typeOffset, limits.typeLimit),
-    fields: emptyPage(limits.fieldOffset, limits.fieldLimit),
-    methods: emptyPage(limits.methodOffset, limits.methodLimit),
-    member_refs: emptyPage(limits.memberRefOffset, limits.memberRefLimit),
-    call_edges: emptyPage(limits.edgeOffset, limits.edgeLimit),
-    field_accesses: emptyPage(limits.edgeOffset, limits.edgeLimit),
+    types: [],
+    fields: [],
+    methods: [],
+    member_refs: [],
+    call_edges: [],
+    field_accesses: [],
     coverage: {
       state: "unavailable",
       issues: issue === null ? [] : [issue],
@@ -144,12 +141,6 @@ const readMemberInventory = (
     bytes,
     layout,
     {
-      referenceOffset: 0,
-      referenceLimit: 1,
-      resourceOffset: 0,
-      resourceLimit: 1,
-      attributeOffset: 0,
-      attributeLimit: 1,
       maxHeapItemBytes: limits.maxHeapItemBytes,
     },
     resourceDirectory(pe),
@@ -190,7 +181,6 @@ export const inspectManagedMembersBytes = (
       memberRefs.core,
     );
     return managedMemberInspectionSchema.parse({
-      schema_version: 1,
       artifact: {
         path: target.path,
         sha256: target.sha256,
@@ -208,20 +198,12 @@ export const inspectManagedMembersBytes = (
         requires_artifact_sha256: target.sha256,
         requires_mvid: inventory.module?.mvid ?? null,
       },
-      types: page(types, limits.typeOffset, limits.typeLimit),
-      fields: page(fields.fields, limits.fieldOffset, limits.fieldLimit),
-      methods: page(methods.methods, limits.methodOffset, limits.methodLimit),
-      member_refs: page(
-        memberRefs.refs,
-        limits.memberRefOffset,
-        limits.memberRefLimit,
-      ),
-      call_edges: page(related.callEdges, limits.edgeOffset, limits.edgeLimit),
-      field_accesses: page(
-        related.fieldAccesses,
-        limits.edgeOffset,
-        limits.edgeLimit,
-      ),
+      types,
+      fields: fields.fields,
+      methods: methods.methods,
+      member_refs: memberRefs.refs,
+      call_edges: related.callEdges,
+      field_accesses: related.fieldAccesses,
       coverage: {
         state: coverageIssues.length === 0 ? "complete" : "partial",
         issues: coverageIssues,

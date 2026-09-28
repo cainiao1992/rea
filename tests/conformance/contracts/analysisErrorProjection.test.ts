@@ -82,7 +82,10 @@ describe("analysis error projection contract", () => {
           "invalid_request",
           "bridge_exception",
         ] as const
-      ).map((diagnostic) => new HopperRemoteError(9, "safe", diagnostic)),
+      ).map(
+        (diagnostic) =>
+          new HopperRemoteError(9, "safe", { diagnosticType: diagnostic }),
+      ),
     ];
 
     expect(variants).toHaveLength(39);

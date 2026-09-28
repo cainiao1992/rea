@@ -12,11 +12,6 @@ export const address = z
   );
 export const optionalAddress = address.optional();
 export const procedure = z.string().describe("The procedure name or address");
-export const pagination = {
-  offset: z.number().int().min(0).default(0),
-  limit: z.number().int().min(1).max(500).default(100),
-};
-
 const exampleInputSchema = z.record(z.string(), jsonValueSchema);
 
 export const examplesFor = (

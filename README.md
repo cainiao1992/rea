@@ -30,7 +30,7 @@
 
 See a feature in an app that you want in your own product? Give the app to your agent—even without its source code. With REA, the agent can investigate the feature, explain how it works, show its evidence, and build a version adapted to your stack and requirements.
 
-REA gives agents one consistent way to investigate software. Today that includes deep native analysis and function dossiers through Hopper or bring-your-own Ghidra on Linux, plus an experimental Windows x64 Ghidra P0 for approved native PE applications; execution-free managed PE/CLI triage; reproducible Evidence v2 records; controlled process capture; passive website, Electron page, and Node/Electron V8 Inspector observation; bounded JavaScript/source-map reconstruction; and a versioned domain graph for connecting JavaScript application layers without confusing static inference with runtime observation. The longer-term toolkit extends the same agent workflow to APIs, protocols, mobile artifacts, firmware, richer runtime behavior, and differences between versions.
+REA gives agents one consistent way to investigate software. Today that includes deep native analysis and function dossiers through Hopper or bring-your-own Ghidra on Linux, plus an experimental Windows x64 Ghidra P0 for approved native PE applications; execution-free managed PE/CLI triage; reproducible Evidence records; controlled process capture; passive website, Electron page, and Node/Electron V8 Inspector observation; bounded JavaScript/source-map reconstruction; and a versioned domain graph for connecting JavaScript application layers without confusing static inference with runtime observation. The longer-term toolkit extends the same agent workflow to APIs, protocols, mobile artifacts, firmware, richer runtime behavior, and differences between versions.
 
 Reverse engineering normally makes the operator choose a tool, learn its API, move evidence between programs, and decide what to inspect next. REA gives that work to the agent through commands, skills, structured results, and repeatable investigation workflows.
 
@@ -265,7 +265,7 @@ Uninstall preserves Hopper, Node.js, evidence, captures, external evidence roots
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | Ask an agent to investigate an app and build a feature           | Install the skill, then talk to your agent                                |
 | Inspect or decompile one part of an app from the Terminal        | `rea analyze` or `rea decompile`                                          |
-| Validate, canonicalize, or compare Evidence v2 bundles           | `rea evidence-import`, `rea evidence-export`, or `rea compare`            |
+| Validate, canonicalize, or compare Evidence bundles              | `rea evidence-import`, `rea evidence-export`, or `rea compare`            |
 | Run or resume a persistent two-version artifact analysis         | `rea investigate-versions`                                                |
 | Map a local JavaScript/Electron application without executing it | `rea analyze PATH --approved` or `rea analyze-javascript-application`     |
 | Reuse immutable analysis results without relaunching a provider  | Pass `--snapshot /approved/path/analysis.json` to a deep-analysis command |
@@ -276,7 +276,6 @@ Filesystem evidence commands and MCP file tools are disabled until the operator 
 
 ```bash
 export REA_EVIDENCE_ROOTS_JSON='["/absolute/path/to/evidence"]'
-export REA_INVESTIGATION_INPUT_ROOTS_JSON='["/absolute/path/to/releases"]'
 rea evidence-import /absolute/path/to/evidence/bundle.json
 rea evidence-export /absolute/path/to/evidence/bundle.json /absolute/path/to/evidence/canonical.json
 rea compare /absolute/path/to/evidence/left.json /absolute/path/to/evidence/right.json
@@ -288,17 +287,10 @@ rea analyze-javascript-application /absolute/path/to/releases/app.asar --approve
 For a directory or `.asar`, generic `rea analyze` automatically selects the
 static JavaScript application provider when neither `--provider` nor
 `--snapshot` is supplied. The dedicated command remains available for explicit
-format and resource-limit controls. Both routes require `--approved` and an
-administrator-approved investigation input root.
-
-If REA is registered with an MCP client, run approved `rea setup` while the
-explicit investigation-root variable is set, then restart that client. Setup
-copies this non-secret policy into the managed registration; changing the shell
-environment alone cannot update an already-running MCP process.
+format and traversal controls. Both routes read the selected local input path.
 
 `investigate-versions` inventories both versions, checkpoints their observed
 Evidence, derives an artifact comparison, and records a changed-behavior report.
-Both input paths must resolve beneath `REA_INVESTIGATION_INPUT_ROOTS_JSON`;
 workspace files remain independently restricted by `REA_EVIDENCE_ROOTS_JSON`.
 The workspace uses deterministic content identities and monotonic CAS-linked
 revisions, so the same request resumes an interrupted run or reuses a completed
@@ -314,10 +306,10 @@ export REA_REFERENCE_ROOTS_JSON='["/absolute/path/to/source"]'
 rea import-reference-source /absolute/path/to/source
 ```
 
-Exports never replace an existing file unless `--overwrite` is explicit. Imports are size/depth bounded, validate every Evidence v2 ID and manifest, and never execute bundle content.
+Exports never replace an existing file unless `--overwrite` is explicit. Imports are size/depth bounded, validate every Evidence ID and manifest, and never execute bundle content.
 
 Provider-neutral analysis snapshots persist successful, immutable REA calls and
-their Evidence v2 records. They are exact caches rather than Hopper databases:
+their Evidence records. They are exact caches rather than Hopper databases:
 REA reuses a v2 entry only when the binary digest, kind, format, architecture,
 operation parameters, concrete provider build, and canonical analysis-profile
 digest match. Hopper loader defaults and configured overrides are normalized by
@@ -384,10 +376,10 @@ REA handles the app analysis in steps 1–5. The agent performs step 6 with its 
 | Artifact graph            |     3 | bounded provider-neutral inspection, deterministic directory/ZIP/APK/IPA/MSIX/AppX/ASAR inventory, and explicitly selected extraction into an absent owned tree                                                                                                                                                                  |
 | Managed PE/CLI            |     8 | PE/CLI identity, metadata members, CIL hashes, P/Invoke/native-boundary declarations and verification, application-graph projection, decompiler reconstruction import, token remapping, runtime-correlation plans, and version comparison                                                                                        |
 | Browser observation       |     9 | exact-origin passive CDP capture, bundle and source-map analysis, WebMCP discovery, session timelines, capture diff, visual evidence, and bounded Playwright scenarios                                                                                                                                                           |
-| Electron analysis         |     5 | passive root-confined observation, bounded static application mapping, evidence-backed static/runtime reconciliation, and separately approved provider-owned click/wait scenarios                                                                                                                                                |
+| Electron analysis         |     5 | passive root-confined observation, static application mapping, evidence-backed static/runtime reconciliation, and provider-owned click/wait scenarios                                                                                                                                                                            |
 | JavaScript runtime        |     2 | approved attach-only Node/Electron Inspector target discovery plus bounded script and execution-context observation without evaluation or instrumentation                                                                                                                                                                        |
 | Application workflows     |    12 | bounded cross-layer traces, unique-only version matching, historical-source to bundle mapping, static export return-shape comparison, approved Linux-isolated extracted-module replay, managed-runtime characterization, reconstruction coverage closure, deterministic obligation ledgers, and end-to-end readiness conformance |
-| Workspace and observation |    23 | target lifecycle, Evidence v2 bundle snapshots, retained-bundle release, aggregate navigation/address context, direct finite replay-machine evaluation, process/artifact/function comparison, evidence-linked residual-unknown lifecycle                                                                                         |
+| Workspace and observation |    22 | target lifecycle, inline Evidence bundle retrieval, aggregate navigation/address context, direct finite replay-machine evaluation, process/artifact/function comparison, evidence-linked residual-unknown lifecycle                                                                                                              |
 
 The public interface describes what the agent is trying to learn. Providers decide how to answer. macOS utilities handle common semantic inspection without launching Hopper; Hopper handles deeper native analysis; the process harness implements controlled behavioral capture.
 
@@ -412,10 +404,10 @@ REA is already useful for native application, browser, and Electron investigatio
 - Traverse content-addressed artifact graphs without extraction; on macOS, read-only DMG traversal additionally requires `native_mount_approved: true` and `REA_ARTIFACT_NATIVE_MOUNT_ENABLED=true`. Materialize only approved occurrences into absent output roots.
 - Build bounded function dossiers with pseudocode, assembly, CFG edges, comments, calls, references, strings, and names.
 - Search and trace features across symbols, strings, metadata, references, and call paths.
-- Record every successful result as deterministic Evidence v2 with artifact and provider identity, confidence, authority, limitations, and locations.
+- Record every successful result as deterministic Evidence with artifact and provider identity, confidence, authority, limitations, and locations.
 - Export and import evidence bundles across sessions.
 - Persist automatic cross-version artifact runs as canonical, lock-protected workspaces with tamper-evident revision commitments.
-- Capture approved PTY scenarios as Process Capture v4 Evidence, including committed run manifests, raw and rendered terminal frames, scripted interactions, descendant settlement, named filesystem checkpoints, deterministic command shims, and loopback HTTP/WebSocket exchanges.
+- Capture approved PTY scenarios as Process Capture Evidence, including committed run manifests, raw and rendered terminal frames, scripted interactions, descendant settlement, named filesystem checkpoints, deterministic command shims, and loopback HTTP/WebSocket exchanges.
 - Validate finite replay machines without launching a target through `run_replay_machine` or `rea run-replay-machine`; ordered events return typed decisions, actions, captured aliases, transition journals, final state, and exact limit use without echoing request or captured values.
 - Compare complete artifact inventories by stable path, content, metadata, and relations; incomplete evidence never implies equivalence.
 - Compare explicit function dossiers across text, calls, references, strings, and address-normalized CFG topology with per-facet unknowns.
@@ -443,7 +435,7 @@ rea list-browser-targets http://127.0.0.1:9222 --approved --json
 rea inspect-web-page http://127.0.0.1:9222 TARGET_ID --approved --json
 ```
 
-All eight browser tools expose the same Evidence v2 contracts over CLI and MCP. Inspection is passive: REA does not evaluate page JavaScript, navigate, click, close the page, or close the browser. Query values, credentials, cookies, authorization headers, storage values, and raw JSON or WebSocket values are never retained. Separately approved captures can retain bounded redacted console primitives, value-free JSON/WebSocket shapes, script sources, accessibility text, or screenshot pixels. Existing activity before attach is explicitly unavailable. See [Website observation with CDP](docs/browser-observation.md) for browser startup, schemas, limits, and the threat model.
+All eight browser tools expose the same Evidence contracts over CLI and MCP. Inspection is passive: REA does not evaluate page JavaScript, navigate, click, close the page, or close the browser. Query values, credentials, cookies, authorization headers, storage values, and raw JSON or WebSocket values are never retained. Separately approved captures can retain bounded redacted console primitives, value-free JSON/WebSocket shapes, script sources, accessibility text, or screenshot pixels. Existing activity before attach is explicitly unavailable. See [Website observation with CDP](docs/browser-observation.md) for browser startup, schemas, limits, and the threat model.
 
 ### Controlled browser scenarios
 
@@ -494,7 +486,7 @@ require/import edges, EventEmitter activity, Electron IPC, PID identity, and
 Electron role identity stay explicit unknowns. See
 [passive Node and Electron runtime observation](docs/javascript-runtime-observation.md).
 
-Exact package, tool-family, provider, setup-client, public schema-version, and CLI facts are generated from source in [`docs/product-catalog.json`](docs/product-catalog.json). PR CI verifies this catalog, narrative documentation, generated schemas, and a clean TypeDoc render.
+Exact package, tool-family, provider, setup-client, schema, and CLI facts are generated from source in [`docs/product-catalog.json`](docs/product-catalog.json). PR CI verifies this catalog, narrative documentation, generated schemas, and a clean TypeDoc render.
 
 ## Roadmap
 
@@ -508,7 +500,7 @@ REA is growing into a toolkit for understanding software across static artifacts
 ### Next
 
 1. **Controlled replay conformance growth** — extend the shipped Linux extracted-module sandbox with more source-owned hostile fixtures and cross-kernel conformance; browser and Electron scenarios remain separately permissioned authorities.
-2. **Broader application graph evidence** — extend authenticated cross-layer traces with additional static extractors and separately approved runtime authorities.
+2. **Broader application graph evidence** — extend authenticated cross-layer traces with additional static extractors and additional runtime authorities.
 3. **Professional managed-code analysis** — extend shipped PE/CLI triage, CIL evidence, managed/native declaration inventory, source-owned conformance, and obfuscation-resistant comparisons toward verified native-provider composition under the accepted [managed-code boundary](docs/managed-code-analysis.md).
 4. **Deterministic behavior harnesses** — extend process ownership, protocol fixtures, filesystem observation, reconnects, and cross-version behavioral comparison.
 
@@ -587,7 +579,6 @@ The agent workflow above is the easiest way to use REA. For a one-off overview f
 ```bash
 npx -y rea-agents@latest analyze /Applications/Notes.app
 npx -y rea-agents@latest inspect /Applications/Notes.app
-npx -y rea-agents@latest inspect /Applications/Notes.app --detail detailed --limit 20
 npx -y rea-agents@latest search /Applications/Notes.app "offline"
 npx -y rea-agents@latest function /Applications/Notes.app 0x1000
 npx -y rea-agents@latest xrefs /Applications/Notes.app 0x1000
@@ -600,7 +591,7 @@ npx -y rea-agents@latest providers
 
 Run `npx -y rea-agents@latest --help` for direct decompilation, bounded search and
 other options. `analyze` and `inspect` share the same overview workflow;
-`function`, `xrefs`, and `trace` return the same Evidence v2 envelopes as MCP.
+`function`, `xrefs`, and `trace` return the same Evidence envelopes as MCP.
 
 Or install the `rea` command globally:
 
@@ -709,7 +700,7 @@ Set `REA_PROCESS_CAPTURE_AUTO_GRANT=false` to configure those process-capture
 limits as a ceiling without implicitly granting them. This mode remains
 fail-closed until a narrower grant is established.
 
-Capture a scenario or compare two saved Process Capture v4 Evidence records:
+Capture a scenario or compare two saved Process Capture Evidence records:
 
 ```bash
 rea capture-process ./scenario.json > authority.json
@@ -719,7 +710,7 @@ rea compare-process-captures authority.json reconstruction.json
 
 The comparison reports each observed dimension separately and identifies the
 first terminal, interaction, exit, filesystem, protocol, process, or shim
-divergence. See [Process Capture v4](docs/process-capture.md) for scenario
+divergence. See [Process Capture](docs/process-capture.md) for scenario
 fields, command-shim replay, checkpoint triggers, limits, and safety behavior.
 
 REA installs a prebuilt PTY backend for supported macOS, Linux, and Windows
@@ -803,7 +794,7 @@ natural MCP use, first-tool routing, repeated calls, actual Codex token usage,
 completion quality, and explicit treatment of authority and unknowns.
 
 `npm run evidence:generate` regenerates the managed conformance manifest and
-Evidence v2 completion ledger from live verifier output. `npm run
+Evidence completion ledger from live verifier output. `npm run
 evidence:check` reruns the verifier and fails when artifacts, scenarios,
 providers, schemas, claim counts, Evidence IDs, or the bundled skill have
 drifted. Unsupported claims remain explicit and never count as passes.

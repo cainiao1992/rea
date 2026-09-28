@@ -196,7 +196,6 @@ const fixtureGraph = (withUnknown = false): JavaScriptSemanticGraph => {
   });
   return createJavaScriptSemanticGraph({
     schema: "JavaScriptSemanticRelationGraph",
-    schema_version: 1,
     root_artifact_sha256: SHA,
     application_graph_id: JAG_ID,
     root_node_ids: [module.node_id],
@@ -216,7 +215,7 @@ const fixtureGraph = (withUnknown = false): JavaScriptSemanticGraph => {
   });
 };
 
-it("defines every required v1 relation family and canonicalizes records", () => {
+it("defines every required relation family and canonicalizes records", () => {
   expect(JAVASCRIPT_SEMANTIC_RELATIONS).toContain("argument-to-parameter");
   expect(JAVASCRIPT_SEMANTIC_RELATIONS).toContain("detaches-task");
   expect(JAVASCRIPT_SEMANTIC_RELATIONS).toContain("forwards-signal");

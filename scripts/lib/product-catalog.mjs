@@ -7,7 +7,6 @@ import {
   cliCommandOptionNames,
 } from "./catalog-cli.mjs";
 import { providerCatalog, toolFamilyCatalog } from "./catalog-builders.mjs";
-import { schemaCatalog } from "./catalog-schemas.mjs";
 
 export {
   createCliInventory,
@@ -31,7 +30,6 @@ export const createProductCatalog = async (root) => {
   const providers = providerCatalog(sources);
   const metadata = sources.packageMetadata.PACKAGE_METADATA;
   return {
-    catalog_schema_version: 1,
     package: {
       name: metadata.name,
       version: metadata.version,
@@ -52,7 +50,6 @@ export const createProductCatalog = async (root) => {
         configuration: format === "unsupported" ? "detect-only" : "managed",
       }),
     ),
-    schemas: schemaCatalog(sources),
     cli: {
       primary_count: cli.primary.length,
       commands: cli.primary,

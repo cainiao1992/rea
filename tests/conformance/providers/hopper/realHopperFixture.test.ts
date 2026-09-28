@@ -22,9 +22,9 @@ describe("real Hopper fixture binding", () => {
         secondary: { path: join(root ?? "", "version-v2") },
         large: { path: join(root ?? "", "large") },
         largeOracle: {
-          symbolPrefix: "_rea_page_",
+          symbolPrefix: "_rea_inventory_",
           symbolCount: 1_205,
-          stringPrefix: "REA_PAGE_",
+          stringPrefix: "REA_INVENTORY_",
           stringCount: 1_205,
         },
         oracle: {
@@ -120,9 +120,9 @@ const fixtureManifest = async (): Promise<string> => {
           artifact: "large",
           artifactSha256: digest(Buffer.from("large")),
           expectations: {
-            symbolPrefix: "_rea_page_",
+            symbolPrefix: "_rea_inventory_",
             symbolCount: 1_205,
-            stringPrefix: "REA_PAGE_",
+            stringPrefix: "REA_INVENTORY_",
             stringCount: 1_205,
           },
         },

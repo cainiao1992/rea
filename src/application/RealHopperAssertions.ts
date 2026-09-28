@@ -2,27 +2,12 @@ import { z } from "zod";
 
 const addressSchema = z.string().regex(/^0x[0-9a-f]+$/iu);
 const identitySchema = z.object({ address: addressSchema, name: z.string() });
-const collectionSchema = z.object({
-  items: z.array(z.unknown()),
-  total: z.number().int().min(0).nullable(),
-  returned: z.number().int().min(0),
-  truncated: z.boolean(),
-  next_offset: z.number().int().min(0).nullable(),
-});
-
-/** Extract a real address from the provider's exact procedure page. */
+/** Extract one real procedure address from the complete inline inventory. */
 export const firstProcedureAddress = (input: unknown): string => {
-  const page = z
-    .object({
-      items: z.array(z.object({ address: addressSchema })).min(1),
-      offset: z.number().int().min(0),
-      limit: z.number().int().min(1),
-      total: z.number().int().min(1),
-      next_offset: z.number().int().min(0).nullable(),
-      has_more: z.boolean(),
-    })
-    .parse(input);
-  const first = page.items[0];
+  const first = z
+    .array(z.object({ address: addressSchema }))
+    .min(1)
+    .parse(input)[0];
   if (first === undefined) throw new TypeError("Procedure page was empty");
   return first.address;
 };
@@ -56,7 +41,7 @@ export const requirePseudocode = (
   return input;
 };
 
-/** Validate an exact bounded Hopper function dossier semantically. */
+/** Validate a complete Hopper function dossier semantically. */
 export const requireFunctionDossier = (
   input: unknown,
   expectedAddress: string,
@@ -70,13 +55,11 @@ export const requireFunctionDossier = (
     throw new TypeError("analyze_function returned the wrong procedure");
   if (procedure.name.trim().length === 0)
     throw new TypeError("analyze_function omitted the procedure name");
-  validatePseudocodeBounds(value.pseudocode);
-  for (const field of COLLECTION_FIELDS)
-    validateCollection(value[field], field);
+  requirePseudocode(value.pseudocode, "analyze_function");
+  for (const field of COLLECTION_FIELDS) list(value, field);
   for (const field of ["callers", "callees"] as const)
-    z.array(identitySchema).parse(collectionSchema.parse(value[field]).items);
-  validateBlocks(collectionSchema.parse(value.basic_blocks).items);
-  validateInstructionScan(value.instruction_scan);
+    z.array(identitySchema).parse(list(value, field));
+  validateBlocks(list(value, "basic_blocks"));
   return value;
 };
 
@@ -99,9 +82,7 @@ export const requireFunctionDossierOracle = (
 ): Record<string, unknown> => {
   const value = requireFunctionDossier(input, oracle.procedure_address);
   if (oracle.callee_address !== undefined) {
-    const callees = z
-      .array(identitySchema)
-      .parse(collectionSchema.parse(value.callees).items);
+    const callees = z.array(identitySchema).parse(list(value, "callees"));
     if (!callees.some(({ address }) => address === oracle.callee_address))
       throw new TypeError(
         "analyze_function omitted the expected fixture callee",
@@ -114,7 +95,7 @@ export const requireFunctionDossierOracle = (
           target_address: addressSchema,
         }),
       )
-      .parse(collectionSchema.parse(value.outgoing_references).items);
+      .parse(list(value, "outgoing_references"));
     if (
       !references.some(
         ({ target_address }) => target_address === oracle.callee_address,
@@ -126,9 +107,7 @@ export const requireFunctionDossierOracle = (
   }
 
   if (oracle.caller_address !== undefined) {
-    const callers = z
-      .array(identitySchema)
-      .parse(collectionSchema.parse(value.callers).items);
+    const callers = z.array(identitySchema).parse(list(value, "callers"));
     if (!callers.some(({ address }) => address === oracle.caller_address))
       throw new TypeError(
         "analyze_function omitted the expected fixture caller",
@@ -160,7 +139,7 @@ export const requireFunctionDossierOracle = (
           text: z.string(),
         }),
       )
-      .parse(collectionSchema.parse(value.comments).items);
+      .parse(list(value, "comments"));
     if (
       !comments.some(
         ({ address, kind, text }) =>
@@ -172,16 +151,13 @@ export const requireFunctionDossierOracle = (
       throw new TypeError("analyze_function omitted the verifier comment");
   }
 
-  if (
-    oracle.require_assembly === true &&
-    collectionSchema.parse(value.assembly).items.length === 0
-  )
+  if (oracle.require_assembly === true && list(value, "assembly").length === 0)
     throw new TypeError("analyze_function omitted fixture assembly");
 
   if (oracle.require_cfg_successor) {
     const blocks = z
       .array(z.object({ successors: z.array(addressSchema) }))
-      .parse(collectionSchema.parse(value.basic_blocks).items);
+      .parse(list(value, "basic_blocks"));
     if (!blocks.some(({ successors }) => successors.length > 0))
       throw new TypeError("analyze_function omitted a real CFG successor");
   }
@@ -205,12 +181,10 @@ const requireReferencedValue = (
   expected: string,
   normalize: (value: string) => string,
 ): void => {
-  const values = z
-    .array(referencedValueSchema)
-    .parse(collectionSchema.parse(dossier[field]).items);
+  const values = z.array(referencedValueSchema).parse(list(dossier, field));
   const references = z
     .array(referenceEdgeSchema)
-    .parse(collectionSchema.parse(dossier.outgoing_references).items);
+    .parse(list(dossier, "outgoing_references"));
   const found = values.some(
     ({ address, value, source_address: sourceAddress }) =>
       normalize(value) === expected &&
@@ -248,44 +222,13 @@ const COLLECTION_FIELDS = [
   "basic_blocks",
 ] as const;
 
-const validatePseudocodeBounds = (input: unknown): void => {
-  const pseudocode = z
-    .object({
-      text: z.string(),
-      returned_chars: z.number().int().min(0),
-      total_chars: z.number().int().min(0),
-    })
-    .parse(input);
-  const text = requirePseudocode(pseudocode.text, "analyze_function");
-  if (
-    pseudocode.returned_chars !== [...text].length ||
-    pseudocode.total_chars < pseudocode.returned_chars
-  )
-    throw new TypeError(
-      "analyze_function returned inconsistent pseudocode bounds",
-    );
-};
-
-const validateCollection = (input: unknown, field: string): void => {
-  const collection = collectionSchema.parse(input);
-  if (collection.returned !== collection.items.length)
-    throw new TypeError(`analyze_function returned an invalid ${field} result`);
-};
+const list = (value: Record<string, unknown>, field: string): unknown[] =>
+  z.array(z.unknown()).parse(value[field]);
 
 const validateBlocks = (items: readonly unknown[]): void => {
   for (const block of items)
     if (!Array.isArray(objectValue(block, "Invalid basic block").successors))
       throw new TypeError("analyze_function omitted CFG successor evidence");
-};
-
-const validateInstructionScan = (input: unknown): void => {
-  const scan = z
-    .object({ scanned: z.number().int().min(0), truncated: z.boolean() })
-    .parse(input);
-  if (scan.scanned === 0 && !scan.truncated)
-    throw new TypeError(
-      "analyze_function omitted instruction scan limitations",
-    );
 };
 
 const objectValue = (

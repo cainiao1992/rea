@@ -9,7 +9,6 @@ import {
   type GhidraFunctionOperation,
 } from "./GhidraFunctionValues.js";
 import {
-  ghidraBounded,
   ghidraFunctionClassification,
   ghidraFunctionDossier,
   ghidraFunctionIdentity,
@@ -18,7 +17,7 @@ import {
 } from "../domain/hopperValues.fixture.js";
 
 describe("Ghidra function-analysis boundary values", () => {
-  it("defaults bounded inputs and rejects undeclared or implicit addresses", () => {
+  it("defaults inputs and rejects undeclared or implicit addresses", () => {
     expect(
       parseGhidraFunctionInput("procedure_info", { procedure: "main" }),
     ).toEqual({
@@ -33,25 +32,13 @@ describe("Ghidra function-analysis boundary values", () => {
         document: null,
         procedure: "main",
         direction: "outgoing",
-        offset: 0,
-        limit: 100,
-        max_instructions: 500,
       },
     });
     expect(
       parseGhidraFunctionInput("analyze_function", { procedure: "main" }),
     ).toMatchObject({
       ok: true,
-      value: {
-        procedure: "main",
-        include_assembly: false,
-        limit: 100,
-        max_pseudocode_chars: 20_000,
-        max_instructions: 500,
-        pseudocode_offset: 0,
-        assembly_offset: 0,
-        collection_offset: { basic_blocks: 0, outgoing_references: 0 },
-      },
+      value: { procedure: "main" },
     });
     expect(
       parseGhidraFunctionInput("read_function_instructions", {
@@ -59,12 +46,7 @@ describe("Ghidra function-analysis boundary values", () => {
       }),
     ).toEqual({
       ok: true,
-      value: {
-        document: null,
-        procedure: "main",
-        offset: 0,
-        limit: 64,
-      },
+      value: { document: null, procedure: "main" },
     });
     expect(parseGhidraFunctionInput("xrefs", {})).toMatchObject({
       ok: false,
@@ -93,9 +75,7 @@ describe("Ghidra function-analysis result values", () => {
     expect(
       parseGhidraFunctionResult("read_function_instructions", {
         procedure: ghidraFunctionIdentity(),
-        instructions: ghidraBounded(["0x401000: push rbp"]),
-        instructions_scanned: 1,
-        instruction_scan_truncated: false,
+        instructions: ["0x401000: push rbp"],
         limitations: ["Ghidra-specific instruction text."],
       }),
     ).toMatchObject({ ok: true });
@@ -105,9 +85,7 @@ describe("Ghidra function-analysis result values", () => {
           ...ghidraFunctionIdentity(),
           address: "0X401000",
         },
-        instructions: ghidraBounded(["0x401000: push rbp"]),
-        instructions_scanned: 1,
-        instruction_scan_truncated: false,
+        instructions: ["0x401000: push rbp"],
         limitations: ["Ghidra-specific instruction text."],
       }),
     ).toMatchObject({
@@ -134,24 +112,20 @@ describe("Ghidra function-analysis result values", () => {
       parseGhidraFunctionResult("procedure_references", {
         procedure: ghidraFunctionIdentity(),
         direction: "outgoing",
-        references: ghidraBounded([ghidraReferenceEdge()]),
-        instructions_scanned: 2,
-        instruction_scan_truncated: false,
+        references: [ghidraReferenceEdge()],
       }),
     ).toMatchObject({
       ok: true,
       value: {
-        references: {
-          items: [
-            {
-              kind: {
-                available: true,
-                provenance: "ghidra-reference-manager",
-                data: true,
-              },
+        references: [
+          {
+            kind: {
+              available: true,
+              provenance: "ghidra-reference-manager",
+              data: true,
             },
-          ],
-        },
+          },
+        ],
       },
     });
     expect(
@@ -230,11 +204,9 @@ const malformedOutputs = (): Array<
       {
         procedure: ghidraFunctionIdentity(),
         direction: "outgoing",
-        references: ghidraBounded([
+        references: [
           { ...edge, kind: { available: false, reason: "unknown" } },
-        ]),
-        instructions_scanned: 1,
-        instruction_scan_truncated: false,
+        ],
       },
     ],
     [

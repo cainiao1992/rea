@@ -12,7 +12,6 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { ArtifactProvider } from "../../../src/artifacts/ArtifactProvider.js";
 import { ARTIFACT_COMPARISON_EXAMPLE } from "../../../src/contracts/artifactComparisonExample.js";
-import { evidenceBundleSchema } from "../../../src/domain/evidenceBundle.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { observed } from "../../fixtures/analysisExecution.js";
 
@@ -99,6 +98,7 @@ const artifactInventoryResultSchema = z.object({
     items: z.array(
       z.object({ logical_path: z.string(), hash_status: z.string() }),
     ),
+    total: z.number(),
   }),
   integrity_contradictions: z.array(
     z.object({
@@ -144,18 +144,6 @@ it("records an approved mismatch, preserves verified siblings, and never reports
       name: "open_binary",
       arguments: { path: archive },
     });
-    const limited = await client.callTool({
-      name: "inventory_artifact",
-      arguments: {
-        integrity_policy: "record-and-continue",
-        integrity_continue_approved: true,
-        max_integrity_mismatches: 1,
-      },
-    });
-    expect(limited).toMatchObject({
-      isError: true,
-      structuredContent: { error: { code: "truncated" } },
-    });
     const result = await client.callTool({
       name: "inventory_artifact",
       arguments: {
@@ -163,7 +151,9 @@ it("records an approved mismatch, preserves verified siblings, and never reports
         integrity_continue_approved: true,
       },
     });
-    expect(result.isError).not.toBe(true);
+    expect(result.isError, JSON.stringify(result.structuredContent)).not.toBe(
+      true,
+    );
     const compact = compactResult(result.structuredContent);
     const evidence = session.evidenceById(compact.evidence_id);
     if (evidence === undefined) throw new Error("missing inventory Evidence");
@@ -275,7 +265,12 @@ it("rejects altered payloads that reuse session Evidence IDs", async () => {
       },
     });
     expect(result.isError).toBe(true);
-    expect(session.exportEvidenceBundle().records).toHaveLength(2);
+    expect(
+      session.evidenceById(ARTIFACT_COMPARISON_EXAMPLE.left.evidence_id),
+    ).toBeDefined();
+    expect(
+      session.evidenceById(ARTIFACT_COMPARISON_EXAMPLE.right.evidence_id),
+    ).toBeDefined();
   } finally {
     await Promise.allSettled([client.close(), server.close(), session.close()]);
   }
@@ -302,13 +297,18 @@ it("rejects comparison Evidence that is not owned by the session", async () => {
       arguments: ARTIFACT_COMPARISON_EXAMPLE,
     });
     expect(result.isError).toBe(true);
-    expect(session.exportEvidenceBundle().records).toEqual([]);
+    expect(
+      session.evidenceById(ARTIFACT_COMPARISON_EXAMPLE.left.evidence_id),
+    ).toBeUndefined();
+    expect(
+      session.evidenceById(ARTIFACT_COMPARISON_EXAMPLE.right.evidence_id),
+    ).toBeUndefined();
   } finally {
     await Promise.allSettled([client.close(), server.close(), session.close()]);
   }
 });
 
-it("opens archives without Hopper, compares them, and exports linked evidence", async () => {
+it("returns full artifact graphs inline and compares changed inventories", async () => {
   const directory = await createTestTempDirectory("rea-artifact-mcp-");
   const archive = join(directory, "fixture.ipa");
   const changedArchive = join(directory, "changed.ipa");
@@ -336,7 +336,7 @@ it("opens archives without Hopper, compares them, and exports linked evidence", 
     expect(opened.isError).not.toBe(true);
     const inspected = await client.callTool({
       name: "inspect_artifact",
-      arguments: { max_observations: 1, max_relationships: 1 },
+      arguments: {},
     });
     expect(inspected.isError).not.toBe(true);
     const inspectionResult = compactResult(inspected.structuredContent);
@@ -354,10 +354,9 @@ it("opens archives without Hopper, compares them, and exports linked evidence", 
           }),
         ),
         coverage: z.object({
-          status: z.literal("truncated"),
+          status: z.literal("complete-within-substeps"),
           substeps_completed: z.literal(1),
         }),
-        unexplored_branches: z.array(z.object({ reason: z.string() })),
       })
       .parse(inspectionResult.result);
     expect(inspection.substeps).toHaveLength(1);
@@ -367,11 +366,6 @@ it("opens archives without Hopper, compares them, and exports linked evidence", 
     expect(inspectionEvidence.evidence_links).toEqual([
       inspection.substeps[0]?.evidence_id,
     ]);
-    expect(inspection.unexplored_branches).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ reason: "page-limit" }),
-      ]),
-    );
     const inventory = await client.callTool({
       name: "inventory_artifact",
       arguments: {},
@@ -384,9 +378,22 @@ it("opens archives without Hopper, compares them, and exports linked evidence", 
       provider: { id: "rea-artifact-graph" },
       subject: { format: "ipa" },
     });
-    expect(inventoryResult.result).toMatchObject({
-      manifest: { root_format: "ipa" },
-    });
+    expect(
+      z
+        .object({
+          manifest: z.object({ root_format: z.literal("ipa") }),
+          occurrences: z.object({
+            items: z.array(z.object({ logical_path: z.string() })),
+          }),
+        })
+        .parse(inventoryResult.result).occurrences.items,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          logical_path: "Payload/Fixture.app/main.js",
+        }),
+      ]),
+    );
     const openedChanged = await client.callTool({
       name: "open_binary",
       arguments: { path: changedArchive },
@@ -421,31 +428,10 @@ it("opens archives without Hopper, compares them, and exports linked evidence", 
       result: {
         items: [
           expect.objectContaining({
-            unknown: expect.objectContaining({
-              domain: "artifact-comparison",
-            }),
+            domain: "artifact-comparison",
           }),
         ],
       },
-    });
-    const snapshotted = await client.callTool({
-      name: "snapshot_evidence_bundle",
-      arguments: {},
-    });
-    const bundleUri = z
-      .object({ result: z.object({ bundle_uri: z.string() }) })
-      .parse(snapshotted.structuredContent).result.bundle_uri;
-    const bundleResource = await client.readResource({ uri: bundleUri });
-    const bundle = evidenceBundleSchema.parse(
-      JSON.parse(
-        z.object({ text: z.string() }).parse(bundleResource.contents[0]).text,
-      ),
-    );
-    expect(bundle.records).toHaveLength(6);
-    expect(bundle.artifacts).toContainEqual({
-      digest: { sha256: evidence.subject?.digest.sha256 },
-      format: "ipa",
-      architecture: null,
     });
   } finally {
     await Promise.allSettled([client.close(), server.close(), session.close()]);
@@ -457,6 +443,5 @@ const compactResult = (value: unknown) =>
     .object({
       result: z.unknown(),
       evidence_id: z.string(),
-      evidence_uri: z.string(),
     })
     .parse(value);

@@ -27,7 +27,7 @@ describe("Ghidra MCP capability routing", () => {
 
       const status = await mcp.callTool({
         name: "binary_session",
-        arguments: { detail: "full" },
+        arguments: {},
       });
       expect(status.structuredContent).toMatchObject({
         result: {

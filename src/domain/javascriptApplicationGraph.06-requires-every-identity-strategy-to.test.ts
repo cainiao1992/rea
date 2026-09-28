@@ -56,7 +56,6 @@ const unknownEvidence = (
 const graphForNode = (node: ApplicationNode): JavaScriptApplicationGraph =>
   createJavaScriptApplicationGraph({
     schema: "JavaScriptApplicationGraph",
-    schema_version: 1,
     root_node_ids: [node.node_id],
     nodes: [node],
     edges: [],

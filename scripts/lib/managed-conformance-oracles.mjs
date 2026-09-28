@@ -39,7 +39,7 @@ async function runManagedAppManifestSelfTest(context) {
     sample.target,
     context.memberLimits,
   );
-  const method = members.methods.items[0];
+  const method = members.methods[0];
   assert.ok(method);
   const summary = await context.verifyManagedAppManifest(
     {
@@ -143,7 +143,7 @@ async function runOptionalIlspyOracle(context) {
     sample.target,
     context.memberLimits,
   );
-  const method = members.methods.items[0];
+  const method = members.methods[0];
   ensureIlspy(method !== undefined, "source-owned fixture has no method");
   const listOutput = await runIlspy(
     ilspyPath,

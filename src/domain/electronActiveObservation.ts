@@ -66,7 +66,6 @@ const limitsSchema = z.strictObject({
 /** Input for one explicit, provider-owned Electron runtime experiment. */
 export const electronActiveObservationInputSchema = z
   .strictObject({
-    schema_version: z.literal(1),
     executable_path: absolutePathSchema,
     application_path: absolutePathSchema,
     application_root: absolutePathSchema,
@@ -264,7 +263,6 @@ const actionResultSchema = z.discriminatedUnion("status", [
 
 /** Bounded result of a provider-owned Electron runtime experiment. */
 export const electronActiveObservationResultSchema = z.strictObject({
-  schema_version: z.literal(1),
   application: z.strictObject({
     executable_path: absolutePathSchema,
     application_path: absolutePathSchema,

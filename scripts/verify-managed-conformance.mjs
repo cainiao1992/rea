@@ -21,7 +21,6 @@ import {
 } from "./lib/managed-pe-fixture.mjs";
 import { createManagedConformanceSupport } from "./lib/managed-conformance-support.mjs";
 import {
-  applicationGraphLimits,
   comparisonLimits,
   defaultIlBody,
   functionDossier,
@@ -45,7 +44,6 @@ const {
   workspace,
   inspectionLimits,
   memberLimits,
-  applicationGraphLimits,
   defaultIlBody,
 });
 
@@ -66,7 +64,7 @@ try {
     ".NETCoreApp,Version=v8.0",
   ]);
   assert.equal(
-    modernArtifact.resources.items[0]?.data_sha256,
+    modernArtifact.resources[0]?.data_sha256,
     sha256(Buffer.from("source-owned managed resource")),
   );
 
@@ -94,17 +92,14 @@ try {
     framework.target,
     nativeBoundaryLimits,
   );
-  assert.equal(frameworkBoundaries.pinvoke_imports.total, 1);
+  assert.equal(frameworkBoundaries.pinvoke_imports.length, 1);
   assert.equal(
-    frameworkBoundaries.pinvoke_imports.items[0]?.verification,
+    frameworkBoundaries.pinvoke_imports[0]?.verification,
     "managed-declaration-only",
   );
+  assert.equal(frameworkBoundaries.pinvoke_imports[0]?.char_set, "unicode");
   assert.equal(
-    frameworkBoundaries.pinvoke_imports.items[0]?.char_set,
-    "unicode",
-  );
-  assert.equal(
-    frameworkBoundaries.pinvoke_imports.items[0]?.call_convention,
+    frameworkBoundaries.pinvoke_imports[0]?.call_convention,
     "stdcall",
   );
   const frameworkMembers = inspectManagedMembersBytes(
@@ -173,10 +168,6 @@ try {
   const nativeVerification = verifyManagedNativeBoundariesEvidence({
     managed_boundaries: frameworkBoundaryEvidence,
     native_observations: [nativeFunctionEvidence],
-    limits: {
-      max_native_observations: 20,
-      max_candidates_per_import: 25,
-    },
   });
   assert.equal(nativeVerification.ok, true);
   assert.equal(nativeVerification.value.normalized_result.summary.verified, 1);
@@ -184,13 +175,6 @@ try {
     managed_artifact: frameworkArtifactEvidence,
     managed_members: frameworkMemberEvidence,
     managed_native_boundaries: frameworkBoundaryEvidence,
-    limits: {
-      max_types: 100,
-      max_methods: 100,
-      max_fields: 100,
-      max_pinvoke_imports: 100,
-      max_native_implementations: 100,
-    },
   });
   assert.equal(applicationGraph.ok, true);
   assert.equal(
@@ -213,13 +197,6 @@ try {
       case_sensitive: true,
     },
     direction: "incoming",
-    limits: {
-      max_seed_matches: 5,
-      max_depth: 4,
-      max_nodes: 50,
-      max_edges: 100,
-      max_paths: 10,
-    },
   });
   assert.equal(applicationTrace.ok, true);
   assert.equal(
@@ -254,12 +231,9 @@ try {
     nativeBoundaryLimits,
   );
   assert.equal(r2rBoundaries.summary.ready_to_run, true);
+  assert.equal(r2rBoundaries.native_implementations[0]?.code_type, "native");
   assert.equal(
-    r2rBoundaries.native_implementations.items[0]?.code_type,
-    "native",
-  );
-  assert.equal(
-    r2rBoundaries.native_implementations.items[0]?.boundary_kind,
+    r2rBoundaries.native_implementations[0]?.boundary_kind,
     "native-body",
   );
 
@@ -273,9 +247,9 @@ try {
     obfuscated.target,
     memberLimits,
   );
-  assert.equal(obfuscatedMembers.types.items[0]?.full_name, "Fixture.ꙮType");
-  assert.equal(obfuscatedMembers.methods.items[0]?.name, "λ⛧");
-  assert.equal(obfuscatedMembers.fields.items[0]?.name, "字段");
+  assert.equal(obfuscatedMembers.types[0]?.full_name, "Fixture.ꙮType");
+  assert.equal(obfuscatedMembers.methods[0]?.name, "λ⛧");
+  assert.equal(obfuscatedMembers.fields[0]?.name, "字段");
   const runtimeExecutable = join(workspace, "dotnet");
   await writeFile(runtimeExecutable, "#!/bin/sh\n");
   const runtimeCeiling = {
@@ -299,7 +273,7 @@ try {
     ],
   );
   assert.equal(runtimeAuthority.ok, true);
-  const runtimeMethod = obfuscatedMembers.methods.items[0];
+  const runtimeMethod = obfuscatedMembers.methods[0];
   assert.ok(runtimeMethod);
   const obfuscatedMembersEvidence = createEvidence(
     undefined,

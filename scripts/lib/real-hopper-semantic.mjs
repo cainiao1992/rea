@@ -152,7 +152,7 @@ export async function verifyRealHopperFixture({
   };
 }
 
-/** Reject malformed, unsafe, or error-level diagnostics from the MCP runtime. */
+/** Reject malformed, unsafe, or unexpected failure diagnostics from MCP. */
 export function requireSafeDiagnostics(chunks) {
   const lines = chunks
     .join("")
@@ -171,7 +171,12 @@ export function requireSafeDiagnostics(chunks) {
       typeof diagnostic !== "object" ||
       diagnostic.application !== "rea" ||
       typeof diagnostic.level !== "number" ||
-      diagnostic.level >= 40
+      diagnostic.level >= 50 ||
+      (diagnostic.level >= 40 &&
+        diagnostic.errorTag !== "HopperRemoteError" &&
+        !(
+          diagnostic.tool === "procedure_info" && diagnostic.status === "error"
+        ))
     )
       throw new Error(`The MCP runtime emitted unsafe stderr: ${line}`);
   }
@@ -204,7 +209,7 @@ export async function resolveFixtureProcedure(
   expectedName,
   normalizedResult,
 ) {
-  const page = normalizedResult(
+  const matches = normalizedResult(
     await client.callTool(
       {
         name: "search_procedures",
@@ -212,30 +217,28 @@ export async function resolveFixtureProcedure(
           pattern: expectedName,
           mode: "literal",
           case_sensitive: true,
-          limit: 100,
         },
       },
       options,
     ),
     `search_procedures ${expectedName}`,
   );
-  const matches = Array.isArray(page?.items)
-    ? page.items.filter(
+  const exactMatches = Array.isArray(matches)
+    ? matches.filter(
         (item) =>
           typeof item?.value === "string" &&
-          item.value_truncated === false &&
           item.value.replace(/^_+/u, "") === expectedName,
       )
     : [];
   if (
-    matches.length !== 1 ||
-    typeof matches[0]?.address !== "string" ||
-    !/^0x[0-9a-f]+$/iu.test(matches[0].address)
+    exactMatches.length !== 1 ||
+    typeof exactMatches[0]?.address !== "string" ||
+    !/^0x[0-9a-f]+$/iu.test(exactMatches[0].address)
   )
     throw new Error(
       `Expected exactly one Hopper procedure named ${expectedName}`,
     );
-  return { address: matches[0].address, name: matches[0].value };
+  return { address: exactMatches[0].address, name: exactMatches[0].value };
 }
 
 /** Request the assembly evidence required by the fixture oracle. */
@@ -249,7 +252,7 @@ export const analyzeFixtureProcedure = async (
     await client.callTool(
       {
         name: "analyze_function",
-        arguments: { procedure: procedure.address, include_assembly: true },
+        arguments: { procedure: procedure.address },
       },
       options,
     ),

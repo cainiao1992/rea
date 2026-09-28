@@ -62,7 +62,6 @@ const webMcpToolSchema = z.object({
 
 /** Passive WebMCP inventory; it intentionally has no invocation surface. */
 export const webMcpDiscoverySchema = z.object({
-  schema_version: z.literal(1),
   browser: browserVersionSchema,
   target: z.object({
     target_id: z.string(),

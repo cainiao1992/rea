@@ -21,6 +21,5 @@ export const ANALYSIS_SNAPSHOT_PROVIDER = {
 /** Exact analysis profile shared by analysis-snapshot contract tests. */
 export const ANALYSIS_SNAPSHOT_PROFILE = createAnalysisProfile(
   ANALYSIS_SNAPSHOT_PROVIDER,
-  1,
   { loader: "mach-o-arm64" },
 );

@@ -40,7 +40,6 @@ export interface JavaScriptArtifactFile {
         readonly included: false;
         readonly reason:
           | "not-applicable"
-          | "not-approved"
           | "file-limit"
           | "byte-limit"
           | "invalid-utf8";
@@ -63,7 +62,6 @@ export interface JavaScriptArtifactFileSet {
   readonly text_bytes_read: number;
   readonly omitted_text_files: number;
   readonly limit_omitted_text_files: number;
-  readonly policy_filtered_text_files: number;
   readonly invalid_utf8_files: number;
 }
 
@@ -77,7 +75,7 @@ interface ExpectedFile {
 
 interface Selection {
   readonly selected: boolean;
-  readonly reason: "file-limit" | "byte-limit" | "not-approved" | null;
+  readonly reason: "file-limit" | "byte-limit" | null;
 }
 
 interface ReadContext {
@@ -142,9 +140,6 @@ export const readJavaScriptArtifactFiles = async (
     ).length,
     limit_omitted_text_files: [...selections.values()].filter(
       ({ reason }) => reason === "file-limit" || reason === "byte-limit",
-    ).length,
-    policy_filtered_text_files: [...selections.values()].filter(
-      ({ reason }) => reason === "not-approved",
     ).length,
     invalid_utf8_files: context.invalidUtf8,
   };
@@ -306,10 +301,6 @@ const selectTextFiles = (
   });
   for (const file of ordered) {
     if (file.kind === "native-addon") continue;
-    if (file.kind === "source-map" && !input.source_map_read_approved) {
-      selected.set(file.path, { selected: false, reason: "not-approved" });
-      continue;
-    }
     if (
       fileCount >= input.limits.max_text_files ||
       file.bytes > input.limits.max_text_file_bytes

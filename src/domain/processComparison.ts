@@ -244,9 +244,8 @@ const assertComparable = (
   options: { readonly maxCaptureAgeMs?: number; readonly now?: () => number },
 ): void => {
   if (
-    left.schema_version !== right.schema_version ||
     left.manifest.comparison_contract_sha256 !==
-      right.manifest.comparison_contract_sha256
+    right.manifest.comparison_contract_sha256
   )
     throw new TypeError(
       "Process captures have incompatible comparison contracts",
@@ -387,7 +386,7 @@ const compareDimensions = (
 };
 
 /**
- * Compare two Process Capture v4 observations without treating absence as proof.
+ * Compare two process capture observations without treating absence as proof.
  *
  * Observed differences outrank residual unknowns. A capture may therefore be
  * definitively changed in one dimension while completeness remains unknown.

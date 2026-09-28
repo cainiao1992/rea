@@ -47,7 +47,6 @@ const environmentSchema = z
     REA_PROCESS_WORKING_ROOTS_JSON: z.string().default("[]"),
     REA_PROCESS_ALLOWED_ENV_JSON: z.string().default("[]"),
     REA_EVIDENCE_ROOTS_JSON: z.string().default("[]"),
-    REA_INVESTIGATION_INPUT_ROOTS_JSON: z.string().default("[]"),
     REA_ANALYSIS_SNAPSHOT_ROOTS_JSON: z.string().default("[]"),
     REA_REFERENCE_ROOTS_JSON: z.string().default("[]"),
     REA_REFERENCE_SECRET_PATTERNS_JSON: z.string().default("[]"),

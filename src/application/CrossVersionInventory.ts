@@ -42,7 +42,6 @@ export type VersionInventoryScanner = typeof scanAuthorizedArtifactInventory;
 export interface VersionInventoryScanOptions {
   readonly leftPath: string;
   readonly rightPath: string;
-  readonly inputRoots: readonly string[];
   readonly limits: ArtifactLimits;
   readonly signal?: AbortSignal;
   readonly integrity: ArtifactIntegrityPolicy;
@@ -54,11 +53,11 @@ export const scanVersionInventories = async (
   scanner: VersionInventoryScanner = scanAuthorizedArtifactInventory,
 ): Promise<VersionSnapshots> => {
   const [left, right] = await Promise.all([
-    scanner(options.leftPath, options.inputRoots, options.limits, {
+    scanner(options.leftPath, options.limits, {
       signal: options.signal,
       integrity: options.integrity,
     }),
-    scanner(options.rightPath, options.inputRoots, options.limits, {
+    scanner(options.rightPath, options.limits, {
       signal: options.signal,
       integrity: options.integrity,
     }),
@@ -69,7 +68,6 @@ export const scanVersionInventories = async (
 /** Authorize and scan both inputs once under the same bounded traversal policy. */
 export const scanVersions = async (
   input: CrossVersionInvestigationInput,
-  inputRoots: readonly string[],
   signal?: AbortSignal,
   integrityContinueEnabled = false,
 ): Promise<Result<VersionSnapshots, AnalysisError>> => {
@@ -90,7 +88,6 @@ export const scanVersions = async (
       await scanVersionInventories({
         leftPath: input.left_path,
         rightPath: input.right_path,
-        inputRoots,
         limits,
         ...(signal === undefined ? {} : { signal }),
         integrity,

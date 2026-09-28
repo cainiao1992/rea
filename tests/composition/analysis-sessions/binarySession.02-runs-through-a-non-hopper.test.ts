@@ -14,8 +14,6 @@ const nonHopperProvider = (operations: string[]): AnalysisProvider => {
       {
         provider: { id: "fixture", name: "Fixture", version: "1" },
         operation: "address_name",
-        inputContractVersion: 1,
-        outputContractVersion: 1,
         available: true,
         reason: null,
         pagination: "none",
@@ -134,7 +132,6 @@ describe("binary session", () => {
               observation: {
                 status: "verified",
                 observed_at: "2026-07-22T10:00:00.000Z",
-                schema_version: 1,
                 launcher_pid: 100,
                 launcher_parent_pid: 1,
                 process_group_id: 100,

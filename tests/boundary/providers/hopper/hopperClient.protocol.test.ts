@@ -153,7 +153,17 @@ describe("HopperClient protocol", () => {
     const client = await startClient();
     const result = await client.callTool(method);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error._tag).toBe(expectedTag);
+    if (!result.ok) {
+      expect(result.error._tag).toBe(expectedTag);
+      if (result.error._tag === "HopperRemoteError")
+        expect(result.error).toMatchObject({ operation: method, requestId: 2 });
+      if (result.error._tag === "HopperTimeoutError")
+        expect(result.error).toMatchObject({
+          operation: method,
+          requestId: 2,
+          providerState: "busy",
+        });
+    }
   });
 
   it("preserves a sanitized bridge exception diagnostic", async () => {

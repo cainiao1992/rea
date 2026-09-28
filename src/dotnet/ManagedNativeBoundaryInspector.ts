@@ -28,30 +28,12 @@ import {
 } from "./ManagedNativeBoundaryHelpers.js";
 
 export interface ManagedNativeBoundaryInspectionLimits {
-  readonly moduleRefOffset: number;
-  readonly moduleRefLimit: number;
-  readonly importOffset: number;
-  readonly importLimit: number;
-  readonly implementationOffset: number;
-  readonly implementationLimit: number;
   readonly maxMetadataBytes: number;
   readonly maxTableRows: number;
   readonly maxHeapItemBytes: number;
 }
 
 type Inventory = ReturnType<typeof readManagedMetadataInventory>;
-
-const emptyPage = <Item>(): ManagedNativeBoundaryInspection["module_refs"] & {
-  items: readonly Item[];
-} => ({
-  items: [],
-  offset: 0,
-  limit: 0,
-  total: 0,
-  returned: 0,
-  dropped: 0,
-  complete: true,
-});
 
 const emptyInspection = (
   target: BinaryTarget,
@@ -60,7 +42,6 @@ const emptyInspection = (
   issues: readonly ManagedParseIssue[] = [],
 ): ManagedNativeBoundaryInspection =>
   managedNativeBoundaryInspectionSchema.parse({
-    schema_version: 1,
     artifact: {
       path: target.path,
       sha256: target.sha256,
@@ -90,9 +71,9 @@ const emptyInspection = (
       managed_native_header_rva: 0,
       managed_native_header_size: 0,
     },
-    module_refs: emptyPage(),
-    pinvoke_imports: emptyPage(),
-    native_implementations: emptyPage(),
+    module_refs: [],
+    pinvoke_imports: [],
+    native_implementations: [],
     summary: {
       module_ref_count: 0,
       pinvoke_import_count: 0,
@@ -139,12 +120,6 @@ const readBoundaryInventory = (
     bytes,
     layout,
     {
-      referenceOffset: 0,
-      referenceLimit: 0,
-      resourceOffset: 0,
-      resourceLimit: 0,
-      attributeOffset: 0,
-      attributeLimit: 0,
       maxHeapItemBytes: limits.maxHeapItemBytes,
     },
     resourceDirectory,
@@ -218,7 +193,6 @@ export const inspectManagedNativeBoundariesBytes = (
   return buildNativeBoundaryInspection({
     target,
     bytes,
-    limits,
     pe,
     layout,
     inventory,

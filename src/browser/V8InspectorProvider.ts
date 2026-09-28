@@ -114,22 +114,10 @@ export class V8InspectorProvider implements JavaScriptRuntimeObservationPort {
       allowed.sort((left, right) =>
         left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
       );
-      const items = allowed
-        .slice(input.offset, input.offset + input.limit)
-        .map(projectTarget);
-      const nextOffset = input.offset + items.length;
       return ok(
         javascriptRuntimeTargetListSchema.parse({
-          schema_version: 1,
           runtime: discovery.runtime,
-          targets: {
-            items,
-            offset: input.offset,
-            limit: input.limit,
-            total: allowed.length,
-            next_offset: nextOffset < allowed.length ? nextOffset : null,
-            has_more: nextOffset < allowed.length,
-          },
+          targets: allowed.map(projectTarget),
           excluded: { ...excluded, unconnectable: 0 },
           limitations: describeInspectorTargetLimitations(),
         }),

@@ -31,14 +31,12 @@ interface QueuedRequest {
   readonly onAbort: (() => void) | undefined;
 }
 
-/** Bounded FIFO that admits one Ghidra Program request at a time. */
+/** FIFO that admits one Ghidra Program request at a time. */
 export class GhidraRequestQueue {
   readonly #queue: QueuedRequest[] = [];
   #active = false;
-  #size = 0;
 
   constructor(
-    private readonly maximum: number,
     private readonly execute: GhidraRequestExecutor,
     private readonly failure: GhidraQueueFailureFactory,
   ) {}
@@ -63,16 +61,6 @@ export class GhidraRequestQueue {
           ),
         ),
       );
-    if (this.#size >= this.maximum)
-      return Promise.resolve(
-        err(
-          this.failure(
-            "protocol",
-            `Ghidra serial request queue reached its ${String(this.maximum)}-request limit`,
-          ),
-        ),
-      );
-    this.#size += 1;
     return new Promise((resolve) => {
       let entry: QueuedRequest;
       const onAbort =
@@ -118,7 +106,6 @@ export class GhidraRequestQueue {
   failQueued(failure: GhidraSessionError): void {
     for (const entry of this.#queue.splice(0)) {
       this.#release(entry);
-      this.#size -= 1;
       entry.resolve(err(failure));
     }
   }
@@ -130,7 +117,6 @@ export class GhidraRequestQueue {
     this.#release(entry);
     const remaining = entry.deadline - performance.now();
     if (entry.signal?.aborted === true || remaining <= 0) {
-      this.#size -= 1;
       entry.resolve(
         err(
           entry.signal?.aborted === true
@@ -163,7 +149,6 @@ export class GhidraRequestQueue {
       )
       .finally(() => {
         this.#active = false;
-        this.#size -= 1;
         this.#drain();
       });
   }
@@ -173,7 +158,6 @@ export class GhidraRequestQueue {
     if (index < 0) return;
     this.#queue.splice(index, 1);
     this.#release(entry);
-    this.#size -= 1;
     entry.resolve(result);
   }
 

@@ -27,7 +27,6 @@ import {
 
 const SNAPSHOT_PROFILE = createAnalysisProfile(
   { id: "fixture", name: "Fixture analysis provider", version: "1" },
-  1,
   { fixture: true },
 );
 
@@ -93,7 +92,7 @@ describe("target-free MCP lifecycle", () => {
           structured(
             await mcp.callTool({
               name: "binary_session",
-              arguments: { detail: "full" },
+              arguments: {},
             }),
           ),
         ).result,
@@ -117,7 +116,7 @@ describe("target-free MCP workflow", () => {
     const beforeTools = (await mcp.listTools()).tools;
     const beforeNames = beforeTools.map(({ name }) => name);
     expect(mcp.getInstructions()).toContain(
-      "archive/package -> open_binary(path), then inspect_artifact/inventory_artifact (active target)",
+      "archive/package -> open_binary(path), then inspect_artifact/inventory_artifact",
     );
     expect(
       beforeTools.find(({ name }) => name === "inventory_artifact")
@@ -137,15 +136,17 @@ describe("target-free MCP workflow", () => {
       structured(
         await mcp.callTool({
           name: "binary_session",
-          arguments: { detail: "full" },
+          arguments: {},
         }),
       ),
     ).toMatchObject({ result: { path: await realpath(first) } });
     expect(
       text(await mcp.callTool({ name: "current_document", arguments: {} })),
     ).toContain("first.hop");
-    const { recordedUnknown, changesBeforeMutation } =
-      await snapshotAndRecordUnknown(lifecycle, directory);
+    const { recordedUnknown } = await snapshotAndRecordUnknown(
+      lifecycle,
+      directory,
+    );
     const resolved = await mcp.callTool({
       name: "update_unknown",
       arguments: {
@@ -170,8 +171,6 @@ describe("target-free MCP workflow", () => {
     });
     expect(resolved.isError).not.toBe(true);
     await new Promise<void>((resolve) => setImmediate(resolve));
-    expect(lifecycle.unknownResourceUpdates()).toBe(1);
-    expect(lifecycle.resourceListChanges()).toBe(changesBeforeMutation);
     expect(
       structured(
         await mcp.callTool({
@@ -267,21 +266,19 @@ describe("process residuals over MCP", () => {
         result: z.object({
           items: z.array(
             z.object({
-              unknown: z.object({
-                question: z.string(),
-                domain: z.string(),
-              }),
+              question: z.string(),
+              domain: z.string(),
             }),
           ),
         }),
       })
       .parse(structured(listedUnknowns)).result.items;
-    expect(listed).toContainEqual({
-      unknown: expect.objectContaining({
+    expect(listed).toContainEqual(
+      expect.objectContaining({
         question: "Was network behavior fully observed during capture?",
         domain: "process-network",
       }),
-    });
+    );
   });
 });
 
@@ -301,8 +298,6 @@ const provider = (closed: string[]): AnalysisProvider => {
   const capability: CapabilityDescriptor = {
     provider: identity,
     operation: "current_document",
-    inputContractVersion: 1,
-    outputContractVersion: 1,
     available: true,
     reason: null,
     pagination: "none",
@@ -341,6 +336,8 @@ const structured = (result: CallToolResult): Record<string, unknown> => {
     typeof result.structuredContent !== "object" ||
     result.structuredContent === null
   )
-    throw new Error("missing structured result");
+    throw new Error(
+      `missing structured result: ${JSON.stringify(result.content)}`,
+    );
   return z.record(z.string(), z.unknown()).parse(result.structuredContent);
 };

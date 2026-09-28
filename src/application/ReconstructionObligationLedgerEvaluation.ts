@@ -51,13 +51,11 @@ export const evaluateReconstructionObligationLedger = ({
   candidates: candidatesInput,
   bundle: bundleInput,
   manifest,
-  maxObligations,
   generationLimitations,
 }: {
   readonly candidates: readonly ReconstructionObligationCandidate[];
   readonly bundle: EvidenceBundle;
   readonly manifest: ReconstructionObligationManifest;
-  readonly maxObligations: number;
   readonly generationLimitations: readonly string[];
 }): ReconstructionObligationLedger => {
   const bundle = parseEvidenceBundle(bundleInput);
@@ -65,8 +63,7 @@ export const evaluateReconstructionObligationLedger = ({
     left.obligation_id.localeCompare(right.obligation_id),
   );
   const orphanManifestIds = findOrphanManifestIds(allCandidates, manifest);
-  const candidates = allCandidates.slice(0, maxObligations);
-  const omittedCount = allCandidates.length - candidates.length;
+  const candidates = allCandidates;
   const context = createEvaluationContext(candidates, bundle, manifest);
   const obligations = applyDependencyDiagnostics(
     candidates.map((candidate) => evaluateObligation(candidate, context)),
@@ -97,14 +94,9 @@ export const evaluateReconstructionObligationLedger = ({
   const limitations = ledgerLimitations(
     generationLimitations,
     allCandidates.length,
-    omittedCount,
     orphanManifestIds,
   );
-  const coverage = obligationLedgerCoverage(
-    omittedCount,
-    maxObligations,
-    limitations.length > 0,
-  );
+  const coverage = obligationLedgerCoverage(limitations.length > 0);
   const semantic = {
     coverage,
     summary: summarizeObligations(obligations),
@@ -115,7 +107,7 @@ export const evaluateReconstructionObligationLedger = ({
     evidence_links: evidenceLinks,
     limitations,
   };
-  const evaluatedStatus = obligationLedgerStatus(obligations, omittedCount);
+  const evaluatedStatus = obligationLedgerStatus(obligations);
   const status =
     evaluatedStatus === "failed"
       ? evaluatedStatus
@@ -129,7 +121,6 @@ export const evaluateReconstructionObligationLedger = ({
   });
   return reconstructionObligationLedgerSchema.parse({
     schema: "ReconstructionObligationLedger",
-    schema_version: 1,
     ledger_id: `rol_${digestObligationLedgerValue({
       schema: "rea.reconstruction-obligation-ledger/v1",
       evidence_ids: bundle.records.map(({ evidence_id: id }) => id),
@@ -181,7 +172,6 @@ const findOrphanManifestIds = (
 const ledgerLimitations = (
   generationLimitations: readonly string[],
   candidateCount: number,
-  omittedCount: number,
   orphanManifestIds: readonly string[],
 ): string[] =>
   [
@@ -190,11 +180,6 @@ const ledgerLimitations = (
       ...(candidateCount === 0
         ? [
             "No reconstruction obligations were derived; closure cannot be claimed.",
-          ]
-        : []),
-      ...(omittedCount > 0
-        ? [
-            `${String(omittedCount)} obligation candidates were omitted by max_obligations; closure is unknown.`,
           ]
         : []),
       ...(orphanManifestIds.length > 0

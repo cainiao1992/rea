@@ -153,7 +153,6 @@ try {
   await functionOperation("xrefs", { address: procedure.address });
   await functionOperation("analyze_function", {
     procedure: procedure.value,
-    include_assembly: true,
   });
 
   const expected = [

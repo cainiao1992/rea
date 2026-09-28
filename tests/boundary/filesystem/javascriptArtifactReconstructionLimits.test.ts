@@ -19,54 +19,22 @@ import {
 } from "../../../src/artifacts/ArtifactReader.js";
 import { writeJavaScriptArtifactFixture } from "../../fixtures/javascriptArtifactApplication.js";
 
-it("discovers source maps without reading them until separately approved", async () => {
+it("reads local source maps as part of static artifact analysis", async () => {
   const root = await fixtureDirectory();
-  const unapproved = await reconstructJavaScriptArtifact({
-    input_path: root,
-    source_map_read_approved: false,
-  });
-  const approved = await reconstructJavaScriptArtifact({
-    input_path: root,
-    source_map_read_approved: true,
-  });
+  const result = await reconstructJavaScriptArtifact({ input_path: root });
 
-  expect(unapproved.graph.nodes.some(({ kind }) => kind === "source-map")).toBe(
+  expect(result.graph.nodes.some(({ kind }) => kind === "source-map")).toBe(
     true,
   );
-  expect(
-    unapproved.graph.nodes.some(({ kind }) => kind === "source-module"),
-  ).toBe(false);
-  expect(unapproved.graph.coverage).toMatchObject({
-    status: "partial",
-    truncated: false,
-    omitted_count: null,
-  });
-  expect(unapproved.statistics.policy_filtered_text_files).toBe(1);
-  expect(unapproved.graph.nodes).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({
-        kind: "unknown",
-        observations: expect.arrayContaining([
-          expect.objectContaining({
-            properties: expect.objectContaining({
-              operation: "parse-local-source-map",
-            }),
-            evidence: expect.objectContaining({ state: "unavailable" }),
-          }),
-        ]),
-      }),
-    ]),
+  expect(result.graph.nodes.some(({ kind }) => kind === "source-module")).toBe(
+    true,
   );
-  expect(
-    approved.graph.nodes.some(({ kind }) => kind === "source-module"),
-  ).toBe(true);
 });
 
 it("reports text and AST limits as truncation instead of absence", async () => {
   const root = await fixtureDirectory();
   const result = await reconstructJavaScriptArtifact({
     input_path: root,
-    source_map_read_approved: true,
     limits: {
       max_text_file_bytes: 128,
       max_total_text_bytes: 1_024,
@@ -163,7 +131,6 @@ it("keeps malformed JavaScript, package metadata, and source maps as explicit un
 
   const result = await reconstructJavaScriptArtifact({
     input_path: root,
-    source_map_read_approved: true,
   });
   const unknownOperations = result.graph.nodes
     .filter(({ kind }) => kind === "unknown")
@@ -213,7 +180,6 @@ it("applies one source-map source budget across every local map", async () => {
 
   const result = await reconstructJavaScriptArtifact({
     input_path: root,
-    source_map_read_approved: true,
     limits: { max_source_map_sources: 3 },
   });
 
@@ -297,12 +263,12 @@ it("preserves cancellation and explicit format diagnostics", async () => {
     reason: "format",
     message: expect.stringContaining(root),
   });
-  expect(() =>
+  expect(
     javascriptArtifactReconstructionInputSchema.parse({
       input_path: root,
       limits: { max_entries: 100_000 },
-    }),
-  ).toThrow(/graph contract/iu);
+    }).limits.max_entries,
+  ).toBe(100_000);
 });
 
 class TraversalReader implements ArtifactReader {

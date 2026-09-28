@@ -27,16 +27,6 @@ export interface ManagedInspectionLimits extends ManagedInventoryInput {
   readonly maxTableRows: number;
 }
 
-const emptyPage = (offset: number, limit: number) => ({
-  items: [],
-  offset,
-  limit,
-  total: 0,
-  returned: 0,
-  dropped: 0,
-  complete: offset === 0,
-});
-
 const flagNames = (flags: number): string[] => {
   const names: string[] = [];
   for (const [mask, name] of [
@@ -100,7 +90,6 @@ const base = (
   bytes: Buffer,
   layout: ManagedPeLayout,
 ) => ({
-  schema_version: 1 as const,
   artifact: {
     path: target.path,
     sha256: target.sha256,
@@ -114,7 +103,6 @@ const unavailableResult = (
   target: BinaryTarget,
   bytes: Buffer,
   layout: ManagedPeLayout,
-  limits: ManagedInspectionLimits,
 ): ManagedArtifactInspection => {
   const malformed = layout.cliDirectoryPresent;
   const issues = layout.cliIssue === null ? [] : [layout.cliIssue];
@@ -150,9 +138,9 @@ const unavailableResult = (
     module: null,
     assembly: null,
     target_frameworks: [],
-    references: emptyPage(limits.referenceOffset, limits.referenceLimit),
-    resources: emptyPage(limits.resourceOffset, limits.resourceLimit),
-    attributes: emptyPage(limits.attributeOffset, limits.attributeLimit),
+    references: [],
+    resources: [],
+    attributes: [],
     coverage: {
       state: malformed ? "partial" : "unavailable",
       issues,
@@ -295,7 +283,6 @@ interface PartialMetadataContext {
   readonly target: BinaryTarget;
   readonly bytes: Buffer;
   readonly layout: ManagedPeLayout;
-  readonly limits: ManagedInspectionLimits;
   readonly issue: ManagedParseIssue;
 }
 
@@ -303,7 +290,6 @@ const partialMetadataResult = ({
   target,
   bytes,
   layout,
-  limits,
   issue,
 }: PartialMetadataContext): ManagedArtifactInspection => ({
   ...base(target, bytes, layout),
@@ -331,9 +317,9 @@ const partialMetadataResult = ({
   module: null,
   assembly: null,
   target_frameworks: [],
-  references: emptyPage(limits.referenceOffset, limits.referenceLimit),
-  resources: emptyPage(limits.resourceOffset, limits.resourceLimit),
-  attributes: emptyPage(limits.attributeOffset, limits.attributeLimit),
+  references: [],
+  resources: [],
+  attributes: [],
   coverage: { state: "partial", issues: [issue] },
   limitations: [
     "CLI metadata triage stopped at the reported bounded format or resource limit.",
@@ -364,13 +350,6 @@ const mapResources = (
   }
 };
 
-const inventoryPagesComplete = (
-  inventory: ReturnType<typeof readManagedMetadataInventory>,
-): boolean =>
-  inventory.references.complete &&
-  inventory.resources.complete &&
-  inventory.attributes.complete;
-
 /** Inspect PE/CLI identity directly from bounded bytes without CLR loading. */
 export const inspectManagedArtifactBytes = (
   bytes: Buffer,
@@ -378,8 +357,7 @@ export const inspectManagedArtifactBytes = (
   limits: ManagedInspectionLimits,
 ): ManagedArtifactInspection => {
   const layout = readManagedPeLayout(bytes);
-  if (layout.cli === null)
-    return unavailableResult(target, bytes, layout, limits);
+  if (layout.cli === null) return unavailableResult(target, bytes, layout);
   const cli = layout.cli;
   if (cli.metadata.size > limits.maxMetadataBytes)
     return managedArtifactInspectionSchema.parse(
@@ -387,7 +365,6 @@ export const inspectManagedArtifactBytes = (
         target,
         bytes,
         layout,
-        limits,
         issue: {
           code: "limit-exceeded",
           scope: "cli.metadata",
@@ -416,7 +393,6 @@ export const inspectManagedArtifactBytes = (
         target,
         bytes,
         layout,
-        limits,
         issue: cause.issue,
       }),
     );
@@ -430,13 +406,7 @@ export const inspectManagedArtifactBytes = (
     resourceDirectory,
   );
   const issues = [...resourceIssues, ...inventory.issues];
-  const pagesComplete = inventoryPagesComplete(inventory);
   const limitations = [
-    ...(pagesComplete
-      ? []
-      : [
-          "At least one caller-selected metadata page omits rows; use its offset and total to continue.",
-        ]),
     ...(issues.length === 0
       ? []
       : [
@@ -464,7 +434,7 @@ export const inspectManagedArtifactBytes = (
     resources: inventory.resources,
     attributes: inventory.attributes,
     coverage: {
-      state: pagesComplete && issues.length === 0 ? "complete" : "partial",
+      state: issues.length === 0 ? "complete" : "partial",
       issues,
     },
     limitations,

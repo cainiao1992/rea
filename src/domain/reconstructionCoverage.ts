@@ -159,7 +159,6 @@ const boundarySchema = z.strictObject({
 });
 
 const workspaceSemanticSchema = z.strictObject({
-  schema_version: z.literal(1),
   workspace_id: z.string().regex(/^rcw_[a-f0-9]{64}$/u),
   name: z.string().trim().min(1).max(200),
   revision: z.number().int().min(1),
@@ -260,14 +259,10 @@ export const createReconstructionVerifierContract = (
 
 /** Build one canonical immutable coverage-workspace revision. */
 export const createReconstructionCoverageWorkspace = (
-  input: Omit<
-    z.input<typeof workspaceSemanticSchema>,
-    "schema_version" | "workspace_id"
-  >,
+  input: Omit<z.input<typeof workspaceSemanticSchema>, "workspace_id">,
 ): ReconstructionCoverageWorkspace => {
   const semanticInput = {
-    schema_version: 1 as const,
-    workspace_id: `rcw_${digest({ schema: "rea.reconstruction-coverage-workspace/v1", name: input.name })}`,
+    workspace_id: `rcw_${digest({ name: input.name })}`,
     ...input,
   };
   const semantic = canonicalWorkspace(

@@ -286,7 +286,6 @@ const resolveReplayResult = (
   const right =
     response.right === undefined ? undefined : commitOutcomes(response.right);
   return {
-    schema_version: 1,
     plan_digest: prepared.publicPlan.plan_digest,
     outcomes: [...outcomes, ...(right ?? [])],
     ...(right === undefined

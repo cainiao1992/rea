@@ -49,9 +49,7 @@ export const registerImportManagedReconstruction = (
       const recorded = options.recordEvidence?.(result.value);
       if (recorded !== undefined && !recorded.ok)
         return toCallToolResult(recorded, reconstructionContract);
-      return toCallToolResult(result, reconstructionContract, {
-        evidenceResourcesAvailable: recorded !== undefined,
-      });
+      return toCallToolResult(result, reconstructionContract);
     },
   );
 };

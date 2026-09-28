@@ -11,7 +11,6 @@ const literal = (value: string) => ({
 });
 
 const baseScenario = () => ({
-  schema_version: 1,
   browser: {
     mode: "launch",
     executable_path: "/opt/chromium/chrome",

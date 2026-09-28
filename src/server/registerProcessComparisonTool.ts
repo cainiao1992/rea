@@ -20,7 +20,7 @@ import { toCallToolResult } from "./toolResult.js";
 
 const PROCESS_CAPTURE_EVIDENCE = {
   operation: "capture_process_scenario",
-  predicate: "rea.process-capture/v4",
+  predicate: "rea.process-capture",
 } as const;
 
 const sourceLocations = (
@@ -80,17 +80,14 @@ export const registerProcessComparisonTool = (
             new EvidenceIntegrityError(
               cause instanceof Error
                 ? cause.message
-                : "Invalid Process Capture v4",
+                : "Invalid process capture",
             ),
           ),
           contract,
         );
       }
       const evidence = createEvidence(undefined, PROCESS_PROVIDER, {
-        predicateType:
-          input.trace_spec === undefined
-            ? "rea.process-comparison/v3"
-            : "rea.process-comparison/v4",
+        predicateType: "rea.process-comparison",
         operation: contract.name,
         parameters: {
           left_evidence_id: input.left_evidence_id,

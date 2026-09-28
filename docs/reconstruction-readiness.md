@@ -10,10 +10,10 @@ npm run verify:readiness
 
 The command builds the redistributable native conformance fixtures, inventories
 the native executable through the public CLI, analyzes the generated JavaScript
-CLI and Electron fixture through both CLI and MCP, verifies exact advertised
-limits, evaluates the same nine-stage report through both surfaces, reads the
-full MCP report resource, and proves stale/tampered replay rejection. It prints
-one compact JSON summary.
+CLI and Electron fixture through both CLI and MCP, evaluates the same nine-stage
+report through both surfaces, verifies that MCP returns the complete report
+inline, and proves stale/tampered replay rejection. It prints one compact JSON
+summary.
 
 Set `REA_READINESS_REPORT_PATH` to retain the complete machine-readable report:
 
@@ -28,13 +28,7 @@ full report as the `reconstruction-readiness` artifact.
 
 - CLI: `rea evaluate-reconstruction-readiness <json-or-file> --json`
 - MCP tool: `evaluate_reconstruction_readiness`
-- Full MCP resource:
-  `rea://evidence/{evidenceId}/reconstruction-readiness-report`
-
-The MCP tool result contains only report identity, status, summary, metrics, and
-the resource URI. The full Evidence bundle, stage records, comparisons,
-contradictions, obligation ledger, and replay inputs stay in the retained
-resource instead of consuming the tool-response context.
+  The MCP tool returns the complete report inline, including the Evidence bundle, stage records, comparisons, contradictions, obligation ledger, and replay inputs.
 
 ## Required stages
 

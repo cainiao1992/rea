@@ -78,7 +78,6 @@ export const compareJavaScriptExportShapes = (
   });
   const limitations = comparisonLimitations(left, right, coverage.status);
   const semantic = {
-    schema_version: 1 as const,
     left: left.selection,
     right: right.selection,
     summary: summarize(allChanges),

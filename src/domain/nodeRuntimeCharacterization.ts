@@ -69,7 +69,6 @@ export const nodeCharacterizationExecutionInputSchema = z.strictObject({
 });
 
 export const nodeCharacterizationPreparationOutputSchema = z.strictObject({
-  schema_version: z.literal(1),
   phase: z.literal("preparation"),
   plan: nodeRuntimeCharacterizationPlanSchema,
   transformation: javascriptExportTransformationManifestSchema,
@@ -78,7 +77,6 @@ export const nodeCharacterizationPreparationOutputSchema = z.strictObject({
 });
 
 export const nodeCharacterizationExecutionOutputSchema = z.strictObject({
-  schema_version: z.literal(1),
   phase: z.literal("execution"),
   plan: nodeRuntimeCharacterizationPlanSchema,
   transformation: javascriptExportTransformationManifestSchema,

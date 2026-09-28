@@ -188,7 +188,6 @@ const createExtractionResult = (
   extracted: readonly ExtractedOccurrence[],
 ): ArtifactExtractionResult => {
   const extractionSemantic = {
-    schema_version: 1 as const,
     source_manifest_id: inventory.manifest.manifest_id,
     selected_occurrence_ids: selected
       .map(({ occurrence }) => occurrence.occurrence_id)

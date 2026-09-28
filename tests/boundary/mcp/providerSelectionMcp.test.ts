@@ -57,7 +57,7 @@ describe("provider selection over MCP", () => {
     const before = structured(
       await mcp.callTool({
         name: "binary_session",
-        arguments: { detail: "full" },
+        arguments: {},
       }),
     );
     expect(before.result).toMatchObject({
@@ -124,7 +124,7 @@ describe("provider selection over MCP", () => {
     const status = structured(
       await mcp.callTool({
         name: "binary_session",
-        arguments: { detail: "full" },
+        arguments: {},
       }),
     );
     expect(status.result).toMatchObject({
@@ -157,7 +157,7 @@ describe("provider selection over MCP", () => {
       structured(
         await mcp.callTool({
           name: "binary_session",
-          arguments: { detail: "full" },
+          arguments: {},
         }),
       ).result,
     ).toMatchObject({
@@ -192,7 +192,6 @@ const candidate = (id: string, starts: string[]): AnalysisProviderCandidate => {
         ok({
           profile: createAnalysisProfile(
             { id, name: identity.name, version: "1" },
-            1,
             { fixture: id },
           ),
           compatibility: {},
@@ -219,8 +218,6 @@ const candidate = (id: string, starts: string[]): AnalysisProviderCandidate => {
 const capability = (provider: ProviderIdentity): CapabilityDescriptor => ({
   provider,
   operation: "address_name",
-  inputContractVersion: 1,
-  outputContractVersion: 1,
   available: true,
   reason: null,
   pagination: "none",

@@ -60,7 +60,7 @@ describe("JavaScript runtime observation CLI parity", () => {
         operation: "list_javascript_runtime_targets",
         provider: { id: "rea-v8-inspector" },
         normalized_result: {
-          targets: { items: [{ target_id: inspector.targetId }] },
+          targets: [{ target_id: inspector.targetId }],
         },
       });
 

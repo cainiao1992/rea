@@ -16,9 +16,7 @@ describe("managed direct-analysis path boundary", () => {
     await writeFile(path, buildManagedPeFixture());
 
     const evidence = parseEvidence(
-      await runProviderAnalysis(path, "inspect_managed_artifact", {
-        reference_limit: 1,
-      }),
+      await runProviderAnalysis(path, "inspect_managed_artifact", {}),
     );
     expect(evidence).toMatchObject({
       operation: "inspect_managed_artifact",
@@ -26,7 +24,7 @@ describe("managed direct-analysis path boundary", () => {
       subject: { local_path: path, format: "pe" },
       normalized_result: {
         classification: { status: "managed", runtime_family: "modern-dotnet" },
-        references: { limit: 1 },
+        references: [expect.objectContaining({ name: "System.Runtime" })],
       },
     });
 
@@ -39,7 +37,7 @@ describe("managed direct-analysis path boundary", () => {
       subject: { local_path: path, format: "pe" },
       normalized_result: {
         identity_scope: { token_identity: "build-local" },
-        methods: { total: 1 },
+        methods: [expect.objectContaining({ token: expect.any(String) })],
       },
     });
 
@@ -52,7 +50,7 @@ describe("managed direct-analysis path boundary", () => {
       subject: { local_path: path, format: "pe" },
       normalized_result: {
         identity_scope: { token_identity: "build-local" },
-        pinvoke_imports: { total: 0 },
+        pinvoke_imports: [],
       },
     });
   });

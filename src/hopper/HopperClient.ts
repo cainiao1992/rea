@@ -51,7 +51,6 @@ import {
 export type { HopperServerInfo } from "./HopperSessionValues.js";
 
 const SHUTDOWN_TIMEOUT_MS = 30_000;
-const MAX_QUEUED_REQUESTS = 64;
 const SESSION_ROOT = process.platform === "darwin" ? "/tmp" : tmpdir();
 
 /** Dependencies, deadlines, and redacted diagnostics for one bridge client. */
@@ -63,6 +62,11 @@ export interface HopperClientOptions {
   readonly onDiagnostic?: (event: HopperDiagnostic) => void;
   readonly logger?: Logger;
 }
+
+type HopperClientCloseOptions = {
+  readonly progress?: ProgressReporter;
+  readonly retainDocument?: boolean;
+};
 
 /** Safe launcher telemetry; stderr content is intentionally never exposed. */
 /**
@@ -112,7 +116,6 @@ export class HopperClient {
       startupTimeoutMs: options.startupTimeoutMs ?? 120_000,
     };
     this.#requests = new HopperRequestQueue(
-      MAX_QUEUED_REQUESTS,
       ({ id, method, params }, failed) => {
         const socket = this.#socket;
         const token = this.#token;
@@ -308,7 +311,7 @@ export class HopperClient {
 
   /** Stop the bridge and report whether every owned resource was verified clean. */
   closeWithOutcome(
-    options: { readonly progress?: ProgressReporter } = {},
+    options: HopperClientCloseOptions = {},
   ): Promise<Result<null, AnalysisError>> {
     const starting = this.#startPromise;
     const controller = this.#startupController;
@@ -322,7 +325,7 @@ export class HopperClient {
   async #close(
     starting: Promise<Result<HopperServerInfo, HopperError>> | undefined,
     controller: AbortController | undefined,
-    options: { readonly progress?: ProgressReporter },
+    options: HopperClientCloseOptions,
   ): Promise<Result<null, AnalysisError>> {
     try {
       await starting?.catch(() => undefined);
@@ -337,7 +340,7 @@ export class HopperClient {
   }
 
   async #cleanup(
-    options: { readonly progress?: ProgressReporter } = {},
+    options: HopperClientCloseOptions = {},
   ): Promise<Result<null, AnalysisError>> {
     this.#closing = true;
     try {
@@ -352,6 +355,7 @@ export class HopperClient {
         onDiagnostic: this.#options.onDiagnostic,
         request: (method) =>
           this.#request(method, {}, { timeoutMs: SHUTDOWN_TIMEOUT_MS }),
+        retainDocument: options.retainDocument === true,
         releaseTransport: (socket) => {
           this.#failAll(new HopperProcessError(null));
           if (socket !== undefined) this.#detachSocket(socket);
@@ -419,14 +423,14 @@ export class HopperClient {
       readonly progress?: ProgressReporter;
     },
   ): Promise<Result<JsonValue, HopperError>> {
+    const id = this.#nextId++;
     const socket = this.#socket;
     const token = this.#token;
     if (socket === undefined || socket.destroyed || token === undefined) {
-      return err(new HopperProcessError(null));
+      return err(new HopperProcessError(null, undefined, method, id));
     }
     if (options.signal?.aborted === true)
       return err(new HopperCancelledError());
-    const id = this.#nextId++;
     const startedAt = performance.now();
     const timeoutMs = options.timeoutMs ?? this.#options.requestTimeoutMs;
     const result = await this.#requests.run(id, method, params, {

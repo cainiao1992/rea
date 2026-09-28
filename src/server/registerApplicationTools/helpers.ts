@@ -3,12 +3,6 @@ import type { Evidence } from "../../domain/evidence.js";
 import { toCallToolResult } from "../toolResult.js";
 import type { ApplicationToolRegistration } from "./types.js";
 
-export const coverageWorkspaceUri = (workspace: {
-  readonly workspace_id: string;
-  readonly revision: number;
-}): string =>
-  `rea://reconstruction-coverage/${workspace.workspace_id}/revision/${String(workspace.revision)}`;
-
 export const recordResult = (
   options: ApplicationToolRegistration,
   contract: (typeof APPLICATION_TOOL_CONTRACTS)[number],
@@ -27,9 +21,7 @@ export const recordResult = (
         );
   if (recorded !== undefined && !recorded.ok)
     return toCallToolResult(recorded, contract);
-  return toCallToolResult({ ok: true, value: evidence }, contract, {
-    evidenceResourcesAvailable: recorded !== undefined,
-  });
+  return toCallToolResult({ ok: true, value: evidence }, contract);
 };
 
 const unknownRegistration = (

@@ -118,7 +118,6 @@ export const queryJavaScriptSemanticGraph = (
     unknownsTruncated: allRelevantUnknowns.length > relevantUnknowns.length,
   });
   return javaScriptSemanticQueryResultSchema.parse({
-    schema_version: 1,
     query_id: queryId,
     source_graph_id: graph.graph_id,
     seed: input.seed,

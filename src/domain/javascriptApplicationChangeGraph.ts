@@ -74,7 +74,6 @@ export const buildJavaScriptApplicationChangeGraph = (
   const fallbackRoot = merged.nodes[0]?.node_id;
   const graph = createJavaScriptApplicationGraph({
     schema: "JavaScriptApplicationGraph",
-    schema_version: 1,
     root_node_ids:
       rootNodeIds.length > 0
         ? rootNodeIds

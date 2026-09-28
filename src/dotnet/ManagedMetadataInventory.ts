@@ -19,27 +19,10 @@ import { ManagedReaderFailure } from "./ManagedReaderFailure.js";
 
 type ModuleIdentity = NonNullable<ManagedArtifactInspection["module"]>;
 type AssemblyIdentity = NonNullable<ManagedArtifactInspection["assembly"]>;
-type AssemblyReference =
-  ManagedArtifactInspection["references"]["items"][number];
-type ManagedResource = ManagedArtifactInspection["resources"]["items"][number];
-type CustomAttribute = ManagedArtifactInspection["attributes"]["items"][number];
-type ManagedPage<Item> = {
-  readonly items: readonly Item[];
-  readonly offset: number;
-  readonly limit: number;
-  readonly total: number;
-  readonly returned: number;
-  readonly dropped: number;
-  readonly complete: boolean;
-};
-
+type AssemblyReference = ManagedArtifactInspection["references"][number];
+type ManagedResource = ManagedArtifactInspection["resources"][number];
+type CustomAttribute = ManagedArtifactInspection["attributes"][number];
 export interface ManagedInventoryInput {
-  readonly referenceOffset: number;
-  readonly referenceLimit: number;
-  readonly resourceOffset: number;
-  readonly resourceLimit: number;
-  readonly attributeOffset: number;
-  readonly attributeLimit: number;
   readonly maxHeapItemBytes: number;
 }
 
@@ -53,9 +36,9 @@ export interface ManagedMetadataInventory {
   readonly assembly: AssemblyIdentity | null;
   readonly targetFrameworks: readonly string[];
   readonly referenceNames: readonly string[];
-  readonly references: ManagedPage<AssemblyReference>;
-  readonly resources: ManagedPage<ManagedResource>;
-  readonly attributes: ManagedPage<CustomAttribute>;
+  readonly references: readonly AssemblyReference[];
+  readonly resources: readonly ManagedResource[];
+  readonly attributes: readonly CustomAttribute[];
   readonly issues: readonly ManagedParseIssue[];
 }
 
@@ -72,28 +55,17 @@ const safeRead = <Value>(
   }
 };
 
-const pageRows = <Item>(
+const readRows = <Item>(
   descriptor: MetadataTableLayout | undefined,
-  offset: number,
-  limit: number,
   read: (row: number) => Item | undefined,
-): ManagedPage<Item> => {
+): readonly Item[] => {
   const total = descriptor?.rowCount ?? 0;
   const items: Item[] = [];
-  const end = Math.min(total, offset + limit);
-  for (let index = offset; index < end; index += 1) {
+  for (let index = 0; index < total; index += 1) {
     const item = read(index + 1);
     if (item !== undefined) items.push(item);
   }
-  return {
-    items,
-    offset,
-    limit,
-    total,
-    returned: items.length,
-    dropped: total - items.length,
-    complete: offset === 0 && end === total && items.length === total,
-  };
+  return items;
 };
 
 const uniqueIssues = (
@@ -102,24 +74,20 @@ const uniqueIssues = (
   ...new Map(issues.map((issue) => [JSON.stringify(issue), issue])).values(),
 ];
 
-const readPagedReferences = (
+const readReferences = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
   input: ManagedInventoryInput,
   issues: ManagedParseIssue[],
-): ManagedPage<AssemblyReference> =>
-  pageRows(
-    layout.table(35),
-    input.referenceOffset,
-    input.referenceLimit,
-    (row) =>
-      safeRead(
-        () => readAssemblyReference(bytes, layout, row, input.maxHeapItemBytes),
-        issues,
-      ),
+): readonly AssemblyReference[] =>
+  readRows(layout.table(35), (row) =>
+    safeRead(
+      () => readAssemblyReference(bytes, layout, row, input.maxHeapItemBytes),
+      issues,
+    ),
   );
 
-const readPagedResources = ({
+const readResources = ({
   bytes,
   layout,
   input,
@@ -131,8 +99,8 @@ const readPagedResources = ({
   readonly input: ManagedInventoryInput;
   readonly resourceDirectory: ManagedResourceDirectory | null;
   readonly issues: ManagedParseIssue[];
-}): ManagedPage<ManagedResource> =>
-  pageRows(layout.table(40), input.resourceOffset, input.resourceLimit, (row) =>
+}): readonly ManagedResource[] =>
+  readRows(layout.table(40), (row) =>
     safeRead(
       () =>
         readResource({
@@ -147,21 +115,17 @@ const readPagedResources = ({
     ),
   );
 
-const readPagedAttributes = (
+const readAttributes = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
   input: ManagedInventoryInput,
   issues: ManagedParseIssue[],
-): ManagedPage<CustomAttribute> =>
-  pageRows(
-    layout.table(12),
-    input.attributeOffset,
-    input.attributeLimit,
-    (row) =>
-      safeRead(
-        () => readCustomAttribute(bytes, layout, row, input.maxHeapItemBytes),
-        issues,
-      ),
+): readonly CustomAttribute[] =>
+  readRows(layout.table(12), (row) =>
+    safeRead(
+      () => readCustomAttribute(bytes, layout, row, input.maxHeapItemBytes),
+      issues,
+    ),
   );
 
 const collectReferenceNames = (
@@ -223,15 +187,15 @@ export const readManagedMetadataInventory = (
       () => readAssembly(bytes, layout, input.maxHeapItemBytes),
       issues,
     ) ?? null;
-  const references = readPagedReferences(bytes, layout, input, issues);
-  const resources = readPagedResources({
+  const references = readReferences(bytes, layout, input, issues);
+  const resources = readResources({
     bytes,
     layout,
     input,
     resourceDirectory,
     issues,
   });
-  const attributes = readPagedAttributes(bytes, layout, input, issues);
+  const attributes = readAttributes(bytes, layout, input, issues);
   const referenceNames = collectReferenceNames(
     bytes,
     layout,

@@ -138,7 +138,6 @@ const replayMachineRunJournalEntrySchema = z.strictObject({
 
 /** Capture-value-free result of directly evaluating a finite replay machine. */
 export const replayMachineRunOutputSchema = z.strictObject({
-  schema_version: z.literal(1),
   initial_state: replayRunIdentifierSchema,
   final_state: replayRunIdentifierSchema,
   terminal: z.boolean(),
@@ -251,7 +250,6 @@ export const runReplayMachine = (
       actions: actions.map((action) => redactAction(runtime, action)),
     }));
   return replayMachineRunOutputSchema.parse({
-    schema_version: 1,
     initial_state: input.machine.initial_state,
     final_state: runtime.state,
     terminal:

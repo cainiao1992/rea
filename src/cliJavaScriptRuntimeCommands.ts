@@ -37,22 +37,7 @@ const scopeOptions = {
   approved: z.boolean().default(false).describe("Approve passive attachment"),
 };
 
-const listOptionsSchema = z.object({
-  ...scopeOptions,
-  offset: z
-    .number()
-    .int()
-    .min(0)
-    .default(0)
-    .describe("Zero-based target offset"),
-  limit: z
-    .number()
-    .int()
-    .min(1)
-    .max(200)
-    .default(100)
-    .describe("Maximum targets to return"),
-});
+const listOptionsSchema = z.object({ ...scopeOptions });
 
 const observeOptionsSchema = z.object({
   ...scopeOptions,
@@ -129,8 +114,6 @@ export const registerJavaScriptRuntimeObservationCommands = (
               options.allowedFileRoots ?? context.allowedFileRoots,
             allowed_origins: options.allowedOrigins ?? context.allowedOrigins,
             approved: options.approved,
-            offset: options.offset,
-            limit: options.limit,
           });
           if (!parsed.success)
             return inputError("list_javascript_runtime_targets");

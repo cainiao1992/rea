@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 
 import { ArtifactProvider } from "../../../../src/artifacts/ArtifactProvider.js";
-import { artifactInventoryInputSchema } from "../../../../src/contracts/artifactToolContracts.js";
 import { artifactInventoryResultSchema } from "../../../../src/domain/artifactGraph.js";
 import type { BinaryTarget } from "../../../../src/domain/binaryTarget.js";
 
@@ -33,11 +32,7 @@ describe("artifact directory inventory", () => {
     const client = new ArtifactProvider().createClient(
       target(app, "directory"),
     );
-    const input = artifactInventoryInputSchema.parse({
-      node_limit: 500,
-      occurrence_limit: 500,
-      edge_limit: 500,
-    });
+    const input = {};
     const first = await client.execute("inventory_artifact", input);
     const second = await client.execute("inventory_artifact", input);
     expect(first.ok).toBe(true);

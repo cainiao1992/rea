@@ -81,8 +81,6 @@ export class NativeMacOSProvider implements AnalysisProvider {
         return Object.freeze({
           provider: IDENTITY,
           operation: contract.name,
-          inputContractVersion: 1,
-          outputContractVersion: 1,
           ...availability,
           pagination: "none" as const,
           exhaustive: contract.name !== "inspect_macho",

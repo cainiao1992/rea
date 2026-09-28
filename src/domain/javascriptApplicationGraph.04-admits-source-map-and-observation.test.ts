@@ -29,7 +29,6 @@ const firstOf = <Value>(values: readonly Value[], label: string): Value => {
 const graphForNode = (node: ApplicationNode): JavaScriptApplicationGraph =>
   createJavaScriptApplicationGraph({
     schema: "JavaScriptApplicationGraph",
-    schema_version: 1,
     root_node_ids: [node.node_id],
     nodes: [node],
     edges: [],
@@ -84,11 +83,8 @@ describe("JavaScript Application Graph", () => {
     expect(graphForNode(observationScoped).nodes).toEqual([observationScoped]);
   });
 
-  it("rejects unsupported versions, unknown fields, and stale commitments", () => {
+  it("rejects unknown fields and stale commitments", () => {
     const graph = buildSyntheticJavaScriptApplicationGraph();
-    expect(() =>
-      parseJavaScriptApplicationGraph({ ...graph, schema_version: 2 }),
-    ).toThrow(/Unsupported JavaScript Application Graph schema version: 2/u);
     expect(() =>
       parseJavaScriptApplicationGraph({ ...graph, surprise: true }),
     ).toThrow();

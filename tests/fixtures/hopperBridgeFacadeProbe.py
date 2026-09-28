@@ -29,14 +29,16 @@ class FakeDocument:
 
 class FakeDocumentProvider:
     document = FakeDocument()
+    current = FakeDocument()
+    documents = [document, current]
 
     @classmethod
     def getAllDocuments(cls):
-        return [cls.document]
+        return cls.documents
 
     @classmethod
     def getCurrentDocument(cls):
-        return cls.document
+        return cls.current
 
 
 def load_bridge(path):
@@ -61,14 +63,17 @@ def main():
         }
 
     bridge["REA_TARGET_PATH"] = "/tmp/rea-hopper-facade-fixture"
+    bridge["REA_OWNS_PROCESS_LIFETIME"] = False
     bridge["_configure_hopper_api"](FakeDocumentProvider)
+    bridge["_bind_session_document"]()
     current = bridge["_dispatch"]("current_document", {})
     current_address = bridge["_dispatch"]("current_address", {})
-    selected = bridge["_session_document"]().getDocumentName()
+    selected = bridge["_session_document"]() is FakeDocumentProvider.current
+    retained = bridge["_dispatch"]("shutdown", {})
 
     analysis_guard = None
     try:
-        bridge["_dispatch"]("list_procedures", {"offset": 0, "limit": 1})
+        bridge["_dispatch"]("list_procedures", {})
     except Exception as error:
         analysis_guard = {
             "type": type(error).__name__,
@@ -110,7 +115,8 @@ def main():
                 "imported_without_hopper": unavailable,
                 "current_document": current,
                 "current_address": current_address,
-                "session_document": selected,
+                "session_document_reused": selected,
+                "shared_document_shutdown": retained,
                 "analysis_guard": analysis_guard,
                 "bridge_messages": bridge_messages,
                 "invalid_id_response": invalid_id_response,

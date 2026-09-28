@@ -57,7 +57,7 @@ describe("Electron CLI parity", () => {
       expect(listed).toMatchObject({
         operation: "list_electron_targets",
         normalized_result: {
-          targets: { items: [{ target_id: "electron-page" }] },
+          targets: [{ target_id: "electron-page" }],
         },
       });
       const inspected = await runCli(
@@ -91,11 +91,10 @@ describe("Electron CLI parity", () => {
       await writeElectronBoundaryFixture(root);
       const environment = {
         ...process.env,
-        REA_INVESTIGATION_INPUT_ROOTS_JSON: JSON.stringify([root]),
       };
 
       const analyzed = await runCli(
-        ["analyze-javascript-application", root, "--approved", "--json"],
+        ["analyze-javascript-application", root, "--json"],
         environment,
       );
 
@@ -125,7 +124,6 @@ describe("Electron CLI artifact behavior", () => {
       await writeElectronBoundaryFixture(root);
       const environment = {
         ...process.env,
-        REA_INVESTIGATION_INPUT_ROOTS_JSON: JSON.stringify([root]),
       };
 
       const analyzed = await runCli(
@@ -134,7 +132,6 @@ describe("Electron CLI artifact behavior", () => {
           "json",
           "analyze-javascript-application",
           root,
-          "--approved",
           "--artifact-format",
           "directory",
         ],
@@ -150,20 +147,16 @@ describe("Electron CLI artifact behavior", () => {
   );
 
   it(
-    "routes generic approved analysis of a directory to static JavaScript",
+    "routes generic directory analysis to static JavaScript",
     async () => {
       const root = await createTestTempDirectory("rea-electron-routed-cli-");
       temporary.push(root);
       await writeElectronBoundaryFixture(root);
       const environment = {
         ...process.env,
-        REA_INVESTIGATION_INPUT_ROOTS_JSON: JSON.stringify([root]),
       };
 
-      const analyzed = await runCli(
-        ["analyze", root, "--approved", "--json"],
-        environment,
-      );
+      const analyzed = await runCli(["analyze", root, "--json"], environment);
 
       expect(analyzed).toMatchObject({
         operation: "analyze_javascript_application",
@@ -174,39 +167,6 @@ describe("Electron CLI artifact behavior", () => {
           summary: { ipc: { paired_renderer_transmissions: 4 } },
         },
       });
-    },
-    INTEGRATION_TEST_TIMEOUT_MS,
-  );
-
-  it(
-    "requires explicit approval before generic JavaScript analysis",
-    async () => {
-      const root = await createTestTempDirectory(
-        "rea-electron-unapproved-cli-",
-      );
-      temporary.push(root);
-      await writeElectronBoundaryFixture(root);
-      const environment = {
-        ...process.env,
-        REA_INVESTIGATION_INPUT_ROOTS_JSON: JSON.stringify([root]),
-      };
-
-      const denied = await runCli(["analyze", root, "--json"], environment);
-
-      expect(denied).toMatchObject({
-        code: "invalid_request",
-        details: {
-          operation: "analyze_javascript_application",
-          issues: [
-            {
-              path: ["approved"],
-              reason: "invalid_value",
-              expected: [true],
-            },
-          ],
-        },
-      });
-      expect(denied).not.toHaveProperty("details.candidate_ids");
     },
     INTEGRATION_TEST_TIMEOUT_MS,
   );
@@ -232,7 +192,6 @@ describe("Electron CLI runtime reconciliation", () => {
         operation: "reconcile_javascript_runtime",
         provider: { id: "rea-javascript-runtime-reconciliation" },
         normalized_result: {
-          schema_version: 1,
           summary: { runtime_scripts: 1, matched: 1 },
           source_map_authority: { used_for_primary_matching: false },
         },

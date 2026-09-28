@@ -60,7 +60,6 @@ const runtimeIdentificationInputSchema = z.strictObject({
 
 /** Provider-neutral runtime identification with explicit tooling availability. */
 export const runtimeIdentificationResultSchema = z.strictObject({
-  schema_version: z.literal(1),
   identification_id: z.string().regex(/^rid_[a-f0-9]{64}$/u),
   root_sha256: digestSchema,
   root_format: z.string().min(1).max(100),
@@ -196,7 +195,6 @@ export const identifyRuntimes = (
     "Runtime families are identified from exact artifact formats and paths; semantic claims require the named provider.",
   ];
   const withoutId = {
-    schema_version: 1 as const,
     root_sha256: inventory.manifest.root_sha256,
     root_format: inventory.manifest.root_format,
     source_evidence_ids: evidence

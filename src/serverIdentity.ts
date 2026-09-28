@@ -78,7 +78,6 @@ export const createServerIdentity = (input: {
     protocol_features: {
       progress: true,
       cancellation: true,
-      evidence_resources: true,
       elicitation: false,
     },
     alignment: {

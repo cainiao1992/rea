@@ -21,12 +21,12 @@ export const generateLargeFixture = (count = LARGE_FIXTURE_COUNT) => {
   const declarations = Array.from(
     { length: count },
     (_, index) =>
-      `__attribute__((noinline, used)) int rea_page_${String(index).padStart(4, "0")}(void) { puts("REA_PAGE_${String(index).padStart(4, "0")}"); return ${index}; }`,
+      `__attribute__((noinline, used)) int rea_inventory_${String(index).padStart(4, "0")}(void) { puts("REA_INVENTORY_${String(index).padStart(4, "0")}"); return ${index}; }`,
   );
   return [
     "#include <stdio.h>",
     ...declarations,
-    "int main(void) { return rea_page_0000(); }",
+    "int main(void) { return rea_inventory_0000(); }",
     "",
   ].join("\n");
 };

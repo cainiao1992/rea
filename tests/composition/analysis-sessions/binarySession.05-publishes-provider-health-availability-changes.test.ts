@@ -34,7 +34,8 @@ describe("binary session", () => {
         expect.objectContaining({
           operation: "address_name",
           available: false,
-          reason: "Provider became unavailable during this session.",
+          reason:
+            "ProviderAdapterError: Provider fixture adapter failed during address_name",
         }),
       ]),
     });

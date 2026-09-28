@@ -107,26 +107,9 @@ it("runs and reuses a persistent cross-version workspace", async () => {
       ok: true,
       value: { revision: 3, runs: [{ status: "complete" }] },
     });
-    expect(first.content).toContainEqual(
-      expect.objectContaining({
-        type: "resource_link",
-        uri: expect.stringMatching(
-          /^rea:\/\/workspace\/ws_[a-f0-9]{64}\/revision\/3$/u,
-        ),
-      }),
+    expect(firstEvidence.normalized_result).toHaveProperty(
+      "investigation_run.workspace_id",
     );
-    const retainedWorkspace = session.investigationWorkspaces()[0];
-    expect(retainedWorkspace).toBeDefined();
-    if (retainedWorkspace !== undefined) {
-      const resource = await client.readResource({
-        uri: `rea://workspace/${retainedWorkspace.workspace_id}/revision/${String(retainedWorkspace.revision)}`,
-      });
-      expect(resource.contents[0]).toEqual(
-        expect.objectContaining({
-          text: expect.stringContaining(retainedWorkspace.revision_digest),
-        }),
-      );
-    }
 
     const second = await client.callTool({
       name: "find_changed_behavior",
@@ -166,7 +149,7 @@ it("replays a complete workspace without write authority", async () => {
     },
   };
   const writer = await investigationAuthority(directory, true);
-  const initial = await connected(filePolicy, [directory], writer);
+  const initial = await connected(filePolicy, writer);
   try {
     const created = await initial.client.callTool({
       name: "find_changed_behavior",
@@ -178,7 +161,7 @@ it("replays a complete workspace without write authority", async () => {
   }
 
   const reader = await investigationAuthority(directory, false);
-  const replay = await connected(filePolicy, [directory], reader);
+  const replay = await connected(filePolicy, reader);
   try {
     const cached = await replay.client.callTool({
       name: "find_changed_behavior",
@@ -229,7 +212,7 @@ it("defers input permission for an explicit replay with deleted inputs", async (
     options: { page_size: 500, change_limit: 100 },
   };
   const writer = await investigationAuthority(directory, true);
-  const initial = await connected(filePolicy, [directory], writer);
+  const initial = await connected(filePolicy, writer);
   let runId: string | undefined;
   try {
     const created = await initial.client.callTool({
@@ -256,14 +239,10 @@ it("defers input permission for an explicit replay with deleted inputs", async (
   ]);
   const workspaceOnly = await permissionAuthorityForRoot(
     directory,
-    [
-      "investigation_workspace_read",
-      "investigation_workspace_write",
-      "investigation_input",
-    ],
+    ["investigation_workspace_read", "investigation_workspace_write"],
     ["investigation_workspace_read"],
   );
-  const replay = await connected(filePolicy, [], workspaceOnly);
+  const replay = await connected(filePolicy, workspaceOnly);
   try {
     const cached = await replay.client.callTool({
       name: "find_changed_behavior",
@@ -284,49 +263,8 @@ it("defers input permission for an explicit replay with deleted inputs", async (
   }
 });
 
-it("refuses automatic artifact reads outside operator-approved roots", async () => {
-  const directory = await createTestTempDirectory("rea-investigation-mcp-");
-  const approvedInputs = join(directory, "approved-inputs");
-  const outsideInputs = join(directory, "outside-inputs");
-  const evidenceRoot = join(directory, "evidence");
-  await Promise.all([
-    mkdir(approvedInputs),
-    mkdir(outsideInputs),
-    mkdir(evidenceRoot),
-  ]);
-  const left = join(outsideInputs, "left");
-  const right = join(outsideInputs, "right");
-  await Promise.all([mkdir(left), mkdir(right)]);
-  const { session, server, client } = await connected(
-    evidencePolicy(evidenceRoot),
-    [approvedInputs],
-  );
-  try {
-    const response = await client.callTool({
-      name: "find_changed_behavior",
-      arguments: {
-        investigation_run: {
-          approved: true,
-          workspace_path: join(evidenceRoot, "workspace.json"),
-          left_path: left,
-          right_path: right,
-        },
-      },
-    });
-    expect(response.isError).toBe(true);
-    expect(response.content[0]).toEqual({
-      type: "text",
-      text: JSON.stringify(response.structuredContent),
-    });
-  } finally {
-    await close(session, server, client);
-    await rm(directory, { recursive: true, force: true });
-  }
-});
-
 const connected = async (
   evidenceFilePolicy?: EvidenceFilePolicy,
-  investigationInputRoots: readonly string[] = evidenceFilePolicy?.roots ?? [],
   permissionAuthority?: PermissionAuthority,
 ) => {
   const session = createTestBinarySession(() => ({
@@ -335,12 +273,7 @@ const connected = async (
     close: () => Promise.resolve(),
   }));
   const server = createServer(session, session, {
-    ...(evidenceFilePolicy === undefined
-      ? {}
-      : {
-          evidenceFilePolicy,
-          investigationInputRoots,
-        }),
+    ...(evidenceFilePolicy === undefined ? {} : { evidenceFilePolicy }),
     ...(permissionAuthority === undefined ? {} : { permissionAuthority }),
   });
   const client = new Client({ name: "investigation-test", version: "1" });
@@ -374,14 +307,9 @@ const investigationAuthority = async (
 ): Promise<PermissionAuthority> =>
   permissionAuthorityForRoot(
     root,
+    ["investigation_workspace_read", "investigation_workspace_write"],
     [
       "investigation_workspace_read",
-      "investigation_workspace_write",
-      "investigation_input",
-    ],
-    [
-      "investigation_workspace_read",
-      "investigation_input",
       ...(includeWrite ? (["investigation_workspace_write"] as const) : []),
     ],
   );

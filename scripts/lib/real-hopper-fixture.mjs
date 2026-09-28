@@ -69,7 +69,7 @@ function requireLargeOracle(largeOracle) {
     largeOracle.symbolCount !== largeOracle.stringCount ||
     largeOracle.symbolCount <= 0
   )
-    throw new Error("Large fixture omitted its exact pagination oracle");
+    throw new Error("Large fixture omitted its complete-inventory oracle");
   return largeOracle;
 }
 

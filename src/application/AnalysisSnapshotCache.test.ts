@@ -54,11 +54,9 @@ describe("analysis snapshot cache partitioning", () => {
       analysisProfile: ANALYSIS_SNAPSHOT_PROFILE,
       limitations: [expect.stringContaining("local REA analysis snapshot")],
     });
-    const changedProfile = createAnalysisProfile(
-      ANALYSIS_SNAPSHOT_PROVIDER,
-      1,
-      { loader: "configured-override" },
-    );
+    const changedProfile = createAnalysisProfile(ANALYSIS_SNAPSHOT_PROVIDER, {
+      loader: "configured-override",
+    });
     expect(
       cache.lookup(ANALYSIS_SNAPSHOT_TARGET, changedProfile, "address_name", {
         address: "0x1000",
@@ -67,7 +65,6 @@ describe("analysis snapshot cache partitioning", () => {
     ).toBeUndefined();
     const changedProviderProfile = createAnalysisProfile(
       { id: "other", name: "Other", version: "1" },
-      1,
       { loader: "mach-o-arm64" },
     );
     expect(

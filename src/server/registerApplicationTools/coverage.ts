@@ -19,7 +19,6 @@ import { err } from "../../domain/result.js";
 import { logToolExecution } from "../toolLogging.js";
 import { toolRegistrationOptions } from "../toolRegistrationOptions.js";
 import { toCallToolResult } from "../toolResult.js";
-import { coverageWorkspaceUri } from "./helpers.js";
 import type { ApplicationToolRegistration } from "./types.js";
 
 const commitContract = applicationToolContract(
@@ -78,19 +77,7 @@ const registerCommitTool = (
       );
       if (!result.ok) return toCallToolResult(result, commitContract);
       options.retainCoverageWorkspace?.(input.workspace);
-      return toCallToolResult(result, commitContract, {
-        resourceLinks:
-          options.retainCoverageWorkspace === undefined
-            ? []
-            : [
-                {
-                  uri: coverageWorkspaceUri(input.workspace),
-                  name: input.workspace.workspace_id,
-                  description:
-                    "Session-retained reconstruction coverage workspace revision",
-                },
-              ],
-      });
+      return toCallToolResult(result, commitContract);
     },
   );
 };

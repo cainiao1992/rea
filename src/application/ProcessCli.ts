@@ -13,7 +13,6 @@ import { projectInputIssues } from "../domain/inputIssueProjection.js";
 import { processTraceSpecificationSchema } from "../domain/processTraceComparison.js";
 import {
   compareProcessCaptures,
-  LEGACY_PROCESS_CAPTURE_MESSAGE,
   parseProcessScenario,
   parseProcessCapture,
 } from "../domain/processCapture.js";
@@ -88,10 +87,7 @@ export const compareProcessEvidenceFiles = async (
             traceSpecification,
           });
     return createEvidence(undefined, PROCESS_PROVIDER, {
-      predicateType:
-        traceSpecification === undefined
-          ? "rea.process-comparison/v3"
-          : "rea.process-comparison/v4",
+      predicateType: "rea.process-comparison",
       operation: "compare_process_captures",
       parameters: {
         left_evidence_id: left.id,
@@ -123,15 +119,10 @@ const parseCaptureEvidence = (input: unknown) => {
   }
   if (
     evidence.operation !== "capture_process_scenario" ||
-    evidence.predicate_type !== "rea.process-capture/v4" ||
+    evidence.predicate_type !== "rea.process-capture" ||
     evidence.provider.id !== PROCESS_PROVIDER.id ||
     evidence.provider.version !== PROCESS_PROVIDER.version
   ) {
-    if (evidence.predicate_type === "rea.process-capture/v3")
-      throw new ProcessCliFailure(
-        "invalid_input",
-        LEGACY_PROCESS_CAPTURE_MESSAGE,
-      );
     throw new ProcessCliFailure(
       "invalid_input",
       "Capture evidence is not from the current process-capture workflow. Create new capture evidence, then try again.",

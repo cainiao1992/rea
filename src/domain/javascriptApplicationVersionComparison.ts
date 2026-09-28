@@ -71,7 +71,6 @@ export const compareJavaScriptApplicationVersions = (
   };
   const coverage = comparisonCoverage(input, omissions);
   const semantic = {
-    schema_version: 1 as const,
     left: {
       evidence_id: input.left.evidenceId,
       graph_id: input.left.graph.graph_id,

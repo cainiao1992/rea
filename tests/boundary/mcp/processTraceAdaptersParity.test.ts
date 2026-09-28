@@ -82,7 +82,7 @@ const traceSpecification: ProcessTraceSpecification = {
 
 const captureEvidence = (side: "left" | "right") =>
   createEvidence(undefined, PROCESS_PROVIDER, {
-    predicateType: "rea.process-capture/v4",
+    predicateType: "rea.process-capture",
     operation: "capture_process_scenario",
     parameters: { side },
     result: jsonValueSchema.parse(capture),

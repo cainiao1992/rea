@@ -103,9 +103,9 @@ async function buildPortableFixtures() {
       join(outputRoot, "large"),
     ],
     expectations: {
-      symbolPrefix: `${symbolPrefix}rea_page_`,
+      symbolPrefix: `${symbolPrefix}rea_inventory_`,
       symbolCount: LARGE_FIXTURE_COUNT,
-      stringPrefix: "REA_PAGE_",
+      stringPrefix: "REA_INVENTORY_",
       stringCount: LARGE_FIXTURE_COUNT,
     },
   });

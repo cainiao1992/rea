@@ -5,12 +5,10 @@ import { z } from "zod";
 import { javascriptApplicationGraphSchema } from "./javascriptApplicationGraph.js";
 import { javaScriptSemanticGraphSchema } from "./javascriptSemanticGraph.js";
 
-const MAX_GRAPH_NODES = 100_000;
-const MAX_GRAPH_EDGES = 200_000;
-const countSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+const countSchema = z.number().int().min(0);
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 
-/** Default hard bounds for one local JavaScript application analysis. */
+/** Defaults for one local JavaScript application analysis. */
 export const JAVASCRIPT_APPLICATION_ANALYSIS_DEFAULT_LIMITS = {
   max_entries: 8_000,
   max_total_artifact_bytes: 512 * 1_024 * 1_024,
@@ -29,86 +27,46 @@ export const JAVASCRIPT_APPLICATION_ANALYSIS_DEFAULT_LIMITS = {
 } as const;
 
 /** Combined artifact, text, AST, and graph projection bounds. */
-export const javascriptApplicationAnalysisLimitsSchema = z
-  .strictObject({
-    max_entries: z.number().int().min(1).max(1_000_000).default(8_000),
-    max_total_artifact_bytes: z
-      .number()
-      .int()
-      .min(1)
-      .max(Number.MAX_SAFE_INTEGER)
-      .default(512 * 1_024 * 1_024),
-    max_artifact_entry_bytes: z
-      .number()
-      .int()
-      .min(1)
-      .max(Number.MAX_SAFE_INTEGER)
-      .default(128 * 1_024 * 1_024),
-    max_compression_ratio: z.number().min(1).max(100_000).default(1_000),
-    max_depth: z.number().int().min(1).max(100).default(64),
-    max_path_bytes: z.number().int().min(1).max(65_535).default(4_096),
-    max_text_files: z.number().int().min(1).max(100_000).default(5_000),
-    max_total_text_bytes: z
-      .number()
-      .int()
-      .min(1)
-      .max(512 * 1_024 * 1_024)
-      .default(128 * 1_024 * 1_024),
-    max_text_file_bytes: z
-      .number()
-      .int()
-      .min(1)
-      .max(64 * 1_024 * 1_024)
-      .default(8 * 1_024 * 1_024),
-    max_ast_nodes: z.number().int().min(1).max(20_000_000).default(2_000_000),
-    max_findings: z.number().int().min(1).max(200_000).default(8_000),
-    max_modules: z.number().int().min(1).max(100_000).default(20_000),
-    max_source_map_sources: z.number().int().min(1).max(100_000).default(5_000),
-    max_parse_milliseconds: z
-      .number()
-      .int()
-      .min(1)
-      .max(300_000)
-      .default(30_000),
-  })
-  .superRefine((limits, context) => {
-    const projectedNodes =
-      7 * limits.max_entries +
-      2 * limits.max_findings +
-      limits.max_modules +
-      limits.max_source_map_sources +
-      1;
-    if (projectedNodes > MAX_GRAPH_NODES)
-      context.addIssue({
-        code: "custom",
-        path: ["max_entries"],
-        message:
-          "Combined application-analysis limits can exceed the 100000-node graph contract",
-      });
-    const projectedEdges =
-      9 * limits.max_entries +
-      6 * limits.max_findings +
-      limits.max_modules +
-      limits.max_source_map_sources;
-    if (projectedEdges > MAX_GRAPH_EDGES)
-      context.addIssue({
-        code: "custom",
-        path: ["max_entries"],
-        message:
-          "Combined application-analysis limits can exceed the 200000-edge graph contract",
-      });
-  });
+export const javascriptApplicationAnalysisLimitsSchema = z.strictObject({
+  max_entries: z.number().int().min(1).default(8_000),
+  max_total_artifact_bytes: z
+    .number()
+    .int()
+    .min(1)
+    .default(512 * 1_024 * 1_024),
+  max_artifact_entry_bytes: z
+    .number()
+    .int()
+    .min(1)
+    .default(128 * 1_024 * 1_024),
+  max_compression_ratio: z.number().min(1).default(1_000),
+  max_depth: z.number().int().min(1).default(64),
+  max_path_bytes: z.number().int().min(1).default(4_096),
+  max_text_files: z.number().int().min(1).default(5_000),
+  max_total_text_bytes: z
+    .number()
+    .int()
+    .min(1)
+    .default(128 * 1_024 * 1_024),
+  max_text_file_bytes: z
+    .number()
+    .int()
+    .min(1)
+    .default(8 * 1_024 * 1_024),
+  max_ast_nodes: z.number().int().min(1).default(2_000_000),
+  max_findings: z.number().int().min(1).default(8_000),
+  max_modules: z.number().int().min(1).default(20_000),
+  max_source_map_sources: z.number().int().min(1).default(5_000),
+  max_parse_milliseconds: z.number().int().min(1).default(30_000),
+});
 
-/** Public target-free request for bounded static JavaScript application analysis. */
+/** Public target-free request for static JavaScript application analysis. */
 export const analyzeJavaScriptApplicationInputSchema = z.strictObject({
   input_path: z
     .string()
     .min(1)
-    .max(16_384)
     .refine(isAbsolute, "JavaScript application input path must be absolute"),
   format: z.enum(["auto", "asar", "directory"]).default("auto"),
-  approved: z.literal(true),
-  source_map_read_approved: z.boolean().default(false),
   limits: javascriptApplicationAnalysisLimitsSchema.default(
     JAVASCRIPT_APPLICATION_ANALYSIS_DEFAULT_LIMITS,
   ),
@@ -146,7 +104,6 @@ const reconstructionStatisticsSchema = z.strictObject({
   text_bytes_read: countSchema,
   omitted_text_files: countSchema,
   limit_omitted_text_files: countSchema,
-  policy_filtered_text_files: countSchema,
   invalid_utf8_files: countSchema,
   parsed_javascript_files: countSchema,
   visited_ast_nodes: countSchema,
@@ -156,74 +113,56 @@ const reconstructionStatisticsSchema = z.strictObject({
   truncated_scopes: countSchema,
 });
 
-/** Legacy structural JavaScript application analysis result. */
-export const javaScriptApplicationAnalysisResultV1Schema = z.strictObject({
-  schema_version: z.literal(1),
-  input_path: z.string().min(1).max(16_384),
-  format: z.enum(["asar", "directory"]),
-  root_artifact_sha256: digestSchema,
-  inventory_manifest_id: z.string().regex(/^agm_[a-f0-9]{64}$/u),
-  inventory_graph_sha256: digestSchema,
-  graph: javascriptApplicationGraphSchema,
-  summary: electronBoundarySummarySchema,
-  statistics: reconstructionStatisticsSchema,
-  limitations: z.array(z.string().min(1).max(4_096)).max(1_000),
-});
-
 /** JavaScript application analysis with an authenticated semantic companion. */
-export const javaScriptApplicationAnalysisResultV2Schema =
-  javaScriptApplicationAnalysisResultV1Schema
-    .extend({
-      schema_version: z.literal(2),
-      semantic_graph: javaScriptSemanticGraphSchema,
-    })
-    .superRefine((result, context) => {
-      if (result.semantic_graph.application_graph_id !== result.graph.graph_id)
-        context.addIssue({
-          code: "custom",
-          path: ["semantic_graph", "application_graph_id"],
-          message:
-            "Semantic graph must commit the containing application graph",
-        });
-      if (
-        result.semantic_graph.root_artifact_sha256 !==
-        result.root_artifact_sha256
-      )
-        context.addIssue({
-          code: "custom",
-          path: ["semantic_graph", "root_artifact_sha256"],
-          message: "Semantic graph must commit the containing root artifact",
-        });
-      const applicationNodeIds = new Set(
-        result.graph.nodes.map(({ node_id }) => node_id),
-      );
-      for (const [nodeIndex, node] of result.semantic_graph.nodes.entries())
-        for (const [
-          identifierIndex,
-          identifier,
-        ] of node.application_node_ids.entries())
-          if (!applicationNodeIds.has(identifier))
-            context.addIssue({
-              code: "custom",
-              path: [
-                "semantic_graph",
-                "nodes",
-                nodeIndex,
-                "application_node_ids",
-                identifierIndex,
-              ],
-              message: "Semantic node references an absent application node",
-            });
-    });
-
-/** Strict versioned high-level result returned inside Evidence v2. */
-export const javascriptApplicationAnalysisResultSchema = z.discriminatedUnion(
-  "schema_version",
-  [
-    javaScriptApplicationAnalysisResultV1Schema,
-    javaScriptApplicationAnalysisResultV2Schema,
-  ],
-);
+export const javascriptApplicationAnalysisResultSchema = z
+  .strictObject({
+    input_path: z.string().min(1).max(16_384),
+    format: z.enum(["asar", "directory"]),
+    root_artifact_sha256: digestSchema,
+    inventory_manifest_id: z.string().regex(/^agm_[a-f0-9]{64}$/u),
+    inventory_graph_sha256: digestSchema,
+    graph: javascriptApplicationGraphSchema,
+    summary: electronBoundarySummarySchema,
+    statistics: reconstructionStatisticsSchema,
+    limitations: z.array(z.string().min(1).max(4_096)).max(1_000),
+    semantic_graph: javaScriptSemanticGraphSchema,
+  })
+  .superRefine((result, context) => {
+    if (result.semantic_graph.application_graph_id !== result.graph.graph_id)
+      context.addIssue({
+        code: "custom",
+        path: ["semantic_graph", "application_graph_id"],
+        message: "Semantic graph must commit the containing application graph",
+      });
+    if (
+      result.semantic_graph.root_artifact_sha256 !== result.root_artifact_sha256
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["semantic_graph", "root_artifact_sha256"],
+        message: "Semantic graph must commit the containing root artifact",
+      });
+    const applicationNodeIds = new Set(
+      result.graph.nodes.map(({ node_id }) => node_id),
+    );
+    for (const [nodeIndex, node] of result.semantic_graph.nodes.entries())
+      for (const [
+        identifierIndex,
+        identifier,
+      ] of node.application_node_ids.entries())
+        if (!applicationNodeIds.has(identifier))
+          context.addIssue({
+            code: "custom",
+            path: [
+              "semantic_graph",
+              "nodes",
+              nodeIndex,
+              "application_node_ids",
+              identifierIndex,
+            ],
+            message: "Semantic node references an absent application node",
+          });
+  });
 
 /** Parsed public JavaScript application analysis request. */
 export type AnalyzeJavaScriptApplicationInput = z.infer<

@@ -65,16 +65,10 @@ describe("reconstruction coverage MCP parity", () => {
         revision: 1,
         revision_sha256: workspace.revision_sha256,
       });
-      const resourceUri = `rea://reconstruction-coverage/${workspace.workspace_id}/revision/1`;
-      expect(committed.content).toContainEqual(
-        expect.objectContaining({ type: "resource_link", uri: resourceUri }),
-      );
-      const resource = await client.readResource({ uri: resourceUri });
-      expect(resource.contents[0]).toEqual(
-        expect.objectContaining({
-          text: expect.stringContaining(workspace.revision_sha256),
-        }),
-      );
+      expect(committed.structuredContent).toMatchObject({
+        workspace_id: workspace.workspace_id,
+        revision_sha256: workspace.revision_sha256,
+      });
       const queried = await client.callTool({
         name: "query_reconstruction_coverage",
         arguments: {

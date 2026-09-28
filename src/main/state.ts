@@ -5,7 +5,6 @@ export interface RuntimeState {
   currentConfig: AppConfig;
   evidencePolicy: EvidenceFilePolicy & { roots: string[] };
   snapshotPolicy: EvidenceFilePolicy & { roots: string[] };
-  investigationRoots: string[];
 }
 
 export const createRuntimeState = (config: AppConfig): RuntimeState => ({
@@ -18,5 +17,4 @@ export const createRuntimeState = (config: AppConfig): RuntimeState => ({
     ...config.analysisSnapshotFilePolicy,
     roots: [...config.analysisSnapshotFilePolicy.roots],
   },
-  investigationRoots: [...config.investigationInputRoots],
 });

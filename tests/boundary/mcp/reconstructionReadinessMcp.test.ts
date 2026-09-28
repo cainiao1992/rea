@@ -7,7 +7,7 @@ import { createServer } from "../../../src/server/createServer.js";
 import { observed } from "../../fixtures/analysisExecution.js";
 
 describe("reconstruction readiness MCP parity", () => {
-  it("returns a passing compact result and retains the full report resource", async () => {
+  it("returns the complete passing report inline", async () => {
     const session = createTestBinarySession(() => ({
       execute: () => Promise.resolve(observed(null)),
       close: () => Promise.resolve(),
@@ -30,31 +30,13 @@ describe("reconstruction readiness MCP parity", () => {
           schema: "ReconstructionReadinessReport",
           status: "pass",
           summary: { passed_required_stages: 9 },
-          report_resource_uri: expect.stringMatching(
-            /^rea:\/\/evidence\/ev_[a-f0-9]{64}\/reconstruction-readiness-report$/u,
-          ),
+          stages: expect.arrayContaining([expect.any(Object)]),
         },
       });
-      expect(result.structuredContent).not.toHaveProperty("result.snapshot");
-      expect(result.structuredContent).not.toHaveProperty("result.stages");
-      const content = result.structuredContent;
-      if (
-        content === undefined ||
-        content === null ||
-        typeof content !== "object" ||
-        !("evidence_id" in content) ||
-        typeof content.evidence_id !== "string"
-      )
-        throw new TypeError("Missing readiness Evidence ID");
-      const resource = await client.readResource({
-        uri: `rea://evidence/${content.evidence_id}/reconstruction-readiness-report`,
-      });
-      expect(resource.contents[0]).toEqual(
-        expect.objectContaining({
-          text: expect.stringContaining(
-            '"schema": "ReconstructionReadinessReport"',
-          ),
-        }),
+      expect(result.structuredContent).toHaveProperty("result.snapshot");
+      expect(result.structuredContent).toHaveProperty("result.stages");
+      expect(result.structuredContent).not.toHaveProperty(
+        "result.report_resource_uri",
       );
     } finally {
       await client.close();

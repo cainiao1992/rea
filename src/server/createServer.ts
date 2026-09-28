@@ -29,7 +29,7 @@ import { PRODUCT_IDENTITY } from "../identity.js";
 import { silentLogger, type Logger } from "../logger.js";
 import { LinuxJavaScriptReplayRunner } from "../replay/LinuxJavaScriptReplayRunner.js";
 import { SystemJavaScriptReplayHost } from "../replay/SystemJavaScriptReplayHost.js";
-import { mcpClientMetadata, mcpEnvelopeValue } from "./mcpClientMetadata.js";
+import { mcpEnvelopeValue } from "./mcpClientMetadata.js";
 import {
   PROCESS_CAPTURE_ELICITATION_POLICY,
   type ProcessCaptureElicitationState,
@@ -40,7 +40,6 @@ import { registerBrowserScenarioTool } from "./registerBrowserScenarioTool.js";
 import { registerBrowserTools } from "./registerBrowserTools.js";
 import { registerElectronTools } from "./registerElectronTools.js";
 import { registerEnhancedTools } from "./registerEnhancedTools.js";
-import { registerEvidenceResources } from "./registerEvidenceResources.js";
 import { registerJavaScriptRuntimeObservationTools } from "./registerJavaScriptRuntimeObservationTools.js";
 import { registerManagedTools } from "./registerManagedTools.js";
 import { registerManagedWorkflowTools } from "./registerManagedWorkflowTools.js";
@@ -56,16 +55,15 @@ import {
 } from "./sessionToolPolicies.js";
 
 const TARGET_FREE_INSTRUCTIONS =
-  "ASAR/JavaScript -> analyze_javascript_application; archive/package -> open_binary(path), then inspect_artifact/inventory_artifact (active target); managed PE/CLI -> inspect_managed_artifact; browser/Electron -> list_browser_targets/list_electron_targets; approved -> capture_browser_scenario/capture_electron_scenario; Node/Electron Inspector -> list_javascript_runtime_targets; native binary/database -> open_binary, then binary_overview. Start with binary_session; use tools/list; capabilities via binary_session. Use summaries, cite Evidence IDs; Never repeat identical analysis or read full Evidence.";
+  "ASAR/JavaScript -> analyze_javascript_application; archive/package -> open_binary(path), then inspect_artifact/inventory_artifact; managed PE/CLI -> inspect_managed_artifact; browser/Electron -> list_browser_targets/list_electron_targets; capture_browser_scenario/capture_electron_scenario; Node/Electron Inspector -> list_javascript_runtime_targets; native binary/database -> open_binary, then binary_overview. Start with binary_session; use tools/list; capabilities via binary_session.";
 
 const ACTIVE_TARGET_INSTRUCTIONS =
-  "REA analyzes the active reverse-engineering target. Start native analysis with binary_overview, then narrow with analyze_function, literal search, callers, callees, and xrefs. Prefer summary views, never repeat an identical call, and read full Evidence only when the task requires it.";
+  "REA analyzes the active reverse-engineering target. Start native analysis with binary_overview, then use analyze_function, literal search, callers, callees, and xrefs as needed.";
 
 export interface CreateServerOptions {
   readonly logger?: Logger;
   readonly processPolicy?: () => ProcessExecutionPolicy;
   readonly evidenceFilePolicy?: EvidenceFilePolicy;
-  readonly investigationInputRoots?: readonly string[];
   readonly analysisSnapshotFilePolicy?: EvidenceFilePolicy;
   readonly permissionAuthority?: PermissionAuthority;
   readonly browserObservation?: BrowserObservationPort;
@@ -90,7 +88,6 @@ const installSessionToolAvailability = (
   const policy = sessionAvailabilityPolicy(options.availabilityPolicy, {
     processPolicy: options.processPolicy?.() ?? DENY_PROCESS_POLICY,
     evidenceFilePolicy: options.evidenceFilePolicy ?? DENY_EVIDENCE_FILE_POLICY,
-    investigationInputRoots: options.investigationInputRoots ?? [],
     optionalFeatures: {
       browserObservationEnabled: options.browserObservation !== undefined,
       browserScenarioEnabled: options.browserScenarioCapture !== undefined,
@@ -157,9 +154,7 @@ const createMcpServer = (
       version: PRODUCT_IDENTITY.packageVersion,
     },
     {
-      capabilities: {
-        resources: { subscribe: true },
-      },
+      capabilities: {},
       inputRequired: {
         maxRounds: 3,
         roundTimeoutMs: PROCESS_CAPTURE_ELICITATION_POLICY.roundTimeoutMs,
@@ -196,7 +191,6 @@ export const createServer = (
   server.server.onclose = () => {
     permissionAuthority?.clearSessionGrants();
   };
-  registerServerIdentityResource(server, startedAt);
   const toolLogger = logger.child({ layer: "server" });
   const { activeTarget, recordEvidence, recordEvidenceWithUnknown } =
     createSessionRecorders(server, session);
@@ -218,7 +212,6 @@ export const createServer = (
   registerObservationTools(toolContext);
   registerGuidedPrompts(server, analysis, session);
   if (session !== undefined) {
-    registerEvidenceResources(server, session);
     registerSessionTools(server, session, toolLogger, {
       ...options,
       ...(availability === undefined
@@ -372,40 +365,4 @@ const registerObservationTools = ({
       authority: permissionAuthority,
     },
   });
-};
-
-const registerServerIdentityResource = (
-  server: McpServer,
-  startedAt: string,
-): void => {
-  server.registerResource(
-    "server-identity",
-    "rea://server/identity",
-    {
-      title: "REA server identity",
-      description: "Live package, SDK, protocol, and catalog identity.",
-      mimeType: "application/json",
-    },
-    async (uri, context) => {
-      const { createServerIdentity } = await import("../serverIdentity.js");
-      const { client, protocolVersion } = mcpClientMetadata(context);
-      return {
-        contents: [
-          {
-            uri: uri.href,
-            mimeType: "application/json",
-            text: JSON.stringify(
-              createServerIdentity({
-                startedAt,
-                ...(client === undefined ? {} : { client }),
-                ...(protocolVersion === undefined ? {} : { protocolVersion }),
-              }),
-              null,
-              2,
-            ),
-          },
-        ],
-      };
-    },
-  );
 };

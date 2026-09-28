@@ -29,7 +29,7 @@ interface EvidenceToolRegistration {
   ) => readonly Evidence[];
 }
 
-/** Register provider-backed contracts that return atomic Evidence v2 observations. */
+/** Register provider-backed contracts that return atomic Evidence observations. */
 export const registerEvidenceTools = (
   server: McpServer,
   analysis: AnalysisOperationPort,
@@ -103,9 +103,7 @@ export const registerEvidenceTools = (
         const recorded = options.recordEvidence?.(evidence);
         return recorded !== undefined && !recorded.ok
           ? toCallToolResult(recorded, contract)
-          : toCallToolResult({ ok: true, value: evidence }, contract, {
-              evidenceResourcesAvailable: recorded !== undefined,
-            });
+          : toCallToolResult({ ok: true, value: evidence }, contract);
       },
     );
   }

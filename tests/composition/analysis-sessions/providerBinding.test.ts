@@ -219,7 +219,6 @@ const deepProvider = (id: string): DeepProviderFixture => {
         ok({
           profile: createAnalysisProfile(
             { id, name: identity.name, version: "1" },
-            1,
             { provider: id },
           ),
           compatibility: {},
@@ -295,8 +294,6 @@ const capability = (
 ): CapabilityDescriptor => ({
   provider,
   operation,
-  inputContractVersion: 1,
-  outputContractVersion: 1,
   available: true,
   reason: null,
   pagination: "none",

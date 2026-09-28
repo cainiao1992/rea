@@ -149,7 +149,7 @@ export const createArtifactNode = (input: {
   readonly contentState: ArtifactNode["content_state"];
   readonly limitations?: readonly string[];
 }): ArtifactNode => ({
-  artifact_id: `art_${digestCanonical({ schema_version: 1, sha256: input.sha256 })}`,
+  artifact_id: `art_${digestCanonical({ sha256: input.sha256 })}`,
   kind: input.kind,
   format: input.format,
   sha256: input.sha256,

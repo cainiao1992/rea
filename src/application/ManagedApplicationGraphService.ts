@@ -53,7 +53,6 @@ const createManagedApplicationGraphEvidence = (
       managed_members_evidence_id: input.managed_members?.evidence_id ?? null,
       managed_native_boundaries_evidence_id:
         input.managed_native_boundaries?.evidence_id ?? null,
-      limits: jsonValueSchema.parse(input.limits),
     },
     result: jsonValueSchema.parse(
       managedApplicationGraphResultSchema.parse(result),

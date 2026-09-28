@@ -376,19 +376,12 @@ const lifecycleClient = (
     if (operation === "list_procedures") {
       requests.push(parameters);
       return Promise.resolve(
-        observed({
-          items: [
-            {
-              address: target === "first" ? "0x1000" : "0x2000",
-              value: `${target}-procedure`,
-            },
-          ],
-          offset: 0,
-          limit: 500,
-          total: 1,
-          next_offset: null,
-          has_more: false,
-        }),
+        observed([
+          {
+            address: target === "first" ? "0x1000" : "0x2000",
+            value: `${target}-procedure`,
+          },
+        ]),
       );
     }
     return Promise.resolve(observed(null));

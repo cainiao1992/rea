@@ -27,7 +27,7 @@ export const resolveReconstructionReadinessRequest = (
     : err(new AnalysisInputError(OPERATION, { cause: parsed.error }));
 };
 
-/** Evaluate and wrap one deterministic readiness report in Evidence v2. */
+/** Evaluate and wrap one deterministic readiness report in Evidence. */
 export const evaluateReconstructionReadinessValidated = (
   input: ReconstructionReadinessInput,
 ): Result<Evidence, AnalysisError> => {

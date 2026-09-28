@@ -125,7 +125,6 @@ Pre-commit hooks via Husky format then lint staged source files. Pre-push runs `
 - `REA_V8_INSPECTOR_ENDPOINTS_JSON` (optional): approved literal-loopback Node/Electron Inspector HTTP endpoints.
 - `REA_V8_INSPECTOR_FILE_ROOTS_JSON` (optional): canonical filesystem roots approved for Inspector targets and script locations.
 - `REA_V8_INSPECTOR_ALLOWED_ORIGINS_JSON` (optional): exact HTTP(S) origins approved for Electron renderer Inspector targets and scripts.
-- `REA_INVESTIGATION_INPUT_ROOTS_JSON` (optional): canonical filesystem roots approved for static JavaScript/Electron application analysis and other investigation inputs.
 - `REA_JAVASCRIPT_REPLAY_ENABLED` (optional, default `false`): add controlled extracted-module execution authority to the administrator ceiling.
 - `REA_JAVASCRIPT_REPLAY_ROOTS_JSON` (optional): exact canonical source roots approved for controlled replay.
 - `REA_JAVASCRIPT_REPLAY_NODE_PATH`, `REA_JAVASCRIPT_REPLAY_BWRAP_PATH`, `REA_JAVASCRIPT_REPLAY_SYSTEMD_RUN_PATH`, `REA_JAVASCRIPT_REPLAY_SYSTEMCTL_PATH`, and `REA_JAVASCRIPT_REPLAY_SHELL_PATH` (optional): absolute paths committed by each replay plan; defaults target the current Node runtime and standard Linux system executables.

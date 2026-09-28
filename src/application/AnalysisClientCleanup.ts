@@ -7,7 +7,9 @@ import type { AnalysisClient, ExecutionOptions } from "./AnalysisProvider.js";
 export const closeAnalysisClient = async (
   client: AnalysisClient,
   providerId: string,
-  options: Pick<ExecutionOptions, "progress"> = {},
+  options: Pick<ExecutionOptions, "progress"> & {
+    readonly retainDocument?: boolean;
+  } = {},
 ): Promise<Result<null, AnalysisError>> => {
   try {
     if (client.closeWithOutcome !== undefined)

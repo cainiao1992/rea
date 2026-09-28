@@ -118,10 +118,6 @@ export async function verifyDebugFunctionOperations(
   const switchDossier = await analyzeSwitchDossier(client, switchProcedure);
   const denseSwitchDossier = await functionCall(client, "analyze_function", {
     procedure: denseSwitchProcedure.address,
-    include_assembly: true,
-    limit: 500,
-    max_pseudocode_chars: 100_000,
-    max_instructions: 5_000,
   });
   assertDenseSwitchDossier(denseSwitchDossier, denseSwitchProcedure.address);
   assertIndirectDossier(indirectDossier, leaf.address);
@@ -246,10 +242,6 @@ async function assertStringXrefs(client, entryStringAddress) {
 async function analyzeEntryDossier(client, entry, branch, indirect) {
   const entryDossier = await functionCall(client, "analyze_function", {
     procedure: entry.address,
-    include_assembly: true,
-    limit: 500,
-    max_pseudocode_chars: 100_000,
-    max_instructions: 5_000,
   });
   assertDossier(entryDossier, {
     address: entry.address,
@@ -263,10 +255,6 @@ async function analyzeEntryDossier(client, entry, branch, indirect) {
 async function analyzeSwitchDossier(client, switchProcedure) {
   const dossier = await functionCall(client, "analyze_function", {
     procedure: switchProcedure.address,
-    include_assembly: true,
-    limit: 500,
-    max_pseudocode_chars: 100_000,
-    max_instructions: 5_000,
   });
   assertDossier(dossier, {
     address: switchProcedure.address,
@@ -280,9 +268,6 @@ async function analyzeSwitchDossier(client, switchProcedure) {
 async function analyzeBranchDossier(client, branch) {
   const branchDossier = await functionCall(client, "analyze_function", {
     procedure: branch.address,
-    limit: 500,
-    max_pseudocode_chars: 100_000,
-    max_instructions: 5_000,
   });
   assertDossier(branchDossier, {
     address: branch.address,
@@ -294,10 +279,6 @@ async function analyzeBranchDossier(client, branch) {
 async function analyzeIndirectDossier(client, indirect) {
   const indirectDossier = await functionCall(client, "analyze_function", {
     procedure: indirect.address,
-    include_assembly: true,
-    limit: 500,
-    max_pseudocode_chars: 100_000,
-    max_instructions: 5_000,
   });
   assertDossier(indirectDossier, {
     address: indirect.address,
@@ -307,13 +288,11 @@ async function analyzeIndirectDossier(client, indirect) {
 }
 
 function assertIndirectDossier(indirectDossier, leafAddress) {
-  if (
-    indirectDossier.callees.items.some(({ address }) => address === leafAddress)
-  )
+  if (indirectDossier.callees.some(({ address }) => address === leafAddress))
     throw new Error(
       "Ghidra dossier falsely resolved a targetless callback as the fixture leaf",
     );
-  if (!/\bcall\b/iu.test(indirectDossier.assembly.items.join("\n")))
+  if (!/\bcall\b/iu.test(indirectDossier.assembly.join("\n")))
     throw new Error("Ghidra indirect-call fixture lost its computed call site");
 }
 
@@ -384,10 +363,6 @@ export async function verifyStrippedFunctionOperations(client, entryString) {
     throw new Error("Ghidra did not decompile the stripped function");
   const dossier = await functionCall(client, "analyze_function", {
     procedure: procedure.address,
-    include_assembly: true,
-    limit: 500,
-    max_pseudocode_chars: 100_000,
-    max_instructions: 5_000,
   });
   assertDossier(dossier, {
     address: procedure.address,
@@ -449,9 +424,6 @@ export async function verifyCrossFormatOperations({
   const messageOwner = await findCrossStringOwner(client, messageXrefs);
   const stringDossier = await functionCall(client, "analyze_function", {
     procedure: messageOwner.procedure.address,
-    limit: 500,
-    max_pseudocode_chars: 100_000,
-    max_instructions: 5_000,
   });
   assertDossier(stringDossier, {
     address: messageOwner.procedure.address,
@@ -461,9 +433,6 @@ export async function verifyCrossFormatOperations({
   const branchAddress = await findCrossBranchAddress(client, variant, callees);
   const branchDossier = await functionCall(client, "analyze_function", {
     procedure: branchAddress,
-    limit: 500,
-    max_pseudocode_chars: 100_000,
-    max_instructions: 5_000,
   });
   assertDossier(branchDossier, {
     address: branchAddress,

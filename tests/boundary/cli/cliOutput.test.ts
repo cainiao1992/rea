@@ -135,7 +135,7 @@ describe("compiled CLI output boundary", () => {
           'code: VALIDATION_ERROR\nmessage: "REA could not read the command arguments. Run `rea --help`, correct the arguments, then try again."\n',
       });
       const json = await cli.run({
-        arguments: ["--full-output", "--json", "analyze"],
+        arguments: ["--json", "analyze"],
       });
       expect(json).toMatchObject({
         exitCode: 1,
@@ -154,7 +154,7 @@ describe("compiled CLI output boundary", () => {
   );
 
   workspaceCliTest(
-    "preserves artifact diagnostics in ordinary and full JSON output",
+    "preserves artifact diagnostics in JSON output",
     async ({ cli, workspace }) => {
       const source = workspace.path("source");
       await mkdir(source);
@@ -163,17 +163,15 @@ describe("compiled CLI output boundary", () => {
       await createPackageWithOptions(source, archive, { unpack: "*.js" });
       await writeFile(join(`${archive}.unpacked`, "main.js"), "changed();\n");
 
-      for (const flags of [["--json"], ["--full-output", "--json"]]) {
-        const result = await cli.run({
-          arguments: [...flags, "inventory-artifact", archive],
-        });
-        expect(result.exitCode).toBe(1);
-        const output = JSON.stringify(result.json);
-        expect(output).toContain('"logical_path":"main.js"');
-        expect(output).toMatch(/"declared_sha256":"[a-f0-9]{64}"/u);
-        expect(output).toMatch(/"calculated_sha256":"[a-f0-9]{64}"/u);
-        expect(output).toContain('"unpacked":true');
-      }
+      const result = await cli.run({
+        arguments: ["--json", "inventory-artifact", archive],
+      });
+      expect(result.exitCode).toBe(1);
+      const output = JSON.stringify(result.json);
+      expect(output).toContain('"logical_path":"main.js"');
+      expect(output).toMatch(/"declared_sha256":"[a-f0-9]{64}"/u);
+      expect(output).toMatch(/"calculated_sha256":"[a-f0-9]{64}"/u);
+      expect(output).toContain('"unpacked":true');
     },
     CLI_INTEGRATION_TIMEOUT_MS,
   );
@@ -187,7 +185,6 @@ describe("compiled CLI output boundary", () => {
         ["--format", "yaml"],
         ["--format", "md"],
         ["--format", "jsonl"],
-        ["--full-output", "--json"],
         ["--filter-output", "category", "--json"],
         ["--token-limit", "5", "--json"],
         ["--token-count", "--json"],

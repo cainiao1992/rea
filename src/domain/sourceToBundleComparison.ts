@@ -71,7 +71,6 @@ export const compareSourceToBundle = (
     .map(({ node_id: nodeId }) => nodeId)
     .filter((nodeId) => !mappedCurrentIds.has(nodeId));
   const semanticResult = {
-    schema_version: 1 as const,
     reference: {
       root_sha256: input.reference.root_sha256,
       inventory_state: input.reference.inventory_state,

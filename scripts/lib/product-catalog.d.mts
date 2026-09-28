@@ -1,5 +1,4 @@
 export interface ProductCatalog {
-  readonly catalog_schema_version: number;
   readonly package: {
     readonly name: string;
     readonly version: string;

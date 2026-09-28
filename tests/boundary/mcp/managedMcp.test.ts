@@ -121,13 +121,11 @@ const verifyManagedCatalogAndNativeWorkflow = async (
           MANAGED_NATIVE_VERIFICATION_EXAMPLE.native_observations.map(
             ({ evidence_id: evidenceId }) => evidenceId,
           ),
-        limits: MANAGED_NATIVE_VERIFICATION_EXAMPLE.limits,
       },
     }),
   );
   expect(verified).toMatchObject({
     evidence_id: expect.stringMatching(/^ev_[a-f0-9]{64}$/u),
-    evidence_uri: expect.stringMatching(/^rea:\/\/evidence\/ev_/u),
     result: {
       summary: { verified: 1 },
       algorithm: { token_to_address_mapping: "not-inferred" },
@@ -163,13 +161,13 @@ const inspectManagedStaticWorkflow = async (
   const inspected = structured(
     await client.callTool({
       name: "inspect_managed_artifact",
-      arguments: { path, reference_limit: 1 },
+      arguments: { path },
     }),
   );
   expect(inspected).toMatchObject({
     result: {
       classification: { status: "managed", runtime_family: "modern-dotnet" },
-      references: { limit: 1 },
+      references: [expect.objectContaining({ name: "System.Runtime" })],
     },
   });
   const members = sessionEvidence(
@@ -177,7 +175,7 @@ const inspectManagedStaticWorkflow = async (
     structured(
       await client.callTool({
         name: "inspect_managed_members",
-        arguments: { method_limit: 1 },
+        arguments: {},
       }),
     ),
   );
@@ -187,22 +185,26 @@ const inspectManagedStaticWorkflow = async (
     subject: { local_path: path, format: "pe" },
     normalized_result: {
       identity_scope: { token_identity: "build-local" },
-      methods: { total: 1, returned: 1 },
-      call_edges: { total: 1 },
-      field_accesses: { total: 1 },
+      methods: [expect.objectContaining({ token: expect.any(String) })],
+      call_edges: [
+        expect.objectContaining({ target_token: expect.any(String) }),
+      ],
+      field_accesses: [
+        expect.objectContaining({ field_token: expect.any(String) }),
+      ],
     },
   });
   const boundaries = structured(
     await client.callTool({
       name: "inspect_managed_native_boundaries",
-      arguments: { import_limit: 1 },
+      arguments: {},
     }),
   );
   expect(boundaries).toMatchObject({
     result: {
       identity_scope: { token_identity: "build-local" },
-      pinvoke_imports: { total: 0, limit: 1 },
-      native_implementations: { total: 0 },
+      pinvoke_imports: [],
+      native_implementations: [],
     },
   });
   return members;
@@ -210,19 +212,17 @@ const inspectManagedStaticWorkflow = async (
 
 const methodFrom = (members: Record<string, unknown>) =>
   z
-    .object({
-      items: z.array(
-        z.object({
-          token: z.string(),
-          signature: z.object({ raw_sha256: z.string() }),
-          body: z.object({ normalized_il_sha256: z.string().nullable() }),
-        }),
-      ),
-    })
+    .array(
+      z.object({
+        token: z.string(),
+        signature: z.object({ raw_sha256: z.string() }),
+        body: z.object({ normalized_il_sha256: z.string().nullable() }),
+      }),
+    )
     .parse(
       z.record(z.string(), z.unknown()).parse(members.normalized_result)
         .methods,
-    ).items[0];
+    )[0];
 
 const verifyManagedComparisonAndReconstruction = async (
   client: Client,
@@ -239,7 +239,7 @@ const verifyManagedComparisonAndReconstruction = async (
     structured(
       await client.callTool({
         name: "inspect_managed_members",
-        arguments: { method_limit: 1 },
+        arguments: {},
       }),
     ),
   );
@@ -251,11 +251,6 @@ const verifyManagedComparisonAndReconstruction = async (
         arguments: {
           left_evidence_id: members.evidence_id,
           right_evidence_id: right.evidence_id,
-          limits: {
-            max_method_matches: 100,
-            max_field_matches: 100,
-            max_candidates: 10,
-          },
         },
       }),
     ),

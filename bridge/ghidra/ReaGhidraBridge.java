@@ -83,21 +83,12 @@ public final class ReaGhidraBridge extends HeadlessScript {
     private static final int MAX_RESPONSE_BYTES = 1024 * 1024;
     private static final int RESPONSE_ENVELOPE_RESERVE_BYTES = 32 * 1024;
     private static final int MAX_NATIVE_API_RESPONSE_BYTES = 192 * 1024;
-    private static final int MAX_INVENTORY_ITEMS = 1_000_000;
-    private static final int MAX_FUNCTION_ITEMS = 100_000;
-    private static final int MAX_FUNCTION_INSTRUCTIONS = 100_000;
     private static final int MAX_NATIVE_API_PARAMETERS = 64;
     private static final int MAX_NATIVE_API_JUMP_TABLES = 4;
     private static final int MAX_NATIVE_API_LOAD_TABLES = 4;
     private static final int MAX_NATIVE_API_MAPPINGS = 32;
     private static final int DECOMPILE_TIMEOUT_SECONDS = 30;
     private static final int DECOMPILE_PAYLOAD_MBYTES = 8;
-    private static final int MAX_LIST_VALUE_CODE_POINTS = 1_024;
-    private static final int MAX_SEARCH_VALUE_CODE_POINTS = 4_096;
-    private static final int MAX_REGEX_CANDIDATE_CHARACTERS = 4_096;
-    private static final long MAX_REGEX_BACKTRACKING_PATHS = 10_000;
-    private static final long MAX_LITERAL_SEARCH_WORK_UNITS = 1_000_000;
-    private static final long MAX_REGEX_SEARCH_WORK_UNITS = 1_000_000;
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
     private static final Set<String> DESCRIPTOR_KEYS = Set.of(
         "schema_version",
@@ -375,7 +366,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         DecompileOptions options = new DecompileOptions();
         options.setDefaultTimeout(DECOMPILE_TIMEOUT_SECONDS);
         options.setMaxPayloadMBytes(DECOMPILE_PAYLOAD_MBYTES);
-        options.setMaxInstructions(MAX_FUNCTION_INSTRUCTIONS);
+        options.setMaxInstructions(Integer.MAX_VALUE);
         decompiler = new DecompInterface();
         decompiler.setOptions(options);
         decompiler.toggleCCode(true);
@@ -398,42 +389,18 @@ public final class ReaGhidraBridge extends HeadlessScript {
         requireKeys(params, Set.of("document", "procedure"));
         requireDocument(params);
         Function function = resolveProcedure(requireString(params, "procedure"));
-        InstructionScan scan = scanInstructions(function, MAX_FUNCTION_INSTRUCTIONS);
-        if (scan.truncated) {
-            throw functionLimit("Procedure assembly exceeds the 100000-instruction limit");
-        }
+        InstructionScan scan = scanInstructions(function, Integer.MAX_VALUE);
         return GSON.toJsonTree(renderAssembly(scan.instructions));
     }
 
     private JsonObject readFunctionInstructions(JsonObject params) throws Exception {
-        requireKeys(params, Set.of("document", "procedure", "offset", "limit"));
+        requireKeys(params, Set.of("document", "procedure"));
         requireDocument(params);
         Function function = resolveProcedure(requireString(params, "procedure"));
-        int offset = requireBoundedInteger(params, "offset", 0, 100_000);
-        int limit = requireBoundedInteger(params, "limit", 1, 500);
-        InstructionScan scan = scanInstructions(function, offset + limit + 1);
-        int start = Math.min(offset, scan.instructions.size());
-        int end = Math.min(scan.instructions.size(), start + limit);
+        InstructionScan scan = scanInstructions(function, Integer.MAX_VALUE);
         JsonArray items = new JsonArray();
-        for (String line : renderAssemblyLines(scan.instructions.subList(start, end))) {
+        for (String line : renderAssemblyLines(scan.instructions)) {
             items.add(line);
-        }
-        boolean hasMore = scan.truncated || end < scan.instructions.size();
-        JsonObject instructions = new JsonObject();
-        instructions.add("items", items);
-        if (scan.truncated) {
-            instructions.add("total", JsonNull.INSTANCE);
-        }
-        else {
-            instructions.addProperty("total", scan.instructions.size());
-        }
-        instructions.addProperty("returned", items.size());
-        instructions.addProperty("truncated", hasMore);
-        if (hasMore) {
-            instructions.addProperty("next_offset", end);
-        }
-        else {
-            instructions.add("next_offset", JsonNull.INSTANCE);
         }
 
         JsonArray limitations = new JsonArray();
@@ -443,9 +410,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         );
         JsonObject result = new JsonObject();
         result.add("procedure", procedureIdentity(function));
-        result.add("instructions", instructions);
-        result.addProperty("instructions_scanned", scan.instructions.size());
-        result.addProperty("instruction_scan_truncated", scan.truncated);
+        result.add("instructions", items);
         result.add("limitations", limitations);
         return result;
     }
@@ -457,9 +422,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
         Set<Function> observed = callers
             ? function.getCallingFunctions(monitor)
             : function.getCalledFunctions(monitor);
-        if (observed.size() > MAX_FUNCTION_ITEMS) {
-            throw functionLimit("Resolved call set exceeds the 100000-item limit");
-        }
         List<Function> ordered = new ArrayList<>(observed);
         ordered.sort(Comparator.comparing(Function::getEntryPoint));
         JsonArray result = new JsonArray();
@@ -490,10 +452,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
             Set.of(
                 "document",
                 "procedure",
-                "direction",
-                "offset",
-                "limit",
-                "max_instructions"
+                "direction"
             )
         );
         requireDocument(params);
@@ -502,10 +461,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         if (!direction.equals("incoming") && !direction.equals("outgoing")) {
             throw new RequestFailure("invalid_request", "direction must be incoming or outgoing");
         }
-        int offset = requireBoundedInteger(params, "offset", 0, Integer.MAX_VALUE);
-        int limit = requireBoundedInteger(params, "limit", 1, 500);
-        int maximum = requireBoundedInteger(params, "max_instructions", 1, 5_000);
-        InstructionScan scan = scanInstructions(function, maximum);
+        InstructionScan scan = scanInstructions(function, Integer.MAX_VALUE);
         List<Reference> references = collectReferences(scan.instructions, direction);
         JsonArray edges = new JsonArray();
         for (Reference reference : references) {
@@ -514,9 +470,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         JsonObject result = new JsonObject();
         result.add("procedure", procedureIdentity(function));
         result.addProperty("direction", direction);
-        result.add("references", bounded(edges, offset, limit, !scan.truncated));
-        result.addProperty("instructions_scanned", scan.instructions.size());
-        result.addProperty("instruction_scan_truncated", scan.truncated);
+        result.add("references", edges);
         return result;
     }
 
@@ -533,10 +487,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
                 continue;
             }
             sources.add(reference.getFromAddress());
-            if (sources.size() > MAX_FUNCTION_ITEMS) {
-                throw functionLimit("Cross-reference set exceeds the 100000-item limit");
             }
-        }
         List<Address> ordered = new ArrayList<>(sources);
         ordered.sort(Address::compareTo);
         JsonArray result = new JsonArray();
@@ -547,48 +498,9 @@ public final class ReaGhidraBridge extends HeadlessScript {
     }
 
     private JsonObject analyzeFunction(JsonObject params) throws Exception {
-        requireKeys(
-            params,
-            Set.of(
-                "procedure",
-                "include_assembly",
-                "limit",
-                "max_pseudocode_chars",
-                "max_instructions",
-                "pseudocode_offset",
-                "assembly_offset",
-                "collection_offset"
-            )
-        );
+        requireKeys(params, Set.of("procedure"));
         Function function = resolveProcedure(requireString(params, "procedure"));
-        boolean includeAssembly = requireBoolean(params, "include_assembly");
-        int limit = requireBoundedInteger(params, "limit", 1, 500);
-        int maximumCharacters = requireBoundedInteger(
-            params,
-            "max_pseudocode_chars",
-            1,
-            100_000
-        );
-        int maximumInstructions = requireBoundedInteger(
-            params,
-            "max_instructions",
-            1,
-            5_000
-        );
-        int pseudocodeOffset = requireBoundedInteger(
-            params,
-            "pseudocode_offset",
-            0,
-            Integer.MAX_VALUE
-        );
-        int assemblyOffset = requireBoundedInteger(
-            params,
-            "assembly_offset",
-            0,
-            Integer.MAX_VALUE
-        );
-        JsonObject offsets = requireCollectionOffsets(params);
-        InstructionScan scan = scanInstructions(function, maximumInstructions);
+        InstructionScan scan = scanInstructions(function, Integer.MAX_VALUE);
         DecompileResults decompilation = decompile(function);
         String pseudocode = decompiledText(decompilation);
         if (pseudocode == null) {
@@ -607,75 +519,24 @@ public final class ReaGhidraBridge extends HeadlessScript {
         JsonArray referencedStrings = referencedStrings(outgoingReferences);
         JsonArray referencedNames = referencedNames(outgoingReferences);
         JsonArray blocks = basicBlockValues(function);
-        JsonArray assembly = includeAssembly
-            ? GSON.toJsonTree(renderAssemblyLines(scan.instructions)).getAsJsonArray()
-            : new JsonArray();
+        JsonArray assembly = GSON.toJsonTree(renderAssemblyLines(scan.instructions))
+            .getAsJsonArray();
 
         JsonObject procedure = procedureIdentity(function);
         procedure.addProperty("signature", function.getPrototypeString(false, true));
         procedure.add("locals", functionLocals(function));
         JsonObject result = new JsonObject();
         result.add("procedure", procedure);
-        result.add(
-            "pseudocode",
-            pseudocodePage(pseudocode, pseudocodeOffset, maximumCharacters)
-        );
-        result.add(
-            "assembly",
-            includeAssembly
-                ? bounded(assembly, assemblyOffset, maximumInstructions, !scan.truncated)
-                : bounded(assembly, 0, maximumInstructions, true)
-        );
-        result.add(
-            "comments",
-            bounded(comments, collectionOffset(offsets, "comments"), limit, !scan.truncated)
-        );
-        result.add("callers", bounded(callers, collectionOffset(offsets, "callers"), limit, true));
-        result.add("callees", bounded(callees, collectionOffset(offsets, "callees"), limit, true));
-        result.add(
-            "incoming_references",
-            bounded(
-                incoming,
-                collectionOffset(offsets, "incoming_references"),
-                limit,
-                !scan.truncated
-            )
-        );
-        result.add(
-            "outgoing_references",
-            bounded(
-                outgoing,
-                collectionOffset(offsets, "outgoing_references"),
-                limit,
-                !scan.truncated
-            )
-        );
-        result.add(
-            "referenced_strings",
-            bounded(
-                referencedStrings,
-                collectionOffset(offsets, "referenced_strings"),
-                limit,
-                !scan.truncated
-            )
-        );
-        result.add(
-            "referenced_names",
-            bounded(
-                referencedNames,
-                collectionOffset(offsets, "referenced_names"),
-                limit,
-                !scan.truncated
-            )
-        );
-        result.add(
-            "basic_blocks",
-            bounded(blocks, collectionOffset(offsets, "basic_blocks"), limit, true)
-        );
-        JsonObject instructionScan = new JsonObject();
-        instructionScan.addProperty("scanned", scan.instructions.size());
-        instructionScan.addProperty("truncated", scan.truncated);
-        result.add("instruction_scan", instructionScan);
+        result.addProperty("pseudocode", pseudocode);
+        result.add("assembly", assembly);
+        result.add("comments", comments);
+        result.add("callers", callers);
+        result.add("callees", callees);
+        result.add("incoming_references", incoming);
+        result.add("outgoing_references", outgoing);
+        result.add("referenced_strings", referencedStrings);
+        result.add("referenced_names", referencedNames);
+        result.add("basic_blocks", blocks);
         int nativeApiBudget = Math.min(
             MAX_NATIVE_API_RESPONSE_BYTES,
             Math.max(
@@ -721,8 +582,8 @@ public final class ReaGhidraBridge extends HeadlessScript {
         return result;
     }
 
-    private JsonObject listNames(JsonObject params) throws Exception {
-        requireKeys(params, Set.of("document", "address", "offset", "limit"));
+    private JsonArray listNames(JsonObject params) throws Exception {
+        requireKeys(params, Set.of("document", "address"));
         requireDocument(params);
         List<InventoryItem> inventory = names();
         String requested = optionalString(params, "address");
@@ -732,26 +593,16 @@ public final class ReaGhidraBridge extends HeadlessScript {
                 .filter(item -> item.address.equals(address))
                 .toList();
         }
-        return page(
-            inventory,
-            requireBoundedInteger(params, "offset", 0, Integer.MAX_VALUE),
-            requireBoundedInteger(params, "limit", 1, 500),
-            "symbol"
-        );
+        return inventory(inventory, "symbol");
     }
 
-    private JsonObject listProcedures(JsonObject params) throws Exception {
-        requireKeys(params, Set.of("document", "offset", "limit"));
+    private JsonArray listProcedures(JsonObject params) throws Exception {
+        requireKeys(params, Set.of("document"));
         requireDocument(params);
         List<InventoryItem> inventory = procedures().stream()
             .map(FunctionEntry::item)
             .toList();
-        return page(
-            inventory,
-            requireBoundedInteger(params, "offset", 0, Integer.MAX_VALUE),
-            requireBoundedInteger(params, "limit", 1, 500),
-            "procedure"
-        );
+        return inventory(inventory, "procedure");
     }
 
     private JsonArray listSegments(JsonObject params) {
@@ -760,9 +611,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
         JsonArray result = new JsonArray();
         String imageBase = canonicalAddress(currentProgram.getImageBase());
         MemoryBlock[] blocks = currentProgram.getMemory().getBlocks();
-        if (blocks.length > MAX_INVENTORY_ITEMS) {
-            throw inventoryLimit();
-        }
         List<MemoryBlock> ordered = new ArrayList<>(List.of(blocks));
         ordered.sort(Comparator.comparing(MemoryBlock::getStart));
         for (MemoryBlock block : ordered) {
@@ -773,8 +621,8 @@ public final class ReaGhidraBridge extends HeadlessScript {
         return result;
     }
 
-    private JsonObject listStrings(JsonObject params) throws Exception {
-        requireKeys(params, Set.of("document", "address", "offset", "limit"));
+    private JsonArray listStrings(JsonObject params) throws Exception {
+        requireKeys(params, Set.of("document", "address"));
         requireDocument(params);
         List<InventoryItem> inventory = strings();
         String requested = optionalString(params, "address");
@@ -784,12 +632,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
                 .filter(item -> item.address.equals(address))
                 .toList();
         }
-        return page(
-            inventory,
-            requireBoundedInteger(params, "offset", 0, Integer.MAX_VALUE),
-            requireBoundedInteger(params, "limit", 1, 500),
-            "string"
-        );
+        return inventory(inventory, "string");
     }
 
     private JsonElement procedureAddress(JsonObject params) throws Exception {
@@ -823,23 +666,15 @@ public final class ReaGhidraBridge extends HeadlessScript {
     private JsonObject search(JsonObject params, boolean procedureSearch) throws Exception {
         requireKeys(
             params,
-            Set.of("pattern", "mode", "case_sensitive", "offset", "limit", "document")
+            Set.of("pattern", "mode", "case_sensitive", "document")
         );
         requireDocument(params);
         String expression = requireString(params, "pattern");
-        if (expression.codePointCount(0, expression.length()) > 256) {
-            throw new RequestFailure(
-                "invalid_request",
-                "pattern must contain between 1 and 256 characters"
-            );
-        }
         String mode = requireString(params, "mode");
         if (!mode.equals("literal") && !mode.equals("regex")) {
             throw new RequestFailure("invalid_request", "mode must be literal or regex");
         }
         boolean caseSensitive = requireBoolean(params, "case_sensitive");
-        int offset = requireBoundedInteger(params, "offset", 0, Integer.MAX_VALUE);
-        int limit = requireBoundedInteger(params, "limit", 1, 100);
         List<InventoryItem> inventory = procedureSearch
             ? procedures().stream().map(FunctionEntry::item).toList()
             : strings();
@@ -847,18 +682,13 @@ public final class ReaGhidraBridge extends HeadlessScript {
             ? literalMatcher(expression, caseSensitive)
             : regexMatcher(expression, caseSensitive);
         JsonArray items = new JsonArray();
-        int total = 0;
-        long pageEnd = (long) offset + limit;
         for (InventoryItem item : inventory) {
             if (!matcher.matches(item.value)) {
                 continue;
             }
-            if (total >= offset && total < pageEnd) {
-                items.add(resultItem(item, null, MAX_SEARCH_VALUE_CODE_POINTS));
-            }
-            total += 1;
+            items.add(resultItem(item, null));
         }
-        return pageResult(items, offset, limit, total);
+        return items;
     }
 
     private List<InventoryItem> names() throws Exception {
@@ -929,9 +759,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
                 symbol == null ? function.getName() : symbol.getName(true),
                 facts
             );
-            if (destination.size() >= MAX_INVENTORY_ITEMS) {
-                throw inventoryLimit();
-            }
             destination.add(new FunctionEntry(function, item));
         }
     }
@@ -1540,9 +1367,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
             reference.getOperandIndex() + "\u0000" +
             reference.isPrimary();
         observed.putIfAbsent(key, reference);
-        if (observed.size() > MAX_FUNCTION_ITEMS) {
-            throw functionLimit("Reference set exceeds the 100000-item limit");
-        }
     }
 
     private JsonArray referenceEdges(List<Reference> references) {
@@ -1623,9 +1447,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
 
     private static JsonArray functionLocals(Function function) {
         Variable[] variables = function.getLocalVariables();
-        if (variables.length > MAX_FUNCTION_ITEMS) {
-            throw functionLimit("Local-variable set exceeds the 100000-item limit");
-        }
         List<Variable> ordered = new ArrayList<>(List.of(variables));
         ordered.sort(
             Comparator.comparing(Variable::getName)
@@ -1646,9 +1467,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
     }
 
     private JsonArray procedureIdentities(Set<Function> functions) {
-        if (functions.size() > MAX_FUNCTION_ITEMS) {
-            throw functionLimit("Resolved call set exceeds the 100000-item limit");
-        }
         List<Function> ordered = new ArrayList<>(functions);
         ordered.sort(Comparator.comparing(Function::getEntryPoint));
         JsonArray result = new JsonArray();
@@ -1664,9 +1482,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
         List<CodeBlock> result = new ArrayList<>();
         while (iterator.hasNext()) {
             monitor.checkCancelled();
-            if (result.size() >= MAX_FUNCTION_ITEMS) {
-                throw functionLimit("Basic-block set exceeds the 100000-item limit");
-            }
             result.add(iterator.next());
         }
         result.sort(Comparator.comparing(CodeBlock::getFirstStartAddress));
@@ -1723,10 +1538,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
                 String key = canonicalAddress(instruction.getAddress()) + "\u0000" +
                     kind + "\u0000" + type.name() + "\u0000" + text;
                 observed.put(key, item);
-                if (observed.size() > MAX_FUNCTION_ITEMS) {
-                    throw functionLimit("Comment set exceeds the 100000-item limit");
-                }
-            }
+                    }
         }
         JsonArray result = new JsonArray();
         observed.values().forEach(result::add);
@@ -1753,10 +1565,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
             String key = canonicalAddress(data.getAddress()) + "\u0000" + value + "\u0000" +
                 canonicalAddress(reference.getFromAddress());
             observed.put(key, item);
-            if (observed.size() > MAX_FUNCTION_ITEMS) {
-                throw functionLimit("Referenced-string set exceeds the 100000-item limit");
             }
-        }
         JsonArray result = new JsonArray();
         observed.values().forEach(result::add);
         return result;
@@ -1778,33 +1587,9 @@ public final class ReaGhidraBridge extends HeadlessScript {
             String key = canonicalAddress(reference.getToAddress()) + "\u0000" +
                 symbol.getName(true) + "\u0000" + canonicalAddress(reference.getFromAddress());
             observed.put(key, item);
-            if (observed.size() > MAX_FUNCTION_ITEMS) {
-                throw functionLimit("Referenced-name set exceeds the 100000-item limit");
             }
-        }
         JsonArray result = new JsonArray();
         observed.values().forEach(result::add);
-        return result;
-    }
-
-    private static JsonObject pseudocodePage(String value, int offset, int limit) {
-        int total = value.codePointCount(0, value.length());
-        int start = Math.min(offset, total);
-        int returned = Math.min(limit, total - start);
-        int startIndex = value.offsetByCodePoints(0, start);
-        int endIndex = value.offsetByCodePoints(startIndex, returned);
-        int next = start + returned;
-        JsonObject result = new JsonObject();
-        result.addProperty("text", value.substring(startIndex, endIndex));
-        result.addProperty("total_chars", total);
-        result.addProperty("returned_chars", returned);
-        result.addProperty("truncated", next < total);
-        if (next < total) {
-            result.addProperty("next_offset", next);
-        }
-        else {
-            result.add("next_offset", JsonNull.INSTANCE);
-        }
         return result;
     }
 
@@ -1839,35 +1624,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
         return result;
     }
 
-    private static JsonObject requireCollectionOffsets(JsonObject params) {
-        JsonElement value = params.get("collection_offset");
-        if (value == null || !value.isJsonObject()) {
-            throw new RequestFailure("invalid_request", "collection_offset must be an object");
-        }
-        JsonObject result = value.getAsJsonObject();
-        requireKeys(
-            result,
-            Set.of(
-                "comments",
-                "callers",
-                "callees",
-                "incoming_references",
-                "outgoing_references",
-                "referenced_strings",
-                "referenced_names",
-                "basic_blocks"
-            )
-        );
-        for (String name : result.keySet()) {
-            requireBoundedInteger(result, name, 0, Integer.MAX_VALUE);
-        }
-        return result;
-    }
-
-    private static int collectionOffset(JsonObject offsets, String name) {
-        return requireBoundedInteger(offsets, name, 0, Integer.MAX_VALUE);
-    }
-
     private static String exclusiveAddress(Address inclusive) {
         Address next = inclusive.next();
         if (next != null && next.getAddressSpace().equals(inclusive.getAddressSpace())) {
@@ -1884,51 +1640,21 @@ public final class ReaGhidraBridge extends HeadlessScript {
         return truncate(value.replaceAll("[\\r\\n]+", " "), 512).value;
     }
 
-    private static RequestFailure functionLimit(String message) {
-        return new RequestFailure("limit_exceeded", message);
-    }
-
-    private JsonObject page(
-            List<InventoryItem> inventory,
-            int offset,
-            int limit,
-            String factsName) {
-        int start = Math.min(offset, inventory.size());
-        int end = Math.min(inventory.size(), start + limit);
-        JsonArray items = new JsonArray();
-        for (int index = start; index < end; index += 1) {
-            items.add(resultItem(inventory.get(index), factsName, MAX_LIST_VALUE_CODE_POINTS));
+    private JsonArray inventory(
+        List<InventoryItem> inventory,
+        String factsName) {
+        JsonArray result = new JsonArray();
+        for (InventoryItem item : inventory) {
+            monitor.checkCancelled();
+            result.add(resultItem(item, factsName));
         }
-        return pageResult(items, offset, limit, inventory.size());
-    }
-
-    private static JsonObject pageResult(JsonArray items, int offset, int limit, int total) {
-        int next = offset + items.size();
-        boolean hasMore = next < total;
-        JsonObject result = new JsonObject();
-        result.add("items", items);
-        result.addProperty("offset", offset);
-        result.addProperty("limit", limit);
-        result.addProperty("total", total);
-        if (hasMore) {
-            result.addProperty("next_offset", next);
-        }
-        else {
-            result.add("next_offset", JsonNull.INSTANCE);
-        }
-        result.addProperty("has_more", hasMore);
         return result;
     }
 
-    private static JsonObject resultItem(
-            InventoryItem item,
-            String factsName,
-            int maximumCodePoints) {
-        TruncatedValue truncated = truncate(item.value, maximumCodePoints);
+    private static JsonObject resultItem(InventoryItem item, String factsName) {
         JsonObject result = new JsonObject();
         result.addProperty("address", canonicalAddress(item.address));
-        result.addProperty("value", truncated.value);
-        result.addProperty("value_truncated", truncated.truncated);
+        result.addProperty("value", item.value);
         if (factsName != null) {
             result.add(factsName, item.facts.deepCopy());
         }
@@ -2089,17 +1815,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
     }
 
     private static void addBounded(List<InventoryItem> destination, InventoryItem item) {
-        if (destination.size() >= MAX_INVENTORY_ITEMS) {
-            throw inventoryLimit();
-        }
         destination.add(item);
-    }
-
-    private static RequestFailure inventoryLimit() {
-        return new RequestFailure(
-            "limit_exceeded",
-            "Ghidra inventory exceeds the 1000000-item safety limit"
-        );
     }
 
     private static TruncatedValue truncate(String value, int maximumCodePoints) {
@@ -2113,30 +1829,15 @@ public final class ReaGhidraBridge extends HeadlessScript {
 
     private static ValueMatcher literalMatcher(String pattern, boolean caseSensitive) {
         String needle = caseSensitive ? pattern : pattern.toLowerCase(Locale.ROOT);
-        return new ValueMatcher() {
-            private long remaining = MAX_LITERAL_SEARCH_WORK_UNITS;
-
-            @Override
-            public boolean matches(String value) {
-                long required = (long) Math.max(value.length(), 1) + needle.length();
-                if (required > remaining) {
-                    throw new RequestFailure(
-                        "limit_exceeded",
-                        "Literal search exceeds the 1000000-unit work budget"
-                    );
-                }
-                remaining -= required;
-                String candidate = caseSensitive ? value : value.toLowerCase(Locale.ROOT);
-                return candidate.contains(needle);
-            }
+        return value -> {
+            String candidate = caseSensitive ? value : value.toLowerCase(Locale.ROOT);
+            return candidate.contains(needle);
         };
     }
 
     private static ValueMatcher regexMatcher(String expression, boolean caseSensitive) {
-        RegexMetrics metrics;
         Pattern pattern;
         try {
-            metrics = new BoundedRegexParser(expression).parse();
             pattern = Pattern.compile(
                 expression,
                 caseSensitive ? 0 : Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
@@ -2145,29 +1846,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         catch (PatternSyntaxException exception) {
             throw new RequestFailure("invalid_request", "Invalid regex pattern");
         }
-        long workPerCharacter = metrics.paths * Math.max(metrics.steps, 1);
-        return new ValueMatcher() {
-            private long remaining = MAX_REGEX_SEARCH_WORK_UNITS;
-
-            @Override
-            public boolean matches(String value) {
-                if (value.length() > MAX_REGEX_CANDIDATE_CHARACTERS) {
-                    throw new RequestFailure(
-                        "limit_exceeded",
-                        "Regex candidate exceeds the 4096-character safety limit"
-                    );
-                }
-                long required = workPerCharacter * Math.max(value.length(), 1);
-                if (required > remaining) {
-                    throw new RequestFailure(
-                        "limit_exceeded",
-                        "Regex search exceeds the 1000000-unit work budget"
-                    );
-                }
-                remaining -= required;
-                return pattern.matcher(value).find();
-            }
-        };
+        return value -> pattern.matcher(value).find();
     }
 
     private static SessionDescriptor readDescriptor(Path path) throws IOException {
@@ -2407,7 +2086,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
         String profileDigest
     ) {}
     private record Request(int id, String method, JsonObject params) {}
-    private record RegexMetrics(long paths, long steps, boolean containsRepeat) {}
 
     private static final class RequestFailure extends RuntimeException {
         private final String code;
@@ -2418,263 +2096,4 @@ public final class ReaGhidraBridge extends HeadlessScript {
         }
     }
 
-    private static final class BoundedRegexParser {
-        private final String expression;
-        private int index;
-
-        BoundedRegexParser(String expression) {
-            this.expression = expression;
-        }
-
-        RegexMetrics parse() {
-            RegexMetrics result = parseExpression(false);
-            if (index != expression.length()) {
-                throw invalidRegex();
-            }
-            return result;
-        }
-
-        private RegexMetrics parseExpression(boolean grouped) {
-            RegexMetrics result = parseSequence(grouped);
-            while (peek('|')) {
-                index += 1;
-                RegexMetrics branch = parseSequence(grouped);
-                result = new RegexMetrics(
-                    checkedPaths(result.paths, branch.paths, false),
-                    Math.max(result.steps, branch.steps),
-                    result.containsRepeat || branch.containsRepeat
-                );
-            }
-            return result;
-        }
-
-        private RegexMetrics parseSequence(boolean grouped) {
-            RegexMetrics result = new RegexMetrics(1, 0, false);
-            while (index < expression.length() && !peek('|') && !(grouped && peek(')'))) {
-                RegexMetrics item = parseAtom();
-                result = new RegexMetrics(
-                    checkedPaths(result.paths, item.paths, true),
-                    result.steps + item.steps,
-                    result.containsRepeat || item.containsRepeat
-                );
-            }
-            return result;
-        }
-
-        private RegexMetrics parseAtom() {
-            if (index >= expression.length()) {
-                throw invalidRegex();
-            }
-            char item = expression.charAt(index++);
-            RegexMetrics atom;
-            if (item == '(') {
-                if (peek('?')) {
-                    if (index + 1 >= expression.length() || expression.charAt(index + 1) != ':') {
-                        throw new RequestFailure(
-                            "invalid_request",
-                            "Regex lookarounds and backreferences are not supported"
-                        );
-                    }
-                    index += 2;
-                }
-                atom = parseExpression(true);
-                if (!peek(')')) {
-                    throw invalidRegex();
-                }
-                index += 1;
-            }
-            else if (item == '[') {
-                consumeCharacterClass();
-                atom = leaf();
-            }
-            else if (item == '\\') {
-                consumeEscape();
-                atom = leaf();
-            }
-            else if (item == '*' || item == '+') {
-                throw unboundedRepeat();
-            }
-            else if (item == '?' || item == '{' || item == '}' || item == ')') {
-                throw invalidRegex();
-            }
-            else {
-                atom = leaf();
-            }
-            if (index >= expression.length()) {
-                return atom;
-            }
-            if (peek('*') || peek('+')) {
-                throw unboundedRepeat();
-            }
-            int minimum;
-            int maximum;
-            if (peek('?')) {
-                index += 1;
-                minimum = 0;
-                maximum = 1;
-            }
-            else if (peek('{')) {
-                int[] bounds = consumeBounds();
-                minimum = bounds[0];
-                maximum = bounds[1];
-            }
-            else {
-                return atom;
-            }
-            if (atom.containsRepeat) {
-                throw new RequestFailure(
-                    "invalid_request",
-                    "Nested regex repetitions are not supported"
-                );
-            }
-            if (maximum > 1_000) {
-                throw unboundedRepeat();
-            }
-            return new RegexMetrics(
-                repeatPaths(atom.paths, minimum, maximum),
-                maximum * atom.steps,
-                true
-            );
-        }
-
-        private void consumeCharacterClass() {
-            boolean escaped = false;
-            boolean hasContent = false;
-            while (index < expression.length()) {
-                char item = expression.charAt(index++);
-                if (escaped) {
-                    escaped = false;
-                    hasContent = true;
-                }
-                else if (item == '\\') {
-                    escaped = true;
-                }
-                else if (item == ']' && hasContent) {
-                    return;
-                }
-                else {
-                    hasContent = true;
-                }
-            }
-            throw invalidRegex();
-        }
-
-        private void consumeEscape() {
-            if (index >= expression.length()) {
-                throw invalidRegex();
-            }
-            char escaped = expression.charAt(index++);
-            if (Character.isDigit(escaped) || escaped == 'k') {
-                throw new RequestFailure(
-                    "invalid_request",
-                    "Regex lookarounds and backreferences are not supported"
-                );
-            }
-            if (escaped == 'Q' || escaped == 'E' || escaped == 'p' || escaped == 'P') {
-                throw new RequestFailure(
-                    "invalid_request",
-                    "Regex operation is not supported by the bounded matcher"
-                );
-            }
-            if (escaped == 'x') {
-                consumeHexDigits(2);
-            }
-            else if (escaped == 'u') {
-                consumeHexDigits(4);
-            }
-        }
-
-        private void consumeHexDigits(int count) {
-            if (index + count > expression.length()) {
-                throw invalidRegex();
-            }
-            for (int current = 0; current < count; current += 1) {
-                if (Character.digit(expression.charAt(index + current), 16) < 0) {
-                    throw invalidRegex();
-                }
-            }
-            index += count;
-        }
-
-        private int[] consumeBounds() {
-            index += 1;
-            int minimum = consumeDecimal();
-            int maximum = minimum;
-            if (peek(',')) {
-                index += 1;
-                if (peek('}')) {
-                    throw unboundedRepeat();
-                }
-                maximum = consumeDecimal();
-            }
-            if (!peek('}') || minimum > maximum) {
-                throw invalidRegex();
-            }
-            index += 1;
-            return new int[] { minimum, maximum };
-        }
-
-        private int consumeDecimal() {
-            int start = index;
-            long value = 0;
-            while (index < expression.length() && Character.isDigit(expression.charAt(index))) {
-                value = value * 10 + Character.digit(expression.charAt(index), 10);
-                if (value > Integer.MAX_VALUE) {
-                    throw unboundedRepeat();
-                }
-                index += 1;
-            }
-            if (index == start) {
-                throw invalidRegex();
-            }
-            return (int) value;
-        }
-
-        private boolean peek(char expected) {
-            return index < expression.length() && expression.charAt(index) == expected;
-        }
-
-        private static RegexMetrics leaf() {
-            return new RegexMetrics(1, 1, false);
-        }
-
-        private static long repeatPaths(long childPaths, int minimum, int maximum) {
-            long result = 0;
-            long repeated = 1;
-            for (int count = 0; count <= maximum; count += 1) {
-                if (count >= minimum) {
-                    result = checkedPaths(result, repeated, false);
-                }
-                if (count < maximum) {
-                    repeated = checkedPaths(repeated, childPaths, true);
-                }
-            }
-            return result;
-        }
-
-        private static long checkedPaths(long left, long right, boolean multiply) {
-            boolean exceeded = multiply
-                ? right != 0 && left > MAX_REGEX_BACKTRACKING_PATHS / right
-                : left > MAX_REGEX_BACKTRACKING_PATHS - right;
-            long result = multiply ? left * right : left + right;
-            if (exceeded || result > MAX_REGEX_BACKTRACKING_PATHS) {
-                throw new RequestFailure(
-                    "invalid_request",
-                    "Regex exceeds the 10000-path backtracking budget"
-                );
-            }
-            return result;
-        }
-
-        private static RequestFailure unboundedRepeat() {
-            return new RequestFailure(
-                "invalid_request",
-                "Unbounded or excessive regex repetitions are not supported"
-            );
-        }
-
-        private static RequestFailure invalidRegex() {
-            return new RequestFailure("invalid_request", "Invalid regex pattern");
-        }
-    }
 }

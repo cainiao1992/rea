@@ -47,10 +47,7 @@ export const registerControlledReplayTool = (
         if (recorded !== undefined && !recorded.ok)
           return toCallToolResult(recorded, replayContract);
       }
-      return toCallToolResult(result, replayContract, {
-        evidenceResourcesAvailable:
-          output.phase === "execute" && options.recordEvidence !== undefined,
-      });
+      return toCallToolResult(result, replayContract);
     },
   );
 };

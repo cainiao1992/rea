@@ -63,20 +63,18 @@ describe("Ghidra MCP native API evidence", () => {
         result: {
           items: [
             {
-              unknown: {
-                status: "open",
-                domain: "native-api",
-                question: expect.stringContaining(
-                  "additional data sources or targets",
-                ),
-                supporting_evidence_ids: [approvedInspection.evidence_id],
-                recommended_probes: [
-                  {
-                    operation: "inspect_native_api",
-                    rationale: expect.stringContaining("ABI probe"),
-                  },
-                ],
-              },
+              status: "open",
+              domain: "native-api",
+              question: expect.stringContaining(
+                "additional data sources or targets",
+              ),
+              supporting_evidence_ids: [approvedInspection.evidence_id],
+              recommended_probes: [
+                {
+                  operation: "inspect_native_api",
+                  rationale: expect.stringContaining("ABI probe"),
+                },
+              ],
             },
           ],
         },

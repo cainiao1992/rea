@@ -45,7 +45,7 @@ export interface JavaScriptHtmlScriptObservation {
   readonly location: JavaScriptSourceRange;
 }
 
-/** One original source declared by an approved local source map. */
+/** One original source declared by a local source map. */
 export interface JavaScriptSourceMapOriginal {
   readonly source: string;
   readonly content: string | null;
@@ -68,7 +68,7 @@ export type JavaScriptSourceMapObservation = JavaScriptStructuredObservation &
         readonly limitation: string;
       }
     | {
-        readonly status: "invalid" | "not-approved";
+        readonly status: "invalid";
         readonly sources: readonly [];
         readonly omitted_sources: 0;
         readonly limitation: string;

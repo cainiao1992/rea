@@ -87,36 +87,12 @@ describe("tool contract inventory", () => {
       "update_unknown",
       "verify_unknown_resolution",
       "run_replay_machine",
-      "snapshot_evidence_bundle",
-      "release_evidence_bundle",
+      "get_evidence_bundle",
       "get_navigation_context",
       "inspect_address_context",
     ]);
     expect(new Set(TOOL_CONTRACTS.map(({ name }) => name)).size).toBe(
       TOOL_CONTRACTS.length,
     );
-  });
-
-  it("retains documented enhanced-tool limits at the input boundary", () => {
-    const batch = ENHANCED_TOOL_CONTRACTS.find(
-      ({ name }) => name === "batch_decompile",
-    );
-    const graph = ENHANCED_TOOL_CONTRACTS.find(
-      ({ name }) => name === "get_call_graph",
-    );
-
-    expect(
-      batch?.inputSchema.safeParse({
-        addresses: Array.from({ length: 21 }, () => "0x1"),
-      }).success,
-    ).toBe(false);
-    expect(
-      graph?.inputSchema.safeParse({ address: "0x1", depth: 6 }).success,
-    ).toBe(false);
-    expect(graph?.inputSchema.parse({ address: "0x1" })).toEqual({
-      address: "0x1",
-      depth: 2,
-      direction: "forward",
-    });
   });
 });

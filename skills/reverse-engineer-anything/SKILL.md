@@ -3,8 +3,8 @@ name: reverse-engineer-anything
 description: Reverse engineer native, managed, Electron/JavaScript, packaged, and browser applications with REA. Use shipped-artifact or approved runtime evidence to explain features, compare versions, decompile code, or guide a reconstruction. Skip REA for ordinary source-repository architecture analysis.
 metadata:
   version: "23"
-  tool_count: 116
-  catalog_digest: "6624247db5bcf7b52ce53173bbc0ac11bd51e9217e9e3be4298b755bcc60ea50"
+  tool_count: 115
+  catalog_digest: "94f7cd1ac629a6bbffa77ba3b3d3f2e208e15df821bc0b14db4f81692d6f8eaa"
 ---
 
 # REA
@@ -43,10 +43,9 @@ is unavailable.
 
 ## Work summary-first
 
-Start with the default summary projection. Do not repeat an identical tool call.
-Do not fetch full Evidence or a full application graph unless a specific claim
-requires detail absent from the summary. For JavaScript graphs, follow the
-paged resource URIs returned by the summary and fetch only the relevant page.
+Start with the default result and use its inline Evidence and graph context.
+Do not repeat an identical tool call. Make a focused follow-up only when the
+returned result leaves a specific question unanswered.
 
 Every conclusion must distinguish observations, inferences, and unknowns. Cite
 Evidence IDs, preserve limitations and incomplete coverage, and never imply

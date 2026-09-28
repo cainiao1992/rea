@@ -14,14 +14,11 @@ const PROPERTY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   comment: "Exact analyst comment text to write.",
   comparisons: "Validated comparison Evidence records to aggregate.",
   coverage: "Exact reconstruction-coverage commitment to verify.",
-  detail: "Requested response detail level.",
   direction: "Direction in which to traverse or compare relationships.",
   document: "Exact provider document or program identity.",
   error: "Structured, caller-actionable error when the operation fails.",
   evidence: "Evidence v2 record produced by this operation.",
   evidence_id: "Stable identifier of the recorded Evidence v2 observation.",
-  evidence_uri:
-    "Session resource URI for the recorded Evidence v2 observation.",
   executable: "Approved absolute path of the executable to run.",
   format: "Declared input artifact format.",
   name: "Exact name used by this operation.",
@@ -42,7 +39,6 @@ const PROPERTY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   provider_id:
     "Exact deep-analysis provider ID, or automatic selection when omitted.",
   right: "Right-hand input used for comparison or differential execution.",
-  schema_version: "Version of this structured result schema.",
   source_evidence:
     "Evidence records supporting the prepared source transformation.",
   status: "Current lifecycle or verification status.",

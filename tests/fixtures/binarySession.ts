@@ -69,7 +69,7 @@ export const createCacheProvider = (
     resolveAnalysisProfile: () =>
       Promise.resolve(
         resultOk({
-          profile: createAnalysisProfile(identity, 1, { fixture: true }),
+          profile: createAnalysisProfile(identity, { fixture: true }),
           compatibility: {},
         }),
       ),
@@ -136,8 +136,6 @@ const cacheCapability = (
 ): CapabilityDescriptor => ({
   provider,
   operation,
-  inputContractVersion: 1,
-  outputContractVersion: 1,
   available: true,
   reason: null,
   pagination: "none",

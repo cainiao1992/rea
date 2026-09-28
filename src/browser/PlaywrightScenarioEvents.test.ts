@@ -16,7 +16,6 @@ describe("PlaywrightScenarioEvents", () => {
       },
     } as unknown as Page;
     const scenario = browserScenarioSchema.parse({
-      schema_version: 1,
       browser: {
         mode: "launch",
         executable_path: "/opt/chromium",

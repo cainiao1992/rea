@@ -39,7 +39,7 @@ interface InventoryProjectionOptions<
   readonly protocolError: string;
 }
 
-/** Parse one inventory projection and wrap its deterministic result in Evidence v2. */
+/** Parse one inventory projection and wrap its deterministic result in Evidence. */
 export const projectInventoryEvidence = <
   Input extends InventoryProjectionInput,
   Output extends InventoryProjectionResult,

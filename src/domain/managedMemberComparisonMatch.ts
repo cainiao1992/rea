@@ -20,8 +20,8 @@ export const sha256 = (value: JsonValue): string => {
   return createHash("sha256").update(serialized).digest("hex");
 };
 
-type Method = ManagedMemberInspection["methods"]["items"][number];
-type Field = ManagedMemberInspection["fields"]["items"][number];
+type Method = ManagedMemberInspection["methods"][number];
+type Field = ManagedMemberInspection["fields"][number];
 type MatchBasis =
   ManagedMemberComparisonResult["methods"][number]["match"]["basis"];
 type ConcreteMatchBasis = Exclude<MatchBasis, "none">;
@@ -107,12 +107,10 @@ const stableKey = (value: JsonValue): string => sha256(value);
 const matchMethods = (
   left: readonly Keyed<Method>[],
   right: readonly Keyed<Method>[],
-  maxCandidates: number,
 ) =>
   matchByKeys({
     left,
     right,
-    maxCandidates,
     exactBasis: "exact-il-signature",
     fallbackBases: ["structural-method-shape"],
   });
@@ -120,12 +118,10 @@ const matchMethods = (
 const matchFields = (
   left: readonly Keyed<Field>[],
   right: readonly Keyed<Field>[],
-  maxCandidates: number,
 ) =>
   matchByKeys({
     left,
     right,
-    maxCandidates,
     exactBasis: "field-signature",
     fallbackBases: [],
   });
@@ -136,7 +132,6 @@ export type ManagedFieldMatches = ReturnType<typeof matchFields>;
 interface MatchByKeysInput<Item> {
   readonly left: readonly Keyed<Item>[];
   readonly right: readonly Keyed<Item>[];
-  readonly maxCandidates: number;
   readonly exactBasis: ConcreteMatchBasis;
   readonly fallbackBases: readonly ConcreteMatchBasis[];
 }
@@ -144,7 +139,6 @@ interface MatchByKeysInput<Item> {
 const matchByKeys = <Item>({
   left,
   right,
-  maxCandidates,
   exactBasis,
   fallbackBases,
 }: MatchByKeysInput<Item>): {
@@ -152,13 +146,11 @@ const matchByKeys = <Item>({
   readonly ambiguous: readonly Ambiguous<Item>[];
   readonly leftOnly: readonly Keyed<Item>[];
   readonly rightOnly: readonly Keyed<Item>[];
-  readonly omittedCandidates: number;
 } => {
   const usedLeft = new Set<Keyed<Item>>();
   const usedRight = new Set<Keyed<Item>>();
   const pairs: MatchedPair<Item>[] = [];
   const ambiguous: Ambiguous<Item>[] = [];
-  let omittedCandidates = 0;
   const rounds: readonly {
     readonly basis: ConcreteMatchBasis;
     readonly key: (item: Keyed<Item>) => string | null;
@@ -200,13 +192,9 @@ const matchByKeys = <Item>({
       } else {
         for (const item of leftItems) usedLeft.add(item);
         for (const item of rightItems) usedRight.add(item);
-        omittedCandidates += Math.max(
-          0,
-          leftItems.length + rightItems.length - maxCandidates * 2,
-        );
         ambiguous.push({
-          left: leftItems.slice(0, maxCandidates),
-          right: rightItems.slice(0, maxCandidates),
+          left: leftItems,
+          right: rightItems,
           basis: round.basis,
         });
       }
@@ -217,7 +205,6 @@ const matchByKeys = <Item>({
     ambiguous,
     leftOnly: left.filter((item) => !usedLeft.has(item)),
     rightOnly: right.filter((item) => !usedRight.has(item)),
-    omittedCandidates,
   };
 };
 
@@ -239,20 +226,17 @@ const groupBy = <Item>(
 export const keyMembers = (
   left: ManagedMemberComparisonSide,
   right: ManagedMemberComparisonSide,
-  maxCandidates: number,
 ): {
   readonly methodMatches: ReturnType<typeof matchMethods>;
   readonly fieldMatches: ReturnType<typeof matchFields>;
 } => ({
   methodMatches: matchMethods(
-    left.result.methods.items.map(keyMethod),
-    right.result.methods.items.map(keyMethod),
-    maxCandidates,
+    left.result.methods.map(keyMethod),
+    right.result.methods.map(keyMethod),
   ),
   fieldMatches: matchFields(
-    left.result.fields.items.map(keyField),
-    right.result.fields.items.map(keyField),
-    maxCandidates,
+    left.result.fields.map(keyField),
+    right.result.fields.map(keyField),
   ),
 });
 

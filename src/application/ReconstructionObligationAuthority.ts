@@ -103,7 +103,7 @@ export const evidenceSupportsOriginalAuthority = (
   if (authority === "process")
     return (
       evidence.operation === "capture_process_scenario" &&
-      evidence.predicate_type === "rea.process-capture/v4"
+      evidence.predicate_type === "rea.process-capture"
     );
   return evidence.authority === "external-service";
 };

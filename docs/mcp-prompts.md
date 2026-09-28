@@ -6,14 +6,14 @@ invoke tools by themselves.
 
 ## Prompt inventory
 
-| Prompt                            | Purpose                                                                               |
-| --------------------------------- | ------------------------------------------------------------------------------------- |
-| `investigate_feature`             | Trace a feature from discovery into bounded function evidence.                        |
-| `compare_application_versions`    | Compare two shipped artifacts, with optional static and runtime follow-up.            |
-| `verify_reconstruction`           | Evaluate a finite reconstruction specification against retained comparison Evidence.  |
-| `trace_crash`                     | Correlate a crash symptom with static paths and optional Process Capture v4 evidence. |
-| `audit_residual_unknowns`         | Audit current residual-unknown heads and evidence-qualified resolution.               |
-| `prepare_bounded_process_capture` | Design an approval-gated, bounded process experiment before execution.                |
+| Prompt                            | Purpose                                                                              |
+| --------------------------------- | ------------------------------------------------------------------------------------ |
+| `investigate_feature`             | Trace a feature from discovery into bounded function evidence.                       |
+| `compare_application_versions`    | Compare two shipped artifacts, with optional static and runtime follow-up.           |
+| `verify_reconstruction`           | Evaluate a finite reconstruction specification against retained comparison Evidence. |
+| `trace_crash`                     | Correlate a crash symptom with static paths and optional process capture evidence.   |
+| `audit_residual_unknowns`         | Audit current residual-unknown heads and evidence-qualified resolution.              |
+| `prepare_bounded_process_capture` | Design an approval-gated, bounded process experiment before execution.               |
 
 Every rendered prompt provides an ordered list of current REA tool names. It
 also requires the agent to keep observations, inferences, and unknowns
@@ -84,7 +84,7 @@ Completion sources are live projections of the current session:
 | Procedure           | Bounded pagination over `list_procedures`; observed addresses are offered from partial results, while names require exhaustive discovery and a unique address. Optional document context is forwarded. |
 | Provider            | `auto` plus sorted deep candidates from the current binary session; target-free completion does not start them.                                                                                        |
 | Evidence            | Evidence IDs retained in the current session ledger.                                                                                                                                                   |
-| Process capture     | Evidence IDs whose operation and validated result identify Process Capture v4.                                                                                                                         |
+| Process capture     | Evidence IDs whose operation and validated result identify process capture.                                                                                                                            |
 | Artifact manifest   | Manifest IDs from schema-valid retained artifact inventories.                                                                                                                                          |
 | Artifact occurrence | Occurrence IDs present in schema-valid retained artifact inventory pages.                                                                                                                              |
 | Residual unknown    | Current non-resolved unknown heads only.                                                                                                                                                               |

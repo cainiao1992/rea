@@ -97,7 +97,6 @@ export const compareBrowserScenarios = (
       : "unchanged";
 
   return browserScenarioDiffSchema.parse({
-    schema_version: 1,
     comparison_kind: "browser_scenario",
     overall_status: overallStatus,
     normalization,

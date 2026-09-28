@@ -33,10 +33,7 @@ export const parseApplicationGraphEvidence = (
   const evidence = parseEvidence(input);
   if (
     evidence.operation === "analyze_javascript_application" &&
-    [
-      "rea.javascript-application-analysis/v1",
-      "rea.javascript-application-analysis/v2",
-    ].includes(evidence.predicate_type) &&
+    evidence.predicate_type === "rea.javascript-application-analysis" &&
     providerMatches(evidence, JAVASCRIPT_APPLICATION_PROVIDER)
   )
     return staticApplicationSource(evidence);
@@ -70,12 +67,9 @@ const staticApplicationSource = (
   const result = javascriptApplicationAnalysisResultSchema.parse(
     evidence.normalized_result,
   );
-  if (
-    evidence.predicate_type !==
-    `rea.javascript-application-analysis/v${String(result.schema_version)}`
-  )
+  if (evidence.predicate_type !== "rea.javascript-application-analysis")
     throw new TypeError(
-      "JavaScript application Evidence predicate does not match its result schema version",
+      "JavaScript application Evidence predicate does not match its result shape",
     );
   analyzeJavaScriptApplicationInputSchema.parse({
     input_path: result.input_path,
@@ -87,7 +81,7 @@ const staticApplicationSource = (
     graph: result.graph,
     kind: "static-application",
     rootArtifactSha256: result.root_artifact_sha256,
-    semanticGraph: result.schema_version === 2 ? result.semantic_graph : null,
+    semanticGraph: result.semantic_graph,
   };
 };
 

@@ -1,21 +1,17 @@
 import type { JsonValue } from "./jsonValue.js";
 import type { AddressedName } from "./hopperValues.js";
 
-const MAX_SCANNED_SYMBOLS = 5_000;
-const MAX_RETURNED_SYMBOLS = 100;
-
 /** Select Swift class symbols using the legacy `_TtC` convention. */
 export const discoverSwiftClasses = (
   procedures: readonly AddressedName[],
   pattern: string,
 ): JsonValue => {
   const classes = procedures
-    .slice(0, MAX_SCANNED_SYMBOLS)
     .filter(({ name }) => name.includes("_TtC"))
     .filter(({ name }) => pattern.length === 0 || name.includes(pattern));
   return {
     count: classes.length,
-    classes: classes.slice(0, MAX_RETURNED_SYMBOLS).map(toJsonEntry),
+    classes: classes.map(toJsonEntry),
   };
 };
 
@@ -33,7 +29,7 @@ export const discoverObjcClasses = (
   );
   return {
     count: classes.length,
-    classes: classes.slice(0, MAX_RETURNED_SYMBOLS).map(toJsonEntry),
+    classes: classes.map(toJsonEntry),
   };
 };
 
@@ -48,7 +44,7 @@ export const discoverObjcProtocols = (
   );
   return {
     count: protocols.length,
-    protocols: protocols.slice(0, MAX_RETURNED_SYMBOLS).map(toJsonEntry),
+    protocols: protocols.map(toJsonEntry),
   };
 };
 
@@ -71,7 +67,7 @@ export const categorizeSwiftTypes = (
   );
   const seen = new Set<string>();
 
-  for (const entry of procedures.slice(0, MAX_SCANNED_SYMBOLS)) {
+  for (const entry of procedures) {
     if (!entry.name.includes("_Tt") || seen.has(entry.name)) continue;
     seen.add(entry.name);
     const category =
@@ -84,7 +80,7 @@ export const categorizeSwiftTypes = (
   const categories = Object.fromEntries(
     Object.entries(groups).map(([category, items]) => [
       category,
-      { count: items.length, items: items.slice(0, 50).map(toJsonEntry) },
+      { count: items.length, items: items.map(toJsonEntry) },
     ]),
   );
   return { total: seen.size, categories };

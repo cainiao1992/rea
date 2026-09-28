@@ -27,6 +27,8 @@ export interface FakeOptions {
   readonly omitTargetWebSocket?: boolean;
   readonly additionalPageWithWebSocket?: boolean;
   readonly additionalPageWithoutWebSocket?: boolean;
+  readonly additionalPageCount?: number;
+  readonly additionalElectronPageCount?: number;
   readonly invalidAttachedSession?: boolean;
   readonly malformedMessageOnMethod?: string;
   readonly malformedEventOnMethod?: string;

@@ -19,24 +19,18 @@ const PROCEDURES = {
   "0x6": "prefix_TtOther",
 };
 
-const page = (values: Readonly<Record<string, string>>) => ({
-  items: Object.entries(values).map(([address, value]) => ({ address, value })),
-  offset: 0,
-  limit: 100,
-  total: Object.keys(values).length,
-  next_offset: null,
-  has_more: false,
-});
+const inventory = (values: Readonly<Record<string, string>>) =>
+  Object.entries(values).map(([address, value]) => ({ address, value }));
 
 const fixturePort = (): AnalysisOperationPort => ({
   execute: (name, arguments_) => {
     switch (name) {
       case "list_procedures":
-        return Promise.resolve(ok(page(PROCEDURES)));
+        return Promise.resolve(ok(inventory(PROCEDURES)));
       case "list_names":
         return Promise.resolve(
           ok(
-            page({
+            inventory({
               "0x10": "_OBJC_CLASS_$_Fixture",
               "0x11": "_OBJC_CLASS_$_Fixture",
               "0x12": "_OBJC_PROTOCOL_$_FixtureDelegate",
@@ -87,7 +81,7 @@ const fixturePort = (): AnalysisOperationPort => ({
       case "list_documents":
         return Promise.resolve(ok(["fixture"]));
       case "list_strings":
-        return Promise.resolve(ok(page({ "0x30": "hello" })));
+        return Promise.resolve(ok(inventory({ "0x30": "hello" })));
       case "analyze_function":
         return Promise.resolve(
           ok({
@@ -187,43 +181,31 @@ const jsonResult = (result: CallToolResult): JsonValue => {
 };
 
 describe("enhanced MCP tools", () => {
-  it("follows name pagination for exhaustive Objective-C discovery", async () => {
-    const offsets: number[] = [];
+  it("discovers every Objective-C class from one complete inventory", async () => {
+    const calls: string[] = [];
     const client = await connect({
-      execute: (name, arguments_) => {
+      execute: (name) => {
         expect(name).toBe("list_names");
-        const offset =
-          typeof arguments_.offset === "number" ? arguments_.offset : 0;
-        offsets.push(offset);
+        calls.push(name);
         return Promise.resolve(
-          ok({
-            items: [
-              {
-                address: offset === 500 ? "0x2" : "0x1",
-                value:
-                  offset === 500 ? "_OBJC_CLASS_$_Last" : "_OBJC_CLASS_$_First",
-              },
-            ],
-            offset,
-            limit: 500,
-            total: 2,
-            next_offset: offset === 500 ? null : 500,
-            has_more: offset !== 500,
-          }),
+          ok([
+            { address: "0x1", value: "_OBJC_CLASS_$_First" },
+            { address: "0x2", value: "_OBJC_CLASS_$_Last" },
+          ]),
         );
       },
     });
     const result = jsonResult(
       await client.callTool({ name: "get_objc_classes", arguments: {} }),
     );
-    expect(offsets).toEqual([0, 500]);
+    expect(calls).toEqual(["list_names"]);
     expect(result).toMatchObject({ count: 2 });
   });
 
-  it("honors overview detail and limit while reporting exhaustive totals", async () => {
-    const procedureOffsets: number[] = [];
+  it("returns the complete overview inline with exhaustive totals", async () => {
+    const inventoryCalls: string[] = [];
     const client = await connect({
-      execute: (name, arguments_) => {
+      execute: (name) => {
         switch (name) {
           case "list_segments":
             return Promise.resolve(
@@ -235,34 +217,22 @@ describe("enhanced MCP tools", () => {
           case "list_documents":
             return Promise.resolve(ok(["fixture"]));
           case "list_strings":
+            inventoryCalls.push(name);
             return Promise.resolve(
-              ok({
-                items: [{ address: "0x30", value: "first page only" }],
-                offset: 0,
-                limit: 100,
-                total: 700,
-                next_offset: 100,
-                has_more: true,
-              }),
+              ok(
+                Array.from({ length: 700 }, (_, index) => ({
+                  address: `0x${(0x30 + index).toString(16)}`,
+                  value: `string-${index}`,
+                })),
+              ),
             );
           case "list_procedures": {
-            const offset =
-              typeof arguments_.offset === "number" ? arguments_.offset : 0;
-            procedureOffsets.push(offset);
+            inventoryCalls.push(name);
             return Promise.resolve(
-              ok({
-                items: [
-                  {
-                    address: offset === 500 ? "0x2" : "0x1",
-                    value: offset === 500 ? "last" : "first",
-                  },
-                ],
-                offset,
-                limit: 500,
-                total: 2,
-                next_offset: offset === 500 ? null : 500,
-                has_more: offset !== 500,
-              }),
+              ok([
+                { address: "0x1", value: "first" },
+                { address: "0x2", value: "last" },
+              ]),
             );
           }
           default:
@@ -273,15 +243,15 @@ describe("enhanced MCP tools", () => {
     const result = jsonResult(
       await client.callTool({
         name: "binary_overview",
-        arguments: { detail: "detailed", limit: 1 },
+        arguments: {},
       }),
     );
-    expect(procedureOffsets).toEqual([0]);
+    expect(inventoryCalls).toEqual(["list_procedures", "list_strings"]);
     expect(result).toEqual({
       document: "fixture",
-      detail: "detailed",
       segments: [
         { name: "__TEXT", start: "0x1000", end: "0x1800", length: 2048 },
+        { name: "__DATA", start: "0x1800", end: "0x2000", length: 2048 },
       ],
       segment_count: 2,
       procedure_count: 2,
@@ -289,17 +259,12 @@ describe("enhanced MCP tools", () => {
     });
   });
 
-  it("rejects non-advancing pagination metadata", async () => {
+  it("rejects paginated provider output", async () => {
     const client = await connect({
       execute: () =>
         Promise.resolve(
           ok({
             items: [{ address: "0x1", value: "_TtC5First" }],
-            offset: 0,
-            limit: 500,
-            total: 2,
-            next_offset: 0,
-            has_more: true,
           }),
         ),
     });

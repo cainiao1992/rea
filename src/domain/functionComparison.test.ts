@@ -10,14 +10,6 @@ import { createEvidence, type Evidence } from "./evidence.js";
 import { functionDossierSchema } from "./hopperValues.js";
 import { jsonValueSchema } from "./jsonValue.js";
 
-const bounded = <Item>(items: readonly Item[]) => ({
-  items,
-  total: items.length,
-  returned: items.length,
-  truncated: false,
-  next_offset: null,
-});
-
 const dossier = (
   text: string,
   base: "0x1000" | "0x2000",
@@ -30,29 +22,22 @@ const dossier = (
       signature: "int main(void)",
       locals: [],
     },
-    pseudocode: {
-      text,
-      total_chars: [...text].length,
-      returned_chars: [...text].length,
-      truncated: false,
-      next_offset: null,
-    },
-    assembly: bounded(["ret"]),
-    comments: bounded([]),
-    callers: bounded([]),
-    callees: bounded([]),
-    incoming_references: bounded([]),
-    outgoing_references: bounded([]),
-    referenced_strings: bounded([]),
-    referenced_names: bounded([]),
-    basic_blocks: bounded([
+    pseudocode: text,
+    assembly: ["ret"],
+    comments: [],
+    callers: [],
+    callees: [],
+    incoming_references: [],
+    outgoing_references: [],
+    referenced_strings: [],
+    referenced_names: [],
+    basic_blocks: [
       {
         start: base,
         end: base === "0x1000" ? "0x1001" : "0x2001",
         successors,
       },
-    ]),
-    instruction_scan: { scanned: 1, truncated: false },
+    ],
   });
 
 const dossierWithReference = (
@@ -62,7 +47,7 @@ const dossierWithReference = (
   const target = base === "0x1000" ? "0x1010" : "0x2010";
   return functionDossierSchema.parse({
     ...dossier("return helper();", base),
-    outgoing_references: bounded([
+    outgoing_references: [
       {
         source_address: base,
         target_address: target,
@@ -90,7 +75,7 @@ const dossierWithReference = (
                 external: false,
               },
       },
-    ]),
+    ],
   });
 };
 
@@ -110,7 +95,6 @@ const observe = (
       operation: "analyze_function",
       parameters: enhancedInputSchemas.analyze_function.parse({
         procedure: "main",
-        include_assembly: true,
       }),
       result: jsonValueSchema.parse(value),
       confidence: "derived",
@@ -119,21 +103,19 @@ const observe = (
   );
 
 describe("function comparison", () => {
-  it("preserves observed text changes while unavailable facets stay unknown", () => {
+  it("preserves text changes alongside complete inline dossier facets", () => {
     const result = compareFunctions(
       FUNCTION_COMPARISON_EXAMPLE.left,
       FUNCTION_COMPARISON_EXAMPLE.right,
-      0,
-      100,
     );
     expect(functionComparisonResultSchema.parse(result)).toMatchObject({
-      status: "unknown",
+      status: "changed",
       function_match: { status: "matched", method: "symbol" },
     });
     expect(result.dimensions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ dimension: "pseudocode", status: "changed" }),
-        expect.objectContaining({ dimension: "assembly", status: "unknown" }),
+        expect.objectContaining({ dimension: "assembly", status: "unchanged" }),
         expect.objectContaining({
           dimension: "references",
           status: "unchanged",
@@ -151,7 +133,7 @@ describe("function comparison", () => {
   it("normalizes CFG relocation but preserves changed edges and constants", () => {
     const left = observe("2", dossier("return 0x10;", "0x1000"));
     const relocated = observe("3", dossier("return 0x10;", "0x2000"));
-    const same = compareFunctions(left, relocated, 0, 100);
+    const same = compareFunctions(left, relocated);
     expect(
       same.dimensions.find(({ dimension }) => dimension === "cfg"),
     ).toMatchObject({
@@ -162,7 +144,7 @@ describe("function comparison", () => {
     ).toMatchObject({ status: "unchanged" });
 
     const changed = observe("4", dossier("return 0x20;", "0x2000", ["0x2000"]));
-    const comparison = compareFunctions(left, changed, 0, 100);
+    const comparison = compareFunctions(left, changed);
     expect(
       comparison.dimensions.find(({ dimension }) => dimension === "cfg"),
     ).toMatchObject({ status: "changed" });
@@ -174,20 +156,20 @@ describe("function comparison", () => {
   it("treats provider-specific text as unknown and validates Evidence", () => {
     const left = observe("5", dossier("return 0;", "0x1000"), "provider-a");
     const right = observe("6", dossier("return 1;", "0x2000"), "provider-b");
-    const comparison = compareFunctions(left, right, 0, 1);
+    const comparison = compareFunctions(left, right);
     expect(
       comparison.dimensions.find(({ dimension }) => dimension === "pseudocode"),
     ).toMatchObject({ status: "unknown" });
-    expect(comparison.changes).toMatchObject({ limit: 1, next_offset: 1 });
+    expect(comparison.changes).toHaveLength(2);
     expect(() =>
-      compareFunctions({ ...left, operation: "binary_overview" }, right, 0, 10),
+      compareFunctions({ ...left, operation: "binary_overview" }, right),
     ).toThrow(/identifier/u);
   });
 
   it("reports fully observed identical dossiers as unchanged", () => {
     const left = observe("7", dossier("return 0;\n", "0x1000"));
     const right = observe("8", dossier("return 0;\n", "0x2000"));
-    const comparison = compareFunctions(left, right, 0, 100);
+    const comparison = compareFunctions(left, right);
     expect(comparison.status).toBe("unchanged");
     expect(
       comparison.dimensions.every(({ status }) => status === "unchanged"),
@@ -198,14 +180,14 @@ describe("function comparison", () => {
     const left = observe("d", dossierWithReference("0x1000", "call"));
     const same = observe("e", dossierWithReference("0x2000", "call"));
     expect(
-      compareFunctions(left, same, 0, 100).dimensions.find(
+      compareFunctions(left, same).dimensions.find(
         ({ dimension }) => dimension === "references",
       ),
     ).toMatchObject({ status: "unchanged" });
 
     const changed = observe("f", dossierWithReference("0x2000", "data"));
     expect(
-      compareFunctions(left, changed, 0, 100).dimensions.find(
+      compareFunctions(left, changed).dimensions.find(
         ({ dimension }) => dimension === "references",
       ),
     ).toMatchObject({ status: "changed" });
@@ -215,7 +197,7 @@ describe("function comparison", () => {
       dossierWithReference("0x2000", "unavailable"),
     );
     expect(
-      compareFunctions(left, unavailable, 0, 100).dimensions.find(
+      compareFunctions(left, unavailable).dimensions.find(
         ({ dimension }) => dimension === "references",
       ),
     ).toMatchObject({
@@ -238,8 +220,6 @@ describe("function comparison", () => {
     const comparison = compareFunctions(
       observe("9", autoDossier("0x1000")),
       observe("a", autoDossier("0x2000")),
-      0,
-      100,
     );
     expect(comparison.function_match.status).toBe("ambiguous");
     expect(
@@ -252,16 +232,14 @@ describe("function comparison", () => {
     const leftDossier = dossier("line\r\n", "0x1000");
     const invalidCfg = functionDossierSchema.parse({
       ...dossier("line\n", "0x2000"),
-      basic_blocks: bounded([
+      basic_blocks: [
         { start: "0x2000", end: "0x2001", successors: [] },
         { start: "0x2000", end: "0x2002", successors: [] },
-      ]),
+      ],
     });
     const comparison = compareFunctions(
       observe("b", leftDossier),
       observe("c", invalidCfg),
-      0,
-      100,
     );
     expect(
       comparison.dimensions.find(({ dimension }) => dimension === "cfg"),

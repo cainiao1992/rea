@@ -178,20 +178,12 @@ export const combineCoverage = <Item>(
   left: FunctionCollection<Item>,
   right: FunctionCollection<Item>,
 ): FunctionCollection<Item> => {
-  const base = {
+  return {
     items: [...left.items, ...right.items],
-    total:
-      left.total === null || right.total === null
-        ? null
-        : left.total + right.total,
+    total: left.total + right.total,
+    complete: true,
+    truncated: false,
   };
-  return left.complete && right.complete
-    ? { ...base, complete: true, truncated: false }
-    : {
-        ...base,
-        complete: false,
-        truncated: left.truncated || right.truncated,
-      };
 };
 
 export const project = <Input, Output>(

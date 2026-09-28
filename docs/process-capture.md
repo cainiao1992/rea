@@ -1,4 +1,4 @@
-# Process Capture v4
+# Process capture
 
 Process Capture records one approved command as deterministic Evidence. It is
 intended for authority-versus-reconstruction checks where terminal behavior,
@@ -11,7 +11,7 @@ HTTP/WebSocket exchanges, and process exit ownership. Missing or bounded
 observations remain explicit; a truncated capture is never treated as
 equivalent to another capture.
 
-Every v4 capture includes a run manifest with canonical SHA-256 commitments for
+Every capture includes a run manifest with canonical SHA-256 commitments for
 the secret-safe full scenario projection, comparison contract, executable,
 normalization rules, command-shim plan, and replay plan. The manifest also
 records the REA/provider versions, platform, architecture, PTY backend, and UTC
@@ -60,7 +60,7 @@ not a security sandbox: the target runs with the current user's permissions.
 
 ## Capture a scenario
 
-`rea capture-process` reads a JSON scenario and writes Process Capture v4
+`rea capture-process` reads a JSON scenario and writes process capture
 Evidence to stdout:
 
 ```bash

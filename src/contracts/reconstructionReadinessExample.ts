@@ -72,7 +72,6 @@ const EVIDENCE_STATES = [
 
 /** Complete synthetic input shared by docs, tests, CLI, MCP, and verifier. */
 export const RECONSTRUCTION_READINESS_EXAMPLE: ReconstructionReadinessInput = {
-  schema_version: 1,
   identity: {
     cli_version: "2.4.0",
     server_version: "2.4.0",
@@ -220,15 +219,11 @@ export const RECONSTRUCTION_READINESS_EXAMPLE: ReconstructionReadinessInput = {
   ],
   obligation_ledger: {
     schema: "ReconstructionObligationLedger",
-    schema_version: 1,
     ledger_id: `rol_${HASH}`,
     closure_digest: HASH,
     status: "ready",
     coverage: {
       status: "complete",
-      truncated: false,
-      omitted_count: 0,
-      max_obligations: 100,
     },
     summary: {
       total: 1,

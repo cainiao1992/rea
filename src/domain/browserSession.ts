@@ -44,7 +44,6 @@ const timelineEventSchema = z.object({
 
 /** Navigation-aware session result for external user actions. */
 export const webObservationSessionSchema = z.object({
-  schema_version: z.literal(1),
   browser: z.object({
     product: z.string(),
     protocol_version: z.string(),

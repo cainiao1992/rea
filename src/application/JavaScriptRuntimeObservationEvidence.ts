@@ -16,7 +16,7 @@ type RuntimeObservationOperation =
   | "list_javascript_runtime_targets"
   | "observe_javascript_runtime";
 
-/** Create deterministic Evidence v2 for one passive Inspector operation. */
+/** Create deterministic Evidence for one passive Inspector operation. */
 export const createJavaScriptRuntimeObservationEvidence = (
   operation: RuntimeObservationOperation,
   input: ListJavaScriptRuntimeTargetsInput | ObserveJavaScriptRuntimeInput,
@@ -56,5 +56,5 @@ const parameters = (
         observation_ms: input.observation_ms,
         limits: input.limits,
       }
-    : { offset: input.offset, limit: input.limit }),
+    : {}),
 });

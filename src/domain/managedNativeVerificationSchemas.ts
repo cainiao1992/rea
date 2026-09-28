@@ -8,11 +8,6 @@ const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
 const tokenSchema = z.string().regex(/^0x[0-9a-f]{8}$/u);
 const boundedTextSchema = z.string().min(1).max(4_096);
 
-const nativeVerificationLimitsSchema = z.strictObject({
-  max_native_observations: z.number().int().min(1).max(50).default(20),
-  max_candidates_per_import: z.number().int().min(1).max(100).default(25),
-});
-
 const nativeSymbolSchema = z.strictObject({
   evidence_id: evidenceIdSchema,
   operation: z.string().min(1),
@@ -46,14 +41,13 @@ const pinvokeVerificationContextShape = {
     ]),
     declaration_verification: z.literal("managed-declaration-only"),
   }),
-  evidence_links: z.array(evidenceIdSchema).min(1).max(51),
-  limitations: z.array(boundedTextSchema).max(100),
+  evidence_links: z.array(evidenceIdSchema).min(1),
+  limitations: z.array(boundedTextSchema),
 };
 
 const observedCandidatesSchema = z
   .tuple([nativeSymbolSchema])
-  .rest(nativeSymbolSchema)
-  .check(z.maxLength(100));
+  .rest(nativeSymbolSchema);
 
 export const pinvokeVerificationSchema = z.discriminatedUnion("status", [
   z.strictObject({
@@ -96,11 +90,7 @@ export type PinvokeVerification = z.infer<typeof pinvokeVerificationSchema>;
 export const managedNativeVerificationInputSchema = z
   .strictObject({
     managed_boundaries: evidenceSchema,
-    native_observations: z.array(evidenceSchema).min(1).max(50),
-    limits: nativeVerificationLimitsSchema.default({
-      max_native_observations: 20,
-      max_candidates_per_import: 25,
-    }),
+    native_observations: z.array(evidenceSchema).min(1),
     unknown_registry_approved: z.literal(true).optional(),
   })
   .superRefine((input, context) => {
@@ -129,38 +119,13 @@ export type ManagedNativeVerificationInput = z.infer<
   typeof managedNativeVerificationInputSchema
 >;
 
-const completeVerificationCoverageSchema = z.strictObject({
-  status: z.literal("complete-within-inputs"),
-  omitted_native_observations: z.literal(0),
-  omitted_candidates: z.literal(0),
+const verificationCoverageSchema = z.strictObject({
+  status: z.enum(["complete-within-inputs", "partial"]),
 });
-const partialVerificationCoverageSchema = z.strictObject({
-  status: z.literal("partial"),
-  omitted_native_observations: z.literal(0),
-  omitted_candidates: z.literal(0),
-});
-const truncatedVerificationCoverageSchema = z.union([
-  z.strictObject({
-    status: z.literal("truncated"),
-    omitted_native_observations: z.number().int().positive(),
-    omitted_candidates: z.number().int().min(0),
-  }),
-  z.strictObject({
-    status: z.literal("truncated"),
-    omitted_native_observations: z.literal(0),
-    omitted_candidates: z.number().int().positive(),
-  }),
-]);
-const verificationCoverageSchema = z.union([
-  completeVerificationCoverageSchema,
-  partialVerificationCoverageSchema,
-  truncatedVerificationCoverageSchema,
-]);
 
 /** Provider-neutral managed/native verification result. */
 export const managedNativeVerificationResultSchema = z
   .strictObject({
-    schema_version: z.literal(1),
     verification_id: z.string().regex(/^mnv_[a-f0-9]{64}$/u),
     algorithm: z.strictObject({
       name: z.literal("rea-managed-native-verification"),
@@ -183,7 +148,6 @@ export const managedNativeVerificationResultSchema = z
       accepted: z.number().int().min(0),
       unsupported: z.number().int().min(0),
       symbols: z.number().int().min(0),
-      truncated: z.boolean(),
     }),
     summary: z.strictObject({
       verified: z.number().int().min(0),
@@ -192,37 +156,24 @@ export const managedNativeVerificationResultSchema = z
       contradicted: z.number().int().min(0),
       native_body_unresolved: z.number().int().min(0),
     }),
-    pinvoke_imports: z.array(pinvokeVerificationSchema).max(50_000),
+    pinvoke_imports: z.array(pinvokeVerificationSchema),
     native_implementations: z.strictObject({
       unresolved: z.number().int().min(0),
       reason: boundedTextSchema,
     }),
     coverage: verificationCoverageSchema,
-    evidence_links: z.array(evidenceIdSchema).min(2).max(51),
-    limitations: z.array(boundedTextSchema).max(1_000),
+    evidence_links: z.array(evidenceIdSchema).min(2),
+    limitations: z.array(boundedTextSchema),
   })
   .superRefine((result, context) => {
     const observedNativeCount =
       result.native_observations.accepted +
       result.native_observations.unsupported;
-    if (
-      observedNativeCount + result.coverage.omitted_native_observations !==
-      result.native_observations.total
-    )
+    if (observedNativeCount !== result.native_observations.total)
       context.addIssue({
         code: "custom",
         path: ["native_observations"],
         message: "Native observation counts must account for the total input",
-      });
-    if (
-      result.native_observations.truncated !==
-      result.coverage.omitted_native_observations > 0
-    )
-      context.addIssue({
-        code: "custom",
-        path: ["native_observations", "truncated"],
-        message:
-          "Native observation truncation must match omitted observations",
       });
     for (const status of [
       "verified",

@@ -10,7 +10,6 @@ describe("native API inspection", () => {
     const dossier = functionDossierSchema.parse(ghidraFunctionDossier());
 
     expect(projectNativeApiInspection(dossier)).toMatchObject({
-      schema_version: 1,
       procedure: { address: "0x401000", name: "fixture_main" },
       boundary: {
         available: true,

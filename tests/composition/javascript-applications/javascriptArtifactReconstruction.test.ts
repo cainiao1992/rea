@@ -9,7 +9,7 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { reconstructJavaScriptArtifact } from "../../../src/application/JavaScriptArtifactReconstruction.js";
 import { scanArtifactInventory } from "../../../src/application/ArtifactInventory.js";
 import { parseJavaScriptApplicationGraph } from "../../../src/domain/javascriptApplicationGraph.js";
-import { javaScriptApplicationAnalysisResultV2Schema } from "../../../src/domain/javascriptApplicationAnalysis.js";
+import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascriptApplicationAnalysis.js";
 import { createJavaScriptSemanticGraph } from "../../../src/domain/javascriptSemanticGraph.js";
 import { parseJavaScriptSemanticGraph } from "../../../src/domain/javascriptSemanticGraphSerialization.js";
 import { writeJavaScriptArtifactFixture } from "../../fixtures/javascriptArtifactApplication.js";
@@ -20,7 +20,6 @@ it("reconstructs package, Electron roles, Webpack/Rspack modules, and cross-laye
 
   const result = await reconstructJavaScriptArtifact({
     input_path: root,
-    source_map_read_approved: true,
   });
   const graph = parseJavaScriptApplicationGraph(result.graph);
   const semanticGraph = parseJavaScriptSemanticGraph(result.semantic_graph);
@@ -31,7 +30,6 @@ it("reconstructs package, Electron roles, Webpack/Rspack modules, and cross-laye
     modules: 4,
     parse_failures: 0,
     omitted_text_files: 0,
-    policy_filtered_text_files: 0,
   });
   expect(graph.nodes.map(({ kind }) => kind)).toEqual(
     expect.arrayContaining([
@@ -111,12 +109,10 @@ it("produces deterministic ASAR graphs with unpacked native linkage and complete
   const first = await reconstructJavaScriptArtifact({
     input_path: archive,
     format: "asar",
-    source_map_read_approved: true,
   });
   const second = await reconstructJavaScriptArtifact({
     input_path: archive,
     format: "asar",
-    source_map_read_approved: true,
   });
 
   expect(first.graph).toEqual(second.graph);
@@ -191,7 +187,6 @@ it("keeps ASAR analysis usable when unpacked native companion bytes are absent",
   const result = await reconstructJavaScriptArtifact({
     input_path: archive,
     format: "asar",
-    source_map_read_approved: true,
   });
 
   expect(result.statistics.parsed_javascript_files).toBeGreaterThan(0);
@@ -214,7 +209,6 @@ it("recurses into filesystem-backed ASAR containers without losing container-rel
 
   const result = await reconstructJavaScriptArtifact({
     input_path: outer,
-    source_map_read_approved: true,
   });
 
   expect(result.statistics.nested_asar_containers).toBe(1);
@@ -257,9 +251,8 @@ const assertSemanticLinks = (
   });
   const { electron_summary: summary, ...analysisResult } = result;
   expect(() =>
-    javaScriptApplicationAnalysisResultV2Schema.parse({
+    javascriptApplicationAnalysisResultSchema.parse({
       ...analysisResult,
-      schema_version: 2,
       summary,
       semantic_graph: mismatchedSemanticGraph,
     }),

@@ -10,7 +10,7 @@ import type { JsonValue } from "../domain/jsonValue.js";
 import { nativeApiBoundarySchema } from "../domain/nativeApiBoundary.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
-  ghidraBoundedIdentifierSchema,
+  ghidraIdentifierSchema,
   ghidraCanonicalAddressSchema,
 } from "./GhidraInventoryValues.js";
 
@@ -38,69 +38,22 @@ export const isGhidraFunctionOperation = (
   operation: string,
 ): operation is GhidraFunctionOperation => operationSet.has(operation);
 
-const document = ghidraBoundedIdentifierSchema.nullable().default(null);
-const procedure = ghidraBoundedIdentifierSchema;
+const document = ghidraIdentifierSchema.nullable().default(null);
+const procedure = ghidraIdentifierSchema;
 const directProcedure = { document, procedure };
-const collectionOffsets = z
-  .object({
-    comments: z.number().int().min(0).default(0),
-    callers: z.number().int().min(0).default(0),
-    callees: z.number().int().min(0).default(0),
-    incoming_references: z.number().int().min(0).default(0),
-    outgoing_references: z.number().int().min(0).default(0),
-    referenced_strings: z.number().int().min(0).default(0),
-    referenced_names: z.number().int().min(0).default(0),
-    basic_blocks: z.number().int().min(0).default(0),
-  })
-  .strict()
-  .default({
-    comments: 0,
-    callers: 0,
-    callees: 0,
-    incoming_references: 0,
-    outgoing_references: 0,
-    referenced_strings: 0,
-    referenced_names: 0,
-    basic_blocks: 0,
-  });
 
 const inputSchemas = {
-  analyze_function: z
-    .object({
-      procedure,
-      include_assembly: z.boolean().default(false),
-      limit: z.number().int().min(1).max(500).default(100),
-      max_pseudocode_chars: z
-        .number()
-        .int()
-        .min(1)
-        .max(100_000)
-        .default(20_000),
-      max_instructions: z.number().int().min(1).max(5_000).default(500),
-      pseudocode_offset: z.number().int().min(0).default(0),
-      assembly_offset: z.number().int().min(0).default(0),
-      collection_offset: collectionOffsets,
-    })
-    .strict(),
+  analyze_function: z.object({ procedure }).strict(),
   procedure_assembly: z.object(directProcedure).strict(),
   procedure_callees: z.object(directProcedure).strict(),
   procedure_callers: z.object(directProcedure).strict(),
   procedure_info: z.object(directProcedure).strict(),
   procedure_pseudo_code: z.object(directProcedure).strict(),
-  read_function_instructions: z
-    .object({
-      ...directProcedure,
-      offset: z.number().int().min(0).max(100_000).default(0),
-      limit: z.number().int().min(1).max(500).default(64),
-    })
-    .strict(),
+  read_function_instructions: z.object(directProcedure).strict(),
   procedure_references: z
     .object({
       ...directProcedure,
       direction: z.enum(["incoming", "outgoing"]).default("outgoing"),
-      offset: z.number().int().min(0).default(0),
-      limit: z.number().int().min(1).max(500).default(100),
-      max_instructions: z.number().int().min(1).max(5_000).default(500),
     })
     .strict(),
   xrefs: z.object({ document, address: ghidraCanonicalAddressSchema }).strict(),
@@ -167,45 +120,11 @@ const referenceEdge = z
     kind: referenceKind,
   })
   .strict();
-const boundedReferenceFacts = {
-  items: z.array(referenceEdge),
-  total: z.number().int().min(0).nullable(),
-  returned: z.number().int().min(0),
-} as const;
-const boundedReferences = z
-  .discriminatedUnion("truncated", [
-    z.strictObject({
-      ...boundedReferenceFacts,
-      truncated: z.literal(false),
-      next_offset: z.null(),
-    }),
-    z.strictObject({
-      ...boundedReferenceFacts,
-      truncated: z.literal(true),
-      next_offset: z.number().int().min(0).nullable(),
-    }),
-  ])
-  .superRefine((value, context) => {
-    if (value.returned !== value.items.length)
-      context.addIssue({
-        code: "custom",
-        path: ["returned"],
-        message: "returned must equal the number of reference items",
-      });
-    if (value.total !== null && value.total < value.returned)
-      context.addIssue({
-        code: "custom",
-        path: ["total"],
-        message: "total cannot be smaller than returned",
-      });
-  });
 const procedureReferences = z
   .object({
     procedure: procedureIdentity,
     direction: z.enum(["incoming", "outgoing"]),
-    references: boundedReferences,
-    instructions_scanned: z.number().int().min(0),
-    instruction_scan_truncated: z.boolean(),
+    references: z.array(referenceEdge),
   })
   .strict();
 const procedureInfo = z
@@ -256,19 +175,20 @@ const ghidraFunctionDossier = functionDossierSchema
   .superRefine((value, context) => {
     const addresses = [
       value.procedure.address,
-      ...value.comments.items.map(({ address }) => address),
-      ...value.callers.items.map(({ address }) => address),
-      ...value.callees.items.map(({ address }) => address),
-      ...value.incoming_references.items.flatMap(referenceAddresses),
-      ...value.outgoing_references.items.flatMap(referenceAddresses),
-      ...value.referenced_strings.items.flatMap(
-        ({ address, source_address }) => [address, source_address],
-      ),
-      ...value.referenced_names.items.flatMap(({ address, source_address }) => [
+      ...value.comments.map(({ address }) => address),
+      ...value.callers.map(({ address }) => address),
+      ...value.callees.map(({ address }) => address),
+      ...value.incoming_references.flatMap(referenceAddresses),
+      ...value.outgoing_references.flatMap(referenceAddresses),
+      ...value.referenced_strings.flatMap(({ address, source_address }) => [
         address,
         source_address,
       ]),
-      ...value.basic_blocks.items.flatMap(({ start, end, successors }) => [
+      ...value.referenced_names.flatMap(({ address, source_address }) => [
+        address,
+        source_address,
+      ]),
+      ...value.basic_blocks.flatMap(({ start, end, successors }) => [
         start,
         end,
         ...successors,
@@ -285,10 +205,10 @@ const ghidraFunctionDossier = functionDossierSchema
       });
     const identities = [
       value.procedure,
-      ...value.callers.items,
-      ...value.callees.items,
-      ...value.incoming_references.items.flatMap(referenceProcedures),
-      ...value.outgoing_references.items.flatMap(referenceProcedures),
+      ...value.callers,
+      ...value.callees,
+      ...value.incoming_references.flatMap(referenceProcedures),
+      ...value.outgoing_references.flatMap(referenceProcedures),
     ];
     if (
       identities.some(
@@ -303,10 +223,9 @@ const ghidraFunctionDossier = functionDossierSchema
       value.procedure.locals.some(
         (variable) => !localVariable.safeParse(variable).success,
       ) ||
-      [
-        ...value.incoming_references.items,
-        ...value.outgoing_references.items,
-      ].some(({ kind }) => !referenceKind.safeParse(kind).success)
+      [...value.incoming_references, ...value.outgoing_references].some(
+        ({ kind }) => !referenceKind.safeParse(kind).success,
+      )
     )
       context.addIssue({
         code: "custom",
@@ -355,7 +274,7 @@ export const parseGhidraFunctionResult = (
 };
 
 const referenceAddresses = (
-  edge: FunctionDossier["incoming_references"]["items"][number],
+  edge: FunctionDossier["incoming_references"][number],
 ): readonly string[] => [
   edge.source_address,
   edge.target_address,
@@ -364,9 +283,9 @@ const referenceAddresses = (
 ];
 
 const referenceProcedures = (
-  edge: FunctionDossier["incoming_references"]["items"][number],
+  edge: FunctionDossier["incoming_references"][number],
 ): readonly NonNullable<
-  FunctionDossier["incoming_references"]["items"][number]["source_procedure"]
+  FunctionDossier["incoming_references"][number]["source_procedure"]
 >[] => [
   ...(edge.source_procedure === null ? [] : [edge.source_procedure]),
   ...(edge.target_procedure === null ? [] : [edge.target_procedure]),

@@ -28,7 +28,6 @@ export const buildWebBundleAnalysis = (
     accumulator.droppedFindings > 0 ||
     sourceMaps.status === "truncated";
   return webBundleAnalysisSchema.parse({
-    schema_version: 1,
     capture: buildCaptureObservation(inspection, sourceScripts),
     observations: {
       chunks: {

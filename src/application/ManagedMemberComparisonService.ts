@@ -25,6 +25,7 @@ import {
   MANAGED_STATIC_PROVIDER,
   MANAGED_WORKFLOW_PROVIDER,
 } from "./InvestigationProviders.js";
+import { MANAGED_INSPECTION_DEFAULTS } from "../dotnet/ManagedInspectionDefaults.js";
 
 /** Compare managed members from input parsed by a trusted adapter. */
 export const compareManagedMembersEvidenceValidated = (
@@ -37,7 +38,6 @@ export const compareManagedMembersEvidenceValidated = (
     const result = compareManagedMembers(
       { evidenceId: left.evidenceId, result: left.result },
       { evidenceId: right.evidenceId, result: right.result },
-      input.limits,
     );
     return ok(createManagedMemberComparisonEvidence(input, result));
   } catch (cause: unknown) {
@@ -49,11 +49,13 @@ export const compareManagedMembersEvidenceValidated = (
 export const compareManagedMemberPaths = async (input: {
   readonly leftPath: string;
   readonly rightPath: string;
-  readonly memberLimits: ManagedMemberPathInspectionLimits;
-  readonly comparisonLimits: CompareManagedMembersInput["limits"];
 }): Promise<Result<Evidence, AnalysisError>> => {
   const operation = "compare_managed_members";
   try {
+    const memberLimits: ManagedMemberPathInspectionLimits = {
+      ...MANAGED_INSPECTION_DEFAULTS,
+      maxFileBytes: MANAGED_INSPECTION_DEFAULTS.maxFileBytes,
+    };
     const [leftTarget, rightTarget] = await Promise.all([
       parseBinaryTarget(input.leftPath),
       parseBinaryTarget(input.rightPath),
@@ -71,13 +73,13 @@ export const compareManagedMemberPaths = async (input: {
       stat(rightTarget.value.path),
     ]);
     if (
-      leftStat.size > input.memberLimits.maxFileBytes ||
-      rightStat.size > input.memberLimits.maxFileBytes
+      leftStat.size > memberLimits.maxFileBytes ||
+      rightStat.size > memberLimits.maxFileBytes
     )
       return err(
         new AnalysisInputError(operation, {
           cause: new RangeError(
-            `Managed comparison input exceeds max_file_bytes ${String(input.memberLimits.maxFileBytes)}`,
+            `Managed comparison input exceeds max_file_bytes ${String(memberLimits.maxFileBytes)}`,
           ),
         }),
       );
@@ -88,19 +90,19 @@ export const compareManagedMemberPaths = async (input: {
     const leftInspection = inspectManagedMembersBytes(
       leftBytes,
       leftTarget.value,
-      input.memberLimits,
+      memberLimits,
     );
     const rightInspection = inspectManagedMembersBytes(
       rightBytes,
       rightTarget.value,
-      input.memberLimits,
+      memberLimits,
     );
     const leftEvidence = createEvidence(
       leftTarget.value,
       MANAGED_STATIC_PROVIDER,
       {
         operation: "inspect_managed_members",
-        parameters: memberLimitParameters(input.memberLimits),
+        parameters: memberLimitParameters(memberLimits),
         result: jsonValueSchema.parse(leftInspection),
         rawResult: null,
         limitations: leftInspection.limitations,
@@ -112,7 +114,7 @@ export const compareManagedMemberPaths = async (input: {
       MANAGED_STATIC_PROVIDER,
       {
         operation: "inspect_managed_members",
-        parameters: memberLimitParameters(input.memberLimits),
+        parameters: memberLimitParameters(memberLimits),
         result: jsonValueSchema.parse(rightInspection),
         rawResult: null,
         limitations: rightInspection.limitations,
@@ -128,14 +130,12 @@ export const compareManagedMemberPaths = async (input: {
         evidenceId: rightEvidence.evidence_id,
         result: rightInspection,
       },
-      input.comparisonLimits,
     );
     return ok(
       createManagedMemberComparisonEvidence(
         {
           left: leftEvidence,
           right: rightEvidence,
-          limits: input.comparisonLimits,
         },
         result,
       ),
@@ -152,7 +152,7 @@ export interface ManagedMemberPathInspectionLimits
 }
 
 const createManagedMemberComparisonEvidence = (
-  parameters: Pick<CompareManagedMembersInput, "left" | "right" | "limits">,
+  parameters: Pick<CompareManagedMembersInput, "left" | "right">,
   result: z.infer<typeof managedMemberComparisonResultSchema>,
 ): Evidence =>
   createEvidence(undefined, MANAGED_WORKFLOW_PROVIDER, {
@@ -161,7 +161,6 @@ const createManagedMemberComparisonEvidence = (
     parameters: {
       left_evidence_id: parameters.left.evidence_id,
       right_evidence_id: parameters.right.evidence_id,
-      limits: jsonValueSchema.parse(parameters.limits),
     },
     result: jsonValueSchema.parse(result),
     rawResult: null,
@@ -175,17 +174,6 @@ const createManagedMemberComparisonEvidence = (
 const memberLimitParameters = (
   limits: ManagedMemberPathInspectionLimits,
 ): Record<string, ReturnType<typeof jsonValueSchema.parse>> => ({
-  type_offset: limits.typeOffset,
-  type_limit: limits.typeLimit,
-  method_offset: limits.methodOffset,
-  method_limit: limits.methodLimit,
-  field_offset: limits.fieldOffset,
-  field_limit: limits.fieldLimit,
-  member_ref_offset: limits.memberRefOffset,
-  member_ref_limit: limits.memberRefLimit,
-  edge_offset: limits.edgeOffset,
-  edge_limit: limits.edgeLimit,
-  instruction_anchor_limit: limits.instructionAnchorLimit,
   max_file_bytes: limits.maxFileBytes,
   max_metadata_bytes: limits.maxMetadataBytes,
   max_table_rows: limits.maxTableRows,

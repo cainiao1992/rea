@@ -54,7 +54,6 @@ const applicationConfidenceSchema = z.enum([
 const applicationUnavailableReasonSchema = z.enum([
   "not-applicable",
   "not-observed",
-  "not-approved",
   "truncated",
   "provider-unavailable",
   "unresolved",

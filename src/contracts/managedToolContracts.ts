@@ -5,28 +5,6 @@ import { managedOutputSchemas } from "./toolOutputSchemas.js";
 import { toolContractMetadata } from "./toolEffects.js";
 import { requireOutputSchema } from "./toolOutputSchemaPrimitives.js";
 
-const managedReadLimits = {
-  max_file_bytes: z
-    .number()
-    .int()
-    .min(4_096)
-    .max(1_073_741_824)
-    .default(268_435_456),
-  max_metadata_bytes: z
-    .number()
-    .int()
-    .min(256)
-    .max(268_435_456)
-    .default(67_108_864),
-  max_table_rows: z.number().int().min(1).max(1_000_000).default(100_000),
-  max_heap_item_bytes: z
-    .number()
-    .int()
-    .min(1)
-    .max(16_777_216)
-    .default(1_048_576),
-};
-
 /** Exact caller boundary for execution-free PE/CLI triage and identity. */
 export const managedArtifactInputSchema = z.object({
   path: z
@@ -36,48 +14,13 @@ export const managedArtifactInputSchema = z.object({
     .describe(
       "Managed PE/CLI path to open before inspection; omit only when a managed target is already active",
     ),
-  reference_offset: z.number().int().min(0).default(0),
-  reference_limit: z.number().int().min(1).max(500).default(100),
-  resource_offset: z.number().int().min(0).default(0),
-  resource_limit: z.number().int().min(1).max(500).default(100),
-  attribute_offset: z.number().int().min(0).default(0),
-  attribute_limit: z.number().int().min(1).max(500).default(100),
-  ...managedReadLimits,
 });
 
 /** Exact caller boundary for execution-free metadata/signature/IL inspection. */
-export const managedMemberInputSchema = z.object({
-  type_offset: z.number().int().min(0).default(0),
-  type_limit: z.number().int().min(1).max(500).default(100),
-  method_offset: z.number().int().min(0).default(0),
-  method_limit: z.number().int().min(1).max(500).default(100),
-  field_offset: z.number().int().min(0).default(0),
-  field_limit: z.number().int().min(1).max(500).default(100),
-  member_ref_offset: z.number().int().min(0).default(0),
-  member_ref_limit: z.number().int().min(1).max(500).default(100),
-  edge_offset: z.number().int().min(0).default(0),
-  edge_limit: z.number().int().min(1).max(1_000).default(250),
-  instruction_anchor_limit: z.number().int().min(0).max(500).default(100),
-  ...managedReadLimits,
-  max_method_body_bytes: z
-    .number()
-    .int()
-    .min(1)
-    .max(16_777_216)
-    .default(1_048_576),
-  max_method_instructions: z.number().int().min(1).max(100_000).default(10_000),
-});
+export const managedMemberInputSchema = z.object({});
 
 /** Exact caller boundary for execution-free managed/native boundary inspection. */
-export const managedNativeBoundaryInputSchema = z.object({
-  module_ref_offset: z.number().int().min(0).default(0),
-  module_ref_limit: z.number().int().min(1).max(500).default(100),
-  import_offset: z.number().int().min(0).default(0),
-  import_limit: z.number().int().min(1).max(500).default(100),
-  implementation_offset: z.number().int().min(0).default(0),
-  implementation_limit: z.number().int().min(1).max(500).default(100),
-  ...managedReadLimits,
-});
+export const managedNativeBoundaryInputSchema = z.object({});
 
 const outputSchema = requireOutputSchema(
   managedOutputSchemas,
@@ -98,7 +41,7 @@ export const MANAGED_TOOL_CONTRACTS = [
     name: "inspect_managed_artifact",
     ...toolContractMetadata("inspect_managed_artifact"),
     description:
-      "Open and classify an explicit managed PE/CLI path, or inspect the active managed target, then inventory exact assembly/module identity, target framework evidence, references, resources, and custom attributes without loading or executing target code. Returns bounded pages and explicit partial or malformed coverage.",
+      "Open and classify an explicit managed PE/CLI path, or inspect the active managed target, then inventory exact assembly/module identity, target framework evidence, references, resources, and custom attributes without loading or executing target code. Returns complete inline inventories when metadata is admitted and explicit partial or malformed coverage otherwise.",
     kind: "managed-provider",
     inputSchema: managedArtifactInputSchema,
     outputSchema,
@@ -113,14 +56,14 @@ export const MANAGED_TOOL_CONTRACTS = [
     name: "inspect_managed_members",
     ...toolContractMetadata("inspect_managed_members"),
     description:
-      "Inspect bounded PE/CLI metadata members, signatures, raw CIL hashes, limited member-result-v1 decoded-instruction-tuple hashes, separately reported exception regions, call edges, and field-access anchors without loading or executing target code. Metadata tokens are reported as build-local coordinates bound to the artifact SHA-256 and MVID; the v1 tuple hash does not resolve them or fully commit control flow.",
+      "Inspect PE/CLI metadata members, signatures, raw CIL hashes, member-result-v1 decoded-instruction-tuple hashes, separately reported exception regions, call edges, and field-access anchors without loading or executing target code. Metadata tokens are reported as build-local coordinates bound to the artifact SHA-256 and MVID; the v1 tuple hash does not resolve them or fully commit control flow.",
     kind: "managed-provider",
     inputSchema: managedMemberInputSchema,
     outputSchema: memberOutputSchema,
     examples: [
       {
         title: "Example inspect managed members request",
-        input: { method_limit: 25, edge_limit: 100 },
+        input: {},
       },
     ],
   },
@@ -135,7 +78,7 @@ export const MANAGED_TOOL_CONTRACTS = [
     examples: [
       {
         title: "Example inspect managed/native boundary request",
-        input: { import_limit: 50, implementation_limit: 50 },
+        input: {},
       },
     ],
   },

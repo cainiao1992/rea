@@ -29,20 +29,24 @@ export const registerFunctionComparisonTool = (
       };
       const left = resolveSessionEvidenceIds(
         session,
-        input.left_evidence_ids,
+        [input.left_evidence_id],
         expected,
       );
       if (!left.ok) return toCallToolResult(left, contract);
       const right = resolveSessionEvidenceIds(
         session,
-        input.right_evidence_ids,
+        [input.right_evidence_id],
         expected,
       );
       if (!right.ok) return toCallToolResult(right, contract);
-      const leftIds = left.value.map(({ evidence_id: id }) => id);
-      const rightIds = right.value.map(({ evidence_id: id }) => id);
+      const leftEvidence = left.value[0];
+      const rightEvidence = right.value[0];
+      if (leftEvidence === undefined || rightEvidence === undefined)
+        throw new Error("Function comparison Evidence was not resolved");
+      const leftIds = [leftEvidence.evidence_id];
+      const rightIds = [rightEvidence.evidence_id];
       const computed = await runDerivedOperation(context, contract.name, () =>
-        compareFunctions(left.value, right.value, input.offset, input.limit),
+        compareFunctions(leftEvidence, rightEvidence),
       );
       if (!computed.ok) return toCallToolResult(computed, contract);
       const comparison = computed.value;
@@ -50,10 +54,8 @@ export const registerFunctionComparisonTool = (
         predicateType: "rea.function-comparison/v1",
         operation: contract.name,
         parameters: {
-          left_evidence_ids: leftIds,
-          right_evidence_ids: rightIds,
-          offset: input.offset,
-          limit: input.limit,
+          left_evidence_id: leftEvidence.evidence_id,
+          right_evidence_id: rightEvidence.evidence_id,
         },
         result: jsonValueSchema.parse(comparison),
         confidence: "derived",
@@ -102,7 +104,7 @@ const functionUnknownInput = ({
       {
         operation: "analyze_function",
         rationale:
-          "Capture complete dossiers for both functions under the same target context and analysis limits.",
+          "Capture complete dossiers for both functions under the same target context.",
       },
     ],
     relationships: [],

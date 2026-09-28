@@ -56,12 +56,10 @@ export interface CrossVersionInvestigationOutcome {
 
 /** Runtime authority and cancellation capabilities for one investigation. */
 export interface CrossVersionInvestigationExecution {
-  readonly inputRoots: readonly string[];
   readonly session?: BinarySessionPort;
   readonly signal?: AbortSignal;
   readonly progress?: ProgressReporter;
   readonly integrityContinueEnabled?: boolean;
-  readonly authorizeInputRead?: () => Promise<Result<null, AnalysisError>>;
   readonly authorizeWorkspaceWrite?: () => Promise<Result<null, AnalysisError>>;
 }
 
@@ -106,10 +104,6 @@ export const runCrossVersionInvestigationValidated = async (
       execution.session,
     );
   }
-  if (execution.authorizeInputRead !== undefined) {
-    const authorized = await execution.authorizeInputRead();
-    if (!authorized.ok) return authorized;
-  }
   await execution.progress?.report({
     phase: "scan_versions",
     completed: 0,
@@ -119,7 +113,6 @@ export const runCrossVersionInvestigationValidated = async (
 
   const snapshots = await scanVersions(
     input,
-    execution.inputRoots,
     execution.signal,
     execution.integrityContinueEnabled,
   );

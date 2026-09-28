@@ -5,11 +5,7 @@ import {
   type ApplicationGraphEvidence,
   type ApplicationNode,
 } from "./javascriptApplicationGraph.js";
-import {
-  managedSourceCoverage,
-  managedSourcePageCoverage,
-  type ManagedGraphProjectionLimits,
-} from "./managedApplicationGraphCoverage.js";
+import { managedSourceCoverage } from "./managedApplicationGraphCoverage.js";
 import {
   type ManagedMemberInspection,
   type ManagedNativeBoundaryInspection,
@@ -19,13 +15,12 @@ import type {
   ParsedManagedGraphInput,
 } from "./managedApplicationGraph.js";
 import { moduleCoverageState } from "./managedApplicationGraphNodeCoverage.js";
-type ManagedMethod = ManagedMemberInspection["methods"]["items"][number];
-type ManagedField = ManagedMemberInspection["fields"]["items"][number];
-type ManagedType = ManagedMemberInspection["types"]["items"][number];
-type PinvokeImport =
-  ManagedNativeBoundaryInspection["pinvoke_imports"]["items"][number];
+type ManagedMethod = ManagedMemberInspection["methods"][number];
+type ManagedField = ManagedMemberInspection["fields"][number];
+type ManagedType = ManagedMemberInspection["types"][number];
+type PinvokeImport = ManagedNativeBoundaryInspection["pinvoke_imports"][number];
 type NativeImplementation =
-  ManagedNativeBoundaryInspection["native_implementations"]["items"][number];
+  ManagedNativeBoundaryInspection["native_implementations"][number];
 
 /** Options for a managed contains relationship edge. */
 export interface ContainsEdgeOptions {
@@ -141,28 +136,13 @@ export const addMemberNodes = (
   state: GraphBuildState,
   artifactNode: ApplicationNode,
   parsed: ParsedManagedGraphInput,
-  limits: ManagedGraphProjectionLimits,
 ) => {
   const members = parsed.members?.result;
   if (members === undefined) return { types: 0, methods: 0, fields: 0 };
-  const types = members.types.items.slice(0, limits.max_types);
-  const methods = members.methods.items.slice(0, limits.max_methods);
-  const fields = members.fields.items.slice(0, limits.max_fields);
-  const typeCoverage = managedSourcePageCoverage(
-    members.coverage.state,
-    members.types,
-    "types",
-  );
-  const methodCoverage = managedSourcePageCoverage(
-    members.coverage.state,
-    members.methods,
-    "methods",
-  );
-  const fieldCoverage = managedSourcePageCoverage(
-    members.coverage.state,
-    members.fields,
-    "fields",
-  );
+  const { types, methods, fields } = members;
+  const typeCoverage = managedSourceCoverage(members.coverage.state);
+  const methodCoverage = managedSourceCoverage(members.coverage.state);
+  const fieldCoverage = managedSourceCoverage(members.coverage.state);
   for (const type of types) {
     const node = typeNode(state, type, typeCoverage);
     state.nodes.push(node);
@@ -308,28 +288,15 @@ export const addBoundaryNodes = (
   state: GraphBuildState,
   artifactNode: ApplicationNode,
   parsed: ParsedManagedGraphInput,
-  limits: ManagedGraphProjectionLimits,
 ) => {
   const boundaries = parsed.boundaries?.result;
   if (boundaries === undefined)
     return { pinvoke_imports: 0, native_implementations: 0 };
-  const pinvokes = boundaries.pinvoke_imports.items.slice(
-    0,
-    limits.max_pinvoke_imports,
-  );
-  const implementations = boundaries.native_implementations.items.slice(
-    0,
-    limits.max_native_implementations,
-  );
-  const pinvokeCoverage = managedSourcePageCoverage(
+  const { pinvoke_imports: pinvokes, native_implementations: implementations } =
+    boundaries;
+  const pinvokeCoverage = managedSourceCoverage(boundaries.coverage.state);
+  const implementationCoverage = managedSourceCoverage(
     boundaries.coverage.state,
-    boundaries.pinvoke_imports,
-    "pinvoke_imports",
-  );
-  const implementationCoverage = managedSourcePageCoverage(
-    boundaries.coverage.state,
-    boundaries.native_implementations,
-    "native_implementations",
   );
   for (const pinvoke of pinvokes) {
     const node = pinvokeNode(state, pinvoke, pinvokeCoverage);

@@ -8,59 +8,22 @@ const bridgePath = fileURLToPath(
   new URL("../../../../bridge/hopper_bridge.py", import.meta.url),
 );
 const probePath = fileURLToPath(
-  new URL("../../../fixtures/bridgeRegexProbe.py", import.meta.url),
+  new URL("../../../fixtures/bridgeSearchProbe.py", import.meta.url),
 );
 
-const errorResultSchema = z.object({
-  action: z.enum(["match", "search"]),
-  ok: z.literal(false),
-  type: z.string(),
-  diagnostic_type: z.string(),
-  message: z.string(),
-});
-const matchResultSchema = z.object({
-  action: z.literal("match"),
-  ok: z.literal(true),
-  backtracking_paths: z.number().int().positive(),
-  matched: z.boolean(),
-});
 const searchResultSchema = z.object({
   action: z.literal("search"),
   ok: z.literal(true),
-  result: z.object({
-    items: z.array(
-      z.object({
-        address: z.string(),
-        value: z.string(),
-        value_truncated: z.boolean(),
-      }),
-    ),
-    offset: z.number().int().nonnegative(),
-    limit: z.number().int().positive(),
-    total: z.number().int().nonnegative(),
-    next_offset: z.number().int().nonnegative().nullable(),
-    has_more: z.boolean(),
-  }),
+  result: z.array(z.object({ address: z.string(), value: z.string() })),
 });
-const probeResultSchema = z.union([
-  errorResultSchema,
-  matchResultSchema,
-  searchResultSchema,
-]);
+const probeResultSchema = searchResultSchema;
 type ProbeResult = z.infer<typeof probeResultSchema>;
 
-type ProbeInput =
-  | {
-      readonly action: "match";
-      readonly pattern: string;
-      readonly value: string;
-      readonly case_sensitive?: boolean;
-    }
-  | {
-      readonly action: "search";
-      readonly items: readonly (readonly [string, string])[];
-      readonly params: Readonly<Record<string, string | number | boolean>>;
-    };
+type ProbeInput = {
+  readonly action: "search";
+  readonly items: readonly (readonly [string, string])[];
+  readonly params: Readonly<Record<string, string | number | boolean>>;
+};
 
 interface PendingProbe {
   readonly resolve: (result: ProbeResult) => void;
@@ -250,147 +213,48 @@ beforeEach(async () => {
 });
 afterAll(stopProbeProcess);
 
-const invalidRequest = (action: "match" | "search", message: string) => ({
-  action,
-  ok: false,
-  type: "ValueError",
-  diagnostic_type: "invalid_request",
-  message,
-});
-
-describe("Hopper bridge regex work limits", () => {
-  it("rejects ambiguous bounded repetition before Python regex execution", async () => {
-    await expect(
-      probe({
-        action: "match",
-        pattern: "(a|aa){1,35}b",
-        value: "a".repeat(35),
-        case_sensitive: true,
-      }),
-    ).resolves.toEqual(
-      invalidRequest(
-        "match",
-        "Regex exceeds the 10000-path backtracking budget",
-      ),
-    );
-  });
-
-  it("rejects excessive combinations across adjacent optional atoms", async () => {
-    await expect(
-      probe({
-        action: "match",
-        pattern: `${"a?".repeat(14)}b`,
-        value: "a".repeat(14),
-        case_sensitive: true,
-      }),
-    ).resolves.toEqual(
-      invalidRequest(
-        "match",
-        "Regex exceeds the 10000-path backtracking budget",
-      ),
-    );
-  });
-
-  it("bounds cumulative work before evaluating a costly candidate", async () => {
-    await expect(
-      probe({
-        action: "match",
-        pattern: "(?:a|aa){1,12}b",
-        value: "a".repeat(4_096),
-        case_sensitive: true,
-      }),
-    ).resolves.toEqual(
-      invalidRequest(
-        "match",
-        "Regex search exceeds the 1000000-unit work budget",
-      ),
-    );
-  });
-
-  it("applies the regex work budget across the full inventory", async () => {
+describe("Hopper bridge search", () => {
+  it("returns matching literal values in deterministic order", async () => {
     await expect(
       probe({
         action: "search",
         items: [
-          ["0x1000", "a".repeat(60)],
-          ["0x2000", "a".repeat(60)],
+          ["0x1000", "REA_main_1"],
+          ["0x2000", "unrelated"],
+          ["0x3000", "rea_helper_42"],
         ],
         params: {
-          pattern: "(?:a|aa){1,8}b",
-          mode: "regex",
-          case_sensitive: true,
-          offset: 0,
-          limit: 1,
+          pattern: "REA",
+          mode: "literal",
+          case_sensitive: false,
         },
       }),
-    ).resolves.toEqual(
-      invalidRequest(
-        "search",
-        "Regex search exceeds the 1000000-unit work budget",
-      ),
-    );
-  });
-
-  it("rejects oversized regex candidates instead of matching a prefix", async () => {
-    await expect(
-      probe({
-        action: "match",
-        pattern: "needle",
-        value: `${"x".repeat(4_096)}needle`,
-      }),
-    ).resolves.toEqual(
-      invalidRequest(
-        "match",
-        "Regex candidate exceeds the 4096-character safety limit",
-      ),
-    );
-  });
-
-  it("accepts a regex candidate at the exact character limit", async () => {
-    await expect(
-      probe({
-        action: "match",
-        pattern: "z$",
-        value: `${"a".repeat(4_095)}z`,
-        case_sensitive: true,
-      }),
     ).resolves.toEqual({
-      action: "match",
+      action: "search",
       ok: true,
-      backtracking_paths: 1,
-      matched: true,
+      result: [
+        { address: "0x1000", value: "REA_main_1" },
+        { address: "0x3000", value: "rea_helper_42" },
+      ],
     });
   });
 
-  it.each([
-    [256, true],
-    [257, false],
-  ])("enforces the %i-character pattern boundary", async (length, accepted) => {
-    const pattern = "a".repeat(length);
-    const result = await probe({
-      action: "search",
-      items: [["0x1000", pattern]],
-      params: {
-        pattern,
-        mode: "regex",
-        case_sensitive: true,
-        offset: 0,
-        limit: 1,
-      },
-    });
-    if (accepted) {
-      expect(result).toMatchObject({
+  it("returns the complete value for a long literal match", async () => {
+    const value = `${"x".repeat(4_096)}needle`;
+    await expect(
+      probe({
         action: "search",
-        ok: true,
-        result: { total: 1 },
-      });
-      return;
-    }
-    expect(result).toEqual(
-      invalidRequest(
-        "search",
-        "pattern must contain between 1 and 256 characters",
-      ),
-    );
+        items: [["0x1000", value]],
+        params: {
+          pattern: "needle",
+          mode: "literal",
+          case_sensitive: true,
+        },
+      }),
+    ).resolves.toMatchObject({
+      action: "search",
+      ok: true,
+      result: [{ address: "0x1000", value }],
+    });
   });
 });

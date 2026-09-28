@@ -321,7 +321,6 @@ const replayOutcomeSchema = z.discriminatedUnion("outcome", [
 
 export const replayExecutionResultSchema = z
   .object({
-    schema_version: z.literal(1),
     plan_digest: digestSchema,
     outcomes: z.array(replayOutcomeSchema),
     comparison: z

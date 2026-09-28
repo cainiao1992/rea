@@ -56,7 +56,6 @@ const reconstructionClaimSchema = z.discriminatedUnion("kind", [
 /** Finite, typed behavioral and structural specification. */
 export const reconstructionSpecificationSchema = z
   .object({
-    schema_version: z.literal(1),
     name: z.string().trim().min(1).max(200),
     claims: z.array(reconstructionClaimSchema).min(1).max(100),
   })

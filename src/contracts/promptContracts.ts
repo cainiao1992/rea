@@ -149,9 +149,9 @@ export const PROMPT_CONTRACTS = [
           "Build function dossiers and corroborate references and call relationships. Keep indirect or truncated paths unknown.",
       },
       {
-        tools: ["snapshot_evidence_bundle", "record_unknown"],
+        tools: ["get_evidence_bundle", "record_unknown"],
         instruction:
-          "Snapshot the canonical bundle, copy its opaque URI unchanged, and read that resource before citing retained Evidence IDs. Record residual unknowns only after separate explicit approval for registry mutation.",
+          "Snapshot the current Evidence bundle when a durable export is useful, then cite the Evidence IDs you used. Record residual unknowns when the evidence does not settle a material question.",
       },
     ],
   },
@@ -198,9 +198,9 @@ export const PROMPT_CONTRACTS = [
           "For JavaScript/Electron versions, reconstruct each approved artifact independently, optionally reconcile separately retained passive runtime Evidence, then compare authenticated graphs with unique-only identity tiers. Keep ambiguous and incomplete matches unknown.",
       },
       {
-        tools: ["snapshot_evidence_bundle", "compare_artifacts"],
+        tools: ["get_evidence_bundle", "compare_artifacts"],
         instruction:
-          "Snapshot and read the canonical bundle through its exact resource URI, resolve any supplied manifest IDs to retained inventory Evidence, validate graph commitments, then compare the complete left and right Evidence page sets.",
+          "Read the complete session bundle inline, resolve supplied manifest IDs to inventory Evidence, validate graph commitments, then compare the complete left and right Evidence page sets.",
       },
       {
         tools: ["open_binary", "analyze_function", "compare_functions"],
@@ -241,9 +241,9 @@ export const PROMPT_CONTRACTS = [
     },
     steps: [
       {
-        tools: ["snapshot_evidence_bundle"],
+        tools: ["get_evidence_bundle"],
         instruction:
-          "Snapshot the current canonical bundle, copy its opaque URI unchanged, read the resource, and verify that every selected comparison Evidence ID is present and compatible with the intended claim.",
+          "Check that every selected comparison Evidence ID is present and compatible with the intended claim.",
       },
       {
         tools: [
@@ -270,7 +270,7 @@ export const PROMPT_CONTRACTS = [
     name: "trace_crash",
     title: "Trace a crash",
     description:
-      "Correlate a crash symptom with bounded static call and reference evidence plus optional approved Process Capture v4 observations.",
+      "Correlate a crash symptom with bounded static call and reference evidence plus optional approved process capture observations.",
     objective:
       "Localize plausible crash paths while separating observed runtime failure, static reachability, inferred causality, and unobserved paths.",
     arguments: {
@@ -286,7 +286,7 @@ export const PROMPT_CONTRACTS = [
         "procedure",
       ),
       capture_evidence_id: optional(
-        "Retained Process Capture v4 Evidence for the crash",
+        "Retained process capture Evidence for the crash",
         "capture",
       ),
     },
@@ -313,12 +313,12 @@ export const PROMPT_CONTRACTS = [
       },
       {
         tools: [
-          "snapshot_evidence_bundle",
+          "get_evidence_bundle",
           "capture_process_scenario",
           "correlate_static_and_runtime",
         ],
         instruction:
-          "Snapshot and read retained Evidence through the exact resource URI. Reuse a retained capture when supplied. Otherwise capture only after operator policy and per-call approval, then correlate through explicit hypotheses rather than timing or name coincidence.",
+          "Read retained Evidence inline. Reuse a retained capture when supplied. Otherwise capture only after operator policy and per-call approval, then correlate through explicit hypotheses rather than timing or name coincidence.",
       },
       {
         tools: ["record_unknown"],
@@ -354,9 +354,9 @@ export const PROMPT_CONTRACTS = [
           "List current heads first and select only active, session-owned unknown IDs. Preserve their exact revision and requirements.",
       },
       {
-        tools: ["snapshot_evidence_bundle", "verify_unknown_resolution"],
+        tools: ["get_evidence_bundle", "verify_unknown_resolution"],
         instruction:
-          "Snapshot and read the canonical bundle through its exact resource URI, inspect cited supporting, contradicting, and mutation Evidence, then validate any resolved head against bundle integrity and authority requirements.",
+          "Read the canonical bundle inline, inspect cited supporting, contradicting, and mutation Evidence, then validate any resolved head against bundle integrity and authority requirements.",
       },
       {
         tools: ["update_unknown"],
@@ -374,7 +374,7 @@ export const PROMPT_CONTRACTS = [
     name: "prepare_bounded_process_capture",
     title: "Prepare a bounded process capture",
     description:
-      "Design an approval-gated Process Capture v4 scenario with exact executable, filesystem, environment, network, replay, timeout, and cleanup boundaries.",
+      "Design an approval-gated process capture scenario with exact executable, filesystem, environment, network, replay, timeout, and cleanup boundaries.",
     objective:
       "Prepare and, only after authorization, run the smallest controlled process experiment that can answer the stated behavioral question.",
     arguments: {
@@ -388,7 +388,7 @@ export const PROMPT_CONTRACTS = [
         "Absolute working directory requested for the scenario",
       ),
       prior_capture_evidence_id: optional(
-        "Retained Process Capture v4 Evidence to compare or refine",
+        "Retained process capture Evidence to compare or refine",
         "capture",
       ),
     },
@@ -399,9 +399,9 @@ export const PROMPT_CONTRACTS = [
           "Inspect capture capability, declared effects, and limits before proposing execution. An unavailable capability is not permission to widen policy.",
       },
       {
-        tools: ["snapshot_evidence_bundle"],
+        tools: ["get_evidence_bundle"],
         instruction:
-          "Snapshot and read the canonical bundle through its exact resource URI, then review any prior capture for unanswered dimensions, truncation, scenario commitments, and descendant settlement before designing a repeat.",
+          "Read the canonical bundle inline, then review any prior capture for unanswered dimensions, truncation, scenario commitments, and descendant settlement before designing a repeat.",
       },
       {
         tools: ["capture_process_scenario"],
@@ -411,7 +411,7 @@ export const PROMPT_CONTRACTS = [
       {
         tools: ["compare_process_captures"],
         instruction:
-          "When a prior compatible capture exists, compare complete Process Capture v4 observations under recorded normalization and freshness requirements.",
+          "When a prior compatible capture exists, compare complete process capture observations under recorded normalization and freshness requirements.",
       },
       {
         tools: ["record_unknown"],

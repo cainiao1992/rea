@@ -15,9 +15,6 @@ export interface CallPathTraceInput {
   readonly start: string;
   readonly goal?: string | undefined;
   readonly direction: "forward" | "backward";
-  readonly max_depth: number;
-  readonly max_nodes: number;
-  readonly max_operations: number;
 }
 
 interface TraceState {
@@ -38,9 +35,7 @@ interface TraceState {
     readonly address: string;
     readonly error: ReturnType<typeof projectAnalysisError>;
   }>;
-  readonly frontier: Set<string>;
   readonly residual: Set<string>;
-  operations: number;
   queueIndex: number;
   traversalPath: string[];
 }
@@ -59,7 +54,7 @@ interface DiscoveredEdge {
   readonly discoveryDepth: number;
 }
 
-/** Trace one deterministic bounded direct caller/callee path. */
+/** Trace direct caller/callee relationships until the graph is exhausted or the goal is reached. */
 export const traceCallPath = async (
   call: AnalysisCall,
   input: CallPathTraceInput,
@@ -74,17 +69,6 @@ export const traceCallPath = async (
     if (address === undefined) break;
     const current = state.visited.get(address);
     if (current === undefined) continue;
-    if (current.depth >= input.max_depth) {
-      state.frontier.add(address);
-      state.residual.add("Call-path traversal reached the depth limit.");
-      continue;
-    }
-    if (state.operations >= input.max_operations) {
-      recordPendingFrontier(state, input);
-      state.residual.add("Call-path traversal reached the operation budget.");
-      break;
-    }
-    state.operations += 1;
     const found = await expandAddress(call, {
       input,
       state,
@@ -102,9 +86,7 @@ const createTraceState = (input: CallPathTraceInput): TraceState => ({
   queue: [input.start],
   edges: new Map(),
   failures: [],
-  frontier: new Set(),
   residual: new Set(),
-  operations: 0,
   queueIndex: 0,
   traversalPath: input.goal === input.start ? [input.start] : [],
 });
@@ -152,12 +134,6 @@ const expandAddress = async (
       }
       continue;
     }
-    if (state.visited.size >= input.max_nodes) {
-      if (state.frontier.size < input.max_nodes)
-        state.frontier.add(relatedAddress);
-      state.residual.add("Call-path traversal reached the node limit.");
-      continue;
-    }
     state.visited.set(relatedAddress, {
       depth: current.depth + 1,
       path,
@@ -182,23 +158,11 @@ const recordEdge = (
     input.direction === "forward" ? edge.relatedAddress : edge.address;
   const edgeKey = `${sourceAddress}\u0000${targetAddress}`;
   if (state.edges.has(edgeKey)) return;
-  if (state.edges.size >= input.max_nodes) {
-    state.residual.add("Call-path traversal reached the edge limit.");
-    return;
-  }
   state.edges.set(edgeKey, {
     source_address: sourceAddress,
     target_address: targetAddress,
     discovery_depth: edge.discoveryDepth,
   });
-};
-
-const recordPendingFrontier = (
-  state: TraceState,
-  input: CallPathTraceInput,
-): void => {
-  for (const pending of state.queue.slice(state.queueIndex - 1))
-    if (state.frontier.size < input.max_nodes) state.frontier.add(pending);
 };
 
 const projectTrace = (input: CallPathTraceInput, state: TraceState) => ({
@@ -225,19 +189,13 @@ const projectTrace = (input: CallPathTraceInput, state: TraceState) => ({
   ),
   traversal_path: state.traversalPath,
   failures: state.failures,
-  frontier: [...state.frontier].sort(compareAddress),
-  limits: {
-    max_depth: input.max_depth,
-    max_nodes: input.max_nodes,
-    max_operations: input.max_operations,
+  traversal: {
     nodes_visited: state.visited.size,
-    operations_used: state.operations,
   },
   truncated: state.residual.size > 0,
   residual_unknowns: [...state.residual],
   limitations: [
     "Direct provider call relationships may omit unresolved indirect calls.",
-    "A not_reached goal is only absent from this bounded traversal, not from the complete program.",
   ],
 });
 

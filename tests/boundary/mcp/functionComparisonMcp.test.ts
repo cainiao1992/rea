@@ -33,8 +33,8 @@ describe("function comparison MCP integration", () => {
       const result = await client.callTool({
         name: "compare_functions",
         arguments: {
-          left_evidence_ids: [FUNCTION_COMPARISON_EXAMPLE.left.evidence_id],
-          right_evidence_ids: [FUNCTION_COMPARISON_EXAMPLE.right.evidence_id],
+          left_evidence_id: FUNCTION_COMPARISON_EXAMPLE.left.evidence_id,
+          right_evidence_id: FUNCTION_COMPARISON_EXAMPLE.right.evidence_id,
           unknown_registry_approved: true,
         },
       });
@@ -42,7 +42,6 @@ describe("function comparison MCP integration", () => {
       expect(result.structuredContent).toMatchObject({
         result: { status: expect.any(String) },
         evidence_id: expect.stringMatching(/^ev_[a-f0-9]{64}$/u),
-        evidence_uri: expect.stringMatching(/^rea:\/\/evidence\/ev_/u),
       });
       const unknowns = await client.callTool({
         name: "list_unknowns",
@@ -52,15 +51,13 @@ describe("function comparison MCP integration", () => {
         result: {
           items: [
             expect.objectContaining({
-              unknown: expect.objectContaining({
-                domain: "function-comparison",
-                recommended_probes: [
-                  expect.objectContaining({
-                    rationale:
-                      "Capture complete dossiers for both functions under the same target context and analysis limits.",
-                  }),
-                ],
-              }),
+              domain: "function-comparison",
+              recommended_probes: [
+                expect.objectContaining({
+                  rationale:
+                    "Capture complete dossiers for both functions under the same target context.",
+                }),
+              ],
             }),
           ],
         },
@@ -90,8 +87,8 @@ describe("function comparison MCP integration", () => {
       const result = await client.callTool({
         name: "compare_functions",
         arguments: {
-          left_evidence_ids: [FUNCTION_COMPARISON_EXAMPLE.left.evidence_id],
-          right_evidence_ids: [FUNCTION_COMPARISON_EXAMPLE.right.evidence_id],
+          left_evidence_id: FUNCTION_COMPARISON_EXAMPLE.left.evidence_id,
+          right_evidence_id: FUNCTION_COMPARISON_EXAMPLE.right.evidence_id,
         },
       });
       expect(result.isError).toBe(true);
@@ -135,8 +132,8 @@ describe("function comparison MCP integration", () => {
       const result = await client.callTool({
         name: "compare_functions",
         arguments: {
-          left_evidence_ids: [wrong.evidence_id],
-          right_evidence_ids: [FUNCTION_COMPARISON_EXAMPLE.right.evidence_id],
+          left_evidence_id: wrong.evidence_id,
+          right_evidence_id: FUNCTION_COMPARISON_EXAMPLE.right.evidence_id,
         },
       });
       expect(result.isError).toBe(true);

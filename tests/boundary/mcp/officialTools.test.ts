@@ -74,18 +74,11 @@ const connect = async (analysis: AnalysisOperationPort) => {
   return client;
 };
 
-const page: JsonValue = {
-  items: [],
-  offset: 0,
-  limit: 100,
-  total: 0,
-  next_offset: null,
-  has_more: false,
-};
+const inventory: JsonValue = [];
 
 const outputFor = (name: string): JsonValue => {
   if (["list_procedures", "list_names", "list_strings"].includes(name))
-    return page;
+    return inventory;
   if (["address_name", "comment", "inline_comment"].includes(name)) return null;
   if (["procedure_callees", "procedure_callers", "xrefs"].includes(name))
     return [];
@@ -102,7 +95,7 @@ const outputFor = (name: string): JsonValue => {
   )
     return true;
   if (name === "set_addresses_names") return { "0x1000": true };
-  if (["search_procedures", "search_strings"].includes(name)) return page;
+  if (["search_procedures", "search_strings"].includes(name)) return inventory;
   if (name === "procedure_info")
     return {
       name: "main",
@@ -121,15 +114,7 @@ const outputFor = (name: string): JsonValue => {
   if (name === "read_function_instructions")
     return {
       procedure: { address: "0x1000", name: "main" },
-      instructions: {
-        items: ["0x1000: ret"],
-        total: 1,
-        returned: 1,
-        truncated: false,
-        next_offset: null,
-      },
-      instructions_scanned: 1,
-      instruction_scan_truncated: false,
+      instructions: ["0x1000: ret"],
       limitations: ["Provider-specific instruction text."],
     };
   if (name === "read_bytes")
@@ -146,15 +131,7 @@ const outputFor = (name: string): JsonValue => {
     return {
       procedure: { address: "0x1000", name: "main" },
       direction: "outgoing",
-      references: {
-        items: [],
-        total: 0,
-        returned: 0,
-        truncated: false,
-        next_offset: null,
-      },
-      instructions_scanned: 1,
-      instruction_scan_truncated: false,
+      references: [],
     };
   return name.includes("address") ? "0x1000" : "fixture";
 };
@@ -191,11 +168,6 @@ describe("official Hopper proxy tools", () => {
         arguments: VALID_INPUTS[contract.name],
       });
       expect(result.isError).not.toBe(true);
-      expect(result.content).not.toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ type: "resource_link" }),
-        ]),
-      );
     }
 
     expect(invocations.map(({ name }) => name)).toEqual(
@@ -213,8 +185,6 @@ describe("official Hopper proxy tools", () => {
       pattern: "main",
       mode: "literal",
       case_sensitive: false,
-      offset: 0,
-      limit: 100,
       document: null,
     });
   });
@@ -232,5 +202,73 @@ describe("official Hopper proxy tools", () => {
       type: "text",
       text: JSON.stringify(result.structuredContent),
     });
+  });
+
+  it("returns every procedure inline without caller-authored page calls", async () => {
+    const invocations: Invocation[] = [];
+    const client = await connect({
+      execute: (name, arguments_) => {
+        invocations.push({ name, arguments_ });
+        return Promise.resolve(
+          ok([
+            { address: "0x1", value: "procedure" },
+            { address: "0x2", value: "procedure" },
+          ]),
+        );
+      },
+    });
+
+    const result = await client.callTool({
+      name: "list_procedures",
+      arguments: {},
+    });
+
+    expect(result.structuredContent).toMatchObject({
+      result: [
+        { address: "0x1", value: "procedure" },
+        { address: "0x2", value: "procedure" },
+      ],
+    });
+    expect(invocations).toHaveLength(1);
+    expect(invocations[0]?.arguments_).toEqual({ document: null });
+    expect(
+      (await client.listTools()).tools.find(
+        ({ name }) => name === "list_procedures",
+      )?.inputSchema,
+    ).not.toHaveProperty("properties.offset");
+  });
+
+  it("returns every search match inline in one provider call", async () => {
+    const invocations: Invocation[] = [];
+    const client = await connect({
+      execute: (name, arguments_) => {
+        invocations.push({ name, arguments_ });
+        return Promise.resolve(
+          ok([
+            { address: "0x1", value: "coffee" },
+            { address: "0x2", value: "coffee" },
+          ]),
+        );
+      },
+    });
+
+    const result = await client.callTool({
+      name: "search_strings",
+      arguments: { pattern: "coffee" },
+    });
+
+    expect(result.structuredContent).toMatchObject({
+      result: [
+        { address: "0x1", value: "coffee" },
+        { address: "0x2", value: "coffee" },
+      ],
+    });
+    expect(invocations).toHaveLength(1);
+    expect(invocations[0]?.arguments_).toMatchObject({ pattern: "coffee" });
+    expect(
+      (await client.listTools()).tools.find(
+        ({ name }) => name === "search_strings",
+      )?.inputSchema,
+    ).not.toHaveProperty("properties.offset");
   });
 });

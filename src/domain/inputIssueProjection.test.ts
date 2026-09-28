@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { artifactExtractionInputSchema } from "../contracts/artifactToolContracts.js";
 import { projectInputIssues } from "./inputIssueProjection.js";
 
 describe("input issue projection", () => {
@@ -26,15 +25,5 @@ describe("input issue projection", () => {
         message: "Supply either left or right",
       },
     ]);
-  });
-
-  it("rejects relative extraction destinations at the caller boundary", () => {
-    expect(
-      artifactExtractionInputSchema.safeParse({
-        approved: true,
-        output_root: "relative/output",
-        occurrence_ids: [`occ_${"0".repeat(64)}`],
-      }).success,
-    ).toBe(false);
   });
 });

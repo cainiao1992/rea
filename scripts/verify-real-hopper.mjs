@@ -29,8 +29,9 @@ import {
   requireWorkflowEvidenceProvider,
 } from "./lib/mcp-verifier-results.mjs";
 import { verifyHopperFunctionBasics } from "./lib/real-hopper-function-basics.mjs";
-import { openAndVerifyLargeFixture } from "./lib/real-hopper-pagination.mjs";
+import { openAndVerifyLargeFixture } from "./lib/real-hopper-exhaustive-search.mjs";
 import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
+import { requireHopperSelection } from "./lib/real-hopper-selection.mjs";
 import { startUnrelatedHopperSentinel } from "./lib/unrelated-hopper-sentinel.mjs";
 const execFileAsync = promisify(execFile);
 const verifierRun = createVerifierRun();
@@ -50,39 +51,6 @@ const sessionsBefore = new Set(
 );
 const textValue = mcpTextValue;
 const requireSuccessfulTool = requireMcpResult;
-
-const requireHopperSelection = (status, expected) => {
-  const candidates = status.analysis_provider_candidates;
-  const hopper = Array.isArray(candidates)
-    ? candidates.find(
-        (candidate) => candidate?.provider?.id === HOPPER_PROVIDER_IDENTITY.id,
-      )
-    : undefined;
-  if (
-    hopper === undefined ||
-    hopper.availability?.status !== "available" ||
-    hopper.target_support?.status !== expected.targetSupport ||
-    hopper.selected !== expected.selected
-  ) {
-    throw new Error("binary_session omitted truthful Hopper candidate status");
-  }
-  if (!expected.selected) {
-    if (status.analysis_provider_binding !== null)
-      throw new Error("Target-free status unexpectedly selected a provider");
-    return null;
-  }
-  const binding = status.analysis_provider_binding;
-  if (
-    binding?.provider?.id !== HOPPER_PROVIDER_IDENTITY.id ||
-    typeof binding.provider.version !== "string" ||
-    binding.selection_source !== "auto-single-candidate" ||
-    binding.analysis_profile?.provider?.id !== HOPPER_PROVIDER_IDENTITY.id ||
-    binding.analysis_profile.provider.version !== binding.provider.version
-  ) {
-    throw new Error("binary_session omitted its concrete Hopper binding");
-  }
-  return binding;
-};
 
 const requireOverview = (value, operation) => {
   if (
@@ -230,7 +198,7 @@ const verifyCurrentTarget = async (client, options) => {
     procedure: dossier.procedure,
     procedureCount: procedures.total,
     boundedPseudocodeChars: boundedPseudocode.length,
-    analyzedPseudocodeChars: [...dossier.pseudocode.text].length,
+    analyzedPseudocodeChars: [...dossier.pseudocode].length,
     callerCount: relationships.procedure_callers.length,
     calleeCount: relationships.procedure_callees.length,
     xrefCount: relationships.xrefs.length,
@@ -287,24 +255,20 @@ try {
     onprogress: (update) => progressUpdates.push(update),
   };
   const fullSessionStatus = () =>
-    client.callTool(
-      { name: "binary_session", arguments: { detail: "full" } },
-      options,
-    );
+    client.callTool({ name: "binary_session", arguments: {} }, options);
   const initialSession = await fullSessionStatus();
   const initialStatus = requireMcpResult(initialSession, "binary_session");
   const listed = await client.listTools();
   const availableTools = initialStatus.tool_availability;
   if (!Array.isArray(availableTools))
     throw new Error("The real session omitted tool availability");
-  const expectedNames = availableTools
-    .filter(({ available }) => available === true)
-    .map(({ name }) => name)
-    .sort();
+  const expectedNames = availableTools.map(({ name }) => name).sort();
   const actualNames = listed.tools.map(({ name }) => name).sort();
   if (JSON.stringify(actualNames) !== JSON.stringify(expectedNames)) {
+    const expected = new Set(expectedNames);
+    const actual = new Set(actualNames);
     throw new Error(
-      "The real server tool inventory diverged from session availability",
+      `The real server tool catalog diverged from session capability inventory (untracked tools: ${actualNames.filter((name) => !expected.has(name)).join(", ") || "none"}; missing catalog tools: ${expectedNames.filter((name) => !actual.has(name)).join(", ") || "none"})`,
     );
   }
 
@@ -345,18 +309,15 @@ try {
     { name: "binary_overview", arguments: {} },
     options,
   );
-  await Promise.all([
-    requireEvidenceProvider(
-      client,
-      documents,
-      "list_documents",
-      HOPPER_PROVIDER_IDENTITY.id,
-    ),
-    requireWorkflowEvidenceProvider(client, overview, "binary_overview", {
-      workflowProviderId: REA_WORKFLOW_PROVIDER.id,
-      upstreamProviderId: HOPPER_PROVIDER_IDENTITY.id,
-    }),
-  ]);
+  requireEvidenceProvider(
+    documents,
+    "list_documents",
+    HOPPER_PROVIDER_IDENTITY.id,
+  );
+  requireWorkflowEvidenceProvider(overview, "binary_overview", {
+    workflowProviderId: REA_WORKFLOW_PROVIDER.id,
+    upstreamProviderId: HOPPER_PROVIDER_IDENTITY.id,
+  });
   const segments = await client.callTool(
     { name: "list_segments", arguments: {} },
     options,
@@ -413,7 +374,33 @@ try {
     "binary_overview after target switch",
   );
   const secondAnalysis = await verifyCurrentTarget(client, options);
-  const largePagination = await openAndVerifyLargeFixture({
+  const documentsAfterTargetSwitch = requireMcpResult(
+    await client.callTool({ name: "list_documents", arguments: {} }, options),
+    "list_documents after target switch",
+  );
+  if (
+    !Array.isArray(documentsAfterTargetSwitch) ||
+    documentsAfterTargetSwitch.length !== firstDocuments.length + 1
+  )
+    throw new Error("A distinct target did not receive one Hopper document");
+  const reopenedTarget = await client.callTool(
+    { name: "open_binary", arguments: { path: targetB } },
+    options,
+  );
+  if (reopenedTarget.isError === true)
+    throw new Error(textValue(reopenedTarget));
+  const documentsAfterReopen = requireMcpResult(
+    await client.callTool({ name: "list_documents", arguments: {} }, options),
+    "list_documents after reopening target B",
+  );
+  if (
+    !Array.isArray(documentsAfterReopen) ||
+    documentsAfterReopen.length !== documentsAfterTargetSwitch.length
+  )
+    throw new Error(
+      "Reopening the same target created a duplicate Hopper document",
+    );
+  const largeInventory = await openAndVerifyLargeFixture({
     client,
     options,
     normalizedResult: requireSuccessfulTool,
@@ -454,7 +441,7 @@ try {
     segmentCount: firstOverview.segment_count,
     analyses: [firstAnalysis, secondAnalysis],
     fixtureAnalysis,
-    largePagination,
+    largeInventory,
     fixtureManifest: fixtureTargets.manifestPath,
     bundledMcpRunning,
     stderrBytes,
@@ -466,6 +453,8 @@ try {
     targetHashes: [targetHashA, targetHashB, fixtureTargets.large.sha256],
     switched: true,
     secondOverview: verifiedSecondOverview,
+    documentCountAfterTargetSwitch: documentsAfterTargetSwitch.length,
+    documentCountAfterSameTargetReopen: documentsAfterReopen.length,
   };
 } finally {
   const keepAlive = setInterval(() => undefined, 100);

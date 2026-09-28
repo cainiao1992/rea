@@ -33,7 +33,7 @@ const source = (
     {
       predicateType:
         authority === "controlled-replay"
-          ? "rea.process-capture/v4"
+          ? "rea.process-capture"
           : "rea.analysis/v2",
       operation:
         authority === "controlled-replay"
@@ -92,7 +92,7 @@ const processComparison = (
       version: "3",
     },
     {
-      predicateType: "rea.process-comparison/v3",
+      predicateType: "rea.process-comparison",
       operation: "compare_process_captures",
       parameters: {
         left_evidence_id: left.evidence_id,
@@ -106,7 +106,6 @@ const processComparison = (
   );
 
 const behavioralSpec = (comparison: Evidence) => ({
-  schema_version: 1 as const,
   name: "CLI compatibility",
   claims: [
     {
@@ -189,7 +188,6 @@ describe("reconstruction verification", () => {
     expect(
       verifyReconstruction(
         {
-          schema_version: 1,
           name: "Interaction reconstruction",
           claims: [
             {
@@ -288,7 +286,6 @@ describe("reconstruction verification", () => {
     const comparison = artifactComparison(left, right, true);
     const result = verifyReconstruction(
       {
-        schema_version: 1,
         name: "Artifact structure",
         claims: [
           {
@@ -343,7 +340,7 @@ describe("reconstruction verification integrity", () => {
     ];
     const bundle = createEvidenceBundle([right, comparison, left]);
     const first = verifyReconstruction(
-      { schema_version: 1, name: "Compatibility", claims },
+      { name: "Compatibility", claims },
       bundle,
       0,
       1,
@@ -352,7 +349,6 @@ describe("reconstruction verification integrity", () => {
       {
         name: "Compatibility",
         claims: [...claims].reverse(),
-        schema_version: 1,
       },
       bundle,
       0,

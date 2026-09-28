@@ -193,7 +193,6 @@ const fixtureGraph = (withUnknown = false): JavaScriptSemanticGraph => {
   });
   return createJavaScriptSemanticGraph({
     schema: "JavaScriptSemanticRelationGraph",
-    schema_version: 1,
     root_artifact_sha256: SHA,
     application_graph_id: JAG_ID,
     root_node_ids: [module.node_id],

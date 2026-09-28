@@ -21,7 +21,13 @@ const probeResultSchema = z.strictObject({
   }),
   current_document: z.literal("fixture"),
   current_address: z.literal("0x401000"),
-  session_document: z.literal("fixture"),
+  session_document_reused: z.literal(true),
+  shared_document_shutdown: z.strictObject({
+    shutdown: z.literal(true),
+    analysis_stopped: z.literal(false),
+    document_closed: z.literal(false),
+    document_retained: z.literal(true),
+  }),
   analysis_guard: z.strictObject({
     type: z.literal("CapabilityUnavailableError"),
     diagnostic_type: z.literal("capability_unavailable"),

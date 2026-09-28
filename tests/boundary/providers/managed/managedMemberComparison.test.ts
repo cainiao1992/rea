@@ -7,10 +7,7 @@ import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js
 
 import { compareManagedMemberPaths } from "../../../../src/application/ManagedMemberComparisonService.js";
 import { managedMemberComparisonResultSchema } from "../../../../src/domain/managedMemberComparison.js";
-import {
-  buildManagedPeFixture,
-  MANAGED_MEMBER_PATH_FIXTURE_LIMITS,
-} from "../../../../src/dotnet/ManagedPe.fixture.js";
+import { buildManagedPeFixture } from "../../../../src/dotnet/ManagedPe.fixture.js";
 
 describe("managed member comparison path workflow", () => {
   it("compares two local paths and returns derived Evidence", async () => {
@@ -26,12 +23,6 @@ describe("managed member comparison path workflow", () => {
     const result = await compareManagedMemberPaths({
       leftPath,
       rightPath,
-      memberLimits: MANAGED_MEMBER_PATH_FIXTURE_LIMITS,
-      comparisonLimits: {
-        max_method_matches: 100,
-        max_field_matches: 100,
-        max_candidates: 10,
-      },
     });
 
     expect(result.ok).toBe(true);

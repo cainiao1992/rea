@@ -19,15 +19,13 @@ describe("Hopper provider capabilities", () => {
     for (const descriptor of capabilities) {
       expect(descriptor.provider).toEqual(provider.identity());
       expect(descriptor).toMatchObject({
-        inputContractVersion: 1,
-        outputContractVersion: 1,
         available: true,
         reason: null,
       });
     }
     expect(
       capabilities.find(({ operation }) => operation === "list_procedures"),
-    ).toMatchObject({ pagination: "offset" });
+    ).toMatchObject({ pagination: "none" });
     expect(
       capabilities.find(({ operation }) => operation === "set_comment"),
     ).toMatchObject({

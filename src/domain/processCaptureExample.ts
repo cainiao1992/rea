@@ -15,7 +15,6 @@ const replayPlan = {};
 
 /** Minimal valid process capture retained as a public contract example. */
 export const EMPTY_PROCESS_CAPTURE_EXAMPLE = {
-  schema_version: 4,
   manifest: {
     rea_version: "1.1.0",
     provider_version: "3",

@@ -17,7 +17,7 @@ export const JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS = [
     name: "list_javascript_runtime_targets",
     ...toolContractMetadata("list_javascript_runtime_targets"),
     description:
-      "List attachable Node/Electron V8 Inspector targets from one approved literal-loopback endpoint. Only targets inside exact canonical file roots or exact HTTP(S) origins are retained; excluded target locations never enter Evidence.",
+      "List every attachable Node/Electron V8 Inspector target from one approved literal-loopback endpoint. Only targets inside exact canonical file roots or exact HTTP(S) origins are retained; excluded target locations never enter Evidence.",
     kind: "runtime-provider",
     inputSchema: listJavaScriptRuntimeTargetsInputSchema,
     outputSchema: evidenceResultOf(javascriptRuntimeTargetListSchema),
@@ -29,8 +29,6 @@ export const JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS = [
           allowed_file_roots: [root],
           allowed_origins: [],
           approved: true,
-          offset: 0,
-          limit: 100,
         },
       },
     ],

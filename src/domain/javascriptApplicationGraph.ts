@@ -384,11 +384,11 @@ const checkGraphInvariants = (
     });
 };
 
-/** Strict versioned JavaScript Application Graph with verified commitments. */
+/** Strict JavaScript Application Graph with verified commitments. */
 export const javascriptApplicationGraphSchema =
   javascriptApplicationGraphRecordSchema.superRefine(checkGraphInvariants);
 
-/** Fully validated JavaScript Application Graph v1. */
+/** Fully validated JavaScript Application Graph. */
 export type JavaScriptApplicationGraph = z.infer<
   typeof javascriptApplicationGraphSchema
 >;
@@ -465,24 +465,10 @@ export const createJavaScriptApplicationGraph = (
   });
 };
 
-/** Parse a stored graph, rejecting unsupported versions and stale IDs. */
+/** Parse a stored graph and reject stale IDs. */
 export const parseJavaScriptApplicationGraph = (
   input: unknown,
-): JavaScriptApplicationGraph => {
-  const envelope = z
-    .object({ schema: z.string(), schema_version: z.number() })
-    .passthrough()
-    .safeParse(input);
-  if (
-    envelope.success &&
-    envelope.data.schema === "JavaScriptApplicationGraph" &&
-    envelope.data.schema_version !== 1
-  )
-    throw new TypeError(
-      `Unsupported JavaScript Application Graph schema version: ${String(envelope.data.schema_version)}`,
-    );
-  return javascriptApplicationGraphSchema.parse(input);
-};
+): JavaScriptApplicationGraph => javascriptApplicationGraphSchema.parse(input);
 
 /** Compute the byte-stable SHA-256 commitment of a verified graph. */
 export const computeJavaScriptApplicationGraphSha256 = (

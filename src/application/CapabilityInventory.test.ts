@@ -5,7 +5,6 @@ import { buildCapabilityInventory } from "./CapabilityInventory.js";
 const enabledPolicy: Parameters<typeof buildCapabilityInventory>[1] = {
   processCaptureEnabled: true,
   evidenceFileRoots: 1,
-  investigationInputRoots: 1,
   browserObservationEnabled: true,
   browserScenarioEnabled: true,
   electronObservationEnabled: true,
@@ -180,7 +179,6 @@ describe("capability inventory: caller guidance", () => {
       ...enabledPolicy,
       processCaptureEnabled: false,
       evidenceFileRoots: 0,
-      investigationInputRoots: 0,
       browserObservationEnabled: false,
       electronObservationEnabled: false,
       v8InspectorObservationEnabled: false,

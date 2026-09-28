@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
@@ -20,7 +20,6 @@ import type { AnalysisProvider } from "../../../src/application/AnalysisProvider
 
 const SNAPSHOT_PROFILE = createAnalysisProfile(
   { id: "fixture", name: "Fixture analysis provider", version: "1" },
-  1,
   { fixture: true },
 );
 
@@ -29,8 +28,6 @@ export interface SessionMcpHarness {
   readonly first: string;
   readonly second: string;
   readonly closed: string[];
-  readonly resourceListChanges: () => number;
-  readonly unknownResourceUpdates: () => number;
 }
 
 export const createSessionMcpHarness = async (
@@ -59,14 +56,6 @@ export const createSessionMcpHarness = async (
     analysisSnapshotFilePolicy: filePolicy,
   });
   const mcp = new Client({ name: "session-test", version: "1.0.0" });
-  let resourceChanges = 0;
-  let unknownUpdates = 0;
-  mcp.setNotificationHandler("notifications/resources/list_changed", () => {
-    resourceChanges += 1;
-  });
-  mcp.setNotificationHandler("notifications/resources/updated", (notice) => {
-    if (notice.params.uri.startsWith("rea://unknown/")) unknownUpdates += 1;
-  });
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair();
   resources.push(mcp, server);
@@ -77,8 +66,6 @@ export const createSessionMcpHarness = async (
     first,
     second,
     closed,
-    resourceListChanges: () => resourceChanges,
-    unknownResourceUpdates: () => unknownUpdates,
   };
 };
 
@@ -87,34 +74,27 @@ export const snapshotAndRecordUnknown = async (
   root: string,
 ): Promise<{
   recordedUnknown: { unknown_id: string; revision: number };
-  changesBeforeMutation: number;
 }> => {
   const { mcp } = harness;
   const snapshotted = await mcp.callTool({
-    name: "snapshot_evidence_bundle",
+    name: "get_evidence_bundle",
     arguments: {},
   });
-  const snapshotResult = z
-    .object({ result: z.object({ bundle_uri: z.string() }) })
-    .parse(structured(snapshotted)).result;
-  const bundleResource = await mcp.readResource({
-    uri: snapshotResult.bundle_uri,
+  expect(structured(snapshotted).result).toMatchObject({
+    records: expect.any(Array),
+    unknowns: expect.any(Array),
   });
+  const evidencePath = join(root, "evidence.json");
+  structured(
+    await mcp.callTool({
+      name: "export_evidence_bundle",
+      arguments: { path: evidencePath },
+    }),
+  );
   const bundle = evidenceBundleSchema.parse(
-    JSON.parse(
-      z.object({ text: z.string() }).parse(bundleResource.contents[0]).text,
-    ),
+    JSON.parse(await readFile(evidencePath, "utf8")),
   );
   expect(bundle.records).toHaveLength(1);
-  const evidencePath = join(root, "evidence.json");
-  expect(
-    structured(
-      await mcp.callTool({
-        name: "export_evidence_bundle",
-        arguments: { path: evidencePath },
-      }),
-    ).result,
-  ).toMatchObject({ path: evidencePath, records: 1 });
   expect(
     structured(
       await mcp.callTool({
@@ -144,9 +124,6 @@ export const snapshotAndRecordUnknown = async (
       }),
     ).result,
   ).toEqual({ imported: 1, unknowns_added: 0, total: 2 });
-  await new Promise<void>((resolve) => setImmediate(resolve));
-  expect(harness.resourceListChanges()).toBe(0);
-  const changesBeforeMutation = harness.resourceListChanges();
   const recordedUnknown = z
     .object({
       result: z.object({ unknown_id: z.string(), revision: z.number() }),
@@ -170,8 +147,6 @@ export const snapshotAndRecordUnknown = async (
       ),
     ).result;
   expect(recordedUnknown.revision).toBe(1);
-  await new Promise<void>((resolve) => setImmediate(resolve));
-  expect(harness.resourceListChanges()).toBe(changesBeforeMutation);
   const listedUnknowns = await mcp.callTool({
     name: "list_unknowns",
     arguments: {},
@@ -182,7 +157,7 @@ export const snapshotAndRecordUnknown = async (
       .object({ result: z.object({ items: z.array(z.unknown()) }) })
       .parse(structured(listedUnknowns)).result.items,
   ).toHaveLength(1);
-  return { recordedUnknown, changesBeforeMutation };
+  return { recordedUnknown };
 };
 
 const structured = (result: CallToolResult): Record<string, unknown> => {

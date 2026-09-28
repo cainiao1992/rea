@@ -408,8 +408,8 @@ async function pageTarget(provider, endpoint, origin) {
         approved: true,
       }),
     );
-    if (listed.ok && listed.value.targets.items[0] !== undefined)
-      return listed.value.targets.items[0].target_id;
+    if (listed.ok && listed.value.targets[0] !== undefined)
+      return listed.value.targets[0].target_id;
     await delay(25);
   }
   throw new Error("Real Chrome did not expose the local test page target");

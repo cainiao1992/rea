@@ -1,13 +1,11 @@
 # Reconstruction obligation ledgers
 
-`build_reconstruction_obligation_ledger` turns authenticated Evidence v2 records
-into a versioned, deterministic list of reconstruction claims. The same workflow
+`build_reconstruction_obligation_ledger` turns authenticated Evidence records
+into a deterministic list of reconstruction claims. The same workflow
 is available as:
 
 - MCP tool: `build_reconstruction_obligation_ledger`
 - CLI command: `rea build-reconstruction-obligation-ledger`
-- MCP resource:
-  `rea://evidence/{evidenceId}/reconstruction-obligation-ledger`
 
 The ledger is conservative by design. Static Application Graph facts create
 candidate obligations; they do not prove runtime or process behavior. A required
@@ -29,7 +27,6 @@ never claims closure:
 rea build-reconstruction-obligation-ledger \
   '{
     "evidence_bundle": {
-      "bundle_version": 2,
       "artifacts": [],
       "providers": [],
       "environments": [],
@@ -40,7 +37,6 @@ rea build-reconstruction-obligation-ledger \
     },
     "reviewed_obligations": [],
     "manifest": {
-      "schema_version": 1,
       "bindings": [],
       "contradictions": []
     },
@@ -51,7 +47,7 @@ rea build-reconstruction-obligation-ledger \
 ```
 
 For a real investigation, export an Evidence bundle from the session and replace
-the empty bundle. Application Graph and Process Capture v4 records generate
+the empty bundle. Application Graph and process capture records generate
 conservative candidates automatically. Add reviewed obligations when a required
 claim is not represented by those sources.
 

@@ -21,7 +21,7 @@ afterEach(async () => {
 });
 
 describe("guided prompt completion from live analysis", () => {
-  it("reads live documents and paged procedures without ambiguous names", async () => {
+  it("reads live documents and complete procedures without ambiguous names", async () => {
     const requests: Array<Readonly<Record<string, unknown>>> = [];
     const session = createTestBinarySession(() => client(requests));
     directory = await createTestTempDirectory("rea-prompt-completion-");
@@ -39,10 +39,7 @@ describe("guided prompt completion from live analysis", () => {
         arguments: { document: "App" },
       }),
     ).toEqual(["0x1000", "0x2000", "0x3000", "0x4000", "tail", "unique"]);
-    expect(requests).toEqual([
-      { offset: 0, limit: 500, document: "App" },
-      { offset: 2, limit: 500, document: "App" },
-    ]);
+    expect(requests).toEqual([{ document: "App" }]);
     expect(await completion.complete("provider", "uni")).toEqual([
       "unidentified",
     ]);
@@ -62,7 +59,7 @@ describe("guided prompt completion from investigation records", () => {
     const invalidCapture = createEvidence(undefined, fixtureProvider, {
       operation: "capture_process_scenario",
       parameters: {},
-      result: { schema_version: 4 },
+      result: {},
       confidence: "observed",
       authority: "controlled-replay",
       environment: fixtureEnvironment,
@@ -156,65 +153,24 @@ describe("guided prompt completion from investigation records", () => {
   });
 });
 
-describe("guided prompt completion validation and limits", () => {
-  it("does not offer procedure names from an incomplete discovery", async () => {
+describe("guided prompt completion from complete inventories", () => {
+  it("reads every procedure in one provider call", async () => {
     let calls = 0;
-    const completion = createPromptCompletionSource({
-      execute() {
-        calls += 1;
-        return Promise.resolve(
-          observed(
-            calls === 1
-              ? page(0, [{ address: "0x1000", value: "possibly_ambiguous" }], 1)
-              : null,
-          ),
-        );
-      },
-    });
-    expect(await completion.complete("procedure", "")).toEqual(["0x1000"]);
-  });
-
-  it("bounds procedure scans and rejects non-advancing continuation metadata", async () => {
-    let calls = 0;
+    const procedures = Array.from({ length: 6_000 }, (_, address) => ({
+      address: `0x${address.toString(16).padStart(8, "0")}`,
+      value: `procedure_${String(address)}`,
+    }));
     const bounded = createPromptCompletionSource({
       execute(_operation, parameters) {
         calls += 1;
-        const offset = Number(parameters.offset);
-        const items = Array.from({ length: 500 }, (_, index) => {
-          const address = offset + index;
-          return {
-            address: `0x${address.toString(16).padStart(8, "0")}`,
-            value: `procedure_${String(address)}`,
-          };
-        });
-        return Promise.resolve(
-          observed({
-            items,
-            offset,
-            limit: 500,
-            total: 6_000,
-            next_offset: offset + 500,
-            has_more: true,
-          }),
-        );
+        expect(parameters).toEqual({});
+        return Promise.resolve(observed(procedures));
       },
     });
     const values = await bounded.complete("procedure", "");
-    expect(calls).toBe(10);
-    expect(values).toHaveLength(5_000);
-    expect(values.every((value) => value.startsWith("0x"))).toBe(true);
-
-    let nonAdvancingCalls = 0;
-    const nonAdvancing = createPromptCompletionSource({
-      execute() {
-        nonAdvancingCalls += 1;
-        return Promise.resolve(
-          observed(page(0, [{ address: "0x5000", value: "unsafe_name" }], 0)),
-        );
-      },
-    });
-    expect(await nonAdvancing.complete("procedure", "")).toEqual(["0x5000"]);
-    expect(nonAdvancingCalls).toBe(1);
+    expect(calls).toBe(1);
+    expect(values).toHaveLength(12_000);
+    expect(values).toContain("0x00000000");
   });
 
   it("normalizes Unicode prefixes while preserving distinct exact identifiers", async () => {
@@ -258,43 +214,16 @@ const client = (
       return Promise.resolve(observed(["AppTests", "App", "App"]));
     if (operation === "list_procedures") {
       requests.push(parameters);
-      const offset = parameters.offset;
       return Promise.resolve(
-        observed(
-          offset === 0
-            ? page(
-                0,
-                [
-                  { address: "0x1000", value: "duplicate" },
-                  { address: "0x2000", value: "unique" },
-                ],
-                2,
-              )
-            : page(
-                2,
-                [
-                  { address: "0x3000", value: "duplicate" },
-                  { address: "0x4000", value: "tail" },
-                ],
-                null,
-              ),
-        ),
+        observed([
+          { address: "0x1000", value: "duplicate" },
+          { address: "0x2000", value: "unique" },
+          { address: "0x3000", value: "duplicate" },
+          { address: "0x4000", value: "tail" },
+        ]),
       );
     }
     return Promise.resolve(observed(null));
   },
   close: () => Promise.resolve(),
-});
-
-const page = (
-  offset: number,
-  items: readonly { readonly address: string; readonly value: string }[],
-  nextOffset: number | null,
-) => ({
-  items,
-  offset,
-  limit: 500,
-  total: 4,
-  next_offset: nextOffset,
-  has_more: nextOffset !== null,
 });

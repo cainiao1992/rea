@@ -20,7 +20,6 @@ import {
   buildSyntheticJavaScriptApplicationGraph,
 } from "../../../src/domain/javascriptApplicationGraph.fixture.js";
 import { writeVersionedJavaScriptApplicationFixtures } from "../../fixtures/javascriptArtifactApplication.js";
-import { permissionAuthorityForRoot } from "../../fixtures/permissionAuthority.js";
 
 const temporary: string[] = [];
 
@@ -62,7 +61,6 @@ describe("JavaScript application workflows", () => {
         case_sensitive: false,
       },
       direction: "outgoing",
-      limits: traceLimits(),
     });
 
     expect(() =>
@@ -94,7 +92,7 @@ describe("JavaScript application workflows", () => {
     ).toBe(true);
   });
 
-  it("keeps no-match and bounded frontiers explicit", () => {
+  it("keeps no-match explicit and traces the full reachable graph", () => {
     const graph = buildSyntheticJavaScriptApplicationGraph();
     const noMatch = traceApplicationFeature({
       sourceEvidenceId: `ev_${"a".repeat(64)}`,
@@ -107,7 +105,6 @@ describe("JavaScript application workflows", () => {
         case_sensitive: false,
       },
       direction: "both",
-      limits: traceLimits(),
     });
     expect(noMatch).toMatchObject({
       graph: null,
@@ -115,7 +112,7 @@ describe("JavaScript application workflows", () => {
       summary: { matched_seeds: 0 },
     });
 
-    const bounded = traceApplicationFeature({
+    const complete = traceApplicationFeature({
       sourceEvidenceId: `ev_${"a".repeat(64)}`,
       graph,
       nativeEvidence: [],
@@ -126,11 +123,11 @@ describe("JavaScript application workflows", () => {
         case_sensitive: false,
       },
       direction: "outgoing",
-      limits: { ...traceLimits(), max_depth: 1 },
     });
-    expect(bounded.coverage).toMatchObject({ status: "truncated" });
-    expect(bounded.coverage.omitted_nodes).toBeGreaterThan(0);
-    expect(bounded.summary.native_handoffs).toBe(0);
+    expect(complete.coverage.status).toBe("complete-within-source");
+    expect(complete.coverage.total_seed_matches).toBe(1);
+    expect(complete.graph?.nodes.length).toBeGreaterThan(1);
+    expect(complete.coverage).not.toHaveProperty("omitted_nodes");
   });
 });
 
@@ -140,8 +137,8 @@ describe("JavaScript application comparison workflows", () => {
     temporary.push(root);
     const fixtures = await writeVersionedJavaScriptApplicationFixtures(root);
     const [left, right] = await Promise.all([
-      analyzeFixture(fixtures.left, true),
-      analyzeFixture(fixtures.right, true),
+      analyzeFixture(fixtures.left),
+      analyzeFixture(fixtures.right),
     ]);
     const compared = compareApplicationVersionsEvidence({ left, right });
     if (!compared.ok) throw compared.error;
@@ -199,8 +196,8 @@ describe("JavaScript application comparison workflows", () => {
     temporary.push(root);
     const fixtures = await writeVersionedJavaScriptApplicationFixtures(root);
     const [left, right] = await Promise.all([
-      analyzeFixture(fixtures.left, true),
-      analyzeFixture(fixtures.right, true),
+      analyzeFixture(fixtures.left),
+      analyzeFixture(fixtures.right),
     ]);
     const compared = compareApplicationVersionsEvidence({ left, right });
     if (!compared.ok) throw compared.error;
@@ -227,7 +224,6 @@ describe("JavaScript application comparison workflows", () => {
     if (rootNode === undefined) throw new Error("Synthetic graph root missing");
     const partial = createJavaScriptApplicationGraph({
       schema: "JavaScriptApplicationGraph",
-      schema_version: 1,
       root_node_ids: [rootNode.node_id],
       nodes: [rootNode],
       edges: [],
@@ -273,24 +269,9 @@ describe("JavaScript application comparison workflows", () => {
   });
 });
 
-const traceLimits = () => ({
-  max_seed_matches: 25,
-  max_depth: 12,
-  max_nodes: 2_000,
-  max_edges: 4_000,
-  max_paths: 100,
-});
-
-const analyzeFixture = async (root: string, sourceMaps = false) => {
-  const authority = await permissionAuthorityForRoot(
-    root,
-    ["investigation_input"],
-    ["investigation_input"],
-  );
-  const result = await analyzeJavaScriptApplication(authority, {
+const analyzeFixture = async (root: string) => {
+  const result = await analyzeJavaScriptApplication({
     input_path: root,
-    approved: true,
-    source_map_read_approved: sourceMaps,
   });
   if (!result.ok) throw result.error;
   return result.value;

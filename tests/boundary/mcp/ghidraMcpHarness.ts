@@ -16,7 +16,6 @@ import { GHIDRA_SESSION_CAPABILITIES } from "../../../src/ghidra/GhidraSessionVa
 import { silentLogger } from "../../../src/logger.js";
 import { createServer } from "../../../src/server/createServer.js";
 import {
-  ghidraBounded,
   ghidraFunctionClassification,
   ghidraFunctionDossier,
   ghidraFunctionIdentity,
@@ -139,33 +138,24 @@ const resultBuilders = new Map<GhidraOperation, GhidraResultBuilder>([
   ["list_documents", () => ["fixture"]],
   [
     "list_procedures",
-    (_input, limit) =>
-      page(
-        [
-          {
-            address: "0x401000",
-            value: "fixture_main",
-            value_truncated: false,
-            procedure: {
-              external: false,
-              thunk: false,
-              thunk_target: null,
-            },
-          },
-        ],
-        limit,
-      ),
+    () => [
+      {
+        address: "0x401000",
+        value: "fixture_main",
+        procedure: {
+          external: false,
+          thunk: false,
+          thunk_target: null,
+        },
+      },
+    ],
   ],
   [
     "list_strings",
-    (_input, limit) =>
-      page(
-        [
-          stringItem("0x402000", "inventory fixture"),
-          stringItem("0x402020", "external fixture"),
-        ],
-        limit,
-      ),
+    () => [
+      stringItem("0x402000", "inventory fixture"),
+      stringItem("0x402020", "external fixture"),
+    ],
   ],
   [
     "list_segments",
@@ -189,27 +179,22 @@ const resultBuilders = new Map<GhidraOperation, GhidraResultBuilder>([
   ],
   [
     "list_names",
-    (_input, limit) =>
-      page(
-        [
-          {
-            address: "0x401000",
-            value: "fixture_main",
-            value_truncated: false,
-            symbol: {
-              primary: true,
-              dynamic: false,
-              external: false,
-              type: "function",
-              source: "user_defined",
-            },
-          },
-        ],
-        limit,
-      ),
+    () => [
+      {
+        address: "0x401000",
+        value: "fixture_main",
+        symbol: {
+          primary: true,
+          dynamic: false,
+          external: false,
+          type: "function",
+          source: "user_defined",
+        },
+      },
+    ],
   ],
-  ["search_procedures", (_input, limit) => page([], limit)],
-  ["search_strings", (_input, limit) => page([], limit)],
+  ["search_procedures", () => []],
+  ["search_strings", () => []],
   ["address_name", () => "fixture_main"],
   ["procedure_address", () => "0x401000"],
   [
@@ -240,9 +225,7 @@ const resultBuilders = new Map<GhidraOperation, GhidraResultBuilder>([
     "read_function_instructions",
     () => ({
       procedure: ghidraFunctionIdentity(),
-      instructions: ghidraBounded(["0x401000: CALL 0x401020", "0x401005: RET"]),
-      instructions_scanned: 2,
-      instruction_scan_truncated: false,
+      instructions: ["0x401000: CALL 0x401020", "0x401005: RET"],
       limitations: ["Ghidra-specific instruction text."],
     }),
   ],
@@ -251,9 +234,7 @@ const resultBuilders = new Map<GhidraOperation, GhidraResultBuilder>([
     (input, _limit) => ({
       procedure: ghidraFunctionIdentity(),
       direction: input.direction ?? "outgoing",
-      references: ghidraBounded([ghidraReferenceEdge()]),
-      instructions_scanned: 2,
-      instruction_scan_truncated: false,
+      references: [ghidraReferenceEdge()],
     }),
   ],
   ["xrefs", () => ["0x401001"]],
@@ -271,26 +252,15 @@ const resultFor = (
   operation: GhidraOperation,
   input: Readonly<Record<string, JsonValue>>,
 ): JsonValue => {
-  const limit = typeof input.limit === "number" ? input.limit : 100;
   const builder = resultBuilders.get(operation);
   if (builder === undefined)
     throw new TypeError(`Unexpected Ghidra operation: ${operation}`);
-  return builder(input, limit);
+  return builder(input, typeof input.limit === "number" ? input.limit : 100);
 };
-
-const page = (items: readonly JsonValue[], limit: number): JsonValue => ({
-  items: items.slice(0, limit),
-  offset: 0,
-  limit,
-  total: items.length,
-  next_offset: items.length > limit ? limit : null,
-  has_more: items.length > limit,
-});
 
 const stringItem = (address: string, value: string): JsonValue => ({
   address,
   value,
-  value_truncated: false,
   string: {
     encoding: "UTF-8",
     termination: "present_or_not_required",

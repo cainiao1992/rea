@@ -1,10 +1,7 @@
 import { z } from "zod";
 import { jsonValueSchema } from "./jsonValue.js";
 
-import {
-  LEGACY_PROCESS_CAPTURE_MESSAGE,
-  normalizationSchema,
-} from "./processScenario.js";
+import { normalizationSchema } from "./processScenario.js";
 import type {
   ProcessReactiveStatus,
   ProcessReactiveTransitionRecord,
@@ -203,13 +200,12 @@ export type ProcessSettlement =
     };
 
 /**
- * Process Capture v4 observation set.
+ * Process capture observation set.
  *
  * `truncated` and `residual_unknowns` are semantic evidence: consumers must not
  * infer equivalence from matching bounded observations when either is present.
  */
 export interface UnverifiedProcessCapture {
-  readonly schema_version: 4;
   readonly manifest: {
     readonly rea_version: string;
     readonly provider_version: string;
@@ -329,12 +325,9 @@ const fileEffectSchema = z.discriminatedUnion("status", [
     after: fileStateSchema,
   }),
 ]);
-/** Exact serialized shape of a bounded process capture. */
+/** Exact serialized shape of a process capture. */
 const processCaptureShapeSchema: z.ZodType<UnverifiedProcessCapture> = z.object(
   {
-    schema_version: z.literal(4, {
-      error: LEGACY_PROCESS_CAPTURE_MESSAGE,
-    }),
     manifest: z.object({
       rea_version: z.string().min(1),
       provider_version: z.string().min(1),
@@ -505,7 +498,7 @@ const processCaptureShapeSchema: z.ZodType<UnverifiedProcessCapture> = z.object(
   },
 );
 
-/** Exact serialized shape plus all Process Capture v4 semantic invariants. */
+/** Exact serialized shape plus all process-capture semantic invariants. */
 export const processCaptureSchema = processCaptureShapeSchema.superRefine(
   (capture, context) => {
     for (const issue of collectProcessCaptureIssues(capture))

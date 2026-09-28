@@ -19,13 +19,8 @@ import {
 } from "./sessionLifecycleInputs.js";
 import { binarySessionInputSchema } from "./sessionStatusContract.js";
 
-/** Retain the current canonical Evidence bundle as a session resource. */
-export const snapshotEvidenceBundleInputSchema = z.strictObject({});
-
-/** Release one session-retained immutable Evidence bundle. */
-export const releaseEvidenceBundleInputSchema = z.strictObject({
-  bundle_digest: z.string().regex(/^[a-f0-9]{64}$/u),
-});
+/** Return the current canonical Evidence bundle inline. */
+export const getEvidenceBundleInputSchema = z.strictObject({});
 
 /** Optional document selection for volatile navigation context. */
 export const navigationContextInputSchema = z.strictObject({
@@ -61,9 +56,7 @@ export const listUnknownsInputSchema = z.strictObject({
     .enum(["open", "investigating", "blocked", "contradicted", "resolved"])
     .optional(),
   severity: z.enum(["low", "medium", "high", "critical"]).optional(),
-  domain: z.string().trim().min(1).max(100).optional(),
-  offset: z.number().int().min(0).default(0),
-  limit: z.number().int().min(1).max(500).default(100),
+  domain: z.string().trim().min(1).optional(),
 });
 
 /** Exact residual-unknown identity to revalidate. */

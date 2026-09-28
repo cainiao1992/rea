@@ -145,10 +145,8 @@ function assertDossierProcedure(dossier, address) {
     dossier.procedure.classification === null ||
     dossier.procedure.classification.provenance !== "ghidra-function-manager" ||
     dossier.procedure.classification.external ||
-    dossier.pseudocode.text.trim().length === 0 ||
-    dossier.pseudocode.returned_chars !== [...dossier.pseudocode.text].length ||
-    dossier.instruction_scan.scanned < 1 ||
-    dossier.instruction_scan.truncated ||
+    typeof dossier.pseudocode !== "string" ||
+    dossier.pseudocode.trim().length === 0 ||
     !dossier.limitations.some((value) => /indirect|computed/u.test(value)) ||
     !dossier.limitations.some((value) => /Ghidra|Hopper|provider/u.test(value))
   )
@@ -159,10 +157,7 @@ function assertDossierProcedure(dossier, address) {
 
 function assertDossierReferences(dossier) {
   if (
-    ![
-      ...dossier.incoming_references.items,
-      ...dossier.outgoing_references.items,
-    ].every(
+    ![...dossier.incoming_references, ...dossier.outgoing_references].every(
       ({ kind }) =>
         kind.available && kind.provenance === "ghidra-reference-manager",
     )
@@ -172,16 +167,14 @@ function assertDossierReferences(dossier) {
 
 function assertDossierCallees(dossier, expectedCallees) {
   for (const expected of expectedCallees)
-    if (!dossier.callees.items.some(({ address: value }) => value === expected))
+    if (!dossier.callees.some(({ address: value }) => value === expected))
       throw new Error(`Ghidra dossier missed callee ${expected}`);
 }
 
 function assertDossierStrings(dossier, expectedString) {
   if (
     expectedString !== null &&
-    !dossier.referenced_strings.items.some(
-      ({ value }) => value === expectedString,
-    )
+    !dossier.referenced_strings.some(({ value }) => value === expectedString)
   )
     throw new Error(
       `Ghidra dossier missed referenced string ${expectedString}`,
@@ -189,20 +182,15 @@ function assertDossierStrings(dossier, expectedString) {
 }
 
 function assertDossierAssembly(dossier, requireAssembly) {
-  if (
-    requireAssembly &&
-    (dossier.assembly.items.length === 0 || dossier.assembly.truncated)
-  )
+  if (requireAssembly && dossier.assembly.length === 0)
     throw new Error("Ghidra dossier assembly was unavailable or truncated");
 }
 
 function assertDossierMultiBlock(dossier, requireMultiBlock) {
   if (
     requireMultiBlock &&
-    (dossier.basic_blocks.items.length < 2 ||
-      !dossier.basic_blocks.items.some(
-        ({ successors }) => successors.length > 0,
-      ))
+    (dossier.basic_blocks.length < 2 ||
+      !dossier.basic_blocks.some(({ successors }) => successors.length > 0))
   )
     throw new Error(
       "Ghidra dossier CFG missed the multi-block branch structure",
@@ -212,12 +200,12 @@ function assertDossierMultiBlock(dossier, requireMultiBlock) {
 export function dossierSummary(dossier) {
   return {
     address: dossier.procedure.address,
-    pseudocode_chars: dossier.pseudocode.total_chars,
-    instructions: dossier.instruction_scan.scanned,
-    callees: dossier.callees.returned,
-    outgoing_references: dossier.outgoing_references.returned,
-    referenced_strings: dossier.referenced_strings.returned,
-    basic_blocks: dossier.basic_blocks.returned,
+    pseudocode_chars: [...dossier.pseudocode].length,
+    instructions: dossier.assembly.length,
+    callees: dossier.callees.length,
+    outgoing_references: dossier.outgoing_references.length,
+    referenced_strings: dossier.referenced_strings.length,
+    basic_blocks: dossier.basic_blocks.length,
     native_parameters:
       dossier.native_api.available === true
         ? dossier.native_api.parameters.length
@@ -350,7 +338,6 @@ function assertStrings(strings) {
     const item = strings.find((candidate) => candidate.value === expected);
     if (
       item === undefined ||
-      item.value_truncated ||
       typeof item.string.encoding !== "string" ||
       item.string.byte_length < expected.length
     )

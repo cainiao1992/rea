@@ -1,4 +1,4 @@
-import type { z } from "zod";
+import { z } from "zod";
 
 import type {
   AnalysisOperation,
@@ -35,7 +35,6 @@ import {
   type EnhancedResult,
   type ValidatedEnhancedCall,
 } from "./EnhancedToolTypes.js";
-import { readAllAddressed } from "./EnhancedToolPagination.js";
 import { traceCallPath } from "./CallPathTracing.js";
 import { traceLiteralFeature } from "./EnhancedLiteralTracing.js";
 import { projectNativeApiInspection } from "./NativeApiInspection.js";
@@ -128,7 +127,7 @@ export class EnhancedTools {
       case "find_xrefs_to_name":
         return this.#findXrefs(call.input.name, signal);
       case "binary_overview":
-        return this.#binaryOverview(call.input, signal);
+        return this.#binaryOverview(signal);
       case "analyze_function":
         return this.#analyzeFunction(call.input, signal);
       case "inspect_native_api":
@@ -208,9 +207,6 @@ export class EnhancedTools {
   ): EnhancedResult {
     const analysisInput = enhancedInputSchemas.analyze_function.parse({
       procedure: input.procedure,
-      include_assembly: true,
-      max_pseudocode_chars: input.max_pseudocode_chars,
-      max_instructions: input.max_instructions,
     });
     const result = await this.#call("analyze_function", analysisInput, signal);
     if (!result.ok) return result;
@@ -281,7 +277,6 @@ export class EnhancedTools {
     input: {
       readonly address: string;
       readonly direction: "forward" | "backward";
-      readonly depth: number;
     },
     signal?: AbortSignal,
   ): EnhancedResult {
@@ -297,9 +292,7 @@ export class EnhancedTools {
 
     while (queueIndex < queue.length) {
       const current = queue[queueIndex++];
-      if (current === undefined || current.depth >= input.depth) {
-        continue;
-      }
+      if (current === undefined) continue;
       const level = String(current.depth);
       graph[level] ??= [];
 
@@ -330,12 +323,10 @@ export class EnhancedTools {
         status: "ok",
         calls: [...related.value],
       });
-      if (current.depth + 1 < input.depth) {
-        for (const address of related.value) {
-          if (!discovered.has(address)) {
-            discovered.add(address);
-            queue.push({ address, depth: current.depth + 1 });
-          }
+      for (const address of related.value) {
+        if (!discovered.has(address)) {
+          discovered.add(address);
+          queue.push({ address, depth: current.depth + 1 });
         }
       }
     }
@@ -380,16 +371,13 @@ export class EnhancedTools {
     });
   }
 
-  async #binaryOverview(
-    input: { detail: "concise" | "detailed"; limit: number },
-    signal?: AbortSignal,
-  ): EnhancedResult {
+  async #binaryOverview(signal?: AbortSignal): EnhancedResult {
     const [segmentsResult, documentsResult, proceduresResult, stringsResult] =
       await Promise.all([
         this.#call("list_segments", {}, signal),
         this.#call("list_documents", {}, signal),
-        this.#call("list_procedures", { offset: 0, limit: 1 }, signal),
-        this.#call("list_strings", { offset: 0, limit: 1 }, signal),
+        this.#call("list_procedures", {}, signal),
+        this.#call("list_strings", {}, signal),
       ]);
     if (!segmentsResult.ok) return segmentsResult;
     if (!documentsResult.ok) return documentsResult;
@@ -407,14 +395,12 @@ export class EnhancedTools {
 
     return ok({
       document: documents.value[0] ?? "unknown",
-      detail: input.detail,
-      segments: segments.value
-        .slice(0, input.limit)
-        .map(({ name, start, end }) =>
-          input.detail === "detailed"
-            ? { name, start, end, length: addressDistance(start, end) }
-            : { name, start, end },
-        ),
+      segments: segments.value.map(({ name, start, end }) => ({
+        name,
+        start,
+        end,
+        length: addressDistance(start, end),
+      })),
       segment_count: segments.value.length,
       procedure_count: procedureCount.value,
       string_count: stringCount.value,
@@ -425,12 +411,19 @@ export class EnhancedTools {
     tool: "list_names" | "list_procedures",
     signal?: AbortSignal,
   ) {
-    return readAllAddressed({
-      call: (name, arguments_, operationSignal) =>
-        this.#call(name, arguments_, operationSignal),
-      tool,
-      ...(signal === undefined ? {} : { signal }),
-    });
+    const result = await this.#call(tool, {}, signal);
+    if (!result.ok) return result;
+    const parsed = z
+      .array(z.object({ address: z.string(), value: z.string() }))
+      .safeParse(result.value);
+    return parsed.success
+      ? ok(parsed.data.map(({ address, value: name }) => ({ address, name })))
+      : err(
+          new AnalysisOutputError(
+            tool,
+            "provider returned an invalid inventory",
+          ),
+        );
   }
 
   async #call(
@@ -438,12 +431,16 @@ export class EnhancedTools {
     arguments_: Readonly<Record<string, JsonValue>>,
     signal?: AbortSignal,
   ): Promise<Result<JsonValue, AnalysisError>> {
-    if (signal?.aborted === true) return err(new AnalysisCancelledError(name));
+    if (isAborted(signal)) return err(new AnalysisCancelledError(name));
     const execution = await this.analysis.execute(
       name,
       arguments_,
       signal === undefined ? {} : { signal },
     );
+    if (isAborted(signal)) return err(new AnalysisCancelledError(name));
     return execution.ok ? ok(execution.value.result) : execution;
   }
 }
+
+const isAborted = (signal: AbortSignal | undefined): boolean =>
+  signal?.aborted === true;

@@ -43,7 +43,6 @@ export const TOOL_EXAMPLE_OVERRIDES: Readonly<
   export_evidence_bundle: { path: "/tmp/evidence.json" },
   inspect_address_context: { address: "0x1000" },
   import_evidence_bundle: { path: "evidence.json" },
-  release_evidence_bundle: { bundle_digest: "a".repeat(64) },
   capture_process_scenario: {
     approved: true,
     executable: "/usr/bin/true",
@@ -59,8 +58,8 @@ export const TOOL_EXAMPLE_OVERRIDES: Readonly<
     right_evidence_ids: [ARTIFACT_COMPARISON_EXAMPLE.right.evidence_id],
   },
   compare_functions: {
-    left_evidence_ids: [FUNCTION_COMPARISON_EXAMPLE.left.evidence_id],
-    right_evidence_ids: [FUNCTION_COMPARISON_EXAMPLE.right.evidence_id],
+    left_evidence_id: FUNCTION_COMPARISON_EXAMPLE.left.evidence_id,
+    right_evidence_id: FUNCTION_COMPARISON_EXAMPLE.right.evidence_id,
   },
   compare_bundles: {
     left_bundle_path: "/approved/left-evidence.json",

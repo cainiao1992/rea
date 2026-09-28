@@ -65,7 +65,6 @@ const scenarioArtifacts = {
   storage: { state: "not_requested" },
 };
 const exampleScenarioCapture = () => ({
-  schema_version: 1,
   browser: {
     mode: "connect",
     process_ownership: "external",
@@ -121,7 +120,7 @@ export const BROWSER_TOOL_CONTRACTS = [
     name: "list_browser_targets",
     ...toolContractMetadata("list_browser_targets"),
     description:
-      "List bounded page targets from an approved user-owned loopback Chrome DevTools Protocol endpoint. Only targets whose current URL matches an approved exact origin are returned; URL credentials, query values, and fragments are redacted.",
+      "List every page target from an approved user-owned loopback Chrome DevTools Protocol endpoint whose current URL matches an approved exact origin. URL credentials, query values, and fragments are redacted.",
     kind: "browser-provider",
     inputSchema: listBrowserTargetsInputSchema,
     outputSchema: listOutputSchema,
@@ -132,8 +131,6 @@ export const BROWSER_TOOL_CONTRACTS = [
           cdp_endpoint: endpoint,
           allowed_origins: [origin],
           approved: true,
-          offset: 0,
-          limit: 100,
         },
       },
     ],

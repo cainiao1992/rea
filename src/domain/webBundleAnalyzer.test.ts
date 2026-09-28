@@ -158,7 +158,6 @@ const input = (overrides: Record<string, unknown> = {}) =>
 
 const inspection = (source: string) =>
   webPageInspectionSchema.parse({
-    schema_version: 2,
     browser: {
       product: "Fake Chrome",
       protocol_version: "1.3",

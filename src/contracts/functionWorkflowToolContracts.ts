@@ -36,10 +36,10 @@ const functionWorkflow = <Name extends FunctionWorkflowName>(
 export const FUNCTION_WORKFLOW_TOOL_CONTRACTS = [
   functionWorkflow(
     "analyze_function",
-    "Preferred bounded analysis for one procedure symbol or address. Returns identity, provider-specific pseudocode, optional assembly, comments, calls, typed-or-explicitly-unavailable references, referenced strings/names, and local CFG blocks with exact truncation metadata. Providers with a structured decompiler model also expose native API boundary types, confidence, evidence, jump-table data/target addresses, and explicit decompiler-artifact labels.",
+    "Return one complete function dossier inline, including identity, provider-specific pseudocode and assembly, comments, calls, references, referenced strings/names, local CFG blocks, and any available native API boundary observations.",
   ),
   functionWorkflow(
     "inspect_native_api",
-    "Reconstruct one native function boundary through inspectable substeps. Returns structured inferred return/parameter types with confidence and evidence, jump-table dispatch/data/target mappings, explicit decompiler-artifact labels, unsupported branches, and residual unknowns.",
+    "Reconstruct one native function boundary with structured return/parameter types, confidence, evidence, jump-table dispatch/data/target mappings, unsupported branches, and residual unknowns.",
   ),
 ] as const satisfies readonly ToolContract[];

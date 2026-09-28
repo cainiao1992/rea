@@ -63,7 +63,7 @@ type BrowserEvidenceOperation =
   | "capture_web_screenshot"
   | "compare_web_screenshots";
 
-/** Create Evidence v2 for a policy-scoped external browser observation. */
+/** Create Evidence for a policy-scoped external browser observation. */
 export const createBrowserEvidence = (
   operation: BrowserEvidenceOperation,
   input: BrowserEvidenceInput,
@@ -125,8 +125,7 @@ const browserParameters = (
     cdp_endpoint: input.cdp_endpoint,
     allowed_origins: input.allowed_origins,
   };
-  if (!("target_id" in input))
-    return { ...scope, offset: input.offset, limit: input.limit };
+  if (!("target_id" in input)) return scope;
   if ("screenshot_approved" in input)
     return {
       ...scope,

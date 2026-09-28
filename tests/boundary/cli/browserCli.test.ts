@@ -42,7 +42,7 @@ describe("browser CLI parity", () => {
         operation: "list_browser_targets",
         provider: { id: "rea-cdp-browser" },
         normalized_result: {
-          targets: { items: [{ target_id: "allowed-page" }] },
+          targets: [{ target_id: "allowed-page" }],
         },
       });
       const inspected = await runCli(
@@ -358,7 +358,6 @@ const completeScenarioCapture = () => {
     completeness,
   });
   return {
-    schema_version: 1,
     browser: {
       mode: "connect",
       process_ownership: "external",

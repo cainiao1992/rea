@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { jsonValueSchema } from "../domain/jsonValue.js";
+import { residualUnknownSchema } from "../domain/residualUnknown.js";
+import { evidenceBundleSchema } from "../domain/evidenceBundle.js";
 
 import {
   processCaptureComparisonSchema,
   processCaptureSchema,
 } from "../domain/processCapture.js";
-import { residualUnknownSchema } from "../domain/residualUnknown.js";
 import {
   functionInstructionWindowSchema,
   referenceKindSchema,
@@ -44,24 +45,18 @@ import { replayMachineRunOutputSchema } from "../domain/replayMachineRun.js";
 import { analysisErrorProjectionSchema } from "./errorSchemas.js";
 import {
   addressList,
+  addressedValue,
   addressedEntry,
-  analysisActivity,
-  bounded,
   containingProcedureResolution,
-  clientFeatureAvailabilitySchema,
   functionDossierOutput,
   graphNode,
   lifecycleResultOf,
   nullableText,
-  pageOutput,
   procedureIdentity,
   procedureInfoOutput,
   evidenceResultOf as resultOf,
-  searchPageOutput,
   segmentOutput,
   sessionProvider,
-  providerIdentity,
-  toolAvailability,
   symbolDiscoveryOutput,
   targetFormatSchema,
   targetKindSchema,
@@ -95,10 +90,10 @@ export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   inline_comment: resultOf(nullableText),
   list_bookmarks: resultOf(z.array(addressedEntry)),
   list_documents: resultOf(z.array(z.string())),
-  list_names: resultOf(pageOutput),
-  list_procedures: resultOf(pageOutput),
+  list_names: resultOf(z.array(addressedValue)),
+  list_procedures: resultOf(z.array(addressedValue)),
   list_segments: segmentOutput,
-  list_strings: resultOf(pageOutput),
+  list_strings: resultOf(z.array(addressedValue)),
   next_address: resultOf(z.string()),
   prev_address: resultOf(z.string()),
   procedure_address: resultOf(z.string()),
@@ -126,7 +121,7 @@ export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
     z.object({
       procedure: procedureIdentity,
       direction: z.enum(["incoming", "outgoing"]),
-      references: bounded(
+      references: z.array(
         z.object({
           source_address: z.string(),
           target_address: z.string(),
@@ -135,14 +130,16 @@ export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
           kind: referenceKindSchema,
         }),
       ),
-      instructions_scanned: z.number().int().min(0),
-      instruction_scan_truncated: z.boolean(),
     }),
   ),
   procedure_pseudo_code: resultOf(nullableText),
   resolve_containing_procedure: resultOf(containingProcedureResolution),
-  search_procedures: resultOf(searchPageOutput),
-  search_strings: resultOf(searchPageOutput),
+  search_procedures: resultOf(
+    z.array(z.object({ address: z.string(), value: z.string() })),
+  ),
+  search_strings: resultOf(
+    z.array(z.object({ address: z.string(), value: z.string() })),
+  ),
   set_address_name: resultOf(z.boolean()),
   set_addresses_names: resultOf(z.record(z.string(), z.boolean())),
   set_bookmark: resultOf(z.boolean()),
@@ -157,8 +154,6 @@ const literalTraceOutput = resultOf(
   z.object({
     query: z.string(),
     search_mode: z.literal("literal"),
-    operations_used: z.number().int().min(0),
-    operation_budget: z.number().int().min(1),
     matches: z.array(
       z.object({
         type: z.enum(["string", "procedure"]),
@@ -204,13 +199,8 @@ const callPathTraceOutput = resultOf(
         error: analysisErrorProjectionSchema,
       }),
     ),
-    frontier: z.array(z.string()),
-    limits: z.object({
-      max_depth: z.number().int().min(1),
-      max_nodes: z.number().int().min(1),
-      max_operations: z.number().int().min(1),
+    traversal: z.object({
       nodes_visited: z.number().int().min(1),
-      operations_used: z.number().int().min(0),
     }),
     truncated: z.boolean(),
     residual_unknowns: z.array(z.string()),
@@ -275,13 +265,12 @@ export const enhancedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   binary_overview: resultOf(
     z.object({
       document: z.string(),
-      detail: z.enum(["concise", "detailed"]),
       segments: z.array(
         z.object({
           name: z.string(),
           start: z.string(),
           end: z.string(),
-          length: z.number().min(0).optional(),
+          length: z.number().min(0),
         }),
       ),
       segment_count: z.number().int().min(0),
@@ -364,51 +353,11 @@ export const sessionOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   ),
   binary_session: lifecycleResultOf(
     z.union([
-      z.object({
-        view: z.literal("summary"),
-        open: z.boolean(),
-        provider: providerIdentity,
-        active_provider: providerIdentity.nullable(),
-        target: z
-          .object({
-            path: z.string(),
-            format: targetFormatSchema,
-            kind: targetKindSchema,
-            sha256: z.string().regex(/^[a-f0-9]{64}$/u),
-            architecture: z.enum(["x86", "x86_64", "arm", "arm64"]).nullable(),
-          })
-          .nullable(),
-        alignment: z.object({
-          state: z.enum(["aligned", "mcp_server_restart_required", "unknown"]),
-          reasons: z.array(z.string()),
-          remediation: z.string().nullable(),
-        }),
-        analysis_activity: analysisActivity,
-        recommended_actions: z.array(z.string()),
-      }),
-      z.object({
-        view: z.literal("capabilities"),
-        open: z.boolean(),
-        provider: providerIdentity,
-        active_provider: providerIdentity.nullable(),
-        capability_family: z.string().nullable(),
-        capabilities: z.object({
-          items: z.array(toolAvailability),
-          cursor: z.number().int().min(0),
-          limit: z.number().int().min(1),
-          total: z.number().int().min(0),
-          next_cursor: z.number().int().min(0).nullable(),
-          has_more: z.boolean(),
-        }),
-        client_features: clientFeatureAvailabilitySchema,
-      }),
       z.union([
         sessionProvider.extend({
-          view: z.literal("full"),
           open: z.literal(false),
         }),
         sessionProvider.extend({
-          view: z.literal("full"),
           open: z.literal(true),
           path: z.string(),
           format: targetFormatSchema,
@@ -427,24 +376,7 @@ export const sessionOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
       unknowns: z.number().int().min(0),
     }),
   ),
-  snapshot_evidence_bundle: lifecycleResultOf(
-    z.object({
-      bundle_digest: z.string().regex(/^[a-f0-9]{64}$/u),
-      bundle_version: z.literal(2),
-      bytes: z.number().int().min(0),
-      records: z.number().int().min(0),
-      unknowns: z.number().int().min(0),
-      scope: z.literal("session"),
-      survives_session: z.literal(false),
-      bundle_uri: z.string().regex(/^rea:\/\/evidence-bundle\/[a-f0-9]{64}$/u),
-    }),
-  ),
-  release_evidence_bundle: lifecycleResultOf(
-    z.object({
-      bundle_digest: z.string().regex(/^[a-f0-9]{64}$/u),
-      released: z.boolean(),
-    }),
-  ),
+  get_evidence_bundle: lifecycleResultOf(evidenceBundleSchema),
   get_navigation_context: lifecycleResultOf(
     z.object({
       document: z.string(),
@@ -481,17 +413,8 @@ export const sessionOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   verify_reconstruction: resultOf(reconstructionVerificationResultSchema),
   list_unknowns: lifecycleResultOf(
     z.object({
-      items: z.array(
-        z.object({
-          unknown: residualUnknownSchema,
-          uri: z.string().regex(/^rea:\/\/unknown\/unk_[a-f0-9]{64}$/u),
-        }),
-      ),
-      offset: z.number().int().min(0),
-      limit: z.number().int().min(1).max(500),
+      items: z.array(residualUnknownSchema),
       total: z.number().int().min(0),
-      next_offset: z.number().int().min(0).nullable(),
-      has_more: z.boolean(),
     }),
   ),
   record_unknown: lifecycleResultOf(residualUnknownSchema),

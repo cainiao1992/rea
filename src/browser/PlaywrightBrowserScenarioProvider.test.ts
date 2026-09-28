@@ -40,7 +40,6 @@ const scenario = (
   } = {},
 ): BrowserScenario =>
   browserScenarioSchema.parse({
-    schema_version: 1,
     browser:
       options.mode === "connect"
         ? {

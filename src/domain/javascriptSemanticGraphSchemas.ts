@@ -14,7 +14,7 @@ const semanticUnknownIdSchema = z
   .string()
   .regex(/^jsrg_unknown_[a-f0-9]{64}$/u);
 
-/** Semantic entity kinds admitted by JavaScript Semantic Relation Graph v1. */
+/** Semantic entity kinds admitted by JavaScript Semantic Relation Graph. */
 export const JAVASCRIPT_SEMANTIC_NODE_KINDS = [
   "module",
   "function",
@@ -58,7 +58,7 @@ export const JAVASCRIPT_SEMANTIC_RELATION_FAMILIES = [
   "timer",
 ] as const;
 
-/** Directed semantic relations admitted by graph v1. */
+/** Directed semantic relations admitted by the graph. */
 export const JAVASCRIPT_SEMANTIC_RELATIONS = [
   "acquires",
   "aggregates",
@@ -357,7 +357,6 @@ const graphCoverageSchema = z.strictObject({
 /** Graph content before its top-level commitment is derived. */
 export const javaScriptSemanticGraphInputSchema = z.strictObject({
   schema: z.literal("JavaScriptSemanticRelationGraph"),
-  schema_version: z.literal(1),
   root_artifact_sha256: digestSchema,
   application_graph_id: z.string().regex(/^jag_[a-f0-9]{64}$/u),
   root_node_ids: z.array(semanticNodeIdSchema).min(1).max(10_000),
@@ -369,7 +368,7 @@ export const javaScriptSemanticGraphInputSchema = z.strictObject({
   limitations: z.array(boundedTextSchema).max(1_000),
 });
 
-/** Stored JavaScript Semantic Relation Graph v1. */
+/** Stored JavaScript Semantic Relation Graph. */
 export const javaScriptSemanticGraphRecordSchema =
   javaScriptSemanticGraphInputSchema.extend({
     graph_id: z.string().regex(/^jsrg_[a-f0-9]{64}$/u),

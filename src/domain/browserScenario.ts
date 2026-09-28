@@ -29,7 +29,6 @@ export {
 } from "./browserScenarioValues.js";
 
 const scenarioShapeSchema = z.strictObject({
-  schema_version: z.literal(1),
   browser: browserScenarioBrowserSchema,
   start_url: browserScenarioUrlSchema,
   allowed_origins: browserScenarioAllowedOriginsSchema,

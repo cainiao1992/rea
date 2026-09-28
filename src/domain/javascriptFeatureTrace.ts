@@ -32,10 +32,9 @@ export interface ApplicationFeatureTraceProjectionInput {
   readonly nativeEvidence: readonly Evidence[];
   readonly seed: TraceApplicationFeatureInput["seed"];
   readonly direction: TraceApplicationFeatureInput["direction"];
-  readonly limits: TraceApplicationFeatureInput["limits"];
 }
 
-/** Trace a literal feature through a bounded, authority-preserving JAG. */
+/** Trace a literal feature through its complete reachable, authority-preserving JAG. */
 export const traceApplicationFeature = (
   input: ApplicationFeatureTraceProjectionInput,
 ): ApplicationFeatureTraceResult => {
@@ -43,22 +42,15 @@ export const traceApplicationFeature = (
     input.graph.nodes,
     input.seed,
   );
-  const seedMatches = allSeedMatches.slice(0, input.limits.max_seed_matches);
+  const seedMatches = allSeedMatches;
   if (seedMatches.length === 0) return noMatchResult(input);
   const traversal = traverseApplicationFeature(
     input.graph,
     seedMatches.map(({ node_id: id }) => id),
     input.direction,
-    input.limits,
   );
-  const graph = traceGraph(
-    input,
-    seedMatches,
-    traversal,
-    allSeedMatches.length,
-  );
-  const allPaths = terminalPaths(traversal, seedMatches);
-  const paths = allPaths.slice(0, input.limits.max_paths);
+  const graph = traceGraph(input, seedMatches, traversal);
+  const paths = terminalPaths(traversal, seedMatches);
   const nativeHandoffs = buildJavaScriptNativeHandoffs(
     traversal.nodes,
     traversal.edges,
@@ -68,14 +60,7 @@ export const traceApplicationFeature = (
     input.sourceEvidenceId,
     ...nativeHandoffs.flatMap(({ evidence_ids: ids }) => ids),
   ]);
-  const omissions = traceOmissions(
-    input,
-    traversal,
-    allSeedMatches.length,
-    allPaths.length,
-  );
   const semantic = {
-    schema_version: 1 as const,
     source_evidence_id: input.sourceEvidenceId,
     source_graph_id: input.graph.graph_id,
     seed: input.seed,
@@ -93,15 +78,12 @@ export const traceApplicationFeature = (
       ...factSummary(traversal.nodes, traversal.edges),
     },
     coverage: {
-      status: traceCoverageStatus(input.graph, omissions),
+      status: traceCoverageStatus(input.graph),
       source_graph_status: input.graph.coverage.status,
-      scanned_nodes: input.graph.nodes.length,
       total_seed_matches: allSeedMatches.length,
-      ...omissions,
-      frontier_node_ids: traversal.frontierNodeIds,
     },
     evidence_links: evidenceLinks,
-    limitations: traceLimitations(input.graph, omissions),
+    limitations: traceLimitations(input.graph),
   };
   return applicationFeatureTraceResultSchema.parse({
     ...semantic,
@@ -113,7 +95,6 @@ const noMatchResult = (
   input: ApplicationFeatureTraceProjectionInput,
 ): ApplicationFeatureTraceResult => {
   const semantic = {
-    schema_version: 1 as const,
     source_evidence_id: input.sourceEvidenceId,
     source_graph_id: input.graph.graph_id,
     seed: input.seed,
@@ -136,13 +117,7 @@ const noMatchResult = (
     coverage: {
       status: "no-match" as const,
       source_graph_status: input.graph.coverage.status,
-      scanned_nodes: input.graph.nodes.length,
       total_seed_matches: 0,
-      omitted_seed_matches: 0,
-      omitted_nodes: 0,
-      omitted_edges: 0,
-      omitted_paths: 0,
-      frontier_node_ids: [],
     },
     evidence_links: [input.sourceEvidenceId],
     limitations: uniqueSorted([
@@ -160,50 +135,23 @@ const traceGraph = (
   input: ApplicationFeatureTraceProjectionInput,
   seedMatches: readonly ApplicationFeatureSeedMatch[],
   traversal: ApplicationFeatureTraversal,
-  totalSeedMatches: number,
 ): JavaScriptApplicationGraph => {
-  const omitted =
-    traversal.omittedNodeCount +
-    traversal.omittedEdgeCount +
-    (totalSeedMatches - seedMatches.length);
   return createJavaScriptApplicationGraph({
     schema: "JavaScriptApplicationGraph",
-    schema_version: 1,
     root_node_ids: uniqueSorted(seedMatches.map(({ node_id: id }) => id)),
     nodes: traversal.nodes,
     edges: traversal.edges,
-    coverage: traceGraphCoverage(input.graph, input.limits, omitted),
+    coverage: traceGraphCoverage(input.graph),
     limitations: uniqueSorted([
       ...input.graph.limitations,
       "Trace edges retain their source authority; graph connectivity does not prove runtime execution or reachability.",
-      ...(omitted === 0
-        ? []
-        : ["Trace output stopped at explicit caller bounds."]),
     ]),
   });
 };
 
 const traceGraphCoverage = (
   source: JavaScriptApplicationGraph,
-  limits: TraceApplicationFeatureInput["limits"],
-  omitted: number,
 ): JavaScriptApplicationGraph["coverage"] => {
-  if (omitted > 0)
-    return {
-      status: "partial",
-      truncated: true,
-      omitted_count: omitted,
-      limits: [
-        {
-          name: "max-seed-matches",
-          value: limits.max_seed_matches,
-          unit: "items",
-        },
-        { name: "max-depth", value: limits.max_depth, unit: "depth" },
-        { name: "max-nodes", value: limits.max_nodes, unit: "items" },
-        { name: "max-edges", value: limits.max_edges, unit: "items" },
-      ],
-    };
   return source.coverage.status === "complete"
     ? { status: "complete", truncated: false, omitted_count: 0, limits: [] }
     : source.coverage;
@@ -284,43 +232,17 @@ const factSummary = (
   };
 };
 
-const traceOmissions = (
-  input: ApplicationFeatureTraceProjectionInput,
-  traversal: ApplicationFeatureTraversal,
-  seedMatches: number,
-  paths: number,
-) => ({
-  omitted_seed_matches: Math.max(
-    0,
-    seedMatches - input.limits.max_seed_matches,
-  ),
-  omitted_nodes: traversal.omittedNodeCount,
-  omitted_edges: traversal.omittedEdgeCount,
-  omitted_paths: Math.max(0, paths - input.limits.max_paths),
-});
-
 const traceCoverageStatus = (
   graph: JavaScriptApplicationGraph,
-  omissions: ReturnType<typeof traceOmissions>,
 ): ApplicationFeatureTraceResult["coverage"]["status"] =>
-  Object.values(omissions).some((value) => value > 0)
-    ? "truncated"
-    : graph.coverage.status === "complete"
-      ? "complete-within-source"
-      : "partial";
+  graph.coverage.status === "complete" ? "complete-within-source" : "partial";
 
-const traceLimitations = (
-  graph: JavaScriptApplicationGraph,
-  omissions: ReturnType<typeof traceOmissions>,
-): string[] =>
+const traceLimitations = (graph: JavaScriptApplicationGraph): string[] =>
   uniqueSorted([
     "A trace reports graph relationships, not proof that code executed or that a feature is reachable in every state.",
     "Static, native, passive-runtime, inferred, and unknown facts retain their original authority in the returned graph.",
     "Native handoffs never open a binary or invoke a provider automatically; snapshot reuse remains provider/profile/target exact.",
     ...sourceCoverageLimitations(graph),
-    ...(Object.values(omissions).some((value) => value > 0)
-      ? ["Trace results were truncated at explicit caller limits."]
-      : []),
   ]);
 
 const sourceCoverageLimitations = (

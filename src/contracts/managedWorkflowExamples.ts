@@ -21,7 +21,6 @@ const emptyManagedMembers = (
   sha256: string,
   mvid: string,
 ): ManagedMemberInspection => ({
-  schema_version: 1,
   artifact: {
     path: `/examples/${sha256.slice(0, 8)}.dll`,
     sha256,
@@ -47,28 +46,15 @@ const emptyManagedMembers = (
     requires_artifact_sha256: sha256,
     requires_mvid: mvid,
   },
-  types: emptyPage(100),
-  fields: emptyPage(100),
-  methods: emptyPage(100),
-  member_refs: emptyPage(100),
-  call_edges: emptyPage(250),
-  field_accesses: emptyPage(250),
+  types: [],
+  fields: [],
+  methods: [],
+  member_refs: [],
+  call_edges: [],
+  field_accesses: [],
   coverage: { state: "complete", issues: [] },
   limitations: [],
 });
-
-const emptyPage = <Item>(limit: number) => {
-  const items: Item[] = [];
-  return {
-    items,
-    offset: 0,
-    limit,
-    total: 0,
-    returned: 0,
-    dropped: 0,
-    complete: true,
-  };
-};
 
 const evidence = (result: ManagedMemberInspection) =>
   createEvidence(undefined, MANAGED_STATIC_EXAMPLE_PROVIDER, {
@@ -86,55 +72,50 @@ const runtimeMembers = (): ManagedMemberInspection => {
   );
   return {
     ...result,
-    methods: {
-      ...result.methods,
-      items: [
-        {
-          token: "0x06000001",
-          row_offset: 128,
-          declaring_type_token: "0x02000001",
-          declaring_type: "Example.Program",
-          name: "Main",
-          rva: 8192,
-          impl_flags: 0,
-          flags: 22,
-          signature: {
-            raw_length: 3,
-            raw_sha256: "3".repeat(64),
-            kind: "method",
-            parse_status: "decoded",
-            calling_convention: "default",
-            generic_parameter_count: 0,
-            parameter_count: 0,
-            return_type: "void",
-            parameter_types: [],
-            field_type: null,
-            issue: null,
-          },
-          body: {
-            status: "present",
-            header_format: "tiny",
-            rva: 8192,
-            file_offset: 512,
-            max_stack: 8,
-            init_locals: false,
-            local_var_sig_token: null,
-            il_size: 1,
-            il_sha256: "4".repeat(64),
-            normalized_il_sha256: "5".repeat(64),
-            instruction_count: 1,
-            decoded_instruction_count: 1,
-            truncated_instructions: 0,
-            opcode_counts: { ret: 1 },
-            anchors: [],
-            exception_regions: [],
-            issue: null,
-          },
+    methods: [
+      {
+        token: "0x06000001",
+        row_offset: 128,
+        declaring_type_token: "0x02000001",
+        declaring_type: "Example.Program",
+        name: "Main",
+        rva: 8192,
+        impl_flags: 0,
+        flags: 22,
+        signature: {
+          raw_length: 3,
+          raw_sha256: "3".repeat(64),
+          kind: "method",
+          parse_status: "decoded",
+          calling_convention: "default",
+          generic_parameter_count: 0,
+          parameter_count: 0,
+          return_type: "void",
+          parameter_types: [],
+          field_type: null,
+          issue: null,
         },
-      ],
-      total: 1,
-      returned: 1,
-    },
+        body: {
+          status: "present",
+          header_format: "tiny",
+          rva: 8192,
+          file_offset: 512,
+          max_stack: 8,
+          init_locals: false,
+          local_var_sig_token: null,
+          il_size: 1,
+          il_sha256: "4".repeat(64),
+          normalized_il_sha256: "5".repeat(64),
+          instruction_count: 1,
+          decoded_instruction_count: 1,
+          truncated_instructions: 0,
+          opcode_counts: { ret: 1 },
+          anchors: [],
+          exception_regions: [],
+          issue: null,
+        },
+      },
+    ],
   };
 };
 
@@ -146,11 +127,6 @@ export const MANAGED_MEMBER_COMPARISON_EXAMPLE = {
   right: evidence(
     emptyManagedMembers("1".repeat(64), "ffeeddcc-bbaa-4988-9766-554433221100"),
   ),
-  limits: {
-    max_method_matches: 100,
-    max_field_matches: 50,
-    max_candidates: 25,
-  },
 };
 
 const runtimeExampleEvidence = evidence(runtimeMembers());
@@ -158,18 +134,10 @@ const runtimeExampleEvidence = evidence(runtimeMembers());
 /** Minimal valid managed application graph projection request. */
 export const MANAGED_APPLICATION_GRAPH_EXAMPLE = {
   managed_members: runtimeExampleEvidence,
-  limits: {
-    max_types: 100,
-    max_methods: 100,
-    max_fields: 100,
-    max_pinvoke_imports: 100,
-    max_native_implementations: 100,
-  },
 };
 
 const boundaryEvidence = () => {
   const result: ManagedNativeBoundaryInspection = {
-    schema_version: 1,
     artifact: {
       path: "/examples/ManagedInterop.exe",
       sha256: "6".repeat(64),
@@ -204,51 +172,35 @@ const boundaryEvidence = () => {
       managed_native_header_rva: 0,
       managed_native_header_size: 0,
     },
-    module_refs: {
-      items: [
-        {
-          token: "0x1a000001",
-          row_offset: 256,
-          name: "nativehelper.dll",
-        },
-      ],
-      offset: 0,
-      limit: 100,
-      total: 1,
-      returned: 1,
-      dropped: 0,
-      complete: true,
-    },
-    pinvoke_imports: {
-      items: [
-        {
-          token: "0x1c000001",
-          row_offset: 288,
-          mapping_flags: 0,
-          mapping_flags_hex: "0x0000",
-          member_token: "0x06000001",
-          member_kind: "method",
-          member_name: "OpenNative",
-          import_name: "open_native",
-          import_scope_token: "0x1a000001",
-          import_scope_name: "nativehelper.dll",
-          no_mangle: true,
-          char_set: "not-specified",
-          call_convention: "cdecl",
-          supports_last_error: false,
-          best_fit: "assembly-default",
-          throw_on_unmappable_char: "assembly-default",
-          verification: "managed-declaration-only",
-        },
-      ],
-      offset: 0,
-      limit: 100,
-      total: 1,
-      returned: 1,
-      dropped: 0,
-      complete: true,
-    },
-    native_implementations: emptyPage(100),
+    module_refs: [
+      {
+        token: "0x1a000001",
+        row_offset: 256,
+        name: "nativehelper.dll",
+      },
+    ],
+    pinvoke_imports: [
+      {
+        token: "0x1c000001",
+        row_offset: 288,
+        mapping_flags: 0,
+        mapping_flags_hex: "0x0000",
+        member_token: "0x06000001",
+        member_kind: "method",
+        member_name: "OpenNative",
+        import_name: "open_native",
+        import_scope_token: "0x1a000001",
+        import_scope_name: "nativehelper.dll",
+        no_mangle: true,
+        char_set: "not-specified",
+        call_convention: "cdecl",
+        supports_last_error: false,
+        best_fit: "assembly-default",
+        throw_on_unmappable_char: "assembly-default",
+        verification: "managed-declaration-only",
+      },
+    ],
+    native_implementations: [],
     summary: {
       module_ref_count: 1,
       pinvoke_import_count: 1,
@@ -354,10 +306,6 @@ export const MANAGED_RECONSTRUCTION_IMPORT_EXAMPLE = {
 export const MANAGED_NATIVE_VERIFICATION_EXAMPLE = {
   managed_boundaries: boundaryEvidence(),
   native_observations: [nativeExportEvidence()],
-  limits: {
-    max_native_observations: 20,
-    max_candidates_per_import: 25,
-  },
 };
 
 /** Minimal valid managed runtime-correlation planning request. */

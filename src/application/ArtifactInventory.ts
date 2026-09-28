@@ -41,6 +41,27 @@ export const inventoryArtifact = async (
   return paginateArtifactInventory(snapshot, page);
 };
 
+/** Inventory one artifact and return every graph collection in one response. */
+export const inventoryArtifactFully = async (
+  inputPath: string,
+  limits: ArtifactLimits,
+  options: {
+    readonly signal?: AbortSignal;
+    readonly nativeMount?: ArtifactNativeMountPolicy;
+    readonly integrity?: ArtifactIntegrityPolicy;
+  } = {},
+): Promise<ArtifactInventoryResult> => {
+  const snapshot = await scanArtifactInventory(inputPath, limits, options);
+  return paginateArtifactInventory(snapshot, {
+    nodeOffset: 0,
+    nodeLimit: Math.max(1, snapshot.nodes.length),
+    occurrenceOffset: 0,
+    occurrenceLimit: Math.max(1, snapshot.occurrences.length),
+    edgeOffset: 0,
+    edgeLimit: Math.max(1, snapshot.edges.length),
+  });
+};
+
 /** Scan an artifact once and retain the complete immutable graph for projection. */
 export const scanArtifactInventory = async (
   inputPath: string,

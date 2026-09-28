@@ -13,7 +13,6 @@ import type {
   SetupProgressEvent,
   SetupResult,
 } from "./application/Setup.js";
-import { projectDoctorReport } from "./application/DoctorProjection.js";
 import { SUPPORTED_CLIENT_DEFINITIONS } from "./application/SupportedClients.js";
 
 const clientDisplayNames: ReadonlyMap<string, string> = new Map(
@@ -106,19 +105,6 @@ export const renderInteractiveSetupResult = (result: SetupResult): void => {
   writeLine(`!  ${result.remediation ?? "Setup needs attention."}`);
   outro("Run `rea doctor` for the remaining checks.", promptStreams);
 };
-
-/** Keep default non-TTY output actionable without emitting the full catalog. */
-export const conciseSetupResult = (result: SetupResult) => ({
-  status: result.status,
-  plannedActions: result.plannedActions,
-  appliedActions: result.appliedActions,
-  clients: result.clients,
-  doctor: projectDoctorReport(result.doctor, "summary"),
-  ...(result.code === undefined ? {} : { code: result.code }),
-  ...(result.remediation === undefined
-    ? {}
-    : { remediation: result.remediation }),
-});
 
 const selectSetupActions = async (
   actions: readonly SetupAction[],

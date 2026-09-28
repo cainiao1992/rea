@@ -100,11 +100,9 @@ const approvedBrowserInput = {
     .describe("Explicit approval for browser observation"),
 };
 
-/** Public input for bounded discovery of allowed page targets. */
+/** Public input for complete discovery of allowed page targets. */
 export const listBrowserTargetsInputSchema = z.object({
   ...approvedBrowserInput,
-  offset: z.number().int().min(0).default(0),
-  limit: z.number().int().min(1).max(200).default(100),
 });
 
 const browserInspectionLimitsSchema = z.object({

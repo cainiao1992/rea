@@ -11,24 +11,13 @@ import {
   sha256Bytes,
 } from "./ManagedMetadataHeaps.js";
 
-export type ManagedPage<Item> = {
-  readonly items: readonly Item[];
-  readonly offset: number;
-  readonly limit: number;
-  readonly total: number;
-  readonly returned: number;
-  readonly dropped: number;
-  readonly complete: boolean;
-};
-export type ManagedType = ManagedMemberInspection["types"]["items"][number];
-export type ManagedField = ManagedMemberInspection["fields"]["items"][number];
-export type ManagedMethod = ManagedMemberInspection["methods"]["items"][number];
-export type ManagedMemberRef =
-  ManagedMemberInspection["member_refs"]["items"][number];
-export type ManagedCallEdge =
-  ManagedMemberInspection["call_edges"]["items"][number];
+export type ManagedType = ManagedMemberInspection["types"][number];
+export type ManagedField = ManagedMemberInspection["fields"][number];
+export type ManagedMethod = ManagedMemberInspection["methods"][number];
+export type ManagedMemberRef = ManagedMemberInspection["member_refs"][number];
+export type ManagedCallEdge = ManagedMemberInspection["call_edges"][number];
 export type ManagedFieldAccess =
-  ManagedMemberInspection["field_accesses"]["items"][number];
+  ManagedMemberInspection["field_accesses"][number];
 export type ManagedSignature = ManagedMethod["signature"];
 export type ManagedMethodBody = ManagedMethod["body"];
 export type ManagedInstructionAnchor = ManagedMethodBody["anchors"][number];
@@ -36,17 +25,6 @@ export type ManagedExceptionRegion =
   ManagedMethodBody["exception_regions"][number];
 
 export interface ManagedMemberInspectionLimits {
-  readonly typeOffset: number;
-  readonly typeLimit: number;
-  readonly methodOffset: number;
-  readonly methodLimit: number;
-  readonly fieldOffset: number;
-  readonly fieldLimit: number;
-  readonly memberRefOffset: number;
-  readonly memberRefLimit: number;
-  readonly edgeOffset: number;
-  readonly edgeLimit: number;
-  readonly instructionAnchorLimit: number;
   readonly maxMetadataBytes: number;
   readonly maxTableRows: number;
   readonly maxHeapItemBytes: number;
@@ -85,36 +63,6 @@ export interface ParsedInstruction {
   readonly operandKind: ManagedInstructionAnchor["operand_kind"];
   readonly operand: string | null;
 }
-
-export const emptyPage = <Item>(
-  offset: number,
-  limit: number,
-): ManagedPage<Item> => ({
-  items: [],
-  offset,
-  limit,
-  total: 0,
-  returned: 0,
-  dropped: 0,
-  complete: offset === 0,
-});
-
-export const page = <Item>(
-  all: readonly Item[],
-  offset: number,
-  limit: number,
-): ManagedPage<Item> => {
-  const items = all.slice(offset, offset + limit);
-  return {
-    items,
-    offset,
-    limit,
-    total: all.length,
-    returned: items.length,
-    dropped: all.length - items.length,
-    complete: offset === 0 && offset + limit >= all.length,
-  };
-};
 
 const rowRange = (
   table: MetadataTableLayout | undefined,

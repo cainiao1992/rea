@@ -25,14 +25,16 @@ describe("source-built conformance fixtures", () => {
     expect(source).toContain(HOPPER_C_ORACLE.globalName);
   });
 
-  it("generates a deterministic large pagination fixture", () => {
+  it("generates a deterministic large complete-inventory fixture", () => {
     const first = generateLargeFixture();
     const second = generateLargeFixture();
 
     expect(first).toBe(second);
-    expect(first.match(/int rea_page_/gu)).toHaveLength(LARGE_FIXTURE_COUNT);
-    expect(first).toContain("rea_page_0000");
-    expect(first).toContain("rea_page_1204");
+    expect(first.match(/int rea_inventory_/gu)).toHaveLength(
+      LARGE_FIXTURE_COUNT,
+    );
+    expect(first).toContain("rea_inventory_0000");
+    expect(first).toContain("rea_inventory_1204");
     expect(() => generateLargeFixture(0)).toThrow(/positive integer/u);
   });
 

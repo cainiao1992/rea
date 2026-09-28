@@ -52,7 +52,6 @@ const createManagedNativeVerificationEvidence = (
       native_evidence_ids: jsonValueSchema.parse(
         input.native_observations.map(({ evidence_id: id }) => id),
       ),
-      limits: jsonValueSchema.parse(input.limits),
     },
     result: jsonValueSchema.parse(result),
     rawResult: null,

@@ -90,7 +90,6 @@ const sourceToBundleItemSchema = z.strictObject({
 
 /** Deterministic, evidence-bearing historical-source to shipped-bundle comparison. */
 export const sourceToBundleComparisonResultSchema = z.strictObject({
-  schema_version: z.literal(1),
   comparison_id: z.string().regex(/^stbc_[a-f0-9]{64}$/u),
   reference: z.strictObject({
     root_sha256: digestSchema,

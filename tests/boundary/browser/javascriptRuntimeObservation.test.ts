@@ -27,6 +27,28 @@ import { startFakeV8Inspector } from "../../fixtures/fakeV8Inspector.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 describe("passive V8 Inspector provider", () => {
+  test("returns every approved Inspector target inline", async () => {
+    const fixture = await runtimeFixture();
+    const fake = await startFakeV8Inspector({
+      targetUrl: pathToFileURL(fixture.entry).href,
+      additionalTargetCount: 205,
+    });
+    try {
+      const listed = await new V8InspectorProvider().listTargets({
+        inspector_endpoint: fake.endpoint,
+        allowed_file_roots: [fixture.root],
+        allowed_origins: [],
+        approved: true,
+      });
+      expect(listed.ok).toBe(true);
+      if (!listed.ok) return;
+      expect(listed.value.targets).toHaveLength(206);
+      expect(listed.value.targets[0]?.target_id).toBe(fake.targetId);
+    } finally {
+      await fake.close();
+    }
+  });
+
   test("filters target locations and never retains the excluded path", async () => {
     const fixture = await runtimeFixture();
     const outside = await temporaryFile("outside.js");
@@ -40,12 +62,10 @@ describe("passive V8 Inspector provider", () => {
         allowed_file_roots: [fixture.root],
         allowed_origins: [],
         approved: true,
-        offset: 0,
-        limit: 100,
       });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(result.value.targets.total).toBe(1);
+      expect(result.value.targets).toHaveLength(1);
       expect(result.value.excluded.outside_file_roots).toBe(1);
       expect(JSON.stringify(result.value)).not.toContain(outside);
     } finally {
@@ -106,13 +126,10 @@ describe("passive V8 Inspector provider", () => {
         allowed_file_roots: [fixture.root],
         allowed_origins: [],
         approved: true,
-        offset: 0,
-        limit: 100,
       });
       expect(listed.ok).toBe(true);
       if (!listed.ok) return;
-      expect(listed.value.targets.total).toBe(0);
-      expect(listed.value.targets.items).toEqual([]);
+      expect(listed.value.targets).toEqual([]);
 
       const observed = await provider.observe(
         observeInput(
@@ -224,8 +241,6 @@ describe("passive V8 Inspector evidence", () => {
           allowed_file_roots: [fixture.root],
           allowed_origins: [],
           approved: true,
-          offset: 0,
-          limit: 100,
         },
       );
       expect(listed.ok).toBe(true);
@@ -338,7 +353,6 @@ const runtimeObservation = (
   targetPath: string,
   scriptPath: string,
 ): JavaScriptRuntimeObservation => ({
-  schema_version: 1,
   runtime: {
     product: "node.js/v24.4.1",
     protocol_version: "1.3",

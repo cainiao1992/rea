@@ -18,7 +18,6 @@ export const callPathInputSchema = z.object({
   functions: z.array(evidenceSchema).min(1),
   start: z.object({ address: inputAddressSchema }).strict(),
   goal: z.object({ address: inputAddressSchema }).strict(),
-  unknown_registry_approved: z.literal(true).optional(),
 });
 
 const citedNodeSchema = z.object({

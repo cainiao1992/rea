@@ -88,7 +88,6 @@ export const staticRuntimeCorrelationInputSchema = z
     static_comparisons: z.array(evidenceSchema).min(1).max(100),
     runtime_comparisons: z.array(evidenceSchema).min(1).max(100),
     mappings: z.array(mappingSchema).min(1).max(500),
-    unknown_registry_approved: z.literal(true).optional(),
   })
   .strict();
 

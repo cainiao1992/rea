@@ -39,16 +39,25 @@ const inspectJsonValue = (
     if (current === undefined) break;
     nodes += 1;
     if (nodes > limits.jsonNodes)
-      return reject(context, "event exact JSON exceeds the v1 node limit");
+      return reject(
+        context,
+        "event exact JSON exceeds the configured node limit",
+      );
     if (current.depth > limits.jsonDepth)
-      return reject(context, "event exact JSON exceeds the v1 depth limit");
+      return reject(
+        context,
+        "event exact JSON exceeds the configured depth limit",
+      );
     if (typeof current.value !== "object" || current.value === null) continue;
     if (seen.has(current.value))
       return reject(context, "event exact JSON must not contain cycles");
     seen.add(current.value);
     if (Array.isArray(current.value)) {
       if (current.value.length + nodes > limits.jsonNodes)
-        return reject(context, "event exact JSON exceeds the v1 node limit");
+        return reject(
+          context,
+          "event exact JSON exceeds the configured node limit",
+        );
       for (const child of current.value)
         pending.push({ value: child, depth: current.depth + 1 });
       continue;
@@ -57,7 +66,10 @@ const inspectJsonValue = (
     for (const key in current.value) {
       if (!Object.hasOwn(current.value, key)) continue;
       if (nodes + pending.length >= limits.jsonNodes)
-        return reject(context, "event exact JSON exceeds the v1 node limit");
+        return reject(
+          context,
+          "event exact JSON exceeds the configured node limit",
+        );
       pending.push({
         value: current.value[key],
         depth: current.depth + 1,
@@ -125,9 +137,9 @@ const inspectTriggerTree = (
     if (current === undefined) break;
     nodes += 1;
     if (nodes > maximumNodes)
-      return reject(context, "trigger tree exceeds the v1 limit");
+      return reject(context, "trigger tree exceeds the configured limit");
     if (current.depth > limits.triggerDepth)
-      return reject(context, "trigger nesting exceeds the v1 limit");
+      return reject(context, "trigger nesting exceeds the configured limit");
     if (
       isUnknownRecord(current.value) &&
       current.value["kind"] === "event" &&

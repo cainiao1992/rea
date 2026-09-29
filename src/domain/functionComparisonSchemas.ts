@@ -23,7 +23,6 @@ const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 export const functionComparisonInputSchema = z.strictObject({
   left_evidence_id: evidenceIdSchema,
   right_evidence_id: evidenceIdSchema,
-  unknown_registry_approved: z.literal(true).optional(),
 });
 
 const textDeltaSchema = z.object({

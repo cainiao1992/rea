@@ -108,7 +108,6 @@ const values = (
   })),
 });
 const partialSpecification = (): ProcessTraceSpecification => ({
-  version: 1,
   events: [
     {
       id: "ready",
@@ -205,7 +204,6 @@ describe("process trace comparison", () => {
   });
   it("enforces explicit negative not-before constraints", () => {
     const specification: ProcessTraceSpecification = {
-      version: 1,
       events: [
         {
           id: "ready",
@@ -267,7 +265,6 @@ describe("process trace comparison", () => {
       ],
     });
     const specification: ProcessTraceSpecification = {
-      version: 1,
       events: [
         {
           id: "tick1",

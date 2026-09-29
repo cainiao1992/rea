@@ -107,7 +107,6 @@ const values = (
   })),
 });
 const partialSpecification = (): ProcessTraceSpecification => ({
-  version: 1,
   events: [
     {
       id: "ready",
@@ -177,7 +176,6 @@ describe("process trace comparison", () => {
       ignore_fields: ["sequence", "at_ms"],
     };
     const rangeSpecification: ProcessTraceSpecification = {
-      version: 1,
       events: [{ ...event, cardinality: { kind: "range", min: 2, max: 3 } }],
       language: {
         kind: "partial_order",
@@ -204,7 +202,6 @@ describe("process trace comparison", () => {
       diagnostic: { kind: "cardinality", side: "right" },
     });
     const exactSpecification: ProcessTraceSpecification = {
-      version: 1,
       events: [{ ...event, cardinality: { kind: "exact", count: 2 } }],
       language: {
         kind: "finite_traces",

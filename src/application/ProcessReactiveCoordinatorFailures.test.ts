@@ -38,7 +38,6 @@ const timerHost = () => {
 };
 const twoStateScenario = (): ProcessReactiveScenario =>
   processReactiveScenarioSchema.parse({
-    version: 1,
     initial_state: "starting",
     deadline_ms: 30000,
     states: [

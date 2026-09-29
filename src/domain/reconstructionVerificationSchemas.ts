@@ -77,7 +77,6 @@ export const reconstructionSpecificationSchema = z
 /** Bounded reconstruction-verification input. */
 export const reconstructionVerificationInputSchema = z.strictObject({
   specification: reconstructionSpecificationSchema,
-  unknown_registry_approved: z.literal(true).optional(),
 });
 
 export const reconstructionClaimResultSchema = z.object({

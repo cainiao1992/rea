@@ -104,7 +104,6 @@ const finiteTraceLanguageSchema = z.strictObject({
 });
 
 const specificationShapeSchema = z.strictObject({
-  version: z.literal(1),
   events: z.array(eventDeclarationSchema).min(1).max(256),
   language: z.discriminatedUnion("kind", [
     partialOrderLanguageSchema,

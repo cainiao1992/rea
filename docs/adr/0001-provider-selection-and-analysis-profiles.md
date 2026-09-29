@@ -333,14 +333,14 @@ entries, so snapshots must be recaptured before they can be used as a cache.
 An embedded Evidence bundle can still be imported separately through the
 Evidence import flow; it is never promoted into an analysis cache.
 
-### 8. Add profile commitments to new deep Evidence without rejecting legacy Evidence v2
+### 8. Add profile commitments to new deep Evidence while preserving legacy records
 
-Evidence remains schema version 2. A backward-compatible optional
-`analysis_profile` field uses the canonical envelope above. Every newly created
-deep-analysis observation must include it, and its provider ID and version must
-match the record's provider. The field participates in the Evidence semantic ID.
+The optional `analysis_profile` field uses the canonical envelope above. Every
+newly created deep-analysis observation must include it, and its provider ID
+and version must match the record's provider. The field participates in the
+Evidence semantic ID.
 
-Existing Evidence v2 records without `analysis_profile` remain valid and keep
+Existing Evidence records without `analysis_profile` remain valid and keep
 their existing IDs. Absence on a legacy deep record means the analysis profile
 is unknown; REA does not infer or enrich it during import. Such evidence can be
 displayed and cited but cannot establish profile compatibility, seed snapshot
@@ -457,8 +457,8 @@ snapshot's provider.
 | `BinaryTarget.loaderArgs`                            | Removed; Hopper derives them inside its adapter and commits normalized semantics in the profile                |
 | Legacy `.hop` input                                  | Classified generically as an analysis database and accepted only by Hopper                                     |
 | Snapshot v1                                          | Not accepted as the current snapshot format; recapture before cache replay                                     |
-| Existing Evidence v2 without a profile               | Accepted unchanged; profile compatibility is unknown                                                           |
-| New deep-analysis Evidence v2                        | Must include `analysis_profile`; its semantic ID commits the field                                             |
+| Existing Evidence without a profile                  | Accepted unchanged; profile compatibility is unknown                                                           |
+| New deep-analysis Evidence                           | Must include `analysis_profile`; its semantic ID commits the field                                             |
 | Existing status fields                               | Retained for 1.x with additive binding and candidate fields                                                    |
 | Provider failure after selection                     | Returned from the selected provider; no transparent retry through another engine                               |
 

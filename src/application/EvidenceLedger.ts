@@ -165,7 +165,7 @@ export class EvidenceLedger {
     return this.#appendUnknown(unknown, parsedMutation);
   }
 
-  /** Atomically record derived Evidence and an approved residual unknown. */
+  /** Atomically record derived Evidence and a linked residual unknown. */
   recordWithUnknown(
     evidenceInput: Evidence,
     input: RecordUnknownInput,

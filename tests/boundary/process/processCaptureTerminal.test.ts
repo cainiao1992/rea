@@ -43,7 +43,6 @@ const buildTerminalScenario = (root: string, script: string) =>
       },
     ],
     reactive: {
-      version: 1,
       initial_state: "waiting_for_shim",
       deadline_ms: 5_000,
       states: [

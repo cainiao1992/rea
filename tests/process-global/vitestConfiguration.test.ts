@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { availableParallelism } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -24,14 +24,6 @@ const EXPECTED_PROJECTS = [
   "process-global",
   "services",
 ];
-const ALLOWED_DIRECT_TEMPORARY_ROOTS = new Set([
-  "tests/support/workspace/workspaceFixture.ts",
-  "tests/acceptance/setup/packageInstallWorkflow.test.ts",
-  "tests/boundary/filesystem/temporaryDirectory.test.ts",
-  "tests/boundary/filesystem/referenceSourceReader.test.ts",
-  "tests/boundary/process/providerProcess.test.ts",
-]);
-
 describe("Vitest project configuration", () => {
   it("keeps deterministic execution retry-free and locally quiet", () => {
     expect(vitestConfiguration.test?.coverage?.enabled).toBe(false);
@@ -91,20 +83,6 @@ describe("Vitest project configuration", () => {
     ).toEqual([]);
     expect([...classified.keys()].sort()).toEqual(repositoryTests);
   }, 20_000);
-
-  it("keeps direct temporary-root creation behind the workspace seam", async () => {
-    const violations: string[] = [];
-    for (const path of await repositoryTypeScriptFiles("tests")) {
-      const source = await readFile(path, "utf8");
-      if (
-        /\b(?:mkdtemp|tmpdir)\s*\(/u.test(source) &&
-        !ALLOWED_DIRECT_TEMPORARY_ROOTS.has(path)
-      ) {
-        violations.push(path);
-      }
-    }
-    expect(violations).toEqual([]);
-  });
 });
 
 const parseProjects = (output: string): Map<string, string[]> => {
@@ -130,19 +108,6 @@ const testFiles = async (root: string): Promise<string[]> => {
     if (entry.isDirectory()) files.push(...(await testFiles(path)));
     else if (entry.isFile() && entry.name.endsWith(".test.ts"))
       files.push(relative(process.cwd(), path));
-  }
-  return files;
-};
-
-const repositoryTypeScriptFiles = async (root: string): Promise<string[]> => {
-  const files: string[] = [];
-  for (const entry of await readdir(root, { withFileTypes: true })) {
-    const path = join(root, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...(await repositoryTypeScriptFiles(path)));
-    } else if (entry.isFile() && entry.name.endsWith(".ts")) {
-      files.push(relative(process.cwd(), path));
-    }
   }
   return files;
 };

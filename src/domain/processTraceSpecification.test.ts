@@ -33,7 +33,6 @@ const websocket = {
   outcome: "matched" as const,
 };
 const partialSpecification = (): ProcessTraceSpecification => ({
-  version: 1,
   events: [
     {
       id: "ready",
@@ -92,7 +91,6 @@ describe("process trace specification", () => {
     ).toBe(false);
     expect(
       processTraceSpecificationSchema.safeParse({
-        version: 1,
         events: base.events.slice(0, 3),
         language: {
           kind: "partial_order",
@@ -104,7 +102,6 @@ describe("process trace specification", () => {
     ).toBe(false);
     expect(
       processTraceSpecificationSchema.safeParse({
-        version: 1,
         events: [
           {
             id: "invalid-ignore",
@@ -121,7 +118,6 @@ describe("process trace specification", () => {
     ).toBe(false);
     expect(
       processTraceSpecificationSchema.safeParse({
-        version: 1,
         events: [
           {
             id: "invalid-ignore",
@@ -138,14 +134,12 @@ describe("process trace specification", () => {
     ).toBe(false);
     expect(
       processTraceSpecificationSchema.safeParse({
-        version: 1,
         events: base.events.slice(0, 2),
         language: { kind: "partial_order" },
       }).success,
     ).toBe(false);
     expect(
       processTraceSpecificationSchema.safeParse({
-        version: 1,
         events: [base.events[0], { ...base.events[0], id: "duplicate" }],
         language: {
           kind: "partial_order",
@@ -155,7 +149,6 @@ describe("process trace specification", () => {
     ).toBe(false);
     expect(
       processTraceSpecificationSchema.safeParse({
-        version: 1,
         events: [
           {
             ...base.events[0],
@@ -170,7 +163,6 @@ describe("process trace specification", () => {
     ).toBe(false);
     expect(
       processTraceSpecificationSchema.safeParse({
-        version: 1,
         events: [base.events[0]],
         language: {
           kind: "finite_traces",

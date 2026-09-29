@@ -15,7 +15,6 @@ export interface WorkerSide {
 
 /** Parsed parent-to-worker runtime-hop request. */
 export interface WorkerRequest {
-  readonly schemaVersion: 1;
   readonly left: WorkerSide;
   readonly right?: WorkerSide;
   readonly cases: readonly {

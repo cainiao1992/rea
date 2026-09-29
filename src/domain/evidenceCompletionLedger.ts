@@ -130,7 +130,7 @@ const ledgerIssues = (
     });
 };
 
-/** Strict path-free Evidence v2 completion ledger. */
+/** Strict path-free Evidence completion ledger. */
 export const evidenceCompletionLedgerSchema =
   completionLedgerObjectSchema.superRefine(ledgerIssues);
 

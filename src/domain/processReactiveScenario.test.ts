@@ -27,7 +27,6 @@ const finishTransition = () => ({
 });
 
 const baseScenario = () => ({
-  version: 1 as const,
   initial_state: "starting",
   deadline_ms: 30_000,
   states: [
@@ -41,9 +40,8 @@ const baseScenario = () => ({
 });
 
 describe("process reactive scenario schema", () => {
-  it("parses the bounded v1 terminal scenario", () => {
+  it("parses a bounded terminal scenario", () => {
     expect(processReactiveScenarioSchema.parse(baseScenario())).toMatchObject({
-      version: 1,
       initial_state: "starting",
     });
     expect(PROCESS_REACTIVE_LIMITS.triggerDepth).toBe(6);
@@ -176,7 +174,6 @@ describe("process reactive scenario graph validation", () => {
 
   it("accepts only explicitly bounded cycles", () => {
     const cycle = {
-      version: 1 as const,
       initial_state: "one",
       deadline_ms: 10_000,
       states: [
@@ -261,7 +258,6 @@ describe("process reactive scenario checkpoint validation", () => {
       since: { kind: "checkpoint" as const, name },
     });
     const input = {
-      version: 1 as const,
       initial_state: "one",
       deadline_ms: 10_000,
       states: [
@@ -331,7 +327,7 @@ describe("process reactive scenario nesting validation", () => {
     expect(result.success).toBe(false);
     if (!result.success)
       expect(result.error.issues.map(({ message }) => message)).toContain(
-        "trigger nesting exceeds the v1 limit",
+        "trigger nesting exceeds the configured limit",
       );
 
     let hostile: unknown = terminalTrigger();

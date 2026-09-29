@@ -32,7 +32,6 @@ const capture = {
 } as const;
 
 const traceSpecification: ProcessTraceSpecification = {
-  version: 1,
   events: [
     {
       id: "before",
@@ -121,7 +120,6 @@ describe("declared trace comparison adapters", () => {
       });
     };
     const specification: ProcessTraceSpecification = {
-      version: 1,
       events: [
         {
           id: "status",
@@ -210,7 +208,6 @@ describe("declared trace comparison coverage", () => {
         ],
       });
     const specification: ProcessTraceSpecification = {
-      version: 1,
       events: [
         {
           id: "status",
@@ -285,7 +282,6 @@ describe("declared trace comparison nonconformance", () => {
         ],
       });
     const specification: ProcessTraceSpecification = {
-      version: 1,
       events: [
         {
           id: "expected",

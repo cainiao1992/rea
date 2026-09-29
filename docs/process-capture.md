@@ -117,7 +117,7 @@ inherited under operator policy.
 
 ## Reactive process scenarios
 
-Set `reactive` to a Process Reactive Scenario v1 declaration when interaction
+Set `reactive` to a process reactive scenario declaration when interaction
 must follow observed output instead of guessed delays. The graph declares an
 initial state, absolute scenario and state deadlines, explicitly prioritized
 transitions, bounded uses and visits, trigger predicates, ordered actions, and

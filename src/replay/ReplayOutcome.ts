@@ -7,7 +7,6 @@ import { jsonValueSchema } from "../domain/jsonValue.js";
 import type { WorkerProtocolOutcome } from "./ReplayWorkerProtocol.js";
 
 export const workerRequest = (prepared: PreparedReplayPlan) => ({
-  schemaVersion: 1,
   left: workerSide(prepared.publicPlan.left, prepared.leftSources),
   ...(prepared.publicPlan.right === undefined ||
   prepared.rightSources === undefined

@@ -5,7 +5,7 @@ import { processObservationSourceSchema } from "./processObservation.js";
 import { definitelyAvailableCheckpoints } from "./processReactiveCheckpointDataflow.js";
 import { preflightProcessReactiveScenario } from "./processReactiveScenarioPreflight.js";
 
-/** Fixed public bounds for Process Reactive Scenario v1. */
+/** Fixed public bounds for process reactive scenarios. */
 export const PROCESS_REACTIVE_LIMITS = {
   states: 32,
   transitions: 128,
@@ -232,13 +232,12 @@ const stateSchema = z.strictObject({
 });
 
 const scenarioShapeSchema = z.strictObject({
-  version: z.literal(1),
   initial_state: identifierSchema,
   deadline_ms: positiveRuntime,
   states: z.array(stateSchema).min(1).max(PROCESS_REACTIVE_LIMITS.states),
 });
 
-/** Parsed Process Reactive Scenario v1 declaration. */
+/** Parsed process reactive scenario declaration. */
 export type ProcessReactiveScenario = z.infer<typeof scenarioShapeSchema>;
 
 type TriggerMeasurements = {
@@ -345,7 +344,7 @@ const validateTransition = (input: {
   if (measured.depth > PROCESS_REACTIVE_LIMITS.triggerDepth)
     context.addIssue({
       code: "custom",
-      message: "trigger nesting exceeds the v1 limit",
+      message: "trigger nesting exceeds the configured limit",
       path: [...path, "when"],
     });
   if (validation.transitionIds.has(transition.id))

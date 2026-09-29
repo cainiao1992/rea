@@ -15,7 +15,6 @@ const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
 /** Strict bounded input for aggregating existing comparison Evidence. */
 export const changedBehaviorInputSchema = z.object({
   comparisons: z.array(evidenceSchema).max(100).default([]),
-  unknown_registry_approved: z.literal(true).optional(),
 });
 
 const findingSchema = z.object({

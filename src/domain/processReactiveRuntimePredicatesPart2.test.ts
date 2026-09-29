@@ -28,7 +28,6 @@ const scenarioWith = (
   transitions: readonly unknown[],
 ): ProcessReactiveScenario =>
   processReactiveScenarioSchema.parse({
-    version: 1,
     initial_state: "starting",
     deadline_ms: 30000,
     states: [
@@ -147,7 +146,6 @@ const offer = (
 describe("process reactive runtime predicates", () => {
   it("rejects an exhausted state visit before proposing effects", () => {
     const scenario = processReactiveScenarioSchema.parse({
-      version: 1,
       initial_state: "loop",
       deadline_ms: 30000,
       states: [

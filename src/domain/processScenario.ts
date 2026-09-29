@@ -87,7 +87,6 @@ export const processScenarioCommitment = (
     ]),
   ),
   reactive: reactiveScenarioCommitment(scenario.reactive),
-  unknown_registry_approved: scenario.unknown_registry_approved === true,
   executable_sha256: executableSha256 ?? null,
 });
 
@@ -119,10 +118,6 @@ export const processComparisonContract = (
  */
 export const processScenarioSchema = z
   .object({
-    unknown_registry_approved: z
-      .literal(true)
-      .optional()
-      .describe("Explicit approval to record capture residuals durably"),
     executable: z.string().startsWith("/"),
     arguments: z.array(z.string()).max(256).default([]),
     working_directory: z.string().startsWith("/"),

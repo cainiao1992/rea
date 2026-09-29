@@ -14,7 +14,7 @@ const record = (
   evidenceIds: readonly string[] = [evidenceId("1")],
 ) => ({ claim_id: claimId, status, evidence_ids: evidenceIds });
 
-describe("Evidence v2 completion ledger", () => {
+describe("Evidence completion ledger", () => {
   it("marks only an all-pass ledger complete", () => {
     const ledger = createEvidenceCompletionLedger([
       record("scenario.launch", "pass"),

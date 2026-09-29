@@ -32,7 +32,6 @@ const scenarioWith = (
   transitions: readonly unknown[],
 ): ProcessReactiveScenario =>
   processReactiveScenarioSchema.parse({
-    version: 1,
     initial_state: "starting",
     deadline_ms: 30_000,
     states: [

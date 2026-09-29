@@ -43,7 +43,6 @@ const timerHost = () => {
 };
 const twoStateScenario = (): ProcessReactiveScenario =>
   processReactiveScenarioSchema.parse({
-    version: 1,
     initial_state: "starting",
     deadline_ms: 30000,
     states: [
@@ -193,7 +192,6 @@ describe("process reactive coordinator ordering", () => {
   });
   it("executes input, resize, root signal, and checkpoint in journal order", async () => {
     const scenario = processReactiveScenarioSchema.parse({
-      version: 1,
       initial_state: "ready",
       deadline_ms: 30000,
       states: [

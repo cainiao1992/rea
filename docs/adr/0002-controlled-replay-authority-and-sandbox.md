@@ -332,7 +332,7 @@ partial successful return.
 
 ### 7. Preserve exact provenance and the right Evidence authority
 
-A run that reaches worker admission produces Evidence v2 with:
+A run that reaches worker admission produces Evidence with:
 
 - provider `rea-javascript-replay` and a concrete implementation version;
 - operation `run_controlled_replay`;

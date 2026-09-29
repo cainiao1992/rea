@@ -72,12 +72,11 @@ const parseWorkerSide = (value: unknown): WorkerSide => {
 
 const parseWorkerRequest = (value: unknown): WorkerRequest => {
   const request = record(value, "request");
-  if (request.schemaVersion !== 1 || !Array.isArray(request.cases))
-    throw new TypeError("Unsupported replay worker protocol");
+  if (!Array.isArray(request.cases))
+    throw new TypeError("Invalid replay worker cases");
   const determinism = record(request.determinism, "determinism");
   const limits = record(request.limits, "limits");
   return {
-    schemaVersion: 1,
     left: parseWorkerSide(request.left),
     ...(request.right === undefined
       ? {}

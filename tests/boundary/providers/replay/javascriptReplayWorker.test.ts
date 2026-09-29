@@ -38,7 +38,6 @@ const request = async (
   entryExport: string,
   arguments_: readonly unknown[],
 ) => ({
-  schemaVersion: 1,
   left: {
     modules: [
       {
@@ -68,7 +67,6 @@ const request = async (
 describe("disposable JavaScript replay worker", () => {
   it("rejects malformed runtime-hop requests before loading modules", async () => {
     const result = await runWorker({
-      schemaVersion: 1,
       left: { modules: "not-an-array", entryAlias: "entry", entryExport: "x" },
       cases: [],
       determinism: { clockIso: "2000-01-01T00:00:00.000Z", randomSeed: 7 },

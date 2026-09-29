@@ -138,7 +138,6 @@ function createMultiSourceScenario(root: string, script: string) {
       },
     ],
     reactive: {
-      version: 1,
       initial_state: "ready",
       deadline_ms: 8_000,
       states: [

@@ -19,7 +19,6 @@ function createInteractiveScenario(root: string, script: string) {
     arguments: [script],
     working_directory: root,
     reactive: {
-      version: 1,
       initial_state: "waiting",
       deadline_ms: 5_000,
       states: [
@@ -311,7 +310,6 @@ it("records target loss before post-exit settlement can win the deadline race", 
     working_directory: root,
     settle_ms: 500,
     reactive: {
-      version: 1,
       initial_state: "waiting",
       deadline_ms: 5_000,
       states: [

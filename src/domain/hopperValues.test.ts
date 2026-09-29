@@ -28,6 +28,9 @@ describe("Hopper boundary values", () => {
     expect(parseNames({ names: [{ address: "0x2", name: "label" }] }).ok).toBe(
       true,
     );
+    expect(parseNames({ items: [{ address: "0x2", value: "label" }] }).ok).toBe(
+      false,
+    );
     expect(parseRelatedAddresses({ callers: ["0x3"] }, "callers")).toEqual({
       ok: true,
       value: ["0x3"],

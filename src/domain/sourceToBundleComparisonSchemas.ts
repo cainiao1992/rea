@@ -27,36 +27,17 @@ const sourceToBundleSignalKindSchema = z.enum([
   "language-extension",
 ]);
 
-const sourceToBundleLimitsSchema = z.strictObject({
-  max_source_files: z.number().int().min(1).max(100_000).default(10_000),
-  max_application_nodes: z.number().int().min(1).max(100_000).default(20_000),
-  max_candidate_nodes: z.number().int().min(1).max(1_000).default(100),
-  max_candidate_evaluations: z
-    .number()
-    .int()
-    .min(1)
-    .max(10_000_000)
-    .default(1_000_000),
-});
-
-/** Historical source inventory, authenticated application Evidence, and bounds. */
+/** Historical source inventory and authenticated application Evidence. */
 export const compareSourceToBundleInputSchema = z.strictObject({
   reference: historicalSourceGraphSchema,
   application: evidenceSchema,
-  limits: sourceToBundleLimitsSchema.default({
-    max_source_files: 10_000,
-    max_application_nodes: 20_000,
-    max_candidate_nodes: 100,
-    max_candidate_evaluations: 1_000_000,
-  }),
-  unknown_registry_approved: z.literal(true).optional(),
 });
 
 const sourceToBundleSignalSchema = z.strictObject({
   kind: sourceToBundleSignalKindSchema,
   weight: z.number().int().min(1).max(100),
   source_value: boundedTextSchema,
-  current_values: z.array(boundedTextSchema).min(1).max(64),
+  current_values: z.array(boundedTextSchema).min(1),
 });
 
 const sourceToBundleCandidateSchema = z.strictObject({
@@ -82,9 +63,8 @@ const sourceToBundleItemSchema = z.strictObject({
     "unknown",
   ]),
   confidence: z.enum(["exact", "high", "medium", "unknown"]),
-  current_node_ids: z.array(nodeIdSchema).max(1_000),
-  candidates: z.array(sourceToBundleCandidateSchema).max(1_000),
-  omitted_candidates: z.number().int().min(0),
+  current_node_ids: z.array(nodeIdSchema),
+  candidates: z.array(sourceToBundleCandidateSchema),
   limitations: z.array(boundedTextSchema).max(100),
 });
 
@@ -119,10 +99,10 @@ export const sourceToBundleComparisonResultSchema = z.strictObject({
     duplicated: z.number().int().min(0),
     unknown: z.number().int().min(0),
   }),
-  items: z.array(sourceToBundleItemSchema).max(100_000),
-  unmapped_current_node_ids: z.array(nodeIdSchema).max(100_000),
+  items: z.array(sourceToBundleItemSchema),
+  unmapped_current_node_ids: z.array(nodeIdSchema),
   coverage: z.strictObject({
-    status: z.enum(["complete-within-inputs", "partial", "truncated"]),
+    status: z.enum(["complete-within-inputs", "partial"]),
     reference_inventory_state: z.enum(["complete", "partial", "unknown"]),
     application_graph_status: z.enum([
       "complete",
@@ -131,13 +111,8 @@ export const sourceToBundleComparisonResultSchema = z.strictObject({
       "unavailable",
     ]),
     retained_source_files: z.number().int().min(0),
-    omitted_source_files: z.number().int().min(0),
     retained_application_nodes: z.number().int().min(0),
-    omitted_application_nodes: z.number().int().min(0),
     candidate_evaluations: z.number().int().min(0),
-    omitted_candidate_evaluations: z.number().int().min(0),
-    omitted_candidate_references: z.number().int().min(0),
-    omitted_unmapped_current_nodes: z.number().int().min(0),
   }),
   evidence_links: z.array(evidenceIdSchema).min(1).max(1),
   limitations: z.array(boundedTextSchema).max(1_000),

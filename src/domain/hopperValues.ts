@@ -221,15 +221,6 @@ export const parseNames = (
   value: JsonValue,
 ): Result<readonly AddressedName[], HopperProtocolError> => {
   const unwrapped = unwrapProperty(value, "names");
-  const page = z
-    .object({
-      items: z.array(z.object({ address: z.string(), value: z.string() })),
-    })
-    .safeParse(unwrapped);
-  if (page.success)
-    return ok(
-      page.data.items.map(({ address, value: name }) => ({ address, name })),
-    );
   const records = addressedNamesSchema.safeParse(unwrapped);
   if (records.success) return ok(records.data);
   const map = addressedNameMapSchema.safeParse(unwrapped);

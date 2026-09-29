@@ -3,40 +3,24 @@ import type { JavaScriptSemanticGraph } from "./javascriptSemanticGraph.js";
 import type { JavaScriptSemanticGraphUnknown } from "./javascriptSemanticGraphSchemas.js";
 import type { JavaScriptSemanticQueryResult } from "./javascriptSemanticQuerySchemas.js";
 
-/** One caller-limit frontier retained by deterministic query traversal. */
-export interface JavaScriptSemanticQueryFrontier {
-  readonly node_id: string;
-  readonly depth: number;
-  readonly reason:
-    | "max-depth"
-    | "max-edges"
-    | "max-functions"
-    | "max-modules"
-    | "max-nodes"
-    | "max-seed-matches";
-}
-
 /** Inputs needed to classify one completed semantic traversal. */
 export interface JavaScriptSemanticQueryAssessmentInput {
   readonly graph: JavaScriptSemanticGraph;
   readonly totalSeeds: number;
-  readonly retainedSeeds: number;
   readonly expectedMatches: number;
   readonly hasExpectation: boolean;
-  readonly frontier: readonly JavaScriptSemanticQueryFrontier[];
   readonly unknowns: readonly JavaScriptSemanticGraphUnknown[];
   readonly candidateRelations: number;
-  readonly unknownsTruncated: boolean;
 }
 
-/** Status, coverage, limits, and limitations derived from one traversal. */
+/** Status, coverage, and limitations derived from one traversal. */
 export interface JavaScriptSemanticQueryAssessment {
   readonly status: JavaScriptSemanticQueryResult["status"];
   readonly coverage: JavaScriptSemanticQueryResult["coverage"];
   readonly limitations: string[];
 }
 
-/** Classify a bounded semantic traversal without promoting unknowns to absence. */
+/** Classify a complete semantic traversal without promoting unknowns to absence. */
 export const assessJavaScriptSemanticQuery = (
   input: JavaScriptSemanticQueryAssessmentInput,
 ): JavaScriptSemanticQueryAssessment => ({
@@ -51,28 +35,26 @@ const queryCoverage = (
   status:
     input.graph.coverage.status === "unavailable"
       ? "unavailable"
-      : input.frontier.length > 0 || input.unknownsTruncated
-        ? "truncated"
-        : input.unknowns.length > 0 ||
-            input.candidateRelations > 0 ||
-            input.graph.coverage.status !== "complete"
-          ? "partial"
-          : "complete",
-  frontier: [...input.frontier],
+      : input.unknowns.length > 0 ||
+          input.candidateRelations > 0 ||
+          input.graph.coverage.status !== "complete" ||
+          input.graph.coverage.truncated
+        ? "partial"
+        : "complete",
 });
 
 const queryStatus = (
   input: JavaScriptSemanticQueryAssessmentInput,
 ): JavaScriptSemanticQueryResult["status"] => {
   if (input.graph.coverage.status === "unavailable") return "unsupported";
-  if (input.frontier.length > 0 || input.unknownsTruncated) return "truncated";
   if (input.candidateRelations > 0) return "ambiguous";
   if (
     input.totalSeeds === 0 ||
     (input.hasExpectation && input.expectedMatches === 0)
   )
     return input.unknowns.length > 0 ||
-      input.graph.coverage.status !== "complete"
+      input.graph.coverage.status !== "complete" ||
+      input.graph.coverage.truncated
       ? "partial"
       : "no-match";
   return input.totalSeeds > 1 ? "ambiguous" : "found";
@@ -84,26 +66,11 @@ const queryLimitations = (
   uniqueSorted([
     "Semantic graph reachability is a static inference and does not prove runtime execution.",
     ...input.graph.limitations,
-    ...(input.totalSeeds === input.retainedSeeds
-      ? []
-      : [
-          "Seed matches exceeded the internal traversal safety ceiling; omitted starts remain unexplored.",
-        ]),
-    ...(input.frontier.length === 0
-      ? []
-      : [
-          "Traversal stopped at an internal resource ceiling; frontier facts remain unknown.",
-        ]),
     ...(input.unknowns.length === 0
       ? []
       : [
           "Relevant dynamic, unsupported, incomplete, or ambiguous semantics remain unknown.",
         ]),
-    ...(input.unknownsTruncated
-      ? [
-          "Relevant unknown frontiers exceeded the internal result safety ceiling; omitted unknowns remain unresolved.",
-        ]
-      : []),
     ...(input.candidateRelations === 0
       ? []
       : [

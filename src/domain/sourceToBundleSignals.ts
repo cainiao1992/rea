@@ -35,7 +35,6 @@ export interface SourceToBundleCandidateIndex {
   readonly byDigest: ReadonlyMap<string, ReadonlySet<string>>;
   readonly byPathSuffix: ReadonlyMap<string, ReadonlySet<string>>;
   readonly byBasename: ReadonlyMap<string, ReadonlySet<string>>;
-  readonly pathIndexTruncated: boolean;
 }
 
 const RELEVANT_NODE_KINDS = new Set([
@@ -51,7 +50,6 @@ const PATH_PROPERTIES = [
   "resolved_path",
   "declared_path",
 ] as const;
-const MAX_PATH_SUFFIXES = 128;
 
 const signalWeight = (kind: SourceToBundleSignal["kind"]): number => {
   const entry = SOURCE_TO_BUNDLE_SIGNAL_WEIGHTS.find(
@@ -81,7 +79,7 @@ export const historicalSourceFiles = (
     )
     .sort((left, right) => compareText(left.path, right.path));
 
-/** Build bounded-key indices without assigning fuzzy matches. */
+/** Build deterministic candidate indices without assigning fuzzy matches. */
 export const buildSourceToBundleCandidateIndex = (
   nodes: readonly ApplicationNode[],
 ): SourceToBundleCandidateIndex => {
@@ -89,14 +87,11 @@ export const buildSourceToBundleCandidateIndex = (
   const byDigest = new Map<string, Set<string>>();
   const byPathSuffix = new Map<string, Set<string>>();
   const byBasename = new Map<string, Set<string>>();
-  let pathIndexTruncated = false;
   for (const projection of projections) {
     for (const digest of projection.digests)
       addIndexValue(byDigest, digest, projection.node.node_id);
     for (const path of projection.paths) {
-      const suffixes = pathSuffixes(path.value);
-      pathIndexTruncated ||= suffixes.truncated;
-      for (const suffix of suffixes.values)
+      for (const suffix of pathSuffixes(path.value))
         addIndexValue(byPathSuffix, suffix, projection.node.node_id);
       addIndexValue(
         byBasename,
@@ -112,7 +107,6 @@ export const buildSourceToBundleCandidateIndex = (
     byDigest,
     byPathSuffix,
     byBasename,
-    pathIndexTruncated,
   };
 };
 
@@ -238,7 +232,7 @@ const signal = (
   kind,
   weight: signalWeight(kind),
   source_value: sourceValue,
-  current_values: [...new Set(currentValues)].sort(compareText).slice(0, 64),
+  current_values: [...new Set(currentValues)].sort(compareText),
 });
 
 const candidateConfidence = (
@@ -294,17 +288,9 @@ const uniquePaths = (paths: readonly CurrentPath[]): CurrentPath[] =>
     compareText(`${left.kind}\0${left.value}`, `${right.kind}\0${right.value}`),
   );
 
-const pathSuffixes = (
-  path: string,
-): { readonly values: readonly string[]; readonly truncated: boolean } => {
+const pathSuffixes = (path: string): string[] => {
   const parts = path.split("/");
-  const start = Math.max(0, parts.length - MAX_PATH_SUFFIXES);
-  return {
-    values: parts
-      .slice(start)
-      .map((_, index) => parts.slice(start + index).join("/")),
-    truncated: start > 0,
-  };
+  return parts.map((_, index) => parts.slice(index).join("/"));
 };
 
 const addIndexValue = (

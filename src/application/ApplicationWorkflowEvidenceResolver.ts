@@ -165,9 +165,6 @@ export const resolveCompareApplicationVersionsRequestValidated = (
       ...input.right_native_observations,
       ...rightNative.value,
     ],
-    ...(input.unknown_registry_approved === undefined
-      ? {}
-      : { unknown_registry_approved: input.unknown_registry_approved }),
   };
   const parsed = compareApplicationVersionsInputSchema.safeParse(raw);
   return parsed.success
@@ -196,10 +193,6 @@ export const resolveCompareSourceToBundleRequestValidated = (
   const raw = {
     reference: input.reference,
     application: application.value,
-    limits: input.limits,
-    ...(input.unknown_registry_approved === undefined
-      ? {}
-      : { unknown_registry_approved: input.unknown_registry_approved }),
   };
   const parsed = compareSourceToBundleInputSchema.safeParse(raw);
   return parsed.success
@@ -244,9 +237,6 @@ export const resolveCompareJavaScriptExportShapesRequestValidated = (
     left_export_name: input.left_export_name,
     right_module_path: input.right_module_path,
     right_export_name: input.right_export_name,
-    ...(input.unknown_registry_approved === undefined
-      ? {}
-      : { unknown_registry_approved: input.unknown_registry_approved }),
   };
   const parsed = compareJavaScriptExportShapesInputSchema.safeParse(raw);
   return parsed.success

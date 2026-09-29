@@ -15,7 +15,6 @@ export const compareApplicationVersionsInputSchema = z
     right: evidenceSchema,
     left_native_observations: z.array(evidenceSchema).default([]),
     right_native_observations: z.array(evidenceSchema).default([]),
-    unknown_registry_approved: z.literal(true).optional(),
   })
   .superRefine((input, context) => {
     if (input.left.evidence_id === input.right.evidence_id)

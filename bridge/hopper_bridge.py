@@ -255,18 +255,14 @@ def _containing_procedure(document, address):
     return (procedure, None) if procedure is not None else (None, "not_in_procedure")
 
 
-def _instruction_addresses(procedure, limit=None):
+def _instruction_addresses(procedure):
     result = []
     seen = set()
     segment = procedure.getSegment()
-    truncated = False
     for block in procedure.basicBlockIterator():
         address = block.getStartingAddress()
         end = block.getEndingAddress()
         while address < end and address not in seen:
-            if limit is not None and len(result) >= limit:
-                truncated = True
-                return result, truncated
             seen.add(address)
             instruction = segment.getInstructionAtAddress(address)
             if instruction is None:
@@ -276,7 +272,7 @@ def _instruction_addresses(procedure, limit=None):
             if length <= 0:
                 break
             address += length
-    return result, truncated
+    return result
 
 
 def _procedure_references(document, params):
@@ -284,7 +280,7 @@ def _procedure_references(document, params):
     direction = params.get("direction", "outgoing")
     if direction not in ("incoming", "outgoing"):
         raise ValueError("direction must be incoming or outgoing")
-    addresses, _ = _instruction_addresses(procedure)
+    addresses = _instruction_addresses(procedure)
     edges = set()
     for address in addresses:
         segment = _segment(document, address)
@@ -408,26 +404,6 @@ def _unavailable(reason):
     return {"available": False, "reason": reason}
 
 
-def _offset(params, name):
-    value = params.get(name, 0)
-    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-        raise ValueError("%s must be a non-negative integer" % name)
-    return value
-
-
-def _bounded(items, offset, limit, total=None, scan_truncated=False):
-    selected = items[offset:offset + limit]
-    known_total = len(items) if total is None and not scan_truncated else total
-    has_more = offset + len(selected) < len(items)
-    return {
-        "items": selected,
-        "total": known_total,
-        "returned": len(selected),
-        "truncated": scan_truncated or has_more,
-        "next_offset": offset + len(selected) if has_more else None,
-    }
-
-
 def _name_map(document):
     result = {}
     for segment in document.getSegmentsList():
@@ -454,8 +430,8 @@ def _render_instruction(segment, address):
     )
 
 
-def _assembly(procedure, limit=None):
-    """Render bounded assembly while guarding against malformed instruction cycles."""
+def _assembly(procedure):
+    """Render assembly while guarding against malformed instruction cycles."""
     lines = []
     segment = procedure.getSegment()
     seen = set()
@@ -470,8 +446,6 @@ def _assembly(procedure, limit=None):
             line = _render_instruction(segment, address)
             if line is not None:
                 lines.append(line)
-            if limit is not None and len(lines) >= limit:
-                return "\n".join(lines)
             length = instruction.getInstructionLength()
             if length <= 0:
                 break
@@ -482,7 +456,7 @@ def _assembly(procedure, limit=None):
 def _read_function_instructions(document, params):
     """Read all raw instructions without invoking decompilation."""
     procedure = _procedure(document, params.get("procedure"))
-    addresses, _ = _instruction_addresses(procedure)
+    addresses = _instruction_addresses(procedure)
     segment = procedure.getSegment()
     items = []
     for address in addresses:
@@ -502,7 +476,7 @@ def _read_function_instructions(document, params):
 def _analyze_function(document, params):
     """Collect the complete function dossier for agent callers."""
     procedure = _procedure(document, params.get("procedure"))
-    addresses, instruction_scan_truncated = _instruction_addresses(procedure)
+    addresses = _instruction_addresses(procedure)
     blocks = []
     all_blocks = list(procedure.basicBlockIterator())
     for block in all_blocks:

@@ -28,7 +28,6 @@ export const compareManagedMembersInputSchema = z
   .strictObject({
     left: evidenceSchema,
     right: evidenceSchema,
-    unknown_registry_approved: z.literal(true).optional(),
   })
   .superRefine((input, context) => {
     if (input.left.evidence_id === input.right.evidence_id)

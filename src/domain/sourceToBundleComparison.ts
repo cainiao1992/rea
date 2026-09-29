@@ -7,7 +7,6 @@ import type { HistoricalSourceGraph } from "./referenceSourceGraph.js";
 import {
   SOURCE_TO_BUNDLE_SIGNAL_WEIGHTS,
   sourceToBundleComparisonResultSchema,
-  type CompareSourceToBundleInput,
   type SourceToBundleCandidate,
   type SourceToBundleComparisonItem,
   type SourceToBundleComparisonResult,
@@ -28,7 +27,6 @@ interface SourceToBundleComparisonInput {
     readonly rootArtifactSha256: string;
     readonly graph: JavaScriptApplicationGraph;
   };
-  readonly limits: CompareSourceToBundleInput["limits"];
 }
 
 interface ClassifiedMapping {
@@ -49,8 +47,6 @@ interface ComparisonProjection {
 interface MappingProjection {
   readonly items: SourceToBundleComparisonItem[];
   readonly candidateEvaluations: number;
-  readonly omittedCandidateEvaluations: number;
-  readonly omittedCandidateReferences: number;
 }
 
 /** Compare historical source files to static source-bearing application nodes. */
@@ -61,8 +57,6 @@ export const compareSourceToBundle = (
   const mappings = compareMappings(input, projection);
   const factors = {
     ...projection.factors,
-    omittedCandidateEvaluations: mappings.omittedCandidateEvaluations,
-    omittedCandidateReferences: mappings.omittedCandidateReferences,
   };
   const mappedCurrentIds = new Set(
     mappings.items.flatMap(({ current_node_ids: nodeIds }) => nodeIds),
@@ -99,13 +93,8 @@ const projectComparison = (
 ): ComparisonProjection => {
   const allSources = historicalSourceFiles(input.reference);
   const allCurrentNodes = sourceBearingNodes(input.application.graph.nodes);
-  const sources = allSources.slice(0, input.limits.max_source_files);
-  const currentNodes = allCurrentNodes.slice(
-    0,
-    input.limits.max_application_nodes,
-  );
-  const omittedSourceFiles = allSources.length - sources.length;
-  const omittedApplicationNodes = allCurrentNodes.length - currentNodes.length;
+  const sources = allSources;
+  const currentNodes = allCurrentNodes;
   const index = buildSourceToBundleCandidateIndex(currentNodes);
   return {
     sources,
@@ -114,17 +103,9 @@ const projectComparison = (
     absenceComplete:
       input.reference.inventory_state === "complete" &&
       input.application.graph.coverage.status === "complete" &&
-      !input.application.graph.coverage.truncated &&
-      omittedSourceFiles === 0 &&
-      omittedApplicationNodes === 0 &&
-      !index.pathIndexTruncated,
+      !input.application.graph.coverage.truncated,
     factors: {
       input,
-      omittedSourceFiles,
-      omittedApplicationNodes,
-      omittedCandidateEvaluations: 0,
-      omittedCandidateReferences: 0,
-      pathIndexTruncated: index.pathIndexTruncated,
     },
   };
 };
@@ -133,19 +114,12 @@ const compareMappings = (
   input: SourceToBundleComparisonInput,
   projection: ComparisonProjection,
 ): MappingProjection => {
-  let evaluationsRemaining = input.limits.max_candidate_evaluations;
   let candidateEvaluations = 0;
-  let omittedCandidateEvaluations = 0;
-  let omittedCandidateReferences = 0;
   const provisionalItems: SourceToBundleComparisonItem[] = [];
   for (const source of projection.sources) {
     const candidateIds = candidateIdsForSource(source, projection.index);
-    const retainedIds = candidateIds.slice(0, evaluationsRemaining);
-    const omittedEvaluations = candidateIds.length - retainedIds.length;
-    evaluationsRemaining -= retainedIds.length;
-    candidateEvaluations += retainedIds.length;
-    omittedCandidateEvaluations += omittedEvaluations;
-    const scored = retainedIds
+    candidateEvaluations += candidateIds.length;
+    const scored = candidateIds
       .map((nodeId) =>
         scoreSourceToBundleCandidate(source, nodeId, projection.index),
       )
@@ -153,18 +127,7 @@ const compareMappings = (
         (candidate): candidate is SourceToBundleCandidate => candidate !== null,
       )
       .sort(compareCandidates);
-    const retainedCandidates = scored.slice(
-      0,
-      input.limits.max_candidate_nodes,
-    );
-    const omittedCandidates =
-      omittedEvaluations + scored.length - retainedCandidates.length;
-    omittedCandidateReferences += omittedCandidates;
-    const classification = classifyMapping(
-      retainedCandidates,
-      omittedCandidates === 0,
-      projection.absenceComplete,
-    );
+    const classification = classifyMapping(scored, projection.absenceComplete);
     const semantic = {
       source_path: source.path,
       source_sha256: source.sha256,
@@ -172,16 +135,10 @@ const compareMappings = (
       status: classification.status,
       confidence: classification.confidence,
       current_node_ids: classification.currentNodeIds,
-      candidates: retainedCandidates,
-      omitted_candidates: omittedCandidates,
+      candidates: scored,
       limitations: uniqueSorted([
         ...source.limitations,
         ...classification.limitations,
-        ...(omittedCandidates > 0
-          ? [
-              `${String(omittedCandidates)} candidate references were omitted by comparison limits.`,
-            ]
-          : []),
       ]),
     };
     provisionalItems.push({
@@ -192,8 +149,6 @@ const compareMappings = (
   return {
     items: markMergedMappings(input, provisionalItems),
     candidateEvaluations,
-    omittedCandidateEvaluations,
-    omittedCandidateReferences,
   };
 };
 
@@ -206,13 +161,8 @@ const comparisonCoverage = (
   reference_inventory_state: factors.input.reference.inventory_state,
   application_graph_status: factors.input.application.graph.coverage.status,
   retained_source_files: projection.sources.length,
-  omitted_source_files: factors.omittedSourceFiles,
   retained_application_nodes: projection.currentNodes.length,
-  omitted_application_nodes: factors.omittedApplicationNodes,
   candidate_evaluations: mappings.candidateEvaluations,
-  omitted_candidate_evaluations: mappings.omittedCandidateEvaluations,
-  omitted_candidate_references: mappings.omittedCandidateReferences,
-  omitted_unmapped_current_nodes: 0,
 });
 
 const scoringModel = (): SourceToBundleComparisonResult["scoring"] => ({
@@ -226,18 +176,8 @@ const scoringModel = (): SourceToBundleComparisonResult["scoring"] => ({
 
 const classifyMapping = (
   candidates: readonly SourceToBundleCandidate[],
-  evaluationComplete: boolean,
   absenceComplete: boolean,
 ): ClassifiedMapping => {
-  if (!evaluationComplete)
-    return {
-      status: "unknown",
-      confidence: "unknown",
-      currentNodeIds: [],
-      limitations: [
-        "Candidate evaluation stopped at the declared limit; a stronger match may be omitted.",
-      ],
-    };
   const exact = candidates.filter((candidate) =>
     hasSignal(candidate, "exact-source-digest"),
   );
@@ -387,24 +327,11 @@ const countStatus = (
 
 interface CoverageFactors {
   readonly input: SourceToBundleComparisonInput;
-  readonly omittedSourceFiles: number;
-  readonly omittedApplicationNodes: number;
-  readonly omittedCandidateEvaluations: number;
-  readonly omittedCandidateReferences: number;
-  readonly pathIndexTruncated: boolean;
 }
 
 const coverageStatus = (
   factors: CoverageFactors,
 ): SourceToBundleComparisonResult["coverage"]["status"] => {
-  if (
-    factors.omittedSourceFiles > 0 ||
-    factors.omittedApplicationNodes > 0 ||
-    factors.omittedCandidateEvaluations > 0 ||
-    factors.omittedCandidateReferences > 0 ||
-    factors.pathIndexTruncated
-  )
-    return "truncated";
   return factors.input.reference.inventory_state === "complete" &&
     factors.input.application.graph.coverage.status === "complete"
     ? "complete-within-inputs"
@@ -426,31 +353,6 @@ const comparisonLimitations = (factors: CoverageFactors): string[] =>
       : [
           `Application graph coverage is ${factors.input.application.graph.coverage.status}; unmatched files remain unknown.`,
         ]),
-    ...(factors.omittedSourceFiles > 0
-      ? [
-          `${String(factors.omittedSourceFiles)} historical source files were omitted by max_source_files.`,
-        ]
-      : []),
-    ...(factors.omittedApplicationNodes > 0
-      ? [
-          `${String(factors.omittedApplicationNodes)} source-bearing application nodes were omitted by max_application_nodes.`,
-        ]
-      : []),
-    ...(factors.omittedCandidateEvaluations > 0
-      ? [
-          `${String(factors.omittedCandidateEvaluations)} candidate evaluations were omitted by max_candidate_evaluations.`,
-        ]
-      : []),
-    ...(factors.omittedCandidateReferences > 0
-      ? [
-          `${String(factors.omittedCandidateReferences)} candidate references were omitted from item output.`,
-        ]
-      : []),
-    ...(factors.pathIndexTruncated
-      ? [
-          "At least one current path exceeded the 128-segment suffix index bound.",
-        ]
-      : []),
   ]);
 
 const hasSignal = (

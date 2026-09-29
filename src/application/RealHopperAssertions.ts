@@ -8,7 +8,7 @@ export const firstProcedureAddress = (input: unknown): string => {
     .array(z.object({ address: addressSchema }))
     .min(1)
     .parse(input)[0];
-  if (first === undefined) throw new TypeError("Procedure page was empty");
+  if (first === undefined) throw new TypeError("Procedure inventory was empty");
   return first.address;
 };
 

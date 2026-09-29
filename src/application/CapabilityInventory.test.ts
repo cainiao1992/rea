@@ -32,8 +32,6 @@ const status = (
     availability_code: capability.available
       ? null
       : (capability.availability_code ?? null),
-    input_contract_version: 1,
-    output_contract_version: 1,
     effects: {
       mutates_artifact: false,
       launches_process: false,

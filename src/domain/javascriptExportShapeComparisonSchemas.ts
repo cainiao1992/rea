@@ -63,7 +63,6 @@ export const compareJavaScriptExportShapesInputSchema = z
     left_export_name: selectorTextSchema,
     right_module_path: selectorTextSchema,
     right_export_name: selectorTextSchema,
-    unknown_registry_approved: z.literal(true).optional(),
   })
   .superRefine((input, context) => {
     if (input.left.evidence_id === input.right.evidence_id)

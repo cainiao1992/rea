@@ -86,51 +86,28 @@ export const javaScriptSemanticQueryInputSchema = z.strictObject({
   source_map_authority: sourceMapAuthoritySchema.default({ authority: "none" }),
 });
 
-const queryFrontierSchema = z.strictObject({
-  node_id: semanticNodeIdSchema,
-  depth: z.number().int().min(0).max(65),
-  reason: z.enum([
-    "max-depth",
-    "max-edges",
-    "max-functions",
-    "max-modules",
-    "max-nodes",
-    "max-seed-matches",
-  ]),
-});
-
 /** Deterministic semantic trace result. */
 export const javaScriptSemanticQueryResultSchema = z.strictObject({
   query_id: z.string().regex(/^jsrq_[a-f0-9]{64}$/u),
   source_graph_id: z.string().regex(/^jsrg_[a-f0-9]{64}$/u),
   seed: javaScriptSemanticQuerySeedSchema,
   direction: javaScriptSemanticQueryInputSchema.shape.direction,
-  status: z.enum([
-    "found",
-    "no-match",
-    "ambiguous",
-    "partial",
-    "truncated",
-    "unsupported",
-  ]),
-  seed_node_ids: z.array(semanticNodeIdSchema).max(1_000),
-  nodes: z.array(javaScriptSemanticNodeSchema).max(3_000),
-  relations: z.array(javaScriptSemanticRelationSchema).max(1_000),
-  unknowns: z.array(javaScriptSemanticUnknownSchema).max(100_000),
-  expected_match_node_ids: z.array(semanticNodeIdSchema).max(50_000),
+  status: z.enum(["found", "no-match", "ambiguous", "partial", "unsupported"]),
+  seed_node_ids: z.array(semanticNodeIdSchema),
+  nodes: z.array(javaScriptSemanticNodeSchema),
+  relations: z.array(javaScriptSemanticRelationSchema),
+  unknowns: z.array(javaScriptSemanticUnknownSchema),
+  expected_match_node_ids: z.array(semanticNodeIdSchema),
   summary: z.strictObject({
     total_seed_matches: z.number().int().min(0),
-    retained_seed_matches: z.number().int().min(0),
     traversed_nodes: z.number().int().min(0),
     traversed_relations: z.number().int().min(0),
     traversed_functions: z.number().int().min(0),
     traversed_modules: z.number().int().min(0),
     relevant_unknowns: z.number().int().min(0),
-    retained_unknowns: z.number().int().min(0).max(10_000),
   }),
   coverage: z.strictObject({
-    status: z.enum(["complete", "partial", "truncated", "unavailable"]),
-    frontier: z.array(queryFrontierSchema).max(100_000),
+    status: z.enum(["complete", "partial", "unavailable"]),
   }),
   limitations: z.array(z.string().min(1).max(4_096)).max(1_000),
 });

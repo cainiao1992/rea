@@ -12,44 +12,26 @@ import {
   type JavaScriptSemanticQueryInput,
   type JavaScriptSemanticQueryResult,
 } from "./javascriptSemanticQuerySchemas.js";
+import { assessJavaScriptSemanticQuery } from "./javascriptSemanticQueryAssessment.js";
 import {
-  assessJavaScriptSemanticQuery,
-  type JavaScriptSemanticQueryFrontier,
-} from "./javascriptSemanticQueryAssessment.js";
-import {
-  canonicalJavaScriptSemanticQueryJson as canonicalJson,
   javaScriptSemanticQueryIdentifier as queryIdentifier,
   resolveJavaScriptSemanticQuerySeeds as resolveSeeds,
 } from "./javascriptSemanticQueryIdentity.js";
-
-const TRAVERSAL_LIMITS = {
-  max_seed_matches: 1_000,
-  max_nodes: 50_000,
-  max_edges: 100_000,
-  max_depth: 64,
-  max_functions: 10_000,
-  max_modules: 10_000,
-  max_unknowns: 10_000,
-} as const;
 
 interface TraversalEntry {
   readonly relation: JavaScriptSemanticGraphRelation;
   readonly nextNodeId: string;
 }
 
-type QueryFrontier = JavaScriptSemanticQueryFrontier;
-
 interface Traversal {
   readonly nodeIds: Set<string>;
   readonly relationIds: Set<string>;
   readonly functionIds: Set<string>;
   readonly modules: Set<string>;
-  readonly frontier: QueryFrontier[];
 }
 
 interface SeedAdmission {
   readonly nodeIds: string[];
-  readonly frontier: QueryFrontier[];
 }
 
 interface QueryResult {
@@ -57,7 +39,7 @@ interface QueryResult {
   readonly retainedRelations: JavaScriptSemanticGraphRelation[];
 }
 
-/** Run one deterministic bounded traversal over a verified semantic graph. */
+/** Run one deterministic traversal over a verified semantic graph. */
 export const queryJavaScriptSemanticGraph = (
   graph: JavaScriptSemanticGraph,
   rawInput: unknown,
@@ -65,24 +47,17 @@ export const queryJavaScriptSemanticGraph = (
   const input = javaScriptSemanticQueryInputSchema.parse(rawInput);
   const queryId = queryIdentifier(graph, input);
   const seeds = resolveSeeds(graph, input);
-  const admission = admitSeeds(graph, seeds, input);
+  const admission = admitSeeds(graph, seeds);
   const retainedSeeds = admission.nodeIds;
   const adjacency = buildAdjacency(graph.relations, input);
-  const traversal = traverse(graph, retainedSeeds, adjacency, input);
-  const frontier = uniqueFrontier([
-    ...traversal.frontier,
-    ...admission.frontier,
-  ]);
+  const traversal = traverse(graph, retainedSeeds, adjacency);
   const result = createQueryResult(graph, traversal);
   const allRelevantUnknowns = relevantUnknownFrontiers(
     graph,
     traversal.nodeIds,
     input,
   );
-  const relevantUnknowns = allRelevantUnknowns.slice(
-    0,
-    TRAVERSAL_LIMITS.max_unknowns,
-  );
+  const relevantUnknowns = allRelevantUnknowns;
   const candidateRelations = relevantCandidateRelationCount(
     graph,
     traversal.nodeIds,
@@ -96,13 +71,10 @@ export const queryJavaScriptSemanticGraph = (
   const assessment = assessJavaScriptSemanticQuery({
     graph,
     totalSeeds: seeds.length,
-    retainedSeeds: retainedSeeds.length,
     expectedMatches: expectedMatches.length,
     hasExpectation: input.expected !== null,
-    frontier,
     unknowns: relevantUnknowns,
     candidateRelations,
-    unknownsTruncated: allRelevantUnknowns.length > relevantUnknowns.length,
   });
   return javaScriptSemanticQueryResultSchema.parse({
     query_id: queryId,
@@ -117,13 +89,11 @@ export const queryJavaScriptSemanticGraph = (
     expected_match_node_ids: expectedMatches.map(({ node_id }) => node_id),
     summary: {
       total_seed_matches: seeds.length,
-      retained_seed_matches: retainedSeeds.length,
       traversed_nodes: traversal.nodeIds.size,
       traversed_relations: traversal.relationIds.size,
       traversed_functions: traversal.functionIds.size,
       traversed_modules: traversal.modules.size,
       relevant_unknowns: allRelevantUnknowns.length,
-      retained_unknowns: relevantUnknowns.length,
     },
     coverage: assessment.coverage,
     limitations: assessment.limitations,
@@ -146,68 +116,15 @@ const createQueryResult = (
 const admitSeeds = (
   graph: JavaScriptSemanticGraph,
   seeds: readonly string[],
-  input: JavaScriptSemanticQueryInput,
 ): SeedAdmission => {
   const nodes = new Map(graph.nodes.map((node) => [node.node_id, node]));
   const retained: string[] = [];
-  const functions = new Set<string>();
-  const modules = new Set<string>();
-  const frontier: QueryFrontier[] = [];
   for (const nodeId of seeds) {
     const node = nodes.get(nodeId);
     if (node === undefined) continue;
-    const reason = seedBlockedReason(node, {
-      retained,
-      functions,
-      modules,
-      input,
-    });
-    if (reason !== null) {
-      frontier.push({ node_id: nodeId, depth: 0, reason });
-      continue;
-    }
     retained.push(nodeId);
-    retainOwners(node, functions, modules);
   }
-  return { nodeIds: retained, frontier: uniqueFrontier(frontier) };
-};
-
-interface SeedBounds {
-  readonly retained: readonly string[];
-  readonly functions: ReadonlySet<string>;
-  readonly modules: ReadonlySet<string>;
-  readonly input: JavaScriptSemanticQueryInput;
-}
-
-interface TraversalBounds {
-  readonly nodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>;
-  readonly nodeIds: ReadonlySet<string>;
-  readonly relationIds: ReadonlySet<string>;
-  readonly functionIds: ReadonlySet<string>;
-  readonly modules: ReadonlySet<string>;
-  readonly input: JavaScriptSemanticQueryInput;
-}
-
-const seedBlockedReason = (
-  node: JavaScriptSemanticGraphNode,
-  bounds: SeedBounds,
-): QueryFrontier["reason"] | null => {
-  if (bounds.retained.length >= TRAVERSAL_LIMITS.max_seed_matches)
-    return "max-seed-matches";
-  if (bounds.retained.length >= TRAVERSAL_LIMITS.max_nodes) return "max-nodes";
-  const functionId = functionOwner(node);
-  if (
-    functionId !== null &&
-    !bounds.functions.has(functionId) &&
-    bounds.functions.size >= TRAVERSAL_LIMITS.max_functions
-  )
-    return "max-functions";
-  if (
-    !bounds.modules.has(node.identity.module_path) &&
-    bounds.modules.size >= TRAVERSAL_LIMITS.max_modules
-  )
-    return "max-modules";
-  return null;
+  return { nodeIds: retained };
 };
 
 const buildAdjacency = (
@@ -300,43 +217,25 @@ const traverse = (
   graph: JavaScriptSemanticGraph,
   seeds: readonly string[],
   adjacency: ReadonlyMap<string, TraversalEntry[]>,
-  input: JavaScriptSemanticQueryInput,
 ): Traversal => {
   const nodes = new Map(graph.nodes.map((node) => [node.node_id, node]));
   const nodeIds = new Set(seeds);
   const relationIds = new Set<string>();
   const functionIds = new Set<string>();
   const modules = new Set<string>();
-  const frontier: QueryFrontier[] = [];
+  const queue = [...nodeIds];
   for (const nodeId of nodeIds)
     retainOwners(nodes.get(nodeId), functionIds, modules);
-  const depths = new Map([...nodeIds].map((nodeId) => [nodeId, 0]));
-  const queue = [...nodeIds];
-  const bounds: TraversalBounds = {
-    nodes,
-    nodeIds,
-    relationIds,
-    functionIds,
-    modules,
-    input,
-  };
   for (let offset = 0; offset < queue.length; offset += 1) {
     const current = queue[offset];
     if (current === undefined) continue;
-    const depth = depths.get(current) ?? 0;
     for (const entry of adjacency.get(current) ?? []) {
-      const reason = blockedReason(entry, depth, bounds);
-      if (reason !== null) {
-        frontier.push({ node_id: current, depth, reason });
-        continue;
-      }
       relationIds.add(entry.relation.relation_id);
       if (nodeIds.has(entry.nextNodeId)) continue;
       const node = nodes.get(entry.nextNodeId);
       if (node === undefined) continue;
       nodeIds.add(entry.nextNodeId);
       retainOwners(node, functionIds, modules);
-      depths.set(entry.nextNodeId, depth + 1);
       queue.push(entry.nextNodeId);
     }
   }
@@ -345,38 +244,7 @@ const traverse = (
     relationIds,
     functionIds,
     modules,
-    frontier: uniqueFrontier(frontier),
   };
-};
-
-const blockedReason = (
-  entry: TraversalEntry,
-  depth: number,
-  bounds: TraversalBounds,
-): QueryFrontier["reason"] | null => {
-  if (depth >= TRAVERSAL_LIMITS.max_depth) return "max-depth";
-  if (
-    !bounds.relationIds.has(entry.relation.relation_id) &&
-    bounds.relationIds.size >= TRAVERSAL_LIMITS.max_edges
-  )
-    return "max-edges";
-  if (bounds.nodeIds.has(entry.nextNodeId)) return null;
-  if (bounds.nodeIds.size >= TRAVERSAL_LIMITS.max_nodes) return "max-nodes";
-  const node = bounds.nodes.get(entry.nextNodeId);
-  if (node === undefined) return null;
-  const functionId = functionOwner(node);
-  if (
-    functionId !== null &&
-    !bounds.functionIds.has(functionId) &&
-    bounds.functionIds.size >= TRAVERSAL_LIMITS.max_functions
-  )
-    return "max-functions";
-  if (
-    !bounds.modules.has(node.identity.module_path) &&
-    bounds.modules.size >= TRAVERSAL_LIMITS.max_modules
-  )
-    return "max-modules";
-  return null;
 };
 
 const retainOwners = (
@@ -385,25 +253,11 @@ const retainOwners = (
   modules: Set<string>,
 ): void => {
   if (node === undefined) return;
-  const functionId = functionOwner(node);
+  const functionId =
+    node.kind === "function" ? node.node_id : node.function_node_id;
   if (functionId !== null) functions.add(functionId);
   modules.add(node.identity.module_path);
 };
-
-const functionOwner = (node: JavaScriptSemanticGraphNode): string | null =>
-  node.kind === "function" ? node.node_id : node.function_node_id;
-
-const uniqueFrontier = (frontier: readonly QueryFrontier[]): QueryFrontier[] =>
-  [
-    ...new Map(
-      frontier.map((item) => [
-        `${item.node_id}\0${String(item.depth)}\0${item.reason}`,
-        item,
-      ]),
-    ).values(),
-  ].sort((left, right) =>
-    compareCodePoints(canonicalJson(left), canonicalJson(right)),
-  );
 
 const relevantUnknownFrontiers = (
   graph: JavaScriptSemanticGraph,

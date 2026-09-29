@@ -6,7 +6,10 @@ import {
 } from "./javascriptApplicationGraph.js";
 import { createHistoricalSourceGraph } from "./referenceSourceGraph.js";
 import { compareSourceToBundle } from "./sourceToBundleComparison.js";
-import { sourceToBundleComparisonResultSchema } from "./sourceToBundleComparisonSchemas.js";
+import {
+  compareSourceToBundleInputSchema,
+  sourceToBundleComparisonResultSchema,
+} from "./sourceToBundleComparisonSchemas.js";
 import { artifactEvidence } from "./javascriptApplicationGraph.fixture.js";
 
 const HASH = {
@@ -31,7 +34,6 @@ describe("historical source to bundle comparison", () => {
         rootArtifactSha256: HASH.artifact,
         graph,
       },
-      limits: limits(),
     };
 
     const first = compareSourceToBundle(input);
@@ -104,7 +106,6 @@ describe("historical source to bundle comparison", () => {
         rootArtifactSha256: HASH.artifact,
         graph,
       },
-      limits: limits(),
     });
 
     expect(result.summary).toMatchObject({ removed: 0, unknown: 1 });
@@ -116,7 +117,7 @@ describe("historical source to bundle comparison", () => {
     expect(result.coverage.status).toBe("partial");
   });
 
-  it("keeps exact mappings unknown when candidate output is truncated", () => {
+  it("retains every candidate without caller-selected caps", () => {
     const result = compareSourceToBundle({
       reference: historicalGraph("complete"),
       application: {
@@ -124,16 +125,15 @@ describe("historical source to bundle comparison", () => {
         rootArtifactSha256: HASH.artifact,
         graph: applicationGraph("complete"),
       },
-      limits: { ...limits(), max_candidate_nodes: 1 },
     });
 
-    expect(item(result, "src/duplicated.ts").status).toBe("unknown");
-    expect(
-      item(result, "src/duplicated.ts").omitted_candidates,
-    ).toBeGreaterThan(0);
+    expect(item(result, "src/duplicated.ts")).toMatchObject({
+      status: "duplicated",
+      candidates: [{}, {}],
+    });
   });
 
-  it("reports the candidate frontier instead of deciding past a limit", () => {
+  it("evaluates all indexed candidates for each source file", () => {
     const result = compareSourceToBundle({
       reference: historicalGraph("complete", ["src/split.ts"]),
       application: {
@@ -141,19 +141,17 @@ describe("historical source to bundle comparison", () => {
         rootArtifactSha256: HASH.artifact,
         graph: applicationGraph("complete"),
       },
-      limits: { ...limits(), max_candidate_evaluations: 1 },
     });
 
-    expect(result.items[0]).toMatchObject({
-      status: "unknown",
-      confidence: "unknown",
-      omitted_candidates: 1,
-    });
+    expect(result.items[0]).toMatchObject({ status: "split" });
     expect(result.coverage).toMatchObject({
-      status: "truncated",
-      candidate_evaluations: 1,
-      omitted_candidate_evaluations: 1,
+      status: "complete-within-inputs",
+      candidate_evaluations: 2,
     });
+  });
+
+  it("does not expose caller-selected comparison limits", () => {
+    expect(compareSourceToBundleInputSchema.shape).not.toHaveProperty("limits");
   });
 });
 
@@ -299,13 +297,6 @@ const sourceDigest = (path: string): string => {
   if (path.includes("split")) return HASH.split;
   return HASH.unchanged;
 };
-
-const limits = () => ({
-  max_source_files: 100,
-  max_application_nodes: 100,
-  max_candidate_nodes: 100,
-  max_candidate_evaluations: 10_000,
-});
 
 const item = (
   result: ReturnType<typeof compareSourceToBundle>,

@@ -53,7 +53,6 @@ export const managedRuntimeCorrelationInputSchema = z.strictObject({
     allow_network: false,
     allow_ui: false,
   }),
-  unknown_registry_approved: z.literal(true).optional(),
 });
 
 export const managedRuntimeCorrelationResultSchema = z.strictObject({

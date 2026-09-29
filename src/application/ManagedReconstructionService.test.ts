@@ -147,7 +147,7 @@ describe("managed decompiler reconstruction import", () => {
     ).toThrow(/does not match/u);
   });
 
-  it("wraps imported reconstruction in Evidence v2", () => {
+  it("wraps imported reconstruction in Evidence", () => {
     const evidence = importManagedReconstructionEvidence(exampleInput());
 
     expect(evidence.ok).toBe(true);

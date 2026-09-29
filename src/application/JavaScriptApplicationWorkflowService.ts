@@ -154,14 +154,12 @@ export const compareSourceToBundleEvidenceValidated = (
         rootArtifactSha256: application.rootArtifactSha256,
         graph: application.graph,
       },
-      limits: input.limits,
     });
     return ok(
       createSourceToBundleComparisonEvidence(
         {
           reference_root_sha256: input.reference.root_sha256,
           application_evidence_id: application.evidence.evidence_id,
-          limits: input.limits,
         },
         result,
       ),

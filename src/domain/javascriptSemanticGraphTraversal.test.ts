@@ -252,7 +252,7 @@ it("returns every relevant unknown inline", () => {
     direction: "forward-influence",
   });
   expect(result).toMatchObject({
-    summary: { relevant_unknowns: 1, retained_unknowns: 1 },
+    summary: { relevant_unknowns: 1 },
   });
   expect(result.unknowns).toHaveLength(1);
 });
@@ -272,6 +272,51 @@ it("returns the complete deterministic forward influence result inline", () => {
   });
   expect(first.expected_match_node_ids).toHaveLength(1);
   expect(first.relations).toHaveLength(3);
+});
+
+it("traverses paths beyond the former fixed depth ceiling", () => {
+  const original = fixtureGraph();
+  const request = original.nodes.find(({ kind }) => kind === "request");
+  if (request === undefined) throw new TypeError("Missing request node");
+  const chain = Array.from({ length: 70 }, (_, index) =>
+    node("binding", `long-chain-${index}`),
+  );
+  const chainRelations = chain.map((target, index) =>
+    createJavaScriptSemanticGraphRelation({
+      source_node_id: chain[index - 1]?.node_id ?? request.node_id,
+      target_node_id: target.node_id,
+      relation: "reads",
+      resolution: "resolved",
+      properties: {},
+      evidence: evidence("inferred"),
+    }),
+  );
+  const { graph_id: _graphId, ...input } = original;
+  const graph = createJavaScriptSemanticGraph({
+    ...input,
+    nodes: [...original.nodes, ...chain],
+    relations: [...original.relations, ...chainRelations],
+    coverage: {
+      ...original.coverage,
+      families: original.coverage.families.map((family) =>
+        family.family === "data-flow"
+          ? {
+              ...family,
+              retained_relations:
+                family.retained_relations + chainRelations.length,
+            }
+          : family,
+      ),
+    },
+  });
+
+  const result = queryJavaScriptSemanticGraph(graph, {
+    seed: { kind: "literal", value: "TOKEN" },
+    direction: "forward-influence",
+  });
+
+  expect(result.summary.traversed_nodes).toBe(74);
+  expect(result.nodes).toHaveLength(74);
 });
 
 it("keeps relevant dynamic frontiers unknown", () => {

@@ -49,7 +49,6 @@ export const managedReconstructionImportInputSchema = z.strictObject({
   decompiler: decompilerSchema,
   methods: z.array(managedReconstructionMethodInputSchema).min(1).max(50),
   notes: z.array(z.string().min(1).max(4_096)).max(100).default([]),
-  unknown_registry_approved: z.literal(true).optional(),
 });
 
 const importedMethodSchema = z.strictObject({

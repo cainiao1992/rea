@@ -91,7 +91,6 @@ export const managedNativeVerificationInputSchema = z
   .strictObject({
     managed_boundaries: evidenceSchema,
     native_observations: z.array(evidenceSchema).min(1),
-    unknown_registry_approved: z.literal(true).optional(),
   })
   .superRefine((input, context) => {
     const ids = new Set<string>();

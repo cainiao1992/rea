@@ -108,7 +108,7 @@ describe("tool result projection", () => {
       evidence: {
         provider: { id: "fixture", name: "Fixture", version: "1" },
         operation: "fixture",
-        predicate_type: "rea.analysis/v2",
+        predicate_type: "rea.analysis",
         parameters: {},
         raw_result: null,
         confidence: "observed",

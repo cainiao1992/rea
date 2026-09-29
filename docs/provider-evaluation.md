@@ -8,7 +8,7 @@ import, and publishes 19 operation-level capabilities after the authenticated
 post-analysis handshake.
 
 The provider-neutral target, provider registry, deterministic target binding,
-analysis-profile commitment, Evidence provenance, snapshot v2, and bounded
+analysis-profile commitment, Evidence provenance, snapshot caching, and bounded
 provider-process lifecycle foundations are implemented. The Ghidra launcher,
 packaged Java bridge, doctor/setup projection, bounded client lifecycle, and
 multi-target real Linux verifier, curated Windows CI, and controlled real

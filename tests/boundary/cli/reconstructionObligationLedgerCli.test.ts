@@ -33,7 +33,7 @@ describe("reconstruction obligation ledger CLI parity", () => {
     );
     expect(JSON.parse(stdout)).toMatchObject({
       operation: "build_reconstruction_obligation_ledger",
-      predicate_type: "rea.reconstruction-obligation-ledger/v1",
+      predicate_type: "rea.reconstruction-obligation-ledger",
       normalized_result: {
         schema: "ReconstructionObligationLedger",
         status: "unknown",

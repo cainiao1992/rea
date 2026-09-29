@@ -91,7 +91,7 @@ describe("evidence ledger recording", () => {
   it("retains Evidence alongside unknown revisions without a record quota", () => {
     const ledger = new EvidenceLedger();
     const mutation = createEvidence(undefined, PROVIDER, {
-      predicateType: "rea.residual-unknown-mutation/v1",
+      predicateType: "rea.residual-unknown-mutation",
       operation: "record_unknown",
       parameters: {},
       result: { action: "record" },
@@ -155,7 +155,7 @@ describe("evidence bundle imports", () => {
       result: { status: "unknown" },
     });
     const mutation = createEvidence(undefined, PROVIDER, {
-      predicateType: "rea.residual-unknown-mutation/v1",
+      predicateType: "rea.residual-unknown-mutation",
       operation: "record_unknown",
       parameters: {},
       result: { action: "record" },

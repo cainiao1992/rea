@@ -21,7 +21,7 @@ export const FUNCTION_COMPARISON_EVIDENCE = createEvidence(
     version: "1",
   },
   {
-    predicateType: "rea.function-comparison/v1",
+    predicateType: "rea.function-comparison",
     operation: "compare_functions",
     parameters: {
       left_evidence_id: FUNCTION_COMPARISON_EXAMPLE.left.evidence_id,

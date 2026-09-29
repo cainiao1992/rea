@@ -17,7 +17,10 @@ import { mcpProgressReporter } from "./mcpProgress.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 import { toCallToolResult } from "./toolResult.js";
-import { createArtifactExtractionDestination } from "../application/ArtifactExtractionDestination.js";
+import {
+  artifactExtractionPermissionRequest,
+  createArtifactExtractionDestination,
+} from "../application/ArtifactExtractionDestination.js";
 
 interface EvidenceToolRegistration {
   readonly logger: Logger;
@@ -127,15 +130,7 @@ const permissionRequest = (
     operation === "extract_artifact" &&
     typeof parameters.output_root === "string"
   )
-    return {
-      capability: "artifact_extract" as const,
-      roots: [parameters.output_root],
-      executables: [],
-      environment_names: [],
-      network: "none" as const,
-      mount: false,
-      operation_identity: `extract_artifact:${parameters.output_root}`,
-    };
+    return artifactExtractionPermissionRequest();
   if (
     operation === "inspect_artifact" &&
     parameters.native_mount_approved === true

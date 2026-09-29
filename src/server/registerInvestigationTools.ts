@@ -63,7 +63,7 @@ const registerChangedBehavior = (
       if (!computed.ok) return toCallToolResult(computed, contract);
       const result = computed.value;
       const evidence = createEvidence(undefined, CHANGED_BEHAVIOR_PROVIDER, {
-        predicateType: "rea.changed-behavior/v1",
+        predicateType: "rea.changed-behavior",
         operation: contract.name,
         parameters: {
           comparison_evidence_ids: input.comparisons.map(
@@ -121,7 +121,7 @@ const registerCallPath = (
       if (!computed.ok) return toCallToolResult(computed, contract);
       const result = computed.value;
       const evidence = createEvidence(undefined, CALL_PATH_PROVIDER, {
-        predicateType: "rea.call-path/v1",
+        predicateType: "rea.call-path",
         operation: contract.name,
         parameters: {
           start: input.start.address,
@@ -181,7 +181,7 @@ const registerStaticRuntime = (
       if (!computed.ok) return toCallToolResult(computed, contract);
       const result = computed.value;
       const evidence = createEvidence(undefined, STATIC_RUNTIME_PROVIDER, {
-        predicateType: "rea.static-runtime-correlation/v1",
+        predicateType: "rea.static-runtime-correlation",
         operation: contract.name,
         parameters: {
           mapping_count: input.mappings.length,
@@ -237,7 +237,7 @@ const registerReconstruction = (
       if (!closure.ok) return toCallToolResult(closure, contract);
       const links = closure.value;
       const evidence = createEvidence(undefined, RECONSTRUCTION_PROVIDER, {
-        predicateType: "rea.reconstruction-verification/v1",
+        predicateType: "rea.reconstruction-verification",
         operation: contract.name,
         parameters: {
           specification_sha256: result.specification_sha256,

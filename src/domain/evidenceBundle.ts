@@ -93,7 +93,7 @@ export const createEvidenceBundle = (
         : [],
     ),
     captures: sortedRecords.flatMap((evidence) =>
-      evidence.predicate_type.startsWith("rea.process-capture/")
+      evidence.predicate_type === "rea.process-capture"
         ? [
             {
               evidence_id: evidence.evidence_id,
@@ -134,7 +134,7 @@ export const evidenceBundleForTarget = (
             record?.subject?.digest.sha256 === sha256 ||
             (unknown.mutation_evidence_ids.includes(id) &&
               record?.subject === null &&
-              record.predicate_type === "rea.residual-unknown-mutation/v1")
+              record.predicate_type === "rea.residual-unknown-mutation")
           );
         }),
     );
@@ -248,7 +248,7 @@ const validateVerifiedResolution = (
     return (
       unknown.supporting_evidence_ids.includes(evidenceId) &&
       evidence !== undefined &&
-      evidence.predicate_type !== "rea.residual-unknown-mutation/v1" &&
+      evidence.predicate_type !== "rea.residual-unknown-mutation" &&
       evidenceQualifies(unknown, evidence)
     );
   });

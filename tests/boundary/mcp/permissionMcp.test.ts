@@ -1,4 +1,5 @@
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
+import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 
 import type { AnalysisOperationPort } from "../../../src/application/AnalysisProvider.js";
@@ -37,7 +38,7 @@ describe("MCP permission preflight", () => {
             code: "permission_required",
             details: {
               capability: "artifact_extract",
-              missing: { roots: [expect.stringMatching(/rea-extracted-/u)] },
+              missing: { roots: [tmpdir()] },
             },
             remediation: {
               restart_required: true,

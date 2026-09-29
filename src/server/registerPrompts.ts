@@ -82,12 +82,7 @@ const argumentSchema = (
   argument: PromptArgumentContract,
   completion: PromptCompletionSource,
 ): z.ZodType => {
-  const value = z
-    .string()
-    .trim()
-    .min(1)
-    .max(4_096)
-    .describe(argument.description);
+  const value = z.string().trim().min(1).describe(argument.description);
   const kind = argument.completion;
   const completed =
     kind === undefined
@@ -98,18 +93,24 @@ const argumentSchema = (
   return argument.required ? completed : completed.optional();
 };
 
-const promptResult = (contract: PromptContract, arguments_: unknown) => ({
-  description: contract.description,
-  messages: [
-    {
-      role: "user" as const,
-      content: {
-        type: "text" as const,
-        text: renderGuidedPrompt(
-          contract,
-          promptValuesSchema.parse(arguments_),
-        ),
+const promptResult = (contract: PromptContract, arguments_: unknown) => {
+  const values = promptValuesSchema.parse(arguments_);
+  for (const [name, argument] of Object.entries(contract.arguments))
+    if (
+      argument.required &&
+      (values[name] === undefined || values[name]?.trim().length === 0)
+    )
+      throw new TypeError(`Invalid arguments: ${name} must not be empty`);
+  return {
+    description: contract.description,
+    messages: [
+      {
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: renderGuidedPrompt(contract, values),
+        },
       },
-    },
-  ],
-});
+    ],
+  };
+};

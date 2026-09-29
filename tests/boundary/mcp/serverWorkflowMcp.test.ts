@@ -59,7 +59,7 @@ it("advertises the native function discovery-to-dossier workflow", async () => {
     (await client.listTools()).tools.map((tool) => [tool.name, tool]),
   );
   expect(tools.get("binary_overview")?.description).toContain(
-    "follow with search_procedures or list_procedures, then pass a returned name or address to analyze_function",
+    "Use search_procedures, list_procedures, or analyze_function directly when you already know which procedure to inspect",
   );
   expect(tools.get("analyze_function")?.description).toContain(
     "typically selected from search_procedures or list_procedures",

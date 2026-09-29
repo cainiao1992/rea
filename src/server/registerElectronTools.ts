@@ -96,7 +96,7 @@ export const registerElectronTools = (
             [
               {
                 operation: "list_electron_targets",
-                predicate: "rea.electron-target-list/v1",
+                predicate: "rea.electron-target-list",
               },
             ],
           );

@@ -166,7 +166,7 @@ it("derives byte-stable bundle manifests independent of record order", () => {
     undefined,
     { id: "process", name: "Process capture", version: "1" },
     {
-      predicateType: "rea.process-capture/v1",
+      predicateType: "rea.process-capture",
       operation: "capture_process_scenario",
       parameters: {},
       result: { exit: 0 },

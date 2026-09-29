@@ -126,12 +126,11 @@ describe("guided prompts over MCP", () => {
         arguments: { feature: "   " },
       }),
     ).rejects.toThrow(/Invalid arguments/u);
-    await expect(
-      client.getPrompt({
-        name: "investigate_feature",
-        arguments: { feature: "x".repeat(4_097) },
-      }),
-    ).rejects.toThrow(/Invalid arguments/u);
+    const longPrompt = await client.getPrompt({
+      name: "investigate_feature",
+      arguments: { feature: "x".repeat(4_097) },
+    });
+    expect(longPrompt.messages[0]?.content).toMatchObject({ type: "text" });
     await expect(client.getPrompt({ name: "missing_prompt" })).rejects.toThrow(
       /not found/u,
     );

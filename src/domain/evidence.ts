@@ -261,7 +261,7 @@ export const createEvidence = (
     ...(observation.analysisProfile === undefined
       ? {}
       : { analysis_profile: observation.analysisProfile }),
-    predicate_type: observation.predicateType ?? "rea.analysis/v2",
+    predicate_type: observation.predicateType ?? "rea.analysis",
     operation: observation.operation,
     parameters: observation.parameters,
     raw_result: observation.rawResult ?? null,

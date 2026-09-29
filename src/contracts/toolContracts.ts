@@ -270,7 +270,7 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "set_current_document",
-    "Select an already-open Hopper document by exact document name. This changes subsequent default-document routing; call list_documents first and prefer explicit document inputs where reproducibility matters.",
+    "Select an already-open Hopper document by exact document name. This changes subsequent default-document routing; list_documents can supply names when needed, while explicit document inputs keep calls reproducible.",
     z.object({ document: z.string() }),
   ),
   official(
@@ -327,7 +327,7 @@ export const ENHANCED_TOOL_CONTRACTS = [
   ),
   enhanced(
     "binary_overview",
-    "Use after opening a native binary for target metadata, every segment with its length, and exhaustive procedure/string counts. To choose a function, follow with search_procedures or list_procedures, then pass a returned name or address to analyze_function for a complete dossier.",
+    "Return native-binary metadata, every segment with its length, and exhaustive procedure/string counts. Use search_procedures, list_procedures, or analyze_function directly when you already know which procedure to inspect.",
     enhancedInputSchemas.binary_overview,
   ),
   ...FUNCTION_WORKFLOW_TOOL_CONTRACTS,
@@ -358,7 +358,7 @@ export const exportEvidenceBundleInputSchema = z.strictObject({
 export const SESSION_TOOL_CONTRACTS = [
   session(
     "open_binary",
-    "Open a local executable, application bundle, archive, JavaScript, source map, plist, or analysis database after validation. provider_id selects one deep provider or deterministic auto selection; the binding remains stable until close or an explicit switch, with no failure fallback. An optional snapshot v2 is imported atomically and must match the binary identity, concrete provider, and canonical analysis profile exactly.",
+    "Open a local executable, application bundle, archive, JavaScript, source map, plist, or analysis database after validation. provider_id selects one deep provider or deterministic auto selection; the binding remains stable until close or an explicit switch, with no failure fallback. An optional analysis snapshot is imported atomically and must match the binary identity, concrete provider, and canonical analysis profile exactly.",
     openBinaryInputSchema,
   ),
   session(
@@ -458,12 +458,12 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "get_navigation_context",
-    "Compose the selected document, current address, and containing/current procedure into one provider-neutral result. The result reflects sequential provider observations, not an atomic cursor snapshot; a cursor outside any procedure returns procedure: null. Scalar navigation getters remain available for evaluation and compatibility.",
+    "Return the selected document, current address, and containing/current procedure in one provider-neutral result. The result reflects sequential provider observations, not an atomic cursor snapshot; a cursor outside any procedure returns procedure: null.",
     navigationContextInputSchema,
   ),
   session(
     "inspect_address_context",
-    "Inspect one explicit reproducible address for its analyzed name, containing procedure, regular and inline comments, and matching bookmarks. Each unsupported facet returns a typed unavailable outcome; xrefs, assembly, and pseudocode remain separate bounded follow-ups.",
+    "Inspect one explicit reproducible address for its analyzed name, containing procedure, regular and inline comments, and matching bookmarks. Each unsupported facet returns a typed unavailable outcome; use xrefs, assembly, or pseudocode for those deeper views.",
     addressContextInputSchema,
   ),
 ] as const satisfies readonly ToolContract[];

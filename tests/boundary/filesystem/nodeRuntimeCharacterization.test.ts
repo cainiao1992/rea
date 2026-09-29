@@ -53,7 +53,7 @@ describe("Node runtime characterization", () => {
         output_format: "commonjs-factory",
       },
       transformation_evidence: {
-        predicate_type: "rea.javascript-export-transformation/v1",
+        predicate_type: "rea.javascript-export-transformation",
         authority: "shipped-artifact",
       },
       replay: { phase: "plan" },
@@ -84,7 +84,7 @@ describe("Node runtime characterization", () => {
         evidence: { authority: "controlled-replay" },
       },
       evidence: {
-        predicate_type: "rea.runtime-characterization/v1",
+        predicate_type: "rea.runtime-characterization",
         authority: "controlled-replay",
       },
     });

@@ -226,7 +226,7 @@ export abstract class BinarySessionRecords {
   ): Result<ResidualUnknown, AnalysisError> {
     const target = this.activeAnalysisBinding()?.target;
     const evidence = createEvidence(target, UNKNOWN_REGISTRY_PROVIDER, {
-      predicateType: "rea.residual-unknown-mutation/v1",
+      predicateType: "rea.residual-unknown-mutation",
       operation: "update_unknown",
       parameters: {
         unknown_id: input.unknown_id,

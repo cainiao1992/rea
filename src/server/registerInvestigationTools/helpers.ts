@@ -53,15 +53,14 @@ export const evidenceClosure = (
 };
 
 export const recordWorkflowEvidence = (
-  ...[session, evidence, approved, unresolved, input]: readonly [
+  ...[session, evidence, unresolved, input]: readonly [
     session: BinarySessionPort,
     evidence: Evidence,
-    approved: true | undefined,
     unresolved: boolean,
     input: WorkflowUnknownInput,
   ]
 ): Result<Evidence, AnalysisError> => {
-  if (approved !== true || !unresolved) {
+  if (!unresolved) {
     return recordDerivedEvidence(session, evidence, undefined);
   }
   return recordDerivedEvidence(session, evidence, {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { BrowserScenarioSecrets } from "./BrowserScenarioSecrets.js";
 import { browserScenarioSchema } from "../domain/browserScenario.js";
+import { BROWSER_SCENARIO_CAPTURE_LIMITS } from "../domain/browserScenarioValues.js";
 
 const secret = (secret_id: string) => ({ source: "secret", secret_id });
 const literal = (value: string) => ({
@@ -23,14 +24,6 @@ const baseScenario = () => ({
     query: [{ name: "token", value: secret("session") }],
   },
   allowed_origins: ["https://api.example.test", "https://app.example.test"],
-  environment: {
-    viewport: { width: 1_280, height: 720 },
-    locale: "en-US",
-    timezone: "UTC",
-    color_scheme: "dark",
-    reduced_motion: "reduce",
-    service_workers: "block",
-  },
   actions: [
     {
       step_id: "login",
@@ -124,22 +117,6 @@ const baseScenario = () => ({
     at_end: ["dom", "storage"],
     events: ["console", "page-errors", "network", "websockets"],
   },
-  limits: {
-    max_duration_ms: 60_000,
-    action_timeout_ms: 5_000,
-    navigation_timeout_ms: 10_000,
-    max_events: 2_000,
-    max_frames: 100,
-    max_workers: 20,
-    max_popups: 10,
-    max_websockets: 100,
-    max_dom_nodes: 10_000,
-    max_accessibility_nodes: 10_000,
-    max_screenshots: 16,
-    max_screenshot_bytes: 4 * 1_024 * 1_024,
-    max_storage_entries: 256,
-    max_total_metadata_bytes: 4 * 1_024 * 1_024,
-  },
 });
 
 describe("browserScenarioSchema", () => {
@@ -149,13 +126,40 @@ describe("browserScenarioSchema", () => {
       "https://api.example.test",
       "https://app.example.test",
     ]);
-    expect(parsed.environment.viewport.device_scale_factor).toBe(1);
+    expect(parsed.environment).toMatchObject({
+      viewport: { width: 1_280, height: 720, device_scale_factor: 1 },
+      locale: "en-US",
+      timezone: "UTC",
+      color_scheme: "light",
+      reduced_motion: "reduce",
+      service_workers: "block",
+    });
+    expect(parsed.request_replay).toEqual({
+      mode: "exact",
+      unmatched: "abort",
+      routes: expect.any(Array),
+    });
+    expect(parsed.capture).toEqual({
+      after_each_step: ["screenshot", "url", "accessibility"],
+      at_end: ["dom", "storage"],
+      events: ["console", "page-errors", "network", "websockets"],
+    });
     expect(parsed.redaction.header_names).toEqual([
       "authorization",
       "cookie",
       "proxy-authorization",
       "set-cookie",
     ]);
+    expect(parsed.limits).toEqual(BROWSER_SCENARIO_CAPTURE_LIMITS);
+  });
+
+  it("rejects caller supplied capture limits", () => {
+    expect(
+      browserScenarioSchema.safeParse({
+        ...baseScenario(),
+        limits: { max_duration_ms: 1 },
+      }).success,
+    ).toBe(false);
   });
 
   it("redacts overlapping secrets longest-first", () => {
@@ -205,7 +209,9 @@ describe("browserScenarioSchema", () => {
       expect(browserScenarioSchema.safeParse(scenario).success).toBe(false);
     }
   });
+});
 
+describe("browserScenarioSchema credential handling", () => {
   it("rejects redirects outside declared origins", () => {
     const scenario = baseScenario();
     scenario.request_replay.routes[0]!.response = {

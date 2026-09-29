@@ -269,7 +269,7 @@ describe("enhanced MCP tools", () => {
         ),
     });
     const result = await client.callTool({
-      name: "swift_classes",
+      name: "analyze_swift_types",
       arguments: {},
     });
     expect(result.isError).toBe(true);

@@ -118,7 +118,7 @@ describe("application workflow MCP parity", () => {
         result: {
           source_evidence_id: left.value.evidence_id,
           source_graph_id: analyzed.semantic_graph.graph_id,
-          summary: { retained_seed_matches: 1 },
+          summary: { total_seed_matches: 1 },
         },
       });
     } finally {

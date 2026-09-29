@@ -48,7 +48,6 @@ export const registerEnhancedTools = (
   options: EnhancedToolRegistration,
 ): void => {
   const [
-    swiftClasses,
     objcClasses,
     objcProtocols,
     batchDecompile,
@@ -62,15 +61,6 @@ export const registerEnhancedTools = (
     codeForString,
     traceCallPath,
   ] = ENHANCED_TOOL_CONTRACTS;
-  server.registerTool(
-    swiftClasses.name,
-    toolRegistrationOptions(swiftClasses),
-    (input, context) =>
-      executeEnhancedTool(analysis, options, swiftClasses, {
-        validatedCall: { name: "swift_classes", input },
-        context,
-      }),
-  );
   server.registerTool(
     objcClasses.name,
     toolRegistrationOptions(objcClasses),
@@ -243,7 +233,6 @@ const executeEnhancedTool = async (
       return toCallToolResult(recorded, contract);
     const unknowns = recordWorkflowUnknowns({
       name,
-      input: parameters,
       result: result.value,
       evidenceId: evidence.evidence_id,
       recordUnknown: registration.recordUnknown,
@@ -265,7 +254,6 @@ const jsonParameters = (
 
 interface WorkflowUnknownInput {
   readonly name: string;
-  readonly input: Readonly<Record<string, JsonValue>>;
   readonly result: JsonValue;
   readonly evidenceId: string;
   readonly recordUnknown: BinarySessionPort["recordUnknown"] | undefined;
@@ -273,7 +261,6 @@ interface WorkflowUnknownInput {
 
 const recordWorkflowUnknowns = ({
   name,
-  input,
   result,
   evidenceId,
   recordUnknown,
@@ -287,7 +274,6 @@ const recordWorkflowUnknowns = ({
       "trace_call_path",
       "inspect_native_api",
     ].includes(name) ||
-    input.unknown_registry_approved !== true ||
     recordUnknown === undefined ||
     typeof result !== "object" ||
     result === null ||

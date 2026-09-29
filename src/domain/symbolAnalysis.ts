@@ -1,20 +1,6 @@
 import type { JsonValue } from "./jsonValue.js";
 import type { AddressedName } from "./hopperValues.js";
 
-/** Select Swift class symbols using the legacy `_TtC` convention. */
-export const discoverSwiftClasses = (
-  procedures: readonly AddressedName[],
-  pattern: string,
-): JsonValue => {
-  const classes = procedures
-    .filter(({ name }) => name.includes("_TtC"))
-    .filter(({ name }) => pattern.length === 0 || name.includes(pattern));
-  return {
-    count: classes.length,
-    classes: classes.map(toJsonEntry),
-  };
-};
-
 /** Select and deduplicate Objective-C class labels. */
 export const discoverObjcClasses = (
   names: readonly AddressedName[],
@@ -55,10 +41,15 @@ const SWIFT_CATEGORIES = [
   ["protocols", "_TtP"],
   ["extensions", "_TtE"],
 ] as const;
+type SwiftTypeCategory = (typeof SWIFT_CATEGORIES)[number][0] | "other";
 
 /** Categorize deduplicated Swift mangled symbols. */
 export const categorizeSwiftTypes = (
   procedures: readonly AddressedName[],
+  filter: {
+    readonly category?: SwiftTypeCategory | undefined;
+    readonly pattern?: string | undefined;
+  } = {},
 ): JsonValue => {
   const groups: Record<string, AddressedName[]> = Object.fromEntries(
     [...SWIFT_CATEGORIES.map(([category]) => category), "other"].map(
@@ -69,11 +60,14 @@ export const categorizeSwiftTypes = (
 
   for (const entry of procedures) {
     if (!entry.name.includes("_Tt") || seen.has(entry.name)) continue;
-    seen.add(entry.name);
     const category =
       SWIFT_CATEGORIES.find(([, prefix]) =>
         entry.name.startsWith(prefix),
       )?.[0] ?? "other";
+    if (filter.category !== undefined && filter.category !== category) continue;
+    if (filter.pattern !== undefined && !entry.name.includes(filter.pattern))
+      continue;
+    seen.add(entry.name);
     groups[category]?.push(entry);
   }
 

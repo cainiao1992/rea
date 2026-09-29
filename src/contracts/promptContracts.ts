@@ -223,7 +223,7 @@ export const PROMPT_CONTRACTS = [
     name: "verify_reconstruction",
     title: "Verify a reconstruction",
     description:
-      "Evaluate a finite reconstruction specification against retained Evidence v2 comparisons without broadening pass results into global equivalence claims.",
+      "Evaluate a finite reconstruction specification against retained Evidence comparisons without broadening pass results into global equivalence claims.",
     objective:
       "Produce per-claim pass, fail, or unknown results backed by compatible comparison Evidence and exact authority requirements.",
     arguments: {
@@ -416,7 +416,7 @@ export const PROMPT_CONTRACTS = [
       {
         tools: ["record_unknown"],
         instruction:
-          "Treat sampling gaps, truncated output, external behavior, and cleanup uncertainty as residual unknowns; persist them only with separate explicit approval.",
+          "Treat sampling gaps, truncated output, external behavior, and cleanup uncertainty as residual unknowns; support them with relevant Evidence IDs and focused recommended probes.",
       },
     ],
   },

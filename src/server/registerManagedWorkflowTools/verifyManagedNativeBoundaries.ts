@@ -71,33 +71,32 @@ export const registerVerifyManagedNativeBoundaries = (
         verification.summary.unresolved > 0 ||
         verification.summary.contradicted > 0 ||
         verification.summary.native_body_unresolved > 0;
-      const output =
-        parsed.unknown_registry_approved === true && unknown
-          ? options.recordEvidenceWithUnknown?.(result.value, {
-              question:
-                "Which managed/native boundaries remain unresolved or contradicted by the supplied native Evidence?",
-              severity: "medium",
-              domain: "managed-native-verification",
-              supporting_evidence_ids: [result.value.evidence_id],
-              contradicting_evidence_ids: [],
-              required_authority: "shipped-artifact",
-              required_confidence: "observed",
-              required_environment: null,
-              recommended_probes: [
-                {
-                  operation: "inspect_managed_native_boundaries",
-                  rationale:
-                    "Repeat managed boundary inspection with complete ModuleRef, ImplMap, and native implementation pages.",
-                },
-                {
-                  operation: "analyze_function",
-                  rationale:
-                    "Analyze the provider-resolved native function candidate for the declared export.",
-                },
-              ],
-              relationships: [],
-            })
-          : options.recordEvidence?.(result.value);
+      const output = unknown
+        ? options.recordEvidenceWithUnknown?.(result.value, {
+            question:
+              "Which managed/native boundaries remain unresolved or contradicted by the supplied native Evidence?",
+            severity: "medium",
+            domain: "managed-native-verification",
+            supporting_evidence_ids: [result.value.evidence_id],
+            contradicting_evidence_ids: [],
+            required_authority: "shipped-artifact",
+            required_confidence: "observed",
+            required_environment: null,
+            recommended_probes: [
+              {
+                operation: "inspect_managed_native_boundaries",
+                rationale:
+                  "Repeat managed boundary inspection with complete ModuleRef, ImplMap, and native implementation pages.",
+              },
+              {
+                operation: "analyze_function",
+                rationale:
+                  "Analyze the provider-resolved native function candidate for the declared export.",
+              },
+            ],
+            relationships: [],
+          })
+        : options.recordEvidence?.(result.value);
       if (output !== undefined && !output.ok)
         return toCallToolResult(output, nativeVerificationContract);
       return toCallToolResult(result, nativeVerificationContract);

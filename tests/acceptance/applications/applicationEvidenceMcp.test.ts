@@ -65,7 +65,6 @@ async function runInlineEvidenceScenarios(
     name: "compare_application_versions",
     arguments: {
       ...JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE,
-      unknown_registry_approved: true,
     },
   });
   expect(compared.isError).not.toBe(true);

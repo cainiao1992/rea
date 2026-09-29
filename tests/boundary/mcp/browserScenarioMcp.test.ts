@@ -106,7 +106,7 @@ const captureFor = (scenario: BrowserScenario): BrowserScenarioCapture => {
   });
 };
 
-const scenario = (origin = "https://app.example.test") => ({
+const minimalScenario = (origin = "https://app.example.test") => ({
   browser: {
     mode: "launch",
     executable_path: process.execPath,
@@ -116,14 +116,17 @@ const scenario = (origin = "https://app.example.test") => ({
   },
   start_url: { url: `${origin}/`, query: [] },
   allowed_origins: [origin],
-  environment: {
-    viewport: { width: 1_280, height: 720 },
-    locale: "en-US",
-    timezone: "UTC",
-    color_scheme: "light",
-    reduced_motion: "reduce",
-    service_workers: "block",
-  },
+  actions: [
+    {
+      step_id: "settle",
+      action: "wait_for_timeout",
+      duration_ms: 1,
+    },
+  ],
+});
+
+const scenario = (origin = "https://app.example.test") => ({
+  ...minimalScenario(origin),
   actions: [
     {
       step_id: "login-input",
@@ -132,8 +135,6 @@ const scenario = (origin = "https://app.example.test") => ({
       value: { source: "secret", secret_id: "login_input" },
     },
   ],
-  storage: {},
-  request_replay: { mode: "disabled" },
   secrets: [
     {
       secret_id: "login_input",
@@ -142,27 +143,6 @@ const scenario = (origin = "https://app.example.test") => ({
       redaction: "replace-with-secret-reference",
     },
   ],
-  redaction: {
-    secret_values: "replace-with-secret-reference",
-    query_parameter_names: [],
-  },
-  capture: { after_each_step: [], at_end: [], events: [] },
-  limits: {
-    max_duration_ms: 10_000,
-    action_timeout_ms: 1_000,
-    navigation_timeout_ms: 1_000,
-    max_events: 100,
-    max_frames: 10,
-    max_workers: 5,
-    max_popups: 2,
-    max_websockets: 10,
-    max_dom_nodes: 1_000,
-    max_accessibility_nodes: 1_000,
-    max_screenshots: 2,
-    max_screenshot_bytes: 1_048_576,
-    max_storage_entries: 100,
-    max_total_metadata_bytes: 1_048_576,
-  },
 });
 
 describe("browser scenario MCP tool", () => {
@@ -209,6 +189,28 @@ describe("browser scenario MCP tool", () => {
     await server.connect(serverTransport);
     await client.connect(clientTransport);
 
+    const minimal = await client.callTool({
+      name: "capture_browser_scenario",
+      arguments: minimalScenario(),
+    });
+    expect(minimal.isError, JSON.stringify(minimal)).not.toBe(true);
+    expect(provider.scenarios[0]).toMatchObject({
+      environment: { color_scheme: "light", service_workers: "block" },
+      storage: { cookies: [], local_storage: [], session_storage: [] },
+      request_replay: { mode: "disabled" },
+      redaction: {
+        secret_values: "replace-with-secret-reference",
+        header_names: [
+          "authorization",
+          "cookie",
+          "proxy-authorization",
+          "set-cookie",
+        ],
+      },
+      capture: { after_each_step: [], at_end: ["url"], events: [] },
+      limits: { max_duration_ms: 60_000, max_total_metadata_bytes: 4_194_304 },
+    });
+
     const captured = await client.callTool({
       name: "capture_browser_scenario",
       arguments: scenario(),
@@ -221,7 +223,7 @@ describe("browser scenario MCP tool", () => {
         },
       },
     });
-    expect(provider.scenarios).toHaveLength(1);
+    expect(provider.scenarios).toHaveLength(2);
     expect(JSON.stringify(captured.structuredContent)).not.toContain(
       "correct horse battery staple",
     );
@@ -258,7 +260,7 @@ describe("browser scenario MCP tool", () => {
       arguments: scenario("https://other.example.test"),
     });
     expect(denied.isError).toBe(true);
-    expect(provider.scenarios).toHaveLength(1);
+    expect(provider.scenarios).toHaveLength(2);
 
     const unapprovedEnvironment = scenario();
     const secretDeclaration = unapprovedEnvironment.secrets.at(0);
@@ -270,6 +272,6 @@ describe("browser scenario MCP tool", () => {
       arguments: unapprovedEnvironment,
     });
     expect(deniedSecret.isError).toBe(true);
-    expect(provider.scenarios).toHaveLength(1);
+    expect(provider.scenarios).toHaveLength(2);
   });
 });

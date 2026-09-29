@@ -4,7 +4,7 @@ import type { Evidence } from "../domain/evidence.js";
 import type { RecordUnknownInput } from "../domain/residualUnknown.js";
 import { ok, type Result } from "../domain/result.js";
 
-/** Atomically record derived Evidence with an optional approved unknown. */
+/** Atomically record derived Evidence with an optional supported unknown. */
 export const recordDerivedEvidence = (
   session: BinarySessionPort,
   evidence: Evidence,

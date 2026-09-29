@@ -229,7 +229,7 @@ describe("target-free MCP workflow", () => {
 });
 
 describe("process residuals over MCP", () => {
-  it("records approved process residuals in the unknown registry", async () => {
+  it("records process residuals linked to capture Evidence", async () => {
     if (!(await probeProcessCaptureCapability()).available) return;
     const session = createTestBinarySession(() => client("fixture", []));
     const server = createServer(session, session, {
@@ -252,7 +252,6 @@ describe("process residuals over MCP", () => {
     const captured = await mcp.callTool({
       name: "capture_process_scenario",
       arguments: {
-        unknown_registry_approved: true,
         executable: process.execPath,
         arguments: [processFixture, "partial"],
         working_directory: dirname(processFixture),

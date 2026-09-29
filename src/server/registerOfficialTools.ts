@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/server";
+import type { McpServer, ServerContext } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
 import type {
@@ -10,11 +10,7 @@ import type { ProgressReporter } from "../application/ProgressReporter.js";
 import type { ToolContract } from "../contracts/toolContracts.js";
 import { OFFICIAL_TOOL_CONTRACTS } from "../contracts/toolContracts.js";
 import type { BinaryTarget } from "../domain/binaryTarget.js";
-import {
-  AnalysisCapabilityUnavailableError,
-  UnknownRegistryError,
-  type AnalysisError,
-} from "../domain/errors.js";
+import type { AnalysisError } from "../domain/errors.js";
 import { createEvidence } from "../domain/evidence.js";
 import {
   jsonObjectSchema,
@@ -33,7 +29,6 @@ export interface OfficialToolRegistration {
   readonly logger: Logger;
   readonly activeTarget: (() => BinaryTarget | undefined) | undefined;
   readonly recordEvidence: BinarySessionPort["recordEvidence"] | undefined;
-  readonly recordUnknown: BinarySessionPort["recordUnknown"] | undefined;
 }
 
 /** Register direct bridge proxies, preserving MCP cancellation and typed errors. */
@@ -47,7 +42,6 @@ export const registerOfficialTools = (
       logger: options.logger,
       activeTarget: options.activeTarget,
       recordEvidence: options.recordEvidence,
-      recordUnknown: options.recordUnknown,
     });
   }
 };
@@ -60,13 +54,12 @@ const registerOfficialTool = (
     readonly logger: Logger;
     readonly activeTarget: (() => BinaryTarget | undefined) | undefined;
     readonly recordEvidence: BinarySessionPort["recordEvidence"] | undefined;
-    readonly recordUnknown: BinarySessionPort["recordUnknown"] | undefined;
   },
 ): void => {
   server.registerTool(
     contract.name,
     toolRegistrationOptions(contract),
-    async (input, context) => {
+    async (input: unknown, context: ServerContext) => {
       const arguments_ = projectOfficialArguments(contract, input);
       const progress = mcpProgressReporter(context);
       const result = await runOfficialOperation(
@@ -80,14 +73,6 @@ const registerOfficialTool = (
         },
       );
       if (!result.ok) {
-        const unknownError = recordOfficialUnknown(
-          input,
-          result.error,
-          contract,
-          registration.recordUnknown,
-        );
-        if (unknownError !== undefined)
-          return toCallToolResult(unknownError, contract);
         return toCallToolResult(result, contract);
       }
       const evidence = createEvidence(
@@ -145,47 +130,6 @@ const runOfficialOperation = async (
   return result;
 };
 
-const recordOfficialUnknown = (
-  input: unknown,
-  error: AnalysisError,
-  contract: ToolContract,
-  recordUnknown: BinarySessionPort["recordUnknown"] | undefined,
-): Result<never, AnalysisError> | undefined => {
-  if (
-    !(error instanceof AnalysisCapabilityUnavailableError) ||
-    !approvedUnknownTracking(input) ||
-    recordUnknown === undefined
-  )
-    return undefined;
-  const unknown = recordUnknown({
-    question: "The requested analysis is unavailable for the current target.",
-    severity: "medium",
-    domain: "analysis-capability",
-    supporting_evidence_ids: [],
-    contradicting_evidence_ids: [],
-    required_authority: "shipped-artifact",
-    required_confidence: "observed",
-    required_environment: null,
-    recommended_probes: [
-      {
-        operation: contract.name,
-        rationale:
-          "Choose another analysis or target that can answer this question.",
-      },
-    ],
-    relationships: [],
-  });
-  if (
-    !unknown.ok &&
-    !(
-      unknown.error instanceof UnknownRegistryError &&
-      unknown.error.reason === "already-exists"
-    )
-  )
-    return unknown;
-  return undefined;
-};
-
 const projectOfficialArguments = (
   contract: ToolContract,
   input: unknown,
@@ -198,14 +142,7 @@ const projectOfficialArguments = (
 
   const projected: Record<string, JsonValue> = {};
   for (const key of Object.keys(contract.inputSchema.shape)) {
-    if (key === "unknown_registry_approved") continue;
     projected[key] = jsonValueSchema.parse(parsed[key] ?? null);
   }
   return projected;
 };
-
-const approvedUnknownTracking = (input: unknown): boolean =>
-  typeof input === "object" &&
-  input !== null &&
-  "unknown_registry_approved" in input &&
-  input.unknown_registry_approved === true;

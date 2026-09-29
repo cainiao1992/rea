@@ -40,7 +40,6 @@ describe("Ghidra MCP capability routing", () => {
               name: "binary_overview",
               available: true,
             }),
-            expect.objectContaining({ name: "swift_classes", available: true }),
             expect.objectContaining({
               name: "get_objc_classes",
               available: true,

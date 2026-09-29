@@ -37,7 +37,7 @@ afterEach(async () => {
   );
 });
 
-it("exposes root-confined Electron discovery and inspection as Evidence v2", async () => {
+it("exposes root-confined Electron discovery and inspection as Evidence", async () => {
   const root = await createTestTempDirectory("rea-electron-mcp-");
   temporary.push(root);
   await writeFile(join(root, "index.html"), "<script src='app.js'></script>");

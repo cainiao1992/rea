@@ -407,7 +407,6 @@ it("returns full artifact graphs inline and compares changed inventories", async
       arguments: {
         left_evidence_id: evidence.evidence_id,
         right_evidence_id: changedEvidence.evidence_id,
-        unknown_registry_approved: true,
       },
     });
     expect(compared.isError).not.toBe(true);

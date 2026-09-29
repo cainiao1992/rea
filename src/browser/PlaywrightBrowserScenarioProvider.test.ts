@@ -58,14 +58,6 @@ const scenario = (
           },
     start_url: { url: "https://app.example.test/" },
     allowed_origins: ["https://app.example.test"],
-    environment: {
-      viewport: { width: 1_280, height: 720 },
-      locale: "en-US",
-      timezone: "UTC",
-      color_scheme: "light",
-      reduced_motion: "reduce",
-      service_workers: "block",
-    },
     actions: Array.from({ length: options.actions ?? 1 }, (_, index) => ({
       step_id: `wait_${index}`,
       action: "wait_for_timeout",
@@ -82,22 +74,6 @@ const scenario = (
       after_each_step: options.captures ?? ["url"],
       at_end: [],
       events: options.events ?? [],
-    },
-    limits: {
-      max_duration_ms: 10_000,
-      action_timeout_ms: 1_000,
-      navigation_timeout_ms: 1_000,
-      max_events: 100,
-      max_frames: 10,
-      max_workers: 10,
-      max_popups: 10,
-      max_websockets: 10,
-      max_dom_nodes: 100,
-      max_accessibility_nodes: 100,
-      max_screenshots: 2,
-      max_screenshot_bytes: 1_024,
-      max_storage_entries: 10,
-      max_total_metadata_bytes: 16_384,
     },
   });
 

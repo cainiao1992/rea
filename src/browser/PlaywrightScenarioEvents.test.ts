@@ -52,22 +52,6 @@ describe("PlaywrightScenarioEvents", () => {
         at_end: [],
         events: ["page-errors"],
       },
-      limits: {
-        max_duration_ms: 10_000,
-        action_timeout_ms: 1_000,
-        navigation_timeout_ms: 1_000,
-        max_events: 10,
-        max_frames: 10,
-        max_workers: 10,
-        max_popups: 10,
-        max_websockets: 10,
-        max_dom_nodes: 100,
-        max_accessibility_nodes: 100,
-        max_screenshots: 1,
-        max_screenshot_bytes: 1_024,
-        max_storage_entries: 10,
-        max_total_metadata_bytes: 1_000_000,
-      },
     });
     const secrets = BrowserScenarioSecrets.resolve(scenario, {});
     if (secrets === undefined) throw new Error("Expected resolved secrets");

@@ -42,7 +42,6 @@ const capture = {
   ],
 } as const;
 const traceSpecification: ProcessTraceSpecification = {
-  version: 1,
   events: [
     {
       id: "before",

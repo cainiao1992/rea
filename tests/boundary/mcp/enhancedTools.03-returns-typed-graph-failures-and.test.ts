@@ -278,10 +278,13 @@ describe("enhanced MCP tools", () => {
       },
     });
     const result = jsonResult(
-      await client.callTool({ name: "swift_classes", arguments: {} }),
+      await client.callTool({ name: "analyze_swift_types", arguments: {} }),
     );
     expect(calls).toEqual(["list_procedures"]);
-    expect(result).toMatchObject({ count: 2 });
+    expect(result).toMatchObject({
+      total: 2,
+      categories: { classes: { count: 2 } },
+    });
   });
 
   it("returns cancellation when a complete inventory call is cancelled", async () => {
@@ -296,7 +299,7 @@ describe("enhanced MCP tools", () => {
     };
 
     const result = await new EnhancedTools(analysis).execute(
-      "swift_classes",
+      "analyze_swift_types",
       {},
       controller.signal,
     );

@@ -67,7 +67,6 @@ export const registerFunctionComparisonTool = (
         session,
         evidence,
         functionUnknownInput({
-          approved: input.unknown_registry_approved,
           status: comparison.status,
           leftIds,
           rightIds,
@@ -79,17 +78,15 @@ export const registerFunctionComparisonTool = (
 };
 
 const functionUnknownInput = ({
-  approved,
   status,
   leftIds,
   rightIds,
 }: {
-  approved: true | undefined;
   status: ReturnType<typeof compareFunctions>["status"];
   leftIds: readonly string[];
   rightIds: readonly string[];
 }): RecordUnknownInput | undefined => {
-  if (approved !== true || status === "unchanged") return undefined;
+  if (status === "unchanged") return undefined;
   return {
     question: `Function comparison is ${status}`,
     severity: status === "changed" ? "medium" : "high",

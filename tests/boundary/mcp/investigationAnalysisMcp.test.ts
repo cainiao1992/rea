@@ -38,7 +38,6 @@ it("aggregates comparison Evidence and records an approved runtime gap", async (
       name: "find_changed_behavior",
       arguments: {
         comparisons: [comparison],
-        unknown_registry_approved: true,
       },
     });
     expect(response.isError, JSON.stringify(response)).not.toBe(true);
@@ -123,7 +122,6 @@ it("records a safe unresolved call-path question", async () => {
         functions: [dossier],
         start: { address: "0x1000" },
         goal: { address: "0x3000" },
-        unknown_registry_approved: true,
       },
     });
     expect(response.isError, JSON.stringify(response)).not.toBe(true);
@@ -197,7 +195,6 @@ it("uses inline assembly observations without recording a false unknown", async 
             },
           },
         ],
-        unknown_registry_approved: true,
       },
     });
     expect(response.isError).not.toBe(true);
@@ -222,7 +219,6 @@ it("passes only the finite declared reconstruction specification", async () => {
       name: "verify_reconstruction",
       arguments: {
         ...INVESTIGATION_EXAMPLES.verify_reconstruction,
-        unknown_registry_approved: true,
       },
     });
     expect(response.isError).not.toBe(true);
@@ -271,7 +267,6 @@ it("cannot omit a session-owned active unknown from reconstruction input", async
       name: "verify_reconstruction",
       arguments: {
         ...INVESTIGATION_EXAMPLES.verify_reconstruction,
-        unknown_registry_approved: true,
       },
     });
     expect(response.isError).not.toBe(true);

@@ -46,16 +46,7 @@ export const JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS = [
         input: {
           inspector_endpoint: endpoint,
           allowed_file_roots: [root],
-          allowed_origins: [],
           target_id: "TARGET_ID_FROM_LIST_JAVASCRIPT_RUNTIME_TARGETS",
-          observation_ms: 100,
-          limits: {
-            max_events: 10_000,
-            max_scripts: 2_000,
-            max_execution_contexts: 1_000,
-            max_location_bytes: 16_384,
-            max_total_metadata_bytes: 4_194_304,
-          },
         },
       },
     ],

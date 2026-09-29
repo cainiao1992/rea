@@ -61,7 +61,7 @@ describeBrowser("CdpBrowserProvider: document script 1", () => {
         artifact: expect.objectContaining({
           text: "export const observed = 'source-secret';",
           bytes: 40,
-          uri: expect.stringMatching(/^rea:\/\/web-content\/sha256\//u),
+          sha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
         }),
       }),
     );
@@ -297,7 +297,7 @@ describeBrowser("CdpBrowserProvider: document script 3", () => {
     expect(result.value).toMatchObject({
       viewport: { width: 1, height: 1 },
       artifact: {
-        uri: expect.stringMatching(/^rea:\/\/web-screenshot\/sha256\//u),
+        sha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
         bytes: 70,
         media_type: "image/png",
       },

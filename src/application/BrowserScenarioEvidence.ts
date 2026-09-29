@@ -30,7 +30,7 @@ const browserScenarioParameters = (
     }),
   ),
   capture: scenario.capture,
-  limits: scenario.limits,
+  limits: { ...scenario.limits },
 });
 
 /** Create Evidence without retaining resolved scenario secret values. */

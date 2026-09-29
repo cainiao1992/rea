@@ -18,7 +18,7 @@ afterEach(async () => {
 
 describe("browser CLI parity", () => {
   it(
-    "returns the same Evidence v2 discovery and inspection contracts",
+    "returns the same Evidence discovery and inspection contracts",
     async () => {
       const browser = await startFakeCdpBrowser({
         sessionTimeline: "same_origin",

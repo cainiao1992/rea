@@ -75,7 +75,7 @@ const structured = (result: CallToolResult): Record<string, unknown> => {
   return Object.fromEntries(Object.entries(result.structuredContent));
 };
 
-it("records approved typed capability unavailability without forwarding the flag", async () => {
+it("does not record capability unavailability without supporting Evidence", async () => {
   const received: Array<Readonly<Record<string, unknown>>> = [];
   const analysis: AnalysisOperationPort = {
     execute: (name, arguments_) => {
@@ -110,7 +110,6 @@ it("records approved typed capability unavailability without forwarding the flag
     name: "procedure_pseudo_code",
     arguments: {
       procedure: "main",
-      unknown_registry_approved: true,
     },
   });
   expect(unavailable.isError).toBe(true);
@@ -119,24 +118,12 @@ it("records approved typed capability unavailability without forwarding the flag
       category: "unsupported_provider",
     },
   });
-  expect(received[0]).not.toHaveProperty("unknown_registry_approved");
+  expect(received[0]).toMatchObject({ procedure: "main" });
   expect(
     structured(await client.callTool({ name: "list_unknowns", arguments: {} })),
   ).toMatchObject({
     result: {
-      items: [
-        {
-          domain: "analysis-capability",
-          question:
-            "The requested analysis is unavailable for the current target.",
-          recommended_probes: [
-            {
-              rationale:
-                "Choose another analysis or target that can answer this question.",
-            },
-          ],
-        },
-      ],
+      items: [],
     },
   });
 });
@@ -214,7 +201,6 @@ it("records approved capture disagreement as a contradicted unknown", async () =
     arguments: {
       left_evidence_id: leftEvidence.evidence_id,
       right_evidence_id: rightEvidence.evidence_id,
-      unknown_registry_approved: true,
     },
   });
   expect(compared.isError).not.toBe(true);

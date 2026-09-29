@@ -60,7 +60,6 @@ const recordProcessResidualUnknowns = (
   evidence: Evidence,
   residuals: ProcessCapture["residual_unknowns"],
 ): Result<null, AnalysisError> => {
-  if (scenario.unknown_registry_approved !== true) return ok(null);
   for (const residual of residuals) {
     const unknown = session.recordUnknown({
       question: `Was ${residual.scope} behavior fully observed during capture?`,

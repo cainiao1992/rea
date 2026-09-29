@@ -13,7 +13,6 @@ const MAX_SCREENSHOT_BYTES = 8 * 1_024 * 1_024;
 /** Self-verifying inline PNG artifact for CLI/MCP parity. */
 export const webScreenshotArtifactSchema = z
   .object({
-    uri: z.string().regex(/^rea:\/\/web-screenshot\/sha256\/[a-f0-9]{64}$/u),
     sha256: z.string().regex(/^[a-f0-9]{64}$/u),
     bytes: z.number().int().min(1).max(MAX_SCREENSHOT_BYTES),
     media_type: z.literal("image/png"),
@@ -26,11 +25,7 @@ export const webScreenshotArtifactSchema = z
       return;
     }
     const sha256 = createHash("sha256").update(bytes).digest("hex");
-    if (
-      bytes.byteLength !== artifact.bytes ||
-      sha256 !== artifact.sha256 ||
-      artifact.uri !== `rea://web-screenshot/sha256/${sha256}`
-    )
+    if (bytes.byteLength !== artifact.bytes || sha256 !== artifact.sha256)
       context.addIssue({
         code: "custom",
         message: "Screenshot artifact digest or size mismatch",
@@ -164,7 +159,6 @@ export const createWebScreenshotArtifact = (
 ): WebScreenshotArtifact => {
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   return webScreenshotArtifactSchema.parse({
-    uri: `rea://web-screenshot/sha256/${sha256}`,
     sha256,
     bytes: bytes.byteLength,
     media_type: "image/png",

@@ -1,4 +1,4 @@
-/** Fields used to build an approved residual unknown from a workflow result. */
+/** Fields used to build a residual unknown from a workflow result. */
 export interface WorkflowUnknownInput {
   readonly question: string;
   readonly domain: string;

@@ -15,6 +15,42 @@ export const BROWSER_SCENARIO_LIMITS = {
   actionTimeoutMs: 60_000,
 } as const;
 
+/** Fixed internal budgets for provider-owned scenario capture. */
+export interface BrowserScenarioCaptureLimits {
+  readonly max_duration_ms: number;
+  readonly action_timeout_ms: number;
+  readonly navigation_timeout_ms: number;
+  readonly max_events: number;
+  readonly max_frames: number;
+  readonly max_workers: number;
+  readonly max_popups: number;
+  readonly max_websockets: number;
+  readonly max_dom_nodes: number;
+  readonly max_accessibility_nodes: number;
+  readonly max_screenshots: number;
+  readonly max_screenshot_bytes: number;
+  readonly max_storage_entries: number;
+  readonly max_total_metadata_bytes: number;
+}
+
+export const BROWSER_SCENARIO_CAPTURE_LIMITS: BrowserScenarioCaptureLimits =
+  Object.freeze({
+    max_duration_ms: 60_000,
+    action_timeout_ms: 5_000,
+    navigation_timeout_ms: 10_000,
+    max_events: 2_000,
+    max_frames: 100,
+    max_workers: 20,
+    max_popups: 10,
+    max_websockets: 100,
+    max_dom_nodes: 10_000,
+    max_accessibility_nodes: 10_000,
+    max_screenshots: 16,
+    max_screenshot_bytes: 4 * 1_024 * 1_024,
+    max_storage_entries: 256,
+    max_total_metadata_bytes: 4 * 1_024 * 1_024,
+  });
+
 export const scenarioIdentifierSchema = z
   .string()
   .regex(/^[A-Za-z][A-Za-z0-9._-]{0,63}$/u);
@@ -102,26 +138,42 @@ export const browserScenarioBrowserSchema = z.discriminatedUnion("mode", [
   }),
 ]);
 
-export const browserScenarioEnvironmentSchema = z.strictObject({
-  viewport: z.strictObject({
-    width: z.number().int().min(320).max(7_680),
-    height: z.number().int().min(240).max(4_320),
-    device_scale_factor: z.number().min(0.5).max(4).default(1),
-  }),
-  locale: z
-    .string()
-    .min(2)
-    .max(64)
-    .regex(/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/u),
-  timezone: z
-    .string()
-    .min(1)
-    .max(128)
-    .regex(/^[A-Za-z0-9_+-]+(?:\/[A-Za-z0-9_+-]+)*$/u),
-  color_scheme: z.enum(["light", "dark", "no-preference"]),
-  reduced_motion: z.enum(["reduce", "no-preference"]),
-  service_workers: z.literal("block"),
-});
+export const browserScenarioEnvironmentSchema = z
+  .strictObject({
+    viewport: z
+      .strictObject({
+        width: z.number().int().min(320).max(7_680).default(1_280),
+        height: z.number().int().min(240).max(4_320).default(720),
+        device_scale_factor: z.number().min(0.5).max(4).default(1),
+      })
+      .default({ width: 1_280, height: 720, device_scale_factor: 1 }),
+    locale: z
+      .string()
+      .min(2)
+      .max(64)
+      .regex(/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/u)
+      .default("en-US"),
+    timezone: z
+      .string()
+      .min(1)
+      .max(128)
+      .regex(/^[A-Za-z0-9_+-]+(?:\/[A-Za-z0-9_+-]+)*$/u)
+      .default("UTC"),
+    color_scheme: z.enum(["light", "dark", "no-preference"]).default("light"),
+    reduced_motion: z.enum(["reduce", "no-preference"]).default("reduce"),
+    service_workers: z.literal("block").default("block"),
+  })
+  .default({
+    viewport: { width: 1_280, height: 720, device_scale_factor: 1 },
+    locale: "en-US",
+    timezone: "UTC",
+    color_scheme: "light",
+    reduced_motion: "reduce",
+    service_workers: "block",
+  })
+  .describe(
+    "Optional deterministic browser settings. Defaults to 1280x720, en-US, UTC, light mode, reduced motion, and blocked service workers.",
+  );
 
 const locatorSchema = z.discriminatedUnion("kind", [
   z.strictObject({
@@ -225,39 +277,44 @@ const storageEntrySchema = z.strictObject({
   value: browserScenarioValueSchema,
 });
 
-export const browserScenarioStorageSchema = z.strictObject({
-  cookies: z
-    .array(
-      z.strictObject({
-        name: z.string().min(1).max(1_024),
-        value: browserScenarioValueSchema,
-        destination: browserScenarioUrlSchema,
-        http_only: z.boolean(),
-        secure: z.boolean(),
-        same_site: z.enum(["Strict", "Lax", "None"]),
-      }),
-    )
-    .max(128)
-    .default([]),
-  local_storage: z
-    .array(
-      z.strictObject({
-        origin: browserOriginSchema,
-        entries: z.array(storageEntrySchema).max(128),
-      }),
-    )
-    .max(32)
-    .default([]),
-  session_storage: z
-    .array(
-      z.strictObject({
-        origin: browserOriginSchema,
-        entries: z.array(storageEntrySchema).max(128),
-      }),
-    )
-    .max(32)
-    .default([]),
-});
+export const browserScenarioStorageSchema = z
+  .strictObject({
+    cookies: z
+      .array(
+        z.strictObject({
+          name: z.string().min(1).max(1_024),
+          value: browserScenarioValueSchema,
+          destination: browserScenarioUrlSchema,
+          http_only: z.boolean(),
+          secure: z.boolean(),
+          same_site: z.enum(["Strict", "Lax", "None"]),
+        }),
+      )
+      .max(128)
+      .default([]),
+    local_storage: z
+      .array(
+        z.strictObject({
+          origin: browserOriginSchema,
+          entries: z.array(storageEntrySchema).max(128),
+        }),
+      )
+      .max(32)
+      .default([]),
+    session_storage: z
+      .array(
+        z.strictObject({
+          origin: browserOriginSchema,
+          entries: z.array(storageEntrySchema).max(128),
+        }),
+      )
+      .max(32)
+      .default([]),
+  })
+  .default({ cookies: [], local_storage: [], session_storage: [] })
+  .describe(
+    "Optional initial cookies, local storage, or session storage. Defaults to empty; every supplied value and origin must be explicitly declared and approved.",
+  );
 
 const headerNameSchema = z
   .string()
@@ -298,17 +355,22 @@ const replayRouteSchema = z.strictObject({
   response: replayResponseSchema,
 });
 
-export const browserScenarioRequestReplaySchema = z.discriminatedUnion("mode", [
-  z.strictObject({ mode: z.literal("disabled") }),
-  z.strictObject({
-    mode: z.literal("exact"),
-    unmatched: z.enum(["abort", "passthrough-approved-origins"]),
-    routes: z
-      .array(replayRouteSchema)
-      .min(1)
-      .max(BROWSER_SCENARIO_LIMITS.replayRoutes),
-  }),
-]);
+export const browserScenarioRequestReplaySchema = z
+  .discriminatedUnion("mode", [
+    z.strictObject({ mode: z.literal("disabled") }),
+    z.strictObject({
+      mode: z.literal("exact"),
+      unmatched: z.enum(["abort", "passthrough-approved-origins"]),
+      routes: z
+        .array(replayRouteSchema)
+        .min(1)
+        .max(BROWSER_SCENARIO_LIMITS.replayRoutes),
+    }),
+  ])
+  .default({ mode: "disabled" })
+  .describe(
+    "Optional exact request replay. Defaults to disabled; replay routes and unmatched-request behavior must be explicitly declared when enabled.",
+  );
 
 export const browserScenarioSecretSchema = z.strictObject({
   secret_id: scenarioIdentifierSchema,
@@ -339,7 +401,9 @@ const normalizedNames = (maximum: number) =>
 
 export const browserScenarioRedactionSchema = z
   .strictObject({
-    secret_values: z.literal("replace-with-secret-reference"),
+    secret_values: z
+      .literal("replace-with-secret-reference")
+      .default("replace-with-secret-reference"),
     query_parameter_names: normalizedNames(128).default([]),
     header_names: normalizedNames(128).default([...REQUIRED_REDACTED_HEADERS]),
   })
@@ -351,7 +415,15 @@ export const browserScenarioRedactionSchema = z
           path: ["header_names"],
           message: `Required credential header ${required} must be redacted`,
         });
-  });
+  })
+  .default({
+    secret_values: "replace-with-secret-reference",
+    query_parameter_names: [],
+    header_names: [...REQUIRED_REDACTED_HEADERS],
+  })
+  .describe(
+    "Redaction policy. Secret values and credential headers are always redacted; list query parameter names when a secret is used in a URL.",
+  );
 
 const snapshotKindSchema = z.enum([
   "screenshot",
@@ -362,62 +434,28 @@ const snapshotKindSchema = z.enum([
   "storage",
 ]);
 
-export const browserScenarioCaptureSchema = z.strictObject({
-  after_each_step: z.array(snapshotKindSchema).max(6),
-  at_end: z.array(snapshotKindSchema).max(6),
-  events: z.array(
-    z.enum([
-      "console",
-      "page-errors",
-      "network",
-      "websockets",
-      "frames",
-      "workers",
-      "popups",
-      "downloads",
-    ]),
-  ),
-});
-
-export const browserScenarioCaptureLimitsSchema = z.strictObject({
-  max_duration_ms: z
-    .number()
-    .int()
-    .min(100)
-    .max(BROWSER_SCENARIO_LIMITS.durationMs),
-  action_timeout_ms: z
-    .number()
-    .int()
-    .min(1)
-    .max(BROWSER_SCENARIO_LIMITS.actionTimeoutMs),
-  navigation_timeout_ms: z
-    .number()
-    .int()
-    .min(1)
-    .max(BROWSER_SCENARIO_LIMITS.actionTimeoutMs),
-  max_events: z.number().int().min(1).max(100_000),
-  max_frames: z.number().int().min(1).max(1_000),
-  max_workers: z.number().int().min(0).max(1_000),
-  max_popups: z.number().int().min(0).max(100),
-  max_websockets: z.number().int().min(0).max(10_000),
-  max_dom_nodes: z.number().int().min(1).max(100_000),
-  max_accessibility_nodes: z.number().int().min(1).max(100_000),
-  max_screenshots: z.number().int().min(0).max(256),
-  max_screenshot_bytes: z
-    .number()
-    .int()
-    .min(1)
-    .max(8 * 1_024 * 1_024),
-  max_storage_entries: z
-    .number()
-    .int()
-    .min(0)
-    .max(BROWSER_SCENARIO_LIMITS.storageEntries),
-  max_total_metadata_bytes: z
-    .number()
-    .int()
-    .min(1_024)
-    .max(64 * 1_024 * 1_024),
-});
+export const browserScenarioCaptureSchema = z
+  .strictObject({
+    after_each_step: z.array(snapshotKindSchema).max(6).default([]),
+    at_end: z.array(snapshotKindSchema).max(6).default(["url"]),
+    events: z
+      .array(
+        z.enum([
+          "console",
+          "page-errors",
+          "network",
+          "websockets",
+          "frames",
+          "workers",
+          "popups",
+          "downloads",
+        ]),
+      )
+      .default([]),
+  })
+  .default({ after_each_step: [], at_end: ["url"], events: [] })
+  .describe(
+    "Optional retained artifacts and event families. Defaults to only a final sanitized URL; request screenshots, DOM, accessibility, history, storage, and event capture explicitly.",
+  );
 
 export const browserScenarioAllowedOriginsSchema = browserAllowedOriginsSchema;

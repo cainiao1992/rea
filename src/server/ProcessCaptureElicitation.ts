@@ -19,7 +19,6 @@ import {
 } from "../domain/permissionPolicy.js";
 
 const RESPONSE_KEY = "process_capture_grant";
-const STATE_VERSION = 1;
 
 /** Shared continuation, replay, and round limits for process capture consent. */
 export const PROCESS_CAPTURE_ELICITATION_POLICY = {
@@ -41,7 +40,6 @@ Reflect.deleteProperty(grantResponseJsonSchema, "$schema");
 Reflect.deleteProperty(grantResponseJsonSchema, "additionalProperties");
 
 const stateSchema = z.strictObject({
-  version: z.literal(STATE_VERSION),
   nonce: z.string().uuid(),
   request: z.strictObject({
     capability: z.literal("process_capture"),
@@ -130,7 +128,6 @@ export const authorizeProcessCaptureWithElicitation = async (
   }
 
   const state = await elicitation.stateCodec.mint({
-    version: STATE_VERSION,
     nonce: randomUUID(),
     request: {
       capability: "process_capture",

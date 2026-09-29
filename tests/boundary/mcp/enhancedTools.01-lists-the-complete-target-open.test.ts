@@ -188,15 +188,14 @@ describe("enhanced MCP tools", () => {
     ).toEqual(ENHANCED_TOOL_CONTRACTS.map(({ name }) => name).sort());
   });
 
-  it("executes all thirteen tools through production registration", async () => {
+  it("executes all twelve tools through production registration", async () => {
     const client = await connect();
     const calls = [
-      ["swift_classes", { pattern: "Fixture" }],
       ["get_objc_classes", { pattern: "Fixture" }],
       ["get_objc_protocols", {}],
       ["batch_decompile", { addresses: ["0x1", "0x2"] }],
       ["get_call_graph", { address: "0x1", direction: "forward" }],
-      ["analyze_swift_types", {}],
+      ["analyze_swift_types", { category: "classes", pattern: "Fixture" }],
       ["find_xrefs_to_name", { name: "entry" }],
       ["binary_overview", {}],
       ["analyze_function", { procedure: "0x1" }],
@@ -212,8 +211,7 @@ describe("enhanced MCP tools", () => {
     );
     expect(results[0]).toMatchObject({ count: 1 });
     expect(results[1]).toMatchObject({ count: 1 });
-    expect(results[2]).toMatchObject({ count: 1 });
-    expect(results[3]).toEqual({
+    expect(results[2]).toEqual({
       items: [
         { address: "0x1", status: "ok", pseudocode: "pseudo:0x1" },
         { address: "0x2", status: "ok", pseudocode: "pseudo:0x2" },
@@ -222,31 +220,39 @@ describe("enhanced MCP tools", () => {
       succeeded: 2,
       failed: 0,
     });
-    expect(results[4]).toEqual({
+    expect(results[3]).toEqual({
       "0": [{ address: "0x1", status: "ok", calls: ["0x2", "0x3"] }],
       "1": [
         { address: "0x2", status: "ok", calls: ["0x1"] },
         { address: "0x3", status: "ok", calls: [] },
       ],
     });
-    expect(results[5]).toMatchObject({ total: 6 });
-    expect(results[6]).toEqual({
+    expect(results[4]).toMatchObject({
+      total: 1,
+      categories: {
+        classes: {
+          count: 1,
+          items: [{ address: "0x1", name: "_TtC7Fixture5Class" }],
+        },
+      },
+    });
+    expect(results[5]).toEqual({
       status: "resolved",
       name: "entry",
       address: "0x13",
       xrefs: ["0x20", "0x21"],
     });
-    expect(results[7]).toMatchObject({
+    expect(results[6]).toMatchObject({
       document: "fixture",
       segment_count: 1,
       procedure_count: 6,
       string_count: 1,
     });
-    expect(results[8]).toMatchObject({
+    expect(results[7]).toMatchObject({
       procedure: { address: "0x1", name: "entry" },
       pseudocode: "return 0;",
     });
-    expect(results[9]).toMatchObject({
+    expect(results[8]).toMatchObject({
       procedure: { address: "0x1", name: "entry" },
       boundary: { available: false },
       unsupported_branches: [
@@ -262,7 +268,7 @@ describe("enhanced MCP tools", () => {
         { operation: "preserve_residual_unknowns", status: "completed" },
       ],
     });
-    expect(results[10]).toMatchObject({
+    expect(results[9]).toMatchObject({
       query: "hello",
       search_mode: "literal",
       truncated: false,
@@ -271,12 +277,12 @@ describe("enhanced MCP tools", () => {
         { target_address: "0x30", source_address: "0x21" },
       ],
     });
-    expect(results[11]).toMatchObject({
+    expect(results[10]).toMatchObject({
       query: "hello",
       matches: [{ type: "string", address: "0x30", value: "hello" }],
       truncated: false,
     });
-    expect(results[12]).toMatchObject({
+    expect(results[11]).toMatchObject({
       start: "0x1",
       goal: "0x2",
       direction: "forward",

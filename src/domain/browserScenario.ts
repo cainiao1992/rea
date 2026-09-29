@@ -2,10 +2,10 @@ import { z } from "zod";
 
 import {
   BROWSER_SCENARIO_LIMITS,
+  BROWSER_SCENARIO_CAPTURE_LIMITS,
   browserScenarioActionSchema,
   browserScenarioAllowedOriginsSchema,
   browserScenarioBrowserSchema,
-  browserScenarioCaptureLimitsSchema,
   browserScenarioCaptureSchema,
   browserScenarioEnvironmentSchema,
   browserScenarioRedactionSchema,
@@ -28,25 +28,41 @@ export {
   type BrowserScenarioValue,
 } from "./browserScenarioValues.js";
 
-const scenarioShapeSchema = z.strictObject({
-  browser: browserScenarioBrowserSchema,
-  start_url: browserScenarioUrlSchema,
-  allowed_origins: browserScenarioAllowedOriginsSchema,
+export const browserScenarioInputSchema = z.strictObject({
+  browser: browserScenarioBrowserSchema.describe(
+    "Required launch/connect authority. Launch uses the approved executable and an owned temporary profile; connect uses one approved loopback CDP endpoint and target.",
+  ),
+  start_url: browserScenarioUrlSchema.describe(
+    "Required initial HTTP(S) URL. Query values must be declared separately as public literals or secret references.",
+  ),
+  allowed_origins: browserScenarioAllowedOriginsSchema.describe(
+    "Required exact HTTP(S) origins for the start URL and every later navigation, storage seed, and replay route.",
+  ),
   environment: browserScenarioEnvironmentSchema,
   actions: z
     .array(browserScenarioActionSchema)
     .min(1)
-    .max(BROWSER_SCENARIO_LIMITS.actions),
+    .max(BROWSER_SCENARIO_LIMITS.actions)
+    .describe("Required bounded sequence of explicit browser actions."),
   storage: browserScenarioStorageSchema,
   request_replay: browserScenarioRequestReplaySchema,
   secrets: z
     .array(browserScenarioSecretSchema)
     .max(BROWSER_SCENARIO_LIMITS.secrets)
-    .default([]),
+    .default([])
+    .describe(
+      "Optional references to approved environment variables. Secret values are never supplied inline; declarations are required only when an action, URL, storage value, or replay route references a secret.",
+    ),
   redaction: browserScenarioRedactionSchema,
   capture: browserScenarioCaptureSchema,
-  limits: browserScenarioCaptureLimitsSchema,
 });
+
+const scenarioShapeSchema = browserScenarioInputSchema.transform(
+  (scenario) => ({
+    ...scenario,
+    limits: BROWSER_SCENARIO_CAPTURE_LIMITS,
+  }),
+);
 
 type ScenarioShape = z.infer<typeof scenarioShapeSchema>;
 

@@ -42,8 +42,7 @@ export const registerCompareSourceToBundleTool = (
         options,
         contract,
         result.value,
-        resolved.value.unknown_registry_approved === true &&
-          comparison.summary.unknown > 0
+        comparison.summary.unknown > 0
           ? "source-to-bundle-comparison"
           : undefined,
       );

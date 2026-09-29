@@ -45,9 +45,7 @@ export const registerCompareJavaScriptExportShapesTool = (
         options,
         contract,
         result.value,
-        parsed.unknown_registry_approved === true && unknown
-          ? "javascript-export-shape"
-          : undefined,
+        unknown ? "javascript-export-shape" : undefined,
       );
     },
   );

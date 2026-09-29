@@ -44,10 +44,6 @@ export const processComparisonInputSchema = z.strictObject({
   right_evidence_id: z.string().regex(/^ev_[a-f0-9]{64}$/u),
   trace_spec: processTraceSpecificationSchema.optional(),
   max_capture_age_ms: z.number().int().nonnegative().optional(),
-  unknown_registry_approved: z
-    .literal(true)
-    .optional()
-    .describe("Explicit approval to record capture disagreement durably"),
 });
 
 /** Residual-unknown list filters. */

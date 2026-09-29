@@ -180,30 +180,4 @@ describe("enhanced MCP tools", () => {
       JSON.stringify(result.structuredContent),
     );
   });
-
-  it("rejects legacy paged collection wrappers", async () => {
-    const malformedPort = fixturePort();
-    const client = await connect({
-      execute: async (name, arguments_, options) => {
-        const result = await malformedPort.execute(name, arguments_, options);
-        if (!result.ok || name !== "analyze_function") return result;
-        const dossier = result.value.result;
-        if (
-          typeof dossier !== "object" ||
-          dossier === null ||
-          Array.isArray(dossier)
-        )
-          return result;
-        return ok({
-          ...dossier,
-          callers: { items: [], total: 1, returned: 0 },
-        });
-      },
-    });
-    const result = await client.callTool({
-      name: "analyze_function",
-      arguments: { procedure: "0x1" },
-    });
-    expect(result.isError).toBe(true);
-  });
 });

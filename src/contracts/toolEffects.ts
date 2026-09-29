@@ -80,7 +80,6 @@ export const TOOL_EFFECTS: Readonly<Record<string, ToolEffects>> = {
     mayDiscardData: true,
   }),
   xrefs: evidence,
-  swift_classes: evidence,
   get_objc_classes: evidence,
   get_objc_protocols: evidence,
   batch_decompile: evidence,

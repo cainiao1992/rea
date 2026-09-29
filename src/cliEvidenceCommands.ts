@@ -19,13 +19,13 @@ import {
 import { loadConfiguredPermissionAuthority } from "./application/PermissionConfiguration.js";
 import type { AppConfig } from "./config.js";
 
-/** Register filesystem-gated Evidence v2 commands. */
+/** Register filesystem-gated Evidence commands. */
 export const registerEvidenceCommands = (
   cli: ReturnType<typeof Cli.create>,
   logger: Logger,
 ): void => {
   cli.command(CLI_COMMANDS.evidenceImport, {
-    description: "Validate and import a bounded local Evidence v2 bundle",
+    description: "Validate and import a bounded local Evidence bundle",
     args: z.object({
       path: z.string().describe("Evidence bundle JSON path"),
     }),
@@ -45,7 +45,7 @@ export const registerEvidenceCommands = (
       }),
   });
   cli.command(CLI_COMMANDS.evidenceExport, {
-    description: "Validate and atomically export canonical Evidence v2 JSON",
+    description: "Validate and atomically export canonical Evidence JSON",
     args: z.object({
       source: z.string().describe("Existing evidence bundle JSON path"),
       output: z.string().describe("Canonical output JSON path"),
@@ -73,7 +73,7 @@ export const registerEvidenceCommands = (
   });
   cli.command(CLI_COMMANDS.compare, {
     aliases: ["compare-bundles"],
-    description: "Compare two canonical Evidence v2 bundles",
+    description: "Compare two canonical Evidence bundles",
     args: z.object({
       left: z.string().describe("Left Evidence bundle JSON path"),
       right: z.string().describe("Right Evidence bundle JSON path"),

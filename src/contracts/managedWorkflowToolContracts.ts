@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-import { compareManagedMembersInputSchema } from "../domain/managedMemberComparison.js";
-import { managedNativeVerificationInputSchema } from "../domain/managedNativeVerification.js";
 import { managedReconstructionImportInputSchema } from "../domain/managedReconstruction.js";
 import { managedRuntimeCorrelationInputSchema } from "../domain/managedRuntimeCorrelation.js";
 import type { ToolContract } from "./toolContracts.js";
@@ -35,8 +33,6 @@ export const compareManagedMembersReferenceInputSchema = z
   .strictObject({
     left_evidence_id: managedEvidenceIdSchema,
     right_evidence_id: managedEvidenceIdSchema,
-    unknown_registry_approved:
-      compareManagedMembersInputSchema.shape.unknown_registry_approved,
   })
   .superRefine((input, context) => {
     if (input.left_evidence_id === input.right_evidence_id)
@@ -67,8 +63,6 @@ export const managedNativeVerificationReferenceInputSchema = z
       .array(nativeObservationEvidenceIdSchema)
       .min(1)
       .describe("Unique session-owned native observation Evidence IDs"),
-    unknown_registry_approved:
-      managedNativeVerificationInputSchema.shape.unknown_registry_approved,
   })
   .superRefine((input, context) => {
     const ids = new Set<string>();

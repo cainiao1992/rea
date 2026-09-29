@@ -207,7 +207,6 @@ const callPathTraceOutput = resultOf(
 
 /** Exact structured-content schemas for composed analysis workflows. */
 export const enhancedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
-  swift_classes: symbolDiscoveryOutput("classes"),
   get_objc_classes: symbolDiscoveryOutput("classes"),
   get_objc_protocols: symbolDiscoveryOutput("protocols"),
   batch_decompile: resultOf(
@@ -282,7 +281,7 @@ export const enhancedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   trace_call_path: callPathTraceOutput,
 };
 
-/** Exact Evidence v2 schemas for provider-neutral native inspection. */
+/** Exact Evidence schemas for provider-neutral native inspection. */
 export const nativeOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   inspect_macho: resultOf(inspectMachoSchema),
   inspect_signature: resultOf(inspectSignatureSchema),
@@ -291,13 +290,13 @@ export const nativeOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   demangle_swift: resultOf(demangleSwiftSchema),
 };
 
-/** Exact Evidence v2 schemas for provider-neutral artifact graph operations. */
+/** Exact Evidence schemas for provider-neutral artifact graph operations. */
 export const artifactOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   inspect_artifact: resultOf(artifactInspectionResultSchema),
   extract_artifact: resultOf(artifactExtractionResultSchema),
 };
 
-/** Exact Evidence v2 schema for execution-free managed static analysis. */
+/** Exact Evidence schema for execution-free managed static analysis. */
 export const managedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   inspect_managed_artifact: resultOf(managedArtifactInspectionSchema),
   inspect_managed_members: resultOf(managedMemberInspectionSchema),
@@ -306,7 +305,7 @@ export const managedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   ),
 };
 
-/** Exact Evidence v2 schema for provider-neutral managed workflows. */
+/** Exact Evidence schema for provider-neutral managed workflows. */
 export const managedWorkflowOutputSchemas: Readonly<
   Record<string, z.ZodObject>
 > = {

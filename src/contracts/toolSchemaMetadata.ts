@@ -17,8 +17,8 @@ const PROPERTY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   direction: "Direction in which to traverse or compare relationships.",
   document: "Exact provider document or program identity.",
   error: "Structured, caller-actionable error when the operation fails.",
-  evidence: "Evidence v2 record produced by this operation.",
-  evidence_id: "Stable identifier of the recorded Evidence v2 observation.",
+  evidence: "Evidence record produced by this operation.",
+  evidence_id: "Stable identifier of the recorded Evidence observation.",
   executable: "Approved absolute path of the executable to run.",
   format: "Declared input artifact format.",
   name: "Exact name used by this operation.",
@@ -44,8 +44,6 @@ const PROPERTY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   symbols: "Ordered bounded Swift symbols to demangle.",
   target_id: "Exact authorized CDP target identifier.",
   unknown_id: "Exact residual-unknown identifier.",
-  unknown_registry_approved:
-    "Explicit approval to record bounded residual uncertainty in the session registry.",
 };
 
 /** Attach caller guidance to a canonical schema for the SDK wire projection. */
@@ -124,9 +122,9 @@ const fallbackPropertyDescription = (property: string): string => {
   if (property.endsWith("_sha256"))
     return `Exact SHA-256 digest of ${words.slice(0, -7)}.`;
   if (property.endsWith("_evidence_id"))
-    return `Exact Evidence v2 identifier for the ${words.slice(0, -12)} observation.`;
+    return `Exact Evidence identifier for the ${words.slice(0, -12)} observation.`;
   if (property.endsWith("_evidence_ids"))
-    return `Ordered Evidence v2 identifiers for the ${words.slice(0, -13)} observations.`;
+    return `Ordered Evidence identifiers for the ${words.slice(0, -13)} observations.`;
   if (property.endsWith("_path"))
     return `Local filesystem path for ${words.slice(0, -5)}.`;
   if (property.endsWith("_uri"))

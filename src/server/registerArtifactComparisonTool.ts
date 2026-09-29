@@ -75,11 +75,13 @@ const artifactUnknownInput = (
   input: {
     readonly left_evidence_id: string;
     readonly right_evidence_id: string;
-    readonly unknown_registry_approved?: true | undefined;
   },
   status: ReturnType<typeof compareArtifacts>["status"],
 ): RecordUnknownInput | undefined => {
-  if (input.unknown_registry_approved !== true || status === "unchanged")
+  if (
+    status === "unchanged" ||
+    input.left_evidence_id === input.right_evidence_id
+  )
     return undefined;
   return {
     question: `Artifact comparison is ${status}`,

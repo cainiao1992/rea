@@ -79,7 +79,6 @@ const registerChangedBehavior = (
       const recorded = recordWorkflowEvidence(
         session,
         evidence,
-        input.unknown_registry_approved,
         isIncomplete(result.behavior_status),
         {
           question:
@@ -137,7 +136,6 @@ const registerCallPath = (
       const recorded = recordWorkflowEvidence(
         session,
         evidence,
-        input.unknown_registry_approved,
         result.status === "unknown",
         {
           question:
@@ -198,7 +196,6 @@ const registerStaticRuntime = (
         recordWorkflowEvidence(
           session,
           evidence,
-          input.unknown_registry_approved,
           result.status === "unknown" || result.status === "truncated",
           {
             question:
@@ -253,24 +250,16 @@ const registerReconstruction = (
         evidenceLinks: links,
       });
       return toCallToolResult(
-        recordWorkflowEvidence(
-          session,
-          evidence,
-          input.unknown_registry_approved,
-          result.status === "unknown",
-          {
-            question: "Does the reconstruction satisfy every declared claim?",
-            domain: "reconstruction-verification",
-            requiredAuthority: null,
-            requiredConfidence: "derived",
-            probes: result.recommended_probes.map(
-              ({ operation, rationale }) => ({
-                operation,
-                rationale,
-              }),
-            ),
-          },
-        ),
+        recordWorkflowEvidence(session, evidence, result.status === "unknown", {
+          question: "Does the reconstruction satisfy every declared claim?",
+          domain: "reconstruction-verification",
+          requiredAuthority: null,
+          requiredConfidence: "derived",
+          probes: result.recommended_probes.map(({ operation, rationale }) => ({
+            operation,
+            rationale,
+          })),
+        }),
         contract,
       );
     },

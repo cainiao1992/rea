@@ -122,7 +122,6 @@ const captureScreenshot = async (
     return {
       state: "captured" as const,
       value: {
-        uri: `rea://web-screenshot/sha256/${sha256}`,
         sha256,
         bytes: bytes.byteLength,
         media_type: "image/png" as const,

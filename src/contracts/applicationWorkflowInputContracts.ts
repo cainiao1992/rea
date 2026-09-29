@@ -51,8 +51,6 @@ const compareApplicationVersionsFacts = {
   right_native_observations:
     compareApplicationVersionsInputSchema.shape.right_native_observations,
   right_native_observation_evidence_ids: z.array(evidenceIdSchema).default([]),
-  unknown_registry_approved:
-    compareApplicationVersionsInputSchema.shape.unknown_registry_approved,
 } as const;
 
 const applicationEvidenceReferenceSchema = z.union([
@@ -95,9 +93,6 @@ export const compareApplicationVersionsRequestSchema = z
 
 const compareSourceToBundleFacts = {
   reference: compareSourceToBundleInputSchema.shape.reference,
-  limits: compareSourceToBundleInputSchema.shape.limits,
-  unknown_registry_approved:
-    compareSourceToBundleInputSchema.shape.unknown_registry_approved,
 } as const;
 
 /** Historical-source comparison accepting full application Evidence or a ledger reference. */
@@ -121,8 +116,6 @@ const compareJavaScriptExportShapesFacts = {
     compareJavaScriptExportShapesInputSchema.shape.right_module_path,
   right_export_name:
     compareJavaScriptExportShapesInputSchema.shape.right_export_name,
-  unknown_registry_approved:
-    compareJavaScriptExportShapesInputSchema.shape.unknown_registry_approved,
 } as const;
 
 /** MCP/CLI export-shape request accepting full Evidence or ledger references. */

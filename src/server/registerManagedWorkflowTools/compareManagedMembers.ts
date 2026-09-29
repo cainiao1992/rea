@@ -50,28 +50,27 @@ export const registerCompareManagedMembers = (
         result.value.normalized_result,
       );
       const unknown = comparison.summary.unknown > 0;
-      const output =
-        parsed.unknown_registry_approved === true && unknown
-          ? options.recordEvidenceWithUnknown?.(result.value, {
-              question:
-                "Which managed members remain unmatched or ambiguous across these versions?",
-              severity: "medium",
-              domain: "managed-member-comparison",
-              supporting_evidence_ids: [result.value.evidence_id],
-              contradicting_evidence_ids: [],
-              required_authority: "shipped-artifact",
-              required_confidence: "observed",
-              required_environment: null,
-              recommended_probes: [
-                {
-                  operation: "inspect_managed_members",
-                  rationale:
-                    "Repeat static member inspection with complete pages and method bodies.",
-                },
-              ],
-              relationships: [],
-            })
-          : options.recordEvidence?.(result.value);
+      const output = unknown
+        ? options.recordEvidenceWithUnknown?.(result.value, {
+            question:
+              "Which managed members remain unmatched or ambiguous across these versions?",
+            severity: "medium",
+            domain: "managed-member-comparison",
+            supporting_evidence_ids: [result.value.evidence_id],
+            contradicting_evidence_ids: [],
+            required_authority: "shipped-artifact",
+            required_confidence: "observed",
+            required_environment: null,
+            recommended_probes: [
+              {
+                operation: "inspect_managed_members",
+                rationale:
+                  "Repeat static member inspection with complete pages and method bodies.",
+              },
+            ],
+            relationships: [],
+          })
+        : options.recordEvidence?.(result.value);
       if (output !== undefined && !output.ok)
         return toCallToolResult(output, compareContract);
       return toCallToolResult(

@@ -124,15 +124,10 @@ const comparisonUnknownInput = (
   parsed: {
     readonly left_evidence_id: string;
     readonly right_evidence_id: string;
-    readonly unknown_registry_approved?: true | undefined;
   },
   comparison: ReturnType<typeof compareProcessCaptures>,
 ): RecordUnknownInput | undefined => {
-  if (
-    parsed.unknown_registry_approved !== true ||
-    comparison.status === "unchanged"
-  )
-    return undefined;
+  if (comparison.status === "unchanged") return undefined;
   const differingScopes = [
     ["terminal", comparison.terminal],
     ["interaction", comparison.interaction],

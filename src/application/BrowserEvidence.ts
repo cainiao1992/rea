@@ -124,8 +124,8 @@ const browserParameters = (
       };
     if (isScreenshotComparison(input))
       return {
-        before_artifact_uri: input.before.uri,
-        after_artifact_uri: input.after.uri,
+        before_artifact_sha256: input.before.sha256,
+        after_artifact_sha256: input.after.sha256,
         channel_threshold: input.channel_threshold,
         maximum_pixels: input.maximum_pixels,
       };

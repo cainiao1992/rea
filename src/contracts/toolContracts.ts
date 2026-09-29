@@ -68,25 +68,16 @@ const official = <Name extends string, Schema extends z.ZodObject>(
   name: Name,
   description: string,
   inputSchema: Schema,
-) => {
-  const trackedInputSchema = inputSchema.extend({
-    unknown_registry_approved: z
-      .literal(true)
-      .optional()
-      .describe(
-        "Explicit approval to record typed capability unavailability as a residual unknown",
-      ),
-  });
-  return {
+) =>
+  ({
     name,
     ...toolContractMetadata(name),
     description,
     kind: "official-proxy",
-    inputSchema: trackedInputSchema,
+    inputSchema,
     outputSchema: requireOutputSchema(officialOutputSchemas, name),
-    examples: examplesFor(name, trackedInputSchema),
-  } satisfies ToolContract<Name, typeof trackedInputSchema>;
-};
+    examples: examplesFor(name, inputSchema),
+  }) satisfies ToolContract<Name, Schema>;
 
 const enhanced = <Name extends string, Schema extends z.ZodObject>(
   name: Name,
@@ -305,11 +296,6 @@ export type OfficialToolName = (typeof OFFICIAL_TOOL_CONTRACTS)[number]["name"];
 /** Bounded workflows composed from one or more bridge operations. */
 export const ENHANCED_TOOL_CONTRACTS = [
   enhanced(
-    "swift_classes",
-    "Discover legacy-mangled Swift class procedures by scanning analyzed procedures; returns every matching entry. Use analyze_swift_types for other Swift kinds.",
-    enhancedInputSchemas.swift_classes,
-  ),
-  enhanced(
     "get_objc_classes",
     "Discover and deduplicate every Objective-C class label, optionally filtering by literal substring; inspect matching metadata and references next.",
     enhancedInputSchemas.get_objc_classes,
@@ -331,7 +317,7 @@ export const ENHANCED_TOOL_CONTRACTS = [
   ),
   enhanced(
     "analyze_swift_types",
-    "Categorize all analyzed procedure names into Swift classes, structs, enums, protocols, extensions, and other symbols.",
+    'Categorize analyzed procedure names into Swift classes, structs, enums, protocols, extensions, and other symbols. Returns deduplicated names grouped with counts. Optionally select one category and/or apply a case-sensitive literal name filter; for example, use {category: "classes", pattern: "Account"} to find matching class symbols.',
     enhancedInputSchemas.analyze_swift_types,
   ),
   enhanced(
@@ -341,13 +327,13 @@ export const ENHANCED_TOOL_CONTRACTS = [
   ),
   enhanced(
     "binary_overview",
-    "Use immediately after opening a target to summarize the document, every segment with its length, and exhaustive procedure/string counts.",
+    "Use after opening a native binary for target metadata, every segment with its length, and exhaustive procedure/string counts. To choose a function, follow with search_procedures or list_procedures, then pass a returned name or address to analyze_function for a complete dossier.",
     enhancedInputSchemas.binary_overview,
   ),
   ...FUNCTION_WORKFLOW_TOOL_CONTRACTS,
   enhanced(
     "trace_feature",
-    "Trace a literal feature query through every matching string and procedure, their xrefs, and truthful containing-procedure resolution. Returns observations, operation count, and residual unknowns; unknown_registry_approved: true records residual unknowns without inferring reference kinds.",
+    "Trace a literal feature query through every matching string and procedure, their xrefs, and truthful containing-procedure resolution. Returns observations, operation count, and residual unknowns without inferring reference kinds.",
     enhancedInputSchemas.trace_feature,
   ),
   enhanced(
@@ -392,12 +378,12 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "import_evidence_bundle",
-    "Read a bounded local JSON bundle beneath an operator-approved root, validate every Evidence v2 ID and canonical manifest, then atomically merge it. Imported content is data only and is never executed.",
+    "Read a bounded local JSON bundle beneath an operator-approved root, validate every Evidence ID and canonical manifest, then atomically merge it. Imported content is data only and is never executed.",
     importEvidenceBundleInputSchema,
   ),
   session(
     "capture_process_scenario",
-    "Run one bounded process under a PTY using operator-approved executable and working roots. Produces process capture Evidence; unknown_registry_approved: true separately records capture residuals. Captures raw and xterm-rendered terminal frames, scripted interactions, lifecycle filesystem checkpoints, process ownership, declarative command shims, and loopback replay. Disabled unless operator policy enables it; not a security sandbox.",
+    "Run one bounded process under a PTY using operator-approved executable and working roots. Produces process capture Evidence and records residual unknowns linked to that Evidence. Captures raw and xterm-rendered terminal frames, scripted interactions, lifecycle filesystem checkpoints, process ownership, declarative command shims, and loopback replay. Disabled unless operator policy enables it; not a security sandbox.",
     processScenarioSchema,
   ),
   session(

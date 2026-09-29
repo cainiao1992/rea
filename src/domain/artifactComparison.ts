@@ -44,10 +44,6 @@ const comparisonDimensionSchema = z.enum([
 export const artifactComparisonInputSchema = z.strictObject({
   left_evidence_id: evidenceIdSchema,
   right_evidence_id: evidenceIdSchema,
-  unknown_registry_approved: z
-    .literal(true)
-    .optional()
-    .describe("Explicit approval to record incomplete or differing evidence"),
 });
 
 /** One path-classified artifact change with citations to both observations. */

@@ -60,8 +60,6 @@ const statusCapability = (
       } = { available: true },
 ) => ({
   operation,
-  input_contract_version: 1,
-  output_contract_version: 1,
   effects: {
     mutates_artifact: false,
     launches_process: false,

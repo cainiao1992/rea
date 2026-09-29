@@ -26,7 +26,6 @@ import {
   categorizeSwiftTypes,
   discoverObjcClasses,
   discoverObjcProtocols,
-  discoverSwiftClasses,
 } from "../domain/symbolAnalysis.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 
@@ -63,12 +62,6 @@ export class EnhancedTools {
     if (name === "analyze_function" || name === "inspect_native_api")
       return this.#executeFunctionAnalysis(name, input, signal);
     switch (name) {
-      case "swift_classes": {
-        const parsed = enhancedInputSchemas.swift_classes.safeParse(input);
-        return parsed.success
-          ? this.executeValidated({ name, input: parsed.data }, signal)
-          : invalidEnhancedInput(name, parsed.error);
-      }
       case "get_objc_classes": {
         const parsed = enhancedInputSchemas.get_objc_classes.safeParse(input);
         return parsed.success
@@ -89,8 +82,13 @@ export class EnhancedTools {
           ? this.executeValidated({ name, input: parsed.data }, signal)
           : invalidEnhancedInput(name, parsed.error);
       }
-      case "analyze_swift_types":
-        return this.executeValidated({ name, input: {} }, signal);
+      case "analyze_swift_types": {
+        const parsed =
+          enhancedInputSchemas.analyze_swift_types.safeParse(input);
+        return parsed.success
+          ? this.executeValidated({ name, input: parsed.data }, signal)
+          : invalidEnhancedInput(name, parsed.error);
+      }
       case "find_xrefs_to_name": {
         const parsed = enhancedInputSchemas.find_xrefs_to_name.safeParse(input);
         return parsed.success
@@ -112,8 +110,6 @@ export class EnhancedTools {
     signal?: AbortSignal,
   ): EnhancedResult {
     switch (call.name) {
-      case "swift_classes":
-        return this.#swiftClasses(call.input.pattern, signal);
       case "get_objc_classes":
         return this.#objcClasses(call.input.pattern, signal);
       case "get_objc_protocols":
@@ -123,7 +119,7 @@ export class EnhancedTools {
       case "get_call_graph":
         return this.#callGraph(call.input, signal);
       case "analyze_swift_types":
-        return this.#analyzeSwiftTypes(signal);
+        return this.#analyzeSwiftTypes(call.input, signal);
       case "find_xrefs_to_name":
         return this.#findXrefs(call.input.name, signal);
       case "binary_overview":
@@ -214,13 +210,6 @@ export class EnhancedTools {
     if (!parsed.ok) return parsed;
     const dossier = functionDossierSchema.parse(parsed.value);
     return ok(jsonValueSchema.parse(projectNativeApiInspection(dossier)));
-  }
-
-  async #swiftClasses(pattern: string, signal?: AbortSignal): EnhancedResult {
-    const procedures = await this.#allAddressed("list_procedures", signal);
-    return procedures.ok
-      ? ok(discoverSwiftClasses(procedures.value, pattern))
-      : procedures;
   }
 
   async #objcClasses(pattern: string, signal?: AbortSignal): EnhancedResult {
@@ -333,10 +322,13 @@ export class EnhancedTools {
     return ok(graph);
   }
 
-  async #analyzeSwiftTypes(signal?: AbortSignal): EnhancedResult {
+  async #analyzeSwiftTypes(
+    input: z.output<typeof enhancedInputSchemas.analyze_swift_types>,
+    signal?: AbortSignal,
+  ): EnhancedResult {
     const procedures = await this.#allAddressed("list_procedures", signal);
     return procedures.ok
-      ? ok(categorizeSwiftTypes(procedures.value))
+      ? ok(categorizeSwiftTypes(procedures.value, input))
       : procedures;
   }
 

@@ -8,7 +8,7 @@ import { createServer } from "../../../src/server/createServer.js";
 import { observed } from "../../fixtures/analysisExecution.js";
 
 describe("function comparison MCP integration", () => {
-  it("records linked comparison Evidence and an approved residual unknown", async () => {
+  it("records linked comparison Evidence and its residual unknown", async () => {
     const session = createTestBinarySession(() => ({
       health: () => Promise.resolve(),
       execute: () => Promise.resolve(observed(null)),
@@ -35,7 +35,6 @@ describe("function comparison MCP integration", () => {
         arguments: {
           left_evidence_id: FUNCTION_COMPARISON_EXAMPLE.left.evidence_id,
           right_evidence_id: FUNCTION_COMPARISON_EXAMPLE.right.evidence_id,
-          unknown_registry_approved: true,
         },
       });
       expect(result.isError).not.toBe(true);

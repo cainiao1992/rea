@@ -5,6 +5,7 @@ import type { BrowserScenarioCapturePort } from "../application/BrowserScenarioC
 import { captureBrowserScenario } from "../application/BrowserScenarioCaptureService.js";
 import type { PermissionAuthority } from "../application/PermissionAuthority.js";
 import { BROWSER_SCENARIO_TOOL_CONTRACTS } from "../contracts/browserScenarioToolContracts.js";
+import { browserScenarioSchema } from "../domain/browserScenario.js";
 import type { Logger } from "../logger.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
@@ -27,11 +28,12 @@ export const registerBrowserScenarioTool = (
     contract.name,
     toolRegistrationOptions(contract),
     async (input, context) => {
+      const scenario = browserScenarioSchema.parse(input);
       const result = await logToolExecution(options.logger, contract.name, () =>
         captureBrowserScenario(
           options.provider,
           options.permissionAuthority,
-          input,
+          scenario,
           { signal: context.mcpReq.signal },
         ),
       );

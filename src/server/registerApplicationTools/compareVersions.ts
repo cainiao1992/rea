@@ -54,9 +54,7 @@ export const registerCompareApplicationVersionsTool = (
         options,
         compareContract,
         result.value,
-        parsed.unknown_registry_approved === true && unknown
-          ? "application-version-comparison"
-          : undefined,
+        unknown ? "application-version-comparison" : undefined,
       );
     },
   );

@@ -1,7 +1,7 @@
 import type { BinarySessionPort } from "../application/BinarySession.js";
 import { EvidenceIntegrityError } from "../domain/errors.js";
 import type { Evidence } from "../domain/evidence.js";
-import { err, ok, type Result } from "../domain/result.js";
+import { ok, type Result } from "../domain/result.js";
 
 /** Record source evidence in order, stopping at the first session rejection. */
 export const recordSessionEvidenceSources = (

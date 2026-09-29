@@ -10,7 +10,6 @@ import { inspectManagedMembersBytes } from "../dotnet/ManagedMemberInspector.js"
 import {
   buildManagedPeFixture,
   managedPeFixtureTarget,
-  MANAGED_MEMBER_FIXTURE_LIMITS,
 } from "../dotnet/ManagedPe.fixture.js";
 
 describe("managed member comparison", () => {
@@ -115,35 +114,6 @@ describe("managed member comparison", () => {
       }).success,
     ).toBe(false);
   });
-
-  it("does not match identical instruction-limited method prefixes", () => {
-    const limited = {
-      ...MANAGED_MEMBER_FIXTURE_LIMITS,
-      maxMethodInstructions: 1,
-    };
-    const left = inspect(
-      buildManagedPeFixture(),
-      "/tmp/left-partial.dll",
-      limited,
-    );
-    const right = inspect(
-      buildManagedPeFixture(),
-      "/tmp/right-partial.dll",
-      limited,
-    );
-    const result = compareManagedMembers(
-      { evidenceId: left.evidenceId, result: left.result },
-      { evidenceId: right.evidenceId, result: right.result },
-    );
-
-    expect(result.matching.exact_il_signature).toBe(0);
-    expect(result.matching.structural_method_shape).toBe(0);
-    expect(result.coverage).toMatchObject({
-      status: "partial",
-      left_status: "partial",
-      right_status: "partial",
-    });
-  });
 });
 
 describe("managed member comparison uncertainty", () => {
@@ -244,13 +214,9 @@ describe("managed member comparison uncertainty", () => {
   });
 });
 
-const inspect = (
-  bytes: Buffer,
-  path: string,
-  limits: typeof MANAGED_MEMBER_FIXTURE_LIMITS = MANAGED_MEMBER_FIXTURE_LIMITS,
-) => {
+const inspect = (bytes: Buffer, path: string) => {
   const target = managedPeFixtureTarget(bytes, path);
-  const result = inspectManagedMembersBytes(bytes, target, limits);
+  const result = inspectManagedMembersBytes(bytes, target);
   return {
     result,
     evidenceId: `ev_${hash(Buffer.from(path))}`,

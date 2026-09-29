@@ -14,15 +14,8 @@ import {
   readManagedMetadataInventory,
 } from "./ManagedMetadataInventory.js";
 import { readManagedMetadataLayout } from "./ManagedMetadataLayout.js";
-import {
-  ManagedReaderFailure,
-  managedFailure,
-} from "./ManagedReaderFailure.js";
-import {
-  parseTypes,
-  typeRanges,
-  type ManagedMemberInspectionLimits,
-} from "./ManagedMemberInspectorCore.js";
+import { ManagedReaderFailure } from "./ManagedReaderFailure.js";
+import { parseTypes, typeRanges } from "./ManagedMemberInspectorCore.js";
 import {
   edges,
   parseFields,
@@ -30,12 +23,9 @@ import {
   parseMethods,
 } from "./ManagedMemberRows.js";
 
-export type { ManagedMemberInspectionLimits } from "./ManagedMemberInspectorCore.js";
-
 const unavailable = (
   target: BinaryTarget,
   bytes: Buffer,
-  limits: ManagedMemberInspectionLimits,
   issue: ManagedParseIssue | null,
 ): ManagedMemberInspection =>
   managedMemberInspectionSchema.parse({
@@ -92,30 +82,7 @@ const resourceDirectory = (
   };
 };
 
-const collectMethodBodyIssues = (
-  methods: ReturnType<typeof parseMethods>,
-  limits: ManagedMemberInspectionLimits,
-): ManagedParseIssue[] =>
-  methods.methods.flatMap((method) =>
-    method.body.status === "partial"
-      ? [
-          {
-            code: "limit-exceeded" as const,
-            scope: `method.${method.token}.body.instructions`,
-            offset: method.body.file_offset,
-            detail:
-              method.body.issue ??
-              `Instruction decode reached max_method_instructions ${String(limits.maxMethodInstructions)}`,
-          },
-        ]
-      : [],
-  );
-
-const readMemberInventory = (
-  bytes: Buffer,
-  pe: ManagedPeLayout,
-  limits: ManagedMemberInspectionLimits,
-) => {
+const readMemberInventory = (bytes: Buffer, pe: ManagedPeLayout) => {
   const cli = pe.cli;
   if (cli === null)
     throw new TypeError("Managed inventory requires CLI metadata");
@@ -124,25 +91,14 @@ const readMemberInventory = (
     cli.metadata.size,
     "cli.metadata",
   );
-  if (cli.metadata.size > limits.maxMetadataBytes)
-    throw managedFailure(
-      "limit-exceeded",
-      "metadata.root",
-      `CLI metadata size exceeds max_metadata_bytes ${String(limits.maxMetadataBytes)}`,
-      rootOffset,
-    );
   const layout = readManagedMetadataLayout(
     bytes,
     rootOffset,
     cli.metadata.size,
-    limits.maxTableRows,
   );
   const inventory = readManagedMetadataInventory(
     bytes,
     layout,
-    {
-      maxHeapItemBytes: limits.maxHeapItemBytes,
-    },
     resourceDirectory(pe),
   );
   return { layout, inventory };
@@ -152,28 +108,24 @@ const readMemberInventory = (
 export const inspectManagedMembersBytes = (
   bytes: Buffer,
   target: BinaryTarget,
-  limits: ManagedMemberInspectionLimits,
 ): ManagedMemberInspection => {
   const pe = readManagedPeLayout(bytes);
-  if (pe.cli === null) return unavailable(target, bytes, limits, pe.cliIssue);
+  if (pe.cli === null) return unavailable(target, bytes, pe.cliIssue);
   const issues: ManagedParseIssue[] = [];
   try {
-    const { layout, inventory } = readMemberInventory(bytes, pe, limits);
+    const { layout, inventory } = readMemberInventory(bytes, pe);
     issues.push(...inventory.issues);
-    const ranges = typeRanges(bytes, layout, limits.maxHeapItemBytes);
-    const types = parseTypes(bytes, layout, ranges, limits.maxHeapItemBytes);
-    const fields = parseFields(bytes, layout, ranges, limits.maxHeapItemBytes);
-    const memberRefs = parseMemberRefs(bytes, layout, limits.maxHeapItemBytes);
+    const ranges = typeRanges(bytes, layout);
+    const types = parseTypes(bytes, layout, ranges);
+    const fields = parseFields(bytes, layout, ranges);
+    const memberRefs = parseMemberRefs(bytes, layout);
     const methods = parseMethods({
       bytes,
       layout,
       pe,
       ranges,
-      maxBytes: limits.maxHeapItemBytes,
-      limits,
     });
-    const methodBodyIssues = collectMethodBodyIssues(methods, limits);
-    const coverageIssues = [...issues, ...methodBodyIssues];
+    const coverageIssues = issues;
     const related = edges(
       methods.methods,
       methods.core,
@@ -212,16 +164,11 @@ export const inspectManagedMembersBytes = (
         "Metadata tokens are build-local coordinates and are only meaningful with the reported artifact SHA-256 and MVID.",
         "CIL instruction anchors are decoded from file-backed method bodies only; no target assembly is loaded or executed.",
         "Signatures are decoded for common ECMA-335 primitive, class, valuetype, pointer, byref, array, and generic variable forms; unsupported forms retain raw signature hashes.",
-        ...(methodBodyIssues.length > 0
-          ? [
-              "At least one CIL method body reached max_method_instructions; its decoded prefix is partial and has no normalized CIL identity.",
-            ]
-          : []),
       ],
     });
   } catch (cause: unknown) {
     if (cause instanceof ManagedReaderFailure)
-      return unavailable(target, bytes, limits, cause.issue);
+      return unavailable(target, bytes, cause.issue);
     throw cause;
   }
 };

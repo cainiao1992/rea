@@ -1,4 +1,4 @@
-import { readFile, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 
 import { z } from "zod";
 
@@ -17,15 +17,11 @@ import { createEvidence, type Evidence } from "../domain/evidence.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { parseBinaryTarget } from "./BinaryTargetResolver.js";
 import { err, ok, type Result } from "../domain/result.js";
-import {
-  type ManagedMemberInspectionLimits,
-  inspectManagedMembersBytes,
-} from "../dotnet/ManagedMemberInspector.js";
+import { inspectManagedMembersBytes } from "../dotnet/ManagedMemberInspector.js";
 import {
   MANAGED_STATIC_PROVIDER,
   MANAGED_WORKFLOW_PROVIDER,
 } from "./InvestigationProviders.js";
-import { MANAGED_INSPECTION_DEFAULTS } from "../dotnet/ManagedInspectionDefaults.js";
 
 /** Compare managed members from input parsed by a trusted adapter. */
 export const compareManagedMembersEvidenceValidated = (
@@ -52,10 +48,6 @@ export const compareManagedMemberPaths = async (input: {
 }): Promise<Result<Evidence, AnalysisError>> => {
   const operation = "compare_managed_members";
   try {
-    const memberLimits: ManagedMemberPathInspectionLimits = {
-      ...MANAGED_INSPECTION_DEFAULTS,
-      maxFileBytes: MANAGED_INSPECTION_DEFAULTS.maxFileBytes,
-    };
     const [leftTarget, rightTarget] = await Promise.all([
       parseBinaryTarget(input.leftPath),
       parseBinaryTarget(input.rightPath),
@@ -68,21 +60,6 @@ export const compareManagedMemberPaths = async (input: {
       return err(
         new AnalysisInputError(operation, { cause: rightTarget.error }),
       );
-    const [leftStat, rightStat] = await Promise.all([
-      stat(leftTarget.value.path),
-      stat(rightTarget.value.path),
-    ]);
-    if (
-      leftStat.size > memberLimits.maxFileBytes ||
-      rightStat.size > memberLimits.maxFileBytes
-    )
-      return err(
-        new AnalysisInputError(operation, {
-          cause: new RangeError(
-            `Managed comparison input exceeds max_file_bytes ${String(memberLimits.maxFileBytes)}`,
-          ),
-        }),
-      );
     const [leftBytes, rightBytes] = await Promise.all([
       readFile(leftTarget.value.path),
       readFile(rightTarget.value.path),
@@ -90,19 +67,17 @@ export const compareManagedMemberPaths = async (input: {
     const leftInspection = inspectManagedMembersBytes(
       leftBytes,
       leftTarget.value,
-      memberLimits,
     );
     const rightInspection = inspectManagedMembersBytes(
       rightBytes,
       rightTarget.value,
-      memberLimits,
     );
     const leftEvidence = createEvidence(
       leftTarget.value,
       MANAGED_STATIC_PROVIDER,
       {
         operation: "inspect_managed_members",
-        parameters: memberLimitParameters(memberLimits),
+        parameters: {},
         result: jsonValueSchema.parse(leftInspection),
         rawResult: null,
         limitations: leftInspection.limitations,
@@ -114,7 +89,7 @@ export const compareManagedMemberPaths = async (input: {
       MANAGED_STATIC_PROVIDER,
       {
         operation: "inspect_managed_members",
-        parameters: memberLimitParameters(memberLimits),
+        parameters: {},
         result: jsonValueSchema.parse(rightInspection),
         rawResult: null,
         limitations: rightInspection.limitations,
@@ -145,11 +120,7 @@ export const compareManagedMemberPaths = async (input: {
   }
 };
 
-/** Byte-inspection limits plus the file admission bound for path comparisons. */
-export interface ManagedMemberPathInspectionLimits
-  extends ManagedMemberInspectionLimits {
-  readonly maxFileBytes: number;
-}
+/** ECMA-335 representable limits for path-based member comparison. */
 
 const createManagedMemberComparisonEvidence = (
   parameters: Pick<CompareManagedMembersInput, "left" | "right">,
@@ -170,17 +141,6 @@ const createManagedMemberComparisonEvidence = (
     limitations: result.limitations,
     evidenceLinks: result.evidence_links,
   });
-
-const memberLimitParameters = (
-  limits: ManagedMemberPathInspectionLimits,
-): Record<string, ReturnType<typeof jsonValueSchema.parse>> => ({
-  max_file_bytes: limits.maxFileBytes,
-  max_metadata_bytes: limits.maxMetadataBytes,
-  max_table_rows: limits.maxTableRows,
-  max_heap_item_bytes: limits.maxHeapItemBytes,
-  max_method_body_bytes: limits.maxMethodBodyBytes,
-  max_method_instructions: limits.maxMethodInstructions,
-});
 
 const workflowFailure = (
   operation: string,

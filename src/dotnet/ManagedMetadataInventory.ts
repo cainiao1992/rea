@@ -22,10 +22,6 @@ type AssemblyIdentity = NonNullable<ManagedArtifactInspection["assembly"]>;
 type AssemblyReference = ManagedArtifactInspection["references"][number];
 type ManagedResource = ManagedArtifactInspection["resources"][number];
 type CustomAttribute = ManagedArtifactInspection["attributes"][number];
-export interface ManagedInventoryInput {
-  readonly maxHeapItemBytes: number;
-}
-
 export interface ManagedResourceDirectory {
   readonly offset: number;
   readonly size: number;
@@ -74,15 +70,17 @@ const uniqueIssues = (
   ...new Map(issues.map((issue) => [JSON.stringify(issue), issue])).values(),
 ];
 
+const heapExtent = (layout: ManagedMetadataLayout): number =>
+  Math.max(layout.strings.size, layout.blob.size);
+
 const readReferences = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
-  input: ManagedInventoryInput,
   issues: ManagedParseIssue[],
 ): readonly AssemblyReference[] =>
   readRows(layout.table(35), (row) =>
     safeRead(
-      () => readAssemblyReference(bytes, layout, row, input.maxHeapItemBytes),
+      () => readAssemblyReference(bytes, layout, row, heapExtent(layout)),
       issues,
     ),
   );
@@ -90,13 +88,11 @@ const readReferences = (
 const readResources = ({
   bytes,
   layout,
-  input,
   resourceDirectory,
   issues,
 }: {
   readonly bytes: Buffer;
   readonly layout: ManagedMetadataLayout;
-  readonly input: ManagedInventoryInput;
   readonly resourceDirectory: ManagedResourceDirectory | null;
   readonly issues: ManagedParseIssue[];
 }): readonly ManagedResource[] =>
@@ -107,7 +103,6 @@ const readResources = ({
           bytes,
           layout,
           row,
-          maxBytes: input.maxHeapItemBytes,
           directory: resourceDirectory,
           issues,
         }),
@@ -118,12 +113,11 @@ const readResources = ({
 const readAttributes = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
-  input: ManagedInventoryInput,
   issues: ManagedParseIssue[],
 ): readonly CustomAttribute[] =>
   readRows(layout.table(12), (row) =>
     safeRead(
-      () => readCustomAttribute(bytes, layout, row, input.maxHeapItemBytes),
+      () => readCustomAttribute(bytes, layout, row, heapExtent(layout)),
       issues,
     ),
   );
@@ -131,14 +125,13 @@ const readAttributes = (
 const collectReferenceNames = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
-  maxBytes: number,
   issues: ManagedParseIssue[],
 ): readonly string[] => {
   const names: string[] = [];
   const referenceTable = layout.table(35);
   for (let row = 1; row <= (referenceTable?.rowCount ?? 0); row += 1) {
     const reference = safeRead(
-      () => readAssemblyReference(bytes, layout, row, maxBytes),
+      () => readAssemblyReference(bytes, layout, row, heapExtent(layout)),
       issues,
     );
     if (reference !== undefined) names.push(reference.name);
@@ -149,14 +142,13 @@ const collectReferenceNames = (
 const collectTargetFrameworks = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
-  maxBytes: number,
   issues: ManagedParseIssue[],
 ): readonly string[] => {
   const targetFrameworks: string[] = [];
   const attributeTable = layout.table(12);
   for (let row = 1; row <= (attributeTable?.rowCount ?? 0); row += 1) {
     const attribute = safeRead(
-      () => readCustomAttribute(bytes, layout, row, maxBytes),
+      () => readCustomAttribute(bytes, layout, row, heapExtent(layout)),
       issues,
     );
     if (
@@ -171,43 +163,29 @@ const collectTargetFrameworks = (
   return targetFrameworks;
 };
 
-/** Inventory bounded identity tables without CLR reflection or execution. */
+/** Inventory identity tables without CLR reflection or execution. */
 export const readManagedMetadataInventory = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
-  input: ManagedInventoryInput,
   resourceDirectory: ManagedResourceDirectory | null,
 ): ManagedMetadataInventory => {
   const issues: ManagedParseIssue[] = [];
   const module =
-    safeRead(() => readModule(bytes, layout, input.maxHeapItemBytes), issues) ??
+    safeRead(() => readModule(bytes, layout, heapExtent(layout)), issues) ??
     null;
   const assembly =
-    safeRead(
-      () => readAssembly(bytes, layout, input.maxHeapItemBytes),
-      issues,
-    ) ?? null;
-  const references = readReferences(bytes, layout, input, issues);
+    safeRead(() => readAssembly(bytes, layout, heapExtent(layout)), issues) ??
+    null;
+  const references = readReferences(bytes, layout, issues);
   const resources = readResources({
     bytes,
     layout,
-    input,
     resourceDirectory,
     issues,
   });
-  const attributes = readAttributes(bytes, layout, input, issues);
-  const referenceNames = collectReferenceNames(
-    bytes,
-    layout,
-    input.maxHeapItemBytes,
-    issues,
-  );
-  const targetFrameworks = collectTargetFrameworks(
-    bytes,
-    layout,
-    input.maxHeapItemBytes,
-    issues,
-  );
+  const attributes = readAttributes(bytes, layout, issues);
+  const referenceNames = collectReferenceNames(bytes, layout, issues);
+  const targetFrameworks = collectTargetFrameworks(bytes, layout, issues);
   return {
     module,
     assembly,

@@ -14,9 +14,6 @@ import { inspectManagedNativeBoundariesBytes } from "../../../src/dotnet/Managed
 import {
   buildManagedPeFixture,
   managedPeFixtureTarget,
-  MANAGED_ARTIFACT_FIXTURE_LIMITS,
-  MANAGED_MEMBER_FIXTURE_LIMITS,
-  MANAGED_NATIVE_BOUNDARY_FIXTURE_LIMITS,
 } from "../../../src/dotnet/ManagedPe.fixture.js";
 
 describe("managed application graph projection", () => {
@@ -29,21 +26,9 @@ describe("managed application graph projection", () => {
       },
     });
     const binary = managedPeFixtureTarget(bytes, "/fixture/ManagedInterop.exe");
-    const managedArtifact = inspectManagedArtifactBytes(
-      bytes,
-      binary,
-      MANAGED_ARTIFACT_FIXTURE_LIMITS,
-    );
-    const members = inspectManagedMembersBytes(
-      bytes,
-      binary,
-      MANAGED_MEMBER_FIXTURE_LIMITS,
-    );
-    const boundaries = inspectManagedNativeBoundariesBytes(
-      bytes,
-      binary,
-      MANAGED_NATIVE_BOUNDARY_FIXTURE_LIMITS,
-    );
+    const managedArtifact = inspectManagedArtifactBytes(bytes, binary);
+    const members = inspectManagedMembersBytes(bytes, binary);
+    const boundaries = inspectManagedNativeBoundariesBytes(bytes, binary);
     const artifactEvidence = createEvidence(binary, MANAGED_STATIC_PROVIDER, {
       operation: "inspect_managed_artifact",
       parameters: {},
@@ -185,21 +170,17 @@ describe("managed application graph coverage", () => {
   it("preserves partial parser coverage in graph and per-fact coverage", () => {
     const bytes = buildManagedPeFixture();
     const binary = managedPeFixtureTarget(bytes, "/fixture/ManagedInterop.exe");
-    const members = inspectManagedMembersBytes(
-      bytes,
-      binary,
-      MANAGED_MEMBER_FIXTURE_LIMITS,
-    );
+    const members = inspectManagedMembersBytes(bytes, binary);
     const parserPartialMembers = {
       ...members,
       coverage: {
         state: "partial" as const,
         issues: [
           {
-            code: "limit-exceeded" as const,
-            scope: "method.0x06000001.body.instructions",
+            code: "invalid-blob" as const,
+            scope: "metadata.#Blob",
             offset: 0x0a00,
-            detail: "instruction limit reached",
+            detail: "Blob content leaves #Blob",
           },
         ],
       },

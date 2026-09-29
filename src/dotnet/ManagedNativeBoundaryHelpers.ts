@@ -36,7 +36,7 @@ const flagsHex = (value: number): string =>
 export const parseModuleRefs = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
-  maxBytes: number,
+  heapExtent: number,
 ): readonly ModuleRef[] => {
   const refs: ModuleRef[] = [];
   const table = layout.table(26);
@@ -49,7 +49,7 @@ export const parseModuleRefs = (
         bytes,
         layout,
         cursor.readIndex(layout.stringIndexSize),
-        maxBytes,
+        heapExtent,
       ),
     });
   }
@@ -59,7 +59,7 @@ export const parseModuleRefs = (
 export const parseFields = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
-  maxBytes: number,
+  heapExtent: number,
 ): ReadonlyMap<string, MemberCore> => {
   const fields = new Map<string, MemberCore>();
   const table = layout.table(4);
@@ -70,7 +70,7 @@ export const parseFields = (
       bytes,
       layout,
       cursor.readIndex(layout.stringIndexSize),
-      maxBytes,
+      heapExtent,
     );
     cursor.readIndex(layout.blobIndexSize);
     const token = metadataToken(4, row);
@@ -90,7 +90,7 @@ export const parseFields = (
 export const parseMethods = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
-  maxBytes: number,
+  heapExtent: number,
 ): ReadonlyMap<string, MemberCore> => {
   const methods = new Map<string, MemberCore>();
   const table = layout.table(6);
@@ -103,7 +103,7 @@ export const parseMethods = (
       bytes,
       layout,
       cursor.readIndex(layout.stringIndexSize),
-      maxBytes,
+      heapExtent,
     );
     cursor.readIndex(layout.blobIndexSize);
     cursor.readIndex(layout.tableIndexSize(8));
@@ -124,7 +124,7 @@ export const parseMethods = (
 interface ParseImplMapsContext {
   readonly bytes: Buffer;
   readonly layout: ManagedMetadataLayout;
-  readonly maxBytes: number;
+  readonly heapExtent: number;
   readonly modules: readonly ModuleRef[];
   readonly members: ReadonlyMap<string, MemberCore>;
 }
@@ -132,7 +132,7 @@ interface ParseImplMapsContext {
 export const parseImplMaps = ({
   bytes,
   layout,
-  maxBytes,
+  heapExtent,
   modules,
   members,
 }: ParseImplMapsContext): readonly NativeImport[] => {
@@ -151,7 +151,7 @@ export const parseImplMaps = ({
       bytes,
       layout,
       cursor.readIndex(layout.stringIndexSize),
-      maxBytes,
+      heapExtent,
     );
     const importScopeRow = cursor.readIndex(layout.tableIndexSize(26));
     const importScopeToken =

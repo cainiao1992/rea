@@ -203,7 +203,7 @@ artifact: canonical path + byte length + SHA-256
 component: container identity + component path/name + component SHA-256, when applicable
 classification: container + runtime family + implementation form + architecture
 assembly/module: simple name + version + culture + public-key identity + module name + MVID
-producer: provider ID + exact version + parser/profile schema + profile digest
+producer: provider ID + exact version + analysis-affecting parameters + profile digest
 ```
 
 An assembly-qualified name does not replace the artifact digest or MVID.

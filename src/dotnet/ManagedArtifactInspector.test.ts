@@ -8,9 +8,6 @@ import { inspectManagedNativeBoundariesBytes } from "./ManagedNativeBoundaryInsp
 import {
   buildManagedPeFixture,
   managedPeFixtureTarget,
-  MANAGED_ARTIFACT_FIXTURE_LIMITS,
-  MANAGED_MEMBER_FIXTURE_LIMITS,
-  MANAGED_NATIVE_BOUNDARY_FIXTURE_LIMITS,
 } from "./ManagedPe.fixture.js";
 
 describe("managed artifact inventory", () => {
@@ -30,7 +27,6 @@ describe("managed artifact inventory", () => {
     const result = inspectManagedArtifactBytes(
       bytes,
       managedPeFixtureTarget(bytes),
-      MANAGED_ARTIFACT_FIXTURE_LIMITS,
     );
 
     expect(result.classification.status).toBe("managed");
@@ -44,7 +40,6 @@ describe("managed artifact inventory", () => {
     const result = inspectManagedArtifactBytes(
       bytes,
       managedPeFixtureTarget(bytes),
-      MANAGED_ARTIFACT_FIXTURE_LIMITS,
     );
 
     expect(result.classification).toMatchObject({
@@ -90,7 +85,6 @@ describe("managed artifact inventory", () => {
     const result = inspectManagedArtifactBytes(
       bytes,
       managedPeFixtureTarget(bytes),
-      MANAGED_ARTIFACT_FIXTURE_LIMITS,
     );
 
     expect(result.classification.runtime_family).toBe("unity-mono");
@@ -106,17 +100,14 @@ describe("managed artifact inventory", () => {
     const result = inspectManagedArtifactBytes(
       bytes,
       managedPeFixtureTarget(bytes),
-      MANAGED_ARTIFACT_FIXTURE_LIMITS,
     );
     const members = inspectManagedMembersBytes(
       bytes,
       managedPeFixtureTarget(bytes),
-      MANAGED_MEMBER_FIXTURE_LIMITS,
     );
     const boundaries = inspectManagedNativeBoundariesBytes(
       bytes,
       managedPeFixtureTarget(bytes),
-      MANAGED_NATIVE_BOUNDARY_FIXTURE_LIMITS,
     );
 
     expect(result.module?.mvid).toBe("0ec6eb3a-4adc-4b54-1f45-8b4ed40b33b1");
@@ -135,7 +126,6 @@ describe("managed artifact inventory", () => {
     const result = inspectManagedMembersBytes(
       bytes,
       managedPeFixtureTarget(bytes),
-      MANAGED_MEMBER_FIXTURE_LIMITS,
     );
 
     expect(result.fields[0]?.signature).toMatchObject({

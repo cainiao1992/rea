@@ -4,7 +4,6 @@ import { inspectManagedMembersBytes } from "./ManagedMemberInspector.js";
 import {
   buildManagedPeFixture,
   managedPeFixtureTarget,
-  MANAGED_MEMBER_FIXTURE_LIMITS,
 } from "./ManagedPe.fixture.js";
 
 describe("managed member inspection", () => {
@@ -13,7 +12,6 @@ describe("managed member inspection", () => {
     const result = inspectManagedMembersBytes(
       bytes,
       managedPeFixtureTarget(bytes),
-      MANAGED_MEMBER_FIXTURE_LIMITS,
     );
 
     expect(result.identity_scope).toEqual({

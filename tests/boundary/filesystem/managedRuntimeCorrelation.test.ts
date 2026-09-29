@@ -22,7 +22,6 @@ import { inspectManagedMembersBytes } from "../../../src/dotnet/ManagedMemberIns
 import {
   buildManagedPeFixture,
   managedPeFixtureTarget,
-  MANAGED_MEMBER_FIXTURE_LIMITS,
 } from "../../../src/dotnet/ManagedPe.fixture.js";
 
 describe("managed runtime correlation planning", () => {
@@ -152,35 +151,6 @@ describe("managed runtime correlation planning", () => {
     if (result.ok) return;
     expect(result.error._tag).toBe("AnalysisInputError");
   });
-
-  it("rejects a runtime lock for instruction-limited CIL", async () => {
-    const directory = await createTestTempDirectory("rea-managed-runtime-");
-    const artifactPath = join(directory, "fixture.dll");
-    const executablePath = join(directory, "dotnet");
-    const bytes = buildManagedPeFixture();
-    await writeFile(artifactPath, bytes);
-    await writeFile(executablePath, "#!/bin/sh\n");
-    const fixture = inspect(bytes, artifactPath, {
-      ...MANAGED_MEMBER_FIXTURE_LIMITS,
-      maxMethodInstructions: 1,
-    });
-    const authority = await authorityFor(directory, executablePath, true);
-    const result = await planManagedRuntimeCorrelationEvidence(
-      {
-        policy: () => enabledPolicy(directory, executablePath),
-        authority,
-      },
-      inputFor(fixture.evidence, fixture.method),
-    );
-
-    expect(fixture.method.body).toMatchObject({
-      status: "partial",
-      normalized_il_sha256: null,
-    });
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error._tag).toBe("AnalysisInputError");
-  });
 });
 
 const enabledPolicy = (
@@ -248,13 +218,9 @@ const inputFor = (
   },
 });
 
-const inspect = (
-  bytes: Buffer,
-  path: string,
-  limits: typeof MANAGED_MEMBER_FIXTURE_LIMITS = MANAGED_MEMBER_FIXTURE_LIMITS,
-) => {
+const inspect = (bytes: Buffer, path: string) => {
   const target = managedPeFixtureTarget(bytes, path);
-  const result = inspectManagedMembersBytes(bytes, target, limits);
+  const result = inspectManagedMembersBytes(bytes, target);
   const method = result.methods[0];
   if (method === undefined) throw new Error("fixture has no method");
   return {

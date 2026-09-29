@@ -62,7 +62,7 @@ export const registerCompareManagedMembers = (
               {
                 operation: "inspect_managed_members",
                 rationale:
-                  "Repeat static member inspection with complete pages and method bodies.",
+                  "Review the inspection Evidence coverage and limit diagnostics; this operation has no page override, so unresolved members must remain unknown.",
               },
             ],
             relationships: [],

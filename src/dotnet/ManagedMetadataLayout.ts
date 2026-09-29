@@ -307,8 +307,6 @@ const readTablesHeader = (
 const readRowCounts = (
   tableBytes: Buffer,
   valid: bigint,
-  maxTableRows: number,
-  tablesOffset: number,
 ): readonly number[] => {
   const rowCounts = Array<number>(METADATA_TABLE_NAMES.length).fill(0);
   let tableCursor = 24;
@@ -316,13 +314,6 @@ const readRowCounts = (
     if ((valid & (1n << BigInt(index))) === 0n) continue;
     requireRange(tableBytes, tableCursor, 4, "metadata.table-row-count");
     const count = tableBytes.readUInt32LE(tableCursor);
-    if (count > maxTableRows)
-      throw managedFailure(
-        "limit-exceeded",
-        `metadata.${METADATA_TABLE_NAMES[index] ?? String(index)}`,
-        `Metadata table row count ${String(count)} exceeds max_table_rows ${String(maxTableRows)}`,
-        tablesOffset + tableCursor,
-      );
     rowCounts[index] = count;
     tableCursor += 4;
   }
@@ -390,7 +381,6 @@ export const readManagedMetadataLayout = (
   artifact: Buffer,
   rootOffset: number,
   size: number,
-  maxTableRows: number,
 ): ManagedMetadataLayout => {
   if (size < 20 || rootOffset < 0 || rootOffset > artifact.length - size)
     throw managedFailure(
@@ -405,12 +395,7 @@ export const readManagedMetadataLayout = (
     artifact,
     streams,
   );
-  const rowCounts = readRowCounts(
-    tableBytes,
-    valid,
-    maxTableRows,
-    tablesOffset,
-  );
+  const rowCounts = readRowCounts(tableBytes, valid);
   const tables = buildMetadataTables({
     tableBytes,
     rowCounts,

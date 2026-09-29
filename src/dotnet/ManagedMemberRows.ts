@@ -7,7 +7,6 @@ import {
   type ManagedCallEdge,
   type ManagedField,
   type ManagedFieldAccess,
-  type ManagedMemberInspectionLimits,
   type ManagedMemberRef,
   type ManagedMethod,
   type MemberRefCore,
@@ -27,7 +26,6 @@ export const parseFields = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
   ranges: readonly TypeRange[],
-  maxBytes: number,
 ): {
   readonly fields: readonly ManagedField[];
   readonly core: ReadonlyMap<string, FieldCore>;
@@ -42,13 +40,13 @@ export const parseFields = (
       bytes,
       layout,
       cursor.readIndex(layout.stringIndexSize),
-      maxBytes,
+      layout.strings.size,
     );
     const sig = readMetadataBlob(
       bytes,
       layout,
       cursor.readIndex(layout.blobIndexSize),
-      maxBytes,
+      layout.blob.size,
     );
     const declared = declaringType(ranges, "field", row);
     const token = metadataToken(4, row);
@@ -69,7 +67,6 @@ export const parseFields = (
 export const parseMemberRefs = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
-  maxBytes: number,
 ): {
   readonly refs: readonly ManagedMemberRef[];
   readonly core: ReadonlyMap<string, MemberRefCore>;
@@ -86,13 +83,13 @@ export const parseMemberRefs = (
       bytes,
       layout,
       cursor.readIndex(layout.stringIndexSize),
-      maxBytes,
+      layout.strings.size,
     );
     const sig = readMetadataBlob(
       bytes,
       layout,
       cursor.readIndex(layout.blobIndexSize),
-      maxBytes,
+      layout.blob.size,
     );
     const token = metadataToken(10, row);
     refs.push({
@@ -112,8 +109,6 @@ interface ParseMethodsInput {
   readonly layout: ManagedMetadataLayout;
   readonly pe: ManagedPeLayout;
   readonly ranges: readonly TypeRange[];
-  readonly maxBytes: number;
-  readonly limits: ManagedMemberInspectionLimits;
 }
 
 export const parseMethods = ({
@@ -121,8 +116,6 @@ export const parseMethods = ({
   layout,
   pe,
   ranges,
-  maxBytes,
-  limits,
 }: ParseMethodsInput): {
   readonly methods: readonly ManagedMethod[];
   readonly core: ReadonlyMap<string, MethodCore>;
@@ -139,13 +132,13 @@ export const parseMethods = ({
       bytes,
       layout,
       cursor.readIndex(layout.stringIndexSize),
-      maxBytes,
+      layout.strings.size,
     );
     const sig = readMetadataBlob(
       bytes,
       layout,
       cursor.readIndex(layout.blobIndexSize),
-      maxBytes,
+      layout.blob.size,
     );
     cursor.readIndex(layout.tableIndexSize(8));
     const declared = declaringType(ranges, "method", row);
@@ -160,7 +153,7 @@ export const parseMethods = ({
       impl_flags: implFlags,
       flags,
       signature: signature(sig),
-      body: methodBody(bytes, pe, rva, limits),
+      body: methodBody(bytes, pe, rva),
     });
     core.set(token, { token, name, declaringType: declared?.fullName ?? null });
   }

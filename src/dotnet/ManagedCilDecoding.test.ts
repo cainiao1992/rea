@@ -6,7 +6,6 @@ import { inspectManagedMembersBytes } from "./ManagedMemberInspector.js";
 import {
   buildManagedPeFixture,
   managedPeFixtureTarget,
-  MANAGED_MEMBER_FIXTURE_LIMITS,
 } from "./ManagedPe.fixture.js";
 
 describe("managed CIL decoding", () => {
@@ -26,7 +25,6 @@ describe("managed CIL decoding", () => {
     const result = inspectManagedMembersBytes(
       bytes,
       managedPeFixtureTarget(bytes),
-      MANAGED_MEMBER_FIXTURE_LIMITS,
     );
 
     expect(result.methods[0]?.body).toMatchObject({
@@ -53,7 +51,6 @@ describe("managed CIL decoding", () => {
     const result = inspectManagedMembersBytes(
       bytes,
       managedPeFixtureTarget(bytes),
-      MANAGED_MEMBER_FIXTURE_LIMITS,
     );
 
     expect(result.methods[0]?.body).toMatchObject({
@@ -81,12 +78,10 @@ describe("managed CIL decoding", () => {
     const tiny = inspectManagedMembersBytes(
       tinyBytes,
       managedPeFixtureTarget(tinyBytes),
-      MANAGED_MEMBER_FIXTURE_LIMITS,
     );
     const fat = inspectManagedMembersBytes(
       fatBytes,
       managedPeFixtureTarget(fatBytes),
-      MANAGED_MEMBER_FIXTURE_LIMITS,
     );
 
     expect(tiny.methods[0]?.body).toMatchObject({

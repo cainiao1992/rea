@@ -27,12 +27,6 @@ import {
   parseModuleRefs,
 } from "./ManagedNativeBoundaryHelpers.js";
 
-export interface ManagedNativeBoundaryInspectionLimits {
-  readonly maxMetadataBytes: number;
-  readonly maxTableRows: number;
-  readonly maxHeapItemBytes: number;
-}
-
 type Inventory = ReturnType<typeof readManagedMetadataInventory>;
 
 const emptyInspection = (
@@ -92,7 +86,6 @@ const readBoundaryInventory = (
   bytes: Buffer,
   pe: ManagedPeLayout,
   cli: NonNullable<ManagedPeLayout["cli"]>,
-  limits: ManagedNativeBoundaryInspectionLimits,
 ): {
   readonly layout: ManagedMetadataLayout;
   readonly inventory: Inventory;
@@ -106,7 +99,6 @@ const readBoundaryInventory = (
     bytes,
     metadataOffset,
     cli.metadata.size,
-    limits.maxTableRows,
   );
   const resourceDirectory: ManagedResourceDirectory = {
     offset: pe.rvaToOffset(
@@ -119,29 +111,15 @@ const readBoundaryInventory = (
   const inventory = readManagedMetadataInventory(
     bytes,
     layout,
-    {
-      maxHeapItemBytes: limits.maxHeapItemBytes,
-    },
     resourceDirectory,
   );
   return { layout, inventory };
 };
 
-const metadataLimitIssue = (
-  cli: NonNullable<ManagedPeLayout["cli"]>,
-  maxBytes: number,
-): ManagedParseIssue => ({
-  code: "limit-exceeded",
-  scope: "cli.metadata",
-  offset: cli.headerOffset + 8,
-  detail: `CLI metadata size exceeds max_metadata_bytes ${String(maxBytes)}`,
-});
-
 /** Inspect managed/native boundary declarations from PE metadata without execution. */
 export const inspectManagedNativeBoundariesBytes = (
   bytes: Buffer,
   target: BinaryTarget,
-  limits: ManagedNativeBoundaryInspectionLimits,
 ): ManagedNativeBoundaryInspection => {
   let pe: ManagedPeLayout;
   try {
@@ -157,27 +135,24 @@ export const inspectManagedNativeBoundariesBytes = (
       pe.cliDirectoryPresent ? "malformed" : "not-managed",
       pe.cliIssue === null ? [] : [pe.cliIssue],
     );
-  if (pe.cli.metadata.size > limits.maxMetadataBytes)
-    return emptyInspection(target, bytes, "malformed", [
-      metadataLimitIssue(pe.cli, limits.maxMetadataBytes),
-    ]);
   let layout: ManagedMetadataLayout;
   let inventory: Inventory;
   try {
-    ({ layout, inventory } = readBoundaryInventory(bytes, pe, pe.cli, limits));
+    ({ layout, inventory } = readBoundaryInventory(bytes, pe, pe.cli));
   } catch (cause: unknown) {
     if (!(cause instanceof ManagedReaderFailure)) throw cause;
     return emptyInspection(target, bytes, "malformed", [cause.issue]);
   }
-  const moduleRefs = parseModuleRefs(bytes, layout, limits.maxHeapItemBytes);
+  const heapExtent = Math.max(layout.strings.size, layout.blob.size);
+  const moduleRefs = parseModuleRefs(bytes, layout, heapExtent);
   const members = new Map([
-    ...parseFields(bytes, layout, limits.maxHeapItemBytes),
-    ...parseMethods(bytes, layout, limits.maxHeapItemBytes),
+    ...parseFields(bytes, layout, heapExtent),
+    ...parseMethods(bytes, layout, heapExtent),
   ]);
   const imports = parseImplMaps({
     bytes,
     layout,
-    maxBytes: limits.maxHeapItemBytes,
+    heapExtent,
     modules: moduleRefs,
     members,
   });

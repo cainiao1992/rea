@@ -24,14 +24,6 @@ export type ManagedInstructionAnchor = ManagedMethodBody["anchors"][number];
 export type ManagedExceptionRegion =
   ManagedMethodBody["exception_regions"][number];
 
-export interface ManagedMemberInspectionLimits {
-  readonly maxMetadataBytes: number;
-  readonly maxTableRows: number;
-  readonly maxHeapItemBytes: number;
-  readonly maxMethodBodyBytes: number;
-  readonly maxMethodInstructions: number;
-}
-
 export interface TypeRange {
   readonly token: string;
   readonly fullName: string;
@@ -87,7 +79,6 @@ const readTypeRange = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
   row: number,
-  maxBytes: number,
 ): TypeRange => {
   const methods = layout.table(6);
   const fields = layout.table(4);
@@ -97,13 +88,13 @@ const readTypeRange = (
     bytes,
     layout,
     cursor.readIndex(layout.stringIndexSize),
-    maxBytes,
+    layout.strings.size,
   );
   const namespace = readMetadataString(
     bytes,
     layout,
     cursor.readIndex(layout.stringIndexSize),
-    maxBytes,
+    layout.strings.size,
   );
   cursor.readIndex(layout.codedIndexSize("TypeDefOrRef"));
   const fieldStart = cursor.readIndex(layout.tableIndexSize(4));
@@ -133,12 +124,11 @@ const readTypeRange = (
 export const typeRanges = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
-  maxBytes: number,
 ): readonly TypeRange[] => {
   const typeTable = layout.table(2);
   const ranges: TypeRange[] = [];
   for (let row = 1; row <= (typeTable?.rowCount ?? 0); row += 1)
-    ranges.push(readTypeRange(bytes, layout, row, maxBytes));
+    ranges.push(readTypeRange(bytes, layout, row));
   return ranges;
 };
 
@@ -160,7 +150,6 @@ export const parseTypes = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
   ranges: readonly TypeRange[],
-  maxBytes: number,
 ): readonly ManagedType[] => {
   const typeTable = layout.table(2);
   const fields = layout.table(4);
@@ -173,13 +162,13 @@ export const parseTypes = (
       bytes,
       layout,
       cursor.readIndex(layout.stringIndexSize),
-      maxBytes,
+      layout.strings.size,
     );
     const namespace = readMetadataString(
       bytes,
       layout,
       cursor.readIndex(layout.stringIndexSize),
-      maxBytes,
+      layout.strings.size,
     );
     const extendsRaw = cursor.readIndex(layout.codedIndexSize("TypeDefOrRef"));
     const fieldStart = cursor.readIndex(layout.tableIndexSize(4));

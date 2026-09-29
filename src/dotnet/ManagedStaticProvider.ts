@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 
 import {
   createAnalysisExecution,
@@ -37,7 +37,6 @@ import { err, ok } from "../domain/result.js";
 import { inspectManagedArtifactBytes } from "./ManagedArtifactInspector.js";
 import { inspectManagedMembersBytes } from "./ManagedMemberInspector.js";
 import { inspectManagedNativeBoundariesBytes } from "./ManagedNativeBoundaryInspector.js";
-import { MANAGED_INSPECTION_DEFAULTS } from "./ManagedInspectionDefaults.js";
 
 const IDENTITY: ProviderIdentity = Object.freeze(MANAGED_STATIC_PROVIDER);
 
@@ -108,29 +107,11 @@ class ManagedStaticClient implements AnalysisClient {
     try {
       if (options?.signal?.aborted === true)
         return err(new AnalysisCancelledError(operation));
-      const maxFileBytes = MANAGED_INSPECTION_DEFAULTS.maxFileBytes;
-      const metadata = await stat(this.target.path);
-      if (metadata.size > maxFileBytes)
-        return err(
-          new AnalysisCapabilityUnavailableError(
-            IDENTITY.id,
-            operation,
-            `Artifact size ${String(metadata.size)} exceeds max_file_bytes ${String(maxFileBytes)}.`,
-          ),
-        );
       const snapshot = this.#snapshotBytes;
       const observed =
         snapshot === undefined
           ? await readManagedSnapshot(this.target.path, options?.signal)
           : await hashManagedSource(this.target.path, options?.signal);
-      if (observed.byteLength > maxFileBytes)
-        return err(
-          new AnalysisCapabilityUnavailableError(
-            IDENTITY.id,
-            operation,
-            `Artifact grew beyond max_file_bytes ${String(maxFileBytes)} while it was read.`,
-          ),
-        );
       if (observed.sha256 !== this.target.sha256)
         return err(
           new EvidenceIntegrityError(
@@ -202,6 +183,8 @@ const hashManagedSource = async (
   for await (const chunk of stream) {
     if (!Buffer.isBuffer(chunk))
       throw new TypeError("Managed source stream returned non-buffer data");
+    if (chunk.length > Number.MAX_SAFE_INTEGER - byteLength)
+      throw new RangeError("Managed source byte length overflowed");
     byteLength += chunk.length;
     digest.update(chunk);
   }
@@ -217,7 +200,7 @@ const limitationsFor = (operation: ManagedToolName): readonly string[] =>
   Object.freeze(
     operation === "inspect_managed_artifact"
       ? [
-          "This capability inventories PE/CLI identity only; inspect_managed_members admits bounded metadata members, signatures, and CIL anchors.",
+          "This capability inventories PE/CLI identity only; inspect_managed_members admits metadata members, signatures, and CIL anchors.",
           "It never loads the target assembly, resolves dependencies through a CLR, decompiles C#, or executes target code.",
         ]
       : operation === "inspect_managed_native_boundaries"
@@ -226,7 +209,7 @@ const limitationsFor = (operation: ManagedToolName): readonly string[] =>
             "It never loads the target assembly, resolves dependencies through a CLR, decompiles C#, or executes target code.",
           ]
         : [
-            "This capability decodes bounded PE/CLI metadata members, signatures, and file-backed method bodies; decompiled C# reconstruction and cross-build member comparison are separate operations.",
+            "This capability decodes PE/CLI metadata members, signatures, and file-backed method bodies; decompiled C# reconstruction and cross-build member comparison are separate operations.",
             "It never loads the target assembly, resolves dependencies through a CLR, decompiles C#, or executes target code.",
           ],
   );
@@ -242,28 +225,14 @@ const inspectManagedOperation = (
   | ManagedNativeBoundaryInspection => {
   if (operation === "inspect_managed_artifact") {
     managedArtifactInputSchema.parse(parameters);
-    return inspectManagedArtifactBytes(bytes, target, {
-      maxMetadataBytes: MANAGED_INSPECTION_DEFAULTS.maxMetadataBytes,
-      maxTableRows: MANAGED_INSPECTION_DEFAULTS.maxTableRows,
-      maxHeapItemBytes: MANAGED_INSPECTION_DEFAULTS.maxHeapItemBytes,
-    });
+    return inspectManagedArtifactBytes(bytes, target);
   }
   if (operation === "inspect_managed_native_boundaries") {
     managedNativeBoundaryInputSchema.parse(parameters);
-    return inspectManagedNativeBoundariesBytes(bytes, target, {
-      maxMetadataBytes: MANAGED_INSPECTION_DEFAULTS.maxMetadataBytes,
-      maxTableRows: MANAGED_INSPECTION_DEFAULTS.maxTableRows,
-      maxHeapItemBytes: MANAGED_INSPECTION_DEFAULTS.maxHeapItemBytes,
-    });
+    return inspectManagedNativeBoundariesBytes(bytes, target);
   }
   managedMemberInputSchema.parse(parameters);
-  return inspectManagedMembersBytes(bytes, target, {
-    maxMetadataBytes: MANAGED_INSPECTION_DEFAULTS.maxMetadataBytes,
-    maxTableRows: MANAGED_INSPECTION_DEFAULTS.maxTableRows,
-    maxHeapItemBytes: MANAGED_INSPECTION_DEFAULTS.maxHeapItemBytes,
-    maxMethodBodyBytes: MANAGED_INSPECTION_DEFAULTS.maxMethodBodyBytes,
-    maxMethodInstructions: MANAGED_INSPECTION_DEFAULTS.maxMethodInstructions,
-  });
+  return inspectManagedMembersBytes(bytes, target);
 };
 
 const managedLocations = (

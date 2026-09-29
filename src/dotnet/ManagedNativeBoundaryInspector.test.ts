@@ -6,8 +6,6 @@ import {
   buildManagedPeFixture,
   buildNativePeFixture,
   managedPeFixtureTarget,
-  MANAGED_MEMBER_FIXTURE_LIMITS,
-  MANAGED_NATIVE_BOUNDARY_FIXTURE_LIMITS,
 } from "./ManagedPe.fixture.js";
 
 describe("managed native boundaries", () => {
@@ -23,7 +21,6 @@ describe("managed native boundaries", () => {
     const result = inspectManagedNativeBoundariesBytes(
       bytes,
       managedPeFixtureTarget(bytes),
-      MANAGED_NATIVE_BOUNDARY_FIXTURE_LIMITS,
     );
 
     expect(result.cli_native).toMatchObject({
@@ -81,7 +78,6 @@ describe("managed native boundaries", () => {
     const paged = inspectManagedMembersBytes(
       bytes,
       managedPeFixtureTarget(bytes),
-      MANAGED_MEMBER_FIXTURE_LIMITS,
     );
     expect(paged.methods).toHaveLength(1);
 
@@ -89,7 +85,6 @@ describe("managed native boundaries", () => {
     const native = inspectManagedMembersBytes(
       nativeBytes,
       managedPeFixtureTarget(nativeBytes),
-      MANAGED_MEMBER_FIXTURE_LIMITS,
     );
     expect(native.metadata.status).toBe("absent");
     expect(native.coverage.state).toBe("unavailable");
@@ -100,7 +95,6 @@ describe("managed native boundaries", () => {
     const malformed = inspectManagedMembersBytes(
       malformedBytes,
       managedPeFixtureTarget(malformedBytes),
-      MANAGED_MEMBER_FIXTURE_LIMITS,
     );
     expect(malformed.metadata.status).toBe("malformed");
     expect(malformed.coverage.issues).toEqual([

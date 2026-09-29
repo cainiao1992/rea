@@ -73,29 +73,6 @@ const DEFAULT_MVID = Buffer.from([
   0xdd, 0xee, 0xff,
 ]);
 
-/** Generous bounds for inventory assertions over the source-owned PE fixture. */
-export const MANAGED_ARTIFACT_FIXTURE_LIMITS = {
-  maxMetadataBytes: 1024 * 1024,
-  maxTableRows: 1_000,
-  maxHeapItemBytes: 1024 * 1024,
-};
-
-/** Generous bounds for member assertions over the source-owned PE fixture. */
-export const MANAGED_MEMBER_FIXTURE_LIMITS = {
-  maxMetadataBytes: 1024 * 1024,
-  maxTableRows: 1_000,
-  maxHeapItemBytes: 1024 * 1024,
-  maxMethodBodyBytes: 1024 * 1024,
-  maxMethodInstructions: 1_000,
-};
-
-/** Generous native-boundary bounds for the source-owned PE fixture. */
-export const MANAGED_NATIVE_BOUNDARY_FIXTURE_LIMITS = {
-  maxMetadataBytes: 1024 * 1024,
-  maxTableRows: 1_000,
-  maxHeapItemBytes: 1024 * 1024,
-};
-
 /** Describe fixture bytes as the managed PE target consumed by static inspectors. */
 export const managedPeFixtureTarget = (
   bytes: Buffer,

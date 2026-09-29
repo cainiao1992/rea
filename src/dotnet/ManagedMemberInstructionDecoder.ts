@@ -377,7 +377,6 @@ const readOperand = (
 
 export const decodeInstructions = (
   il: Buffer,
-  limit: number,
 ): {
   readonly parsed: readonly ParsedInstruction[];
   readonly count: number;
@@ -388,7 +387,7 @@ export const decodeInstructions = (
   let offset = 0;
   let issue: string | null = null;
   try {
-    while (offset < il.length && parsed.length < limit) {
+    while (offset < il.length) {
       const start = offset;
       const first = il.readUInt8(offset);
       offset += 1;

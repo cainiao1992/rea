@@ -12,7 +12,6 @@ import {
 import {
   managedTableRowCounts,
   readManagedMetadataInventory,
-  type ManagedInventoryInput,
   type ManagedMetadataInventory,
   type ManagedResourceDirectory,
 } from "./ManagedMetadataInventory.js";
@@ -21,11 +20,6 @@ import {
   type ManagedMetadataLayout,
 } from "./ManagedMetadataLayout.js";
 import { ManagedReaderFailure } from "./ManagedReaderFailure.js";
-
-export interface ManagedInspectionLimits extends ManagedInventoryInput {
-  readonly maxMetadataBytes: number;
-  readonly maxTableRows: number;
-}
 
 const flagNames = (flags: number): string[] => {
   const names: string[] = [];
@@ -309,7 +303,7 @@ const partialMetadataResult = ({
     ],
   },
   metadata: {
-    status: issue.code === "limit-exceeded" ? "partial" : "malformed",
+    status: "malformed",
     version: null,
     stream_names: [],
     table_row_counts: {},
@@ -322,7 +316,7 @@ const partialMetadataResult = ({
   attributes: [],
   coverage: { state: "partial", issues: [issue] },
   limitations: [
-    "CLI metadata triage stopped at the reported bounded format or resource limit.",
+    "CLI metadata could not be read because the PE/CLI structure is malformed or unsupported.",
   ],
 });
 
@@ -350,29 +344,14 @@ const mapResources = (
   }
 };
 
-/** Inspect PE/CLI identity directly from bounded bytes without CLR loading. */
+/** Inspect PE/CLI identity directly from local bytes without CLR loading. */
 export const inspectManagedArtifactBytes = (
   bytes: Buffer,
   target: BinaryTarget,
-  limits: ManagedInspectionLimits,
 ): ManagedArtifactInspection => {
   const layout = readManagedPeLayout(bytes);
   if (layout.cli === null) return unavailableResult(target, bytes, layout);
   const cli = layout.cli;
-  if (cli.metadata.size > limits.maxMetadataBytes)
-    return managedArtifactInspectionSchema.parse(
-      partialMetadataResult({
-        target,
-        bytes,
-        layout,
-        issue: {
-          code: "limit-exceeded",
-          scope: "cli.metadata",
-          offset: cli.headerOffset + 8,
-          detail: `CLI metadata size exceeds max_metadata_bytes ${String(limits.maxMetadataBytes)}`,
-        },
-      }),
-    );
   let metadata: ManagedMetadataLayout;
   try {
     const metadataOffset = layout.rvaToOffset(
@@ -384,7 +363,6 @@ export const inspectManagedArtifactBytes = (
       bytes,
       metadataOffset,
       cli.metadata.size,
-      limits.maxTableRows,
     );
   } catch (cause: unknown) {
     if (!(cause instanceof ManagedReaderFailure)) throw cause;
@@ -402,7 +380,6 @@ export const inspectManagedArtifactBytes = (
   const inventory = readManagedMetadataInventory(
     bytes,
     metadata,
-    limits,
     resourceDirectory,
   );
   const issues = [...resourceIssues, ...inventory.issues];
@@ -410,7 +387,7 @@ export const inspectManagedArtifactBytes = (
     ...(issues.length === 0
       ? []
       : [
-          "At least one bounded metadata or resource item was unavailable; coverage is partial.",
+          "At least one metadata or resource item could not be read; coverage is partial.",
         ]),
     "Static inspection did not load the assembly, resolve dependencies through a CLR, decompile C#, or execute target code.",
   ];

@@ -79,7 +79,7 @@ export const registerVerifyManagedNativeBoundaries = (
               {
                 operation: "inspect_managed_native_boundaries",
                 rationale:
-                  "Repeat managed boundary inspection with complete ModuleRef, ImplMap, and native implementation pages.",
+                  "Review the inspection Evidence coverage and limit diagnostics; this operation has no page override, so unresolved declarations must remain unknown.",
               },
               {
                 operation: "analyze_function",

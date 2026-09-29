@@ -1,8 +1,5 @@
 import type { ManagedPeLayout } from "./ManagedPeReader.js";
-import type {
-  ManagedMemberInspectionLimits,
-  ManagedMethodBody,
-} from "./ManagedMemberInspectorCore.js";
+import type { ManagedMethodBody } from "./ManagedMemberInspectorCore.js";
 import {
   decodeInstructions,
   parseExceptionRegions,
@@ -56,19 +53,16 @@ export const methodBody = (
   bytes: Buffer,
   pe: ManagedPeLayout,
   rva: number,
-  limits: ManagedMemberInspectionLimits,
 ): ManagedMethodBody => {
   if (rva === 0) return emptyMethodBody(rva, "absent", null);
   try {
     const offset = pe.rvaToOffset(rva, 1, "method.body");
     const header = readMethodBodyHeader(bytes, offset);
-    if (header.ilSize > limits.maxMethodBodyBytes)
-      return oversizedMethodBody(header, rva, offset, limits);
     const ilOffset = offset + header.size;
     if (ilOffset > bytes.length - header.ilSize)
       throw new RangeError("Method IL bytes leave artifact");
     const il = bytes.subarray(ilOffset, ilOffset + header.ilSize);
-    const decoded = decodeInstructions(il, limits.maxMethodInstructions);
+    const decoded = decodeInstructions(il);
     const opcodeCounts: Record<string, number> = {};
     for (const instruction of decoded.parsed)
       opcodeCounts[instruction.opcode] =
@@ -126,7 +120,7 @@ export const methodBody = (
       issue:
         decoded.issue ??
         (decoded.truncated > 0
-          ? `Instruction decode reached max_method_instructions ${String(limits.maxMethodInstructions)} before the end of the method body`
+          ? "Instruction decoding stopped before the end of the method body"
           : null),
     };
   } catch (cause: unknown) {
@@ -160,32 +154,4 @@ const emptyMethodBody = (
   anchors: [],
   exception_regions: [],
   issue,
-});
-
-const oversizedMethodBody = (
-  header: MethodBodyHeader,
-  rva: number,
-  offset: number,
-  limits: ManagedMemberInspectionLimits,
-): ManagedMethodBody => ({
-  status: "too-large",
-  header_format: header.format,
-  rva,
-  file_offset: offset,
-  max_stack: header.maxStack,
-  init_locals: (header.flags & 0x10) !== 0,
-  local_var_sig_token:
-    header.localSig === 0
-      ? null
-      : `0x${header.localSig.toString(16).padStart(8, "0")}`,
-  il_size: header.ilSize,
-  il_sha256: null,
-  normalized_il_sha256: null,
-  instruction_count: 0,
-  decoded_instruction_count: 0,
-  truncated_instructions: 0,
-  opcode_counts: {},
-  anchors: [],
-  exception_regions: [],
-  issue: `Method body exceeds max_method_body_bytes ${String(limits.maxMethodBodyBytes)}`,
 });

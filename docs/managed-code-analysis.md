@@ -4,9 +4,9 @@ This document turns
 [ADR-0003](adr/0003-managed-code-evidence-and-provider-boundary.md) into an
 implementation and verification plan. REA currently ships read-only PE/CLI
 triage and exact identity through `inspect_managed_artifact` and
-`rea inspect-managed-artifact`, plus bounded metadata, signature, method-body
-CIL, exception-region, call-edge, and field-access inspection through
-`inspect_managed_members` and `rea inspect-managed-members`, and
+`rea inspect-managed-artifact`, plus file-backed metadata, signature,
+method-body CIL, exception-region, call-edge, and field-access inspection
+through `inspect_managed_members` and `rea inspect-managed-members`, and
 declared ModuleRef/ImplMap/PInvoke and native implementation boundary inventory
 through `inspect_managed_native_boundaries` and
 `rea inspect-managed-native-boundaries`, plus obfuscation-resistant member
@@ -91,7 +91,7 @@ commitment groups:
 - module name, generation, and MVID;
 - target framework and runtime/version strings with their exact metadata
   locations;
-- parser/provider version, profile schema, limits, and profile digest.
+- provider identity, analysis-affecting parameters, and their profile digest.
 
 CLI `#GUID` heap values are committed as their exact 16-byte GUID text. REA
 does not impose RFC 4122 UUID version or variant bits on MVID, EncId, or
@@ -120,8 +120,8 @@ boundaries:
 | `normalized_il_sha256` | UTF-8 `JSON.stringify` output for the instruction-order array of `[opcode, operand_kind, operand]` tuples | Instruction offsets except projected scalar branch targets, switch targets, resolved metadata/string identities, method header, locals, and exception regions |
 
 The normalized field is available only when the entire CIL stream decodes with
-status `present`. A partial, malformed, absent, or over-limit body reports
-`null`. The tuple format is defined here.
+status `present`. A malformed or absent body reports `null`. The tuple format
+is defined here.
 
 Tuple operands use these exact projections:
 
@@ -169,7 +169,7 @@ that implement them. The underlying capability slices are:
 1. **Triage and inventory**: container/component classification, assembly and
    module identity, references, files, exported types, resources, attributes,
    and runtime markers.
-2. **Member inventory**: bounded types, methods, fields, properties, events,
+2. **Member inventory**: file-backed types, methods, fields, properties, events,
    interfaces, nesting, generics, and normalized signatures.
 3. **Method inspection**: headers, max stack, locals, CIL instructions,
    constants, metadata operands, exception regions, and implementation flags.
@@ -190,9 +190,11 @@ that implement them. The underlying capability slices are:
    Evidence-backed application graph vocabulary as JavaScript/Electron
    findings while preserving managed static-analysis authority.
 
-Every list has a deterministic order and hard limits. Search exposes scanned,
-matched, returned, and dropped counts. An unresolved indirect call or a failed
-signature decode is not silently omitted from a completeness claim.
+Inventory lists preserve deterministic order and include every fact available
+from the admitted PE/CLI streams. Malformed ranges and unsupported metadata are
+reported as coverage issues instead of being silently omitted. Search exposes
+scanned, matched, returned, and dropped counts. An unresolved indirect call or
+a failed signature decode is not silently omitted from a completeness claim.
 
 ## Obfuscation-resistant method slices
 
@@ -372,7 +374,8 @@ manifest supplies those fields. It then pages each declared MethodDef token
 directly by row, so selected methods do not need to appear in the first member
 page of a large application. Optional `il_sha256` locks the exact raw CIL bytes
 in addition to REA's decoded-instruction-tuple digest. That normalized field
-has the limits documented above and is not a complete semantic CIL identity.
+has the byte boundaries documented above and is not a complete semantic CIL
+identity.
 
 The optional `application_graph` block reuses those exact-build method
 commitments. For each referenced MethodDef token, the verifier builds a bounded
@@ -420,7 +423,7 @@ The managed-code track advances as reviewable pull requests:
 
 1. accepted evidence/provider boundary (this document and ADR);
 2. read-only artifact triage and exact identity (shipped);
-3. bounded metadata, signatures, method bodies, raw CIL hashes, and the limited
+3. file-backed metadata, signatures, method bodies, raw CIL hashes, and the
    decoded-instruction-tuple fingerprint (shipped; complete normalized-CIL
    semantics remain planned);
 4. obfuscation-resistant slices and cross-version comparison (shipped for

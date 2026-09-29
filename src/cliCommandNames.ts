@@ -16,7 +16,6 @@ export const CLI_COMMANDS = Object.freeze({
   instructions: "instructions",
   search: "search",
   importReferenceSource: "import-reference-source",
-  inventoryArtifact: "inventory-artifact",
   inspectArtifact: "inspect-artifact",
   extractArtifact: "extract-artifact",
   inspectManagedArtifact: "inspect-managed-artifact",
@@ -64,7 +63,6 @@ export const CLI_COMMANDS = Object.freeze({
   prepareNodeCharacterization: "prepare-node-characterization",
   executeNodeCharacterization: "execute-node-characterization",
   buildReconstructionObligationLedger: "build-reconstruction-obligation-ledger",
-  evaluateReconstructionReadiness: "evaluate-reconstruction-readiness",
   evaluateReconstructionCoverage: "evaluate-reconstruction-coverage",
 });
 

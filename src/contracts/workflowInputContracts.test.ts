@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { traceJavaScriptSemanticsRequestSchema } from "./applicationWorkflowInputContracts.js";
-import {
-  artifactInspectionInputSchema,
-  artifactInventoryInputSchema,
-} from "./artifactToolContracts.js";
+import { ARTIFACT_TOOL_CONTRACTS } from "./artifactToolContracts.js";
 import { JAVASCRIPT_FEATURE_TRACE_FULL_EVIDENCE_EXAMPLE } from "./javascriptApplicationWorkflowExamples.js";
 import {
   MANAGED_WORKFLOW_TOOL_CONTRACTS,
@@ -89,7 +86,10 @@ describe("workflow input contracts", () => {
       integrity_policy: "record-and-continue" as const,
       integrity_continue_approved: false,
     };
-    expect(artifactInventoryInputSchema.safeParse(input).success).toBe(false);
-    expect(artifactInspectionInputSchema.safeParse(input).success).toBe(false);
+    const inspect = ARTIFACT_TOOL_CONTRACTS.find(
+      ({ name }) => name === "inspect_artifact",
+    );
+    if (inspect === undefined) throw new Error("Missing inspect_artifact");
+    expect(inspect.inputSchema.safeParse(input).success).toBe(false);
   });
 });

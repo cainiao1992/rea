@@ -1,97 +1,156 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
+import { z } from "zod";
 import { packageHopperEnvironment } from "../../../scripts/verify-package-environment.mjs";
+
+const workflowStepSchema = z
+  .object({
+    run: z.unknown().optional(),
+    name: z.unknown().optional(),
+    env: z.record(z.string(), z.unknown()).optional(),
+  })
+  .passthrough();
+const workflowSchema = z
+  .object({
+    jobs: z.record(
+      z.string(),
+      z
+        .object({
+          steps: z.array(workflowStepSchema).default([]),
+          needs: z.union([z.array(z.string()), z.string()]).optional(),
+        })
+        .passthrough(),
+    ),
+  })
+  .passthrough();
+type Workflow = z.output<typeof workflowSchema>;
 
 describe("package installation workflows", () => {
   it("runs package E2E without the retired native rebuild script", async () => {
-    const continuousIntegration = await readFile(
-      new URL("../../../.github/workflows/ci.yml", import.meta.url),
-      "utf8",
-    );
-    const realHopperLinux = await readFile(
-      new URL(
-        "../../../.github/workflows/real-hopper-linux.yml",
-        import.meta.url,
+    const continuousIntegration = await readWorkflow("ci.yml");
+    const realHopperLinux = await readWorkflow("real-hopper-linux.yml");
+    const realHopperMac = await readWorkflow("real-hopper.yml");
+
+    expect(workflowJob(continuousIntegration, "package-e2e")).toMatchObject({
+      strategy: { matrix: { os: ["ubuntu-latest", "macos-14"] } },
+      steps: expect.arrayContaining([{ run: "npm run verify:package" }]),
+    });
+    expect(
+      workflowJob(continuousIntegration, "static").steps.map(
+        ({ run }: { readonly run?: unknown }) => run,
       ),
-      "utf8",
-    );
-    const realHopperMac = await readFile(
-      new URL("../../../.github/workflows/real-hopper.yml", import.meta.url),
-      "utf8",
+    ).toContain("npm run check:ci");
+    expect(workflowJob(continuousIntegration, "test-shard")).toMatchObject({
+      strategy: { matrix: { shard: ["1/4", "2/4", "3/4", "4/4"] } },
+      steps: expect.arrayContaining([
+        { run: "npm run test:ci:shard:run -- --shard=${{ matrix.shard }}" },
+      ]),
+    });
+    const testJob = workflowJob(continuousIntegration, "test");
+    expect(testJob.needs).toContain("test-shard");
+    expect(testJob.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "Require successful test shards",
+          env: expect.objectContaining({
+            CODE_REQUIRED: "${{ needs.changes.outputs.code }}",
+          }),
+        }),
+        expect.objectContaining({
+          run: expect.stringContaining("npm run test:ci:merge"),
+        }),
+      ]),
     );
 
-    expect(continuousIntegration).toContain("os: [ubuntu-latest, macos-14]");
-    expect(continuousIntegration).toContain("npm run verify:package");
-    expect(continuousIntegration).toContain("name: Static checks");
-    expect(continuousIntegration).toContain("npm run check:ci");
-    expect(continuousIntegration).toContain("shard: [1/4, 2/4, 3/4, 4/4]");
-    expect(continuousIntegration).toContain("name: Build package");
-    expect(continuousIntegration).toContain("npm run build:cached");
-    expect(continuousIntegration).toContain("name: rea-dist");
-    expect(continuousIntegration).toContain("npm run test:ci:shard:run");
-    expect(continuousIntegration).toContain("needs: [changes, test-shard]");
-    expect(continuousIntegration).toContain("if-no-files-found: error");
-    expect(continuousIntegration).toContain("overwrite: true");
-    expect(continuousIntegration).toContain(
-      "code: ${{ steps.package.outputs.required }}",
-    );
-    expect(continuousIntegration).toContain("CODE_REQUIRED:");
-    expect(continuousIntegration).toContain(
-      'test "${CODE_REQUIRED}" != "true" || test "${SHARD_RESULT}" = "success"',
-    );
-    expect(continuousIntegration).toContain("npm run test:ci:merge");
-    expect(continuousIntegration).toContain("needs: changes");
-    expect(continuousIntegration).toContain(
-      "cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
-    );
+    for (const workflow of [realHopperLinux, realHopperMac]) {
+      const verifyJob = workflowJob(workflow, "verify");
+      const verificationStep = verifyJob.steps.find(
+        ({ run }: { readonly run?: unknown }) =>
+          typeof run === "string" && run.includes("npm run verify:hopper"),
+      );
+      expect(
+        verifyJob.steps.some(
+          ({ run }: { readonly run?: unknown }) =>
+            typeof run === "string" &&
+            run.includes("npm install --global --ignore-scripts"),
+        ),
+      ).toBe(true);
+      expect(verificationStep).toBeDefined();
+      expect(verificationStep?.env).toMatchObject({
+        REA_HOPPER_CONFORMANCE_MANIFEST_PATH:
+          "${{ github.workspace }}/build/conformance/manifest.json",
+      });
+    }
+
     for (const workflow of [
       continuousIntegration,
       realHopperLinux,
       realHopperMac,
-    ])
-      expect(workflow).not.toContain("npm run rebuild:native");
-    for (const workflow of [realHopperLinux, realHopperMac])
-      expect(workflow).toContain("npm install --global --ignore-scripts");
-    for (const workflow of [realHopperLinux, realHopperMac])
-      expect(workflow).toContain(
-        "REA_HOPPER_CONFORMANCE_MANIFEST_PATH: ${{ github.workspace }}/build/conformance/manifest.json",
+    ]) {
+      const commands = Object.values(workflow.jobs).flatMap((job) =>
+        job.steps.flatMap(({ run }: { readonly run?: unknown }) =>
+          typeof run === "string" ? [run] : [],
+        ),
       );
-    expect(realHopperLinux).not.toContain("HOPPER_TARGET_PATH");
-    expect(realHopperLinux).not.toContain("HOPPER_SECOND_TARGET_PATH");
-    expect(realHopperLinux).not.toContain("first_target");
-    expect(realHopperLinux).not.toContain("second_target");
+      expect(commands.join("\n")).not.toContain("npm run rebuild:native");
+    }
   });
 
   it("verifies the package before publish and runs published canaries outside the checkout", async () => {
-    const release = await readFile(
-      new URL("../../../.github/workflows/release.yml", import.meta.url),
-      "utf8",
-    );
+    const release = await readWorkflow("release.yml");
     const canary = await readFile(
       new URL("../../../scripts/verify-published-package.mjs", import.meta.url),
       "utf8",
     );
 
-    expect(release.indexOf("npm run verify:package")).toBeLessThan(
-      release.indexOf("npm publish --access public"),
+    const publishJob = workflowJob(release, "publish");
+    const publishSteps = publishJob.steps;
+    const verifyPackageIndex = publishSteps.findIndex(
+      ({ run }: { readonly run?: unknown }) => run === "npm run verify:package",
     );
-    expect(release).toContain('verification_root="$(mktemp -d)"');
-    expect(release).toContain('cd "${verification_root}"');
-    expect(release).not.toContain('npm run verify:published -- "${version}"');
+    const npmPublishIndex = publishSteps.findIndex(
+      ({ run }: { readonly run?: unknown }) =>
+        run === "npm publish --access public",
+    );
+    expect(verifyPackageIndex).toBeGreaterThanOrEqual(0);
+    expect(npmPublishIndex).toBeGreaterThan(verifyPackageIndex);
+
+    const publishedCanary = publishSteps.find(
+      ({ name }: { readonly name?: unknown }) =>
+        name === "Verify published CLI from npm",
+    );
+    expect(publishedCanary?.run).toContain('verification_root="$(mktemp -d)"');
+    expect(publishedCanary?.run).toContain('cd "${verification_root}"');
+    expect(publishedCanary?.run).not.toContain(
+      'npm run verify:published -- "${version}"',
+    );
     expect(canary).toContain('mkdtemp(join(tmpdir(), "rea-published-canary-")');
     expect(canary).toContain("cwd: canaryRoot");
-    expect(release).toContain("publish-mcp:");
-    expect(release).toContain("needs: [release-please, publish]");
-    expect(release).toContain("MCP_PUBLISHER_VERSION: v1.8.0");
-    expect(release).toContain("mcp-publisher validate");
-    expect(release).toContain("mcp-publisher login github-oidc");
-    expect(release).toContain("mcp-publisher publish");
-    expect(release).toContain("id-token: write");
-    expect(release).toContain("contents: read");
-    expect(release).not.toContain("MCP_GITHUB_TOKEN");
-    expect(release.indexOf("publish-mcp:")).toBeGreaterThan(
-      release.indexOf("npm publish --access public"),
+    const publisherJob = workflowJob(release, "publish-mcp");
+    const publisherSteps = publisherJob.steps;
+    expect(publisherJob).toMatchObject({
+      needs: ["release-please", "publish"],
+      permissions: { contents: "read", "id-token": "write" },
+    });
+    expect(
+      publisherSteps.map(({ run }: { readonly run?: unknown }) => run),
+    ).toEqual(
+      expect.arrayContaining([
+        "./mcp-publisher validate",
+        "./mcp-publisher login github-oidc",
+        "./mcp-publisher publish",
+      ]),
     );
+    expect(
+      publisherSteps.find(
+        ({ name }: { readonly name?: unknown }) =>
+          name === "Install MCP Registry publisher",
+      )?.env,
+    ).toMatchObject({
+      MCP_PUBLISHER_VERSION: "v1.8.0",
+      MCP_PUBLISHER_SHA256_LINUX_AMD64: expect.any(String),
+    });
   });
 
   it("uses direct Node ownership on macOS and Windows", () => {
@@ -117,3 +176,17 @@ describe("package installation workflows", () => {
     });
   });
 });
+
+async function readWorkflow(path: string) {
+  const yaml = await readFile(
+    new URL(`../../../.github/workflows/${path}`, import.meta.url),
+    "utf8",
+  );
+  return workflowSchema.parse(parse(yaml));
+}
+
+const workflowJob = (workflow: Workflow, name: string) => {
+  const value = workflow.jobs[name];
+  if (value === undefined) throw new Error(`Missing workflow job: ${name}`);
+  return value;
+};

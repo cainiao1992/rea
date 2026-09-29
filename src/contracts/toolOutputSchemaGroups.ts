@@ -19,10 +19,7 @@ import {
   inspectSignatureSchema,
   listArchitecturesSchema,
 } from "../domain/nativeInspection.js";
-import {
-  artifactExtractionResultSchema,
-  artifactInventoryResultSchema,
-} from "../domain/artifactGraph.js";
+import { artifactExtractionResultSchema } from "../domain/artifactGraph.js";
 import { artifactInspectionResultSchema } from "../domain/artifactInspection.js";
 import {
   managedArtifactInspectionSchema,
@@ -296,7 +293,6 @@ export const nativeOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
 
 /** Exact Evidence v2 schemas for provider-neutral artifact graph operations. */
 export const artifactOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
-  inventory_artifact: resultOf(artifactInventoryResultSchema),
   inspect_artifact: resultOf(artifactInspectionResultSchema),
   extract_artifact: resultOf(artifactExtractionResultSchema),
 };

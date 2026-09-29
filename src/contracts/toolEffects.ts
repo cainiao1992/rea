@@ -98,7 +98,6 @@ export const TOOL_EFFECTS: Readonly<Record<string, ToolEffects>> = {
   inspect_plist: nativeEvidence,
   list_architectures: nativeEvidence,
   demangle_swift: nativeEvidence,
-  inventory_artifact: evidence,
   inspect_artifact: evidence,
   extract_artifact: effects({ mutatesSession: true, writesFilesystem: true }),
   inspect_managed_artifact: evidence,
@@ -149,7 +148,6 @@ export const TOOL_EFFECTS: Readonly<Record<string, ToolEffects>> = {
   compare_source_to_bundle: evidence,
   compare_javascript_export_shapes: evidence,
   build_reconstruction_obligation_ledger: evidence,
-  evaluate_reconstruction_readiness: evidence,
   run_replay_machine: effects(),
   run_controlled_replay: effects({
     mutatesSession: true,

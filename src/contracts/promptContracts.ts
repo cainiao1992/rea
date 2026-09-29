@@ -184,9 +184,9 @@ export const PROMPT_CONTRACTS = [
     },
     steps: [
       {
-        tools: ["open_binary", "inventory_artifact"],
+        tools: ["open_binary", "inspect_artifact"],
         instruction:
-          "For each supplied target path, open that target before inventory because inventory_artifact uses the active target and accepts no path. Follow nodes, occurrences, and edges to completion and retain every Evidence page for each manifest.",
+          "For each supplied target path, open that target before inspection because inspect_artifact uses the active target and accepts no path. Retain the returned graph, substep Evidence, integrity findings, and next probes for each manifest.",
       },
       {
         tools: [

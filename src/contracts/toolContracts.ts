@@ -407,7 +407,7 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "compare_artifacts",
-    "Compare complete inventory_artifact Evidence sets by logical occurrence path, content identity, metadata, and graph relations. Every delta cites both sets, and gaps yield truncated or unknown, never equivalence. Returns every change inline.",
+    "Compare complete artifact inventories by logical occurrence path, content identity, metadata, and graph relations. Use the inventory Evidence nested in each inspect_artifact result. Every delta cites both inspections, and gaps yield truncated or unknown, never equivalence. Returns every change inline.",
     artifactComparisonInputSchema,
   ),
   session(

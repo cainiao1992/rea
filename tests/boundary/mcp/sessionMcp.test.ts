@@ -116,14 +116,12 @@ describe("target-free MCP workflow", () => {
     const beforeTools = (await mcp.listTools()).tools;
     const beforeNames = beforeTools.map(({ name }) => name);
     expect(mcp.getInstructions()).toContain(
-      "archive/package -> open_binary(path), then inspect_artifact/inventory_artifact",
+      "For an archive or application package, call open_binary(path), then inspect_artifact",
     );
     expect(
-      beforeTools.find(({ name }) => name === "inventory_artifact")
-        ?.description,
-    ).toContain(
-      "This tool accepts no path; in a target-free session open the target first.",
-    );
+      beforeTools.find(({ name }) => name === "inspect_artifact")?.description,
+    ).toContain("Returns the complete content-addressed artifact graph");
+    expect(beforeNames).not.toContain("inventory_artifact");
     expect(beforeNames).toContain("open_binary");
     expect(beforeNames).toContain("binary_session");
     expect(beforeNames).toContain("current_document");
@@ -132,14 +130,22 @@ describe("target-free MCP workflow", () => {
       (await mcp.callTool({ name: "open_binary", arguments: { path: first } }))
         .isError,
     ).not.toBe(true);
+    const openedStatus = structured(
+      await mcp.callTool({ name: "binary_session", arguments: {} }),
+    );
+    expect(openedStatus).toMatchObject({
+      result: { path: await realpath(first) },
+    });
     expect(
-      structured(
-        await mcp.callTool({
-          name: "binary_session",
-          arguments: {},
-        }),
-      ),
-    ).toMatchObject({ result: { path: await realpath(first) } });
+      z
+        .object({
+          result: z.object({
+            capabilities: z.array(z.object({ operation: z.string() })),
+          }),
+        })
+        .parse(openedStatus)
+        .result.capabilities.map(({ operation }) => operation),
+    ).not.toContain("inventory_artifact");
     expect(
       text(await mcp.callTool({ name: "current_document", arguments: {} })),
     ).toContain("first.hop");

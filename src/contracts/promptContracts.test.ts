@@ -91,7 +91,7 @@ describe("guided prompt contracts", () => {
     expect(
       rendered
         .get("compare_application_versions")
-        ?.indexOf("`inventory_artifact`"),
+        ?.indexOf("`inspect_artifact`"),
     ).toBeLessThan(
       rendered
         .get("compare_application_versions")

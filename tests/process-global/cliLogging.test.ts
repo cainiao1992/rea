@@ -19,7 +19,7 @@ describe("CLI operation status", () => {
     };
 
     await expect(
-      logCliCommand(silentLogger, "inventory-artifact", () =>
+      logCliCommand(silentLogger, "inspect-artifact", () =>
         Promise.resolve(output),
       ),
     ).resolves.toBe(output);

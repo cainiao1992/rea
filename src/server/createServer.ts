@@ -55,7 +55,7 @@ import {
 } from "./sessionToolPolicies.js";
 
 const TARGET_FREE_INSTRUCTIONS =
-  "ASAR/JavaScript -> analyze_javascript_application; archive/package -> open_binary(path), then inspect_artifact/inventory_artifact; managed PE/CLI -> inspect_managed_artifact; browser/Electron -> list_browser_targets/list_electron_targets; capture_browser_scenario/capture_electron_scenario; Node/Electron Inspector -> list_javascript_runtime_targets; native binary/database -> open_binary, then binary_overview. Start with binary_session; use tools/list; capabilities via binary_session.";
+  "Start with binary_session to see the active target and available providers. For an archive or application package, call open_binary(path), then inspect_artifact for the complete graph and findings; use extract_artifact only for selected files. For standalone JavaScript or ASAR analysis, use analyze_javascript_application. For managed PE/CLI files, use inspect_managed_artifact. For native binaries, open the target and start with binary_overview. For a live page or runtime, discover targets with list_browser_targets, list_electron_targets, or list_javascript_runtime_targets before inspection; scenario capture tools are for controlled interactions.";
 
 const ACTIVE_TARGET_INSTRUCTIONS =
   "REA analyzes the active reverse-engineering target. Start native analysis with binary_overview, then use analyze_function, literal search, callers, callees, and xrefs as needed.";

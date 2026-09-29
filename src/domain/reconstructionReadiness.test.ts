@@ -12,7 +12,7 @@ const input = (
 });
 
 describe("reconstruction readiness report", () => {
-  it("passes the complete public-contract journey deterministically", () => {
+  it("passes the complete repository conformance journey deterministically", () => {
     const first = createReconstructionReadinessReport(input());
     const second = createReconstructionReadinessReport(input());
 

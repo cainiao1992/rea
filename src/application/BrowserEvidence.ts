@@ -93,7 +93,11 @@ const browserParameters = (
   input: BrowserEvidenceInput,
 ): EvidenceObservation["parameters"] => {
   if (!("cdp_endpoint" in input)) {
-    if ("before_scenario" in input)
+    if (
+      "before_scenario" in input &&
+      input.before_scenario !== undefined &&
+      input.after_scenario !== undefined
+    )
       return {
         comparison_kind: "browser_scenario",
         before_browser: input.before_scenario.browser,
@@ -102,10 +106,14 @@ const browserParameters = (
         after_start_origin: input.after_scenario.scenario.start_origin,
         max_changes: input.max_changes,
         normalization_sha256: commitBrowserScenarioNormalization(
-          input.normalization,
+          input.normalization ?? { rules: [] },
         ).sha256,
       };
-    if ("max_changes" in input)
+    if (
+      "max_changes" in input &&
+      input.before !== undefined &&
+      input.after !== undefined
+    )
       return {
         before_target_id: input.before.inspection.target.target_id,
         before_capture_ended_at:
@@ -114,12 +122,14 @@ const browserParameters = (
         after_capture_ended_at: input.after.inspection.capture_window.ended_at,
         max_changes: input.max_changes,
       };
-    return {
-      before_artifact_uri: input.before.uri,
-      after_artifact_uri: input.after.uri,
-      channel_threshold: input.channel_threshold,
-      maximum_pixels: input.maximum_pixels,
-    };
+    if (isScreenshotComparison(input))
+      return {
+        before_artifact_uri: input.before.uri,
+        after_artifact_uri: input.after.uri,
+        channel_threshold: input.channel_threshold,
+        maximum_pixels: input.maximum_pixels,
+      };
+    throw new Error("Browser comparison input did not match a comparison type");
   }
   const scope = {
     cdp_endpoint: input.cdp_endpoint,
@@ -171,6 +181,10 @@ const browserParameters = (
       : {}),
   };
 };
+
+const isScreenshotComparison = (
+  input: BrowserEvidenceInput,
+): input is CompareWebScreenshotsInput => "channel_threshold" in input;
 
 const browserPredicate = (operation: BrowserEvidenceOperation): string => {
   switch (operation) {

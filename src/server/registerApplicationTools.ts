@@ -9,7 +9,6 @@ import { registerControlledReplayTool } from "./registerApplicationTools/control
 import { registerCharacterizationTools } from "./registerApplicationTools/characterization.js";
 import { registerCoverageTools } from "./registerApplicationTools/coverage.js";
 import { registerReconstructionObligationLedgerTool } from "./registerApplicationTools/obligationLedger.js";
-import { registerReconstructionReadinessTool } from "./registerApplicationTools/readiness.js";
 import type { ApplicationToolRegistration } from "./registerApplicationTools/types.js";
 
 export type { ApplicationToolRegistration };
@@ -27,6 +26,5 @@ export const registerApplicationTools = (
   registerControlledReplayTool(server, options);
   registerCharacterizationTools(server, options);
   registerReconstructionObligationLedgerTool(server, options);
-  registerReconstructionReadinessTool(server, options);
   registerCoverageTools(server, options);
 };

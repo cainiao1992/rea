@@ -29,10 +29,6 @@ import {
   buildReconstructionObligationLedgerEvidenceValidated,
   resolveReconstructionObligationLedgerRequest,
 } from "./application/ReconstructionObligationLedgerService.js";
-import {
-  evaluateReconstructionReadinessValidated,
-  resolveReconstructionReadinessRequest,
-} from "./application/ReconstructionReadinessService.js";
 import { authorizeRootPermission } from "./application/DeferredFileAuthorization.js";
 import { loadConfiguredPermissionAuthority } from "./application/PermissionConfiguration.js";
 import { CLI_COMMANDS } from "./cliCommandNames.js";
@@ -151,7 +147,6 @@ export const registerApplicationCommands = (
       executeNodeCharacterization(replayDependencies(config, authority), input),
   });
   registerObligationLedgerCommand(cli, logger);
-  registerReadinessCommand(cli, logger);
   registerCoverageCommand(cli, logger);
 };
 
@@ -167,17 +162,6 @@ const registerObligationLedgerCommand = (
       "Generate a deterministic Evidence-backed reconstruction obligation ledger page",
     resolveInput: resolveReconstructionObligationLedgerRequest,
     workflow: buildReconstructionObligationLedgerEvidenceValidated,
-  });
-
-const registerReadinessCommand = (cli: CliInstance, logger: Logger): void =>
-  registerJsonCommand({
-    cli,
-    logger,
-    name: CLI_COMMANDS.evaluateReconstructionReadiness,
-    description:
-      "Evaluate a complete Evidence-backed reconstruction readiness journey",
-    resolveInput: resolveReconstructionReadinessRequest,
-    workflow: evaluateReconstructionReadinessValidated,
   });
 
 interface AuthorizedJsonCommandOptions {

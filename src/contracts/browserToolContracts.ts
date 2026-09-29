@@ -277,7 +277,7 @@ export const BROWSER_TOOL_CONTRACTS = [
     name: "compare_web_captures",
     ...toolContractMetadata("compare_web_captures"),
     description:
-      "Compare either passive web captures or step-indexed browser scenarios. Scenario comparison aligns exact step IDs, records deterministic literal normalization, and exposes bounded artifact-level changes plus alignment failures. Missing or truncated evidence never proves equality.",
+      "Compare passive web captures by providing before and after, or compare recorded scenarios by providing before_scenario and after_scenario with an optional normalization policy. Use exactly one input group. Scenario comparison aligns exact step IDs, records deterministic literal normalization, and exposes bounded artifact-level changes plus alignment failures. Missing or truncated evidence never proves equality.",
     kind: "browser-provider",
     inputSchema: browserCaptureComparisonInputSchema,
     outputSchema: captureDiffOutputSchema,

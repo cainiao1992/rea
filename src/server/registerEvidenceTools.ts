@@ -137,7 +137,7 @@ const permissionRequest = (
       operation_identity: `extract_artifact:${parameters.output_root}`,
     };
   if (
-    ["inventory_artifact", "inspect_artifact"].includes(operation) &&
+    operation === "inspect_artifact" &&
     parameters.native_mount_approved === true
   )
     return {

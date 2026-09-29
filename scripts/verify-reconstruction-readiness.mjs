@@ -12,6 +12,7 @@ import { CATALOG_IDENTITY } from "../dist/catalogIdentity.js";
 import { RECONSTRUCTION_READINESS_EXAMPLE } from "../dist/contracts/reconstructionReadinessExample.js";
 import { parseEvidence } from "../dist/domain/evidence.js";
 import { createEvidenceBundle } from "../dist/domain/evidenceBundle.js";
+import { createReconstructionReadinessReport } from "../dist/domain/reconstructionReadiness.js";
 import { reconstructionReadinessReportSchema } from "../dist/domain/reconstructionReadinessSchemas.js";
 import { PACKAGE_METADATA } from "../dist/generatedPackageMetadata.js";
 
@@ -54,17 +55,6 @@ const client = new Client({
 
 try {
   await client.connect(transport);
-  const catalog = await client.listTools();
-  const readinessTool = requireTool(
-    catalog.tools,
-    "evaluate_reconstruction_readiness",
-  );
-  assert.equal(
-    readinessTool.annotations?.readOnlyHint,
-    false,
-    "readiness Evidence retention side effect must stay visible",
-  );
-
   const javascriptMcp = await analyzeMcp(client, javascriptPath);
   const electronMcp = await analyzeMcp(client, electronPath);
   assert.equal(
@@ -107,46 +97,21 @@ try {
     electronCliEvidence,
   );
 
-  const inputPath = join(temporaryRoot, "input.json");
-  await writeFile(inputPath, JSON.stringify(input));
-  const cliEvidence = await runCli([
-    "evaluate-reconstruction-readiness",
-    inputPath,
-    "--json",
-  ]);
-  const cliReport = reconstructionReadinessReportSchema.parse(
-    cliEvidence.normalized_result,
+  const readinessReport = reconstructionReadinessReportSchema.parse(
+    createReconstructionReadinessReport(input),
   );
-  assert.equal(cliReport.status, "pass");
+  assert.equal(readinessReport.status, "pass");
   if (process.env.REA_READINESS_REPORT_PATH !== undefined)
     await writeFile(
       resolve(root, process.env.REA_READINESS_REPORT_PATH),
-      `${JSON.stringify(cliReport, null, 2)}\n`,
+      `${JSON.stringify(readinessReport, null, 2)}\n`,
     );
 
-  const mcpResult = await client.callTool({
-    name: "evaluate_reconstruction_readiness",
-    arguments: input,
-  });
-  assert.notEqual(mcpResult.isError, true);
-  const projection = requireObject(mcpResult.structuredContent);
-  const projectedReport = requireObject(projection.result);
-  assert.equal(projectedReport.report_digest, cliReport.report_digest);
-  assert.equal(projectedReport.status, "pass");
-  assert.equal(projectedReport.report_digest, cliReport.report_digest);
-
   const tampered = structuredClone(input);
-  tampered.replay.expected_source_digest = cliReport.source_digest;
+  tampered.replay.expected_source_digest = readinessReport.source_digest;
   tampered.identity.server_version = "tampered";
-  const tamperedPath = join(temporaryRoot, "tampered.json");
-  await writeFile(tamperedPath, JSON.stringify(tampered));
-  const tamperedEvidence = await runCli([
-    "evaluate-reconstruction-readiness",
-    tamperedPath,
-    "--json",
-  ]);
   const tamperedReport = reconstructionReadinessReportSchema.parse(
-    tamperedEvidence.normalized_result,
+    createReconstructionReadinessReport(tampered),
   );
   assert.equal(tamperedReport.status, "fail");
   assert.ok(
@@ -157,11 +122,11 @@ try {
 
   process.stdout.write(
     `${JSON.stringify({
-      status: cliReport.status,
-      report_id: cliReport.report_id,
-      report_digest: cliReport.report_digest,
-      stages: cliReport.summary.stages,
-      findings: cliReport.summary.findings,
+      status: readinessReport.status,
+      report_id: readinessReport.report_id,
+      report_digest: readinessReport.report_digest,
+      stages: readinessReport.summary.stages,
+      findings: readinessReport.summary.findings,
       native_evidence_id: nativeEvidence.evidence_id,
       javascript_evidence_id: javascriptCliEvidence.evidence_id,
       electron_evidence_id: electronCliEvidence.evidence_id,
@@ -194,12 +159,6 @@ async function analyzeMcp(client_, inputPath) {
   assert.notEqual(response.isError, true);
   const projected = requireObject(response.structuredContent);
   return { evidence_id: projected.evidence_id };
-}
-
-function requireTool(tools, name) {
-  const tool = tools.find(({ name: toolName }) => toolName === name);
-  if (tool === undefined) throw new Error(`Missing public MCP tool: ${name}`);
-  return tool;
 }
 
 function requireObject(value) {

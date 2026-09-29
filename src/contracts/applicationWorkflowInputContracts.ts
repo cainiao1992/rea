@@ -56,29 +56,43 @@ const compareApplicationVersionsFacts = {
     compareApplicationVersionsInputSchema.shape.unknown_registry_approved,
 } as const;
 
-/** MCP/CLI comparison request accepting full Evidence or ledger references. */
-export const compareApplicationVersionsRequestSchema = z.union([
-  z.strictObject({
-    ...compareApplicationVersionsFacts,
-    left: evidenceSchema,
-    right: evidenceSchema,
-  }),
-  z.strictObject({
-    ...compareApplicationVersionsFacts,
-    left: evidenceSchema,
-    right_evidence_id: evidenceIdSchema,
-  }),
-  z.strictObject({
-    ...compareApplicationVersionsFacts,
-    left_evidence_id: evidenceIdSchema,
-    right: evidenceSchema,
-  }),
-  z.strictObject({
-    ...compareApplicationVersionsFacts,
-    left_evidence_id: evidenceIdSchema,
-    right_evidence_id: evidenceIdSchema,
-  }),
+const applicationEvidenceReferenceSchema = z.union([
+  evidenceSchema,
+  evidenceIdSchema,
 ]);
+
+/** MCP/CLI comparison request accepting inline Evidence or session Evidence IDs. */
+export const compareApplicationVersionsRequestSchema = z
+  .strictObject({
+    ...compareApplicationVersionsFacts,
+    left: applicationEvidenceReferenceSchema
+      .optional()
+      .describe(
+        "Full application Evidence or an Evidence ID returned this session",
+      ),
+    right: applicationEvidenceReferenceSchema
+      .optional()
+      .describe(
+        "Full application Evidence or an Evidence ID returned this session",
+      ),
+    // Retain the original ID property names for existing callers.
+    left_evidence_id: evidenceIdSchema.optional(),
+    right_evidence_id: evidenceIdSchema.optional(),
+  })
+  .superRefine((input, context) => {
+    for (const side of ["left", "right"] as const) {
+      const alias = `${side}_evidence_id` as const;
+      const hasValue = input[side] !== undefined;
+      const hasAlias = input[alias] !== undefined;
+      if (hasValue === hasAlias) {
+        context.addIssue({
+          code: "custom",
+          path: [side],
+          message: `Provide exactly one of ${side} or ${alias}`,
+        });
+      }
+    }
+  });
 
 const compareSourceToBundleFacts = {
   reference: compareSourceToBundleInputSchema.shape.reference,

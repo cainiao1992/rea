@@ -27,7 +27,7 @@ afterEach(async () => {
 });
 
 it(
-  "exposes CLI-equivalent Evidence v2 and session resources",
+  "exposes CLI-equivalent Evidence v2 results and session tools",
   async () => {
     const browser = await startFakeCdpBrowser({
       sessionTimeline: "same_origin",

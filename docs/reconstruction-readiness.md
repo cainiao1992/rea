@@ -1,7 +1,7 @@
 # Reconstruction readiness conformance
 
-Run the complete source-owned native, JavaScript CLI, Electron, Evidence,
-comparison, obligation, replay, CLI, and MCP journey from a clean checkout:
+Run the source-owned native, JavaScript CLI, Electron, Evidence, comparison,
+obligation, replay, and cleanup conformance verifier from a clean checkout:
 
 ```sh
 npm ci
@@ -10,10 +10,10 @@ npm run verify:readiness
 
 The command builds the redistributable native conformance fixtures, inventories
 the native executable through the public CLI, analyzes the generated JavaScript
-CLI and Electron fixture through both CLI and MCP, evaluates the same nine-stage
-report through both surfaces, verifies that MCP returns the complete report
-inline, and proves stale/tampered replay rejection. It prints one compact JSON
-summary.
+CLI and Electron fixtures through both CLI and MCP, evaluates an internal
+nine-stage conformance report, and proves stale/tampered replay rejection. The
+report evaluator is part of the repository verifier, not a public REA tool. It
+prints one compact JSON summary.
 
 Set `REA_READINESS_REPORT_PATH` to retain the complete machine-readable report:
 
@@ -24,11 +24,11 @@ REA_READINESS_REPORT_PATH=readiness-report.json npm run verify:readiness
 CI runs this command on Linux, publishes the compact summary, and retains the
 full report as the `reconstruction-readiness` artifact.
 
-## Public contracts
+## Project conformance contract
 
-- CLI: `rea evaluate-reconstruction-readiness <json-or-file> --json`
-- MCP tool: `evaluate_reconstruction_readiness`
-  The MCP tool returns the complete report inline, including the Evidence bundle, stage records, comparisons, contradictions, obligation ledger, and replay inputs.
+The verifier runs as `npm run verify:readiness`; it is not exposed as a public
+CLI command or MCP tool. The synthetic report input and evaluator exist to
+check project-owned conformance fixtures and fail-closed report behavior.
 
 ## Required stages
 

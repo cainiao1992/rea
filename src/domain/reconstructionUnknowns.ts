@@ -125,7 +125,7 @@ const defaultProbe = (
           rationale: "Capture complete function dossiers under equal limits.",
         }
       : {
-          operation: "inventory_artifact",
+          operation: "inspect_artifact",
           rationale:
             "Capture complete artifact inventories under equal limits.",
         };

@@ -9,6 +9,8 @@ import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { ARTIFACT_COMPARISON_EXAMPLE } from "../../../src/contracts/artifactComparisonExample.js";
 import { PROCESS_CAPTURE_REFERENCE } from "../../../src/contracts/investigationExamples.js";
 import { createEvidence } from "../../../src/domain/evidence.js";
+import { createArtifactInspection } from "../../../src/domain/artifactInspection.js";
+import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
 import { createPromptCompletionSource } from "../../../src/server/promptCompletion.js";
 import { observed } from "../../fixtures/analysisExecution.js";
 
@@ -71,8 +73,20 @@ describe("guided prompt completion from investigation records", () => {
       confidence: "observed",
       authority: "shipped-artifact",
     });
+    const inventoryInspection = createArtifactInspection(
+      ARTIFACT_COMPARISON_EXAMPLE.left,
+    );
+    const inspectionEvidence = createEvidence(undefined, fixtureProvider, {
+      operation: "inspect_artifact",
+      parameters: {},
+      result: jsonValueSchema.parse(inventoryInspection),
+      confidence: "observed",
+      authority: "shipped-artifact",
+      evidenceLinks: inventoryInspection.evidence_links,
+    });
     for (const evidence of [
       ARTIFACT_COMPARISON_EXAMPLE.left,
+      inspectionEvidence,
       PROCESS_CAPTURE_REFERENCE,
       invalidCapture,
       invalidInventory,

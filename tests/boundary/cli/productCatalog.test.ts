@@ -126,7 +126,6 @@ describe("canonical product catalog", () => {
       "compare_javascript_export_shapes",
       "compare_source_to_bundle",
       "evaluate_reconstruction_coverage",
-      "evaluate_reconstruction_readiness",
       "execute_node_characterization",
       "prepare_node_characterization",
       "run_controlled_replay",

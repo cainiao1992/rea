@@ -29,7 +29,7 @@ fixtures provide metadata-oriented inputs without package
 or network dependencies.
 
 `readiness/` adds source-only generated JavaScript CLI and Electron fixtures for
-the public reconstruction-readiness journey. `npm run verify:readiness` combines
-them with the compiled native fixtures, exercises CLI and MCP parity, and emits
-the versioned machine-readable readiness report documented in
-`docs/reconstruction-readiness.md`.
+the repository's reconstruction-readiness verifier. `npm run verify:readiness`
+combines them with the compiled native fixtures, exercises CLI and MCP parity
+for real analysis operations, and checks the internal machine-readable report
+documented in `docs/reconstruction-readiness.md`.

@@ -26,10 +26,6 @@ import {
   reconstructionObligationLedgerInputSchema,
   reconstructionObligationLedgerSchema,
 } from "../domain/reconstructionObligationLedgerSchemas.js";
-import {
-  reconstructionReadinessInputSchema,
-  reconstructionReadinessReportSchema,
-} from "../domain/reconstructionReadinessSchemas.js";
 import { jsonObjectSchema } from "../domain/jsonValue.js";
 import type { ToolContract } from "./toolContracts.js";
 import { toolContractMetadata } from "./toolEffects.js";
@@ -40,7 +36,6 @@ import {
   JAVASCRIPT_FEATURE_TRACE_EXAMPLE,
   SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE,
 } from "./javascriptApplicationWorkflowExamples.js";
-import { RECONSTRUCTION_READINESS_EXAMPLE } from "./reconstructionReadinessExample.js";
 
 const traceOutputSchema = evidenceResultOf(applicationFeatureTraceResultSchema);
 const semanticTraceOutputSchema = evidenceResultOf(
@@ -57,9 +52,6 @@ const exportShapeComparisonOutputSchema = evidenceResultOf(
 );
 const reconstructionObligationLedgerOutputSchema = evidenceResultOf(
   reconstructionObligationLedgerSchema,
-);
-const reconstructionReadinessOutputSchema = evidenceResultOf(
-  reconstructionReadinessReportSchema,
 );
 const HASH = "0".repeat(64);
 const NODE_PREPARATION_EXAMPLE = jsonObjectSchema.parse({
@@ -116,7 +108,7 @@ export const APPLICATION_TOOL_CONTRACTS = [
     name: "trace_javascript_semantics",
     ...toolContractMetadata("trace_javascript_semantics"),
     description:
-      "Trace static JavaScript data-flow, direct call/return, and closure relations from the inline Evidence returned by analyze_javascript_application. Dynamic or unsupported semantics remain explicit unknowns; static reachability never claims runtime execution.",
+      "Trace static JavaScript data-flow, direct call/return, and closure relations from application Evidence returned inline by analyze_javascript_application or referenced by its session Evidence ID. Dynamic or unsupported semantics remain explicit unknowns; static reachability never claims runtime execution.",
     kind: "application",
     inputSchema: traceJavaScriptSemanticsRequestSchema,
     outputSchema: semanticTraceOutputSchema,
@@ -297,21 +289,6 @@ export const APPLICATION_TOOL_CONTRACTS = [
     ],
   },
   {
-    name: "evaluate_reconstruction_readiness",
-    ...toolContractMetadata("evaluate_reconstruction_readiness"),
-    description:
-      "Evaluate the fixed nine-stage public reconstruction journey into a deterministic ReconstructionReadinessReport. Exact capability limits, provider routing, CLI/MCP status parity, bounded authority, partial-order comparison, contradictions, obligation closure, cleanup, and replay digests fail closed. Aggregate pass is emitted only when every required stage and check passes with attributable Evidence.",
-    kind: "application",
-    inputSchema: reconstructionReadinessInputSchema,
-    outputSchema: reconstructionReadinessOutputSchema,
-    examples: [
-      {
-        title: "Evaluate the complete synthetic reconstruction journey",
-        input: RECONSTRUCTION_READINESS_EXAMPLE,
-      },
-    ],
-  },
-  {
     name: "evaluate_reconstruction_coverage",
     ...toolContractMetadata("evaluate_reconstruction_coverage"),
     description:
@@ -393,11 +370,8 @@ export function applicationToolContract(
   name: "build_reconstruction_obligation_ledger",
 ): (typeof APPLICATION_TOOL_CONTRACTS)[8];
 export function applicationToolContract(
-  name: "evaluate_reconstruction_readiness",
-): (typeof APPLICATION_TOOL_CONTRACTS)[9];
-export function applicationToolContract(
   name: "evaluate_reconstruction_coverage",
-): (typeof APPLICATION_TOOL_CONTRACTS)[10];
+): (typeof APPLICATION_TOOL_CONTRACTS)[9];
 export function applicationToolContract(
   name: (typeof APPLICATION_TOOL_CONTRACTS)[number]["name"],
 ): (typeof APPLICATION_TOOL_CONTRACTS)[number] {

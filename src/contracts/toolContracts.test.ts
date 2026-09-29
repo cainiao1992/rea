@@ -19,7 +19,6 @@ describe("tool contract inventory", () => {
     expect(ENHANCED_TOOL_CONTRACTS).toHaveLength(13);
     expect(NATIVE_TOOL_CONTRACTS).toHaveLength(5);
     expect(ARTIFACT_TOOL_CONTRACTS.map(({ name }) => name)).toEqual([
-      "inventory_artifact",
       "inspect_artifact",
       "extract_artifact",
     ]);
@@ -62,7 +61,6 @@ describe("tool contract inventory", () => {
       "prepare_node_characterization",
       "execute_node_characterization",
       "build_reconstruction_obligation_ledger",
-      "evaluate_reconstruction_readiness",
       "evaluate_reconstruction_coverage",
     ]);
     expect(new Set(TOOL_CONTRACTS.map(({ name }) => name)).size).toBe(

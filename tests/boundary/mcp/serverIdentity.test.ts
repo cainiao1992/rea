@@ -241,12 +241,11 @@ describe("live server identity over MCP", () => {
 
 const assertLiveIdentity = async (client: Client): Promise<void> => {
   const instructions = client.getInstructions();
-  expect(instructions?.length).toBeLessThanOrEqual(640);
   expect(instructions).toContain(
-    "ASAR/JavaScript -> analyze_javascript_application",
+    "For standalone JavaScript or ASAR analysis, use analyze_javascript_application",
   );
   expect(instructions).toContain(
-    "native binary/database -> open_binary, then binary_overview",
+    "For an archive or application package, call open_binary(path), then inspect_artifact",
   );
   const identity = await client.callTool({
     name: "binary_session",

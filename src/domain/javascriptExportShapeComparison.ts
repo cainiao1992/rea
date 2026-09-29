@@ -2,7 +2,6 @@ import { compareCodePoints } from "./javascriptApplicationGraph.js";
 import { digestExportShapeValue } from "./javascriptExportShapeComparisonIdentity.js";
 import {
   javaScriptExportShapeComparisonResultSchema,
-  type CompareJavaScriptExportShapesInput,
   type JavaScriptExportShapeComparisonChange,
   type JavaScriptExportShapeComparisonResult,
 } from "./javascriptExportShapeComparisonSchemas.js";
@@ -25,29 +24,16 @@ import {
 export interface JavaScriptExportShapeComparisonProjectionInput {
   readonly left: JavaScriptExportShapeSideInput;
   readonly right: JavaScriptExportShapeSideInput;
-  readonly limits: CompareJavaScriptExportShapesInput["limits"];
 }
 
 /** Compare exact selected export return shapes without executing JavaScript. */
 export const compareJavaScriptExportShapes = (
   input: JavaScriptExportShapeComparisonProjectionInput,
 ): JavaScriptExportShapeComparisonResult => {
-  const left = selectJavaScriptExport(
-    input.left,
-    input.limits.max_candidate_exports,
-  );
-  const right = selectJavaScriptExport(
-    input.right,
-    input.limits.max_candidate_exports,
-  );
-  const leftRetained = retainJavaScriptExportShapes(
-    left,
-    input.limits.max_return_variants,
-  );
-  const rightRetained = retainJavaScriptExportShapes(
-    right,
-    input.limits.max_return_variants,
-  );
+  const left = selectJavaScriptExport(input.left);
+  const right = selectJavaScriptExport(input.right);
+  const leftRetained = retainJavaScriptExportShapes(left);
+  const rightRetained = retainJavaScriptExportShapes(right);
   const pairing = pairJavaScriptExportShapeVariants(
     leftRetained.shapes,
     rightRetained.shapes,
@@ -64,8 +50,8 @@ export const compareJavaScriptExportShapes = (
     rightShapes: rightRetained.shapes,
     evidenceLinks,
   }).sort(compareJavaScriptExportShapeChanges);
-  const changes = allChanges.slice(0, input.limits.max_changes);
-  const omittedChanges = allChanges.length - changes.length;
+  const changes = allChanges;
+  const omittedChanges = 0;
   const coverage = comparisonCoverage({
     input,
     left,

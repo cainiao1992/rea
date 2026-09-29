@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  CONFORMANCE_PACKAGE_VERSION,
   createConformancePackage,
   type ConformancePackageInput,
 } from "../../../src/domain/conformancePackage.js";
@@ -13,7 +12,6 @@ import {
 } from "../../../src/domain/conformanceReplay.js";
 
 const validPackageInput: ConformancePackageInput = {
-  schema_version: CONFORMANCE_PACKAGE_VERSION,
   name: "test-fixture",
   description: "A test conformance fixture",
   created_at: "2026-07-28T00:00:00Z",

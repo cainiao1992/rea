@@ -1,6 +1,5 @@
 {
-  "schema_version": 1,
-  "manifest_id": "ecm_3a42d32a96315338e06700b64afc0367603e2c5050b1ec0bf1ce012e227b4df3",
+  "manifest_id": "ecm_0f98c38501954b90ff9f949f1ee9a0b550061347cf92780cfb1b14ccef5131f7",
   "verifier": {
     "id": "rea-managed-conformance",
     "version": "1"
@@ -14,7 +13,7 @@
   "skill_digests": [
     {
       "skill_id": "reverse-engineer-anything",
-      "sha256": "89b09782340415790ecf161a5bc33f60e1a23cd66e0f4c29dd26e959b2baa0a9"
+      "sha256": "b78dbf9a5f0db15415f03dccab71bfb2d133900ab061e37825f55f3b7f0f80bc"
     }
   ],
   "claims": [
@@ -30,8 +29,7 @@
       "provider": {
         "id": "rea-managed-conformance",
         "version": "1"
-      },
-      "result_schema_version": 1
+      }
     },
     {
       "claim_id": "managed.decompiler-reconstruction-import",
@@ -45,8 +43,7 @@
       "provider": {
         "id": "rea-managed-conformance",
         "version": "1"
-      },
-      "result_schema_version": 1
+      }
     },
     {
       "claim_id": "managed.dotnet-framework-x86-pinvoke",
@@ -60,8 +57,7 @@
       "provider": {
         "id": "rea-managed-conformance",
         "version": "1"
-      },
-      "result_schema_version": 1
+      }
     },
     {
       "claim_id": "managed.ilspy-reconstruction-oracle",
@@ -73,8 +69,7 @@
       "provider": {
         "id": "rea-managed-conformance",
         "version": "1"
-      },
-      "result_schema_version": 1
+      }
     },
     {
       "claim_id": "managed.malformed-metadata",
@@ -88,8 +83,7 @@
       "provider": {
         "id": "rea-managed-conformance",
         "version": "1"
-      },
-      "result_schema_version": 1
+      }
     },
     {
       "claim_id": "managed.managed-native-verification",
@@ -104,8 +98,7 @@
       "provider": {
         "id": "rea-managed-conformance",
         "version": "1"
-      },
-      "result_schema_version": 1
+      }
     },
     {
       "claim_id": "managed.modern-dotnet-anycpu",
@@ -119,8 +112,7 @@
       "provider": {
         "id": "rea-managed-conformance",
         "version": "1"
-      },
-      "result_schema_version": 1
+      }
     },
     {
       "claim_id": "managed.mvid-and-token-drift",
@@ -135,8 +127,7 @@
       "provider": {
         "id": "rea-managed-conformance",
         "version": "1"
-      },
-      "result_schema_version": 1
+      }
     },
     {
       "claim_id": "managed.not-managed",
@@ -150,8 +141,7 @@
       "provider": {
         "id": "rea-managed-conformance",
         "version": "1"
-      },
-      "result_schema_version": 1
+      }
     },
     {
       "claim_id": "managed.operator-local-manifest",
@@ -163,8 +153,7 @@
       "provider": {
         "id": "rea-managed-conformance",
         "version": "1"
-      },
-      "result_schema_version": 1
+      }
     },
     {
       "claim_id": "managed.operator-manifest-self-test",
@@ -178,8 +167,7 @@
       "provider": {
         "id": "rea-managed-conformance",
         "version": "1"
-      },
-      "result_schema_version": 1
+      }
     },
     {
       "claim_id": "managed.runtime-correlation-admission-plan",
@@ -193,8 +181,7 @@
       "provider": {
         "id": "rea-managed-conformance",
         "version": "1"
-      },
-      "result_schema_version": 1
+      }
     },
     {
       "claim_id": "managed.unicode-obfuscated-identifiers",
@@ -208,8 +195,7 @@
       "provider": {
         "id": "rea-managed-conformance",
         "version": "1"
-      },
-      "result_schema_version": 1
+      }
     },
     {
       "claim_id": "managed.x64-ready-to-run-native-body",
@@ -223,8 +209,7 @@
       "provider": {
         "id": "rea-managed-conformance",
         "version": "1"
-      },
-      "result_schema_version": 1
+      }
     }
   ]
 }

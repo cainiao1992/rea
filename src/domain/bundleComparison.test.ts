@@ -29,7 +29,7 @@ describe("bundle comparison", () => {
     const second = evidence("second");
     const left = createEvidenceBundle([first, second]);
     const right = createEvidenceBundle([second, first]);
-    const result = compareBundles(left, right, [], 0, 100);
+    const result = compareBundles(left, right);
     expect(bundleComparisonResultSchema.parse(result)).toMatchObject({
       status: "unchanged",
       summary: {
@@ -38,12 +38,12 @@ describe("bundle comparison", () => {
         records_removed: 0,
         unresolved: 0,
       },
-      changes: { total: 0, next_offset: null },
+      changes: [],
     });
     expect(result.left_bundle_sha256).toBe(result.right_bundle_sha256);
   });
 
-  it("classifies explicit pairs and pages stable membership changes", () => {
+  it("classifies explicit pairs and returns every membership change inline", () => {
     const oldRecord = evidence("old");
     const newRecord = evidence("new");
     const removed = evidence("removed");
@@ -56,8 +56,8 @@ describe("bundle comparison", () => {
         right_evidence_id: newRecord.evidence_id,
       },
     ];
-    const first = compareBundles(left, right, pairs, 0, 1);
-    const repeated = compareBundles(left, right, pairs, 0, 1);
+    const first = compareBundles(left, right, pairs);
+    const repeated = compareBundles(left, right, pairs);
     expect(first).toEqual(repeated);
     expect(first).toMatchObject({
       status: "changed",
@@ -66,13 +66,27 @@ describe("bundle comparison", () => {
         records_removed: 1,
         records_changed: 1,
       },
-      changes: { total: 3, next_offset: 1 },
+      changes: expect.arrayContaining([
+        expect.objectContaining({ classification: "changed" }),
+      ]),
     });
-    expect(
-      compareBundles(left, right, pairs, 1, 500).changes.items,
-    ).toHaveLength(2);
+    expect(first.changes).toHaveLength(3);
     expect(first.limitations).toContain(
       "One-sided membership proves only bundle inclusion or omission, not behavioral absence.",
+    );
+  });
+
+  it("returns more than 500 changes without a display-page ceiling", () => {
+    const records = Array.from({ length: 501 }, (_, index) =>
+      evidence(`record-${String(index)}`),
+    );
+    const result = compareBundles(
+      createEvidenceBundle([]),
+      createEvidenceBundle(records),
+    );
+    expect(result.changes).toHaveLength(501);
+    expect(bundleComparisonResultSchema.parse(result).changes).toHaveLength(
+      501,
     );
   });
 
@@ -82,45 +96,27 @@ describe("bundle comparison", () => {
     const left = createEvidenceBundle([leftRecord]);
     const right = createEvidenceBundle([rightRecord]);
     expect(() =>
-      compareBundles(
-        left,
-        right,
-        [
-          {
-            left_evidence_id: evidence("missing").evidence_id,
-            right_evidence_id: rightRecord.evidence_id,
-          },
-        ],
-        0,
-        100,
-      ),
+      compareBundles(left, right, [
+        {
+          left_evidence_id: evidence("missing").evidence_id,
+          right_evidence_id: rightRecord.evidence_id,
+        },
+      ]),
     ).toThrow(/missing left evidence/u);
     expect(() =>
-      compareBundles(
-        left,
-        right,
-        [
-          {
-            left_evidence_id: leftRecord.evidence_id,
-            right_evidence_id: rightRecord.evidence_id,
-          },
-          {
-            left_evidence_id: leftRecord.evidence_id,
-            right_evidence_id: rightRecord.evidence_id,
-          },
-        ],
-        0,
-        100,
-      ),
+      compareBundles(left, right, [
+        {
+          left_evidence_id: leftRecord.evidence_id,
+          right_evidence_id: rightRecord.evidence_id,
+        },
+        {
+          left_evidence_id: leftRecord.evidence_id,
+          right_evidence_id: rightRecord.evidence_id,
+        },
+      ]),
     ).toThrow(/one-to-one/u);
     expect(() =>
-      compareBundles(
-        { ...left, records: [leftRecord, leftRecord] },
-        right,
-        [],
-        0,
-        100,
-      ),
+      compareBundles({ ...left, records: [leftRecord, leftRecord] }, right),
     ).toThrow(/duplicate record IDs/u);
   });
 });
@@ -170,31 +166,27 @@ describe("bundle comparison history", () => {
       [mutationOne, mutationTwo],
       [initial, advanced],
     );
-    expect(
-      compareBundles(initialBundle, advancedBundle, [], 0, 100),
-    ).toMatchObject({
+    expect(compareBundles(initialBundle, advancedBundle)).toMatchObject({
       status: "changed",
       summary: { unknowns_advanced: 1, unresolved: 0 },
-      changes: {
-        items: [
-          expect.objectContaining({
-            entity: "evidence",
-            classification: "added",
-          }),
-          expect.objectContaining({
-            entity: "residual_unknown",
-            classification: "history_advanced",
-          }),
-        ],
-      },
+      changes: [
+        expect.objectContaining({
+          entity: "evidence",
+          classification: "added",
+        }),
+        expect.objectContaining({
+          entity: "residual_unknown",
+          classification: "history_advanced",
+        }),
+      ],
     });
     const absent = createEvidenceBundle([]);
-    const missing = compareBundles(initialBundle, absent, [], 0, 100);
+    const missing = compareBundles(initialBundle, absent);
     expect(missing).toMatchObject({
       status: "unknown",
       summary: { unknowns_removed: 1, unresolved: 1 },
     });
-    expect(missing.changes.items).toContainEqual(
+    expect(missing.changes).toContainEqual(
       expect.objectContaining({
         classification: "removed",
         conclusion_kind: "unresolved_branch",

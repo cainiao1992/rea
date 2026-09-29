@@ -95,8 +95,6 @@ describe("evidence bundle filesystem adapter", () => {
       await compareEvidenceBundlesCommand({
         leftPath: path,
         rightPath: path,
-        offset: 0,
-        limit: 100,
         policy: policy(directory),
       }),
     ).toMatchObject({

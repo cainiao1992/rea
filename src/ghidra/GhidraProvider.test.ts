@@ -39,7 +39,6 @@ describe("Ghidra provider capabilities", () => {
     Reflect.set(capabilities, 0, { ...first, available: false });
     Reflect.set(first, "available", false);
     Reflect.set(first.effects, "mutatesArtifact", true);
-    Reflect.set(first.limits, "maxResults", 0);
     Reflect.set(first.limitations, 0, "forged limitation");
 
     expect(provider.capabilities()).toEqual(published);

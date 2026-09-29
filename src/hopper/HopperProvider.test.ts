@@ -25,7 +25,7 @@ describe("Hopper provider capabilities", () => {
     }
     expect(
       capabilities.find(({ operation }) => operation === "list_procedures"),
-    ).toMatchObject({ pagination: "none" });
+    ).toMatchObject({ available: true });
     expect(
       capabilities.find(({ operation }) => operation === "set_comment"),
     ).toMatchObject({
@@ -36,7 +36,6 @@ describe("Hopper provider capabilities", () => {
     Reflect.set(capabilities, 0, { ...first, available: false });
     Reflect.set(first, "available", false);
     Reflect.set(first.effects, "mutatesArtifact", true);
-    Reflect.set(first.limits, "maxResults", 0);
     Reflect.set(first.limitations, 0, "forged limitation");
 
     expect(provider.capabilities()).toEqual(published);

@@ -19,7 +19,6 @@ describe.sequential("verifier run identity", () => {
       const nested = createVerifierRun();
 
       expect(first).toEqual({
-        schema_version: 1,
         run_id: expect.stringMatching(
           /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
         ),
@@ -60,7 +59,6 @@ describe.sequential("verifier run identity", () => {
         const completed = await completeVerifierRun(run);
         expect(completed.process_lineage).toMatchObject({
           status: "verified",
-          schema_version: 1,
           observed_at: expect.stringMatching(/Z$/u),
           launcher_pid: process.pid,
           launcher_parent_pid: process.ppid,

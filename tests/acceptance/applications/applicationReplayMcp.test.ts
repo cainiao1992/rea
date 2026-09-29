@@ -93,7 +93,6 @@ function createReplayScenario(root: string) {
     },
     javascriptReplayRunner: {
       execute: async (prepared) => ({
-        schema_version: 1,
         plan_digest: prepared.publicPlan.plan_digest,
         outcomes: [
           {

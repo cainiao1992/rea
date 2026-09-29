@@ -85,11 +85,6 @@ const processResult = (
 });
 
 const artifactResult = (
-  pagination: {
-    readonly offset?: number;
-    readonly next_offset?: number | null;
-    readonly total?: number;
-  } = {},
   nestedLinks: string[] = [left.evidence_id, right.evidence_id],
 ): JsonValue => ({
   status: "changed",
@@ -102,24 +97,18 @@ const artifactResult = (
     changed: 1,
     unknown: 0,
   },
-  changes: {
-    items: [
-      {
-        classification: "changed",
-        logical_path: "main.js",
-        dimensions: ["content"],
-        left_occurrence_id: `occ_${"5".repeat(64)}`,
-        right_occurrence_id: `occ_${"6".repeat(64)}`,
-        left_artifact_id: `art_${"7".repeat(64)}`,
-        right_artifact_id: `art_${"8".repeat(64)}`,
-        evidence_links: nestedLinks,
-      },
-    ],
-    offset: pagination.offset ?? 0,
-    limit: 100,
-    total: pagination.total ?? 1,
-    next_offset: pagination.next_offset ?? null,
-  },
+  changes: [
+    {
+      classification: "changed",
+      logical_path: "main.js",
+      dimensions: ["content"],
+      left_occurrence_id: `occ_${"5".repeat(64)}`,
+      right_occurrence_id: `occ_${"6".repeat(64)}`,
+      left_artifact_id: `art_${"7".repeat(64)}`,
+      right_artifact_id: `art_${"8".repeat(64)}`,
+      evidence_links: nestedLinks,
+    },
+  ],
   limitations: [],
 });
 
@@ -134,11 +123,9 @@ const expectInvalidSummary = (result: ChangedBehaviorResult): void => {
 
 describe("changed behavior", () => {
   it("accepts process comparison Evidence", () => {
-    const result = findChangedBehavior(
-      [comparison("compare_process_captures", processResult())],
-      0,
-      100,
-    );
+    const result = findChangedBehavior([
+      comparison("compare_process_captures", processResult()),
+    ]);
     expect(result.behavior_status).toBe("observed_unchanged");
   });
 
@@ -152,7 +139,7 @@ describe("changed behavior", () => {
       }),
     );
 
-    expect(findChangedBehavior([evidence], 0, 100)).toMatchObject({
+    expect(findChangedBehavior([evidence])).toMatchObject({
       behavior_status: "observed_changed",
       summary: { observed_changes: 2 },
       findings: {
@@ -172,11 +159,11 @@ describe("changed behavior", () => {
       "compare_process_captures",
       processResult({ status: "changed", terminal: "changed" }),
     );
-    const result = findChangedBehavior([evidence], 0, 100);
+    const result = findChangedBehavior([evidence]);
     expect(changedBehaviorResultSchema.parse(result)).toMatchObject({
       behavior_status: "observed_changed",
       summary: { observed_changes: 1, static_candidates: 0 },
-      findings: { total: 1, next_offset: null },
+      findings: { items: expect.any(Array) },
     });
     expectInvalidSummary(result);
     expect(result.findings.items[0]).toMatchObject({
@@ -193,7 +180,7 @@ describe("changed behavior", () => {
 
   it("keeps static differences as candidates, never runtime observations", () => {
     const evidence = comparison("compare_artifacts", artifactResult());
-    const result = findChangedBehavior([evidence], 0, 100);
+    const result = findChangedBehavior([evidence]);
     expect(result).toMatchObject({
       behavior_status: "unknown",
       summary: { observed_changes: 0, static_candidates: 1 },
@@ -217,40 +204,26 @@ describe("changed behavior", () => {
       "compare_process_captures",
       processResult({ status: "unknown", exit: "unknown" }),
     );
-    const result = findChangedBehavior([changed, unknown], 0, 1);
+    const result = findChangedBehavior([changed, unknown]);
     expect(result).toMatchObject({
       behavior_status: "unknown",
-      findings: { total: 2, limit: 1, next_offset: 1 },
+      findings: { items: expect.any(Array) },
     });
-    expect(findChangedBehavior([changed, unknown], 0, 1)).toEqual(result);
+    expect(findChangedBehavior([changed, unknown])).toEqual(result);
   });
 
-  it("keeps incomplete artifact comparison pagination explicit", () => {
-    const paged = comparison(
-      "compare_artifacts",
-      artifactResult({ next_offset: 1, total: 2 }),
-    );
-    const result = findChangedBehavior([paged], 0, 100);
-    expect(result).toMatchObject({
-      behavior_status: "unknown",
-      summary: { static_candidates: 1, unresolved: 1 },
-      findings: { total: 2 },
-    });
-    expect(result.limitations).toContain(
-      "Artifact comparison reports 1 of 2 changes.",
-    );
-    const laterPage = comparison(
-      "compare_artifacts",
-      artifactResult({ offset: 1, next_offset: null, total: 2 }),
-    );
-    expect(() => findChangedBehavior([laterPage], 0, 100)).toThrow(
-      /pagination from offset zero/u,
+  it("uses complete inline artifact deltas as static candidates", () => {
+    const complete = comparison("compare_artifacts", artifactResult());
+    expect(findChangedBehavior([complete]).findings.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ dimension: "artifact:main.js" }),
+      ]),
     );
   });
 
   it("rejects bundles, duplicate comparisons, and malformed exact results", () => {
     const valid = comparison("compare_process_captures", processResult());
-    expect(() => findChangedBehavior([valid, valid], 0, 100)).toThrow(
+    expect(() => findChangedBehavior([valid, valid])).toThrow(
       /duplicate comparison Evidence/u,
     );
     const bundle = createEvidence(
@@ -266,25 +239,25 @@ describe("changed behavior", () => {
         evidenceLinks: [left.evidence_id, right.evidence_id],
       },
     );
-    expect(() => findChangedBehavior([bundle], 0, 100)).toThrow(
+    expect(() => findChangedBehavior([bundle])).toThrow(
       /requires process, artifact, or function/u,
     );
     const malformed = comparison("compare_process_captures", {
       status: "unchanged",
     });
-    expect(() => findChangedBehavior([malformed], 0, 100)).toThrow();
+    expect(() => findChangedBehavior([malformed])).toThrow();
     const contradictory = comparison(
       "compare_process_captures",
       processResult({ status: "unchanged", terminal: "changed" }),
     );
-    expect(() => findChangedBehavior([contradictory], 0, 100)).toThrow(
+    expect(() => findChangedBehavior([contradictory])).toThrow(
       /contradicts its dimensions/u,
     );
     const danglingNested = comparison(
       "compare_artifacts",
-      artifactResult({}, [`ev_${"f".repeat(64)}`, right.evidence_id]),
+      artifactResult([`ev_${"f".repeat(64)}`, right.evidence_id]),
     );
-    expect(() => findChangedBehavior([danglingNested], 0, 100)).toThrow(
+    expect(() => findChangedBehavior([danglingNested])).toThrow(
       /outside its top-level closure/u,
     );
   });

@@ -54,7 +54,6 @@ else {
       await writeFile(
         pending,
         `${JSON.stringify({
-          schema_version: 1,
           host: "127.0.0.1",
           port: address.port,
         })}\n`,

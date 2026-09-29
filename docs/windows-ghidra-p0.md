@@ -95,8 +95,8 @@ and no verified no-follow equivalent for every path component.
 
 Linux continues to use a mode-restricted Unix socket. Windows uses a Java
 listener bound to `127.0.0.1` on an ephemeral port. The bridge atomically
-publishes a bounded endpoint record containing only schema version, literal
-loopback host, and port. The random 256-bit request token remains only in the
+publishes a bounded endpoint record containing only the literal loopback host
+and port. The random 256-bit request token remains only in the
 ephemeral session descriptor and every request is authenticated.
 
 `analyzeHeadless.bat` is invoked through an absolute `cmd.exe` with a fixed

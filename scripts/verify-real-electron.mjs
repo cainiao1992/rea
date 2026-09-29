@@ -20,7 +20,6 @@ const applicationRoot =
 const applicationPath =
   process.env.REA_ELECTRON_APPLICATION_PATH ?? join(applicationRoot, "main.js");
 const input = electronActiveObservationInputSchema.parse({
-  schema_version: 1,
   executable_path: executable,
   application_path: applicationPath,
   application_root: applicationRoot,

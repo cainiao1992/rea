@@ -101,7 +101,6 @@ class ExitingLauncher implements BridgeLauncher {
 class DiagnosticExitingLauncher implements BridgeLauncher {
   launch() {
     const diagnostic: HopperStartupDiagnostic = {
-      schema_version: 1,
       component: "hopper_private_display",
       operation: "launch",
       status: "error",

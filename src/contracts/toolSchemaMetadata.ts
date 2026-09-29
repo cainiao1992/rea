@@ -29,11 +29,9 @@ const PROPERTY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   question: "Concrete unresolved question to retain for later investigation.",
   result: "Primary structured result returned by this operation.",
   left: "Left-hand input used for comparison or differential execution.",
-  limit: "Maximum number of results to return in this page.",
   limits:
     "Bounded resource-consumption and result-size limits for this operation.",
   mode: "Operation mode that selects the requested behavior.",
-  offset: "Zero-based index of the first result to return.",
   overwrite: "Whether an existing destination may be replaced.",
   path: "Local filesystem path used by this operation.",
   provider_id:
@@ -119,10 +117,6 @@ const fallbackPropertyDescription = (property: string): string => {
   const words = property.replaceAll("_", " ");
   if (property.endsWith("_approved"))
     return `Explicit operator approval for ${words.slice(0, -9)}.`;
-  if (property.endsWith("_offset"))
-    return `Zero-based index of the first ${words.slice(0, -7)} to return.`;
-  if (property.endsWith("_limit"))
-    return `Maximum number of ${words.slice(0, -6)} entries to return.`;
   if (property.startsWith("max_"))
     return `Maximum permitted ${words.slice(4)} for this operation.`;
   if (property.startsWith("include_"))

@@ -30,8 +30,6 @@ describe("binary session", () => {
           operation: "address_name",
           available: false,
           reason: "fixture intentionally omits symbol lookup",
-          pagination: "none",
-          exhaustive: false,
           effects: {
             mutatesArtifact: false,
             launchesProcess: false,
@@ -40,11 +38,6 @@ describe("binary session", () => {
             mayWriteFilesystem: false,
             changesPermissions: false,
             requiresRoot: false,
-          },
-          limits: {
-            maxResults: null,
-            maxPayloadBytes: null,
-            timeoutMs: null,
           },
           limitations: ["No symbol lookup implementation."],
         },

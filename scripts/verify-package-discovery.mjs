@@ -5,7 +5,6 @@ const REQUIRED_HELP_COMMANDS = [
   "upgrade",
   "inventory-artifact",
   "extract-artifact",
-  "investigate-versions",
   "import-reference-source",
   "list-browser-targets",
   "inspect-web-page",

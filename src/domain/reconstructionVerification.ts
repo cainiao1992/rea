@@ -73,8 +73,6 @@ const acceptsPredicate = (
 export const verifyReconstruction = (
   specificationInput: unknown,
   bundleInput: unknown,
-  offset: number,
-  limit: number,
 ): ReconstructionVerificationResult => {
   const specification =
     reconstructionSpecificationSchema.parse(specificationInput);
@@ -91,7 +89,6 @@ export const verifyReconstruction = (
   const results = specification.claims
     .map((claim) => evaluateClaim(claim, records, heads))
     .sort((left, right) => left.claim_id.localeCompare(right.claim_id, "en"));
-  const page = results.slice(offset, offset + limit);
   const failed = count(results, "fail");
   const unresolved = count(results, "unknown");
   const probes = reconstructionProbes(results, heads);
@@ -117,20 +114,12 @@ export const verifyReconstruction = (
       structural: results.filter(({ kind }) => kind !== "behavioral").length,
     },
     claims: {
-      items: page,
-      offset,
-      limit,
-      total: results.length,
-      next_offset:
-        offset + page.length < results.length ? offset + page.length : null,
+      items: results,
     },
-    recommended_probes: probes.items,
+    recommended_probes: probes,
     evidence_links: evidenceLinks,
     limitations: [
       "Pass means every declared claim passed; it does not establish global implementation equivalence.",
-      ...(probes.truncated
-        ? ["Recommended probes were truncated at the 2,000-item limit."]
-        : []),
     ],
   };
   return reconstructionVerificationResultSchema.parse(output);
@@ -172,8 +161,7 @@ const evaluateClaim = (
     allSourceIds,
   );
   const status = classify(observed, limitations, relevantUnknowns);
-  const displayedUnknowns = relevantUnknowns.slice(0, 100);
-  const hiddenUnknownCount = relevantUnknowns.length - displayedUnknowns.length;
+  const displayedUnknowns = relevantUnknowns;
   return reconstructionClaimResultSchema.parse({
     claim_id: claim.claim_id,
     kind: claim.kind,
@@ -191,11 +179,6 @@ const evaluateClaim = (
       ...displayedUnknowns.map(
         ({ question }) => `Residual unknown: ${question}`,
       ),
-      ...(hiddenUnknownCount > 0
-        ? [
-            `${hiddenUnknownCount} additional active residual unknowns affect this claim but are omitted by the 100-item display limit.`,
-          ]
-        : []),
     ]),
   });
 };
@@ -307,13 +290,7 @@ const observedStatus = (claim: Claim, evidence: Evidence): ObservedStatus => {
     evidence.normalized_result,
   );
   if (
-    result.changes.offset !== 0 ||
-    result.changes.next_offset !== null ||
-    result.changes.items.length !== result.changes.total
-  )
-    return "unknown";
-  if (
-    result.changes.items.some((item) =>
+    result.changes.some((item) =>
       item.evidence_links.some((id) => !evidence.evidence_links.includes(id)),
     )
   )

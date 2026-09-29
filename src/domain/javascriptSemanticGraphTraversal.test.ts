@@ -15,7 +15,6 @@ import {
   type JavaScriptSemanticGraphNode,
 } from "./javascriptSemanticGraph.js";
 import { queryJavaScriptSemanticGraph } from "./javascriptSemanticQuery.js";
-import { javaScriptSemanticQueryInputSchema } from "./javascriptSemanticQuerySchemas.js";
 
 const SHA = "a".repeat(64);
 const JAG_ID = `jag_${"b".repeat(64)}`;
@@ -244,70 +243,35 @@ const graphWithCandidateEdge = (): JavaScriptSemanticGraph => {
   });
 };
 
-const graphWithDuplicateLiteral = (): JavaScriptSemanticGraph => {
-  const graph = fixtureGraph();
-  const duplicate = node("literal", "literal-copy", { value: "TOKEN" });
-  const { graph_id: _graphId, ...input } = graph;
-  return createJavaScriptSemanticGraph({
-    ...input,
-    nodes: [...graph.nodes, duplicate],
-  });
-};
-
-it("bounds relevant unknown frontiers independently from relation pages", () => {
+it("returns every relevant unknown inline", () => {
   const graph = fixtureGraph(true);
   const callable = graph.nodes.find(({ kind }) => kind === "function");
   if (callable === undefined) throw new Error("Expected callable node");
   const result = queryJavaScriptSemanticGraph(graph, {
     seed: { kind: "semantic-node", node_id: callable.node_id },
     direction: "forward-influence",
-    limits: { max_unknowns: 0 },
   });
   expect(result).toMatchObject({
-    status: "truncated",
-    unknowns: [],
-    summary: { relevant_unknowns: 1, retained_unknowns: 0 },
-    coverage: { status: "truncated" },
+    summary: { relevant_unknowns: 1, retained_unknowns: 1 },
   });
+  expect(result.unknowns).toHaveLength(1);
 });
 
-it("traces deterministic forward influence and pages without changing identity", () => {
+it("returns the complete deterministic forward influence result inline", () => {
   const graph = fixtureGraph();
   const input = {
     seed: { kind: "literal" as const, value: "TOKEN" },
     direction: "forward-influence" as const,
     expected: { role: "sink" as const, classes: ["request" as const] },
-    limits: {
-      max_seed_matches: 25,
-      max_nodes: 20,
-      max_edges: 20,
-      max_depth: 12,
-      max_functions: 10,
-      max_modules: 10,
-      page_size: 2,
-    },
   };
   const first = queryJavaScriptSemanticGraph(graph, input);
   expect(first).toMatchObject({
     status: "found",
     summary: { traversed_nodes: 4, traversed_relations: 3 },
-    page: { offset: 0, size: 2 },
+    relations: expect.any(Array),
   });
   expect(first.expected_match_node_ids).toHaveLength(1);
-  expect(first.page.next_cursor).not.toBeNull();
-  const second = queryJavaScriptSemanticGraph(graph, {
-    ...input,
-    cursor: first.page.next_cursor,
-  });
-  expect(second.query_id).toBe(first.query_id);
-  expect(second.page).toMatchObject({
-    offset: 2,
-    size: 1,
-    next_cursor: null,
-  });
-  expect(second.relations[0]?.relation_id).not.toBe(
-    first.relations[0]?.relation_id,
-  );
+  expect(first.relations).toHaveLength(3);
 });
 
 it("keeps relevant dynamic frontiers unknown", () => {
@@ -342,104 +306,4 @@ it("excludes candidate edges unless the caller explicitly opts in", () => {
   expect(optedIn.relations).toMatchObject([
     { relation: "supplies-request-field", resolution: "candidate" },
   ]);
-});
-
-it("bounds seed ambiguity before traversal", () => {
-  const result = queryJavaScriptSemanticGraph(graphWithDuplicateLiteral(), {
-    seed: { kind: "literal", value: "TOKEN" },
-    direction: "forward-influence",
-    limits: {
-      max_seed_matches: 1,
-      max_nodes: 20,
-      max_edges: 20,
-      max_depth: 12,
-      max_functions: 10,
-      max_modules: 10,
-      page_size: 10,
-    },
-  });
-  expect(result.summary).toMatchObject({
-    total_seed_matches: 2,
-    retained_seed_matches: 1,
-  });
-  expect(result.status).toBe("truncated");
-  expect(result.coverage.frontier).toContainEqual(
-    expect.objectContaining({ reason: "max-seed-matches", depth: 0 }),
-  );
-});
-
-it("reports exact caller limits and a deterministic truncation frontier", () => {
-  const result = queryJavaScriptSemanticGraph(fixtureGraph(), {
-    seed: { kind: "literal", value: "TOKEN" },
-    direction: "forward-influence",
-    limits: {
-      max_seed_matches: 1,
-      max_nodes: 2,
-      max_edges: 10,
-      max_depth: 12,
-      max_functions: 10,
-      max_modules: 10,
-      page_size: 10,
-    },
-  });
-  expect(result.status).toBe("truncated");
-  expect(result.coverage.frontier).toMatchObject([{ reason: "max-nodes" }]);
-  expect(result.applied_limits.max_nodes).toBe(2);
-  expect(result.accepted_limit_ranges.max_nodes).toEqual({
-    minimum: 1,
-    maximum: 50_000,
-  });
-});
-
-it.each([
-  {
-    limit: { max_edges: 1 },
-    reason: "max-edges",
-  },
-  {
-    limit: { max_depth: 0 },
-    reason: "max-depth",
-  },
-])("reports the $reason frontier", ({ limit, reason }) => {
-  const result = queryJavaScriptSemanticGraph(fixtureGraph(), {
-    seed: { kind: "literal", value: "TOKEN" },
-    direction: "forward-influence",
-    limits: {
-      max_seed_matches: 10,
-      max_nodes: 20,
-      max_edges: limit.max_edges ?? 20,
-      max_depth: limit.max_depth ?? 12,
-      max_functions: 10,
-      max_modules: 10,
-      page_size: 10,
-    },
-  });
-  expect(result.status).toBe("truncated");
-  expect(result.coverage.frontier).toContainEqual(
-    expect.objectContaining({ reason }),
-  );
-});
-
-it("rejects out-of-range limits and cursors from another query", () => {
-  expect(() =>
-    javaScriptSemanticQueryInputSchema.parse({
-      seed: { kind: "literal", value: "TOKEN" },
-      direction: "forward-influence",
-      limits: { max_nodes: 50_001 },
-    }),
-  ).toThrow();
-  const graph = fixtureGraph();
-  const first = queryJavaScriptSemanticGraph(graph, {
-    seed: { kind: "literal", value: "TOKEN" },
-    direction: "forward-influence",
-    limits: { page_size: 1 },
-  });
-  expect(() =>
-    queryJavaScriptSemanticGraph(graph, {
-      seed: { kind: "endpoint", value: "https://example.invalid/v1" },
-      direction: "backward-provenance",
-      limits: { page_size: 1 },
-      cursor: first.page.next_cursor,
-    }),
-  ).toThrow(/cursor does not match/u);
 });

@@ -88,8 +88,6 @@ export const staticRuntimeCorrelationInputSchema = z
     static_comparisons: z.array(evidenceSchema).min(1).max(100),
     runtime_comparisons: z.array(evidenceSchema).min(1).max(100),
     mappings: z.array(mappingSchema).min(1).max(500),
-    offset: z.number().int().min(0).default(0),
-    limit: z.number().int().min(1).max(100).default(100),
     unknown_registry_approved: z.literal(true).optional(),
   })
   .strict();
@@ -122,7 +120,7 @@ const correlationItemSchema = z.object({
   limitations: z.array(z.string()),
 });
 
-/** Deterministic, paginated static/runtime correlation payload. */
+/** Deterministic static/runtime correlation payload. */
 export const staticRuntimeCorrelationResultSchema = z.object({
   status: z.enum(["correlated", "contradicted", "unknown", "truncated"]),
   summary: z.object({
@@ -131,11 +129,7 @@ export const staticRuntimeCorrelationResultSchema = z.object({
     unresolved: z.number().int().min(0),
   }),
   correlations: z.object({
-    items: z.array(correlationItemSchema).max(100),
-    offset: z.number().int().min(0),
-    limit: z.number().int().min(1).max(100),
-    total: z.number().int().min(0),
-    next_offset: z.number().int().min(0).nullable(),
+    items: z.array(correlationItemSchema),
   }),
   evidence_links: z.array(evidenceIdSchema).min(2).max(20_100),
   limitations: z.array(z.string()),
@@ -191,7 +185,6 @@ export const correlateStaticAndRuntime = (
     throw new TypeError(
       "Static/runtime correlation rejects duplicate mappings",
     );
-  const page = correlations.slice(parsed.offset, parsed.offset + parsed.limit);
   const links = uniqueSorted(
     correlations.flatMap(({ evidence_links: evidenceLinks }) => evidenceLinks),
   );
@@ -220,14 +213,7 @@ export const correlateStaticAndRuntime = (
       unresolved: unresolved.length,
     },
     correlations: {
-      items: page,
-      offset: parsed.offset,
-      limit: parsed.limit,
-      total: correlations.length,
-      next_offset:
-        parsed.offset + page.length < correlations.length
-          ? parsed.offset + page.length
-          : null,
+      items: correlations,
     },
     evidence_links: links,
     limitations: [
@@ -324,15 +310,7 @@ const selectStatic = (
   const result = artifactComparisonResultSchema.parse(
     evidence.normalized_result,
   );
-  if (
-    result.changes.offset !== 0 ||
-    result.changes.next_offset !== null ||
-    result.changes.items.length !== result.changes.total
-  )
-    throw new TypeError(
-      "Static/runtime correlation requires complete artifact comparison pagination",
-    );
-  const matches = result.changes.items.filter(
+  const matches = result.changes.filter(
     ({ logical_path: path }) => path === selector.logical_path,
   );
   const match = matches.at(0);
@@ -366,10 +344,9 @@ const parseStatic = (input: unknown): Evidence => {
     const result = artifactComparisonResultSchema.parse(
       evidence.normalized_result,
     );
-    assertCompleteArtifactResult(result);
     assertNestedLinks(
       evidence,
-      result.changes.items.flatMap(({ evidence_links: links }) => links),
+      result.changes.flatMap(({ evidence_links: links }) => links),
     );
   } else {
     const result = functionComparisonResultSchema.parse(
@@ -469,19 +446,6 @@ const sameSet = (left: readonly string[], right: readonly string[]): boolean =>
   left.length === right.length &&
   new Set(left).size === left.length &&
   left.every((item) => right.includes(item));
-
-const assertCompleteArtifactResult = (
-  result: z.infer<typeof artifactComparisonResultSchema>,
-): void => {
-  if (
-    result.changes.offset !== 0 ||
-    result.changes.next_offset !== null ||
-    result.changes.items.length !== result.changes.total
-  )
-    throw new TypeError(
-      "Static/runtime correlation requires complete artifact comparison pagination",
-    );
-};
 
 const observedPattern = (
   staticStatus: ComparisonStatus,

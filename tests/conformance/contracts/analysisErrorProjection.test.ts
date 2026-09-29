@@ -6,7 +6,7 @@ import {
   ArtifactOperationError,
   EvidenceFileError,
   HopperRemoteError,
-  InvestigationWorkspaceError,
+  WorkspaceStorageError,
   UnknownRegistryError,
   projectAnalysisError,
   type AnalysisError,
@@ -53,7 +53,7 @@ describe("analysis error projection contract", () => {
           "name-conflict",
           "io",
         ] as const
-      ).map((reason) => new InvestigationWorkspaceError("update", reason)),
+      ).map((reason) => new WorkspaceStorageError("update", reason)),
       ...(
         [
           "not-found",

@@ -1,6 +1,4 @@
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
-import { realpath } from "node:fs/promises";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type { AnalysisOperationPort } from "../../../src/application/AnalysisProvider.js";
@@ -10,7 +8,6 @@ import { createServer } from "../../../src/server/createServer.js";
 
 describe("MCP permission preflight", () => {
   it("denies extraction before dispatch and returns exact typed remediation", async () => {
-    const outputRoot = join(await realpath("/tmp"), "rea-permission-denied");
     let dispatches = 0;
     const analysis: AnalysisOperationPort = {
       execute: () => {
@@ -30,8 +27,6 @@ describe("MCP permission preflight", () => {
       const result = await client.callTool({
         name: "extract_artifact",
         arguments: {
-          approved: true,
-          output_root: outputRoot,
           occurrence_ids: [`occ_${"0".repeat(64)}`],
         },
       });
@@ -44,7 +39,7 @@ describe("MCP permission preflight", () => {
             code: "permission_required",
             details: {
               capability: "artifact_extract",
-              missing: { roots: [outputRoot] },
+              missing: { roots: [expect.stringMatching(/rea-extracted-/u)] },
             },
             remediation: {
               restart_required: true,

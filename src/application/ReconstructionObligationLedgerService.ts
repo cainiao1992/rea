@@ -9,9 +9,9 @@ import { createEvidence, type Evidence } from "../domain/evidence.js";
 import { jsonObjectSchema, jsonValueSchema } from "../domain/jsonValue.js";
 import {
   reconstructionObligationLedgerInputSchema,
-  reconstructionObligationLedgerPageSchema,
+  reconstructionObligationLedgerSchema,
   type ReconstructionObligationLedgerInput,
-  type ReconstructionObligationLedgerPage,
+  type ReconstructionObligationLedger,
 } from "../domain/reconstructionObligationLedgerSchemas.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { JAVASCRIPT_APPLICATION_WORKFLOW_PROVIDER } from "./InvestigationProviders.js";
@@ -30,7 +30,7 @@ export const resolveReconstructionObligationLedgerRequest = (
     : err(new AnalysisInputError(OPERATION, { cause: parsed.error }));
 };
 
-/** Build one deterministic ledger page and wrap it in portable Evidence. */
+/** Build the complete deterministic ledger and wrap it in portable Evidence. */
 export const buildReconstructionObligationLedgerEvidenceValidated = (
   input: ReconstructionObligationLedgerInput,
 ): Result<Evidence, AnalysisError> => {
@@ -45,8 +45,7 @@ export const buildReconstructionObligationLedgerEvidenceValidated = (
       manifest: input.manifest,
       generationLimitations: generated.limitations,
     });
-    const page = pageLedger(ledger, input.page.offset, input.page.limit);
-    return ok(createLedgerEvidence(input, page));
+    return ok(createLedgerEvidence(input, ledger));
   } catch (cause: unknown) {
     if (cause instanceof z.ZodError)
       return err(new AnalysisInputError(OPERATION, { cause }));
@@ -59,47 +58,24 @@ export const buildReconstructionObligationLedgerEvidenceValidated = (
   }
 };
 
-const pageLedger = (
-  ledger: ReturnType<typeof evaluateReconstructionObligationLedger>,
-  offset: number,
-  limit: number,
-): ReconstructionObligationLedgerPage => {
-  const obligations = ledger.obligations.slice(offset, offset + limit);
-  const nextOffset =
-    offset + obligations.length < ledger.obligations.length
-      ? offset + obligations.length
-      : null;
-  const { obligations: _allObligations, ...summary } = ledger;
-  return reconstructionObligationLedgerPageSchema.parse({
-    ...summary,
-    page: {
-      offset,
-      limit,
-      total: ledger.obligations.length,
-      returned: obligations.length,
-      next_offset: nextOffset,
-    },
-    obligations,
-  });
-};
-
 const createLedgerEvidence = (
   input: ReconstructionObligationLedgerInput,
-  page: ReconstructionObligationLedgerPage,
-): Evidence =>
-  createEvidence(undefined, JAVASCRIPT_APPLICATION_WORKFLOW_PROVIDER, {
+  ledger: ReconstructionObligationLedger,
+): Evidence => {
+  const completeLedger = reconstructionObligationLedgerSchema.parse(ledger);
+  return createEvidence(undefined, JAVASCRIPT_APPLICATION_WORKFLOW_PROVIDER, {
     predicateType: "rea.reconstruction-obligation-ledger/v1",
     operation: OPERATION,
     parameters: jsonObjectSchema.parse({
-      ledger_id: page.ledger_id,
-      closure_digest: page.closure_digest,
-      page: input.page,
+      ledger_id: completeLedger.ledger_id,
+      closure_digest: completeLedger.closure_digest,
     }),
-    result: jsonValueSchema.parse(page),
+    result: jsonValueSchema.parse(completeLedger),
     rawResult: null,
     confidence: "inferred",
     authority: "analyst-inference",
     environment: null,
-    limitations: page.limitations,
-    evidenceLinks: page.evidence_links,
+    limitations: completeLedger.limitations,
+    evidenceLinks: completeLedger.evidence_links,
   });
+};

@@ -54,7 +54,7 @@ it("projects closure and direct interprocedural flow without execution", () => {
   );
 });
 
-it("keeps dynamic calls explicit and returns bounded deterministic pages", () => {
+it("keeps dynamic calls explicit and returns complete deterministic results", () => {
   const graph = graphFor(`
       const handlers = { ready() { return 1; } };
       const key = process.argv[2];
@@ -73,21 +73,11 @@ it("keeps dynamic calls explicit and returns bounded deterministic pages", () =>
     seed: { kind: "semantic-node", node_id: seedNodeId },
     direction: "forward-influence",
     include_ambiguous_dynamic_edges: true,
-    limits: {
-      max_seed_matches: 25,
-      max_nodes: 2_000,
-      max_edges: 4_000,
-      max_depth: 12,
-      max_functions: 500,
-      max_modules: 500,
-      page_size: 1,
-    },
   });
   const repeated = queryJavaScriptSemanticGraph(graph, {
     seed: { kind: "semantic-node", node_id: seedNodeId },
     direction: "forward-influence",
     include_ambiguous_dynamic_edges: true,
-    limits: first.applied_limits,
   });
   expect(repeated).toEqual(first);
 });

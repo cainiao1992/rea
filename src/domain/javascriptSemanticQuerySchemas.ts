@@ -57,18 +57,6 @@ export const javaScriptSemanticQuerySeedSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
-/** Strict caller limits for deterministic bounded traversal. */
-export const javaScriptSemanticQueryLimitsSchema = z.strictObject({
-  max_seed_matches: z.number().int().min(1).max(1_000).default(25),
-  max_nodes: z.number().int().min(1).max(50_000).default(2_000),
-  max_edges: z.number().int().min(1).max(100_000).default(4_000),
-  max_depth: z.number().int().min(0).max(64).default(12),
-  max_functions: z.number().int().min(1).max(10_000).default(500),
-  max_modules: z.number().int().min(1).max(10_000).default(500),
-  max_unknowns: z.number().int().min(0).max(10_000).default(1_000),
-  page_size: z.number().int().min(1).max(1_000).default(200),
-});
-
 const sourceMapAuthoritySchema = z.strictObject({
   authority: z.literal("none"),
 });
@@ -96,21 +84,6 @@ export const javaScriptSemanticQueryInputSchema = z.strictObject({
     .nullable()
     .default(null),
   source_map_authority: sourceMapAuthoritySchema.default({ authority: "none" }),
-  limits: javaScriptSemanticQueryLimitsSchema.default({
-    max_seed_matches: 25,
-    max_nodes: 2_000,
-    max_edges: 4_000,
-    max_depth: 12,
-    max_functions: 500,
-    max_modules: 500,
-    max_unknowns: 1_000,
-    page_size: 200,
-  }),
-  cursor: z
-    .string()
-    .regex(/^jsrqc_[0-9]+_[a-f0-9]{64}$/u)
-    .nullable()
-    .default(null),
 });
 
 const queryFrontierSchema = z.strictObject({
@@ -126,7 +99,7 @@ const queryFrontierSchema = z.strictObject({
   ]),
 });
 
-/** Deterministic, pageable semantic trace result. */
+/** Deterministic semantic trace result. */
 export const javaScriptSemanticQueryResultSchema = z.strictObject({
   query_id: z.string().regex(/^jsrq_[a-f0-9]{64}$/u),
   source_graph_id: z.string().regex(/^jsrg_[a-f0-9]{64}$/u),
@@ -158,49 +131,6 @@ export const javaScriptSemanticQueryResultSchema = z.strictObject({
   coverage: z.strictObject({
     status: z.enum(["complete", "partial", "truncated", "unavailable"]),
     frontier: z.array(queryFrontierSchema).max(100_000),
-  }),
-  page: z.strictObject({
-    offset: z.number().int().min(0),
-    size: z.number().int().min(0).max(1_000),
-    next_cursor: z
-      .string()
-      .regex(/^jsrqc_[0-9]+_[a-f0-9]{64}$/u)
-      .nullable(),
-  }),
-  applied_limits: javaScriptSemanticQueryLimitsSchema,
-  accepted_limit_ranges: z.strictObject({
-    max_seed_matches: z.strictObject({
-      minimum: z.literal(1),
-      maximum: z.literal(1_000),
-    }),
-    max_nodes: z.strictObject({
-      minimum: z.literal(1),
-      maximum: z.literal(50_000),
-    }),
-    max_edges: z.strictObject({
-      minimum: z.literal(1),
-      maximum: z.literal(100_000),
-    }),
-    max_depth: z.strictObject({
-      minimum: z.literal(0),
-      maximum: z.literal(64),
-    }),
-    max_functions: z.strictObject({
-      minimum: z.literal(1),
-      maximum: z.literal(10_000),
-    }),
-    max_modules: z.strictObject({
-      minimum: z.literal(1),
-      maximum: z.literal(10_000),
-    }),
-    max_unknowns: z.strictObject({
-      minimum: z.literal(0),
-      maximum: z.literal(10_000),
-    }),
-    page_size: z.strictObject({
-      minimum: z.literal(1),
-      maximum: z.literal(1_000),
-    }),
   }),
   limitations: z.array(z.string().min(1).max(4_096)).max(1_000),
 });

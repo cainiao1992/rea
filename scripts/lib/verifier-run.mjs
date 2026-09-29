@@ -11,7 +11,6 @@ export const createVerifierRun = () => {
     return activeVerifierRun;
   }
   activeVerifierRun = Object.freeze({
-    schema_version: 1,
     run_id: randomUUID(),
     verifier_pid: process.pid,
     parent_pid: process.ppid,
@@ -85,7 +84,6 @@ const observeVerifierLineage = async (run, observedAt) => {
     }
     return {
       status: "verified",
-      schema_version: 1,
       observed_at: observedAt,
       launcher_pid: run.verifier_pid,
       launcher_parent_pid: run.parent_pid,

@@ -39,9 +39,7 @@ rea build-reconstruction-obligation-ledger \
     "manifest": {
       "bindings": [],
       "contradictions": []
-    },
-    "limits": { "max_obligations": 100 },
-    "page": { "offset": 0, "limit": 50 }
+    }
   }' \
   --json
 ```
@@ -322,8 +320,6 @@ close a `packaged-process` obligation. A static-only source cannot close a
 runtime or process claim. Marking a claim `blocked` or `out-of-scope` records the
 disposition but does not silently count it as verified.
 
-Pagination changes only `page` and the returned `obligations` slice. Every page
-retains the same `ledger_id`, `closure_digest`, full-ledger summaries, reports,
-ownership graph, dependency graph, Evidence links, and limitations. Consumers
-should follow `next_offset` until it is `null`, and should reject pages whose
-identity or closure digest changes mid-read.
+The tool returns every obligation inline. Its `ledger_id` and `closure_digest`
+identify the complete result, including summaries, reports, ownership and
+dependency graphs, Evidence links, and limitations.

@@ -16,8 +16,6 @@ const nonHopperProvider = (operations: string[]): AnalysisProvider => {
         operation: "address_name",
         available: true,
         reason: null,
-        pagination: "none",
-        exhaustive: true,
         effects: {
           mutatesArtifact: false,
           launchesProcess: false,
@@ -26,11 +24,6 @@ const nonHopperProvider = (operations: string[]): AnalysisProvider => {
           mayWriteFilesystem: false,
           changesPermissions: false,
           requiresRoot: false,
-        },
-        limits: {
-          maxResults: null,
-          maxPayloadBytes: null,
-          timeoutMs: null,
         },
         limitations: [],
       },

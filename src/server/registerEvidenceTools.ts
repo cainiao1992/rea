@@ -17,6 +17,7 @@ import { mcpProgressReporter } from "./mcpProgress.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 import { toCallToolResult } from "./toolResult.js";
+import { createArtifactExtractionDestination } from "../application/ArtifactExtractionDestination.js";
 
 interface EvidenceToolRegistration {
   readonly logger: Logger;
@@ -49,8 +50,15 @@ export const registerEvidenceTools = (
           message: "started",
         });
         const parameters = jsonObjectSchema.parse(input);
+        const executionParameters =
+          contract.name === "extract_artifact"
+            ? {
+                ...parameters,
+                output_root: createArtifactExtractionDestination(),
+              }
+            : parameters;
         if (options.permissionAuthority !== undefined) {
-          const request = permissionRequest(contract.name, parameters);
+          const request = permissionRequest(contract.name, executionParameters);
           if (request !== undefined) {
             const authorized = await options.permissionAuthority.authorize(
               request,
@@ -67,7 +75,7 @@ export const registerEvidenceTools = (
           options.logger,
           contract.name,
           () =>
-            analysis.execute(contract.name, parameters, {
+            analysis.execute(contract.name, executionParameters, {
               signal: context.mcpReq.signal,
               progress,
             }),

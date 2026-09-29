@@ -89,12 +89,6 @@ export const MANAGED_MEMBER_FIXTURE_LIMITS = {
   maxMethodInstructions: 1_000,
 };
 
-/** Member bounds for fixture tests that inspect a real local path. */
-export const MANAGED_MEMBER_PATH_FIXTURE_LIMITS = {
-  ...MANAGED_MEMBER_FIXTURE_LIMITS,
-  maxFileBytes: 1024 * 1024,
-};
-
 /** Generous native-boundary bounds for the source-owned PE fixture. */
 export const MANAGED_NATIVE_BOUNDARY_FIXTURE_LIMITS = {
   maxMetadataBytes: 1024 * 1024,

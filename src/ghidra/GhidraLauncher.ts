@@ -95,7 +95,6 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
       await writeFileAtomic(
         paths.descriptorPath,
         `${JSON.stringify({
-          schema_version: 2,
           transport: session.transport,
           endpoint_path: session.endpointPath,
           token: session.token,
@@ -137,7 +136,6 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
       await writeFileAtomic(
         paths.ownershipPath,
         `${JSON.stringify({
-          schema_version: 1,
           run_id: session.runId,
           pid: started.ownership.leaderPid,
           process_group_id: started.ownership.processGroupId,

@@ -8,7 +8,6 @@ import {
 export const LINUX_PRIVATE_DISPLAY_DIAGNOSTIC_PREFIX = "REA_X11_DIAGNOSTIC_V1=";
 
 const diagnosticContextSchema = z.object({
-  schema_version: z.literal(1),
   component: z.literal("hopper_private_display"),
   operation: z.enum(["probe", "launch"]),
   reason: z

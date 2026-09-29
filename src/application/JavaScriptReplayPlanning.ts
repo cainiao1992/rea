@@ -125,7 +125,6 @@ export const prepareReplayPlan = async (
       : prepareSide(input.right, input.limits.module_bytes, host),
   ]);
   const withoutDigest = {
-    schema_version: 1 as const,
     policy_version: REPLAY_POLICY_VERSION,
     policy_sha256: digestJson(REPLAY_POLICY_DOCUMENT),
     network: "none" as const,

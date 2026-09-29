@@ -116,7 +116,6 @@ describe("application workflow MCP parity", () => {
       expect(semantic.isError).not.toBe(true);
       expect(semantic.structuredContent).toMatchObject({
         result: {
-          schema_version: 1,
           source_evidence_id: left.value.evidence_id,
           source_graph_id: analyzed.semantic_graph.graph_id,
           summary: { retained_seed_matches: 1 },

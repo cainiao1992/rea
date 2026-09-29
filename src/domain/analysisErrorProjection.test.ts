@@ -246,32 +246,6 @@ describe("analysis error projection: caller contract", () => {
     });
   });
 
-  it("retains schema-authored input guidance", () => {
-    expect(
-      projectAnalysisError(
-        new AnalysisInputError("find_changed_behavior", undefined, [
-          {
-            path: [],
-            reason: "invalid_value",
-            message:
-              "Supply either existing comparisons or one investigation_run",
-          },
-        ]),
-      ),
-    ).toMatchObject({
-      details: {
-        issues: [
-          {
-            path: [],
-            reason: "invalid_value",
-            message:
-              "Supply either existing comparisons or one investigation_run",
-          },
-        ],
-      },
-    });
-  });
-
   it("distinguishes disabled integrity continuation from format support", () => {
     expect(
       projectAnalysisError(

@@ -65,9 +65,7 @@ describe("analysis snapshot contract", () => {
     ).toBeUndefined();
   });
 
-  it("rejects snapshot v1 with explicit recapture guidance", () => {
-    expect(() => parseAnalysisSnapshot({ snapshot_version: 1 })).toThrow(
-      /v1.*recapture.*v2/iu,
-    );
+  it("rejects an input without the current snapshot shape", () => {
+    expect(() => parseAnalysisSnapshot({ snapshot_version: 1 })).toThrow();
   });
 });

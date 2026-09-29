@@ -1,5 +1,4 @@
 export interface VerifierRunStart {
-  readonly schema_version: 1;
   readonly run_id: string;
   readonly verifier_pid: number;
   readonly parent_pid: number;
@@ -14,7 +13,6 @@ export interface VerifierRunDescendant {
 export type VerifierProcessLineage =
   | {
       readonly status: "verified";
-      readonly schema_version: 1;
       readonly observed_at: string;
       readonly launcher_pid: number;
       readonly launcher_parent_pid: number;

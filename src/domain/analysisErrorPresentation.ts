@@ -11,7 +11,7 @@ import {
   HopperProcessError,
   HopperStartError,
   HopperTimeoutError,
-  InvestigationWorkspaceError,
+  WorkspaceStorageError,
   NoBinaryOpenError,
   PermissionRequiredError,
   ProviderSelectionError,
@@ -81,8 +81,8 @@ export const analysisErrorCategory = (
     return artifactErrorCategory(error.reason);
   if (error instanceof EvidenceFileError && error.reason === "disabled")
     return "unavailable";
-  if (error instanceof InvestigationWorkspaceError)
-    return investigationWorkspaceCategory(error.reason);
+  if (error instanceof WorkspaceStorageError)
+    return workspaceStorageCategory(error.reason);
   return STATIC_ERROR_CATEGORIES[error._tag] ?? "execution_failure";
 };
 
@@ -101,8 +101,8 @@ const browserErrorCategory = (
   return "execution_failure";
 };
 
-const investigationWorkspaceCategory = (
-  reason: InvestigationWorkspaceError["reason"],
+const workspaceStorageCategory = (
+  reason: WorkspaceStorageError["reason"],
 ): AnalysisErrorProjection["category"] => {
   if (
     reason === "disabled" ||
@@ -162,8 +162,8 @@ export const analysisErrorUserMessage = (error: AnalysisError): string => {
     return "Evidence is too large for this session. Reduce the evidence set and try again.";
   if (error instanceof EvidenceFileError)
     return evidenceFileMessage(error.reason);
-  if (error instanceof InvestigationWorkspaceError)
-    return investigationWorkspaceMessage(error.reason);
+  if (error instanceof WorkspaceStorageError)
+    return workspaceStorageMessage(error.reason);
   if (error instanceof UnknownRegistryError && error.reason === "not-found")
     return "The requested residual unknown does not exist in this session. Check the unknown_id and try again.";
   if (error instanceof UnknownRegistryError)
@@ -274,8 +274,8 @@ const evidenceFileMessage = (reason: EvidenceFileError["reason"]): string => {
   return "Evidence file could not be accessed. Check file permissions and try again.";
 };
 
-const investigationWorkspaceMessage = (
-  reason: InvestigationWorkspaceError["reason"],
+const workspaceStorageMessage = (
+  reason: WorkspaceStorageError["reason"],
 ): string => {
   if (reason === "disabled")
     return "Investigation workspace access is disabled. Configure a workspace directory and try again.";
@@ -309,7 +309,7 @@ const KNOWN_ERROR_TAGS = {
   EvidenceIntegrityError: true,
   EvidenceLimitError: true,
   EvidenceFileError: true,
-  InvestigationWorkspaceError: true,
+  WorkspaceStorageError: true,
   UnknownRegistryError: true,
   HopperTimeoutError: true,
   HopperCancelledError: true,

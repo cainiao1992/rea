@@ -4,11 +4,6 @@ import type {
 } from "../application/AnalysisProvider.js";
 import { WINDOWS_NATIVE_AUTHORITY_UNAVAILABLE_REASON } from "../process/WindowsAuthority.js";
 import { GENERATED_MCP_TOOL_CATALOG } from "../generatedMcpToolCatalog.js";
-import {
-  GHIDRA_DECOMPILE_REQUEST_TIMEOUT_MS,
-  GHIDRA_MAX_LINE_BYTES,
-  GHIDRA_REQUEST_TIMEOUT_MS,
-} from "./GhidraDefaults.js";
 import { GHIDRA_FUNCTION_OPERATIONS } from "./GhidraFunctionValues.js";
 import { GHIDRA_INVENTORY_OPERATIONS } from "./GhidraInventoryValues.js";
 
@@ -38,12 +33,6 @@ export const GHIDRA_PROVIDER_TOOL_CONTRACTS = Object.freeze(
     },
   ),
 );
-
-const PAGINATED_OPERATIONS: ReadonlySet<string> = new Set([]);
-const DECOMPILE_OPERATIONS: ReadonlySet<string> = new Set([
-  "procedure_pseudo_code",
-  "analyze_function",
-]);
 
 /** Health limitations shared by every Ghidra-backed capability. */
 export const healthLimitations = Object.freeze([
@@ -157,10 +146,6 @@ export const CAPABILITIES: readonly CapabilityDescriptor[] = Object.freeze(
       operation,
       available: true,
       reason: null,
-      pagination: PAGINATED_OPERATIONS.has(contract.name)
-        ? ("offset" as const)
-        : ("none" as const),
-      exhaustive: !PAGINATED_OPERATIONS.has(contract.name),
       effects: Object.freeze({
         mutatesArtifact: false,
         launchesProcess: true,
@@ -169,13 +154,6 @@ export const CAPABILITIES: readonly CapabilityDescriptor[] = Object.freeze(
         mayWriteFilesystem: true,
         changesPermissions: false,
         requiresRoot: false,
-      }),
-      limits: Object.freeze({
-        maxResults: PAGINATED_OPERATIONS.has(contract.name) ? 500 : null,
-        maxPayloadBytes: GHIDRA_MAX_LINE_BYTES,
-        timeoutMs: DECOMPILE_OPERATIONS.has(contract.name)
-          ? GHIDRA_DECOMPILE_REQUEST_TIMEOUT_MS
-          : GHIDRA_REQUEST_TIMEOUT_MS,
       }),
       limitations: Object.freeze(limitationsFor(contract.name)),
     });

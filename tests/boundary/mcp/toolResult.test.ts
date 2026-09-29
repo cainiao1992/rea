@@ -51,7 +51,6 @@ describe("tool result projection", () => {
     const result = toCallToolResult(
       err(
         new HopperProcessError(80, {
-          schema_version: 1,
           component: "hopper_private_display",
           operation: "launch",
           status: "error",

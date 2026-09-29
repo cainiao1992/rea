@@ -71,7 +71,6 @@ try {
     throw new Error("Real Node Inspector capture was incomplete");
   process.stdout.write(
     `${JSON.stringify({
-      schema_version: 1,
       status: "pass",
       provider: observed.provider.id,
       target_id: target.target_id,

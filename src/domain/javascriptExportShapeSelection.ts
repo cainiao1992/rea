@@ -53,7 +53,7 @@ export type SelectedJavaScriptExport =
       readonly limitations: readonly string[];
     };
 
-/** Caller-retained return shapes and their exact caller-limit omission count. */
+/** Complete return-shape inventory retained from an authenticated projection. */
 export interface RetainedJavaScriptExportShapes {
   readonly shapes: readonly Shape[];
   readonly omitted: number;
@@ -62,7 +62,6 @@ export interface RetainedJavaScriptExportShapes {
 /** Select one exact trusted export and its exact static return-shape observation. */
 export const selectJavaScriptExport = (
   side: JavaScriptExportShapeSideInput,
-  maxCandidates: number,
 ): SelectedJavaScriptExport => {
   const candidates = exportCandidates(side.graph);
   const exact = candidates.filter(
@@ -79,8 +78,7 @@ export const selectJavaScriptExport = (
       : matchingOneSelector.length > 0
         ? matchingOneSelector
         : candidates;
-  const retainedCandidates = diagnosticPool.slice(0, maxCandidates);
-  const base = selectorBase(side, diagnosticPool, retainedCandidates);
+  const base = selectorBase(side, diagnosticPool);
   if (exact.length === 0)
     return unresolvedSelection(
       base,
@@ -128,33 +126,30 @@ export const selectJavaScriptExport = (
   };
 };
 
-/** Apply the caller's explicit return-variant limit. */
+/** Retain every projected return variant. */
 export const retainJavaScriptExportShapes = (
   selection: SelectedJavaScriptExport,
-  maximum: number,
 ): RetainedJavaScriptExportShapes => {
   const shapes = selection.projection?.static_return_shapes ?? [];
-  const retained = shapes.slice(0, maximum);
-  return { shapes: retained, omitted: shapes.length - retained.length };
+  return { shapes, omitted: 0 };
 };
 
 const selectorBase = (
   side: JavaScriptExportShapeSideInput,
   candidates: readonly ExportCandidate[],
-  retained: readonly ExportCandidate[],
 ): SelectorBase => ({
   evidence_id: side.evidenceId,
   graph_id: side.graph.graph_id,
   requested_module_path: side.modulePath,
   requested_export_name: side.exportName,
-  candidates: retained.map((candidate) => ({
+  candidates: candidates.map((candidate) => ({
     node_id: candidate.node.node_id,
     module_path: candidate.modulePath,
     export_name: candidate.exportName,
     matches_requested_module: candidate.modulePath === side.modulePath,
     matches_requested_export: candidate.exportName === side.exportName,
   })),
-  omitted_candidates: candidates.length - retained.length,
+  omitted_candidates: 0,
 });
 
 const unresolvedSelection = (

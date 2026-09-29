@@ -132,7 +132,6 @@ describe("static/runtime correlation", () => {
       status: "correlated",
       summary: { hypotheses: 1, contradictions: 0, unresolved: 0 },
       correlations: {
-        total: 1,
         items: [
           {
             observed_pattern: "cochanged",
@@ -187,7 +186,7 @@ describe("static/runtime correlation", () => {
     });
   });
 
-  it("is order-stable, paginated, and rejects duplicates and absent selectors", () => {
+  it("returns all correlations order-stably and rejects duplicates and absent selectors", () => {
     const runtime = processComparison("changed");
     const base = mapping(runtime, "cochanged");
     const second = {
@@ -201,17 +200,13 @@ describe("static/runtime correlation", () => {
     const forward = correlateStaticAndRuntime({
       ...base,
       mappings: [base.mappings[0], second],
-      offset: 0,
-      limit: 1,
     });
     const reversed = correlateStaticAndRuntime({
       ...base,
       mappings: [second, base.mappings[0]],
-      offset: 0,
-      limit: 1,
     });
     expect(reversed).toEqual(forward);
-    expect(forward.correlations).toMatchObject({ total: 2, next_offset: 1 });
+    expect(forward.correlations.items).toHaveLength(2);
     expect(() =>
       correlateStaticAndRuntime({
         ...base,

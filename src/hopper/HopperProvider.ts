@@ -60,12 +60,6 @@ const CAPABILITIES: readonly CapabilityDescriptor[] = Object.freeze(
       operation,
       available: true,
       reason: null,
-      pagination:
-        isRecord(contract.inputSchema.properties) &&
-        "offset" in contract.inputSchema.properties
-          ? "offset"
-          : "none",
-      exhaustive: false,
       effects: Object.freeze({
         mutatesArtifact: MUTATING_OPERATIONS.has(contract.name),
         launchesProcess: true,
@@ -75,21 +69,12 @@ const CAPABILITIES: readonly CapabilityDescriptor[] = Object.freeze(
         changesPermissions: false,
         requiresRoot: false,
       }),
-      limits: Object.freeze({
-        maxResults: null,
-        maxPayloadBytes: contract.name === "read_bytes" ? 4_096 : null,
-        timeoutMs: null,
-      }),
       limitations: Object.freeze([
         "Results depend on Hopper's completed static analysis.",
       ]),
     });
   }),
 );
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 /** Concrete analysis provider backed by REA's private Hopper bridge. */
 export class HopperProvider implements AnalysisProviderCandidate {

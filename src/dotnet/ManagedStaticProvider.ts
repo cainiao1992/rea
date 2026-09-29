@@ -50,8 +50,6 @@ export class ManagedStaticProvider implements AnalysisProvider {
         operation: contract.name,
         available: true as const,
         reason: null,
-        pagination: "none" as const,
-        exhaustive: true,
         effects: Object.freeze({
           mutatesArtifact: false,
           launchesProcess: false,
@@ -60,11 +58,6 @@ export class ManagedStaticProvider implements AnalysisProvider {
           mayWriteFilesystem: false,
           changesPermissions: false,
           requiresRoot: false,
-        }),
-        limits: Object.freeze({
-          maxResults: null,
-          maxPayloadBytes: 4 * 1024 * 1024,
-          timeoutMs: null,
         }),
         limitations: limitationsFor(contract.name),
       }),

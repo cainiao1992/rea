@@ -118,19 +118,35 @@ const behavioralSpec = (comparison: Evidence) => ({
   ],
 });
 
-const artifactResult = (partial = false): JsonValue => ({
-  status: "unchanged",
+const artifactResult = (
+  partial = false,
+  evidenceLinks: readonly string[] = [],
+): JsonValue => ({
+  status: partial ? "truncated" : "unchanged",
   left_manifest_id: `agm_${"3".repeat(64)}`,
   right_manifest_id: `agm_${"4".repeat(64)}`,
-  summary: { unchanged: 1, added: 0, removed: 0, changed: 0, unknown: 0 },
-  changes: {
-    items: [],
-    offset: 0,
-    limit: 100,
-    total: partial ? 1 : 0,
-    next_offset: partial ? 1 : null,
+  summary: {
+    unchanged: partial ? 0 : 1,
+    added: 0,
+    removed: 0,
+    changed: 0,
+    unknown: partial ? 1 : 0,
   },
-  limitations: [],
+  changes: partial
+    ? [
+        {
+          classification: "unknown",
+          logical_path: "unavailable",
+          dimensions: ["availability"],
+          left_occurrence_id: null,
+          right_occurrence_id: null,
+          left_artifact_id: null,
+          right_artifact_id: null,
+          evidence_links: [...evidenceLinks],
+        },
+      ]
+    : [],
+  limitations: partial ? ["Inventory evidence is incomplete."] : [],
 });
 
 const artifactComparison = (
@@ -152,7 +168,7 @@ const artifactComparison = (
         left_evidence_ids: [left.evidence_id],
         right_evidence_ids: [right.evidence_id],
       },
-      result: artifactResult(partial),
+      result: artifactResult(partial, [left.evidence_id, right.evidence_id]),
       confidence: "derived",
       authority: "analyst-inference",
       evidenceLinks: [left.evidence_id, right.evidence_id],
@@ -207,8 +223,6 @@ describe("reconstruction verification", () => {
           ],
         },
         createEvidenceBundle([comparison, right, left]),
-        0,
-        100,
       ),
     ).toMatchObject({
       summary: { total: 2, passed: 1, failed: 1, unknown: 0 },
@@ -222,13 +236,11 @@ describe("reconstruction verification", () => {
     const result = verifyReconstruction(
       behavioralSpec(comparison),
       createEvidenceBundle([comparison, right, left]),
-      0,
-      100,
     );
     expect(reconstructionVerificationResultSchema.parse(result)).toMatchObject({
       status: "pass",
       summary: { total: 1, passed: 1, failed: 0, unknown: 0 },
-      claims: { total: 1, next_offset: null },
+      claims: { items: expect.any(Array) },
     });
     expect(
       reconstructionVerificationResultSchema.safeParse({
@@ -258,8 +270,6 @@ describe("reconstruction verification", () => {
     const result = verifyReconstruction(
       behavioralSpec(comparison),
       createEvidenceBundle([left, right, comparison]),
-      0,
-      100,
     );
     expect(result).toMatchObject({
       status: "fail",
@@ -276,8 +286,6 @@ describe("reconstruction verification", () => {
       verifyReconstruction(
         behavioralSpec(runtime),
         createEvidenceBundle([weakLeft, replayRight, runtime]),
-        0,
-        100,
       ).status,
     ).toBe("unknown");
 
@@ -298,8 +306,6 @@ describe("reconstruction verification", () => {
         ],
       },
       createEvidenceBundle([left, comparison, right]),
-      0,
-      100,
     );
     expect(result.status).toBe("unknown");
     expect(result.recommended_probes[0]?.operation).toBe("inventory_artifact");
@@ -318,13 +324,11 @@ describe("reconstruction verification integrity", () => {
       verifyReconstruction(
         behavioralSpec(comparison),
         createEvidenceBundle([left, right, extra, comparison]),
-        0,
-        100,
       ),
     ).toThrow(/closure disagrees/u);
   });
 
-  it("pages claims deterministically and gives specification a stable digest", () => {
+  it("returns every claim deterministically and gives specification a stable digest", () => {
     const left = source("1", "controlled-replay");
     const right = source("2", "controlled-replay");
     const comparison = processComparison(left, right, processResult());
@@ -342,8 +346,6 @@ describe("reconstruction verification integrity", () => {
     const first = verifyReconstruction(
       { name: "Compatibility", claims },
       bundle,
-      0,
-      1,
     );
     const repeated = verifyReconstruction(
       {
@@ -351,15 +353,15 @@ describe("reconstruction verification integrity", () => {
         claims: [...claims].reverse(),
       },
       bundle,
-      0,
-      1,
     );
     expect(first).toEqual(repeated);
-    expect(first.claims.items[0]?.claim_id).toBe("terminal-output");
-    expect(first.claims.next_offset).toBe(1);
+    expect(first.claims.items.map(({ claim_id }) => claim_id)).toEqual([
+      "terminal-output",
+      "z-exit",
+    ]);
   });
 
-  it("keeps all active unknowns gating while bounding their projection", () => {
+  it("returns all active unknowns while keeping them gating", () => {
     const left = source("1", "controlled-replay");
     const right = source("2", "controlled-replay");
     const comparison = processComparison(left, right, processResult());
@@ -400,13 +402,8 @@ describe("reconstruction verification integrity", () => {
     const result = verifyReconstruction(
       behavioralSpec(comparison),
       createEvidenceBundle([left, right, comparison, ...mutations], unknowns),
-      0,
-      100,
     );
     expect(result.status).toBe("unknown");
-    expect(result.claims.items[0]?.unknown_ids).toHaveLength(100);
-    expect(result.claims.items[0]?.limitations).toContain(
-      "1 additional active residual unknowns affect this claim but are omitted by the 100-item display limit.",
-    );
+    expect(result.claims.items[0]?.unknown_ids).toHaveLength(101);
   });
 });

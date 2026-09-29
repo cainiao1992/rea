@@ -12,16 +12,13 @@ const digest = (digit: string): string => digit.repeat(64);
 const evidenceId = (digit: string): string => `ev_${digest(digit)}`;
 
 const report = (): CompletionVerifierReport => ({
-  schema_version: 1,
   verifier: { id: "managed-conformance", version: "1" },
   verifier_run: {
-    schema_version: 1,
     run_id: "11111111-1111-4111-8111-111111111111",
     verifier_pid: 100,
     parent_pid: 1,
     process_lineage: {
       status: "verified",
-      schema_version: 1,
       observed_at: "2026-07-22T10:00:00.000Z",
       launcher_pid: 100,
       launcher_parent_pid: 1,
@@ -41,7 +38,6 @@ const report = (): CompletionVerifierReport => ({
       scenario: { id: "inspect-managed", version: 1 },
       artifact_sha256s: [digest("1")],
       provider: { id: "managed-static", version: "2" },
-      result_schema_version: 1,
       status: "pass",
       evidence_ids: [evidenceId("1")],
     },
@@ -50,7 +46,6 @@ const report = (): CompletionVerifierReport => ({
       scenario: { id: "external-oracle", version: 1 },
       artifact_sha256s: [],
       provider: { id: "managed-static", version: "2" },
-      result_schema_version: 1,
       status: "unsupported",
       evidence_ids: [evidenceId("2")],
     },
@@ -86,7 +81,6 @@ describe("completion ledger generation", () => {
       artifact_sha256s: [digest("1")],
       scenario: { id: "inspect-managed", version: 1 },
       provider: { id: "managed-static", version: "2" },
-      result_schema_version: 1,
     });
     expect(generated.manifest.claims[0]).not.toHaveProperty("status");
     expect(generated.manifest.claims[0]).not.toHaveProperty("evidence_ids");
@@ -142,7 +136,6 @@ describe("completion verifier report validation", () => {
           ...input.verifier_run,
           process_lineage: {
             status: "verified",
-            schema_version: 1,
             observed_at: "2026-07-22T10:00:00.000Z",
             launcher_pid: 100,
             launcher_parent_pid: 1,
@@ -175,12 +168,6 @@ describe("completion ledger commitment drift", () => {
       "provider",
       (input: CompletionVerifierReport) => {
         firstClaim(input).provider.version = "3";
-      },
-    ],
-    [
-      "result schema",
-      (input: CompletionVerifierReport) => {
-        firstClaim(input).result_schema_version = 2;
       },
     ],
     [

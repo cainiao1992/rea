@@ -108,7 +108,6 @@ const compareJavaScriptExportShapesFacts = {
     compareJavaScriptExportShapesInputSchema.shape.right_module_path,
   right_export_name:
     compareJavaScriptExportShapesInputSchema.shape.right_export_name,
-  limits: compareJavaScriptExportShapesInputSchema.shape.limits,
   unknown_registry_approved:
     compareJavaScriptExportShapesInputSchema.shape.unknown_registry_approved,
 } as const;

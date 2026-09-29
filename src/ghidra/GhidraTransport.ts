@@ -79,8 +79,7 @@ const parseTcpEndpoint = (
       typeof value !== "object" ||
       value === null ||
       Array.isArray(value) ||
-      !hasExactKeys(value, ["host", "port", "schema_version"]) ||
-      value.schema_version !== 1 ||
+      !hasExactKeys(value, ["host", "port"]) ||
       value.host !== "127.0.0.1" ||
       !Number.isSafeInteger(value.port) ||
       typeof value.port !== "number" ||

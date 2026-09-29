@@ -33,7 +33,6 @@ const completionSummarySchema = z.strictObject({
 });
 
 const completionLedgerObjectSchema = z.strictObject({
-  schema_version: z.literal(1),
   ledger_id: z.string().regex(/^ecl_[a-f0-9]{64}$/u),
   records: z.array(evidenceCompletionRecordSchema).min(1).max(10_000),
   summary: completionSummarySchema,
@@ -95,7 +94,7 @@ const computeLedgerId = (
   records: readonly EvidenceCompletionRecord[],
 ): string =>
   `ecl_${createHash("sha256")
-    .update(canonicalJson({ schema_version: 1, records }))
+    .update(canonicalJson({ records }))
     .digest("hex")}`;
 
 const ledgerIssues = (
@@ -156,7 +155,6 @@ export const createEvidenceCompletionLedger = (
     if (!isSortedUnique(record.evidence_ids))
       throw new TypeError("Completion Evidence IDs must be unique per claim");
   return evidenceCompletionLedgerSchema.parse({
-    schema_version: 1,
     ledger_id: computeLedgerId(records),
     records,
     summary: summarize(records),

@@ -33,7 +33,6 @@ const callableIdentitySchema = z.strictObject({
 });
 
 export const runtimeCharacterizationPlanSchema = z.strictObject({
-  schema_version: z.literal(1),
   plan_sha256: digestSchema,
   preparation_sha256: digestSchema,
   artifact: artifactIdentitySchema,

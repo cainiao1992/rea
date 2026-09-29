@@ -119,9 +119,9 @@ export const compareApplicationVersionsEvidenceValidated = (
         rootArtifactSha256: right.rootArtifactSha256,
         graph: right.graph,
       },
+      limits: input.limits,
       leftNativeEvidence: leftNative,
       rightNativeEvidence: rightNative,
-      limits: input.limits,
     });
     return ok(
       createApplicationVersionComparisonEvidence(
@@ -214,7 +214,6 @@ export const compareJavaScriptExportShapesEvidenceValidated = (
         modulePath: input.right_module_path,
         exportName: input.right_export_name,
       },
-      limits: input.limits,
     });
     return ok(
       createJavaScriptExportShapeComparisonEvidence(
@@ -225,7 +224,6 @@ export const compareJavaScriptExportShapesEvidenceValidated = (
           left_export_name: input.left_export_name,
           right_module_path: input.right_module_path,
           right_export_name: input.right_export_name,
-          limits: input.limits,
         },
         result,
       ),

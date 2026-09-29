@@ -18,7 +18,7 @@ import {
   HopperProcessError,
   HopperRemoteError,
   HopperTimeoutError,
-  InvestigationWorkspaceError,
+  WorkspaceStorageError,
   PermissionRequiredError,
   ProviderAdapterError,
   ProviderSelectionError,
@@ -73,8 +73,8 @@ const errorCode = (error: AnalysisError): AnalysisErrorProjection["code"] => {
   if (error instanceof ArtifactOperationError)
     return artifactOperationCode(error);
   if (error instanceof EvidenceFileError) return evidenceFileCode(error.reason);
-  if (error instanceof InvestigationWorkspaceError)
-    return investigationWorkspaceCode(error.reason);
+  if (error instanceof WorkspaceStorageError)
+    return workspaceStorageCode(error.reason);
   if (error instanceof UnknownRegistryError)
     return unknownRegistryCode(error.reason);
   if (error._tag === "ProcessCaptureError") return processCaptureCode(error);
@@ -115,8 +115,8 @@ const evidenceFileCode = (
   return "execution_failure";
 };
 
-const investigationWorkspaceCode = (
-  reason: InvestigationWorkspaceError["reason"],
+const workspaceStorageCode = (
+  reason: WorkspaceStorageError["reason"],
 ): AnalysisErrorProjection["code"] => {
   if (reason === "revision-conflict" || reason === "name-conflict")
     return "revision_conflict";
@@ -152,7 +152,7 @@ type SpecializedErrorTag =
   | "ArtifactOperationError"
   | "BrowserObservationError"
   | "EvidenceFileError"
-  | "InvestigationWorkspaceError"
+  | "WorkspaceStorageError"
   | "PermissionRequiredError"
   | "ProcessCaptureError"
   | "ProviderSelectionError"
@@ -192,7 +192,7 @@ const staticErrorCode = (
     case "ArtifactOperationError":
     case "BrowserObservationError":
     case "EvidenceFileError":
-    case "InvestigationWorkspaceError":
+    case "WorkspaceStorageError":
     case "PermissionRequiredError":
     case "ProcessCaptureError":
     case "ProviderSelectionError":
@@ -268,7 +268,7 @@ const artifactStateErrorDetails = (
     };
   if (error instanceof EvidenceLimitError)
     return { limit: error.limit, maximum: error.maximum, truncated: true };
-  if (error instanceof InvestigationWorkspaceError)
+  if (error instanceof WorkspaceStorageError)
     return { operation: error.operation, reason: error.reason };
   if (error instanceof UnknownRegistryError) return { reason: error.reason };
   if (error instanceof EvidenceFileError)

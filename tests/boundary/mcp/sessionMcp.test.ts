@@ -300,8 +300,6 @@ const provider = (closed: string[]): AnalysisProvider => {
     operation: "current_document",
     available: true,
     reason: null,
-    pagination: "none",
-    exhaustive: true,
     effects: {
       mutatesArtifact: false,
       launchesProcess: false,
@@ -310,11 +308,6 @@ const provider = (closed: string[]): AnalysisProvider => {
       mayWriteFilesystem: false,
       changesPermissions: false,
       requiresRoot: false,
-    },
-    limits: {
-      maxResults: null,
-      maxPayloadBytes: null,
-      timeoutMs: null,
     },
     limitations: [],
   };

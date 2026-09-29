@@ -126,7 +126,6 @@ const main = async (): Promise<void> => {
   }
   process.stdout.write(
     JSON.stringify({
-      schema_version: 1,
       left,
       ...(request.right === undefined ? {} : { right }),
     }),

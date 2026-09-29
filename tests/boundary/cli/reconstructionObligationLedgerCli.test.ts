@@ -16,7 +16,6 @@ describe("reconstruction obligation ledger CLI parity", () => {
         bindings: [],
         contradictions: [],
       },
-      page: { offset: 0, limit: 50 },
     };
     const { stdout } = await execute(
       process.execPath,

@@ -138,8 +138,6 @@ const cacheCapability = (
   operation,
   available: true,
   reason: null,
-  pagination: "none",
-  exhaustive: true,
   effects: {
     mutatesArtifact,
     launchesProcess: false,
@@ -148,11 +146,6 @@ const cacheCapability = (
     mayWriteFilesystem,
     changesPermissions: false,
     requiresRoot: false,
-  },
-  limits: {
-    maxResults: null,
-    maxPayloadBytes: null,
-    timeoutMs: null,
   },
   limitations: [],
 });

@@ -60,7 +60,6 @@ describe("application workflow CLI parity", () => {
     expect(compared).toMatchObject({
       operation: "compare_application_versions",
       normalized_result: {
-        schema_version: 1,
         summary: { unknown: expect.any(Number) },
       },
     });
@@ -74,7 +73,7 @@ describe("application workflow CLI parity", () => {
     ]);
     expect(sourceCompared).toMatchObject({
       operation: "compare_source_to_bundle",
-      normalized_result: { schema_version: 1 },
+      normalized_result: { reference: expect.any(Object) },
     });
   }, 20_000);
 
@@ -177,7 +176,7 @@ describe("application workflow CLI Evidence resolution", () => {
     );
     expect(compared).toMatchObject({
       operation: "compare_application_versions",
-      normalized_result: { schema_version: 1 },
+      normalized_result: { summary: expect.any(Object) },
     });
 
     const missingRecord = await runCli(
@@ -322,7 +321,6 @@ describe("application workflow CLI validation and replay", () => {
       "--json",
     ]);
     expect(inline).toMatchObject({
-      schema_version: 1,
       final_state: "complete",
       decisions: [{ outcome: "matched" }],
       transition_journal: [

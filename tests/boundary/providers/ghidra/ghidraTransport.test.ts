@@ -36,7 +36,7 @@ describe("Ghidra local transport", () => {
     const path = join(root, "bridge-endpoint.json");
     await writeFile(
       path,
-      `${JSON.stringify({ schema_version: 1, host: "127.0.0.1", port: 49152 })}\n`,
+      `${JSON.stringify({ host: "127.0.0.1", port: 49152 })}\n`,
     );
 
     await expect(
@@ -51,9 +51,9 @@ describe("Ghidra local transport", () => {
   });
 
   it.each([
-    { schema_version: 1, host: "0.0.0.0", port: 49152 },
-    { schema_version: 1, host: "127.0.0.1", port: 0 },
-    { schema_version: 1, host: "127.0.0.1", port: 49152, token: "leak" },
+    { host: "0.0.0.0", port: 49152 },
+    { host: "127.0.0.1", port: 0 },
+    { host: "127.0.0.1", port: 49152, token: "leak" },
   ])(
     "rejects an invalid or expanded TCP endpoint: $host:$port",
     async (value) => {

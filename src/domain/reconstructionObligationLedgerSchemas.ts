@@ -283,22 +283,6 @@ export const reconstructionObligationLedgerInputSchema = z.strictObject({
   evidence_bundle: evidenceBundleSchema,
   reviewed_obligations: z.array(reviewedReconstructionObligationSchema),
   manifest: reconstructionObligationManifestSchema,
-  page: z.strictObject({
-    offset: z.number().int().min(0).max(10_000),
-    limit: z.number().int().min(1).max(100),
-  }),
-});
-
-export const reconstructionObligationLedgerPageSchema = z.strictObject({
-  ...reconstructionObligationLedgerSchema.omit({ obligations: true }).shape,
-  page: z.strictObject({
-    offset: z.number().int().min(0),
-    limit: z.number().int().min(1).max(100),
-    total: z.number().int().min(0),
-    returned: z.number().int().min(0),
-    next_offset: z.number().int().min(0).nullable(),
-  }),
-  obligations: z.array(reconstructionObligationSchema).max(100),
 });
 
 export type ReconstructionObligation = z.infer<
@@ -309,9 +293,6 @@ export type ReconstructionObligationLedger = z.infer<
 >;
 export type ReconstructionObligationLedgerInput = z.infer<
   typeof reconstructionObligationLedgerInputSchema
->;
-export type ReconstructionObligationLedgerPage = z.infer<
-  typeof reconstructionObligationLedgerPageSchema
 >;
 export type ReviewedReconstructionObligation = z.infer<
   typeof reviewedReconstructionObligationSchema

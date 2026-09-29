@@ -13,7 +13,6 @@ import {
 } from "../../../src/cliOutput.js";
 
 const CLI_INTEGRATION_TIMEOUT_MS = 60_000;
-const CLI_VARIANT_TIMEOUT_MS = 120_000;
 
 describe("CLI output argument and sanitization boundary", () => {
   it("rejects token windows that would corrupt structured output", () => {
@@ -172,61 +171,6 @@ describe("compiled CLI output boundary", () => {
       expect(output).toMatch(/"declared_sha256":"[a-f0-9]{64}"/u);
       expect(output).toMatch(/"calculated_sha256":"[a-f0-9]{64}"/u);
       expect(output).toContain('"unpacked":true');
-    },
-    CLI_INTEGRATION_TIMEOUT_MS,
-  );
-
-  workspaceCliTest(
-    "keeps operation failure status independent of output controls",
-    async ({ cli }) => {
-      const variants = [
-        ["--format", "toon"],
-        ["--format", "json"],
-        ["--format", "yaml"],
-        ["--format", "md"],
-        ["--format", "jsonl"],
-        ["--filter-output", "category", "--json"],
-        ["--token-limit", "5", "--json"],
-        ["--token-count", "--json"],
-      ];
-
-      for (const flags of variants) {
-        const result = await cli.run({
-          arguments: [
-            ...flags,
-            "investigate-versions",
-            "/tmp/left",
-            "/tmp/right",
-            "/tmp/workspace.json",
-          ],
-        });
-        expect(result).toMatchObject({
-          exitCode: 1,
-          stdout: expect.any(String),
-        });
-      }
-    },
-    CLI_VARIANT_TIMEOUT_MS,
-  );
-
-  workspaceCliTest(
-    "keeps failure logs out of structured stdout",
-    async ({ cli }) => {
-      const result = await cli.run({
-        arguments: [
-          "--json",
-          "investigate-versions",
-          "/tmp/left",
-          "/tmp/right",
-          "/tmp/workspace.json",
-        ],
-        environment: { REA_LOG_LEVEL: "error" },
-      });
-      expect(result).toMatchObject({
-        exitCode: 1,
-        stderr: expect.stringContaining('"status":"error"'),
-      });
-      expect(result.json).toMatchObject({ error: "ApprovalRequired" });
     },
     CLI_INTEGRATION_TIMEOUT_MS,
   );

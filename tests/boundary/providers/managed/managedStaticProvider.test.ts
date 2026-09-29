@@ -52,7 +52,9 @@ describe("managed static provider path boundary", () => {
     );
     expect(boundaries.ok).toBe(true);
     if (!boundaries.ok) return;
-    expect(asManagedNativeBoundaryResult(boundaries.value)).toMatchObject({
+    const boundaryResult = asManagedNativeBoundaryResult(boundaries.value);
+    expect(boundaryResult).not.toHaveProperty("schema_version");
+    expect(boundaryResult).toMatchObject({
       artifact: { path, sha256: parsed.value.sha256, format: "pe" },
       module_refs: [],
       pinvoke_imports: [],

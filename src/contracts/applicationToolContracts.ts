@@ -28,7 +28,7 @@ import {
 import { reconstructionClosureResultSchema } from "../domain/reconstructionCoverage.js";
 import {
   reconstructionObligationLedgerInputSchema,
-  reconstructionObligationLedgerPageSchema,
+  reconstructionObligationLedgerSchema,
 } from "../domain/reconstructionObligationLedgerSchemas.js";
 import {
   reconstructionReadinessInputSchema,
@@ -60,7 +60,7 @@ const exportShapeComparisonOutputSchema = evidenceResultOf(
   javaScriptExportShapeComparisonResultSchema,
 );
 const reconstructionObligationLedgerOutputSchema = evidenceResultOf(
-  reconstructionObligationLedgerPageSchema,
+  reconstructionObligationLedgerSchema,
 );
 const reconstructionReadinessOutputSchema = evidenceResultOf(
   reconstructionReadinessReportSchema,
@@ -301,13 +301,13 @@ export const APPLICATION_TOOL_CONTRACTS = [
     name: "build_reconstruction_obligation_ledger",
     ...toolContractMetadata("build_reconstruction_obligation_ledger"),
     description:
-      "Generate one deterministic page of a ReconstructionObligationLedger from an authenticated Evidence bundle, reviewed obligations, and an explicit reconstruction manifest. Static candidates remain candidates; duplicate ownership, missing original or reconstruction cases, missing parser/type, weak verifier authority, unenumerated claims, contradictions, dependencies, and residual unknowns fail closed. Every page carries the same full-ledger closure digest and typed per-obligation diagnostics.",
+      "Generate the complete deterministic ReconstructionObligationLedger from an authenticated Evidence bundle, reviewed obligations, and an explicit reconstruction manifest. Static candidates remain candidates; duplicate ownership, missing original or reconstruction cases, missing parser/type, weak verifier authority, unenumerated claims, contradictions, dependencies, and residual unknowns fail closed. The inline result carries the full-ledger closure digest and typed per-obligation diagnostics.",
     kind: "application",
     inputSchema: reconstructionObligationLedgerInputSchema,
     outputSchema: reconstructionObligationLedgerOutputSchema,
     examples: [
       {
-        title: "Generate the first obligation-ledger page",
+        title: "Generate the complete obligation ledger",
         input: {
           evidence_bundle: {
             artifacts: [],
@@ -323,7 +323,6 @@ export const APPLICATION_TOOL_CONTRACTS = [
             bindings: [],
             contradictions: [],
           },
-          page: { offset: 0, limit: 50 },
         },
       },
     ],

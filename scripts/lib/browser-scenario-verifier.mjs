@@ -42,7 +42,6 @@ const duplicateOriginStorage = (origin) => ({
 /** Build the source-owned full-capture browser scenario. */
 export function browserScenario(browser, origin) {
   return browserScenarioSchema.parse({
-    schema_version: 1,
     browser,
     start_url: { url: `${origin}/app`, query: [] },
     allowed_origins: [origin],

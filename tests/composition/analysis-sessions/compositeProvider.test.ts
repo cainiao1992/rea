@@ -202,8 +202,6 @@ const capability = (
   operation,
   available: true,
   reason: null,
-  pagination: "none",
-  exhaustive: true,
   effects: {
     mutatesArtifact: false,
     launchesProcess: true,
@@ -213,6 +211,5 @@ const capability = (
     changesPermissions: false,
     requiresRoot: false,
   },
-  limits: { maxResults: null, maxPayloadBytes: 1_000_000, timeoutMs: 5_000 },
   limitations: [],
 });

@@ -286,7 +286,6 @@ const projectStore = (
   projectRoot: string,
   grants: readonly ReturnType<typeof projectGrant>[],
 ): ProjectPermissionStore => ({
-  schema_version: 1,
   project_id: `project_${createHash("sha256").update(projectRoot).digest("hex")}`,
   project_root: projectRoot,
   grants: [...grants],

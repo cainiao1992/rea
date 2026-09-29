@@ -45,24 +45,18 @@ describe("Hopper provider discovery", () => {
     });
   });
 
-  it("advertises the exact bounded byte-read limit", () => {
+  it("advertises byte reads as an available operation", () => {
     const capabilities = provider(process.execPath).capabilities();
     expect(
       capabilities.find(({ operation }) => operation === "read_bytes"),
     ).toMatchObject({
       available: true,
-      pagination: "none",
-      limits: {
-        maxResults: null,
-        maxPayloadBytes: 4_096,
-        timeoutMs: null,
-      },
     });
     expect(
       capabilities.find(
         ({ operation }) => operation === "address_to_file_offset",
       ),
-    ).toMatchObject({ available: true, pagination: "none" });
+    ).toMatchObject({ available: true });
   });
 });
 

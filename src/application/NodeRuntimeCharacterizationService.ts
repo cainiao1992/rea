@@ -284,7 +284,6 @@ const createCharacterizationPlan = (
   replayPlan: ReplayPlan,
 ): RuntimeCharacterizationPlan =>
   createRuntimeCharacterizationPlan({
-    schema_version: 1,
     preparation_sha256: digestPreparation(
       instrumentation.manifest.instrumented_sha256,
       replayPlan.plan_digest,

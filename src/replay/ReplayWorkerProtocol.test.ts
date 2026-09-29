@@ -16,15 +16,11 @@ const outcome = {
 describe("replay worker protocol", () => {
   it("accepts only the exact committed case sequence", () => {
     expect(
-      parseReplayWorkerResponse(
-        { schema_version: 1, left: [outcome] },
-        cases,
-        "single",
-      ),
+      parseReplayWorkerResponse({ left: [outcome] }, cases, "single"),
     ).toMatchObject({ left: [outcome] });
     expect(() =>
       parseReplayWorkerResponse(
-        { schema_version: 1, left: [{ ...outcome, case_id: "forged" }] },
+        { left: [{ ...outcome, case_id: "forged" }] },
         cases,
         "single",
       ),
@@ -32,7 +28,6 @@ describe("replay worker protocol", () => {
     expect(() =>
       parseReplayWorkerResponse(
         {
-          schema_version: 1,
           left: [{ ...outcome, input_sha256: "2".repeat(64) }],
         },
         cases,
@@ -43,16 +38,11 @@ describe("replay worker protocol", () => {
 
   it("requires the exact differential shape and strict outcomes", () => {
     expect(() =>
-      parseReplayWorkerResponse(
-        { schema_version: 1, left: [outcome] },
-        cases,
-        "differential",
-      ),
+      parseReplayWorkerResponse({ left: [outcome] }, cases, "differential"),
     ).toThrow();
     expect(() =>
       parseReplayWorkerResponse(
         {
-          schema_version: 1,
           left: [{ ...outcome, unexpected: true }],
         },
         cases,
@@ -62,7 +52,6 @@ describe("replay worker protocol", () => {
     expect(() =>
       parseReplayWorkerResponse(
         {
-          schema_version: 1,
           left: [{ ...outcome, outcome: "exception", value: undefined }],
         },
         cases,

@@ -66,14 +66,11 @@ export const reconstructionClaimUnknowns = (
     );
 };
 
-/** Aggregate and bound deterministic probes for unresolved claims. */
+/** Aggregate deterministic probes for unresolved claims. */
 export const reconstructionProbes = (
   results: readonly ReconstructionClaimResult[],
   heads: ReadonlyMap<string, ResidualUnknown>,
-): {
-  readonly items: ReconstructionVerificationResult["recommended_probes"];
-  readonly truncated: boolean;
-} => {
+): ReconstructionVerificationResult["recommended_probes"] => {
   const output = new Map<
     string,
     {
@@ -111,7 +108,7 @@ export const reconstructionProbes = (
       "en",
     ),
   );
-  return { items: sorted.slice(0, 2_000), truncated: sorted.length > 2_000 };
+  return sorted;
 };
 
 const defaultProbe = (

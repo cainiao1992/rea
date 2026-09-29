@@ -70,8 +70,6 @@ export const targetKindSchema = z.enum([
 
 const providerCapabilityFacts = {
   operation: z.string(),
-  pagination: z.enum(["none", "offset", "cursor"]),
-  exhaustive: z.boolean(),
   effects: z.object({
     mutates_artifact: z.boolean(),
     launches_process: z.boolean(),
@@ -80,11 +78,6 @@ const providerCapabilityFacts = {
     may_write_filesystem: z.boolean(),
     changes_permissions: z.boolean(),
     requires_root: z.boolean(),
-  }),
-  limits: z.object({
-    max_results: z.number().int().min(0).nullable(),
-    max_payload_bytes: z.number().int().min(0).nullable(),
-    timeout_ms: z.number().int().min(0).nullable(),
   }),
   limitations: z.array(z.string()),
 };
@@ -417,26 +410,6 @@ const availableMemoryPermissions = z.object({
   available: z.literal(true),
   source: z.literal("ghidra-memory-block"),
 });
-
-export const bounded = (item: z.ZodType) => {
-  const facts = {
-    items: z.array(item),
-    total: z.number().int().min(0).nullable(),
-    returned: z.number().int().min(0),
-  } as const;
-  return z.discriminatedUnion("truncated", [
-    z.object({
-      ...facts,
-      truncated: z.literal(false),
-      next_offset: z.null(),
-    }),
-    z.object({
-      ...facts,
-      truncated: z.literal(true),
-      next_offset: z.number().int().min(0).nullable(),
-    }),
-  ]);
-};
 
 export const addressedValue = z.object({
   address: z.string(),

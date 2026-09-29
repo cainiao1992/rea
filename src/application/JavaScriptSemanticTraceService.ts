@@ -8,7 +8,6 @@ import {
 import type { Evidence } from "../domain/evidence.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { queryJavaScriptSemanticGraph } from "../domain/javascriptSemanticQuery.js";
-import { JavaScriptSemanticQueryCursorError } from "../domain/javascriptSemanticQueryIdentity.js";
 import {
   javaScriptSemanticTraceResultSchema,
   traceJavaScriptSemanticsInputSchema,
@@ -55,16 +54,6 @@ export const traceJavaScriptSemanticsEvidenceValidated = (
       ),
     );
   } catch (cause: unknown) {
-    if (cause instanceof JavaScriptSemanticQueryCursorError)
-      return err(
-        new AnalysisInputError(OPERATION, undefined, [
-          {
-            path: ["query", "cursor"],
-            reason: "invalid_value",
-            expected: "a cursor returned by the same graph, query, and limits",
-          },
-        ]),
-      );
     return err(
       new AnalysisProtocolError("JavaScript semantic trace failed", { cause }),
     );

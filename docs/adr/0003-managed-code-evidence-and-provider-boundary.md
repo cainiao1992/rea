@@ -218,7 +218,7 @@ declaring type + normalized CLI signature
 build-local metadata token
 RVA/file extent when present
 raw CIL byte length + SHA-256 when the body is admitted
-member-result schema version + decoded-instruction-tuple SHA-256 when CIL is valid
+decoded-instruction-tuple SHA-256 when CIL is valid
 separate max-stack, locals-token, and exception-region observations
 ```
 
@@ -232,9 +232,8 @@ The caller-visible field remains named `normalized_il_sha256`, but its shipped
 v1 meaning is deliberately narrower than a canonical semantic CIL identity.
 For a completely decoded method, REA serializes the instruction-order array of
 `[opcode, operand_kind, operand]` tuples with JavaScript `JSON.stringify`,
-encodes that text as UTF-8, and reports its lowercase SHA-256. The member
-result's `schema_version: 1` scopes this convention; there is no independent
-normalized-CIL algorithm-version field in v1.
+encodes that text as UTF-8, and reports its lowercase SHA-256. The tuple
+projection is defined here; the member result carries no schema-version field.
 
 Operands retain the current decoder projection: metadata and user-string
 operands are build-local lowercase hexadecimal tokens, scalar branch operands
@@ -258,8 +257,8 @@ normalized-CIL schema.
 
 Metadata tokens are reported because they are precise coordinates inside one
 module. Cross-version identity never consists of a token alone. A structural
-match cites both build commitments, both local tokens, the v1 tuple inputs, the
-member-result schema version, and all competing candidates. V1 cannot cite a
+match cites both build commitments, both local tokens, the v1 tuple inputs, and
+all competing candidates. V1 cannot cite a
 separate matching-algorithm version because none is exposed.
 
 ### 5. Separate five evidence layers

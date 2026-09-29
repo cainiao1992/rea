@@ -53,8 +53,6 @@ export const exportEvidenceBundleCommand = async (
 export const compareEvidenceBundlesCommand = async (input: {
   readonly leftPath: string;
   readonly rightPath: string;
-  readonly offset: number;
-  readonly limit: number;
   readonly policy: EvidenceFilePolicy;
 }): Promise<Result<JsonValue, AnalysisError>> => {
   const [left, right] = await Promise.all([
@@ -64,11 +62,7 @@ export const compareEvidenceBundlesCommand = async (input: {
   if (!left.ok) return left;
   if (!right.ok) return right;
   try {
-    return ok(
-      jsonValueSchema.parse(
-        compareBundles(left.value, right.value, [], input.offset, input.limit),
-      ),
-    );
+    return ok(jsonValueSchema.parse(compareBundles(left.value, right.value)));
   } catch (cause: unknown) {
     return err(
       new EvidenceIntegrityError("Evidence bundle comparison failed", {

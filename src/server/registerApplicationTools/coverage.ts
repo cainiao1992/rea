@@ -58,8 +58,8 @@ const registerCommitTool = (
         options.permissionAuthority,
         {
           path: input.workspace_path,
-          readCapability: "investigation_workspace_read",
-          writeCapability: "investigation_workspace_write",
+          readCapability: "reconstruction_coverage_read",
+          writeCapability: "reconstruction_coverage_write",
           operation: commitContract.name,
         },
       );
@@ -104,7 +104,7 @@ const registerQueryTool = (
       const authorized = await authorizeRootPermission(
         options.permissionAuthority,
         {
-          capability: "investigation_workspace_read",
+          capability: "reconstruction_coverage_read",
           roots: [input.workspace_path],
           access: "read",
           operation: queryContract.name,

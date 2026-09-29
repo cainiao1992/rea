@@ -9,9 +9,6 @@ import type {
 } from "./javascriptSemanticGraph.js";
 import type { JavaScriptSemanticQueryInput } from "./javascriptSemanticQuerySchemas.js";
 
-/** Caller cursor that cannot identify a page of the current semantic query. */
-export class JavaScriptSemanticQueryCursorError extends TypeError {}
-
 /** Canonical JSON used by semantic query commitments and ordering. */
 export const canonicalJavaScriptSemanticQueryJson = (
   value: unknown,
@@ -32,12 +29,12 @@ const digest = (value: unknown): string =>
 const uniqueSorted = (values: readonly string[]): string[] =>
   [...new Set(values)].sort(compareCodePoints);
 
-/** Derive the stable identity for one graph-bound query without its cursor. */
+/** Derive the stable identity for one graph-bound query. */
 export const javaScriptSemanticQueryIdentifier = (
   graph: JavaScriptSemanticGraph,
   input: JavaScriptSemanticQueryInput,
 ): string => {
-  const { cursor: _cursor, ...semantic } = input;
+  const semantic = input;
   return `jsrq_${digest({
     source_graph_id: graph.graph_id,
     ...semantic,
@@ -53,37 +50,6 @@ export const javaScriptSemanticQueryIdentifier = (
             classes: uniqueSorted(semantic.expected.classes),
           },
   })}`;
-};
-
-/** Commit one deterministic relation-page offset to a query identity. */
-export const createJavaScriptSemanticQueryCursor = (
-  queryId: string,
-  offset: number,
-): string => `jsrqc_${String(offset)}_${digest({ query_id: queryId, offset })}`;
-
-/** Parse a query-bound cursor and reject stale, malformed, or foreign values. */
-export const parseJavaScriptSemanticQueryCursor = (
-  cursor: string | null,
-  queryId: string,
-): number => {
-  if (cursor === null) return 0;
-  const match = /^jsrqc_([0-9]+)_([a-f0-9]{64})$/u.exec(cursor);
-  const offsetText = match?.[1];
-  const commitment = match?.[2];
-  if (offsetText === undefined || commitment === undefined)
-    throw new JavaScriptSemanticQueryCursorError(
-      "Semantic query cursor is malformed",
-    );
-  const offset = Number(offsetText);
-  if (
-    !Number.isSafeInteger(offset) ||
-    offset < 0 ||
-    commitment !== digest({ query_id: queryId, offset })
-  )
-    throw new JavaScriptSemanticQueryCursorError(
-      "Semantic query cursor does not match this query",
-    );
-  return offset;
 };
 
 /** Resolve deterministic seed candidates without applying traversal limits. */

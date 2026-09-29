@@ -54,8 +54,8 @@ export const TOOL_EXAMPLE_OVERRIDES: Readonly<
     right_evidence_id: `ev_${"1".repeat(64)}`,
   },
   compare_artifacts: {
-    left_evidence_ids: [ARTIFACT_COMPARISON_EXAMPLE.left.evidence_id],
-    right_evidence_ids: [ARTIFACT_COMPARISON_EXAMPLE.right.evidence_id],
+    left_evidence_id: ARTIFACT_COMPARISON_EXAMPLE.left.evidence_id,
+    right_evidence_id: ARTIFACT_COMPARISON_EXAMPLE.right.evidence_id,
   },
   compare_functions: {
     left_evidence_id: FUNCTION_COMPARISON_EXAMPLE.left.evidence_id,

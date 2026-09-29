@@ -10,7 +10,6 @@ const digest = (character: string): string => character.repeat(64);
 describe("provider-neutral runtime characterization plan", () => {
   it("commits preparation separately from execution approval", () => {
     const plan = createRuntimeCharacterizationPlan({
-      schema_version: 1,
       preparation_sha256: digest("5"),
       artifact: {
         path: "/approved/app.js",

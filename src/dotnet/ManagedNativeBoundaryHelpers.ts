@@ -369,7 +369,6 @@ export const buildNativeBoundaryInspection = ({
   issues,
 }: BoundaryInspectionContext): ManagedNativeBoundaryInspection =>
   managedNativeBoundaryInspectionSchema.parse({
-    schema_version: 1,
     artifact: {
       path: target.path,
       sha256: target.sha256,

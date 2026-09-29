@@ -39,7 +39,6 @@ type DiagnosticOverrides = Partial<
 
 const diagnostic = (overrides: DiagnosticOverrides = {}) => {
   const common = {
-    schema_version: 1,
     component: "hopper_private_display",
     operation: "probe",
     reason: "ready",

@@ -31,14 +31,12 @@ const skillDigestSchema = z.strictObject({
 });
 const verifierRunSchema = z
   .strictObject({
-    schema_version: z.literal(1),
     run_id: z.string().uuid(),
     verifier_pid: z.number().int().positive(),
     parent_pid: z.number().int().nonnegative(),
     process_lineage: z.discriminatedUnion("status", [
       z.strictObject({
         status: z.literal("verified"),
-        schema_version: z.literal(1),
         observed_at: z.iso.datetime(),
         launcher_pid: z.number().int().positive(),
         launcher_parent_pid: z.number().int().nonnegative(),
@@ -80,13 +78,11 @@ const reportClaimSchema = z.strictObject({
   scenario: scenarioSchema,
   artifact_sha256s: z.array(digestSchema).max(100),
   provider: identitySchema,
-  result_schema_version: z.number().int().positive(),
   status: evidenceCompletionRecordSchema.shape.status,
   evidence_ids: evidenceCompletionRecordSchema.shape.evidence_ids,
 });
 
 const completionVerifierReportObjectSchema = z.strictObject({
-  schema_version: z.literal(1),
   verifier: identitySchema,
   verifier_run: verifierRunSchema,
   environment: environmentSchema,
@@ -114,7 +110,6 @@ const manifestClaimSchema = reportClaimSchema.omit({
   evidence_ids: true,
 });
 const completionManifestObjectSchema = z.strictObject({
-  schema_version: z.literal(1),
   manifest_id: z.string().regex(/^ecm_[a-f0-9]{64}$/u),
   verifier: identitySchema,
   environment: environmentSchema,
@@ -222,7 +217,6 @@ export const createCompletionLedgerArtifacts = (
   if (!isSortedUnique(skills.map(({ skill_id }) => skill_id)))
     throw new TypeError("Completion skill IDs must be unique");
   const projection = {
-    schema_version: 1 as const,
     verifier: report.verifier,
     environment: report.environment,
     skill_digests: skills,

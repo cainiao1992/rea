@@ -65,26 +65,14 @@ describe("Ghidra provider", () => {
       expect.arrayContaining([
         expect.objectContaining({
           operation: "list_procedures",
-          pagination: "none",
           effects: expect.objectContaining({
             mutatesArtifact: false,
             mayShowUi: false,
             mayWriteFilesystem: true,
           }),
-          limits: {
-            maxResults: null,
-            maxPayloadBytes: 1024 * 1024,
-            timeoutMs: 10_000,
-          },
         }),
         expect.objectContaining({
           operation: "analyze_function",
-          pagination: "none",
-          limits: {
-            maxResults: null,
-            maxPayloadBytes: 1024 * 1024,
-            timeoutMs: 35_000,
-          },
           limitations: expect.arrayContaining([
             expect.stringContaining(
               "unresolved targetless flows remain unknown",

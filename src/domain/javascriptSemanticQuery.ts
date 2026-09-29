@@ -18,12 +18,19 @@ import {
 } from "./javascriptSemanticQueryAssessment.js";
 import {
   canonicalJavaScriptSemanticQueryJson as canonicalJson,
-  createJavaScriptSemanticQueryCursor as createCursor,
-  JavaScriptSemanticQueryCursorError,
   javaScriptSemanticQueryIdentifier as queryIdentifier,
-  parseJavaScriptSemanticQueryCursor as parseCursor,
   resolveJavaScriptSemanticQuerySeeds as resolveSeeds,
 } from "./javascriptSemanticQueryIdentity.js";
+
+const TRAVERSAL_LIMITS = {
+  max_seed_matches: 1_000,
+  max_nodes: 50_000,
+  max_edges: 100_000,
+  max_depth: 64,
+  max_functions: 10_000,
+  max_modules: 10_000,
+  max_unknowns: 10_000,
+} as const;
 
 interface TraversalEntry {
   readonly relation: JavaScriptSemanticGraphRelation;
@@ -45,21 +52,9 @@ interface SeedAdmission {
   readonly frontier: QueryFrontier[];
 }
 
-interface QueryPage {
+interface QueryResult {
   readonly retainedNodes: JavaScriptSemanticGraphNode[];
   readonly retainedRelations: JavaScriptSemanticGraphRelation[];
-  readonly pageRelations: JavaScriptSemanticGraphRelation[];
-  readonly pageNodes: JavaScriptSemanticGraphNode[];
-  readonly nextCursor: string | null;
-}
-
-interface QueryPageInput {
-  readonly graph: JavaScriptSemanticGraph;
-  readonly traversal: Traversal;
-  readonly query: JavaScriptSemanticQueryInput;
-  readonly queryId: string;
-  readonly offset: number;
-  readonly retainedSeeds: readonly string[];
 }
 
 /** Run one deterministic bounded traversal over a verified semantic graph. */
@@ -69,7 +64,6 @@ export const queryJavaScriptSemanticGraph = (
 ): JavaScriptSemanticQueryResult => {
   const input = javaScriptSemanticQueryInputSchema.parse(rawInput);
   const queryId = queryIdentifier(graph, input);
-  const offset = parseCursor(input.cursor, queryId);
   const seeds = resolveSeeds(graph, input);
   const admission = admitSeeds(graph, seeds, input);
   const retainedSeeds = admission.nodeIds;
@@ -79,14 +73,7 @@ export const queryJavaScriptSemanticGraph = (
     ...traversal.frontier,
     ...admission.frontier,
   ]);
-  const page = createQueryPage({
-    graph,
-    traversal,
-    query: input,
-    queryId,
-    offset,
-    retainedSeeds,
-  });
+  const result = createQueryResult(graph, traversal);
   const allRelevantUnknowns = relevantUnknownFrontiers(
     graph,
     traversal.nodeIds,
@@ -94,7 +81,7 @@ export const queryJavaScriptSemanticGraph = (
   );
   const relevantUnknowns = allRelevantUnknowns.slice(
     0,
-    input.limits.max_unknowns,
+    TRAVERSAL_LIMITS.max_unknowns,
   );
   const candidateRelations = relevantCandidateRelationCount(
     graph,
@@ -102,8 +89,8 @@ export const queryJavaScriptSemanticGraph = (
     input,
   );
   const expectedMatches = expectedMatchesFor(
-    page.retainedNodes,
-    page.retainedRelations,
+    result.retainedNodes,
+    result.retainedRelations,
     input,
   );
   const assessment = assessJavaScriptSemanticQuery({
@@ -124,8 +111,8 @@ export const queryJavaScriptSemanticGraph = (
     direction: input.direction,
     status: assessment.status,
     seed_node_ids: retainedSeeds,
-    nodes: page.pageNodes,
-    relations: page.pageRelations,
+    nodes: result.retainedNodes,
+    relations: result.retainedRelations,
     unknowns: relevantUnknowns,
     expected_match_node_ids: expectedMatches.map(({ node_id }) => node_id),
     summary: {
@@ -139,60 +126,21 @@ export const queryJavaScriptSemanticGraph = (
       retained_unknowns: relevantUnknowns.length,
     },
     coverage: assessment.coverage,
-    page: {
-      offset,
-      size: page.pageRelations.length,
-      next_cursor: page.nextCursor,
-    },
-    applied_limits: input.limits,
-    accepted_limit_ranges: assessment.acceptedLimitRanges,
     limitations: assessment.limitations,
   });
 };
 
-const createQueryPage = ({
-  graph,
-  traversal,
-  query,
-  queryId,
-  offset,
-  retainedSeeds,
-}: QueryPageInput): QueryPage => {
+const createQueryResult = (
+  graph: JavaScriptSemanticGraph,
+  traversal: Traversal,
+): QueryResult => {
   const retainedNodes = graph.nodes.filter(({ node_id }) =>
     traversal.nodeIds.has(node_id),
   );
   const retainedRelations = graph.relations.filter(({ relation_id }) =>
     traversal.relationIds.has(relation_id),
   );
-  if (offset > retainedRelations.length)
-    throw new JavaScriptSemanticQueryCursorError(
-      "Semantic query cursor is beyond the retained result",
-    );
-  const pageRelations = retainedRelations.slice(
-    offset,
-    offset + query.limits.page_size,
-  );
-  const pageNodeIds = new Set([
-    ...retainedSeeds,
-    ...pageRelations.flatMap(({ source_node_id, target_node_id }) => [
-      source_node_id,
-      target_node_id,
-    ]),
-  ]);
-  const pageNodes = graph.nodes.filter(({ node_id }) =>
-    pageNodeIds.has(node_id),
-  );
-  const nextOffset = offset + pageRelations.length;
-  return {
-    retainedNodes,
-    retainedRelations,
-    pageRelations,
-    pageNodes,
-    nextCursor:
-      nextOffset < retainedRelations.length
-        ? createCursor(queryId, nextOffset)
-        : null,
-  };
+  return { retainedNodes, retainedRelations };
 };
 
 const admitSeeds = (
@@ -244,20 +192,19 @@ const seedBlockedReason = (
   node: JavaScriptSemanticGraphNode,
   bounds: SeedBounds,
 ): QueryFrontier["reason"] | null => {
-  if (bounds.retained.length >= bounds.input.limits.max_seed_matches)
+  if (bounds.retained.length >= TRAVERSAL_LIMITS.max_seed_matches)
     return "max-seed-matches";
-  if (bounds.retained.length >= bounds.input.limits.max_nodes)
-    return "max-nodes";
+  if (bounds.retained.length >= TRAVERSAL_LIMITS.max_nodes) return "max-nodes";
   const functionId = functionOwner(node);
   if (
     functionId !== null &&
     !bounds.functions.has(functionId) &&
-    bounds.functions.size >= bounds.input.limits.max_functions
+    bounds.functions.size >= TRAVERSAL_LIMITS.max_functions
   )
     return "max-functions";
   if (
     !bounds.modules.has(node.identity.module_path) &&
-    bounds.modules.size >= bounds.input.limits.max_modules
+    bounds.modules.size >= TRAVERSAL_LIMITS.max_modules
   )
     return "max-modules";
   return null;
@@ -407,26 +354,26 @@ const blockedReason = (
   depth: number,
   bounds: TraversalBounds,
 ): QueryFrontier["reason"] | null => {
-  if (depth >= bounds.input.limits.max_depth) return "max-depth";
+  if (depth >= TRAVERSAL_LIMITS.max_depth) return "max-depth";
   if (
     !bounds.relationIds.has(entry.relation.relation_id) &&
-    bounds.relationIds.size >= bounds.input.limits.max_edges
+    bounds.relationIds.size >= TRAVERSAL_LIMITS.max_edges
   )
     return "max-edges";
   if (bounds.nodeIds.has(entry.nextNodeId)) return null;
-  if (bounds.nodeIds.size >= bounds.input.limits.max_nodes) return "max-nodes";
+  if (bounds.nodeIds.size >= TRAVERSAL_LIMITS.max_nodes) return "max-nodes";
   const node = bounds.nodes.get(entry.nextNodeId);
   if (node === undefined) return null;
   const functionId = functionOwner(node);
   if (
     functionId !== null &&
     !bounds.functionIds.has(functionId) &&
-    bounds.functionIds.size >= bounds.input.limits.max_functions
+    bounds.functionIds.size >= TRAVERSAL_LIMITS.max_functions
   )
     return "max-functions";
   if (
     !bounds.modules.has(node.identity.module_path) &&
-    bounds.modules.size >= bounds.input.limits.max_modules
+    bounds.modules.size >= TRAVERSAL_LIMITS.max_modules
   )
     return "max-modules";
   return null;

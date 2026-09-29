@@ -121,8 +121,8 @@ boundaries:
 
 The normalized field is available only when the entire CIL stream decodes with
 status `present`. A partial, malformed, absent, or over-limit body reports
-`null`. The containing member result's `schema_version: 1` scopes the tuple
-format; v1 does not expose a separate algorithm-version field.
+`null`. The tuple format is defined here and does not add a schema-version field
+to the member result.
 
 Tuple operands use these exact projections:
 
@@ -220,7 +220,7 @@ Cross-version matching is two-stage:
 1. Exact identity requires compatible artifact/module commitments and exact
    raw CIL identity; v1 does not expose a standalone complete-method-body
    digest.
-2. Structural identity compares schema-versioned signatures, the limited v1
+2. Structural identity compares normalized signatures, the limited v1
    decoded-CIL tuple fingerprint, constants, and bounded shape context. It
    reports all candidates at the winning score and remains ambiguous when the
    evidence does not distinguish them. The v1 digest does not itself remap
@@ -327,7 +327,6 @@ absolute or relative to the manifest file. A compact manifest contains:
 
 ```json
 {
-  "schema_version": 1,
   "label": "operator-local osu!stable semantic slice",
   "target": {
     "path": "./osu!.exe",

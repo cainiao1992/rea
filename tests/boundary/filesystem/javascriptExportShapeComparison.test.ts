@@ -121,7 +121,7 @@ describe("JavaScript export return-shape comparison", () => {
 });
 
 describe("JavaScript export return-shape selection", () => {
-  it("reports selector candidates and enforces candidate, variant, and change limits", async () => {
+  it("returns complete candidate, variant, and change inventories", async () => {
     const candidates = await analyzeSources({
       left: `
         export const first = () => ({ type: "first" });
@@ -132,38 +132,30 @@ describe("JavaScript export return-shape selection", () => {
     });
     const missing = compare(candidates[0], candidates[1], {
       leftExportName: "missing",
-      limits: { max_candidate_exports: 1 },
     });
     expect(missing.left).toMatchObject({
       status: "missing",
-      omitted_candidates: 2,
-      candidates: [expect.objectContaining({ module_path: "parser.mjs" })],
+      omitted_candidates: 0,
+      candidates: expect.arrayContaining([
+        expect.objectContaining({ export_name: "first" }),
+        expect.objectContaining({ export_name: "second" }),
+        expect.objectContaining({ export_name: "third" }),
+      ]),
     });
-    expect(missing.coverage.status).toBe("truncated");
 
     const parsers = await sourceOwnedParsers();
-    const variantLimited = compare(parsers[0], parsers[1], {
-      limits: { max_return_variants: 1 },
-    });
-    expect(variantLimited.coverage).toMatchObject({
-      status: "truncated",
-      omitted_left_variants: 2,
-      omitted_right_variants: 2,
-    });
+    const variants = compare(parsers[0], parsers[1]);
+    expect(variants.coverage.omitted_left_variants).toBe(0);
+    expect(variants.coverage.omitted_right_variants).toBe(0);
 
     const changes = await analyzeSources({
       left: `export default () => ({ type: "item" });`,
       right: `export default () => ({ type: "item", depth: 1, level: 2 });`,
     });
-    const changeLimited = compare(changes[0], changes[1], {
-      limits: { max_changes: 1 },
-    });
-    expect(changeLimited.summary.added).toBe(2);
-    expect(changeLimited.changes).toHaveLength(1);
-    expect(changeLimited.coverage).toMatchObject({
-      status: "truncated",
-      omitted_changes: 1,
-    });
+    const complete = compare(changes[0], changes[1]);
+    expect(complete.summary.added).toBe(2);
+    expect(complete.changes).toHaveLength(2);
+    expect(complete.coverage.omitted_changes).toBe(0);
   });
 
   it("refuses an exact selector that resolves to multiple graph nodes", async () => {
@@ -241,11 +233,6 @@ const compare = (
   options: {
     readonly leftExportName?: string;
     readonly rightExportName?: string;
-    readonly limits?: Partial<{
-      readonly max_candidate_exports: number;
-      readonly max_return_variants: number;
-      readonly max_changes: number;
-    }>;
   } = {},
 ) =>
   compareJavaScriptExportShapes({
@@ -260,11 +247,6 @@ const compare = (
       graph: right.graph,
       modulePath: "parser.mjs",
       exportName: options.rightExportName ?? "default",
-    },
-    limits: {
-      max_candidate_exports: options.limits?.max_candidate_exports ?? 100,
-      max_return_variants: options.limits?.max_return_variants ?? 128,
-      max_changes: options.limits?.max_changes ?? 1_000,
     },
   });
 

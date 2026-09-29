@@ -82,8 +82,6 @@ export class NativeMacOSProvider implements AnalysisProvider {
           provider: IDENTITY,
           operation: contract.name,
           ...availability,
-          pagination: "none" as const,
-          exhaustive: contract.name !== "inspect_macho",
           effects: Object.freeze({
             mutatesArtifact: false,
             launchesProcess: true,
@@ -92,11 +90,6 @@ export class NativeMacOSProvider implements AnalysisProvider {
             mayWriteFilesystem: false,
             changesPermissions: false,
             requiresRoot: false,
-          }),
-          limits: Object.freeze({
-            maxResults: contract.name === "demangle_swift" ? 500 : null,
-            maxPayloadBytes: OUTPUT_LIMIT,
-            timeoutMs: TIMEOUT_MS,
           }),
           limitations: Object.freeze([
             "Availability and textual formats depend on the installed macOS/Xcode toolchain.",

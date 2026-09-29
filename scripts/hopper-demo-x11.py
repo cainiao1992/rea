@@ -291,7 +291,6 @@ def diagnostic(
         (0, False, "") if capture is None else capture.snapshot()
     )
     return {
-        "schema_version": 1,
         "component": "hopper_private_display",
         "operation": operation,
         "status": status,

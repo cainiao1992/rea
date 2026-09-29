@@ -7,9 +7,6 @@ import { evidenceEnvelopeSchema } from "./evidence.js";
 import { evidenceBundleSchema } from "./evidenceBundle.js";
 import { err, ok, type Result } from "./result.js";
 
-/** Schema version for the conformance package format. */
-export const CONFORMANCE_PACKAGE_VERSION = 1;
-
 const conformancePackageIdSchema = z.string().regex(/^cp_[a-f0-9]{64}$/u);
 
 const scenarioIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]{0,99}$/u);
@@ -87,7 +84,6 @@ const verifierContractSchema = z.strictObject({
 });
 
 const conformancePackageContentsSchema = z.strictObject({
-  schema_version: z.literal(CONFORMANCE_PACKAGE_VERSION),
   name: z.string().min(1),
   description: z.string().min(1),
   created_at: z.string().datetime(),
@@ -311,7 +307,6 @@ const parseScenarioSection = (
 const packageContents = (
   pkg: ConformancePackageRecord,
 ): ConformancePackageContents => ({
-  schema_version: pkg.schema_version,
   name: pkg.name,
   description: pkg.description,
   created_at: pkg.created_at,

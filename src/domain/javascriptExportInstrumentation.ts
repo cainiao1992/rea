@@ -16,7 +16,6 @@ export const javascriptExportInstrumentationInputSchema = z.strictObject({
 });
 
 export const javascriptExportTransformationManifestSchema = z.strictObject({
-  schema_version: z.literal(1),
   kind: z.literal("commonjs-factory-export-v1"),
   artifact_path: z.string().min(1).max(4_096),
   original_sha256: digestSchema,
@@ -77,7 +76,6 @@ export const instrumentJavaScriptExport = (
   const bindingStart = prefix.byteLength + source.byteLength;
   const suffixStart = bindingStart + binding.byteLength;
   const manifest = javascriptExportTransformationManifestSchema.parse({
-    schema_version: 1,
     kind: "commonjs-factory-export-v1",
     artifact_path: input.artifact_path,
     original_sha256: input.artifact_sha256,

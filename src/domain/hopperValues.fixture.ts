@@ -1,5 +1,3 @@
-import type { JsonValue } from "./jsonValue.js";
-
 export const ghidraFunctionClassification = () => ({
   external: false,
   thunk: false,
@@ -38,14 +36,6 @@ export const ghidraReferenceEdge = () => ({
   source_procedure: ghidraFunctionIdentity(),
   target_procedure: null,
   kind: ghidraReferenceKind(),
-});
-
-export const ghidraBounded = (items: readonly JsonValue[]) => ({
-  items: [...items],
-  total: items.length,
-  returned: items.length,
-  truncated: false,
-  next_offset: null,
 });
 
 export const ghidraNativeApiBoundary = (mappingsTruncated = false) => ({
@@ -173,3 +163,4 @@ export const ghidraFunctionDossier = (
     ],
   };
 };
+import type { JsonValue } from "./jsonValue.js";

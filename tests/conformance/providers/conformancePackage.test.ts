@@ -1,14 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  CONFORMANCE_PACKAGE_VERSION,
   createConformancePackage,
   parseConformancePackage,
   type ConformancePackageInput,
 } from "../../../src/domain/conformancePackage.js";
 
 const validPackageInput: ConformancePackageInput = {
-  schema_version: CONFORMANCE_PACKAGE_VERSION,
   name: "test-fixture",
   description: "A test conformance fixture",
   created_at: "2026-07-28T00:00:00Z",
@@ -72,7 +70,7 @@ describe("conformance package parsing", () => {
 
   it("rejects invalid package structure", () => {
     expect(
-      parseConformancePackage({ ...validPackage, schema_version: 999 }),
+      parseConformancePackage({ ...validPackage, name: "" }),
     ).toMatchObject({ ok: false, error: { kind: "invalid_package" } });
   });
 

@@ -193,7 +193,6 @@ export class HopperApplicationLauncher implements BridgeLauncher {
           lease?.release(),
         );
       const ownership = {
-        schema_version: 1,
         run_id: session.runId,
         pid: started.ownership.leaderPid,
         process_group_id: started.ownership.leaderPid,

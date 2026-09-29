@@ -34,7 +34,6 @@ export interface JavaScriptSemanticQueryAssessment {
   readonly status: JavaScriptSemanticQueryResult["status"];
   readonly coverage: JavaScriptSemanticQueryResult["coverage"];
   readonly limitations: string[];
-  readonly acceptedLimitRanges: JavaScriptSemanticQueryResult["accepted_limit_ranges"];
 }
 
 /** Classify a bounded semantic traversal without promoting unknowns to absence. */
@@ -44,16 +43,6 @@ export const assessJavaScriptSemanticQuery = (
   status: queryStatus(input),
   coverage: queryCoverage(input),
   limitations: queryLimitations(input),
-  acceptedLimitRanges: {
-    max_seed_matches: { minimum: 1, maximum: 1_000 },
-    max_nodes: { minimum: 1, maximum: 50_000 },
-    max_edges: { minimum: 1, maximum: 100_000 },
-    max_depth: { minimum: 0, maximum: 64 },
-    max_functions: { minimum: 1, maximum: 10_000 },
-    max_modules: { minimum: 1, maximum: 10_000 },
-    max_unknowns: { minimum: 0, maximum: 10_000 },
-    page_size: { minimum: 1, maximum: 1_000 },
-  },
 });
 
 const queryCoverage = (
@@ -98,12 +87,12 @@ const queryLimitations = (
     ...(input.totalSeeds === input.retainedSeeds
       ? []
       : [
-          "Seed matches exceeded caller bounds; omitted starts remain unexplored.",
+          "Seed matches exceeded the internal traversal safety ceiling; omitted starts remain unexplored.",
         ]),
     ...(input.frontier.length === 0
       ? []
       : [
-          "Traversal stopped at explicit caller limits; frontier facts remain unknown.",
+          "Traversal stopped at an internal resource ceiling; frontier facts remain unknown.",
         ]),
     ...(input.unknowns.length === 0
       ? []
@@ -112,7 +101,7 @@ const queryLimitations = (
         ]),
     ...(input.unknownsTruncated
       ? [
-          "Relevant unknown frontiers exceeded the caller limit; omitted unknowns remain unresolved.",
+          "Relevant unknown frontiers exceeded the internal result safety ceiling; omitted unknowns remain unresolved.",
         ]
       : []),
     ...(input.candidateRelations === 0

@@ -1,14 +1,9 @@
 export function parseManagedAppManifest(rawManifest) {
   const manifest = object(rawManifest, "manifest");
-  ensure(
-    manifest.schema_version === 1,
-    "manifest.schema_version must be exactly 1",
-  );
   const target = object(manifest.target, "manifest.target");
   const methods = array(manifest.methods, "manifest.methods");
   ensure(manifest.methods.length > 0, "manifest.methods must not be empty");
   return {
-    schema_version: 1,
     label: optionalString(manifest.label, "manifest.label"),
     target: {
       path: string(target.path, "manifest.target.path"),

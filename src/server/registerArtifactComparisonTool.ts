@@ -29,31 +29,29 @@ export const registerArtifactComparisonTool = (
       };
       const left = resolveSessionEvidenceIds(
         session,
-        input.left_evidence_ids,
+        [input.left_evidence_id],
         expected,
       );
       if (!left.ok) return toCallToolResult(left, contract);
       const right = resolveSessionEvidenceIds(
         session,
-        input.right_evidence_ids,
+        [input.right_evidence_id],
         expected,
       );
       if (!right.ok) return toCallToolResult(right, contract);
       const computed = await runDerivedOperation(context, contract.name, () =>
-        compareArtifacts(left.value, right.value, input.offset, input.limit),
+        compareArtifacts(left.value, right.value),
       );
       if (!computed.ok) return toCallToolResult(computed, contract);
       const comparison = computed.value;
-      const leftEvidenceIds = input.left_evidence_ids;
-      const rightEvidenceIds = input.right_evidence_ids;
+      const leftEvidenceIds = [input.left_evidence_id];
+      const rightEvidenceIds = [input.right_evidence_id];
       const evidence = createEvidence(undefined, ARTIFACT_COMPARISON_PROVIDER, {
         predicateType: "rea.artifact-comparison/v1",
         operation: contract.name,
         parameters: {
           left_evidence_ids: leftEvidenceIds,
           right_evidence_ids: rightEvidenceIds,
-          offset: input.offset,
-          limit: input.limit,
         },
         result: jsonValueSchema.parse(comparison),
         confidence: "derived",
@@ -75,8 +73,8 @@ export const registerArtifactComparisonTool = (
 
 const artifactUnknownInput = (
   input: {
-    readonly left_evidence_ids: readonly string[];
-    readonly right_evidence_ids: readonly string[];
+    readonly left_evidence_id: string;
+    readonly right_evidence_id: string;
     readonly unknown_registry_approved?: true | undefined;
   },
   status: ReturnType<typeof compareArtifacts>["status"],
@@ -89,8 +87,8 @@ const artifactUnknownInput = (
     severity:
       status === "unknown" || status === "truncated" ? "high" : "medium",
     domain: "artifact-comparison",
-    supporting_evidence_ids: [...input.left_evidence_ids],
-    contradicting_evidence_ids: [...input.right_evidence_ids],
+    supporting_evidence_ids: [input.left_evidence_id],
+    contradicting_evidence_ids: [input.right_evidence_id],
     required_authority: "shipped-artifact",
     required_confidence: "observed",
     required_environment: null,

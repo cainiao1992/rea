@@ -43,7 +43,6 @@ async function runManagedAppManifestSelfTest(context) {
   assert.ok(method);
   const summary = await context.verifyManagedAppManifest(
     {
-      schema_version: 1,
       label: "source-owned manifest verifier self-test",
       target: {
         path: sample.path,

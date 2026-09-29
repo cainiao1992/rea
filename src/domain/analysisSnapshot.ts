@@ -270,9 +270,8 @@ export const createAnalysisSnapshotEntry = (input: {
   };
 };
 
-/** Parse v2 and reject legacy snapshots, altered query IDs, or non-canonical order. */
+/** Parse a provider/profile-exact snapshot and verify its entries and evidence. */
 export const parseAnalysisSnapshot = (input: unknown): AnalysisSnapshot => {
-  rejectLegacySnapshot(input);
   const parsed = analysisSnapshotSchema.parse(input);
   parseEvidenceBundle(parsed.evidence_bundle);
   if (
@@ -314,15 +313,3 @@ export const parseAnalysisSnapshot = (input: unknown): AnalysisSnapshot => {
 /** Serialize a validated snapshot with byte-stable canonical entry ordering. */
 export const serializeAnalysisSnapshot = (snapshot: AnalysisSnapshot): string =>
   `${canonicalJson(parseAnalysisSnapshot(snapshot))}\n`;
-
-const rejectLegacySnapshot = (input: unknown): void => {
-  if (
-    typeof input === "object" &&
-    input !== null &&
-    "snapshot_version" in input &&
-    input.snapshot_version === 1
-  )
-    throw new TypeError(
-      "Analysis snapshot v1 is incompatible with profile-exact replay; recapture it as snapshot v2. Its Evidence bundle may be imported separately.",
-    );
-};

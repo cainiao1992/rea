@@ -54,13 +54,7 @@ const sourceRangeSchema = z
       });
   });
 
-const comparisonLimitsSchema = z.strictObject({
-  max_candidate_exports: z.number().int().min(1).max(1_000).default(100),
-  max_return_variants: z.number().int().min(1).max(1_000).default(128),
-  max_changes: z.number().int().min(1).max(10_000).default(1_000),
-});
-
-/** Two authenticated application graphs, exact export selectors, and bounds. */
+/** Two authenticated application graphs and exact export selectors. */
 export const compareJavaScriptExportShapesInputSchema = z
   .strictObject({
     left: evidenceSchema,
@@ -69,11 +63,6 @@ export const compareJavaScriptExportShapesInputSchema = z
     left_export_name: selectorTextSchema,
     right_module_path: selectorTextSchema,
     right_export_name: selectorTextSchema,
-    limits: comparisonLimitsSchema.default({
-      max_candidate_exports: 100,
-      max_return_variants: 128,
-      max_changes: 1_000,
-    }),
     unknown_registry_approved: z.literal(true).optional(),
   })
   .superRefine((input, context) => {
@@ -304,9 +293,6 @@ export const javaScriptExportShapeComparisonResultSchema = z.strictObject({
   }),
 });
 
-export type CompareJavaScriptExportShapesInput = z.output<
-  typeof compareJavaScriptExportShapesInputSchema
->;
 export type ProjectedExportReturnShapes = z.output<
   typeof projectedExportReturnShapesSchema
 >;

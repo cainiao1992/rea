@@ -78,7 +78,6 @@ async function runInlineEvidenceScenarios(
   expect(compared.isError).not.toBe(true);
   expect(compared.structuredContent).toMatchObject({
     result: {
-      schema_version: 1,
       summary: { unknown: expect.any(Number) },
       coverage: { status: expect.any(String) },
     },
@@ -94,7 +93,6 @@ async function runInlineEvidenceScenarios(
   expect(sourceCompared.isError).not.toBe(true);
   expect(sourceCompared.structuredContent).toMatchObject({
     result: {
-      schema_version: 1,
       reference: {
         root_sha256: SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE.reference.root_sha256,
       },

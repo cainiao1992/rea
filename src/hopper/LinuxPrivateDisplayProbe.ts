@@ -267,7 +267,6 @@ const syntheticDiagnostic = (
   reason: string,
   failureCode: HopperStartupFailureCode = "private_display_unavailable",
 ): HopperStartupFailureDiagnostic => ({
-  schema_version: 1,
   component: "hopper_private_display",
   operation: "probe",
   status: "error",

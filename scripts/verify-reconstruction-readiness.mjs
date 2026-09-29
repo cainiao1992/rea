@@ -157,7 +157,6 @@ try {
 
   process.stdout.write(
     `${JSON.stringify({
-      schema_version: 1,
       status: cliReport.status,
       report_id: cliReport.report_id,
       report_digest: cliReport.report_digest,

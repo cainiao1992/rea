@@ -22,7 +22,6 @@ const completionClaim = ({
     parameters: {
       scenario_id: scenarioId,
       scenario_version: 1,
-      result_schema_version: 1,
       artifact_sha256s: artifactSha256s,
     },
     result: { status },
@@ -37,7 +36,6 @@ const completionClaim = ({
       id: COMPLETION_PROVIDER.id,
       version: COMPLETION_PROVIDER.version,
     },
-    result_schema_version: 1,
     status,
     evidence_ids: [evidence.evidence_id],
   };
@@ -151,7 +149,6 @@ const optionalClaims = ({ operatorManifest, ilspyOracle }) => [
 
 /** Project completed managed assertions into the standard verifier report. */
 export const createManagedCompletionReport = (input, verifierRun) => ({
-  schema_version: 1,
   verifier: {
     id: COMPLETION_PROVIDER.id,
     version: COMPLETION_PROVIDER.version,

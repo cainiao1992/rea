@@ -49,7 +49,7 @@ describe("reconstruction coverage persistence", () => {
     ).toMatchObject({
       ok: false,
       error: {
-        _tag: "InvestigationWorkspaceError",
+        _tag: "WorkspaceStorageError",
         reason: "revision-conflict",
       },
     });

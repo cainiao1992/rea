@@ -9,33 +9,14 @@ import {
   PROCESS_COMPARISON_DIMENSIONS,
   processCaptureComparisonSchema,
 } from "./processCapture.js";
-import {
-  crossVersionInvestigationInputSchema,
-  investigationRunSummarySchema,
-} from "./investigationWorkspace.js";
 
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
 
 /** Strict bounded input for aggregating existing comparison Evidence. */
-export const changedBehaviorInputSchema = z
-  .object({
-    comparisons: z.array(evidenceSchema).max(100).default([]),
-    investigation_run: crossVersionInvestigationInputSchema.optional(),
-    offset: z.number().int().min(0).default(0),
-    limit: z.number().int().min(1).max(100).default(100),
-    unknown_registry_approved: z.literal(true).optional(),
-  })
-  .superRefine((input, context) => {
-    if (
-      input.comparisons.length > 0 ===
-      (input.investigation_run !== undefined)
-    )
-      context.addIssue({
-        code: "custom",
-        message:
-          "Supply either existing comparisons or one investigation_run, but not both",
-      });
-  });
+export const changedBehaviorInputSchema = z.object({
+  comparisons: z.array(evidenceSchema).max(100).default([]),
+  unknown_registry_approved: z.literal(true).optional(),
+});
 
 const findingSchema = z.object({
   scope: z.enum(["runtime", "protocol", "resource", "static_candidate"]),
@@ -68,46 +49,21 @@ export const changedBehaviorResultSchema = z
       unresolved: z.number().int().min(0),
     }),
     findings: z.object({
-      items: z.array(findingSchema).max(100),
-      offset: z.number().int().min(0),
-      limit: z.number().int().min(1).max(100),
-      total: z.number().int().min(0),
-      next_offset: z.number().int().min(0).nullable(),
+      items: z.array(findingSchema),
     }),
     evidence_links: z.array(evidenceIdSchema).min(3).max(20_100),
     limitations: z.array(z.string()),
-    investigation_run: investigationRunSummarySchema.optional(),
   })
   .superRefine((result, context) => {
     const summaryTotal = Object.values(result.summary).reduce(
       (total, count) => total + count,
       0,
     );
-    const expectedNextOffset =
-      result.findings.offset + result.findings.items.length <
-      result.findings.total
-        ? result.findings.offset + result.findings.items.length
-        : null;
-    if (summaryTotal !== result.findings.total)
+    if (summaryTotal !== result.findings.items.length)
       context.addIssue({
         code: "custom",
         message: "Finding classification counts must equal the finding total",
         path: ["summary"],
-      });
-    if (result.findings.next_offset !== expectedNextOffset)
-      context.addIssue({
-        code: "custom",
-        message: "Finding cursor must identify the next retained offset",
-        path: ["findings", "next_offset"],
-      });
-    if (
-      result.findings.offset < result.findings.total &&
-      result.findings.items.length === 0
-    )
-      context.addIssue({
-        code: "custom",
-        message: "A nonterminal finding page must retain at least one item",
-        path: ["findings", "items"],
       });
     if (
       (result.behavior_status === "observed_changed" &&
@@ -155,13 +111,9 @@ const acceptsPredicate = (
 /** Find observed runtime changes and separately report static change candidates. */
 export const findChangedBehavior = (
   comparisonsInput: unknown,
-  offset: number,
-  limit: number,
 ): ChangedBehaviorResult => {
   const parsedInput = changedBehaviorInputSchema.parse({
     comparisons: comparisonsInput,
-    offset,
-    limit,
   });
   const comparisons = parsedInput.comparisons;
   const evidence = comparisons.map(parseComparisonEvidence);
@@ -176,10 +128,6 @@ export const findChangedBehavior = (
   );
   if (links.length > 20_100)
     throw new TypeError("Changed-behavior Evidence closure exceeds limit");
-  const page = findings.slice(
-    parsedInput.offset,
-    parsedInput.offset + parsedInput.limit,
-  );
   return changedBehaviorResultSchema.parse({
     behavior_status: behaviorStatus(runtimeStatuses),
     summary: {
@@ -189,14 +137,7 @@ export const findChangedBehavior = (
       unresolved: count(findings, "unresolved_branch"),
     },
     findings: {
-      items: page,
-      offset: parsedInput.offset,
-      limit: parsedInput.limit,
-      total: findings.length,
-      next_offset:
-        parsedInput.offset + page.length < findings.length
-          ? parsedInput.offset + page.length
-          : null,
+      items: findings,
     },
     evidence_links: links,
     limitations: uniqueSorted([
@@ -211,7 +152,6 @@ export const findChangedBehavior = (
       ...(runtimeStatuses.length === 0
         ? ["No process comparison Evidence was supplied."]
         : []),
-      ...evidence.flatMap(artifactPaginationLimitations),
     ]),
   });
 };
@@ -278,13 +218,9 @@ const parseResult = (evidence: Evidence): void => {
   const result = artifactComparisonResultSchema.parse(
     evidence.normalized_result,
   );
-  if (result.changes.offset !== 0)
-    throw new TypeError(
-      "Changed-behavior analysis requires artifact comparison pagination from offset zero",
-    );
   assertNestedLinks(
     evidence,
-    result.changes.items.flatMap(({ evidence_links: links }) => links),
+    result.changes.flatMap(({ evidence_links: links }) => links),
   );
 };
 
@@ -366,7 +302,7 @@ const artifactFindings = (evidence: Evidence): Finding[] => {
   const result = artifactComparisonResultSchema.parse(
     evidence.normalized_result,
   );
-  const changes = result.changes.items.map((change) =>
+  const changes = result.changes.map((change) =>
     makeFinding({
       evidence,
       dimension: `artifact:${change.logical_path}`,
@@ -382,9 +318,7 @@ const artifactFindings = (evidence: Evidence): Finding[] => {
       links: change.evidence_links,
     }),
   );
-  return (result.status === "unknown" ||
-    result.status === "truncated" ||
-    result.changes.next_offset !== null) &&
+  return (result.status === "unknown" || result.status === "truncated") &&
     !changes.some(
       ({ classification }) => classification === "unresolved_branch",
     )
@@ -400,18 +334,6 @@ const artifactFindings = (evidence: Evidence): Finding[] => {
         }),
       ]
     : changes;
-};
-
-const artifactPaginationLimitations = (evidence: Evidence): string[] => {
-  if (evidence.operation !== "compare_artifacts") return [];
-  const result = artifactComparisonResultSchema.parse(
-    evidence.normalized_result,
-  );
-  return result.changes.next_offset === null
-    ? []
-    : [
-        `Artifact comparison reports ${String(result.changes.items.length)} of ${String(result.changes.total)} changes.`,
-      ];
 };
 
 const makeFinding = (input: {

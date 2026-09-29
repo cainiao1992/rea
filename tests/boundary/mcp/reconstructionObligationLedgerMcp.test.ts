@@ -7,7 +7,7 @@ import { createServer } from "../../../src/server/createServer.js";
 import { observed } from "../../fixtures/analysisExecution.js";
 
 describe("reconstruction obligation ledger MCP parity", () => {
-  it("returns an Evidence-backed page inline", async () => {
+  it("returns the complete Evidence-backed ledger inline", async () => {
     const session = createTestBinarySession(() => ({
       execute: () => Promise.resolve(observed(null)),
       close: () => Promise.resolve(),
@@ -28,7 +28,6 @@ describe("reconstruction obligation ledger MCP parity", () => {
             bindings: [],
             contradictions: [],
           },
-          page: { offset: 0, limit: 50 },
         },
       });
       expect(result.isError).not.toBe(true);

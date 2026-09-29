@@ -508,7 +508,6 @@ describe("controlled JavaScript replay cancellation and export", () => {
       const metadata = await stat(path);
       expect(metadata.mode & 0o777).toBe(0o600);
       expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({
-        schema_version: 1,
         sources: null,
       });
     } finally {

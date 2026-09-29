@@ -310,7 +310,6 @@ const applyReproducerExport = async (
     return executed;
 
   const manifest = {
-    schema_version: 1,
     plan: prepared.publicPlan,
     result: executed,
     sources: exportContext.includeSources

@@ -11,10 +11,10 @@ import { createEvidenceBundle } from "../domain/evidenceBundle.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { processCaptureSchema } from "../domain/processCapture.js";
 import {
-  reconstructionObligationLedgerPageSchema,
+  reconstructionObligationLedgerSchema,
   serializeReconstructionObligationLedger,
   type ReconstructionObligationLedgerInput,
-  type ReconstructionObligationLedgerPage,
+  type ReconstructionObligationLedger,
   type ReviewedReconstructionObligation,
 } from "../domain/reconstructionObligationLedgerSchemas.js";
 
@@ -82,36 +82,25 @@ const request = (
   evidence_bundle: createEvidenceBundle(records),
   reviewed_obligations: [],
   manifest: { bindings: [], contradictions: [] },
-  page: { offset: 0, limit: 50 },
   ...overrides,
 });
 
 const build = (
   input: ReconstructionObligationLedgerInput,
-): ReconstructionObligationLedgerPage => {
+): ReconstructionObligationLedger => {
   const parsed = resolveReconstructionObligationLedgerRequest(input);
   if (!parsed.ok) throw parsed.error;
   const result = buildReconstructionObligationLedgerEvidenceValidated(
     parsed.value,
   );
   if (!result.ok) throw result.error;
-  return reconstructionObligationLedgerPageSchema.parse(
+  return reconstructionObligationLedgerSchema.parse(
     result.value.normalized_result,
   );
 };
 
-const completeLedger = (
-  page: ReconstructionObligationLedgerPage,
-  obligations: ReconstructionObligationLedgerPage["obligations"],
-) => {
-  const { page: pagination, ...ledger } = page;
-  if (pagination.total !== obligations.length)
-    throw new TypeError("Incomplete obligation page set");
-  return { ...ledger, obligations };
-};
-
 const originalCases = (
-  obligation: ReconstructionObligationLedgerPage["obligations"][number],
+  obligation: ReconstructionObligationLedger["obligations"][number],
   evidenceId: string,
 ) =>
   obligation.required_case_kinds.map((caseKind) => ({
@@ -150,45 +139,26 @@ const reviewedObligation = (
 });
 
 describe("reconstruction obligation ledger", () => {
-  it("emits deterministic closure identity and paging", () => {
+  it("emits the complete deterministic ledger and closure identity", () => {
     const evidence = proofEvidence("review");
     const reviewed = [
       reviewedObligation("obl.review.one", evidence.evidence_id),
       reviewedObligation("obl.review.two", evidence.evidence_id),
     ];
     const first = build(
-      request([evidence], {
-        reviewed_obligations: reviewed,
-        page: { offset: 0, limit: 1 },
-      }),
+      request([evidence], { reviewed_obligations: reviewed }),
     );
     const second = build(
-      request([evidence], {
-        reviewed_obligations: reviewed,
-        page: { offset: 1, limit: 1 },
-      }),
+      request([evidence], { reviewed_obligations: reviewed }),
     );
-
-    expect(first.page).toEqual({
-      offset: 0,
-      limit: 1,
-      total: 2,
-      returned: 1,
-      next_offset: 1,
-    });
-    expect(second.page.next_offset).toBeNull();
+    expect(first.obligations).toHaveLength(2);
+    expect(first).toEqual(second);
     expect(second.ledger_id).toBe(first.ledger_id);
     expect(second.closure_digest).toBe(first.closure_digest);
     expect(first.obligations[0]?.source_state).toBe("reviewed");
     expect(first.status).toBe("open");
-    expect(
-      serializeReconstructionObligationLedger(
-        completeLedger(first, [...first.obligations, ...second.obligations]),
-      ),
-    ).toBe(
-      serializeReconstructionObligationLedger(
-        completeLedger(second, [...first.obligations, ...second.obligations]),
-      ),
+    expect(serializeReconstructionObligationLedger(first)).toBe(
+      serializeReconstructionObligationLedger(second),
     );
   });
 

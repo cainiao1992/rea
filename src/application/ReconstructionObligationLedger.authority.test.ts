@@ -11,9 +11,9 @@ import { createEvidenceBundle } from "../domain/evidenceBundle.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { processCaptureSchema } from "../domain/processCapture.js";
 import {
-  reconstructionObligationLedgerPageSchema,
+  reconstructionObligationLedgerSchema,
   type ReconstructionObligationLedgerInput,
-  type ReconstructionObligationLedgerPage,
+  type ReconstructionObligationLedger,
   type ReviewedReconstructionObligation,
 } from "../domain/reconstructionObligationLedgerSchemas.js";
 
@@ -81,26 +81,25 @@ const request = (
   evidence_bundle: createEvidenceBundle(records),
   reviewed_obligations: [],
   manifest: { bindings: [], contradictions: [] },
-  page: { offset: 0, limit: 50 },
   ...overrides,
 });
 
 const build = (
   input: ReconstructionObligationLedgerInput,
-): ReconstructionObligationLedgerPage => {
+): ReconstructionObligationLedger => {
   const parsed = resolveReconstructionObligationLedgerRequest(input);
   if (!parsed.ok) throw parsed.error;
   const result = buildReconstructionObligationLedgerEvidenceValidated(
     parsed.value,
   );
   if (!result.ok) throw result.error;
-  return reconstructionObligationLedgerPageSchema.parse(
+  return reconstructionObligationLedgerSchema.parse(
     result.value.normalized_result,
   );
 };
 
 const originalCases = (
-  obligation: ReconstructionObligationLedgerPage["obligations"][number],
+  obligation: ReconstructionObligationLedger["obligations"][number],
   evidenceId: string,
 ) =>
   obligation.required_case_kinds.map((caseKind) => ({

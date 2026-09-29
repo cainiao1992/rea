@@ -64,7 +64,6 @@ const failures = [
 export type HopperStartupFailureCode = (typeof failures)[number][1];
 
 interface HopperStartupDiagnosticContext {
-  readonly schema_version: 1;
   readonly component: "hopper_private_display";
   readonly operation: "probe" | "launch";
   readonly reason: string;

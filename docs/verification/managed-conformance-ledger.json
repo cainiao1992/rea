@@ -1,103 +1,102 @@
 {
-  "schema_version": 1,
-  "ledger_id": "ecl_2d5c1c83c1fd56615a663bcb3a432b7023afa316133b744c64dcaa659cab53c0",
+  "ledger_id": "ecl_578e5853b332ae050e69dc1a2c72fc98be527371311d6a98a9ae3bf28a24fa6c",
   "records": [
     {
       "claim_id": "managed.application-graph-projection",
       "status": "pass",
       "evidence_ids": [
-        "ev_0c73f33f51048a7c7cc5d908cb951512ee9f3d9dcf4124f0f0eb2c4a88ceb7cc"
+        "ev_a09c9014515baea9a709c1d5c0ae32d343a1f1b6e4da498ce5afe14eaab0ddbb"
       ]
     },
     {
       "claim_id": "managed.decompiler-reconstruction-import",
       "status": "pass",
       "evidence_ids": [
-        "ev_0504a7fc4cc8f77ca07a3aa59d62830b5769c7b41e7518677771fe7aa54c7b5d"
+        "ev_14052dcba244a91019c042feae78440d800570dde163c991931d9c09b7e6bbdd"
       ]
     },
     {
       "claim_id": "managed.dotnet-framework-x86-pinvoke",
       "status": "pass",
       "evidence_ids": [
-        "ev_9b63cdeef9d48e567dc8f4de9fe6b424e94929ac1f17aafd0ef1807775f72d96"
+        "ev_c11aa40e3fbc2de8bb11d6b5783ee3a74d4d79fe16ea7f6ddd85d4b253c6d769"
       ]
     },
     {
       "claim_id": "managed.ilspy-reconstruction-oracle",
       "status": "unsupported",
       "evidence_ids": [
-        "ev_4e3fbc7203c29aab5d9119332a09c14e285e85007b3d7fc7433880b39a507435"
+        "ev_76ca183c167d63e6c58b65e2f9b3bef3e569669dc66abb0b8b850948878a70e3"
       ]
     },
     {
       "claim_id": "managed.malformed-metadata",
       "status": "pass",
       "evidence_ids": [
-        "ev_dbd885adc65f9cc8abacb04642db609d2180b0af71adc0b0732719f06a057063"
+        "ev_99e1185da1fcbf1330b4b86beca27e0abeef10f95870b1982da39827278e16e8"
       ]
     },
     {
       "claim_id": "managed.managed-native-verification",
       "status": "pass",
       "evidence_ids": [
-        "ev_e7841bf63d7b83804987d21f4f432752870ff7338862360bbcf54653eb782731"
+        "ev_9d1c5bc641c0da1551c8fbae4507d7719847cfb40edf73c13e2bdf5fb670ec9e"
       ]
     },
     {
       "claim_id": "managed.modern-dotnet-anycpu",
       "status": "pass",
       "evidence_ids": [
-        "ev_9593b026617002c64d0618ec079d42dbc0ddeef7cd53f2f8b2c8fca9ffebb2a9"
+        "ev_7f959cb9642a2c52da0cce0d3c9c888b889240ee7697c5fdb5390d7578634782"
       ]
     },
     {
       "claim_id": "managed.mvid-and-token-drift",
       "status": "pass",
       "evidence_ids": [
-        "ev_ba32694a35810acd211745efdf41c88887f4931efb6027e876eea3e8e506aee0"
+        "ev_dd6c3e3fbe115f1b9b38ee06f720d5efb7dd6ef693a1b9555e9ff73babdaea9f"
       ]
     },
     {
       "claim_id": "managed.not-managed",
       "status": "pass",
       "evidence_ids": [
-        "ev_ac700cf6c8efdda7f689b29a9c3d5a679ecb24893f93bb1c76e50e23b2b9dcbb"
+        "ev_ca183a8f4159136df29d9d5e44a88239c996d6e758b71ad023289871875a9367"
       ]
     },
     {
       "claim_id": "managed.operator-local-manifest",
       "status": "unsupported",
       "evidence_ids": [
-        "ev_f96f07bc28f2e6da5a71597f9a38f5eaa7cde0217f0df10d6ef6d655937fc1a2"
+        "ev_4173365e113f71b28fd1f3f1c583557a487e36ec6a6d0e63b1249eb7a4334b8c"
       ]
     },
     {
       "claim_id": "managed.operator-manifest-self-test",
       "status": "pass",
       "evidence_ids": [
-        "ev_ed0f3ff1749f0927d493609423a366ec6a432f016c767aeeedd9b4a520672eaf"
+        "ev_063c68b649379811e56c7788ab6b01891f1dd78abfe3008c6bf06a1c0727a095"
       ]
     },
     {
       "claim_id": "managed.runtime-correlation-admission-plan",
       "status": "pass",
       "evidence_ids": [
-        "ev_24a622e16a885e2d21025f51c3f4b5900719c21d9f0d04ba1d55f6093a702c20"
+        "ev_530ff114b2f05f85b6baeaa56df60a60a927f1de3b07bbbe86aa462faad71772"
       ]
     },
     {
       "claim_id": "managed.unicode-obfuscated-identifiers",
       "status": "pass",
       "evidence_ids": [
-        "ev_2e9bc5213917635c3eb3d094449adf088c450c07d078dcb26312182c04966bc9"
+        "ev_17f9013d5ce058be847c1f3efec19688c268fa2feecf974bbc18428cd87144e5"
       ]
     },
     {
       "claim_id": "managed.x64-ready-to-run-native-body",
       "status": "pass",
       "evidence_ids": [
-        "ev_bbf3dd8daec6d46d16ac7befc3875572e7103b27b815f81903e3dca61880c70b"
+        "ev_60dc353ad66b83ee50163ab55fb0f4c7caefd06e08ccc2e0ebb5d2a7a23cb55b"
       ]
     }
   ],

@@ -214,7 +214,6 @@ const runtimeFileIdentitySchema = z
 
 const replayPlanSchema = z
   .object({
-    schema_version: z.literal(1),
     plan_digest: digestSchema,
     policy_version: z.literal("linux-bwrap-systemd-v1"),
     policy_sha256: digestSchema,

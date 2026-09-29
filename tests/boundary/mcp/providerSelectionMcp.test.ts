@@ -220,8 +220,6 @@ const capability = (provider: ProviderIdentity): CapabilityDescriptor => ({
   operation: "address_name",
   available: true,
   reason: null,
-  pagination: "none",
-  exhaustive: true,
   effects: {
     mutatesArtifact: false,
     launchesProcess: true,
@@ -231,7 +229,6 @@ const capability = (provider: ProviderIdentity): CapabilityDescriptor => ({
     changesPermissions: false,
     requiresRoot: false,
   },
-  limits: { maxResults: null, maxPayloadBytes: 1_000, timeoutMs: 1_000 },
   limitations: [],
 });
 

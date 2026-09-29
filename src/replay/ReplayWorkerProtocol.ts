@@ -30,14 +30,12 @@ const workerOutcomeSchema = z.discriminatedUnion("outcome", [
 
 const singleWorkerResponseSchema = z
   .object({
-    schema_version: z.literal(1),
     left: z.array(workerOutcomeSchema),
   })
   .strict();
 
 const differentialWorkerResponseSchema = z
   .object({
-    schema_version: z.literal(1),
     left: z.array(workerOutcomeSchema),
     right: z.array(workerOutcomeSchema),
   })

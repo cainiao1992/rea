@@ -151,7 +151,7 @@ const evidenceValues = (
   );
   if (!inventory.success) return [];
   if (kind === "manifest") return [inventory.data.manifest.manifest_id];
-  return inventory.data.occurrences.items.map(({ occurrence_id: id }) => id);
+  return inventory.data.occurrences.map(({ occurrence_id: id }) => id);
 };
 
 const isProcessCaptureEvidence = (evidence: LedgerEvidence): boolean => {

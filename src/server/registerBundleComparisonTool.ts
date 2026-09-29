@@ -31,13 +31,7 @@ export const registerBundleComparisonTool = (
       if (!left.ok) return toCallToolResult(left, contract);
       if (!right.ok) return toCallToolResult(right, contract);
       const computed = await runDerivedOperation(context, contract.name, () =>
-        compareBundles(
-          left.value,
-          right.value,
-          input.record_pairs,
-          input.offset,
-          input.limit,
-        ),
+        compareBundles(left.value, right.value, input.record_pairs),
       );
       if (!computed.ok) return toCallToolResult(computed, contract);
       const comparison = computed.value;
@@ -48,8 +42,6 @@ export const registerBundleComparisonTool = (
           left_bundle_sha256: comparison.left_bundle_sha256,
           right_bundle_sha256: comparison.right_bundle_sha256,
           record_pairs: input.record_pairs,
-          offset: input.offset,
-          limit: input.limit,
         },
         result: jsonValueSchema.parse(comparison),
         confidence: "derived",

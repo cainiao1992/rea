@@ -33,8 +33,8 @@ describe("reconstruction coverage MCP parity", () => {
     };
     const authority = await permissionAuthorityForRoot(
       root,
-      ["investigation_workspace_read", "investigation_workspace_write"],
-      ["investigation_workspace_read", "investigation_workspace_write"],
+      ["reconstruction_coverage_read", "reconstruction_coverage_write"],
+      ["reconstruction_coverage_read", "reconstruction_coverage_write"],
     );
     const session = createTestBinarySession(() => ({
       execute: () => Promise.resolve(observed(null)),

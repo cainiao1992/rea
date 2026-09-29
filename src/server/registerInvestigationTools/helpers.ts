@@ -7,10 +7,6 @@ import {
 import { err, ok, type Result } from "../../domain/result.js";
 import { recordDerivedEvidence } from "../recordDerivedEvidence.js";
 import type { WorkflowUnknownInput } from "./types.js";
-import { evaluateReconstructionClosure } from "../../domain/reconstructionCoverage.js";
-import type { z } from "zod";
-import type { reconstructionVerificationInputSchema } from "../../domain/reconstructionVerification.js";
-import { AnalysisInputError } from "../../domain/errors.js";
 
 export const isIncomplete = (status: string): boolean =>
   status === "unknown" || status === "truncated";
@@ -54,43 +50,6 @@ export const evidenceClosure = (
     pending.push(...evidence.evidence_links);
   }
   return ok(uniqueIds([...visited]));
-};
-
-/** Verify a retained coverage boundary before reconstruction evidence is derived. */
-export const verifyCoverageReadiness = (
-  session: BinarySessionPort,
-  coverage: z.output<typeof reconstructionVerificationInputSchema>["coverage"],
-): Result<null, AnalysisError> => {
-  if (coverage === undefined) return ok(null);
-  const workspace = session.reconstructionCoverageWorkspace(
-    coverage.workspace_id,
-    coverage.revision,
-  );
-  if (
-    workspace === undefined ||
-    workspace.revision_sha256 !== coverage.revision_sha256
-  )
-    return err(
-      new EvidenceIntegrityError(
-        "The requested reconstruction coverage revision is not retained by this session",
-      ),
-    );
-  try {
-    const result = evaluateReconstructionClosure(
-      workspace,
-      coverage.boundary_id,
-      Date.now(),
-    );
-    return result.status === "ready"
-      ? ok(null)
-      : err(
-          new EvidenceIntegrityError(
-            `Reconstruction coverage boundary is ${result.status}; readiness requires ready`,
-          ),
-        );
-  } catch (cause: unknown) {
-    return err(new AnalysisInputError("verify_reconstruction", { cause }));
-  }
 };
 
 export const recordWorkflowEvidence = (

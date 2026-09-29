@@ -79,7 +79,6 @@ describe("direct analysis snapshot filesystem permissions", () => {
       analysisProfile: workflowProfile,
     });
     const snapshot: AnalysisSnapshot = {
-      snapshot_version: 2,
       target: snapshotTarget(target.value),
       binding: snapshotBinding(profile),
       entries: [],

@@ -14,7 +14,6 @@ import {
   functionEvidenceIds,
   isIncomplete,
   recordWorkflowEvidence,
-  verifyCoverageReadiness,
 } from "./registerInvestigationTools/helpers.js";
 import { runDerivedOperation } from "./runDerivedOperation.js";
 import {
@@ -231,8 +230,6 @@ const registerReconstruction = (
     contract.name,
     contractOptions(contract),
     async (input, context) => {
-      const coverage = verifyCoverageReadiness(session, input.coverage);
-      if (!coverage.ok) return toCallToolResult(coverage, contract);
       const owned = session.exportEvidenceBundle();
       const computed = await runDerivedOperation(context, contract.name, () =>
         verifyReconstruction(input.specification, owned),

@@ -65,8 +65,7 @@ export const CLI_COMMANDS = Object.freeze({
   executeNodeCharacterization: "execute-node-characterization",
   buildReconstructionObligationLedger: "build-reconstruction-obligation-ledger",
   evaluateReconstructionReadiness: "evaluate-reconstruction-readiness",
-  commitReconstructionCoverage: "commit-reconstruction-coverage",
-  queryReconstructionCoverage: "query-reconstruction-coverage",
+  evaluateReconstructionCoverage: "evaluate-reconstruction-coverage",
 });
 
 /** Ordered primary CLI inventory; aliases are intentionally excluded. */

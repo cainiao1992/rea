@@ -10,7 +10,7 @@
     "skill_version": "23"
   },
   "tools": {
-    "total": 115,
+    "total": 114,
     "families": [
       {
         "id": "direct",
@@ -148,17 +148,16 @@
       {
         "id": "application",
         "surface": "application-workflow",
-        "count": 12,
+        "count": 11,
         "tools": [
           "build_reconstruction_obligation_ledger",
-          "commit_reconstruction_coverage",
           "compare_application_versions",
           "compare_javascript_export_shapes",
           "compare_source_to_bundle",
+          "evaluate_reconstruction_coverage",
           "evaluate_reconstruction_readiness",
           "execute_node_characterization",
           "prepare_node_characterization",
-          "query_reconstruction_coverage",
           "run_controlled_replay",
           "trace_application_feature",
           "trace_javascript_semantics"
@@ -343,14 +342,13 @@
       "version": "1",
       "capabilities": [
         "build_reconstruction_obligation_ledger",
-        "commit_reconstruction_coverage",
         "compare_application_versions",
         "compare_javascript_export_shapes",
         "compare_source_to_bundle",
+        "evaluate_reconstruction_coverage",
         "evaluate_reconstruction_readiness",
         "execute_node_characterization",
         "prepare_node_characterization",
-        "query_reconstruction_coverage",
         "run_controlled_replay",
         "trace_application_feature",
         "trace_javascript_semantics"
@@ -429,7 +427,7 @@
     }
   ],
   "cli": {
-    "primary_count": 67,
+    "primary_count": 66,
     "commands": [
       "analyze",
       "analyze-javascript-application",
@@ -440,7 +438,6 @@
       "capture-electron-scenario",
       "capture-process",
       "capture-web-screenshot",
-      "commit-reconstruction-coverage",
       "compare",
       "compare-application-versions",
       "compare-javascript-export-shapes",
@@ -453,6 +450,7 @@
       "demangle-swift",
       "discover-webmcp-tools",
       "doctor",
+      "evaluate-reconstruction-coverage",
       "evaluate-reconstruction-readiness",
       "evidence-export",
       "evidence-import",
@@ -485,7 +483,6 @@
       "prepare-node-characterization",
       "project-managed-application-graph",
       "providers",
-      "query-reconstruction-coverage",
       "reconcile-javascript-runtime",
       "run-controlled-replay",
       "run-replay-machine",
@@ -508,15 +505,15 @@
   },
   "runtime_catalog": {
     "counts": {
-      "cli_commands": 67,
-      "mcp_tools": 115,
+      "cli_commands": 66,
+      "mcp_tools": 114,
       "mcp_prompts": 6
     },
     "digests": {
-      "tools_sha256": "c0b0319310502e55dd3279361c5a65615a12f25c0e97fb0779b79b7950cecfe0",
+      "tools_sha256": "6b56b65d4d0b16365617dd2fcd08d8254ddd309b000fa0d173512f544441d17f",
       "prompts_sha256": "77c76df62f92484a43cebf5ca110bdf562c38fbee2531d293eeb51d6e712d459",
-      "combined_sha256": "85d3e5545b3e01eb22b67a1794fdcb737654a1abbea803e1f2445815ee4f17ff",
-      "providers_sha256": "7446b51788734ebf6f4f702e3a5a8c9f0b61967490c245f30bd37b2060827e6b"
+      "combined_sha256": "e9e72f81202fc2c0e19fef2b66ec015db90c208005cac9afff90410ce7efd531",
+      "providers_sha256": "919047a899143c606e521b3b0437c3cd494368504672e4f7423521ab3651f843"
     }
   }
 }

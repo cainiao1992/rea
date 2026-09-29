@@ -125,8 +125,6 @@ const buildPermissionCeilings = (
   const ceilings: PermissionCeiling[] = [
     permissionScope("evidence_read", arrays.evidenceRoots),
     permissionScope("evidence_write", arrays.evidenceRoots),
-    permissionScope("reconstruction_coverage_read", arrays.evidenceRoots),
-    permissionScope("reconstruction_coverage_write", arrays.evidenceRoots),
     permissionScope("snapshot_read", arrays.analysisSnapshotRoots),
     permissionScope("snapshot_write", arrays.analysisSnapshotRoots),
     permissionScope("artifact_extract", ["/"]),

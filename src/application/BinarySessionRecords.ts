@@ -10,10 +10,6 @@ import {
   type AnalysisError,
   type UnknownRegistryError,
 } from "../domain/errors.js";
-import {
-  parseReconstructionCoverageWorkspace,
-  type ReconstructionCoverageWorkspace,
-} from "../domain/reconstructionCoverage.js";
 import type {
   RecordUnknownInput,
   ResidualUnknown,
@@ -45,10 +41,6 @@ export abstract class BinarySessionRecords {
     maxBytes: 64 * 1024 * 1024,
   });
   readonly #snapshot = new AnalysisSnapshotCache();
-  readonly #coverageWorkspaces = new Map<
-    string,
-    ReconstructionCoverageWorkspace
-  >();
   #snapshotInvalidated = false;
   readonly #snapshotListeners = new Set<() => void | Promise<void>>();
 
@@ -211,30 +203,6 @@ export abstract class BinarySessionRecords {
     }
   }
 
-  retainReconstructionCoverageWorkspace(
-    workspace: ReconstructionCoverageWorkspace,
-  ): "added" | "duplicate" {
-    const parsed = parseReconstructionCoverageWorkspace(workspace);
-    const key = workspaceKey(parsed.workspace_id, parsed.revision);
-    if (this.#coverageWorkspaces.has(key)) return "duplicate";
-    this.#coverageWorkspaces.set(key, parsed);
-    return "added";
-  }
-
-  reconstructionCoverageWorkspace(
-    workspaceId: string,
-    revision: number,
-  ): ReconstructionCoverageWorkspace | undefined {
-    const workspace = this.#coverageWorkspaces.get(
-      workspaceKey(workspaceId, revision),
-    );
-    return workspace === undefined ? undefined : structuredClone(workspace);
-  }
-
-  reconstructionCoverageWorkspaces(): readonly ReconstructionCoverageWorkspace[] {
-    return sortedWorkspaces(this.#coverageWorkspaces.values());
-  }
-
   recordUnknown(
     input: RecordUnknownInput,
   ): Result<ResidualUnknown, AnalysisError> {
@@ -305,19 +273,3 @@ export abstract class BinarySessionRecords {
     return this.#evidence.verifyUnknownResolution(unknownId);
   }
 }
-
-const workspaceKey = (workspaceId: string, revision: number): string =>
-  `${workspaceId}:${String(revision)}`;
-
-const sortedWorkspaces = <
-  T extends { readonly workspace_id: string; readonly revision: number },
->(
-  workspaces: Iterable<T>,
-): readonly T[] =>
-  [...workspaces]
-    .sort(
-      (left, right) =>
-        left.workspace_id.localeCompare(right.workspace_id) ||
-        left.revision - right.revision,
-    )
-    .map((workspace) => structuredClone(workspace));

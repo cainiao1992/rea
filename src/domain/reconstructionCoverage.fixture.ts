@@ -1,7 +1,7 @@
 import { createEvidence } from "./evidence.js";
 import { createEvidenceBundle } from "./evidenceBundle.js";
 import {
-  createReconstructionCoverageWorkspace,
+  createReconstructionCoverageData,
   createReconstructionVerifierContract,
 } from "./reconstructionCoverage.js";
 
@@ -35,7 +35,7 @@ export const reconstructionCoverageEvidenceId = (character: string): string => {
 };
 
 /** Build one fully closed reconstruction-coverage workspace. */
-export const completeReconstructionCoverageWorkspace = () => {
+export const completeReconstructionCoverageData = () => {
   const contract = createReconstructionVerifierContract({
     verifier_id: "verify.cli.help",
     claim_ids: ["claim.cli.help"],
@@ -46,10 +46,7 @@ export const completeReconstructionCoverageWorkspace = () => {
     normalization_sha256: digest("4"),
     normalization_removes_dimensions: false,
   });
-  return createReconstructionCoverageWorkspace({
-    name: "fixture",
-    revision: 1,
-    previous_revision_sha256: null,
+  return createReconstructionCoverageData({
     evidence_bundle: createEvidenceBundle(EVIDENCE_RECORDS),
     artifacts: [
       {

@@ -351,11 +351,6 @@ const registerObservationTools = ({
         : (evidenceId) => session.evidenceById(evidenceId),
     evidenceFilePolicy: options.evidenceFilePolicy ?? DENY_EVIDENCE_FILE_POLICY,
     permissionAuthority,
-    retainCoverageWorkspace:
-      session === undefined
-        ? undefined
-        : (workspace) =>
-            session.retainReconstructionCoverageWorkspace(workspace),
     replay: {
       policy:
         options.javascriptReplayPolicy ?? (() => ({ status: "disabled" })),

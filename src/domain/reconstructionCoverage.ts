@@ -8,7 +8,7 @@ import {
   evaluateReconstructionClaims,
   evaluateReconstructionPackageProofs,
   evaluateReconstructionSurfaces,
-  evaluateReconstructionWorkspaceRisks,
+  evaluateReconstructionCoverageRisks,
   recommendedReconstructionProbes,
   type ReconstructionEvaluationContext,
 } from "./reconstructionCoverageEvaluation.js";
@@ -158,11 +158,7 @@ const boundarySchema = z.strictObject({
   allowed_unknown_ids: z.array(stableIdSchema).max(1_000),
 });
 
-const workspaceSemanticSchema = z.strictObject({
-  workspace_id: z.string().regex(/^rcw_[a-f0-9]{64}$/u),
-  name: z.string().trim().min(1).max(200),
-  revision: z.number().int().min(1),
-  previous_revision_sha256: digestSchema.nullable(),
+export const reconstructionCoverageDataSchema = z.strictObject({
   evidence_bundle: evidenceBundleSchema,
   artifacts: z.array(artifactSchema).max(1_000),
   surfaces: z.array(surfaceSchema).max(10_000),
@@ -176,15 +172,21 @@ const workspaceSemanticSchema = z.strictObject({
   boundaries: z.array(boundarySchema).max(1_000),
 });
 
-export const reconstructionCoverageWorkspaceSchema =
-  workspaceSemanticSchema.extend({ revision_sha256: digestSchema });
-
-export type ReconstructionCoverageWorkspace = z.infer<
-  typeof reconstructionCoverageWorkspaceSchema
+export type ReconstructionCoverageData = z.infer<
+  typeof reconstructionCoverageDataSchema
 >;
 export type ReconstructionVerifierContract = z.infer<
   typeof verifierContractSchema
 >;
+
+/** Parse inline coverage data and validate every evidence and authority link. */
+export const createReconstructionCoverageData = (
+  input: unknown,
+): ReconstructionCoverageData => {
+  const coverage = reconstructionCoverageDataSchema.parse(input);
+  validateCoverageReferences(coverage);
+  return coverage;
+};
 
 const closureReasonSchema = z.strictObject({
   code: z.enum([
@@ -220,7 +222,6 @@ const closureReasonSchema = z.strictObject({
 export const reconstructionClosureResultSchema = z.strictObject({
   boundary_id: stableIdSchema,
   status: z.enum(["partial", "failed", "unknown", "ready"]),
-  workspace_revision_sha256: digestSchema,
   summary: z.strictObject({
     required_surfaces: z.number().int().min(0),
     required_claims: z.number().int().min(0),
@@ -243,7 +244,7 @@ export type ReconstructionClosureResult = z.infer<
   typeof reconstructionClosureResultSchema
 >;
 
-type WorkspaceSemantic = z.infer<typeof workspaceSemanticSchema>;
+type CoverageData = z.infer<typeof reconstructionCoverageDataSchema>;
 type ClosureReason = z.infer<typeof closureReasonSchema>;
 
 /** Build a verifier contract whose digest prevents retrospective coverage edits. */
@@ -257,80 +258,20 @@ export const createReconstructionVerifierContract = (
   });
 };
 
-/** Build one canonical immutable coverage-workspace revision. */
-export const createReconstructionCoverageWorkspace = (
-  input: Omit<z.input<typeof workspaceSemanticSchema>, "workspace_id">,
-): ReconstructionCoverageWorkspace => {
-  const semanticInput = {
-    workspace_id: `rcw_${digest({ name: input.name })}`,
-    ...input,
-  };
-  const semantic = canonicalWorkspace(
-    workspaceSemanticSchema.parse(semanticInput),
-  );
-  validateWorkspaceReferences(semantic);
-  return reconstructionCoverageWorkspaceSchema.parse({
-    ...semantic,
-    revision_sha256: digest(semantic),
-  });
-};
-
-/** Parse persisted coverage state and verify canonical order, references, and digests. */
-export const parseReconstructionCoverageWorkspace = (
-  input: unknown,
-): ReconstructionCoverageWorkspace => {
-  const parsed = reconstructionCoverageWorkspaceSchema.parse(input);
-  const rebuilt = createReconstructionCoverageWorkspace({
-    name: parsed.name,
-    revision: parsed.revision,
-    previous_revision_sha256: parsed.previous_revision_sha256,
-    evidence_bundle: parsed.evidence_bundle,
-    artifacts: parsed.artifacts,
-    surfaces: parsed.surfaces,
-    owners: parsed.owners,
-    claims: parsed.claims,
-    verifier_contracts: parsed.verifier_contracts,
-    verifier_results: parsed.verifier_results,
-    residual_unknown_ids: parsed.residual_unknown_ids,
-    contradictions: parsed.contradictions,
-    package_proofs: parsed.package_proofs,
-    boundaries: parsed.boundaries,
-  });
-  if (
-    parsed.workspace_id !== rebuilt.workspace_id ||
-    parsed.revision_sha256 !== rebuilt.revision_sha256 ||
-    JSON.stringify(parsed) !== JSON.stringify(rebuilt)
-  )
-    throw new TypeError("Reconstruction coverage workspace is not canonical");
-  return rebuilt;
-};
-
-/** Serialize one validated coverage revision as byte-stable canonical JSON. */
-export const serializeReconstructionCoverageWorkspace = (
-  workspace: ReconstructionCoverageWorkspace,
-): string => {
-  const encoded = canonicalize(parseReconstructionCoverageWorkspace(workspace));
-  if (encoded === undefined)
-    throw new TypeError(
-      "Reconstruction coverage workspace is not canonical JSON",
-    );
-  return encoded;
-};
-
-/** Evaluate one named completion boundary without inferring undiscovered coverage. */
+/** Evaluate inline coverage data against one named fail-closed boundary. */
 export const evaluateReconstructionClosure = (
-  workspaceInput: unknown,
+  coverageInput: unknown,
   boundaryId: string,
   nowEpochMs: number,
 ): ReconstructionClosureResult => {
-  const workspace = parseReconstructionCoverageWorkspace(workspaceInput);
-  const boundary = workspace.boundaries.find(
+  const coverage = createReconstructionCoverageData(coverageInput);
+  const boundary = coverage.boundaries.find(
     ({ boundary_id: id }) => id === boundaryId,
   );
   if (boundary === undefined)
     throw new TypeError(`Unknown reconstruction boundary: ${boundaryId}`);
   const context: ReconstructionEvaluationContext = {
-    workspace,
+    coverage,
     boundary,
     nowEpochMs,
     reasons: [],
@@ -338,13 +279,12 @@ export const evaluateReconstructionClosure = (
   };
   evaluateReconstructionSurfaces(context);
   evaluateReconstructionClaims(context);
-  evaluateReconstructionWorkspaceRisks(context);
+  evaluateReconstructionCoverageRisks(context);
   evaluateReconstructionPackageProofs(context);
   const reasons = [...context.reasons].sort(reasonOrder);
   return reconstructionClosureResultSchema.parse({
     boundary_id: boundary.boundary_id,
     status: closureStatus(reasons),
-    workspace_revision_sha256: workspace.revision_sha256,
     summary: {
       required_surfaces: boundary.required_surface_ids.length,
       required_claims: boundary.required_claim_ids.length,
@@ -356,7 +296,7 @@ export const evaluateReconstructionClosure = (
   });
 };
 
-const validateWorkspaceReferences = (workspace: WorkspaceSemantic): void => {
+const validateCoverageReferences = (workspace: CoverageData): void => {
   const evidenceBundle = parseEvidenceBundle(workspace.evidence_bundle);
   const evidenceIds = new Set(
     evidenceBundle.records.map(({ evidence_id: id }) => id),
@@ -417,34 +357,6 @@ const validateWorkspaceReferences = (workspace: WorkspaceSemantic): void => {
       `Coverage workspace residual unknown is missing: ${danglingUnknown}`,
     );
 };
-
-const canonicalWorkspace = (
-  workspace: WorkspaceSemantic,
-): WorkspaceSemantic => ({
-  ...workspace,
-  artifacts: sorted(workspace.artifacts, "artifact_id"),
-  surfaces: sorted(workspace.surfaces, "surface_id"),
-  owners: [...workspace.owners].sort((left, right) =>
-    left.surface_id.localeCompare(right.surface_id),
-  ),
-  claims: sorted(workspace.claims, "claim_id"),
-  verifier_contracts: sorted(workspace.verifier_contracts, "verifier_id"),
-  verifier_results: [...workspace.verifier_results].sort((left, right) =>
-    `${left.verifier_id}:${left.observed_at}`.localeCompare(
-      `${right.verifier_id}:${right.observed_at}`,
-    ),
-  ),
-  residual_unknown_ids: [...new Set(workspace.residual_unknown_ids)].sort(),
-  contradictions: sorted(workspace.contradictions, "contradiction_id"),
-  package_proofs: sorted(workspace.package_proofs, "proof_id"),
-  boundaries: sorted(workspace.boundaries, "boundary_id"),
-});
-
-const sorted = <Item extends Record<Key, string>, Key extends keyof Item>(
-  items: readonly Item[],
-  key: Key,
-): Item[] =>
-  [...items].sort((left, right) => left[key].localeCompare(right[key]));
 
 const assertUnique = <Item extends Record<Key, string>, Key extends keyof Item>(
   items: readonly Item[],

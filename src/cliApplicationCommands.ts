@@ -22,10 +22,8 @@ import {
   prepareNodeCharacterization,
 } from "./application/NodeRuntimeCharacterizationService.js";
 import {
-  commitReconstructionCoverage,
-  queryReconstructionCoverage,
-  reconstructionCoverageCommitInputSchema,
-  reconstructionCoverageQueryInputSchema,
+  evaluateReconstructionCoverage,
+  reconstructionCoverageEvaluationInputSchema,
 } from "./application/ReconstructionCoverageService.js";
 import {
   buildReconstructionObligationLedgerEvidenceValidated,
@@ -35,10 +33,7 @@ import {
   evaluateReconstructionReadinessValidated,
   resolveReconstructionReadinessRequest,
 } from "./application/ReconstructionReadinessService.js";
-import {
-  authorizeFileReadWithDeferredWrite,
-  authorizeRootPermission,
-} from "./application/DeferredFileAuthorization.js";
+import { authorizeRootPermission } from "./application/DeferredFileAuthorization.js";
 import { loadConfiguredPermissionAuthority } from "./application/PermissionConfiguration.js";
 import { CLI_COMMANDS } from "./cliCommandNames.js";
 import { parseCliJsonInput } from "./cliJsonInput.js";
@@ -157,7 +152,7 @@ export const registerApplicationCommands = (
   });
   registerObligationLedgerCommand(cli, logger);
   registerReadinessCommand(cli, logger);
-  registerCoverageCommands(cli, logger);
+  registerCoverageCommand(cli, logger);
 };
 
 const registerObligationLedgerCommand = (
@@ -228,74 +223,27 @@ const registerAuthorizedJsonCommand = ({
   });
 };
 
-const registerCoverageCommands = (
-  cli: ReturnType<typeof Cli.create>,
-  logger: Logger,
-): void => {
-  registerAuthorizedJsonCommand({
+const registerCoverageCommand = (cli: CliInstance, logger: Logger): void =>
+  registerJsonCommand({
     cli,
     logger,
-    name: CLI_COMMANDS.commitReconstructionCoverage,
-    description:
-      "Commit one canonical reconstruction coverage workspace revision",
-    workflow: async (config, authority, input) => {
-      const parsed = reconstructionCoverageCommitInputSchema.safeParse(input);
-      if (!parsed.success)
-        return {
-          ok: false,
-          error: new AnalysisInputError(
-            CLI_COMMANDS.commitReconstructionCoverage,
-            { cause: parsed.error },
-          ),
-        };
-      const authorization = await authorizeFileReadWithDeferredWrite(
-        authority,
-        {
-          path: parsed.data.workspace_path,
-          readCapability: "reconstruction_coverage_read",
-          writeCapability: "reconstruction_coverage_write",
-          operation: CLI_COMMANDS.commitReconstructionCoverage,
-        },
-      );
-      if (!authorization.ok) return authorization;
-      const write = await authorization.value.authorizeWrite();
-      if (!write.ok) return write;
-      return commitReconstructionCoverage(
-        parsed.data,
-        config.evidenceFilePolicy,
-      );
+    name: CLI_COMMANDS.evaluateReconstructionCoverage,
+    description: "Evaluate inline fail-closed reconstruction coverage",
+    resolveInput: (input) => {
+      const parsed =
+        reconstructionCoverageEvaluationInputSchema.safeParse(input);
+      return parsed.success
+        ? { ok: true, value: parsed.data }
+        : {
+            ok: false,
+            error: new AnalysisInputError(
+              CLI_COMMANDS.evaluateReconstructionCoverage,
+              { cause: parsed.error },
+            ),
+          };
     },
+    workflow: (input) => evaluateReconstructionCoverage(input),
   });
-  registerAuthorizedJsonCommand({
-    cli,
-    logger,
-    name: CLI_COMMANDS.queryReconstructionCoverage,
-    description: "Evaluate one fail-closed reconstruction coverage boundary",
-    workflow: async (config, authority, input) => {
-      const parsed = reconstructionCoverageQueryInputSchema.safeParse(input);
-      if (!parsed.success)
-        return {
-          ok: false,
-          error: new AnalysisInputError(
-            CLI_COMMANDS.queryReconstructionCoverage,
-            { cause: parsed.error },
-          ),
-        };
-      const authorized = await authorizeRootPermission(authority, {
-        capability: "reconstruction_coverage_read",
-        roots: [parsed.data.workspace_path],
-        access: "read",
-        operation: CLI_COMMANDS.queryReconstructionCoverage,
-      });
-      if (!authorized.ok) return authorized;
-      return queryReconstructionCoverage(
-        parsed.data,
-        config.evidenceFilePolicy,
-        Date.now(),
-      );
-    },
-  });
-};
 
 const configuredAuthority = async (): Promise<
   | {

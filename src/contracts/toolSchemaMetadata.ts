@@ -46,8 +46,6 @@ const PROPERTY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   unknown_id: "Exact residual-unknown identifier.",
   unknown_registry_approved:
     "Explicit approval to record bounded residual uncertainty in the session registry.",
-  workspace_path:
-    "Approved local path of the persistent investigation workspace.",
 };
 
 /** Attach caller guidance to a canonical schema for the SDK wire projection. */

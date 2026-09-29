@@ -16,7 +16,4 @@ export interface ApplicationToolRegistration {
   readonly replay: JavaScriptReplayDependencies;
   readonly evidenceFilePolicy: EvidenceFilePolicy;
   readonly permissionAuthority: PermissionAuthority | undefined;
-  readonly retainCoverageWorkspace:
-    | BinarySessionPort["retainReconstructionCoverageWorkspace"]
-    | undefined;
 }

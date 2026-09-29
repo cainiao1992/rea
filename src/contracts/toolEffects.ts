@@ -165,11 +165,7 @@ export const TOOL_EFFECTS: Readonly<Record<string, ToolEffects>> = {
     writesFilesystem: true,
     launchesProcess: true,
   }),
-  commit_reconstruction_coverage: effects({
-    writesFilesystem: true,
-    mutatesSession: true,
-  }),
-  query_reconstruction_coverage: effects({ mutatesSession: true }),
+  evaluate_reconstruction_coverage: effects(),
   open_binary: effects({ mutatesSession: true, launchesProcess: true }),
   close_binary: effects({
     mutatesSession: true,

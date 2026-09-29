@@ -1,21 +1,20 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  completeReconstructionCoverageWorkspace,
+  completeReconstructionCoverageData,
   RECONSTRUCTION_COVERAGE_NOW,
   reconstructionCoverageEvidenceId,
 } from "./reconstructionCoverage.fixture.js";
 import {
-  createReconstructionCoverageWorkspace,
+  createReconstructionCoverageData,
   evaluateReconstructionClosure,
-  parseReconstructionCoverageWorkspace,
 } from "./reconstructionCoverage.js";
 
 const digest = (character: string): string => character.repeat(64);
 
 describe("reconstruction coverage closure", () => {
   it("returns ready only when ownership, verification, package, and authority closure pass", () => {
-    const workspace = completeReconstructionCoverageWorkspace();
+    const workspace = completeReconstructionCoverageData();
 
     expect(
       evaluateReconstructionClosure(
@@ -33,22 +32,16 @@ describe("reconstruction coverage closure", () => {
         reconstructionCoverageEvidenceId("5"),
       ].sort(),
     });
-    expect(parseReconstructionCoverageWorkspace(workspace)).toEqual(workspace);
+    expect(createReconstructionCoverageData(workspace)).toEqual(workspace);
   });
 
   it("keeps an incomplete inventory partial despite every registered verifier passing", () => {
-    const workspace = completeReconstructionCoverageWorkspace();
-    const {
-      revision_sha256: _revisionSha256,
-      workspace_id: _workspaceId,
-      ...semantic
-    } = workspace;
+    const workspace = completeReconstructionCoverageData();
+    const semantic = workspace;
     const boundary = workspace.boundaries[0];
     if (boundary === undefined) throw new Error("Expected fixture boundary");
-    const incomplete = createReconstructionCoverageWorkspace({
+    const incomplete = createReconstructionCoverageData({
       ...semantic,
-      revision: 2,
-      previous_revision_sha256: workspace.revision_sha256,
       boundaries: [
         {
           ...boundary,
@@ -83,19 +76,13 @@ describe("reconstruction coverage closure", () => {
   });
 
   it("invalidates stale verifier contracts and detected authority routing", () => {
-    const workspace = completeReconstructionCoverageWorkspace();
+    const workspace = completeReconstructionCoverageData();
     const owner = workspace.owners[0];
     if (owner === undefined || owner.ownership.disposition !== "implemented")
       throw new Error("Expected implemented fixture owner");
-    const {
-      revision_sha256: _revisionSha256,
-      workspace_id: _workspaceId,
-      ...semantic
-    } = workspace;
-    const changed = createReconstructionCoverageWorkspace({
+    const semantic = workspace;
+    const changed = createReconstructionCoverageData({
       ...semantic,
-      revision: 2,
-      previous_revision_sha256: workspace.revision_sha256,
       owners: [
         {
           ...owner,
@@ -125,16 +112,10 @@ describe("reconstruction coverage closure", () => {
   });
 
   it("never lets mock-strength or stale results satisfy stronger current claims", () => {
-    const workspace = completeReconstructionCoverageWorkspace();
-    const {
-      revision_sha256: _revisionSha256,
-      workspace_id: _workspaceId,
-      ...semantic
-    } = workspace;
-    const stale = createReconstructionCoverageWorkspace({
+    const workspace = completeReconstructionCoverageData();
+    const semantic = workspace;
+    const stale = createReconstructionCoverageData({
       ...semantic,
-      revision: 2,
-      previous_revision_sha256: workspace.revision_sha256,
       verifier_results: workspace.verifier_results.map((result) => ({
         ...result,
         observed_at: "2026-07-01T00:00:00.000Z",
@@ -156,19 +137,13 @@ describe("reconstruction coverage closure", () => {
 
 describe("reconstruction coverage verifier observations", () => {
   it("orders offset-bearing verifier timestamps chronologically", () => {
-    const workspace = completeReconstructionCoverageWorkspace();
+    const workspace = completeReconstructionCoverageData();
     const result = workspace.verifier_results[0];
     if (result === undefined)
       throw new Error("Expected fixture verifier result");
-    const {
-      revision_sha256: _revisionSha256,
-      workspace_id: _workspaceId,
-      ...semantic
-    } = workspace;
-    const changed = createReconstructionCoverageWorkspace({
+    const semantic = workspace;
+    const changed = createReconstructionCoverageData({
       ...semantic,
-      revision: 2,
-      previous_revision_sha256: workspace.revision_sha256,
       verifier_results: [
         { ...result, observed_at: "2026-07-16T08:00:00.000Z" },
         {
@@ -192,19 +167,13 @@ describe("reconstruction coverage verifier observations", () => {
   });
 
   it("rejects verifier observations from the future", () => {
-    const workspace = completeReconstructionCoverageWorkspace();
+    const workspace = completeReconstructionCoverageData();
     const result = workspace.verifier_results[0];
     if (result === undefined)
       throw new Error("Expected fixture verifier result");
-    const {
-      revision_sha256: _revisionSha256,
-      workspace_id: _workspaceId,
-      ...semantic
-    } = workspace;
-    const changed = createReconstructionCoverageWorkspace({
+    const semantic = workspace;
+    const changed = createReconstructionCoverageData({
       ...semantic,
-      revision: 2,
-      previous_revision_sha256: workspace.revision_sha256,
       verifier_results: [
         { ...result, observed_at: "2026-07-17T12:00:00.000Z" },
       ],
@@ -223,16 +192,10 @@ describe("reconstruction coverage verifier observations", () => {
   });
 
   it("rejects green results and package proofs that omit current commitments", () => {
-    const workspace = completeReconstructionCoverageWorkspace();
-    const {
-      revision_sha256: _revisionSha256,
-      workspace_id: _workspaceId,
-      ...semantic
-    } = workspace;
-    const incomplete = createReconstructionCoverageWorkspace({
+    const workspace = completeReconstructionCoverageData();
+    const semantic = workspace;
+    const incomplete = createReconstructionCoverageData({
       ...semantic,
-      revision: 2,
-      previous_revision_sha256: workspace.revision_sha256,
       verifier_results: workspace.verifier_results.map((result) => ({
         ...result,
         owner_sha256s: [],

@@ -20,11 +20,7 @@ import {
   nodeCharacterizationPreparationInputSchema,
   nodeCharacterizationPreparationOutputSchema,
 } from "../domain/nodeRuntimeCharacterization.js";
-import {
-  reconstructionCoverageCommitInputSchema,
-  reconstructionCoverageCommitOutputSchema,
-  reconstructionCoverageQueryInputSchema,
-} from "../application/ReconstructionCoverageService.js";
+import { reconstructionCoverageEvaluationInputSchema } from "../application/ReconstructionCoverageService.js";
 import { reconstructionClosureResultSchema } from "../domain/reconstructionCoverage.js";
 import {
   reconstructionObligationLedgerInputSchema,
@@ -99,33 +95,6 @@ const NODE_PREPARATION_EXAMPLE = jsonObjectSchema.parse({
   },
 });
 
-const COVERAGE_WORKSPACE_EXAMPLE = jsonObjectSchema.parse({
-  workspace_id: `rcw_${HASH}`,
-  name: "replacement",
-  revision: 1,
-  previous_revision_sha256: null,
-  revision_sha256: HASH,
-  evidence_bundle: {
-    artifacts: [],
-    providers: [],
-    environments: [],
-    scenarios: [],
-    captures: [],
-    unknowns: [],
-    records: [],
-  },
-  artifacts: [],
-  surfaces: [],
-  owners: [],
-  claims: [],
-  verifier_contracts: [],
-  verifier_results: [],
-  residual_unknown_ids: [],
-  contradictions: [],
-  package_proofs: [],
-  boundaries: [],
-});
-
 /** Provider-neutral graph workflow contracts shared by MCP and CLI adapters. */
 export const APPLICATION_TOOL_CONTRACTS = [
   {
@@ -184,7 +153,7 @@ export const APPLICATION_TOOL_CONTRACTS = [
     name: "compare_source_to_bundle",
     ...toolContractMetadata("compare_source_to_bundle"),
     description:
-      "Compare a cryptographically committed HistoricalSourceGraph/v1 with authenticated JavaScript Application Graph Evidence supplied directly or by session Evidence ID. Uses explicit exact-digest, source-map path, current-path, suffix, and basename signals with stable weights. Classifies unchanged, modified, removed, split, merged, duplicated, and unknown; incomplete coverage and ambiguous weak signals never become absence or forced matches.",
+      "Compare a cryptographically committed HistoricalSourceGraph with authenticated JavaScript Application Graph Evidence supplied directly or by session Evidence ID. Uses explicit exact-digest, source-map path, current-path, suffix, and basename signals with stable weights. Classifies unchanged, modified, removed, split, merged, duplicated, and unknown; incomplete coverage and ambiguous weak signals never become absence or forced matches.",
     kind: "application",
     inputSchema: compareSourceToBundleRequestSchema,
     outputSchema: sourceToBundleOutputSchema,
@@ -331,7 +300,7 @@ export const APPLICATION_TOOL_CONTRACTS = [
     name: "evaluate_reconstruction_readiness",
     ...toolContractMetadata("evaluate_reconstruction_readiness"),
     description:
-      "Evaluate the fixed nine-stage public reconstruction journey into a deterministic ReconstructionReadinessReport/v1. Exact capability limits, provider routing, CLI/MCP status parity, bounded authority, partial-order comparison, contradictions, obligation closure, cleanup, and replay digests fail closed. Aggregate pass is emitted only when every required stage and check passes with attributable Evidence.",
+      "Evaluate the fixed nine-stage public reconstruction journey into a deterministic ReconstructionReadinessReport. Exact capability limits, provider routing, CLI/MCP status parity, bounded authority, partial-order comparison, contradictions, obligation closure, cleanup, and replay digests fail closed. Aggregate pass is emitted only when every required stage and check passes with attributable Evidence.",
     kind: "application",
     inputSchema: reconstructionReadinessInputSchema,
     outputSchema: reconstructionReadinessOutputSchema,
@@ -343,38 +312,51 @@ export const APPLICATION_TOOL_CONTRACTS = [
     ],
   },
   {
-    name: "commit_reconstruction_coverage",
-    ...toolContractMetadata("commit_reconstruction_coverage"),
+    name: "evaluate_reconstruction_coverage",
+    ...toolContractMetadata("evaluate_reconstruction_coverage"),
     description:
-      "Atomically commit one canonical evidence-backed reconstruction coverage workspace revision under an approved root. CAS revisions reject lost updates; every Evidence and residual-unknown reference must resolve in the embedded canonical bundle.",
+      "Evaluate inline evidence-backed reconstruction coverage against one named boundary. Missing ownership or inventory is partial; stale, weak, truncated, skipped, or unresolved proof is unknown; contradictions, failed proof, missing owners, and authority routing fail closed.",
     kind: "application",
-    inputSchema: reconstructionCoverageCommitInputSchema,
-    outputSchema: reconstructionCoverageCommitOutputSchema,
-    examples: [
-      {
-        title: "Commit the first canonical coverage revision",
-        input: {
-          approved: true,
-          workspace_path: "/approved/coverage.json",
-          expected_revision: null,
-          workspace: COVERAGE_WORKSPACE_EXAMPLE,
-        },
-      },
-    ],
-  },
-  {
-    name: "query_reconstruction_coverage",
-    ...toolContractMetadata("query_reconstruction_coverage"),
-    description:
-      "Evaluate one named reconstruction boundary from a canonical coverage workspace. Missing ownership or inventory is partial; stale, weak, truncated, skipped, or unresolved proof is unknown; contradictions, failed proof, missing owners, and authority routing fail closed.",
-    kind: "application",
-    inputSchema: reconstructionCoverageQueryInputSchema,
+    inputSchema: reconstructionCoverageEvaluationInputSchema,
     outputSchema: reconstructionClosureResultSchema,
     examples: [
       {
         title: "Evaluate one replacement boundary",
         input: {
-          workspace_path: "/approved/coverage.json",
+          coverage: {
+            evidence_bundle: {
+              artifacts: [],
+              providers: [],
+              environments: [],
+              scenarios: [],
+              captures: [],
+              unknowns: [],
+              records: [],
+            },
+            artifacts: [],
+            surfaces: [],
+            owners: [],
+            claims: [],
+            verifier_contracts: [],
+            verifier_results: [],
+            residual_unknown_ids: [],
+            contradictions: [],
+            package_proofs: [],
+            boundaries: [
+              {
+                boundary_id: "replacement.cli",
+                title: "CLI replacement",
+                required_surface_ids: ["cli.help"],
+                required_claim_ids: ["claim.cli.help"],
+                required_package_proof_kinds: [
+                  "clean-install",
+                  "authority-independence",
+                ],
+                allowed_dispositions: [],
+                allowed_unknown_ids: [],
+              },
+            ],
+          },
           boundary_id: "replacement.cli",
         },
       },
@@ -414,11 +396,8 @@ export function applicationToolContract(
   name: "evaluate_reconstruction_readiness",
 ): (typeof APPLICATION_TOOL_CONTRACTS)[9];
 export function applicationToolContract(
-  name: "commit_reconstruction_coverage",
+  name: "evaluate_reconstruction_coverage",
 ): (typeof APPLICATION_TOOL_CONTRACTS)[10];
-export function applicationToolContract(
-  name: "query_reconstruction_coverage",
-): (typeof APPLICATION_TOOL_CONTRACTS)[11];
 export function applicationToolContract(
   name: (typeof APPLICATION_TOOL_CONTRACTS)[number]["name"],
 ): (typeof APPLICATION_TOOL_CONTRACTS)[number] {

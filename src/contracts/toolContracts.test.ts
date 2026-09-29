@@ -63,8 +63,7 @@ describe("tool contract inventory", () => {
       "execute_node_characterization",
       "build_reconstruction_obligation_ledger",
       "evaluate_reconstruction_readiness",
-      "commit_reconstruction_coverage",
-      "query_reconstruction_coverage",
+      "evaluate_reconstruction_coverage",
     ]);
     expect(new Set(TOOL_CONTRACTS.map(({ name }) => name)).size).toBe(
       TOOL_CONTRACTS.length,

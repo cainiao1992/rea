@@ -1,6 +1,6 @@
 import type {
   ReconstructionClosureResult,
-  ReconstructionCoverageWorkspace,
+  ReconstructionCoverageData,
   ReconstructionVerifierContract,
 } from "./reconstructionCoverage.js";
 
@@ -23,10 +23,10 @@ const probeOperation = (code: ClosureReason["code"]): string => {
   return "update_authoritative_inventory";
 };
 
-type Boundary = ReconstructionCoverageWorkspace["boundaries"][number];
+type Boundary = ReconstructionCoverageData["boundaries"][number];
 type ClosureReason = ReconstructionClosureResult["reasons"][number];
 export interface ReconstructionEvaluationContext {
-  readonly workspace: ReconstructionCoverageWorkspace;
+  readonly coverage: ReconstructionCoverageData;
   readonly boundary: Boundary;
   readonly nowEpochMs: number;
   readonly reasons: ClosureReason[];
@@ -36,7 +36,7 @@ export interface ReconstructionEvaluationContext {
 export const evaluateReconstructionSurfaces = (
   context: ReconstructionEvaluationContext,
 ): void => {
-  const surfaces = indexUnique(context.workspace.surfaces, "surface_id");
+  const surfaces = indexUnique(context.coverage.surfaces, "surface_id");
   for (const surfaceId of context.boundary.required_surface_ids) {
     const surface = surfaces.get(surfaceId);
     if (surface === undefined) {
@@ -65,7 +65,7 @@ const evaluateOwner = (
   context: ReconstructionEvaluationContext,
   surfaceId: string,
 ): void => {
-  const owners = context.workspace.owners.filter(
+  const owners = context.coverage.owners.filter(
     ({ surface_id: id }) => id === surfaceId,
   );
   if (owners.length === 0) {
@@ -139,7 +139,7 @@ const evaluateOwner = (
 export const evaluateReconstructionClaims = (
   context: ReconstructionEvaluationContext,
 ): void => {
-  const claims = indexUnique(context.workspace.claims, "claim_id");
+  const claims = indexUnique(context.coverage.claims, "claim_id");
   for (const claimId of context.boundary.required_claim_ids) {
     const claim = claims.get(claimId);
     if (claim === undefined) {
@@ -151,7 +151,7 @@ export const evaluateReconstructionClaims = (
       );
       continue;
     }
-    const contracts = context.workspace.verifier_contracts.filter(
+    const contracts = context.coverage.verifier_contracts.filter(
       ({ claim_ids: ids }) => ids.includes(claimId),
     );
     if (contracts.length === 0) {
@@ -180,10 +180,10 @@ export const evaluateReconstructionClaims = (
 
 const evaluateVerifierResult = (
   context: ReconstructionEvaluationContext,
-  claim: ReconstructionCoverageWorkspace["claims"][number],
+  claim: ReconstructionCoverageData["claims"][number],
   contract: ReconstructionVerifierContract,
 ): void => {
-  const results = context.workspace.verifier_results
+  const results = context.coverage.verifier_results
     .filter(({ verifier_id: id }) => id === contract.verifier_id)
     .sort(
       (left, right) =>
@@ -240,23 +240,23 @@ const evaluateVerifierResult = (
 
 const verifierResultIsCompatible = (
   context: ReconstructionEvaluationContext,
-  claim: ReconstructionCoverageWorkspace["claims"][number],
+  claim: ReconstructionCoverageData["claims"][number],
   contract: ReconstructionVerifierContract,
-  result: ReconstructionCoverageWorkspace["verifier_results"][number],
+  result: ReconstructionCoverageData["verifier_results"][number],
 ): boolean => {
   const artifactDigests = new Set(
-    context.workspace.artifacts.map(({ artifact_sha256: value }) => value),
+    context.coverage.artifacts.map(({ artifact_sha256: value }) => value),
   );
   const ownerDigests = new Set(
-    context.workspace.owners.flatMap(({ ownership }) =>
+    context.coverage.owners.flatMap(({ ownership }) =>
       ownership.disposition === "implemented" ? [ownership.owner_sha256] : [],
     ),
   );
   const surfaces = new Map(
-    context.workspace.surfaces.map((surface) => [surface.surface_id, surface]),
+    context.coverage.surfaces.map((surface) => [surface.surface_id, surface]),
   );
   const artifacts = new Map(
-    context.workspace.artifacts.map((artifact) => [
+    context.coverage.artifacts.map((artifact) => [
       artifact.artifact_id,
       artifact,
     ]),
@@ -267,7 +267,7 @@ const verifierResultIsCompatible = (
       surface === undefined ? undefined : artifacts.get(surface.artifact_id);
     return artifact === undefined ? [] : [artifact.artifact_sha256];
   });
-  const expectedOwnerDigests = context.workspace.owners.flatMap(
+  const expectedOwnerDigests = context.coverage.owners.flatMap(
     ({ surface_id: surfaceId, ownership }) =>
       claim.surface_ids.includes(surfaceId) &&
       ownership.disposition === "implemented"
@@ -301,10 +301,10 @@ const verifierResultIsCompatible = (
   );
 };
 
-export const evaluateReconstructionWorkspaceRisks = (
+export const evaluateReconstructionCoverageRisks = (
   context: ReconstructionEvaluationContext,
 ): void => {
-  for (const unknownId of context.workspace.residual_unknown_ids)
+  for (const unknownId of context.coverage.residual_unknown_ids)
     if (!context.boundary.allowed_unknown_ids.includes(unknownId))
       addReason(
         context,
@@ -312,7 +312,7 @@ export const evaluateReconstructionWorkspaceRisks = (
         unknownId,
         "Active residual unknown is not permitted by the completion boundary.",
       );
-  for (const contradiction of context.workspace.contradictions)
+  for (const contradiction of context.coverage.contradictions)
     if (
       contradiction.status === "active" &&
       (contradiction.surface_ids.some((id) =>
@@ -336,10 +336,10 @@ export const evaluateReconstructionPackageProofs = (
   context: ReconstructionEvaluationContext,
 ): void => {
   const surfaces = new Map(
-    context.workspace.surfaces.map((surface) => [surface.surface_id, surface]),
+    context.coverage.surfaces.map((surface) => [surface.surface_id, surface]),
   );
   const artifacts = new Map(
-    context.workspace.artifacts.map((artifact) => [
+    context.coverage.artifacts.map((artifact) => [
       artifact.artifact_id,
       artifact,
     ]),
@@ -353,7 +353,7 @@ export const evaluateReconstructionPackageProofs = (
     },
   );
   for (const kind of context.boundary.required_package_proof_kinds) {
-    const proofs = context.workspace.package_proofs.filter(
+    const proofs = context.coverage.package_proofs.filter(
       (proof) => proof.kind === kind,
     );
     const passing = proofs.find(

@@ -26,9 +26,7 @@ describe("MCP permission preflight", () => {
       await client.connect(clientTransport);
       const result = await client.callTool({
         name: "extract_artifact",
-        arguments: {
-          occurrence_ids: [`occ_${"0".repeat(64)}`],
-        },
+        arguments: {},
       });
 
       expect(dispatches).toBe(0);

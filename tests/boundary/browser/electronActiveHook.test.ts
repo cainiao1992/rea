@@ -8,20 +8,7 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 const temporary: string[] = [];
 
-afterEach(async () => {
-  await Promise.all(
-    temporary
-      .splice(0)
-      .map(async (path) => rm(path, { force: true, recursive: true })),
-  );
-});
-
-it("keeps active hook lifecycle and IPC evidence bounded at the process boundary", async () => {
-  const root = await createTestTempDirectory("rea-electron-hook-");
-  temporary.push(root);
-  await writeFile(
-    join(root, "electron.js"),
-    `const { EventEmitter } = require("node:events");
+const electronModuleSource = `const { EventEmitter } = require("node:events");
 const app = new EventEmitter();
 app.relaunch = () => undefined;
 app.setAsDefaultProtocolClient = () => true;
@@ -90,12 +77,9 @@ module.exports = {
   shell,
   utilityProcess,
 };
-`,
-  );
-  const script = join(root, "exercise.cjs");
-  await writeFile(
-    script,
-    `(async () => {
+`;
+
+const activeCaptureSource = `(async () => {
 const electron = require("electron");
 const window = new electron.BrowserWindow({ webPreferences: { preload: "/approved/preload.js" } });
 const channel = "x".repeat(2048);
@@ -115,11 +99,26 @@ electron.shell.openExternal("https://example.invalid").catch(() => undefined);
 electron.app.relaunch();
 electron.contextBridge.exposeInMainWorld("api", { value: true });
 window.webContents.loadURL("https://example.invalid").catch(() => undefined);
+for (let index = 0; index < 6000; index++) electron.app.relaunch();
 try { process.dlopen({}, "/missing/native.node"); } catch {}
 process.stdout.write(JSON.stringify({ snapshot: globalThis.__reaElectronActiveSnapshot(), default_popup_decision: defaultPopupDecision, popup_decision: popupDecision }) + "\\n");
 })();
-`,
+`;
+
+afterEach(async () => {
+  await Promise.all(
+    temporary
+      .splice(0)
+      .map(async (path) => rm(path, { force: true, recursive: true })),
   );
+});
+
+it("retains active hook lifecycle and IPC evidence without a count ceiling", async () => {
+  const root = await createTestTempDirectory("rea-electron-hook-");
+  temporary.push(root);
+  await writeFile(join(root, "electron.js"), electronModuleSource);
+  const script = join(root, "exercise.cjs");
+  await writeFile(script, activeCaptureSource);
   const hook = join(process.cwd(), "scripts/electron-active-hook.cjs");
   const output = await runNode(hook, script, root, root);
   const result = JSON.parse(output.trim().split("\n").at(-1) ?? "null") as {
@@ -128,11 +127,14 @@ process.stdout.write(JSON.stringify({ snapshot: globalThis.__reaElectronActiveSn
     readonly snapshot: {
       readonly hook_error: boolean;
       readonly events: readonly Record<string, unknown>[];
+      readonly observed: number;
     };
   };
   const { snapshot } = result;
 
   expect(snapshot.hook_error).toBe(false);
+  expect(snapshot.events).toHaveLength(snapshot.observed);
+  expect(snapshot.observed).toBeGreaterThan(5_000);
   expect(snapshot.events).toEqual(
     expect.arrayContaining([
       expect.objectContaining({ kind: "window-lifecycle", event: "created" }),
@@ -189,7 +191,6 @@ const runNode = (
       env: {
         ...process.env,
         NODE_PATH: moduleRoot,
-        REA_ELECTRON_ACTIVE_MAX_RUNTIME_EVENTS: "200",
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -229,7 +230,6 @@ const runNodeStatus = (
       env: {
         ...process.env,
         NODE_PATH: moduleRoot,
-        REA_ELECTRON_ACTIVE_MAX_RUNTIME_EVENTS: "200",
       },
       stdio: ["ignore", "pipe", "pipe"],
     });

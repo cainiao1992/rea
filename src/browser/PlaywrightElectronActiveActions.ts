@@ -10,6 +10,7 @@ import type {
 } from "../domain/electronActiveObservation.js";
 
 const OPERATION = "capture_electron_scenario" as const;
+const ACTION_TIMEOUT_MS = 5_000;
 
 const hookEventSchema = z.strictObject({
   sequence: z.number().int().min(1),
@@ -70,11 +71,10 @@ const hookEventSchema = z.strictObject({
 });
 
 const hookSnapshotSchema = z.strictObject({
-  events: z.array(hookEventSchema).max(20_000),
+  events: z.array(hookEventSchema),
   observed: z.number().int().min(0),
   observed_ipc: z.number().int().min(0),
   observed_runtime: z.number().int().min(0),
-  truncated: z.boolean(),
   hook_error: z.boolean(),
 });
 
@@ -105,7 +105,7 @@ type ElectronPageSnapshot = {
   readonly title: string;
 };
 
-/** Run bounded, explicit actions against provider-owned Electron windows. */
+/** Run explicit actions against provider-owned Electron windows. */
 export const runElectronActions = async (
   application: ElectronApplication,
   input: ElectronActiveObservationInput,
@@ -129,7 +129,7 @@ export const runElectronActions = async (
           : await waitForWindow({
               application,
               windowIndex,
-              timeout: input.limits.action_timeout_ms,
+              timeout: ACTION_TIMEOUT_MS,
               signal: options.signal,
               deadline,
             });
@@ -146,7 +146,7 @@ export const runElectronActions = async (
         action,
         selectedWindow,
         remaining,
-        actionTimeoutMs: input.limits.action_timeout_ms,
+        actionTimeoutMs: ACTION_TIMEOUT_MS,
         options,
         deadline,
       });
@@ -319,11 +319,10 @@ const emitDeepLink = (
     { delivery: action.delivery, url: action.url },
   );
 
-/** Read the current Electron windows, metrics, and bounded hook snapshot. */
+/** Read the current Electron windows, metrics, and hook snapshot. */
 // oxlint-disable-next-line max-lines-per-function -- one state read must share one capture boundary.
 export const readApplicationState = async (
   application: ElectronApplication,
-  maxWindows: number,
 ): Promise<{
   readonly windows: ReadonlyArray<{
     readonly window_id: string;
@@ -333,14 +332,13 @@ export const readApplicationState = async (
     readonly visible: boolean | null;
     readonly destroyed: boolean;
   }>;
-  readonly windowsTruncated: boolean;
   readonly metrics: ElectronMetrics;
   readonly electronVersion: string;
   readonly hookSnapshot: ElectronHookSnapshot;
 }> => {
   const pages = application.windows();
   const pageSnapshotsPromise: Promise<ElectronPageSnapshot[]> = Promise.all(
-    pages.slice(0, maxWindows).map(
+    pages.map(
       async (page: Page, index): Promise<ElectronPageSnapshot> => ({
         index,
         url: page.url().slice(0, 65_536),
@@ -397,7 +395,6 @@ export const readApplicationState = async (
             observed: 0,
             observed_ipc: 0,
             observed_runtime: 0,
-            truncated: false,
             hook_error: true,
           };
     })
@@ -429,7 +426,6 @@ export const readApplicationState = async (
         destroyed: metadata.destroyed,
       };
     }),
-    windowsTruncated: pages.length > maxWindows,
     metrics: processMetrics,
     electronVersion,
     hookSnapshot,

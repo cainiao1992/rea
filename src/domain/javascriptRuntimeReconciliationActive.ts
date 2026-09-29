@@ -96,14 +96,7 @@ const normalizeInspection = (
   completeness: classifyBrowserCompleteness({
     policyFilteredSections: new Set(),
     attachLimitedSections: new Set(),
-    truncatedSections: new Set(
-      result.windows_truncated ||
-      result.processes.truncated ||
-      result.ipc.truncated ||
-      result.timeline.truncated
-        ? ["timeline"]
-        : [],
-    ),
+    truncatedSections: new Set(),
     unavailableSections: new Set([
       "frames",
       "scripts",
@@ -118,7 +111,7 @@ const normalizeInspection = (
       websocket_connections: 0,
       websocket_frames: 0,
       webmcp_tools: 0,
-      timeline_events: result.timeline.truncated ? result.timeline.observed : 0,
+      timeline_events: 0,
     },
   }),
 });

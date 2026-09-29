@@ -1,6 +1,6 @@
 import { electronActiveObservationResultSchema } from "./electronActiveObservation.js";
 
-/** Create a bounded active-capture result for MCP contract tests. */
+/** Create an active-capture result for MCP contract tests. */
 export const createElectronActiveObservationFixtureResult = (
   applicationPath: string,
 ) =>
@@ -33,10 +33,8 @@ export const createElectronActiveObservationFixtureResult = (
         destroyed: false,
       },
     ],
-    windows_truncated: false,
     processes: {
       items: [{ pid: 1234, type: "Browser", name: null, service_name: null }],
-      truncated: false,
     },
     ipc: {
       events: [
@@ -51,8 +49,6 @@ export const createElectronActiveObservationFixtureResult = (
         },
       ],
       observed: 1,
-      retained: 1,
-      truncated: false,
     },
     limitations: [
       "IPC payloads are represented only by bounded value shapes; values are never retained.",

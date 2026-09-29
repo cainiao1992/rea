@@ -8,7 +8,7 @@ const absolutePathSchema = z
   .max(16_384)
   .refine(isAbsolute, "path must be absolute");
 
-const windowIndexSchema = z.number().int().min(0).max(99);
+const windowIndexSchema = z.number().int().min(0);
 
 const deepLinkUrlSchema = z
   .string()
@@ -32,7 +32,7 @@ const actionSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     step_id: z.string().min(1).max(128),
     kind: z.literal("wait"),
-    duration_ms: z.number().int().min(0).max(10_000),
+    duration_ms: z.number().int().min(0),
     window_index: windowIndexSchema.optional(),
   }),
   z.strictObject({
@@ -53,42 +53,14 @@ const actionSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
-const limitsSchema = z.strictObject({
-  max_duration_ms: z.number().int().min(1).max(120_000).default(60_000),
-  action_timeout_ms: z.number().int().min(1).max(30_000).default(5_000),
-  max_actions: z.number().int().min(1).max(100).default(20),
-  max_ipc_events: z.number().int().min(1).max(10_000).default(2_000),
-  max_runtime_events: z.number().int().min(1).max(20_000).default(5_000),
-  max_processes: z.number().int().min(1).max(100).default(32),
-  max_windows: z.number().int().min(1).max(100).default(32),
-});
-
 /** Input for one explicit, provider-owned Electron runtime experiment. */
-export const electronActiveObservationInputSchema = z
-  .strictObject({
-    executable_path: absolutePathSchema,
-    application_path: absolutePathSchema,
-    application_root: absolutePathSchema,
-    args: z.array(z.string().max(4_096)).max(32).default([]),
-    actions: z.array(actionSchema).max(100).default([]),
-    limits: limitsSchema.default({
-      max_duration_ms: 60_000,
-      action_timeout_ms: 5_000,
-      max_actions: 20,
-      max_ipc_events: 2_000,
-      max_runtime_events: 5_000,
-      max_processes: 32,
-      max_windows: 32,
-    }),
-  })
-  .superRefine((input, context) => {
-    if (input.actions.length > input.limits.max_actions)
-      context.addIssue({
-        code: "custom",
-        path: ["actions"],
-        message: "actions exceed the configured max_actions limit",
-      });
-  });
+export const electronActiveObservationInputSchema = z.strictObject({
+  executable_path: absolutePathSchema,
+  application_path: absolutePathSchema,
+  application_root: absolutePathSchema,
+  args: z.array(z.string().max(4_096)).max(32).default([]),
+  actions: z.array(actionSchema).default([]),
+});
 export type ElectronActiveObservationInput = z.infer<
   typeof electronActiveObservationInputSchema
 >;
@@ -222,7 +194,6 @@ const coverageSchema = z.strictObject({
   status: z.enum([
     "complete",
     "partial_attach",
-    "capture_truncated",
     "hook_conflict",
     "target_exited",
     "cleanup_failed",
@@ -260,7 +231,7 @@ const actionResultSchema = z.discriminatedUnion("status", [
   }),
 ]);
 
-/** Bounded result of a provider-owned Electron runtime experiment. */
+/** Result of a provider-owned Electron runtime experiment. */
 export const electronActiveObservationResultSchema = z.strictObject({
   application: z.strictObject({
     executable_path: absolutePathSchema,
@@ -269,27 +240,21 @@ export const electronActiveObservationResultSchema = z.strictObject({
     process_ownership: z.literal("provider-owned"),
     cleanup: z.literal("terminated-owned-process"),
   }),
-  actions: z.array(actionResultSchema).max(100),
-  windows: z.array(windowResultSchema).max(100),
-  windows_truncated: z.boolean(),
+  actions: z.array(actionResultSchema),
+  windows: z.array(windowResultSchema),
   processes: z.strictObject({
-    items: z.array(processMetricSchema).max(100),
-    truncated: z.boolean(),
+    items: z.array(processMetricSchema),
   }),
   ipc: z.strictObject({
-    events: z.array(ipcEventSchema).max(10_000),
+    events: z.array(ipcEventSchema),
     observed: z.number().int().min(0),
-    retained: z.number().int().min(0),
-    truncated: z.boolean(),
   }),
   timeline: z
     .strictObject({
-      events: z.array(timelineEventSchema).max(20_000),
+      events: z.array(timelineEventSchema),
       observed: z.number().int().min(0),
-      retained: z.number().int().min(0),
-      truncated: z.boolean(),
     })
-    .default({ events: [], observed: 0, retained: 0, truncated: false }),
+    .default({ events: [], observed: 0 }),
   coverage: coverageSchema.default({
     status: "partial_attach",
     observed_event_families: [],

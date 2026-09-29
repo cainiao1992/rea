@@ -41,6 +41,7 @@ import {
 } from "./PlaywrightElectronActiveActions.js";
 
 const OPERATION = "capture_electron_scenario" as const;
+const RUN_TIMEOUT_MS = 60_000;
 
 /** Public identity for provider-owned Electron runtime experiments. */
 export const PLAYWRIGHT_ELECTRON_ACTIVE_PROVIDER_IDENTITY: ProviderIdentity =
@@ -136,11 +137,7 @@ const createCoverage = (hookSnapshot: ElectronHookSnapshot) => {
     unavailableEventFamilies.add("renderer-ipc");
   }
   return {
-    status: hookSnapshot.hook_error
-      ? "hook_conflict"
-      : hookSnapshot.truncated
-        ? "capture_truncated"
-        : "partial_attach",
+    status: hookSnapshot.hook_error ? "hook_conflict" : "partial_attach",
     observed_event_families: observedEventFamilies,
     unavailable_event_families: [...unavailableEventFamilies].sort(),
     observed_roles: observedRoles,
@@ -168,16 +165,12 @@ export class PlaywrightElectronActiveProvider
     try {
       if (options.signal?.aborted === true)
         throw new BrowserObservationError(OPERATION, "cancelled");
-      const deadline = Date.now() + input.limits.max_duration_ms;
+      const deadline = Date.now() + RUN_TIMEOUT_MS;
       const paths = await canonicalPaths(input);
       application = await electron.launch({
         executablePath: paths.executable,
         cwd: paths.root,
-        env: safeElectronEnvironment(
-          input.limits.max_ipc_events,
-          input.limits.max_runtime_events,
-          runId,
-        ),
+        env: safeElectronEnvironment(runId),
         args: ["-r", hookPath, paths.application, ...input.args],
         timeout: Math.max(1, deadline - Date.now()),
       });
@@ -206,7 +199,7 @@ export class PlaywrightElectronActiveProvider
         deadline,
       );
       const state = await runWithExecutionLimits(
-        readApplicationState(application, input.limits.max_windows),
+        readApplicationState(application),
         options.signal,
         deadline,
       );
@@ -316,7 +309,6 @@ const createResult = (
       readonly visible: boolean | null;
       readonly destroyed: boolean;
     }>;
-    readonly windowsTruncated: boolean;
     readonly metrics: ElectronMetrics;
     readonly electronVersion: string;
     readonly hookSnapshot: ElectronHookSnapshot;
@@ -335,42 +327,26 @@ const createResult = (
       cleanup: "terminated-owned-process",
     },
     actions,
-    windows: state.windows.slice(0, input.limits.max_windows),
-    windows_truncated: state.windowsTruncated,
+    windows: state.windows,
     processes: {
-      items: state.metrics.slice(0, input.limits.max_processes),
-      truncated: state.metrics.length > input.limits.max_processes,
+      items: state.metrics,
     },
     ipc: {
-      events: ipcEvents.slice(0, input.limits.max_ipc_events),
+      events: ipcEvents,
       observed: hookSnapshot.observed_ipc,
-      retained: Math.min(ipcEvents.length, input.limits.max_ipc_events),
-      truncated:
-        hookSnapshot.truncated ||
-        ipcEvents.length > input.limits.max_ipc_events,
     },
     timeline: {
-      events: hookSnapshot.events.slice(0, input.limits.max_runtime_events),
+      events: hookSnapshot.events,
       observed: hookSnapshot.observed,
-      retained: Math.min(
-        hookSnapshot.events.length,
-        input.limits.max_runtime_events,
-      ),
-      truncated:
-        hookSnapshot.truncated ||
-        hookSnapshot.events.length > input.limits.max_runtime_events,
     },
     coverage: createCoverage(hookSnapshot),
     limitations: [
       "IPC payloads are represented only by bounded value shapes; values are never retained, channels are capped at 1,024 characters, and argument-shape arrays at 32 entries.",
       "IPC direction and sender/receiver identifiers are observed only where Electron exposes them at the hooked boundary.",
-      "The runtime timeline records bounded lifecycle, navigation, shell, permission, popup, download, protocol, preload, native-addon, process, and IPC events; activity before hook installation is unavailable.",
+      "The runtime timeline records lifecycle, navigation, shell, permission, popup, download, protocol, preload, native-addon, process, and IPC events; activity before hook installation is unavailable.",
       "The preload and renderer process contexts are not instrumented by the main-process -r hook; preload configuration and contextBridge API-shape events are main-boundary observations, not proof of renderer-side execution.",
       "Process metrics are an Electron API snapshot and do not prove hostile-local-user isolation.",
       "External shell opens, external navigation, permission grants, downloads, popup windows, updater relaunches, and OS integration are blocked and recorded by the active hook; other application filesystem and network behavior is not sandboxed by this provider.",
-      ...(state.windowsTruncated
-        ? ["Windows beyond max_windows were not retained."]
-        : []),
       ...(hookSnapshot.hook_error
         ? ["The active IPC hook could not be installed."]
         : []),
@@ -391,11 +367,7 @@ const canonicalPaths = async (
   return { executable, application, root };
 };
 
-const safeElectronEnvironment = (
-  maxIpcEvents: number,
-  maxRuntimeEvents: number,
-  runId: string,
-): Record<string, string> =>
+const safeElectronEnvironment = (runId: string): Record<string, string> =>
   Object.fromEntries([
     ...[
       "HOME",
@@ -411,11 +383,6 @@ const safeElectronEnvironment = (
       .filter(
         (entry): entry is readonly [string, string] => entry[1] !== undefined,
       ),
-    ["REA_ELECTRON_ACTIVE_MAX_IPC_EVENTS", String(maxIpcEvents)] as const,
-    [
-      "REA_ELECTRON_ACTIVE_MAX_RUNTIME_EVENTS",
-      String(maxRuntimeEvents),
-    ] as const,
     ["REA_PROCESS_RUN_ID", runId] as const,
   ]);
 

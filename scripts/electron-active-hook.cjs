@@ -4,21 +4,10 @@ const {
   createElectronActiveBoundaryPatches,
 } = require("./electron-active-hook-boundaries.cjs");
 
-const boundedEnvironmentNumber = (name, fallback) => {
-  const value = Number(process.env[name]);
-  return Number.isInteger(value)
-    ? Math.min(20_000, Math.max(1, value))
-    : fallback;
-};
-
 const MAX_EVENT_NAME_LENGTH = 128;
 const MAX_CHANNEL_LENGTH = 1_024;
 const MAX_IDENTIFIER_LENGTH = 256;
 const MAX_ARGUMENT_SHAPES = 32;
-const maxEvents = boundedEnvironmentNumber(
-  "REA_ELECTRON_ACTIVE_MAX_RUNTIME_EVENTS",
-  5_000,
-);
 const ipcEventKinds = new Set([
   "main-handler-invocation",
   "main-event-invocation",
@@ -34,7 +23,6 @@ const events = [];
 let observed = 0;
 let observedIpc = 0;
 let observedRuntime = 0;
-let truncated = false;
 let sequence = 0;
 let correlationSequence = 0;
 
@@ -104,10 +92,6 @@ const record = (event) => {
   observed += 1;
   if (ipcEventKinds.has(event.kind)) observedIpc += 1;
   else observedRuntime += 1;
-  if (events.length >= maxEvents) {
-    truncated = true;
-    return null;
-  }
   const raw = {
     sequence: ++sequence,
     correlation_id:
@@ -496,6 +480,5 @@ globalThis.__reaElectronActiveSnapshot = () => ({
   observed,
   observed_ipc: observedIpc,
   observed_runtime: observedRuntime,
-  truncated,
   hook_error: globalThis.__reaElectronActiveHookError === true,
 });

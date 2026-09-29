@@ -38,7 +38,6 @@ const scenarioProjection = (
   application_root: input.application_root,
   args: redactArguments(input.args),
   actions: input.actions.map(({ step_id, kind }) => ({ step_id, kind })),
-  limits: input.limits,
 });
 
 const parameters = (

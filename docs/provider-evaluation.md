@@ -2,7 +2,7 @@
 
 Status: the Ghidra read-only analysis provider is shipped on Linux x64 and has
 an experimental Windows x64 P0 for approved native PE applications. It
-validates an exact bring-your-own Ghidra 12.1.2/JDK 21 environment, resolves a
+validates an exact bring-your-own Ghidra 12.1.4/JDK 21 environment, resolves a
 provider/version/profile commitment, runs one isolated read-only headless
 import, and publishes 19 operation-level capabilities after the authenticated
 post-analysis handshake.
@@ -51,7 +51,7 @@ follow.
 
 ## Shipped foundation boundary
 
-`GHIDRA_INSTALL_DIR` must identify an extracted official 12.1.2 release;
+`GHIDRA_INSTALL_DIR` must identify an extracted official 12.1.4 release;
 optional `JAVA_HOME` must identify a 64-bit full JDK 21, otherwise doctor probes
 `java`/`javac` or `java.exe`/`javac.exe` from `PATH`. Linux accepts x86, x86-64,
 ARM, and ARM64 ELF, PE, and Mach-O executable targets. Windows P0 accepts only
@@ -114,7 +114,7 @@ stripped ELF, AArch64 ELF, x86-64 PE, and x86-64 Mach-O targets. It proves all
 behavior, direct and targetless indirect calls, typed references, strings/xrefs,
 multi-block CFG, semantic enhanced workflows, cancellation, startup deadlines,
 serialized concurrency, malformed-target rejection, profile identity, and
-process/project cleanup against real Ghidra 12.1.2. Unit fixtures separately
+process/project cleanup against real Ghidra 12.1.4. Unit fixtures separately
 cover startup deadlines, process exit, queued cancellation, and malformed wire
 output.
 
@@ -184,9 +184,9 @@ prematurely claiming equivalence or redistribution support.
 
 ## Primary-source notes
 
-- Ghidra 12.1.2 documents headless batch mode and its Java runtime requirements
-  in its [release-specific Getting Started guide](https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_12.1.2_build/GhidraDocs/GettingStarted.md);
-  the [official release](https://github.com/NationalSecurityAgency/ghidra/releases/tag/Ghidra_12.1.2_build)
+- Ghidra 12.1.4 documents headless batch mode and its Java runtime requirements
+  in its [release-specific Getting Started guide](https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_12.1.4_build/GhidraDocs/GettingStarted.md);
+  the [official release](https://github.com/NationalSecurityAgency/ghidra/releases/tag/Ghidra_12.1.4_build)
   supplies the corresponding distribution and checksums.
 - Rizin lists supported formats, architectures, tools, and `rzpipe` bridges in
   its [repository README](https://github.com/rizinorg/rizin); `rz-pipe` documents

@@ -7,7 +7,7 @@ import type { ProviderRejectionCode } from "../contracts/providerSelection.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 
 /** Exact Ghidra build whose Java bridge contract this REA release supports. */
-export const SUPPORTED_GHIDRA_VERSION = "12.1.2";
+export const SUPPORTED_GHIDRA_VERSION = "12.1.4";
 /** Exact JDK major documented by the supported Ghidra release. */
 export const SUPPORTED_GHIDRA_JAVA_MAJOR = 21;
 
@@ -252,7 +252,7 @@ const installationChecks = ({
     code: "not_configured",
     detail: coordinates.installDir ?? "GHIDRA_INSTALL_DIR is not set",
     remediation:
-      "Set GHIDRA_INSTALL_DIR to an extracted Ghidra 12.1.2 release directory.",
+      "Set GHIDRA_INSTALL_DIR to an extracted Ghidra 12.1.4 release directory.",
   }),
   installationCheck({
     name: "platform",
@@ -432,7 +432,7 @@ const systemGhidraInstallationHost = (): GhidraInstallationHost => ({
         encoding: "utf8",
         env: environment,
         timeout: 5_000,
-        maxBuffer: 128 * 1024,
+        maxBuffer: Number.POSITIVE_INFINITY,
         windowsHide: true,
       },
     );

@@ -10,7 +10,7 @@ The P0 accepts exactly:
 
 - a Windows x64 host;
 - Node.js 22.19+ or 24.11+;
-- an operator-installed official Ghidra 12.1.2 distribution;
+- an operator-installed official Ghidra 12.1.4 distribution;
 - a 64-bit full JDK 21;
 - an explicit native, non-managed, non-DLL x86-64 PE application; and
 - the existing 19 read-only Ghidra inventory and function-analysis operations.
@@ -31,7 +31,7 @@ Install REA, Ghidra, and JDK 21 separately. In PowerShell:
 
 ```powershell
 npm install --global rea-agents
-$env:GHIDRA_INSTALL_DIR = "C:\tools\ghidra_12.1.2_PUBLIC"
+$env:GHIDRA_INSTALL_DIR = "C:\tools\ghidra_12.1.4_PUBLIC"
 $env:JAVA_HOME = "C:\Program Files\Java\jdk-21"
 $env:REA_ANALYSIS_PROVIDER = "ghidra"
 
@@ -58,7 +58,7 @@ three environment variables above. A representative configuration is:
       ],
       "env": {
         "REA_ANALYSIS_PROVIDER": "ghidra",
-        "GHIDRA_INSTALL_DIR": "C:\\tools\\ghidra_12.1.2_PUBLIC",
+        "GHIDRA_INSTALL_DIR": "C:\\tools\\ghidra_12.1.4_PUBLIC",
         "JAVA_HOME": "C:\\Program Files\\Java\\jdk-21"
       }
     }
@@ -138,14 +138,14 @@ and compares the packaged MCP catalog with `TOOL_CONTRACTS`.
 The controlled real-engine lane is intentionally separate:
 
 ```powershell
-$env:GHIDRA_INSTALL_DIR = "C:\tools\ghidra_12.1.2_PUBLIC"
+$env:GHIDRA_INSTALL_DIR = "C:\tools\ghidra_12.1.4_PUBLIC"
 $env:JAVA_HOME = "C:\Program Files\Java\jdk-21"
 npm ci
 npm run verify:ghidra:windows
 ```
 
 The verifier creates an ignored deterministic x86-64 PE fixture, checks its
-fixed SHA-256, opens Ghidra 12.1.2 through the production Java bridge, exercises
+fixed SHA-256, opens Ghidra 12.1.4 through the production Java bridge, exercises
 all 19 admitted operations, verifies the target/snapshot/import digest chain,
 and checks endpoint, project, process, and runtime cleanup. The GitHub workflow
 accepts only the fixed `real-ghidra-windows` repository-dispatch event against

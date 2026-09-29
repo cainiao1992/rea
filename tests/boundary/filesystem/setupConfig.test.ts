@@ -206,7 +206,7 @@ describe("JSON client configuration migration and provider paths", () => {
     const configPath = join(directory, "mcp.json");
     const client = { name: "cursor", configPath };
     const environment = {
-      GHIDRA_INSTALL_DIR: "/opt/ghidra_12.1.2_PUBLIC",
+      GHIDRA_INSTALL_DIR: "/opt/ghidra_12.1.4_PUBLIC",
       JAVA_HOME: "/usr/lib/jvm/jdk-21",
     };
 

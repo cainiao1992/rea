@@ -9,7 +9,7 @@ Claude Code, Claude Desktop, Codex, Cursor, Gemini CLI, Windsurf, and Devin. The
 first six have documented local MCP configuration boundaries and can be updated
 additively; Devin is reported but left unchanged.
 
-The Ghidra foundation supports Linux x64 with exact Ghidra 12.1.2 and a 64-bit
+The Ghidra foundation supports Linux x64 with exact Ghidra 12.1.4 and a 64-bit
 full JDK 21. An experimental Windows x64 P0 admits approved native x86-64 PE
 applications through the same 19-operation Java bridge. Doctor validates those coordinates; approved Linux/macOS setup propagates them
 to MCP registrations without installing or modifying either dependency. REA's

@@ -12,7 +12,7 @@ import {
 const INSTALL = "/opt/ghidra";
 const PROPERTIES = `${INSTALL}/Ghidra/application.properties`;
 const HEADLESS = `${INSTALL}/support/analyzeHeadless`;
-const WINDOWS_INSTALL = "C:\\tools\\ghidra_12.1.2_PUBLIC";
+const WINDOWS_INSTALL = "C:\\tools\\ghidra_12.1.4_PUBLIC";
 const WINDOWS_PROPERTIES = `${WINDOWS_INSTALL}\\Ghidra\\application.properties`;
 const WINDOWS_HEADLESS = `${WINDOWS_INSTALL}\\support\\analyzeHeadless.bat`;
 const JAVA: GhidraJavaObservation = {

@@ -80,7 +80,7 @@ npx --yes rea-agents@latest setup
 
 `rea setup`은 전체 변경 계획을 표시하고 확인 후 적용합니다. Homebrew, Node.js 또는 npm을 설치하거나 업데이트하지 않습니다. [Hopper](https://www.hopperapp.com/)가 없으면 공식 패키지 설치를 제안합니다. Hopper는 별도 라이선스가 필요한 독립 소프트웨어입니다.
 
-64비트 Linux에 Ghidra 12.1.2 PUBLIC과 완전한 64비트 JDK 21이 이미 설치되어 있다면 Setup은 승인 후 `GHIDRA_INSTALL_DIR`과 선택 사항인 `JAVA_HOME`도 등록할 수 있습니다. REA는 Ghidra나 Java를 다운로드, 설치 또는 수정하지 않습니다. Ghidra 공급자는 격리된 읽기 전용 headless 세션에서 인벤토리, 디컴파일, 어셈블리, 호출 관계, 형식이 지정된 참조, xref, CFG 및 함수 dossier를 제공합니다. GUI 상태와 변경 작업은 계속 사용할 수 없습니다.
+64비트 Linux에 Ghidra 12.1.4 PUBLIC과 완전한 64비트 JDK 21이 이미 설치되어 있다면 Setup은 승인 후 `GHIDRA_INSTALL_DIR`과 선택 사항인 `JAVA_HOME`도 등록할 수 있습니다. REA는 Ghidra나 Java를 다운로드, 설치 또는 수정하지 않습니다. Ghidra 공급자는 격리된 읽기 전용 headless 세션에서 인벤토리, 디컴파일, 어셈블리, 호출 관계, 형식이 지정된 참조, xref, CFG 및 함수 dossier를 제공합니다. GUI 상태와 변경 작업은 계속 사용할 수 없습니다.
 
 #### Linux 설치 및 문제 해결
 

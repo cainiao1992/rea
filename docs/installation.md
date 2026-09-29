@@ -194,7 +194,7 @@ copying license secrets into logs, or killing unrelated Hopper processes.
 ## Ghidra
 
 REA's Ghidra provider is bring-your-own and supports Linux x64 with the exact
-official Ghidra 12.1.2 release and a 64-bit full JDK 21. An experimental
+official Ghidra 12.1.4 release and a 64-bit full JDK 21. An experimental
 Windows x64 P0 supports approved native x86-64 PE applications. It supplies
 discovery, analysis-profile commitment, an isolated read-only headless session,
 ten inventory/name/search operations and nine function-analysis operations,
@@ -205,7 +205,7 @@ dossiers. GUI state and analysis mutations remain unavailable through Ghidra.
 Extract Ghidra and install the JDK outside REA, then export absolute paths:
 
 ```bash
-export GHIDRA_INSTALL_DIR=/absolute/path/to/ghidra_12.1.2_PUBLIC
+export GHIDRA_INSTALL_DIR=/absolute/path/to/ghidra_12.1.4_PUBLIC
 export JAVA_HOME=/absolute/path/to/jdk-21 # optional if java/javac are on PATH
 rea doctor --json
 rea setup
@@ -214,7 +214,7 @@ rea setup
 PowerShell configuration for Windows uses the same non-secret paths:
 
 ```powershell
-$env:GHIDRA_INSTALL_DIR = "C:\tools\ghidra_12.1.2_PUBLIC"
+$env:GHIDRA_INSTALL_DIR = "C:\tools\ghidra_12.1.4_PUBLIC"
 $env:JAVA_HOME = "C:\Program Files\Java\jdk-21"
 rea doctor --json
 rea providers --json

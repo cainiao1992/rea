@@ -64,13 +64,13 @@ describe("runtime configuration", () => {
   it("parses absolute BYO Ghidra and optional Java paths", () => {
     expect(
       parseConfig({
-        GHIDRA_INSTALL_DIR: "/opt/ghidra_12.1.2_PUBLIC",
+        GHIDRA_INSTALL_DIR: "/opt/ghidra_12.1.4_PUBLIC",
         JAVA_HOME: "/usr/lib/jvm/jdk-21",
       }),
     ).toMatchObject({
       ok: true,
       value: {
-        ghidraInstallDir: "/opt/ghidra_12.1.2_PUBLIC",
+        ghidraInstallDir: "/opt/ghidra_12.1.4_PUBLIC",
         ghidraJavaHome: "/usr/lib/jvm/jdk-21",
       },
     });

@@ -269,7 +269,7 @@ describe("doctor scoped readiness", () => {
       id: "ghidra",
       configured: true,
       available: true,
-      providerVersion: "12.1.2",
+      providerVersion: "12.1.4",
       registrationEnvironment: { GHIDRA_INSTALL_DIR: "/tools/ghidra" },
       checks: [
         {

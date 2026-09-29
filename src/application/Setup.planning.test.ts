@@ -178,7 +178,7 @@ describe("setup workflow lifecycle and provider planning", () => {
       packageFamily: "deb",
       supported: true,
     };
-    host.ghidra = "/opt/ghidra_12.1.2_PUBLIC";
+    host.ghidra = "/opt/ghidra_12.1.4_PUBLIC";
     host.javaHome = "/usr/lib/jvm/jdk-21";
     host.doctorHealthy = true;
     host.skill = "unchanged";
@@ -189,7 +189,7 @@ describe("setup workflow lifecycle and provider planning", () => {
       "configure_client",
     ]);
     expect(plan.plannedActions[0]?.detail).toContain(
-      "GHIDRA_INSTALL_DIR=/opt/ghidra_12.1.2_PUBLIC",
+      "GHIDRA_INSTALL_DIR=/opt/ghidra_12.1.4_PUBLIC",
     );
     expect(plan.plannedActions[0]?.detail).toContain(
       "JAVA_HOME=/usr/lib/jvm/jdk-21",
@@ -201,7 +201,7 @@ describe("setup workflow lifecycle and provider planning", () => {
     expect(applied.status).toBe("ready");
     expect(host.hopperInstalls).toBe(0);
     expect(host.configuredProviderEnvironments).toContainEqual({
-      GHIDRA_INSTALL_DIR: "/opt/ghidra_12.1.2_PUBLIC",
+      GHIDRA_INSTALL_DIR: "/opt/ghidra_12.1.4_PUBLIC",
       JAVA_HOME: "/usr/lib/jvm/jdk-21",
     });
   });

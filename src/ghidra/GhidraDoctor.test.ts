@@ -9,11 +9,11 @@ import {
 } from "./GhidraInstallation.js";
 import { projectGhidraDoctorInspection } from "./GhidraDoctor.js";
 
-const INSTALL = "/opt/ghidra_12.1.2_PUBLIC";
+const INSTALL = "/opt/ghidra_12.1.4_PUBLIC";
 const installationHost = (
   overrides: Partial<GhidraInstallationHost> = {},
 ): GhidraInstallationHost => ({
-  readText: () => "application.version=12.1.2\n",
+  readText: () => "application.version=12.1.4\n",
   executable: () => true,
   probeJava: () => ({
     version: "21.0.11",
@@ -85,7 +85,7 @@ describe("Ghidra doctor integration", () => {
     expect(result.providerInspections?.[0]).toMatchObject({
       id: "ghidra",
       available: true,
-      providerVersion: "12.1.2",
+      providerVersion: "12.1.4",
       registrationEnvironment: {
         GHIDRA_INSTALL_DIR: INSTALL,
         JAVA_HOME: "/usr/lib/jvm/jdk-21",
@@ -101,7 +101,7 @@ describe("Ghidra doctor integration", () => {
 
   it("accepts the experimental Windows x64 Ghidra provider boundary", async () => {
     const ghidra = inspection({
-      installDir: "C:\\tools\\ghidra_12.1.2_PUBLIC",
+      installDir: "C:\\tools\\ghidra_12.1.4_PUBLIC",
       platform: "win32",
     });
     const result = await runDoctor(undefined, {

@@ -8,16 +8,14 @@ REA can attach to a user-owned Chrome-family browser through the Chrome DevTools
 - `inspect_web_page` / `rea inspect-web-page` captures DOM structure, accessibility nodes, scripts, resources, safe response/DOM metadata, attach-window network and console metadata, WebSocket frame sizes, workers, quota, and optionally storage key names, redacted storage-content fingerprints, or script sources.
 - `analyze_web_bundle` / `rea analyze-web-bundle` parses approved script artifacts without execution and derives chunk edges, route and endpoint candidates, vendor fingerprints, static WebMCP declarations, and optionally approved source-map/original-source evidence.
 - `observe_web_session` / `rea observe-web-session` arms an observation window of the requested duration for an external user action and records ordered reload, SPA navigation, redirect, failure, lifecycle, and target-termination metadata.
-- `discover_webmcp_tools` / `rea discover-webmcp-tools` uses the experimental CDP WebMCP domain to return every in-scope registration and its complete structural input-schema summary inline. REA never exposes `WebMCP.invokeTool`; malformed or over-limit protocol payloads fail explicitly instead of returning truncated tool metadata.
+- `discover_webmcp_tools` / `rea discover-webmcp-tools` uses the experimental CDP WebMCP domain to return every in-scope registration and its complete structural input-schema summary inline. REA never exposes `WebMCP.invokeTool`; malformed protocol payloads fail explicitly instead of returning incomplete tool metadata.
 - `compare_web_captures` / `rea compare-web-captures` compares passive captures or exact-step-aligned browser scenarios. Scenario results commit reproducible literal normalization and expose alignment failures plus artifact-level action, screenshot, DOM, accessibility, URL, history, storage, and event differences. Missing or truncated evidence is never treated as equivalence.
 - `capture_web_screenshot` / `rea capture-web-screenshot` returns an explicitly approved, content-addressed visible-viewport PNG.
 - `compare_web_screenshots` / `rea compare-web-screenshots` performs bounded local PNG pixel comparison without OCR or external services.
 - Every surface has equivalent CLI and MCP contracts and returns Evidence provenance.
 - MCP tools return complete results inline and include the Evidence ID. Session evidence can be exported with `export_evidence_bundle`.
 
-Target discovery returns the complete approved target array in one result. The
-CDP endpoint's response-size ceiling remains internal; an oversized discovery
-response fails explicitly instead of appearing complete.
+Target discovery returns the complete approved target array in one result.
 
 Electron `file://` pages use a separate provider, permission capability, and root model; see [electron-observation.md](electron-observation.md).
 Existing static application Evidence and passive web/Electron captures can be

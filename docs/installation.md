@@ -234,17 +234,17 @@ environment entry in its plan, writes only after approval, and never downloads,
 installs, upgrades, or modifies Ghidra or Java.
 
 Each verified session uses an ephemeral temporary project and isolated
-home/cache/config/temp paths. REA passes `-readOnly`, `-deleteProject`, a
-per-file analysis timeout, CPU and heap bounds, and its packaged Java bridge via
-`-scriptPath`; it never opens an existing user project. Linux uses a
+home/cache/config/temp paths. REA passes `-readOnly`, `-deleteProject`, uses
+Ghidra's default analysis and resource settings, and loads its packaged Java
+bridge via `-scriptPath`; it never opens an existing user project. Linux uses a
 current-user-only local bridge socket and descriptor. Windows P0 uses
 token-authenticated IPv4 loopback, a token-free endpoint record, and bounded
 process-tree termination. It does not yet prove private DACL,
 reparse-point-safe, or Job Object semantics; use only approved non-sensitive
 fixtures.
 
-Operations begin only after default auto-analysis completes. A timeout fails
-the open rather than exposing partial analysis. One session contains exactly
+Operations begin only after default auto-analysis completes. The provider
+startup deadline fails the open rather than exposing partial analysis. One session contains exactly
 one imported Program; use `provider_id: "ghidra"`, `--provider ghidra`, or
 `REA_ANALYSIS_PROVIDER=ghidra` when both Hopper and Ghidra support the target.
 One persistent decompiler is owned by the Program, Ghidra API calls cross a

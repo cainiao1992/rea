@@ -34,7 +34,7 @@ follow.
 - Start with bring-your-own Ghidra and a compatible Java runtime. Setup must not
   install or upgrade Java.
 - Run Ghidra headlessly in an owned process with a private temporary project,
-  bounded startup/analysis/request deadlines, cancellation, and cleanup.
+  startup and cleanup deadlines, caller cancellation, and complete replies.
 - Prefer a packaged Java bridge loaded through Ghidra's script path. PyGhidra
   remains useful for prototypes but is not a mandatory production dependency.
 - Treat authenticated `ping` and `shutdown` as lifecycle proof only. Inventory,
@@ -61,9 +61,9 @@ other formats, and other architectures before launch.
 The launcher creates one ephemeral runtime root with project,
 home/cache/config/data/temp, logs, descriptor, endpoint, target snapshot, and
 ownership manifest.
-It passes `-readOnly`, `-deleteProject`, a 300-second per-file analysis limit,
-two CPUs, and a 2 GiB heap; inherited Java option injection variables are
-cleared. On Linux, the mode-0600 descriptor carries the random token without
+It passes `-readOnly` and `-deleteProject`, and uses Ghidra's default analysis
+and resource settings; inherited Java option injection variables are cleared.
+On Linux, the mode-0600 descriptor carries the random token without
 exposing it in argv or environment and the Java bridge binds a mode-restricted
 Unix socket. Windows uses authenticated IPv4 loopback with a strict token-free
 endpoint record. Both transports report actual
@@ -92,31 +92,31 @@ capability from a successful import.
 | Strings          | Only Ghidra-defined string `Data` is observed. Items report charset, byte length, and whether a required null terminator is missing. The API cannot distinguish a present terminator from fixed/Pascal layouts when no terminator is missing, so that state is named `present_or_not_required`. |
 | Memory           | Memory-block end addresses are exclusive. Read/write/execute, initialization, overlay, address space, and image base are direct Ghidra observations.                                                                                                                                            |
 | Inventory        | Procedure, symbol, and string listings plus searches return the complete matching collection in one response; callers do not provide offsets or limits. The bridge retains a 64 MiB internal process-line safety bound for exceptional responses.                                               |
-| Search           | Literal and Java-regex searches scan the complete immutable inventory and return all matching entries inline. Search uses the established-request deadline; there are no caller-supplied offsets or result-count limits.                                                                        |
-| Analysis state   | The socket is exposed only after default auto-analysis. A 300-second analysis timeout fails target opening; ordinary established requests have a 10-second client deadline. The internal response-line guard is sized for complete analysis output.                                             |
+| Search           | Literal and Java-regex searches scan the complete immutable inventory and return all matching entries inline. Search waits for a reply or caller cancellation; there are no caller-supplied offsets or result-count limits.                                                                     |
+| Analysis state   | The socket is exposed only after default auto-analysis completes. Established operations wait for their reply or caller cancellation. The internal response-line guard is sized for complete analysis output.                                                                                   |
 
 ## Admitted function-analysis semantics
 
-| Concern                 | Ghidra contract                                                                                                                                                                                                                                                                                                                            |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Decompiler lifetime     | One persistent `DecompInterface` is opened for the imported Program and disposed during bridge shutdown. Each native decompile has a 30-second deadline; the socket leaves a bounded 35-second projection window. External functions or functions without bodies return `null`; timeout, cancellation, and native failure remain distinct. |
-| Serialization           | A bounded FIFO admits at most 32 active-plus-queued requests and sends one Program request at a time. Queue wait counts against the caller's deadline, and queued cancellation is prompt. This is an adapter safety commitment, not a claim that every Ghidra API is thread-safe.                                                          |
-| Function identity       | Every function result carries the entry address and Ghidra FunctionManager classification for external, thunk, and resolved thunk target. These are observations, not proof that unresolved targetless calls have been recovered.                                                                                                          |
-| Assembly and pseudocode | Assembly is complete Ghidra Listing text; pseudocode is Ghidra decompiler output. Neither is original source, and cross-provider comparison never treats Hopper and Ghidra text as equal or unequal semantic facts.                                                                                                                        |
-| Instruction fast path   | `read_function_instructions` returns every raw Listing instruction for the requested function without invoking the decompiler or whole-program name/string inventories.                                                                                                                                                                    |
-| Calls and references    | Callers/callees contain only resolved functions. Reference edges preserve exact ReferenceManager type and call/jump/data/read/write/indirect/computed/conditional/terminal/external facts. Targetless computed flow remains unknown. Synthetic entry-point references without actionable memory sources are omitted explicitly.            |
-| CFG                     | Dossiers use `BasicBlockModel` and retain only non-call successors inside the function body. CFG topology is address-normalized for comparison; provider-specific block construction remains a declared difference.                                                                                                                        |
-| Bounds                  | Function instruction scans and native API boundary observations do not use item-count caps or caller pagination. A 64 MiB internal process-line guard fails exceptionally large individual responses with an explicit output error; it does not intentionally truncate ordinary full analysis.                                             |
+| Concern                 | Ghidra contract                                                                                                                                                                                                                                                                                                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Decompiler lifetime     | One persistent `DecompInterface` is opened for the imported Program and disposed during bridge shutdown. Native decompilation has no fixed per-function deadline. External functions or functions without bodies return `null`; cancellation and native failure remain distinct.                                                |
+| Serialization           | A FIFO sends one Program request at a time. Caller cancellation removes queued work promptly and is passed to active socket waits. This is an adapter safety commitment, not a claim that every Ghidra API is thread-safe.                                                                                                      |
+| Function identity       | Every function result carries the entry address and Ghidra FunctionManager classification for external, thunk, and resolved thunk target. These are observations, not proof that unresolved targetless calls have been recovered.                                                                                               |
+| Assembly and pseudocode | Assembly is complete Ghidra Listing text; pseudocode is Ghidra decompiler output. Neither is original source, and cross-provider comparison never treats Hopper and Ghidra text as equal or unequal semantic facts.                                                                                                             |
+| Instruction fast path   | `read_function_instructions` returns every raw Listing instruction for the requested function without invoking the decompiler or whole-program name/string inventories.                                                                                                                                                         |
+| Calls and references    | Callers/callees contain only resolved functions. Reference edges preserve exact ReferenceManager type and call/jump/data/read/write/indirect/computed/conditional/terminal/external facts. Targetless computed flow remains unknown. Synthetic entry-point references without actionable memory sources are omitted explicitly. |
+| CFG                     | Dossiers use `BasicBlockModel` and retain only non-call successors inside the function body. CFG topology is address-normalized for comparison; provider-specific block construction remains a declared difference.                                                                                                             |
+| Bounds                  | Function instruction scans and native API boundary observations do not use item-count caps or caller pagination. A 64 MiB internal process-line guard fails exceptionally large individual responses with an explicit output error; it does not intentionally truncate ordinary full analysis.                                  |
 
 `npm run verify:ghidra` compiles the versioned C oracles into x86-64 debug and
 stripped ELF, AArch64 ELF, x86-64 PE, and x86-64 Mach-O targets. It proves all
 19 operations, external functions, resolved thunks, exports, stripped-name
 behavior, direct and targetless indirect calls, typed references, strings/xrefs,
-multi-block CFG, semantic enhanced workflows, cancellation, deadlines,
+multi-block CFG, semantic enhanced workflows, cancellation, startup deadlines,
 serialized concurrency, malformed-target rejection, profile identity, and
 process/project cleanup against real Ghidra 12.1.2. Unit fixtures separately
-cover analysis/decompile timeouts, process exit, queue saturation, and malformed
-wire output.
+cover startup deadlines, process exit, queued cancellation, and malformed wire
+output.
 
 `npm run verify:ghidra:windows` generates a deterministic source-owned native
 x86-64 PE application, proves all 19 operations through the production Windows
@@ -130,7 +130,7 @@ gates.
 `src/process/` now provides the mechanisms that a long-lived Hopper or Ghidra
 adapter genuinely shares: POSIX run-token-authenticated process-group ownership,
 ephemeral temporary runtime roots, one absolute startup deadline, correlated
-request timeout/cancellation cleanup, bounded stdout and stderr retention with
+request cancellation and lifecycle-deadline cleanup, bounded stdout and stderr retention with
 exact byte counts, process-exit diagnostics, and bounded TERM-to-KILL shutdown.
 Reusable fixtures exercise exit, timeout, cancellation, graceful termination,
 forced termination, double-close, spawn failure, and resource release. Windows

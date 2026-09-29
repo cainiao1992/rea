@@ -1,6 +1,6 @@
 # Electron file-page observation
 
-REA can attach to a user-owned Electron/Chromium CDP endpoint and inspect existing `file://` renderer pages without evaluating JavaScript or invoking Electron APIs. Electron observation is separate from website observation because filesystem roots, not HTTP origins, define its authority.
+REA can attach to a user-owned Electron/Chromium CDP endpoint and inspect existing `file://` renderer pages without evaluating JavaScript or invoking Electron APIs. The caller supplies the endpoint directly; REA accepts only literal-port loopback HTTP endpoints. Selecting an endpoint exposes every Electron target it serves, including local file paths and page metadata.
 
 This passive runtime surface is distinct from the target-free static
 [`analyze_javascript_application`](javascript-artifact-reconstruction.md)
@@ -16,23 +16,15 @@ The capability is disabled by default:
 
 ```bash
 export REA_ELECTRON_OBSERVE_ENABLED=true
-export REA_ELECTRON_CDP_ENDPOINTS_JSON='["http://127.0.0.1:9223"]'
-export REA_ELECTRON_FILE_ROOTS_JSON='["/Applications/Example.app/Contents/Resources"]'
 ```
 
-Endpoints accept only explicit-port loopback HTTP URLs. Roots are canonicalized by the shared permission authority. Each target, frame, script, and resource is independently converted from a hostless `file://` URL to a real path and checked after symlink resolution. UNC hosts, percent-encoded path separators, nonexistent paths, and root escapes are rejected.
+The capability is disabled by default. Its permission ceiling is loopback-only. REA accepts local hostless `file://` URLs that resolve to regular files; remote hosts, encoded path separators, and nonexistent paths are rejected. There is no separate filesystem-root configuration.
 
 ## Workflow
 
-`list_electron_targets` returns every target inside the approved roots in one
-inline array. CDP response-size limits remain internal and oversized discovery
-responses fail explicitly.
+`list_electron_targets` returns every eligible target served by the supplied endpoint in one inline array.
 
-For the MCP follow-up call, pass the discovery Evidence ID and selected target
-ID to `inspect_electron_page`. REA reuses the endpoint and authorized roots from
-that retained discovery Evidence, checks the selected ID against its target
-list, and reapplies permission policy. The agent does not repeat the roots. The
-CLI continues to accept its endpoint and roots directly.
+For the MCP follow-up call, pass the same literal-loopback endpoint and the selected target ID to `inspect_electron_page`. REA rediscovers targets and validates the ID against the live endpoint before inspection.
 
 ```bash
 rea list-electron-targets http://127.0.0.1:9223 --json
@@ -40,7 +32,7 @@ rea inspect-electron-page http://127.0.0.1:9223 TARGET_ID \
   --observation-ms 100 --json
 ```
 
-Script content is excluded by default. Requesting it includes every authorized script source whose individual source stays within the per-script validation bound:
+Script content is excluded by default. Requesting it includes every authorized script source:
 
 ```bash
 rea inspect-electron-page http://127.0.0.1:9223 TARGET_ID \
@@ -56,8 +48,8 @@ inventories authorized worker, service-worker, and shared-worker targets with
 validated opener-target and parent-frame IDs. Worker discovery uses passive
 target metadata; REA does not attach to or execute code in those targets.
 Collection counts and aggregate script-source bytes are not capped. Like every
-target, frame, script, and resource, a worker URL must resolve beneath an
-approved canonical root before it is retained. Relationship IDs improve
+target, frame, script, and resource, a worker URL must resolve to a local
+file before it is retained. Relationship IDs improve
 attribution but do not prove which static module started a worker or that its
 work completed.
 

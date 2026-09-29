@@ -13,9 +13,6 @@ replay:
 
 ```bash
 export REA_V8_INSPECTOR_OBSERVE_ENABLED=true
-export REA_V8_INSPECTOR_ENDPOINTS_JSON='["http://127.0.0.1:9229"]'
-export REA_V8_INSPECTOR_FILE_ROOTS_JSON='["/absolute/path/to/app"]'
-export REA_V8_INSPECTOR_ALLOWED_ORIGINS_JSON='[]'
 
 rea list-javascript-runtime-targets http://127.0.0.1:9229 \
   --json
@@ -23,23 +20,12 @@ rea observe-javascript-runtime http://127.0.0.1:9229 TARGET_ID \
   --runtime-kind node --json
 ```
 
-At least one canonical file root or exact HTTP(S) origin is required.
-Discovery is restricted to a literal-loopback HTTP endpoint. A target must
-match the exact requested target ID, expose a same-port WebSocket reported by
-the approved discovery endpoint, and remain inside the requested file or
-origin scope. Targets already marked attached are rejected rather than
-displacing another debugger. Canonical file paths are checked after symlink resolution.
-Excluded locations are counted but never retained.
+The caller supplies the literal-loopback HTTP endpoint directly. Selecting an endpoint exposes all targets it serves and their local script locations or renderer origins. A target must match the exact requested target ID and expose a same-port WebSocket reported by that endpoint. Targets already marked attached are rejected rather than displacing another debugger. Local paths are canonicalized after symlink resolution.
 
-`list_javascript_runtime_targets` returns every approved target in one inline
-array. The Inspector discovery response-size ceiling remains internal; an
-oversized response fails explicitly.
+`list_javascript_runtime_targets` returns every available target in one inline
+array.
 
-For the MCP follow-up call, pass the discovery Evidence ID and selected target
-ID to `observe_javascript_runtime`. REA reuses the endpoint and file/origin
-scope from that retained discovery Evidence, checks the selected ID against its
-target list, and reapplies permission policy. The agent does not repeat roots or
-origins. The CLI continues to accept its endpoint and scope arguments directly.
+For the MCP follow-up call, pass the same literal-loopback endpoint and the selected target ID to `observe_javascript_runtime`. REA rediscovers targets and validates the ID against the live endpoint before observation.
 
 ## Passive protocol boundary
 

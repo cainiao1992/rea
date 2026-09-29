@@ -460,17 +460,14 @@ Attach-only JavaScript runtime observation is separately disabled by default:
 
 ```bash
 export REA_V8_INSPECTOR_OBSERVE_ENABLED=true
-export REA_V8_INSPECTOR_ENDPOINTS_JSON='["http://127.0.0.1:9229"]'
-export REA_V8_INSPECTOR_FILE_ROOTS_JSON='["/absolute/path/to/app"]'
-export REA_V8_INSPECTOR_ALLOWED_ORIGINS_JSON='[]'
 
-rea list-javascript-runtime-targets http://127.0.0.1:9229 --approved --json
+rea list-javascript-runtime-targets http://127.0.0.1:9229 --json
 rea observe-javascript-runtime http://127.0.0.1:9229 TARGET_ID \
-  --runtime-kind node --approved --json
+  --runtime-kind node --json
 ```
 
-REA sends only `Runtime.enable` and `Debugger.enable`. It retains bounded,
-scope-authorized script locations and execution-context lifecycle events;
+REA sends only `Runtime.enable` and `Debugger.enable`. It retains validated
+script locations and execution-context lifecycle events;
 require/import edges, EventEmitter activity, Electron IPC, PID identity, and
 Electron role identity stay explicit unknowns. See
 [passive Node and Electron runtime observation](docs/javascript-runtime-observation.md).

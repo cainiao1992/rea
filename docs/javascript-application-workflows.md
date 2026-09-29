@@ -138,8 +138,9 @@ replay recommendation; it does not execute JavaScript.
 
 ## CLI and verification
 
-All five CLI commands accept inline JSON or a JSON file up to 64 MiB. The input
-is the same object used by the corresponding MCP tool.
+All five CLI commands accept inline JSON or a path to a JSON file. Put the full
+Evidence records in the workflow input, as in the corresponding MCP tool; the
+CLI does not resolve Evidence IDs from a separate bundle.
 
 For two operator-provided directories or ASARs, run:
 

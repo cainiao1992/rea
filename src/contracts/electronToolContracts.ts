@@ -31,7 +31,6 @@ const reconciliationOutputSchema = evidenceResultOf(
 );
 
 const endpoint = "http://127.0.0.1:9223";
-const root = "/Applications/Example.app/Contents/Resources";
 const activeExample = {
   executable_path: "/Applications/Electron.app/Contents/MacOS/Electron",
   application_path: "/Applications/Example.app/Contents/Resources/main.js",
@@ -55,7 +54,6 @@ export const ELECTRON_TOOL_CONTRACTS = [
         title: "List approved Electron file pages",
         input: {
           cdp_endpoint: endpoint,
-          allowed_file_roots: [root],
         },
       },
     ],
@@ -64,7 +62,7 @@ export const ELECTRON_TOOL_CONTRACTS = [
     name: "inspect_electron_page",
     ...toolContractMetadata("inspect_electron_page"),
     description:
-      "Passively inspect one Electron file page using its list_electron_targets Evidence and returned target ID. Pass the discovery Evidence ID to reuse its endpoint and authorized file roots; this avoids repeating scope and cannot widen permission. Returns frames, DOM structure, resource paths, and scripts without evaluating renderer JavaScript or invoking Electron APIs.",
+      "Passively inspect one Electron file page by supplying its loopback CDP endpoint and target ID. The provider rechecks that the target currently exists at that endpoint and is a local file page. Returns frames, DOM structure, resource paths, and scripts without evaluating renderer JavaScript or invoking Electron APIs. The selected endpoint exposes every local file page and its metadata to this tool.",
     kind: "electron-provider",
     inputSchema: inspectElectronPageToolInputSchema,
     outputSchema: inspectionOutputSchema,
@@ -72,7 +70,7 @@ export const ELECTRON_TOOL_CONTRACTS = [
       {
         title: "Inspect an approved Electron page",
         input: {
-          discovery_evidence_id: "EVIDENCE_ID_FROM_LIST_ELECTRON_TARGETS",
+          cdp_endpoint: endpoint,
           target_id: "TARGET_ID_FROM_LIST_ELECTRON_TARGETS",
         },
       },

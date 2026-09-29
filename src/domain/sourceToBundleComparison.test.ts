@@ -6,7 +6,10 @@ import {
 } from "./javascriptApplicationGraph.js";
 import { createHistoricalSourceGraph } from "./referenceSourceGraph.js";
 import { compareSourceToBundle } from "./sourceToBundleComparison.js";
-import { sourceToBundleComparisonResultSchema } from "./sourceToBundleComparisonSchemas.js";
+import {
+  SOURCE_TO_BUNDLE_SIGNAL_WEIGHTS,
+  sourceToBundleComparisonResultSchema,
+} from "./sourceToBundleComparisonSchemas.js";
 import { artifactEvidence } from "./javascriptApplicationGraph.fixture.js";
 
 const HASH = {
@@ -145,6 +148,49 @@ describe("historical source to bundle comparison", () => {
       status: "complete-within-inputs",
       candidate_evaluations: 2,
     });
+  });
+});
+
+describe("source to bundle complete metadata", () => {
+  it("accepts long source metadata and all reported limitations", () => {
+    const result = compareSourceToBundle({
+      reference: historicalGraph("complete"),
+      application: {
+        evidenceId: EVIDENCE_ID,
+        rootArtifactSha256: HASH.artifact,
+        graph: applicationGraph("complete"),
+      },
+    });
+    const item = result.items[0];
+    if (item === undefined) throw new Error("Expected a comparison item");
+
+    const parsed = sourceToBundleComparisonResultSchema.parse({
+      ...result,
+      items: [
+        {
+          ...item,
+          source_path: "p".repeat(4_097),
+          source_language: "l".repeat(101),
+          limitations: Array.from(
+            { length: 101 },
+            (_, index) => `gap-${index}`,
+          ),
+          candidates: item.candidates.map((candidate) => ({
+            ...candidate,
+            signals: Array.from({ length: 7 }, (_, index) => ({
+              kind: SOURCE_TO_BUNDLE_SIGNAL_WEIGHTS[index % 6]?.[0],
+              weight: SOURCE_TO_BUNDLE_SIGNAL_WEIGHTS[index % 6]?.[1],
+              source_value: "v".repeat(4_097),
+              current_values: ["v".repeat(4_097)],
+            })),
+          })),
+        },
+      ],
+      limitations: Array.from({ length: 1_001 }, (_, index) => `gap-${index}`),
+    });
+
+    expect(parsed.items[0]?.limitations).toHaveLength(101);
+    expect(parsed.limitations).toHaveLength(1_001);
   });
 });
 

@@ -18,14 +18,13 @@ interface ElectronScriptCaptureInput {
   readonly sessionId: string | undefined;
   readonly signal?: AbortSignal;
   readonly request: InspectElectronPageInput;
-  readonly roots: readonly string[];
   readonly scripts: readonly ElectronScriptDraft[];
   readonly executionContextFrames: ReadonlyMap<string, string>;
   readonly frameIds: ReadonlySet<string>;
   readonly completeness: CdpCaptureCompleteness;
 }
 
-/** Normalize root-confined script metadata and optionally approved source. */
+/** Normalize local script metadata and optionally approved source. */
 export const captureElectronScripts = async (
   input: ElectronScriptCaptureInput,
 ): Promise<ElectronPageInspection["scripts"]> => {
@@ -33,7 +32,7 @@ export const captureElectronScripts = async (
   const items: ElectronPageInspection["scripts"]["items"] = [];
   const seen = new Set<string>();
   for (const script of input.scripts) {
-    const path = await authorizedElectronFile(script.rawUrl, input.roots);
+    const path = await authorizedElectronFile(script.rawUrl);
     if (path === undefined) {
       input.completeness.exclude("scripts", "out_of_target_scope");
       continue;

@@ -12,6 +12,7 @@ import { recordUnknownInputSchema } from "../domain/residualUnknown.js";
 import { reconstructionVerificationInputSchema } from "../domain/reconstructionVerification.js";
 import { replayMachineRunInputSchema } from "../domain/replayMachineRun.js";
 import { staticRuntimeCorrelationInputSchema } from "../domain/staticRuntimeCorrelation.js";
+import { evidenceSchema } from "../domain/evidence.js";
 import { updateUnknownInputSchema } from "../domain/residualUnknown.js";
 import {
   openBinaryInputSchema,
@@ -40,8 +41,8 @@ export const importEvidenceBundleInputSchema = z.strictObject({
 
 /** Evidence references for deterministic process comparison. */
 export const processComparisonInputSchema = z.strictObject({
-  left_evidence_id: z.string().regex(/^ev_[a-f0-9]{64}$/u),
-  right_evidence_id: z.string().regex(/^ev_[a-f0-9]{64}$/u),
+  left: evidenceSchema,
+  right: evidenceSchema,
   trace_spec: processTraceSpecificationSchema.optional(),
   max_capture_age_ms: z.number().int().nonnegative().optional(),
 });

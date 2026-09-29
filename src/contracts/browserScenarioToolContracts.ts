@@ -30,7 +30,7 @@ export const BROWSER_SCENARIO_TOOL_CONTRACTS = [
     name: "capture_browser_scenario",
     ...toolContractMetadata("capture_browser_scenario"),
     description:
-      "Run a controlled browser scenario when passive observation cannot exercise the application. Choose launch mode with an approved executable or connect mode with an approved loopback CDP target, declare the exact start origin scope, and provide explicit actions. Environment, empty storage, disabled request replay, redaction, and a URL-only final capture have safe defaults; declare secrets, initial storage, exact request replay, or additional retained artifacts only when needed. Scenarios have no provider-imposed duration or action timeout. Set timeout_ms on an action when it needs a deadline; omitted timeouts wait until completion or request cancellation. There are no action, secret, storage, route, event, frame, DOM, network, artifact-size, or cumulative metadata count caps; every observation is returned inline.",
+      "Run a controlled browser scenario when passive observation cannot exercise the application. Launch an approved executable or connect to an approved loopback CDP target, declare the allowed origins, and provide actions. Environment, empty storage, disabled request replay, redaction, and a URL-only final capture are defaults; provide secrets, initial storage, request replay, or additional artifacts when needed. Actions run until completion or cancellation unless timeout_ms is set. Results are returned inline.",
     kind: "browser-provider",
     inputSchema: browserScenarioInputSchema,
     outputSchema: evidenceResultOf(browserScenarioCaptureSchema),

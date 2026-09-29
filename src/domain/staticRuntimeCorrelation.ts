@@ -47,7 +47,7 @@ const observedPatternSchema = z.enum([
 const artifactSelectorSchema = z
   .object({
     kind: z.literal("artifact"),
-    logical_path: z.string().min(1).max(4_096),
+    logical_path: z.string().min(1),
   })
   .strict();
 const functionSelectorSchema = z
@@ -75,7 +75,7 @@ const mappingSchema = z
     side_alignment: z.enum(["left_to_left", "left_to_right"]),
     hypothesis: z
       .object({
-        statement: z.string().trim().min(1).max(500),
+        statement: z.string().trim().min(1),
         expected_pattern: expectedPatternSchema,
       })
       .strict(),
@@ -110,7 +110,7 @@ const correlationItemSchema = z.object({
   }),
   side_alignment: z.enum(["left_to_left", "left_to_right"]),
   hypothesis: z.object({
-    statement: z.string().min(1).max(500),
+    statement: z.string().min(1),
     expected_pattern: expectedPatternSchema,
   }),
   observed_pattern: observedPatternSchema,

@@ -6,7 +6,7 @@ import { cliMetadataGuidSchema } from "./managedArtifact.js";
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
 const tokenSchema = z.string().regex(/^0x[0-9a-f]{8}$/u);
-const boundedTextSchema = z.string().min(1).max(4_096);
+const textSchema = z.string().min(1);
 
 const nativeSymbolSchema = z.strictObject({
   evidence_id: evidenceIdSchema,
@@ -42,7 +42,7 @@ const pinvokeVerificationContextShape = {
     declaration_verification: z.literal("managed-declaration-only"),
   }),
   evidence_links: z.array(evidenceIdSchema).min(1),
-  limitations: z.array(boundedTextSchema),
+  limitations: z.array(textSchema),
 };
 
 const observedCandidatesSchema = z
@@ -157,11 +157,11 @@ export const managedNativeVerificationResultSchema = z
     pinvoke_imports: z.array(pinvokeVerificationSchema),
     native_implementations: z.strictObject({
       unresolved: z.number().int().min(0),
-      reason: boundedTextSchema,
+      reason: textSchema,
     }),
     coverage: verificationCoverageSchema,
     evidence_links: z.array(evidenceIdSchema).min(2),
-    limitations: z.array(boundedTextSchema),
+    limitations: z.array(textSchema),
   })
   .superRefine((result, context) => {
     const observedNativeCount =

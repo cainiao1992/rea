@@ -7,83 +7,48 @@ import { traceApplicationFeatureInputSchema } from "../domain/javascriptFeatureT
 import { javaScriptSemanticQueryInputSchema } from "../domain/javascriptSemanticQuerySchemas.js";
 import { compareSourceToBundleInputSchema } from "../domain/sourceToBundleComparisonSchemas.js";
 
-const evidenceIdSchema = z
-  .string()
-  .regex(/^ev_[a-f0-9]{64}$/u)
-  .describe("Evidence ID returned earlier in this session");
-
 const traceApplicationFeatureFacts = {
   native_observations:
     traceApplicationFeatureInputSchema.shape.native_observations,
-  native_observation_evidence_ids: z.array(evidenceIdSchema).default([]),
   seed: traceApplicationFeatureInputSchema.shape.seed,
   direction: traceApplicationFeatureInputSchema.shape.direction,
 } as const;
 
-/** MCP/CLI trace request accepting full Evidence or a ledger reference. */
-export const traceApplicationFeatureRequestSchema = z.union([
-  z.strictObject({
-    ...traceApplicationFeatureFacts,
-    application: evidenceSchema,
-  }),
-  z.strictObject({
-    ...traceApplicationFeatureFacts,
-    application_evidence_id: evidenceIdSchema,
-  }),
-]);
+/** MCP/CLI trace request carrying all Evidence inline. */
+export const traceApplicationFeatureRequestSchema = z.strictObject({
+  ...traceApplicationFeatureFacts,
+  application: evidenceSchema,
+});
 
-/** MCP/CLI semantic trace request accepting full Evidence or a ledger reference. */
-export const traceJavaScriptSemanticsRequestSchema = z.union([
-  z.strictObject({
-    application: evidenceSchema,
-    query: javaScriptSemanticQueryInputSchema,
-  }),
-  z.strictObject({
-    application_evidence_id: evidenceIdSchema,
-    query: javaScriptSemanticQueryInputSchema,
-  }),
-]);
+/** MCP/CLI semantic trace request carrying Evidence inline. */
+export const traceJavaScriptSemanticsRequestSchema = z.strictObject({
+  application: evidenceSchema,
+  query: javaScriptSemanticQueryInputSchema,
+});
 
 const compareApplicationVersionsFacts = {
   left_native_observations:
     compareApplicationVersionsInputSchema.shape.left_native_observations,
-  left_native_observation_evidence_ids: z.array(evidenceIdSchema).default([]),
   right_native_observations:
     compareApplicationVersionsInputSchema.shape.right_native_observations,
-  right_native_observation_evidence_ids: z.array(evidenceIdSchema).default([]),
 } as const;
 
-const applicationEvidenceReferenceSchema = z.union([
-  evidenceSchema,
-  evidenceIdSchema,
-]);
-
-/** MCP/CLI comparison request accepting inline Evidence or session Evidence IDs. */
+/** MCP/CLI comparison request carrying all Evidence inline. */
 export const compareApplicationVersionsRequestSchema = z.strictObject({
   ...compareApplicationVersionsFacts,
-  left: applicationEvidenceReferenceSchema.describe(
-    "Full application Evidence or an Evidence ID returned this session",
-  ),
-  right: applicationEvidenceReferenceSchema.describe(
-    "Full application Evidence or an Evidence ID returned this session",
-  ),
+  left: evidenceSchema,
+  right: evidenceSchema,
 });
 
 const compareSourceToBundleFacts = {
   reference: compareSourceToBundleInputSchema.shape.reference,
 } as const;
 
-/** Historical-source comparison accepting full application Evidence or a ledger reference. */
-export const compareSourceToBundleRequestSchema = z.union([
-  z.strictObject({
-    ...compareSourceToBundleFacts,
-    application: evidenceSchema,
-  }),
-  z.strictObject({
-    ...compareSourceToBundleFacts,
-    application_evidence_id: evidenceIdSchema,
-  }),
-]);
+/** Historical-source comparison carrying application Evidence inline. */
+export const compareSourceToBundleRequestSchema = z.strictObject({
+  ...compareSourceToBundleFacts,
+  application: evidenceSchema,
+});
 
 const compareJavaScriptExportShapesFacts = {
   left_module_path:
@@ -96,11 +61,11 @@ const compareJavaScriptExportShapesFacts = {
     compareJavaScriptExportShapesInputSchema.shape.right_export_name,
 } as const;
 
-/** MCP/CLI export-shape request accepting full Evidence or session references. */
+/** MCP/CLI export-shape request carrying application Evidence inline. */
 export const compareJavaScriptExportShapesRequestSchema = z.strictObject({
   ...compareJavaScriptExportShapesFacts,
-  left: applicationEvidenceReferenceSchema,
-  right: applicationEvidenceReferenceSchema,
+  left: evidenceSchema,
+  right: evidenceSchema,
 });
 
 export type TraceApplicationFeatureRequest = z.output<

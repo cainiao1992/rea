@@ -38,8 +38,6 @@ describe("JavaScript runtime observation MCP tools", () => {
       Array.from({ length: count }, (_, index) => `item-${index}`);
     const scope = {
       inspector_endpoint: "http://127.0.0.1:9222",
-      allowed_file_roots: ["/tmp/rea-runtime"],
-      allowed_origins: [],
     };
     expect(
       observeJavaScriptRuntimeInputSchema.parse({
@@ -57,8 +55,6 @@ describe("JavaScript runtime observation MCP tools", () => {
         },
         targets: [],
         excluded: {
-          outside_file_roots: 0,
-          outside_origins: 0,
           unsupported_location: 0,
           unconnectable: 0,
         },
@@ -96,8 +92,6 @@ describe("JavaScript runtime observation MCP tools", () => {
           items: [],
           observed_total: 0,
           excluded: {
-            outside_file_roots: 0,
-            outside_origins: 0,
             unsupported_location: 0,
             invalid_protocol_value: 0,
           },
@@ -114,15 +108,13 @@ describe("JavaScript runtime observation MCP tools", () => {
   test("lists and observes one target as retained Evidence", async () => {
     const root = await createTestTempDirectory("rea-v8-mcp-");
     temporary.push(root);
-    const { entry, inspector, authority, client, session } =
+    const { entry, inspector, authority, client } =
       await createObservationClient(root, resources);
 
     const listed = await client.callTool({
       name: "list_javascript_runtime_targets",
       arguments: {
         inspector_endpoint: inspector.endpoint,
-        allowed_file_roots: [root],
-        allowed_origins: [],
       },
     });
     expect(listed.isError).not.toBe(true);
@@ -131,12 +123,10 @@ describe("JavaScript runtime observation MCP tools", () => {
         targets: [{ target_id: inspector.targetId }],
       },
     });
-    const discoveryEvidenceId = evidenceIdFrom(listed.structuredContent);
-
     const observedRuntime = await client.callTool({
       name: "observe_javascript_runtime",
       arguments: {
-        discovery_evidence_id: discoveryEvidenceId,
+        inspector_endpoint: inspector.endpoint,
         target_id: inspector.targetId,
         runtime_kind: "node",
         observation_ms: 10,
@@ -160,7 +150,13 @@ describe("JavaScript runtime observation MCP tools", () => {
       },
     });
     const evidenceId = evidenceIdFrom(observedRuntime.structuredContent);
-    expect(session.evidenceById(evidenceId)).toBeDefined();
+    expect(observedRuntime.structuredContent).toMatchObject({
+      evidence: {
+        evidence_id: evidenceId,
+        operation: "observe_javascript_runtime",
+        parameters: expect.any(Object),
+      },
+    });
     expect(inspector.commands.map(({ method }) => method)).toEqual([
       "Runtime.enable",
       "Debugger.enable",
@@ -183,8 +179,6 @@ const createObservationClient = async (
   resources.push(inspector);
   const config = parseConfig({
     REA_V8_INSPECTOR_OBSERVE_ENABLED: "true",
-    REA_V8_INSPECTOR_ENDPOINTS_JSON: JSON.stringify([inspector.endpoint]),
-    REA_V8_INSPECTOR_FILE_ROOTS_JSON: JSON.stringify([root]),
   });
   if (!config.ok) throw config.error;
   const authority = await loadConfiguredPermissionAuthority(config.value);
@@ -208,7 +202,7 @@ const createObservationClient = async (
   resources.push(client, server, session);
   await server.connect(serverTransport);
   await client.connect(clientTransport);
-  return { entry, inspector, authority: authority.value, client, session };
+  return { entry, inspector, authority: authority.value, client };
 };
 
 const observeDirectly = (
@@ -221,8 +215,6 @@ const observeDirectly = (
     authority,
     observeJavaScriptRuntimeInputSchema.parse({
       inspector_endpoint: inspector.endpoint,
-      allowed_file_roots: [root],
-      allowed_origins: [],
       target_id: inspector.targetId,
       runtime_kind: "node",
       observation_ms: 10,

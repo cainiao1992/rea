@@ -5,6 +5,7 @@ import type {
   RecordProcessCaptureEvent,
 } from "../domain/processCapture.js";
 import { snapshotRoots, type SnapshotResult } from "./FilesystemSnapshot.js";
+import { scheduleProcessDelay, type ProcessTimer } from "./ProcessTimer.js";
 
 /** Classify path-stable filesystem effects between two bounded states. */
 export const classifyFilesystemEffects = (
@@ -53,7 +54,7 @@ export class ProcessCheckpoints {
   readonly #captured = new Set<string>();
   readonly #terminalCounts = new Map<string, number>();
   readonly #terminalTails = new Map<string, string>();
-  readonly #timers = new Set<NodeJS.Timeout>();
+  readonly #timers = new Set<ProcessTimer>();
   readonly #signal: AbortSignal | undefined;
   readonly #recordEvent: RecordProcessCaptureEvent;
   #pending: Promise<void> = Promise.resolve();
@@ -80,9 +81,8 @@ export class ProcessCheckpoints {
     this.#captured.add("before");
     for (const checkpoint of scenario.checkpoints) {
       if (checkpoint.trigger.type !== "time") continue;
-      const timer = setTimeout(
-        () => this.capture(checkpoint.name),
-        checkpoint.trigger.at_ms,
+      const timer = scheduleProcessDelay(checkpoint.trigger.at_ms, () =>
+        this.capture(checkpoint.name),
       );
       this.#timers.add(timer);
     }
@@ -180,7 +180,7 @@ export class ProcessCheckpoints {
   async finish(
     after: SnapshotResult,
   ): Promise<readonly FilesystemCheckpoint[]> {
-    for (const timer of this.#timers) clearTimeout(timer);
+    for (const timer of this.#timers) timer.cancel();
     await this.#pending;
     const previous = this.#captures.at(-1)?.files ?? [];
     const index = this.#captures.length;
@@ -197,7 +197,7 @@ export class ProcessCheckpoints {
 
   /** Cancel scheduled captures and await any snapshot already in progress. */
   async dispose(): Promise<void> {
-    for (const timer of this.#timers) clearTimeout(timer);
+    for (const timer of this.#timers) timer.cancel();
     this.#timers.clear();
     await this.#pending;
   }

@@ -47,7 +47,6 @@ const parameters = (
   input: ListElectronTargetsInput | InspectElectronPageInput,
 ): EvidenceObservation["parameters"] => ({
   cdp_endpoint: input.cdp_endpoint,
-  allowed_file_roots: input.allowed_file_roots,
   ...("target_id" in input
     ? {
         target_id: input.target_id,

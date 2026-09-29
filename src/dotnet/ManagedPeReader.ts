@@ -226,11 +226,11 @@ const readCoffHeader = (bytes: Buffer): CoffHeader => {
   const coff = peOffset + 4;
   const machine = bytes.readUInt16LE(coff);
   const sectionCount = bytes.readUInt16LE(coff + 2);
-  if (sectionCount === 0 || sectionCount > 96)
+  if (sectionCount === 0)
     throw managedFailure(
       "invalid-directory",
       "pe.sections",
-      "PE section count is outside the admitted range",
+      "PE section count must be positive",
       coff + 2,
     );
   const optionalSize = bytes.readUInt16LE(coff + 16);

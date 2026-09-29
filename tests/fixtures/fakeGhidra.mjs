@@ -174,7 +174,6 @@ const sessionInfo = ({
   timedOut,
 }) => ({
   name: "REA Ghidra bridge",
-  bridge_version: 7,
   run_id: sessionRunId,
   profile_digest: digest,
   provider: { id: "ghidra", version },

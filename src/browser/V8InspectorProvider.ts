@@ -25,10 +25,7 @@ import {
   delayWithCancellation,
 } from "./CdpCaptureValues.js";
 import { CdpConnection, type CdpEvent } from "./CdpConnection.js";
-import {
-  authorizeRuntimeTargetLocation,
-  canonicalRuntimeRoots,
-} from "./JavaScriptRuntimeScope.js";
+import { authorizeRuntimeTargetLocation } from "./JavaScriptRuntimeScope.js";
 import {
   createInspectorExclusionCounts,
   describeInspectorTargetLimitations,
@@ -85,7 +82,6 @@ export class V8InspectorProvider implements JavaScriptRuntimeObservationPort {
     options: ExecutionOptions = {},
   ): Promise<Result<JavaScriptRuntimeTargetList, AnalysisError>> {
     try {
-      const roots = await canonicalRuntimeRoots(input.allowed_file_roots);
       const discovery = await discoverV8Inspector(
         input.inspector_endpoint,
         "list_javascript_runtime_targets",
@@ -94,12 +90,7 @@ export class V8InspectorProvider implements JavaScriptRuntimeObservationPort {
       const allowed: AuthorizedV8InspectorTarget[] = [];
       const excluded = createInspectorExclusionCounts();
       for (const target of discovery.targets) {
-        const decision = await authorizeRuntimeTargetLocation(
-          target.url,
-          target.type,
-          roots,
-          input.allowed_origins,
-        );
+        const decision = await authorizeRuntimeTargetLocation(target.url);
         if (!decision.allowed) {
           excluded[decision.reason] += 1;
           continue;
@@ -132,13 +123,12 @@ export class V8InspectorProvider implements JavaScriptRuntimeObservationPort {
   ): Promise<Result<JavaScriptRuntimeObservation, AnalysisError>> {
     let connection: CdpConnection | undefined;
     try {
-      const roots = await canonicalRuntimeRoots(input.allowed_file_roots);
       const discovery = await discoverV8Inspector(
         input.inspector_endpoint,
         "observe_javascript_runtime",
         options.signal,
       );
-      const target = await authorizedTarget(discovery.targets, input, roots);
+      const target = await authorizedTarget(discovery.targets, input);
       if (input.runtime_kind !== undefined)
         assertRuntimeKind(target, input.runtime_kind);
       connection = await CdpConnection.connect(
@@ -161,7 +151,6 @@ export class V8InspectorProvider implements JavaScriptRuntimeObservationPort {
         input,
         runtime: discovery.runtime,
         target,
-        roots,
         state,
       });
       return ok(javascriptRuntimeObservationSchema.parse(result));
@@ -183,7 +172,6 @@ const projectTarget = (target: AuthorizedV8InspectorTarget) => ({
 const authorizedTarget = async (
   targets: readonly V8InspectorTarget[],
   input: ObserveJavaScriptRuntimeInput,
-  roots: readonly string[],
 ): Promise<AuthorizedV8InspectorTarget> => {
   const target = targets.find(({ id }) => id === input.target_id);
   if (target === undefined)
@@ -191,12 +179,7 @@ const authorizedTarget = async (
       "observe_javascript_runtime",
       "target_not_found",
     );
-  const decision = await authorizeRuntimeTargetLocation(
-    target.url,
-    target.type,
-    roots,
-    input.allowed_origins,
-  );
+  const decision = await authorizeRuntimeTargetLocation(target.url);
   if (
     target.attached ||
     !decision.allowed ||
@@ -322,8 +305,7 @@ const ingestContext = (
       event.method === "Runtime.executionContextCreated"
         ? "created"
         : "destroyed",
-    origin:
-      origin !== null && input.allowed_origins.includes(origin) ? origin : null,
+    origin: origin === "" ? null : origin,
   };
   const bytes = metadataBytes(draft);
   retainEvent(state, bytes);

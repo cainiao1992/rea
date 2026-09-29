@@ -42,7 +42,23 @@ describe("analysis profile commitments", () => {
     ).toBe(3);
   });
 
-  it("rejects digest tampering and unbounded parameters", () => {
+  it("commits parameter objects larger than the former byte ceiling", () => {
+    const parameters = Object.fromEntries(
+      Array.from({ length: 5 }, (_, index) => [
+        `parameter-${String(index)}`,
+        "x".repeat(16 * 1024),
+      ]),
+    );
+    expect(Buffer.byteLength(JSON.stringify(parameters))).toBeGreaterThan(
+      64 * 1024,
+    );
+
+    const profile = createAnalysisProfile(PROVIDER, parameters);
+
+    expect(analysisProfileSchema.parse(profile)).toEqual(profile);
+  });
+
+  it("rejects digest tampering and structurally unsafe parameters", () => {
     const profile = createAnalysisProfile(PROVIDER, { loader: "default" });
     expect(() =>
       analysisProfileSchema.parse({ ...profile, digest: "0".repeat(64) }),
@@ -51,6 +67,6 @@ describe("analysis profile commitments", () => {
       createAnalysisProfile(PROVIDER, {
         oversized: "x".repeat(65 * 1024),
       }),
-    ).toThrow(/limit/u);
+    ).toThrow(/structural limits/u);
   });
 });

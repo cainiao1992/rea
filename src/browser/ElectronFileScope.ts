@@ -1,21 +1,10 @@
-import { realpath } from "node:fs/promises";
+import { realpath, stat } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { isPathWithinRoot } from "../domain/localPath.js";
-/** Canonicalize operator roots before evaluating any Electron file target. */
-export const canonicalElectronRoots = async (
-  roots: readonly string[],
-): Promise<readonly string[]> => {
-  const canonical: string[] = [];
-  for (const root of roots) canonical.push(await realpath(root));
-  return [...new Set(canonical)].sort();
-};
-
-/** Resolve one file URL and reject host, encoding, and symlink root escapes. */
+/** Resolve one local file URL while rejecting remote hosts and encoded separators. */
 export const authorizedElectronFile = async (
   value: string,
-  roots: readonly string[],
 ): Promise<string | undefined> => {
   if (/%(?:2f|5c)/iu.test(value)) return undefined;
   let url: URL;
@@ -40,11 +29,10 @@ export const authorizedElectronFile = async (
   if (!isAbsolute(path) || path.includes("\0")) return undefined;
   let canonical: string;
   try {
+    if (!(await stat(path)).isFile()) return undefined;
     canonical = await realpath(path);
   } catch {
     return undefined;
   }
-  return roots.some((root) => isPathWithinRoot(root, canonical))
-    ? canonical
-    : undefined;
+  return canonical;
 };

@@ -22,8 +22,8 @@ const classificationSchema = z.enum([
 
 /** Strict input for canonical Evidence bundle comparison. */
 export const bundleComparisonInputSchema = z.strictObject({
-  left_bundle_path: z.string().min(1).max(4_096),
-  right_bundle_path: z.string().min(1).max(4_096),
+  left_bundle_path: z.string().min(1),
+  right_bundle_path: z.string().min(1),
   record_pairs: z
     .array(
       z.object({

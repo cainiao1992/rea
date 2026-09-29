@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  bundleComparisonInputSchema,
   bundleComparisonResultSchema,
   compareBundles,
 } from "./bundleComparison.js";
@@ -24,6 +25,16 @@ const evidence = (label: string) =>
   });
 
 describe("bundle comparison", () => {
+  it("accepts long caller-selected bundle paths", () => {
+    const path = `/${"deep/".repeat(1_000)}bundle.json`;
+    expect(
+      bundleComparisonInputSchema.parse({
+        left_bundle_path: path,
+        right_bundle_path: path,
+      }),
+    ).toMatchObject({ left_bundle_path: path, right_bundle_path: path });
+  });
+
   it("returns unchanged only for equal canonical bundles", () => {
     const first = evidence("first");
     const second = evidence("second");

@@ -33,8 +33,8 @@ describe("function comparison MCP integration", () => {
       const result = await client.callTool({
         name: "compare_functions",
         arguments: {
-          left_evidence_id: FUNCTION_COMPARISON_EXAMPLE.left.evidence_id,
-          right_evidence_id: FUNCTION_COMPARISON_EXAMPLE.right.evidence_id,
+          left: FUNCTION_COMPARISON_EXAMPLE.left,
+          right: FUNCTION_COMPARISON_EXAMPLE.right,
         },
       });
       expect(result.isError).not.toBe(true);
@@ -70,7 +70,7 @@ describe("function comparison MCP integration", () => {
     }
   });
 
-  it("rejects dangling Evidence links before recording output", async () => {
+  it("accepts inline Evidence without prior session registration", async () => {
     const session = createTestBinarySession(() => ({
       health: () => Promise.resolve(),
       execute: () => Promise.resolve(observed(null)),
@@ -86,12 +86,14 @@ describe("function comparison MCP integration", () => {
       const result = await client.callTool({
         name: "compare_functions",
         arguments: {
-          left_evidence_id: FUNCTION_COMPARISON_EXAMPLE.left.evidence_id,
-          right_evidence_id: FUNCTION_COMPARISON_EXAMPLE.right.evidence_id,
+          left: FUNCTION_COMPARISON_EXAMPLE.left,
+          right: FUNCTION_COMPARISON_EXAMPLE.right,
         },
       });
-      expect(result.isError).toBe(true);
-      expect(session.exportEvidenceBundle().records).toEqual([]);
+      expect(result.isError).not.toBe(true);
+      expect(result.structuredContent).toMatchObject({
+        result: { status: expect.any(String) },
+      });
     } finally {
       await Promise.allSettled([
         client.close(),
@@ -101,7 +103,7 @@ describe("function comparison MCP integration", () => {
     }
   });
 
-  it("rejects Evidence IDs with the wrong operation", async () => {
+  it("rejects inline Evidence with the wrong operation", async () => {
     const session = createTestBinarySession(() => ({
       health: () => Promise.resolve(),
       execute: () => Promise.resolve(observed(null)),
@@ -131,8 +133,8 @@ describe("function comparison MCP integration", () => {
       const result = await client.callTool({
         name: "compare_functions",
         arguments: {
-          left_evidence_id: wrong.evidence_id,
-          right_evidence_id: FUNCTION_COMPARISON_EXAMPLE.right.evidence_id,
+          left: wrong,
+          right: FUNCTION_COMPARISON_EXAMPLE.right,
         },
       });
       expect(result.isError).toBe(true);

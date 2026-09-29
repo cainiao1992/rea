@@ -1,8 +1,8 @@
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { afterEach, expect, it } from "vitest";
+import { z } from "zod";
 
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
-import type { BinarySession } from "../../../src/application/BinarySession.js";
 import { loadConfiguredPermissionAuthority } from "../../../src/application/PermissionConfiguration.js";
 import { CdpBrowserProvider } from "../../../src/browser/CdpBrowserProvider.js";
 import { parseConfig } from "../../../src/config.js";
@@ -111,9 +111,7 @@ it(
       name: "reconcile_javascript_runtime",
       arguments: {
         static_layers: JAVASCRIPT_RUNTIME_RECONCILIATION_EXAMPLE.static_layers,
-        runtime_observations: [
-          evidenceFor(connected.session, inspected.structuredContent),
-        ],
+        runtime_observations: [evidenceFor(inspected.structuredContent)],
       },
     });
     expect(reconciled.isError).not.toBe(true);
@@ -222,10 +220,13 @@ const verifySessionAndComparisonTools = async (
   expect(visual.structuredContent).toMatchObject({
     result: { status: "identical", changed_pixels: 0 },
   });
-  const evidenceId = evidenceIdOf(inspected.structuredContent);
   expect(inspected.structuredContent).toMatchObject({
-    evidence_id: evidenceId,
     result: expect.any(Object),
+    evidence: {
+      operation: "inspect_web_page",
+      predicate_type: expect.any(String),
+      parameters: expect.any(Object),
+    },
   });
 };
 
@@ -285,27 +286,25 @@ const connectBrowser = async (browser: FakeCdpBrowser) => {
   return { client, session };
 };
 
-const evidenceIdOf = (value: unknown): string => {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    !("evidence_id" in value) ||
-    typeof value.evidence_id !== "string"
-  )
-    throw new TypeError("Missing browser evidence ID");
-  return value.evidence_id;
-};
-
 const normalizedResultOf = (value: unknown): unknown => {
   if (typeof value !== "object" || value === null || !("result" in value))
     throw new TypeError("Missing normalized browser result");
   return value.result;
 };
 
-const evidenceFor = (session: BinarySession, value: unknown) => {
-  const evidence = session.evidenceById(evidenceIdOf(value));
-  if (evidence === undefined) throw new TypeError("Missing session Evidence");
-  return evidence;
+const evidenceFor = (value: unknown) => {
+  const parsed = z
+    .object({
+      evidence_id: z.string(),
+      result: z.unknown(),
+      evidence: z.object({}).passthrough(),
+    })
+    .parse(value);
+  return {
+    ...parsed.evidence,
+    evidence_id: parsed.evidence_id,
+    normalized_result: parsed.result,
+  };
 };
 
 const artifactOf = (value: unknown): unknown => {

@@ -1,14 +1,10 @@
 import { createHash } from "node:crypto";
-import { isAbsolute } from "node:path";
-
-import { isPathWithinRoot } from "./localPath.js";
 import canonicalize from "canonicalize";
 import { z } from "zod";
 
 import {
   browserAllowedOriginsSchema,
   browserEndpointSchema,
-  browserOriginSchema,
   webPageInspectionSchema,
   type WebPageInspection,
 } from "./browserObservation.js";
@@ -17,7 +13,6 @@ import {
   type BrowserCompleteness,
 } from "./browserCompleteness.js";
 import {
-  electronFileRootsSchema,
   electronPageInspectionSchema,
   type ElectronPageInspection,
 } from "./electronObservation.js";
@@ -279,8 +274,6 @@ const assertV8RuntimeParameters = (
   const parameters = z
     .object({
       inspector_endpoint: browserEndpointSchema,
-      allowed_file_roots: z.array(z.string().min(1).refine(isAbsolute)),
-      allowed_origins: z.array(browserOriginSchema),
       target_id: z.string().trim().min(1),
       runtime_kind: javascriptRuntimeKindSchema.optional(),
     })
@@ -298,17 +291,9 @@ const assertV8RuntimeParameters = (
     result.target.location,
     ...result.scripts.items.map(({ location }) => location),
   ])
-    if (
-      (location.kind === "file" &&
-        !parameters.allowed_file_roots.some((root) =>
-          isPathWithinRoot(root, location.file_path),
-        )) ||
-      (location.kind === "url" &&
-        !parameters.allowed_origins.includes(location.origin)) ||
-      (location.kind === "builtin" && !location.specifier.startsWith("node:"))
-    )
+    if (location.kind === "builtin" && !location.specifier.startsWith("node:"))
       throw new TypeError(
-        "Runtime Evidence contains a location outside its recorded scope",
+        "Runtime Evidence contains an invalid builtin location",
       );
 };
 
@@ -426,13 +411,7 @@ const assertRuntimeParameters = (
       );
     return;
   }
-  const parameters = z
-    .object({
-      ...common,
-      allowed_file_roots: electronFileRootsSchema,
-    })
-    .passthrough()
-    .parse(evidence.parameters);
+  const parameters = z.object(common).passthrough().parse(evidence.parameters);
   if (parameters.target_id !== expected.targetId)
     throw new TypeError(
       "Runtime Evidence target disagrees with its captured result",

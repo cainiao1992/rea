@@ -58,7 +58,7 @@ const reconstructionStatisticsSchema = z.strictObject({
 /** JavaScript application analysis with an authenticated semantic companion. */
 export const javascriptApplicationAnalysisResultSchema = z
   .strictObject({
-    input_path: z.string().min(1).max(16_384),
+    input_path: z.string().min(1),
     format: z.enum(["asar", "directory"]),
     root_artifact_sha256: digestSchema,
     inventory_manifest_id: z.string().regex(/^agm_[a-f0-9]{64}$/u),
@@ -66,7 +66,7 @@ export const javascriptApplicationAnalysisResultSchema = z
     graph: javascriptApplicationGraphSchema,
     summary: electronBoundarySummarySchema,
     statistics: reconstructionStatisticsSchema,
-    limitations: z.array(z.string().min(1).max(4_096)).max(1_000),
+    limitations: z.array(z.string().min(1)),
     semantic_graph: javaScriptSemanticGraphSchema,
   })
   .superRefine((result, context) => {

@@ -106,7 +106,7 @@ export const peManifestSchema = z.strictObject({
   /** Subsystem version. */
   subsystem_version: z.string().nullable(),
   /** Sections. */
-  sections: z.array(peSectionSchema).min(0).max(96),
+  sections: z.array(peSectionSchema),
   /** Imports. */
   imports: z.array(peImportSchema).default([]),
   /** Exports. */

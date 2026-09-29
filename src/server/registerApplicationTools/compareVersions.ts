@@ -1,7 +1,6 @@
 import { recordSessionEvidenceSources } from "../sessionEvidence.js";
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { resolveCompareApplicationVersionsRequestValidated } from "../../application/ApplicationWorkflowEvidenceResolver.js";
 import { compareApplicationVersionsEvidenceValidated } from "../../application/JavaScriptApplicationWorkflowService.js";
 import { applicationToolContract } from "../../contracts/applicationToolContracts.js";
 import { applicationVersionComparisonResultSchema } from "../../domain/javascriptApplicationVersionComparisonSchemas.js";
@@ -22,12 +21,7 @@ export const registerCompareApplicationVersionsTool = (
     compareContract.name,
     toolRegistrationOptions(compareContract),
     async (input) => {
-      const resolved = resolveCompareApplicationVersionsRequestValidated(
-        input,
-        options.evidenceLookup,
-      );
-      if (!resolved.ok) return toCallToolResult(resolved, compareContract);
-      const parsed = resolved.value;
+      const parsed = input;
       const result = await logToolExecution(
         options.logger,
         compareContract.name,

@@ -47,8 +47,6 @@ const parameters = (
   input: ListJavaScriptRuntimeTargetsInput | ObserveJavaScriptRuntimeInput,
 ): EvidenceObservation["parameters"] => ({
   inspector_endpoint: input.inspector_endpoint,
-  allowed_file_roots: input.allowed_file_roots,
-  allowed_origins: input.allowed_origins,
   ...("target_id" in input
     ? {
         target_id: input.target_id,

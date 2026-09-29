@@ -6,7 +6,6 @@ import { z } from "zod";
 import { isJsonWithinLimits } from "./jsonLimits.js";
 import { jsonObjectSchema, type JsonValue } from "./jsonValue.js";
 
-const PROFILE_MAX_BYTES = 64 * 1024;
 const PROFILE_JSON_LIMITS = Object.freeze({
   maxDepth: 16,
   maxStringLength: 16 * 1024,
@@ -21,23 +20,9 @@ export const committedProviderSchema = z.object({
   version: z.string().min(1),
 });
 
-const boundedParametersSchema = jsonObjectSchema.superRefine(
-  (parameters, context) => {
-    if (!isJsonWithinLimits(parameters, PROFILE_JSON_LIMITS)) {
-      context.addIssue({
-        code: "custom",
-        message: "Analysis profile parameters exceed structural limits",
-      });
-      return;
-    }
-    if (
-      Buffer.byteLength(canonicalJson(parameters), "utf8") > PROFILE_MAX_BYTES
-    )
-      context.addIssue({
-        code: "custom",
-        message: "Analysis profile parameters exceed the byte limit",
-      });
-  },
+const boundedParametersSchema = jsonObjectSchema.refine(
+  (parameters) => isJsonWithinLimits(parameters, PROFILE_JSON_LIMITS),
+  { message: "Analysis profile parameters exceed structural limits" },
 );
 
 const unsignedAnalysisProfileSchema = z.object({

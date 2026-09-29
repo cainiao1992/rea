@@ -236,7 +236,7 @@ const policyAvailability = ({
       : {
           reason: "policy_disabled",
           remediation:
-            "Enable V8 Inspector observation and configure exact loopback endpoints plus canonical file roots or exact origins.",
+            "Enable V8 Inspector observation; pass the user's literal-loopback Inspector endpoint to the tool.",
         };
   if (kind === "session") return { reason: "available", remediation: null };
   return null;
@@ -261,7 +261,7 @@ const electronPolicyAvailability = (
     : {
         reason: "policy_disabled",
         remediation:
-          "Enable Electron observation and configure a loopback CDP endpoint and canonical file roots.",
+          "Enable Electron observation; pass the user's literal-loopback CDP endpoint to the tool.",
       };
 };
 

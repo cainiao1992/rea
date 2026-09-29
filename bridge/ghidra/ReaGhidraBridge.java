@@ -5,7 +5,6 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.Reader;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -77,12 +76,6 @@ import ghidra.program.model.pcode.HighSymbol;
 import ghidra.program.model.pcode.JumpTable;
 
 public final class ReaGhidraBridge extends HeadlessScript {
-    private static final int BRIDGE_VERSION = 7;
-    private static final int MAX_DESCRIPTOR_BYTES = 16 * 1024;
-    private static final int MAX_REQUEST_CHARACTERS = 256 * 1024;
-    private static final int MAX_RESPONSE_BYTES = 64 * 1024 * 1024;
-    private static final int DECOMPILE_TIMEOUT_SECONDS = 30;
-    private static final int DECOMPILE_PAYLOAD_MBYTES = 8;
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
     private static final Set<String> DESCRIPTOR_KEYS = Set.of(
         "transport",
@@ -244,7 +237,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
             BufferedReader reader,
             BufferedWriter writer) throws Exception {
         while (true) {
-            String line = readBoundedLine(reader, MAX_REQUEST_CHARACTERS);
+            String line = reader.readLine();
             if (line == null) {
                 return;
             }
@@ -342,7 +335,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
 
         JsonObject result = new JsonObject();
         result.addProperty("name", "REA Ghidra bridge");
-        result.addProperty("bridge_version", BRIDGE_VERSION);
         result.addProperty("run_id", descriptor.runId);
         result.addProperty("profile_digest", descriptor.profileDigest);
         result.add("provider", provider);
@@ -356,8 +348,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
 
     private void initializeDecompiler() {
         DecompileOptions options = new DecompileOptions();
-        options.setDefaultTimeout(DECOMPILE_TIMEOUT_SECONDS);
-        options.setMaxPayloadMBytes(DECOMPILE_PAYLOAD_MBYTES);
         options.setMaxInstructions(Integer.MAX_VALUE);
         decompiler = new DecompInterface();
         decompiler.setOptions(options);
@@ -1190,15 +1180,9 @@ public final class ReaGhidraBridge extends HeadlessScript {
         }
         DecompileResults results = decompiler.decompileFunction(
             function,
-            DECOMPILE_TIMEOUT_SECONDS,
+            0,
             monitor
         );
-        if (results.isTimedOut()) {
-            throw new RequestFailure(
-                "decompile_timeout",
-                "Ghidra decompilation reached its 30-second deadline"
-            );
-        }
         if (results.isCancelled()) {
             throw new RequestFailure("decompile_cancelled", "Ghidra decompilation was cancelled");
         }
@@ -1739,8 +1723,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
     }
 
     private static SessionDescriptor readDescriptor(Path path) throws IOException {
-        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) ||
-            Files.size(path) > MAX_DESCRIPTOR_BYTES) {
+        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
             throw new IllegalArgumentException("REA session descriptor is invalid");
         }
         JsonObject object = requireObject(
@@ -1877,25 +1860,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
         );
     }
 
-    private static String readBoundedLine(Reader reader, int maximumCharacters) throws IOException {
-        StringBuilder line = new StringBuilder();
-        while (true) {
-            int character = reader.read();
-            if (character < 0) {
-                return line.isEmpty() ? null : line.toString();
-            }
-            if (character == '\n') {
-                return line.toString();
-            }
-            if (character != '\r') {
-                if (line.length() >= maximumCharacters) {
-                    throw new IOException("Bridge request exceeded the maximum line size");
-                }
-                line.append((char) character);
-            }
-        }
-    }
-
     private static void writeSuccess(BufferedWriter writer, int id, JsonElement result)
             throws IOException {
         JsonObject response = new JsonObject();
@@ -1922,17 +1886,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
 
     private static void writeResponse(BufferedWriter writer, JsonObject response) throws IOException {
         String encoded = GSON.toJson(response);
-        if (encoded.getBytes(StandardCharsets.UTF_8).length > MAX_RESPONSE_BYTES) {
-            int id = response.get("id").getAsInt();
-            JsonObject error = new JsonObject();
-            error.addProperty("code", "output_limit");
-            error.addProperty("message", "Ghidra response exceeds the internal 64 MiB process-line safety bound");
-            JsonObject bounded = new JsonObject();
-            bounded.addProperty("id", id);
-            bounded.addProperty("ok", false);
-            bounded.add("error", error);
-            encoded = GSON.toJson(bounded);
-        }
         writer.write(encoded);
         writer.newLine();
         writer.flush();

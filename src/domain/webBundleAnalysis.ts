@@ -82,7 +82,7 @@ const sourceMapSchema = z.union([
 const webTextArtifactSummarySchema = z.object({
   sha256: z.string().regex(/^[a-f0-9]{64}$/u),
   bytes: z.number().int().min(0),
-  media_type: z.string().min(1).max(256),
+  media_type: z.string().min(1),
   charset: z.literal("utf-8"),
   text_available: z.literal(true),
 });

@@ -9,8 +9,7 @@ import {
 import { replayMachineSchema } from "./replayMachine.js";
 
 const positiveBudget = z.number().int().safe().positive();
-const maximumTimerDelay = 2_147_483_647;
-const timedEventBase = { at_ms: z.number().int().nonnegative() };
+const timedEventBase = { at_ms: z.number().int().safe().nonnegative() };
 const environmentName = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/u);
 const reservedEnvironment = new Set([
   "HOME",
@@ -32,14 +31,10 @@ export const normalizationSchema = z.object({
     }),
   ),
 });
-const checkpointNameSchema = z
-  .string()
-  .regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/u);
-const commandNameSchema = z
-  .string()
-  .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u);
+const checkpointNameSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/u);
+const commandNameSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/u);
 const outputChunkSchema = z.object({
-  at_ms: z.number().int().safe().nonnegative().max(maximumTimerDelay),
+  at_ms: z.number().int().safe().nonnegative(),
   stream: z.enum(["stdout", "stderr"]),
   data: z.string(),
 });
@@ -141,12 +136,7 @@ export const processScenarioSchema = z
           trigger: z.discriminatedUnion("type", [
             z.object({
               type: z.literal("time"),
-              at_ms: z
-                .number()
-                .int()
-                .safe()
-                .nonnegative()
-                .max(maximumTimerDelay),
+              at_ms: z.number().int().safe().nonnegative(),
             }),
             z.object({
               type: z.literal("terminal_literal"),
@@ -268,13 +258,7 @@ export const processScenarioSchema = z
               request_headers: z.record(z.string(), z.string()).default({}),
               request_body: z.string().optional(),
               response_headers: z.record(z.string(), z.string()).default({}),
-              delay_ms: z
-                .number()
-                .int()
-                .safe()
-                .nonnegative()
-                .max(maximumTimerDelay)
-                .default(0),
+              delay_ms: z.number().int().safe().nonnegative().default(0),
               disconnect: z.boolean().default(false),
               max_calls: positiveBudget.default(1),
             }),
@@ -287,13 +271,7 @@ export const processScenarioSchema = z
               messages: z.array(
                 z.object({
                   data: z.string(),
-                  delay_ms: z
-                    .number()
-                    .int()
-                    .safe()
-                    .nonnegative()
-                    .max(maximumTimerDelay)
-                    .default(0),
+                  delay_ms: z.number().int().safe().nonnegative().default(0),
                 }),
               ),
               disconnect_after: z.boolean().default(false),

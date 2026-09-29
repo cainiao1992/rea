@@ -21,9 +21,7 @@ export const registerImportManagedReconstruction = (
     reconstructionContract.name,
     toolRegistrationOptions(reconstructionContract),
     async (input) => {
-      const resolved = resolveManagedEvidence(options.session, [
-        input.static_members_evidence_id,
-      ]);
+      const resolved = resolveManagedEvidence(input.static_members);
       if (!resolved.ok)
         return toCallToolResult(resolved, reconstructionContract);
       const staticMembers = resolved.value[0];
@@ -31,11 +29,7 @@ export const registerImportManagedReconstruction = (
         throw new TypeError(
           "Managed reconstruction Evidence resolution failed",
         );
-      const {
-        static_members_evidence_id: _staticMembersEvidenceId,
-        ...referencedInput
-      } = input;
-      const parsed = { ...referencedInput, static_members: staticMembers };
+      const parsed = { ...input, static_members: staticMembers };
       const result = await logToolExecution(
         options.logger,
         reconstructionContract.name,

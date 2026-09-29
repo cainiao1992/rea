@@ -27,7 +27,6 @@ import { CLI_COMMANDS } from "./cliCommandNames.js";
 import { parseCliJsonInput } from "./cliJsonInput.js";
 import {
   electronPageInspectionOptions,
-  electronScopeOptions,
   javascriptApplicationOptions,
 } from "./cliObservationOptions.js";
 import { runCliJavaScriptApplicationAnalysis } from "./cli/javascriptApplicationAnalysis.js";
@@ -123,14 +122,11 @@ const registerElectronTargetList = (
   logger: Logger,
 ): void => {
   cli.command(CLI_COMMANDS.listElectronTargets, {
-    description: "List root-confined file pages from Electron CDP",
+    description: "List local file pages exposed by Electron CDP",
     args: z.object({
-      endpoint: z
-        .string()
-        .describe("Configured loopback Electron CDP endpoint"),
+      endpoint: z.string().describe("Literal-loopback Electron CDP endpoint"),
     }),
-    options: z.object({ ...electronScopeOptions }),
-    run: ({ args, options }) =>
+    run: ({ args }) =>
       logCliCommand(logger, "list-electron-targets", async () => {
         const context = await electronObservationContext(
           "list_electron_targets",
@@ -138,8 +134,6 @@ const registerElectronTargetList = (
         if (!context.ok) return context.error;
         const parsed = listElectronTargetsInputSchema.safeParse({
           cdp_endpoint: args.endpoint,
-          allowed_file_roots:
-            options.allowedFileRoots ?? context.allowedFileRoots,
         });
         if (!parsed.success) return inputError("list_electron_targets");
         const result = await listElectronTargets(
@@ -157,11 +151,9 @@ const registerElectronPageInspection = (
   logger: Logger,
 ): void => {
   cli.command(CLI_COMMANDS.inspectElectronPage, {
-    description: "Passively inspect one root-confined Electron file page",
+    description: "Passively inspect one Electron file page",
     args: z.object({
-      endpoint: z
-        .string()
-        .describe("Configured loopback Electron CDP endpoint"),
+      endpoint: z.string().describe("Literal-loopback Electron CDP endpoint"),
       targetId: z.string().describe("Target ID from list-electron-targets"),
     }),
     options: electronPageInspectionOptions,
@@ -173,8 +165,6 @@ const registerElectronPageInspection = (
         if (!context.ok) return context.error;
         const parsed = inspectElectronPageInputSchema.safeParse({
           cdp_endpoint: args.endpoint,
-          allowed_file_roots:
-            options.allowedFileRoots ?? context.allowedFileRoots,
           target_id: args.targetId,
           observation_ms: options.observationMs,
           include_script_sources: options.includeScriptSources,
@@ -236,14 +226,11 @@ const electronObservationContext = async (operation: string) => {
         new AnalysisCapabilityUnavailableError(
           "rea-cdp-electron",
           operation,
-          "Electron observation is disabled; configure exact endpoints and file roots before enabling it",
+          "Electron observation is disabled; enable REA_ELECTRON_OBSERVE_ENABLED to authorize loopback endpoints",
         ),
       ),
     };
-  return {
-    ...context,
-    allowedFileRoots: context.observationPolicy.fileRoots,
-  };
+  return context;
 };
 
 const inputError = (operation: string): JsonValue =>

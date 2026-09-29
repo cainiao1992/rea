@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { evidenceSchema } from "./evidence.js";
 
 const comparisonStatusSchema = z.enum([
   "unchanged",
@@ -21,8 +22,8 @@ const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 
 /** Inputs for explicit function-to-function comparison. */
 export const functionComparisonInputSchema = z.strictObject({
-  left_evidence_id: evidenceIdSchema,
-  right_evidence_id: evidenceIdSchema,
+  left: evidenceSchema,
+  right: evidenceSchema,
 });
 
 const textDeltaSchema = z.object({

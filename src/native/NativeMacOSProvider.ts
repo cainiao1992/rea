@@ -1,5 +1,5 @@
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { realpath, stat } from "node:fs/promises";
+import { dirname, isAbsolute, resolve } from "node:path";
+import { stat } from "node:fs/promises";
 
 import { parse as parseXmlPlist } from "plist";
 import { z } from "zod";
@@ -22,7 +22,6 @@ import {
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
   AnalysisOutputError,
-  AnalysisTimeoutError,
   ProviderAdapterError,
   type AnalysisError,
 } from "../domain/errors.js";
@@ -57,8 +56,6 @@ export const NATIVE_MACOS_PROVIDER_IDENTITY: ProviderIdentity = Object.freeze({
   version: null,
 });
 const IDENTITY = NATIVE_MACOS_PROVIDER_IDENTITY;
-const TIMEOUT_MS = 30_000;
-const OUTPUT_LIMIT = 4 * 1024 * 1024;
 
 /** Read-only semantic provider composed from Xcode command-line utilities. */
 export class NativeMacOSProvider implements AnalysisProvider {
@@ -306,13 +303,10 @@ class NativeMacOSClient implements AnalysisClient {
     parameters: Readonly<Record<string, JsonValue>>,
     signal?: AbortSignal,
   ): Promise<Result<NativeObservation, AnalysisError>> {
-    const requested = parameters.relative_path;
-    if (typeof requested !== "string")
+    const requested = parameters.path;
+    if (requested !== undefined && typeof requested !== "string")
       return err(
-        new AnalysisOutputError(
-          "inspect_plist",
-          "relative_path was not a string",
-        ),
+        new AnalysisOutputError("inspect_plist", "path was not a string"),
       );
     const plist = await resolvePlistPath(this.target, requested);
     if (!plist.ok) return plist;
@@ -341,7 +335,7 @@ class NativeMacOSClient implements AnalysisClient {
           ? "xml"
           : "unknown",
       ...parsed,
-      source_path: requested,
+      source_path: plist.value,
       provenance,
       limitations: [],
     });
@@ -349,7 +343,7 @@ class NativeMacOSClient implements AnalysisClient {
       result: jsonValueSchema.parse(result),
       provenance,
       limitations: [],
-      locations: [{ kind: "artifact-path", path: requested }],
+      locations: [{ kind: "artifact-path", path: plist.value }],
     });
   }
 
@@ -386,8 +380,6 @@ class NativeMacOSClient implements AnalysisClient {
   ): Promise<Result<NativeCommandCapture, AnalysisError>> {
     const captured = await this.runner.run(tool, arguments_, {
       ...(options.signal === undefined ? {} : { signal: options.signal }),
-      timeoutMs: TIMEOUT_MS,
-      maxOutputBytes: OUTPUT_LIMIT,
       acceptNonZero: options.acceptNonZero ?? false,
     });
     if (captured.ok) return captured;
@@ -419,8 +411,6 @@ const translateCommandFailure = (
     );
   if (failure.reason === "cancelled")
     return new AnalysisCancelledError(operation);
-  if (failure.reason === "timeout")
-    return new AnalysisTimeoutError(operation, TIMEOUT_MS);
   return new ProviderAdapterError(IDENTITY.id, operation, { cause: failure });
 };
 
@@ -442,8 +432,6 @@ const invocation = (
   exit: { code: capture.exitCode, signal: capture.signal },
   stdout_bytes: capture.stdoutBytes,
   stderr_bytes: capture.stderrBytes,
-  stdout_truncated: capture.stdoutTruncated,
-  stderr_truncated: capture.stderrTruncated,
 });
 
 const parseEntitlements = (output: string): JsonValue | null => {
@@ -457,31 +445,22 @@ const parseEntitlements = (output: string): JsonValue | null => {
 
 const resolvePlistPath = async (
   target: BinaryTarget,
-  requested: string,
+  requested: string | undefined,
 ): Promise<Result<string, AnalysisError>> => {
   try {
     const source = target.sourcePath ?? target.path;
+    if (requested !== undefined && isAbsolute(requested))
+      return ok(resolve(requested));
     const sourceMetadata = await stat(source);
     const root = sourceMetadata.isDirectory() ? source : dirname(target.path);
-    const candidate = resolve(root, requested);
-    if (!within(root, candidate))
-      return err(new ProviderAdapterError(IDENTITY.id, "inspect_plist"));
-    const canonicalRoot = await realpath(root);
-    const canonical = await realpath(candidate);
-    if (!within(canonicalRoot, canonical))
-      return err(new ProviderAdapterError(IDENTITY.id, "inspect_plist"));
-    return ok(canonical);
+    return ok(
+      requested === undefined
+        ? resolve(root, "Contents/Info.plist")
+        : resolve(root, requested),
+    );
   } catch (cause: unknown) {
     return err(
       new ProviderAdapterError(IDENTITY.id, "inspect_plist", { cause }),
     );
   }
-};
-
-const within = (root: string, candidate: string): boolean => {
-  const child = relative(root, candidate);
-  return (
-    child === "" ||
-    (!child.startsWith(`..${sep}`) && child !== ".." && !isAbsolute(child))
-  );
 };

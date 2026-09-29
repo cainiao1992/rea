@@ -57,8 +57,6 @@ const environmentSchema = z
     REA_BROWSER_SCENARIO_ALLOWED_ORIGINS_JSON: z.string().default("[]"),
     REA_BROWSER_SCENARIO_ALLOWED_ENV_JSON: z.string().default("[]"),
     REA_ELECTRON_OBSERVE_ENABLED: z.enum(["true", "false"]).default("false"),
-    REA_ELECTRON_CDP_ENDPOINTS_JSON: z.string().default("[]"),
-    REA_ELECTRON_FILE_ROOTS_JSON: z.string().default("[]"),
     REA_ELECTRON_AUTOMATE_ENABLED: z.enum(["true", "false"]).default("false"),
     REA_ELECTRON_AUTOMATE_AUTO_GRANT: z
       .enum(["true", "false"])
@@ -68,9 +66,6 @@ const environmentSchema = z
     REA_V8_INSPECTOR_OBSERVE_ENABLED: z
       .enum(["true", "false"])
       .default("false"),
-    REA_V8_INSPECTOR_ENDPOINTS_JSON: z.string().default("[]"),
-    REA_V8_INSPECTOR_FILE_ROOTS_JSON: z.string().default("[]"),
-    REA_V8_INSPECTOR_ALLOWED_ORIGINS_JSON: z.string().default("[]"),
     REA_JAVASCRIPT_REPLAY_ENABLED: z.enum(["true", "false"]).default("false"),
     REA_JAVASCRIPT_REPLAY_ROOTS_JSON: z.string().default("[]"),
     REA_JAVASCRIPT_REPLAY_NODE_PATH: z

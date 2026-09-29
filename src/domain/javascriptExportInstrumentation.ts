@@ -5,7 +5,7 @@ import { z } from "zod";
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 
 export const javascriptExportInstrumentationInputSchema = z.strictObject({
-  artifact_path: z.string().min(1).max(4_096),
+  artifact_path: z.string().min(1),
   artifact_sha256: digestSchema,
   selection: z.strictObject({
     byte_start: z.number().int().min(0),
@@ -17,7 +17,7 @@ export const javascriptExportInstrumentationInputSchema = z.strictObject({
 
 export const javascriptExportTransformationManifestSchema = z.strictObject({
   kind: z.literal("commonjs-factory-export-v1"),
-  artifact_path: z.string().min(1).max(4_096),
+  artifact_path: z.string().min(1),
   original_sha256: digestSchema,
   original_byte_length: z.number().int().min(0),
   instrumented_sha256: digestSchema,

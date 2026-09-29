@@ -28,12 +28,7 @@ import { err, ok, type Result } from "../domain/result.js";
 import type { Logger } from "../logger.js";
 import { GhidraClient } from "./GhidraClient.js";
 import type { GhidraClientOptions } from "./GhidraClientTypes.js";
-import {
-  GHIDRA_ANALYSIS_TIMEOUT_SECONDS,
-  GHIDRA_DECOMPILE_REQUEST_TIMEOUT_MS,
-  GHIDRA_DECOMPILE_TIMEOUT_SECONDS,
-  GHIDRA_STARTUP_TIMEOUT_MS,
-} from "./GhidraDefaults.js";
+import { GHIDRA_STARTUP_TIMEOUT_MS } from "./GhidraDefaults.js";
 import {
   isGhidraFunctionOperation,
   parseGhidraFunctionInput,
@@ -247,13 +242,11 @@ export class GhidraProvider implements AnalysisProviderCandidate {
           ? parseGhidraFunctionInput(operation, parameters)
           : parseGhidraInventoryInput(operation, parameters);
         if (!input.ok) return input;
-        const called = await client.callTool(operation, input.value, {
-          ...(options?.signal === undefined ? {} : { signal: options.signal }),
-          ...(operation === "procedure_pseudo_code" ||
-          operation === "analyze_function"
-            ? { timeoutMs: GHIDRA_DECOMPILE_REQUEST_TIMEOUT_MS }
-            : {}),
-        });
+        const called = await client.callTool(
+          operation,
+          input.value,
+          options?.signal === undefined ? {} : { signal: options.signal },
+        );
         if (!called.ok)
           return err(projectSessionError(operation, called.error));
         const result = isGhidraFunctionOperation(operation)
@@ -402,15 +395,7 @@ const projectSessionError = (
   if (failure.kind === "timeout" || failure.kind === "analysis_timeout")
     return new AnalysisTimeoutError(
       operation,
-      failure.timeoutMs ??
-        (failure.kind === "analysis_timeout"
-          ? GHIDRA_ANALYSIS_TIMEOUT_SECONDS * 1_000
-          : GHIDRA_STARTUP_TIMEOUT_MS),
-    );
-  if (failure.kind === "remote" && failure.remoteCode === "decompile_timeout")
-    return new AnalysisTimeoutError(
-      operation,
-      GHIDRA_DECOMPILE_TIMEOUT_SECONDS * 1_000,
+      failure.timeoutMs ?? GHIDRA_STARTUP_TIMEOUT_MS,
     );
   if (failure.kind === "remote" && failure.remoteCode === "decompile_cancelled")
     return new AnalysisCancelledError(operation);

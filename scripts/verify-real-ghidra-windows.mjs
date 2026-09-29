@@ -177,7 +177,6 @@ try {
       managed: target.value.managed,
       sha256: target.value.sha256,
     },
-    bridge_version: started.value.bridge_version,
     transport: "authenticated-loopback-tcp",
     operations: [...observed].sort((left, right) => left.localeCompare(right)),
     cleanup: "complete",

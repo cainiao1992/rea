@@ -29,10 +29,7 @@ import {
   type CdpTargetSession,
 } from "./CdpTargetSession.js";
 import { inspectCdpElectronPage } from "./CdpElectronInspection.js";
-import {
-  authorizedElectronFile,
-  canonicalElectronRoots,
-} from "./ElectronFileScope.js";
+import { authorizedElectronFile } from "./ElectronFileScope.js";
 
 /** Public identity committed by passive Electron observations. */
 export const CDP_ELECTRON_PROVIDER_IDENTITY: ProviderIdentity = Object.freeze({
@@ -42,7 +39,7 @@ export const CDP_ELECTRON_PROVIDER_IDENTITY: ProviderIdentity = Object.freeze({
 });
 const IDENTITY = CDP_ELECTRON_PROVIDER_IDENTITY;
 
-/** Passive Electron provider with canonical file-root confinement. */
+/** Passive Electron provider for local file pages exposed by loopback CDP. */
 export class CdpElectronProvider implements ElectronObservationPort {
   identity(): ProviderIdentity {
     return IDENTITY;
@@ -53,14 +50,12 @@ export class CdpElectronProvider implements ElectronObservationPort {
     options: ExecutionOptions = {},
   ): Promise<Result<ElectronTargetList, AnalysisError>> {
     try {
-      const roots = await canonicalElectronRoots(input.allowed_file_roots);
       const discovery = await discoverCdpEndpoint(
         input.cdp_endpoint,
         "list_electron_targets",
         options.signal,
       );
       const allowed = [];
-      let outsideRoot = 0;
       let unsupportedUrl = 0;
       let nonPage = 0;
       let unconnectable = 0;
@@ -69,10 +64,9 @@ export class CdpElectronProvider implements ElectronObservationPort {
           nonPage += 1;
           continue;
         }
-        const path = await authorizedElectronFile(target.url, roots);
+        const path = await authorizedElectronFile(target.url);
         if (path === undefined) {
-          if (isFileUrl(target.url)) outsideRoot += 1;
-          else unsupportedUrl += 1;
+          unsupportedUrl += 1;
           continue;
         }
         if (!hasCdpTargetWebSocket(discovery, target)) {
@@ -95,12 +89,11 @@ export class CdpElectronProvider implements ElectronObservationPort {
           browser: discovery.version,
           targets: allowed,
           excluded: {
-            outside_root: outsideRoot,
             unsupported_url: unsupportedUrl,
             non_page: nonPage,
           },
           limitations: [
-            "Only page targets whose canonical file path is contained by an approved root are listed.",
+            "Every local file page exposed by the selected loopback CDP endpoint is eligible for listing.",
             ...(unconnectable === 0
               ? []
               : [
@@ -120,17 +113,12 @@ export class CdpElectronProvider implements ElectronObservationPort {
   ): Promise<Result<ElectronPageInspection, AnalysisError>> {
     let targetSession: CdpTargetSession | undefined;
     try {
-      const roots = await canonicalElectronRoots(input.allowed_file_roots);
       const discovery = await discoverCdpEndpoint(
         input.cdp_endpoint,
         "inspect_electron_page",
         options.signal,
       );
-      const target = await authorizeTarget(
-        discovery.targets,
-        input.target_id,
-        roots,
-      );
+      const target = await authorizeTarget(discovery.targets, input.target_id);
       targetSession = await openCdpTargetSession(
         discovery,
         target,
@@ -168,25 +156,16 @@ export class CdpElectronProvider implements ElectronObservationPort {
 const authorizeTarget = async (
   targets: readonly CdpEndpointTarget[],
   targetId: string,
-  roots: readonly string[],
 ): Promise<CdpEndpointTarget> => {
   const target = targets.find(({ id }) => id === targetId);
   if (target === undefined)
     throw new BrowserObservationError("inspect_web_page", "target_not_found");
   if (
     target.type !== "page" ||
-    (await authorizedElectronFile(target.url, roots)) === undefined
+    (await authorizedElectronFile(target.url)) === undefined
   )
     throw new BrowserObservationError("inspect_web_page", "target_not_allowed");
   return target;
-};
-
-const isFileUrl = (value: string): boolean => {
-  try {
-    return new URL(value).protocol === "file:";
-  } catch {
-    return false;
-  }
 };
 
 const providerError = (

@@ -6,10 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
-import {
-  authorizedElectronFile,
-  canonicalElectronRoots,
-} from "../../../src/browser/ElectronFileScope.js";
+import { authorizedElectronFile } from "../../../src/browser/ElectronFileScope.js";
 
 describe("Electron file scope", () => {
   it("accepts dot-prefixed child names beneath a canonical root", async () => {
@@ -18,13 +15,10 @@ describe("Electron file scope", () => {
     await mkdir(directory);
     const path = join(directory, "index.html");
     await writeFile(path, "allowed");
-    const roots = await canonicalElectronRoots([root]);
-    expect(await authorizedElectronFile(pathToFileURL(path).href, roots)).toBe(
-      path,
-    );
+    expect(await authorizedElectronFile(pathToFileURL(path).href)).toBe(path);
   });
 
-  it("accepts canonical files within a root and rejects escape forms", async () => {
+  it("accepts explicit canonical local files and rejects remote or malformed URLs", async () => {
     const base = await createTestTempDirectory("rea-electron-scope-");
     const root = join(base, "root");
     const outside = join(base, "outside");
@@ -35,35 +29,31 @@ describe("Electron file scope", () => {
     await writeFile(allowed, "allowed");
     await writeFile(denied, "denied");
     await symlink(denied, join(root, "escape.html"));
-    const roots = await canonicalElectronRoots([root]);
-
-    expect(
-      await authorizedElectronFile(pathToFileURL(allowed).href, roots),
-    ).toBe(allowed);
-    expect(
-      await authorizedElectronFile(pathToFileURL(denied).href, roots),
-    ).toBeUndefined();
+    expect(await authorizedElectronFile(pathToFileURL(allowed).href)).toBe(
+      allowed,
+    );
+    expect(await authorizedElectronFile(pathToFileURL(denied).href)).toBe(
+      denied,
+    );
     expect(
       await authorizedElectronFile(
         pathToFileURL(join(root, "escape.html")).href,
-        roots,
       ),
+    ).toBe(denied);
+    expect(
+      await authorizedElectronFile("file://server/share/index.html"),
     ).toBeUndefined();
     expect(
-      await authorizedElectronFile("file://server/share/index.html", roots),
-    ).toBeUndefined();
-    expect(
-      await authorizedElectronFile("file:///tmp/root%2Findex.html", roots),
+      await authorizedElectronFile("file:///tmp/root%2Findex.html"),
     ).toBeUndefined();
   });
 
-  it("accepts file URLs with long query text inside a root", async () => {
+  it("accepts file URLs with long query text", async () => {
     const root = await createTestTempDirectory("rea-electron-long-url-");
     const path = join(root, "index.html");
     await writeFile(path, "allowed");
-    const roots = await canonicalElectronRoots([root]);
     const value = `${pathToFileURL(path).href}?${"x".repeat(70_000)}`;
 
-    await expect(authorizedElectronFile(value, roots)).resolves.toBe(path);
+    await expect(authorizedElectronFile(value)).resolves.toBe(path);
   });
 });

@@ -56,7 +56,6 @@ const clients: HopperClient[] = [];
 const startClient = async () => {
   const client = new HopperClient({
     launcher: new FixtureLauncher(),
-    requestTimeoutMs: 1_000,
     startupTimeoutMs: 1_000,
   });
   clients.push(client);
@@ -147,7 +146,6 @@ describe("HopperClient protocol", () => {
     ["wrong_event_id", "HopperProtocolError"],
     ["malformed_event", "HopperProtocolError"],
     ["remote_error", "HopperRemoteError"],
-    ["hang", "HopperTimeoutError"],
     ["exit", "HopperProcessError"],
   ])("projects %s as %s", async (method, expectedTag) => {
     const client = await startClient();
@@ -157,12 +155,6 @@ describe("HopperClient protocol", () => {
       expect(result.error._tag).toBe(expectedTag);
       if (result.error._tag === "HopperRemoteError")
         expect(result.error).toMatchObject({ operation: method, requestId: 2 });
-      if (result.error._tag === "HopperTimeoutError")
-        expect(result.error).toMatchObject({
-          operation: method,
-          requestId: 2,
-          providerState: "busy",
-        });
     }
   });
 
@@ -170,7 +162,6 @@ describe("HopperClient protocol", () => {
     const diagnostics: HopperDiagnostic[] = [];
     const client = new HopperClient({
       launcher: new FixtureLauncher(),
-      requestTimeoutMs: 100,
       startupTimeoutMs: 1_000,
       onDiagnostic: (event) => diagnostics.push(event),
     });

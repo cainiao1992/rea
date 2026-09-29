@@ -41,7 +41,7 @@ const grantSchema = z.object({
 const storeSchema = z.object({
   project_id: z.string().regex(/^project_[a-f0-9]{64}$/u),
   project_root: z.string(),
-  grants: z.array(grantSchema).max(1_000),
+  grants: z.array(grantSchema),
 });
 
 export type ProjectPermissionStore = z.infer<typeof storeSchema>;

@@ -38,6 +38,35 @@ describe("project permission store", () => {
     });
   });
 
+  it("round-trips every operator grant without an arbitrary collection ceiling", async () => {
+    const project = await createTestTempDirectory("rea-policy-many-grants-");
+    const path = join(project, ".rea", "permissions.json");
+    const grants = Array.from({ length: 1_001 }, (_, index) => ({
+      grant_id: `project:grant-${String(index)}`,
+      capability: "process_capture" as const,
+      roots: [project],
+      executables: [],
+      environment_names: [],
+      network: "none" as const,
+      mount: false,
+      lifetime: "project" as const,
+      operation_identity: null,
+      expires_at: null,
+    }));
+
+    const written = await writeProjectPermissionStore(path, project, grants);
+    expect(written.ok).toBe(true);
+    if (!written.ok) return;
+    expect(written.value.grants).toHaveLength(grants.length);
+
+    const loaded = await readProjectPermissionStore(path, project);
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    expect(loaded.value?.grants).toEqual(grants);
+  });
+});
+
+describe("project permission store integrity", () => {
   it("rejects stores readable by another user class", async () => {
     const project = await createTestTempDirectory("rea-policy-mode-");
     const path = join(project, "permissions.json");

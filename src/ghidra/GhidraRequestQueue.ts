@@ -1,5 +1,3 @@
-import { performance } from "node:perf_hooks";
-
 import type { JsonValue } from "../domain/jsonValue.js";
 import { err, type Result } from "../domain/result.js";
 import type { GhidraRequestOptions } from "./GhidraClientTypes.js";
@@ -15,19 +13,15 @@ export type GhidraRequestExecutor = (
 ) => Promise<GhidraQueuedRequestResult>;
 /** Bind queue failures to the owning client's live diagnostics. */
 export type GhidraQueueFailureFactory = (
-  kind: "cancelled" | "timeout" | "protocol",
+  kind: "cancelled" | "protocol",
   message: string,
-  timeoutMs?: number,
 ) => GhidraSessionError;
 
 interface QueuedRequest {
   readonly method: string;
   readonly parameters: JsonValue;
   readonly signal: AbortSignal | undefined;
-  readonly timeoutMs: number;
-  readonly deadline: number;
   readonly resolve: (result: GhidraQueuedRequestResult) => void;
-  readonly timer: NodeJS.Timeout;
   readonly onAbort: (() => void) | undefined;
 }
 
@@ -41,25 +35,15 @@ export class GhidraRequestQueue {
     private readonly failure: GhidraQueueFailureFactory,
   ) {}
 
-  /** Queue one request, counting queue wait against its declared deadline. */
+  /** Queue one request until it completes, is cancelled, or the session closes. */
   run(
     method: string,
     parameters: JsonValue,
-    options: GhidraRequestOptions & { readonly timeoutMs: number },
+    options: GhidraRequestOptions,
   ): Promise<GhidraQueuedRequestResult> {
     if (options.signal?.aborted === true)
       return Promise.resolve(
         err(this.failure("cancelled", "Ghidra request was cancelled")),
-      );
-    if (options.timeoutMs <= 0)
-      return Promise.resolve(
-        err(
-          this.failure(
-            "timeout",
-            "Ghidra request deadline elapsed",
-            options.timeoutMs,
-          ),
-        ),
       );
     return new Promise((resolve) => {
       let entry: QueuedRequest;
@@ -71,28 +55,11 @@ export class GhidraRequestQueue {
                 entry,
                 err(this.failure("cancelled", "Ghidra request was cancelled")),
               );
-      const timer = setTimeout(
-        () =>
-          this.#rejectQueued(
-            entry,
-            err(
-              this.failure(
-                "timeout",
-                "Ghidra request deadline elapsed in the serial queue",
-                options.timeoutMs,
-              ),
-            ),
-          ),
-        options.timeoutMs,
-      );
       entry = {
         method,
         parameters,
         signal: options.signal,
-        timeoutMs: options.timeoutMs,
-        deadline: performance.now() + options.timeoutMs,
         resolve,
-        timer,
         onAbort,
       };
       this.#queue.push(entry);
@@ -115,27 +82,19 @@ export class GhidraRequestQueue {
     const entry = this.#queue.shift();
     if (entry === undefined) return;
     this.#release(entry);
-    const remaining = entry.deadline - performance.now();
-    if (entry.signal?.aborted === true || remaining <= 0) {
+    if (entry.signal?.aborted === true) {
       entry.resolve(
-        err(
-          entry.signal?.aborted === true
-            ? this.failure("cancelled", "Ghidra request was cancelled")
-            : this.failure(
-                "timeout",
-                "Ghidra request deadline elapsed in the serial queue",
-                entry.timeoutMs,
-              ),
-        ),
+        err(this.failure("cancelled", "Ghidra request was cancelled")),
       );
       this.#drain();
       return;
     }
     this.#active = true;
-    void this.execute(entry.method, entry.parameters, {
-      ...(entry.signal === undefined ? {} : { signal: entry.signal }),
-      timeoutMs: remaining,
-    })
+    void this.execute(
+      entry.method,
+      entry.parameters,
+      entry.signal === undefined ? {} : { signal: entry.signal },
+    )
       .then(entry.resolve)
       .catch(() =>
         entry.resolve(
@@ -162,7 +121,6 @@ export class GhidraRequestQueue {
   }
 
   #release(entry: QueuedRequest): void {
-    clearTimeout(entry.timer);
     if (entry.signal !== undefined && entry.onAbort !== undefined)
       entry.signal.removeEventListener("abort", entry.onAbort);
   }

@@ -66,17 +66,17 @@ const artifactByteRangeSchema = z.object({
   length: z.number().int().min(0),
 });
 
-/** Bounded external command provenance, including observable side effects. */
+/** External command provenance, including observable side effects. */
 const artifactCommandSchema = z.object({
   tool: z.string().min(1),
-  arguments: z.array(z.string().max(4_096)).max(1_024),
+  arguments: z.array(z.string()),
   tool_version: z.string().nullable(),
   executable_sha256: sha256Schema.nullable(),
   exit_code: z.number().int().nullable(),
-  effects: z.array(z.enum(["read", "write", "mount"])).max(3),
+  effects: z.array(z.enum(["read", "write", "mount"])),
 });
 
-/** Parsed bounded artifact-producing command provenance. */
+/** Parsed artifact-producing command provenance. */
 export type ArtifactCommand = z.infer<typeof artifactCommandSchema>;
 
 /** One content-addressed application artifact in deterministic manifest order. */

@@ -4,7 +4,7 @@ import type { JavaScriptSourceRange } from "../domain/javascriptStaticAnalysisTy
 import type { JavaScriptArtifactFile } from "./JavaScriptArtifactFiles.js";
 
 const INFERENCE_LIMITATION =
-  "This relationship is a bounded static candidate; it does not prove runtime execution or causal flow.";
+  "This relationship is a conservative static candidate; it does not prove runtime execution or causal flow.";
 
 /** Exact artifact-backed syntax evidence for one semantic graph node. */
 export const observedSemanticEvidence = (

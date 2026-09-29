@@ -53,7 +53,6 @@ const clients: HopperClient[] = [];
 const startClient = async () => {
   const client = new HopperClient({
     launcher: new FixtureLauncher(),
-    requestTimeoutMs: 100,
     startupTimeoutMs: 1_000,
   });
   clients.push(client);
@@ -76,7 +75,7 @@ describe("HopperClient progress", () => {
       readonly completed: number;
       readonly terminal?: boolean;
     }> = [];
-    const result = await client.callTool(
+    const pending = client.callTool(
       "echo",
       { value: "progress" },
       {
@@ -88,6 +87,7 @@ describe("HopperClient progress", () => {
         },
       },
     );
+    const result = await pending;
 
     expect(result).toEqual({ ok: true, value: { value: "progress" } });
     expect(updates).toEqual(
@@ -145,27 +145,23 @@ describe("HopperClient progress", () => {
     if (!cancelled.ok)
       expect(cancelled.error._tag).toBe("HopperCancelledError");
 
-    const timedOut = await client.callTool(
-      "echo",
-      { delay: 30 },
-      { timeoutMs: 5 },
-    );
-    expect(timedOut.ok).toBe(false);
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    const waited = await client.callTool("echo", { delay: 30 });
+    expect(waited).toMatchObject({ ok: true });
     await expect(client.callTool("echo", { value: "alive" })).resolves.toEqual({
       ok: true,
       value: { value: "alive" },
     });
   });
 
-  it("retains timed-out bridge activity until the late reply releases the queue", async () => {
+  it("retains cancelled bridge activity until the reply releases the queue", async () => {
     const client = await startClient();
     const progress: string[] = [];
-    const result = await client.callTool(
+    const controller = new AbortController();
+    const pending = client.callTool(
       "echo",
       { delay: 60 },
       {
-        timeoutMs: 5,
+        signal: controller.signal,
         progress: {
           report: (update) => {
             progress.push(update.message);
@@ -174,15 +170,17 @@ describe("HopperClient progress", () => {
         },
       },
     );
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    controller.abort();
+    const result = await pending;
 
     expect(result).toMatchObject({
       ok: false,
-      error: { _tag: "HopperTimeoutError" },
+      error: { _tag: "HopperCancelledError" },
     });
     expect(client.requestActivity()).toMatchObject({
       operation: "echo",
-      callerState: "timed_out",
-      timeoutMs: 5,
+      callerState: "cancelled",
     });
     expect(progress).toEqual(
       expect.arrayContaining([

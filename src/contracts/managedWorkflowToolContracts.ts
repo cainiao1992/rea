@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { evidenceSchema } from "../domain/evidence.js";
 
 import { managedReconstructionImportInputSchema } from "../domain/managedReconstruction.js";
 import { managedRuntimeCorrelationInputSchema } from "../domain/managedRuntimeCorrelation.js";
@@ -14,95 +15,77 @@ import {
 import { toolContractMetadata } from "./toolEffects.js";
 import { requireOutputSchema } from "./toolOutputSchemaPrimitives.js";
 
-const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
-const managedEvidenceIdSchema = evidenceIdSchema.describe(
-  "Session-owned inspect_managed_members Evidence ID",
-);
-const managedArtifactEvidenceIdSchema = evidenceIdSchema.describe(
-  "Session-owned inspect_managed_artifact Evidence ID",
-);
-const managedBoundaryEvidenceIdSchema = evidenceIdSchema.describe(
-  "Session-owned inspect_managed_native_boundaries Evidence ID",
-);
-const nativeObservationEvidenceIdSchema = evidenceIdSchema.describe(
-  "Session-owned inspect_macho or analyze_function Evidence ID",
-);
-
-/** MCP references for comparing two session-owned managed observations. */
+/** Inputs for comparing two managed observations carried inline. */
 export const compareManagedMembersReferenceInputSchema = z
   .strictObject({
-    left_evidence_id: managedEvidenceIdSchema,
-    right_evidence_id: managedEvidenceIdSchema,
+    left: evidenceSchema,
+    right: evidenceSchema,
   })
   .superRefine((input, context) => {
-    if (input.left_evidence_id === input.right_evidence_id)
+    if (input.left.evidence_id === input.right.evidence_id)
       context.addIssue({
         code: "custom",
-        path: ["right_evidence_id"],
+        path: ["right"],
         message: "Managed member Evidence must be distinct",
       });
   });
 
 /** MCP reference for planning from one session-owned managed observation. */
 export const managedRuntimeCorrelationReferenceInputSchema =
-  managedRuntimeCorrelationInputSchema
-    .omit({ static_members: true })
-    .extend({ static_members_evidence_id: managedEvidenceIdSchema });
+  managedRuntimeCorrelationInputSchema.extend({
+    static_members: evidenceSchema,
+  });
 
-/** MCP reference for importing reconstruction against session Evidence. */
+/** Inline Evidence input for importing reconstruction. */
 export const managedReconstructionReferenceInputSchema =
-  managedReconstructionImportInputSchema
-    .omit({ static_members: true })
-    .extend({ static_members_evidence_id: managedEvidenceIdSchema });
+  managedReconstructionImportInputSchema.extend({
+    static_members: evidenceSchema,
+  });
 
-/** MCP references for managed/native verification from session Evidence. */
+/** Inline Evidence inputs for managed/native verification. */
 export const managedNativeVerificationReferenceInputSchema = z
   .strictObject({
-    managed_boundaries_evidence_id: managedBoundaryEvidenceIdSchema,
-    native_observation_evidence_ids: z
-      .array(nativeObservationEvidenceIdSchema)
+    managed_boundaries: evidenceSchema,
+    native_observations: z
+      .array(evidenceSchema)
       .min(1)
-      .describe("Unique session-owned native observation Evidence IDs"),
+      .describe("Native function or export Evidence records"),
   })
   .superRefine((input, context) => {
-    const ids = new Set<string>();
-    for (const [
-      index,
-      evidenceId,
-    ] of input.native_observation_evidence_ids.entries()) {
-      if (evidenceId === input.managed_boundaries_evidence_id)
+    const ids = new Set<string>([input.managed_boundaries.evidence_id]);
+    for (const [index, evidence] of input.native_observations.entries()) {
+      if (evidence.evidence_id === input.managed_boundaries.evidence_id)
         context.addIssue({
           code: "custom",
-          path: ["native_observation_evidence_ids", index],
+          path: ["native_observations", index],
           message:
             "Native observation Evidence must be distinct from managed boundary Evidence",
         });
-      if (ids.has(evidenceId))
+      if (ids.has(evidence.evidence_id))
         context.addIssue({
           code: "custom",
-          path: ["native_observation_evidence_ids", index],
+          path: ["native_observations", index],
           message: "Native observation Evidence IDs must be unique",
         });
-      ids.add(evidenceId);
+      ids.add(evidence.evidence_id);
     }
   });
 
 const managedApplicationGraphReferenceFacts = {} as const;
 
-/** MCP references requiring at least one managed Evidence source. */
+/** Inline Evidence sources for managed application graph projection. */
 export const managedApplicationGraphReferenceInputSchema = z
   .strictObject({
     ...managedApplicationGraphReferenceFacts,
-    managed_artifact_evidence_id: managedArtifactEvidenceIdSchema.optional(),
-    managed_members_evidence_id: managedEvidenceIdSchema.optional(),
-    managed_native_boundaries_evidence_id:
-      managedBoundaryEvidenceIdSchema.optional(),
+    managed_artifact: evidenceSchema.optional(),
+    managed_members: evidenceSchema.optional(),
+    managed_native_boundaries: evidenceSchema.optional(),
   })
   .superRefine((input, context) => {
     const ids = [
-      input.managed_artifact_evidence_id,
-      input.managed_members_evidence_id,
-      input.managed_native_boundaries_evidence_id,
+      input.managed_artifact?.evidence_id,
+      input.managed_members?.evidence_id,
+      input.managed_native_boundaries?.evidence_id,
     ].filter((id): id is string => id !== undefined);
     if (ids.length === 0)
       context.addIssue({
@@ -151,9 +134,8 @@ export const MANAGED_WORKFLOW_TOOL_CONTRACTS = [
       {
         title: "Compare two managed member observations",
         input: {
-          left_evidence_id: MANAGED_MEMBER_COMPARISON_EXAMPLE.left.evidence_id,
-          right_evidence_id:
-            MANAGED_MEMBER_COMPARISON_EXAMPLE.right.evidence_id,
+          left: MANAGED_MEMBER_COMPARISON_EXAMPLE.left,
+          right: MANAGED_MEMBER_COMPARISON_EXAMPLE.right,
         },
       },
     ],
@@ -170,12 +152,10 @@ export const MANAGED_WORKFLOW_TOOL_CONTRACTS = [
       {
         title: "Verify a managed P/Invoke declaration against native Evidence",
         input: {
-          managed_boundaries_evidence_id:
-            MANAGED_NATIVE_VERIFICATION_EXAMPLE.managed_boundaries.evidence_id,
-          native_observation_evidence_ids:
-            MANAGED_NATIVE_VERIFICATION_EXAMPLE.native_observations.map(
-              ({ evidence_id: evidenceId }) => evidenceId,
-            ),
+          managed_boundaries:
+            MANAGED_NATIVE_VERIFICATION_EXAMPLE.managed_boundaries,
+          native_observations:
+            MANAGED_NATIVE_VERIFICATION_EXAMPLE.native_observations,
         },
       },
     ],
@@ -192,8 +172,7 @@ export const MANAGED_WORKFLOW_TOOL_CONTRACTS = [
       {
         title: "Import a decompiler reconstruction for one managed method",
         input: {
-          static_members_evidence_id:
-            MANAGED_RECONSTRUCTION_IMPORT_EXAMPLE.static_members.evidence_id,
+          static_members: MANAGED_RECONSTRUCTION_IMPORT_EXAMPLE.static_members,
           decompiler: MANAGED_RECONSTRUCTION_IMPORT_EXAMPLE.decompiler,
           methods: MANAGED_RECONSTRUCTION_IMPORT_EXAMPLE.methods,
           notes: MANAGED_RECONSTRUCTION_IMPORT_EXAMPLE.notes,
@@ -213,8 +192,7 @@ export const MANAGED_WORKFLOW_TOOL_CONTRACTS = [
       {
         title: "Plan an exact-build managed runtime correlation",
         input: {
-          static_members_evidence_id:
-            MANAGED_RUNTIME_CORRELATION_EXAMPLE.static_members.evidence_id,
+          static_members: MANAGED_RUNTIME_CORRELATION_EXAMPLE.static_members,
           method: MANAGED_RUNTIME_CORRELATION_EXAMPLE.method,
           requested_effect:
             MANAGED_RUNTIME_CORRELATION_EXAMPLE.requested_effect,
@@ -236,8 +214,7 @@ export const MANAGED_WORKFLOW_TOOL_CONTRACTS = [
       {
         title: "Project static managed observations into an application graph",
         input: {
-          managed_members_evidence_id:
-            MANAGED_APPLICATION_GRAPH_EXAMPLE.managed_members.evidence_id,
+          managed_members: MANAGED_APPLICATION_GRAPH_EXAMPLE.managed_members,
         },
       },
     ],

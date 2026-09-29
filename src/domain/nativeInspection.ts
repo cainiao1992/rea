@@ -22,8 +22,6 @@ const nativeCommandInvocationSchema = z.object({
   }),
   stdout_bytes: z.number().int().min(0),
   stderr_bytes: z.number().int().min(0),
-  stdout_truncated: z.boolean(),
-  stderr_truncated: z.boolean(),
 });
 
 const architectureSchema = z.object({

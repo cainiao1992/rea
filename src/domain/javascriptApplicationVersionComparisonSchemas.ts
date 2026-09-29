@@ -6,7 +6,7 @@ import { JAVASCRIPT_APPLICATION_NODE_KINDS } from "./javascriptApplicationGraphS
 
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
 const nodeIdSchema = z.string().regex(/^jag_node_[a-f0-9]{64}$/u);
-const boundedTextSchema = z.string().min(1).max(4_096);
+const textSchema = z.string().min(1);
 
 /** Two authenticated application versions and their native observations. */
 export const compareApplicationVersionsInputSchema = z
@@ -94,20 +94,18 @@ const rightAmbiguousMatchSchema = z.strictObject({
 const comparisonItemContextShape = {
   item_id: z.string().regex(/^javc_item_[a-f0-9]{64}$/u),
   node_kind: z.enum(JAVASCRIPT_APPLICATION_NODE_KINDS),
-  dimensions: z
-    .array(
-      z.enum([
-        "content",
-        "location",
-        "properties",
-        "relationships",
-        "availability",
-        "coverage",
-      ]),
-    )
-    .max(6),
+  dimensions: z.array(
+    z.enum([
+      "content",
+      "location",
+      "properties",
+      "relationships",
+      "availability",
+      "coverage",
+    ]),
+  ),
   evidence_links: z.array(evidenceIdSchema).min(2),
-  limitations: z.array(boundedTextSchema),
+  limitations: z.array(textSchema),
 };
 
 const comparisonItemSchema = z.union([
@@ -191,7 +189,7 @@ export const applicationVersionComparisonResultSchema = z
     graph: javascriptApplicationGraphSchema,
     coverage: comparisonCoverageSchema,
     evidence_links: z.array(evidenceIdSchema).min(2),
-    limitations: z.array(boundedTextSchema),
+    limitations: z.array(textSchema),
   })
   .superRefine((result, context) => {
     const sourceGraphsComplete =

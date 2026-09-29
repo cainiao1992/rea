@@ -85,10 +85,9 @@ const prepare = async (
   const authorized = await authority.authorize(
     {
       capability: "v8_inspector_observe",
-      roots: input.allowed_file_roots,
+      roots: [],
       executables: [],
       environment_names: [],
-      origins: [input.inspector_endpoint, ...input.allowed_origins],
       network: "loopback",
       mount: false,
       operation_identity: `${operation}:${"target_id" in input ? input.target_id : input.inspector_endpoint}`,

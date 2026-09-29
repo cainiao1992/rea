@@ -27,11 +27,7 @@ export class MachOSliceArtifactReader implements ArtifactReader {
     const captured = await this.runner.run(
       "lipo",
       ["-detailed_info", this.path],
-      {
-        ...(signal === undefined ? {} : { signal }),
-        timeoutMs: 30_000,
-        maxOutputBytes: 4 * 1024 * 1024,
-      },
+      signal === undefined ? {} : { signal },
     );
     if (!captured.ok)
       throw new ArtifactReaderFailure(

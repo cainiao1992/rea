@@ -114,7 +114,6 @@ const requestActivityStatus = (
               request_id: active.requestId,
               operation: active.operation,
               elapsed_ms: active.elapsedMs,
-              timeout_ms: active.timeoutMs,
               caller_state: active.callerState,
             },
       queued_requests: queuedRequests,
@@ -126,11 +125,9 @@ const requestActivityStatus = (
     status:
       snapshots.length === 0
         ? "not_observed"
-        : active.some(({ callerState }) => callerState === "timed_out")
-          ? "timed_out_busy"
-          : active.length > 0
-            ? "busy"
-            : "idle",
+        : active.length > 0
+          ? "busy"
+          : "idle",
     providers,
   };
 };

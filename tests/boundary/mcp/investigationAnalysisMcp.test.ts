@@ -40,7 +40,7 @@ it("aggregates comparison Evidence and records an approved runtime gap", async (
       },
     });
     expect(response.isError, JSON.stringify(response)).not.toBe(true);
-    const evidence = sessionEvidence(session, response.structuredContent);
+    const evidence = inlineEvidence(response.structuredContent);
     expect(evidence).toMatchObject({
       provider: { id: "rea-changed-behavior" },
       normalized_result: { behavior_status: "unknown" },
@@ -67,7 +67,7 @@ it("builds a zero-hop exact-address path with dossier citations", async () => {
       arguments: INVESTIGATION_EXAMPLES.build_call_path,
     });
     expect(response.isError).not.toBe(true);
-    const evidence = sessionEvidence(session, response.structuredContent);
+    const evidence = inlineEvidence(response.structuredContent);
     expect(evidence).toMatchObject({
       provider: { id: "rea-call-path" },
       normalized_result: {
@@ -152,7 +152,7 @@ it("records an explicit non-causal static/runtime hypothesis", async () => {
       arguments: INVESTIGATION_EXAMPLES.correlate_static_and_runtime,
     });
     expect(response.isError).not.toBe(true);
-    const evidence = sessionEvidence(session, response.structuredContent);
+    const evidence = inlineEvidence(response.structuredContent);
     expect(evidence).toMatchObject({
       provider: { id: "rea-static-runtime-correlation" },
       confidence: "inferred",
@@ -221,7 +221,7 @@ it("passes only the finite declared reconstruction specification", async () => {
       },
     });
     expect(response.isError).not.toBe(true);
-    const evidence = sessionEvidence(session, response.structuredContent);
+    const evidence = inlineEvidence(response.structuredContent);
     expect(evidence).toMatchObject({
       provider: { id: "rea-reconstruction-verifier" },
       normalized_result: { status: "pass", summary: { passed: 1 } },
@@ -269,7 +269,7 @@ it("cannot omit a session-owned active unknown from reconstruction input", async
       },
     });
     expect(response.isError).not.toBe(true);
-    const evidence = sessionEvidence(session, response.structuredContent);
+    const evidence = inlineEvidence(response.structuredContent);
     expect(evidence.normalized_result).toMatchObject({
       status: "unknown",
       summary: { unknown: 1 },
@@ -305,13 +305,19 @@ const connected = async (permissionAuthority?: PermissionAuthority) => {
   return { session, server, client };
 };
 
-const sessionEvidence = (session: BinarySession, value: unknown) => {
+const inlineEvidence = (value: unknown) => {
   const parsed = z
-    .object({ evidence_id: z.string().regex(/^ev_[a-f0-9]{64}$/u) })
+    .object({
+      evidence_id: z.string().regex(/^ev_[a-f0-9]{64}$/u),
+      result: z.unknown(),
+      evidence: z.object({ limitations: z.array(z.string()) }).passthrough(),
+    })
     .parse(value);
-  const evidence = session.evidenceById(parsed.evidence_id);
-  if (evidence === undefined) throw new TypeError("Missing session Evidence");
-  return evidence;
+  return {
+    ...parsed.evidence,
+    evidence_id: parsed.evidence_id,
+    normalized_result: parsed.result,
+  };
 };
 
 const close = async (

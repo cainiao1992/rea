@@ -8,13 +8,13 @@ import { evidenceSchema } from "./evidence.js";
 
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
-const boundedPathSchema = z.string().min(1).max(4_096);
+const pathSchema = z.string().min(1);
 
 const componentSchema = z.strictObject({
-  path: boundedPathSchema,
+  path: pathSchema,
   artifact_id: z.string().regex(/^art_[a-f0-9]{64}$/u),
   sha256: digestSchema,
-  format: z.string().min(1).max(100),
+  format: z.string().min(1),
 });
 
 /** Authenticated artifact inventory pages projected as one Apple application. */
@@ -28,7 +28,7 @@ export const appleApplicationProjectionResultSchema = z.strictObject({
   root_sha256: digestSchema,
   root_format: z.literal("ipa"),
   source_evidence_ids: z.array(evidenceIdSchema).min(1),
-  application_roots: z.array(boundedPathSchema),
+  application_roots: z.array(pathSchema),
   components: z.strictObject({
     bundle_metadata: z.array(componentSchema),
     executables: z.array(componentSchema),
@@ -49,8 +49,8 @@ export const appleApplicationProjectionResultSchema = z.strictObject({
   ),
   bridge_candidates: z.array(
     z.strictObject({
-      source_path: boundedPathSchema,
-      native_path: boundedPathSchema,
+      source_path: pathSchema,
+      native_path: pathSchema,
       basis: z.enum([
         "javascript-and-native-content",
         "react-native-convention",
@@ -63,7 +63,7 @@ export const appleApplicationProjectionResultSchema = z.strictObject({
     status: z.enum(["complete-within-inventory", "partial"]),
     inventory_complete: z.boolean(),
   }),
-  limitations: z.array(z.string().min(1).max(4_096)),
+  limitations: z.array(z.string().min(1)),
 });
 
 export type AppleApplicationProjectionInput = z.infer<

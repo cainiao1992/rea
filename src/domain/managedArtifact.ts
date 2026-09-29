@@ -314,7 +314,7 @@ export const managedArtifactInspectionSchema = z.object({
     machine_hex: z.string().regex(/^0x[0-9a-f]{4}$/u),
     architecture: z.enum(["x86", "x86_64", "arm", "arm64"]),
     optional_header: z.enum(["pe32", "pe32-plus"]),
-    section_count: z.number().int().min(1).max(96),
+    section_count: z.number().int().min(1).max(0xffff),
     characteristics: z.number().int().min(0).max(0xffff),
     cli: z
       .object({

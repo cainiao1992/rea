@@ -29,8 +29,6 @@ describe("artifact Mach-O slices", () => {
             stderr: "",
             stdoutBytes: 1,
             stderrBytes: 0,
-            stdoutTruncated: false,
-            stderrTruncated: false,
             exitCode: 0,
             signal: null,
           }),

@@ -2,7 +2,6 @@ import { z } from "zod";
 
 import type { JsonValue } from "../domain/jsonValue.js";
 import { err, ok, type Result } from "../domain/result.js";
-import { GHIDRA_BRIDGE_VERSION } from "./GhidraDefaults.js";
 import { GHIDRA_INVENTORY_OPERATIONS } from "./GhidraInventoryValues.js";
 import { GHIDRA_FUNCTION_OPERATIONS } from "./GhidraFunctionValues.js";
 
@@ -19,7 +18,6 @@ const capabilitySchema = z.enum(GHIDRA_SESSION_CAPABILITIES);
 const sessionInfoSchema = z
   .object({
     name: z.literal("REA Ghidra bridge"),
-    bridge_version: z.literal(GHIDRA_BRIDGE_VERSION),
     run_id: z.string().uuid(),
     profile_digest: z.string().regex(/^[a-f0-9]{64}$/u),
     provider: z

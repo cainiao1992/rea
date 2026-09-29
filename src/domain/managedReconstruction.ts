@@ -14,15 +14,14 @@ import type { JsonValue } from "./jsonValue.js";
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
 const tokenSchema = z.string().regex(/^0x[0-9a-f]{8}$/u);
-const boundedTextSchema = z.string().min(1).max(65_536);
-const boundedLabelSchema = z.string().min(1).max(512);
+const textSchema = z.string().min(1);
 
 const decompilerSchema = z.strictObject({
-  name: boundedLabelSchema,
-  version: z.string().min(1).max(128).nullable(),
+  name: textSchema,
+  version: textSchema.nullable(),
   family: z.enum(["ilspy", "dnspy", "dnlib", "mono-cecil", "other"]),
   executable_sha256: digestSchema.nullable(),
-  options: z.array(z.string().max(512)).default([]),
+  options: z.array(z.string()).default([]),
 });
 
 const managedReconstructionMethodInputSchema = z.strictObject({
@@ -32,9 +31,9 @@ const managedReconstructionMethodInputSchema = z.strictObject({
   reconstruction: z.strictObject({
     kind: z.enum(["decompiled-csharp", "decompiled-il", "semantic-pseudocode"]),
     language: z.enum(["csharp", "il", "pseudocode"]),
-    text: boundedTextSchema,
+    text: textSchema,
     text_sha256: digestSchema.optional(),
-    source_path: z.string().min(1).max(4_096).nullable().optional(),
+    source_path: textSchema.nullable().optional(),
     start_line: z.number().int().min(1).nullable().optional(),
     end_line: z.number().int().min(1).nullable().optional(),
   }),
@@ -48,7 +47,7 @@ export const managedReconstructionImportInputSchema = z.strictObject({
   static_members: evidenceSchema,
   decompiler: decompilerSchema,
   methods: z.array(managedReconstructionMethodInputSchema).min(1),
-  notes: z.array(z.string().min(1).max(4_096)).default([]),
+  notes: z.array(textSchema).default([]),
 });
 
 const importedMethodSchema = z.strictObject({
@@ -62,11 +61,11 @@ const importedMethodSchema = z.strictObject({
   reconstruction: z.strictObject({
     kind: z.enum(["decompiled-csharp", "decompiled-il", "semantic-pseudocode"]),
     language: z.enum(["csharp", "il", "pseudocode"]),
-    text: boundedTextSchema,
+    text: textSchema,
     text_sha256: digestSchema,
-    text_length: z.number().int().min(1).max(65_536),
+    text_length: z.number().int().min(1),
     line_count: z.number().int().min(1),
-    source_path: z.string().min(1).max(4_096).nullable(),
+    source_path: textSchema.nullable(),
     start_line: z.number().int().min(1).nullable(),
     end_line: z.number().int().min(1).nullable(),
   }),
@@ -102,9 +101,9 @@ export const managedReconstructionImportResultSchema = z.strictObject({
     total_text_bytes: z.number().int().min(1),
   }),
   methods: z.array(importedMethodSchema).min(1),
-  notes: z.array(z.string().min(1).max(4_096)),
+  notes: z.array(textSchema),
   evidence_links: z.array(evidenceIdSchema).length(1),
-  limitations: z.array(z.string().min(1).max(4_096)),
+  limitations: z.array(textSchema),
 });
 
 export type ManagedReconstructionImportInput = z.infer<

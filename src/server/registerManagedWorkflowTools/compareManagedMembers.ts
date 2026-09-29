@@ -21,20 +21,17 @@ export const registerCompareManagedMembers = (
     compareContract.name,
     toolRegistrationOptions(compareContract),
     async (input) => {
-      const resolved = resolveManagedEvidence(options.session, [
-        input.left_evidence_id,
-        input.right_evidence_id,
-      ]);
-      if (!resolved.ok) return toCallToolResult(resolved, compareContract);
-      const [left, right] = resolved.value;
+      const leftResolved = resolveManagedEvidence(input.left);
+      const rightResolved = resolveManagedEvidence(input.right);
+      if (!leftResolved.ok)
+        return toCallToolResult(leftResolved, compareContract);
+      if (!rightResolved.ok)
+        return toCallToolResult(rightResolved, compareContract);
+      const [left] = leftResolved.value;
+      const [right] = rightResolved.value;
       if (left === undefined || right === undefined)
         throw new TypeError("Managed comparison Evidence resolution failed");
-      const {
-        left_evidence_id: _leftEvidenceId,
-        right_evidence_id: _rightEvidenceId,
-        ...referencedInput
-      } = input;
-      const parsed = { ...referencedInput, left, right };
+      const parsed = { left, right };
       const result = await logToolExecution(
         options.logger,
         compareContract.name,

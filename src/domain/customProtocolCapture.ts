@@ -96,7 +96,7 @@ export const customProtocolCaptureSchema = z.strictObject({
   /** Transport type for this session. */
   transport: transportTypeSchema,
   /** Captured frames in order. */
-  frames: z.array(protocolFrameSchema).min(0).max(100_000),
+  frames: z.array(protocolFrameSchema),
   /** Authentication flow events. */
   auth_events: z.array(authFlowEventSchema).default([]),
   /** Whether any frame was truncated. */

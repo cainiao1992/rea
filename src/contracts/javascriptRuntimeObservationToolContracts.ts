@@ -8,7 +8,6 @@ import {
   observeJavaScriptRuntimeToolInputSchema,
 } from "../domain/javascriptRuntimeObservation.js";
 
-const root = "/opt/example-app";
 const endpoint = "http://127.0.0.1:9229";
 
 /** Passive Node/Electron V8 Inspector discovery and observation contracts. */
@@ -17,7 +16,7 @@ export const JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS = [
     name: "list_javascript_runtime_targets",
     ...toolContractMetadata("list_javascript_runtime_targets"),
     description:
-      "List every attachable Node/Electron V8 Inspector target from one approved literal-loopback endpoint. Only targets inside exact canonical file roots or exact HTTP(S) origins are retained; excluded target locations never enter Evidence.",
+      "List every attachable Node/Electron V8 Inspector target from an explicit literal-loopback endpoint. Every returned target and script location exposed by that Inspector endpoint is eligible for Evidence.",
     kind: "runtime-provider",
     inputSchema: listJavaScriptRuntimeTargetsInputSchema,
     outputSchema: evidenceResultOf(javascriptRuntimeTargetListSchema),
@@ -26,8 +25,6 @@ export const JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS = [
         title: "List approved Node Inspector targets",
         input: {
           inspector_endpoint: endpoint,
-          allowed_file_roots: [root],
-          allowed_origins: [],
         },
       },
     ],
@@ -36,7 +33,7 @@ export const JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS = [
     name: "observe_javascript_runtime",
     ...toolContractMetadata("observe_javascript_runtime"),
     description:
-      "Attach passively to one Node/Electron V8 Inspector target using its list_javascript_runtime_targets Evidence and returned target ID. Pass the discovery Evidence ID to reuse its endpoint and authorized file/origin scope; this avoids repeating scope and cannot widen permission. Captures Debugger.scriptParsed and Runtime execution-context events. REA never evaluates, pauses, resumes, reads source, or instruments the target; require/import edges, EventEmitter activity, and Electron IPC remain explicit unknowns. Reconcile the result with static Application Graph Evidence using reconcile_javascript_runtime.",
+      "Attach passively to one Node/Electron V8 Inspector target by supplying its loopback Inspector endpoint and target ID. The provider rechecks that the target currently exists at that endpoint and is an attachable file or URL target. Captures Debugger.scriptParsed and Runtime execution-context events. REA never evaluates, pauses, resumes, reads source, or instruments the target; require/import edges, EventEmitter activity, and Electron IPC remain explicit unknowns. Reconcile the result with static Application Graph Evidence using reconcile_javascript_runtime. The selected endpoint exposes every target it serves to this tool.",
     kind: "runtime-provider",
     inputSchema: observeJavaScriptRuntimeToolInputSchema,
     outputSchema: evidenceResultOf(javascriptRuntimeObservationSchema),
@@ -44,8 +41,7 @@ export const JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS = [
       {
         title: "Observe one approved Node runtime",
         input: {
-          discovery_evidence_id:
-            "EVIDENCE_ID_FROM_LIST_JAVASCRIPT_RUNTIME_TARGETS",
+          inspector_endpoint: endpoint,
           target_id: "TARGET_ID_FROM_LIST_JAVASCRIPT_RUNTIME_TARGETS",
         },
       },

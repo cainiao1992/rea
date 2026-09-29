@@ -11,6 +11,7 @@ import {
   normalizeProcessText,
 } from "./ProcessNormalization.js";
 import type { TerminalRenderer } from "./TerminalRenderer.js";
+import { scheduleProcessDelay, type ProcessTimer } from "./ProcessTimer.js";
 
 /** Mutable observation-order ledger whose writer is shared by capture producers. */
 export interface ProcessCaptureJournal {
@@ -79,7 +80,7 @@ export const createProcessCaptureJournal = (): ProcessCaptureJournal => {
 interface ScenarioInteractionOptions {
   readonly scenario: ProcessScenario;
   readonly getTerminal: () => IPty | undefined;
-  readonly timers: Set<NodeJS.Timeout>;
+  readonly timers: Set<ProcessTimer>;
   readonly interactions: InteractionEvent[];
   readonly renderer: TerminalRenderer;
   readonly started: number;
@@ -94,7 +95,7 @@ export const scheduleScenarioInteractions = (
   const { scenario, getTerminal, timers, interactions, renderer, started } =
     options;
   for (const [eventIndex, event] of scenario.events.entries()) {
-    const timer = setTimeout(() => {
+    const timer = scheduleProcessDelay(event.at_ms, () => {
       options.dispatchedEventIndexes.add(eventIndex);
       const terminal = getTerminal();
       const dispatchedAt = Math.max(0, Date.now() - started);
@@ -140,7 +141,7 @@ export const scheduleScenarioInteractions = (
         outcome,
       });
       options.recordEvent("interaction_events", sequence);
-    }, event.at_ms);
+    });
     timers.add(timer);
   }
 };

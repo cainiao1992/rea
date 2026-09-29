@@ -2,7 +2,11 @@ import type { JsonValue } from "../domain/jsonValue.js";
 import { UNKNOWN_CONTRACT_EXAMPLES } from "./unknownContractExamples.js";
 import { ARTIFACT_COMPARISON_EXAMPLE } from "./artifactComparisonExample.js";
 import { FUNCTION_COMPARISON_EXAMPLE } from "./functionComparisonExample.js";
-import { INVESTIGATION_EXAMPLES } from "./investigationExamples.js";
+import {
+  INVESTIGATION_EXAMPLES,
+  PROCESS_CAPTURE_REFERENCE,
+  PROCESS_CAPTURE_RECONSTRUCTION,
+} from "./investigationExamples.js";
 import { REPLAY_MACHINE_RUN_EXAMPLE } from "./replayMachineExample.js";
 
 /** Canonical examples for contracts whose required inputs have no defaults. */
@@ -50,19 +54,19 @@ export const TOOL_EXAMPLE_OVERRIDES: Readonly<
   },
   run_replay_machine: REPLAY_MACHINE_RUN_EXAMPLE,
   compare_process_captures: {
-    left_evidence_id: `ev_${"0".repeat(64)}`,
-    right_evidence_id: `ev_${"1".repeat(64)}`,
+    left: PROCESS_CAPTURE_REFERENCE,
+    right: PROCESS_CAPTURE_RECONSTRUCTION,
   },
   compare_artifacts: {
-    left_evidence_id: ARTIFACT_COMPARISON_EXAMPLE.left.evidence_id,
-    right_evidence_id: ARTIFACT_COMPARISON_EXAMPLE.right.evidence_id,
+    left: ARTIFACT_COMPARISON_EXAMPLE.left,
+    right: ARTIFACT_COMPARISON_EXAMPLE.right,
   },
   compare_functions: {
-    left_evidence_id: FUNCTION_COMPARISON_EXAMPLE.left.evidence_id,
-    right_evidence_id: FUNCTION_COMPARISON_EXAMPLE.right.evidence_id,
+    left: FUNCTION_COMPARISON_EXAMPLE.left,
+    right: FUNCTION_COMPARISON_EXAMPLE.right,
   },
   compare_bundles: {
-    left_bundle_path: "/approved/left-evidence.json",
-    right_bundle_path: "/approved/right-evidence.json",
+    left_bundle_path: "/tmp/left-evidence.json",
+    right_bundle_path: "/tmp/right-evidence.json",
   },
 };

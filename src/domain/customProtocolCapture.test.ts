@@ -84,6 +84,17 @@ describe("custom protocol capture", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts every captured frame without an array ceiling", () => {
+    const frames = Array.from({ length: 100_001 }, (_, sequence) => ({
+      ...sampleFrames[0]!,
+      sequence,
+    }));
+
+    expect(
+      customProtocolCaptureSchema.parse({ transport: "tcp", frames }).frames,
+    ).toHaveLength(frames.length);
+  });
+
   it("correlates process identity", () => {
     expect(correlateProcessIdentity(sampleFrames[0]!, 100)).toBe(true);
     expect(correlateProcessIdentity(sampleFrames[0]!, 200)).toBe(true);

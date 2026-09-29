@@ -26,10 +26,7 @@ import {
 } from "./CdpElectronScriptEvents.js";
 import { captureElectronScripts } from "./CdpElectronScripts.js";
 import { captureElectronWorkers } from "./CdpElectronWorkers.js";
-import {
-  authorizedElectronFile,
-  canonicalElectronRoots,
-} from "./ElectronFileScope.js";
+import { authorizedElectronFile } from "./ElectronFileScope.js";
 
 interface ElectronContext {
   readonly connection: CdpConnection;
@@ -42,7 +39,6 @@ interface ElectronContext {
 }
 
 interface ElectronInspectionState {
-  readonly roots: readonly string[];
   readonly completeness: CdpCaptureCompleteness;
   readonly scripts: ElectronScriptDraft[];
   readonly executionContextFrames: Map<string, string>;
@@ -51,17 +47,16 @@ interface ElectronInspectionState {
   navigationDuringCapture: boolean;
 }
 
-/** Passively inspect one root-confined Electron file page. */
+/** Passively inspect one Electron file page from the selected CDP endpoint. */
 export const inspectCdpElectronPage = async (
   context: ElectronContext,
 ): Promise<ElectronPageInspection> => {
   const state: ElectronInspectionState = {
-    roots: await canonicalElectronRoots(context.input.allowed_file_roots),
     completeness: new CdpCaptureCompleteness(),
     scripts: [],
     executionContextFrames: new Map(),
     limitations: [
-      "Only canonical file paths contained by an approved root are retained.",
+      "Local file paths exposed by the selected CDP target are retained in the observation.",
       "REA does not evaluate renderer JavaScript, invoke Electron APIs, navigate, click, or close the page.",
       "Script contents require separate source-capture approval and remain byte bounded.",
     ],
@@ -150,7 +145,7 @@ const authorizeInitialFrames = async (
     context.sessionId,
     context.signal,
   );
-  const frames = await captureFrames(result, state.roots, state.completeness);
+  const frames = await captureFrames(result, state.completeness);
   if (frames[0] === undefined)
     throw new BrowserObservationError("inspect_web_page", "target_not_allowed");
   return frames;
@@ -182,18 +177,13 @@ const captureElectronContent = async (
 > => {
   await report(context.progress, 2, "Capturing Electron structure");
   const frameIds = new Set(frames.map((frame) => frame.frame_id));
-  const resources = await captureResources(
-    context,
-    state.roots,
-    state.completeness,
-  );
-  const dom = await captureDom(context, state.roots, state.completeness);
+  const resources = await captureResources(context, state.completeness);
+  const dom = await captureDom(context, state.completeness);
   const scripts = await captureElectronScripts({
     connection: context.connection,
     sessionId: context.sessionId,
     ...(context.signal === undefined ? {} : { signal: context.signal }),
     request: context.input,
-    roots: state.roots,
     scripts: state.scripts,
     executionContextFrames: state.executionContextFrames,
     frameIds,
@@ -204,7 +194,6 @@ const captureElectronContent = async (
     ...(context.signal === undefined ? {} : { signal: context.signal }),
     target: context.target,
     request: context.input,
-    roots: state.roots,
     frameIds,
     completeness: state.completeness,
     limitations: state.limitations,
@@ -223,7 +212,7 @@ const assertStableMainFrame = async (
     context.sessionId,
     context.signal,
   );
-  const afterPath = await mainFilePath(result, state.roots);
+  const afterPath = await mainFilePath(result);
   if (afterPath === undefined)
     throw new BrowserObservationError("inspect_web_page", "target_not_allowed");
   if (state.navigationDuringCapture || afterPath !== expectedPath)
@@ -242,7 +231,6 @@ const navigatedFrameId = (event: CdpEvent): string | undefined => {
 
 const captureFrames = async (
   result: unknown,
-  roots: readonly string[],
   completeness: CdpCaptureCompleteness,
 ): Promise<ElectronPageInspection["frames"]> => {
   const frameTree = recordValue(requiredRecord(result).frameTree);
@@ -258,10 +246,7 @@ const captureFrames = async (
     if (current === undefined) break;
     const frame = recordValue(current.tree.frame);
     const frameId = stringValue(frame?.id);
-    const path = await authorizedElectronFile(
-      stringValue(frame?.url) ?? "",
-      roots,
-    );
+    const path = await authorizedElectronFile(stringValue(frame?.url) ?? "");
     if (frameId === undefined || path === undefined) {
       completeness.exclude("frames", "out_of_target_scope");
       continue;
@@ -279,7 +264,6 @@ const captureFrames = async (
 
 const captureResources = async (
   context: ElectronContext,
-  roots: readonly string[],
   completeness: CdpCaptureCompleteness,
 ): Promise<ElectronPageInspection["resources"]> => {
   const result = await context.connection.send(
@@ -300,7 +284,6 @@ const captureResources = async (
     for (const resource of recordsValue(tree.resources)) {
       const path = await authorizedElectronFile(
         stringValue(resource.url) ?? "",
-        roots,
       );
       if (path === undefined) {
         completeness.exclude("resources", "out_of_target_scope");
@@ -332,7 +315,6 @@ const captureResources = async (
 
 const captureDom = async (
   context: ElectronContext,
-  roots: readonly string[],
   completeness: CdpCaptureCompleteness,
 ): Promise<ElectronPageInspection["dom"]> => {
   const result = requiredRecord(
@@ -350,7 +332,7 @@ const captureDom = async (
   let total = 0;
   for (const document of recordsValue(result.documents)) {
     const documentUrl = stringAt(strings, document.documentURL);
-    if ((await authorizedElectronFile(documentUrl, roots)) === undefined) {
+    if ((await authorizedElectronFile(documentUrl)) === undefined) {
       completeness.exclude("dom", "out_of_target_scope");
       continue;
     }
@@ -382,13 +364,10 @@ const captureDom = async (
   return { total_nodes: total, nodes };
 };
 
-const mainFilePath = async (
-  result: unknown,
-  roots: readonly string[],
-): Promise<string | undefined> => {
+const mainFilePath = async (result: unknown): Promise<string | undefined> => {
   const frameTree = recordValue(requiredRecord(result).frameTree);
   const frame = recordValue(frameTree?.frame);
-  return await authorizedElectronFile(stringValue(frame?.url) ?? "", roots);
+  return await authorizedElectronFile(stringValue(frame?.url) ?? "");
 };
 
 const arrayValue = (value: unknown): readonly unknown[] =>

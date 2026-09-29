@@ -172,7 +172,7 @@ describe("enhanced MCP tools", () => {
     });
   });
 
-  it("bounds batch concurrency at the parsed maximum of 20", async () => {
+  it("dispatches every batch item without an artificial concurrency cap", async () => {
     let active = 0;
     let maximum = 0;
     const analysis: AnalysisOperationPort = {
@@ -190,13 +190,13 @@ describe("enhanced MCP tools", () => {
       name: "batch_decompile",
       arguments: {
         addresses: Array.from(
-          { length: 20 },
+          { length: 37 },
           (_, index) => `0x${String(index)}`,
         ),
       },
     });
     expect(result.isError).not.toBe(true);
-    expect(maximum).toBe(20);
+    expect(maximum).toBe(37);
   });
 
   it("returns ordered typed batch failures and zero counts for empty input", async () => {

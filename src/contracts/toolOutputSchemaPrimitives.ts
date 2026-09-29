@@ -150,7 +150,7 @@ const analysisRun = z
   .nullable();
 
 export const analysisActivity = z.object({
-  status: z.enum(["not_observed", "idle", "busy", "timed_out_busy"]),
+  status: z.enum(["not_observed", "idle", "busy"]),
   providers: z.array(
     z.object({
       provider: providerIdentity,
@@ -159,8 +159,7 @@ export const analysisActivity = z.object({
           request_id: z.number().int().min(1),
           operation: z.string().min(1),
           elapsed_ms: z.number().int().min(0),
-          timeout_ms: z.number().int().min(0),
-          caller_state: z.enum(["waiting", "timed_out", "cancelled"]),
+          caller_state: z.enum(["waiting", "cancelled"]),
         })
         .nullable(),
       queued_requests: z.number().int().min(0),

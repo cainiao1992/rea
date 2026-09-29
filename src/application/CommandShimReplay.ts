@@ -24,6 +24,19 @@ export interface CommandShimReplay {
 }
 
 const RUNNER = `const command = process.argv[2];
+const maximumTimerDelay = 2147483647;
+const delay = milliseconds => new Promise(resolve => {
+  let remaining = milliseconds;
+  const schedule = () => {
+    const interval = Math.min(remaining, maximumTimerDelay);
+    setTimeout(() => {
+      remaining -= interval;
+      if (remaining === 0) resolve();
+      else schedule();
+    }, interval);
+  };
+  schedule();
+});
 const response = await fetch(process.env.REA_SHIM_LEDGER_URL, {
   method: "POST",
   headers: { "content-type": "application/json" },
@@ -34,7 +47,7 @@ const route = await response.json();
 let elapsed = 0;
 for (const output of route.outputs) {
   const wait = Math.max(0, output.at_ms - elapsed);
-  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  if (wait > 0) await delay(wait);
   elapsed = output.at_ms;
   (output.stream === "stdout" ? process.stdout : process.stderr).write(output.data);
 }

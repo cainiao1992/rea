@@ -16,10 +16,6 @@ export interface NativeCommandCapture {
   readonly stderr: string;
   readonly stdoutBytes: number;
   readonly stderrBytes: number;
-  /** Successful captures are exhaustive; output-limit exits return a failure. */
-  readonly stdoutTruncated: false;
-  /** Successful captures are exhaustive; output-limit exits return a failure. */
-  readonly stderrTruncated: false;
   readonly exitCode: number | null;
   readonly signal: string | null;
 }
@@ -27,13 +23,7 @@ export interface NativeCommandCapture {
 export class NativeCommandFailure extends Error {
   constructor(
     readonly tool: string,
-    readonly reason:
-      | "unavailable"
-      | "cancelled"
-      | "timeout"
-      | "output-limit"
-      | "nonzero-exit"
-      | "io",
+    readonly reason: "unavailable" | "cancelled" | "nonzero-exit" | "io",
     readonly exitCode: number | null = null,
     options?: ErrorOptions,
   ) {
@@ -41,11 +31,9 @@ export class NativeCommandFailure extends Error {
   }
 }
 
-/** Bounds and cancellation applied to one allowlisted native command. */
+/** Cancellation and exit handling for one allowlisted native command. */
 export interface NativeCommandOptions {
   readonly signal?: AbortSignal;
-  readonly timeoutMs: number;
-  readonly maxOutputBytes: number;
   readonly acceptNonZero?: boolean;
 }
 
@@ -60,18 +48,16 @@ export interface NativeCommandRunner {
 /** Resolve one allowlisted native tool to an immutable executable identity. */
 export type NativeToolResolver = (
   tool: string,
+  signal?: AbortSignal,
 ) => Promise<Result<ResolvedTool, NativeCommandFailure>>;
 
-/** Run allowlisted Xcode tools directly with bounded output and no shell. */
+/** Run allowlisted Xcode tools directly without a shell. */
 export class XcrunCommandRunner implements NativeCommandRunner {
-  readonly #resolved = new Map<
-    string,
-    Promise<Result<ResolvedTool, NativeCommandFailure>>
-  >();
+  readonly #resolved = new Map<string, ResolvedTool>();
 
   constructor(
-    private readonly resolveTool: NativeToolResolver = (tool) =>
-      resolveXcrunTool(tool),
+    private readonly resolveTool: NativeToolResolver = (tool, signal) =>
+      resolveXcrunTool(tool, signal),
   ) {}
 
   run(
@@ -83,7 +69,7 @@ export class XcrunCommandRunner implements NativeCommandRunner {
       return Promise.resolve(
         err(new NativeCommandFailure(tool, "unavailable")),
       );
-    return this.#resolve(tool).then(async (resolved) => {
+    return this.#resolve(tool, options.signal).then(async (resolved) => {
       if (!resolved.ok) return resolved;
       const captured = await captureProcess(
         resolved.value.path,
@@ -108,14 +94,12 @@ export class XcrunCommandRunner implements NativeCommandRunner {
 
   async #resolve(
     tool: string,
+    signal?: AbortSignal,
   ): Promise<Result<ResolvedTool, NativeCommandFailure>> {
     const existing = this.#resolved.get(tool);
-    if (existing !== undefined) return existing;
-    const pending = this.resolveTool(tool);
-    this.#resolved.set(tool, pending);
-    const resolved = await pending;
-    if (!resolved.ok && this.#resolved.get(tool) === pending)
-      this.#resolved.delete(tool);
+    if (existing !== undefined) return ok(existing);
+    const resolved = await this.resolveTool(tool, signal);
+    if (resolved.ok) this.#resolved.set(tool, resolved.value);
     return resolved;
   }
 }
@@ -142,14 +126,20 @@ const ALLOWED_TOOLS = new Set([
 
 const resolveXcrunTool = async (
   tool: string,
+  signal?: AbortSignal,
 ): Promise<Result<ResolvedTool, NativeCommandFailure>> => {
   const found = await captureProcess(
     "/usr/bin/xcrun",
     ["--find", tool],
     "xcrun",
-    { timeoutMs: 5_000, maxOutputBytes: 64 * 1024 },
+    signal === undefined ? {} : { signal },
   );
-  if (!found.ok || found.value.exitCode !== 0)
+  if (!found.ok) {
+    if (found.error.reason === "cancelled")
+      return err(new NativeCommandFailure(tool, "cancelled"));
+    return err(new NativeCommandFailure(tool, "unavailable"));
+  }
+  if (found.value.exitCode !== 0)
     return err(new NativeCommandFailure(tool, "unavailable"));
   const candidate = found.value.stdout.trim();
   if (!candidate.startsWith("/"))
@@ -178,8 +168,6 @@ const captureProcess = (
   tool: string,
   options: {
     readonly signal?: AbortSignal;
-    readonly timeoutMs: number;
-    readonly maxOutputBytes: number;
     readonly acceptNonZero?: boolean;
   },
 ): Promise<Result<ProcessCapture, NativeCommandFailure>> =>
@@ -210,7 +198,6 @@ const captureProcess = (
     ): void => {
       if (settled) return;
       settled = true;
-      clearTimeout(timeout);
       options.signal?.removeEventListener("abort", onAbort);
       resolve(result);
     };
@@ -220,18 +207,13 @@ const captureProcess = (
     };
     const onAbort = (): void => stop("cancelled");
     options.signal?.addEventListener("abort", onAbort, { once: true });
-    const timeout = setTimeout(() => stop("timeout"), options.timeoutMs);
     child.stdout.on("data", (chunk: Buffer) => {
       stdoutBytes += chunk.length;
-      if (stdoutBytes + stderrBytes > options.maxOutputBytes)
-        stop("output-limit");
-      else stdout.push(chunk);
+      stdout.push(chunk);
     });
     child.stderr.on("data", (chunk: Buffer) => {
       stderrBytes += chunk.length;
-      if (stdoutBytes + stderrBytes > options.maxOutputBytes)
-        stop("output-limit");
-      else stderr.push(chunk);
+      stderr.push(chunk);
     });
     child.once("error", (cause: unknown) =>
       finish(err(new NativeCommandFailure(tool, "io", null, { cause }))),
@@ -251,8 +233,6 @@ const captureProcess = (
           stderr: Buffer.concat(stderr).toString("utf8"),
           stdoutBytes,
           stderrBytes,
-          stdoutTruncated: false,
-          stderrTruncated: false,
           exitCode: code,
           signal,
         }),

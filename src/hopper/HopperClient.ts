@@ -57,7 +57,6 @@ const SESSION_ROOT = process.platform === "darwin" ? "/tmp" : tmpdir();
 export interface HopperClientOptions {
   readonly launcher: BridgeLauncher;
   readonly runId?: string;
-  readonly requestTimeoutMs?: number;
   readonly startupTimeoutMs?: number;
   readonly onDiagnostic?: (event: HopperDiagnostic) => void;
   readonly logger?: Logger;
@@ -78,9 +77,7 @@ type HopperClientCloseOptions = {
  * Hopper launcher does not confer ownership of the GUI application.
  */
 export class HopperClient {
-  readonly #options: Required<
-    Pick<HopperClientOptions, "requestTimeoutMs" | "startupTimeoutMs">
-  > &
+  readonly #options: Required<Pick<HopperClientOptions, "startupTimeoutMs">> &
     HopperClientOptions;
   readonly #requests: HopperRequestQueue;
   readonly #responses: HopperResponseStream;
@@ -112,7 +109,6 @@ export class HopperClient {
     this.#logger = options.logger ?? silentLogger;
     this.#options = {
       ...options,
-      requestTimeoutMs: options.requestTimeoutMs ?? 30_000,
       startupTimeoutMs: options.startupTimeoutMs ?? 120_000,
     };
     this.#requests = new HopperRequestQueue(
@@ -284,7 +280,6 @@ export class HopperClient {
     arguments_: Readonly<Record<string, JsonValue>> = {},
     options: {
       readonly signal?: AbortSignal;
-      readonly timeoutMs?: number;
       readonly progress?: ProgressReporter;
     } = {},
   ): Promise<Result<JsonValue, AnalysisError>> {
@@ -432,9 +427,7 @@ export class HopperClient {
     if (options.signal?.aborted === true)
       return err(new HopperCancelledError());
     const startedAt = performance.now();
-    const timeoutMs = options.timeoutMs ?? this.#options.requestTimeoutMs;
     const result = await this.#requests.run(id, method, params, {
-      timeoutMs,
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       ...(options.progress !== undefined ? { progress: options.progress } : {}),
     });

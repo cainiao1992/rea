@@ -12,7 +12,6 @@ import re
 import socket
 from typing import Any, Optional, Protocol, Sequence
 
-MAX_LINE_BYTES = 10 * 1024 * 1024
 BAD_ADDRESSES = (-1, 0xFFFFFFFFFFFFFFFF, None)
 _selected_document = None
 _rea_session_document = None
@@ -794,11 +793,11 @@ def _dispatch(method, params):
 
 
 def _serve_connection(connection):
-    """Serve one size-bounded, capability-authenticated NDJSON connection."""
+    """Serve one capability-authenticated NDJSON connection."""
     file = connection.makefile("rwb")
     while True:
-        line = file.readline(MAX_LINE_BYTES + 1)
-        if not line or len(line) > MAX_LINE_BYTES:
+        line = file.readline()
+        if not line:
             break
         request_id = None
         authenticated = False

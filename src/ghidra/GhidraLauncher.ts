@@ -15,11 +15,6 @@ import {
   type SpawnedOwnedProviderProcess,
   spawnOwnedProviderProcess,
 } from "../process/ProviderProcess.js";
-import {
-  GHIDRA_ANALYSIS_TIMEOUT_SECONDS,
-  GHIDRA_MAX_CPU,
-  GHIDRA_MAX_HEAP,
-} from "./GhidraDefaults.js";
 import { ghidraJavaEnvironment } from "./GhidraInstallation.js";
 import type { GhidraTransportKind } from "./GhidraTransport.js";
 
@@ -272,10 +267,6 @@ export const ghidraHeadlessArguments = (
   options.targetPath,
   "-readOnly",
   "-deleteProject",
-  "-analysisTimeoutPerFile",
-  String(GHIDRA_ANALYSIS_TIMEOUT_SECONDS),
-  "-max-cpu",
-  String(GHIDRA_MAX_CPU),
   "-log",
   options.ghidraLogPath,
   "-scriptlog",
@@ -323,7 +314,6 @@ const ghidraLaunchEnvironment = (
     XDG_CACHE_HOME: paths.cacheRoot,
     XDG_CONFIG_HOME: paths.configRoot,
     XDG_DATA_HOME: paths.dataRoot,
-    GHIDRA_HEADLESS_MAXMEM: GHIDRA_MAX_HEAP,
     GHIDRA_HEADLESS_JAVA_OPTIONS: javaOptions,
   };
 };

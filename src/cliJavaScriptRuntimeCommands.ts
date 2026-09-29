@@ -9,7 +9,6 @@ import { V8InspectorProvider } from "./browser/V8InspectorProvider.js";
 import { CLI_COMMANDS } from "./cliCommandNames.js";
 import { logCliCommand } from "./cliLogging.js";
 import { parseConfig } from "./config.js";
-import { v8InspectorLocationScopes } from "./config/passiveObservation.js";
 import {
   javascriptRuntimeKindSchema,
   listJavaScriptRuntimeTargetsInputSchema,
@@ -23,23 +22,7 @@ import {
 import type { JsonValue } from "./domain/jsonValue.js";
 import type { Logger } from "./logger.js";
 
-const scopeOptions = {
-  allowedFileRoots: z
-    .array(z.string().min(1))
-    .optional()
-    .describe("Exact roots; defaults to REA_V8_INSPECTOR_FILE_ROOTS_JSON"),
-  allowedOrigins: z
-    .array(z.string().min(1))
-    .optional()
-    .describe(
-      "Exact origins; defaults to REA_V8_INSPECTOR_ALLOWED_ORIGINS_JSON",
-    ),
-};
-
-const listOptionsSchema = z.object({ ...scopeOptions });
-
 const observeOptionsSchema = z.object({
-  ...scopeOptions,
   runtimeKind: javascriptRuntimeKindSchema
     .optional()
     .describe(
@@ -60,12 +43,11 @@ export const registerJavaScriptRuntimeObservationCommands = (
   logger: Logger,
 ): void => {
   cli.command(CLI_COMMANDS.listJavaScriptRuntimeTargets, {
-    description: "List approved Node/Electron V8 Inspector targets",
+    description: "List Node/Electron V8 Inspector targets",
     args: z.object({
-      endpoint: z.string().describe("Configured literal-loopback endpoint"),
+      endpoint: z.string().describe("Literal-loopback Inspector endpoint"),
     }),
-    options: listOptionsSchema,
-    run: ({ args, options }) =>
+    run: ({ args }) =>
       logCliCommand(
         logger,
         CLI_COMMANDS.listJavaScriptRuntimeTargets,
@@ -76,9 +58,6 @@ export const registerJavaScriptRuntimeObservationCommands = (
           if (!context.ok) return context.error;
           const parsed = listJavaScriptRuntimeTargetsInputSchema.safeParse({
             inspector_endpoint: args.endpoint,
-            allowed_file_roots:
-              options.allowedFileRoots ?? context.allowedFileRoots,
-            allowed_origins: options.allowedOrigins ?? context.allowedOrigins,
           });
           if (!parsed.success)
             return inputError("list_javascript_runtime_targets");
@@ -95,7 +74,7 @@ export const registerJavaScriptRuntimeObservationCommands = (
   cli.command(CLI_COMMANDS.observeJavaScriptRuntime, {
     description: "Passively observe one exact Node/Electron Inspector target",
     args: z.object({
-      endpoint: z.string().describe("Configured literal-loopback endpoint"),
+      endpoint: z.string().describe("Literal-loopback Inspector endpoint"),
       targetId: z
         .string()
         .describe("Target from list-javascript-runtime-targets"),
@@ -107,9 +86,6 @@ export const registerJavaScriptRuntimeObservationCommands = (
         if (!context.ok) return context.error;
         const parsed = observeJavaScriptRuntimeInputSchema.safeParse({
           inspector_endpoint: args.endpoint,
-          allowed_file_roots:
-            options.allowedFileRoots ?? context.allowedFileRoots,
-          allowed_origins: options.allowedOrigins ?? context.allowedOrigins,
           target_id: args.targetId,
           runtime_kind: options.runtimeKind,
           observation_ms: options.observationMs,
@@ -136,20 +112,17 @@ const runtimeContext = async (operation: string) => {
         new AnalysisCapabilityUnavailableError(
           "rea-v8-inspector",
           operation,
-          "V8 Inspector observation is disabled; configure exact endpoints and file or origin scopes before enabling it",
+          "V8 Inspector observation is disabled; enable REA_V8_INSPECTOR_OBSERVE_ENABLED to authorize loopback endpoints",
         ),
       ),
     };
   const authority = await loadConfiguredPermissionAuthority(config.value);
   if (!authority.ok)
     return { ok: false as const, error: cliError(authority.error) };
-  const scopes = v8InspectorLocationScopes(policy.locations);
   return {
     ok: true as const,
     authority: authority.value,
     provider: new V8InspectorProvider(),
-    allowedFileRoots: scopes.fileRoots,
-    allowedOrigins: scopes.allowedOrigins,
   };
 };
 

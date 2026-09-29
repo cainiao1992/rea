@@ -53,7 +53,6 @@ const clients: HopperClient[] = [];
 const startClient = async () => {
   const client = new HopperClient({
     launcher: new FixtureLauncher(),
-    requestTimeoutMs: 100,
     startupTimeoutMs: 1_000,
   });
   clients.push(client);

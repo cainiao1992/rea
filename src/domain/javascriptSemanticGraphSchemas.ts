@@ -162,7 +162,6 @@ export const JAVASCRIPT_SEMANTIC_RELATION_FAMILY = {
 const relativePathSchema = z
   .string()
   .min(1)
-  .max(4_096)
   .refine(
     (path) =>
       !path.startsWith("/") &&

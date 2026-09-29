@@ -59,23 +59,33 @@ const evidencePages = (
     ),
   );
 
+const changedArtifactComparison = async () => {
+  const parent = await createTestTempDirectory("rea-artifact-compare-");
+  const leftPath = join(parent, "left.app");
+  const rightPath = join(parent, "right.app");
+  await Promise.all([mkdir(leftPath), mkdir(rightPath)]);
+  await Promise.all([
+    writeFile(join(leftPath, "main.js"), "old();"),
+    writeFile(join(leftPath, "same.txt"), "same"),
+    writeFile(join(rightPath, "main.js"), "newer();"),
+    writeFile(join(rightPath, "same.txt"), "same"),
+    writeFile(join(rightPath, "added.txt"), "added"),
+  ]);
+  const left = await observe(leftPath);
+  const right = await observe(rightPath);
+  return {
+    left,
+    right,
+    result: compareArtifacts(left, right),
+  };
+};
+
 describe("artifact comparison", () => {
   it("classifies deterministic path changes and cites both inventories", async () => {
-    const parent = await createTestTempDirectory("rea-artifact-compare-");
-    const leftPath = join(parent, "left.app");
-    const rightPath = join(parent, "right.app");
-    await Promise.all([mkdir(leftPath), mkdir(rightPath)]);
-    await Promise.all([
-      writeFile(join(leftPath, "main.js"), "old();"),
-      writeFile(join(leftPath, "same.txt"), "same"),
-      writeFile(join(rightPath, "main.js"), "newer();"),
-      writeFile(join(rightPath, "same.txt"), "same"),
-      writeFile(join(rightPath, "added.txt"), "added"),
-    ]);
-    const left = await observe(leftPath);
-    const right = await observe(rightPath);
-    const first = compareArtifacts(left, right);
-    const second = compareArtifacts(left, right);
+    const firstObservation = await changedArtifactComparison();
+    const secondObservation = await changedArtifactComparison();
+    const first = firstObservation.result;
+    const second = secondObservation.result;
     expect(first).toEqual(second);
     expect(artifactComparisonResultSchema.parse(first)).toMatchObject({
       status: "changed",
@@ -85,8 +95,8 @@ describe("artifact comparison", () => {
       ]),
     });
     expect(first.changes[0]?.evidence_links).toEqual([
-      left.evidence_id,
-      right.evidence_id,
+      firstObservation.left.evidence_id,
+      firstObservation.right.evidence_id,
     ]);
     expect(first.changes).toEqual(
       expect.arrayContaining([
@@ -101,6 +111,30 @@ describe("artifact comparison", () => {
         }),
       ]),
     );
+  });
+
+  it("accepts all reported comparison dimensions", async () => {
+    const result = (await changedArtifactComparison()).result;
+    const firstChange = result.changes[0];
+    if (firstChange === undefined) throw new Error("Expected artifact change");
+
+    const dimensions = [
+      "content",
+      "kind",
+      "format",
+      "size",
+      "executable",
+      "relations",
+      "metadata",
+      "availability",
+      "integrity",
+    ] as const;
+    expect(
+      artifactComparisonResultSchema.parse({
+        ...result,
+        changes: [{ ...firstChange, dimensions }, ...result.changes.slice(1)],
+      }).changes[0]?.dimensions,
+    ).toEqual(dimensions);
   });
 
   it("reports incomplete inventory as truncated, never unchanged", async () => {
@@ -138,7 +172,9 @@ describe("artifact comparison", () => {
       "Left artifact inventory is incomplete.",
     );
   });
+});
 
+describe("artifact comparison completeness", () => {
   it("compares every graph member for inventories larger than 500 entries", async () => {
     const root = await createTestTempDirectory("rea-artifact-pages-");
     await Promise.all(

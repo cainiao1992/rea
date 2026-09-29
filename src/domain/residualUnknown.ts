@@ -5,18 +5,18 @@ import { z } from "zod";
 
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
 const unknownIdSchema = z.string().regex(/^unk_[a-f0-9]{64}$/u);
-const boundedText = z.string().trim().min(1).max(1_000);
+const text = z.string().trim().min(1);
 const environmentRequirementSchema = z.object({
-  id: z.string().min(1).max(200).nullable(),
-  platform: z.string().min(1).max(100).nullable(),
-  architecture: z.string().min(1).max(100).nullable(),
+  id: z.string().min(1).nullable(),
+  platform: z.string().min(1).nullable(),
+  architecture: z.string().min(1).nullable(),
   isolation: z
     .enum(["none", "process", "container", "virtual-machine"])
     .nullable(),
 });
 const probeSchema = z.object({
-  operation: z.string().min(1).max(200),
-  rationale: boundedText,
+  operation: z.string().min(1),
+  rationale: text,
 });
 const relationshipSchema = z.object({
   type: z.enum(["depends-on", "related-to", "contradicts"]),
@@ -25,12 +25,12 @@ const relationshipSchema = z.object({
 const resolutionSchema = z.discriminatedUnion("disposition", [
   z.object({
     disposition: z.literal("verified"),
-    rationale: boundedText,
+    rationale: text,
     evidence_ids: z.array(evidenceIdSchema).min(1),
   }),
   z.object({
     disposition: z.enum(["withdrawn", "out-of-scope"]),
-    rationale: boundedText,
+    rationale: text,
     evidence_ids: z.array(evidenceIdSchema),
   }),
 ]);
@@ -48,7 +48,7 @@ const residualUnknownObjectSchema = z.object({
     .string()
     .regex(/^[a-f0-9]{64}$/u)
     .nullable(),
-  question: boundedText,
+  question: text,
   status: z.enum([
     "open",
     "investigating",
@@ -57,7 +57,7 @@ const residualUnknownObjectSchema = z.object({
     "resolved",
   ]),
   severity: z.enum(["low", "medium", "high", "critical"]),
-  domain: z.string().trim().min(1).max(100),
+  domain: text,
   supporting_evidence_ids: z.array(evidenceIdSchema),
   contradicting_evidence_ids: z.array(evidenceIdSchema),
   required_authority: z

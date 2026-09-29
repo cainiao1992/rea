@@ -84,6 +84,12 @@ export const PROCESS_COMPARISON_EVIDENCE = createEvidence(
 
 /** Canonical inputs for comparison-composed investigation contracts. */
 export const INVESTIGATION_EXAMPLES = {
+  compare_process_captures: {
+    input: {
+      left: PROCESS_CAPTURE_REFERENCE,
+      right: PROCESS_CAPTURE_RECONSTRUCTION,
+    },
+  },
   find_changed_behavior: { comparisons: [FUNCTION_COMPARISON_EVIDENCE] },
   build_call_path: {
     functions: [FUNCTION_COMPARISON_EXAMPLE.left],

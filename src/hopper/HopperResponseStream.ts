@@ -3,8 +3,6 @@ import {
   type HopperBridgeMessage,
 } from "./protocol.js";
 
-const MAX_LINE_BYTES = 10 * 1024 * 1024;
-
 export interface HopperResponseStreamOptions {
   readonly accept: (message: HopperBridgeMessage) => boolean;
   readonly hasQueued: (id: number) => boolean;
@@ -12,7 +10,7 @@ export interface HopperResponseStreamOptions {
   readonly abort: (message: string, cause?: Error) => void;
 }
 
-/** Incrementally validates bounded Hopper NDJSON response frames. */
+/** Incrementally validates Hopper NDJSON response frames. */
 export class HopperResponseStream {
   #buffer = "";
 
@@ -24,15 +22,8 @@ export class HopperResponseStream {
     while (newline >= 0) {
       const line = this.#buffer.slice(0, newline).trim();
       this.#buffer = this.#buffer.slice(newline + 1);
-      if (Buffer.byteLength(line) > MAX_LINE_BYTES) {
-        this.options.abort("Hopper response exceeded the maximum line size");
-        return;
-      }
       if (line.length > 0 && !this.#acceptLine(line)) return;
       newline = this.#buffer.indexOf("\n");
-    }
-    if (Buffer.byteLength(this.#buffer) > MAX_LINE_BYTES) {
-      this.options.abort("Hopper response exceeded the maximum line size");
     }
   }
 

@@ -255,7 +255,6 @@ const activityDetails = (activity: HopperRequestActivity): JsonValue => ({
   request_id: activity.requestId,
   operation: activity.operation,
   elapsed_ms: activity.elapsedMs,
-  timeout_ms: activity.timeoutMs,
   caller_state: activity.callerState,
   queued_requests: activity.queuedRequests,
 });

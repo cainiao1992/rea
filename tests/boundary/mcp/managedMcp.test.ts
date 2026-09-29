@@ -76,13 +76,8 @@ it("opens a managed PE and executes the managed static provider through MCP", as
     await server.connect(serverTransport);
     await client.connect(clientTransport);
     await verifyManagedCatalogAndNativeWorkflow(client, session);
-    const members = await inspectManagedStaticWorkflow(client, session, path);
-    await verifyManagedComparisonAndReconstruction(
-      client,
-      session,
-      members,
-      rightPath,
-    );
+    const members = await inspectManagedStaticWorkflow(client, path);
+    await verifyManagedComparisonAndReconstruction(client, members, rightPath);
   } finally {
     await Promise.all([client.close(), server.close()]);
     await session.close();
@@ -114,12 +109,10 @@ const verifyManagedCatalogAndNativeWorkflow = async (
     await client.callTool({
       name: "verify_managed_native_boundaries",
       arguments: {
-        managed_boundaries_evidence_id:
-          MANAGED_NATIVE_VERIFICATION_EXAMPLE.managed_boundaries.evidence_id,
-        native_observation_evidence_ids:
-          MANAGED_NATIVE_VERIFICATION_EXAMPLE.native_observations.map(
-            ({ evidence_id: evidenceId }) => evidenceId,
-          ),
+        managed_boundaries:
+          MANAGED_NATIVE_VERIFICATION_EXAMPLE.managed_boundaries,
+        native_observations:
+          MANAGED_NATIVE_VERIFICATION_EXAMPLE.native_observations,
       },
     }),
   );
@@ -135,26 +128,22 @@ const verifyManagedCatalogAndNativeWorkflow = async (
   const wrong = await client.callTool({
     name: "verify_managed_native_boundaries",
     arguments: {
-      managed_boundaries_evidence_id: native.evidence_id,
-      native_observation_evidence_ids: [
-        MANAGED_NATIVE_VERIFICATION_EXAMPLE.managed_boundaries.evidence_id,
+      managed_boundaries: native,
+      native_observations: [
+        MANAGED_NATIVE_VERIFICATION_EXAMPLE.managed_boundaries,
       ],
     },
   });
   expect(wrong).toMatchObject({
     isError: true,
     structuredContent: {
-      error: {
-        code: "evidence_integrity_mismatch",
-        details: { reason: "wrong_operation", actual: "inspect_macho" },
-      },
+      error: { code: "evidence_integrity_mismatch" },
     },
   });
 };
 
 const inspectManagedStaticWorkflow = async (
   client: Client,
-  session: BinarySession,
   path: string,
 ): Promise<Record<string, unknown>> => {
   const inspected = structured(
@@ -169,8 +158,7 @@ const inspectManagedStaticWorkflow = async (
       references: [expect.objectContaining({ name: "System.Runtime" })],
     },
   });
-  const members = sessionEvidence(
-    session,
+  const members = inlineEvidence(
     structured(
       await client.callTool({
         name: "inspect_managed_members",
@@ -225,7 +213,6 @@ const methodFrom = (members: Record<string, unknown>) =>
 
 const verifyManagedComparisonAndReconstruction = async (
   client: Client,
-  session: BinarySession,
   members: Record<string, unknown>,
   rightPath: string,
 ): Promise<void> => {
@@ -233,8 +220,7 @@ const verifyManagedComparisonAndReconstruction = async (
     name: "open_binary",
     arguments: { path: rightPath },
   });
-  const right = sessionEvidence(
-    session,
+  const right = inlineEvidence(
     structured(
       await client.callTool({
         name: "inspect_managed_members",
@@ -242,14 +228,13 @@ const verifyManagedComparisonAndReconstruction = async (
       }),
     ),
   );
-  const compared = sessionEvidence(
-    session,
+  const compared = inlineEvidence(
     structured(
       await client.callTool({
         name: "compare_managed_members",
         arguments: {
-          left_evidence_id: members.evidence_id,
-          right_evidence_id: right.evidence_id,
+          left: members,
+          right,
         },
       }),
     ),
@@ -266,25 +251,23 @@ const verifyManagedComparisonAndReconstruction = async (
   const method = methodFrom(members);
   expect(method).toBeDefined();
   if (method === undefined) return;
-  await verifyImport(client, session, members, method);
-  await verifyRuntimePlan(client, session, members, method);
+  await verifyImport(client, members, method);
+  await verifyRuntimePlan(client, members, method);
 };
 
 type ManagedMethod = NonNullable<ReturnType<typeof methodFrom>>;
 
 const verifyImport = async (
   client: Client,
-  session: BinarySession,
   members: Record<string, unknown>,
   method: ManagedMethod,
 ): Promise<void> => {
-  const imported = sessionEvidence(
-    session,
+  const imported = inlineEvidence(
     structured(
       await client.callTool({
         name: "import_managed_reconstruction",
         arguments: {
-          static_members_evidence_id: members.evidence_id,
+          static_members: members,
           decompiler: {
             name: "ilspycmd",
             version: "9.1.0.7988",
@@ -328,17 +311,15 @@ const verifyImport = async (
 
 const verifyRuntimePlan = async (
   client: Client,
-  session: BinarySession,
   members: Record<string, unknown>,
   method: ManagedMethod,
 ): Promise<void> => {
-  const planned = sessionEvidence(
-    session,
+  const planned = inlineEvidence(
     structured(
       await client.callTool({
         name: "plan_managed_runtime_correlation",
         arguments: {
-          static_members_evidence_id: members.evidence_id,
+          static_members: members,
           method: {
             token: method.token,
             signature_sha256: method.signature.raw_sha256,
@@ -383,12 +364,19 @@ const structured = (result: CallToolResult): Record<string, unknown> => {
   return z.record(z.string(), z.unknown()).parse(result.structuredContent);
 };
 
-const sessionEvidence = (
-  session: BinarySession,
-  result: Readonly<Record<string, unknown>>,
+const inlineEvidence = (
+  value: Readonly<Record<string, unknown>>,
 ): Record<string, unknown> => {
-  const evidenceId = z.string().parse(result.evidence_id);
-  const evidence = session.evidenceById(evidenceId);
-  if (evidence === undefined) throw new Error("missing session Evidence");
-  return z.record(z.string(), z.unknown()).parse(evidence);
+  const parsed = z
+    .object({
+      evidence_id: z.string(),
+      result: z.unknown(),
+      evidence: z.object({}).passthrough(),
+    })
+    .parse(value);
+  return {
+    ...parsed.evidence,
+    evidence_id: parsed.evidence_id,
+    normalized_result: parsed.result,
+  };
 };

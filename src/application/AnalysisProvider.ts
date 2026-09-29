@@ -88,8 +88,7 @@ export interface ProviderRequestActivitySnapshot {
     readonly requestId: number;
     readonly operation: string;
     readonly elapsedMs: number;
-    readonly timeoutMs: number;
-    readonly callerState: "waiting" | "timed_out" | "cancelled";
+    readonly callerState: "waiting" | "cancelled";
   } | null;
   readonly queuedRequests: number;
 }

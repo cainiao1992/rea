@@ -10,7 +10,7 @@ import { err, ok, type Result } from "../domain/result.js";
 
 export const reconstructionCoverageEvaluationInputSchema = z.strictObject({
   coverage: reconstructionCoverageDataSchema,
-  boundary_id: z.string().min(1).max(200),
+  boundary_id: z.string().min(1),
 });
 
 /** Evaluate inline reconstruction coverage against a named boundary. */

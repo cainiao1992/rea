@@ -40,8 +40,6 @@ const reconciliationEvidence = createEvidence(
     evidenceLinks: reconciliation.evidence_links,
   },
 );
-const EXAMPLE_EVIDENCE_ID = `ev_${"0".repeat(64)}`;
-const SECOND_EXAMPLE_EVIDENCE_ID = `ev_${"1".repeat(64)}`;
 const TRACE_SEED = {
   kind: "module" as const,
   value: "renderer.js",
@@ -49,20 +47,20 @@ const TRACE_SEED = {
   case_sensitive: false,
 };
 
-/** Natural trace request using the Evidence ID returned by its producer. */
+/** Natural trace request with the producer's complete Evidence inline. */
 export const JAVASCRIPT_FEATURE_TRACE_EXAMPLE = {
-  application_evidence_id: EXAMPLE_EVIDENCE_ID,
+  application: JAVASCRIPT_APPLICATION_EVIDENCE_EXAMPLE,
   seed: TRACE_SEED,
   direction: "both" as const,
 };
 
-/** Natural version comparison using two producer-returned Evidence IDs. */
+/** Natural version comparison with both Evidence records inline. */
 export const JAVASCRIPT_APPLICATION_VERSION_COMPARISON_EXAMPLE = {
-  left: EXAMPLE_EVIDENCE_ID,
-  right: SECOND_EXAMPLE_EVIDENCE_ID,
+  left: JAVASCRIPT_APPLICATION_EVIDENCE_EXAMPLE,
+  right: reconciliationEvidence,
 };
 
-/** Historical source inventory compared with one producer-returned graph ID. */
+/** Historical source inventory compared with inline application Evidence. */
 export const SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE = {
   reference: createHistoricalSourceGraph({
     schema: "HistoricalSourceGraph",
@@ -101,13 +99,13 @@ export const SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE = {
     },
     limitations: [],
   }),
-  application_evidence_id: EXAMPLE_EVIDENCE_ID,
+  application: JAVASCRIPT_APPLICATION_EVIDENCE_EXAMPLE,
 };
 
-/** Exact static return-shape comparison using producer-returned Evidence IDs. */
+/** Exact static return-shape comparison with both Evidence records inline. */
 export const JAVASCRIPT_EXPORT_SHAPE_COMPARISON_EXAMPLE = {
-  left: EXAMPLE_EVIDENCE_ID,
-  right: SECOND_EXAMPLE_EVIDENCE_ID,
+  left: JAVASCRIPT_APPLICATION_EVIDENCE_EXAMPLE,
+  right: reconciliationEvidence,
   left_module_path: "parser.mjs",
   left_export_name: "default",
   right_module_path: "parser.mjs",

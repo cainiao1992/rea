@@ -36,7 +36,7 @@ export const GHIDRA_PROVIDER_TOOL_CONTRACTS = Object.freeze(
 
 /** Health limitations shared by every Ghidra-backed capability. */
 export const healthLimitations = Object.freeze([
-  "The session serves operations only after default Ghidra auto-analysis completes; an analysis timeout fails the open instead of exposing partial results.",
+  "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
   "The imported Program and temporary project are ephemeral, read-only to REA, and deleted on close.",
 ]);
 
@@ -86,7 +86,7 @@ export const limitationsFor = (operation: string): readonly string[] => {
     case "procedure_pseudo_code":
       return [
         ...common,
-        "Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output; each decompile has a 30-second native deadline.",
+        "Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.",
         "External functions and functions without an analyzable body return null; other decompiler failures remain explicit.",
       ];
     case "read_function_instructions":
@@ -124,7 +124,7 @@ export const limitationsFor = (operation: string): readonly string[] => {
         "The dossier combines Ghidra FunctionManager, Listing, ReferenceManager, BasicBlockModel, and decompiler observations; provider-specific pseudocode and assembly are not cross-provider text invariants.",
         "Resolved reference metadata identifies computed, indirect, external, call, jump, and data edges; unresolved targetless flows remain unknown, and function classifications distinguish thunks and externals.",
         "Synthetic Ghidra entry-point references without actionable memory sources are omitted.",
-        "The Java bridge serializes one function request per Program through a bounded 32-request queue and applies a 30-second native decompilation deadline.",
+        "The Java bridge serializes one function request per Program and lets each decompilation run until it completes or the caller cancels.",
       ];
     default:
       return common;

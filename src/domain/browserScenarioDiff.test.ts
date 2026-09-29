@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   compareBrowserScenarios,
   compareBrowserScenariosInputSchema,
+  browserScenarioDiffSchema,
 } from "./browserScenarioDiff.js";
 import {
   browserScenarioCaptureSchema,
@@ -110,6 +111,71 @@ describe("browser scenario comparison", () => {
       ],
     });
     expect(compared.artifact_diffs).toEqual({ total: 2 });
+  });
+});
+
+describe("browser scenario comparison text values", () => {
+  it("accepts long normalization values and comparison diagnostics", () => {
+    const longText = "x".repeat(5_000);
+    const ruleId = "r".repeat(100);
+    const capture = scenarioCapture({});
+    const compared = compareBrowserScenarios(
+      compareBrowserScenariosInputSchema.parse({
+        before_scenario: capture,
+        after_scenario: capture,
+        normalization: {
+          rules: [
+            {
+              rule_id: ruleId,
+              artifacts: ["dom"],
+              match: longText,
+              replacement: longText,
+            },
+          ],
+        },
+      }),
+    );
+    const stepId = "s".repeat(100);
+    const diagnostic = browserScenarioDiffSchema.parse({
+      ...compared,
+      alignment: {
+        ...compared.alignment,
+        before_only: [stepId],
+        after_only: [stepId],
+        failures: [
+          {
+            code: "missing_before_step",
+            step_id: stepId,
+            reason: longText,
+          },
+        ],
+      },
+      steps: compared.steps.map((step) => ({
+        ...step,
+        step_id: stepId,
+        artifact_diffs: [
+          {
+            artifact: "dom",
+            status: "unknown",
+            before_state: "missing",
+            after_state: "missing",
+            before_sha256: null,
+            after_sha256: null,
+            reason: longText,
+          },
+        ],
+      })),
+      limitations: [longText],
+    });
+
+    expect(diagnostic.normalization.rules[0]).toMatchObject({
+      rule_id: ruleId,
+      match: longText,
+      replacement: longText,
+    });
+    expect(diagnostic.alignment.failures[0]?.reason).toBe(longText);
+    expect(diagnostic.steps[0]?.artifact_diffs[0]?.reason).toBe(longText);
+    expect(diagnostic.limitations).toEqual([longText]);
   });
 });
 

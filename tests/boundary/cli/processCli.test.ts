@@ -1,4 +1,4 @@
-import { open, rm, writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { execFile } from "node:child_process";
@@ -116,20 +116,6 @@ describe("process CLI errors", () => {
         restart_required: false,
         elicitation_supported: false,
       },
-    });
-  });
-
-  it("rejects oversized process input before parsing", async () => {
-    const root = await fixture();
-    const path = join(root, "large.json");
-    const handle = await open(path, "w");
-    await handle.truncate(64 * 1024 * 1024 + 1);
-    await handle.close();
-    expect(await captureProcessScenarioFile(path)).toEqual({
-      error: "Process command failed",
-      category: "truncated",
-      message:
-        "Process input file is too large. Reduce it below 64 MiB, then try again.",
     });
   });
 

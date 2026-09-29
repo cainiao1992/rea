@@ -164,6 +164,30 @@ describe("web bundle analyzer", () => {
   });
 });
 
+describe("web bundle artifact metadata", () => {
+  it("preserves long provider media types in artifact summaries", () => {
+    const result = analyzeCapturedWebBundle(inspection("export {};"));
+    const mediaType = `application/${"x".repeat(300)}`;
+    const artifact = result.capture.source_artifacts[0] ?? {
+      sha256: "0".repeat(64),
+      bytes: 0,
+      media_type: "application/javascript",
+      charset: "utf-8" as const,
+      text_available: true as const,
+    };
+
+    expect(
+      webBundleAnalysisSchema.parse({
+        ...result,
+        capture: {
+          ...result.capture,
+          source_artifacts: [{ ...artifact, media_type: mediaType }],
+        },
+      }).capture.source_artifacts[0]?.media_type,
+    ).toBe(mediaType);
+  });
+});
+
 const inspection = (source: string) =>
   webPageInspectionSchema.parse({
     browser: {

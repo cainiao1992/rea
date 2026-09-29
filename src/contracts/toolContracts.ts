@@ -128,12 +128,12 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "current_procedure",
-    "Return the analyzed procedure containing Hopper's current cursor. Use procedure_info or analyze_function next; this depends on GUI cursor state and is not an exhaustive lookup.",
+    "Return the analyzed procedure containing Hopper's current cursor. This uses GUI cursor state and is not a procedure-name lookup.",
     z.object({ document }),
   ),
   official(
     "current_document",
-    "Return the document currently selected by REA's Hopper bridge. Use list_documents before switching when several documents are open.",
+    "Return the document currently selected by REA's Hopper bridge.",
     z.object({}),
   ),
   official(
@@ -188,7 +188,7 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "procedure_address",
-    "Resolve an unambiguous procedure symbol name or provider-normalized address to its canonical entry address. External address spaces remain explicit; use the result before xrefs, assembly, or decompilation.",
+    "Resolve an unambiguous procedure symbol name or provider-normalized address to its canonical entry address. External address spaces remain explicit.",
     z.object({ procedure, document }),
   ),
   official(
@@ -208,12 +208,12 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "procedure_info",
-    "Return provider metadata for one procedure identified by symbol or address: entrypoint, signature, locals, size, and block count. Follow with decompilation or assembly for behavior.",
+    "Return provider metadata for one procedure identified by symbol or address: entrypoint, signature, locals, size, and block count.",
     z.object({ procedure, document }),
   ),
   official(
     "read_function_instructions",
-    "Read every raw instruction for an analyzed procedure without decompilation, caller discovery, or whole-program string/name scans. Instruction text is provider-specific.",
+    "Return every raw instruction for one analyzed procedure. Instruction text is provider-specific.",
     functionInstructionInputSchema,
   ),
   ...HOPPER_MEMORY_TOOL_DEFINITIONS.map(({ name, description, inputSchema }) =>
@@ -250,7 +250,7 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "set_address_name",
-    "Assign an analyst name to one hexadecimal address and report Hopper's boolean result. This mutates analysis metadata; read it back with address_name before relying on it.",
+    "Assign an analyst name to one hexadecimal address and report Hopper's boolean result. This mutates analysis metadata.",
     z.object({ address, name: z.string(), document }),
   ),
   official(
@@ -260,7 +260,7 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "set_bookmark",
-    "Create or replace a bookmark at a hexadecimal address. This mutates navigation metadata; verify with list_bookmarks and do not treat bookmarks as binary evidence.",
+    "Create or replace a bookmark at a hexadecimal address and report success. This mutates navigation metadata; bookmarks are analyst-authored navigation aids, not binary evidence.",
     z.object({ address, name: z.string().optional(), document }),
   ),
   official(
@@ -275,7 +275,7 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "set_inline_comment",
-    "Write an inline instruction comment at a hexadecimal address and return whether readback matched. This mutates analysis metadata; confirm with inline_comment.",
+    "Write an inline instruction comment at a hexadecimal address and return whether readback matched. This mutates analysis metadata.",
     z.object({ address, comment: z.string(), document }),
   ),
   official(
@@ -297,17 +297,17 @@ export type OfficialToolName = (typeof OFFICIAL_TOOL_CONTRACTS)[number]["name"];
 export const ENHANCED_TOOL_CONTRACTS = [
   enhanced(
     "get_objc_classes",
-    "Discover and deduplicate every Objective-C class label, optionally filtering by literal substring; inspect matching metadata and references next.",
+    "Discover and deduplicate Objective-C class labels, optionally filtering by literal substring.",
     enhancedInputSchemas.get_objc_classes,
   ),
   enhanced(
     "get_objc_protocols",
-    "Discover and deduplicate every Objective-C and Swift protocol label; use xrefs or analyze_function to connect a protocol to implementations.",
+    "Discover and deduplicate Objective-C and Swift protocol labels.",
     enhancedInputSchemas.get_objc_protocols,
   ),
   enhanced(
     "batch_decompile",
-    "Decompile each explicit procedure symbol or address concurrently. Returns ordered per-item ok/error variants and aggregate counts; use analyze_function for a richer single-function dossier.",
+    "Decompile each explicit procedure symbol or address concurrently. Returns ordered per-item success or error results and aggregate counts.",
     enhancedInputSchemas.batch_decompile,
   ),
   enhanced(
@@ -393,7 +393,7 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "compare_artifacts",
-    "Compare complete artifact inventories by logical occurrence path, content identity, metadata, and graph relations. Use the inventory Evidence nested in each inspect_artifact result. Every delta cites both inspections, and gaps yield truncated or unknown, never equivalence. Returns every change inline.",
+    "Compare complete artifact inventories by logical occurrence path, content identity, metadata, and graph relations. Pass the inventory Evidence nested in each inspect_artifact result as left and right. Every delta cites both inputs, and gaps yield truncated or unknown, never equivalence. Returns every change inline.",
     artifactComparisonInputSchema,
   ),
   session(

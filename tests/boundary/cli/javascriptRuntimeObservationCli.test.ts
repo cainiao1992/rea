@@ -44,8 +44,6 @@ describe("JavaScript runtime observation CLI parity", () => {
       const environment = {
         ...process.env,
         REA_V8_INSPECTOR_OBSERVE_ENABLED: "true",
-        REA_V8_INSPECTOR_ENDPOINTS_JSON: JSON.stringify([inspector.endpoint]),
-        REA_V8_INSPECTOR_FILE_ROOTS_JSON: JSON.stringify([root]),
       };
 
       const listed = await runCli(
@@ -96,8 +94,6 @@ describe("JavaScript runtime observation CLI parity", () => {
         authority.value,
         observeJavaScriptRuntimeInputSchema.parse({
           inspector_endpoint: inspector.endpoint,
-          allowed_file_roots: [root],
-          allowed_origins: [],
           target_id: inspector.targetId,
           runtime_kind: "node",
           observation_ms: 10,

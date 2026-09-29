@@ -46,7 +46,6 @@ describe("CdpElectronProvider target access", () => {
     const inspected = await new CdpElectronProvider().inspectPage(
       inspectElectronPageInputSchema.parse({
         cdp_endpoint: browser.endpoint,
-        allowed_file_roots: [root],
         target_id: "electron-page",
         observation_ms: 0,
       }),
@@ -56,7 +55,7 @@ describe("CdpElectronProvider target access", () => {
     expect(inspected.value.completeness.truncated_sections).toEqual([]);
   });
 
-  it("returns every approved Electron page target inline", async () => {
+  it("returns every Electron page target exposed by the endpoint inline", async () => {
     const root = await electronFixture();
     const index = join(root, "index.html");
     const browser = await startFakeCdpBrowser({
@@ -67,7 +66,6 @@ describe("CdpElectronProvider target access", () => {
     const listed = await new CdpElectronProvider().listTargets(
       listElectronTargetsInputSchema.parse({
         cdp_endpoint: browser.endpoint,
-        allowed_file_roots: [root],
       }),
     );
     if (!listed.ok) throw listed.error;
@@ -78,7 +76,7 @@ describe("CdpElectronProvider target access", () => {
 });
 
 describe("CdpElectronProvider target selection", () => {
-  it("lists and inspects only canonical file targets beneath approved roots", async () => {
+  it("lists and inspects every canonical local file target", async () => {
     const root = await electronFixture();
     const index = join(root, "index.html");
     const browser = await startFakeCdpBrowser({
@@ -90,7 +88,6 @@ describe("CdpElectronProvider target selection", () => {
     const listed = await provider.listTargets(
       listElectronTargetsInputSchema.parse({
         cdp_endpoint: browser.endpoint,
-        allowed_file_roots: [root],
       }),
     );
     if (!listed.ok) throw listed.error;
@@ -101,7 +98,6 @@ describe("CdpElectronProvider target selection", () => {
       }),
     ]);
     expect(listed.value.excluded).toEqual({
-      outside_root: 0,
       unsupported_url: 3,
       non_page: 2,
     });
@@ -109,7 +105,6 @@ describe("CdpElectronProvider target selection", () => {
     const inspected = await provider.inspectPage(
       inspectElectronPageInputSchema.parse({
         cdp_endpoint: browser.endpoint,
-        allowed_file_roots: [root],
         target_id: "electron-page",
         observation_ms: 0,
       }),
@@ -144,7 +139,6 @@ describe("CdpElectronProvider target selection", () => {
     const missing = await provider.inspectPage(
       inspectElectronPageInputSchema.parse({
         cdp_endpoint: browser.endpoint,
-        allowed_file_roots: [root],
         target_id: "missing",
         observation_ms: 0,
       }),
@@ -171,7 +165,6 @@ describe("CdpElectronProvider target selection", () => {
     const result = await new CdpElectronProvider().inspectPage(
       inspectElectronPageInputSchema.parse({
         cdp_endpoint: browser.endpoint,
-        allowed_file_roots: [root],
         target_id: "electron-page",
         observation_ms: 0,
       }),
@@ -187,13 +180,11 @@ describe("CdpElectronProvider target selection", () => {
   });
 
   it("maps cancelled Electron discovery to the Electron operation", async () => {
-    const root = await electronFixture();
     const controller = new AbortController();
     controller.abort();
     const result = await new CdpElectronProvider().listTargets(
       listElectronTargetsInputSchema.parse({
         cdp_endpoint: "http://127.0.0.1:9222",
-        allowed_file_roots: [root],
       }),
       { signal: controller.signal },
     );
@@ -213,14 +204,12 @@ describe("Electron request schemas", () => {
     expect(
       listElectronTargetsInputSchema.safeParse({
         cdp_endpoint: "http://127.0.0.1:9223",
-        allowed_file_roots: ["/tmp/app"],
         allowed_file_root: "/tmp/app",
       }).success,
     ).toBe(false);
     expect(
       inspectElectronPageInputSchema.safeParse({
         cdp_endpoint: "http://127.0.0.1:9223",
-        allowed_file_roots: ["/tmp/app"],
         target_id: "page-1",
         observation_ms: 0,
         limits: { max_dom_nodes: 20 },
@@ -239,7 +228,6 @@ describe("CdpElectronProvider capture", () => {
     const result = await new CdpElectronProvider().inspectPage(
       inspectElectronPageInputSchema.parse({
         cdp_endpoint: browser.endpoint,
-        allowed_file_roots: [root],
         target_id: "electron-page",
         observation_ms: 0,
         include_script_sources: true,
@@ -265,7 +253,6 @@ describe("CdpElectronProvider capture", () => {
     const result = await new CdpElectronProvider().inspectPage(
       inspectElectronPageInputSchema.parse({
         cdp_endpoint: browser.endpoint,
-        allowed_file_roots: [root],
         target_id: "electron-page",
         observation_ms: 0,
       }),
@@ -296,7 +283,6 @@ describe("CdpElectronProvider capture", () => {
     const result = await new CdpElectronProvider().inspectPage(
       inspectElectronPageInputSchema.parse({
         cdp_endpoint: browser.endpoint,
-        allowed_file_roots: [root],
         target_id: "electron-page",
         observation_ms: 0,
       }),

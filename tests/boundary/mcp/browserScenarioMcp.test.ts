@@ -225,12 +225,12 @@ describe("browser scenario MCP tool", () => {
     expect(JSON.stringify(captured.structuredContent)).not.toContain(
       "correct horse battery staple",
     );
-    const evidenceId = Reflect.get(
-      captured.structuredContent ?? {},
-      "evidence_id",
-    );
-    expect(session.evidenceById(String(evidenceId))).toMatchObject({
-      predicate_type: "rea.browser-scenario-capture",
+    expect(captured.structuredContent).toMatchObject({
+      evidence: {
+        predicate_type: "rea.browser-scenario-capture",
+        operation: "capture_browser_scenario",
+        parameters: expect.any(Object),
+      },
     });
     const captureResult = Reflect.get(
       captured.structuredContent ?? {},

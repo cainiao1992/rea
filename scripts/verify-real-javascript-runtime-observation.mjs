@@ -1,6 +1,5 @@
 import { execFile, spawn } from "node:child_process";
 import { once } from "node:events";
-import { realpath } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -11,7 +10,6 @@ const root = resolve(
   "../tests/conformance/runtime-inspector",
 );
 const targetPath = resolve(root, "node-target.mjs");
-const canonicalRoot = await realpath(root);
 const child = spawn(process.execPath, ["--inspect=127.0.0.1:0", targetPath], {
   stdio: ["ignore", "ignore", "pipe"],
 });
@@ -23,9 +21,6 @@ try {
   const environment = {
     ...process.env,
     REA_V8_INSPECTOR_OBSERVE_ENABLED: "true",
-    REA_V8_INSPECTOR_ENDPOINTS_JSON: JSON.stringify([endpoint]),
-    REA_V8_INSPECTOR_FILE_ROOTS_JSON: JSON.stringify([canonicalRoot]),
-    REA_V8_INSPECTOR_ALLOWED_ORIGINS_JSON: "[]",
   };
   const listed = await runCli(
     ["list-javascript-runtime-targets", endpoint, "--json"],

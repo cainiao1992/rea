@@ -9,14 +9,9 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import {
   JAVASCRIPT_FEATURE_TRACE_FULL_EVIDENCE_EXAMPLE,
-  JAVASCRIPT_FEATURE_TRACE_EXAMPLE,
   JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE,
   SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE,
 } from "../../../src/contracts/javascriptApplicationWorkflowExamples.js";
-import {
-  createEvidenceBundle,
-  serializeEvidenceBundle,
-} from "../../../src/domain/evidenceBundle.js";
 import { analyzeJavaScriptApplication } from "../../../src/application/JavaScriptApplicationService.js";
 import { REPLAY_MACHINE_RUN_EXAMPLE } from "../../../src/contracts/replayMachineExample.js";
 import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascriptApplicationAnalysis.js";
@@ -117,106 +112,24 @@ describe("application workflow CLI parity", () => {
   }, 20_000);
 });
 
-describe("application workflow CLI Evidence lookup", () => {
-  it("resolves Evidence IDs from a caller-supplied bundle", async () => {
-    const root = await createTestTempDirectory("rea-application-bundle-cli-");
-    temporary.push(root);
-    const bundlePath = join(root, "evidence.json");
-    await writeFile(
-      bundlePath,
-      serializeEvidenceBundle(
-        createEvidenceBundle([
-          JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left,
-          JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.right,
-        ]),
-      ),
-    );
-    const environment = {};
-
-    const traced = await runCli(
-      [
-        "trace-application-feature",
-        JSON.stringify({
-          ...JAVASCRIPT_FEATURE_TRACE_EXAMPLE,
-          application_evidence_id:
-            JAVASCRIPT_FEATURE_TRACE_FULL_EVIDENCE_EXAMPLE.application
-              .evidence_id,
-        }),
-        "--evidence-bundle",
-        bundlePath,
-        "--json",
-      ],
-      environment,
-    );
-    expect(traced).toMatchObject({
-      operation: "trace_application_feature",
-      normalized_result: { source_evidence_id: expect.any(String) },
-    });
-
-    const compared = await runCli(
-      [
-        "compare-application-versions",
-        JSON.stringify({
-          left: JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left
-            .evidence_id,
-          right:
-            JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.right
-              .evidence_id,
-        }),
-        "--evidence-bundle",
-        bundlePath,
-        "--json",
-      ],
-      environment,
-    );
-    expect(compared).toMatchObject({
-      operation: "compare_application_versions",
-      normalized_result: { summary: expect.any(Object) },
-    });
-
-    const missingRecord = await runCli(
-      [
-        "trace-application-feature",
-        JSON.stringify(JAVASCRIPT_FEATURE_TRACE_EXAMPLE),
-        "--evidence-bundle",
-        bundlePath,
-        "--json",
-      ],
-      environment,
-    );
-    expect(missingRecord).toMatchObject({
-      code: "evidence_integrity_mismatch",
-      details: { reason: "missing" },
-    });
-
-    const outsideRoot = await createTestTempDirectory(
-      "rea-outside-bundle-cli-",
-    );
-    temporary.push(outsideRoot);
-    const outsideBundlePath = join(outsideRoot, "evidence.json");
-    await writeFile(
-      outsideBundlePath,
-      serializeEvidenceBundle(createEvidenceBundle([])),
-    );
-    const outsideBundle = await runCli(
-      [
-        "trace-application-feature",
-        JSON.stringify(JAVASCRIPT_FEATURE_TRACE_EXAMPLE),
-        "--evidence-bundle",
-        outsideBundlePath,
-        "--json",
-      ],
-      environment,
-    );
-    expect(outsideBundle).toMatchObject({
-      code: "evidence_integrity_mismatch",
-      details: { reason: "missing" },
-    });
-  }, 30_000);
+describe("application workflow CLI input", () => {
+  it("rejects Evidence ID-only workflow inputs", async () => {
+    const result = await runCli([
+      "compare-application-versions",
+      JSON.stringify({
+        left: JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left
+          .evidence_id,
+        right:
+          JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.right.evidence_id,
+      }),
+      "--json",
+    ]);
+    expect(result).toMatchObject({ code: "invalid_request" });
+  });
 });
 
 describe("application workflow CLI export Evidence", () => {
-  it("compares exact export shapes from an authorized Evidence bundle", async () => {
+  it("compares exact export shapes from inline Evidence", async () => {
     const root = await createTestTempDirectory("rea-export-shape-cli-");
     temporary.push(root);
     const leftRoot = join(root, "left");
@@ -242,23 +155,16 @@ describe("application workflow CLI export Evidence", () => {
     ]);
     if (!left.ok) throw left.error;
     if (!right.ok) throw right.error;
-    const bundlePath = join(root, "evidence.json");
-    await writeFile(
-      bundlePath,
-      serializeEvidenceBundle(createEvidenceBundle([left.value, right.value])),
-    );
     const compared = await runCli([
       "compare-javascript-export-shapes",
       JSON.stringify({
-        left: left.value.evidence_id,
-        right: right.value.evidence_id,
+        left: left.value,
+        right: right.value,
         left_module_path: "parser.mjs",
         left_export_name: "default",
         right_module_path: "parser.mjs",
         right_export_name: "default",
       }),
-      "--evidence-bundle",
-      bundlePath,
       "--json",
     ]);
     expect(compared).toMatchObject({

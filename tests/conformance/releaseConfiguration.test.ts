@@ -60,17 +60,6 @@ describe("release configuration", () => {
     },
   );
 
-  it("keeps generated metadata compatible with the generic updater", async () => {
-    const generator = await readFile(
-      "scripts/generate-package-metadata.mjs",
-      "utf8",
-    );
-    const generated = await readFile("src/generatedPackageMetadata.ts", "utf8");
-
-    expect(generator).toContain("x-release-please-version");
-    expect(generated).toContain("x-release-please-version");
-  });
-
   it("keeps the npm package and MCP Registry metadata aligned", async () => {
     const packageJson = (await readJson("package.json")) as {
       name: string;

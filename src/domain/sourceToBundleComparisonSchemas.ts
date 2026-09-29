@@ -7,7 +7,7 @@ import { historicalSourceGraphSchema } from "./referenceSourceGraph.js";
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
 const nodeIdSchema = z.string().regex(/^jag_node_[a-f0-9]{64}$/u);
-const boundedTextSchema = z.string().min(1).max(4_096);
+const textSchema = z.string().min(1);
 
 export const SOURCE_TO_BUNDLE_SIGNAL_WEIGHTS = [
   ["exact-source-digest", 100],
@@ -36,8 +36,8 @@ export const compareSourceToBundleInputSchema = z.strictObject({
 const sourceToBundleSignalSchema = z.strictObject({
   kind: sourceToBundleSignalKindSchema,
   weight: z.number().int().min(1).max(100),
-  source_value: boundedTextSchema,
-  current_values: z.array(boundedTextSchema).min(1),
+  source_value: textSchema,
+  current_values: z.array(textSchema).min(1),
 });
 
 const sourceToBundleCandidateSchema = z.strictObject({
@@ -45,14 +45,14 @@ const sourceToBundleCandidateSchema = z.strictObject({
   current_node_kind: z.enum(JAVASCRIPT_APPLICATION_NODE_KINDS),
   score: z.number().int().min(1).max(300),
   confidence: z.enum(["exact", "high", "medium", "low"]),
-  signals: z.array(sourceToBundleSignalSchema).min(1).max(6),
+  signals: z.array(sourceToBundleSignalSchema).min(1),
 });
 
 const sourceToBundleItemSchema = z.strictObject({
   mapping_id: z.string().regex(/^stbc_item_[a-f0-9]{64}$/u),
-  source_path: boundedTextSchema,
+  source_path: textSchema,
   source_sha256: digestSchema.nullable(),
-  source_language: z.string().min(1).max(100).nullable(),
+  source_language: textSchema.nullable(),
   status: z.enum([
     "unchanged",
     "modified",
@@ -65,7 +65,7 @@ const sourceToBundleItemSchema = z.strictObject({
   confidence: z.enum(["exact", "high", "medium", "unknown"]),
   current_node_ids: z.array(nodeIdSchema),
   candidates: z.array(sourceToBundleCandidateSchema),
-  limitations: z.array(boundedTextSchema).max(100),
+  limitations: z.array(textSchema),
 });
 
 /** Deterministic, evidence-bearing historical-source to shipped-bundle comparison. */
@@ -115,7 +115,7 @@ export const sourceToBundleComparisonResultSchema = z.strictObject({
     candidate_evaluations: z.number().int().min(0),
   }),
   evidence_links: z.array(evidenceIdSchema).min(1).max(1),
-  limitations: z.array(boundedTextSchema).max(1_000),
+  limitations: z.array(textSchema),
 });
 
 export type SourceToBundleComparisonResult = z.infer<

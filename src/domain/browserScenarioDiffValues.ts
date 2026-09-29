@@ -33,7 +33,6 @@ const normalizationRuleSchema = z.strictObject({
     .string()
     .trim()
     .min(1)
-    .max(64)
     .describe("Stable rule identity; rules execute in rule_id order."),
   artifacts: z
     .array(normalizableArtifactKindSchema)
@@ -43,13 +42,11 @@ const normalizationRuleSchema = z.strictObject({
   match: z
     .string()
     .min(1)
-    .max(4_096)
     .describe(
       "Exact public literal to replace; regular expressions are not used.",
     ),
   replacement: z
     .string()
-    .max(4_096)
     .describe("Recorded replacement text used in normalized comparison."),
 });
 
@@ -113,7 +110,7 @@ const artifactDiffSchema = z.strictObject({
     .string()
     .regex(/^[a-f0-9]{64}$/u)
     .nullable(),
-  reason: z.string().min(1).max(2_048).nullable(),
+  reason: z.string().min(1).nullable(),
 });
 const alignmentFailureSchema = z.strictObject({
   code: z.enum([
@@ -124,8 +121,8 @@ const alignmentFailureSchema = z.strictObject({
     "action_mismatch",
     "capture_context_mismatch",
   ]),
-  step_id: z.string().min(1).max(64).nullable(),
-  reason: z.string().min(1).max(2_048),
+  step_id: z.string().min(1).nullable(),
+  reason: z.string().min(1),
 });
 const builtInNormalizationSchema = z.enum([
   "ignore_step_elapsed_ms",
@@ -147,17 +144,17 @@ export const browserScenarioDiffSchema = z.strictObject({
   alignment: z.strictObject({
     status: z.enum(["aligned", "partial", "failed"]),
     aligned_steps: z.number().int().min(0),
-    before_only: z.array(z.string().min(1).max(64)),
-    after_only: z.array(z.string().min(1).max(64)),
+    before_only: z.array(z.string().min(1)),
+    after_only: z.array(z.string().min(1)),
     failures: z.array(alignmentFailureSchema),
   }),
   steps: z.array(
     z.strictObject({
-      step_id: z.string().min(1).max(64),
+      step_id: z.string().min(1),
       before_step_index: z.number().int().min(0),
       after_step_index: z.number().int().min(0),
-      before_action: z.string().min(1).max(64),
-      after_action: z.string().min(1).max(64),
+      before_action: z.string().min(1),
+      after_action: z.string().min(1),
       status: z.enum(["changed", "unchanged", "unknown"]),
       artifact_diffs: z.array(artifactDiffSchema),
     }),
@@ -165,7 +162,7 @@ export const browserScenarioDiffSchema = z.strictObject({
   artifact_diffs: z.strictObject({
     total: z.number().int().min(0),
   }),
-  limitations: z.array(z.string().min(1).max(2_048)),
+  limitations: z.array(z.string().min(1)),
 });
 /** Browser scenario comparison result. */
 export type BrowserScenarioDiff = z.infer<typeof browserScenarioDiffSchema>;

@@ -9,13 +9,12 @@ import type { CdpEndpointTarget } from "./CdpEndpoint.js";
 import { optionalCdpCommand } from "./CdpOptionalCommand.js";
 import { authorizedElectronFile } from "./ElectronFileScope.js";
 
-/** Inventory root-confined worker targets without attaching to them. */
+/** Inventory local worker targets without attaching to them. */
 export const captureElectronWorkers = async (input: {
   readonly connection: CdpConnection;
   readonly signal?: AbortSignal;
   readonly target: CdpEndpointTarget;
   readonly request: InspectElectronPageInput;
-  readonly roots: readonly string[];
   readonly frameIds: ReadonlySet<string>;
   readonly completeness: CdpCaptureCompleteness;
   readonly limitations: string[];
@@ -47,10 +46,7 @@ export const captureElectronWorkers = async (input: {
       input.completeness.exclude("workers", "out_of_target_scope");
       continue;
     }
-    const path = await authorizedElectronFile(
-      stringValue(target.url) ?? "",
-      input.roots,
-    );
+    const path = await authorizedElectronFile(stringValue(target.url) ?? "");
     if (path === undefined) {
       input.completeness.exclude("workers", "out_of_target_scope");
       continue;

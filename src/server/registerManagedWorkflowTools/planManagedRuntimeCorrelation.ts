@@ -21,18 +21,12 @@ export const registerPlanManagedRuntimeCorrelation = (
     runtimeContract.name,
     toolRegistrationOptions(runtimeContract),
     async (input) => {
-      const resolved = resolveManagedEvidence(options.session, [
-        input.static_members_evidence_id,
-      ]);
+      const resolved = resolveManagedEvidence(input.static_members);
       if (!resolved.ok) return toCallToolResult(resolved, runtimeContract);
       const staticMembers = resolved.value[0];
       if (staticMembers === undefined)
         throw new TypeError("Managed runtime Evidence resolution failed");
-      const {
-        static_members_evidence_id: _staticMembersEvidenceId,
-        ...referencedInput
-      } = input;
-      const parsed = { ...referencedInput, static_members: staticMembers };
+      const parsed = { ...input, static_members: staticMembers };
       const result = await logToolExecution(
         options.logger,
         runtimeContract.name,

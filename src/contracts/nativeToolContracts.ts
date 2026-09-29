@@ -9,7 +9,7 @@ import { requireOutputSchema } from "./toolOutputSchemaPrimitives.js";
 const examples: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
   inspect_macho: {},
   inspect_signature: {},
-  inspect_plist: { relative_path: "Contents/Info.plist" },
+  inspect_plist: { path: "/Applications/Example.app/Contents/Info.plist" },
   list_architectures: {},
   demangle_swift: { symbols: ["$s4Test3fooyyF"] },
 };
@@ -47,19 +47,19 @@ export const NATIVE_TOOL_CONTRACTS = [
   ),
   native(
     "inspect_signature",
-    "Inspect the active artifact's code-signing identity, hashes, authorities, requirements, entitlements, hardened-runtime state, and bounded command provenance.",
+    "Inspect the active artifact's code-signing identity, hashes, authorities, requirements, entitlements, hardened-runtime state, and exact command provenance.",
     z.object({}),
   ),
   native(
     "inspect_plist",
-    "Parse a plist at a bounded relative path beneath the active artifact container. Symlink and traversal escapes are rejected; output is normalized JSON rather than plutil text.",
+    "Parse Info.plist from the active artifact by default, or pass any local plist path. Returns normalized JSON rather than plutil text.",
     z.object({
-      relative_path: z.string().min(1).default("Contents/Info.plist"),
+      path: z.string().min(1).optional(),
     }),
   ),
   native(
     "list_architectures",
-    "List thin or universal Mach-O slices with offsets, sizes, alignment, explicit coverage, and bounded native-tool provenance.",
+    "List thin or universal Mach-O slices with offsets, sizes, alignment, explicit coverage, and native-tool provenance.",
     z.object({}),
   ),
   native(

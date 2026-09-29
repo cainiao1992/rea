@@ -24,8 +24,6 @@ import {
 } from "./ProcessEvidence.js";
 import { loadConfiguredPermissionAuthority } from "./PermissionConfiguration.js";
 
-const MAX_INPUT_BYTES = 64 * 1024 * 1024;
-
 /** Safe process-command failure returned to the CLI adapter. */
 export interface ProcessCliErrorOutput {
   readonly error: "Process command failed";
@@ -165,11 +163,6 @@ const readJson = async (path: string): Promise<unknown> => {
       "Process input file could not be read. Check that the path exists and is readable.",
     );
   }
-  if (bytes.length > MAX_INPUT_BYTES)
-    throw new ProcessCliFailure(
-      "truncated",
-      "Process input file is too large. Reduce it below 64 MiB, then try again.",
-    );
   try {
     const parsed: unknown = JSON.parse(bytes.toString("utf8"));
     return parsed;

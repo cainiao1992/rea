@@ -134,7 +134,6 @@ const clients: HopperClient[] = [];
 const startClient = async () => {
   const client = new HopperClient({
     launcher: new FixtureLauncher(),
-    requestTimeoutMs: 100,
     startupTimeoutMs: 1_000,
   });
   clients.push(client);
@@ -150,18 +149,13 @@ afterEach(async () => {
 });
 
 describe("HopperClient cleanup", () => {
-  it("ignores more than 1,024 late responses without corrupting the session", async () => {
+  it("waits for an operation reply without a fixed request deadline", async () => {
     const client = await startClient();
-    const timedOut = await Promise.all(
-      Array.from({ length: 1_025 }, (_, index) =>
-        client.callTool("echo", { index, delay: 150 }, { timeoutMs: 5 }),
-      ),
-    );
-    expect(timedOut.every((result) => !result.ok)).toBe(true);
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    await expect(client.callTool("echo", { value: "alive" })).resolves.toEqual({
+    await expect(
+      client.callTool("echo", { value: "waited", delay: 150 }),
+    ).resolves.toEqual({
       ok: true,
-      value: { value: "alive" },
+      value: { value: "waited", delay: 150 },
     });
   });
 

@@ -3,8 +3,8 @@ import { z } from "zod";
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
 const unknownIdSchema = z.string().regex(/^unk_[a-f0-9]{64}$/u);
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
-const claimIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]{0,99}$/u);
-const titleSchema = z.string().trim().min(1).max(500);
+const claimIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]*$/u);
+const titleSchema = z.string().trim().min(1);
 const verificationStatusSchema = z.enum(["pass", "fail", "unknown"]);
 const commonClaim = {
   claim_id: claimIdSchema,
@@ -56,7 +56,7 @@ const reconstructionClaimSchema = z.discriminatedUnion("kind", [
 /** Finite, typed behavioral and structural specification. */
 export const reconstructionSpecificationSchema = z
   .object({
-    name: z.string().trim().min(1).max(200),
+    name: z.string().trim().min(1),
     claims: z.array(reconstructionClaimSchema).min(1),
   })
   .superRefine((value, context) => {
@@ -74,7 +74,7 @@ export const reconstructionSpecificationSchema = z
       });
   });
 
-/** Bounded reconstruction-verification input. */
+/** Reconstruction-verification input. */
 export const reconstructionVerificationInputSchema = z.strictObject({
   specification: reconstructionSpecificationSchema,
 });
@@ -119,8 +119,8 @@ export const reconstructionVerificationResultSchema = z
     }),
     recommended_probes: z.array(
       z.object({
-        operation: z.string().min(1).max(200),
-        rationale: z.string().min(1).max(1_000),
+        operation: z.string().min(1),
+        rationale: z.string().min(1),
         claim_ids: z.array(claimIdSchema).min(1),
         unknown_ids: z.array(unknownIdSchema),
       }),

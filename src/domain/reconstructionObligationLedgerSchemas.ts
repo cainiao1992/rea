@@ -5,8 +5,8 @@ import { evidenceBundleSchema } from "./evidenceBundle.js";
 
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
-const stableIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._:/-]{0,199}$/u);
-const boundedTextSchema = z.string().trim().min(1).max(4_096);
+const stableIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._:/-]*$/u);
+const textSchema = z.string().trim().min(1);
 
 export const obligationStatusSchema = z.enum([
   "unowned",
@@ -68,7 +68,7 @@ const obligationTargetSchema = z.strictObject({
     .string()
     .regex(/^jsrg_node_[a-f0-9]{64}$/u)
     .nullable(),
-  location: boundedTextSchema,
+  location: textSchema,
 });
 
 const authorityReferenceSchema = z.strictObject({
@@ -81,25 +81,25 @@ const authorityReferenceSchema = z.strictObject({
     "analyst-inference",
   ]),
   state: z.enum(["candidate", "observed", "reviewed", "unknown"]),
-  location: boundedTextSchema,
+  location: textSchema,
 });
 
 const observedCaseSchema = z.strictObject({
   kind: obligationCaseKindSchema,
   evidence_id: evidenceIdSchema,
-  location: boundedTextSchema,
+  location: textSchema,
 });
 
 const ownerBindingSchema = z.strictObject({
-  module_path: boundedTextSchema,
-  symbol: z.string().trim().min(1).max(1_024),
+  module_path: textSchema,
+  symbol: textSchema,
   owner_sha256: digestSchema,
 });
 
 const parserTypeBindingSchema = z.strictObject({
-  parser: boundedTextSchema,
-  schema: boundedTextSchema,
-  domain_type: boundedTextSchema,
+  parser: textSchema,
+  schema: textSchema,
+  domain_type: textSchema,
 });
 
 const fixtureBindingSchema = z.strictObject({
@@ -111,13 +111,13 @@ const fixtureBindingSchema = z.strictObject({
 
 const nondeterminismSchema = z.strictObject({
   mode: z.enum(["total-order", "partial-order", "finite-traces"]),
-  specification: boundedTextSchema,
+  specification: textSchema,
 });
 
 const verifierBindingSchema = z.strictObject({
   verifier_id: stableIdSchema,
   claim_id: stableIdSchema,
-  command: boundedTextSchema,
+  command: textSchema,
   authority: obligationProofAuthoritySchema,
   status: z.enum(["pass", "fail", "unknown", "unsupported", "skipped"]),
   result_evidence_id: evidenceIdSchema,
@@ -147,9 +147,9 @@ export const reconstructionObligationManifestSchema = z.strictObject({
 export const reviewedReconstructionObligationSchema = z.strictObject({
   obligation_id: stableIdSchema,
   obligation_version: z.number().int().min(1),
-  title: z.string().trim().min(1).max(500),
+  title: textSchema,
   application_layer: obligationLayerSchema,
-  family: z.string().trim().min(1).max(100),
+  family: textSchema,
   target: obligationTargetSchema,
   required: z.boolean(),
   required_case_kinds: z.array(obligationCaseKindSchema).min(1),
@@ -159,8 +159,8 @@ export const reviewedReconstructionObligationSchema = z.strictObject({
   requires_parser_type: z.boolean(),
   dependency_obligation_ids: z.array(stableIdSchema),
   residual_unknown_ids: z.array(stableIdSchema),
-  unavailable_authority: z.array(boundedTextSchema),
-  required_next_evidence: z.array(boundedTextSchema),
+  unavailable_authority: z.array(textSchema),
+  required_next_evidence: z.array(textSchema),
   disposition: z.enum(["active", "blocked", "out-of-scope"]),
   review_evidence_ids: z.array(evidenceIdSchema).min(1),
 });
@@ -190,16 +190,16 @@ const diagnosticSchema = z.strictObject({
     "blocked",
     "out-of-scope",
   ]),
-  detail: boundedTextSchema,
+  detail: textSchema,
 });
 
 export const reconstructionObligationSchema = z.strictObject({
   obligation_id: stableIdSchema,
   obligation_version: z.number().int().min(1),
-  title: z.string().trim().min(1).max(500),
+  title: textSchema,
   origin: z.enum(["generated", "reviewed"]),
   application_layer: obligationLayerSchema,
-  family: z.string().trim().min(1).max(100),
+  family: textSchema,
   target: obligationTargetSchema,
   authority_references: z.array(authorityReferenceSchema).min(1),
   source_state: z.enum(["candidate", "observed", "reviewed", "unknown"]),
@@ -212,8 +212,8 @@ export const reconstructionObligationSchema = z.strictObject({
   requires_parser_type: z.boolean(),
   dependency_obligation_ids: z.array(stableIdSchema),
   residual_unknown_ids: z.array(stableIdSchema),
-  unavailable_authority: z.array(boundedTextSchema),
-  required_next_evidence: z.array(boundedTextSchema),
+  unavailable_authority: z.array(textSchema),
+  required_next_evidence: z.array(textSchema),
   binding: reconstructionObligationManifestBindingSchema.nullable(),
   status: obligationStatusSchema,
   diagnostics: z.array(diagnosticSchema),
@@ -262,8 +262,8 @@ export const reconstructionObligationLedgerSchema = z.strictObject({
   ownership_graph: z.array(
     z.strictObject({
       obligation_id: stableIdSchema,
-      module_path: boundedTextSchema,
-      symbol: z.string().trim().min(1).max(1_024),
+      module_path: textSchema,
+      symbol: textSchema,
     }),
   ),
   dependency_graph: z.array(
@@ -274,7 +274,7 @@ export const reconstructionObligationLedgerSchema = z.strictObject({
   ),
   obligations: z.array(reconstructionObligationSchema),
   evidence_links: z.array(evidenceIdSchema),
-  limitations: z.array(boundedTextSchema),
+  limitations: z.array(textSchema),
 });
 
 export const reconstructionObligationLedgerInputSchema = z.strictObject({

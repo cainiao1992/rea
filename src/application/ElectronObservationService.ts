@@ -14,7 +14,7 @@ import {
 import { err, ok, type Result } from "../domain/result.js";
 import { createElectronEvidence } from "./ElectronEvidence.js";
 
-/** Authorize and list root-confined Electron page targets. */
+/** Authorize and list Electron file pages exposed by the selected endpoint. */
 export const listElectronTargets = async (
   provider: ElectronObservationPort | undefined,
   authority: PermissionAuthority | undefined,
@@ -85,10 +85,9 @@ const prepare = async (
   const authorized = await authority.authorize(
     {
       capability: "electron_observe",
-      roots: input.allowed_file_roots,
+      roots: [],
       executables: [],
       environment_names: [],
-      origins: [input.cdp_endpoint],
       network: "loopback",
       mount: false,
       operation_identity: `${operation}:${"target_id" in input ? input.target_id : input.cdp_endpoint}`,

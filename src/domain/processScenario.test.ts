@@ -63,7 +63,99 @@ describe("process scenario collection inputs", () => {
     expect(scenario.idle_timeout_ms).toBe(900_000);
     expect(scenario.settle_ms).toBe(20_000);
   });
+});
 
+describe("process scenario complete input values", () => {
+  it("accepts long checkpoint and command names", () => {
+    const checkpointName = `c${"k".repeat(1_000)}`;
+    const commandName = `c${"m".repeat(1_000)}`;
+    const scenario = processScenarioSchema.parse({
+      executable: "/bin/echo",
+      working_directory: "/tmp",
+      checkpoints: [{ name: checkpointName, trigger: { type: "root_exit" } }],
+      command_shims: [
+        {
+          name: commandName,
+          routes: [
+            {
+              arguments: [],
+              termination: { type: "exit", code: 0 },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(scenario.checkpoints[0]?.name).toBe(checkpointName);
+    expect(scenario.command_shims[0]?.name).toBe(commandName);
+  });
+});
+
+describe("process scenario long delays", () => {
+  it("accepts delayed actions longer than one operating-system timer", () => {
+    const beyondOneTimer = 2_147_483_648;
+    const scenario = processScenarioSchema.parse({
+      executable: "/bin/echo",
+      working_directory: "/tmp",
+      timeout_ms: beyondOneTimer + 1,
+      events: [{ type: "input", at_ms: beyondOneTimer, data: "later" }],
+      checkpoints: [
+        {
+          name: "later",
+          trigger: { type: "time", at_ms: beyondOneTimer },
+        },
+      ],
+      command_shims: [
+        {
+          name: "later",
+          routes: [
+            {
+              arguments: [],
+              outputs: [
+                {
+                  at_ms: beyondOneTimer,
+                  stream: "stdout",
+                  data: "later",
+                },
+              ],
+              termination: { type: "exit", code: 0 },
+            },
+          ],
+        },
+      ],
+      replay: {
+        http: [
+          {
+            method: "GET",
+            path: "/later",
+            status: 200,
+            body: "later",
+            delay_ms: beyondOneTimer,
+          },
+        ],
+        websocket_connections: [
+          {
+            messages: [{ data: "later", delay_ms: beyondOneTimer }],
+          },
+        ],
+      },
+    });
+
+    expect(scenario.events[0]?.at_ms).toBe(beyondOneTimer);
+    expect(scenario.checkpoints[0]?.trigger).toMatchObject({
+      at_ms: beyondOneTimer,
+    });
+    expect(scenario.command_shims[0]?.routes[0]?.outputs[0]?.at_ms).toBe(
+      beyondOneTimer,
+    );
+    expect(scenario.replay.http[0]?.delay_ms).toBe(beyondOneTimer);
+    expect(
+      scenario.replay.websocket_connections[0]?.messages[0]?.delay_ms,
+    ).toBe(beyondOneTimer);
+  });
+});
+
+describe("process scenario large interaction inputs", () => {
   it("accepts large interaction and replay descriptions under the run budgets", () => {
     const environment = Object.fromEntries(
       Array.from({ length: 65 }, (_, index) => [`APP_VALUE_${index}`, "x"]),

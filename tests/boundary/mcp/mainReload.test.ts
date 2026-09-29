@@ -208,15 +208,7 @@ const configure = (
     "https://example.test",
   ]);
   env.REA_ELECTRON_OBSERVE_ENABLED = String(enabled);
-  env.REA_ELECTRON_CDP_ENDPOINTS_JSON = JSON.stringify([
-    "http://127.0.0.1:9223",
-  ]);
-  env.REA_ELECTRON_FILE_ROOTS_JSON = JSON.stringify([root]);
   env.REA_V8_INSPECTOR_OBSERVE_ENABLED = String(enabled);
-  env.REA_V8_INSPECTOR_ENDPOINTS_JSON = JSON.stringify([
-    "http://127.0.0.1:9224",
-  ]);
-  env.REA_V8_INSPECTOR_FILE_ROOTS_JSON = JSON.stringify([root]);
 };
 
 const startRuntime = async (

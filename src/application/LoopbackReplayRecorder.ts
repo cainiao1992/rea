@@ -9,6 +9,7 @@ import {
   type ReplayMachineDecision,
   type ReplayTransitionRecord,
 } from "../domain/replayMachineRuntime.js";
+import { scheduleProcessDelay, type ProcessTimer } from "./ProcessTimer.js";
 
 /** Bounded protocol and replay-machine observations for one process run. */
 export class ReplayRecorder {
@@ -128,8 +129,34 @@ export const recordMachineEvent = (
   recorder.recordTransition(decision);
 };
 
-export const waitForReplayDelay = (durationMs: number): Promise<void> =>
-  new Promise((resolveDelay) => setTimeout(resolveDelay, durationMs));
+/** Owns replay delays so endpoint shutdown can release every waiting handler. */
+export class ReplayDelayScheduler {
+  readonly #pending = new Map<ProcessTimer, () => void>();
+  #closed = false;
+
+  wait(durationMs: number): Promise<void> {
+    if (this.#closed) return Promise.resolve();
+    return new Promise((resolveDelay) => {
+      let timer: ProcessTimer;
+      const finish = (): void => {
+        this.#pending.delete(timer);
+        resolveDelay();
+      };
+      timer = scheduleProcessDelay(durationMs, finish);
+      this.#pending.set(timer, finish);
+    });
+  }
+
+  close(): void {
+    if (this.#closed) return;
+    this.#closed = true;
+    for (const [timer, finish] of this.#pending) {
+      timer.cancel();
+      finish();
+    }
+    this.#pending.clear();
+  }
+}
 
 export const listenOnLoopback = async (server: Server): Promise<number> => {
   await new Promise<void>((resolveListen, rejectListen) => {

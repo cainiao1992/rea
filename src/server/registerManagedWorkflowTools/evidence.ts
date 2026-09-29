@@ -1,55 +1,52 @@
-import type { BinarySessionPort } from "../../application/BinarySession.js";
 import type { Evidence } from "../../domain/evidence.js";
-import type { EvidenceIntegrityError } from "../../domain/errors.js";
+import { parseEvidence } from "../../domain/evidence.js";
+import { EvidenceIntegrityError } from "../../domain/errors.js";
 import type { Result } from "../../domain/result.js";
-import { resolveSessionEvidenceIds } from "../sessionEvidence.js";
+import { err, ok } from "../../domain/result.js";
+
+const parseExpectedEvidence = (
+  rawEvidence: readonly Evidence[],
+  expectedOperations: readonly string[],
+): Result<Evidence[], EvidenceIntegrityError> => {
+  try {
+    const evidence = rawEvidence.map(parseEvidence);
+    for (const record of evidence)
+      if (
+        !expectedOperations.includes(record.operation) ||
+        record.predicate_type !== "rea.analysis"
+      )
+        throw new TypeError(
+          `Expected ${expectedOperations.join(" or ")} Evidence, received ${record.operation}`,
+        );
+    return ok(evidence);
+  } catch (cause: unknown) {
+    return err(
+      new EvidenceIntegrityError(
+        cause instanceof Error ? cause.message : "Invalid Evidence",
+      ),
+    );
+  }
+};
 
 export const resolveManagedEvidence = (
-  session: BinarySessionPort,
-  evidenceIds: readonly string[],
+  evidence: Evidence,
 ): Result<Evidence[], EvidenceIntegrityError> =>
-  resolveSessionEvidenceIds(session, evidenceIds, {
-    operation: "inspect_managed_members",
-    predicate: "rea.analysis",
-  });
+  parseExpectedEvidence([evidence], ["inspect_managed_members"]);
 
 export const resolveManagedArtifactEvidence = (
-  session: BinarySessionPort,
-  evidenceId: string,
+  evidence: Evidence,
 ): Result<Evidence[], EvidenceIntegrityError> =>
-  resolveSessionEvidenceIds(session, [evidenceId], {
-    operation: "inspect_managed_artifact",
-    predicate: "rea.analysis",
-  });
+  parseExpectedEvidence([evidence], ["inspect_managed_artifact"]);
 
 export const resolveManagedBoundaryEvidence = (
-  session: BinarySessionPort,
-  evidenceId: string,
+  evidence: Evidence,
 ): Result<Evidence[], EvidenceIntegrityError> =>
-  resolveSessionEvidenceIds(session, [evidenceId], {
-    operation: "inspect_managed_native_boundaries",
-    predicate: "rea.analysis",
-  });
+  parseExpectedEvidence([evidence], ["inspect_managed_native_boundaries"]);
 
 export const resolveNativeEvidence = (
-  session: BinarySessionPort,
-  evidenceIds: readonly string[],
+  evidence: readonly Evidence[],
 ): Result<Evidence[], EvidenceIntegrityError> => {
-  const records: Evidence[] = [];
-  for (const evidenceId of evidenceIds) {
-    const operation = session.evidenceById(evidenceId)?.operation;
-    const expectedOperation =
-      operation === "inspect_macho" || operation === "analyze_function"
-        ? operation
-        : "inspect_macho or analyze_function";
-    const resolved = resolveSessionEvidenceIds(session, [evidenceId], {
-      operation: expectedOperation,
-      predicate: "rea.analysis",
-    });
-    if (!resolved.ok) return resolved;
-    records.push(...resolved.value);
-  }
-  return { ok: true, value: records };
+  return parseExpectedEvidence(evidence, ["inspect_macho", "analyze_function"]);
 };
 
 export const sourceEvidence = (input: {

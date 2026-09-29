@@ -3,7 +3,6 @@ import { isAbsolute } from "node:path";
 
 import { ConfigurationError } from "../domain/errors.js";
 import { err, ok, type Result } from "../domain/result.js";
-import { electronFileRootsSchema } from "../domain/electronObservation.js";
 
 export const parseStringArray = (
   encoded: string,
@@ -61,31 +60,6 @@ export const parseBrowserArray = (
         );
   } catch (cause: unknown) {
     return err(new ConfigurationError(`${name} must be valid JSON`, { cause }));
-  }
-};
-
-export const parseElectronFileRoots = (
-  encoded: string,
-): Result<readonly string[], ConfigurationError> => {
-  try {
-    const decoded: unknown = JSON.parse(encoded);
-    if (Array.isArray(decoded) && decoded.length === 0) return ok([]);
-    const parsed = electronFileRootsSchema.safeParse(decoded);
-    return parsed.success
-      ? ok(parsed.data)
-      : err(
-          new ConfigurationError(
-            "REA_ELECTRON_FILE_ROOTS_JSON must encode absolute roots",
-            { cause: parsed.error },
-          ),
-        );
-  } catch (cause: unknown) {
-    return err(
-      new ConfigurationError(
-        "REA_ELECTRON_FILE_ROOTS_JSON must be valid JSON",
-        { cause },
-      ),
-    );
   }
 };
 

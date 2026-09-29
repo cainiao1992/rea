@@ -14,6 +14,30 @@ import {
 } from "./ManagedPe.fixture.js";
 
 describe("managed artifact inventory", () => {
+  it("statically inspects PE files with more than 96 sections", () => {
+    const fixture = buildManagedPeFixture();
+    const peOffset = fixture.readUInt32LE(0x3c);
+    const coffOffset = peOffset + 4;
+    const optionalHeaderSize = fixture.readUInt16LE(coffOffset + 16);
+    const sectionOffset = coffOffset + 20 + optionalHeaderSize;
+    const sectionDataOffset = 0x1200;
+    const bytes = Buffer.alloc(sectionDataOffset + 0x0e00);
+    fixture.copy(bytes, 0, 0, 0x0200);
+    fixture.copy(bytes, sectionDataOffset, 0x0200, 0x1000);
+    bytes.writeUInt16LE(97, coffOffset + 2);
+    bytes.writeUInt32LE(sectionDataOffset, sectionOffset + 20);
+
+    const result = inspectManagedArtifactBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+      MANAGED_ARTIFACT_FIXTURE_LIMITS,
+    );
+
+    expect(result.classification.status).toBe("managed");
+    expect(result.pe.section_count).toBe(97);
+    expect(sectionOffset + 97 * 40).toBeLessThanOrEqual(sectionDataOffset);
+  });
+
   it("inventories module, assembly, framework, references, and resources without loading CLR code", () => {
     const resource = Buffer.from("source-owned resource");
     const bytes = buildManagedPeFixture({ resourceData: resource });

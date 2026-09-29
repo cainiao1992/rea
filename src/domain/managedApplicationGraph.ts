@@ -33,7 +33,7 @@ import {
 
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
-const boundedTextSchema = z.string().min(1).max(4_096);
+const textSchema = z.string().min(1);
 
 /** Authenticated managed Evidence records projected into the application graph. */
 export const projectManagedApplicationGraphInputSchema = z
@@ -80,7 +80,7 @@ export const managedApplicationGraphResultSchema = z.strictObject({
     status: z.enum(["complete-within-inputs", "partial"]),
   }),
   evidence_links: z.array(evidenceIdSchema).min(1).max(3),
-  limitations: z.array(boundedTextSchema).max(1_000),
+  limitations: z.array(textSchema),
 });
 
 export type ProjectManagedApplicationGraphInput = z.infer<

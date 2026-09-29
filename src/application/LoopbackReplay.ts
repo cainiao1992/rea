@@ -20,8 +20,8 @@ import {
   recordMachineEvent,
   readReplayRequestBody,
   ReplayRecorder,
+  ReplayDelayScheduler,
   requestHeaders,
-  waitForReplayDelay,
 } from "./LoopbackReplayRecorder.js";
 
 /** Owned loopback replay endpoints and their bounded protocol observations. */
@@ -63,6 +63,7 @@ const recordHttpResponse = (
 const handleMachineHttp = async (
   recorder: ReplayRecorder,
   request: HttpReplayRequest,
+  delays: ReplayDelayScheduler,
 ): Promise<void> => {
   const machine = recorder.machine;
   if (machine === undefined) return;
@@ -94,7 +95,7 @@ const handleMachineHttp = async (
     return;
   }
   for (const action of decision.actions) {
-    if (action.type === "delay") await waitForReplayDelay(action.duration_ms);
+    if (action.type === "delay") await delays.wait(action.duration_ms);
     else if (action.type === "disconnect") {
       request.response.destroy();
       recordHttpResponse(recorder, request, "", "disconnected");
@@ -118,6 +119,7 @@ const handleStaticHttp = async (
   recorder: ReplayRecorder,
   request: HttpReplayRequest,
   calls: Map<number, number>,
+  delays: ReplayDelayScheduler,
 ): Promise<void> => {
   const index = recorder.scenario.replay.http.findIndex((route) =>
     route.method !== request.method || route.path !== request.path
@@ -152,7 +154,7 @@ const handleStaticHttp = async (
     return;
   }
   calls.set(index, used + 1);
-  if (route.delay_ms > 0) await waitForReplayDelay(route.delay_ms);
+  if (route.delay_ms > 0) await delays.wait(route.delay_ms);
   if (route.disconnect) {
     request.response.destroy();
     recordHttpResponse(recorder, request, "", "disconnected");
@@ -170,6 +172,7 @@ const handleHttpRequest = async (
   request: IncomingMessage,
   response: ServerResponse,
   calls: Map<number, number>,
+  delays: ReplayDelayScheduler,
 ): Promise<void> => {
   const body = await readReplayRequestBody(
     request,
@@ -202,25 +205,28 @@ const handleHttpRequest = async (
     recordedAtMs: recorder.atMs(),
   };
   await (recorder.machine === undefined
-    ? handleStaticHttp(recorder, replayRequest, calls)
+    ? handleStaticHttp(recorder, replayRequest, calls, delays)
     : recorder.enqueueMachine(() =>
-        handleMachineHttp(recorder, replayRequest),
+        handleMachineHttp(recorder, replayRequest, delays),
       ));
 };
 
 const createHttpHandler = (
   recorder: ReplayRecorder,
+  delays: ReplayDelayScheduler,
 ): ((request: IncomingMessage, response: ServerResponse) => void) => {
   const calls = new Map<number, number>();
   return (request, response) => {
-    void handleHttpRequest(recorder, request, response, calls).catch(() => {
-      recorder.truncated = true;
-      if (response.headersSent) response.destroy();
-      else {
-        response.statusCode = 500;
-        response.end();
-      }
-    });
+    void handleHttpRequest(recorder, request, response, calls, delays).catch(
+      () => {
+        recorder.truncated = true;
+        if (response.headersSent) response.destroy();
+        else {
+          response.statusCode = 500;
+          response.end();
+        }
+      },
+    );
   };
 };
 
@@ -228,6 +234,7 @@ const sendWebSocketScript = async (
   client: WebSocket,
   connection: number,
   recorder: ReplayRecorder,
+  delays: ReplayDelayScheduler,
 ): Promise<void> => {
   const scripts = recorder.scenario.replay.websocket_connections;
   const script = scripts[connection - 1];
@@ -251,10 +258,7 @@ const sendWebSocketScript = async (
       delay_ms: 0,
     }));
   for (const message of messages) {
-    if (message.delay_ms > 0)
-      await new Promise((resolveDelay) =>
-        setTimeout(resolveDelay, message.delay_ms),
-      );
+    if (message.delay_ms > 0) await delays.wait(message.delay_ms);
     if (client.readyState !== 1) return;
     client.send(message.data);
     recorder.record({
@@ -286,10 +290,11 @@ const runWebSocketActions = async (
   recorder: ReplayRecorder,
   decision: Extract<ReplayMachineDecision, { readonly outcome: "matched" }>,
   path: string,
+  delays: ReplayDelayScheduler,
 ): Promise<void> => {
   for (const action of decision.actions) {
     if (action.type === "delay") {
-      await waitForReplayDelay(action.duration_ms);
+      await delays.wait(action.duration_ms);
       continue;
     }
     if (action.type === "disconnect") {
@@ -325,6 +330,7 @@ const handleStaticWebSocket = (
   recorder: ReplayRecorder,
   connection: number,
   path: string,
+  delays: ReplayDelayScheduler,
 ): void => {
   client.on("message", (value) =>
     recorder.record({
@@ -337,7 +343,7 @@ const handleStaticWebSocket = (
       outcome: "matched",
     }),
   );
-  void sendWebSocketScript(client, connection, recorder);
+  void sendWebSocketScript(client, connection, recorder, delays);
 };
 
 const handleMachineWebSocket = (options: {
@@ -346,8 +352,9 @@ const handleMachineWebSocket = (options: {
   readonly recorder: ReplayRecorder;
   readonly connection: number;
   readonly path: string;
+  readonly delays: ReplayDelayScheduler;
 }): void => {
-  const { client, request, recorder, connection, path } = options;
+  const { client, request, recorder, connection, path, delays } = options;
   const machine = recorder.machine;
   if (machine === undefined) return;
   void recorder
@@ -376,7 +383,13 @@ const handleMachineWebSocket = (options: {
         connectionDecision,
       );
       if (connectionDecision.outcome === "matched")
-        await runWebSocketActions(client, recorder, connectionDecision, path);
+        await runWebSocketActions(
+          client,
+          recorder,
+          connectionDecision,
+          path,
+          delays,
+        );
       else client.close();
     })
     .catch(() => {
@@ -412,7 +425,7 @@ const handleMachineWebSocket = (options: {
           decision,
         );
         if (decision.outcome === "matched")
-          await runWebSocketActions(client, recorder, decision, path);
+          await runWebSocketActions(client, recorder, decision, path, delays);
       })
       .catch(() => {
         recorder.truncated = true;
@@ -424,6 +437,7 @@ const handleMachineWebSocket = (options: {
 const createWebSocketReplay = (
   server: Server,
   recorder: ReplayRecorder,
+  delays: ReplayDelayScheduler,
 ): WebSocketServer => {
   let connections = 0;
   const websocket = new WebSocketServer({
@@ -453,7 +467,7 @@ const createWebSocketReplay = (
     client.on("error", () => undefined);
     const path = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
     if (recorder.machine === undefined)
-      handleStaticWebSocket(client, recorder, connections, path);
+      handleStaticWebSocket(client, recorder, connections, path, delays);
     else
       handleMachineWebSocket({
         client,
@@ -461,6 +475,7 @@ const createWebSocketReplay = (
         recorder,
         connection: connections,
         path,
+        delays,
       });
   });
   return websocket;
@@ -472,8 +487,9 @@ export const startLoopbackReplay = async (
   recordEvent: RecordProcessCaptureEvent = () => undefined,
 ): Promise<LoopbackReplay> => {
   const recorder = new ReplayRecorder(scenario, recordEvent);
-  const server = createServer(createHttpHandler(recorder));
-  const websocket = createWebSocketReplay(server, recorder);
+  const delays = new ReplayDelayScheduler();
+  const server = createServer(createHttpHandler(recorder, delays));
+  const websocket = createWebSocketReplay(server, recorder, delays);
   let closePromise: Promise<void> | undefined;
   let port: number;
   try {
@@ -499,6 +515,7 @@ export const startLoopbackReplay = async (
     },
     async close() {
       closePromise ??= (async () => {
+        delays.close();
         recorder.stopMachineAdmission();
         await recorder.drainMachine();
         for (const client of websocket.clients) client.terminate();

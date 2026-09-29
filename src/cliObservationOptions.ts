@@ -67,16 +67,7 @@ export const browserPageInspectionOptions = z.object({
     .describe("Include content-derived storage fingerprints"),
 });
 
-/** Shared passive Electron root options. */
-export const electronScopeOptions = {
-  allowedFileRoots: z
-    .array(z.string().min(1))
-    .optional()
-    .describe("Filesystem roots; defaults to REA_ELECTRON_FILE_ROOTS_JSON"),
-};
-
 export const electronPageInspectionOptions = z.object({
-  ...electronScopeOptions,
   observationMs: observationDuration(100),
   includeScriptSources: z
     .boolean()

@@ -1,28 +1,14 @@
-import { isAbsolute } from "node:path";
-
 import { z } from "zod";
 
 import { browserCompletenessSchema } from "./browserCompleteness.js";
 import { browserEndpointSchema } from "./browserObservation.js";
 import { webTextArtifactSchema } from "./webContentArtifact.js";
 
-/** Absolute operator-approved filesystem roots for Electron file pages. */
-export const electronFileRootsSchema = z
-  .array(
-    z
-      .string()
-      .min(1)
-      .refine(isAbsolute, "Electron file roots must be absolute paths"),
-  )
-  .min(1)
-  .transform((roots) => [...new Set(roots)].sort());
-
 const approvedElectronInput = {
   cdp_endpoint: browserEndpointSchema,
-  allowed_file_roots: electronFileRootsSchema,
 };
 
-/** Input for listing root-confined file:// page targets from Electron CDP. */
+/** Input for listing local file:// page targets from an explicit Electron CDP endpoint. */
 export const listElectronTargetsInputSchema = z.strictObject({
   ...approvedElectronInput,
 });
@@ -46,20 +32,8 @@ export const inspectElectronPageInputSchema = z.union([
     include_script_sources: z.literal(true),
   }),
 ]);
-export const inspectElectronPageToolInputSchema = z.union([
-  z.strictObject({
-    discovery_evidence_id: z.string().min(1),
-    target_id: z.string().trim().min(1),
-    observation_ms: z.number().int().min(0).default(100),
-    include_script_sources: z.literal(false).default(false),
-  }),
-  z.strictObject({
-    discovery_evidence_id: z.string().min(1),
-    target_id: z.string().trim().min(1),
-    observation_ms: z.number().int().min(0).default(100),
-    include_script_sources: z.literal(true),
-  }),
-]);
+export const inspectElectronPageToolInputSchema =
+  inspectElectronPageInputSchema;
 export type InspectElectronPageInput = z.infer<
   typeof inspectElectronPageInputSchema
 >;
@@ -79,12 +53,11 @@ const electronTargetSchema = z.object({
   attached: z.boolean(),
 });
 
-/** Complete root-filtered Electron file target inventory. */
+/** Complete local file target inventory from one Electron CDP endpoint. */
 export const electronTargetListSchema = z.object({
   browser: browserVersionSchema,
   targets: z.array(electronTargetSchema),
   excluded: z.object({
-    outside_root: z.number().int().min(0),
     unsupported_url: z.number().int().min(0),
     non_page: z.number().int().min(0),
   }),

@@ -3,7 +3,12 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import type { BinarySessionPort } from "../application/BinarySession.js";
 import { SESSION_TOOL_CONTRACTS } from "../contracts/toolContracts.js";
 import { EvidenceIntegrityError } from "../domain/errors.js";
-import { createEvidence, type EvidenceLocation } from "../domain/evidence.js";
+import {
+  createEvidence,
+  parseEvidence,
+  type Evidence,
+  type EvidenceLocation,
+} from "../domain/evidence.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import {
   compareProcessCaptures,
@@ -12,8 +17,8 @@ import {
 import type { RecordUnknownInput } from "../domain/residualUnknown.js";
 import { err } from "../domain/result.js";
 import { recordDerivedEvidence } from "./recordDerivedEvidence.js";
+import { recordSessionEvidenceSources } from "./sessionEvidence.js";
 import { runDerivedOperation } from "./runDerivedOperation.js";
-import { resolveSessionEvidenceIds } from "./sessionEvidence.js";
 import { PROCESS_PROVIDER } from "./sessionToolPolicies.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 import { toCallToolResult } from "./toolResult.js";
@@ -39,28 +44,34 @@ export const registerProcessComparisonTool = (
     contract.name,
     toolRegistrationOptions(contract),
     async (input, context) => {
-      const leftRecord = resolveSessionEvidenceIds(
-        session,
-        [input.left_evidence_id],
-        PROCESS_CAPTURE_EVIDENCE,
-      );
-      if (!leftRecord.ok) return toCallToolResult(leftRecord, contract);
-      const rightRecord = resolveSessionEvidenceIds(
-        session,
-        [input.right_evidence_id],
-        PROCESS_CAPTURE_EVIDENCE,
-      );
-      if (!rightRecord.ok) return toCallToolResult(rightRecord, contract);
+      let leftRecord: Evidence;
+      let rightRecord: Evidence;
+      try {
+        leftRecord = parseEvidence(input.left);
+        rightRecord = parseEvidence(input.right);
+        if (
+          leftRecord.operation !== PROCESS_CAPTURE_EVIDENCE.operation ||
+          rightRecord.operation !== PROCESS_CAPTURE_EVIDENCE.operation ||
+          leftRecord.predicate_type !== PROCESS_CAPTURE_EVIDENCE.predicate ||
+          rightRecord.predicate_type !== PROCESS_CAPTURE_EVIDENCE.predicate
+        )
+          throw new TypeError("Expected process capture Evidence");
+      } catch (cause: unknown) {
+        return toCallToolResult(
+          err(
+            new EvidenceIntegrityError(
+              cause instanceof Error ? cause.message : "Invalid Evidence",
+            ),
+          ),
+          contract,
+        );
+      }
       let comparison: ReturnType<typeof compareProcessCaptures>;
       let leftCapture: ReturnType<typeof parseProcessCapture>;
       let rightCapture: ReturnType<typeof parseProcessCapture>;
       try {
-        leftCapture = parseProcessCapture(
-          leftRecord.value[0]?.normalized_result,
-        );
-        rightCapture = parseProcessCapture(
-          rightRecord.value[0]?.normalized_result,
-        );
+        leftCapture = parseProcessCapture(leftRecord.normalized_result);
+        rightCapture = parseProcessCapture(rightRecord.normalized_result);
         const computed = await runDerivedOperation(context, contract.name, () =>
           compareProcessCaptures(leftCapture, rightCapture, {
             ...(input.max_capture_age_ms === undefined
@@ -90,8 +101,8 @@ export const registerProcessComparisonTool = (
         predicateType: "rea.process-comparison",
         operation: contract.name,
         parameters: {
-          left_evidence_id: input.left_evidence_id,
-          right_evidence_id: input.right_evidence_id,
+          left_evidence_id: leftRecord.evidence_id,
+          right_evidence_id: rightRecord.evidence_id,
           left_normalization: leftCapture.normalization,
           right_normalization: rightCapture.normalization,
           ...(input.trace_spec === undefined
@@ -102,17 +113,26 @@ export const registerProcessComparisonTool = (
         confidence: "derived",
         authority: "analyst-inference",
         limitations: comparison.limitations,
-        locations: sourceLocations(
-          leftRecord.value[0]?.locations,
-          rightRecord.value[0]?.locations,
-        ),
-        evidenceLinks: [input.left_evidence_id, input.right_evidence_id],
+        locations: sourceLocations(leftRecord.locations, rightRecord.locations),
+        evidenceLinks: [leftRecord.evidence_id, rightRecord.evidence_id],
       });
+      const recordedSources = recordSessionEvidenceSources(
+        (evidence) => session.recordEvidence(evidence),
+        [leftRecord, rightRecord],
+      );
+      if (!recordedSources.ok)
+        return toCallToolResult(recordedSources, contract);
       return toCallToolResult(
         recordDerivedEvidence(
           session,
           evidence,
-          comparisonUnknownInput(input, comparison),
+          comparisonUnknownInput(
+            {
+              left_evidence_id: leftRecord.evidence_id,
+              right_evidence_id: rightRecord.evidence_id,
+            },
+            comparison,
+          ),
         ),
         contract,
       );

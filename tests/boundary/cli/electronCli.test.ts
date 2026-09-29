@@ -31,7 +31,7 @@ afterEach(async () => {
 
 describe("Electron CLI parity", () => {
   it(
-    "returns the same root-confined Electron Evidence contracts",
+    "returns the same endpoint-scoped Electron Evidence contracts",
     async () => {
       const root = await createTestTempDirectory("rea-electron-cli-");
       temporary.push(root);
@@ -47,8 +47,6 @@ describe("Electron CLI parity", () => {
       const environment = {
         ...process.env,
         REA_ELECTRON_OBSERVE_ENABLED: "true",
-        REA_ELECTRON_CDP_ENDPOINTS_JSON: JSON.stringify([browser.endpoint]),
-        REA_ELECTRON_FILE_ROOTS_JSON: JSON.stringify([root]),
       };
       const listed = await runCli(
         ["list-electron-targets", browser.endpoint, "--json"],

@@ -91,7 +91,6 @@ const clientFor = (
   launcher: GhidraLauncher,
   options: {
     readonly startupTimeoutMs?: number;
-    readonly requestTimeoutMs?: number;
     readonly onDiagnostic?: (event: GhidraDiagnostic) => void;
     readonly transport?: GhidraTransportKind;
     readonly runId?: string;
@@ -105,7 +104,6 @@ const clientFor = (
     providerVersion: PROVIDER_VERSION,
     profileDigest: PROFILE_DIGEST,
     startupTimeoutMs: options.startupTimeoutMs ?? 1_000,
-    requestTimeoutMs: options.requestTimeoutMs ?? 100,
     ...(options.runId === undefined ? {} : { runId: options.runId }),
     ...(options.onDiagnostic === undefined
       ? {}
@@ -124,7 +122,8 @@ describe("GhidraClient", () => {
     const launcher = new FixtureLauncher("fragmented");
     const client = clientFor(launcher);
 
-    await expect(client.start()).resolves.toMatchObject({
+    const started = await client.start();
+    expect(started).toMatchObject({
       ok: true,
       value: {
         provider: { id: "ghidra", version: PROVIDER_VERSION },
@@ -139,6 +138,7 @@ describe("GhidraClient", () => {
         },
       },
     });
+    if (started.ok) expect(started.value).not.toHaveProperty("bridge_version");
     if (HOST_TRANSPORT === "unix-socket")
       expect(Buffer.byteLength(launcher.endpointPaths[0] ?? "")).toBeLessThan(
         108,
@@ -155,7 +155,6 @@ describe("GhidraClient", () => {
     await expect(client.start()).resolves.toMatchObject({
       ok: true,
       value: {
-        bridge_version: 7,
         target: { sha256: TARGET_SHA256 },
       },
     });
@@ -211,10 +210,7 @@ describe("GhidraClient", () => {
     ["analysis_timeout", "analysis_timeout"],
     ["exit", "process"],
   ] as const)("projects %s startup as %s", async (mode, expectedKind) => {
-    const client = clientFor(
-      new FixtureLauncher(mode),
-      mode === "future_id" ? { requestTimeoutMs: 1_000 } : {},
-    );
+    const client = clientFor(new FixtureLauncher(mode));
     const result = await client.start();
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.kind).toBe(expectedKind);
@@ -260,16 +256,6 @@ describe("GhidraClient startup lifecycle", () => {
 });
 
 describe("GhidraClient established requests", () => {
-  it("times out an established ping without corrupting shutdown", async () => {
-    const client = clientFor(new FixtureLauncher("hang_after_start"));
-    await expect(client.start()).resolves.toMatchObject({ ok: true });
-
-    await expect(client.ping({ timeoutMs: 5 })).resolves.toMatchObject({
-      ok: false,
-      error: { kind: "timeout", timeoutMs: 5 },
-    });
-  });
-
   it("fails an established function request when the provider process exits", async () => {
     const client = clientFor(new FixtureLauncher("exit_tools"));
     await expect(client.start()).resolves.toMatchObject({ ok: true });
@@ -283,9 +269,7 @@ describe("GhidraClient established requests", () => {
   });
 
   it("cancels an established queued operation promptly", async () => {
-    const client = clientFor(new FixtureLauncher("hang_tools"), {
-      requestTimeoutMs: 10_000,
-    });
+    const client = clientFor(new FixtureLauncher("hang_tools"));
     await expect(client.start()).resolves.toMatchObject({ ok: true });
     const activeController = new AbortController();
     const active = client.callTool(
@@ -305,37 +289,6 @@ describe("GhidraClient established requests", () => {
     await expect(queued).resolves.toMatchObject({
       ok: false,
       error: { kind: "cancelled" },
-    });
-    activeController.abort();
-    await active;
-  });
-
-  it("counts serial queue wait against the request deadline", async () => {
-    const client = clientFor(new FixtureLauncher("hang_tools"), {
-      requestTimeoutMs: 10_000,
-    });
-    await expect(client.start()).resolves.toMatchObject({ ok: true });
-    const activeController = new AbortController();
-    const active = client.callTool(
-      "procedure_pseudo_code",
-      { document: null, procedure: "fixture_main" },
-      { signal: activeController.signal },
-    );
-    await wait(5);
-
-    await expect(
-      client.callTool(
-        "procedure_info",
-        { document: null, procedure: "fixture_main" },
-        { timeoutMs: 5 },
-      ),
-    ).resolves.toMatchObject({
-      ok: false,
-      error: {
-        kind: "timeout",
-        timeoutMs: 5,
-        message: expect.stringContaining("serial queue"),
-      },
     });
     activeController.abort();
     await active;

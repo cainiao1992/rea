@@ -59,7 +59,69 @@ describe("replay machine", () => {
       max_transitions: 2,
     });
   });
+});
 
+describe("replay machine long identifiers", () => {
+  it("accepts long state, transition, and variable identifiers", () => {
+    const initialState = `s${"t".repeat(255)}`;
+    const terminalState = `s${"f".repeat(255)}`;
+    const transitionId = `t${"r".repeat(255)}`;
+    const variable = `v${"a".repeat(255)}`;
+    const machine = {
+      initial_state: initialState,
+      states: [{ name: initialState }, { name: terminalState, terminal: true }],
+      transitions: [
+        {
+          id: transitionId,
+          from: initialState,
+          to: terminalState,
+          trigger: { protocol: "http", method: "GET", path: "/complete" },
+          captures: [
+            {
+              variable,
+              value: { source: "request_header", name: "x-value" },
+              sensitive: false,
+            },
+          ],
+          actions: [{ type: "http_response", status: 200, body: "done" }],
+          max_uses: 1,
+        },
+      ],
+      max_transitions: 1,
+    };
+
+    expect(replayMachineSchema.parse(machine)).toMatchObject({
+      initial_state: initialState,
+      states: [{ name: initialState }, { name: terminalState }],
+      transitions: [{ id: transitionId, captures: [{ variable }] }],
+    });
+  });
+});
+
+describe("replay machine long delays", () => {
+  it("accepts replay delays longer than one operating-system timer", () => {
+    const machine: unknown = {
+      ...loginMachine(),
+      transitions: loginMachine().transitions.map((transition, index) =>
+        index === 0
+          ? {
+              ...transition,
+              actions: [
+                { type: "delay", duration_ms: 2_147_483_648 },
+                ...transition.actions,
+              ],
+            }
+          : transition,
+      ),
+    };
+
+    expect(
+      replayMachineSchema.parse(machine).transitions[0]?.actions[0],
+    ).toEqual({ type: "delay", duration_ms: 2_147_483_648 });
+  });
+});
+
+describe("replay machine validation", () => {
   it.each([
     [
       "unreachable state",

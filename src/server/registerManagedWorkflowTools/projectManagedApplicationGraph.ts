@@ -28,29 +28,21 @@ export const registerProjectManagedApplicationGraph = (
     toolRegistrationOptions(graphContract),
     async (input) => {
       const managedArtifact =
-        input.managed_artifact_evidence_id === undefined
+        input.managed_artifact === undefined
           ? undefined
-          : resolveManagedArtifactEvidence(
-              options.session,
-              input.managed_artifact_evidence_id,
-            );
+          : resolveManagedArtifactEvidence(input.managed_artifact);
       if (managedArtifact !== undefined && !managedArtifact.ok)
         return toCallToolResult(managedArtifact, graphContract);
       const managedMembers =
-        input.managed_members_evidence_id === undefined
+        input.managed_members === undefined
           ? undefined
-          : resolveManagedEvidence(options.session, [
-              input.managed_members_evidence_id,
-            ]);
+          : resolveManagedEvidence(input.managed_members);
       if (managedMembers !== undefined && !managedMembers.ok)
         return toCallToolResult(managedMembers, graphContract);
       const managedBoundaries =
-        input.managed_native_boundaries_evidence_id === undefined
+        input.managed_native_boundaries === undefined
           ? undefined
-          : resolveManagedBoundaryEvidence(
-              options.session,
-              input.managed_native_boundaries_evidence_id,
-            );
+          : resolveManagedBoundaryEvidence(input.managed_native_boundaries);
       if (managedBoundaries !== undefined && !managedBoundaries.ok)
         return toCallToolResult(managedBoundaries, graphContract);
       const parsed = {

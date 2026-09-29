@@ -46,7 +46,7 @@ const OPTIONAL_VTOOL_COMMAND = ["vtool", ["-show-build"]] as const;
 const VTOOL_UNAVAILABLE_LIMITATION =
   "vtool is unavailable; build metadata is normalized from otool only.";
 
-/** Inspect one Mach-O with bounded native commands and normalized output. */
+/** Inspect one Mach-O with the required native commands and normalized output. */
 export const inspectNativeMacho = async (
   context: NativeMachoInspectionContext,
 ): Promise<Result<NativeMachoObservation, AnalysisError>> => {

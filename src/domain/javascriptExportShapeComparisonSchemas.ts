@@ -5,10 +5,10 @@ import { evidenceSchema } from "./evidence.js";
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
 const graphIdSchema = z.string().regex(/^jag_[a-f0-9]{64}$/u);
 const nodeIdSchema = z.string().regex(/^jag_node_[a-f0-9]{64}$/u);
-const boundedTextSchema = z.string().min(1).max(4_096);
-const selectorTextSchema = z.string().min(1).max(4_096);
+const textSchema = z.string().min(1);
+const selectorTextSchema = textSchema;
 const semanticPrimitiveSchema = z.union([
-  z.string().max(4_096),
+  z.string(),
   z.number().finite(),
   z.boolean(),
   z.null(),
@@ -28,7 +28,6 @@ function isJsonPointer(value: string): boolean {
 
 const jsonPointerSchema = z
   .string()
-  .max(4_096)
   .refine(isJsonPointer, "Expected an RFC 6901 JSON Pointer");
 
 const sourcePointSchema = z.strictObject({
@@ -91,7 +90,7 @@ const projectedReturnFieldSchema = z.discriminatedUnion("state", [
     ...projectedReturnFieldShape,
     state: z.literal("unknown"),
     value: z.null(),
-    reason: boundedTextSchema,
+    reason: textSchema,
   }),
 ]);
 export type ProjectedReturnField = z.infer<typeof projectedReturnFieldSchema>;
@@ -150,7 +149,7 @@ export const projectedExportReturnShapesSchema = z
     semantic_role: z.literal("export-return-shapes"),
     module_path: selectorTextSchema,
     exported_name: selectorTextSchema,
-    callable_id: boundedTextSchema,
+    callable_id: textSchema,
     callable_kind: z.enum(["function", "class", "method"]),
     static_return_shapes: z.array(projectedReturnShapeSchema),
     return_shape_coverage: z.strictObject({
@@ -220,7 +219,7 @@ const valueAvailabilitySchema = z.discriminatedUnion("availability", [
   }),
   z.strictObject({
     availability: z.literal("unknown"),
-    reason: boundedTextSchema,
+    reason: textSchema,
   }),
 ]);
 
@@ -239,10 +238,10 @@ const comparisonChangeSchema = z.strictObject({
   left_source_range: sourceRangeSchema.nullable(),
   right_source_range: sourceRangeSchema.nullable(),
   evidence_links: z.array(evidenceIdSchema).length(2),
-  limitations: z.array(boundedTextSchema),
+  limitations: z.array(textSchema),
 });
 
-/** Bounded static export-return comparison with explicit unknown semantics. */
+/** Static export-return comparison with explicit unknown semantics. */
 export const javaScriptExportShapeComparisonResultSchema = z.strictObject({
   comparison_id: z.string().regex(/^jesc_[a-f0-9]{64}$/u),
   left: selectorResultSchema,
@@ -283,7 +282,7 @@ export const javaScriptExportShapeComparisonResultSchema = z.strictObject({
     omitted_changes: z.number().int().min(0),
   }),
   evidence_links: z.array(evidenceIdSchema).length(2),
-  limitations: z.array(boundedTextSchema),
+  limitations: z.array(textSchema),
   runtime_validation: z.strictObject({
     recommended_tool: z.literal("run_controlled_replay"),
     automatically_started: z.literal(false),

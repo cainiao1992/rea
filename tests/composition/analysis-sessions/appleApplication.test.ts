@@ -133,6 +133,33 @@ describe("Apple application projection", () => {
       second.value.normalized_result,
     );
     expect(left).toEqual(right);
+    const longPath = `Payload/${"deep/".repeat(1_000)}Fixture.app`;
+    expect(
+      appleApplicationProjectionResultSchema.parse({
+        ...left,
+        application_roots: [longPath],
+      }).application_roots,
+    ).toEqual([longPath]);
+    expect(
+      appleApplicationProjectionResultSchema.parse({
+        ...left,
+        limitations: ["x".repeat(5_000)],
+      }).limitations,
+    ).toEqual(["x".repeat(5_000)]);
+    const [framework, ...otherFrameworks] = left.components.frameworks;
+    if (framework === undefined) throw new Error("Expected framework fixture");
+    expect(
+      appleApplicationProjectionResultSchema.parse({
+        ...left,
+        components: {
+          ...left.components,
+          frameworks: [
+            { ...framework, format: "x".repeat(500) },
+            ...otherFrameworks,
+          ],
+        },
+      }).components.frameworks[0]?.format,
+    ).toBe("x".repeat(500));
     expect(left).toMatchObject({
       root_format: "ipa",
       application_roots: ["Payload/Fixture.app"],
@@ -178,7 +205,9 @@ describe("Apple application projection", () => {
       error: { _tag: "AnalysisInputError" },
     });
   });
+});
 
+describe("Apple application projection completeness", () => {
   it("returns every component, inventory page, and bridge hypothesis", async () => {
     const projection = await createCompleteAppleProjection();
     expect(projection.components.frameworks).toHaveLength(1_001);
@@ -193,12 +222,6 @@ describe("Apple application projection", () => {
     });
     expect(projection).not.toHaveProperty("omitted_components");
     expect(projection).not.toHaveProperty("omitted_bridge_candidates");
-    expect(
-      appleApplicationProjectionResultSchema.parse({
-        ...projection,
-        limitations: Array.from({ length: 101 }, (_, index) => `fact ${index}`),
-      }).limitations,
-    ).toHaveLength(101);
   });
 
   it("infers an application root when the IPA omits directory entries", async () => {

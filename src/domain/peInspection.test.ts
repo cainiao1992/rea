@@ -155,6 +155,23 @@ describe("PE/COFF static inspection", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts static manifests with more than 96 PE sections", () => {
+    const section = validManifest.sections[0];
+    if (section === undefined) throw new Error("Expected PE section fixture");
+    const sections = Array.from({ length: 97 }, (_, index) => ({
+      ...section,
+      name: `section-${String(index)}`,
+    }));
+
+    expect(
+      peManifestSchema.parse({
+        ...validManifest,
+        number_of_sections: sections.length,
+        sections,
+      }).sections,
+    ).toHaveLength(97);
+  });
+
   it("detects PDB info", () => {
     expect(hasPdbInfo(validManifest)).toBe(true);
     const withoutPdb: PeManifest = {

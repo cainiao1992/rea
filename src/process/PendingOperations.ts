@@ -1,14 +1,15 @@
 /** Timeout and cancellation projections for one correlated operation. */
-export interface PendingOperationOptions<Value> {
-  readonly timeoutMs: number;
+export type PendingOperationOptions<Value> = {
   readonly signal?: AbortSignal;
-  readonly timeoutValue: () => Value;
   readonly cancelledValue: () => Value;
-}
+} & (
+  | { readonly timeoutMs: number; readonly timeoutValue: () => Value }
+  | { readonly timeoutMs?: never; readonly timeoutValue?: never }
+);
 
 interface PendingOperation<Value> {
   readonly resolve: (value: Value) => void;
-  readonly timer: NodeJS.Timeout;
+  readonly timer: NodeJS.Timeout | undefined;
   readonly signal: AbortSignal | undefined;
   readonly onAbort: (() => void) | undefined;
 }
@@ -16,9 +17,8 @@ interface PendingOperation<Value> {
 /**
  * Correlates event-driven provider replies with bounded waits.
  *
- * The registry owns every request timer and abort listener. Settling, timing
- * out, cancelling, or failing an operation removes both before resolution, so
- * late protocol replies can be ignored without retaining request resources.
+ * The registry owns optional request timers and cancellation listeners.
+ * Settling, timing out, cancelling, or failing removes these before resolution.
  */
 export class PendingOperations<Key, Value> {
   readonly #pending = new Map<Key, PendingOperation<Value>>();
@@ -33,7 +33,7 @@ export class PendingOperations<Key, Value> {
     return this.#pending.has(key);
   }
 
-  /** Register one unique operation key and start its bounded wait. */
+  /** Register one unique operation key and await its reply or cancellation. */
   wait(key: Key, options: PendingOperationOptions<Value>): Promise<Value> {
     if (this.#pending.has(key))
       throw new Error("Pending operation key is already registered");
@@ -45,10 +45,13 @@ export class PendingOperations<Key, Value> {
         options.signal === undefined
           ? undefined
           : () => this.#finish(key, options.cancelledValue());
-      const timer = setTimeout(
-        () => this.#finish(key, options.timeoutValue()),
-        options.timeoutMs,
-      );
+      const timer =
+        options.timeoutMs === undefined
+          ? undefined
+          : setTimeout(
+              () => this.#finish(key, options.timeoutValue()),
+              options.timeoutMs,
+            );
       this.#pending.set(key, {
         resolve,
         timer,
@@ -74,7 +77,7 @@ export class PendingOperations<Key, Value> {
     const pending = this.#pending.get(key);
     if (pending === undefined) return false;
     this.#pending.delete(key);
-    clearTimeout(pending.timer);
+    if (pending.timer !== undefined) clearTimeout(pending.timer);
     if (pending.signal !== undefined && pending.onAbort !== undefined)
       pending.signal.removeEventListener("abort", pending.onAbort);
     pending.resolve(value);

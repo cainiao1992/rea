@@ -138,8 +138,8 @@ describe("declared trace adapter parity", () => {
     const response = await client.callTool({
       name: "compare_process_captures",
       arguments: {
-        left_evidence_id: left.evidence_id,
-        right_evidence_id: right.evidence_id,
+        left,
+        right,
         trace_spec: traceSpecification,
       },
     });

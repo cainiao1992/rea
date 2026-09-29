@@ -51,6 +51,7 @@ import {
 import type { CommandShimReplay } from "./CommandShimReplay.js";
 import { PROCESS_PROVIDER } from "./ProcessEvidence.js";
 import { TerminalRenderer } from "./TerminalRenderer.js";
+import { scheduleProcessInterval, type ProcessTimer } from "./ProcessTimer.js";
 
 interface TerminalExitOptions {
   readonly terminal: IPty;
@@ -58,7 +59,7 @@ interface TerminalExitOptions {
   readonly started: number;
   readonly lastOutput: () => number;
   readonly signal: AbortSignal | undefined;
-  readonly timers: Set<NodeJS.Timeout>;
+  readonly timers: Set<ProcessTimer>;
   readonly interactions: InteractionEvent[];
   readonly dispatchedEventIndexes: ReadonlySet<number>;
   readonly recordEvent: RecordProcessCaptureEvent;
@@ -285,13 +286,12 @@ export const awaitTerminalExit = async ({
         recordEvent("interaction_events", sequence);
       }
       for (const timer of timers) {
-        clearTimeout(timer);
-        clearInterval(timer);
+        timer.cancel();
       }
       timers.clear();
       resolveExit({ ...exit, reason });
     });
-    const timeout = setInterval(() => {
+    const timeout = scheduleProcessInterval(() => {
       if (signal?.aborted === true) {
         reason = "cancelled";
         terminal.kill("SIGKILL");
@@ -307,7 +307,7 @@ export const awaitTerminalExit = async ({
   });
 
 export const releaseProcessResources = async (options: {
-  readonly timers: ReadonlySet<NodeJS.Timeout>;
+  readonly timers: ReadonlySet<ProcessTimer>;
   readonly replay: LoopbackReplay | undefined;
   readonly terminal: IPty | undefined;
   readonly renderer: TerminalRenderer | undefined;
@@ -317,7 +317,7 @@ export const releaseProcessResources = async (options: {
   readonly temporaryRoot: string;
   readonly capturedProcessGroupIds: readonly number[];
 }): Promise<string | undefined> => {
-  for (const timer of options.timers) clearTimeout(timer);
+  for (const timer of options.timers) timer.cancel();
   let failure: string | undefined;
   try {
     await options.replay?.close();

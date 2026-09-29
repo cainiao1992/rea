@@ -1,60 +1,17 @@
-import { isAbsolute, resolve } from "node:path";
-
 import { z } from "zod";
 
-import {
-  browserEndpointSchema,
-  browserOriginSchema,
-} from "./browserObservation.js";
+import { browserEndpointSchema } from "./browserObservation.js";
 
 const observationTextSchema = z.string().min(1);
 
-const runtimeFileRootsSchema = z
-  .array(
-    z
-      .string()
-      .min(1)
-      .refine(isAbsolute, "Runtime file roots must be absolute paths")
-      .overwrite(resolve),
-  )
-  .overwrite((roots) => [...new Set(roots)].sort())
-  .default([]);
-
-const runtimeOriginsSchema = z
-  .array(browserOriginSchema)
-  .overwrite((origins) => [...new Set(origins)].sort())
-  .default([]);
-
-const runtimeScope = {
+const runtimeEndpoint = {
   inspector_endpoint: browserEndpointSchema,
-  allowed_file_roots: runtimeFileRootsSchema,
-  allowed_origins: runtimeOriginsSchema,
 };
 
-const requireRuntimeScope = (
-  input: {
-    readonly allowed_file_roots: readonly string[];
-    readonly allowed_origins: readonly string[];
-  },
-  context: z.RefinementCtx,
-): void => {
-  if (
-    input.allowed_file_roots.length === 0 &&
-    input.allowed_origins.length === 0
-  )
-    context.addIssue({
-      code: "custom",
-      path: ["allowed_file_roots"],
-      message: "At least one exact file root or HTTP(S) origin is required",
-    });
-};
-
-/** Input for listing approved Node/Electron V8 Inspector targets. */
-export const listJavaScriptRuntimeTargetsInputSchema = z
-  .strictObject({
-    ...runtimeScope,
-  })
-  .superRefine(requireRuntimeScope);
+/** Input for listing targets exposed by an explicit Node/Electron Inspector endpoint. */
+export const listJavaScriptRuntimeTargetsInputSchema = z.strictObject({
+  ...runtimeEndpoint,
+});
 export type ListJavaScriptRuntimeTargetsInput = z.infer<
   typeof listJavaScriptRuntimeTargetsInputSchema
 >;
@@ -70,22 +27,15 @@ const observedJavaScriptRuntimeKindSchema = javascriptRuntimeKindSchema.or(
 );
 
 /** Input for one bounded, attach-only V8 Inspector observation. */
-export const observeJavaScriptRuntimeToolInputSchema = z.strictObject({
-  discovery_evidence_id: z.string().min(1),
+/** Input for one passive attach-only V8 Inspector observation. */
+export const observeJavaScriptRuntimeInputSchema = z.strictObject({
+  ...runtimeEndpoint,
   target_id: z.string().trim().min(1),
   runtime_kind: javascriptRuntimeKindSchema.optional(),
   observation_ms: z.number().int().min(0).default(100),
 });
-
-/** Input after discovery Evidence supplies the authorized target scope. */
-export const observeJavaScriptRuntimeInputSchema = z
-  .strictObject({
-    ...runtimeScope,
-    target_id: z.string().trim().min(1),
-    runtime_kind: javascriptRuntimeKindSchema.optional(),
-    observation_ms: z.number().int().min(0).default(100),
-  })
-  .superRefine(requireRuntimeScope);
+export const observeJavaScriptRuntimeToolInputSchema =
+  observeJavaScriptRuntimeInputSchema;
 export type ObserveJavaScriptRuntimeInput = z.infer<
   typeof observeJavaScriptRuntimeInputSchema
 >;
@@ -123,13 +73,11 @@ const javascriptRuntimeTargetSchema = z.strictObject({
   location: javascriptRuntimeLocationSchema,
 });
 
-/** Complete root/origin-filtered V8 Inspector target inventory. */
+/** Complete V8 Inspector target inventory exposed by the selected endpoint. */
 export const javascriptRuntimeTargetListSchema = z.strictObject({
   runtime: javascriptRuntimeVersionSchema,
   targets: z.array(javascriptRuntimeTargetSchema),
   excluded: z.strictObject({
-    outside_file_roots: z.number().int().min(0),
-    outside_origins: z.number().int().min(0),
     unsupported_location: z.number().int().min(0),
     unconnectable: z.number().int().min(0),
   }),
@@ -179,8 +127,6 @@ export const javascriptRuntimeObservationSchema = z.strictObject({
     items: z.array(javascriptRuntimeScriptSchema),
     observed_total: z.number().int().min(0),
     excluded: z.strictObject({
-      outside_file_roots: z.number().int().min(0),
-      outside_origins: z.number().int().min(0),
       unsupported_location: z.number().int().min(0),
       invalid_protocol_value: z.number().int().min(0),
     }),

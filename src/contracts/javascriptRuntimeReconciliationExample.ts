@@ -186,7 +186,6 @@ const runtimeEvidence = createEvidence(
     operation: "inspect_electron_page",
     parameters: {
       cdp_endpoint: "http://127.0.0.1:9223",
-      allowed_file_roots: [inputPath],
       target_id: "example-target",
       include_script_sources: true,
     },

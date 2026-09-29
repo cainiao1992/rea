@@ -32,15 +32,13 @@ describe("passive V8 Inspector provider", () => {
     expect(
       observeJavaScriptRuntimeToolInputSchema.safeParse({
         inspector_endpoint: "http://127.0.0.1:9229",
-        allowed_file_roots: ["/tmp/app"],
-        allowed_origins: [],
         target_id: "target-1",
         limits: {},
       }).success,
     ).toBe(false);
   });
 
-  test("returns every approved Inspector target inline", async () => {
+  test("returns every target exposed by the selected Inspector endpoint inline", async () => {
     const fixture = await runtimeFixture();
     const fake = await startFakeV8Inspector({
       targetUrl: pathToFileURL(fixture.entry).href,
@@ -49,8 +47,6 @@ describe("passive V8 Inspector provider", () => {
     try {
       const listed = await new V8InspectorProvider().listTargets({
         inspector_endpoint: fake.endpoint,
-        allowed_file_roots: [fixture.root],
-        allowed_origins: [],
       });
       expect(listed.ok).toBe(true);
       if (!listed.ok) return;
@@ -61,7 +57,7 @@ describe("passive V8 Inspector provider", () => {
     }
   });
 
-  test("filters target locations and never retains the excluded path", async () => {
+  test("includes targets outside the old caller root filter", async () => {
     const fixture = await runtimeFixture();
     const outside = await temporaryFile("outside.js");
     const fake = await startFakeV8Inspector({
@@ -71,14 +67,13 @@ describe("passive V8 Inspector provider", () => {
     try {
       const result = await new V8InspectorProvider().listTargets({
         inspector_endpoint: fake.endpoint,
-        allowed_file_roots: [fixture.root],
-        allowed_origins: [],
       });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(result.value.targets).toHaveLength(1);
-      expect(result.value.excluded.outside_file_roots).toBe(1);
-      expect(JSON.stringify(result.value)).not.toContain(outside);
+      expect(result.value.targets).toHaveLength(2);
+      expect(
+        result.value.targets.map(({ location }) => location),
+      ).toContainEqual(expect.objectContaining({ file_path: outside }));
     } finally {
       await fake.close();
     }
@@ -97,12 +92,12 @@ describe("passive V8 Inspector provider", () => {
     });
     try {
       const result = await new V8InspectorProvider().observe(
-        observeInput(fake.endpoint, fake.targetId, fixture.root, "node"),
+        observeInput(fake.endpoint, fake.targetId, "node"),
       );
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(result.value.scripts.items).toHaveLength(2);
-      expect(result.value.scripts.excluded.outside_file_roots).toBe(1);
+      expect(result.value.scripts.items).toHaveLength(3);
+      expect(result.value.scripts.excluded.unsupported_location).toBe(0);
       expect(result.value.execution_contexts).toEqual([
         {
           context_key: "1",
@@ -115,7 +110,7 @@ describe("passive V8 Inspector provider", () => {
         "Runtime.enable",
         "Debugger.enable",
       ]);
-      expect(JSON.stringify(result.value)).not.toContain(outside);
+      expect(JSON.stringify(result.value)).toContain(outside);
       expect(result.value.unavailable_without_instrumentation).toContain(
         "Electron IPC messages and handlers",
       );
@@ -134,24 +129,17 @@ describe("passive V8 Inspector provider", () => {
       const provider = new V8InspectorProvider();
       const listed = await provider.listTargets({
         inspector_endpoint: fake.endpoint,
-        allowed_file_roots: [fixture.root],
-        allowed_origins: [],
       });
       expect(listed.ok).toBe(true);
       if (!listed.ok) return;
       expect(listed.value.targets).toEqual([]);
 
       const observed = await provider.observe(
-        observeInput(
-          fake.endpoint,
-          fake.targetId,
-          fixture.root,
-          "electron-main",
-        ),
+        observeInput(fake.endpoint, fake.targetId, "electron-main"),
       );
       expect(observed.ok).toBe(false);
       if (observed.ok) return;
-      expect(observed.error.message).toMatch(/outside_file_roots|target/u);
+      expect(observed.error.message).toMatch(/target/u);
     } finally {
       await fake.close();
     }
@@ -172,7 +160,7 @@ describe("passive V8 Inspector provider", () => {
       });
       try {
         const result = await new V8InspectorProvider().observe(
-          observeInput(fake.endpoint, fake.targetId, fixture.root, runtimeKind),
+          observeInput(fake.endpoint, fake.targetId, runtimeKind),
         );
         expect(result.ok).toBe(true);
       } finally {
@@ -198,7 +186,7 @@ describe("complete Inspector script hashes", () => {
     });
     try {
       const result = await new V8InspectorProvider().observe(
-        observeInput(fake.endpoint, fake.targetId, fixture.root, "node"),
+        observeInput(fake.endpoint, fake.targetId, "node"),
       );
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -220,12 +208,7 @@ describe("undeclared V8 runtime role", () => {
       targetType: "page",
     });
     try {
-      const input = observeInput(
-        fake.endpoint,
-        fake.targetId,
-        fixture.root,
-        "node",
-      );
+      const input = observeInput(fake.endpoint, fake.targetId, "node");
       delete input.runtime_kind;
       const result = await new V8InspectorProvider().observe(input);
       expect(result.ok).toBe(true);
@@ -243,7 +226,6 @@ describe("undeclared V8 runtime role", () => {
 
 describe("passive V8 Inspector evidence", () => {
   test("retains authorized script locations longer than the former byte ceiling", async () => {
-    const fixture = await runtimeFixture();
     const longUrl = `https://example.test/${"a".repeat(20_000)}`;
     const fake = await startFakeV8Inspector({
       targetUrl: longUrl,
@@ -251,8 +233,7 @@ describe("passive V8 Inspector evidence", () => {
     });
     try {
       const input = {
-        ...observeInput(fake.endpoint, fake.targetId, fixture.root, "node"),
-        allowed_origins: ["https://example.test"],
+        ...observeInput(fake.endpoint, fake.targetId, "node"),
       };
       const result = await new V8InspectorProvider().observe(input);
       expect(result.ok).toBe(true);
@@ -279,12 +260,7 @@ describe("passive V8 Inspector evidence", () => {
       scriptUrls,
     });
     try {
-      const input = observeInput(
-        fake.endpoint,
-        fake.targetId,
-        fixture.root,
-        "node",
-      );
+      const input = observeInput(fake.endpoint, fake.targetId, "node");
       const result = await new V8InspectorProvider().observe(input);
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -303,13 +279,8 @@ describe("passive V8 Inspector evidence", () => {
       targetUrl: pathToFileURL(fixture.entry).href,
     });
     try {
-      const input = observeInput(
-        fake.endpoint,
-        fake.targetId,
-        fixture.root,
-        "node",
-      );
-      const authority = await authorityFor(fake.endpoint, fixture.root);
+      const input = observeInput(fake.endpoint, fake.targetId, "node");
+      const authority = await authorityFor();
       const first = await observeJavaScriptRuntime(
         new V8InspectorProvider(),
         authority,
@@ -330,8 +301,6 @@ describe("passive V8 Inspector evidence", () => {
         authority,
         {
           inspector_endpoint: fake.endpoint,
-          allowed_file_roots: [fixture.root],
-          allowed_origins: [],
         },
       );
       expect(listed.ok).toBe(true);
@@ -350,8 +319,6 @@ describe("passive V8 Inspector evidence", () => {
       "observe_javascript_runtime",
       {
         inspector_endpoint: "http://127.0.0.1:9229",
-        allowed_file_roots: [root],
-        allowed_origins: [],
         target_id: "example-v8-target",
         runtime_kind: "electron-main",
         observation_ms: 100,
@@ -391,24 +358,20 @@ const temporaryFile = async (name: string): Promise<string> => {
 const observeInput = (
   endpoint: string,
   targetId: string,
-  root: string,
   runtimeKind: ObserveJavaScriptRuntimeInput["runtime_kind"],
 ): ObserveJavaScriptRuntimeInput => ({
   inspector_endpoint: endpoint,
-  allowed_file_roots: [root],
-  allowed_origins: [],
   target_id: targetId,
   runtime_kind: runtimeKind,
   observation_ms: 10,
 });
 
-const authorityFor = async (endpoint: string, root: string) => {
+const authorityFor = async () => {
   const scope: PermissionCeiling = {
     capability: "v8_inspector_observe",
-    roots: [root],
+    roots: [],
     executables: [],
     environment_names: [],
-    origins: [endpoint],
     network: "loopback",
     mount: false,
   };
@@ -464,8 +427,6 @@ const runtimeObservation = (
     ],
     observed_total: 1,
     excluded: {
-      outside_file_roots: 0,
-      outside_origins: 0,
       unsupported_location: 0,
       invalid_protocol_value: 0,
     },

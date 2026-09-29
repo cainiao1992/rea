@@ -3,9 +3,7 @@ import { singleSource } from "graphology-shortest-path";
 import canonicalize from "canonicalize";
 import { z } from "zod";
 
-const replayIdentifierSchema = z
-  .string()
-  .regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/u);
+const replayIdentifierSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]*$/u);
 const replayPathSchema = z.array(
   z.union([z.string(), z.number().int().nonnegative()]),
 );
@@ -100,7 +98,7 @@ const replayActionSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("disconnect") }),
   z.strictObject({
     type: z.literal("delay"),
-    duration_ms: z.number().int().nonnegative(),
+    duration_ms: z.number().int().safe().nonnegative(),
   }),
 ]);
 

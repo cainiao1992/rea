@@ -39,7 +39,6 @@ export const semanticNodesWithinRange = (
 export const semanticFamilyStatus = (
   family: (typeof JAVASCRIPT_SEMANTIC_RELATION_FAMILIES)[number],
   analysis: JavaScriptArtifactAnalysis,
-  truncated: boolean,
 ): "complete" | "partial" | "unknown" | "unsupported" => {
   if (
     ![
@@ -58,7 +57,6 @@ export const semanticFamilyStatus = (
     ].includes(family)
   )
     return "unsupported";
-  if (truncated) return "unknown";
   return analysis.truncated_scopes === 0 ? "partial" : "unknown";
 };
 

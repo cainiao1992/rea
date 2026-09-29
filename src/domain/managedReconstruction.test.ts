@@ -46,4 +46,46 @@ describe("managed reconstruction import input", () => {
     expect(parsed.decompiler.options).toHaveLength(51);
     expect(parsed.notes).toHaveLength(101);
   });
+
+  it("accepts decompiler text and metadata without arbitrary length ceilings", () => {
+    const evidence = createEvidence(
+      undefined,
+      { id: "fixture", name: "Fixture", version: "1" },
+      {
+        operation: "inspect_managed_members",
+        parameters: {},
+        result: {},
+      },
+    );
+    const text = "x".repeat(65_537);
+    const metadata = "m".repeat(4_097);
+
+    const result = managedReconstructionImportInputSchema.parse({
+      static_members: evidence,
+      decompiler: {
+        name: metadata,
+        version: metadata,
+        family: "other",
+        executable_sha256: null,
+        options: ["o".repeat(513)],
+      },
+      methods: [
+        {
+          token: "0x06000001",
+          signature_sha256: "a".repeat(64),
+          normalized_il_sha256: null,
+          reconstruction: {
+            kind: "semantic-pseudocode",
+            language: "pseudocode",
+            text,
+            source_path: metadata,
+          },
+        },
+      ],
+      notes: [metadata],
+    });
+
+    expect(result.methods[0]?.reconstruction.text).toHaveLength(65_537);
+    expect(result.decompiler.name).toHaveLength(4_097);
+  });
 });

@@ -1,7 +1,6 @@
 import { recordSessionEvidenceSources } from "../sessionEvidence.js";
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { resolveCompareJavaScriptExportShapesRequestValidated } from "../../application/ApplicationWorkflowEvidenceResolver.js";
 import { compareJavaScriptExportShapesEvidenceValidated } from "../../application/JavaScriptApplicationWorkflowService.js";
 import { applicationToolContract } from "../../contracts/applicationToolContracts.js";
 import { javaScriptExportShapeComparisonResultSchema } from "../../domain/javascriptExportShapeComparisonSchemas.js";
@@ -22,12 +21,7 @@ export const registerCompareJavaScriptExportShapesTool = (
     contract.name,
     toolRegistrationOptions(contract),
     async (input) => {
-      const resolved = resolveCompareJavaScriptExportShapesRequestValidated(
-        input,
-        options.evidenceLookup,
-      );
-      if (!resolved.ok) return toCallToolResult(resolved, contract);
-      const parsed = resolved.value;
+      const parsed = input;
       const result = await logToolExecution(options.logger, contract.name, () =>
         Promise.resolve(compareJavaScriptExportShapesEvidenceValidated(parsed)),
       );

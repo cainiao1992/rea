@@ -96,40 +96,31 @@ describe("runtime configuration", () => {
 });
 
 describe("runtime permission configuration", () => {
-  it("builds a separate Electron endpoint and file-root ceiling", () => {
-    const result = parseConfig({
-      REA_ELECTRON_OBSERVE_ENABLED: "true",
-      REA_ELECTRON_CDP_ENDPOINTS_JSON: '["http://127.0.0.1:9223"]',
-      REA_ELECTRON_FILE_ROOTS_JSON: '["/tmp/electron-app"]',
-    });
+  it("builds a loopback-only Electron observation ceiling", () => {
+    const result = parseConfig({ REA_ELECTRON_OBSERVE_ENABLED: "true" });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.permissionCeilings).toContainEqual({
       capability: "electron_observe",
-      roots: ["/tmp/electron-app"],
+      roots: [],
       executables: [],
       environment_names: [],
-      origins: ["http://127.0.0.1:9223"],
       network: "loopback",
       mount: false,
     });
   });
 
-  it("builds a separate V8 Inspector endpoint, root, and origin ceiling", () => {
+  it("builds a loopback-only V8 Inspector capability ceiling", () => {
     const result = parseConfig({
       REA_V8_INSPECTOR_OBSERVE_ENABLED: "true",
-      REA_V8_INSPECTOR_ENDPOINTS_JSON: '["http://127.0.0.1:9229"]',
-      REA_V8_INSPECTOR_FILE_ROOTS_JSON: '["/tmp/node-app"]',
-      REA_V8_INSPECTOR_ALLOWED_ORIGINS_JSON: '["http://127.0.0.1:3000"]',
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.permissionCeilings).toContainEqual({
       capability: "v8_inspector_observe",
-      roots: ["/tmp/node-app"],
+      roots: [],
       executables: [],
       environment_names: [],
-      origins: ["http://127.0.0.1:9229", "http://127.0.0.1:3000"],
       network: "loopback",
       mount: false,
     });
@@ -365,12 +356,6 @@ describe("runtime target configuration", () => {
       ok: true,
       value: { managedRuntimePolicy: { status: "disabled" } },
     });
-  });
-
-  it("rejects relative Electron file roots", () => {
-    expect(
-      parseConfig({ REA_ELECTRON_FILE_ROOTS_JSON: '["relative/app"]' }).ok,
-    ).toBe(false);
   });
 
   it("parses database kind and loader arguments", () => {

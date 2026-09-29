@@ -94,27 +94,22 @@ async function runInlineEvidenceScenarios(
   expect(session.exportEvidenceBundle().records.length).toBeGreaterThan(2);
 }
 
-async function runEvidenceIdScenarios(harness: TestHarness): Promise<void> {
-  const tracedById = await harness.client.callTool({
+async function runInlineWorkflowScenarios(harness: TestHarness): Promise<void> {
+  const tracedInline = await harness.client.callTool({
     name: "trace_application_feature",
     arguments: {
       ...JAVASCRIPT_FEATURE_TRACE_EXAMPLE,
-      application_evidence_id:
-        JAVASCRIPT_FEATURE_TRACE_FULL_EVIDENCE_EXAMPLE.application.evidence_id,
     },
   });
-  expect(tracedById.isError).not.toBe(true);
+  expect(tracedInline.isError).not.toBe(true);
 
-  const comparedById = await harness.client.callTool({
+  const comparedInline = await harness.client.callTool({
     name: "compare_application_versions",
     arguments: {
-      left: JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left
-        .evidence_id,
-      right:
-        JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.right.evidence_id,
+      ...JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE,
     },
   });
-  expect(comparedById).toMatchObject({
+  expect(comparedInline).toMatchObject({
     structuredContent: {
       result: {
         evidence_links: expect.arrayContaining([
@@ -125,27 +120,7 @@ async function runEvidenceIdScenarios(harness: TestHarness): Promise<void> {
     },
   });
 
-  const mixedLeftInline = await harness.client.callTool({
-    name: "compare_application_versions",
-    arguments: {
-      left: JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left,
-      right:
-        JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.right.evidence_id,
-    },
-  });
-  expect(mixedLeftInline.isError).not.toBe(true);
-
-  const mixedRightInline = await harness.client.callTool({
-    name: "compare_application_versions",
-    arguments: {
-      left: JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left
-        .evidence_id,
-      right: JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.right,
-    },
-  });
-  expect(mixedRightInline.isError).not.toBe(true);
-
-  const legacyAliases = await harness.client.callTool({
+  const idsRejected = await harness.client.callTool({
     name: "compare_application_versions",
     arguments: {
       left_evidence_id:
@@ -154,14 +129,12 @@ async function runEvidenceIdScenarios(harness: TestHarness): Promise<void> {
         JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.right.evidence_id,
     },
   });
-  expect(legacyAliases.isError).toBe(true);
+  expect(idsRejected.isError).toBe(true);
 
   const sourceComparedById = await harness.client.callTool({
     name: "compare_source_to_bundle",
     arguments: {
       ...SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE,
-      application_evidence_id:
-        JAVASCRIPT_FEATURE_TRACE_FULL_EVIDENCE_EXAMPLE.application.evidence_id,
     },
   });
   expect(sourceComparedById.isError).not.toBe(true);
@@ -171,17 +144,6 @@ async function assertRejectedEvidenceReferences(
   client: Client,
   session: BinarySession,
 ): Promise<void> {
-  const missing = await client.callTool({
-    name: "trace_application_feature",
-    arguments: JAVASCRIPT_FEATURE_TRACE_EXAMPLE,
-  });
-  expect(missing).toMatchObject({
-    isError: true,
-    structuredContent: {
-      error: { details: { reason: "missing" } },
-    },
-  });
-
   const wrongOperation = createEvidence(
     undefined,
     { id: "fixture", name: "Fixture", version: "1" },
@@ -199,20 +161,17 @@ async function assertRejectedEvidenceReferences(
   );
   expect(session.recordEvidence(wrongOperation).ok).toBe(true);
   expect(session.recordEvidence(wrongPredicate).ok).toBe(true);
-  for (const [record, reason] of [
-    [wrongOperation, "wrong_operation"],
-    [wrongPredicate, "wrong_predicate"],
-  ] as const) {
+  for (const record of [wrongOperation, wrongPredicate]) {
     const rejected = await client.callTool({
       name: "trace_application_feature",
       arguments: {
         ...JAVASCRIPT_FEATURE_TRACE_EXAMPLE,
-        application_evidence_id: record.evidence_id,
+        application: record,
       },
     });
     expect(rejected).toMatchObject({
       isError: true,
-      structuredContent: { error: { details: { reason } } },
+      structuredContent: { error: expect.any(Object) },
     });
   }
 }
@@ -224,9 +183,7 @@ async function assertRejectedInlineEvidence(client: Client): Promise<void> {
       ...JAVASCRIPT_FEATURE_TRACE_FULL_EVIDENCE_EXAMPLE,
       native_observations: [
         JAVASCRIPT_FEATURE_TRACE_FULL_EVIDENCE_EXAMPLE.application,
-      ],
-      native_observation_evidence_ids: [
-        JAVASCRIPT_FEATURE_TRACE_FULL_EVIDENCE_EXAMPLE.application.evidence_id,
+        JAVASCRIPT_FEATURE_TRACE_FULL_EVIDENCE_EXAMPLE.application,
       ],
     },
   });
@@ -261,7 +218,7 @@ describe("application workflow MCP parity", () => {
     const harness = await createTestHarness();
     try {
       await runInlineEvidenceScenarios(harness.client, harness.session);
-      await runEvidenceIdScenarios(harness);
+      await runInlineWorkflowScenarios(harness);
       await assertRejectedEvidenceReferences(harness.client, harness.session);
       await assertRejectedInlineEvidence(harness.client);
     } finally {

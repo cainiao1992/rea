@@ -9,6 +9,22 @@ const sha256 = (value: Uint8Array): string =>
   createHash("sha256").update(value).digest("hex");
 
 describe("JavaScript export instrumentation", () => {
+  it("retains a long caller-provided artifact path in the manifest", () => {
+    const source = encode("const value = 1;");
+    const path = `/${"deep/".repeat(1_000)}app.js`;
+    const output = instrumentJavaScriptExport(source, {
+      artifact_path: path,
+      artifact_sha256: sha256(source),
+      selection: {
+        byte_start: 14,
+        byte_end: 15,
+        selected_sha256: sha256(encode("1")),
+        export_name: "value",
+      },
+    });
+    expect(output.manifest.artifact_path).toBe(path);
+  });
+
   it.each([
     [
       "plain",

@@ -1,7 +1,6 @@
 import { recordSessionEvidenceSources } from "../sessionEvidence.js";
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { resolveCompareSourceToBundleRequestValidated } from "../../application/ApplicationWorkflowEvidenceResolver.js";
 import { compareSourceToBundleEvidenceValidated } from "../../application/JavaScriptApplicationWorkflowService.js";
 import { applicationToolContract } from "../../contracts/applicationToolContracts.js";
 import { sourceToBundleComparisonResultSchema } from "../../domain/sourceToBundleComparisonSchemas.js";
@@ -22,17 +21,12 @@ export const registerCompareSourceToBundleTool = (
     contract.name,
     toolRegistrationOptions(contract),
     async (input) => {
-      const resolved = resolveCompareSourceToBundleRequestValidated(
-        input,
-        options.evidenceLookup,
-      );
-      if (!resolved.ok) return toCallToolResult(resolved, contract);
       const result = await logToolExecution(options.logger, contract.name, () =>
-        Promise.resolve(compareSourceToBundleEvidenceValidated(resolved.value)),
+        Promise.resolve(compareSourceToBundleEvidenceValidated(input)),
       );
       if (!result.ok) return toCallToolResult(result, contract);
       const recorded = recordSessionEvidenceSources(options.recordEvidence, [
-        resolved.value.application,
+        input.application,
       ]);
       if (!recorded.ok) return toCallToolResult(recorded, contract);
       const comparison = sourceToBundleComparisonResultSchema.parse(

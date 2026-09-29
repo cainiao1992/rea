@@ -104,7 +104,7 @@ export const collectJavaScriptSemanticFingerprints = (
           ],
         },
         limitations: [
-          "The fingerprint is a bounded static candidate and does not prove behavioral equivalence.",
+          "The fingerprint is a static candidate and does not prove behavioral equivalence.",
           ...(parserPartial
             ? ["Incomplete semantic recovery makes this fingerprint partial."]
             : []),

@@ -246,7 +246,6 @@ export class HopperProvider implements AnalysisProviderCandidate {
                     requestId: activity.requestId,
                     operation: activity.operation,
                     elapsedMs: activity.elapsedMs,
-                    timeoutMs: activity.timeoutMs,
                     callerState: activity.callerState,
                   },
             queuedRequests: activity?.queuedRequests ?? 0,

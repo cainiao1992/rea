@@ -10,18 +10,13 @@ import { authorizeRuntimeLocation } from "./JavaScriptRuntimeScope.js";
 import type { CaptureState, ScriptDraft } from "./V8InspectorProvider.js";
 import type { AuthorizedV8InspectorTarget } from "./V8InspectorEndpoint.js";
 
-type ExclusionReason =
-  | "outside_file_roots"
-  | "outside_origins"
-  | "unsupported_location";
+type ExclusionReason = "unsupported_location";
 
 /** Empty durable-location exclusion counters. */
 export const createInspectorExclusionCounts = (): Record<
   ExclusionReason,
   number
 > => ({
-  outside_file_roots: 0,
-  outside_origins: 0,
   unsupported_location: 0,
 });
 
@@ -30,7 +25,7 @@ export const describeInspectorTargetLimitations = (): string[] => [
   "REA attaches to an already-running exact target and never launches, resumes, evaluates, pauses, or mutates it.",
   "Only Runtime.enable and Debugger.enable are sent; source text, object values, EventEmitter activity, and Electron IPC are not inspected.",
   "Target IDs and locations are authorized, but the Inspector protocol does not authenticate an operating-system process ID or Electron role.",
-  "Some Electron main targets report only file://; for those targets, the first approved file root is recorded as a scope fallback and script locations are authorized independently.",
+  "Every target exposed by the selected Inspector endpoint is eligible for observation; target IDs and locations are not authenticated as operating-system process identity.",
   "No runtime graph depth is traversed because passive Inspector events do not establish require/import caller edges.",
 ];
 
@@ -38,7 +33,6 @@ interface FinalizeCaptureInput {
   readonly input: ObserveJavaScriptRuntimeInput;
   readonly runtime: JavaScriptRuntimeTargetList["runtime"];
   readonly target: AuthorizedV8InspectorTarget;
-  readonly roots: readonly string[];
   readonly state: CaptureState;
 }
 
@@ -47,7 +41,6 @@ export const finalizeInspectorCapture = async ({
   input,
   runtime,
   target,
-  roots,
   state,
 }: FinalizeCaptureInput): Promise<JavaScriptRuntimeObservation> => {
   const exclusions = createInspectorExclusionCounts();
@@ -56,11 +49,7 @@ export const finalizeInspectorCapture = async ({
     JavaScriptRuntimeObservation["scripts"]["items"][number]
   >();
   for (const draft of state.scripts) {
-    const decision = await authorizeRuntimeLocation(
-      draft.rawUrl,
-      roots,
-      input.allowed_origins,
-    );
+    const decision = await authorizeRuntimeLocation(draft.rawUrl);
     if (!decision.allowed) {
       exclusions[decision.reason] += 1;
       continue;

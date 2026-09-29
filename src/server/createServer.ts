@@ -51,10 +51,10 @@ import { sessionAvailabilityPolicy } from "./sessionAvailabilityPolicy.js";
 import { DENY_PROCESS_POLICY } from "./sessionToolPolicies.js";
 
 const TARGET_FREE_INSTRUCTIONS =
-  "Choose tools from the target and question. For an archive or application package, open_binary(path) binds the active target; use inspect_artifact when its graph and findings help, and extract_artifact when materialized files are needed. For standalone JavaScript or ASAR analysis, use analyze_javascript_application. For managed PE/CLI files, use inspect_managed_artifact. For native binaries, open the target and use focused search, procedure, or function tools directly; binary_overview is available when metadata or inventory context is useful. For a live page or runtime, discover targets with list_browser_targets, list_electron_targets, or list_javascript_runtime_targets when needed; scenario capture tools are for controlled interactions.";
+  "REA provides reverse-engineering tools for local artifacts, native binaries, managed code, browser pages, and runtimes. Use the tool that directly answers the question; discover targets or inspect inventory only when needed. Tool results include inline Evidence and report their coverage and limitations.";
 
 const ACTIVE_TARGET_INSTRUCTIONS =
-  "REA analyzes the active reverse-engineering target. For native binaries, use search_procedures or list_procedures to choose a function and analyze_function with its returned name or address for a complete dossier. Call binary_overview when target metadata or inventory counts are useful. Use inspect_native_api when you need to reconstruct a native API boundary, and focused procedure tools when you need only one facet such as assembly, callers, or references.";
+  "REA analyzes the active reverse-engineering target. Use the analysis tool that answers the question directly. Search or list symbols when discovery is needed; analyze_function provides a function dossier, and focused procedure tools return individual facets.";
 
 export interface CreateServerOptions {
   readonly logger?: Logger;
@@ -309,7 +309,6 @@ const registerBinaryAnalysisTools = ({
 
 const registerObservationTools = ({
   server,
-  session,
   options,
   logger,
   permissionAuthority,
@@ -329,27 +328,15 @@ const registerObservationTools = ({
     ...common,
     electron: options.electronObservation,
     electronActive: options.electronActiveObservation,
-    evidenceLookup:
-      session === undefined
-        ? undefined
-        : (evidenceId) => session.evidenceById(evidenceId),
   });
   registerJavaScriptRuntimeObservationTools(server, {
     ...common,
     runtime: options.javascriptRuntimeObservation,
-    evidenceLookup:
-      session === undefined
-        ? undefined
-        : (evidenceId) => session.evidenceById(evidenceId),
   });
   registerApplicationTools(server, {
     logger,
     recordEvidence,
     recordEvidenceWithUnknown,
-    evidenceLookup:
-      session === undefined
-        ? undefined
-        : (evidenceId) => session.evidenceById(evidenceId),
     permissionAuthority,
     replay: {
       policy:

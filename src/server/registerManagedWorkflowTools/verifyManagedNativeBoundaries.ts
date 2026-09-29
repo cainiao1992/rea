@@ -27,27 +27,20 @@ export const registerVerifyManagedNativeBoundaries = (
     toolRegistrationOptions(nativeVerificationContract),
     async (input) => {
       const managedBoundaries = resolveManagedBoundaryEvidence(
-        options.session,
-        input.managed_boundaries_evidence_id,
+        input.managed_boundaries,
       );
       if (!managedBoundaries.ok)
         return toCallToolResult(managedBoundaries, nativeVerificationContract);
       const nativeObservations = resolveNativeEvidence(
-        options.session,
-        input.native_observation_evidence_ids,
+        input.native_observations,
       );
       if (!nativeObservations.ok)
         return toCallToolResult(nativeObservations, nativeVerificationContract);
       const managedBoundary = managedBoundaries.value[0];
       if (managedBoundary === undefined)
         throw new TypeError("Managed boundary Evidence resolution failed");
-      const {
-        managed_boundaries_evidence_id: _managedBoundariesEvidenceId,
-        native_observation_evidence_ids: _nativeObservationEvidenceIds,
-        ...referencedInput
-      } = input;
       const parsed = {
-        ...referencedInput,
+        ...input,
         managed_boundaries: managedBoundary,
         native_observations: nativeObservations.value,
       };

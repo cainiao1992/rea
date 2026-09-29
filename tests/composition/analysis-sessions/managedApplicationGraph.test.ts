@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { projectManagedApplicationGraphEvidence } from "../../../src/application/ManagedApplicationGraphService.js";
 import { managedApplicationGraphReferenceInputSchema } from "../../../src/contracts/managedWorkflowToolContracts.js";
+import { MANAGED_APPLICATION_GRAPH_EXAMPLE } from "../../../src/contracts/managedWorkflowExamples.js";
 import { traceApplicationFeatureEvidence } from "../../../src/application/JavaScriptApplicationWorkflowService.js";
 import { MANAGED_STATIC_PROVIDER } from "../../../src/application/InvestigationProviders.js";
 import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
@@ -161,11 +162,11 @@ describe("managed application graph projection", () => {
 });
 
 describe("managed application graph request", () => {
-  it("accepts any nonempty set of sources and rejects duplicate IDs", () => {
-    const id = `ev_${"a".repeat(64)}`;
+  it("accepts any nonempty set of inline sources and rejects duplicates", () => {
+    const evidence = MANAGED_APPLICATION_GRAPH_EXAMPLE.managed_members;
     expect(
       managedApplicationGraphReferenceInputSchema.safeParse({
-        managed_members_evidence_id: id,
+        managed_members: evidence,
       }).success,
     ).toBe(true);
     expect(
@@ -173,8 +174,8 @@ describe("managed application graph request", () => {
     ).toBe(false);
     expect(
       managedApplicationGraphReferenceInputSchema.safeParse({
-        managed_members_evidence_id: id,
-        managed_native_boundaries_evidence_id: id,
+        managed_members: evidence,
+        managed_native_boundaries: evidence,
       }).success,
     ).toBe(false);
   });

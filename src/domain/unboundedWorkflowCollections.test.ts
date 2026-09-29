@@ -98,7 +98,7 @@ it("correlates every supplied mapping and accepts complete comparison lists", ()
     ...mapping,
     hypothesis: {
       ...mapping.hypothesis,
-      statement: `Hypothesis ${i}`,
+      statement: `Hypothesis ${i} ${"x".repeat(600)}`,
     },
   }));
   const input = {
@@ -116,6 +116,10 @@ it("correlates every supplied mapping and accepts complete comparison lists", ()
   expect(
     staticRuntimeCorrelationInputSchema.parse(input).mappings,
   ).toHaveLength(501);
+  expect(
+    staticRuntimeCorrelationInputSchema.parse(input).mappings[0]?.hypothesis
+      .statement.length,
+  ).toBeGreaterThan(500);
   const fullInput = {
     ...input,
     static_comparisons: [FUNCTION_COMPARISON_EVIDENCE],

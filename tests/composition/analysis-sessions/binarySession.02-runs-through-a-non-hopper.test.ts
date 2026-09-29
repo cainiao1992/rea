@@ -61,8 +61,7 @@ const nonHopperProvider = (operations: string[]): AnalysisProvider => {
               requestId: 7,
               operation: "analyze_function",
               elapsedMs: 31_000,
-              timeoutMs: 30_000,
-              callerState: "timed_out",
+              callerState: "cancelled",
             },
             queuedRequests: 2,
           },
@@ -136,7 +135,7 @@ describe("binary session", () => {
         },
       },
       analysis_activity: {
-        status: "timed_out_busy",
+        status: "busy",
         providers: [
           {
             provider: { id: "fixture", name: "Fixture", version: "1" },
@@ -144,8 +143,7 @@ describe("binary session", () => {
               request_id: 7,
               operation: "analyze_function",
               elapsed_ms: 31_000,
-              timeout_ms: 30_000,
-              caller_state: "timed_out",
+              caller_state: "cancelled",
             },
             queued_requests: 2,
           },

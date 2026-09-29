@@ -89,7 +89,6 @@ export const buildJavaScriptSemanticGraph = ({
     );
   }
   if (state.roots.size === 0) addFallbackRoot(rootArtifactSha256, state);
-  const truncated = false;
   const unknowns = [...state.unknowns.values()];
   return createJavaScriptSemanticGraph({
     schema: "JavaScriptSemanticRelationGraph",
@@ -101,19 +100,19 @@ export const buildJavaScriptSemanticGraph = ({
     fingerprints,
     unknowns,
     coverage: {
-      status: truncated ? "partial" : "unknown",
-      truncated,
-      omitted_nodes: truncated ? null : 0,
-      omitted_relations: truncated ? null : 0,
+      status: "unknown",
+      truncated: false,
+      omitted_nodes: 0,
+      omitted_relations: 0,
       limits: [],
       families: JAVASCRIPT_SEMANTIC_RELATION_FAMILIES.map((family) => ({
         family,
-        status: semanticFamilyStatus(family, analysis, truncated),
+        status: semanticFamilyStatus(family, analysis),
         retained_relations: [...state.relations.values()].filter(
           (relation) =>
             JAVASCRIPT_SEMANTIC_RELATION_FAMILY[relation.relation] === family,
         ).length,
-        omitted_relations: truncated ? null : 0,
+        omitted_relations: 0,
         unknown_ids: unknowns
           .filter((unknown) => unknown.family === family)
           .map(({ unknown_id: identifier }) => identifier),
@@ -123,7 +122,7 @@ export const buildJavaScriptSemanticGraph = ({
       "The semantic graph contains static syntax observations and conservative relationship candidates; it does not claim runtime execution.",
       "Local data flow does not claim control-flow-sensitive reaching definitions or arbitrary dynamic property resolution.",
       "Promise ownership covers explicit unshadowed Promise construction, static factories, aggregation, chaining, and await syntax only.",
-      "Function fingerprints are bounded static candidates; equal digests can remain ambiguous and do not prove behavioral equivalence.",
+      "Function fingerprints are static candidates; equal digests can remain ambiguous and do not prove behavioral equivalence.",
       "Event extraction covers EventEmitter-style literal registrations, removals, and dispatch candidates; dynamic names remain unknown.",
       "Timer extraction covers global or node:timers scheduling and exact local-handle cancellation.",
       "Child-process extraction covers asynchronous node:child_process creation, literal argv/env/stdio options, exit/error listeners, and kill signals.",

@@ -20,7 +20,6 @@ export interface GhidraWireOptions {
     number,
     Result<JsonValue, GhidraSessionError>
   >;
-  readonly requestTimeoutMs: number;
   readonly logger: Logger;
   readonly failure: (
     kind: GhidraSessionFailureKind,
@@ -55,28 +54,32 @@ export class GhidraWire {
         this.#options.failure("cancelled", "Ghidra request was cancelled"),
       );
     const id = this.#options.nextId();
-    const timeoutMs = options.timeoutMs ?? this.#options.requestTimeoutMs;
-    if (timeoutMs <= 0)
+    if (options.timeoutMs !== undefined && options.timeoutMs <= 0)
       return err(
         this.#options.failure(
           "timeout",
           "Ghidra request deadline elapsed",
           undefined,
-          { timeoutMs },
+          { timeoutMs: options.timeoutMs },
         ),
       );
+    const timeoutMs = options.timeoutMs;
     const response = this.#options.pending.wait(id, {
-      timeoutMs,
+      ...(timeoutMs === undefined
+        ? {}
+        : {
+            timeoutMs,
+            timeoutValue: () =>
+              err(
+                this.#options.failure(
+                  "timeout",
+                  "Ghidra bridge request timed out",
+                  undefined,
+                  { timeoutMs },
+                ),
+              ),
+          }),
       ...(options.signal === undefined ? {} : { signal: options.signal }),
-      timeoutValue: () =>
-        err(
-          this.#options.failure(
-            "timeout",
-            "Ghidra bridge request timed out",
-            undefined,
-            { timeoutMs },
-          ),
-        ),
       cancelledValue: () =>
         err(this.#options.failure("cancelled", "Ghidra request was cancelled")),
     });

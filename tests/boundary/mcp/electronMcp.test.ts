@@ -1,4 +1,4 @@
-import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -9,7 +9,6 @@ import { z } from "zod";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
-import type { BinarySession } from "../../../src/application/BinarySession.js";
 import type { ElectronActiveObservationPort } from "../../../src/application/ElectronActiveObservationPort.js";
 import { loadConfiguredPermissionAuthority } from "../../../src/application/PermissionConfiguration.js";
 import { CdpElectronProvider } from "../../../src/browser/CdpElectronProvider.js";
@@ -37,7 +36,7 @@ afterEach(async () => {
   );
 });
 
-it("exposes root-confined Electron discovery and inspection as Evidence", async () => {
+it("exposes endpoint-scoped Electron discovery and inspection as Evidence", async () => {
   const root = await createTestTempDirectory("rea-electron-mcp-");
   temporary.push(root);
   await writeFile(join(root, "index.html"), "<script src='app.js'></script>");
@@ -56,8 +55,6 @@ it("exposes root-confined Electron discovery and inspection as Evidence", async 
   browsers.push(browser);
   const config = parseConfig({
     REA_ELECTRON_OBSERVE_ENABLED: "true",
-    REA_ELECTRON_CDP_ENDPOINTS_JSON: JSON.stringify([browser.endpoint]),
-    REA_ELECTRON_FILE_ROOTS_JSON: JSON.stringify([root]),
   });
   if (!config.ok) throw config.error;
   const authority = await loadConfiguredPermissionAuthority(config.value);
@@ -86,7 +83,6 @@ it("exposes root-confined Electron discovery and inspection as Evidence", async 
     name: "list_electron_targets",
     arguments: {
       cdp_endpoint: browser.endpoint,
-      allowed_file_roots: [root],
     },
   });
   expect(listed.isError).not.toBe(true);
@@ -95,11 +91,10 @@ it("exposes root-confined Electron discovery and inspection as Evidence", async 
       targets: [{ target_id: "electron-page" }],
     },
   });
-  const discoveryEvidenceId = evidenceIdFrom(listed.structuredContent);
   const inspected = await client.callTool({
     name: "inspect_electron_page",
     arguments: {
-      discovery_evidence_id: discoveryEvidenceId,
+      cdp_endpoint: browser.endpoint,
       target_id: "electron-page",
       observation_ms: 0,
       include_script_sources: true,
@@ -124,10 +119,10 @@ it("exposes root-confined Electron discovery and inspection as Evidence", async 
       static_layers: [
         {
           role: "application",
-          analysis: evidenceFor(session, analyzed.structuredContent),
+          analysis: evidenceFor(analyzed.structuredContent),
         },
       ],
-      runtime_observations: [evidenceFor(session, inspected.structuredContent)],
+      runtime_observations: [evidenceFor(inspected.structuredContent)],
     },
   });
   expect(reconciled.isError).not.toBe(true);
@@ -158,25 +153,6 @@ it("exposes root-confined Electron discovery and inspection as Evidence", async 
       ],
     },
   });
-  const outside = join(root, "..", `outside-${Date.now().toString(16)}`);
-  await mkdir(outside);
-  temporary.push(outside);
-  const commandsBeforeDenial = browser.commands.length;
-  const denied = await client.callTool({
-    name: "list_electron_targets",
-    arguments: {
-      cdp_endpoint: browser.endpoint,
-      allowed_file_roots: [outside],
-    },
-  });
-  expect(denied.isError).toBe(true);
-  expect(denied.structuredContent).toMatchObject({
-    error: {
-      code: "permission_required",
-      details: { missing: { roots: [expect.stringMatching(/outside-/u)] } },
-    },
-  });
-  expect(browser.commands).toHaveLength(commandsBeforeDenial);
 }, 20_000);
 
 it("exposes active Electron scenarios through the separately granted MCP boundary", async () => {
@@ -266,15 +242,14 @@ it("exposes active Electron scenarios through the separately granted MCP boundar
   expect(JSON.stringify(captured.structuredContent)).not.toContain(
     "super-secret",
   );
-  const evidenceId = Reflect.get(
-    captured.structuredContent ?? {},
-    "evidence_id",
-  );
-  expect(session.evidenceById(String(evidenceId))).toMatchObject({
-    predicate_type: "rea.electron-active-scenario",
-    parameters: {
-      args: ["--token", "<redacted>"],
-      actions: [{ step_id: "submit", kind: "click" }],
+  expect(captured.structuredContent).toMatchObject({
+    evidence: {
+      predicate_type: "rea.electron-active-scenario",
+      operation: "capture_electron_scenario",
+      parameters: {
+        args: ["--token", "<redacted>"],
+        actions: [{ step_id: "submit", kind: "click" }],
+      },
     },
   });
 }, 20_000);
@@ -354,24 +329,17 @@ it("exposes the target-free static JavaScript application workflow", async () =>
   expect(projected.evidence.operation).toBe("analyze_javascript_application");
 });
 
-const evidenceFor = (session: BinarySession, value: unknown) => {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    !("evidence_id" in value) ||
-    typeof value.evidence_id !== "string"
-  )
-    throw new TypeError("Missing compact Evidence ID");
-  const evidence = session.evidenceById(value.evidence_id);
-  if (evidence === undefined) throw new TypeError("Missing session Evidence");
-  return evidence;
-};
-
-const evidenceIdFrom = (value: unknown): string => {
-  if (typeof value !== "object" || value === null)
-    throw new TypeError("Missing structured result");
-  const evidenceId = Reflect.get(value, "evidence_id");
-  if (typeof evidenceId !== "string")
-    throw new TypeError("Missing Evidence ID");
-  return evidenceId;
+const evidenceFor = (value: unknown) => {
+  const parsed = z
+    .object({
+      evidence_id: z.string(),
+      result: z.unknown(),
+      evidence: z.object({}).passthrough(),
+    })
+    .parse(value);
+  return {
+    ...parsed.evidence,
+    evidence_id: parsed.evidence_id,
+    normalized_result: parsed.result,
+  };
 };

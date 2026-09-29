@@ -11,6 +11,7 @@ export type GhidraStartResult = Result<GhidraSessionInfo, GhidraSessionError>;
 /** Cancellation and deadline controls shared by authenticated requests. */
 export interface GhidraRequestOptions {
   readonly signal?: AbortSignal;
+  /** Internal startup/shutdown deadline; analysis calls have no fixed deadline. */
   readonly timeoutMs?: number;
 }
 
@@ -39,7 +40,6 @@ export interface GhidraClientOptions {
   readonly transport?: GhidraTransportKind;
   readonly providerVersion: string;
   readonly profileDigest: string;
-  readonly requestTimeoutMs?: number;
   readonly startupTimeoutMs?: number;
   readonly onDiagnostic?: (event: GhidraDiagnostic) => void;
   readonly logger?: Logger;

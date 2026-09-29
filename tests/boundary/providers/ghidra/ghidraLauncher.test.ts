@@ -40,7 +40,6 @@ const expectIsolatedEnvironment = (
     XDG_CACHE_HOME: join(runtimeRoot, "cache"),
     XDG_CONFIG_HOME: join(runtimeRoot, "config"),
     XDG_DATA_HOME: join(runtimeRoot, "data"),
-    GHIDRA_HEADLESS_MAXMEM: "2G",
     GHIDRA_JAVA_OPTIONS: "",
     JAVA_TOOL_OPTIONS: "",
     JDK_JAVA_OPTIONS: "",
@@ -66,7 +65,7 @@ afterEach(async () => {
 });
 
 describe("Ghidra headless launcher", () => {
-  it("builds a bounded read-only import in deterministic order", () => {
+  it("builds a read-only import in deterministic order", () => {
     expect(
       ghidraHeadlessArguments({
         projectRoot: "/tmp/project",
@@ -83,10 +82,6 @@ describe("Ghidra headless launcher", () => {
       "/tmp/target",
       "-readOnly",
       "-deleteProject",
-      "-analysisTimeoutPerFile",
-      "300",
-      "-max-cpu",
-      "2",
       "-log",
       "/tmp/ghidra.log",
       "-scriptlog",

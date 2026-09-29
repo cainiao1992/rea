@@ -111,7 +111,6 @@ const installationHost = (): GhidraInstallationHost => ({
 
 const sessionInfo = (profileDigest: string, targetSha256: string) => ({
   name: "REA Ghidra bridge" as const,
-  bridge_version: 7 as const,
   run_id: "11111111-1111-4111-8111-111111111111",
   profile_digest: profileDigest,
   provider: { id: "ghidra" as const, version: "12.1.2" },

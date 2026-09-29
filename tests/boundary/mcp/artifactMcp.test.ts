@@ -199,8 +199,8 @@ it("records an approved mismatch, preserves verified siblings, and never reports
     const compared = await client.callTool({
       name: "compare_artifacts",
       arguments: {
-        left_evidence_id: evidence.evidence_id,
-        right_evidence_id: evidence.evidence_id,
+        left: evidence,
+        right: evidence,
       },
     });
     expect(compared.isError).not.toBe(true);
@@ -224,14 +224,12 @@ it("records an approved mismatch, preserves verified siblings, and never reports
   }
 });
 
-it("rejects altered payloads that reuse session Evidence IDs", async () => {
+it("rejects inline artifact Evidence whose content does not match its ID", async () => {
   const session = createTestBinarySession(() => ({
     health: () => Promise.resolve(),
     execute: () => Promise.resolve(observed(null)),
     close: () => Promise.resolve(),
   }));
-  session.recordEvidence(ARTIFACT_COMPARISON_EXAMPLE.left);
-  session.recordEvidence(ARTIFACT_COMPARISON_EXAMPLE.right);
   const server = createServer(session, session);
   const client = new Client({
     name: "artifact-authority-test",
@@ -255,16 +253,16 @@ it("rejects altered payloads that reuse session Evidence IDs", async () => {
     expect(result.isError).toBe(true);
     expect(
       session.evidenceById(ARTIFACT_COMPARISON_EXAMPLE.left.evidence_id),
-    ).toBeDefined();
+    ).toBeUndefined();
     expect(
       session.evidenceById(ARTIFACT_COMPARISON_EXAMPLE.right.evidence_id),
-    ).toBeDefined();
+    ).toBeUndefined();
   } finally {
     await Promise.allSettled([client.close(), server.close(), session.close()]);
   }
 });
 
-it("rejects comparison Evidence that is not owned by the session", async () => {
+it("compares inline inventory Evidence without prior session calls", async () => {
   const session = createTestBinarySession(() => ({
     health: () => Promise.resolve(),
     execute: () => Promise.resolve(observed(null)),
@@ -284,13 +282,18 @@ it("rejects comparison Evidence that is not owned by the session", async () => {
       name: "compare_artifacts",
       arguments: ARTIFACT_COMPARISON_EXAMPLE,
     });
-    expect(result.isError).toBe(true);
+    expect(result.isError, JSON.stringify(result.structuredContent)).not.toBe(
+      true,
+    );
+    expect(compactResult(result.structuredContent).result).toMatchObject({
+      status: "changed",
+    });
     expect(
       session.evidenceById(ARTIFACT_COMPARISON_EXAMPLE.left.evidence_id),
-    ).toBeUndefined();
+    ).toBeDefined();
     expect(
       session.evidenceById(ARTIFACT_COMPARISON_EXAMPLE.right.evidence_id),
-    ).toBeUndefined();
+    ).toBeDefined();
   } finally {
     await Promise.allSettled([client.close(), server.close(), session.close()]);
   }
@@ -368,21 +371,18 @@ it("returns full artifact graphs inline and compares changed inventories", async
     });
     const inventoryInspection = z
       .object({
-        substeps: z.array(
-          z.object({
-            evidence: z.object({
-              normalized_result: z.object({
-                manifest: z.object({ root_format: z.literal("ipa") }),
-                occurrences: z.array(z.object({ logical_path: z.string() })),
-              }),
-            }),
-          }),
-        ),
+        substeps: z.array(z.object({ evidence: z.unknown() })),
       })
       .parse(inventoryResult.result);
-    expect(
-      inventoryInspection.substeps[0]?.evidence.normalized_result.occurrences,
-    ).toEqual(
+    const inventoryEvidence = z
+      .object({
+        normalized_result: z.object({
+          manifest: z.object({ root_format: z.literal("ipa") }),
+          occurrences: z.array(z.object({ logical_path: z.string() })),
+        }),
+      })
+      .parse(inventoryInspection.substeps[0]?.evidence);
+    expect(inventoryEvidence.normalized_result.occurrences).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           logical_path: "Payload/Fixture.app/main.js",
@@ -399,14 +399,16 @@ it("returns full artifact graphs inline and compares changed inventories", async
       arguments: {},
     });
     const changedResult = compactResult(changedInventory.structuredContent);
-    const changedEvidence = session.evidenceById(changedResult.evidence_id);
-    if (changedEvidence === undefined)
-      throw new Error("missing changed Evidence");
+    const changedInspection = z
+      .object({
+        substeps: z.array(z.object({ evidence: z.unknown() })),
+      })
+      .parse(changedResult.result);
     const compared = await client.callTool({
       name: "compare_artifacts",
       arguments: {
-        left_evidence_id: evidence.evidence_id,
-        right_evidence_id: changedEvidence.evidence_id,
+        left: inventoryInspection.substeps[0]?.evidence,
+        right: changedInspection.substeps[0]?.evidence,
       },
     });
     expect(compared.isError).not.toBe(true);

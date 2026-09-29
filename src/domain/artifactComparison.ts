@@ -6,6 +6,7 @@ import {
   type ArtifactNode,
   type ArtifactOccurrence,
 } from "./artifactGraph.js";
+import { evidenceSchema } from "./evidence.js";
 import {
   parseArtifactInventoryEvidence,
   type InventorySet,
@@ -39,18 +40,17 @@ const comparisonDimensionSchema = z.enum([
   "availability",
   "integrity",
 ]);
-
 /** Strict Evidence-backed input for deterministic artifact comparison. */
 export const artifactComparisonInputSchema = z.strictObject({
-  left_evidence_id: evidenceIdSchema,
-  right_evidence_id: evidenceIdSchema,
+  left: evidenceSchema,
+  right: evidenceSchema,
 });
 
 /** One path-classified artifact change with citations to both observations. */
 const artifactChangeSchema = z.object({
   classification: changeKindSchema,
-  logical_path: z.string().min(1).max(4_096),
-  dimensions: z.array(comparisonDimensionSchema).min(1).max(8),
+  logical_path: z.string().min(1),
+  dimensions: z.array(comparisonDimensionSchema).min(1),
   left_occurrence_id: z
     .string()
     .regex(/^occ_[a-f0-9]{64}$/u)

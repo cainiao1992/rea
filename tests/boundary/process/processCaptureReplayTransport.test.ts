@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import WebSocket from "ws";
 
 import { startLoopbackReplay } from "../../../src/application/LoopbackReplay.js";
@@ -86,6 +86,37 @@ it("matches bounded HTTP scripts without persisting request secrets", async () =
     );
     expect(JSON.stringify(replay.events)).not.toContain("fixture-secret");
     expect(JSON.stringify(replay.events)).not.toContain("credential-body");
+  } finally {
+    await replay.close();
+  }
+});
+
+it("keeps long replay delays pending and cancels them when replay closes", async () => {
+  const scenario = parseProcessScenario({
+    executable: "/bin/sh",
+    working_directory: "/tmp",
+    replay: {
+      http: [
+        {
+          method: "GET",
+          path: "/later",
+          status: 200,
+          body: "ready",
+          delay_ms: 2_147_483_648,
+        },
+      ],
+    },
+  });
+  const replay = await startLoopbackReplay(scenario);
+  const response = fetch(`${replay.httpUrl}/later`);
+  try {
+    await vi.waitFor(() => {
+      expect(
+        replay.events.some(({ direction }) => direction === "request"),
+      ).toBe(true);
+    });
+    await replay.close();
+    await expect(response).resolves.toMatchObject({ status: 200 });
   } finally {
     await replay.close();
   }

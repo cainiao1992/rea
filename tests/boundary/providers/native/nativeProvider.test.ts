@@ -34,7 +34,7 @@ describe("native macOS provider discovery and inspection", () => {
           : ok({ path: "/usr/bin/true", sha256: "a".repeat(64) }),
       );
     });
-    const options = { timeoutMs: 1_000, maxOutputBytes: 1_024 };
+    const options = {};
 
     expect((await runner.run("file", [], options)).ok).toBe(false);
     expect((await runner.run("file", [], options)).ok).toBe(true);
@@ -42,22 +42,40 @@ describe("native macOS provider discovery and inspection", () => {
     expect(resolutions).toBe(2);
   });
 
-  it("fails closed when a native command exceeds its output limit", async () => {
+  it("retains the complete native command output", async () => {
     const runner = new XcrunCommandRunner(() =>
       Promise.resolve(ok({ path: process.execPath, sha256: "a".repeat(64) })),
     );
+    const output = "x".repeat(4096);
     const captured = await runner.run(
       "file",
-      ["-e", "process.stdout.write('x'.repeat(4096))"],
-      { timeoutMs: 1_000, maxOutputBytes: 64 },
+      ["-e", `process.stdout.write(${JSON.stringify(output)})`],
+      {},
     );
 
-    expect(captured).toMatchObject({
-      ok: false,
-      error: { reason: "output-limit" },
-    });
+    expect(captured.ok && captured.value.stdout).toBe(output);
   });
 
+  it("cancels and reaps a running native command without an operation timeout", async () => {
+    const runner = new XcrunCommandRunner(() =>
+      Promise.resolve(ok({ path: process.execPath, sha256: "a".repeat(64) })),
+    );
+    const controller = new AbortController();
+    const pending = runner.run("file", ["-e", "setTimeout(() => {}, 10000)"], {
+      signal: controller.signal,
+    });
+    setTimeout(() => controller.abort(), 30);
+
+    const result = await pending;
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { reason: "cancelled" },
+    });
+  });
+});
+
+describe("native macOS provider inspection", () => {
   it("normalizes comprehensive Mach-O inspection with exact bounded provenance", async () => {
     const runner = new FixtureRunner();
     const client = new NativeMacOSProvider(runner, "darwin").createClient(
@@ -120,7 +138,7 @@ describe("native macOS provider discovery and inspection", () => {
 
   it("propagates optional vtool failures other than unavailability", async () => {
     const client = new NativeMacOSProvider(
-      new VtoolFailingRunner("timeout"),
+      new VtoolFailingRunner("io"),
       "darwin",
     ).createClient(machoTarget("/private/fixture"));
 
@@ -128,7 +146,7 @@ describe("native macOS provider discovery and inspection", () => {
 
     expect(execution).toMatchObject({
       ok: false,
-      error: { _tag: "AnalysisTimeoutError" },
+      error: { _tag: "ProviderAdapterError" },
     });
   });
 
@@ -139,6 +157,8 @@ describe("native macOS provider discovery and inspection", () => {
     await mkdir(join(app, "Contents/MacOS"), { recursive: true });
     await writeFile(executable, "fixture");
     await writeFile(join(app, "Contents/Info.plist"), "fixture");
+    const externalPlist = join(directory, "Outside.plist");
+    await writeFile(externalPlist, "fixture");
     const client = new NativeMacOSProvider(
       new FixtureRunner(),
       "darwin",
@@ -155,12 +175,16 @@ describe("native macOS provider discovery and inspection", () => {
       hardened_runtime: true,
       entitlements: { "com.apple.security.app-sandbox": true },
     });
+    const defaultPlist = await client.execute("inspect_plist", {});
+    expect(defaultPlist.ok && defaultPlist.value.result).toMatchObject({
+      source_path: join(app, "Contents/Info.plist"),
+    });
     const plist = await client.execute("inspect_plist", {
-      relative_path: "Contents/Info.plist",
+      path: externalPlist,
     });
     expect(plist.ok && plist.value.result).toMatchObject({
       bundle: { identifier: "com.example.fixture", version: "42" },
-      source_path: "Contents/Info.plist",
+      source_path: externalPlist,
     });
     const demangled = await client.execute("demangle_swift", {
       symbols: ["$s4Test3fooyyF", "plain_symbol"],
@@ -175,7 +199,7 @@ describe("native macOS provider discovery and inspection", () => {
 });
 
 describe("native macOS provider failures and parsing", () => {
-  it("classifies unavailable, malformed, timeout, and cancellation", async () => {
+  it("classifies unavailable, malformed, command failure, and cancellation", async () => {
     const unavailable = new NativeMacOSProvider(
       new FailingRunner("unavailable"),
       "darwin",
@@ -198,7 +222,7 @@ describe("native macOS provider failures and parsing", () => {
     );
 
     for (const [reason, tag] of [
-      ["timeout", "AnalysisTimeoutError"],
+      ["io", "ProviderAdapterError"],
       ["cancelled", "AnalysisCancelledError"],
     ] as const) {
       const client = new NativeMacOSProvider(
@@ -328,8 +352,6 @@ const capture = (
   stderr: tool === "codesign" ? output : "",
   stdoutBytes: Buffer.byteLength(tool === "codesign" ? "" : output),
   stderrBytes: Buffer.byteLength(tool === "codesign" ? output : ""),
-  stdoutTruncated: false,
-  stderrTruncated: false,
   exitCode: 0,
   signal: null,
 });

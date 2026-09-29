@@ -48,14 +48,7 @@ export interface ReferenceSourceImportParseResult {
   readonly parse_failures: readonly ReferenceSourceParseFailure[];
 }
 
-const MAX_REASON_LENGTH = 1_024;
-
 const codeSourceLanguages = new Set(["JavaScript", "TypeScript", "JSX", "TSX"]);
-
-const truncateReason = (reason: string): string =>
-  reason.length > MAX_REASON_LENGTH
-    ? `${reason.slice(0, MAX_REASON_LENGTH - 3)}...`
-    : reason;
 
 const safeModuleName = (node: Node | null | undefined): string | undefined => {
   if (isStringLiteral(node)) return node.value;
@@ -333,7 +326,7 @@ export const parseReferenceSourceImports = (
         {
           path,
           parser: "babel",
-          reason: truncateReason(reason ?? "Unknown parse failure"),
+          reason: reason ?? "Unknown parse failure",
         },
       ],
     };

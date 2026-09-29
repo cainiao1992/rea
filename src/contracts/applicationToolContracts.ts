@@ -58,7 +58,7 @@ const NODE_PREPARATION_EXAMPLE = jsonObjectSchema.parse({
   selected_alias: "bundle",
   expected_effect: "pure",
   instrumentation: {
-    artifact_path: "/approved/bundle.js",
+    artifact_path: "/tmp/example/bundle.js",
     artifact_sha256: HASH,
     selection: {
       byte_start: 100,
@@ -73,7 +73,7 @@ const NODE_PREPARATION_EXAMPLE = jsonObjectSchema.parse({
       modules: [
         {
           alias: "bundle",
-          path: "/approved/bundle.js",
+          path: "/tmp/example/bundle.js",
           format: "commonjs-factory",
           role: "module",
           dependencies: {},
@@ -92,7 +92,7 @@ export const APPLICATION_TOOL_CONTRACTS = [
     name: "trace_application_feature",
     ...toolContractMetadata("trace_application_feature"),
     description:
-      "Trace a typed literal seed through every reachable part of an authenticated JavaScript Application Graph supplied as full Evidence or an Evidence ID returned earlier in this session. Original static, native, passive-runtime, inferred, and unknown authorities remain distinct; native addon handoffs never open a provider or execute the application.",
+      "Trace a typed literal seed through every reachable part of an authenticated JavaScript Application Graph supplied as inline Evidence. Original static, native, passive-runtime, inferred, and unknown authorities remain distinct; native addon handoffs never open a provider or execute the application.",
     kind: "application",
     inputSchema: traceApplicationFeatureRequestSchema,
     outputSchema: traceOutputSchema,
@@ -107,7 +107,7 @@ export const APPLICATION_TOOL_CONTRACTS = [
     name: "trace_javascript_semantics",
     ...toolContractMetadata("trace_javascript_semantics"),
     description:
-      "Trace static JavaScript data-flow, direct call/return, and closure relations from application Evidence returned inline by analyze_javascript_application or referenced by its session Evidence ID. Dynamic or unsupported semantics remain explicit unknowns; static reachability never claims runtime execution.",
+      "Trace static JavaScript data-flow, direct call/return, and closure relations from inline application Evidence. Dynamic or unsupported semantics remain explicit unknowns; static reachability never claims runtime execution.",
     kind: "application",
     inputSchema: traceJavaScriptSemanticsRequestSchema,
     outputSchema: semanticTraceOutputSchema,
@@ -115,7 +115,7 @@ export const APPLICATION_TOOL_CONTRACTS = [
       {
         title: "Trace backward provenance from one semantic node",
         input: {
-          application_evidence_id: `ev_${HASH}`,
+          application: JAVASCRIPT_FEATURE_TRACE_EXAMPLE.application,
           query: {
             seed: { kind: "semantic-node", node_id: `jsrg_node_${HASH}` },
             direction: "backward-provenance",
@@ -129,7 +129,7 @@ export const APPLICATION_TOOL_CONTRACTS = [
     name: "compare_application_versions",
     ...toolContractMetadata("compare_application_versions"),
     description:
-      "Compare two authenticated JavaScript Application Graph versions supplied as full Evidence or Evidence IDs returned earlier in this session. Uses unique-only exact digest, module source digest, source-map identity, structural fingerprint, and non-module semantic-key tiers. Reports added, removed, changed, ambiguous, and unknown entities plus the complete matching changed_from graph without fuzzy or module-ordinal pairing.",
+      "Compare two authenticated JavaScript Application Graph versions supplied as inline Evidence. Uses unique-only exact digest, module source digest, source-map identity, structural fingerprint, and non-module semantic-key tiers. Reports added, removed, changed, ambiguous, and unknown entities plus the complete matching changed_from graph without fuzzy or module-ordinal pairing.",
     kind: "application",
     inputSchema: compareApplicationVersionsRequestSchema,
     outputSchema: comparisonOutputSchema,
@@ -144,7 +144,7 @@ export const APPLICATION_TOOL_CONTRACTS = [
     name: "compare_source_to_bundle",
     ...toolContractMetadata("compare_source_to_bundle"),
     description:
-      "Compare a cryptographically committed HistoricalSourceGraph with authenticated JavaScript Application Graph Evidence supplied directly or by session Evidence ID. Uses explicit exact-digest, source-map path, current-path, suffix, and basename signals with stable weights. Classifies unchanged, modified, removed, split, merged, duplicated, and unknown; incomplete coverage and ambiguous weak signals never become absence or forced matches.",
+      "Compare a cryptographically committed HistoricalSourceGraph with inline authenticated JavaScript Application Graph Evidence. Uses explicit exact-digest, source-map path, current-path, suffix, and basename signals with stable weights. Classifies unchanged, modified, removed, split, merged, duplicated, and unknown; incomplete coverage and ambiguous weak signals never become absence or forced matches.",
     kind: "application",
     inputSchema: compareSourceToBundleRequestSchema,
     outputSchema: sourceToBundleOutputSchema,
@@ -160,7 +160,7 @@ export const APPLICATION_TOOL_CONTRACTS = [
     name: "compare_javascript_export_shapes",
     ...toolContractMetadata("compare_javascript_export_shapes"),
     description:
-      "Compare bounded static return shapes for one exact module/export selector on each authenticated JavaScript Application Graph, supplied as full Evidence or session Evidence IDs. Variants pair only by reciprocal unique literal discriminants; dynamic values, incomplete properties, and ambiguous variants remain unknown. Reports JSON Pointer changes and recommends controlled replay separately without executing JavaScript.",
+      "Compare static return shapes for one exact module/export selector on each authenticated JavaScript Application Graph supplied as inline Evidence. Variants pair only by reciprocal unique literal discriminants; dynamic values, incomplete properties, and ambiguous variants remain unknown. Reports JSON Pointer changes and recommends controlled replay separately without executing JavaScript.",
     kind: "application",
     inputSchema: compareJavaScriptExportShapesRequestSchema,
     outputSchema: exportShapeComparisonOutputSchema,
@@ -188,7 +188,7 @@ export const APPLICATION_TOOL_CONTRACTS = [
             modules: [
               {
                 alias: "parser",
-                path: "/approved/parser.mjs",
+                path: "/tmp/example/parser.mjs",
                 format: "esm",
                 role: "module",
                 dependencies: {},

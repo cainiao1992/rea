@@ -22,6 +22,7 @@ import { startProcessSampler } from "./ProcessSampling.js";
 import { snapshotRoots } from "./FilesystemSnapshot.js";
 import { ProcessCheckpoints } from "./ProcessCheckpoints.js";
 import { TerminalRenderer } from "./TerminalRenderer.js";
+import type { ProcessTimer } from "./ProcessTimer.js";
 import {
   startCommandShimReplay,
   type CommandShimReplay,
@@ -73,7 +74,7 @@ interface StartedCaptureRuntime {
 
 const cleanupFailedStartup = async (options: {
   readonly cause: unknown;
-  readonly timers: Set<NodeJS.Timeout>;
+  readonly timers: Set<ProcessTimer>;
   readonly replay: LoopbackReplay | undefined;
   readonly terminal: IPty | undefined;
   readonly renderer: TerminalRenderer | undefined;
@@ -121,7 +122,7 @@ interface StartCaptureRuntimeOptions {
   readonly frames: TerminalFrame[];
   readonly samples: ProcessSample[];
   readonly interactions: InteractionEvent[];
-  readonly timers: Set<NodeJS.Timeout>;
+  readonly timers: Set<ProcessTimer>;
   readonly dispatchedEventIndexes: Set<number>;
   readonly recordEvent: RecordProcessCaptureEvent;
   readonly journal: ProcessCaptureJournal;
@@ -253,7 +254,7 @@ const normalizedShimEvents = (
 
 const finishProcessRun = async (options: {
   readonly runtime: StartedCaptureRuntime | undefined;
-  readonly timers: Set<NodeJS.Timeout>;
+  readonly timers: Set<ProcessTimer>;
   readonly runId: string;
   readonly temporaryRoot: string;
   readonly samples: readonly ProcessSample[];
@@ -416,7 +417,7 @@ const runProcessScenario = async (
   const journal = createProcessCaptureJournal();
   const { entries: eventJournal, recordEvent } = journal;
   let runtime: StartedCaptureRuntime | undefined;
-  const timers = new Set<NodeJS.Timeout>();
+  const timers = new Set<ProcessTimer>();
   let capture: PendingProcessCapture | undefined;
   let executionFailure: unknown;
   let stopSampler = async () => ({ partial: false });

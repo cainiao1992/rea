@@ -41,19 +41,19 @@ export const javaScriptSemanticQuerySeedSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     kind: z.literal("property"),
-    name: z.string().min(1).max(4_096),
+    name: z.string().min(1),
   }),
   z.strictObject({
     kind: z.literal("endpoint"),
-    value: z.string().min(1).max(16_384),
+    value: z.string().min(1),
   }),
   z.strictObject({
     kind: z.literal("event"),
-    name: z.string().min(1).max(4_096),
+    name: z.string().min(1),
   }),
   z.strictObject({
     kind: z.literal("boundary-field"),
-    field: z.string().min(1).max(4_096),
+    field: z.string().min(1),
   }),
 ]);
 
@@ -73,13 +73,12 @@ export const javaScriptSemanticQueryInputSchema = z.strictObject({
   allowed_relations: z
     .array(z.enum(JAVASCRIPT_SEMANTIC_RELATIONS))
     .min(1)
-    .max(JAVASCRIPT_SEMANTIC_RELATIONS.length)
     .optional(),
   include_ambiguous_dynamic_edges: z.boolean().default(false),
   expected: z
     .strictObject({
       role: z.enum(["source", "sink"]),
-      classes: z.array(z.enum(JAVASCRIPT_SEMANTIC_NODE_KINDS)).min(1).max(24),
+      classes: z.array(z.enum(JAVASCRIPT_SEMANTIC_NODE_KINDS)).min(1),
     })
     .nullable()
     .default(null),
@@ -109,7 +108,7 @@ export const javaScriptSemanticQueryResultSchema = z.strictObject({
   coverage: z.strictObject({
     status: z.enum(["complete", "partial", "unavailable"]),
   }),
-  limitations: z.array(z.string().min(1).max(4_096)).max(1_000),
+  limitations: z.array(z.string().min(1)),
 });
 
 /** Validated semantic query input. */

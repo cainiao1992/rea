@@ -3,12 +3,11 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import type { BinarySessionPort } from "../application/BinarySession.js";
 import { SESSION_TOOL_CONTRACTS } from "../contracts/toolContracts.js";
 import { compareArtifacts } from "../domain/artifactComparison.js";
-import { createEvidence } from "../domain/evidence.js";
+import { createEvidence, parseEvidence } from "../domain/evidence.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import type { RecordUnknownInput } from "../domain/residualUnknown.js";
 import { recordDerivedEvidence } from "./recordDerivedEvidence.js";
 import { runDerivedOperation } from "./runDerivedOperation.js";
-import { resolveSessionEvidenceIds } from "./sessionEvidence.js";
 import { ARTIFACT_COMPARISON_PROVIDER } from "./sessionToolPolicies.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 import { toCallToolResult } from "./toolResult.js";
@@ -23,29 +22,21 @@ export const registerArtifactComparisonTool = (
     contract.name,
     toolRegistrationOptions(contract),
     async (input, context) => {
-      const expected = {
-        operation: ["inspect_artifact", "inventory_artifact"],
-        predicate: "rea.analysis",
-      };
-      const left = resolveSessionEvidenceIds(
-        session,
-        [input.left_evidence_id],
-        expected,
-      );
-      if (!left.ok) return toCallToolResult(left, contract);
-      const right = resolveSessionEvidenceIds(
-        session,
-        [input.right_evidence_id],
-        expected,
-      );
-      if (!right.ok) return toCallToolResult(right, contract);
-      const computed = await runDerivedOperation(context, contract.name, () =>
-        compareArtifacts(left.value, right.value),
-      );
+      const computed = await runDerivedOperation(context, contract.name, () => {
+        const left = parseEvidence(input.left);
+        const right = parseEvidence(input.right);
+        return { left, right, comparison: compareArtifacts(left, right) };
+      });
       if (!computed.ok) return toCallToolResult(computed, contract);
-      const comparison = computed.value;
-      const leftEvidenceIds = [input.left_evidence_id];
-      const rightEvidenceIds = [input.right_evidence_id];
+      const { left, right, comparison } = computed.value;
+      const sources = [left, right];
+      for (const source of sources) {
+        const recordedSource = session.recordEvidence(source);
+        if (!recordedSource.ok)
+          return toCallToolResult(recordedSource, contract);
+      }
+      const leftEvidenceIds = [left.evidence_id];
+      const rightEvidenceIds = [right.evidence_id];
       const evidence = createEvidence(undefined, ARTIFACT_COMPARISON_PROVIDER, {
         predicateType: "rea.artifact-comparison",
         operation: contract.name,
@@ -63,7 +54,7 @@ export const registerArtifactComparisonTool = (
         recordDerivedEvidence(
           session,
           evidence,
-          artifactUnknownInput(input, comparison.status),
+          artifactUnknownInput(left, right, comparison.status),
         ),
         contract,
       );
@@ -72,24 +63,19 @@ export const registerArtifactComparisonTool = (
 };
 
 const artifactUnknownInput = (
-  input: {
-    readonly left_evidence_id: string;
-    readonly right_evidence_id: string;
-  },
+  left: { readonly evidence_id: string },
+  right: { readonly evidence_id: string },
   status: ReturnType<typeof compareArtifacts>["status"],
 ): RecordUnknownInput | undefined => {
-  if (
-    status === "unchanged" ||
-    input.left_evidence_id === input.right_evidence_id
-  )
+  if (status === "unchanged" || left.evidence_id === right.evidence_id)
     return undefined;
   return {
     question: `Artifact comparison is ${status}`,
     severity:
       status === "unknown" || status === "truncated" ? "high" : "medium",
     domain: "artifact-comparison",
-    supporting_evidence_ids: [input.left_evidence_id],
-    contradicting_evidence_ids: [input.right_evidence_id],
+    supporting_evidence_ids: [left.evidence_id],
+    contradicting_evidence_ids: [right.evidence_id],
     required_authority: "shipped-artifact",
     required_confidence: "observed",
     required_environment: null,

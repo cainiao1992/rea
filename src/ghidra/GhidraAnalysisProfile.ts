@@ -10,11 +10,6 @@ import {
   type AnalysisError,
 } from "../domain/errors.js";
 import { err, ok, type Result } from "../domain/result.js";
-import {
-  GHIDRA_ANALYSIS_TIMEOUT_SECONDS,
-  GHIDRA_MAX_CPU,
-  GHIDRA_MAX_HEAP,
-} from "./GhidraDefaults.js";
 import type { GhidraInstallationInspection } from "./GhidraInstallation.js";
 
 /** Resolve version-bound, deterministic semantics before Ghidra imports a target. */
@@ -47,9 +42,6 @@ export const resolveGhidraAnalysisProfile = (
         language_id: "auto-from-header",
         compiler_spec_id: "auto-default",
         analyzer_preset: "ghidra-default",
-        analysis_timeout_seconds: GHIDRA_ANALYSIS_TIMEOUT_SECONDS,
-        max_cpu: GHIDRA_MAX_CPU,
-        max_heap: GHIDRA_MAX_HEAP,
       }),
       compatibility: {
         languageId: "auto",

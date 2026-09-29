@@ -7,15 +7,6 @@ import {
   traceApplicationFeatureEvidenceValidated,
 } from "./application/JavaScriptApplicationWorkflowService.js";
 import { traceJavaScriptSemanticsEvidenceValidated } from "./application/JavaScriptSemanticTraceService.js";
-import {
-  resolveCompareApplicationVersionsRequest,
-  resolveCompareJavaScriptExportShapesRequest,
-  resolveCompareSourceToBundleRequest,
-  resolveTraceApplicationFeatureRequest,
-  resolveTraceJavaScriptSemanticsRequest,
-} from "./application/ApplicationWorkflowEvidenceResolver.js";
-import type { EvidenceLookup } from "./application/EvidenceReferenceResolver.js";
-import { readEvidenceBundle } from "./application/EvidenceBundleFiles.js";
 import { runControlledReplay } from "./application/JavaScriptReplayService.js";
 import {
   executeNodeCharacterization,
@@ -25,10 +16,7 @@ import {
   evaluateReconstructionCoverage,
   reconstructionCoverageEvaluationInputSchema,
 } from "./application/ReconstructionCoverageService.js";
-import {
-  buildReconstructionObligationLedgerEvidenceValidated,
-  resolveReconstructionObligationLedgerRequest,
-} from "./application/ReconstructionObligationLedgerService.js";
+import { buildReconstructionObligationLedgerEvidenceValidated } from "./application/ReconstructionObligationLedgerService.js";
 import { loadConfiguredPermissionAuthority } from "./application/PermissionConfiguration.js";
 import { CLI_COMMANDS } from "./cliCommandNames.js";
 import { parseCliJsonInput } from "./cliJsonInput.js";
@@ -38,13 +26,20 @@ import {
   projectAnalysisError,
   type AnalysisError,
 } from "./domain/errors.js";
-import type { JsonValue } from "./domain/jsonValue.js";
+import { jsonValueSchema, type JsonValue } from "./domain/jsonValue.js";
 import type { Logger } from "./logger.js";
 import { parseConfig } from "./config.js";
 import { LinuxJavaScriptReplayRunner } from "./replay/LinuxJavaScriptReplayRunner.js";
 import { SystemJavaScriptReplayHost } from "./replay/SystemJavaScriptReplayHost.js";
 import type { AppConfig } from "./config.js";
 import type { PermissionAuthority } from "./application/PermissionAuthority.js";
+import { traceApplicationFeatureInputSchema } from "./domain/javascriptFeatureTraceSchemas.js";
+import { traceJavaScriptSemanticsInputSchema } from "./domain/javascriptSemanticTraceSchemas.js";
+import { compareApplicationVersionsInputSchema } from "./domain/javascriptApplicationVersionComparisonSchemas.js";
+import { compareSourceToBundleInputSchema } from "./domain/sourceToBundleComparisonSchemas.js";
+import { compareJavaScriptExportShapesInputSchema } from "./domain/javascriptExportShapeComparisonSchemas.js";
+import { projectInputIssues } from "./domain/inputIssueProjection.js";
+import { reconstructionObligationLedgerInputSchema } from "./domain/reconstructionObligationLedgerSchemas.js";
 
 type CliInstance = ReturnType<typeof Cli.create>;
 
@@ -59,7 +54,7 @@ export const registerApplicationCommands = (
     name: CLI_COMMANDS.traceApplicationFeature,
     description:
       "Trace a typed seed through authenticated application Evidence JSON",
-    resolveInput: resolveTraceApplicationFeatureRequest,
+    inputSchema: traceApplicationFeatureInputSchema,
     workflow: traceApplicationFeatureEvidenceValidated,
   });
   registerJsonCommand({
@@ -68,7 +63,7 @@ export const registerApplicationCommands = (
     name: CLI_COMMANDS.traceJavaScriptSemantics,
     description:
       "Trace bounded static semantic relations through authenticated application Evidence",
-    resolveInput: resolveTraceJavaScriptSemanticsRequest,
+    inputSchema: traceJavaScriptSemanticsInputSchema,
     workflow: traceJavaScriptSemanticsEvidenceValidated,
   });
   registerJsonCommand({
@@ -77,7 +72,7 @@ export const registerApplicationCommands = (
     name: CLI_COMMANDS.compareApplicationVersions,
     description:
       "Compare two authenticated JavaScript Application Graph versions",
-    resolveInput: resolveCompareApplicationVersionsRequest,
+    inputSchema: compareApplicationVersionsInputSchema,
     workflow: compareApplicationVersionsEvidenceValidated,
   });
   registerJsonCommand({
@@ -86,7 +81,7 @@ export const registerApplicationCommands = (
     name: CLI_COMMANDS.compareSourceToBundle,
     description:
       "Compare committed historical source with authenticated application Evidence",
-    resolveInput: resolveCompareSourceToBundleRequest,
+    inputSchema: compareSourceToBundleInputSchema,
     workflow: compareSourceToBundleEvidenceValidated,
   });
   registerJsonCommand({
@@ -95,7 +90,7 @@ export const registerApplicationCommands = (
     name: CLI_COMMANDS.compareJavaScriptExportShapes,
     description:
       "Compare exact static JavaScript export return shapes without execution",
-    resolveInput: resolveCompareJavaScriptExportShapesRequest,
+    inputSchema: compareJavaScriptExportShapesInputSchema,
     workflow: compareJavaScriptExportShapesEvidenceValidated,
   });
   cli.command(CLI_COMMANDS.runControlledReplay, {
@@ -159,8 +154,14 @@ const registerObligationLedgerCommand = (
     name: CLI_COMMANDS.buildReconstructionObligationLedger,
     description:
       "Generate a deterministic Evidence-backed reconstruction obligation ledger page",
-    resolveInput: resolveReconstructionObligationLedgerRequest,
-    workflow: buildReconstructionObligationLedgerEvidenceValidated,
+    inputSchema: reconstructionObligationLedgerInputSchema,
+    workflow: (input) => {
+      const result =
+        buildReconstructionObligationLedgerEvidenceValidated(input);
+      return result.ok
+        ? { ok: true, value: jsonValueSchema.parse(result.value) }
+        : result;
+    },
   });
 
 interface AuthorizedJsonCommandOptions {
@@ -212,20 +213,13 @@ const registerCoverageCommand = (cli: CliInstance, logger: Logger): void =>
     logger,
     name: CLI_COMMANDS.evaluateReconstructionCoverage,
     description: "Evaluate inline fail-closed reconstruction coverage",
-    resolveInput: (input) => {
-      const parsed =
-        reconstructionCoverageEvaluationInputSchema.safeParse(input);
-      return parsed.success
-        ? { ok: true, value: parsed.data }
-        : {
-            ok: false,
-            error: new AnalysisInputError(
-              CLI_COMMANDS.evaluateReconstructionCoverage,
-              { cause: parsed.error },
-            ),
-          };
+    inputSchema: reconstructionCoverageEvaluationInputSchema,
+    workflow: (input) => {
+      const result = evaluateReconstructionCoverage(input);
+      return result.ok
+        ? { ok: true, value: jsonValueSchema.parse(result.value) }
+        : result;
     },
-    workflow: (input) => evaluateReconstructionCoverage(input),
   });
 
 const configuredAuthority = async (): Promise<
@@ -255,60 +249,49 @@ const replayDependencies = (
   authority,
 });
 
-interface JsonCommandOptions<Input> {
+interface JsonCommandOptions<Schema extends z.ZodType> {
   readonly cli: CliInstance;
   readonly logger: Logger;
   readonly name: string;
   readonly description: string;
-  readonly resolveInput: (
-    input: unknown,
-    lookup?: EvidenceLookup,
-  ) =>
-    | { readonly ok: true; readonly value: Input }
-    | { readonly ok: false; readonly error: AnalysisError };
+  readonly inputSchema: Schema;
   readonly workflow: (
-    input: Input,
+    input: z.output<Schema>,
   ) =>
     | { readonly ok: true; readonly value: JsonValue }
     | { readonly ok: false; readonly error: AnalysisError };
 }
 
-const registerJsonCommand = <Input>({
+const registerJsonCommand = <Schema extends z.ZodType>({
   cli,
   logger,
   name,
   description,
-  resolveInput,
+  inputSchema,
   workflow,
-}: JsonCommandOptions<Input>): void => {
+}: JsonCommandOptions<Schema>): void => {
   cli.command(name, {
     description,
     args: z.object({
       inputJson: z.string().describe("Inline workflow JSON or JSON file path"),
     }),
-    options: z.object({
-      evidenceBundle: z
-        .string()
-        .optional()
-        .describe("Authorized Evidence bundle used to resolve Evidence IDs"),
-    }),
-    run: ({ args, options }) =>
+    run: ({ args }) =>
       logCliCommand(logger, name, async () => {
         const input = await parseCliJsonInput(args.inputJson, name);
         if (!input.ok) return input.error;
-        const lookup = await loadEvidenceLookup(options.evidenceBundle);
-        if (!lookup.ok)
+        const parsed = inputSchema.safeParse(input.value);
+        if (!parsed.success)
           return {
             error: "Application workflow failed",
-            ...projectAnalysisError(lookup.error),
+            ...projectAnalysisError(
+              new AnalysisInputError(
+                name,
+                undefined,
+                projectInputIssues(parsed.error.issues, input.value),
+              ),
+            ),
           };
-        const resolved = resolveInput(input.value, lookup.value);
-        if (!resolved.ok)
-          return {
-            error: "Application workflow failed",
-            ...projectAnalysisError(resolved.error),
-          };
-        const result = workflow(resolved.value);
+        const result = workflow(parsed.data);
         return result.ok
           ? result.value
           : {
@@ -317,21 +300,6 @@ const registerJsonCommand = <Input>({
             };
       }),
   });
-};
-
-const loadEvidenceLookup = async (
-  bundlePath: string | undefined,
-): Promise<
-  | { readonly ok: true; readonly value: EvidenceLookup | undefined }
-  | { readonly ok: false; readonly error: AnalysisError }
-> => {
-  if (bundlePath === undefined) return { ok: true, value: undefined };
-  const loaded = await readEvidenceBundle(bundlePath);
-  if (!loaded.ok) return loaded;
-  const records = new Map(
-    loaded.value.records.map((record) => [record.evidence_id, record]),
-  );
-  return { ok: true, value: (evidenceId) => records.get(evidenceId) };
 };
 
 const loadConfiguredAuthority = async (): Promise<

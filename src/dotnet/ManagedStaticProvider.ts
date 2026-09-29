@@ -295,7 +295,6 @@ const managedLocations = (
         : [{ kind: "file-offset" as const, offset: result.module.row_offset }]),
       ...result.methods
         .filter((method) => method.body.file_offset !== null)
-        .slice(0, 8)
         .map((method) => ({
           kind: "file-offset" as const,
           offset: method.body.file_offset ?? 0,
@@ -305,7 +304,7 @@ const managedLocations = (
     ...(result.module === null
       ? [{ kind: "file-offset" as const, offset: 0 }]
       : [{ kind: "file-offset" as const, offset: result.module.row_offset }]),
-    ...result.pinvoke_imports.slice(0, 8).map((mapping) => ({
+    ...result.pinvoke_imports.map((mapping) => ({
       kind: "file-offset" as const,
       offset: mapping.row_offset,
     })),

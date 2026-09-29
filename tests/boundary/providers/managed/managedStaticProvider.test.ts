@@ -45,6 +45,16 @@ describe("managed static provider path boundary", () => {
       call_edges: [expect.objectContaining({ target_name: ".ctor" })],
       field_accesses: [expect.objectContaining({ field_name: "counter" })],
     });
+    const memberResult = asManagedMemberResult(members.value);
+    expect(members.value.locations).toEqual(
+      expect.arrayContaining(
+        memberResult.methods.flatMap((method) =>
+          method.body.file_offset === null
+            ? []
+            : [{ kind: "file-offset", offset: method.body.file_offset }],
+        ),
+      ),
+    );
 
     const boundaries = await client.execute(
       "inspect_managed_native_boundaries",
@@ -53,7 +63,6 @@ describe("managed static provider path boundary", () => {
     expect(boundaries.ok).toBe(true);
     if (!boundaries.ok) return;
     const boundaryResult = asManagedNativeBoundaryResult(boundaries.value);
-    expect(boundaryResult).not.toHaveProperty("schema_version");
     expect(boundaryResult).toMatchObject({
       artifact: { path, sha256: parsed.value.sha256, format: "pe" },
       module_refs: [],
@@ -97,6 +106,37 @@ describe("managed static provider path boundary", () => {
       ok: false,
       error: { _tag: "AnalysisCapabilityUnavailableError" },
     });
+  });
+
+  it("retains a source location for every managed P/Invoke mapping", async () => {
+    const directory = await createTestTempDirectory("rea-managed-pinvoke-");
+    const bytes = buildManagedPeFixture({
+      pinvoke: { moduleName: "user32.dll", importName: "MessageBoxW" },
+    });
+    const path = join(directory, "fixture.exe");
+    await writeFile(path, bytes);
+    const parsed = await parseBinaryTarget(path);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+
+    const client = new ManagedStaticProvider().createClient(parsed.value);
+    const execution = await client.execute(
+      "inspect_managed_native_boundaries",
+      {},
+    );
+    expect(execution.ok).toBe(true);
+    if (!execution.ok) return;
+    const result = asManagedNativeBoundaryResult(execution.value);
+    expect(result.pinvoke_imports.length).toBeGreaterThan(0);
+    expect(execution.value.locations).toEqual(
+      expect.arrayContaining(
+        result.pinvoke_imports.map((mapping) => ({
+          kind: "file-offset",
+          offset: mapping.row_offset,
+        })),
+      ),
+    );
+    await client.close();
   });
 });
 const asManagedResult = (execution: AnalysisExecution) =>

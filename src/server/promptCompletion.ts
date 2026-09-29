@@ -4,6 +4,7 @@ import type { AnalysisOperationPort } from "../application/AnalysisProvider.js";
 import type { BinarySessionPort } from "../application/BinarySession.js";
 import type { PromptCompletionKind } from "../contracts/promptContracts.js";
 import { artifactInventoryResultSchema } from "../domain/artifactGraph.js";
+import { artifactInspectionResultSchema } from "../domain/artifactInspection.js";
 import { processCaptureSchema } from "../domain/processCapture.js";
 
 const documentListSchema = z.array(z.string().min(1));
@@ -145,10 +146,21 @@ const evidenceValues = (
   if (kind === "evidence") return [evidence.evidence_id];
   if (kind === "capture")
     return isProcessCaptureEvidence(evidence) ? [evidence.evidence_id] : [];
-  if (evidence.operation !== "inventory_artifact") return [];
-  const inventory = artifactInventoryResultSchema.safeParse(
-    evidence.normalized_result,
-  );
+  const inventoryResult =
+    evidence.operation === "inventory_artifact"
+      ? evidence.normalized_result
+      : evidence.operation === "inspect_artifact"
+        ? (() => {
+            const inspection = artifactInspectionResultSchema.safeParse(
+              evidence.normalized_result,
+            );
+            return inspection.success
+              ? inspection.data.substeps[0]?.evidence.normalized_result
+              : undefined;
+          })()
+        : undefined;
+  if (inventoryResult === undefined) return [];
+  const inventory = artifactInventoryResultSchema.safeParse(inventoryResult);
   if (!inventory.success) return [];
   if (kind === "manifest") return [inventory.data.manifest.manifest_id];
   return inventory.data.occurrences.map(({ occurrence_id: id }) => id);

@@ -58,7 +58,7 @@ it.each([
       expect(opened.isError).not.toBe(true);
 
       const result = await client.callTool({
-        name: "inventory_artifact",
+        name: "inspect_artifact",
         arguments: {},
       });
       expect(result.isError).toBe(true);
@@ -142,7 +142,7 @@ it("records an approved mismatch, preserves verified siblings, and never reports
       arguments: { path: archive },
     });
     const result = await client.callTool({
-      name: "inventory_artifact",
+      name: "inspect_artifact",
       arguments: {
         integrity_policy: "record-and-continue",
         integrity_continue_approved: true,
@@ -154,7 +154,20 @@ it("records an approved mismatch, preserves verified siblings, and never reports
     const compact = compactResult(result.structuredContent);
     const evidence = session.evidenceById(compact.evidence_id);
     if (evidence === undefined) throw new Error("missing inventory Evidence");
-    const inventory = artifactInventoryResultSchema.parse(compact.result);
+    const inspection = z
+      .object({
+        contradictions: z.array(z.unknown()),
+        substeps: z.array(
+          z.object({
+            evidence: z.object({ normalized_result: z.unknown() }),
+          }),
+        ),
+      })
+      .parse(compact.result);
+    const inventory = artifactInventoryResultSchema.parse(
+      inspection.substeps[0]?.evidence.normalized_result,
+    );
+    expect(inspection.contradictions).toHaveLength(2);
     expect(inventory.integrity_contradictions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -183,26 +196,6 @@ it("records an approved mismatch, preserves verified siblings, and never reports
         }),
       ]),
     );
-    const inspected = await client.callTool({
-      name: "inspect_artifact",
-      arguments: {
-        integrity_policy: "record-and-continue",
-        integrity_continue_approved: true,
-      },
-    });
-    expect(inspected.isError).not.toBe(true);
-    expect(compactResult(inspected.structuredContent).result).toMatchObject({
-      contradictions: [
-        expect.objectContaining({ occurrence_id: expect.any(String) }),
-        expect.objectContaining({ occurrence_id: expect.any(String) }),
-      ],
-      substeps: [
-        expect.objectContaining({
-          operation: "inventory_artifact",
-          status: "completed",
-        }),
-      ],
-    });
     const compared = await client.callTool({
       name: "compare_artifacts",
       arguments: {
@@ -362,7 +355,7 @@ it("returns full artifact graphs inline and compares changed inventories", async
       inspection.substeps[0]?.evidence_id,
     ]);
     const inventory = await client.callTool({
-      name: "inventory_artifact",
+      name: "inspect_artifact",
       arguments: {},
     });
     expect(inventory.isError).not.toBe(true);
@@ -373,13 +366,22 @@ it("returns full artifact graphs inline and compares changed inventories", async
       provider: { id: "rea-artifact-graph" },
       subject: { format: "ipa" },
     });
+    const inventoryInspection = z
+      .object({
+        substeps: z.array(
+          z.object({
+            evidence: z.object({
+              normalized_result: z.object({
+                manifest: z.object({ root_format: z.literal("ipa") }),
+                occurrences: z.array(z.object({ logical_path: z.string() })),
+              }),
+            }),
+          }),
+        ),
+      })
+      .parse(inventoryResult.result);
     expect(
-      z
-        .object({
-          manifest: z.object({ root_format: z.literal("ipa") }),
-          occurrences: z.array(z.object({ logical_path: z.string() })),
-        })
-        .parse(inventoryResult.result).occurrences,
+      inventoryInspection.substeps[0]?.evidence.normalized_result.occurrences,
     ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -393,7 +395,7 @@ it("returns full artifact graphs inline and compares changed inventories", async
     });
     expect(openedChanged.isError).not.toBe(true);
     const changedInventory = await client.callTool({
-      name: "inventory_artifact",
+      name: "inspect_artifact",
       arguments: {},
     });
     const changedResult = compactResult(changedInventory.structuredContent);

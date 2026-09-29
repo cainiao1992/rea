@@ -24,7 +24,7 @@ export const registerArtifactComparisonTool = (
     toolRegistrationOptions(contract),
     async (input, context) => {
       const expected = {
-        operation: "inventory_artifact",
+        operation: ["inspect_artifact", "inventory_artifact"],
         predicate: "rea.analysis/v2",
       };
       const left = resolveSessionEvidenceIds(

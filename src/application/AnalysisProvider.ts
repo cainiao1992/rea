@@ -2,7 +2,7 @@ import type { BinaryTarget } from "../domain/binaryTarget.js";
 import type { OfficialToolName } from "../contracts/toolContracts.js";
 import type { EnhancedToolName } from "../contracts/enhancedInputs.js";
 import type { NativeToolName } from "../contracts/nativeToolContracts.js";
-import type { ArtifactToolName } from "../contracts/artifactToolContracts.js";
+import type { ArtifactAnalysisOperation } from "../contracts/artifactToolContracts.js";
 import type { ManagedToolName } from "../contracts/managedToolContracts.js";
 import type { AnalysisError } from "../domain/errors.js";
 import type { AnalysisProfileCommitment } from "../domain/analysisProfile.js";
@@ -25,7 +25,7 @@ export type AnalysisOperation =
   | OfficialToolName
   | EnhancedToolName
   | NativeToolName
-  | ArtifactToolName
+  | ArtifactAnalysisOperation
   | ManagedToolName
   | "health";
 

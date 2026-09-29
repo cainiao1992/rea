@@ -37,23 +37,58 @@ it("returns every artifact occurrence in one MCP call", async () => {
       arguments: { path: archive },
     });
     expect(opened.isError).not.toBe(true);
+    const names = (await client.listTools()).tools.map(({ name }) => name);
+    expect(names).toContain("inspect_artifact");
+    expect(names).not.toContain("inventory_artifact");
+    const status = await client.callTool({
+      name: "binary_session",
+      arguments: {},
+    });
+    expect(
+      z
+        .object({
+          result: z.object({
+            capabilities: z.array(z.object({ operation: z.string() })),
+          }),
+        })
+        .parse(status.structuredContent)
+        .result.capabilities.map(({ operation }) => operation),
+    ).not.toContain("inventory_artifact");
     const result = await client.callTool({
-      name: "inventory_artifact",
+      name: "inspect_artifact",
       arguments: {},
     });
     expect(result.isError, JSON.stringify(result.structuredContent)).not.toBe(
       true,
     );
-    const inventory = z
+    const inspection = z
       .object({
-        occurrences: z.array(z.object({ logical_path: z.string() })),
+        substeps: z.array(
+          z.object({
+            evidence: z.object({
+              normalized_result: z.object({
+                occurrences: z.array(z.object({ logical_path: z.string() })),
+              }),
+            }),
+          }),
+        ),
+        observations: z.array(z.unknown()),
+        derived_relationships: z.array(z.unknown()),
+        hypotheses: z.array(z.unknown()),
+        unexplored_branches: z.array(z.unknown()),
+        next_probes: z.array(z.unknown()),
       })
       .parse(
         z.object({ result: z.unknown() }).parse(result.structuredContent)
           .result,
       );
-    expect(inventory.occurrences).toHaveLength(fileCount + 1);
-    expect(inventory.occurrences.length).toBe(fileCount + 1);
+    const occurrences =
+      inspection.substeps[0]?.evidence.normalized_result.occurrences;
+    if (occurrences === undefined)
+      throw new Error("inspection omitted the artifact inventory");
+    expect(occurrences).toHaveLength(fileCount + 1);
+    expect(inspection.observations.length).toBeGreaterThan(0);
+    expect(inspection.derived_relationships.length).toBeGreaterThan(0);
   } finally {
     await Promise.allSettled([client.close(), server.close(), session.close()]);
   }

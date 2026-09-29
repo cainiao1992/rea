@@ -7,7 +7,7 @@ import { silentLogger, type Logger } from "../logger.js";
 import { createEvidence } from "../domain/evidence.js";
 import type { Evidence } from "../domain/evidence.js";
 import type { NativeToolName } from "../contracts/nativeToolContracts.js";
-import type { ArtifactToolName } from "../contracts/artifactToolContracts.js";
+import type { ArtifactAnalysisOperation } from "../contracts/artifactToolContracts.js";
 import type { ManagedToolName } from "../contracts/managedToolContracts.js";
 import {
   EvidenceIntegrityError,
@@ -92,7 +92,7 @@ export const runDirectAnalysis = async (
 export const runProviderAnalysis = async (
   ...[path, tool, arguments_, logger = silentLogger, signal]: readonly [
     path: string,
-    tool: NativeToolName | ArtifactToolName | ManagedToolName,
+    tool: NativeToolName | ArtifactAnalysisOperation | ManagedToolName,
     arguments_: Readonly<Record<string, JsonValue>>,
     logger?: Logger,
     signal?: AbortSignal,
@@ -110,7 +110,7 @@ const authorizeAnalysis = async (
   authority: PermissionAuthority,
   tool:
     | NativeToolName
-    | ArtifactToolName
+    | ArtifactAnalysisOperation
     | ManagedToolName
     | DirectAnalysisTool,
   arguments_: Readonly<Record<string, JsonValue>>,
@@ -170,7 +170,7 @@ const authorizeSnapshotAccess = async (
   authority: PermissionAuthority,
   tool:
     | NativeToolName
-    | ArtifactToolName
+    | ArtifactAnalysisOperation
     | ManagedToolName
     | DirectAnalysisTool,
   snapshotPath: string | undefined,
@@ -196,7 +196,7 @@ const authorizeAnalysisRun = async (input: {
   readonly suppliedAuthority: PermissionAuthority | undefined;
   readonly tool:
     | NativeToolName
-    | ArtifactToolName
+    | ArtifactAnalysisOperation
     | ManagedToolName
     | DirectAnalysisTool;
   readonly arguments: Readonly<Record<string, JsonValue>>;
@@ -226,7 +226,7 @@ const runAnalysis = async (
   path: string,
   tool:
     | NativeToolName
-    | ArtifactToolName
+    | ArtifactAnalysisOperation
     | ManagedToolName
     | DirectAnalysisTool,
   arguments_: Readonly<Record<string, JsonValue>>,
@@ -316,7 +316,7 @@ const executeAnalysisTool = async (input: {
   readonly openedTarget: BinaryTarget;
   readonly tool:
     | NativeToolName
-    | ArtifactToolName
+    | ArtifactAnalysisOperation
     | ManagedToolName
     | DirectAnalysisTool;
   readonly arguments: Readonly<Record<string, JsonValue>>;
@@ -421,7 +421,7 @@ const replayProviderFor = (
   session: ReturnType<typeof createBinarySession>,
   tool:
     | NativeToolName
-    | ArtifactToolName
+    | ArtifactAnalysisOperation
     | ManagedToolName
     | DirectAnalysisTool,
 ) =>
@@ -433,7 +433,7 @@ const analysisProfileForEvidence = (
   session: ReturnType<typeof createBinarySession>,
   tool:
     | NativeToolName
-    | ArtifactToolName
+    | ArtifactAnalysisOperation
     | ManagedToolName
     | DirectAnalysisTool,
 ): AnalysisProfileCommitment | undefined => {
@@ -445,7 +445,7 @@ const analysisProfileForEvidence = (
 const isWorkflowEvidenceTool = (
   tool:
     | NativeToolName
-    | ArtifactToolName
+    | ArtifactAnalysisOperation
     | ManagedToolName
     | DirectAnalysisTool,
 ): boolean =>

@@ -10,11 +10,10 @@ import {
 import { inventoryArtifactFully } from "../application/ArtifactInventory.js";
 import { extractArtifact } from "../application/ArtifactExtraction.js";
 import {
-  ARTIFACT_TOOL_CONTRACTS,
-  artifactInspectionInputSchema,
+  ARTIFACT_ANALYSIS_OPERATIONS,
   artifactInventoryInputSchema,
   artifactExtractionExecutionSchema,
-  type ArtifactToolName,
+  type ArtifactAnalysisOperation,
 } from "../contracts/artifactToolContracts.js";
 import type { BinaryTarget } from "../domain/binaryTarget.js";
 import {
@@ -46,10 +45,10 @@ export class ArtifactProvider implements AnalysisProvider {
   ) {}
 
   readonly #capabilities: readonly CapabilityDescriptor[] = Object.freeze(
-    ARTIFACT_TOOL_CONTRACTS.map((contract) =>
+    ARTIFACT_ANALYSIS_OPERATIONS.map((operation) =>
       Object.freeze({
         provider: IDENTITY,
-        operation: contract.name,
+        operation,
         available: true as const,
         reason: null,
         effects: Object.freeze({
@@ -57,7 +56,7 @@ export class ArtifactProvider implements AnalysisProvider {
           launchesProcess: true,
           mayShowUi: false,
           mayAccessNetwork: false,
-          mayWriteFilesystem: contract.name === "extract_artifact",
+          mayWriteFilesystem: operation === "extract_artifact",
           changesPermissions: false,
           requiresRoot: false,
         }),
@@ -169,7 +168,7 @@ class ArtifactClient implements AnalysisClient {
     parameters: Readonly<Record<string, JsonValue>>,
     options?: ExecutionOptions,
   ) {
-    const parsed = artifactInspectionInputSchema.parse(parameters);
+    const parsed = artifactInventoryInputSchema.parse(parameters);
     const inventoryParameters = artifactInventoryInputSchema.parse({
       native_mount_approved: parsed.native_mount_approved,
       integrity_policy: parsed.integrity_policy,
@@ -256,11 +255,13 @@ const DEFAULT_ARTIFACT_LIMITS: ArtifactLimits = {
 
 const isArtifactOperation = (
   operation: AnalysisOperation,
-): operation is ArtifactToolName =>
-  ARTIFACT_TOOL_CONTRACTS.some(({ name }) => name === operation);
+): operation is ArtifactAnalysisOperation =>
+  ARTIFACT_ANALYSIS_OPERATIONS.includes(
+    operation as (typeof ARTIFACT_ANALYSIS_OPERATIONS)[number],
+  );
 
 const translateFailure = (
-  operation: ArtifactToolName,
+  operation: ArtifactAnalysisOperation,
   cause: unknown,
 ): AnalysisError => {
   if (cause instanceof ArtifactReaderFailure)

@@ -3,7 +3,7 @@ import { json, run, runWithStatus } from "./lib/verify-package-core.mjs";
 const REQUIRED_HELP_COMMANDS = [
   "setup",
   "upgrade",
-  "inventory-artifact",
+  "inspect-artifact",
   "extract-artifact",
   "import-reference-source",
   "list-browser-targets",
@@ -21,7 +21,7 @@ const REQUIRED_LLM_TOPICS = [
   "trace",
   "capabilities",
   "providers",
-  "inventory-artifact",
+  "inspect-artifact",
   "list-browser-targets",
   "inspect-web-page",
   "analyze-javascript-application",

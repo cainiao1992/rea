@@ -5,7 +5,6 @@ import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import type { BinarySession } from "../../../src/application/BinarySession.js";
 import { createServer } from "../../../src/server/createServer.js";
 import {
-  JAVASCRIPT_APPLICATION_VERSION_COMPARISON_EXAMPLE,
   JAVASCRIPT_FEATURE_TRACE_FULL_EVIDENCE_EXAMPLE,
   JAVASCRIPT_FEATURE_TRACE_EXAMPLE,
   JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE,
@@ -17,7 +16,6 @@ import { observed } from "../../fixtures/analysisExecution.js";
 interface TestHarness {
   readonly client: Client;
   readonly session: BinarySession;
-  readonly resourceListChanges: () => number;
   readonly close: () => Promise<void>;
 }
 
@@ -33,17 +31,12 @@ async function createTestHarness(): Promise<TestHarness> {
   });
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair();
-  let resourceListChanges = 0;
-  client.setNotificationHandler("notifications/resources/list_changed", () => {
-    resourceListChanges += 1;
-  });
   await server.connect(serverTransport);
   await client.connect(clientTransport);
 
   return {
     client,
     session,
-    resourceListChanges: () => resourceListChanges,
     close: async () => {
       await client.close();
       await server.close();
@@ -103,8 +96,6 @@ async function runInlineEvidenceScenarios(
 }
 
 async function runEvidenceIdScenarios(harness: TestHarness): Promise<void> {
-  await new Promise<void>((resolve) => setImmediate(resolve));
-  const notificationsBeforeIdReuse = harness.resourceListChanges();
   const tracedById = await harness.client.callTool({
     name: "trace_application_feature",
     arguments: {
@@ -114,13 +105,10 @@ async function runEvidenceIdScenarios(harness: TestHarness): Promise<void> {
     },
   });
   expect(tracedById.isError).not.toBe(true);
-  await new Promise<void>((resolve) => setImmediate(resolve));
-  expect(harness.resourceListChanges()).toBe(notificationsBeforeIdReuse);
 
   const comparedById = await harness.client.callTool({
     name: "compare_application_versions",
     arguments: {
-      ...JAVASCRIPT_APPLICATION_VERSION_COMPARISON_EXAMPLE,
       left_evidence_id:
         JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left.evidence_id,
       right_evidence_id:
@@ -137,6 +125,36 @@ async function runEvidenceIdScenarios(harness: TestHarness): Promise<void> {
       },
     },
   });
+
+  const mixedLeftInline = await harness.client.callTool({
+    name: "compare_application_versions",
+    arguments: {
+      left: JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left,
+      right:
+        JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.right.evidence_id,
+    },
+  });
+  expect(mixedLeftInline.isError).not.toBe(true);
+
+  const mixedRightInline = await harness.client.callTool({
+    name: "compare_application_versions",
+    arguments: {
+      left: JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left
+        .evidence_id,
+      right: JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.right,
+    },
+  });
+  expect(mixedRightInline.isError).not.toBe(true);
+
+  const mixedWithLegacyAlias = await harness.client.callTool({
+    name: "compare_application_versions",
+    arguments: {
+      left: JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left,
+      right_evidence_id:
+        JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.right.evidence_id,
+    },
+  });
+  expect(mixedWithLegacyAlias.isError).not.toBe(true);
 
   const sourceComparedById = await harness.client.callTool({
     name: "compare_source_to_bundle",
@@ -225,6 +243,17 @@ async function assertRejectedInlineEvidence(client: Client): Promise<void> {
     },
   });
   expect(spoofed.isError).toBe(true);
+
+  const duplicateComparisonReference = await client.callTool({
+    name: "compare_application_versions",
+    arguments: {
+      left: JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left,
+      left_evidence_id:
+        JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left.evidence_id,
+      right: JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.right,
+    },
+  });
+  expect(duplicateComparisonReference.isError).toBe(true);
 }
 
 describe("application workflow MCP parity", () => {

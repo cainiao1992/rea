@@ -164,7 +164,7 @@ describe("artifact comparison", () => {
       result: evidence.normalized_result,
     });
     expect(() => compareArtifacts(wrongOperation, evidence)).toThrow(
-      /inventory_artifact/u,
+      /inspect_artifact/u,
     );
     const mismatchedSubject = createEvidence(
       { path: root, sha256: "f".repeat(64), format: "directory" },

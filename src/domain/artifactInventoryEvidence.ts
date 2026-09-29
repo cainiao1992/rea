@@ -10,6 +10,7 @@ import {
   type IntegrityContradiction,
 } from "./artifactGraph.js";
 import { parseEvidence, type Evidence } from "./evidence.js";
+import { artifactInspectionResultSchema } from "./artifactInspection.js";
 
 /** Complete or partially assembled inventory used by comparison workflows. */
 export interface InventorySet {
@@ -34,17 +35,25 @@ export const parseArtifactInventoryEvidence = (
   assembleInventorySet(
     (Array.isArray(input) ? input : [input]).map((value) => {
       const evidence = parseEvidence(value);
-      if (evidence.operation !== "inventory_artifact")
+      const inventoryEvidence =
+        evidence.operation === "inventory_artifact"
+          ? evidence
+          : evidence.operation === "inspect_artifact"
+            ? artifactInspectionResultSchema.parse(evidence.normalized_result)
+                .substeps[0]?.evidence
+            : undefined;
+      if (inventoryEvidence === undefined)
         throw new TypeError(
-          "Artifact comparison requires inventory_artifact Evidence",
+          "Artifact comparison requires inspect_artifact Evidence",
         );
       const inventory = artifactInventoryResultSchema.parse(
-        evidence.normalized_result,
+        inventoryEvidence.normalized_result,
       );
       if (
-        evidence.subject === null ||
-        evidence.subject.digest.sha256 !== inventory.manifest.root_sha256 ||
-        evidence.subject.format !== inventory.manifest.root_format
+        inventoryEvidence.subject === null ||
+        inventoryEvidence.subject.digest.sha256 !==
+          inventory.manifest.root_sha256 ||
+        inventoryEvidence.subject.format !== inventory.manifest.root_format
       )
         throw new TypeError(
           "Artifact inventory Evidence subject does not match its root digest",

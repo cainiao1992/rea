@@ -35,18 +35,8 @@ export const artifactExtractionInputSchema = z.object({
 export const artifactExtractionExecutionSchema =
   artifactExtractionInputSchema.extend({ output_root: z.string().min(1) });
 
-/** Bounded provider-neutral inspection using one atomic inventory substep. */
-const artifactInspectionFacts = {
-  native_mount_approved: z.boolean().default(false),
-} as const;
-export const artifactInspectionInputSchema = z.union([
-  z.object({ ...artifactInspectionFacts, ...integrityInput.fail }),
-  z.object({ ...artifactInspectionFacts, ...integrityInput.continue }),
-]);
-
 const exampleInputSchema = z.record(z.string(), jsonValueSchema);
 const examples: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
-  inventory_artifact: {},
   inspect_artifact: {},
   extract_artifact: {
     occurrence_ids: [`occ_${"0".repeat(64)}`],
@@ -81,14 +71,9 @@ const artifact = <
 /** Artifact-graph inventory and safe extraction contracts. */
 export const ARTIFACT_TOOL_CONTRACTS = [
   artifact(
-    "inventory_artifact",
-    "After open_binary binds a local archive, application package, or other artifact—or when one is already active—inventory the complete content-addressed artifact graph in one call. This tool accepts no path; in a target-free session open the target first. It does not extract or mount by default.",
-    artifactInventoryInputSchema,
-  ),
-  artifact(
     "inspect_artifact",
-    "After open_binary binds a local archive, application package, or other artifact—or when one is already active—inspect the complete artifact inventory in one cancellable substep. This tool accepts no path; in a target-free session open the target first. Returns the full substep Evidence, observations, derived relationships, hypotheses, contradictions, unexplored branches, limitations, and format-specific next probes. Any substep failure fails the whole call.",
-    artifactInspectionInputSchema,
+    "Inspect an active archive or application package in one call. Returns the complete content-addressed artifact graph, source Evidence, observations, relationships, integrity contradictions, hypotheses, unexplored branches, limitations, and next probes inline. It does not extract files; use extract_artifact for selected occurrences.",
+    artifactInventoryInputSchema,
   ),
   artifact(
     "extract_artifact",
@@ -97,5 +82,12 @@ export const ARTIFACT_TOOL_CONTRACTS = [
   ),
 ] as const satisfies readonly ToolContract[];
 
-/** Names of provider-neutral artifact graph operations. */
-export type ArtifactToolName = (typeof ARTIFACT_TOOL_CONTRACTS)[number]["name"];
+/** Provider operations; inventory remains an internal primitive of inspection. */
+export const ARTIFACT_ANALYSIS_OPERATIONS = [
+  "inventory_artifact",
+  ...ARTIFACT_TOOL_CONTRACTS.map(({ name }) => name),
+] as const;
+
+/** Provider-level operations including the inventory primitive used internally. */
+export type ArtifactAnalysisOperation =
+  (typeof ARTIFACT_ANALYSIS_OPERATIONS)[number];

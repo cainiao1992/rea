@@ -37,6 +37,7 @@ export const binarySessionStatus = ({
   const provider = providerSummary(configuredProvider);
   const providers = router.providerIdentities(route).map(providerSummary);
   const capabilities = [...(route.capabilities?.values() ?? [])]
+    .filter(({ operation }) => operation !== "inventory_artifact")
     .sort((left, right) => left.operation.localeCompare(right.operation))
     .map((descriptor) => {
       const unavailable = runtimeUnavailability.get(descriptor.operation);
@@ -66,6 +67,7 @@ export const binarySessionStatus = ({
       selected: candidate.selected,
       capabilities: candidate.capabilities
         .slice()
+        .filter(({ operation }) => operation !== "inventory_artifact")
         .sort((left, right) => left.operation.localeCompare(right.operation))
         .map(capabilityStatus),
     }));

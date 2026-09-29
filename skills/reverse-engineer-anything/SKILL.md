@@ -3,8 +3,8 @@ name: reverse-engineer-anything
 description: Reverse engineer native, managed, Electron/JavaScript, packaged, and browser applications with REA. Use shipped-artifact or approved runtime evidence to explain features, compare versions, decompile code, or guide a reconstruction. Skip REA for ordinary source-repository architecture analysis.
 metadata:
   version: "23"
-  tool_count: 114
-  catalog_digest: "e9e72f81202fc2c0e19fef2b66ec015db90c208005cac9afff90410ce7efd531"
+  tool_count: 112
+  catalog_digest: "6a20b6b76be7cf9ced6e6b71ca435e3ec6eb6f910694f695f2a2627def628036"
 ---
 
 # REA
@@ -23,8 +23,7 @@ Choose the first tool from the target the user supplied. Do not call
 - ASAR or extracted JavaScript/Electron tree:
   `analyze_javascript_application`.
 - Archive, application package, ZIP/APK/IPA/MSIX/AppX, or DMG:
-  `open_binary` with the supplied local path, then `inspect_artifact` or
-  `inventory_artifact` (both operate on the active target and accept no path).
+  `open_binary` with the supplied local path, then `inspect_artifact`.
 - Managed PE/CLI assembly: `inspect_managed_artifact`.
 - User-owned browser page already open: `list_browser_targets`.
 - User-owned Electron runtime already open: `list_electron_targets`.

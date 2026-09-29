@@ -13,9 +13,16 @@ type EvidenceAuthorityResult = Result<Evidence[], EvidenceIntegrityError>;
 export const resolveSessionEvidenceIds = (
   session: BinarySessionPort,
   evidenceIds: readonly string[],
-  expected: { readonly operation: string; readonly predicate: string },
+  expected: {
+    readonly operation: string | readonly string[];
+    readonly predicate: string;
+  },
 ): EvidenceAuthorityResult => {
   const records: Evidence[] = [];
+  const expectedOperations = Array.isArray(expected.operation)
+    ? expected.operation
+    : [expected.operation];
+  const expectedOperationLabel = expectedOperations.join(" or ");
   for (const evidenceId of evidenceIds) {
     const record = session.evidenceById(evidenceId);
     if (record === undefined)
@@ -23,16 +30,16 @@ export const resolveSessionEvidenceIds = (
         new EvidenceReferenceError(
           evidenceId,
           "missing",
-          expected.operation,
+          expectedOperationLabel,
           null,
         ),
       );
-    if (record.operation !== expected.operation)
+    if (!expectedOperations.includes(record.operation))
       return err(
         new EvidenceReferenceError(
           evidenceId,
           "wrong_operation",
-          expected.operation,
+          expectedOperationLabel,
           record.operation,
         ),
       );

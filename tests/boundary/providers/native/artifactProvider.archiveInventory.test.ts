@@ -9,7 +9,6 @@ import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js
 
 import { runProviderAnalysis } from "../../../../src/application/DirectAnalysis.js";
 import { ArtifactProvider } from "../../../../src/artifacts/ArtifactProvider.js";
-import { artifactInspectionInputSchema } from "../../../../src/contracts/artifactToolContracts.js";
 import { artifactInventoryResultSchema } from "../../../../src/domain/artifactGraph.js";
 import { artifactInspectionResultSchema } from "../../../../src/domain/artifactInspection.js";
 import type { BinaryTarget } from "../../../../src/domain/binaryTarget.js";
@@ -123,7 +122,7 @@ describe("artifact archive inventory", () => {
     });
     const failedInspection = await new ArtifactProvider()
       .createClient(target(unpackedPath, "asar"))
-      .execute("inspect_artifact", artifactInspectionInputSchema.parse({}));
+      .execute("inspect_artifact", {});
     expect(failedInspection).toMatchObject({
       ok: false,
       error: { _tag: "ArtifactOperationError", reason: "integrity" },

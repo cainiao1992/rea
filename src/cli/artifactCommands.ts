@@ -11,50 +11,8 @@ export const registerArtifactCommands = (
   cli: CliInstance,
   logger: Logger,
 ): void => {
-  registerInventoryCommand(cli, logger);
   registerInspectionCommand(cli, logger);
   registerExtractionCommand(cli, logger);
-};
-
-const registerInventoryCommand = (cli: CliInstance, logger: Logger): void => {
-  cli.command(CLI_COMMANDS.inventoryArtifact, {
-    description: "Build a complete deterministic artifact graph",
-    args: z.object({
-      path: z.string().describe("Application or package path"),
-    }),
-    options: z.object({
-      integrityPolicy: z
-        .enum(["fail", "record-and-continue"])
-        .default("fail")
-        .describe("Behavior when declared artifact integrity does not match"),
-      integrityContinueApproved: z
-        .boolean()
-        .default(false)
-        .describe("Approve continuing after recorded integrity mismatches"),
-      nativeMountApproved: z
-        .boolean()
-        .default(false)
-        .describe("Approve read-only native mounting when required"),
-    }),
-    alias: {
-      integrityPolicy: "integrity-policy",
-      integrityContinueApproved: "integrity-continue-approved",
-      nativeMountApproved: "native-mount-approved",
-    },
-    run: ({ args, options }) =>
-      logCliCommand(logger, "inventory-artifact", () =>
-        runProviderAnalysis(
-          args.path,
-          "inventory_artifact",
-          {
-            integrity_policy: options.integrityPolicy,
-            integrity_continue_approved: options.integrityContinueApproved,
-            native_mount_approved: options.nativeMountApproved,
-          },
-          logger,
-        ),
-      ),
-  });
 };
 
 const registerExtractionCommand = (cli: CliInstance, logger: Logger): void => {
@@ -67,7 +25,6 @@ const registerExtractionCommand = (cli: CliInstance, logger: Logger): void => {
       occurrenceIds: z
         .array(z.string().regex(/^occ_[a-f0-9]{64}$/u))
         .min(1)
-        .max(500)
         .describe("Exact artifact occurrence IDs selected for extraction"),
     }),
     alias: { occurrenceIds: "occurrence-ids" },
@@ -93,10 +50,37 @@ const registerInspectionCommand = (cli: CliInstance, logger: Logger): void => {
     args: z.object({
       path: z.string().describe("Application or package path"),
     }),
-    options: z.object({}),
-    run: ({ args }) =>
+    options: z.object({
+      integrityPolicy: z
+        .enum(["fail", "record-and-continue"])
+        .default("fail")
+        .describe("Behavior when declared artifact integrity does not match"),
+      integrityContinueApproved: z
+        .boolean()
+        .default(false)
+        .describe("Approve continuing after recorded integrity mismatches"),
+      nativeMountApproved: z
+        .boolean()
+        .default(false)
+        .describe("Approve read-only native mounting when required"),
+    }),
+    alias: {
+      integrityPolicy: "integrity-policy",
+      integrityContinueApproved: "integrity-continue-approved",
+      nativeMountApproved: "native-mount-approved",
+    },
+    run: ({ args, options }) =>
       logCliCommand(logger, "inspect-artifact", () =>
-        runProviderAnalysis(args.path, "inspect_artifact", {}, logger),
+        runProviderAnalysis(
+          args.path,
+          "inspect_artifact",
+          {
+            integrity_policy: options.integrityPolicy,
+            integrity_continue_approved: options.integrityContinueApproved,
+            native_mount_approved: options.nativeMountApproved,
+          },
+          logger,
+        ),
       ),
   });
 };

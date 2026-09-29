@@ -21,8 +21,8 @@ distinct. Requested prompt arguments and completion choices are rendered as
 untrusted selection data, not instructions or authorization.
 
 For target paths in `compare_application_versions`, the rendered workflow
-opens each target before calling `inventory_artifact`; artifact inventory and
-inspection operate on the active target and do not accept a path themselves.
+opens each target before calling `inspect_artifact`; inspection operates on the
+active target and returns the graph and findings together inline.
 
 Use standard MCP discovery and retrieval:
 
@@ -49,11 +49,9 @@ cached prompt catalog.
 
 ## Session-aware completion
 
-MCP `completion/complete` currently completes prompt arguments and resource
-template variables. It does not define completion for arbitrary tool-call
-arguments. REA therefore attaches completion to optional guided-prompt
-arguments that feed later tool selection; it does not claim protocol-level
-completion for every REA tool.
+MCP `completion/complete` completes guided-prompt arguments; it does not define
+completion for arbitrary tool-call arguments. REA attaches completion to
+optional prompt arguments that feed later tool selection.
 
 ```json
 {

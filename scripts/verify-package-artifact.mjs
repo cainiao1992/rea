@@ -11,32 +11,49 @@ export async function verifyPackageArtifactAndElectron({
   workspace,
   environment,
 }) {
+  const artifactArchive = await verifyPackagedArtifact({
+    cli,
+    workspace,
+    environment,
+  });
+  await verifyPackagedElectronApplication({
+    cli,
+    workspace,
+    environment,
+  });
+  return { artifactArchive };
+}
+
+const verifyPackagedArtifact = async ({ cli, workspace, environment }) => {
   const artifactArchive = join(workspace, "artifact.zip");
   const artifactWriter = new ZipWriter(new Uint8ArrayWriter());
   await artifactWriter.add("app/main.js", new TextReader("main();"));
   await writeFile(artifactArchive, await artifactWriter.close());
-  const artifactInventory = json(
+  const artifactInspection = json(
     await run(
       cli,
-      ["inventory-artifact", artifactArchive, "--limit", "500", "--json"],
+      ["inspect-artifact", artifactArchive, "--json"],
       environment,
     ),
   );
-  const repeatedArtifactInventory = json(
+  const repeatedArtifactInspection = json(
     await run(
       cli,
-      ["inventory-artifact", artifactArchive, "--limit", "500", "--json"],
+      ["inspect-artifact", artifactArchive, "--json"],
       environment,
     ),
   );
+  const artifactInventory =
+    artifactInspection.normalized_result?.substeps?.[0]?.evidence
+      ?.normalized_result;
+  const repeatedArtifactInventory =
+    repeatedArtifactInspection.normalized_result?.substeps?.[0]?.evidence
+      ?.normalized_result;
   if (
-    artifactInventory.operation !== "inventory_artifact" ||
-    artifactInventory.provider?.id !== "rea-artifact-graph" ||
-    artifactInventory.normalized_result?.manifest?.root_format !== "zip" ||
-    !sameArtifactIdentity(
-      artifactInventory.normalized_result,
-      repeatedArtifactInventory.normalized_result,
-    )
+    artifactInspection.operation !== "inspect_artifact" ||
+    artifactInspection.provider?.id !== "rea-artifact-graph" ||
+    artifactInventory?.manifest?.root_format !== "zip" ||
+    !sameArtifactIdentity(artifactInventory, repeatedArtifactInventory)
   )
     throw new Error("packaged artifact inventory CLI failed");
   await verifyPackagedArtifactExtraction({
@@ -46,6 +63,14 @@ export async function verifyPackageArtifactAndElectron({
     environment,
     workspace,
   });
+  return artifactArchive;
+};
+
+const verifyPackagedElectronApplication = async ({
+  cli,
+  workspace,
+  environment,
+}) => {
   const applicationRoot = join(workspace, "electron-app");
   await mkdir(applicationRoot);
   await writeFile(
@@ -88,9 +113,7 @@ export async function verifyPackageArtifactAndElectron({
     ),
   );
   assertRoutedApplicationAnalysis(routedApplicationAnalysis);
-
-  return { artifactArchive };
-}
+};
 
 const sameArtifactIdentity = (left, right) =>
   isDeepStrictEqual(left?.manifest, right?.manifest) &&
@@ -105,10 +128,9 @@ const verifyPackagedArtifactExtraction = async ({
   environment,
   workspace,
 }) => {
-  const occurrence =
-    artifactInventory.normalized_result?.occurrences?.items?.find(
-      ({ logical_path: path }) => path === "app/main.js",
-    );
+  const occurrence = artifactInventory?.occurrences?.items?.find(
+    ({ logical_path: path }) => path === "app/main.js",
+  );
   if (occurrence?.occurrence_id === undefined)
     throw new Error("packaged artifact inventory omitted the selected member");
   const outputRoot = join(workspace, "artifact-extraction");

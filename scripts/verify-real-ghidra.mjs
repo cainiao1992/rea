@@ -47,13 +47,22 @@ const installation = inspectGhidraInstallation({
     ? {}
     : { javaHome: process.env.JAVA_HOME }),
 });
-if (!installation.available || installation.analyzeHeadlessPath === null)
+if (
+  installation.status !== "available" ||
+  installation.analyzeHeadlessPath === null
+)
   throw new Error(
     `Ghidra installation is unavailable: ${JSON.stringify(installation)}`,
   );
 if (installation.providerVersion !== SUPPORTED_GHIDRA_VERSION)
   throw new Error("Ghidra provider version commitment drifted");
 
+const crossFormat = process.argv.includes("--cross-format");
+const aarch64JumpTableOnly = process.argv.includes("--aarch64-jump-table");
+const expectedNativeTarget = nativeFixtureTarget(
+  process.platform,
+  process.arch,
+);
 const fixtureRoot = await mkdtemp(join(tmpdir(), "rea-ghidra-fixtures-"));
 const sourcePath = fileURLToPath(
   new URL("../tests/conformance/ghidra/inventory.c", import.meta.url),
@@ -71,82 +80,135 @@ const machObjectPath = join(fixtureRoot, "rea-ghidra-cross-x86_64.o");
 const malformedPath = join(fixtureRoot, "rea-ghidra-malformed");
 const compiler = process.env.REA_CC ?? "cc";
 const clang = process.env.REA_CLANG ?? "clang";
+const lld = process.env.REA_LLD ?? "ld.lld";
 const lldLink = process.env.REA_LLD_LINK ?? "lld-link";
+const lane = crossFormat
+  ? "cross-format"
+  : aarch64JumpTableOnly
+    ? "AArch64 jump-table"
+    : "host-format";
+const toolchain = new Map([[compiler, "host fixture compiler"]]);
+if (crossFormat || aarch64JumpTableOnly)
+  toolchain.set(clang, "cross-format clang compiler");
+if (crossFormat) {
+  toolchain.set(lld, "LLVM LLD linker");
+  toolchain.set(lldLink, "Windows PE linker");
+}
+const crossTarget = crossFormat
+  ? "aarch64-linux-gnu, x86_64-pc-windows-msvc, x86_64-apple-darwin"
+  : aarch64JumpTableOnly
+    ? "aarch64-linux-gnu"
+    : `${expectedNativeTarget.format}/${expectedNativeTarget.architecture}`;
+for (const [command, role] of toolchain) {
+  try {
+    await exec(command, [command === lldLink ? "/?" : "--version"]);
+  } catch (cause) {
+    throw new Error(
+      `Ghidra ${lane} verification cannot run for target ${crossTarget}: required ${role} '${command}' is unavailable or failed its preflight.`,
+      { cause },
+    );
+  }
+}
 try {
-  const common = ["-O0", "-g", "-fno-inline", "-fno-pie", "-no-pie"];
+  const common = ["-O0", "-g", "-fno-inline"];
+  if (expectedNativeTarget.format === "elf") common.push("-fno-pie", "-no-pie");
   await exec(compiler, [...common, sourcePath, "-o", debugPath]);
-  await exec(compiler, [...common, "-s", sourcePath, "-o", strippedPath]);
-  await exec(clang, [
-    "--target=aarch64-linux-gnu",
-    "-O0",
-    "-g",
-    "-fno-inline",
-    "-fno-pie",
-    "-nostdlib",
-    "-static",
-    "-fuse-ld=lld",
-    crossFormatSourcePath,
-    "-Wl,-e,rea_cross_start",
-    "-o",
-    arm64ElfPath,
-  ]);
-  await exec(clang, [
-    "--target=x86_64-pc-windows-msvc",
-    "-O0",
-    "-gcodeview",
-    "-fno-inline",
-    "-c",
-    crossFormatSourcePath,
-    "-o",
-    peObjectPath,
-  ]);
-  await exec(lldLink, [
-    "/entry:rea_cross_start",
-    "/subsystem:console",
-    "/nodefaultlib",
-    "/export:rea_cross_entry",
-    `/implib:${peImportLibraryPath}`,
-    `/out:${pePath}`,
-    peObjectPath,
-  ]);
-  await exec(clang, [
-    "--target=x86_64-apple-darwin",
-    "-O0",
-    "-g",
-    "-fno-inline",
-    "-c",
-    crossFormatSourcePath,
-    "-o",
-    machObjectPath,
-  ]);
+  const strippedFlags = [...common, "-s"];
+  if (expectedNativeTarget.format === "mach-o")
+    strippedFlags.push("-fvisibility=hidden");
+  await exec(compiler, [...strippedFlags, sourcePath, "-o", strippedPath]);
+  const crossTargets = [];
+  if (aarch64JumpTableOnly) {
+    await exec(clang, [
+      "--target=aarch64-linux-gnu",
+      "-O2",
+      "-g",
+      "-fno-inline",
+      "-fno-pie",
+      "-c",
+      crossFormatSourcePath,
+      "-o",
+      arm64ElfPath,
+    ]);
+    crossTargets.push([
+      arm64ElfPath,
+      "aarch64-jump-table",
+      { format: "elf", architecture: "arm64" },
+    ]);
+  } else if (crossFormat) {
+    await exec(clang, [
+      "--target=aarch64-linux-gnu",
+      "-O2",
+      "-g",
+      "-fno-inline",
+      "-fno-pie",
+      "-nostdlib",
+      "-static",
+      "-fuse-ld=lld",
+      crossFormatSourcePath,
+      "-Wl,-e,rea_cross_start",
+      "-o",
+      arm64ElfPath,
+    ]);
+    await exec(clang, [
+      "--target=x86_64-pc-windows-msvc",
+      "-O0",
+      "-gcodeview",
+      "-fno-inline",
+      "-c",
+      crossFormatSourcePath,
+      "-o",
+      peObjectPath,
+    ]);
+    await exec(lldLink, [
+      "/entry:rea_cross_start",
+      "/subsystem:console",
+      "/nodefaultlib",
+      "/export:rea_cross_entry",
+      `/implib:${peImportLibraryPath}`,
+      `/out:${pePath}`,
+      peObjectPath,
+    ]);
+    await exec(clang, [
+      "--target=x86_64-apple-darwin",
+      "-O0",
+      "-g",
+      "-fno-inline",
+      "-c",
+      crossFormatSourcePath,
+      "-o",
+      machObjectPath,
+    ]);
+    crossTargets.push(
+      [
+        arm64ElfPath,
+        "cross-arm64-elf",
+        { format: "elf", architecture: "arm64" },
+      ],
+      [pePath, "cross-x86_64-pe", { format: "pe", architecture: "x86_64" }],
+      [
+        machObjectPath,
+        "cross-x86_64-mach-o",
+        { format: "mach-o", architecture: "x86_64" },
+      ],
+    );
+  }
   await writeFile(malformedPath, Buffer.from("not-a-binary\n", "utf8"));
 
-  const debug = await verifyTarget(debugPath, "debug", {
-    format: "elf",
-    architecture: "x86_64",
-  });
+  const debug = await verifyTarget(debugPath, "debug", expectedNativeTarget);
   assertDebugFixture(debug);
-  const nativeApiCli = await verifyNativeApiCli(debugPath);
-  const stripped = await verifyTarget(strippedPath, "stripped", {
-    format: "elf",
-    architecture: "x86_64",
-  });
+  const stripped = await verifyTarget(
+    strippedPath,
+    "stripped",
+    expectedNativeTarget,
+  );
   assertStrippedFixture(stripped);
-  const arm64Elf = await verifyTarget(arm64ElfPath, "cross-arm64-elf", {
-    format: "elf",
-    architecture: "arm64",
-  });
-  assertCrossFixture(arm64Elf);
-  const pe = await verifyTarget(pePath, "cross-x86_64-pe", {
-    format: "pe",
-    architecture: "x86_64",
-  });
-  assertCrossFixture(pe);
-  const machObject = await verifyTarget(machObjectPath, "cross-x86_64-mach-o", {
-    format: "mach-o",
-    architecture: "x86_64",
-  });
-  assertCrossFixture(machObject);
+  const crossResults = [];
+  for (const [targetPath, variant, expectedTarget] of crossTargets) {
+    const result = await verifyTarget(targetPath, variant, expectedTarget);
+    if (variant !== "aarch64-jump-table") assertCrossFixture(result);
+    crossResults.push(result);
+  }
   await assertMalformedFixture(malformedPath);
 
   const customPath = process.env.GHIDRA_TARGET_PATH;
@@ -157,16 +219,20 @@ try {
       verifier_run: await completeVerifierRun(verifierRun),
       ok: true,
       provider: { id: "ghidra", version: SUPPORTED_GHIDRA_VERSION },
-      fixture_sources: [sourcePath, crossFormatSourcePath],
-      fixtures: [
-        summary(debug),
-        summary(stripped),
-        summary(arm64Elf),
-        summary(pe),
-        summary(machObject),
-      ],
+      verification_lane: aarch64JumpTableOnly
+        ? "aarch64-jump-table"
+        : crossFormat
+          ? "cross-format"
+          : "host-native",
+      fixture_sources:
+        crossFormat || aarch64JumpTableOnly
+          ? [sourcePath, crossFormatSourcePath]
+          : [sourcePath],
+      fixtures: [debug, stripped, ...crossResults].map(summary),
       malformed_target: "rejected-before-provider-start",
-      native_api_cli: nativeApiCli,
+      native_api_cli: aarch64JumpTableOnly
+        ? (crossResults[0]?.native_api_cli ?? null)
+        : debug.native_api_cli,
       custom_target: custom === null ? null : summary(custom),
       cleanup: "complete",
     })}\n`,
@@ -175,14 +241,38 @@ try {
   await rm(fixtureRoot, { recursive: true, force: true });
 }
 
-async function verifyNativeApiCli(targetPath) {
+function nativeFixtureTarget(platform, architecture) {
+  const supportedTargets = {
+    "darwin-arm64": { format: "mach-o", architecture: "arm64" },
+    "darwin-x64": { format: "mach-o", architecture: "x86_64" },
+    "linux-x64": { format: "elf", architecture: "x86_64" },
+  };
+  const target = supportedTargets[`${platform}-${architecture}`];
+  if (target === undefined)
+    throw new Error(
+      `The Ghidra verifier does not support a host-native fixture on ${platform}/${architecture}; use a supported Linux x64 or macOS x64/arm64 host.`,
+    );
+  return target;
+}
+
+async function verifyNativeApiCli(
+  targetPath,
+  procedures,
+  requireDenseJumpTable,
+  denseSwitchSymbol = "rea_ghidra_inventory_dense_switch",
+) {
+  const denseSwitch = procedures.find(({ value }) =>
+    value.endsWith(denseSwitchSymbol),
+  );
+  if (denseSwitch === undefined)
+    throw new Error("The Ghidra inventory omitted the dense switch fixture");
   const { stdout } = await exec(
     process.execPath,
     [
       "scripts/rea.mjs",
       "inspect-native-api",
       targetPath,
-      "rea_ghidra_inventory_dense_switch",
+      denseSwitch.address,
       "--provider",
       "ghidra",
       "--json",
@@ -198,13 +288,40 @@ async function verifyNativeApiCli(targetPath) {
   const denseTable = boundary?.jump_tables?.find(
     ({ mappings }) => mappings.length > 32,
   );
+  const denseCases = new Set(
+    denseTable?.mappings.flatMap(({ case_value }) =>
+      typeof case_value === "number" ? [case_value] : [],
+    ) ?? [],
+  );
+  const expectedCases = Array.from({ length: 40 }, (_, index) => index);
+  const mappingsAreExact = expectedCases.every((caseValue) =>
+    denseTable?.mappings.some(
+      (mapping) =>
+        mapping.case_value === caseValue &&
+        mapping.confidence === "high" &&
+        mapping.evidence.some(
+          ({ detail }) =>
+            detail.includes(`case value ${caseValue} with target`) ||
+            detail.startsWith(`Case value ${caseValue} indexes byte `),
+        ),
+    ),
+  );
   if (
     evidence.operation !== "inspect_native_api" ||
     evidence.provider?.id !== "rea-workflow" ||
     evidence.analysis_profile?.provider?.id !== "rea-workflow" ||
-    boundary?.available !== true ||
-    denseTable === undefined ||
-    evidence.normalized_result?.residual_unknowns?.length !== 0
+    boundary?.available !== true
+  )
+    throw new Error(
+      `The shipped inspect-native-api CLI did not return an available boundary: ${stdout}`,
+    );
+  if (
+    requireDenseJumpTable &&
+    (denseTable === undefined ||
+      denseCases.size !== denseTable.mappings.length ||
+      expectedCases.some((caseValue) => !denseCases.has(caseValue)) ||
+      !mappingsAreExact ||
+      evidence.normalized_result?.residual_unknowns?.length !== 0)
   )
     throw new Error(
       `The shipped inspect-native-api CLI did not preserve complete dense jump-table output: ${stdout}`,
@@ -212,7 +329,7 @@ async function verifyNativeApiCli(targetPath) {
   return {
     operation: evidence.operation,
     provider: evidence.provider,
-    mappings_returned: denseTable.mappings.length,
+    mappings_returned: denseTable?.mappings.length ?? null,
     residual_unknowns: evidence.normalized_result.residual_unknowns.length,
   };
 }
@@ -285,8 +402,23 @@ async function verifyTarget(targetPath, variant, expectedTarget = null) {
       document: null,
       address: null,
     });
+    const crossArm64Elf =
+      variant === "cross-arm64-elf" || variant === "aarch64-jump-table";
+    const nativeApiCli =
+      variant === "debug" || crossArm64Elf
+        ? await verifyNativeApiCli(
+            parsedTarget.value.path,
+            procedures,
+            crossArm64Elf ||
+              (expectedNativeTarget.format === "elf" &&
+                expectedNativeTarget.architecture === "x86_64"),
+            crossArm64Elf
+              ? "rea_cross_dense_switch"
+              : "rea_ghidra_inventory_dense_switch",
+          )
+        : null;
     const probes =
-      variant === "custom"
+      variant === "custom" || variant === "aarch64-jump-table"
         ? null
         : await verifyInventoryOperations({
             client,
@@ -306,6 +438,7 @@ async function verifyTarget(targetPath, variant, expectedTarget = null) {
       names,
       strings,
       probes,
+      native_api_cli: nativeApiCli,
     };
   } finally {
     await client.close();

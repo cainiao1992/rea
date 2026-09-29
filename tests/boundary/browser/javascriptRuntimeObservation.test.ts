@@ -260,7 +260,10 @@ describe("passive V8 Inspector evidence", () => {
       scriptUrls,
     });
     try {
-      const input = observeInput(fake.endpoint, fake.targetId, "node");
+      const input = {
+        ...observeInput(fake.endpoint, fake.targetId, "node"),
+        observation_ms: 1_000,
+      };
       const result = await new V8InspectorProvider().observe(input);
       expect(result.ok).toBe(true);
       if (!result.ok) return;

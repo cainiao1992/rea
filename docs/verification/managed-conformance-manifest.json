@@ -1,5 +1,5 @@
 {
-  "manifest_id": "ecm_b0d44c0849214bfcdb88244976706b23a6afb703e937d763df2f37d1a9770dc0",
+  "manifest_id": "ecm_f3f2b9814b99660bd8ba11255bccdb70b0a1d8e4212967d934ae2dd6aed9719b",
   "verifier": {
     "id": "rea-managed-conformance",
     "version": "1"
@@ -13,7 +13,7 @@
   "skill_digests": [
     {
       "skill_id": "reverse-engineer-anything",
-      "sha256": "a877f1c73ff33976d3d7afb3ff62521f176462096614118cf8b9f2240f3b312c"
+      "sha256": "6a8bfeb77223ad985497a6fe6e71caca67f8e693a736e14249bf96a85dae05c5"
     }
   ],
   "claims": [

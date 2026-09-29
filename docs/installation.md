@@ -194,7 +194,8 @@ copying license secrets into logs, or killing unrelated Hopper processes.
 ## Ghidra
 
 REA's Ghidra provider is bring-your-own and supports Linux x64 with the exact
-official Ghidra 12.1.4 release and a 64-bit full JDK 21. An experimental
+official Ghidra 12.1.4 release and a 64-bit full JDK 21. macOS is not an
+admitted Ghidra host. An experimental
 Windows x64 P0 supports approved native x86-64 PE applications. It supplies
 discovery, analysis-profile commitment, an isolated read-only headless session,
 ten inventory/name/search operations and nine function-analysis operations,
@@ -255,10 +256,14 @@ remain unknown, reference-kind provenance is preserved, and provider-specific
 pseudocode is never treated as original source or Hopper-equivalent text.
 
 Run `GHIDRA_INSTALL_DIR=... npm run verify:ghidra` from a source checkout to
-compile and analyze source-owned x86-64 debug/stripped ELF, AArch64 ELF,
-x86-64 PE, and x86-64 Mach-O conformance fixtures. The verifier expects `cc`,
-`clang`, and `lld-link` on `PATH`; `REA_CC`, `REA_CLANG`, and `REA_LLD_LINK` can
-select alternate command paths.
+compile and analyze debug and stripped x86-64 ELF fixtures on Linux x64. This lane needs only a host C compiler
+in addition to Ghidra and its JDK.
+
+Run `GHIDRA_INSTALL_DIR=... npm run verify:ghidra:cross-format` to add AArch64
+ELF, x86-64 PE, and x86-64 Mach-O fixture coverage. This separate lane needs
+`clang`, LLD, and `lld-link` on `PATH`; `REA_CLANG` and `REA_LLD_LINK` select
+alternate command paths. Missing cross-target tooling does not block the
+host-native Ghidra acceptance lane.
 
 On a controlled Windows x64 runner, use
 `npm run verify:ghidra:windows`. The verifier generates a deterministic native

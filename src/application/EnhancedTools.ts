@@ -27,6 +27,11 @@ import {
   discoverObjcClasses,
   discoverObjcProtocols,
 } from "../domain/symbolAnalysis.js";
+import {
+  inspectNativeDispatchMetadata,
+  nativeDispatchMetadataResultSchema,
+} from "../domain/objcSwiftMetadata.js";
+import { traceNativeUiAction } from "./NativeUiActionTrace.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 
 import {
@@ -59,9 +64,25 @@ export class EnhancedTools {
       name === "trace_call_path"
     )
       return this.#executeTracing(name, input, signal);
+    if (name === "trace_native_ui_action") {
+      const parsed =
+        enhancedInputSchemas.trace_native_ui_action.safeParse(input);
+      return parsed.success
+        ? this.executeValidated({ name, input: parsed.data }, signal)
+        : invalidEnhancedInput(name, parsed.error);
+    }
     if (name === "analyze_function" || name === "inspect_native_api")
       return this.#executeFunctionAnalysis(name, input, signal);
     switch (name) {
+      case "inspect_native_dispatch_metadata": {
+        const parsed =
+          enhancedInputSchemas.inspect_native_dispatch_metadata.safeParse(
+            input,
+          );
+        return parsed.success
+          ? this.executeValidated({ name, input: parsed.data }, signal)
+          : invalidEnhancedInput(name, parsed.error);
+      }
       case "get_objc_classes": {
         const parsed = enhancedInputSchemas.get_objc_classes.safeParse(input);
         return parsed.success
@@ -110,6 +131,11 @@ export class EnhancedTools {
     signal?: AbortSignal,
   ): EnhancedResult {
     switch (call.name) {
+      case "inspect_native_dispatch_metadata":
+        return this.#inspectNativeDispatchMetadata(
+          call.input.max_records,
+          signal,
+        );
       case "get_objc_classes":
         return this.#objcClasses(call.input.pattern, signal);
       case "get_objc_protocols":
@@ -151,6 +177,9 @@ export class EnhancedTools {
           call.input,
           signal,
         );
+      case "trace_native_ui_action": {
+        return traceNativeUiAction(this.analysis, call.input, signal);
+      }
     }
   }
 
@@ -215,6 +244,48 @@ export class EnhancedTools {
   async #objcClasses(pattern: string, signal?: AbortSignal): EnhancedResult {
     const names = await this.#allAddressed("list_names", signal);
     return names.ok ? ok(discoverObjcClasses(names.value, pattern)) : names;
+  }
+
+  async #inspectNativeDispatchMetadata(
+    maxRecords: number,
+    signal?: AbortSignal,
+  ): EnhancedResult {
+    const execution = await this.analysis.execute(
+      "list_names",
+      {},
+      signal === undefined ? {} : { signal },
+    );
+    if (!execution.ok) return err(execution.error);
+    const names = z
+      .array(
+        z.union([
+          z.strictObject({ address: z.string(), value: z.string() }),
+          z.strictObject({ address: z.string(), name: z.string() }),
+        ]),
+      )
+      .safeParse(execution.value.result);
+    if (!names.success)
+      return err(
+        new AnalysisOutputError(
+          "list_names",
+          "provider returned an invalid inventory",
+        ),
+      );
+    return ok(
+      nativeDispatchMetadataResultSchema.parse({
+        target_sha256: execution.value.subject?.sha256 ?? null,
+        provider: execution.value.provider,
+        analysis_profile_digest:
+          execution.value.analysisProfile?.digest ?? null,
+        result: inspectNativeDispatchMetadata(
+          names.data.map((entry) => ({
+            address: entry.address,
+            name: "value" in entry ? entry.value : entry.name,
+          })),
+          maxRecords,
+        ),
+      }),
+    );
   }
 
   async #objcProtocols(signal?: AbortSignal): EnhancedResult {

@@ -10,7 +10,7 @@
     "skill_version": "23"
   },
   "tools": {
-    "total": 111,
+    "total": 114,
     "families": [
       {
         "id": "direct",
@@ -58,7 +58,7 @@
       {
         "id": "enhanced",
         "surface": "enhanced",
-        "count": 12,
+        "count": 14,
         "tools": [
           "analyze_function",
           "analyze_swift_types",
@@ -70,8 +70,10 @@
           "get_objc_classes",
           "get_objc_protocols",
           "inspect_native_api",
+          "inspect_native_dispatch_metadata",
           "trace_call_path",
-          "trace_feature"
+          "trace_feature",
+          "trace_native_ui_action"
         ]
       },
       {
@@ -89,8 +91,12 @@
       {
         "id": "artifact",
         "surface": "artifact-provider",
-        "count": 2,
-        "tools": ["extract_artifact", "inspect_artifact"]
+        "count": 3,
+        "tools": [
+          "decode_interface_builder",
+          "extract_artifact",
+          "inspect_artifact"
+        ]
       },
       {
         "id": "managed",
@@ -279,7 +285,11 @@
       "id": "rea-artifact-graph",
       "name": "REA safe artifact graph provider",
       "version": "1",
-      "capabilities": ["extract_artifact", "inspect_artifact"]
+      "capabilities": [
+        "decode_interface_builder",
+        "extract_artifact",
+        "inspect_artifact"
+      ]
     },
     {
       "id": "rea-cdp-browser",
@@ -420,7 +430,7 @@
     }
   ],
   "cli": {
-    "primary_count": 64,
+    "primary_count": 67,
     "commands": [
       "analyze",
       "analyze-javascript-application",
@@ -439,6 +449,7 @@
       "compare-source-to-bundle",
       "compare-web-captures",
       "compare-web-screenshots",
+      "decode-interface-builder",
       "decompile",
       "demangle-swift",
       "discover-webmcp-tools",
@@ -459,6 +470,7 @@
       "inspect-managed-members",
       "inspect-managed-native-boundaries",
       "inspect-native-api",
+      "inspect-native-dispatch-metadata",
       "inspect-plist",
       "inspect-signature",
       "inspect-web-page",
@@ -482,6 +494,7 @@
       "trace",
       "trace-application-feature",
       "trace-javascript-semantics",
+      "trace-native-ui-action",
       "uninstall",
       "upgrade",
       "verify-managed-native-boundaries",
@@ -496,15 +509,15 @@
   },
   "runtime_catalog": {
     "counts": {
-      "cli_commands": 64,
-      "mcp_tools": 111,
+      "cli_commands": 67,
+      "mcp_tools": 114,
       "mcp_prompts": 6
     },
     "digests": {
-      "tools_sha256": "8a5a864d18fa972a8fd9e1ce87e5b42fabca373f88f8e3c3e31991d18ad6d679",
+      "tools_sha256": "eb79567cc08f4afec223254c3977dc167d498f766b920077db0e1eead8be67b9",
       "prompts_sha256": "fa889fc671185ac9c968c6dc8309cf609e709cdc837dbbf39b7cdfadb84ac2d7",
-      "combined_sha256": "65a7b444b254db1d9122b635ee7d927f7bbf03b534436db1095c83386c438e55",
-      "providers_sha256": "7247eece8fad09c8023af8d5c682d223d7ed7ebd68eac79e9154962a7e03b66b"
+      "combined_sha256": "3e9ab4e05563ea2609b7cf4db67638a79cd8a74188c292718d99a63451d5b9db",
+      "providers_sha256": "03498d8adb7d941f8293eea8d71375871fb30a278e310fdc19b98df6781fc1a7"
     }
   }
 }

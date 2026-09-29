@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { JsonValue } from "../domain/jsonValue.js";
+import { functionDossierSchema } from "../domain/hopperValues.js";
 import {
   GHIDRA_FUNCTION_OPERATIONS,
   isGhidraFunctionOperation,
@@ -147,7 +148,6 @@ describe("Ghidra function-analysis result values", () => {
               mappings: [
                 {
                   target_address: "0x401020",
-                  data_addresses: ["0x403000"],
                 },
               ],
             },
@@ -157,10 +157,70 @@ describe("Ghidra function-analysis result values", () => {
             compilable: false,
           },
         },
+        native_value_flow: {
+          available: true,
+          provenance: "ghidra-high-pcode",
+          operations: [
+            expect.objectContaining({ id: "0x401000#0", opcode: "COPY" }),
+          ],
+          truncated: false,
+        },
       },
     });
   });
 
+  it("rejects p-code relationships that refer to omitted operation IDs", () => {
+    const dossier = ghidraFunctionDossier();
+    if (
+      typeof dossier !== "object" ||
+      dossier === null ||
+      Array.isArray(dossier)
+    )
+      throw new TypeError("Ghidra dossier fixture is invalid");
+    const flow = dossier.native_value_flow;
+    if (typeof flow !== "object" || flow === null || Array.isArray(flow))
+      throw new TypeError("Ghidra p-code fixture is invalid");
+    expect(
+      parseGhidraFunctionResult("analyze_function", {
+        ...dossier,
+        native_value_flow: {
+          ...flow,
+          def_use: [
+            {
+              definition: "0x401000#missing",
+              use: "0x401000#0",
+              input_index: 0,
+            },
+          ],
+        },
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: { _tag: "AnalysisOutputError" },
+    });
+  });
+});
+
+describe("Ghidra jump-table mapping contract", () => {
+  it("keeps jump-table sources separate from case-to-target mappings", () => {
+    const parsed = parseGhidraFunctionResult(
+      "analyze_function",
+      ghidraFunctionDossier(),
+    );
+    if (!parsed.ok) throw parsed.error;
+    const boundary = functionDossierSchema.parse(parsed.value).native_api;
+    if (boundary?.available !== true)
+      throw new TypeError("Ghidra native API fixture is unavailable");
+    const mapping = boundary.jump_tables[0]?.mappings[0];
+    expect(mapping).toMatchObject({
+      case_value: 0,
+      target_address: "0x401020",
+    });
+    expect(mapping).not.toHaveProperty("data_addresses");
+  });
+});
+
+describe("Ghidra function-analysis malformed results", () => {
   it.each(malformedOutputs())(
     "rejects malformed %s output",
     (_name, operation, value) => {

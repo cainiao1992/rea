@@ -21,6 +21,107 @@ export const registerCoreAnalysisCommands = (
   registerSearchCommand(cli, logger);
   registerXrefsCommand(cli, logger);
   registerTraceCommand(cli, logger);
+  registerNativeUiActionCommand(cli, logger);
+  registerNativeDispatchMetadataCommand(cli, logger);
+};
+
+const registerNativeDispatchMetadataCommand = (
+  cli: CliInstance,
+  logger: Logger,
+): void => {
+  cli.command(CLI_COMMANDS.inspectNativeDispatchMetadata, {
+    description: "Inspect typed Objective-C and Swift dispatch metadata",
+    args: z.object({
+      path: z.string().describe("Target path used to bind the result evidence"),
+    }),
+    options: z.object({
+      maxRecords: z
+        .number()
+        .int()
+        .min(1)
+        .max(20_000)
+        .default(5_000)
+        .describe("Maximum symbol records to inspect"),
+      snapshot: z
+        .string()
+        .min(1)
+        .optional()
+        .describe("Load or update the local analysis snapshot"),
+      provider: providerSelectionOption,
+    }),
+    alias: { maxRecords: "max-records" },
+    run: async ({ args, options }) =>
+      logCliCommand(logger, "inspect-native-dispatch-metadata", () =>
+        runDirectAnalysis(
+          args.path,
+          "inspect_native_dispatch_metadata",
+          { max_records: options.maxRecords },
+          directAnalysisOptions(logger, options.snapshot, options.provider),
+        ),
+      ),
+  });
+};
+
+const registerNativeUiActionCommand = (
+  cli: CliInstance,
+  logger: Logger,
+): void => {
+  cli.command(CLI_COMMANDS.traceNativeUiAction, {
+    description:
+      "Trace a compiled UI action selector to its native handler and direct callees",
+    args: z.object({
+      path: z.string().describe("Target path used to bind the result evidence"),
+      action: z
+        .string()
+        .min(1)
+        .describe(
+          "A unique compiled UI action selector or interface object ID",
+        ),
+    }),
+    options: z.object({
+      maxDepth: z
+        .number()
+        .int()
+        .min(0)
+        .max(32)
+        .default(8)
+        .describe("Maximum relationship depth"),
+      maxNodes: z
+        .number()
+        .int()
+        .min(1)
+        .max(2_000)
+        .default(250)
+        .describe("Maximum returned graph nodes"),
+      maxEdges: z
+        .number()
+        .int()
+        .min(1)
+        .max(5_000)
+        .default(500)
+        .describe("Maximum returned graph edges"),
+      provider: providerSelectionOption,
+    }),
+    alias: {
+      maxDepth: "max-depth",
+      maxNodes: "max-nodes",
+      maxEdges: "max-edges",
+    },
+    run: async ({ args, options }) =>
+      logCliCommand(logger, "trace-native-ui-action", () =>
+        runDirectAnalysis(
+          args.path,
+          "trace_native_ui_action",
+          {
+            action: args.action,
+            max_depth: options.maxDepth,
+            max_nodes: options.maxNodes,
+            max_edges: options.maxEdges,
+          },
+          directAnalysisOptions(logger, undefined, options.provider),
+        ),
+      ),
+  });
 };
 
 const registerCoreCommands = (cli: CliInstance, logger: Logger): void => {

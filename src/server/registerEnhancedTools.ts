@@ -48,6 +48,7 @@ export const registerEnhancedTools = (
   options: EnhancedToolRegistration,
 ): void => {
   const [
+    nativeDispatchMetadata,
     objcClasses,
     objcProtocols,
     batchDecompile,
@@ -60,7 +61,17 @@ export const registerEnhancedTools = (
     traceFeature,
     codeForString,
     traceCallPath,
+    traceNativeUiAction,
   ] = ENHANCED_TOOL_CONTRACTS;
+  server.registerTool(
+    nativeDispatchMetadata.name,
+    toolRegistrationOptions(nativeDispatchMetadata),
+    (input, context) =>
+      executeEnhancedTool(analysis, options, nativeDispatchMetadata, {
+        validatedCall: { name: "inspect_native_dispatch_metadata", input },
+        context,
+      }),
+  );
   server.registerTool(
     objcClasses.name,
     toolRegistrationOptions(objcClasses),
@@ -166,6 +177,15 @@ export const registerEnhancedTools = (
     (input, context) =>
       executeEnhancedTool(analysis, options, traceCallPath, {
         validatedCall: { name: "trace_call_path", input },
+        context,
+      }),
+  );
+  server.registerTool(
+    traceNativeUiAction.name,
+    toolRegistrationOptions(traceNativeUiAction),
+    (input, context) =>
+      executeEnhancedTool(analysis, options, traceNativeUiAction, {
+        validatedCall: { name: "trace_native_ui_action", input },
         context,
       }),
   );

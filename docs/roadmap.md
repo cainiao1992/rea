@@ -10,8 +10,9 @@ first six have documented local MCP configuration boundaries and can be updated
 additively; Devin is reported but left unchanged.
 
 The Ghidra foundation supports Linux x64 with exact Ghidra 12.1.4 and a 64-bit
-full JDK 21. An experimental Windows x64 P0 admits approved native x86-64 PE
-applications through the same 19-operation Java bridge. Doctor validates those coordinates; approved Linux/macOS setup propagates them
+full JDK 21. macOS is not an admitted Ghidra host. An experimental
+Windows x64 P0 admits approved native x86-64 PE
+applications through the same 19-operation Java bridge. Doctor validates those coordinates; approved Linux setup propagates them
 to MCP registrations without installing or modifying either dependency. REA's
 packaged Java bridge then proves an isolated read-only headless import,
 post-analysis handshake, complete cleanup, ten admitted read-only inventory
@@ -19,6 +20,10 @@ operations, and nine function-analysis operations. Real source-owned x86-64
 debug/stripped ELF, AArch64 ELF, PE, and Mach-O fixtures cover program,
 procedure, string, symbol, external/thunk, memory, resolution, search,
 decompilation, assembly, calls, typed references, xrefs, and CFG semantics.
+Function dossiers also expose bounded Ghidra high-p-code def-use and memory or
+control-flow effects, mark decompiler-dead operations, and report truncation
+plus known omitted counts. This is intra-function
+decompiler evidence; cross-function state flow remains unimplemented.
 Hosted Windows CI covers build, package, target admission, transport, and
 lifecycle seams; a controlled self-hosted workflow covers the real Ghidra P0
 claim.

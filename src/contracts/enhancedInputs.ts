@@ -1,5 +1,4 @@
 import { z } from "zod";
-
 const traceLiteralInputSchema = z.strictObject({
   query: z.string().min(1),
   case_sensitive: z.boolean().default(false),
@@ -7,6 +6,9 @@ const traceLiteralInputSchema = z.strictObject({
 
 /** Input schemas shared by MCP registration and enhanced application dispatch. */
 export const enhancedInputSchemas = {
+  inspect_native_dispatch_metadata: z.strictObject({
+    max_records: z.number().int().min(1).max(20_000).default(5_000),
+  }),
   get_objc_classes: z.strictObject({ pattern: z.string().default("") }),
   get_objc_protocols: z.strictObject({}),
   batch_decompile: z.strictObject({
@@ -47,6 +49,15 @@ export const enhancedInputSchemas = {
       .describe("An optional provider-normalized destination address")
       .optional(),
     direction: z.enum(["forward", "backward"]).default("forward"),
+  }),
+  trace_native_ui_action: z.strictObject({
+    action: z
+      .string()
+      .min(1)
+      .describe("A unique compiled UI action selector or interface object ID"),
+    max_depth: z.number().int().min(0).max(32).default(8),
+    max_nodes: z.number().int().min(1).max(2_000).default(250),
+    max_edges: z.number().int().min(1).max(5_000).default(500),
   }),
 } as const;
 

@@ -44,6 +44,7 @@ export const TOOL_EXAMPLE_OVERRIDES: Readonly<
   trace_feature: { query: "license" },
   find_code_for_string: { query: "authorization failed" },
   trace_call_path: { start: "0x1000", goal: "0x1100" },
+  trace_native_ui_action: { action: "buildTapped:" },
   open_binary: { path: "/tmp/fixture" },
   export_evidence_bundle: { path: "/tmp/evidence.json" },
   inspect_address_context: { address: "0x1000" },

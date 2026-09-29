@@ -52,6 +52,7 @@ const jumpTableDataSourceSchema = z
     provenance: z.enum([
       "ghidra-decompiler-load-table",
       "ghidra-dispatch-block-data-reference",
+      "ghidra-aarch64-byte-table",
     ]),
     entry_size_bytes: z.number().int().min(1).nullable(),
     entry_count: z.number().int().min(0).nullable(),
@@ -64,7 +65,6 @@ const jumpTableMappingSchema = z
   .object({
     case_value: z.number().int().nullable(),
     target_address: z.string().min(1),
-    data_addresses: z.array(z.string().min(1)),
     confidence: inferenceConfidenceSchema,
     evidence: z.array(inferenceEvidenceSchema).min(1),
   })

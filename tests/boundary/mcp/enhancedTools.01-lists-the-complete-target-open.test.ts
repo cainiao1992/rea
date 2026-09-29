@@ -15,6 +15,8 @@ import {
 } from "../../../src/domain/jsonValue.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { observed as ok } from "../../fixtures/analysisExecution.js";
+import { createAnalysisExecution } from "../../../src/application/AnalysisProvider.js";
+import { ok as resultOk } from "../../../src/domain/result.js";
 
 const PROCEDURES = {
   "0x1": "_TtC7Fixture5Class",
@@ -28,14 +30,35 @@ const PROCEDURES = {
 const inventory = (values: Readonly<Record<string, string>>) =>
   Object.entries(values).map(([address, value]) => ({ address, value }));
 
+const targetObservation = (value: unknown) =>
+  resultOk(
+    createAnalysisExecution(
+      value,
+      {
+        id: "fixture",
+        name: "Fixture analysis provider",
+        version: "1",
+      },
+      {
+        subject: {
+          path: "/fixture.app",
+          sha256: "a".repeat(64),
+          format: "mach-o",
+          architecture: "arm64",
+        },
+      },
+    ),
+  );
+
 const fixturePort = (): AnalysisOperationPort => ({
+  // oxlint-disable-next-line complexity -- this fixture exhaustively serves the registered MCP surface.
   execute: (name, arguments_) => {
     switch (name) {
       case "list_procedures":
         return Promise.resolve(ok(inventory(PROCEDURES)));
       case "list_names":
         return Promise.resolve(
-          ok(
+          targetObservation(
             inventory({
               "0x10": "_OBJC_CLASS_$_Fixture",
               "0x11": "_OBJC_CLASS_$_Fixture",
@@ -43,6 +66,26 @@ const fixturePort = (): AnalysisOperationPort => ({
               "0x13": "entry",
             }),
           ),
+        );
+      case "decode_interface_builder":
+        return Promise.resolve(
+          targetObservation({
+            target_sha256: "a".repeat(64),
+            documents: [],
+            graph: {
+              target_sha256: "a".repeat(64),
+              provider: {
+                id: "rea-artifact-graph",
+                version: "1",
+                tool_version: "fixture",
+              },
+              nodes: [],
+              edges: [],
+              coverage: [],
+              truncated: false,
+            },
+            limitations: [],
+          }),
         );
       case "procedure_pseudo_code": {
         const procedure = arguments_.procedure;
@@ -169,6 +212,7 @@ const jsonResult = (result: CallToolResult): JsonValue => {
   return parsed.data;
 };
 
+// oxlint-disable-next-line max-lines-per-function -- keep the complete production registration checks together.
 describe("enhanced MCP tools", () => {
   it("lists the complete target-open analysis surface", async () => {
     const client = await connect();
@@ -189,7 +233,8 @@ describe("enhanced MCP tools", () => {
     expect(listed.tools.map(({ name }) => name)).not.toContain("open_binary");
   });
 
-  it("executes all twelve tools through production registration", async () => {
+  // oxlint-disable-next-line max-lines-per-function -- one exhaustive registration test guards the public tool catalog.
+  it("executes all fourteen tools through production registration", async () => {
     const client = await connect();
     const calls = [
       ["get_objc_classes", { pattern: "Fixture" }],
@@ -204,6 +249,8 @@ describe("enhanced MCP tools", () => {
       ["trace_feature", { query: "hello" }],
       ["find_code_for_string", { query: "hello" }],
       ["trace_call_path", { start: "0x1", goal: "0x2" }],
+      ["trace_native_ui_action", { action: "missing-selector" }],
+      ["inspect_native_dispatch_metadata", { max_records: 100 }],
     ] as const;
     const results = await Promise.all(
       calls.map(async ([name, arguments_]) =>
@@ -294,6 +341,23 @@ describe("enhanced MCP tools", () => {
         { address: "0x2", depth: 1 },
       ],
       truncated: false,
+    });
+    expect(results[12]).toMatchObject({
+      start: "missing-selector",
+      reason: "ui_action_or_object_not_found",
+    });
+    expect(results[13]).toMatchObject({
+      target_sha256: "a".repeat(64),
+      provider: {
+        id: "fixture",
+        name: "Fixture analysis provider",
+        version: "1",
+      },
+      result: {
+        coverage: expect.arrayContaining([
+          expect.objectContaining({ facet: "objc_dispatch_implementations" }),
+        ]),
+      },
     });
   });
 });

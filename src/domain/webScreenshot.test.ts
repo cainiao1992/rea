@@ -1,0 +1,38 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  captureWebScreenshotInputSchema,
+  compareWebScreenshotsInputSchema,
+  createWebScreenshotArtifact,
+  webScreenshotArtifactSchema,
+} from "./webScreenshot.js";
+
+describe("inline web screenshots", () => {
+  it("accepts complete inline image artifacts above the former size ceiling", () => {
+    const artifact = createWebScreenshotArtifact(
+      Buffer.alloc(8 * 1_024 * 1_024 + 1),
+    );
+
+    expect(webScreenshotArtifactSchema.parse(artifact)).toEqual(artifact);
+  });
+
+  it("rejects removed screenshot size and pixel controls", () => {
+    expect(
+      captureWebScreenshotInputSchema.safeParse({
+        cdp_endpoint: "http://127.0.0.1:9222",
+        allowed_origins: ["https://app.example.test"],
+        target_id: "page-1",
+        maximum_image_bytes: 1,
+      }).success,
+    ).toBe(false);
+
+    const artifact = createWebScreenshotArtifact(Buffer.from("image"));
+    expect(
+      compareWebScreenshotsInputSchema.safeParse({
+        before: artifact,
+        after: artifact,
+        maximum_pixels: 1,
+      }).success,
+    ).toBe(false);
+  });
+});

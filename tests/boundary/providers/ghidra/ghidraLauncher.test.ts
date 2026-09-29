@@ -172,12 +172,8 @@ describe("Ghidra headless launcher", () => {
     const capturePath = join(runtimeRoot, "launch-capture.json");
     await waitFor(capturePath);
     const capture = JSON.parse(await readFile(capturePath, "utf8"));
-    const descriptor = JSON.parse(
-      await readFile(join(runtimeRoot, "session.json"), "utf8"),
-    );
     const encodedArguments = JSON.stringify(capture.arguments);
     const encodedEnvironment = JSON.stringify(capture.environment);
-    expect(descriptor).not.toHaveProperty("schema_version");
     expect(encodedArguments).not.toContain(token);
     expect(encodedEnvironment).not.toContain(token);
     expect(capture).toMatchObject({

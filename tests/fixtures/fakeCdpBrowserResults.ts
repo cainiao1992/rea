@@ -70,15 +70,15 @@ const frameTreeResult = (
   );
 
 const resourceTreeResult = (port: number, options: FakeOptions) =>
-  resourceTree(
-    port,
-    options.extraCollections === true,
-    options.electronFileUrl,
-    options.duplicateElectronInventory === true,
-  );
+  resourceTree(port, options);
 
 const domSnapshotResult = (port: number, options: FakeOptions) =>
-  domSnapshot(port, options.electronFileUrl, options.extraCollections === true);
+  domSnapshot(
+    port,
+    options.electronFileUrl,
+    options.extraCollections === true,
+    options.electronInventoryCount ?? 0,
+  );
 
 const accessibilityTreeResult = (options: FakeOptions) =>
   accessibilityTree(options.extraCollections === true);
@@ -260,40 +260,38 @@ const frameTree = (
 
 const resourceTree = (
   port: number,
-  extraCollections = false,
-  electronFileUrl?: string,
-  duplicateElectronInventory = false,
+  options: FakeOptions = {},
 ): Readonly<Record<string, unknown>> => ({
   frameTree: {
     frame: {
       id: "frame-main",
       loaderId: "loader-main",
-      url: electronFileUrl ?? `http://127.0.0.1:${String(port)}/app`,
+      url: options.electronFileUrl ?? `http://127.0.0.1:${String(port)}/app`,
     },
     resources: [
       {
         url:
-          electronFileUrl === undefined
+          options.electronFileUrl === undefined
             ? `http://127.0.0.1:${String(port)}/app.js?token=script-secret`
-            : new URL("app.js", electronFileUrl).href,
+            : new URL("app.js", options.electronFileUrl).href,
         type: "Script",
         mimeType: "text/javascript",
         contentSize: 128,
       },
-      ...(duplicateElectronInventory
+      ...(options.duplicateElectronInventory === true
         ? [
             {
               url:
-                electronFileUrl === undefined
+                options.electronFileUrl === undefined
                   ? `http://127.0.0.1:${String(port)}/app.js?token=script-secret`
-                  : new URL("app.js", electronFileUrl).href,
+                  : new URL("app.js", options.electronFileUrl).href,
               type: "Script",
               mimeType: "text/javascript",
               contentSize: 128,
             },
           ]
         : []),
-      ...(extraCollections
+      ...(options.extraCollections === true
         ? [
             {
               url: `http://127.0.0.1:${String(port)}/app.css`,
@@ -303,6 +301,21 @@ const resourceTree = (
             },
           ]
         : []),
+      ...Array.from(
+        { length: options.electronInventoryCount ?? 0 },
+        (_value, index) => ({
+          url:
+            options.electronFileUrl === undefined
+              ? `http://127.0.0.1:${String(port)}/inventory-${String(index)}.js`
+              : new URL(
+                  `inventory-${String(index)}.js`,
+                  options.electronFileUrl,
+                ).href,
+          type: "Script",
+          mimeType: "text/javascript",
+          contentSize: 128,
+        }),
+      ),
       {
         url: "https://private.example.test/private.js?secret=forbidden",
         type: "Script",
@@ -316,6 +329,7 @@ const domSnapshot = (
   port: number,
   electronFileUrl?: string,
   extraCollections = false,
+  electronInventoryCount = 0,
 ): Readonly<Record<string, unknown>> => {
   const secondDocumentUrl =
     electronFileUrl !== undefined && extraCollections
@@ -343,11 +357,31 @@ const domSnapshot = (
       {
         documentURL: 0,
         nodes: {
-          nodeType: [9, 1],
-          nodeName: [1, 3],
-          nodeValue: [2, 2],
-          parentIndex: [-1, 0],
-          attributes: [[], [4, 5, 8, 9, 10, 11]],
+          nodeType: [
+            9,
+            1,
+            ...Array.from({ length: electronInventoryCount }, () => 1),
+          ],
+          nodeName: [
+            1,
+            3,
+            ...Array.from({ length: electronInventoryCount }, () => 3),
+          ],
+          nodeValue: [
+            2,
+            2,
+            ...Array.from({ length: electronInventoryCount }, () => 2),
+          ],
+          parentIndex: [
+            -1,
+            0,
+            ...Array.from({ length: electronInventoryCount }, () => 0),
+          ],
+          attributes: [
+            [],
+            [4, 5, 8, 9, 10, 11],
+            ...Array.from({ length: electronInventoryCount }, () => []),
+          ],
         },
       },
       {

@@ -29,6 +29,33 @@ afterEach(async () => {
 });
 
 describe("CdpElectronProvider target access", () => {
+  it("returns every in-scope resource beyond the former collection ceiling", async () => {
+    const root = await electronFixture();
+    const index = join(root, "index.html");
+    const count = 2_001;
+    await Promise.all(
+      Array.from({ length: count }, (_value, item) =>
+        writeFile(join(root, `inventory-${String(item)}.js`), ""),
+      ),
+    );
+    const browser = await startFakeCdpBrowser({
+      electronFileUrl: pathToFileURL(index).href,
+      electronInventoryCount: count,
+    });
+    browsers.push(browser);
+    const inspected = await new CdpElectronProvider().inspectPage(
+      inspectElectronPageInputSchema.parse({
+        cdp_endpoint: browser.endpoint,
+        allowed_file_roots: [root],
+        target_id: "electron-page",
+        observation_ms: 0,
+      }),
+    );
+    if (!inspected.ok) throw inspected.error;
+    expect(inspected.value.resources).toHaveLength(count + 1);
+    expect(inspected.value.completeness.truncated_sections).toEqual([]);
+  });
+
   it("returns every approved Electron page target inline", async () => {
     const root = await electronFixture();
     const index = join(root, "index.html");
@@ -48,7 +75,9 @@ describe("CdpElectronProvider target access", () => {
     expect(listed.value.targets[0]?.target_id).toBe("electron-page");
     expect(listed.value.targets.at(-1)?.target_id).toBe("electron-page-0204");
   });
+});
 
+describe("CdpElectronProvider target selection", () => {
   it("lists and inspects only canonical file targets beneath approved roots", async () => {
     const root = await electronFixture();
     const index = join(root, "index.html");
@@ -180,7 +209,7 @@ describe("CdpElectronProvider target access", () => {
 });
 
 describe("Electron request schemas", () => {
-  it("rejects unknown fields and misspelled inspection limits", () => {
+  it("rejects unknown fields and removed collection limits", () => {
     expect(
       listElectronTargetsInputSchema.safeParse({
         cdp_endpoint: "http://127.0.0.1:9223",
@@ -193,7 +222,8 @@ describe("Electron request schemas", () => {
         cdp_endpoint: "http://127.0.0.1:9223",
         allowed_file_roots: ["/tmp/app"],
         target_id: "page-1",
-        limits: { max_dom_nodes: 20, max_dom_node: 20 },
+        observation_ms: 0,
+        limits: { max_dom_nodes: 20 },
       }).success,
     ).toBe(false);
   });

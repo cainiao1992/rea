@@ -4,6 +4,7 @@ import type {
 } from "../application/AnalysisProvider.js";
 import type { JavaScriptRuntimeObservationPort } from "../application/JavaScriptRuntimeObservationPort.js";
 import {
+  MAX_JAVASCRIPT_RUNTIME_LOCATION_BYTES,
   javascriptRuntimeObservationSchema,
   javascriptRuntimeTargetListSchema,
   type JavaScriptRuntimeObservation,
@@ -252,17 +253,13 @@ const ingestEvent = (
   )
     return;
   state.eventsObserved += 1;
-  if (state.eventsObserved > input.limits.max_events) {
-    drop(state, "max_events");
-    return;
-  }
   if (event.method === "Debugger.scriptParsed") {
     ingestScript(event, input, state);
     return;
   }
   if (event.method === "Debugger.scriptFailedToParse") {
     state.invalidScripts += 1;
-    retainEvent(state, 0, input);
+    retainEvent(state, 0);
     return;
   }
   ingestContext(event, input, state);
@@ -279,14 +276,10 @@ const ingestScript = (
   if (
     rawUrl === undefined ||
     rawUrl === "" ||
-    Buffer.byteLength(rawUrl) > input.limits.max_location_bytes
+    Buffer.byteLength(rawUrl) > MAX_JAVASCRIPT_RUNTIME_LOCATION_BYTES
   ) {
     state.invalidScripts += 1;
-    retainEvent(state, 0, input);
-    return;
-  }
-  if (state.scripts.length >= input.limits.max_scripts) {
-    drop(state, "max_scripts");
+    retainEvent(state, 0);
     return;
   }
   const draft: ScriptDraft = {
@@ -297,7 +290,7 @@ const ingestScript = (
     isModule: value?.isModule === true,
   };
   const bytes = metadataBytes(draft);
-  if (!retainEvent(state, bytes, input)) return;
+  retainEvent(state, bytes);
   state.scripts.push(draft);
 };
 
@@ -308,7 +301,7 @@ const ingestContext = (
 ): void => {
   if (event.method === "Runtime.executionContextsCleared") {
     for (const context of state.contexts.values()) context.state = "cleared";
-    retainEvent(state, 0, input);
+    retainEvent(state, 0);
     return;
   }
   const parameters = recordValue(event.params);
@@ -322,14 +315,7 @@ const ingestContext = (
       : runtimeContext?.executionContextId,
   );
   if (key === null) {
-    retainEvent(state, 0, input);
-    return;
-  }
-  if (
-    state.contexts.size >= input.limits.max_execution_contexts &&
-    !state.contexts.has(key)
-  ) {
-    drop(state, "max_execution_contexts");
+    retainEvent(state, 0);
     return;
   }
   const origin =
@@ -346,28 +332,13 @@ const ingestContext = (
       origin !== null && input.allowed_origins.includes(origin) ? origin : null,
   };
   const bytes = metadataBytes(draft);
-  if (!retainEvent(state, bytes, input)) return;
+  retainEvent(state, bytes);
   state.contexts.set(key, draft);
 };
 
-const retainEvent = (
-  state: CaptureState,
-  bytes: number,
-  input: ObserveJavaScriptRuntimeInput,
-): boolean => {
-  if (state.metadataBytes + bytes > input.limits.max_total_metadata_bytes) {
-    drop(state, "max_total_metadata_bytes");
-    return false;
-  }
+const retainEvent = (state: CaptureState, bytes: number): void => {
   state.metadataBytes += bytes;
   state.eventsRetained += 1;
-  return true;
-};
-
-const drop = (state: CaptureState, reason: string): void => {
-  state.eventsDropped += 1;
-  state.truncated = true;
-  state.truncationReasons.add(reason);
 };
 
 const waitForCapture = async (

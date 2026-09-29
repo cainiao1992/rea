@@ -24,16 +24,8 @@ const approvedElectronInput = {
   allowed_file_roots: electronFileRootsSchema,
 };
 
-/** Collection bounds for passive Electron capture, applied internally. */
-export const DEFAULT_ELECTRON_INSPECTION_LIMITS = {
-  max_frames: 200,
-  max_dom_nodes: 2_000,
-  max_scripts: 500,
-  max_resources: 2_000,
-  max_workers: 500,
-  max_script_source_bytes: 1_024 * 1_024,
-  max_total_script_source_bytes: 4 * 1_024 * 1_024,
-};
+/** Per-script source validation bound for passive Electron capture. */
+export const MAX_ELECTRON_SCRIPT_SOURCE_BYTES = 1_024 * 1_024;
 
 /** Input for listing root-confined file:// page targets from Electron CDP. */
 export const listElectronTargetsInputSchema = z.strictObject({
@@ -49,21 +41,16 @@ const inspectElectronPageFacts = {
   target_id: z.string().trim().min(1).max(256),
   observation_ms: z.number().int().min(0).max(10_000).default(100),
 } as const;
-export const inspectElectronPageInputSchema = z
-  .union([
-    z.strictObject({
-      ...inspectElectronPageFacts,
-      include_script_sources: z.literal(false).default(false),
-    }),
-    z.strictObject({
-      ...inspectElectronPageFacts,
-      include_script_sources: z.literal(true),
-    }),
-  ])
-  .transform((input) => ({
-    ...input,
-    limits: DEFAULT_ELECTRON_INSPECTION_LIMITS,
-  }));
+export const inspectElectronPageInputSchema = z.union([
+  z.strictObject({
+    ...inspectElectronPageFacts,
+    include_script_sources: z.literal(false).default(false),
+  }),
+  z.strictObject({
+    ...inspectElectronPageFacts,
+    include_script_sources: z.literal(true),
+  }),
+]);
 export const inspectElectronPageToolInputSchema = z.union([
   z.strictObject({
     discovery_evidence_id: z.string().min(1),

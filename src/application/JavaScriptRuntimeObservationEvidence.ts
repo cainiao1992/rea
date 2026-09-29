@@ -56,7 +56,6 @@ const parameters = (
           ? {}
           : { runtime_kind: input.runtime_kind }),
         observation_ms: input.observation_ms,
-        limits: input.limits,
       }
     : {}),
 });

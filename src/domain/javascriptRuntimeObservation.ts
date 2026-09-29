@@ -72,14 +72,8 @@ const observedJavaScriptRuntimeKindSchema = javascriptRuntimeKindSchema.or(
   z.literal("unknown"),
 );
 
-/** Collection bounds for passive V8 Inspector capture, applied internally. */
-export const DEFAULT_JAVASCRIPT_RUNTIME_OBSERVATION_LIMITS = {
-  max_events: 10_000,
-  max_scripts: 2_000,
-  max_execution_contexts: 1_000,
-  max_location_bytes: 16_384,
-  max_total_metadata_bytes: 4 * 1_024 * 1_024,
-};
+/** Maximum accepted source location byte length in one inspector event. */
+export const MAX_JAVASCRIPT_RUNTIME_LOCATION_BYTES = 16_384;
 
 /** Input for one bounded, attach-only V8 Inspector observation. */
 export const observeJavaScriptRuntimeToolInputSchema = z.strictObject({
@@ -97,11 +91,7 @@ export const observeJavaScriptRuntimeInputSchema = z
     runtime_kind: javascriptRuntimeKindSchema.optional(),
     observation_ms: z.number().int().min(0).max(10_000).default(100),
   })
-  .superRefine(requireRuntimeScope)
-  .transform((input) => ({
-    ...input,
-    limits: DEFAULT_JAVASCRIPT_RUNTIME_OBSERVATION_LIMITS,
-  }));
+  .superRefine(requireRuntimeScope);
 export type ObserveJavaScriptRuntimeInput = z.infer<
   typeof observeJavaScriptRuntimeInputSchema
 >;

@@ -58,7 +58,7 @@ export const electronActiveObservationInputSchema = z.strictObject({
   executable_path: absolutePathSchema,
   application_path: absolutePathSchema,
   application_root: absolutePathSchema,
-  args: z.array(z.string().max(4_096)).max(32).default([]),
+  args: z.array(z.string().max(4_096)).default([]),
   actions: z.array(actionSchema).default([]),
 });
 export type ElectronActiveObservationInput = z.infer<

@@ -40,7 +40,7 @@ rea inspect-electron-page http://127.0.0.1:9223 TARGET_ID \
   --observation-ms 100 --json
 ```
 
-Script content is excluded by default. Requesting it remains subject to per-script and aggregate byte budgets:
+Script content is excluded by default. Requesting it includes every authorized script source whose individual source stays within the per-script validation bound:
 
 ```bash
 rea inspect-electron-page http://127.0.0.1:9223 TARGET_ID \
@@ -48,15 +48,14 @@ rea inspect-electron-page http://127.0.0.1:9223 TARGET_ID \
   --json
 ```
 
-The normalized result contains canonical local paths, bounded frame and DOM
+The normalized result contains canonical local paths, frame and DOM
 structure, resource metadata, stable script/resource identities, explicit
 completeness, and content-addressed approved source artifacts. Script metadata
 retains its execution-context frame ID when CDP supplies one. The capture also
 inventories authorized worker, service-worker, and shared-worker targets with
-bounded opener-target and parent-frame IDs. Worker discovery uses passive
+validated opener-target and parent-frame IDs. Worker discovery uses passive
 target metadata; REA does not attach to or execute code in those targets.
-
-The worker collection budget is 500 and is applied internally. Like every
+Collection counts and aggregate script-source bytes are not capped. Like every
 target, frame, script, and resource, a worker URL must resolve beneath an
 approved canonical root before it is retained. Relationship IDs improve
 attribution but do not prove which static module started a worker or that its

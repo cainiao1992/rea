@@ -212,16 +212,15 @@ describe("undeclared V8 runtime role", () => {
 });
 
 describe("passive V8 Inspector evidence", () => {
-  test("marks capture truncation instead of claiming complete coverage", async () => {
+  test("returns every authorized script beyond the former collection ceiling", async () => {
     const fixture = await runtimeFixture();
-    const second = join(fixture.root, "second.js");
-    await writeFile(second, "export {};\n");
+    const scriptUrls = [
+      pathToFileURL(fixture.entry).href,
+      ...Array.from({ length: 2_004 }, () => pathToFileURL(fixture.entry).href),
+    ];
     const fake = await startFakeV8Inspector({
       targetUrl: pathToFileURL(fixture.entry).href,
-      scriptUrls: [
-        pathToFileURL(fixture.entry).href,
-        pathToFileURL(second).href,
-      ],
+      scriptUrls,
     });
     try {
       const input = observeInput(
@@ -230,15 +229,13 @@ describe("passive V8 Inspector evidence", () => {
         fixture.root,
         "node",
       );
-      const result = await new V8InspectorProvider().observe({
-        ...input,
-        limits: { ...input.limits, max_scripts: 1 },
-      });
+      const result = await new V8InspectorProvider().observe(input);
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(result.value.capture.truncated).toBe(true);
-      expect(result.value.capture.truncation_reasons).toEqual(["max_scripts"]);
-      expect(result.value.capture.events_dropped).toBe(1);
+      expect(result.value.capture.truncated).toBe(false);
+      expect(result.value.capture.truncation_reasons).toEqual([]);
+      expect(result.value.capture.events_dropped).toBe(0);
+      expect(result.value.scripts.items).toHaveLength(scriptUrls.length);
     } finally {
       await fake.close();
     }
@@ -302,13 +299,6 @@ describe("passive V8 Inspector evidence", () => {
         target_id: "example-v8-target",
         runtime_kind: "electron-main",
         observation_ms: 100,
-        limits: {
-          max_events: 10_000,
-          max_scripts: 2_000,
-          max_execution_contexts: 1_000,
-          max_location_bytes: 16_384,
-          max_total_metadata_bytes: 4_194_304,
-        },
       },
       observation,
       V8_INSPECTOR_PROVIDER_IDENTITY,
@@ -354,13 +344,6 @@ const observeInput = (
   target_id: targetId,
   runtime_kind: runtimeKind,
   observation_ms: 10,
-  limits: {
-    max_events: 10_000,
-    max_scripts: 2_000,
-    max_execution_contexts: 1_000,
-    max_location_bytes: 16_384,
-    max_total_metadata_bytes: 4_194_304,
-  },
 });
 
 const authorityFor = async (endpoint: string, root: string) => {

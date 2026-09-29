@@ -60,10 +60,6 @@ export const captureElectronWorkers = async (input: {
       input.completeness.exclude("workers", "out_of_target_scope");
       continue;
     }
-    if (workers.length >= input.request.limits.max_workers) {
-      input.completeness.truncate("workers");
-      continue;
-    }
     const targetId = boundedTargetField(target.targetId);
     if (targetId === null) {
       input.completeness.exclude("workers", "invalid_protocol_value");

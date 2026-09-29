@@ -160,8 +160,8 @@ The workflow does not impose aggregate count caps on static layers, passive
 captures, runtime entities, reconciliation items, static load states, runtime
 mapping declarations, or candidate references. These collections remain
 subject to the structural validation applied to each Evidence record and
-application graph; passive capture collection limits are committed by the
-observation operation that produced that Evidence. Reconciliation reports zero
+application graph; passive observation returns all in-window collection items
+that pass per-value validation. Reconciliation reports zero
 omitted items when it projects the complete supplied inputs. Static JavaScript
 analysis can still report its own bounded AST coverage as partial or truncated.
 

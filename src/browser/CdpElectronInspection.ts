@@ -150,12 +150,7 @@ const authorizeInitialFrames = async (
     context.sessionId,
     context.signal,
   );
-  const frames = await captureFrames(
-    result,
-    state.roots,
-    context.input.limits.max_frames,
-    state.completeness,
-  );
+  const frames = await captureFrames(result, state.roots, state.completeness);
   if (frames[0] === undefined)
     throw new BrowserObservationError("inspect_web_page", "target_not_allowed");
   return frames;
@@ -248,7 +243,6 @@ const navigatedFrameId = (event: CdpEvent): string | undefined => {
 const captureFrames = async (
   result: unknown,
   roots: readonly string[],
-  maximum: number,
   completeness: CdpCaptureCompleteness,
 ): Promise<ElectronPageInspection["frames"]> => {
   const frameTree = recordValue(requiredRecord(result).frameTree);
@@ -270,10 +264,6 @@ const captureFrames = async (
     );
     if (frameId === undefined || path === undefined) {
       completeness.exclude("frames", "out_of_target_scope");
-      continue;
-    }
-    if (frames.length >= maximum) {
-      completeness.truncate("frames");
       continue;
     }
     frames.push({
@@ -328,10 +318,6 @@ const captureResources = async (
       const resourceKey = `electron_resource_${digest(item)}`;
       if (seen.has(resourceKey)) continue;
       seen.add(resourceKey);
-      if (resources.length >= context.input.limits.max_resources) {
-        completeness.truncate("resources");
-        continue;
-      }
       resources.push({
         resource_key: resourceKey,
         ...item,
@@ -377,7 +363,6 @@ const captureDom = async (
     const baseIndex = nodes.length;
     total += nodeTypes.length;
     for (let index = 0; index < nodeTypes.length; index += 1) {
-      if (nodes.length >= context.input.limits.max_dom_nodes) continue;
       const attributeIndexes = arrayValue(attributes[index]);
       const parent = integer(parents[index], -1);
       nodes.push({
@@ -390,12 +375,10 @@ const captureDom = async (
         ),
         attribute_names: attributeIndexes
           .filter((_value, attributeIndex) => attributeIndex % 2 === 0)
-          .map((value) => stringAt(strings, value).slice(0, 1_024))
-          .slice(0, 256),
+          .map((value) => stringAt(strings, value).slice(0, 1_024)),
       });
     }
   }
-  if (total > nodes.length) completeness.truncate("dom");
   return { total_nodes: total, nodes };
 };
 

@@ -1,7 +1,7 @@
 # Passive Node and Electron runtime observation
 
 REA can attach to an already-running Node.js or Electron V8 Inspector target
-and retain bounded script-load and execution-context metadata. The
+and retain script-load and execution-context metadata. The
 `list_javascript_runtime_targets` and `observe_javascript_runtime` MCP tools
 have equivalent `rea list-javascript-runtime-targets` and
 `rea observe-javascript-runtime` commands. Successful calls return
@@ -83,20 +83,19 @@ Electron main, preload, and renderer behavior can therefore be observed only
 as separate approved Inspector targets. The provider does not infer that two
 targets belong to the same Electron application.
 
-## Bounds and determinism
+## Capture and determinism
 
-Every observation records the window and effective internal collection bounds
-for events, scripts, execution contexts, per-location bytes, and total retained
-metadata bytes. These bounds are not caller-configurable. Limit hits increment
-dropped-event counts and set `capture.truncated`; they never become completeness claims. Scripts are authorized after capture,
-deduplicated by stable metadata, and canonically sorted. Wall-clock timestamps
-and protocol script IDs are excluded from the durable result, so identical
-inputs and captured metadata produce the same Evidence ID.
+Every observation records its time window and returns all valid script and
+execution-context events received during it. Per-location protocol validation
+remains in force. Scripts are authorized after capture, deduplicated by stable
+metadata, and canonically sorted. Wall-clock timestamps and protocol script IDs
+are excluded from the durable result, so identical inputs and captured metadata
+produce the same Evidence ID.
 
 Inspector attach is inherently incomplete. Enabling `Debugger` reports known
 and uncollected scripts, but scripts collected before attachment may be
-missing. Absence from a bounded capture never proves that a script or behavior
-does not occur.
+missing. Absence from the observation window never proves that a script or
+behavior does not occur.
 
 ## Static correlation
 

@@ -61,6 +61,7 @@ export interface FakeOptions {
   readonly webMcpChildLeavesScope?: boolean;
   readonly electronFileUrl?: string;
   readonly duplicateElectronInventory?: boolean;
+  readonly electronInventoryCount?: number;
   readonly urlShapedAllowedTitle?:
     | boolean
     | "host-path"

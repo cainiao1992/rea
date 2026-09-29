@@ -118,9 +118,6 @@ export const sourceToBundleComparisonResultSchema = z.strictObject({
   limitations: z.array(boundedTextSchema).max(1_000),
 });
 
-export type CompareSourceToBundleInput = z.infer<
-  typeof compareSourceToBundleInputSchema
->;
 export type SourceToBundleComparisonResult = z.infer<
   typeof sourceToBundleComparisonResultSchema
 >;

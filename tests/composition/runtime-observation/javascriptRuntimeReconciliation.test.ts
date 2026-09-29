@@ -354,15 +354,6 @@ const electronRuntimeEvidence = (
     target_id: targetId,
     observation_ms: 100,
     include_script_sources: sourceIncluded,
-    limits: {
-      max_frames: 200,
-      max_dom_nodes: 2_000,
-      max_scripts: 500,
-      max_resources: 2_000,
-      max_workers: 500,
-      max_script_source_bytes: 1_048_576,
-      max_total_script_source_bytes: 4_194_304,
-    },
   });
   return createElectronEvidence(
     "inspect_electron_page",

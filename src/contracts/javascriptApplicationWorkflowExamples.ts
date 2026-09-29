@@ -32,11 +32,6 @@ const reconciliationEvidence = createEvidence(
         JAVASCRIPT_RUNTIME_RECONCILIATION_EXAMPLE.runtime_observations.map(
           ({ evidence_id: id }) => id,
         ),
-      limits: {
-        max_runtime_entities: 10_000,
-        max_reconciliation_items: 20_000,
-        max_static_load_states: 20_000,
-      },
     },
     result: reconciliation,
     confidence: "inferred",

@@ -67,7 +67,7 @@ export const buildReconciledApplicationGraph = (
         : []),
       ...(facts.outputTruncated
         ? [
-            "The reconciled graph omitted entities or classifications at caller limits.",
+            "The reconciled graph omitted entities or classifications during projection.",
           ]
         : []),
     ]),

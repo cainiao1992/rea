@@ -80,7 +80,6 @@ const staticLayerSchema = z.strictObject({
   analysis: evidenceSchema,
   runtime_mappings: z
     .array(runtimeLocationMappingSchema)
-    .max(32)
     .overwrite(normalizeRuntimeMappings)
     .default([]),
 });
@@ -103,22 +102,11 @@ function runtimeMappingKey(mapping: RuntimeLocationMapping): string {
     : `url-prefix\0${mapping.prefix}\0${mapping.artifact_prefix}`;
 }
 
-const reconciliationLimitsSchema = z.strictObject({
-  max_runtime_entities: z.number().int().min(1).max(50_000).default(10_000),
-  max_reconciliation_items: z.number().int().min(1).max(50_000).default(20_000),
-  max_static_load_states: z.number().int().min(1).max(50_000).default(20_000),
-});
-
 /** Evidence-backed static layers and passive captures to reconcile. */
 export const reconcileJavaScriptRuntimeInputSchema = z
   .strictObject({
-    static_layers: z.array(staticLayerSchema).min(1).max(8),
-    runtime_observations: z.array(evidenceSchema).min(1).max(32),
-    limits: reconciliationLimitsSchema.default({
-      max_runtime_entities: 10_000,
-      max_reconciliation_items: 20_000,
-      max_static_load_states: 20_000,
-    }),
+    static_layers: z.array(staticLayerSchema).min(1),
+    runtime_observations: z.array(evidenceSchema).min(1),
   })
   .superRefine((input, context) => {
     if (
@@ -148,12 +136,6 @@ export const reconcileJavaScriptRuntimeInputSchema = z
         path: ["runtime_observations"],
         message: "Runtime observation Evidence must be unique",
       });
-    if (input.limits.max_runtime_entities < input.runtime_observations.length)
-      context.addIssue({
-        code: "custom",
-        path: ["limits", "max_runtime_entities"],
-        message: "Runtime entity limit must retain one target per observation",
-      });
   });
 
 const layerSummarySchema = z.strictObject({
@@ -164,7 +146,7 @@ const layerSummarySchema = z.strictObject({
   root_artifact_sha256: digestSchema,
   input_path: z.string().min(1).max(16_384),
   format: z.enum(["asar", "directory"]),
-  runtime_mappings: z.array(runtimeLocationMappingSchema).max(32),
+  runtime_mappings: z.array(runtimeLocationMappingSchema),
 });
 
 const captureSummarySchema = z.strictObject({
@@ -209,15 +191,13 @@ const reconciliationItemShape = {
   ]),
   confidence: z.enum(["exact", "high", "medium", "low", "unknown"]),
   reason: reconciliationReasonSchema,
-  candidate_static_count: z.number().int().min(0).max(800_000),
-  candidate_static_nodes: z
-    .array(
-      z.strictObject({
-        static_layer_id: z.string().regex(/^jrl_[a-f0-9]{64}$/u),
-        static_node_id: nodeIdSchema,
-      }),
-    )
-    .max(1_000),
+  candidate_static_count: z.number().int().min(0),
+  candidate_static_nodes: z.array(
+    z.strictObject({
+      static_layer_id: z.string().regex(/^jrl_[a-f0-9]{64}$/u),
+      static_node_id: nodeIdSchema,
+    }),
+  ),
 };
 const reconciliationItemSchema = z.union([
   z.strictObject({
@@ -244,7 +224,7 @@ const staticLoadStateSchema = z.strictObject({
     "not-observed-in-capture",
     "unknown",
   ]),
-  runtime_node_ids: z.array(nodeIdSchema).max(10_000),
+  runtime_node_ids: z.array(nodeIdSchema),
   reason: z.enum([
     "runtime-script-correspondence",
     "containing-asset-was-loaded",
@@ -257,8 +237,8 @@ const staticLoadStateSchema = z.strictObject({
 /** Deterministic static/passive-runtime reconciliation with a combined JAG. */
 export const javascriptRuntimeReconciliationResultSchema = z.strictObject({
   reconciliation_id: z.string().regex(/^jrr_[a-f0-9]{64}$/u),
-  static_layers: z.array(layerSummarySchema).min(1).max(8),
-  runtime_captures: z.array(captureSummarySchema).min(1).max(32),
+  static_layers: z.array(layerSummarySchema).min(1),
+  runtime_captures: z.array(captureSummarySchema).min(1),
   graph: javascriptApplicationGraphSchema,
   summary: z.strictObject({
     runtime_targets: z.number().int().min(0),
@@ -274,8 +254,8 @@ export const javascriptRuntimeReconciliationResultSchema = z.strictObject({
     static_not_observed: z.number().int().min(0),
     static_unknown: z.number().int().min(0),
   }),
-  reconciliations: z.array(reconciliationItemSchema).max(50_000),
-  static_load_states: z.array(staticLoadStateSchema).max(50_000),
+  reconciliations: z.array(reconciliationItemSchema),
+  static_load_states: z.array(staticLoadStateSchema),
   source_map_authority: z.strictObject({
     used_for_primary_matching: z.literal(false),
     static_layer_count: z.number().int().min(0),
@@ -290,8 +270,8 @@ export const javascriptRuntimeReconciliationResultSchema = z.strictObject({
     omitted_static_load_states: z.number().int().min(0),
     omitted_graph_items: z.number().int().min(0),
   }),
-  evidence_links: z.array(evidenceIdSchema).min(2).max(40),
-  limitations: z.array(boundedTextSchema).max(1_000),
+  evidence_links: z.array(evidenceIdSchema).min(2),
+  limitations: z.array(boundedTextSchema),
 });
 
 export type ReconcileJavaScriptRuntimeInput = z.infer<

@@ -31,16 +31,9 @@ export interface RuntimeProjection {
 /** Project authorized passive capture metadata into capture-scoped JAG nodes. */
 export const projectRuntimeCaptures = (
   captures: readonly ParsedRuntimeCapture[],
-  maximumEntities: number,
 ): RuntimeProjection => {
-  if (maximumEntities < captures.length)
-    throw new TypeError(
-      "Runtime entity limit must admit one target for every capture",
-    );
   const all = captures.flatMap(projectCapture);
-  const targets = all.filter(({ kind }) => kind === "target");
-  const nonTargets = all.filter(({ kind }) => kind !== "target");
-  const retained = [...targets, ...nonTargets].slice(0, maximumEntities);
+  const retained = all;
   const retainedIds = new Set(retained.map(({ node }) => node.node_id));
   const nodes = retained.map(({ node }) => node);
   const edges = captures
@@ -59,7 +52,7 @@ export const projectRuntimeCaptures = (
     nodes,
     edges,
     targetNodeByEvidenceId,
-    omittedEntities: all.length - retained.length,
+    omittedEntities: 0,
   };
 };
 

@@ -205,7 +205,42 @@ describe("JavaScript export return-shape selection", () => {
 });
 
 describe("JavaScript export return-shape projection", () => {
-  it("marks graph field projection omissions as truncated", async () => {
+  it("retains more than 64 inferred return fields", async () => {
+    const properties = Array.from(
+      { length: 70 },
+      (_, index) => `field${String(index)}: ${String(index)}`,
+    ).join(",");
+    const root = await temporaryRoot();
+    await writeFile(
+      join(root, "parser.mjs"),
+      `export const parse = () => ({ ${properties} });`,
+    );
+    const analyzed = await analyzeGraph(root);
+    const returnShape = analyzed.graph.nodes
+      .flatMap(({ observations }) => observations)
+      .find(
+        ({ properties: value }) =>
+          value.semantic_role === "export-return-shapes",
+      );
+
+    const shapes = returnShape?.properties.static_return_shapes;
+    expect(Array.isArray(shapes)).toBe(true);
+    if (!Array.isArray(shapes)) throw new TypeError("Missing return shapes");
+    const firstShape = shapes[0];
+    if (
+      firstShape === null ||
+      typeof firstShape !== "object" ||
+      Array.isArray(firstShape)
+    )
+      throw new TypeError("Missing first return shape");
+    expect(firstShape.fields).toHaveLength(70);
+    expect(returnShape?.properties.return_shape_coverage).toMatchObject({
+      omitted_fields: 0,
+      projection_complete: true,
+    });
+  });
+
+  it("keeps incomplete source property coverage partial", async () => {
     const properties = [
       'a_type: "item"',
       ...Array.from(
@@ -219,9 +254,9 @@ describe("JavaScript export return-shape projection", () => {
     });
     const result = compare(left, right);
 
-    expect(result.coverage.status).toBe("truncated");
-    expect(result.coverage.left_omitted_fields).toBeGreaterThan(0);
-    expect(result.coverage.right_omitted_fields).toBeGreaterThan(0);
+    expect(result.coverage.status).toBe("partial");
+    expect(result.coverage.left_omitted_fields).toBe(0);
+    expect(result.coverage.right_omitted_fields).toBe(0);
   });
 });
 

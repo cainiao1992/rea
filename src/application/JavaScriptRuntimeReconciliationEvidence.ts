@@ -39,5 +39,4 @@ const parameters = (
   runtime_evidence_ids: input.runtime_observations.map(
     ({ evidence_id: id }) => id,
   ),
-  limits: input.limits,
 });

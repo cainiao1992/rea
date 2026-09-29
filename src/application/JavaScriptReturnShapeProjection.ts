@@ -12,10 +12,6 @@ import { flattenSemanticReturnValue } from "../domain/javascriptSemanticReturns.
 import type { JavaScriptSourceRange } from "../domain/javascriptStaticAnalysisTypes.js";
 import type { JavaScriptArtifactGraphCoverage } from "./JavaScriptArtifactGraphContext.js";
 
-const MAX_PROJECTED_RETURN_SHAPES = 32;
-const MAX_PROJECTED_RETURN_FIELDS = 64;
-const MAX_PROJECTED_PROPERTY_COVERAGE = 64;
-
 export interface JavaScriptReturnShapeProjection {
   readonly properties: ReturnType<typeof jsonObjectSchema.parse>;
   readonly range: JavaScriptSourceRange;
@@ -46,24 +42,7 @@ export const projectJavaScriptExportReturnShapes = (input: {
     input.baseCoverage.status === "complete" &&
     callable.returnCoverage.status === "complete" &&
     projectionOmitted === 0;
-  const limits = [
-    ...input.baseCoverage.limits,
-    {
-      name: "return-shape-sites",
-      value: MAX_PROJECTED_RETURN_SHAPES,
-      unit: "items" as const,
-    },
-    {
-      name: "return-shape-fields",
-      value: MAX_PROJECTED_RETURN_FIELDS,
-      unit: "items" as const,
-    },
-    {
-      name: "return-shape-property-coverage",
-      value: MAX_PROJECTED_PROPERTY_COVERAGE,
-      unit: "items" as const,
-    },
-  ];
+  const limits = input.baseCoverage.limits;
   const omitted =
     semanticOmitted === null ? null : semanticOmitted + projectionOmitted;
   const coverage = complete
@@ -78,9 +57,6 @@ export const projectJavaScriptExportReturnShapes = (input: {
       ? [
           "No direct return value was retained; runtime return behavior remains unknown.",
         ]
-      : []),
-    ...(projectionOmitted > 0
-      ? ["Return-shape graph projection reached explicit retention limits."]
       : []),
   ];
   return {
@@ -110,37 +86,14 @@ export const projectJavaScriptExportReturnShapes = (input: {
 };
 
 const projectReturnSites = (callable: JavaScriptSemanticCallable) => {
-  let retainedFields = 0;
-  let retainedCoverage = 0;
-  let omittedFields = 0;
-  let omittedCoverage = 0;
-  const retainedSites = callable.returnSites.slice(
-    0,
-    MAX_PROJECTED_RETURN_SHAPES,
-  );
+  const retainedSites = callable.returnSites;
   const shapes = retainedSites.map((site) => {
     const flattened = flattenSemanticReturnValue(site.value);
-    const remainingFields = Math.max(
-      0,
-      MAX_PROJECTED_RETURN_FIELDS - retainedFields,
-    );
-    const fields = flattened.fields.slice(0, remainingFields).map((field) => ({
+    const fields = flattened.fields.map((field) => ({
       ...field,
       value: jsonValueSchema.parse(field.value),
     }));
-    retainedFields += fields.length;
-    omittedFields += flattened.fields.length - fields.length;
-    const remainingCoverage = Math.max(
-      0,
-      MAX_PROJECTED_PROPERTY_COVERAGE - retainedCoverage,
-    );
-    const propertyCoverage = flattened.propertyCoverage.slice(
-      0,
-      remainingCoverage,
-    );
-    retainedCoverage += propertyCoverage.length;
-    omittedCoverage +=
-      flattened.propertyCoverage.length - propertyCoverage.length;
+    const propertyCoverage = flattened.propertyCoverage;
     return {
       source_range: site.location,
       value_status: site.value.status,
@@ -150,8 +103,8 @@ const projectReturnSites = (callable: JavaScriptSemanticCallable) => {
   });
   return {
     shapes,
-    omittedSites: callable.returnSites.length - retainedSites.length,
-    omittedFields,
-    omittedCoverage,
+    omittedSites: 0,
+    omittedFields: 0,
+    omittedCoverage: 0,
   };
 };

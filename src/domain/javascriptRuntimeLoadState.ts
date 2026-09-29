@@ -25,21 +25,17 @@ export const classifyStaticLoadStates = (
   runtimeEntities: readonly RuntimeReconciliationEntity[],
   matches: readonly JavaScriptRuntimeReconciliationItem[],
   options: {
-    readonly maximumStates: number;
     readonly reconciliationComplete: boolean;
   },
 ): StaticLoadStateProjection => {
   const states: JavaScriptStaticLoadState[] = [];
-  let totalStates = 0;
   for (const layer of layers) {
     const projection = classifyLayer(layer, runtimeEntities, matches, {
       reconciliationComplete: options.reconciliationComplete,
-      maximumStates: Math.max(0, options.maximumStates - states.length),
     });
-    totalStates += projection.total;
     states.push(...projection.states);
   }
-  return { states, omittedStates: totalStates - states.length };
+  return { states, omittedStates: 0 };
 };
 
 const classifyLayer = (
@@ -48,11 +44,9 @@ const classifyLayer = (
   matches: readonly JavaScriptRuntimeReconciliationItem[],
   options: {
     readonly reconciliationComplete: boolean;
-    readonly maximumStates: number;
   },
-): { readonly states: JavaScriptStaticLoadState[]; readonly total: number } => {
+): { readonly states: JavaScriptStaticLoadState[] } => {
   const nodes = layer.graph.nodes.filter(isLoadStateNode);
-  if (options.maximumStates === 0) return { states: [], total: nodes.length };
   const direct = new Map<string, string[]>();
   for (const match of matches)
     if (
@@ -73,7 +67,7 @@ const classifyLayer = (
     scopedEntities.every(({ capture }) =>
       captureScriptsComplete(capture.evidence.evidence_id, runtimeEntities),
     );
-  const states = nodes.slice(0, options.maximumStates).map((node) => {
+  const states = nodes.map((node) => {
     const runtimeNodeIds = uniqueSorted(direct.get(node.node_id) ?? []);
     if (runtimeNodeIds.length > 0)
       return state(layer, node, {
@@ -102,7 +96,7 @@ const classifyLayer = (
         : "static-or-runtime-coverage-incomplete",
     });
   });
-  return { states, total: nodes.length };
+  return { states };
 };
 
 const residentNodes = (

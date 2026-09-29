@@ -198,7 +198,7 @@ const reconciliationLimitations = (completion: CompletionFlags): string[] =>
       : []),
     ...(completion.outputTruncated
       ? [
-          "Caller limits omitted runtime entities or reconciliation classifications.",
+          "Runtime reconciliation omitted entities or classifications during projection.",
         ]
       : []),
   ]);

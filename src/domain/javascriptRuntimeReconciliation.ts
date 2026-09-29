@@ -18,23 +18,18 @@ export const reconcileJavaScriptRuntime = (
   const parsed = reconcileJavaScriptRuntimeInputSchema.parse(input);
   const layers = parseStaticLayers(parsed.static_layers);
   const captures = parseRuntimeCaptures(parsed.runtime_observations);
-  const runtime = projectRuntimeCaptures(
-    captures,
-    parsed.limits.max_runtime_entities,
-  );
+  const runtime = projectRuntimeCaptures(captures);
   const candidates = collectStaticRuntimeCandidates(layers);
   const matching = reconcileRuntimeEntities({
     entities: runtime.entities,
     candidates,
     layers,
-    maximumItems: parsed.limits.max_reconciliation_items,
   });
   const loadStates = classifyStaticLoadStates(
     layers,
     runtime.entities,
     matching.items,
     {
-      maximumStates: parsed.limits.max_static_load_states,
       reconciliationComplete:
         runtime.omittedEntities === 0 && matching.omittedItems === 0,
     },

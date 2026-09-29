@@ -67,7 +67,7 @@ it("keeps byte-identical cross-layer candidates explicitly ambiguous", async () 
   ).toBe(2);
 });
 
-it("retains one target per capture and keeps load-state absence unknown when output is bounded", async () => {
+it("retains all runtime entities and static load states without projection caps", async () => {
   const fixture = await applicationFixture();
   temporary.push(fixture);
   const staticEvidence = await analyzeFixture(fixture);
@@ -85,11 +85,6 @@ it("retains one target per capture and keeps load-state absence unknown when out
   const result = reconcileJavaScriptRuntime({
     static_layers: [{ role: "application", analysis: staticEvidence }],
     runtime_observations: runtimeObservations,
-    limits: {
-      max_runtime_entities: 2,
-      max_reconciliation_items: 2,
-      max_static_load_states: 20_000,
-    },
   });
 
   expect(result.runtime_captures).toHaveLength(2);
@@ -98,19 +93,22 @@ it("retains one target per capture and keeps load-state absence unknown when out
   ).toBe(2);
   expect(result.summary).toMatchObject({
     runtime_targets: 2,
-    runtime_frames: 0,
-    runtime_scripts: 0,
+    runtime_frames: 2,
+    runtime_scripts: 2,
     runtime_workers: 0,
-    static_not_observed: 0,
+    static_not_observed: 2,
   });
   expect(result.coverage).toMatchObject({
-    status: "truncated",
-    truncated: true,
-    omitted_runtime_entities: 4,
+    omitted_runtime_entities: 0,
+    omitted_reconciliation_items: 0,
+    omitted_static_load_states: 0,
   });
-  expect(
-    result.static_load_states.every(({ status }) => status === "unknown"),
-  ).toBe(true);
+  expect(result.static_load_states).toHaveLength(
+    result.summary.static_loaded +
+      result.summary.static_resident +
+      result.summary.static_not_observed +
+      result.summary.static_unknown,
+  );
 });
 
 it("rejects runtime source bytes whose Evidence omits source-capture approval", async () => {
@@ -233,15 +231,6 @@ const electronRuntimeEvidence = (
     target_id: targetId,
     observation_ms: 100,
     include_script_sources: sourceIncluded,
-    limits: {
-      max_frames: 200,
-      max_dom_nodes: 2_000,
-      max_scripts: 500,
-      max_resources: 2_000,
-      max_workers: 500,
-      max_script_source_bytes: 1_048_576,
-      max_total_script_source_bytes: 4_194_304,
-    },
   });
   return createElectronEvidence(
     "inspect_electron_page",

@@ -208,9 +208,6 @@ export const applicationVersionComparisonResultSchema = z
       });
   });
 
-export type CompareApplicationVersionsInput = z.infer<
-  typeof compareApplicationVersionsInputSchema
->;
 export type ApplicationVersionComparisonItem = z.infer<
   typeof comparisonItemSchema
 >;

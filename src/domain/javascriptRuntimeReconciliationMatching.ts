@@ -27,24 +27,21 @@ export const reconcileRuntimeEntities = (input: {
   readonly entities: readonly RuntimeReconciliationEntity[];
   readonly candidates: readonly StaticRuntimeCandidate[];
   readonly layers: readonly ParsedStaticLayer[];
-  readonly maximumItems: number;
 }): RuntimeMatchingProjection => {
   const index = indexCandidates(input.candidates);
   const evaluated = input.entities.map((entity) =>
     reconcileEntity(entity, index, input.layers),
   );
-  const retained = evaluated
-    .sort((left, right) =>
-      compareCodePoints(
-        left.item.reconciliation_id,
-        right.item.reconciliation_id,
-      ),
-    )
-    .slice(0, input.maximumItems);
+  const retained = evaluated.sort((left, right) =>
+    compareCodePoints(
+      left.item.reconciliation_id,
+      right.item.reconciliation_id,
+    ),
+  );
   return {
     items: retained.map(({ item }) => item),
     edges: retained.flatMap(({ edge }) => (edge === null ? [] : [edge])),
-    omittedItems: evaluated.length - retained.length,
+    omittedItems: 0,
   };
 };
 
@@ -419,11 +416,10 @@ const uniqueCandidateReferences = (
     if (seen.has(key)) continue;
     seen.add(key);
     count += 1;
-    if (items.length < 1_000)
-      items.push({
-        static_layer_id: layer.layerId,
-        static_node_id: node.node_id,
-      });
+    items.push({
+      static_layer_id: layer.layerId,
+      static_node_id: node.node_id,
+    });
   }
   return { count, items };
 };

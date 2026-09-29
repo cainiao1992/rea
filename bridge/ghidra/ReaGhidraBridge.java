@@ -85,7 +85,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
     private static final int DECOMPILE_PAYLOAD_MBYTES = 8;
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
     private static final Set<String> DESCRIPTOR_KEYS = Set.of(
-        "schema_version",
         "transport",
         "endpoint_path",
         "token",
@@ -203,7 +202,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
             server.bind(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0));
             InetSocketAddress address = (InetSocketAddress) server.getLocalAddress();
             JsonObject endpoint = new JsonObject();
-            endpoint.addProperty("schema_version", 1);
             endpoint.addProperty("host", "127.0.0.1");
             endpoint.addProperty("port", address.getPort());
             Files.writeString(
@@ -1749,9 +1747,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
             JsonParser.parseString(Files.readString(path, StandardCharsets.UTF_8)),
             DESCRIPTOR_KEYS
         );
-        if (requireInteger(object, "schema_version") != 2) {
-            throw new IllegalArgumentException("REA session descriptor version is invalid");
-        }
         return new SessionDescriptor(
             requireString(object, "transport"),
             requireString(object, "endpoint_path"),

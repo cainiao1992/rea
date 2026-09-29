@@ -22,6 +22,39 @@ const fixturePath = fileURLToPath(
 );
 const roots: string[] = [];
 
+const expectIsolatedEnvironment = (
+  environment: Record<string, string>,
+  runtimeRoot: string,
+  javaHome: string,
+) => {
+  expect(environment).toMatchObject({
+    HOME: join(runtimeRoot, "home"),
+    ...(process.platform === "win32"
+      ? {
+          USERPROFILE: join(runtimeRoot, "home"),
+          TEMP: join(runtimeRoot, "tmp"),
+          TMP: join(runtimeRoot, "tmp"),
+        }
+      : {}),
+    TMPDIR: join(runtimeRoot, "tmp"),
+    XDG_CACHE_HOME: join(runtimeRoot, "cache"),
+    XDG_CONFIG_HOME: join(runtimeRoot, "config"),
+    XDG_DATA_HOME: join(runtimeRoot, "data"),
+    GHIDRA_HEADLESS_MAXMEM: "2G",
+    GHIDRA_JAVA_OPTIONS: "",
+    JAVA_TOOL_OPTIONS: "",
+    JDK_JAVA_OPTIONS: "",
+    _JAVA_OPTIONS: "",
+    JAVA_HOME: javaHome,
+    REA_PROCESS_RUN_ID: "d6fcbb66-e829-4ff6-a535-0035aec63139",
+  });
+  expect(environment.PATH).toMatch(
+    process.platform === "win32"
+      ? /^C:\\Java\\jdk-21\\bin;/u
+      : /^\/opt\/jdk-21\/bin:/u,
+  );
+};
+
 beforeAll(async () => {
   if (process.platform !== "win32") await chmod(fixturePath, 0o755);
 });
@@ -139,40 +172,19 @@ describe("Ghidra headless launcher", () => {
     const capturePath = join(runtimeRoot, "launch-capture.json");
     await waitFor(capturePath);
     const capture = JSON.parse(await readFile(capturePath, "utf8"));
+    const descriptor = JSON.parse(
+      await readFile(join(runtimeRoot, "session.json"), "utf8"),
+    );
     const encodedArguments = JSON.stringify(capture.arguments);
     const encodedEnvironment = JSON.stringify(capture.environment);
+    expect(descriptor).not.toHaveProperty("schema_version");
     expect(encodedArguments).not.toContain(token);
     expect(encodedEnvironment).not.toContain(token);
     expect(capture).toMatchObject({
       ...(process.platform === "win32" ? {} : { descriptor_mode: 0o600 }),
       descriptor_has_token: true,
-      environment: {
-        HOME: join(runtimeRoot, "home"),
-        ...(process.platform === "win32"
-          ? {
-              USERPROFILE: join(runtimeRoot, "home"),
-              TEMP: join(runtimeRoot, "tmp"),
-              TMP: join(runtimeRoot, "tmp"),
-            }
-          : {}),
-        TMPDIR: join(runtimeRoot, "tmp"),
-        XDG_CACHE_HOME: join(runtimeRoot, "cache"),
-        XDG_CONFIG_HOME: join(runtimeRoot, "config"),
-        XDG_DATA_HOME: join(runtimeRoot, "data"),
-        GHIDRA_HEADLESS_MAXMEM: "2G",
-        GHIDRA_JAVA_OPTIONS: "",
-        JAVA_TOOL_OPTIONS: "",
-        JDK_JAVA_OPTIONS: "",
-        _JAVA_OPTIONS: "",
-        JAVA_HOME: javaHome,
-        REA_PROCESS_RUN_ID: "d6fcbb66-e829-4ff6-a535-0035aec63139",
-      },
     });
-    expect(capture.environment.PATH).toMatch(
-      process.platform === "win32"
-        ? /^C:\\Java\\jdk-21\\bin;/u
-        : /^\/opt\/jdk-21\/bin:/u,
-    );
+    expectIsolatedEnvironment(capture.environment, runtimeRoot, javaHome);
     expect(capture.environment.GHIDRA_HEADLESS_JAVA_OPTIONS).toContain(
       `-Duser.home=${join(runtimeRoot, "home")}`,
     );

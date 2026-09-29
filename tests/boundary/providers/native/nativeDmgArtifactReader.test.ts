@@ -11,12 +11,13 @@ import {
 
 describe("native DMG artifact reader", () => {
   it("uses plist attachment metadata and detaches returned devices", async () => {
-    if (process.platform !== "darwin") return;
     const calls: string[][] = [];
+    const commandOptions: unknown[] = [];
     const host: NativeDmgHost = {
-      async run(arguments_) {
+      async run(arguments_, _signal, options) {
         const args = [...arguments_];
         calls.push(args);
+        commandOptions.push(options);
         if (args[0] !== "attach") return { stdout: "", exitCode: 0 };
         const mountRoot = args[args.indexOf("-mountroot") + 1];
         if (mountRoot === undefined) throw new Error("missing mount root");
@@ -48,10 +49,12 @@ describe("native DMG artifact reader", () => {
     await reader.close();
     expect(calls).toContainEqual(["verify", "/tmp/image.dmg"]);
     expect(calls).toContainEqual(["detach", "/dev/disk-fixture"]);
+    expect(commandOptions[0]).toBeUndefined();
+    expect(commandOptions[1]).toBeUndefined();
+    expect(commandOptions[2]).toEqual({ timeoutMs: 120_000 });
   });
 
   it("rejects non-zero results and surfaces detach failure during attach cleanup", async () => {
-    if (process.platform !== "darwin") return;
     await expect(
       NativeDmgArtifactReader.create("/tmp/image.dmg", undefined, {
         run: () => Promise.resolve({ stdout: "", exitCode: 1 }),

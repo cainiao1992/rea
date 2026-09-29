@@ -59,7 +59,8 @@ describe("guided prompt contracts", () => {
     expect(rendered).toContain(
       "optional starting points, not a required sequence",
     );
-    expect(rendered).toContain("## Suggested steps");
+    expect(rendered).toContain("## Optional starting points");
+    expect(rendered).toContain("\n- ");
     expect(rendered).toContain("Observations");
     expect(rendered).toContain("Inference");
     expect(rendered).toContain("Unknowns");

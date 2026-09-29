@@ -159,13 +159,13 @@ describe("provider process runtime and wait primitives", () => {
 });
 
 describe("provider process output and cleanup primitives", () => {
-  it("captures exact byte totals while bounding retained stdout and stderr", async () => {
-    const child = spawnProviderProcessFixture("burst", 4_096);
+  it("retains complete stdout and stderr beyond the former fixed ceiling", async () => {
+    const outputBytes = 70_000;
+    const child = spawnProviderProcessFixture("burst", outputBytes);
     const diagnostics: ProviderProcessDiagnostic[] = [];
     const supervisor = new ProviderProcessSupervisor(
       { process: child, ownsProcessLifetime: true },
       {
-        maxOutputBytesPerStream: 64,
         onDiagnostic: (event) => diagnostics.push(event),
       },
     );
@@ -173,13 +173,17 @@ describe("provider process output and cleanup primitives", () => {
     await expect(supervisor.waitForExit(2_000)).resolves.toBe(true);
     const snapshot = supervisor.snapshot();
     expect(snapshot).toMatchObject({
-      stdout: { bytes: 4_096, retainedBytes: 64, truncated: true },
-      stderr: { bytes: 4_096, retainedBytes: 64, truncated: true },
+      stdout: {
+        bytes: outputBytes,
+      },
+      stderr: {
+        bytes: outputBytes,
+      },
       exitCode: 23,
       signal: null,
     });
-    expect(snapshot.stdout.text).toBe("o".repeat(64));
-    expect(snapshot.stderr.text).toBe("e".repeat(64));
+    expect(snapshot.stdout.text).toBe("o".repeat(outputBytes));
+    expect(snapshot.stderr.text).toBe("e".repeat(outputBytes));
     expect(diagnostics).toContainEqual(
       expect.objectContaining({ type: "exit", code: 23 }),
     );

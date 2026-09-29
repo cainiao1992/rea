@@ -49,26 +49,26 @@ it("advertises the native function discovery-to-dossier workflow", async () => {
   });
 
   expect(client.getInstructions()).toContain(
-    "use search_procedures or list_procedures to choose a function",
+    "Search or list symbols when discovery is needed",
   );
   expect(client.getInstructions()).toContain(
-    "Call binary_overview when target metadata or inventory counts are useful",
+    "analyze_function provides a function dossier",
   );
 
   const tools = new Map(
     (await client.listTools()).tools.map((tool) => [tool.name, tool]),
   );
   expect(tools.get("binary_overview")?.description).toContain(
-    "Use search_procedures, list_procedures, or analyze_function directly when you already know which procedure to inspect",
+    "Return native-binary metadata",
   );
   expect(tools.get("analyze_function")?.description).toContain(
-    "typically selected from search_procedures or list_procedures",
+    "Build a dossier for one native function",
   );
   expect(tools.get("analyze_function")?.inputSchema.properties).toHaveProperty(
     "procedure",
   );
   expect(tools.get("inspect_native_api")?.description).toContain(
-    "use analyze_function for a general function dossier",
+    "Analyze a native API boundary in one function",
   );
 });
 

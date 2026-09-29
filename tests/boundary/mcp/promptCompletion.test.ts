@@ -10,6 +10,7 @@ import { ARTIFACT_COMPARISON_EXAMPLE } from "../../../src/contracts/artifactComp
 import { PROCESS_CAPTURE_REFERENCE } from "../../../src/contracts/investigationExamples.js";
 import { createEvidence } from "../../../src/domain/evidence.js";
 import { createArtifactInspection } from "../../../src/domain/artifactInspection.js";
+import { artifactInventoryResultSchema } from "../../../src/domain/artifactGraph.js";
 import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
 import { createPromptCompletionSource } from "../../../src/server/promptCompletion.js";
 import { observed } from "../../fixtures/analysisExecution.js";
@@ -76,6 +77,9 @@ describe("guided prompt completion from investigation records", () => {
     const inventoryInspection = createArtifactInspection(
       ARTIFACT_COMPARISON_EXAMPLE.left,
     );
+    const inventory = artifactInventoryResultSchema.parse(
+      ARTIFACT_COMPARISON_EXAMPLE.left.normalized_result,
+    );
     const inspectionEvidence = createEvidence(undefined, fixtureProvider, {
       operation: "inspect_artifact",
       parameters: {},
@@ -111,11 +115,11 @@ describe("guided prompt completion from investigation records", () => {
       PROCESS_CAPTURE_REFERENCE.evidence_id,
     ]);
     expect(await completion.complete("manifest", "agm_")).toEqual([
-      `agm_${"0".repeat(64)}`,
+      inventory.manifest.manifest_id,
     ]);
-    expect(await completion.complete("occurrence", "occ_")).toEqual([
-      `occ_${"0".repeat(64)}`,
-    ]);
+    expect(await completion.complete("occurrence", "occ_")).toEqual(
+      inventory.occurrences.map(({ occurrence_id }) => occurrence_id),
+    );
     expect(await completion.complete("unknown", "unk_")).toEqual([
       unknown.value.unknown_id,
     ]);

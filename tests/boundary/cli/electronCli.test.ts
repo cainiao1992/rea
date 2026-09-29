@@ -201,7 +201,6 @@ describe("Electron CLI runtime reconciliation", () => {
       expect(missing).toMatchObject({
         input_path: missingPath,
         input_reason: "read-failed",
-        maximum_input_bytes: 64 * 1_024 * 1_024,
       });
     },
     INTEGRATION_TEST_TIMEOUT_MS,

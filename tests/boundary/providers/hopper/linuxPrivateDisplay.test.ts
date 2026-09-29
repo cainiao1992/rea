@@ -51,7 +51,6 @@ const diagnostic = (overrides: DiagnosticOverrides = {}) => {
     strategy: "direct",
     fallback_reason: null,
     xvfb_stderr_bytes: 0,
-    xvfb_stderr_truncated: false,
   } as const;
   return overrides.status === "error"
     ? ({ ...common, ...overrides } satisfies HopperStartupDiagnostic)
@@ -71,7 +70,6 @@ const processResult = (
   exitCode: value.status === "ready" ? 0 : failureExit(value.failure_code),
   stderr: `${LINUX_PRIVATE_DISPLAY_DIAGNOSTIC_PREFIX}${JSON.stringify(value)}\n`,
   stderrBytes: 0,
-  stderrTruncated: false,
   cleanupIncomplete: false,
   ...overrides,
 });
@@ -166,37 +164,20 @@ describe("Linux private display selection", () => {
     },
   );
 
-  it.each([
-    [
-      "malformed",
-      `${LINUX_PRIVATE_DISPLAY_DIAGNOSTIC_PREFIX}not-json`,
-      false,
-      "diagnostic_malformed",
-    ],
-    [
-      "oversized",
-      `${LINUX_PRIVATE_DISPLAY_DIAGNOSTIC_PREFIX}${"x".repeat(70_000)}`,
-      true,
-      "diagnostic_truncated",
-    ],
-  ] as const)(
-    "rejects %s helper diagnostics",
-    async (_name, stderr, stderrTruncated, reason) => {
-      const runProbe: LinuxPrivateDisplayProbeRunner = () =>
-        Promise.resolve({
-          ...processResult(diagnostic()),
-          exitCode: 70,
-          stderr,
-          stderrTruncated,
-        });
-      await expect(
-        selectLinuxPrivateDisplayStrategy({ helperPath, runProbe }),
-      ).resolves.toMatchObject({
-        ok: false,
-        diagnostic: { reason },
+  it("rejects malformed helper diagnostics", async () => {
+    const runProbe: LinuxPrivateDisplayProbeRunner = () =>
+      Promise.resolve({
+        ...processResult(diagnostic()),
+        exitCode: 70,
+        stderr: `${LINUX_PRIVATE_DISPLAY_DIAGNOSTIC_PREFIX}not-json`,
       });
-    },
-  );
+    await expect(
+      selectLinuxPrivateDisplayStrategy({ helperPath, runProbe }),
+    ).resolves.toMatchObject({
+      ok: false,
+      diagnostic: { reason: "diagnostic_malformed" },
+    });
+  });
 
   it("reports missing helper dependencies without exposing raw stderr", () => {
     for (const [option] of [
@@ -209,7 +190,7 @@ describe("Linux private display selection", () => {
         { encoding: "utf8" },
       );
       expect(result.status).toBe(79);
-      const parsed = parseLinuxPrivateDisplayDiagnostic(result.stderr, false);
+      const parsed = parseLinuxPrivateDisplayDiagnostic(result.stderr);
       expect(parsed).toMatchObject({
         ok: true,
         value: {

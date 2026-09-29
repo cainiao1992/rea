@@ -136,7 +136,7 @@ describe("JavaScript application workflows", () => {
 });
 
 describe("JavaScript application comparison workflows", () => {
-  it("accepts complete native evidence arrays and rejects comparison limit bags", () => {
+  it("accepts complete inline Evidence and native observation arrays", () => {
     const native = Array.from({ length: 65 }, (_, index) =>
       createEvidence(
         {
@@ -153,32 +153,47 @@ describe("JavaScript application comparison workflows", () => {
         },
       ),
     );
+    const applicationEvidence = (side: string) =>
+      createEvidence(
+        undefined,
+        { id: "fixture", name: "Fixture", version: "1" },
+        {
+          predicateType: "rea.javascript-application-analysis",
+          operation: "analyze_javascript_application",
+          parameters: { side },
+          result: {},
+        },
+      );
     const input = {
-      left: `ev_${"a".repeat(64)}`,
-      right: `ev_${"b".repeat(64)}`,
+      left: applicationEvidence("left"),
+      right: applicationEvidence("right"),
       left_native_observations: native,
     };
     expect(
       compareApplicationVersionsRequestSchema.safeParse(input).success,
     ).toBe(true);
-    expect(
-      compareApplicationVersionsRequestSchema.safeParse({
-        ...input,
-        limits: { max_comparison_items: 1 },
-      }).success,
-    ).toBe(false);
-    expect(
-      compareApplicationVersionsRequestSchema.safeParse({
-        left_evidence_id: `ev_${"a".repeat(64)}`,
-        right_evidence_id: `ev_${"b".repeat(64)}`,
-      }).success,
-    ).toBe(false);
   });
 
   it("uses one consistent Evidence reference shape for export comparisons", () => {
     const request = {
-      left: `ev_${"a".repeat(64)}`,
-      right: `ev_${"b".repeat(64)}`,
+      left: createEvidence(
+        undefined,
+        { id: "fixture", name: "Fixture", version: "1" },
+        {
+          operation: "analyze_javascript_application",
+          parameters: { side: "left" },
+          result: {},
+        },
+      ),
+      right: createEvidence(
+        undefined,
+        { id: "fixture", name: "Fixture", version: "1" },
+        {
+          operation: "analyze_javascript_application",
+          parameters: { side: "right" },
+          result: {},
+        },
+      ),
       left_module_path: "parser.mjs",
       left_export_name: "default",
       right_module_path: "parser.mjs",
@@ -187,13 +202,6 @@ describe("JavaScript application comparison workflows", () => {
     expect(
       compareJavaScriptExportShapesRequestSchema.safeParse(request).success,
     ).toBe(true);
-    expect(
-      compareJavaScriptExportShapesRequestSchema.safeParse({
-        ...request,
-        left_evidence_id: request.left,
-        left: undefined,
-      }).success,
-    ).toBe(false);
   });
 });
 

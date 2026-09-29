@@ -350,7 +350,6 @@ const electronRuntimeEvidence = (
   const sourceIncluded = options.sourceIncluded ?? true;
   const input = inspectElectronPageInputSchema.parse({
     cdp_endpoint: "http://127.0.0.1:9223",
-    allowed_file_roots: [root],
     target_id: targetId,
     observation_ms: 100,
     include_script_sources: sourceIncluded,

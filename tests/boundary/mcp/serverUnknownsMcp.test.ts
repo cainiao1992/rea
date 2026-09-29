@@ -188,10 +188,11 @@ it("records approved capture disagreement as a contradicted unknown", async () =
   const mismatched = await client.callTool({
     name: "compare_process_captures",
     arguments: {
-      left_evidence_id: leftEvidence.evidence_id,
-      left: right,
-      right_evidence_id: rightEvidence.evidence_id,
-      right,
+      left: {
+        ...leftEvidence,
+        normalized_result: rightEvidence.normalized_result,
+      },
+      right: rightEvidence,
     },
   });
   expect(mismatched.isError).toBe(true);
@@ -199,8 +200,8 @@ it("records approved capture disagreement as a contradicted unknown", async () =
   const compared = await client.callTool({
     name: "compare_process_captures",
     arguments: {
-      left_evidence_id: leftEvidence.evidence_id,
-      right_evidence_id: rightEvidence.evidence_id,
+      left: leftEvidence,
+      right: rightEvidence,
     },
   });
   expect(compared.isError).not.toBe(true);

@@ -12,7 +12,7 @@ import { analyzeJavaScriptApplication } from "../../../src/application/JavaScrip
 import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascriptApplicationAnalysis.js";
 
 describe("application workflow MCP parity", () => {
-  it("compares exact parser export shapes through full Evidence and session IDs", async () => {
+  it("compares exact parser export shapes with inline Evidence", async () => {
     const root = await createTestTempDirectory("rea-export-shape-mcp-");
     const leftRoot = join(root, "left");
     const rightRoot = join(root, "right");
@@ -79,22 +79,6 @@ describe("application workflow MCP parity", () => {
           }),
         ]),
       );
-
-      const byId = await client.callTool({
-        name: "compare_javascript_export_shapes",
-        arguments: {
-          left: left.value.evidence_id,
-          right: right.value.evidence_id,
-          ...selectors,
-        },
-      });
-      expect(byId.isError).not.toBe(true);
-      expect(byId.structuredContent).toMatchObject({
-        result: {
-          evidence_links: [left.value.evidence_id, right.value.evidence_id],
-          changes: [expect.objectContaining({ path: "/depth" })],
-        },
-      });
 
       const analyzed = javascriptApplicationAnalysisResultSchema.parse(
         left.value.normalized_result,

@@ -82,7 +82,6 @@ describe("Ghidra MCP evidence parity", () => {
         normalized_result: expect.stringContaining("return 42"),
         limitations: expect.arrayContaining([
           expect.stringContaining("not text-equivalent to Hopper"),
-          expect.stringContaining("30-second native deadline"),
         ]),
       });
 

@@ -115,7 +115,6 @@ class DiagnosticExitingLauncher implements BridgeLauncher {
       strategy: "direct",
       fallback_reason: null,
       xvfb_stderr_bytes: 100,
-      xvfb_stderr_truncated: false,
     };
     const line = `${LINUX_PRIVATE_DISPLAY_DIAGNOSTIC_PREFIX}${JSON.stringify(diagnostic)}\n`;
     return Promise.resolve(
@@ -245,7 +244,7 @@ describe("HopperClient startup failures", () => {
     });
   });
 
-  it("preserves the bounded private-display diagnostic from an adapter exit", async () => {
+  it("preserves the private-display diagnostic from an adapter exit", async () => {
     const client = new HopperClient({
       launcher: new DiagnosticExitingLauncher(),
       startupTimeoutMs: 10_000,

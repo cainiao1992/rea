@@ -116,12 +116,11 @@ describe("target-free MCP workflow", () => {
     const beforeTools = (await mcp.listTools()).tools;
     const beforeNames = beforeTools.map(({ name }) => name);
     expect(mcp.getInstructions()).toContain(
-      "For an archive or application package, open_binary(path) binds the active target; use inspect_artifact when its graph and findings help",
+      "Use the tool that directly answers the question",
     );
     expect(
       beforeTools.find(({ name }) => name === "inspect_artifact")?.description,
     ).toContain("Returns the complete content-addressed artifact graph");
-    expect(beforeNames).not.toContain("inventory_artifact");
     expect(beforeNames).toContain("open_binary");
     expect(beforeNames).toContain("binary_session");
     expect(beforeNames).toContain("current_document");

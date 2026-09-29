@@ -172,6 +172,35 @@ describe("passive V8 Inspector provider", () => {
   );
 });
 
+describe("undeclared V8 runtime role", () => {
+  test("observes a target without inventing a runtime role", async () => {
+    const fixture = await runtimeFixture();
+    const fake = await startFakeV8Inspector({
+      targetUrl: pathToFileURL(fixture.entry).href,
+      targetType: "page",
+    });
+    try {
+      const input = observeInput(
+        fake.endpoint,
+        fake.targetId,
+        fixture.root,
+        "node",
+      );
+      delete input.runtime_kind;
+      const result = await new V8InspectorProvider().observe(input);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.target).toMatchObject({
+        protocol_type: "page",
+        runtime_kind: "unknown",
+        runtime_kind_authority: "not-declared",
+      });
+    } finally {
+      await fake.close();
+    }
+  });
+});
+
 describe("passive V8 Inspector evidence", () => {
   test("marks capture truncation instead of claiming complete coverage", async () => {
     const fixture = await runtimeFixture();

@@ -52,7 +52,9 @@ const parameters = (
   ...("target_id" in input
     ? {
         target_id: input.target_id,
-        runtime_kind: input.runtime_kind,
+        ...(input.runtime_kind === undefined
+          ? {}
+          : { runtime_kind: input.runtime_kind }),
         observation_ms: input.observation_ms,
         limits: input.limits,
       }

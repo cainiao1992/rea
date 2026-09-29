@@ -49,7 +49,6 @@ export const JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS = [
           allowed_file_roots: [root],
           allowed_origins: [],
           target_id: "TARGET_ID_FROM_LIST_JAVASCRIPT_RUNTIME_TARGETS",
-          runtime_kind: "node",
           approved: true,
           observation_ms: 100,
           limits: {

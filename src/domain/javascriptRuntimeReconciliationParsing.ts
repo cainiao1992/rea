@@ -284,13 +284,14 @@ const assertV8RuntimeParameters = (
         .max(32),
       allowed_origins: z.array(browserOriginSchema).max(32),
       target_id: z.string().trim().min(1).max(256),
-      runtime_kind: javascriptRuntimeKindSchema,
+      runtime_kind: javascriptRuntimeKindSchema.optional(),
     })
     .passthrough()
     .parse(evidence.parameters);
   if (
     parameters.target_id !== result.target.target_id ||
-    parameters.runtime_kind !== result.target.runtime_kind
+    (parameters.runtime_kind !== undefined &&
+      parameters.runtime_kind !== result.target.runtime_kind)
   )
     throw new TypeError(
       "Runtime Evidence target or declared role disagrees with its result",

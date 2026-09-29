@@ -69,6 +69,9 @@ export const javascriptRuntimeKindSchema = z.enum([
   "electron-preload",
   "electron-renderer",
 ]);
+const observedJavaScriptRuntimeKindSchema = javascriptRuntimeKindSchema.or(
+  z.literal("unknown"),
+);
 
 export const javascriptRuntimeObservationLimitsSchema = z.strictObject({
   max_events: z.number().int().min(1).max(50_000).default(10_000),
@@ -88,7 +91,7 @@ export const observeJavaScriptRuntimeInputSchema = z
   .strictObject({
     ...approvedRuntimeScope,
     target_id: z.string().trim().min(1).max(256),
-    runtime_kind: javascriptRuntimeKindSchema,
+    runtime_kind: javascriptRuntimeKindSchema.optional(),
     observation_ms: z.number().int().min(0).max(10_000).default(100),
     limits: javascriptRuntimeObservationLimitsSchema.default({
       max_events: 10_000,
@@ -173,8 +176,11 @@ const javascriptRuntimeContextSchema = z.strictObject({
 export const javascriptRuntimeObservationSchema = z.strictObject({
   runtime: javascriptRuntimeVersionSchema,
   target: javascriptRuntimeTargetSchema.extend({
-    runtime_kind: javascriptRuntimeKindSchema,
-    runtime_kind_authority: z.literal("caller-declared-unverified"),
+    runtime_kind: observedJavaScriptRuntimeKindSchema,
+    runtime_kind_authority: z.enum([
+      "caller-declared-unverified",
+      "not-declared",
+    ]),
   }),
   capture: z.strictObject({
     observation_ms: z.number().int().min(0),

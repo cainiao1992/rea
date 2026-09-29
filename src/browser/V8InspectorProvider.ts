@@ -140,7 +140,8 @@ export class V8InspectorProvider implements JavaScriptRuntimeObservationPort {
         options.signal,
       );
       const target = await authorizedTarget(discovery.targets, input, roots);
-      assertRuntimeKind(target, input.runtime_kind);
+      if (input.runtime_kind !== undefined)
+        assertRuntimeKind(target, input.runtime_kind);
       connection = await CdpConnection.connect(
         target.webSocketUrl,
         "observe_javascript_runtime",

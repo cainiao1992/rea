@@ -41,9 +41,11 @@ const listOptionsSchema = z.object({ ...scopeOptions });
 
 const observeOptionsSchema = z.object({
   ...scopeOptions,
-  runtimeKind: javascriptRuntimeKindSchema.describe(
-    "Declared target role; Inspector cannot authenticate the Electron role",
-  ),
+  runtimeKind: javascriptRuntimeKindSchema
+    .optional()
+    .describe(
+      "Declared target role; Inspector cannot authenticate the Electron role",
+    ),
   observationMs: z
     .number()
     .int()

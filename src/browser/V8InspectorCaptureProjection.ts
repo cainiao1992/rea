@@ -96,8 +96,11 @@ export const finalizeInspectorCapture = async ({
       protocol_type: target.type,
       attached: target.attached,
       location: target.location,
-      runtime_kind: input.runtime_kind,
-      runtime_kind_authority: "caller-declared-unverified",
+      runtime_kind: input.runtime_kind ?? "unknown",
+      runtime_kind_authority:
+        input.runtime_kind === undefined
+          ? "not-declared"
+          : "caller-declared-unverified",
     },
     capture: {
       observation_ms: input.observation_ms,

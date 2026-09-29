@@ -6,7 +6,7 @@ import {
   webPageInspectionSchema,
 } from "../domain/browserObservation.js";
 import {
-  analyzeWebBundleInputSchema,
+  analyzeWebBundleToolInputSchema,
   webBundleAnalysisSchema,
 } from "../domain/webBundleAnalysis.js";
 import {
@@ -130,7 +130,6 @@ export const BROWSER_TOOL_CONTRACTS = [
         input: {
           cdp_endpoint: endpoint,
           allowed_origins: [origin],
-          approved: true,
         },
       },
     ],
@@ -149,16 +148,12 @@ export const BROWSER_TOOL_CONTRACTS = [
         input: {
           cdp_endpoint: endpoint,
           allowed_origins: [origin],
-          approved: true,
           target_id: "TARGET_ID_FROM_LIST_BROWSER_TARGETS",
           observation_ms: 500,
           include_accessibility_text: false,
           include_console_text: false,
-          console_text_approved: false,
           include_json_body_shapes: false,
-          json_body_schema_approved: false,
           include_websocket_shapes: false,
-          websocket_shape_approved: false,
           include_script_sources: false,
           include_storage_keys: false,
           include_storage_fingerprints: false,
@@ -194,9 +189,9 @@ export const BROWSER_TOOL_CONTRACTS = [
     name: "analyze_web_bundle",
     ...toolContractMetadata("analyze_web_bundle"),
     description:
-      "Capture explicitly approved JavaScript source from one approved CDP page and statically derive a bounded chunk graph, route and endpoint candidates, vendor fingerprints, page-declared WebMCP metadata, and optional separately approved source-map evidence. JavaScript is parsed but never executed.",
+      "Capture JavaScript source from one configured CDP page and statically derive a bounded chunk graph, route and endpoint candidates, vendor fingerprints, page-declared WebMCP metadata, and optionally fetch source maps from allowed origins. JavaScript is parsed but never executed.",
     kind: "browser-provider",
-    inputSchema: analyzeWebBundleInputSchema,
+    inputSchema: analyzeWebBundleToolInputSchema,
     outputSchema: bundleOutputSchema,
     examples: [
       {
@@ -204,24 +199,12 @@ export const BROWSER_TOOL_CONTRACTS = [
         input: {
           cdp_endpoint: endpoint,
           allowed_origins: [origin],
-          approved: true,
           target_id: "TARGET_ID_FROM_LIST_BROWSER_TARGETS",
           observation_ms: 500,
           include_accessibility_text: false,
           include_script_sources: true,
           include_storage_keys: false,
-          source_capture_approved: true,
           fetch_source_maps: false,
-          source_map_fetch_approved: false,
-          analysis_limits: {
-            max_findings: 1_000,
-            max_ast_nodes: 250_000,
-            max_source_maps: 100,
-            max_source_map_bytes: 4_194_304,
-            max_total_source_map_bytes: 16_777_216,
-            max_source_map_mappings: 10_000,
-            max_original_sources: 2_000,
-          },
         },
       },
     ],
@@ -241,7 +224,6 @@ export const BROWSER_TOOL_CONTRACTS = [
           cdp_endpoint: endpoint,
           allowed_origins: [origin],
           target_id: "TARGET_ID_FROM_LIST_BROWSER_TARGETS",
-          approved: true,
           observation_ms: 10_000,
           max_timeline_events: 2_000,
         },
@@ -263,7 +245,6 @@ export const BROWSER_TOOL_CONTRACTS = [
           cdp_endpoint: endpoint,
           allowed_origins: [origin],
           target_id: "TARGET_ID_FROM_LIST_BROWSER_TARGETS",
-          approved: true,
           observation_ms: 100,
           max_tools: 500,
           max_schema_bytes: 262_144,
@@ -306,7 +287,7 @@ export const BROWSER_TOOL_CONTRACTS = [
     name: "capture_web_screenshot",
     ...toolContractMetadata("capture_web_screenshot"),
     description:
-      "Capture the current visible viewport of one approved page as a bounded, content-addressed PNG artifact. Screenshot capture requires separate explicit approval and never scrolls, navigates, or evaluates page JavaScript.",
+      "Capture the current visible viewport of one configured page as a bounded, content-addressed PNG artifact. The operation never scrolls, navigates, or evaluates page JavaScript.",
     kind: "browser-provider",
     inputSchema: captureWebScreenshotInputSchema,
     outputSchema: screenshotOutputSchema,
@@ -317,8 +298,6 @@ export const BROWSER_TOOL_CONTRACTS = [
           cdp_endpoint: endpoint,
           allowed_origins: [origin],
           target_id: "TARGET_ID_FROM_LIST_BROWSER_TARGETS",
-          approved: true,
-          screenshot_approved: true,
           maximum_image_bytes: 4_194_304,
         },
       },

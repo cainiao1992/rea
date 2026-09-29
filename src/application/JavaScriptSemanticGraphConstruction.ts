@@ -18,28 +18,12 @@ import {
   unavailableSemanticRootEvidence,
 } from "./JavaScriptSemanticGraphEvidence.js";
 
-/** Hard semantic graph node bound enforced during artifact projection. */
-export const MAX_SEMANTIC_GRAPH_NODES = 100_000;
-/** Hard semantic graph relation bound enforced during artifact projection. */
-export const MAX_SEMANTIC_GRAPH_RELATIONS = 200_000;
-/** Hard unresolved-frontier bound enforced across all analyzed files. */
-export const MAX_SEMANTIC_GRAPH_UNKNOWNS = 100_000;
-/** Maximum structural nodes linked to one exact semantic location. */
-export const MAX_APPLICATION_NODE_IDS_PER_SEMANTIC_NODE = 64;
-
-type SemanticGraphProjectionLimit =
-  | "max_application_node_ids_per_semantic_node"
-  | "max_nodes"
-  | "max_relations"
-  | "max_unknowns";
-
 /** Mutable local projection state hidden from graph callers. */
 export interface SemanticGraphProjectionState {
   readonly nodes: Map<string, JavaScriptSemanticGraphNode>;
   readonly relations: Map<string, JavaScriptSemanticGraphRelation>;
   readonly unknowns: Map<string, JavaScriptSemanticGraphUnknown>;
   readonly roots: Set<string>;
-  readonly limitsReached: Set<SemanticGraphProjectionLimit>;
   readonly applicationNodeIdsByLocation: ReadonlyMap<string, readonly string[]>;
 }
 
@@ -73,9 +57,6 @@ export const createSemanticGraphProjectionState = (
     relations: new Map(),
     unknowns: new Map(),
     roots: new Set(),
-    limitsReached: new Set(
-      index.truncated ? ["max_application_node_ids_per_semantic_node"] : [],
-    ),
     applicationNodeIdsByLocation: index.identifiers,
   };
 };
@@ -101,22 +82,18 @@ export const constructSemanticGraphNode = (
     evidence: observedSemanticEvidence(file, input.location),
   });
 
-/** Retain one canonical node unless the hard graph bound was reached. */
+/** Retain one canonical semantic node. */
 export const addSemanticGraphNode = (
   state: SemanticGraphProjectionState,
   node: JavaScriptSemanticGraphNode,
 ): JavaScriptSemanticGraphNode | null => {
   const existing = state.nodes.get(node.node_id);
   if (existing !== undefined) return existing;
-  if (state.nodes.size >= MAX_SEMANTIC_GRAPH_NODES) {
-    state.limitsReached.add("max_nodes");
-    return null;
-  }
   state.nodes.set(node.node_id, node);
   return node;
 };
 
-/** Retain one non-self semantic relationship unless its hard bound was reached. */
+/** Retain one non-self semantic relationship. */
 export const addSemanticGraphRelation = (
   state: SemanticGraphProjectionState,
   input: SemanticRelationConstructionInput,
@@ -138,23 +115,15 @@ export const addSemanticGraphRelation = (
     evidence: input.evidence ?? inferredSemanticEvidence(input.source),
   });
   if (state.relations.has(value.relation_id)) return;
-  if (state.relations.size >= MAX_SEMANTIC_GRAPH_RELATIONS) {
-    state.limitsReached.add("max_relations");
-    return;
-  }
   state.relations.set(value.relation_id, value);
 };
 
-/** Retain one unresolved frontier unless the global graph bound was reached. */
+/** Retain one unresolved frontier. */
 export const addSemanticGraphUnknown = (
   state: SemanticGraphProjectionState,
   unknown: JavaScriptSemanticGraphUnknown,
 ): void => {
   if (state.unknowns.has(unknown.unknown_id)) return;
-  if (state.unknowns.size >= MAX_SEMANTIC_GRAPH_UNKNOWNS) {
-    state.limitsReached.add("max_unknowns");
-    return;
-  }
   state.unknowns.set(unknown.unknown_id, unknown);
 };
 
@@ -187,7 +156,6 @@ const indexApplicationNodes = (
   nodes: JavaScriptApplicationGraph["nodes"],
 ): {
   readonly identifiers: ReadonlyMap<string, readonly string[]>;
-  readonly truncated: boolean;
 } => {
   const identifiers = new Map<string, Set<string>>();
   for (const node of nodes) {
@@ -213,16 +181,13 @@ const indexApplicationNodes = (
       }
     }
   }
-  let truncated = false;
   const indexed = new Map(
     [...identifiers].map(([key, values]) => {
       const sorted = [...values].sort();
-      if (sorted.length > MAX_APPLICATION_NODE_IDS_PER_SEMANTIC_NODE)
-        truncated = true;
-      return [key, sorted.slice(0, MAX_APPLICATION_NODE_IDS_PER_SEMANTIC_NODE)];
+      return [key, sorted];
     }),
   );
-  return { identifiers: indexed, truncated };
+  return { identifiers: indexed };
 };
 
 const matchingApplicationNodeIds = (

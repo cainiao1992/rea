@@ -33,7 +33,6 @@ export const createElectronActiveEvidence = (
 const scenarioProjection = (
   input: ElectronActiveObservationInput,
 ): EvidenceObservation["parameters"] => ({
-  approved: input.approved,
   executable_path: input.executable_path,
   application_path: input.application_path,
   application_root: input.application_root,

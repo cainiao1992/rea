@@ -8,26 +8,13 @@ const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
 const nodeIdSchema = z.string().regex(/^jag_node_[a-f0-9]{64}$/u);
 const boundedTextSchema = z.string().min(1).max(4_096);
 
-const comparisonLimitsSchema = z.strictObject({
-  max_comparison_items: z.number().int().min(1).max(50_000).default(20_000),
-  max_candidate_nodes: z.number().int().min(1).max(1_000).default(100),
-  max_graph_nodes: z.number().int().min(1).max(100_000).default(20_000),
-  max_graph_edges: z.number().int().min(1).max(200_000).default(40_000),
-});
-
-/** Two authenticated application versions and deterministic output bounds. */
+/** Two authenticated application versions and their native observations. */
 export const compareApplicationVersionsInputSchema = z
   .strictObject({
     left: evidenceSchema,
     right: evidenceSchema,
-    left_native_observations: z.array(evidenceSchema).max(64).default([]),
-    right_native_observations: z.array(evidenceSchema).max(64).default([]),
-    limits: comparisonLimitsSchema.default({
-      max_comparison_items: 20_000,
-      max_candidate_nodes: 100,
-      max_graph_nodes: 20_000,
-      max_graph_edges: 40_000,
-    }),
+    left_native_observations: z.array(evidenceSchema).default([]),
+    right_native_observations: z.array(evidenceSchema).default([]),
     unknown_registry_approved: z.literal(true).optional(),
   })
   .superRefine((input, context) => {
@@ -52,10 +39,7 @@ export const compareApplicationVersionsInputSchema = z
   });
 
 const emptyCandidateNodesSchema = z.tuple([]);
-const candidateNodesSchema = z
-  .tuple([nodeIdSchema])
-  .rest(nodeIdSchema)
-  .check(z.maxLength(1_000));
+const candidateNodesSchema = z.tuple([nodeIdSchema]).rest(nodeIdSchema);
 const exactMatchSchema = z.strictObject({
   status: z.literal("matched"),
   basis: z.enum([
@@ -123,8 +107,8 @@ const comparisonItemContextShape = {
       ]),
     )
     .max(6),
-  evidence_links: z.array(evidenceIdSchema).min(2).max(130),
-  limitations: z.array(boundedTextSchema).max(100),
+  evidence_links: z.array(evidenceIdSchema).min(2),
+  limitations: z.array(boundedTextSchema),
 };
 
 const comparisonItemSchema = z.union([
@@ -165,55 +149,15 @@ const comparisonItemSchema = z.union([
   }),
 ]);
 
-const comparisonCoverageContextShape = {
+const comparisonCoverageSchema = z.strictObject({
   left_graph_status: z.enum(["complete", "partial", "unknown", "unavailable"]),
   right_graph_status: z.enum(["complete", "partial", "unknown", "unavailable"]),
-};
-const zeroComparisonOmissionsShape = {
-  omitted_comparison_items: z.literal(0),
-  omitted_candidate_references: z.literal(0),
-  omitted_graph_nodes: z.literal(0),
-  omitted_graph_edges: z.literal(0),
-  omitted_graph_observations: z.literal(0),
-};
-const comparisonOmissionsShape = {
-  omitted_comparison_items: z.number().int().min(0),
-  omitted_candidate_references: z.number().int().min(0),
-  omitted_graph_nodes: z.number().int().min(0),
-  omitted_graph_edges: z.number().int().min(0),
-  omitted_graph_observations: z.number().int().min(0),
-};
-const comparisonCoverageSchema = z.union([
-  z.strictObject({
-    ...comparisonCoverageContextShape,
-    ...zeroComparisonOmissionsShape,
-    status: z.literal("complete-within-inputs"),
-  }),
-  z.strictObject({
-    ...comparisonCoverageContextShape,
-    ...zeroComparisonOmissionsShape,
-    status: z.literal("partial"),
-  }),
-  z
-    .strictObject({
-      ...comparisonCoverageContextShape,
-      ...comparisonOmissionsShape,
-      status: z.literal("truncated"),
-    })
-    .refine(
-      (coverage) =>
-        [
-          coverage.omitted_comparison_items,
-          coverage.omitted_candidate_references,
-          coverage.omitted_graph_nodes,
-          coverage.omitted_graph_edges,
-          coverage.omitted_graph_observations,
-        ].some((value) => value > 0),
-      { message: "Truncated comparison coverage must name an omission" },
-    ),
-]);
+  left_graph_omitted_count: z.number().int().min(0).nullable(),
+  right_graph_omitted_count: z.number().int().min(0).nullable(),
+  status: z.enum(["complete-within-inputs", "partial", "truncated"]),
+});
 
-/** Tiered module/entity matching plus a bounded cross-version change graph. */
+/** Tiered module/entity matching plus its complete cross-version change graph. */
 export const applicationVersionComparisonResultSchema = z
   .strictObject({
     comparison_id: z.string().regex(/^javc_[a-f0-9]{64}$/u),
@@ -244,20 +188,19 @@ export const applicationVersionComparisonResultSchema = z
       ambiguous: z.number().int().min(0),
       unmatched: z.number().int().min(0),
     }),
-    items: z.array(comparisonItemSchema).max(50_000),
+    items: z.array(comparisonItemSchema),
     graph: javascriptApplicationGraphSchema,
     coverage: comparisonCoverageSchema,
-    evidence_links: z.array(evidenceIdSchema).min(2).max(130),
-    limitations: z.array(boundedTextSchema).max(1_000),
+    evidence_links: z.array(evidenceIdSchema).min(2),
+    limitations: z.array(boundedTextSchema),
   })
   .superRefine((result, context) => {
     const sourceGraphsComplete =
       result.coverage.left_graph_status === "complete" &&
       result.coverage.right_graph_status === "complete";
     if (
-      result.coverage.status !== "truncated" &&
       (result.coverage.status === "complete-within-inputs") !==
-        sourceGraphsComplete
+      sourceGraphsComplete
     )
       context.addIssue({
         code: "custom",

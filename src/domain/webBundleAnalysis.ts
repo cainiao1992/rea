@@ -3,63 +3,31 @@ import { z } from "zod";
 import { inspectWebPageWithSourceInputSchema } from "./browserObservation.js";
 import { webTextArtifactSchema } from "./webContentArtifact.js";
 
-const webBundleLimitsSchema = z.object({
-  max_findings: z.number().int().min(1).max(10_000).default(1_000),
-  max_ast_nodes: z.number().int().min(1).max(2_000_000).default(250_000),
-  max_source_maps: z.number().int().min(1).max(1_000).default(100),
-  max_source_map_bytes: z
-    .number()
-    .int()
-    .min(1)
-    .max(16 * 1_024 * 1_024)
-    .default(4 * 1_024 * 1_024),
-  max_total_source_map_bytes: z
-    .number()
-    .int()
-    .min(1)
-    .max(64 * 1_024 * 1_024)
-    .default(16 * 1_024 * 1_024),
-  max_source_map_mappings: z.number().int().min(1).max(100_000).default(10_000),
-  max_original_sources: z.number().int().min(1).max(20_000).default(2_000),
-});
+/** Provider-owned parser and network safety bounds, never caller settings. */
+export const WEB_BUNDLE_ANALYSIS_LIMITS = {
+  max_ast_nodes: 250_000,
+  max_source_maps: 100,
+  max_source_map_bytes: 4 * 1_024 * 1_024,
+  max_total_source_map_bytes: 16 * 1_024 * 1_024,
+  max_source_map_mappings: 10_000,
+} as const;
 
-/** Capture-and-analyze input with separate source and source-map approvals. */
-const analyzeWebBundleFactsSchema =
+/** Capture-and-analyze input with optional source-map fetching. */
+export const analyzeWebBundleToolInputSchema =
   inspectWebPageWithSourceInputSchema.safeExtend({
-    analysis_limits: webBundleLimitsSchema.default({
-      max_findings: 1_000,
-      max_ast_nodes: 250_000,
-      max_source_maps: 100,
-      max_source_map_bytes: 4 * 1_024 * 1_024,
-      max_total_source_map_bytes: 16 * 1_024 * 1_024,
-      max_source_map_mappings: 10_000,
-      max_original_sources: 2_000,
-    }),
+    fetch_source_maps: z.boolean().default(false),
   });
-export const analyzeWebBundleInputSchema = z
-  .union([
-    analyzeWebBundleFactsSchema.safeExtend({
-      fetch_source_maps: z.literal(false).default(false),
-      source_map_fetch_approved: z.literal(false).default(false),
-    }),
-    analyzeWebBundleFactsSchema.safeExtend({
-      fetch_source_maps: z.literal(true),
-      source_map_fetch_approved: z.literal(true),
-    }),
-  ])
-  .superRefine((input, context) => {
-    if (
-      input.analysis_limits.max_source_map_bytes >
-      input.analysis_limits.max_total_source_map_bytes
-    )
-      context.addIssue({
-        code: "custom",
-        path: ["analysis_limits", "max_source_map_bytes"],
-        message:
-          "Per-map source-map byte limit cannot exceed the aggregate limit",
-      });
-  });
-export type AnalyzeWebBundleInput = z.infer<typeof analyzeWebBundleInputSchema>;
+export const analyzeWebBundleInputSchema =
+  analyzeWebBundleToolInputSchema.transform((input) => ({
+    ...input,
+    analysis_limits: WEB_BUNDLE_ANALYSIS_LIMITS,
+  })) as z.ZodType<AnalyzeWebBundleInput>;
+export type AnalyzeWebBundleInput = z.infer<
+  typeof inspectWebPageWithSourceInputSchema
+> & {
+  readonly fetch_source_maps: boolean;
+  readonly analysis_limits: typeof WEB_BUNDLE_ANALYSIS_LIMITS;
+};
 
 const sourceLocationSchema = z.object({
   script_key: z.string(),
@@ -258,7 +226,6 @@ export const webBundleAnalysisSchema = z.object({
     parsed_scripts: z.number().int().min(0),
     parse_failures: z.number().int().min(0),
     visited_ast_nodes: z.number().int().min(0),
-    dropped_findings: z.number().int().min(0),
   }),
   limitations: z.array(z.string()),
 });

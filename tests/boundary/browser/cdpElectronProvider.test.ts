@@ -41,7 +41,6 @@ describe("CdpElectronProvider target access", () => {
       listElectronTargetsInputSchema.parse({
         cdp_endpoint: browser.endpoint,
         allowed_file_roots: [root],
-        approved: true,
       }),
     );
     if (!listed.ok) throw listed.error;
@@ -63,7 +62,6 @@ describe("CdpElectronProvider target access", () => {
       listElectronTargetsInputSchema.parse({
         cdp_endpoint: browser.endpoint,
         allowed_file_roots: [root],
-        approved: true,
       }),
     );
     if (!listed.ok) throw listed.error;
@@ -84,7 +82,6 @@ describe("CdpElectronProvider target access", () => {
         cdp_endpoint: browser.endpoint,
         allowed_file_roots: [root],
         target_id: "electron-page",
-        approved: true,
         observation_ms: 0,
       }),
     );
@@ -120,7 +117,6 @@ describe("CdpElectronProvider target access", () => {
         cdp_endpoint: browser.endpoint,
         allowed_file_roots: [root],
         target_id: "missing",
-        approved: true,
         observation_ms: 0,
       }),
     );
@@ -148,7 +144,6 @@ describe("CdpElectronProvider target access", () => {
         cdp_endpoint: browser.endpoint,
         allowed_file_roots: [root],
         target_id: "electron-page",
-        approved: true,
         observation_ms: 0,
       }),
     );
@@ -170,7 +165,6 @@ describe("CdpElectronProvider target access", () => {
       listElectronTargetsInputSchema.parse({
         cdp_endpoint: "http://127.0.0.1:9222",
         allowed_file_roots: [root],
-        approved: true,
       }),
       { signal: controller.signal },
     );
@@ -197,10 +191,8 @@ describe("CdpElectronProvider capture", () => {
         cdp_endpoint: browser.endpoint,
         allowed_file_roots: [root],
         target_id: "electron-page",
-        approved: true,
         observation_ms: 0,
         include_script_sources: true,
-        source_capture_approved: true,
       }),
     );
     if (!result.ok) throw result.error;
@@ -225,7 +217,6 @@ describe("CdpElectronProvider capture", () => {
         cdp_endpoint: browser.endpoint,
         allowed_file_roots: [root],
         target_id: "electron-page",
-        approved: true,
         observation_ms: 0,
       }),
     );
@@ -257,7 +248,6 @@ describe("CdpElectronProvider capture", () => {
         cdp_endpoint: browser.endpoint,
         allowed_file_roots: [root],
         target_id: "electron-page",
-        approved: true,
         observation_ms: 0,
       }),
     );

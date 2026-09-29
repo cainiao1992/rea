@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
+import { compareApplicationVersionsRequestSchema } from "../../../src/contracts/applicationWorkflowInputContracts.js";
 import { analyzeJavaScriptApplication } from "../../../src/application/JavaScriptApplicationService.js";
 import { compareApplicationVersionsEvidence } from "../../../src/application/JavaScriptApplicationWorkflowService.js";
 import { createEvidence } from "../../../src/domain/evidence.js";
@@ -132,6 +133,41 @@ describe("JavaScript application workflows", () => {
 });
 
 describe("JavaScript application comparison workflows", () => {
+  it("accepts complete native evidence arrays and rejects comparison limit bags", () => {
+    const native = Array.from({ length: 65 }, (_, index) =>
+      createEvidence(
+        {
+          path: `/tmp/native-${index}.node`,
+          sha256: index.toString(16).padStart(64, "0"),
+          format: "elf",
+          architecture: "x86_64",
+        },
+        { id: "ghidra", name: "Ghidra", version: "fixture" },
+        {
+          operation: "analyze_function",
+          parameters: { address: `0x${index.toString(16)}` },
+          result: { address: `0x${index.toString(16)}` },
+        },
+      ),
+    );
+    const input = {
+      left: `ev_${"a".repeat(64)}`,
+      right: `ev_${"b".repeat(64)}`,
+      left_native_observations: native,
+    };
+    expect(
+      compareApplicationVersionsRequestSchema.safeParse(input).success,
+    ).toBe(true);
+    expect(
+      compareApplicationVersionsRequestSchema.safeParse({
+        ...input,
+        limits: { max_comparison_items: 1 },
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("complete comparison projections", () => {
   it("matches rechunked modules by exact source and minified modules by structural fingerprint", async () => {
     const root = await createTestTempDirectory("rea-application-versions-");
     temporary.push(root);
@@ -145,6 +181,7 @@ describe("JavaScript application comparison workflows", () => {
     const result = applicationVersionComparisonResultSchema.parse(
       compared.value.normalized_result,
     );
+    expectFullComparisonResultSchema(result);
     const modules = result.items.filter(
       ({ node_kind: kind }) => kind === "javascript-module",
     );
@@ -174,6 +211,9 @@ describe("JavaScript application comparison workflows", () => {
     );
     expect(result.summary.added).toBeGreaterThan(0);
     expect(result.summary.removed).toBeGreaterThan(0);
+    expect(result.coverage).not.toHaveProperty("omitted_graph_nodes");
+    expect(result.coverage).not.toHaveProperty("omitted_graph_edges");
+    expect(result.coverage).not.toHaveProperty("omitted_graph_observations");
     expect(result.graph.edges).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -216,7 +256,7 @@ describe("JavaScript application comparison workflows", () => {
     );
   });
 
-  it("keeps incomplete one-sided absence unknown and reports output truncation", () => {
+  it("keeps incomplete one-sided absence unknown and reports source omissions", () => {
     const complete = buildSyntheticJavaScriptApplicationGraph();
     const rootNode = complete.nodes.find(({ node_id: id }) =>
       complete.root_node_ids.includes(id),
@@ -248,12 +288,6 @@ describe("JavaScript application comparison workflows", () => {
       },
       leftNativeEvidence: [],
       rightNativeEvidence: [],
-      limits: {
-        max_comparison_items: 1,
-        max_candidate_nodes: 1,
-        max_graph_nodes: 20,
-        max_graph_edges: 20,
-      },
     };
 
     const first = compareJavaScriptApplicationVersions(input);
@@ -262,8 +296,8 @@ describe("JavaScript application comparison workflows", () => {
     expect(first.coverage).toMatchObject({
       status: "truncated",
       right_graph_status: "partial",
+      right_graph_omitted_count: complete.nodes.length - 1,
     });
-    expect(first.coverage.omitted_comparison_items).toBeGreaterThan(0);
     expect(first.summary.removed).toBe(0);
     expect(first.summary.unknown).toBeGreaterThan(0);
   });
@@ -310,8 +344,40 @@ const expectComparisonItemAlgebra = (
       coverage: {
         ...result.coverage,
         status: "complete-within-inputs",
-        omitted_comparison_items: 1,
+        left_graph_status: "partial",
       },
     }).success,
   ).toBe(false);
+};
+
+const expectFullComparisonResultSchema = (
+  result: ApplicationVersionComparisonResult,
+): void => {
+  const candidateNodeIds = Array.from(
+    { length: 1_001 },
+    (_, index) => `jag_node_${index.toString(16).padStart(64, "0")}`,
+  );
+  const expanded = {
+    ...result,
+    evidence_links: Array.from(
+      { length: 131 },
+      (_, index) => `ev_${index.toString(16).padStart(64, "0")}`,
+    ),
+    items: result.items.map((item) =>
+      item.match.status === "ambiguous"
+        ? {
+            ...item,
+            match: {
+              ...item.match,
+              ...(item.match.candidate_left_node_ids.length === 0
+                ? { candidate_right_node_ids: candidateNodeIds }
+                : { candidate_left_node_ids: candidateNodeIds }),
+            },
+          }
+        : item,
+    ),
+  };
+  expect(
+    applicationVersionComparisonResultSchema.safeParse(expanded).success,
+  ).toBe(true);
 };

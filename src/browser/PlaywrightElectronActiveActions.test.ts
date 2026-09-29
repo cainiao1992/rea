@@ -23,7 +23,6 @@ it("parses bounded window, renderer, and deep-link actions for agents", () => {
         url: "rea-fixture://open/item",
       },
     ],
-    approved: true,
   });
 
   expect(input.actions).toEqual([
@@ -57,7 +56,6 @@ it("rejects non-absolute deep-link values", () => {
         url: "not a URL",
       },
     ],
-    approved: true,
   });
 
   expect(result.success).toBe(false);
@@ -70,7 +68,6 @@ it("redacts action inputs from Playwright failures", async () => {
     application_path: "/opt/app/main.js",
     application_root: "/opt/app",
     actions: [{ step_id: "click-step", kind: "click", selector }],
-    approved: true,
   });
   const page = {
     locator: () => ({
@@ -111,7 +108,6 @@ it("runs an untargeted deep-link without requiring a BrowserWindow", async () =>
         url: "rea-fixture://open/item",
       },
     ],
-    approved: true,
   });
   const application = {
     windows: () => [],

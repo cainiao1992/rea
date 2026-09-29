@@ -46,7 +46,6 @@ const scenarioShapeSchema = z.strictObject({
   redaction: browserScenarioRedactionSchema,
   capture: browserScenarioCaptureSchema,
   limits: browserScenarioCaptureLimitsSchema,
-  approved: z.literal(true),
 });
 
 type ScenarioShape = z.infer<typeof scenarioShapeSchema>;

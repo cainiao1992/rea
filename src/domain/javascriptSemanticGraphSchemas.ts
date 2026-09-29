@@ -224,9 +224,7 @@ export const javaScriptSemanticNodeInputSchema = z.strictObject({
   kind: z.enum(JAVASCRIPT_SEMANTIC_NODE_KINDS),
   identity: semanticNodeIdentitySchema,
   function_node_id: semanticNodeIdSchema.nullable(),
-  application_node_ids: z
-    .array(z.string().regex(/^jag_node_[a-f0-9]{64}$/u))
-    .max(64),
+  application_node_ids: z.array(z.string().regex(/^jag_node_[a-f0-9]{64}$/u)),
   label: z.string().min(1).max(1_024).nullable(),
   properties: semanticPropertiesSchema,
   evidence: applicationGraphEvidenceSchema,
@@ -281,7 +279,7 @@ export const javaScriptSemanticUnknownInputSchema = z.strictObject({
   relation_kinds: z.array(z.enum(JAVASCRIPT_SEMANTIC_RELATIONS)).min(1).max(45),
   reason: z.enum(JAVASCRIPT_SEMANTIC_UNKNOWN_REASONS),
   detail: boundedTextSchema,
-  candidate_node_ids: z.array(semanticNodeIdSchema).max(1_000),
+  candidate_node_ids: z.array(semanticNodeIdSchema),
   evidence: applicationGraphEvidenceSchema,
 });
 
@@ -334,7 +332,7 @@ const familyCoverageSchema = z.strictObject({
   status: z.enum(["complete", "partial", "unknown", "unsupported"]),
   retained_relations: z.number().int().min(0),
   omitted_relations: z.number().int().min(0).nullable(),
-  unknown_ids: z.array(semanticUnknownIdSchema).max(100_000),
+  unknown_ids: z.array(semanticUnknownIdSchema),
 });
 
 const graphCoverageSchema = z.strictObject({
@@ -359,11 +357,11 @@ export const javaScriptSemanticGraphInputSchema = z.strictObject({
   schema: z.literal("JavaScriptSemanticRelationGraph"),
   root_artifact_sha256: digestSchema,
   application_graph_id: z.string().regex(/^jag_[a-f0-9]{64}$/u),
-  root_node_ids: z.array(semanticNodeIdSchema).min(1).max(10_000),
-  nodes: z.array(javaScriptSemanticNodeSchema).min(1).max(100_000),
-  relations: z.array(javaScriptSemanticRelationSchema).max(200_000),
-  fingerprints: z.array(javaScriptSemanticFingerprintSchema).max(20_000),
-  unknowns: z.array(javaScriptSemanticUnknownSchema).max(100_000),
+  root_node_ids: z.array(semanticNodeIdSchema).min(1),
+  nodes: z.array(javaScriptSemanticNodeSchema).min(1),
+  relations: z.array(javaScriptSemanticRelationSchema),
+  fingerprints: z.array(javaScriptSemanticFingerprintSchema),
+  unknowns: z.array(javaScriptSemanticUnknownSchema),
   coverage: graphCoverageSchema,
   limitations: z.array(boundedTextSchema).max(1_000),
 });

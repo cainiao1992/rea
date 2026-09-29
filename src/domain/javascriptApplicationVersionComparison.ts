@@ -7,7 +7,6 @@ import { buildJavaScriptApplicationChangeGraph } from "./javascriptApplicationCh
 import {
   applicationVersionComparisonResultSchema,
   type ApplicationVersionComparisonResult,
-  type CompareApplicationVersionsInput,
 } from "./javascriptApplicationVersionComparisonSchemas.js";
 import type { JavaScriptApplicationGraph } from "./javascriptApplicationGraph.js";
 import { compareCodePoints } from "./javascriptApplicationGraph.js";
@@ -28,7 +27,6 @@ export interface ApplicationVersionComparisonProjectionInput {
   };
   readonly leftNativeEvidence: readonly Evidence[];
   readonly rightNativeEvidence: readonly Evidence[];
-  readonly limits: CompareApplicationVersionsInput["limits"];
 }
 
 /** Compare application entities with ordered unique-only identity tiers. */
@@ -46,28 +44,20 @@ export const compareJavaScriptApplicationVersions = (
     rightEvidenceId: input.right.evidenceId,
     leftNativeEvidence: input.leftNativeEvidence,
     rightNativeEvidence: input.rightNativeEvidence,
-    maxCandidates: input.limits.max_candidate_nodes,
   });
-  const items = projection.items.slice(0, input.limits.max_comparison_items);
-  const omittedComparisonItems = projection.items.length - items.length;
   const changeGraph = buildJavaScriptApplicationChangeGraph({
     left: input.left.graph,
     right: input.right.graph,
     leftEvidenceId: input.left.evidenceId,
     rightEvidenceId: input.right.evidenceId,
-    items,
-    omittedComparisonItems,
-    limits: input.limits,
+    items: projection.items,
   });
   const evidenceLinks = uniqueSorted(
     projection.items.flatMap(({ evidence_links: links }) => links),
   );
   const omissions = {
-    omitted_comparison_items: omittedComparisonItems,
-    omitted_candidate_references: projection.omittedCandidateReferences,
-    omitted_graph_nodes: changeGraph.omittedNodes,
-    omitted_graph_edges: changeGraph.omittedEdges,
-    omitted_graph_observations: changeGraph.omittedObservations,
+    left_graph_omitted_count: input.left.graph.coverage.omitted_count,
+    right_graph_omitted_count: input.right.graph.coverage.omitted_count,
   };
   const coverage = comparisonCoverage(input, omissions);
   const semantic = {
@@ -83,11 +73,11 @@ export const compareJavaScriptApplicationVersions = (
     },
     summary: summary(projection.items),
     matching: matchingSummary(projection.items),
-    items,
+    items: projection.items,
     graph: changeGraph.graph,
     coverage,
     evidence_links: evidenceLinks,
-    limitations: comparisonLimitations(input, omissions),
+    limitations: comparisonLimitations(input),
   };
   return applicationVersionComparisonResultSchema.parse({
     ...semantic,
@@ -131,11 +121,7 @@ const countBasis = (
 type ComparisonOmissions = ApplicationVersionComparisonResult["coverage"];
 type ComparisonOmissionCounts = Pick<
   ComparisonOmissions,
-  | "omitted_comparison_items"
-  | "omitted_candidate_references"
-  | "omitted_graph_nodes"
-  | "omitted_graph_edges"
-  | "omitted_graph_observations"
+  "left_graph_omitted_count" | "right_graph_omitted_count"
 >;
 
 const comparisonCoverage = (
@@ -146,35 +132,24 @@ const comparisonCoverage = (
     left_graph_status: input.left.graph.coverage.status,
     right_graph_status: input.right.graph.coverage.status,
   };
-  if (Object.values(omissions).some((value) => value > 0))
-    return { ...context, ...omissions, status: "truncated" };
-  if (
+  const sourceGraphsComplete =
     input.left.graph.coverage.status === "complete" &&
-    input.right.graph.coverage.status === "complete"
-  )
-    return {
-      ...context,
-      status: "complete-within-inputs",
-      omitted_comparison_items: 0,
-      omitted_candidate_references: 0,
-      omitted_graph_nodes: 0,
-      omitted_graph_edges: 0,
-      omitted_graph_observations: 0,
-    };
+    input.right.graph.coverage.status === "complete";
+  const sourceGraphsTruncated =
+    input.left.graph.coverage.truncated || input.right.graph.coverage.truncated;
   return {
     ...context,
-    status: "partial",
-    omitted_comparison_items: 0,
-    omitted_candidate_references: 0,
-    omitted_graph_nodes: 0,
-    omitted_graph_edges: 0,
-    omitted_graph_observations: 0,
+    ...omissions,
+    status: sourceGraphsComplete
+      ? "complete-within-inputs"
+      : sourceGraphsTruncated
+        ? "truncated"
+        : "partial",
   };
 };
 
 const comparisonLimitations = (
   input: ApplicationVersionComparisonProjectionInput,
-  omissions: ComparisonOmissionCounts,
 ): string[] =>
   uniqueSorted([
     "Application comparison never uses bundler module ordinals as persistent identity and performs no fuzzy pairing.",
@@ -188,9 +163,6 @@ const comparisonLimitations = (
       : [
           "At least one source graph is incomplete; unmatched entities on the opposite side remain unknown rather than added or removed.",
         ]),
-    ...(Object.values(omissions).some((value) => value > 0)
-      ? ["Comparison output was truncated at explicit caller limits."]
-      : []),
   ]);
 
 const digestCanonical = (value: unknown): string => {

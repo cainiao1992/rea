@@ -249,7 +249,6 @@ it("cannot omit a session-owned active unknown from reconstruction input", async
     expect(session.recordEvidence(evidence).ok).toBe(true);
   expect(
     session.recordUnknown({
-      approved: true,
       question: "Was terminal equivalence reproduced independently?",
       severity: "high",
       domain: "reconstruction-verification",

@@ -245,17 +245,12 @@ describe("web source-map aggregate limits", () => {
     });
   });
 
-  it("rejects a per-map byte limit larger than the aggregate limit", () => {
+  it("does not accept caller overrides for provider source-map limits", () => {
     const parsed = analyzeWebBundleInputSchema.safeParse({
       cdp_endpoint: "http://127.0.0.1:9222",
       allowed_origins: [origin],
       target_id: "page-1",
-      approved: true,
-      source_capture_approved: true,
-      analysis_limits: {
-        max_source_map_bytes: 2,
-        max_total_source_map_bytes: 1,
-      },
+      analysis_limits: { max_source_maps: 0 },
     });
 
     expect(parsed.success).toBe(false);
@@ -274,14 +269,22 @@ const validMapResponse = () =>
     { status: 200 },
   );
 
-const input = (overrides: Record<string, unknown> = {}) =>
-  analyzeWebBundleInputSchema.parse({
+const input = (overrides: Record<string, unknown> = {}) => {
+  const { analysis_limits: internalLimitOverrides, ...callerOverrides } =
+    overrides;
+  const parsed = analyzeWebBundleInputSchema.parse({
     cdp_endpoint: "http://127.0.0.1:9222",
     allowed_origins: [origin],
     target_id: "page-1",
-    approved: true,
-    source_capture_approved: true,
     fetch_source_maps: true,
-    source_map_fetch_approved: true,
-    ...overrides,
+    ...callerOverrides,
   });
+  const limits = {
+    ...parsed.analysis_limits,
+    ...(internalLimitOverrides as Record<string, number> | undefined),
+  };
+  return {
+    ...parsed,
+    analysis_limits: limits,
+  };
+};

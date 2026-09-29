@@ -37,7 +37,6 @@ it("runs a login and reconnect replay machine inside process capture", async () 
     ].join("\n"),
   );
   const scenario = parseProcessScenario({
-    approved: true,
     executable: process.execPath,
     arguments: [script],
     working_directory: root,
@@ -179,7 +178,6 @@ it("captures PTY, filesystem, descendants, HTTP replay, and redacts environment"
     networkAccess: "external",
   };
   const scenario = parseProcessScenario({
-    approved: true,
     executable: process.execPath,
     arguments: [script],
     working_directory: root,

@@ -71,7 +71,6 @@ it(
       arguments: {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
-        approved: true,
       },
     });
     expect(listed.isError).not.toBe(true);
@@ -80,33 +79,17 @@ it(
         targets: [{ target_id: "allowed-page" }],
       },
     });
-    const unapprovedSourceCapture = await connected.client.callTool({
-      name: "inspect_web_page",
-      arguments: {
-        cdp_endpoint: browser.endpoint,
-        allowed_origins: [browser.allowedOrigin],
-        target_id: "allowed-page",
-        approved: true,
-        include_script_sources: true,
-      },
-    });
-    expect(unapprovedSourceCapture.isError).toBe(true);
     const inspected = await connected.client.callTool({
       name: "inspect_web_page",
       arguments: {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
         include_console_text: true,
-        console_text_approved: true,
         include_json_body_shapes: true,
-        json_body_schema_approved: true,
         include_websocket_shapes: true,
-        websocket_shape_approved: true,
         include_script_sources: true,
-        source_capture_approved: true,
       },
     });
     expect(inspected.isError).not.toBe(true);
@@ -146,8 +129,6 @@ it(
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
-        source_capture_approved: true,
         observation_ms: 0,
       },
     });
@@ -174,7 +155,6 @@ const verifySessionAndComparisonTools = async (
       cdp_endpoint: browser.endpoint,
       allowed_origins: [browser.allowedOrigin],
       target_id: "allowed-page",
-      approved: true,
       observation_ms: 5,
     },
   });
@@ -193,7 +173,6 @@ const verifySessionAndComparisonTools = async (
       cdp_endpoint: browser.endpoint,
       allowed_origins: [browser.allowedOrigin],
       target_id: "allowed-page",
-      approved: true,
       observation_ms: 0,
     },
   });
@@ -228,8 +207,6 @@ const verifySessionAndComparisonTools = async (
       cdp_endpoint: browser.endpoint,
       allowed_origins: [browser.allowedOrigin],
       target_id: "allowed-page",
-      approved: true,
-      screenshot_approved: true,
     },
   });
   expect(screenshot.isError).not.toBe(true);
@@ -262,7 +239,6 @@ it("denies origins outside the administrator ceiling before CDP attach", async (
       cdp_endpoint: browser.endpoint,
       allowed_origins: ["https://unapproved.example.test"],
       target_id: "allowed-page",
-      approved: true,
       observation_ms: 0,
     },
   });

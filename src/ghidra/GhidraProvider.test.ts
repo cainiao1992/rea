@@ -34,6 +34,14 @@ describe("Ghidra provider capabilities", () => {
         },
       });
     }
+    const baseLimitations = capabilities.find(
+      (item) => item.operation === "address_name",
+    )?.limitations;
+    for (const operation of ["search_procedures", "search_strings"]) {
+      expect(
+        capabilities.find((item) => item.operation === operation)?.limitations,
+      ).toEqual(baseLimitations);
+    }
     const first = capabilities[0];
     if (first === undefined) throw new Error("Ghidra capabilities are empty");
     Reflect.set(capabilities, 0, { ...first, available: false });

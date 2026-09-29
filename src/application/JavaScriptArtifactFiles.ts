@@ -14,7 +14,7 @@ import {
 } from "../artifacts/ArtifactReader.js";
 import { streamChunkToBuffer } from "../artifacts/StreamBytes.js";
 import type { ArtifactInventorySnapshot } from "./ArtifactInventory.js";
-import type { JavaScriptArtifactReconstructionInput } from "./JavaScriptArtifactReconstructionInput.js";
+import { JAVASCRIPT_APPLICATION_RESOURCE_LIMITS } from "./JavaScriptArtifactReconstructionInput.js";
 
 /** Relevant file categories projected from the complete artifact inventory. */
 export type JavaScriptArtifactFileKind =
@@ -79,7 +79,6 @@ interface Selection {
 }
 
 interface ReadContext {
-  readonly input: JavaScriptArtifactReconstructionInput;
   readonly expected: ReadonlyMap<string, ExpectedFile>;
   readonly expectedContainers: ReadonlyMap<string, JavaScriptArtifactContainer>;
   readonly selections: ReadonlyMap<string, Selection>;
@@ -102,14 +101,12 @@ interface ReadTextInput {
 export const readJavaScriptArtifactFiles = async (
   reader: ArtifactReader,
   snapshot: ArtifactInventorySnapshot,
-  input: JavaScriptArtifactReconstructionInput,
   signal?: AbortSignal,
 ): Promise<JavaScriptArtifactFileSet> => {
   const inventory = expectedInventory(snapshot);
   const expected = inventory.files;
-  const selections = selectTextFiles(expected, input);
+  const selections = selectTextFiles(expected);
   const context: ReadContext = {
-    input,
     expected,
     expectedContainers: inventory.containers,
     selections,
@@ -156,8 +153,9 @@ const visitReader = async (
     const path = normalizeArtifactPath(
       prefix === "" ? entry.path : `${prefix}/${entry.path}`,
       {
-        maxDepth: context.input.limits.max_depth,
-        maxPathBytes: context.input.limits.max_path_bytes,
+        maxDepth: JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.artifact.maxDepth,
+        maxPathBytes:
+          JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.artifact.maxPathBytes,
       },
     );
     const nestedAsar = isFilesystemAsar(entry, path);
@@ -229,7 +227,7 @@ const readTextIfSelected = async (
     };
   const bytes = await readBounded(
     await input.reader.open(input.entry, context.signal),
-    context.input.limits.max_text_file_bytes,
+    JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.maxTextFileBytes,
     context.signal,
   );
   const digest = createHash("sha256").update(bytes).digest("hex");
@@ -290,7 +288,6 @@ const expectedInventory = (
 
 const selectTextFiles = (
   files: ReadonlyMap<string, ExpectedFile>,
-  input: JavaScriptArtifactReconstructionInput,
 ): ReadonlyMap<string, Selection> => {
   const selected = new Map<string, Selection>();
   let fileCount = 0;
@@ -302,13 +299,16 @@ const selectTextFiles = (
   for (const file of ordered) {
     if (file.kind === "native-addon") continue;
     if (
-      fileCount >= input.limits.max_text_files ||
-      file.bytes > input.limits.max_text_file_bytes
+      fileCount >= JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.maxTextFiles ||
+      file.bytes > JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.maxTextFileBytes
     ) {
       selected.set(file.path, { selected: false, reason: "file-limit" });
       continue;
     }
-    if (bytes + file.bytes > input.limits.max_total_text_bytes) {
+    if (
+      bytes + file.bytes >
+      JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.maxTotalTextBytes
+    ) {
       selected.set(file.path, { selected: false, reason: "byte-limit" });
       continue;
     }

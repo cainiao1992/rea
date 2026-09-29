@@ -65,7 +65,6 @@ const example: Record<string, JsonValue> = {
     max_storage_entries: 256,
     max_total_metadata_bytes: 4_194_304,
   },
-  approved: true,
 };
 
 /** Controlled browser scenario contract shared by MCP and catalog generation. */

@@ -28,7 +28,6 @@ export const JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS = [
           inspector_endpoint: endpoint,
           allowed_file_roots: [root],
           allowed_origins: [],
-          approved: true,
         },
       },
     ],
@@ -49,7 +48,6 @@ export const JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS = [
           allowed_file_roots: [root],
           allowed_origins: [],
           target_id: "TARGET_ID_FROM_LIST_JAVASCRIPT_RUNTIME_TARGETS",
-          approved: true,
           observation_ms: 100,
           limits: {
             max_events: 10_000,

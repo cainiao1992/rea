@@ -224,12 +224,6 @@ const normalizeSourceMap = (
     );
   try {
     const map = new AnyMap(text, request.fetchUrl);
-    if (map.sources.length > input.analysis_limits.max_original_sources)
-      return emptySourceMapItem(
-        request,
-        "truncated",
-        "Source map exceeds the original-source inventory limit.",
-      );
     const resolvedBySource = new Map<string, string>();
     const originalSources = map.sources.map((source, index) => {
       const content = map.sourcesContent?.[index];
@@ -267,28 +261,18 @@ const normalizeSourceMap = (
         name: mapping.name?.slice(0, 1_024) ?? null,
       });
     });
-    const modules = originalModuleEdges(
-      originalSources,
-      input.analysis_limits.max_findings,
-    );
+    const modules = originalModuleEdges(originalSources);
     const mappingTruncated = totalMappings > mappings.length;
-    const limitations = [
-      ...(mappingTruncated
-        ? [
-            `Mappings were truncated from ${String(totalMappings)} to ${String(mappings.length)}.`,
-          ]
-        : []),
-      ...(modules.truncated
-        ? [
-            `Original module edges were truncated to ${String(modules.edges.length)}.`,
-          ]
-        : []),
-    ];
+    const limitations = mappingTruncated
+      ? [
+          `Mappings were truncated from ${String(totalMappings)} to ${String(mappings.length)}.`,
+        ]
+      : [];
     const parsed = {
       ...sourceMapContext(request),
       artifact: createWebTextArtifact(text, "application/source-map+json"),
       original_sources: originalSources,
-      original_module_edges: modules.edges,
+      original_module_edges: modules,
       mappings,
     };
     return limitations.length === 0
@@ -309,11 +293,7 @@ const normalizeSourceMap = (
 
 const originalModuleEdges = (
   sources: ParsedSourceMapItem["original_sources"],
-  maximum: number,
-): {
-  readonly edges: ParsedSourceMapItem["original_module_edges"];
-  readonly truncated: boolean;
-} => {
+): ParsedSourceMapItem["original_module_edges"] => {
   const edges: ParsedSourceMapItem["original_module_edges"] = [];
   const seen = new Set<string>();
   for (const source of sources) {
@@ -325,7 +305,6 @@ const originalModuleEdges = (
         const key = `${source.source}\0${detector.kind}\0${specifier}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        if (edges.length >= maximum) return { edges, truncated: true };
         edges.push({
           from_source: source.source,
           kind: detector.kind,
@@ -335,7 +314,7 @@ const originalModuleEdges = (
       }
     }
   }
-  return { edges, truncated: false };
+  return edges;
 };
 
 const validSourceMapEnvelope = (text: string): boolean => {

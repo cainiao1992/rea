@@ -74,7 +74,6 @@ export const registerVerifyManagedNativeBoundaries = (
       const output =
         parsed.unknown_registry_approved === true && unknown
           ? options.recordEvidenceWithUnknown?.(result.value, {
-              approved: true,
               question:
                 "Which managed/native boundaries remain unresolved or contradicted by the supplied native Evidence?",
               severity: "medium",

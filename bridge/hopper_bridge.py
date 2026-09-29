@@ -13,7 +13,6 @@ import socket
 from typing import Any, Optional, Protocol, Sequence
 
 MAX_LINE_BYTES = 10 * 1024 * 1024
-MAX_READ_BYTES = 4096
 BAD_ADDRESSES = (-1, 0xFFFFFFFFFFFFFFFF, None)
 _selected_document = None
 _rea_session_document = None
@@ -647,8 +646,8 @@ def _dispatch(method, params):
         length = params.get("length", 256)
         if isinstance(length, bool) or not isinstance(length, int):
             raise ValueError("Byte-read length must be an integer")
-        if length < 1 or length > MAX_READ_BYTES:
-            raise ValueError("Byte-read length must be between 1 and 4096")
+        if length < 1:
+            raise ValueError("Byte-read length must be at least 1")
         reader = getattr(document, "readBytes", None)
         if not callable(reader):
             raise CapabilityUnavailableError(

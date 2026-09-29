@@ -114,16 +114,11 @@ export const processComparisonContract = (
 });
 
 /**
- * Boundary schema for one explicitly approved, bounded process experiment.
+ * Boundary schema for one bounded process experiment.
  * Defaults are part of the evidence contract and must remain deterministic.
  */
 export const processScenarioSchema = z
   .object({
-    approved: z
-      .literal(true)
-      .describe(
-        "Explicit per-call acknowledgement that this operation launches the target",
-      ),
     unknown_registry_approved: z
       .literal(true)
       .optional()

@@ -51,7 +51,6 @@ const compareApplicationVersionsFacts = {
   right_native_observations:
     compareApplicationVersionsInputSchema.shape.right_native_observations,
   right_native_observation_evidence_ids: z.array(evidenceIdSchema).default([]),
-  limits: compareApplicationVersionsInputSchema.shape.limits,
   unknown_registry_approved:
     compareApplicationVersionsInputSchema.shape.unknown_registry_approved,
 } as const;

@@ -28,11 +28,10 @@ const runtimeOriginsSchema = z
   .overwrite((origins) => [...new Set(origins)].sort())
   .default([]);
 
-const approvedRuntimeScope = {
+const runtimeScope = {
   inspector_endpoint: browserEndpointSchema,
   allowed_file_roots: runtimeFileRootsSchema,
   allowed_origins: runtimeOriginsSchema,
-  approved: z.literal(true),
 };
 
 const requireRuntimeScope = (
@@ -56,7 +55,7 @@ const requireRuntimeScope = (
 /** Input for listing approved Node/Electron V8 Inspector targets. */
 export const listJavaScriptRuntimeTargetsInputSchema = z
   .strictObject({
-    ...approvedRuntimeScope,
+    ...runtimeScope,
   })
   .superRefine(requireRuntimeScope);
 export type ListJavaScriptRuntimeTargetsInput = z.infer<
@@ -89,7 +88,7 @@ export const javascriptRuntimeObservationLimitsSchema = z.strictObject({
 /** Input for one bounded, attach-only V8 Inspector observation. */
 export const observeJavaScriptRuntimeInputSchema = z
   .strictObject({
-    ...approvedRuntimeScope,
+    ...runtimeScope,
     target_id: z.string().trim().min(1).max(256),
     runtime_kind: javascriptRuntimeKindSchema.optional(),
     observation_ms: z.number().int().min(0).max(10_000).default(100),

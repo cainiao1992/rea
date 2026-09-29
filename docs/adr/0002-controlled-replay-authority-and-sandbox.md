@@ -226,7 +226,7 @@ The plan must disclose at least:
   projection; and
 - expected Evidence and cleanup behavior.
 
-Execution requires both `approved: true` and the exact `plan_digest`. REA
+Execution requires the exact `plan_digest`. REA
 rebuilds the plan immediately before admission. Any changed file, runtime,
 sandbox executable, policy, stub, input, limit, or environment commitment
 returns `plan_stale` before application code starts. Approval is not transferable

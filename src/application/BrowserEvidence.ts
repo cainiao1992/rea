@@ -136,7 +136,7 @@ const browserParameters = (
     allowed_origins: input.allowed_origins,
   };
   if (!("target_id" in input)) return scope;
-  if ("screenshot_approved" in input)
+  if ("maximum_image_bytes" in input)
     return {
       ...scope,
       target_id: input.target_id,
@@ -171,13 +171,8 @@ const browserParameters = (
     include_storage_keys: input.include_storage_keys,
     include_storage_fingerprints: input.include_storage_fingerprints,
     limits: input.limits,
-    source_capture_approved: input.source_capture_approved,
-    ...(input.include_script_sources && "analysis_limits" in input
-      ? {
-          fetch_source_maps: input.fetch_source_maps,
-          source_map_fetch_approved: input.source_map_fetch_approved,
-          analysis_limits: input.analysis_limits,
-        }
+    ...("fetch_source_maps" in input
+      ? { fetch_source_maps: input.fetch_source_maps }
       : {}),
   };
 };

@@ -98,7 +98,6 @@ describe("process CLI errors", () => {
     await writeFile(
       scenario,
       JSON.stringify({
-        approved: true,
         executable: "/bin/sh",
         working_directory: "/tmp",
       }),

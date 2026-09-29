@@ -31,7 +31,6 @@ const unknownRegistration = (
     | "javascript-export-shape"
     | "source-to-bundle-comparison",
 ) => ({
-  approved: true as const,
   question:
     kind === "application-version-comparison"
       ? "Which application entities remain unmatched or ambiguous across these versions?"

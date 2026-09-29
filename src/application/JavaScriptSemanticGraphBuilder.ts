@@ -49,10 +49,6 @@ import {
   addSemanticGraphRelation as addRelation,
   constructSemanticGraphNode as semanticNode,
   createSemanticGraphProjectionState as emptyState,
-  MAX_APPLICATION_NODE_IDS_PER_SEMANTIC_NODE,
-  MAX_SEMANTIC_GRAPH_NODES,
-  MAX_SEMANTIC_GRAPH_RELATIONS,
-  MAX_SEMANTIC_GRAPH_UNKNOWNS,
   type SemanticGraphProjectionState as BuilderState,
 } from "./JavaScriptSemanticGraphConstruction.js";
 
@@ -97,7 +93,7 @@ export const buildJavaScriptSemanticGraph = ({
   const semanticTruncated = analysis.files.some(
     ({ semantic }) => semantic?.ir.coverage.status === "truncated",
   );
-  const truncated = state.limitsReached.size > 0 || semanticTruncated;
+  const truncated = semanticTruncated;
   const unknowns = [...state.unknowns.values()];
   return createJavaScriptSemanticGraph({
     schema: "JavaScriptSemanticRelationGraph",
@@ -113,29 +109,7 @@ export const buildJavaScriptSemanticGraph = ({
       truncated,
       omitted_nodes: truncated ? null : 0,
       omitted_relations: truncated ? null : 0,
-      limits: [
-        {
-          name: "max_nodes",
-          value: MAX_SEMANTIC_GRAPH_NODES,
-          unit: "items",
-        },
-        {
-          name: "max_relations",
-          value: MAX_SEMANTIC_GRAPH_RELATIONS,
-          unit: "items",
-        },
-        {
-          name: "max_unknowns",
-          value: MAX_SEMANTIC_GRAPH_UNKNOWNS,
-          unit: "items",
-        },
-        {
-          name: "max_application_node_ids_per_semantic_node",
-          value: MAX_APPLICATION_NODE_IDS_PER_SEMANTIC_NODE,
-          unit: "items",
-        },
-        ...semanticRecoveryLimits(analysis),
-      ],
+      limits: [...semanticRecoveryLimits(analysis)],
       families: JAVASCRIPT_SEMANTIC_RELATION_FAMILIES.map((family) => ({
         family,
         status: semanticFamilyStatus(family, analysis, truncated),
@@ -161,11 +135,6 @@ export const buildJavaScriptSemanticGraph = ({
       "Request extraction covers fetch, WebSocket, node:http/node:https construction, direct option fields, and exact local response consumers.",
       "Boundary extraction covers unshadowed JSON/global coercions plus parse and validation method candidates.",
       "Resource extraction covers built-in filesystem/network acquisition and exact local close/destroy/end handles.",
-      ...(truncated
-        ? [
-            "Semantic graph projection reached one or more explicit hard limits.",
-          ]
-        : []),
     ],
   });
 };

@@ -160,7 +160,7 @@ export const prepareReplayPlan = async (
       "Perform no host filesystem writes and expose no host or external network",
       ...(input.reproducer_export === undefined
         ? []
-        : ["Write one separately approved reproducer after sandbox cleanup"]),
+        : ["Write one reproducer after sandbox cleanup"]),
     ],
     reproducer_export:
       input.reproducer_export === undefined

@@ -29,18 +29,16 @@ inline array. CDP response-size limits remain internal and oversized discovery
 responses fail explicitly.
 
 ```bash
-rea list-electron-targets http://127.0.0.1:9223 --approved --json
+rea list-electron-targets http://127.0.0.1:9223 --json
 rea inspect-electron-page http://127.0.0.1:9223 TARGET_ID \
-  --approved --observation-ms 100 --json
+  --observation-ms 100 --json
 ```
 
-Script content is excluded by default. Capturing it requires both flags and remains subject to per-script and aggregate byte budgets:
+Script content is excluded by default. Requesting it remains subject to per-script and aggregate byte budgets:
 
 ```bash
 rea inspect-electron-page http://127.0.0.1:9223 TARGET_ID \
-  --approved \
   --include-script-sources \
-  --source-capture-approved \
   --json
 ```
 

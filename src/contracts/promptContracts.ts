@@ -406,7 +406,7 @@ export const PROMPT_CONTRACTS = [
       {
         tools: ["capture_process_scenario"],
         instruction:
-          "Present exact executable and working roots, filesystem roots, environment names without secret values, host-network effects, scripted events, replay peers, byte/time/process limits, and cleanup expectations. Run only with operator policy plus approved: true.",
+          "Present exact executable and working roots, filesystem roots, environment names without secret values, host-network effects, scripted events, replay peers, byte/time/process limits, and cleanup expectations. Run only with operator policy authorization.",
       },
       {
         tools: ["compare_process_captures"],

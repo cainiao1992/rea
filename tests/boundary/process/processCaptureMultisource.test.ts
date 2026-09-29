@@ -118,7 +118,6 @@ function collectionTriggers() {
 
 function createMultiSourceScenario(root: string, script: string) {
   return parseProcessScenario({
-    approved: true,
     executable: process.execPath,
     arguments: [script, "codex"],
     working_directory: root,

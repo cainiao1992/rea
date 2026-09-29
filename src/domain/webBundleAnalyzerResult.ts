@@ -24,9 +24,7 @@ export const buildWebBundleAnalysis = (
     unavailable.length > 0 ||
     sourceMapIncomplete;
   const truncated =
-    accumulator.astLimitReached ||
-    accumulator.droppedFindings > 0 ||
-    sourceMaps.status === "truncated";
+    accumulator.astLimitReached || sourceMaps.status === "truncated";
   return webBundleAnalysisSchema.parse({
     capture: buildCaptureObservation(inspection, sourceScripts),
     observations: {
@@ -52,7 +50,6 @@ export const buildWebBundleAnalysis = (
       parsedScripts: accumulator.parsedScripts,
       parseFailures: accumulator.parseFailures,
       visitedNodes: accumulator.visitedNodes,
-      droppedFindings: accumulator.droppedFindings,
     }),
     limitations: bundleLimitations(),
   });
@@ -97,7 +94,7 @@ const buildUnknowns = (input: UnknownsInput): WebBundleAnalysis["unknowns"] => [
     : [
         {
           dimension: "script_source" as const,
-          reason: "Source artifact was not captured within approved limits",
+          reason: "Source artifact was not captured",
           affected_script_keys: input.unavailable,
         },
       ]),
@@ -120,7 +117,7 @@ const buildUnknowns = (input: UnknownsInput): WebBundleAnalysis["unknowns"] => [
           dimension: "source_maps" as const,
           reason:
             input.sourceMaps.status === "truncated"
-              ? "Source-map evidence was truncated by approved limits"
+              ? "Source-map evidence was truncated by provider safety limits"
               : "One or more requested source maps were unavailable or incomplete",
           affected_script_keys: [
             ...new Set([
@@ -140,7 +137,6 @@ interface CompletenessInput {
   readonly parsedScripts: number;
   readonly parseFailures: number;
   readonly visitedNodes: number;
-  readonly droppedFindings: number;
 }
 
 const buildCompleteness = (
@@ -154,7 +150,6 @@ const buildCompleteness = (
   parsed_scripts: input.parsedScripts,
   parse_failures: input.parseFailures,
   visited_ast_nodes: input.visitedNodes,
-  dropped_findings: input.droppedFindings,
 });
 
 const bundleLimitations = (): WebBundleAnalysis["limitations"] => [

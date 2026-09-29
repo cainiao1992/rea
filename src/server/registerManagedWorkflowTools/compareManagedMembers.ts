@@ -53,7 +53,6 @@ export const registerCompareManagedMembers = (
       const output =
         parsed.unknown_registry_approved === true && unknown
           ? options.recordEvidenceWithUnknown?.(result.value, {
-              approved: true,
               question:
                 "Which managed members remain unmatched or ambiguous across these versions?",
               severity: "medium",

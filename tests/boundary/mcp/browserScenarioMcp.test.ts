@@ -163,7 +163,6 @@ const scenario = (origin = "https://app.example.test") => ({
     max_storage_entries: 100,
     max_total_metadata_bytes: 1_048_576,
   },
-  approved: true,
 });
 
 describe("browser scenario MCP tool", () => {

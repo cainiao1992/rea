@@ -192,7 +192,6 @@ const runtimeEvidence = createEvidence(
       allowed_file_roots: [inputPath],
       target_id: "example-target",
       include_script_sources: true,
-      source_capture_approved: true,
     },
     result: {
       browser: {

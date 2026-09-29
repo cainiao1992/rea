@@ -69,7 +69,6 @@ describe("process-capture MCP elicitation handshake", () => {
       const call = {
         name: "capture_process_scenario",
         arguments: {
-          approved: true,
           executable: process.execPath,
           arguments: ["-e", "process.exit(0)"],
           working_directory: root,

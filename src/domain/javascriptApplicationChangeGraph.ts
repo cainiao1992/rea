@@ -8,10 +8,7 @@ import {
   type ApplicationNode,
   type JavaScriptApplicationGraph,
 } from "./javascriptApplicationGraph.js";
-import type {
-  ApplicationVersionComparisonItem,
-  CompareApplicationVersionsInput,
-} from "./javascriptApplicationVersionComparisonSchemas.js";
+import type { ApplicationVersionComparisonItem } from "./javascriptApplicationVersionComparisonSchemas.js";
 
 interface ChangeGraphInput {
   readonly left: JavaScriptApplicationGraph;
@@ -19,16 +16,11 @@ interface ChangeGraphInput {
   readonly leftEvidenceId: string;
   readonly rightEvidenceId: string;
   readonly items: readonly ApplicationVersionComparisonItem[];
-  readonly omittedComparisonItems: number;
-  readonly limits: CompareApplicationVersionsInput["limits"];
 }
 
-/** Bounded cross-version graph and exact projection omission counts. */
+/** Complete cross-version graph projection. */
 export interface ApplicationChangeGraphProjection {
   readonly graph: JavaScriptApplicationGraph;
-  readonly omittedNodes: number;
-  readonly omittedEdges: number;
-  readonly omittedObservations: number;
 }
 
 /** Merge compared nodes and add inferred right-to-left changed_from edges. */
@@ -47,10 +39,9 @@ export const buildJavaScriptApplicationChangeGraph = (
       ...(left === null ? [] : [left]),
     ]),
   ]);
-  const retainedIds = orderedNodeIds.slice(0, input.limits.max_graph_nodes);
-  const retained = new Set(retainedIds);
-  const merged = mergeNodes(
-    retainedIds.flatMap((nodeId) => allNodes.get(nodeId) ?? []),
+  const retained = new Set(orderedNodeIds);
+  const mergedNodes = mergeNodes(
+    orderedNodeIds.flatMap((nodeId) => allNodes.get(nodeId) ?? []),
   );
   const sourceEdges = uniqueEdges([
     ...input.left.edges,
@@ -63,15 +54,8 @@ export const buildJavaScriptApplicationChangeGraph = (
     changedFromEdge(item, input, retained),
   );
   const candidateEdges = uniqueEdges([...sourceEdges, ...comparisonEdges]);
-  const edges = candidateEdges.slice(0, input.limits.max_graph_edges);
-  const omittedNodes = Math.max(0, orderedNodeIds.length - retainedIds.length);
-  const omittedEdges = Math.max(0, candidateEdges.length - edges.length);
-  const graphOmissions =
-    omittedNodes + omittedEdges + merged.omittedObservations;
-  const rootNodeIds = preferredRoots
-    .filter((nodeId) => retained.has(nodeId))
-    .slice(0, 1_000);
-  const fallbackRoot = merged.nodes[0]?.node_id;
+  const rootNodeIds = preferredRoots.filter((nodeId) => retained.has(nodeId));
+  const fallbackRoot = mergedNodes[0]?.node_id;
   const graph = createJavaScriptApplicationGraph({
     schema: "JavaScriptApplicationGraph",
     root_node_ids:
@@ -80,25 +64,17 @@ export const buildJavaScriptApplicationChangeGraph = (
         : fallbackRoot === undefined
           ? []
           : [fallbackRoot],
-    nodes: merged.nodes,
-    edges,
-    coverage: changeGraphCoverage(input, graphOmissions),
+    nodes: mergedNodes,
+    edges: candidateEdges,
+    coverage: changeGraphCoverage(input),
     limitations: uniqueSorted([
       ...input.left.limitations.map((value) => `Left: ${value}`),
       ...input.right.limitations.map((value) => `Right: ${value}`),
       "changed_from edges are cross-version inferences and never promote structural or semantic matches to exact identity.",
       "The change graph contains compared entities and their retained relationships; it is not an executable application.",
-      ...(graphOmissions === 0
-        ? []
-        : ["The change graph omitted content at explicit caller bounds."]),
     ]),
   });
-  return {
-    graph,
-    omittedNodes,
-    omittedEdges,
-    omittedObservations: merged.omittedObservations,
-  };
+  return { graph };
 };
 
 const nodeCandidates = (
@@ -168,8 +144,7 @@ const comparisonEvidence = (
     right?.observations[0]?.evidence ?? left?.observations[0]?.evidence;
   const complete =
     input.left.coverage.status === "complete" &&
-    input.right.coverage.status === "complete" &&
-    input.omittedComparisonItems === 0;
+    input.right.coverage.status === "complete";
   return {
     authority: "cross-version-comparison",
     state: "inferred",
@@ -194,21 +169,13 @@ const comparisonEvidence = (
       ? { status: "complete", truncated: false, omitted_count: 0, limits: [] }
       : {
           status: "partial",
-          truncated: input.omittedComparisonItems > 0,
-          omitted_count:
-            input.omittedComparisonItems > 0
-              ? input.omittedComparisonItems
-              : (source?.coverage.omitted_count ?? null),
-          limits:
-            input.omittedComparisonItems > 0
-              ? [
-                  {
-                    name: "max-comparison-items",
-                    value: input.limits.max_comparison_items,
-                    unit: "items",
-                  },
-                ]
-              : [],
+          truncated:
+            input.left.coverage.truncated || input.right.coverage.truncated,
+          omitted_count: combineOmittedCounts(
+            input.left.coverage.omitted_count,
+            input.right.coverage.omitted_count,
+          ),
+          limits: sourceCoverageLimits(input),
         },
     limitations: [
       "Cross-version pairing is inferred from the stated match basis; changed_from does not prove runtime reachability.",
@@ -220,32 +187,7 @@ const comparisonEvidence = (
 
 const changeGraphCoverage = (
   input: ChangeGraphInput,
-  graphOmissions: number,
 ): JavaScriptApplicationGraph["coverage"] => {
-  const outputOmissions = graphOmissions + input.omittedComparisonItems;
-  if (outputOmissions > 0)
-    return {
-      status: "partial",
-      truncated: true,
-      omitted_count: outputOmissions,
-      limits: [
-        {
-          name: "max-comparison-items",
-          value: input.limits.max_comparison_items,
-          unit: "items",
-        },
-        {
-          name: "max-graph-nodes",
-          value: input.limits.max_graph_nodes,
-          unit: "items",
-        },
-        {
-          name: "max-graph-edges",
-          value: input.limits.max_graph_edges,
-          unit: "items",
-        },
-      ],
-    };
   if (
     input.left.coverage.status === "complete" &&
     input.right.coverage.status === "complete"
@@ -256,30 +198,33 @@ const changeGraphCoverage = (
       omitted_count: 0,
       limits: [],
     };
-  const counts = [
-    input.left.coverage.omitted_count,
-    input.right.coverage.omitted_count,
-  ];
   return {
     status: "partial",
-    truncated: false,
-    omitted_count: counts.every((value) => value !== null)
-      ? counts.reduce<number>((total, value) => total + (value ?? 0), 0)
-      : null,
-    limits: [],
+    truncated: input.left.coverage.truncated || input.right.coverage.truncated,
+    omitted_count: combineOmittedCounts(
+      input.left.coverage.omitted_count,
+      input.right.coverage.omitted_count,
+    ),
+    limits: sourceCoverageLimits(input),
   };
 };
 
-const mergeNodes = (
-  nodes: readonly ApplicationNode[],
-): {
-  readonly nodes: ApplicationNode[];
-  readonly omittedObservations: number;
-} => {
+const sourceCoverageLimits = (input: ChangeGraphInput) =>
+  [
+    ...new Map(
+      [...input.left.coverage.limits, ...input.right.coverage.limits].map(
+        (limit) => [`${limit.name}\0${limit.value}\0${limit.unit}`, limit],
+      ),
+    ).values(),
+  ].sort((left, right) => compareCodePoints(left.name, right.name));
+
+const combineOmittedCounts = (left: number | null, right: number | null) =>
+  left === null || right === null ? null : left + right;
+
+const mergeNodes = (nodes: readonly ApplicationNode[]): ApplicationNode[] => {
   const groups = new Map<string, ApplicationNode[]>();
   for (const node of nodes)
     groups.set(node.node_id, [...(groups.get(node.node_id) ?? []), node]);
-  let omittedObservations = 0;
   const merged = [...groups.values()].map((group) => {
     const first = group[0];
     if (first === undefined)
@@ -293,24 +238,18 @@ const mergeNodes = (
     ].sort((left, right) =>
       compareCodePoints(left.observation_id, right.observation_id),
     );
-    omittedObservations += Math.max(0, observations.length - 64);
     return createJavaScriptApplicationNode({
       kind: first.kind,
       identity: first.identity,
-      observations: observations
-        .slice(0, 64)
-        .map(
-          ({ observation_id: _id, identifier_strategy: _strategy, ...value }) =>
-            value,
-        ),
+      observations: observations.map(
+        ({ observation_id: _id, identifier_strategy: _strategy, ...value }) =>
+          value,
+      ),
     });
   });
-  return {
-    nodes: merged.sort((left, right) =>
-      compareCodePoints(left.node_id, right.node_id),
-    ),
-    omittedObservations,
-  };
+  return merged.sort((left, right) =>
+    compareCodePoints(left.node_id, right.node_id),
+  );
 };
 
 const uniqueEdges = (edges: readonly ApplicationEdge[]): ApplicationEdge[] =>

@@ -26,7 +26,6 @@ export const parseActiveElectronCapture = (
   );
   const parameters = z
     .object({
-      approved: z.literal(true),
       application_path: absolutePathSchema,
       application_root: absolutePathSchema,
     })
@@ -40,7 +39,7 @@ export const parseActiveElectronCapture = (
     )
   )
     throw new TypeError(
-      "Active Electron Evidence application path disagrees with its approved root",
+      "Active Electron Evidence application path disagrees with its configured root",
     );
   return {
     kind: "electron-active",

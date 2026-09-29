@@ -18,6 +18,7 @@ import { BROWSER_TOOL_CONTRACTS } from "../contracts/browserToolContracts.js";
 import type { ToolContract } from "../contracts/toolContracts.js";
 import type { AnalysisError } from "../domain/errors.js";
 import type { Evidence } from "../domain/evidence.js";
+import { analyzeWebBundleInputSchema } from "../domain/webBundleAnalysis.js";
 import type { Result } from "../domain/result.js";
 import type { Logger } from "../logger.js";
 import { mcpProgressReporter } from "./mcpProgress.js";
@@ -100,7 +101,7 @@ export const registerBrowserTools = (
           analyzeWebBundle(
             options.browser,
             options.permissionAuthority,
-            parsed,
+            analyzeWebBundleInputSchema.parse(parsed),
             {
               signal,
               progress,

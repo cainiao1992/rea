@@ -46,7 +46,6 @@ const activeExample = {
     max_processes: 32,
     max_windows: 32,
   },
-  approved: true,
 };
 
 /** Root-confined Electron file-page discovery and inspection contracts. */
@@ -65,7 +64,6 @@ export const ELECTRON_TOOL_CONTRACTS = [
         input: {
           cdp_endpoint: endpoint,
           allowed_file_roots: [root],
-          approved: true,
         },
       },
     ],
@@ -85,10 +83,8 @@ export const ELECTRON_TOOL_CONTRACTS = [
           cdp_endpoint: endpoint,
           allowed_file_roots: [root],
           target_id: "TARGET_ID_FROM_LIST_ELECTRON_TARGETS",
-          approved: true,
           observation_ms: 100,
           include_script_sources: false,
-          source_capture_approved: false,
           limits: {
             max_frames: 200,
             max_dom_nodes: 2_000,

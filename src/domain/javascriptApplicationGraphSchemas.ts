@@ -112,7 +112,7 @@ export const applicationNodeObservationSchema =
 export const applicationNodeInputSchema = z.strictObject({
   kind: applicationNodeKindSchema,
   identity: applicationNodeIdentitySchema,
-  observations: z.array(applicationNodeObservationInputSchema).min(1).max(64),
+  observations: z.array(applicationNodeObservationInputSchema).min(1),
 });
 
 /** One stable application entity with one or more bounded observations. */
@@ -120,7 +120,7 @@ export const applicationNodeSchema = z.strictObject({
   node_id: z.string().regex(/^jag_node_[a-f0-9]{64}$/u),
   kind: applicationNodeKindSchema,
   identity: applicationNodeIdentitySchema,
-  observations: z.array(applicationNodeObservationSchema).min(1).max(64),
+  observations: z.array(applicationNodeObservationSchema).min(1),
 });
 
 /** One directed relationship before its semantic identifier is derived. */
@@ -148,7 +148,7 @@ export const javascriptApplicationGraphInputSchema = z.strictObject({
   nodes: z.array(applicationNodeSchema).min(1),
   edges: z.array(applicationEdgeSchema),
   coverage: applicationCoverageSchema,
-  limitations: z.array(boundedTextSchema).max(1_000),
+  limitations: z.array(boundedTextSchema),
 });
 
 /** Strict stored shape for a JavaScript Application Graph. */

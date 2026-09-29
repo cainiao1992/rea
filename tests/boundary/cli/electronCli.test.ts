@@ -51,7 +51,7 @@ describe("Electron CLI parity", () => {
         REA_ELECTRON_FILE_ROOTS_JSON: JSON.stringify([root]),
       };
       const listed = await runCli(
-        ["list-electron-targets", browser.endpoint, "--approved", "--json"],
+        ["list-electron-targets", browser.endpoint, "--json"],
         environment,
       );
       expect(listed).toMatchObject({
@@ -65,7 +65,6 @@ describe("Electron CLI parity", () => {
           "inspect-electron-page",
           browser.endpoint,
           "electron-page",
-          "--approved",
           "--observation-ms",
           "0",
           "--json",

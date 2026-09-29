@@ -20,7 +20,6 @@ import {
 import { emptyProcessCapture as emptyCapture } from "../domain/processCapture.fixture.js";
 
 const base = {
-  approved: true as const,
   executable: "/bin/sh",
   working_directory: "/tmp",
 };

@@ -104,7 +104,7 @@ describe("tool contract surface", () => {
     for (const contract of contracts) {
       const inputSchema = contractJsonSchema(contract.inputSchema);
       const outputSchema = contractJsonSchema(contract.outputSchema);
-      expect(describesObject(inputSchema)).toBe(true);
+      expect(describesObject(inputSchema), contract.name).toBe(true);
       expect(describesObject(outputSchema)).toBe(true);
       expect(contract.title.length).toBeGreaterThan(2);
       expect(contract.annotations).toEqual(

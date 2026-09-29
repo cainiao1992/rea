@@ -178,7 +178,6 @@ it("reconciles active Electron as a partial target-only runtime capture", async 
     application_path: applicationPath,
     application_root: fixture,
     actions: [],
-    approved: true,
   });
   const runtimeEvidence = createElectronActiveEvidence(
     input,
@@ -220,7 +219,6 @@ it("hashes the retained Electron scenario projection, not raw selectors or secre
       application_root: fixture,
       args: ["--token", secret],
       actions: [{ step_id: "click", kind: "click", selector }],
-      approved: true,
     });
   const provider = {
     id: "rea-playwright-electron-active",
@@ -342,22 +340,20 @@ const electronRuntimeEvidence = (
     readonly scriptFile?: string;
     readonly includeWorker?: boolean;
     readonly targetId?: string;
-    readonly sourceCaptureApproved?: boolean;
+    readonly sourceIncluded?: boolean;
     readonly workersUnavailable?: boolean;
   } = {},
 ) => {
   const scriptFile = options.scriptFile ?? "app.js";
   const includeWorker = options.includeWorker ?? true;
   const targetId = options.targetId ?? "target-main";
-  const sourceCaptureApproved = options.sourceCaptureApproved ?? true;
+  const sourceIncluded = options.sourceIncluded ?? true;
   const input = inspectElectronPageInputSchema.parse({
     cdp_endpoint: "http://127.0.0.1:9223",
     allowed_file_roots: [root],
     target_id: targetId,
-    approved: true as const,
     observation_ms: 100,
-    include_script_sources: sourceCaptureApproved,
-    source_capture_approved: sourceCaptureApproved,
+    include_script_sources: sourceIncluded,
     limits: {
       max_frames: 200,
       max_dom_nodes: 2_000,

@@ -31,7 +31,7 @@ import {
   addJavaScriptPackageNodes,
   createJavaScriptArtifactRootNode,
 } from "./JavaScriptArtifactGraphStructure.js";
-import type { JavaScriptArtifactReconstructionInput } from "./JavaScriptArtifactReconstructionInput.js";
+import { JAVASCRIPT_APPLICATION_RESOURCE_LIMITS } from "./JavaScriptArtifactReconstructionInput.js";
 import { addElectronBoundaries } from "./ElectronBoundaryGraph.js";
 import {
   classifyElectronIpcPairings,
@@ -43,7 +43,6 @@ export const buildJavaScriptArtifactGraph = (
   snapshot: ArtifactInventorySnapshot,
   fileSet: JavaScriptArtifactFileSet,
   analysis: JavaScriptArtifactAnalysis,
-  input: JavaScriptArtifactReconstructionInput,
 ): JavaScriptApplicationGraph => {
   const accumulator = new JavaScriptArtifactGraphAccumulator();
   const root = createJavaScriptArtifactRootNode(accumulator, snapshot);
@@ -52,7 +51,6 @@ export const buildJavaScriptArtifactGraph = (
     snapshot,
     fileSet,
     analysis,
-    input,
     root,
     filesByPath: new Map(fileSet.files.map((file) => [file.path, file])),
     fileNodes: new Map(),
@@ -87,9 +85,7 @@ export const buildJavaScriptArtifactGraph = (
 };
 
 const graphCoverage = (context: JavaScriptArtifactGraphContext) => {
-  const exactLimitOmissions =
-    context.fileSet.limit_omitted_text_files +
-    context.accumulator.omittedObservations();
+  const exactLimitOmissions = context.fileSet.limit_omitted_text_files;
   const sourceMapPolicyGap = context.analysis.source_maps.some(
     ({ status }) => status === "invalid",
   );
@@ -109,20 +105,17 @@ const graphCoverage = (context: JavaScriptArtifactGraphContext) => {
     partialJavaScript;
   if (context.analysis.truncated_scopes > 0)
     return truncatedApplicationCoverage(
-      reconstructionLimits(context.input),
+      reconstructionLimits(),
       truncationOmittedCount(context),
     );
   if (exactLimitOmissions > 0)
     return truncatedApplicationCoverage(
-      reconstructionLimits(context.input),
+      reconstructionLimits(),
       exactLimitOmissions,
     );
   if (unknownGap)
-    return partialApplicationCoverage(
-      reconstructionLimits(context.input),
-      null,
-    );
-  return completeApplicationCoverage(reconstructionLimits(context.input));
+    return partialApplicationCoverage(reconstructionLimits(), null);
+  return completeApplicationCoverage(reconstructionLimits());
 };
 
 const truncationOmittedCount = (
@@ -202,11 +195,6 @@ const graphLimitations = (
           "Native member names are requested by JavaScript syntax and are not verified binary exports in this workflow.",
         ]
       : []),
-    ...(context.accumulator.omittedObservations() === 0
-      ? []
-      : [
-          "Repeated content identities exceeded the per-node observation bound; containment edges still preserve inventoried paths.",
-        ]),
     ...(coverage === "complete"
       ? []
       : [
@@ -215,27 +203,26 @@ const graphLimitations = (
   ];
 };
 
-const reconstructionLimits = (input: JavaScriptArtifactReconstructionInput) => [
+const reconstructionLimits = () => [
   {
     name: "max-entries",
-    value: input.limits.max_entries,
+    value: JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.artifact.maxEntries,
     unit: "items" as const,
   },
   {
     name: "max-total-artifact-bytes",
-    value: input.limits.max_total_artifact_bytes,
+    value: JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.artifact.maxTotalBytes,
     unit: "bytes" as const,
   },
   {
     name: "max-text-files",
-    value: input.limits.max_text_files,
+    value: JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.maxTextFiles,
     unit: "items" as const,
   },
   {
     name: "max-total-text-bytes",
-    value: input.limits.max_total_text_bytes,
+    value: JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.maxTotalTextBytes,
     unit: "bytes" as const,
   },
-  ...javaScriptAnalysisLimits(input),
-  { name: "max-observations-per-node", value: 64, unit: "items" as const },
+  ...javaScriptAnalysisLimits(),
 ];

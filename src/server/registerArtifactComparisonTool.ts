@@ -82,7 +82,6 @@ const artifactUnknownInput = (
   if (input.unknown_registry_approved !== true || status === "unchanged")
     return undefined;
   return {
-    approved: true,
     question: `Artifact comparison is ${status}`,
     severity:
       status === "unknown" || status === "truncated" ? "high" : "medium",
@@ -94,8 +93,8 @@ const artifactUnknownInput = (
     required_environment: null,
     recommended_probes: [
       {
-        operation: "inventory_artifact",
-        rationale: "Capture both complete artifact graphs under equal limits.",
+        operation: "inspect_artifact",
+        rationale: "Inspect both artifacts and compare their complete graphs.",
       },
     ],
     relationships: [],

@@ -152,7 +152,6 @@ const locatorSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("css"),
     selector: z.string().min(1).max(4_096),
-    approved: z.literal(true),
   }),
 ]);
 

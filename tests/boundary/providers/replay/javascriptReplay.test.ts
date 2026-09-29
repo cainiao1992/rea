@@ -128,7 +128,6 @@ const input = (
     entry_export: "default",
   },
   cases: [{ case_id: "heading", arguments: ["# Title"] }],
-  ...(mode === "execute" ? { approved: true as const } : {}),
 });
 
 const completedRunner = (): JavaScriptReplayRunner => ({
@@ -153,18 +152,16 @@ const completedRunner = (): JavaScriptReplayRunner => ({
 });
 
 describe("controlled JavaScript replay planning", () => {
-  it("parses planning and execution as disjoint legal states", () => {
+  it("requires an exact digest for execution and keeps plan input separate", () => {
     expect(
       controlledReplayInputSchema.safeParse({
         ...input("execute"),
-        approved: false,
         plan_digest: "0".repeat(64),
       }).success,
-    ).toBe(false);
+    ).toBe(true);
     expect(
       controlledReplayInputSchema.safeParse({
         ...input("execute"),
-        approved: true,
       }).success,
     ).toBe(false);
     expect(
@@ -176,20 +173,17 @@ describe("controlled JavaScript replay planning", () => {
     expect(
       controlledReplayInputSchema.safeParse({
         ...input("plan"),
-        approved: true,
       }).success,
-    ).toBe(false);
+    ).toBe(true);
     expect(
       controlledReplayInputSchema.safeParse({
         ...input("execute"),
-        approved: true,
         plan_digest: "0".repeat(64),
         reproducer_export: {
           path: "/tmp/reproducer",
-          approved: false,
         },
       }).success,
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("rejects relative paths and more than 128 combined cases", () => {
@@ -482,7 +476,6 @@ describe("controlled JavaScript replay cancellation and export", () => {
     };
     const export_ = {
       path,
-      approved: true,
       include_sources: false,
     };
     try {

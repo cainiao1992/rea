@@ -37,7 +37,7 @@ export const addElectronWindowBoundaries = (
   for (const analyzed of context.analysis.files) {
     const { file, javascript } = analyzed;
     if (javascript === null) continue;
-    const coverage = javascriptAnalysisCoverage(javascript, context.input);
+    const coverage = javascriptAnalysisCoverage(javascript);
     for (const value of javascript.electron.browser_windows) {
       const source = electronFindingSourceNode(context, file, value.module_key);
       if (source !== undefined)

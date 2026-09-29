@@ -35,7 +35,7 @@ describe("browser CLI parity", () => {
         ]),
       };
       const listed = await runCli(
-        ["list-browser-targets", browser.endpoint, "--approved", "--json"],
+        ["list-browser-targets", browser.endpoint, "--json"],
         environment,
       );
       expect(listed).toMatchObject({
@@ -50,15 +50,11 @@ describe("browser CLI parity", () => {
           "inspect-web-page",
           browser.endpoint,
           "allowed-page",
-          "--approved",
           "--observation-ms",
           "0",
           "--include-console-text",
-          "--console-text-approved",
           "--include-json-body-shapes",
-          "--json-body-schema-approved",
           "--include-websocket-shapes",
-          "--websocket-shape-approved",
           "--json",
         ],
         environment,
@@ -145,8 +141,6 @@ describe("browser CLI capture parity", () => {
           "analyze-web-bundle",
           browser.endpoint,
           "allowed-page",
-          "--approved",
-          "--source-capture-approved",
           "--observation-ms",
           "0",
           "--json",
@@ -165,7 +159,6 @@ describe("browser CLI capture parity", () => {
           "observe-web-session",
           browser.endpoint,
           "allowed-page",
-          "--approved",
           "--observation-ms",
           "5",
           "--json",
@@ -186,7 +179,6 @@ describe("browser CLI capture parity", () => {
           "discover-webmcp-tools",
           browser.endpoint,
           "allowed-page",
-          "--approved",
           "--observation-ms",
           "0",
           "--json",
@@ -202,14 +194,7 @@ describe("browser CLI capture parity", () => {
         },
       });
       const screenshot = await runCli(
-        [
-          "capture-web-screenshot",
-          browser.endpoint,
-          "allowed-page",
-          "--approved",
-          "--screenshot-approved",
-          "--json",
-        ],
+        ["capture-web-screenshot", browser.endpoint, "allowed-page", "--json"],
         environment,
       );
       const artifact = screenshotArtifact(screenshot);
@@ -251,9 +236,9 @@ describe("browser CLI capture parity", () => {
   );
 });
 
-describe("browser CLI approval", () => {
+describe("browser CLI configured access", () => {
   it(
-    "requires explicit approval before opening the CDP endpoint",
+    "uses the configured endpoint without a redundant request approval flag",
     async () => {
       const browser = await startFakeCdpBrowser();
       browsers.push(browser);
@@ -269,11 +254,11 @@ describe("browser CLI approval", () => {
         },
       );
       expect(result).toMatchObject({
-        error: "Browser observation failed",
-        code: "invalid_request",
-        category: "invalid_input",
+        operation: "list_browser_targets",
+        normalized_result: {
+          targets: [{ target_id: "allowed-page" }],
+        },
       });
-      expect(browser.commands).toHaveLength(0);
     },
     INTEGRATION_TEST_TIMEOUT_MS,
   );

@@ -34,7 +34,6 @@ const scopeOptions = {
     .describe(
       "Exact origins; defaults to REA_V8_INSPECTOR_ALLOWED_ORIGINS_JSON",
     ),
-  approved: z.boolean().default(false).describe("Approve passive attachment"),
 };
 
 const listOptionsSchema = z.object({ ...scopeOptions });
@@ -115,7 +114,6 @@ export const registerJavaScriptRuntimeObservationCommands = (
             allowed_file_roots:
               options.allowedFileRoots ?? context.allowedFileRoots,
             allowed_origins: options.allowedOrigins ?? context.allowedOrigins,
-            approved: options.approved,
           });
           if (!parsed.success)
             return inputError("list_javascript_runtime_targets");
@@ -149,7 +147,6 @@ export const registerJavaScriptRuntimeObservationCommands = (
           allowed_origins: options.allowedOrigins ?? context.allowedOrigins,
           target_id: args.targetId,
           runtime_kind: options.runtimeKind,
-          approved: options.approved,
           observation_ms: options.observationMs,
           limits: {
             max_events: options.maxEvents,

@@ -57,6 +57,31 @@ interface Invocation {
 
 const resources: Array<{ close(): Promise<void> }> = [];
 
+describe("read_bytes contract", () => {
+  it("accepts lengths above the former arbitrary ceiling and rejects zero", () => {
+    const contract = OFFICIAL_TOOL_CONTRACTS.find(
+      ({ name }) => name === "read_bytes",
+    );
+    expect(contract).toBeDefined();
+    expect(
+      contract?.inputSchema.safeParse({ address: "0x1000", length: 4097 })
+        .success,
+    ).toBe(true);
+    expect(
+      contract?.inputSchema.safeParse({ address: "0x1000", length: 0 }).success,
+    ).toBe(false);
+    expect(
+      contract?.outputSchema.shape.result.safeParse({
+        address: "0x1000",
+        requested_bytes: 4097,
+        returned_bytes: 4097,
+        bytes_hex: "ff".repeat(4097),
+        complete: true,
+      }).success,
+    ).toBe(true);
+  });
+});
+
 afterEach(async () => {
   await Promise.all(
     resources.splice(0).map(async (resource) => resource.close()),

@@ -44,7 +44,6 @@ export const TOOL_EXAMPLE_OVERRIDES: Readonly<
   inspect_address_context: { address: "0x1000" },
   import_evidence_bundle: { path: "evidence.json" },
   capture_process_scenario: {
-    approved: true,
     executable: "/usr/bin/true",
     working_directory: "/tmp",
   },

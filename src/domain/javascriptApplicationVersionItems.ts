@@ -9,19 +9,15 @@ import {
   type ApplicationNode,
   type JavaScriptApplicationGraph,
 } from "./javascriptApplicationGraph.js";
-import type {
-  ApplicationVersionComparisonItem,
-  CompareApplicationVersionsInput,
-} from "./javascriptApplicationVersionComparisonSchemas.js";
+import type { ApplicationVersionComparisonItem } from "./javascriptApplicationVersionComparisonSchemas.js";
 import type {
   ApplicationVersionMatchingProjection,
   ApplicationVersionNodePair,
 } from "./javascriptApplicationVersionKeys.js";
 
-/** All classified entities before the caller's item bound is applied. */
+/** All classified entities and their complete ambiguity candidate sets. */
 export interface ApplicationVersionItemProjection {
   readonly items: ApplicationVersionComparisonItem[];
-  readonly omittedCandidateReferences: number;
 }
 
 interface ItemContext {
@@ -33,7 +29,6 @@ interface ItemContext {
   readonly rightNativeEvidence: readonly Evidence[];
   readonly pairByLeft: ReadonlyMap<string, string>;
   readonly pairByRight: ReadonlyMap<string, string>;
-  readonly maxCandidates: number;
 }
 
 type OneSidedNode =
@@ -60,9 +55,7 @@ type ComparisonItemSemantic<
 /** Classify matched, unmatched, and ambiguous nodes without inventing absence. */
 export const classifyJavaScriptApplicationVersions = (
   matching: ApplicationVersionMatchingProjection,
-  context: Omit<ItemContext, "pairByLeft" | "pairByRight" | "maxCandidates"> & {
-    readonly maxCandidates: CompareApplicationVersionsInput["limits"]["max_candidate_nodes"];
-  },
+  context: Omit<ItemContext, "pairByLeft" | "pairByRight">,
 ): ApplicationVersionItemProjection => {
   const pairByLeft = new Map(
     matching.pairs.map(({ left, right }) => [
@@ -77,31 +70,22 @@ export const classifyJavaScriptApplicationVersions = (
     ]),
   );
   const fullContext: ItemContext = { ...context, pairByLeft, pairByRight };
-  let omittedCandidateReferences = 0;
   const leftItems = matching.unmatchedLeft.map((node) => {
     const candidates = matching.candidatesForLeft.get(node.node_id) ?? [];
-    omittedCandidateReferences += Math.max(
-      0,
-      candidates.length - context.maxCandidates,
-    );
     return unmatchedItem(
       {
         left: node,
-        candidateRightNodeIds: candidates.slice(0, context.maxCandidates),
+        candidateRightNodeIds: candidates,
       },
       fullContext,
     );
   });
   const rightItems = matching.unmatchedRight.map((node) => {
     const candidates = matching.candidatesForRight.get(node.node_id) ?? [];
-    omittedCandidateReferences += Math.max(
-      0,
-      candidates.length - context.maxCandidates,
-    );
     return unmatchedItem(
       {
         right: node,
-        candidateLeftNodeIds: candidates.slice(0, context.maxCandidates),
+        candidateLeftNodeIds: candidates,
       },
       fullContext,
     );
@@ -112,7 +96,6 @@ export const classifyJavaScriptApplicationVersions = (
       ...leftItems,
       ...rightItems,
     ].sort((left, right) => compareCodePoints(left.item_id, right.item_id)),
-    omittedCandidateReferences,
   };
 };
 

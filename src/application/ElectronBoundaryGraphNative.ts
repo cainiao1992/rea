@@ -28,7 +28,7 @@ export const addElectronNativeBoundaries = (
   for (const analyzed of context.analysis.files) {
     const { file, javascript } = analyzed;
     if (javascript === null) continue;
-    const coverage = javascriptAnalysisCoverage(javascript, context.input);
+    const coverage = javascriptAnalysisCoverage(javascript);
     for (const value of javascript.electron.native_addon_bindings)
       addNativeBinding({ context, file, value, coverage });
   }

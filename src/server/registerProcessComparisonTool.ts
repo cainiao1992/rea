@@ -146,7 +146,6 @@ const comparisonUnknownInput = (
     .map(([scope]) => scope)
     .join(", ");
   return {
-    approved: true,
     question: `Process captures disagree across: ${differingScopes}`,
     severity: "high",
     domain: "process-comparison",

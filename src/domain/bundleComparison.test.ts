@@ -126,7 +126,6 @@ describe("bundle comparison history", () => {
     const mutationOne = evidence("mutation-one");
     const initial = createResidualUnknown(
       recordUnknownInputSchema.parse({
-        approved: true,
         question: "Which branch remains unexplained?",
         severity: "high",
         domain: "comparison",
@@ -145,7 +144,6 @@ describe("bundle comparison history", () => {
     const advanced = updateResidualUnknown(
       initial,
       updateUnknownInputSchema.parse({
-        approved: true,
         unknown_id: initial.unknown_id,
         expected_revision: 1,
         status: "investigating",

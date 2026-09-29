@@ -12,7 +12,6 @@ export const discoverWebMcpToolsInputSchema = z.object({
   cdp_endpoint: browserEndpointSchema,
   allowed_origins: browserAllowedOriginsSchema,
   target_id: z.string().trim().min(1).max(256),
-  approved: z.literal(true),
   observation_ms: z.number().int().min(0).max(10_000).default(100),
   max_tools: z.number().int().min(1).max(5_000).default(500),
   max_schema_bytes: z

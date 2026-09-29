@@ -140,7 +140,6 @@ const baseScenario = () => ({
     max_storage_entries: 256,
     max_total_metadata_bytes: 4 * 1_024 * 1_024,
   },
-  approved: true,
 });
 
 describe("browserScenarioSchema", () => {

@@ -432,7 +432,6 @@ const assertRuntimeParameters = (
     .object({
       ...common,
       allowed_file_roots: electronFileRootsSchema,
-      source_capture_approved: z.boolean(),
     })
     .passthrough()
     .parse(evidence.parameters);
@@ -440,13 +439,9 @@ const assertRuntimeParameters = (
     throw new TypeError(
       "Runtime Evidence target disagrees with its captured result",
     );
-  if (
-    expected.sourceIncluded &&
-    (!parameters.include_script_sources ||
-      parameters.source_capture_approved !== true)
-  )
+  if (expected.sourceIncluded && !parameters.include_script_sources)
     throw new TypeError(
-      "Runtime Evidence contains source without source-capture approval",
+      "Runtime Evidence contains source without source-capture selection",
     );
 };
 

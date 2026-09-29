@@ -9,7 +9,6 @@ import {
 export class JavaScriptArtifactGraphAccumulator {
   readonly #nodes = new Map<string, ApplicationNode>();
   readonly #edges = new Map<string, ApplicationEdge>();
-  #omittedObservations = 0;
 
   /** Create or merge one canonical node. */
   addNode(input: unknown): ApplicationNode {
@@ -27,9 +26,7 @@ export class JavaScriptArtifactGraphAccumulator {
     );
     const observations = [...bySemanticId.entries()]
       .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
-      .slice(0, 64)
       .map(([, observation]) => observation);
-    this.#omittedObservations += Math.max(0, bySemanticId.size - 64);
     const merged = createJavaScriptApplicationNode({
       kind: existing.kind,
       identity: existing.identity,
@@ -54,11 +51,6 @@ export class JavaScriptArtifactGraphAccumulator {
   /** Return all accumulated canonical edges. */
   edges(): readonly ApplicationEdge[] {
     return [...this.#edges.values()];
-  }
-
-  /** Count distinct node observations omitted by the graph contract bound. */
-  omittedObservations(): number {
-    return this.#omittedObservations;
   }
 }
 

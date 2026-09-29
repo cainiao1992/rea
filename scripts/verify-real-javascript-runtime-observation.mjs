@@ -28,7 +28,7 @@ try {
     REA_V8_INSPECTOR_ALLOWED_ORIGINS_JSON: "[]",
   };
   const listed = await runCli(
-    ["list-javascript-runtime-targets", endpoint, "--approved", "--json"],
+    ["list-javascript-runtime-targets", endpoint, "--json"],
     environment,
   );
   const target = listed.normalized_result?.targets?.items?.[0];
@@ -46,7 +46,6 @@ try {
       target.target_id,
       "--runtime-kind",
       "node",
-      "--approved",
       "--observation-ms",
       "100",
       "--json",

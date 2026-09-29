@@ -73,7 +73,7 @@ describe("web bundle analyzer", () => {
     expect(result.completeness.status).toBe("complete_within_limits");
   });
 
-  it("reports parser gaps and finding truncation instead of claiming completeness", () => {
+  it("reports parser gaps without imposing a finding cap", () => {
     const malformed = inspection("function broken( {");
     const failed = analyzeCapturedWebBundle(malformed, input());
     expect(failed.completeness).toMatchObject({
@@ -82,15 +82,12 @@ describe("web bundle analyzer", () => {
     });
     expect(failed.unknowns[0]?.dimension).toBe("javascript_ast");
 
-    const bounded = analyzeCapturedWebBundle(
+    const analyzed = analyzeCapturedWebBundle(
       inspection("fetch('/one'); fetch('/two'); fetch('/three');"),
-      input({ analysis_limits: { max_findings: 1 } }),
+      input(),
     );
-    expect(bounded.observations.endpoints).toHaveLength(1);
-    expect(bounded.completeness).toMatchObject({
-      status: "truncated",
-      dropped_findings: 2,
-    });
+    expect(analyzed.observations.endpoints).toHaveLength(3);
+    expect(analyzed.completeness.status).toBe("complete_within_limits");
   });
 
   it("propagates source-map truncation into completeness and unknowns", () => {
@@ -121,7 +118,7 @@ describe("web bundle analyzer", () => {
     expect(analysis.completeness.status).toBe("truncated");
     expect(analysis.unknowns).toContainEqual({
       dimension: "source_maps",
-      reason: "Source-map evidence was truncated by approved limits",
+      reason: "Source-map evidence was truncated by provider safety limits",
       affected_script_keys: [`scr_${"1".repeat(64)}`, `scr_${"2".repeat(64)}`],
     });
   });
@@ -149,9 +146,7 @@ const input = (overrides: Record<string, unknown> = {}) =>
       cdp_endpoint: "http://127.0.0.1:9222",
       allowed_origins: [origin],
       target_id: "page-1",
-      approved: true,
       include_script_sources: true,
-      source_capture_approved: true,
     }),
     ...overrides,
   });

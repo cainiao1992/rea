@@ -93,7 +93,6 @@ describe("guided prompt completion from investigation records", () => {
     ])
       expect(session.recordEvidence(evidence).ok).toBe(true);
     const unknown = session.recordUnknown({
-      approved: true,
       question: "Which branch handles the fallback?",
       severity: "medium",
       domain: "control-flow",
@@ -122,7 +121,6 @@ describe("guided prompt completion from investigation records", () => {
     ]);
 
     const resolved = session.updateUnknown({
-      approved: true,
       unknown_id: unknown.value.unknown_id,
       expected_revision: unknown.value.revision,
       status: "resolved",

@@ -31,7 +31,6 @@ const sideBindingSchema = z
 /** Boundary contract for one bounded authority/candidate process experiment. */
 export const processPairedExperimentSchema = z
   .object({
-    approved: z.literal(true),
     shared_scenario: processScenarioSchema,
     authority: sideBindingSchema,
     candidate: sideBindingSchema,

@@ -47,7 +47,7 @@ export const addJavaScriptStaticFindings = (
     const { file, javascript } = analyzed;
     const asset = context.assetNodes.get(file.path);
     if (javascript === null || asset === undefined) continue;
-    const coverage = javascriptAnalysisCoverage(javascript, context.input);
+    const coverage = javascriptAnalysisCoverage(javascript);
     for (const value of javascript.references)
       addReference(context, { file, asset, value, coverage });
     for (const value of javascript.endpoints)

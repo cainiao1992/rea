@@ -91,7 +91,6 @@ const functionUnknownInput = ({
 }): RecordUnknownInput | undefined => {
   if (approved !== true || status === "unchanged") return undefined;
   return {
-    approved: true,
     question: `Function comparison is ${status}`,
     severity: status === "changed" ? "medium" : "high",
     domain: "function-comparison",

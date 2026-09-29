@@ -89,7 +89,6 @@ const registerWebMcp = (
           allowed_origins:
             options.allowedOrigins ?? context.allowedBrowserOrigins,
           target_id: args.targetId,
-          approved: options.approved,
           observation_ms: options.observationMs,
           max_tools: options.maxTools,
           max_schema_bytes: options.maxSchemaBytes,
@@ -173,10 +172,6 @@ const registerScreenshot = (
     }),
     options: z.object({
       ...browserScopeOptions,
-      screenshotApproved: z
-        .boolean()
-        .default(false)
-        .describe("Approve capturing the visible page viewport"),
       maximumImageBytes: z
         .number()
         .int()
@@ -194,8 +189,6 @@ const registerScreenshot = (
           allowed_origins:
             options.allowedOrigins ?? context.allowedBrowserOrigins,
           target_id: args.targetId,
-          approved: options.approved,
-          screenshot_approved: options.screenshotApproved,
           maximum_image_bytes: options.maximumImageBytes,
         });
         if (!parsed.success) return inputError("capture_web_screenshot");

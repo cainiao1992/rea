@@ -99,7 +99,6 @@ const scenario = (
       max_storage_entries: 10,
       max_total_metadata_bytes: 16_384,
     },
-    approved: true,
   });
 
 type SnapshotKind = BrowserScenario["capture"]["after_each_step"][number];

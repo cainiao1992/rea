@@ -156,7 +156,6 @@ describe("target-free MCP workflow", () => {
     const resolved = await mcp.callTool({
       name: "update_unknown",
       arguments: {
-        approved: true,
         unknown_id: recordedUnknown.unknown_id,
         expected_revision: 1,
         status: "resolved",
@@ -253,7 +252,6 @@ describe("process residuals over MCP", () => {
     const captured = await mcp.callTool({
       name: "capture_process_scenario",
       arguments: {
-        approved: true,
         unknown_registry_approved: true,
         executable: process.execPath,
         arguments: [processFixture, "partial"],

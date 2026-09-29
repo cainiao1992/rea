@@ -133,7 +133,6 @@ export const snapshotAndRecordUnknown = async (
         await mcp.callTool({
           name: "record_unknown",
           arguments: {
-            approved: true,
             question: "Does the alternate branch execute?",
             severity: "medium",
             domain: "control-flow",

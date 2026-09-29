@@ -8,7 +8,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import {
-  JAVASCRIPT_APPLICATION_VERSION_COMPARISON_EXAMPLE,
   JAVASCRIPT_FEATURE_TRACE_FULL_EVIDENCE_EXAMPLE,
   JAVASCRIPT_FEATURE_TRACE_EXAMPLE,
   JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE,
@@ -160,7 +159,6 @@ describe("application workflow CLI Evidence resolution", () => {
       [
         "compare-application-versions",
         JSON.stringify({
-          ...JAVASCRIPT_APPLICATION_VERSION_COMPARISON_EXAMPLE,
           left_evidence_id:
             JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left
               .evidence_id,

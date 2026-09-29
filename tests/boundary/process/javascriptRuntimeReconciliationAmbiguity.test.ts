@@ -119,7 +119,7 @@ it("rejects runtime source bytes whose Evidence omits source-capture approval", 
   const staticEvidence = await analyzeFixture(fixture);
   const contradictoryRuntime = electronRuntimeEvidence(fixture, SOURCE, {
     includeWorker: false,
-    sourceCaptureApproved: false,
+    sourceIncluded: false,
   });
 
   expect(() =>
@@ -127,7 +127,7 @@ it("rejects runtime source bytes whose Evidence omits source-capture approval", 
       static_layers: [{ role: "application", analysis: staticEvidence }],
       runtime_observations: [contradictoryRuntime],
     }),
-  ).toThrow(/source-capture approval/u);
+  ).toThrow(/source-capture selection/u);
 });
 
 it("keeps graph omission counts unknown when a runtime section is unavailable", async () => {
@@ -219,22 +219,20 @@ const electronRuntimeEvidence = (
     readonly scriptFile?: string;
     readonly includeWorker?: boolean;
     readonly targetId?: string;
-    readonly sourceCaptureApproved?: boolean;
+    readonly sourceIncluded?: boolean;
     readonly workersUnavailable?: boolean;
   } = {},
 ) => {
   const scriptFile = options.scriptFile ?? "app.js";
   const includeWorker = options.includeWorker ?? true;
   const targetId = options.targetId ?? "target-main";
-  const sourceCaptureApproved = options.sourceCaptureApproved ?? true;
+  const sourceIncluded = options.sourceIncluded ?? true;
   const input = inspectElectronPageInputSchema.parse({
     cdp_endpoint: "http://127.0.0.1:9223",
     allowed_file_roots: [root],
     target_id: targetId,
-    approved: true as const,
     observation_ms: 100,
-    include_script_sources: sourceCaptureApproved,
-    source_capture_approved: sourceCaptureApproved,
+    include_script_sources: sourceIncluded,
     limits: {
       max_frames: 200,
       max_dom_nodes: 2_000,

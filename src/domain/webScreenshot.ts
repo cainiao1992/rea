@@ -43,8 +43,6 @@ export const captureWebScreenshotInputSchema = z.object({
   cdp_endpoint: browserEndpointSchema,
   allowed_origins: browserAllowedOriginsSchema,
   target_id: z.string().trim().min(1).max(256),
-  approved: z.literal(true),
-  screenshot_approved: z.literal(true),
   maximum_image_bytes: z
     .number()
     .int()

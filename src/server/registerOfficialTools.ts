@@ -158,7 +158,6 @@ const recordOfficialUnknown = (
   )
     return undefined;
   const unknown = recordUnknown({
-    approved: true,
     question: "The requested analysis is unavailable for the current target.",
     severity: "medium",
     domain: "analysis-capability",

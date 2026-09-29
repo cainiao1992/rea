@@ -307,3 +307,36 @@ it("excludes candidate edges unless the caller explicitly opts in", () => {
     { relation: "supplies-request-field", resolution: "candidate" },
   ]);
 });
+
+it("retains every structural application node linked to one semantic node", () => {
+  const original = node("module", "module");
+  const linked = createJavaScriptSemanticGraphNode({
+    kind: original.kind,
+    identity: original.identity,
+    function_node_id: original.function_node_id,
+    application_node_ids: Array.from(
+      { length: 65 },
+      (_, index) => `jag_node_${index.toString(16).padStart(64, "0")}`,
+    ),
+    label: original.label,
+    properties: original.properties,
+    evidence: original.evidence,
+  });
+  expect(linked.application_node_ids).toHaveLength(65);
+});
+
+it("retains all explicit unresolved candidate node identifiers", () => {
+  const unknown = createJavaScriptSemanticGraphUnknown({
+    node_id: null,
+    family: "call-flow",
+    relation_kinds: ["calls"],
+    reason: "ambiguous-target",
+    detail: "All candidate targets are retained.",
+    candidate_node_ids: Array.from(
+      { length: 1_001 },
+      (_, index) => `jsrg_node_${index.toString(16).padStart(64, "0")}`,
+    ),
+    evidence: unknownEvidence(),
+  });
+  expect(unknown.candidate_node_ids).toHaveLength(1_001);
+});

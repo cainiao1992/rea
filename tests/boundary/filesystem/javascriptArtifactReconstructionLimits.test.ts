@@ -31,67 +31,7 @@ it("reads local source maps as part of static artifact analysis", async () => {
   );
 });
 
-it("reports text and AST limits as truncation instead of absence", async () => {
-  const root = await fixtureDirectory();
-  const result = await reconstructJavaScriptArtifact({
-    input_path: root,
-    limits: {
-      max_text_file_bytes: 128,
-      max_total_text_bytes: 1_024,
-      max_ast_nodes: 50,
-    },
-  });
-
-  expect(result.statistics.limit_omitted_text_files).toBeGreaterThan(0);
-  expect(result.graph.coverage).toMatchObject({
-    status: "partial",
-    truncated: true,
-  });
-  expect(result.graph.coverage.omitted_count).toBeGreaterThan(0);
-  expect(result.graph.nodes.some(({ kind }) => kind === "unknown")).toBe(true);
-  expect(result.graph.limitations.join(" ")).toMatch(/incomplete|bound/iu);
-});
-
-it("uses an unknown omission count when AST traversal reaches its bound", async () => {
-  const root = await createTestTempDirectory("rea-javascript-ast-limit-");
-  await writeFile(
-    join(root, "large.js"),
-    [
-      'import "./unobserved.js";',
-      ...Array.from(
-        { length: 100 },
-        (_, index) => `export const value${String(index)} = ${String(index)};`,
-      ),
-    ].join("\n"),
-  );
-
-  const result = await reconstructJavaScriptArtifact({
-    input_path: root,
-    limits: { max_ast_nodes: 50 },
-  });
-
-  expect(result.statistics.limit_omitted_text_files).toBe(0);
-  expect(result.statistics.truncated_scopes).toBe(1);
-  expect(result.graph.coverage).toMatchObject({
-    status: "partial",
-    truncated: true,
-    omitted_count: null,
-  });
-  const derivedImport = result.graph.edges.find(
-    ({ relation, properties }) =>
-      relation === "imports" && properties.specifier === "./unobserved.js",
-  );
-  expect(derivedImport?.evidence.coverage).toEqual({
-    status: "partial",
-    truncated: true,
-    omitted_count: null,
-    limits: expect.arrayContaining([
-      { name: "max-ast-nodes", value: 50, unit: "items" },
-    ]),
-  });
-});
-
-it("does not follow symlinks or read oversized JavaScript text", async () => {
+it("does not follow symlinks or exceed the internal text-file safety boundary", async () => {
   const root = await fixtureDirectory();
   const outside = await createTestTempDirectory("rea-javascript-outside-");
   const outsideFile = join(outside, "secret.js");
@@ -102,13 +42,10 @@ it("does not follow symlinks or read oversized JavaScript text", async () => {
   await symlink(outsideFile, join(root, "escape.js"));
   await writeFile(
     join(root, "oversized.js"),
-    `const oversizedSecret = "${"private-marker-".repeat(256)}";`,
+    `const oversizedSecret = "${"private-marker-".repeat(600_000)}";`,
   );
 
-  const result = await reconstructJavaScriptArtifact({
-    input_path: root,
-    limits: { max_text_file_bytes: 512 },
-  });
+  const result = await reconstructJavaScriptArtifact({ input_path: root });
   const encoded = JSON.stringify(result);
 
   expect(result.statistics.limit_omitted_text_files).toBeGreaterThan(0);
@@ -153,7 +90,7 @@ it("keeps malformed JavaScript, package metadata, and source maps as explicit un
   );
 });
 
-it("applies one source-map source budget across every local map", async () => {
+it("retains every source declared by every included local source map", async () => {
   const root = await createTestTempDirectory("rea-javascript-source-maps-");
   await Promise.all([
     writeFile(
@@ -178,22 +115,19 @@ it("applies one source-map source budget across every local map", async () => {
     ),
   ]);
 
-  const result = await reconstructJavaScriptArtifact({
-    input_path: root,
-    limits: { max_source_map_sources: 3 },
-  });
+  const result = await reconstructJavaScriptArtifact({ input_path: root });
 
   expect(
     result.graph.nodes.filter(({ kind }) => kind === "source-module"),
-  ).toHaveLength(3);
+  ).toHaveLength(4);
   expect(result.graph.coverage).toMatchObject({
-    status: "partial",
-    truncated: true,
-    omitted_count: null,
+    status: "complete",
+    truncated: false,
+    omitted_count: 0,
   });
 });
 
-it("bounds repeated content observations while retaining every containment path", async () => {
+it("retains every repeated content observation and containment path", async () => {
   const root = await createTestTempDirectory("rea-javascript-observations-");
   await Promise.all(
     Array.from({ length: 70 }, (_, index) =>
@@ -218,26 +152,23 @@ it("bounds repeated content observations while retaining every containment path"
       String(properties.path).startsWith("duplicate-"),
   );
 
-  expect(duplicateNode?.observations).toHaveLength(64);
+  expect(duplicateNode?.observations).toHaveLength(70);
   expect(duplicateEdges).toHaveLength(70);
   expect(result.graph.coverage).toMatchObject({
-    status: "partial",
-    truncated: true,
-    omitted_count: 6,
+    status: "complete",
+    truncated: false,
+    omitted_count: 0,
   });
 }, 15_000);
 
 it("rejects traversal from a production reader seam and malformed ASAR containers", async () => {
   const root = await fixtureDirectory();
-  const input = javascriptArtifactReconstructionInputSchema.parse({
-    input_path: root,
-  });
   const snapshot = await scanArtifactInventory(
     root,
-    artifactLimitsForReconstruction(input),
+    artifactLimitsForReconstruction(),
   );
   await expect(
-    readJavaScriptArtifactFiles(new TraversalReader(), snapshot, input),
+    readJavaScriptArtifactFiles(new TraversalReader(), snapshot),
   ).rejects.toMatchObject({ reason: "path" });
 
   const malformed = join(root, "malformed.asar");
@@ -264,11 +195,11 @@ it("preserves cancellation and explicit format diagnostics", async () => {
     message: expect.stringContaining(root),
   });
   expect(
-    javascriptArtifactReconstructionInputSchema.parse({
+    javascriptArtifactReconstructionInputSchema.safeParse({
       input_path: root,
       limits: { max_entries: 100_000 },
-    }).limits.max_entries,
-  ).toBe(100_000);
+    }).success,
+  ).toBe(false);
 });
 
 class TraversalReader implements ArtifactReader {

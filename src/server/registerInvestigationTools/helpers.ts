@@ -65,7 +65,6 @@ export const recordWorkflowEvidence = (
     return recordDerivedEvidence(session, evidence, undefined);
   }
   return recordDerivedEvidence(session, evidence, {
-    approved: true,
     question: input.question,
     severity: "high",
     domain: input.domain,

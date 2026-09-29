@@ -167,7 +167,6 @@ export const recordUnknownInputSchema = residualUnknownObjectSchema
   .extend({
     supporting_evidence_ids: z.array(evidenceIdSchema).max(100).default([]),
     contradicting_evidence_ids: z.array(evidenceIdSchema).max(100).default([]),
-    approved: z.literal(true),
   });
 
 export type RecordUnknownInput = z.infer<typeof recordUnknownInputSchema>;
@@ -176,7 +175,6 @@ export type RecordUnknownInput = z.infer<typeof recordUnknownInputSchema>;
 export const updateUnknownInputSchema = z.object({
   unknown_id: unknownIdSchema,
   expected_revision: z.number().int().min(1),
-  approved: z.literal(true),
   status: residualUnknownObjectSchema.shape.status,
   severity: residualUnknownObjectSchema.shape.severity,
   supporting_evidence_ids: z.array(evidenceIdSchema).max(100),

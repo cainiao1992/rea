@@ -20,7 +20,6 @@ import {
   staticInferenceEvidence,
   unavailableAstEvidence,
 } from "./JavaScriptArtifactGraphEvidence.js";
-import type { JavaScriptArtifactReconstructionInput } from "./JavaScriptArtifactReconstructionInput.js";
 import {
   resolveArtifactPathByContext,
   type ArtifactPathResolution,
@@ -32,7 +31,6 @@ export interface JavaScriptArtifactGraphContext {
   readonly snapshot: ArtifactInventorySnapshot;
   readonly fileSet: JavaScriptArtifactFileSet;
   readonly analysis: JavaScriptArtifactAnalysis;
-  readonly input: JavaScriptArtifactReconstructionInput;
   readonly root: ApplicationNode;
   readonly filesByPath: ReadonlyMap<string, JavaScriptArtifactFile>;
   readonly fileNodes: Map<string, ApplicationNode>;
@@ -214,13 +212,12 @@ export const javascriptAnalysisCoverage = (
   analysis: NonNullable<
     JavaScriptArtifactAnalysis["files"][number]["javascript"]
   >,
-  input: JavaScriptArtifactReconstructionInput,
 ): JavaScriptArtifactGraphCoverage =>
   analysis.parse_status === "complete"
-    ? completeApplicationCoverage(javaScriptAnalysisLimits(input))
+    ? completeApplicationCoverage(javaScriptAnalysisLimits())
     : analysis.parse_status === "truncated"
-      ? truncatedApplicationCoverage(javaScriptAnalysisLimits(input), null)
-      : partialApplicationCoverage(javaScriptAnalysisLimits(input), null);
+      ? truncatedApplicationCoverage(javaScriptAnalysisLimits(), null)
+      : partialApplicationCoverage(javaScriptAnalysisLimits(), null);
 
 /** Stable identity for a fact scoped to one exact artifact. */
 export const artifactLocalIdentity = (
@@ -348,28 +345,16 @@ export const sourceNodeFor = (
     ? context.sourceModuleNodes.get(path)
     : context.moduleNodes.get(moduleLookupKey(path, moduleKey));
 
-/** Named AST budgets committed to graph evidence coverage. */
-export const javaScriptAnalysisLimits = (
-  input: JavaScriptArtifactReconstructionInput,
-) => [
+/** Actual parser safety bounds committed to graph evidence coverage. */
+export const javaScriptAnalysisLimits = () => [
   {
     name: "max-ast-nodes",
-    value: input.limits.max_ast_nodes,
-    unit: "items" as const,
-  },
-  {
-    name: "max-findings",
-    value: input.limits.max_findings,
-    unit: "items" as const,
-  },
-  {
-    name: "max-modules",
-    value: input.limits.max_modules,
+    value: 2_000_000,
     unit: "items" as const,
   },
   {
     name: "max-parse-milliseconds",
-    value: input.limits.max_parse_milliseconds,
+    value: 30_000,
     unit: "milliseconds" as const,
   },
 ];

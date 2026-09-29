@@ -40,7 +40,6 @@ describe("CDP document capture", () => {
       cdp_endpoint: "http://127.0.0.1:9222",
       allowed_origins: [origin],
       target_id: "page-1",
-      approved: true,
     });
     const snapshot = {
       strings: [`${origin}/main`, `${origin}/frame`, "#document", "DIV", ""],

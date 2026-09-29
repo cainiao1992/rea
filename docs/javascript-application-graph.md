@@ -157,16 +157,13 @@ stability. Edge IDs use the same derivation with `relationship-exact`
 stability. Node, observation, edge, and graph IDs are recomputed during parsing,
 so callers cannot preserve a stale ID after changing semantic content.
 
-## Bounds
+## Structure
 
-The graph boundary admits at most 1,000 roots, 100,000 nodes, 200,000 edges, and 64
-observations per node. Each properties object is valid bounded JSON with at most
-64 keys, depth 6, 512 structural nodes, and 4,096 characters per string. Arrays
-of evidence links, limits, and limitations have independent caps.
-
-These are admission limits, not completeness claims. When an extractor reaches
-a limit, it must record partial coverage and the exact named limit. It must not
-return a bounded prefix labeled complete.
+The graph does not impose aggregate caps on roots, nodes, edges, or observations.
+Each properties object is valid JSON with at most 64 keys, depth 6, 512
+structural nodes, and 4,096 characters per string. Field-specific validation
+still applies to paths, identifiers, and evidence values. Extractors report
+actual omissions in coverage instead of silently dropping a prefix.
 
 ## Domain API
 

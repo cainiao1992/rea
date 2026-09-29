@@ -18,9 +18,7 @@ import { ok } from "../domain/result.js";
 
 const experiment = () =>
   processPairedExperimentSchema.parse({
-    approved: true,
     shared_scenario: {
-      approved: true,
       executable: "/bin/template",
       arguments: ["shared"],
       working_directory: "/tmp",

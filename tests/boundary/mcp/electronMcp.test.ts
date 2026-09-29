@@ -88,7 +88,6 @@ it("exposes root-confined Electron discovery and inspection as Evidence v2", asy
     arguments: {
       cdp_endpoint: browser.endpoint,
       allowed_file_roots: [root],
-      approved: true,
     },
   });
   expect(listed.isError).not.toBe(true);
@@ -103,10 +102,8 @@ it("exposes root-confined Electron discovery and inspection as Evidence v2", asy
       cdp_endpoint: browser.endpoint,
       allowed_file_roots: [root],
       target_id: "electron-page",
-      approved: true,
       observation_ms: 0,
       include_script_sources: true,
-      source_capture_approved: true,
     },
   });
   const analyzed = await client.callTool({
@@ -171,7 +168,6 @@ it("exposes root-confined Electron discovery and inspection as Evidence v2", asy
     arguments: {
       cdp_endpoint: browser.endpoint,
       allowed_file_roots: [outside],
-      approved: true,
     },
   });
   expect(denied.isError).toBe(true);
@@ -248,7 +244,6 @@ it("exposes active Electron scenarios through the separately granted MCP boundar
       actions: [
         { step_id: "submit", kind: "click", selector: "#submit-secret" },
       ],
-      approved: true,
     },
   });
   expect(captured.isError, JSON.stringify(captured)).not.toBe(true);

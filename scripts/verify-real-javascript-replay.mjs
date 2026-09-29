@@ -164,7 +164,6 @@ if (plan === null || typeof plan.plan_digest !== "string")
 const executed = await runControlledReplay(dependencies, {
   ...input,
   mode: "execute",
-  approved: true,
   plan_digest: plan.plan_digest,
 });
 if (!executed.ok) throw executed.error;
@@ -245,7 +244,6 @@ const runSingle = async (path, limits = undefined) => {
   const observed = await runControlledReplay(dependencies, {
     ...manifest,
     mode: "execute",
-    approved: true,
     plan_digest: proposed.value.plan.plan_digest,
   });
   if (!observed.ok || observed.value.evidence === null)
@@ -313,7 +311,6 @@ if (!differentialTimeoutPlan.ok || differentialTimeoutPlan.value.plan === null)
 const differentialTimeout = await runControlledReplay(dependencies, {
   ...differentialTimeoutInput,
   mode: "execute",
-  approved: true,
   plan_digest: differentialTimeoutPlan.value.plan.plan_digest,
 });
 if (

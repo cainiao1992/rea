@@ -40,5 +40,4 @@ const parameters = (
   input: AnalyzeJavaScriptApplicationInput,
 ): EvidenceObservation["parameters"] => ({
   format: input.format,
-  limits: input.limits,
 });

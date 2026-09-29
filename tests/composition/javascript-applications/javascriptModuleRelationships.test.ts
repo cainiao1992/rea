@@ -148,31 +148,40 @@ describe("CommonJS and ESM module relationships", () => {
   });
 });
 
-describe("CommonJS and ESM relationship limits", () => {
-  it("retains exact semantic omissions when the relationship budget truncates", async () => {
-    const root = await createTestTempDirectory("rea-module-limit-");
-    await writeFile(
-      join(root, "exports.mjs"),
-      "export const first = 1; export const second = 2; export const third = 3;",
+describe("complete static application projections", () => {
+  it("retains exports and JSON keys beyond the former projection prefix", async () => {
+    const root = await moduleFixture();
+    const exportNames = Array.from(
+      { length: 140 },
+      (_, index) =>
+        `export const retained_${String(index).padStart(3, "0")} = ${index};`,
     );
-    const result = await reconstructJavaScriptArtifact({
-      input_path: root,
-      limits: { max_findings: 1 },
-    });
+    const jsonKeys = Object.fromEntries(
+      Array.from({ length: 140 }, (_, index) => [`key_${index}`, index]),
+    );
+    await Promise.all([
+      writeFile(join(root, "many-exports.mjs"), exportNames.join("\n")),
+      writeFile(join(root, "many.json"), JSON.stringify(jsonKeys)),
+    ]);
 
-    expect(result.statistics.truncated_scopes).toBeGreaterThan(0);
-    expect(
-      result.graph.nodes.filter((node) =>
-        node.observations.some(
-          ({ properties }) => properties.semantic_role === "export-binding",
-        ),
+    const { graph } = await reconstructJavaScriptArtifact({ input_path: root });
+    const module = sourceModule(graph, "many-exports.mjs");
+    const exportObservation = module?.observations.find(
+      ({ properties }) => properties.semantic_role === "source-module",
+    );
+    const json = graph.nodes.find((node) =>
+      node.observations.some(
+        ({ properties }) => properties.path === "many.json",
       ),
-    ).toHaveLength(1);
-    expect(result.graph.coverage).toMatchObject({
-      status: "partial",
-      truncated: true,
-      omitted_count: 2,
-    });
+    );
+    const jsonObservation = json?.observations.find(
+      ({ properties }) => properties.path === "many.json",
+    );
+
+    expect(exportObservation?.properties.export_names).toHaveLength(140);
+    expect(exportObservation?.properties.omitted_export_names).toBe(0);
+    expect(jsonObservation?.properties.json_top_level_keys).toHaveLength(140);
+    expect(jsonObservation?.properties.omitted_json_top_level_keys).toBe(0);
   });
 });
 

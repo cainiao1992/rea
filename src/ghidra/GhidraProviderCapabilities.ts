@@ -82,10 +82,7 @@ export const limitationsFor = (operation: string): readonly string[] => {
       ];
     case "search_procedures":
     case "search_strings":
-      return [
-        ...common,
-        "Literal search enforces 1,000,000 cumulative work units; regex mode also accepts only a conservative finite Java-regex subset with 10,000 static paths and 4,096 UTF-16 code units per candidate.",
-      ];
+      return common;
     case "procedure_pseudo_code":
       return [
         ...common,

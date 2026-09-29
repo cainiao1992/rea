@@ -16,7 +16,6 @@ describeBrowser("CdpBrowserProvider: discovery authorization 1", () => {
       listBrowserTargetsInputSchema.parse({
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
-        approved: true,
       }),
     );
     if (!listed.ok) throw listed.error;
@@ -33,7 +32,6 @@ describeBrowser("CdpBrowserProvider: discovery authorization 1", () => {
       listBrowserTargetsInputSchema.parse({
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
-        approved: true,
       }),
     );
 
@@ -68,7 +66,6 @@ describeBrowser("CdpBrowserProvider: discovery authorization 1", () => {
       const input = {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
-        approved: true as const,
         target_id: "allowed-page",
       };
       const expected = `${prefix}${browser.allowedOrigin}/app?startup=%5BREDACTED%5D`;
@@ -102,7 +99,6 @@ describeBrowser("CdpBrowserProvider: discovery authorization 1", () => {
       listBrowserTargetsInputSchema.parse({
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
-        approved: true,
       }),
     );
     if (!listed.ok) throw listed.error;
@@ -119,7 +115,6 @@ describeBrowser("CdpBrowserProvider: discovery authorization 1", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
       }),
     );
@@ -132,7 +127,6 @@ describeBrowser("CdpBrowserProvider: discovery authorization 1", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page-with-socket",
-        approved: true,
         observation_ms: 0,
       }),
     );
@@ -156,7 +150,6 @@ describeBrowser("CdpBrowserProvider: discovery authorization 2", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
       }),
     );
@@ -179,7 +172,6 @@ describeBrowser("CdpBrowserProvider: discovery authorization 2", () => {
           cdp_endpoint: browser.endpoint,
           allowed_origins: [browser.allowedOrigin],
           target_id: targetId,
-          approved: true,
           observation_ms: 0,
         }),
       );
@@ -201,7 +193,6 @@ describeBrowser("CdpBrowserProvider: discovery authorization 2", () => {
       listBrowserTargetsInputSchema.parse({
         cdp_endpoint: malformed.endpoint,
         allowed_origins: [malformed.allowedOrigin],
-        approved: true,
       }),
     );
     expect(malformedResult).toMatchObject({
@@ -221,7 +212,6 @@ describeBrowser("CdpBrowserProvider: discovery authorization 2", () => {
         cdp_endpoint: disconnecting.endpoint,
         allowed_origins: [disconnecting.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
       }),
     );

@@ -61,7 +61,7 @@ export const reconstructJavaScriptArtifact = async (
   const format = await resolveFormat(path, input);
   const snapshot = await scanCanonicalArtifactInventory(
     path,
-    artifactLimitsForReconstruction(input),
+    artifactLimitsForReconstruction(),
     { signal },
   );
   if (snapshot.manifest.root_format !== format)
@@ -71,22 +71,12 @@ export const reconstructJavaScriptArtifact = async (
     );
   const reader = createReader(path, format);
   try {
-    const files = await readJavaScriptArtifactFiles(
-      reader,
-      snapshot,
-      input,
-      signal,
-    );
-    const analysis = analyzeJavaScriptArtifactFiles(files, input, () =>
+    const files = await readJavaScriptArtifactFiles(reader, snapshot, signal);
+    const analysis = analyzeJavaScriptArtifactFiles(files, () =>
       performance.now(),
     );
     abortIfNeeded(signal);
-    const graph = buildJavaScriptArtifactGraph(
-      snapshot,
-      files,
-      analysis,
-      input,
-    );
+    const graph = buildJavaScriptArtifactGraph(snapshot, files, analysis);
     const semanticGraph = buildJavaScriptSemanticGraph({
       rootArtifactSha256: snapshot.manifest.root_sha256,
       applicationGraph: graph,

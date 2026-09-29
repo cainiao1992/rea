@@ -383,7 +383,6 @@ describe("reconstruction verification integrity", () => {
     const unknowns = mutations.map((mutation, index) =>
       createResidualUnknown(
         {
-          approved: true,
           question: `Unresolved replay ${index}`,
           severity: "high",
           domain: "reconstruction-verification",

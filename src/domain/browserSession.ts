@@ -11,7 +11,6 @@ export const observeWebSessionInputSchema = z.object({
   cdp_endpoint: browserEndpointSchema,
   allowed_origins: browserAllowedOriginsSchema,
   target_id: z.string().trim().min(1).max(256),
-  approved: z.literal(true),
   observation_ms: z.number().int().min(1).max(60_000).default(10_000),
   max_timeline_events: z.number().int().min(1).max(20_000).default(2_000),
 });

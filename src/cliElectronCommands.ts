@@ -140,7 +140,6 @@ const registerElectronTargetList = (
           cdp_endpoint: args.endpoint,
           allowed_file_roots:
             options.allowedFileRoots ?? context.allowedFileRoots,
-          approved: options.approved,
         });
         if (!parsed.success) return inputError("list_electron_targets");
         const result = await listElectronTargets(
@@ -177,10 +176,8 @@ const registerElectronPageInspection = (
           allowed_file_roots:
             options.allowedFileRoots ?? context.allowedFileRoots,
           target_id: args.targetId,
-          approved: options.approved,
           observation_ms: options.observationMs,
           include_script_sources: options.includeScriptSources,
-          source_capture_approved: options.sourceCaptureApproved,
           limits: {
             max_frames: options.maxFrames,
             max_dom_nodes: options.maxDomNodes,
@@ -218,22 +215,6 @@ const registerJavaScriptApplicationCommand = (
         runCliJavaScriptApplicationAnalysis({
           input_path: args.path,
           format: options.artifactFormat,
-          limits: {
-            max_entries: options.maxEntries,
-            max_total_artifact_bytes: options.maxTotalArtifactBytes,
-            max_artifact_entry_bytes: options.maxArtifactEntryBytes,
-            max_compression_ratio: options.maxCompressionRatio,
-            max_depth: options.maxDepth,
-            max_path_bytes: options.maxPathBytes,
-            max_text_files: options.maxTextFiles,
-            max_total_text_bytes: options.maxTotalTextBytes,
-            max_text_file_bytes: options.maxTextFileBytes,
-            max_ast_nodes: options.maxAstNodes,
-            max_findings: options.maxFindings,
-            max_modules: options.maxModules,
-            max_source_map_sources: options.maxSourceMapSources,
-            max_parse_milliseconds: options.maxParseMilliseconds,
-          },
         }),
       ),
   });

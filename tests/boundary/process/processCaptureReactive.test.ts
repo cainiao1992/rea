@@ -15,7 +15,6 @@ import { processCaptureIssues } from "../../../src/domain/processCapture.fixture
 
 function createInteractiveScenario(root: string, script: string) {
   return parseProcessScenario({
-    approved: true,
     executable: process.execPath,
     arguments: [script],
     working_directory: root,
@@ -307,7 +306,6 @@ it("records target loss before post-exit settlement can win the deadline race", 
   const script = join(root, "exit.mjs");
   await writeFile(script, 'process.stdout.write("exiting\\n");\n');
   const scenario = parseProcessScenario({
-    approved: true,
     executable: process.execPath,
     arguments: [script],
     working_directory: root,

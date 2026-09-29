@@ -76,7 +76,7 @@ export const addJavaScriptSourceModules = (
         exportedName === null ? [] : [exportedName],
       )
       .sort(compareCodePoints);
-    const retainedExports = [...new Set(exports)].slice(0, 128);
+    const retainedExports = [...new Set(exports)];
     const source = context.accumulator.addNode({
       kind: "javascript-module",
       identity: artifactLocalIdentity(
@@ -98,10 +98,7 @@ export const addJavaScriptSourceModules = (
             ).length,
             export_relationships: exports.length,
             export_names: retainedExports,
-            omitted_export_names: Math.max(
-              0,
-              exports.length - retainedExports.length,
-            ),
+            omitted_export_names: 0,
           },
           evidence: astObservationEvidence({
             sha256: file.sha256,

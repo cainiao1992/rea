@@ -397,7 +397,7 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "capture_process_scenario",
-    "Run one bounded process under a PTY using operator-approved executable and working roots. Produces process capture Evidence. Requires approved: true; unknown_registry_approved: true separately records capture residuals. Captures raw and xterm-rendered terminal frames, scripted interactions, lifecycle filesystem checkpoints, process ownership, declarative command shims, and loopback replay. Disabled unless operator policy enables it; not a security sandbox.",
+    "Run one bounded process under a PTY using operator-approved executable and working roots. Produces process capture Evidence; unknown_registry_approved: true separately records capture residuals. Captures raw and xterm-rendered terminal frames, scripted interactions, lifecycle filesystem checkpoints, process ownership, declarative command shims, and loopback replay. Disabled unless operator policy enables it; not a security sandbox.",
     processScenarioSchema,
   ),
   session(
@@ -447,12 +447,12 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "record_unknown",
-    "Create one deterministic residual unknown and immutable mutation evidence. Requires approved: true, validates all evidence and relationship references, and rejects duplicate stable identity.",
+    "Create one deterministic residual unknown and immutable mutation evidence. Validates all evidence and relationship references, and rejects duplicate stable identity.",
     recordUnknownInputSchema,
   ),
   session(
     "update_unknown",
-    "Append one immutable full-state revision and mutation evidence. Requires approved: true and exact expected_revision; stale concurrent writers fail instead of overwriting newer analysis.",
+    "Append one immutable full-state revision and mutation evidence. Requires exact expected_revision; stale concurrent writers fail instead of overwriting newer analysis.",
     updateUnknownInputSchema,
   ),
   session(

@@ -55,7 +55,6 @@ const reconstructionObligationLedgerOutputSchema = evidenceResultOf(
 );
 const HASH = "0".repeat(64);
 const NODE_PREPARATION_EXAMPLE = jsonObjectSchema.parse({
-  preparation_approved: true,
   selected_alias: "bundle",
   expected_effect: "pure",
   instrumentation: {
@@ -130,7 +129,7 @@ export const APPLICATION_TOOL_CONTRACTS = [
     name: "compare_application_versions",
     ...toolContractMetadata("compare_application_versions"),
     description:
-      "Compare two authenticated JavaScript Application Graph versions supplied as full Evidence or Evidence IDs returned earlier in this session. Uses unique-only exact digest, module source digest, source-map identity, structural fingerprint, and non-module semantic-key tiers. Reports added, removed, changed, ambiguous, and unknown entities plus a bounded changed_from graph without fuzzy or module-ordinal pairing.",
+      "Compare two authenticated JavaScript Application Graph versions supplied as full Evidence or Evidence IDs returned earlier in this session. Uses unique-only exact digest, module source digest, source-map identity, structural fingerprint, and non-module semantic-key tiers. Reports added, removed, changed, ambiguous, and unknown entities plus the complete matching changed_from graph without fuzzy or module-ordinal pairing.",
     kind: "application",
     inputSchema: compareApplicationVersionsRequestSchema,
     outputSchema: comparisonOutputSchema,
@@ -176,7 +175,7 @@ export const APPLICATION_TOOL_CONTRACTS = [
     name: "run_controlled_replay",
     ...toolContractMetadata("run_controlled_replay"),
     description:
-      "Plan or execute a content-bound extracted-module JavaScript replay inside the Linux Bubblewrap, seccomp, and cgroup boundary. Execution requires approved: true and the exact plan digest. Supports deterministic boundary cases and optional left/right differential comparison; observations have controlled-replay authority and do not claim real application runtime behavior.",
+      "Plan or execute a content-bound extracted-module JavaScript replay inside the Linux Bubblewrap, seccomp, and cgroup boundary. Execution requires the exact plan digest. Supports deterministic boundary cases and optional left/right differential comparison; observations have controlled-replay authority and do not claim real application runtime behavior.",
     kind: "application",
     inputSchema: controlledReplayInputSchema,
     outputSchema: controlledReplayOutputSchema,
@@ -228,7 +227,7 @@ export const APPLICATION_TOOL_CONTRACTS = [
     name: "prepare_node_characterization",
     ...toolContractMetadata("prepare_node_characterization"),
     description:
-      "Prepare a hash-bound Node/JavaScript characterization plan and deterministic reversible export transformation without executing target code. The exact source, selected byte range, runtime closure, sandbox profile, cases, and limits are committed for separate execution approval.",
+      "Prepare a hash-bound Node/JavaScript characterization plan and deterministic reversible export transformation without executing target code. The exact source, selected byte range, runtime closure, sandbox profile, cases, and limits are committed for later execution.",
     kind: "application",
     inputSchema: nodeCharacterizationPreparationInputSchema,
     outputSchema: nodeCharacterizationPreparationOutputSchema,
@@ -243,15 +242,14 @@ export const APPLICATION_TOOL_CONTRACTS = [
     name: "execute_node_characterization",
     ...toolContractMetadata("execute_node_characterization"),
     description:
-      "Recompute and execute one separately approved exact Node characterization plan in the owned controlled-replay boundary. Returns transformation, replay, cleanup, and provider-neutral characterization Evidence; stale plans fail before execution.",
+      "Recompute and execute one exact Node characterization plan in the owned controlled-replay boundary. Returns transformation, replay, cleanup, and provider-neutral characterization Evidence; stale plans fail before execution.",
     kind: "application",
     inputSchema: nodeCharacterizationExecutionInputSchema,
     outputSchema: nodeCharacterizationExecutionOutputSchema,
     examples: [
       {
-        title: "Execute one approved exact characterization plan",
+        title: "Execute one exact characterization plan",
         input: {
-          execution_approved: true,
           approved_plan_sha256: HASH,
           preparation: NODE_PREPARATION_EXAMPLE,
         },

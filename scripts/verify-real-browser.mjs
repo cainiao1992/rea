@@ -89,7 +89,6 @@ try {
     inspectWebPageInputSchema.parse({
       cdp_endpoint: endpoint,
       allowed_origins: [site.origin],
-      approved: true,
       target_id: target,
       observation_ms: 1_000,
       include_storage_keys: true,
@@ -109,18 +108,13 @@ try {
     inspectWebPageInputSchema.parse({
       cdp_endpoint: endpoint,
       allowed_origins: [site.origin],
-      approved: true,
       target_id: target,
       observation_ms: 1_000,
       include_accessibility_text: true,
       include_script_sources: true,
-      source_capture_approved: true,
       include_console_text: true,
-      console_text_approved: true,
       include_json_body_shapes: true,
-      json_body_schema_approved: true,
       include_websocket_shapes: true,
-      websocket_shape_approved: true,
     }),
   );
   if (!withSource.ok) throw withSource.error;
@@ -147,12 +141,9 @@ try {
     analyzeWebBundleInputSchema.parse({
       cdp_endpoint: endpoint,
       allowed_origins: [site.origin],
-      approved: true,
       target_id: target,
       observation_ms: 200,
-      source_capture_approved: true,
       fetch_source_maps: true,
-      source_map_fetch_approved: true,
     }),
   );
   if (!bundle.ok) throw bundle.error;
@@ -175,8 +166,6 @@ try {
     captureWebScreenshotInputSchema.parse({
       cdp_endpoint: endpoint,
       allowed_origins: [site.origin],
-      approved: true,
-      screenshot_approved: true,
       target_id: target,
     }),
   );
@@ -204,7 +193,6 @@ try {
     observeWebSessionInputSchema.parse({
       cdp_endpoint: endpoint,
       allowed_origins: [site.origin],
-      approved: true,
       target_id: target,
       observation_ms: 1_500,
     }),
@@ -324,7 +312,6 @@ async function verifyPageScopedTransport(provider, proxy, origin) {
   const input = inspectWebPageInputSchema.parse({
     cdp_endpoint: proxy.endpoint,
     allowed_origins: [origin],
-    approved: true,
     target_id: target,
     observation_ms: 100,
   });
@@ -354,7 +341,6 @@ async function verifyPageScopedTransport(provider, proxy, origin) {
     observeWebSessionInputSchema.parse({
       cdp_endpoint: proxy.endpoint,
       allowed_origins: [origin],
-      approved: true,
       target_id: target,
       observation_ms: 5_000,
     }),
@@ -405,7 +391,6 @@ async function pageTarget(provider, endpoint, origin) {
       listBrowserTargetsInputSchema.parse({
         cdp_endpoint: endpoint,
         allowed_origins: [origin],
-        approved: true,
       }),
     );
     if (listed.ok && listed.value.targets[0] !== undefined)

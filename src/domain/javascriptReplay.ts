@@ -143,7 +143,6 @@ const controlledReplayInputShape = {
   reproducer_export: z
     .strictObject({
       path: absolutePathSchema,
-      approved: z.literal(true),
       include_sources: z.boolean().default(false),
     })
     .optional(),
@@ -155,11 +154,10 @@ export const controlledReplayPlanInputSchema = z.strictObject({
   mode: z.literal("plan"),
 });
 
-/** Parse a replay request carrying literal approval for one exact plan. */
+/** Parse a replay request carrying the digest for one exact plan. */
 export const controlledReplayExecutionInputSchema = z.strictObject({
   ...controlledReplayInputShape,
   mode: z.literal("execute"),
-  approved: z.literal(true),
   plan_digest: digestSchema,
 });
 

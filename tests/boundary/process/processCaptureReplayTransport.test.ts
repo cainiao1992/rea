@@ -6,7 +6,6 @@ import { parseProcessScenario } from "../../../src/domain/processCapture.js";
 
 it("serves bounded HTTP and WebSocket replay on loopback", async () => {
   const scenario = parseProcessScenario({
-    approved: true,
     executable: "/bin/sh",
     working_directory: "/tmp",
     replay: {
@@ -38,7 +37,6 @@ it("serves bounded HTTP and WebSocket replay on loopback", async () => {
 
 it("matches bounded HTTP scripts without persisting request secrets", async () => {
   const scenario = parseProcessScenario({
-    approved: true,
     executable: "/bin/sh",
     working_directory: "/tmp",
     replay: {
@@ -95,7 +93,6 @@ it("matches bounded HTTP scripts without persisting request secrets", async () =
 
 it("consumes ordered WebSocket reconnect scripts and reports exhaustion", async () => {
   const scenario = parseProcessScenario({
-    approved: true,
     executable: "/bin/sh",
     working_directory: "/tmp",
     replay: {
@@ -134,7 +131,6 @@ it("consumes ordered WebSocket reconnect scripts and reports exhaustion", async 
 
 it("serializes WebSocket transition actions across rapid messages", async () => {
   const scenario = parseProcessScenario({
-    approved: true,
     executable: "/bin/sh",
     working_directory: "/tmp",
     replay: {
@@ -213,7 +209,6 @@ it("serializes WebSocket transition actions across rapid messages", async () => 
 
 it("drains queued machine work before exposing finalized snapshots", async () => {
   const scenario = parseProcessScenario({
-    approved: true,
     executable: "/bin/sh",
     working_directory: "/tmp",
     replay: {
@@ -290,7 +285,6 @@ it("drains queued machine work before exposing finalized snapshots", async () =>
 
 it("enforces replay duration before normalizing recorded timestamps", async () => {
   const scenario = parseProcessScenario({
-    approved: true,
     executable: "/bin/sh",
     working_directory: "/tmp",
     normalization: { time_bucket_ms: 60_000 },

@@ -17,7 +17,6 @@ describeBrowser("CdpBrowserProvider: document script 1", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
         include_accessibility_text: true,
         limits: {
@@ -50,10 +49,8 @@ describeBrowser("CdpBrowserProvider: document script 1", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
         include_script_sources: true,
-        source_capture_approved: true,
       }),
     );
 
@@ -89,11 +86,8 @@ describeBrowser("CdpBrowserProvider: document script 1", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
-        source_capture_approved: true,
         observation_ms: 0,
         fetch_source_maps: true,
-        source_map_fetch_approved: true,
       }),
     );
 
@@ -133,7 +127,6 @@ describeBrowser("CdpBrowserProvider: document script 2", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
       }),
     );
@@ -188,7 +181,6 @@ describeBrowser("CdpBrowserProvider: document script 2", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
       }),
     );
@@ -212,7 +204,6 @@ describeBrowser("CdpBrowserProvider: document script 2", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
       }),
     );
@@ -241,7 +232,6 @@ describeBrowser("CdpBrowserProvider: document script 2", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
         max_tools: 1,
       }),
@@ -272,7 +262,6 @@ describeBrowser("CdpBrowserProvider: document script 3", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
       }),
     );
@@ -301,8 +290,6 @@ describeBrowser("CdpBrowserProvider: document script 3", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
-        screenshot_approved: true,
       }),
     );
 
@@ -330,8 +317,6 @@ describeBrowser("CdpBrowserProvider: document script 3", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
-        screenshot_approved: true,
       }),
     );
 
@@ -353,10 +338,8 @@ describeBrowser("CdpBrowserProvider: document script 3", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
         include_script_sources: true,
-        source_capture_approved: true,
         limits: {
           max_frames: 1,
           max_dom_nodes: 1,
@@ -399,7 +382,6 @@ describeBrowser("CdpBrowserProvider: document script 4", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
         include_storage_keys: true,
         limits: {

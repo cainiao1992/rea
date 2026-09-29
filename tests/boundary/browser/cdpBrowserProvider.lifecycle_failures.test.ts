@@ -26,7 +26,6 @@ describeBrowser("CdpBrowserProvider: lifecycle failures 1", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 1_000,
       }),
       {
@@ -66,8 +65,6 @@ describeBrowser("CdpBrowserProvider: lifecycle failures 1", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
-        source_capture_approved: true,
         observation_ms: 1_000,
       }),
       {
@@ -100,7 +97,6 @@ describeBrowser("CdpBrowserProvider: lifecycle failures 1", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 20,
       }),
     );
@@ -147,7 +143,6 @@ describeBrowser("CdpBrowserProvider: lifecycle failures 2", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 1_000,
       }),
     );
@@ -172,7 +167,6 @@ describeBrowser("CdpBrowserProvider: lifecycle failures 2", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 1_000,
       }),
     );
@@ -199,7 +193,6 @@ describeBrowser("CdpBrowserProvider: lifecycle failures 2", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 1_000,
       }),
     );
@@ -235,7 +228,6 @@ describeBrowser("CdpBrowserProvider: lifecycle failures 2", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 1,
       }),
     );
@@ -262,7 +254,6 @@ describeBrowser("CdpBrowserProvider: lifecycle failures 3", () => {
         cdp_endpoint: optional.endpoint,
         allowed_origins: [optional.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
       }),
     );
@@ -288,7 +279,6 @@ describeBrowser("CdpBrowserProvider: lifecycle failures 3", () => {
         listBrowserTargetsInputSchema.parse({
           cdp_endpoint: failed.endpoint,
           allowed_origins: [failed.allowedOrigin],
-          approved: true,
         }),
       );
       expect(result.ok).toBe(false);
@@ -308,7 +298,6 @@ describeBrowser("CdpBrowserProvider: lifecycle failures 3", () => {
         cdp_endpoint: malformed.endpoint,
         allowed_origins: [malformed.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
       }),
     );
@@ -326,7 +315,6 @@ describeBrowser("CdpBrowserProvider: lifecycle failures 3", () => {
         cdp_endpoint: malformedEvent.endpoint,
         allowed_origins: [malformedEvent.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
       }),
     );
@@ -344,7 +332,6 @@ describeBrowser("CdpBrowserProvider: lifecycle failures 3", () => {
         cdp_endpoint: malformedEventShape.endpoint,
         allowed_origins: [malformedEventShape.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
       }),
     );
@@ -363,7 +350,6 @@ describeBrowser("CdpBrowserProvider: lifecycle failures 3", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 1_000,
       }),
       { signal: controller.signal },
@@ -398,7 +384,6 @@ describeBrowser("CdpBrowserProvider: lifecycle failures 4", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
       });
     const committed = await new CdpBrowserProvider().inspectPage(

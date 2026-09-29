@@ -246,10 +246,7 @@ const addValidationObservations = (state: IpcGraphState): void => {
   for (const analyzed of state.context.analysis.files) {
     const { file, javascript } = analyzed;
     if (javascript === null) continue;
-    const coverage = javascriptAnalysisCoverage(
-      javascript,
-      state.context.input,
-    );
+    const coverage = javascriptAnalysisCoverage(javascript);
     for (const validation of javascript.electron.sender_validations) {
       const handlerRecord = containingHandler(state.records, file, validation);
       const target =
@@ -341,5 +338,5 @@ const coverageFor = (
   )?.javascript;
   return javascript === null || javascript === undefined
     ? undefined
-    : javascriptAnalysisCoverage(javascript, context.input);
+    : javascriptAnalysisCoverage(javascript);
 };

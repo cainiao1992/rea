@@ -6,7 +6,6 @@ import { parseProcessScenario } from "../domain/processCapture.js";
 describe("process capture permission request", () => {
   it("projects the complete adapter-neutral authority scope", () => {
     const scenario = parseProcessScenario({
-      approved: true,
       executable: "/bin/tool",
       arguments: ["--probe"],
       working_directory: "/workspace",

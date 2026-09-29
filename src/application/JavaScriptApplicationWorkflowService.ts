@@ -119,7 +119,6 @@ export const compareApplicationVersionsEvidenceValidated = (
         rootArtifactSha256: right.rootArtifactSha256,
         graph: right.graph,
       },
-      limits: input.limits,
       leftNativeEvidence: leftNative,
       rightNativeEvidence: rightNative,
     });
@@ -132,7 +131,6 @@ export const compareApplicationVersionsEvidenceValidated = (
           right_native_evidence_ids: rightNative.map(
             ({ evidence_id: id }) => id,
           ),
-          limits: input.limits,
         },
         result,
       ),

@@ -53,9 +53,8 @@ request state and validates the continuation envelope, while REA validates the
 untrusted input response before creating a connection-owned grant. The older
 push-style `elicitation/create` path is not used for this protocol revision.
 
-Every scenario must also contain `"approved": true`. Executables, working
-directories, filesystem roots, and requested environment variables are checked
-against operator policy before launch. Process Capture is an observation tool,
+Executables, working directories, filesystem roots, and requested environment
+variables are checked against operator policy before launch. Process Capture is an observation tool,
 not a security sandbox: the target runs with the current user's permissions.
 
 ## Capture a scenario
@@ -71,7 +70,6 @@ A representative scenario is:
 
 ```json
 {
-  "approved": true,
   "executable": "/absolute/path/to/node",
   "arguments": ["./signup.mjs"],
   "working_directory": "/absolute/project",

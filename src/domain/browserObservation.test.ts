@@ -57,29 +57,23 @@ describe("browser observation contracts", () => {
       listBrowserTargetsInputSchema.parse({
         cdp_endpoint: "http://127.0.0.1:9222",
         allowed_origins: ["https://app.example.test"],
-        approved: true,
       }),
     ).toEqual({
       cdp_endpoint: "http://127.0.0.1:9222",
       allowed_origins: ["https://app.example.test"],
-      approved: true,
     });
     expect(
       inspectWebPageInputSchema.parse({
         cdp_endpoint: "http://127.0.0.1:9222",
         allowed_origins: ["https://app.example.test"],
         target_id: "page-1",
-        approved: true,
       }),
     ).toMatchObject({
       observation_ms: 500,
       include_accessibility_text: false,
       include_console_text: false,
-      console_text_approved: false,
       include_json_body_shapes: false,
-      json_body_schema_approved: false,
       include_websocket_shapes: false,
-      websocket_shape_approved: false,
       include_script_sources: false,
       include_storage_keys: false,
       limits: {
@@ -111,40 +105,35 @@ describe("browser observation contracts", () => {
 });
 
 describe("browser observation sensitive surfaces and retention", () => {
-  it("requires independent approval for each sensitive capture surface", () => {
+  it("accepts selected sensitive capture surfaces without extra flags", () => {
     const base = {
       cdp_endpoint: "http://127.0.0.1:9222",
       allowed_origins: ["https://app.example.test"],
       target_id: "page-1",
-      approved: true,
     };
     for (const input of [
       { include_console_text: true },
       { include_json_body_shapes: true },
       { include_websocket_shapes: true },
-      { include_storage_fingerprints: true },
     ])
       expect(
         inspectWebPageInputSchema.safeParse({ ...base, ...input }).success,
-      ).toBe(false);
+      ).toBe(true);
+    expect(
+      inspectWebPageInputSchema.safeParse({
+        ...base,
+        include_storage_fingerprints: true,
+      }).success,
+    ).toBe(false);
   });
 
-  it("requires an independent literal approval for screenshot pixels", () => {
+  it("accepts screenshot capture without an extra approval flag", () => {
     const input = {
       cdp_endpoint: "http://127.0.0.1:9222",
       allowed_origins: ["https://app.example.test"],
       target_id: "page-1",
-      approved: true,
     };
-    expect(captureWebScreenshotInputSchema.safeParse(input).success).toBe(
-      false,
-    );
-    expect(
-      captureWebScreenshotInputSchema.safeParse({
-        ...input,
-        screenshot_approved: true,
-      }).success,
-    ).toBe(true);
+    expect(captureWebScreenshotInputSchema.safeParse(input).success).toBe(true);
   });
 
   it("removes credentials, query values, and fragments from observed URLs", () => {

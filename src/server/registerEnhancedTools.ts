@@ -298,7 +298,6 @@ const recordWorkflowUnknowns = ({
   for (const question of result.residual_unknowns) {
     if (typeof question !== "string") continue;
     const recorded = recordUnknown({
-      approved: true,
       question,
       severity: "medium",
       domain: name === "inspect_native_api" ? "native-api" : "control-flow",

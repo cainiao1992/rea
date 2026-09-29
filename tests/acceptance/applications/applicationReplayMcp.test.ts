@@ -156,7 +156,6 @@ async function executeReplayScenario(
     arguments: {
       ...input,
       mode: "execute",
-      approved: true,
       plan_digest: digest,
     },
   });
@@ -180,7 +179,6 @@ async function createCharacterizationInput(root: string) {
   const factoryBytes = await readFile(factoryPath);
   const factorySha256 = createHash("sha256").update(factoryBytes).digest("hex");
   return {
-    preparation_approved: true,
     selected_alias: "bundle",
     expected_effect: "pure",
     instrumentation: {
@@ -230,7 +228,6 @@ async function executeCharacterizationScenario(
   const characterized = await client.callTool({
     name: "execute_node_characterization",
     arguments: {
-      execution_approved: true,
       approved_plan_sha256: approvedPlan.plan_sha256,
       preparation: input,
     },

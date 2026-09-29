@@ -26,7 +26,7 @@ import type {
   JavaScriptSourceMapObservation,
   JavaScriptSourceMapOriginal,
 } from "./JavaScriptArtifactAnalysisTypes.js";
-import type { JavaScriptArtifactReconstructionInput } from "./JavaScriptArtifactReconstructionInput.js";
+import { JAVASCRIPT_APPLICATION_RESOURCE_LIMITS } from "./JavaScriptArtifactReconstructionInput.js";
 import { analyzeJavaScriptJsonModule } from "./JavaScriptJsonModules.js";
 
 interface MutableArtifactAnalysis {
@@ -40,60 +40,45 @@ interface MutableArtifactAnalysis {
   modules: number;
   parseFailures: number;
   truncatedScopes: number;
-  sourceMapSources: number;
 }
 
 interface ArtifactAnalysisContext {
   readonly state: MutableArtifactAnalysis;
-  readonly input: JavaScriptArtifactReconstructionInput;
   readonly deadline: number;
   readonly now: () => number;
 }
 
-/** Analyze selected text files under one shared AST, finding, module, and time budget. */
+/** Analyze every selected source under shared AST and parser safety bounds. */
 export const analyzeJavaScriptArtifactFiles = (
   fileSet: JavaScriptArtifactFileSet,
-  input: JavaScriptArtifactReconstructionInput,
   now: () => number,
 ): JavaScriptArtifactAnalysis => {
   const state = emptyArtifactAnalysis();
   const context = {
     state,
-    input,
-    deadline: now() + input.limits.max_parse_milliseconds,
+    deadline:
+      now() + JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.maxParseMilliseconds,
     now,
   };
   for (const file of fileSet.files) analyzeArtifactFile(file, context);
-  return finalizeArtifactAnalysis(state, input);
+  return finalizeArtifactAnalysis(state);
 };
 
 const finalizeArtifactAnalysis = (
   state: MutableArtifactAnalysis,
-  input: JavaScriptArtifactReconstructionInput,
 ): JavaScriptArtifactAnalysis => {
-  const omittedHtmlFindings = Math.max(
-    0,
-    state.htmlScripts.length + state.findings - input.limits.max_findings,
-  );
-  const findings = Math.min(
-    input.limits.max_findings,
-    state.findings + state.htmlScripts.length,
-  );
   const sourceMapTruncations = state.sourceMaps.filter(
     ({ status }) => status === "truncated",
   ).length;
-  const truncatedScopes =
-    state.truncatedScopes +
-    sourceMapTruncations +
-    (omittedHtmlFindings > 0 ? 1 : 0);
+  const truncatedScopes = state.truncatedScopes + sourceMapTruncations;
   return {
     files: state.files,
     packages: state.packages,
     json_modules: state.jsonModules,
-    html_scripts: state.htmlScripts.slice(0, input.limits.max_findings),
+    html_scripts: state.htmlScripts,
     source_maps: state.sourceMaps,
     visited_ast_nodes: state.visitedNodes,
-    findings,
+    findings: state.findings + state.htmlScripts.length,
     modules: state.modules,
     parse_failures: state.parseFailures,
     truncated_scopes: truncatedScopes,
@@ -111,30 +96,18 @@ const analyzeArtifactFile = (
   file: JavaScriptArtifactFile,
   context: ArtifactAnalysisContext,
 ): void => {
-  const { state, input } = context;
+  const { state } = context;
   addStructuredObservations(file, state);
   if (file.kind === "html" && file.text.included)
-    state.htmlScripts.push(
-      ...parseHtmlScripts(
-        file.path,
-        file.text.value,
-        Math.max(0, input.limits.max_findings - state.findings),
-      ),
-    );
+    state.htmlScripts.push(...parseHtmlScripts(file.path, file.text.value));
   if (file.kind === "source-map") addSourceMap(file, context);
   if (file.kind !== "javascript" || !file.text.included) {
     state.files.push({ file, javascript: null, semantic: null });
     return;
   }
-  const remainingNodes = input.limits.max_ast_nodes - state.visitedNodes;
-  const remainingFindings = input.limits.max_findings - state.findings;
-  const remainingModules = input.limits.max_modules - state.modules;
-  if (
-    remainingNodes <= 0 ||
-    remainingFindings <= 0 ||
-    remainingModules <= 0 ||
-    context.now() > context.deadline
-  ) {
+  const remainingNodes =
+    JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.maxAstNodes - state.visitedNodes;
+  if (remainingNodes <= 0 || context.now() > context.deadline) {
     state.files.push({ file, javascript: null, semantic: null });
     state.truncatedScopes += 1;
     return;
@@ -151,24 +124,20 @@ const analyzeArtifactFile = (
     parsed,
     {
       maxAstNodes: remainingNodes,
-      maxFindings: remainingFindings,
-      maxModules: remainingModules,
+      maxFindings: Number.MAX_SAFE_INTEGER,
+      maxModules: Number.MAX_SAFE_INTEGER,
       deadline: context.deadline,
       now: context.now,
     },
   );
   const staticFindings = findingCount(analysis);
-  const semanticFindingBudget = Math.max(
-    0,
-    input.limits.max_findings - state.findings - staticFindings,
-  );
   const semanticLimits: JavaScriptSemanticLimits = {
     ...DEFAULT_JAVASCRIPT_SEMANTIC_LIMITS,
     maxScopes: remainingNodes,
     maxBindings: remainingNodes,
     maxCallables: remainingNodes,
     maxReferences: remainingNodes,
-    maxModuleLinks: semanticFindingBudget,
+    maxModuleLinks: remainingNodes,
   };
   const semantics =
     analysis.parse_status === "complete" || analysis.parse_status === "partial"
@@ -198,14 +167,8 @@ const addSourceMap = (
   const sourceMap = parseSourceMap(file, {
     deadline: context.deadline,
     now: context.now,
-    maximumSources: Math.max(
-      0,
-      context.input.limits.max_source_map_sources -
-        context.state.sourceMapSources,
-    ),
   });
   context.state.sourceMaps.push(sourceMap);
-  context.state.sourceMapSources += sourceMap.sources.length;
 };
 
 const emptyArtifactAnalysis = (): MutableArtifactAnalysis => ({
@@ -219,7 +182,6 @@ const emptyArtifactAnalysis = (): MutableArtifactAnalysis => ({
   modules: 0,
   parseFailures: 0,
   truncatedScopes: 0,
-  sourceMapSources: 0,
 });
 
 const addStructuredObservations = (
@@ -286,14 +248,13 @@ const unavailablePackage = (
 const parseHtmlScripts = (
   path: string,
   text: string,
-  maximum: number,
 ): JavaScriptHtmlScriptObservation[] => {
   const scripts: JavaScriptHtmlScriptObservation[] = [];
   const baseHref = htmlBaseHref(text);
   const pattern = /<script\b[^>]*\bsrc\s*=\s*(["'])([^"']+)\1[^>]*>/giu;
   for (const match of text.matchAll(pattern)) {
     const script = match[2]?.slice(0, 4_096);
-    if (script === undefined || scripts.length >= maximum) break;
+    if (script === undefined) continue;
     const start = match.index;
     scripts.push({
       html_path: path,
@@ -315,7 +276,6 @@ const parseSourceMap = (
   context: {
     readonly deadline: number;
     readonly now: () => number;
-    readonly maximumSources: number;
   },
 ): JavaScriptSourceMapObservation => {
   if (!file.text.included) return unavailableSourceMap(file);
@@ -349,11 +309,9 @@ const collectSourceMapOriginals = (
   context: {
     readonly deadline: number;
     readonly now: () => number;
-    readonly maximumSources: number;
   },
 ): JavaScriptSourceMapObservation => {
   const sources: JavaScriptSourceMapOriginal[] = [];
-  let total = 0;
   for (const map of maps) {
     const names = map.sources;
     if (!Array.isArray(names))
@@ -363,7 +321,7 @@ const collectSourceMapOriginals = (
       : [];
     const root = typeof map.sourceRoot === "string" ? map.sourceRoot : "";
     for (const [index, raw] of names.entries()) {
-      if (total % 1_024 === 0 && context.now() > context.deadline)
+      if (sources.length % 1_024 === 0 && context.now() > context.deadline)
         return {
           path: file.path,
           sha256: file.sha256,
@@ -377,8 +335,6 @@ const collectSourceMapOriginals = (
           file,
           "Source map contains a non-string source name.",
         );
-      total += 1;
-      if (sources.length >= context.maximumSources) continue;
       const content =
         typeof contents[index] === "string" ? contents[index] : null;
       sources.push({
@@ -388,25 +344,14 @@ const collectSourceMapOriginals = (
       });
     }
   }
-  const omitted = total - sources.length;
-  return omitted === 0
-    ? {
-        path: file.path,
-        sha256: file.sha256,
-        status: "included",
-        sources,
-        omitted_sources: 0,
-        limitation: null,
-      }
-    : {
-        path: file.path,
-        sha256: file.sha256,
-        status: "truncated",
-        sources,
-        omitted_sources: omitted,
-        limitation:
-          "Original-source inventory reached the approved source-map limit.",
-      };
+  return {
+    path: file.path,
+    sha256: file.sha256,
+    status: "included",
+    sources,
+    omitted_sources: 0,
+    limitation: null,
+  };
 };
 
 const unavailableSourceMap = (

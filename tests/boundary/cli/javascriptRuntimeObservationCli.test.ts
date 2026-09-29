@@ -48,12 +48,7 @@ describe("JavaScript runtime observation CLI parity", () => {
       };
 
       const listed = await runCli(
-        [
-          "list-javascript-runtime-targets",
-          inspector.endpoint,
-          "--approved",
-          "--json",
-        ],
+        ["list-javascript-runtime-targets", inspector.endpoint, "--json"],
         environment,
       );
       expect(listed).toMatchObject({
@@ -71,7 +66,6 @@ describe("JavaScript runtime observation CLI parity", () => {
           inspector.targetId,
           "--runtime-kind",
           "node",
-          "--approved",
           "--observation-ms",
           "10",
           "--json",
@@ -105,7 +99,6 @@ describe("JavaScript runtime observation CLI parity", () => {
           allowed_origins: [],
           target_id: inspector.targetId,
           runtime_kind: "node",
-          approved: true,
           observation_ms: 10,
           limits: {
             max_events: 10_000,

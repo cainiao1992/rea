@@ -68,7 +68,6 @@ describe("PlaywrightScenarioEvents", () => {
         max_storage_entries: 10,
         max_total_metadata_bytes: 1_000_000,
       },
-      approved: true,
     });
     const secrets = BrowserScenarioSecrets.resolve(scenario, {});
     if (secrets === undefined) throw new Error("Expected resolved secrets");

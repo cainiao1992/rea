@@ -38,7 +38,6 @@ describe("passive V8 Inspector provider", () => {
         inspector_endpoint: fake.endpoint,
         allowed_file_roots: [fixture.root],
         allowed_origins: [],
-        approved: true,
       });
       expect(listed.ok).toBe(true);
       if (!listed.ok) return;
@@ -61,7 +60,6 @@ describe("passive V8 Inspector provider", () => {
         inspector_endpoint: fake.endpoint,
         allowed_file_roots: [fixture.root],
         allowed_origins: [],
-        approved: true,
       });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -125,7 +123,6 @@ describe("passive V8 Inspector provider", () => {
         inspector_endpoint: fake.endpoint,
         allowed_file_roots: [fixture.root],
         allowed_origins: [],
-        approved: true,
       });
       expect(listed.ok).toBe(true);
       if (!listed.ok) return;
@@ -269,7 +266,6 @@ describe("passive V8 Inspector evidence", () => {
           inspector_endpoint: fake.endpoint,
           allowed_file_roots: [fixture.root],
           allowed_origins: [],
-          approved: true,
         },
       );
       expect(listed.ok).toBe(true);
@@ -292,7 +288,6 @@ describe("passive V8 Inspector evidence", () => {
         allowed_origins: [],
         target_id: "example-v8-target",
         runtime_kind: "electron-main",
-        approved: true,
         observation_ms: 100,
         limits: {
           max_events: 10_000,
@@ -345,7 +340,6 @@ const observeInput = (
   allowed_origins: [],
   target_id: targetId,
   runtime_kind: runtimeKind,
-  approved: true,
   observation_ms: 10,
   limits: {
     max_events: 10_000,

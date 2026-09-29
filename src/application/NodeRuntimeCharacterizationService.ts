@@ -107,7 +107,6 @@ export const executeNodeCharacterization = async (
     {
       ...parsed.data.preparation.replay,
       mode: "execute",
-      approved: true,
       plan_digest: plannedReplay.plan.plan_digest,
     },
     options,

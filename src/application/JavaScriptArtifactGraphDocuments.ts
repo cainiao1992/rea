@@ -10,6 +10,7 @@ import {
   completeApplicationCoverage,
   truncatedApplicationCoverage,
 } from "../domain/javascriptApplicationEvidenceSchemas.js";
+import { javaScriptAnalysisLimits } from "./JavaScriptArtifactGraphContext.js";
 import { resolveArtifactPathByContext } from "./JavaScriptArtifactPathResolution.js";
 
 /** Project HTML renderer entrypoints and their local script assets. */
@@ -94,13 +95,7 @@ export const addJavaScriptSourceMapOriginals = (
     const coverage =
       sourceMap.status === "truncated"
         ? truncatedApplicationCoverage(
-            [
-              {
-                name: "max-source-map-sources",
-                value: context.input.limits.max_source_map_sources,
-                unit: "items",
-              },
-            ],
+            javaScriptAnalysisLimits(),
             sourceMap.omitted_sources,
           )
         : completeApplicationCoverage();

@@ -40,7 +40,6 @@ export interface AnalysisAccumulator {
   visitedNodes: number;
   parsedScripts: number;
   parseFailures: number;
-  droppedFindings: number;
   astLimitReached: boolean;
 }
 
@@ -61,18 +60,14 @@ export const analyzeScript = (
     return;
   }
   accumulator.parsedScripts += 1;
-  detectVendorFingerprints(
-    script,
-    accumulator,
-    input.analysis_limits.max_findings,
-  );
+  detectVendorFingerprints(script, accumulator);
   t.traverseFast(file, (node) => {
     accumulator.visitedNodes += 1;
     if (accumulator.visitedNodes > input.analysis_limits.max_ast_nodes) {
       accumulator.astLimitReached = true;
       return t.traverseFast.stop;
     }
-    inspectNode(script, node, accumulator, input.analysis_limits.max_findings);
+    inspectNode(script, node, accumulator);
     return undefined;
   });
 };
@@ -81,7 +76,6 @@ const inspectNode = (
   script: IncludedScript,
   node: t.Node,
   accumulator: AnalysisAccumulator,
-  maximumFindings: number,
 ): void => {
   if (
     (t.isImportDeclaration(node) || t.isExportAllDeclaration(node)) &&
@@ -93,7 +87,6 @@ const inspectNode = (
       kind: "static_import",
       node,
       accumulator,
-      maximumFindings,
     });
   else if (t.isExportNamedDeclaration(node) && node.source != null)
     addEdge({
@@ -102,7 +95,6 @@ const inspectNode = (
       kind: "static_import",
       node,
       accumulator,
-      maximumFindings,
     });
   else if (t.isImportExpression(node) && t.isStringLiteral(node.source))
     addEdge({
@@ -111,19 +103,16 @@ const inspectNode = (
       kind: "dynamic_import",
       node,
       accumulator,
-      maximumFindings,
     });
-  if (t.isObjectProperty(node))
-    inspectRouteProperty(script, node, accumulator, maximumFindings);
+  if (t.isObjectProperty(node)) inspectRouteProperty(script, node, accumulator);
   if (t.isCallExpression(node) || t.isNewExpression(node))
-    inspectCall(script, node, accumulator, maximumFindings);
+    inspectCall(script, node, accumulator);
 };
 
 const inspectCall = (
   script: IncludedScript,
   node: t.CallExpression | t.NewExpression,
   accumulator: AnalysisAccumulator,
-  maximumFindings: number,
 ): void => {
   const name = calleeName(node.callee);
   const first = stringArgument(node.arguments[0]);
@@ -134,7 +123,6 @@ const inspectCall = (
       kind: "require",
       node,
       accumulator,
-      maximumFindings,
     });
   if (
     (name === "importScripts" || name.endsWith(".importScripts")) &&
@@ -146,7 +134,6 @@ const inspectCall = (
       kind: "worker_import",
       node,
       accumulator,
-      maximumFindings,
     });
   if (
     routeCallNames.some(
@@ -161,14 +148,12 @@ const inspectCall = (
         mechanism: `call:${name}`,
         node,
         accumulator,
-        maximumFindings,
       });
     addRouteFrameworkInference({
       script,
       name,
       node,
       accumulator,
-      maximumFindings,
     });
   }
   const endpoint = endpointArgument(name, node.arguments);
@@ -180,20 +165,18 @@ const inspectCall = (
       mechanism: `call:${name}`,
       node,
       accumulator,
-      maximumFindings,
     });
   if (
     name.endsWith("modelContext.registerTool") ||
     name === "modelContext.registerTool"
   )
-    addWebMcpDeclaration(script, node, accumulator, maximumFindings);
+    addWebMcpDeclaration(script, node, accumulator);
 };
 
 const inspectRouteProperty = (
   script: IncludedScript,
   node: t.ObjectProperty,
   accumulator: AnalysisAccumulator,
-  maximumFindings: number,
 ): void => {
   const key = propertyName(node.key);
   if ((key === "path" || key === "route") && t.isStringLiteral(node.value))
@@ -204,7 +187,6 @@ const inspectRouteProperty = (
       mechanism: `property:${key}`,
       node,
       accumulator,
-      maximumFindings,
     });
 };
 
@@ -214,13 +196,12 @@ interface AddEdgeContext {
   readonly kind: ChunkEdge["kind"];
   readonly node: t.Node;
   readonly accumulator: AnalysisAccumulator;
-  readonly maximumFindings: number;
 }
 
 const addEdge = (context: AddEdgeContext): void => {
   const bounded = context.specifier.slice(0, 4_096);
   const key = `edge\0${context.script.script_key}\0${context.kind}\0${bounded}`;
-  addBounded(context.accumulator, key, context.maximumFindings, () =>
+  addUnique(context.accumulator, key, () =>
     context.accumulator.edges.push({
       from_script_key: context.script.script_key,
       kind: context.kind,
@@ -238,13 +219,12 @@ interface AddFindingContext {
   readonly mechanism: string;
   readonly node: t.Node;
   readonly accumulator: AnalysisAccumulator;
-  readonly maximumFindings: number;
 }
 
 const addFinding = (context: AddFindingContext): void => {
   const value = sanitizeEndpointCandidate(context.rawValue);
   const key = `finding\0${context.mechanism}\0${context.script.script_key}\0${value}`;
-  addBounded(context.accumulator, key, context.maximumFindings, () =>
+  addUnique(context.accumulator, key, () =>
     context.collection.push({
       value,
       mechanism: context.mechanism,
@@ -257,7 +237,6 @@ const addWebMcpDeclaration = (
   script: IncludedScript,
   node: t.CallExpression | t.NewExpression,
   accumulator: AnalysisAccumulator,
-  maximumFindings: number,
 ): void => {
   const declaration = node.arguments[0];
   if (!t.isObjectExpression(declaration)) return;
@@ -280,7 +259,7 @@ const addWebMcpDeclaration = (
       )
     : [];
   const key = `webmcp\0${script.script_key}\0${name ?? ""}\0${schemaPropertyNames.join("\0")}`;
-  addBounded(accumulator, key, maximumFindings, () =>
+  addUnique(accumulator, key, () =>
     accumulator.webMcp.push({
       name: name?.slice(0, 256) ?? null,
       description: description?.slice(0, 2_048) ?? null,
@@ -296,13 +275,12 @@ const addWebMcpDeclaration = (
 const detectVendorFingerprints = (
   script: IncludedScript,
   accumulator: AnalysisAccumulator,
-  maximumFindings: number,
 ): void => {
   const text = script.source.artifact.text;
   for (const detector of vendorDetectors) {
     if (!detector.patterns.some((pattern) => text.includes(pattern))) continue;
     const key = `vendor\0${script.script_key}\0${detector.value}`;
-    addBounded(accumulator, key, maximumFindings, () =>
+    addUnique(accumulator, key, () =>
       accumulator.inferences.push({
         kind: detector.kind,
         value: detector.value,
@@ -318,7 +296,6 @@ interface RouteFrameworkContext {
   readonly name: string;
   readonly node: t.Node;
   readonly accumulator: AnalysisAccumulator;
-  readonly maximumFindings: number;
 }
 
 const addRouteFrameworkInference = (context: RouteFrameworkContext): void => {
@@ -328,7 +305,7 @@ const addRouteFrameworkInference = (context: RouteFrameworkContext): void => {
       ? "React Router-compatible route API"
       : "Generic route registration API";
   const key = `route-framework\0${context.script.script_key}\0${value}`;
-  addBounded(context.accumulator, key, context.maximumFindings, () =>
+  addUnique(context.accumulator, key, () =>
     context.accumulator.inferences.push({
       kind: "route_framework",
       value,
@@ -343,23 +320,12 @@ const addRouteFrameworkInference = (context: RouteFrameworkContext): void => {
   );
 };
 
-const addBounded = (
+const addUnique = (
   accumulator: AnalysisAccumulator,
   key: string,
-  maximum: number,
   add: () => void,
 ): void => {
   if (accumulator.seen.has(key)) return;
-  const findings =
-    accumulator.edges.length +
-    accumulator.routes.length +
-    accumulator.endpoints.length +
-    accumulator.webMcp.length +
-    accumulator.inferences.length;
-  if (findings >= maximum) {
-    accumulator.droppedFindings += 1;
-    return;
-  }
   accumulator.seen.add(key);
   add();
 };
@@ -382,7 +348,6 @@ export const emptyAccumulator = (): AnalysisAccumulator => ({
   visitedNodes: 0,
   parsedScripts: 0,
   parseFailures: 0,
-  droppedFindings: 0,
   astLimitReached: false,
 });
 

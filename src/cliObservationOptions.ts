@@ -22,10 +22,7 @@ export const boundedBytes = (
   fallback: number,
 ) => boundedCount(`${subject} in bytes`, maximum, fallback);
 
-const positiveCount = (subject: string, fallback: number) =>
-  z.number().int().min(1).default(fallback).describe(`Maximum ${subject}`);
-
-/** Shared passive browser origin and approval options. */
+/** Shared passive browser origin options. */
 export const browserScopeOptions = {
   allowedOrigins: z
     .array(z.string().min(1))
@@ -33,7 +30,6 @@ export const browserScopeOptions = {
     .describe(
       "Exact origins to observe; defaults to REA_BROWSER_ALLOWED_ORIGINS_JSON",
     ),
-  approved: z.boolean().default(false).describe("Approve passive observation"),
 };
 
 export const browserPageInspectionOptions = z.object({
@@ -52,34 +48,18 @@ export const browserPageInspectionOptions = z.object({
     .boolean()
     .default(false)
     .describe("Include bounded console message text"),
-  consoleTextApproved: z
-    .boolean()
-    .default(false)
-    .describe("Approve capturing console message text"),
   includeJsonBodyShapes: z
     .boolean()
     .default(false)
     .describe("Include structural shapes of JSON response bodies"),
-  jsonBodySchemaApproved: z
-    .boolean()
-    .default(false)
-    .describe("Approve inspecting JSON response bodies for structural shapes"),
   includeWebsocketShapes: z
     .boolean()
     .default(false)
     .describe("Include structural shapes of WebSocket payloads"),
-  websocketShapeApproved: z
-    .boolean()
-    .default(false)
-    .describe("Approve inspecting WebSocket payloads for structural shapes"),
   includeScriptSources: z
     .boolean()
     .default(false)
     .describe("Include bounded JavaScript source text"),
-  sourceCaptureApproved: z
-    .boolean()
-    .default(false)
-    .describe("Approve capturing bounded script source text"),
   includeStorageKeys: z
     .boolean()
     .default(false)
@@ -152,13 +132,12 @@ export const browserPageInspectionOptions = z.object({
   ),
 });
 
-/** Shared passive Electron root and approval options. */
+/** Shared passive Electron root options. */
 export const electronScopeOptions = {
   allowedFileRoots: z
     .array(z.string().min(1))
     .optional()
     .describe("Filesystem roots; defaults to REA_ELECTRON_FILE_ROOTS_JSON"),
-  approved: z.boolean().default(false).describe("Approve passive observation"),
 };
 
 export const electronPageInspectionOptions = z.object({
@@ -173,10 +152,6 @@ export const electronPageInspectionOptions = z.object({
     .boolean()
     .default(false)
     .describe("Include bounded JavaScript source text"),
-  sourceCaptureApproved: z
-    .boolean()
-    .default(false)
-    .describe("Approve capturing bounded script source text"),
   maxFrames: boundedCount("page frames", 1_000, 200),
   maxDomNodes: boundedCount("DOM nodes", 10_000, 2_000),
   maxScripts: boundedCount("scripts", 2_000, 500),
@@ -199,40 +174,4 @@ export const javascriptApplicationOptions = z.object({
     .enum(["auto", "asar", "directory"])
     .default("auto")
     .describe("Application artifact format"),
-  maxEntries: positiveCount("artifact entries to inspect", 8_000),
-  maxTotalArtifactBytes: positiveCount(
-    "total uncompressed artifact content to inspect",
-    512 * 1_024 * 1_024,
-  ),
-  maxArtifactEntryBytes: positiveCount(
-    "uncompressed content for one artifact entry",
-    128 * 1_024 * 1_024,
-  ),
-  maxCompressionRatio: z
-    .number()
-    .min(1)
-    .default(1_000)
-    .describe("Maximum accepted compressed-to-uncompressed expansion ratio"),
-  maxDepth: positiveCount("artifact directory depth", 64),
-  maxPathBytes: positiveCount("encoded artifact path length", 4_096),
-  maxTextFiles: positiveCount("text files to parse", 5_000),
-  maxTotalTextBytes: positiveCount(
-    "total text content to parse",
-    128 * 1_024 * 1_024,
-  ),
-  maxTextFileBytes: positiveCount(
-    "size of one parsed text file",
-    8 * 1_024 * 1_024,
-  ),
-  maxAstNodes: positiveCount("JavaScript AST nodes to parse", 2_000_000),
-  maxFindings: positiveCount("static-analysis findings to return", 8_000),
-  maxModules: positiveCount("application modules to project", 20_000),
-  maxSourceMapSources: positiveCount(
-    "original sources from source maps",
-    5_000,
-  ),
-  maxParseMilliseconds: positiveCount(
-    "JavaScript parsing time in milliseconds",
-    30_000,
-  ),
 });

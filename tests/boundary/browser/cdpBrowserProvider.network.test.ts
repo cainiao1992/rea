@@ -16,7 +16,6 @@ describeBrowser("CdpBrowserProvider: network 1", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
       }),
     );

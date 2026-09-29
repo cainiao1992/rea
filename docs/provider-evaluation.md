@@ -14,7 +14,7 @@ packaged Java bridge, doctor/setup projection, bounded client lifecycle, and
 multi-target real Linux verifier, curated Windows CI, and controlled real
 Windows verifier are also implemented. Program identity,
 procedure/string/symbol inventory, memory blocks, address/name and
-containing-procedure resolution, bounded search, function metadata,
+containing-procedure resolution, complete inventory search, function metadata,
 decompilation, assembly, resolved calls, typed references, xrefs, CFG, and
 function dossiers are admitted. A provider is not a drop-in replacement for
 Hopper: every capability is mapped explicitly, with truthful `unavailable`,
@@ -41,7 +41,7 @@ follow.
   xref, CFG, and decompilation claims require separately admitted operation
   contracts and real-provider conformance.
 - Implement read-only inventories, assembly, decompilation, function metadata,
-  calls, references, containment, and bounded search first.
+  calls, references, containment, and complete inventory search first.
 - Report GUI cursor/navigation and persistent mutation operations as unavailable
   until their semantics and project ownership are explicitly designed.
 - Verify real claims on Linux with at least two distinct source-owned binaries.
@@ -83,17 +83,17 @@ capability from a successful import.
 
 ## Admitted inventory semantics
 
-| Concern          | Ghidra contract                                                                                                                                                                                                                                                                                                          |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Program identity | One `analyzeHeadless` import produces exactly one Program; `list_documents` therefore returns exactly one name.                                                                                                                                                                                                          |
-| Addresses        | Default memory uses lowercase `0x` hexadecimal. Non-default and external spaces use `<percent-encoded-space>:0x<hex>` and remain round-trippable. The handshake commits image base and default address-space name.                                                                                                       |
-| Symbols          | `list_names` includes address-bearing memory and external symbols, including dynamic symbols, while excluding variable and no-address namespace records. Each item reports primary, dynamic, external, symbol type, and source facts.                                                                                    |
-| Procedures       | Both non-external and external functions are listed. A local thunk remains distinct from its resolved target; exact and qualified name lookup fails on ambiguity rather than guessing.                                                                                                                                   |
-| Strings          | Only Ghidra-defined string `Data` is observed. Items report charset, byte length, and whether a required null terminator is missing. The API cannot distinguish a present terminator from fixed/Pascal layouts when no terminator is missing, so that state is named `present_or_not_required`.                          |
-| Memory           | Memory-block end addresses are exclusive. Read/write/execute, initialization, overlay, address space, and image base are direct Ghidra observations.                                                                                                                                                                     |
-| Inventory        | Procedure, symbol, and string listings plus searches return the complete matching collection in one response; callers do not provide offsets or limits. The bridge retains a 64 MiB internal process-line safety bound for exceptional responses.                                                                        |
-| Search           | Literal search scans the immutable inventory with a 1,000,000-unit cumulative work budget. Regex uses a conservative finite Java-regex subset with 10,000 static paths, 4,096 UTF-16 code units per candidate, and the same cumulative budget. Exceeding a budget fails explicitly; returned values identify truncation. |
-| Analysis state   | The socket is exposed only after default auto-analysis. A 300-second analysis timeout fails target opening; ordinary established requests have a 10-second client deadline. The internal response-line guard is sized for complete analysis output.                                                                      |
+| Concern          | Ghidra contract                                                                                                                                                                                                                                                                                 |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Program identity | One `analyzeHeadless` import produces exactly one Program; `list_documents` therefore returns exactly one name.                                                                                                                                                                                 |
+| Addresses        | Default memory uses lowercase `0x` hexadecimal. Non-default and external spaces use `<percent-encoded-space>:0x<hex>` and remain round-trippable. The handshake commits image base and default address-space name.                                                                              |
+| Symbols          | `list_names` includes address-bearing memory and external symbols, including dynamic symbols, while excluding variable and no-address namespace records. Each item reports primary, dynamic, external, symbol type, and source facts.                                                           |
+| Procedures       | Both non-external and external functions are listed. A local thunk remains distinct from its resolved target; exact and qualified name lookup fails on ambiguity rather than guessing.                                                                                                          |
+| Strings          | Only Ghidra-defined string `Data` is observed. Items report charset, byte length, and whether a required null terminator is missing. The API cannot distinguish a present terminator from fixed/Pascal layouts when no terminator is missing, so that state is named `present_or_not_required`. |
+| Memory           | Memory-block end addresses are exclusive. Read/write/execute, initialization, overlay, address space, and image base are direct Ghidra observations.                                                                                                                                            |
+| Inventory        | Procedure, symbol, and string listings plus searches return the complete matching collection in one response; callers do not provide offsets or limits. The bridge retains a 64 MiB internal process-line safety bound for exceptional responses.                                               |
+| Search           | Literal and Java-regex searches scan the complete immutable inventory and return all matching entries inline. Search uses the established-request deadline; there are no caller-supplied offsets or result-count limits.                                                                        |
+| Analysis state   | The socket is exposed only after default auto-analysis. A 300-second analysis timeout fails target opening; ordinary established requests have a 10-second client deadline. The internal response-line guard is sized for complete analysis output.                                             |
 
 ## Admitted function-analysis semantics
 

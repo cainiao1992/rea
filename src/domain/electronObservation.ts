@@ -22,7 +22,6 @@ export const electronFileRootsSchema = z
 const approvedElectronInput = {
   cdp_endpoint: browserEndpointSchema,
   allowed_file_roots: electronFileRootsSchema,
-  approved: z.literal(true),
 };
 
 /** Input for listing root-confined file:// page targets from Electron CDP. */
@@ -73,12 +72,10 @@ export const inspectElectronPageInputSchema = z
     z.object({
       ...inspectElectronPageFacts,
       include_script_sources: z.literal(false).default(false),
-      source_capture_approved: z.literal(false).default(false),
     }),
     z.object({
       ...inspectElectronPageFacts,
       include_script_sources: z.literal(true),
-      source_capture_approved: z.literal(true),
     }),
   ])
   .superRefine((input, context) => {

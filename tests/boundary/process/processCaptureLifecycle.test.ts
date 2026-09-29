@@ -29,7 +29,6 @@ it("does not follow or disclose symlink targets outside declared roots", async (
     if (!capability.available) return;
     const result = await captureProcessScenario(
       parseProcessScenario({
-        approved: true,
         executable: "/usr/bin/true",
         working_directory: root,
         filesystem_roots: [root],
@@ -60,7 +59,6 @@ it("does not follow or disclose symlink targets outside declared roots", async (
 
 it("does not launch when policy denies capture", async () => {
   const scenario = parseProcessScenario({
-    approved: true,
     executable: "/bin/sh",
     working_directory: "/tmp",
   });
@@ -84,7 +82,6 @@ it("distinguishes timeout from cancellation and cleans both runs", async () => {
   };
   const timedOut = await captureProcessScenario(
     parseProcessScenario({
-      approved: true,
       executable: process.execPath,
       arguments: [processFixture, "hang"],
       working_directory: dirname(processFixture),
@@ -105,7 +102,6 @@ it("distinguishes timeout from cancellation and cleans both runs", async () => {
   setTimeout(() => controller.abort(), 50);
   const cancelled = await captureProcessScenario(
     parseProcessScenario({
-      approved: true,
       executable: process.execPath,
       arguments: [processFixture, "hang"],
       working_directory: dirname(processFixture),
@@ -125,7 +121,6 @@ it("captures source-owned interactive, resize, Unicode, and signal behavior", as
   if (!capability.available) return;
   const result = await captureProcessScenario(
     parseProcessScenario({
-      approved: true,
       executable: process.execPath,
       arguments: [processFixture, "interactive"],
       working_directory: dirname(processFixture),
@@ -161,7 +156,6 @@ it("dispatches scheduled events before a silent PTY produces output", async () =
   if (!capability.available) return;
   const result = await captureProcessScenario(
     parseProcessScenario({
-      approved: true,
       executable: process.execPath,
       arguments: [processFixture, "silent-interactive"],
       working_directory: dirname(processFixture),
@@ -202,7 +196,6 @@ it("samples and cleans a source-owned child and grandchild process tree", async 
   if (!capability.available) return;
   const result = await captureProcessScenario(
     parseProcessScenario({
-      approved: true,
       executable: process.execPath,
       arguments: [processFixture, "tree"],
       working_directory: dirname(processFixture),

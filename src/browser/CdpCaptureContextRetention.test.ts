@@ -11,7 +11,6 @@ describe("CDP execution-context retention", () => {
       cdp_endpoint: "http://127.0.0.1:9222",
       allowed_origins: ["https://app.example.test"],
       target_id: "page-1",
-      approved: true,
     });
     const browser = new CdpCaptureEvents(
       request,

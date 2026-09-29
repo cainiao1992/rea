@@ -11,7 +11,6 @@ import { parseProcessScenario } from "../../../src/domain/processCapture.js";
 
 const buildTerminalScenario = (root: string, script: string) =>
   parseProcessScenario({
-    approved: true,
     executable: process.execPath,
     arguments: [script],
     working_directory: root,

@@ -53,7 +53,6 @@ export const analyzeJavaScriptApplicationValidated = async (
       {
         input_path: input.input_path,
         format: input.format,
-        limits: input.limits,
       },
       options.signal,
     );

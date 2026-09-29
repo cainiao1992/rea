@@ -63,7 +63,6 @@ const recordProcessResidualUnknowns = (
   if (scenario.unknown_registry_approved !== true) return ok(null);
   for (const residual of residuals) {
     const unknown = session.recordUnknown({
-      approved: true,
       question: `Was ${residual.scope} behavior fully observed during capture?`,
       severity: "medium",
       domain: `process-${residual.scope}`,

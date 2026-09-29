@@ -51,7 +51,7 @@ export REA_BROWSER_ALLOWED_ORIGINS_JSON='["http://127.0.0.1:3000"]'
 
 `REA_BROWSER_ALLOWED_ORIGINS_JSON` accepts at most 32 exact HTTP(S) origins. Paths, credentials, queries, fragments, and wildcards are rejected. An input must stay within both this administrator ceiling and any active project/session/once grant.
 
-Configuration is reloadable through the existing `SIGHUP` permission-policy path. A request still requires `approved: true`; configuration alone does not make a tool call implicit.
+Configuration is reloadable through the existing `SIGHUP` permission-policy path. Each request is checked against the configured endpoint, origin, and permission grants.
 
 Inspect the exact effective scope without contacting the browser:
 
@@ -68,9 +68,8 @@ rea policy explain browser_observe \
 Configured origins are used by default. `--allowed-origins` can request a narrower set that still fits the configured ceiling.
 
 ```bash
-rea list-browser-targets http://127.0.0.1:9222 --approved --json
+rea list-browser-targets http://127.0.0.1:9222 --json
 rea inspect-web-page http://127.0.0.1:9222 TARGET_ID \
-  --approved \
   --observation-ms 1000 \
   --json
 ```
@@ -79,34 +78,33 @@ Static bundle analysis and a user-driven observation window are separate operati
 
 ```bash
 rea analyze-web-bundle http://127.0.0.1:9222 TARGET_ID \
-  --approved --source-capture-approved --json
+  --json
 rea observe-web-session http://127.0.0.1:9222 TARGET_ID \
-  --approved --observation-ms 10000 --json
+  --observation-ms 10000 --json
 rea discover-webmcp-tools http://127.0.0.1:9222 TARGET_ID \
-  --approved --json
+  --json
 ```
 
-Accessibility names/descriptions, console primitive text, JSON body shapes, WebSocket shapes, script content, and storage key names require separate opt-ins. Console/body/WebSocket capture additionally requires its matching approval flag:
+Accessibility names/descriptions, console primitive text, JSON body shapes, WebSocket shapes, script content, and storage key names are selected independently:
 
 ```bash
 rea inspect-web-page http://127.0.0.1:9222 TARGET_ID \
-  --approved \
   --include-accessibility-text \
-  --include-console-text --console-text-approved \
-  --include-json-body-shapes --json-body-schema-approved \
-  --include-websocket-shapes --websocket-shape-approved \
+  --include-console-text \
+  --include-json-body-shapes \
+  --include-websocket-shapes \
   --include-script-sources \
   --include-storage-keys --include-storage-fingerprints \
   --json
 ```
 
-Accessibility text and script content may contain application secrets and become part of the returned Evidence. Accessibility and console text have independent per-field and aggregate UTF-8 byte limits; credential-shaped console substrings are redacted. JSON and WebSocket captures retain paths, types, counts, and truncation only, never values or examples. Storage values remain redacted even when key-name capture is approved. `--include-storage-fingerprints` separately approves SHA-256 identity/value fingerprints, which support comparison only when cookies, DOM storage, IndexedDB, and Cache Storage were all captured completely.
+Accessibility text and script content may contain application secrets and become part of the returned Evidence. Accessibility and console text have independent per-field and aggregate UTF-8 byte limits; credential-shaped console substrings are redacted. JSON and WebSocket captures retain paths, types, counts, and truncation only, never values or examples. Storage values remain redacted even when key-name capture is requested. `--include-storage-fingerprints` requests SHA-256 identity/value fingerprints, which support comparison only when cookies, DOM storage, IndexedDB, and Cache Storage were all captured completely.
 
-Screenshot pixels require both `--approved` and `--screenshot-approved`:
+Screenshot capture returns the visible viewport as image pixels:
 
 ```bash
 rea capture-web-screenshot http://127.0.0.1:9222 TARGET_ID \
-  --approved --screenshot-approved --json
+  --json
 ```
 
 ## MCP input
@@ -116,15 +114,11 @@ rea capture-web-screenshot http://127.0.0.1:9222 TARGET_ID \
   "cdp_endpoint": "http://127.0.0.1:9222",
   "allowed_origins": ["http://127.0.0.1:3000"],
   "target_id": "TARGET_ID_FROM_LIST_BROWSER_TARGETS",
-  "approved": true,
   "observation_ms": 500,
   "include_accessibility_text": false,
   "include_console_text": false,
-  "console_text_approved": false,
   "include_json_body_shapes": false,
-  "json_body_schema_approved": false,
   "include_websocket_shapes": false,
-  "websocket_shape_approved": false,
   "include_script_sources": false,
   "include_storage_keys": false,
   "include_storage_fingerprints": false
@@ -143,10 +137,10 @@ REA removes sensitive values before normalized event data is retained:
 - DOM snapshots retain node types, node names, value lengths, and attribute names, but not text or attribute values.
 - Accessibility structure and roles are retained by default, but names and descriptions require `include_accessibility_text: true` and remain byte-bounded.
 - Network observations retain method, status, MIME type, size, type, initiator stack location, and redacted URLs. Headers are discarded after an allowlisted projection of length/encoding, structured CSP/Link/policy fields, and untrusted agent hints. Cookies and authorization headers are never retained.
-- Request/response bodies are not requested or parsed by default. With independent approval, only allowed-origin JSON media types are read within per-body and aggregate budgets, converted immediately to value-free property paths/types, and discarded. `Network.getResponseBody` is never sent without that approval.
-- Console observations with an approved stack source retain call type, argument types, timestamp, and redacted source location. With independent approval, only already-delivered primitive values are retained after credential redaction and byte bounds; objects, getters, and remote properties are never expanded.
-- WebSocket observations retain direction, opcode, and payload byte length. With independent approval, bounded text frames are classified as text or value-free JSON shape; binary bytes, hashes, prefixes, and raw frames are never retained.
-- Storage observations always redact values. Key names, IndexedDB names, and cache names require `include_storage_keys`; stable content fingerprints require the additional `include_storage_fingerprints` approval. Cache bodies above 64 KiB and partial IndexedDB remote objects make fingerprint coverage incomplete, so identical observations remain `unknown`.
+- Request/response bodies are not requested or parsed by default. When selected, only allowed-origin JSON media types are read within per-body and aggregate budgets, converted immediately to value-free property paths/types, and discarded. `Network.getResponseBody` is never sent unless JSON body shape capture is selected.
+- Console observations with a stack source retain call type, argument types, timestamp, and redacted source location. When console text capture is selected, only already-delivered primitive values are retained after credential redaction and byte bounds; objects, getters, and remote properties are never expanded.
+- WebSocket observations retain direction, opcode, and payload byte length. When shape capture is selected, bounded text frames are classified as text or value-free JSON shape; binary bytes, hashes, prefixes, and raw frames are never retained.
+- Storage observations always redact values. Key names, IndexedDB names, and cache names require `include_storage_keys`; stable content fingerprints require the additional `include_storage_fingerprints` selection. Cache bodies above 64 KiB and partial IndexedDB remote objects make fingerprint coverage incomplete, so identical observations remain `unknown`.
 - Script metadata is included only when CDP supplies a URL on an allowed origin. Stable keys exclude transient CDP script IDs, and exact transient raw URLs are used only during script/resource reconciliation. URL-less scripts are excluded because their origin cannot be established. When CDP supplies an execution-context association, the accepted script retains its authorized frame ID for later attribution. Source content is omitted unless explicitly requested and becomes a self-verifying `rea://web-content/sha256/...` artifact subject to per-script and aggregate byte limits.
 
 Cross-origin frames, resources, scripts, events, and workers are excluded unless their exact origins are also approved. Excluded target details are counted without being exposed.

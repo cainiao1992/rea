@@ -6,7 +6,6 @@ import {
   EvidenceIntegrityError,
   NoBinaryOpenError,
   type AnalysisError,
-  type EvidenceLimitError,
 } from "../domain/errors.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
@@ -150,7 +149,7 @@ export class AnalysisSnapshotCache {
       | undefined,
     mergeEvidence: (
       bundle: EvidenceBundle,
-    ) => Result<number, EvidenceIntegrityError | EvidenceLimitError>,
+    ) => Result<number, EvidenceIntegrityError>,
   ): Result<number, AnalysisError> {
     if (
       active !== undefined &&

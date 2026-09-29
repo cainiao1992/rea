@@ -8,58 +8,6 @@ import { javaScriptSemanticGraphSchema } from "./javascriptSemanticGraph.js";
 const countSchema = z.number().int().min(0);
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 
-/** Defaults for one local JavaScript application analysis. */
-export const JAVASCRIPT_APPLICATION_ANALYSIS_DEFAULT_LIMITS = {
-  max_entries: 8_000,
-  max_total_artifact_bytes: 512 * 1_024 * 1_024,
-  max_artifact_entry_bytes: 128 * 1_024 * 1_024,
-  max_compression_ratio: 1_000,
-  max_depth: 64,
-  max_path_bytes: 4_096,
-  max_text_files: 5_000,
-  max_total_text_bytes: 128 * 1_024 * 1_024,
-  max_text_file_bytes: 8 * 1_024 * 1_024,
-  max_ast_nodes: 2_000_000,
-  max_findings: 8_000,
-  max_modules: 20_000,
-  max_source_map_sources: 5_000,
-  max_parse_milliseconds: 30_000,
-} as const;
-
-/** Combined artifact, text, AST, and graph projection bounds. */
-export const javascriptApplicationAnalysisLimitsSchema = z.strictObject({
-  max_entries: z.number().int().min(1).default(8_000),
-  max_total_artifact_bytes: z
-    .number()
-    .int()
-    .min(1)
-    .default(512 * 1_024 * 1_024),
-  max_artifact_entry_bytes: z
-    .number()
-    .int()
-    .min(1)
-    .default(128 * 1_024 * 1_024),
-  max_compression_ratio: z.number().min(1).default(1_000),
-  max_depth: z.number().int().min(1).default(64),
-  max_path_bytes: z.number().int().min(1).default(4_096),
-  max_text_files: z.number().int().min(1).default(5_000),
-  max_total_text_bytes: z
-    .number()
-    .int()
-    .min(1)
-    .default(128 * 1_024 * 1_024),
-  max_text_file_bytes: z
-    .number()
-    .int()
-    .min(1)
-    .default(8 * 1_024 * 1_024),
-  max_ast_nodes: z.number().int().min(1).default(2_000_000),
-  max_findings: z.number().int().min(1).default(8_000),
-  max_modules: z.number().int().min(1).default(20_000),
-  max_source_map_sources: z.number().int().min(1).default(5_000),
-  max_parse_milliseconds: z.number().int().min(1).default(30_000),
-});
-
 /** Public target-free request for static JavaScript application analysis. */
 export const analyzeJavaScriptApplicationInputSchema = z.strictObject({
   input_path: z
@@ -67,9 +15,6 @@ export const analyzeJavaScriptApplicationInputSchema = z.strictObject({
     .min(1)
     .refine(isAbsolute, "JavaScript application input path must be absolute"),
   format: z.enum(["auto", "asar", "directory"]).default("auto"),
-  limits: javascriptApplicationAnalysisLimitsSchema.default(
-    JAVASCRIPT_APPLICATION_ANALYSIS_DEFAULT_LIMITS,
-  ),
 });
 
 /** Compact counts for the high-level Electron architecture/security surface. */

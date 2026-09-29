@@ -7,15 +7,15 @@ const address = z
     "A provider-normalized address; default memory uses 0x-prefixed hexadecimal",
   );
 
-/** Bounded Hopper memory and file-mapping contracts. */
+/** Hopper memory and file-mapping contracts. */
 export const HOPPER_MEMORY_TOOL_DEFINITIONS = [
   {
     name: "read_bytes",
     description:
-      "Read at most 4,096 analyzed bytes from one provider-normalized virtual address. The hexadecimal payload reports the exact returned length; incomplete reads remain explicit and unsupported provider APIs return typed capability unavailability.",
+      "Read analyzed bytes from one provider-normalized virtual address. The hexadecimal payload reports the exact returned length; incomplete reads remain explicit and unsupported provider APIs return typed capability unavailability.",
     inputSchema: z.object({
       address,
-      length: z.number().int().min(1).max(4_096).default(256),
+      length: z.number().int().min(1).default(256),
       document,
     }),
   },

@@ -82,12 +82,15 @@ persistent identities. Duplicate candidates remain ambiguous. Source-map and
 structural matches are high/medium-confidence inferences rather than exact
 facts. Each item is `unchanged`, `added`, `removed`, `changed`, or `unknown`,
 and the result includes its basis, candidates, changed dimensions, Evidence
-links, limitations, and a bounded `changed_from` graph.
+links, limitations, and a `changed_from` graph containing all compared nodes,
+their observations, and relationships.
 
 One-sided absence is `added` or `removed` only when the opposite input graph has
 complete coverage. With partial, unavailable, or truncated input, the same
-condition is `unknown`. Output truncation separately reports omitted comparison
-items, candidate references, graph nodes, edges, and observations. With
+condition is `unknown`. The comparison retains every classified item and
+ambiguity candidate. Coverage carries omitted counts and limits from each input
+graph; comparison adds no caller-selected item, candidate, graph node, or edge
+budget. With
 `unknown_registry_approved: true`, unresolved comparison items can be retained
 as a residual unknown in a live session.
 

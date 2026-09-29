@@ -23,7 +23,7 @@ export const addJavaScriptBundlerNodes = (
     const { file, javascript } = analyzed;
     const asset = context.assetNodes.get(file.path);
     if (javascript === null || asset === undefined) continue;
-    const coverage = javascriptAnalysisCoverage(javascript, context.input);
+    const coverage = javascriptAnalysisCoverage(javascript);
     const records: BundlerGraphRecord[] = [];
     for (const registration of javascript.bundler_registrations) {
       const input = {

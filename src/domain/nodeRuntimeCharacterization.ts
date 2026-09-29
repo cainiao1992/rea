@@ -24,7 +24,6 @@ const nodeRuntimeCharacterizationPlanSchema =
 
 export const nodeCharacterizationPreparationInputSchema = z
   .strictObject({
-    preparation_approved: z.literal(true),
     selected_alias: z.string().min(1).max(200),
     expected_effect: nodeCharacterizationExpectedEffectSchema,
     instrumentation: javascriptExportInstrumentationInputSchema,
@@ -63,7 +62,6 @@ export const nodeCharacterizationPreparationInputSchema = z
   });
 
 export const nodeCharacterizationExecutionInputSchema = z.strictObject({
-  execution_approved: z.literal(true),
   approved_plan_sha256: digestSchema,
   preparation: nodeCharacterizationPreparationInputSchema,
 });

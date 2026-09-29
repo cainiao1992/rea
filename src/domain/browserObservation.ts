@@ -92,17 +92,14 @@ export const browserAllowedOriginsSchema = z
   .max(32)
   .transform((origins) => [...new Set(origins)].sort());
 
-const approvedBrowserInput = {
+const browserInput = {
   cdp_endpoint: browserEndpointSchema,
   allowed_origins: browserAllowedOriginsSchema,
-  approved: z
-    .literal(true)
-    .describe("Explicit approval for browser observation"),
 };
 
 /** Public input for complete discovery of allowed page targets. */
 export const listBrowserTargetsInputSchema = z.object({
-  ...approvedBrowserInput,
+  ...browserInput,
 });
 
 const browserInspectionLimitsSchema = z.object({
@@ -206,16 +203,13 @@ const DEFAULT_BROWSER_INSPECTION_LIMITS = {
 } as const;
 
 const inspectWebPageInputFacts = {
-  ...approvedBrowserInput,
+  ...browserInput,
   target_id: z.string().trim().min(1).max(256),
   observation_ms: z.number().int().min(0).max(10_000).default(500),
   include_accessibility_text: z.boolean().default(false),
   include_console_text: z.boolean().default(false),
-  console_text_approved: z.boolean().default(false),
   include_json_body_shapes: z.boolean().default(false),
-  json_body_schema_approved: z.boolean().default(false),
   include_websocket_shapes: z.boolean().default(false),
-  websocket_shape_approved: z.boolean().default(false),
   include_storage_keys: z.boolean().default(false),
   include_storage_fingerprints: z.boolean().default(false),
   limits: browserInspectionLimitsSchema.default(
@@ -226,13 +220,11 @@ const inspectWebPageInputFacts = {
 const inspectWebPageWithoutSourceSchema = z.strictObject({
   ...inspectWebPageInputFacts,
   include_script_sources: z.literal(false).default(false),
-  source_capture_approved: z.literal(false).default(false),
 });
 
 const inspectWebPageWithSourceShapeSchema = z.strictObject({
   ...inspectWebPageInputFacts,
   include_script_sources: z.literal(true).default(true),
-  source_capture_approved: z.literal(true),
 });
 
 type InspectWebPageShape =
@@ -258,28 +250,6 @@ const refineInspectWebPageInput = (
       path: ["limits", "max_script_source_bytes"],
       message: "Per-script source limit cannot exceed the total source limit",
     });
-  for (const [include, approved, path, message] of [
-    [
-      input.include_console_text,
-      input.console_text_approved,
-      "console_text_approved",
-      "Console text capture requires separate approval",
-    ],
-    [
-      input.include_json_body_shapes,
-      input.json_body_schema_approved,
-      "json_body_schema_approved",
-      "JSON body schema capture requires separate approval",
-    ],
-    [
-      input.include_websocket_shapes,
-      input.websocket_shape_approved,
-      "websocket_shape_approved",
-      "WebSocket shape capture requires separate approval",
-    ],
-  ] as const)
-    if (include && !approved)
-      context.addIssue({ code: "custom", path: [path], message });
   if (
     input.limits.max_console_text_field_bytes >
     input.limits.max_total_console_text_bytes

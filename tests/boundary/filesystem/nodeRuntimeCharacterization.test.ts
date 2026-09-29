@@ -46,10 +46,7 @@ describe("Node runtime characterization", () => {
       plan: {
         preparation_sha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
         runtime: { family: "ecmascript", provider_id: "node-javascript" },
-        authority: {
-          preparation_approved: true,
-          execution_approved: false,
-        },
+        authority: {},
       },
       transformation: {
         original_sha256: fixture.sha256,
@@ -69,7 +66,6 @@ describe("Node runtime characterization", () => {
     ).toThrow();
 
     const stale = await executeNodeCharacterization(dependencies, {
-      execution_approved: true,
       approved_plan_sha256: "0".repeat(64),
       preparation: input,
     });
@@ -78,7 +74,6 @@ describe("Node runtime characterization", () => {
     expect(executions).toBe(0);
 
     const executed = await executeNodeCharacterization(dependencies, {
-      execution_approved: true,
       approved_plan_sha256: output.plan.plan_sha256,
       preparation: input,
     });
@@ -161,7 +156,6 @@ const createFixture = async () => {
 const preparationInput = (
   fixture: Awaited<ReturnType<typeof createFixture>>,
 ) => ({
-  preparation_approved: true,
   selected_alias: "bundle",
   expected_effect: "pure" as const,
   instrumentation: {

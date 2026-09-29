@@ -80,7 +80,6 @@ export const electronActiveObservationInputSchema = z
       max_processes: 32,
       max_windows: 32,
     }),
-    approved: z.literal(true),
   })
   .superRefine((input, context) => {
     if (input.actions.length > input.limits.max_actions)

@@ -102,8 +102,8 @@ export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   read_bytes: resultOf(
     z.object({
       address: z.string(),
-      requested_bytes: z.number().int().min(1).max(4_096),
-      returned_bytes: z.number().int().min(0).max(4_096),
+      requested_bytes: z.number().int().min(1),
+      returned_bytes: z.number().int().min(0),
       bytes_hex: z.string().regex(/^(?:[a-f0-9]{2})*$/u),
       complete: z.boolean(),
     }),

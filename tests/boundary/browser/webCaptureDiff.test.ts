@@ -30,7 +30,6 @@ describe("web capture diff", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
       }),
     );
@@ -97,7 +96,6 @@ describe("web capture diff", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
       }),
     );
@@ -124,7 +122,6 @@ describe("web capture diff", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
       }),
     );
@@ -164,7 +161,6 @@ describe("web capture diff semantics and fingerprints", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
         include_accessibility_text: true,
         include_storage_keys: true,
@@ -240,7 +236,6 @@ describe("web capture diff completeness", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        approved: true,
         observation_ms: 0,
         include_accessibility_text: true,
         include_storage_keys: true,

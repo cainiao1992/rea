@@ -21,7 +21,6 @@ import {
   browserPageInspectionOptions,
   browserScopeOptions,
   boundedCount,
-  boundedBytes,
 } from "./cliObservationOptions.js";
 
 /** Register CLI equivalents of the passive browser MCP tools. */
@@ -53,7 +52,6 @@ const registerTargetList = (
           cdp_endpoint: args.endpoint,
           allowed_origins:
             options.allowedOrigins ?? context.allowedBrowserOrigins,
-          approved: options.approved,
         });
         if (!parsed.success)
           return browserCliError(
@@ -88,18 +86,13 @@ const registerPageInspection = (
           cdp_endpoint: args.endpoint,
           allowed_origins:
             options.allowedOrigins ?? context.allowedBrowserOrigins,
-          approved: options.approved,
           target_id: args.targetId,
           observation_ms: options.observationMs,
           include_accessibility_text: options.includeAccessibilityText,
           include_console_text: options.includeConsoleText,
-          console_text_approved: options.consoleTextApproved,
           include_json_body_shapes: options.includeJsonBodyShapes,
-          json_body_schema_approved: options.jsonBodySchemaApproved,
           include_websocket_shapes: options.includeWebsocketShapes,
-          websocket_shape_approved: options.websocketShapeApproved,
           include_script_sources: options.includeScriptSources,
-          source_capture_approved: options.sourceCaptureApproved,
           include_storage_keys: options.includeStorageKeys,
           include_storage_fingerprints: options.includeStorageFingerprints,
           limits: {
@@ -152,10 +145,6 @@ const registerBundleAnalysis = (
     }),
     options: z.object({
       ...browserScopeOptions,
-      sourceCaptureApproved: z
-        .boolean()
-        .default(false)
-        .describe("Approve capturing bounded script source text"),
       observationMs: boundedCount(
         "observation duration in milliseconds",
         10_000,
@@ -166,31 +155,6 @@ const registerBundleAnalysis = (
         .boolean()
         .default(false)
         .describe("Fetch source maps referenced by captured scripts"),
-      sourceMapFetchApproved: z
-        .boolean()
-        .default(false)
-        .describe(
-          "Approve fetching referenced source maps from allowed origins",
-        ),
-      maxFindings: boundedCount("static-analysis findings", 10_000, 1_000),
-      maxAstNodes: boundedCount("JavaScript AST nodes", 2_000_000, 250_000),
-      maxSourceMaps: boundedCount("source maps", 1_000, 100),
-      maxSourceMapBytes: boundedBytes(
-        "one source map",
-        16 * 1_024 * 1_024,
-        4 * 1_024 * 1_024,
-      ),
-      maxTotalSourceMapBytes: boundedBytes(
-        "total source maps",
-        64 * 1_024 * 1_024,
-        16 * 1_024 * 1_024,
-      ),
-      maxSourceMapMappings: boundedCount(
-        "decoded source-map mappings",
-        100_000,
-        10_000,
-      ),
-      maxOriginalSources: boundedCount("original source files", 20_000, 2_000),
     }),
     run: ({ args, options }) =>
       logCliCommand(logger, "analyze-web-bundle", async () => {
@@ -200,22 +164,10 @@ const registerBundleAnalysis = (
           cdp_endpoint: args.endpoint,
           allowed_origins:
             options.allowedOrigins ?? context.allowedBrowserOrigins,
-          approved: options.approved,
           target_id: args.targetId,
           observation_ms: options.observationMs,
           include_script_sources: true,
-          source_capture_approved: options.sourceCaptureApproved,
           fetch_source_maps: options.fetchSourceMaps,
-          source_map_fetch_approved: options.sourceMapFetchApproved,
-          analysis_limits: {
-            max_findings: options.maxFindings,
-            max_ast_nodes: options.maxAstNodes,
-            max_source_maps: options.maxSourceMaps,
-            max_source_map_bytes: options.maxSourceMapBytes,
-            max_total_source_map_bytes: options.maxTotalSourceMapBytes,
-            max_source_map_mappings: options.maxSourceMapMappings,
-            max_original_sources: options.maxOriginalSources,
-          },
         });
         if (!parsed.success)
           return browserCliError(new AnalysisInputError("analyze_web_bundle"));
@@ -257,7 +209,6 @@ const registerObservationSession = (
           allowed_origins:
             options.allowedOrigins ?? context.allowedBrowserOrigins,
           target_id: args.targetId,
-          approved: options.approved,
           observation_ms: options.observationMs,
           max_timeline_events: options.maxTimelineEvents,
         });

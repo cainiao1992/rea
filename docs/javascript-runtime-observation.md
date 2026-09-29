@@ -18,9 +18,9 @@ export REA_V8_INSPECTOR_FILE_ROOTS_JSON='["/absolute/path/to/app"]'
 export REA_V8_INSPECTOR_ALLOWED_ORIGINS_JSON='[]'
 
 rea list-javascript-runtime-targets http://127.0.0.1:9229 \
-  --approved --json
+  --json
 rea observe-javascript-runtime http://127.0.0.1:9229 TARGET_ID \
-  --runtime-kind node --approved --json
+  --runtime-kind node --json
 ```
 
 At least one canonical file root or exact HTTP(S) origin is required.

@@ -53,7 +53,6 @@ const parameters = (
         target_id: input.target_id,
         observation_ms: input.observation_ms,
         include_script_sources: input.include_script_sources,
-        source_capture_approved: input.source_capture_approved,
         limits: input.limits,
       }
     : {}),

@@ -72,7 +72,6 @@ describe("JavaScript runtime observation MCP tools", () => {
         inspector_endpoint: inspector.endpoint,
         allowed_file_roots: [root],
         allowed_origins: [],
-        approved: true,
       },
     });
     expect(listed.isError).not.toBe(true);
@@ -90,7 +89,6 @@ describe("JavaScript runtime observation MCP tools", () => {
         allowed_origins: [],
         target_id: inspector.targetId,
         runtime_kind: "node",
-        approved: true,
         observation_ms: 10,
       },
     });
@@ -126,7 +124,6 @@ describe("JavaScript runtime observation MCP tools", () => {
         allowed_origins: [],
         target_id: inspector.targetId,
         runtime_kind: "node",
-        approved: true,
         observation_ms: 10,
         limits: {
           max_events: 10_000,

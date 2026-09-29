@@ -31,13 +31,13 @@ export const analyzeJavaScriptJsonModule = (
     typeof value === "object" && value !== null && !Array.isArray(value)
       ? Object.keys(value).sort(compareCodePoints)
       : [];
-  const retained = keys.slice(0, 128);
+  const retained = keys;
   return {
     path: file.path,
     sha256: file.sha256,
     status: "included",
     top_level_keys: retained,
-    omitted_top_level_keys: keys.length - retained.length,
+    omitted_top_level_keys: 0,
     limitation: null,
   };
 };

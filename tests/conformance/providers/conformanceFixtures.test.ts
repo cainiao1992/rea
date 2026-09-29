@@ -17,9 +17,6 @@ describe("source-built conformance fixtures", () => {
     expect(first).toContain(
       `rea_inventory_${String(LARGE_FIXTURE_COUNT - 1).padStart(4, "0")}`,
     );
-    expect(() => generateLargeFixture(0)).toThrow(
-      "Fixture count must be a positive integer",
-    );
   });
 
   it("hashes source manifests independently of input ordering", () => {

@@ -9,7 +9,7 @@ export const HOPPER_C_ORACLE: Readonly<{
   globalName: "rea_c_global";
 }>;
 export function sha256(value: string | Uint8Array): string;
-export function generateLargeFixture(count?: number): string;
+export function generateLargeFixture(): string;
 export function sourceDigest(
   sources: readonly { readonly path: string; readonly content: string }[],
 ): string;

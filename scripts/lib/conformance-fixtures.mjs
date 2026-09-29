@@ -15,11 +15,9 @@ export const HOPPER_C_ORACLE = Object.freeze({
 export const sha256 = (value) =>
   createHash("sha256").update(value).digest("hex");
 
-export const generateLargeFixture = (count = LARGE_FIXTURE_COUNT) => {
-  if (!Number.isInteger(count) || count < 1)
-    throw new Error("Fixture count must be a positive integer");
+export const generateLargeFixture = () => {
   const declarations = Array.from(
-    { length: count },
+    { length: LARGE_FIXTURE_COUNT },
     (_, index) =>
       `__attribute__((noinline, used)) int rea_inventory_${String(index).padStart(4, "0")}(void) { puts("REA_INVENTORY_${String(index).padStart(4, "0")}"); return ${index}; }`,
   );

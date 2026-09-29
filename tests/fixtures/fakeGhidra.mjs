@@ -143,10 +143,6 @@ const handlePing = (socket, request, state) => {
     );
     return;
   }
-  if (state.mode === "oversized_whitespace") {
-    socket.write(`${" ".repeat(1024 * 1024 + 1)}\n`);
-    return;
-  }
   if (state.mode === "future_id") {
     socket.write(
       `${JSON.stringify({ id: request.id + 10, ok: true, result: null })}\n`,

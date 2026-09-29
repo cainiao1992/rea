@@ -85,13 +85,12 @@ const registerNativeCommands = (cli: CliInstance, logger: Logger): void => {
       ),
   });
   cli.command(CLI_COMMANDS.demangleSwift, {
-    description: "Demangle a bounded Swift symbol batch without Hopper",
+    description: "Demangle Swift symbols without Hopper",
     args: z.object({
       path: z.string().describe("Artifact path used for evidence identity"),
       symbols: z
         .array(z.string().min(1))
         .min(1)
-        .max(500)
         .describe("Swift mangled symbols to demangle"),
     }),
     run: ({ args }) =>

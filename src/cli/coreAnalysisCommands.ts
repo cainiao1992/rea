@@ -250,26 +250,12 @@ const registerInstructionsCommand = (
   logger: Logger,
 ): void => {
   cli.command(CLI_COMMANDS.instructions, {
-    description: "Read one bounded raw-instruction window without decompiling",
+    description: "Read every raw instruction without decompiling",
     args: z.object({
       path: z.string().describe("App or program path"),
       address: z.string().describe("Procedure name or address"),
     }),
     options: z.object({
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .max(100_000)
-        .default(0)
-        .describe("Zero-based instruction offset"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(500)
-        .default(64)
-        .describe("Maximum raw instructions to return"),
       snapshot: z
         .string()
         .min(1)
@@ -284,8 +270,6 @@ const registerInstructionsCommand = (
           "read_function_instructions",
           {
             procedure: args.address,
-            offset: options.offset,
-            limit: options.limit,
           },
           directAnalysisOptions(logger, options.snapshot, options.provider),
         ),
@@ -295,7 +279,7 @@ const registerInstructionsCommand = (
 
 const registerSearchCommand = (cli: CliInstance, logger: Logger): void => {
   cli.command(CLI_COMMANDS.search, {
-    description: "Search analyzed strings or procedure names",
+    description: "Search every analyzed string or procedure name",
     args: z.object({
       path: z.string().describe("App or program path"),
       pattern: z.string().min(1).describe("Literal text or regex pattern"),
@@ -313,19 +297,6 @@ const registerSearchCommand = (cli: CliInstance, logger: Logger): void => {
         .boolean()
         .default(false)
         .describe("Match the pattern with exact letter case"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Zero-based matching-item offset"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .default(100)
-        .describe("Maximum matching items to return"),
       snapshot: z
         .string()
         .min(1)
@@ -343,8 +314,6 @@ const registerSearchCommand = (cli: CliInstance, logger: Logger): void => {
             pattern: args.pattern,
             mode: options.mode,
             case_sensitive: options.caseSensitive,
-            offset: options.offset,
-            limit: options.limit,
           },
           directAnalysisOptions(logger, options.snapshot, options.provider),
         ),

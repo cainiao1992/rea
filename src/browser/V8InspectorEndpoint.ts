@@ -30,7 +30,7 @@ const targetSchema = z
     webSocketDebuggerUrl: z.string().min(1).max(2_048),
   })
   .passthrough();
-const targetsSchema = z.array(targetSchema).max(1_000);
+const targetsSchema = z.array(targetSchema);
 
 export interface V8InspectorTarget {
   readonly id: string;

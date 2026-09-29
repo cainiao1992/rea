@@ -36,7 +36,6 @@ type FixtureMode =
   | "wrong_identity"
   | "malformed"
   | "contradictory"
-  | "oversized_whitespace"
   | "future_id"
   | "analysis_timeout"
   | "remote_error"
@@ -208,7 +207,6 @@ describe("GhidraClient", () => {
     ["wrong_identity", "protocol"],
     ["malformed", "protocol"],
     ["contradictory", "protocol"],
-    ["oversized_whitespace", "protocol"],
     ["future_id", "protocol"],
     ["analysis_timeout", "analysis_timeout"],
     ["exit", "process"],

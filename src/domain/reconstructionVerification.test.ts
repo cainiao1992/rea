@@ -308,7 +308,7 @@ describe("reconstruction verification", () => {
       createEvidenceBundle([left, comparison, right]),
     );
     expect(result.status).toBe("unknown");
-    expect(result.recommended_probes[0]?.operation).toBe("inventory_artifact");
+    expect(result.recommended_probes[0]?.operation).toBe("inspect_artifact");
   });
 });
 

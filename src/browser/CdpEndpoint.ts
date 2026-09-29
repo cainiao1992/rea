@@ -32,7 +32,7 @@ const endpointTargetSchema = z.object({
   attached: z.boolean().default(false),
   webSocketDebuggerUrl: z.string().min(1).max(2_048).optional(),
 });
-const endpointTargetsSchema = z.array(endpointTargetSchema).max(1_000);
+const endpointTargetsSchema = z.array(endpointTargetSchema);
 
 /** Validated direct CDP WebSocket bound to one discovered page target. */
 interface CdpPageWebSocketEndpoint {

@@ -163,7 +163,7 @@ describe("compiled CLI output boundary", () => {
       await writeFile(join(`${archive}.unpacked`, "main.js"), "changed();\n");
 
       const result = await cli.run({
-        arguments: ["--json", "inventory-artifact", archive],
+        arguments: ["--json", "inspect-artifact", archive],
       });
       expect(result.exitCode).toBe(1);
       const output = JSON.stringify(result.json);

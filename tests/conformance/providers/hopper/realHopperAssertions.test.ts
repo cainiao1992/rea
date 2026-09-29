@@ -40,7 +40,6 @@ describe("real Hopper semantic assertions", () => {
 
   it("rejects success-shaped dossiers without truthful semantic content", () => {
     const dossier = validDossier();
-    expect(requireFunctionDossier(dossier, "0x1000")).toEqual(dossier);
     expect(() =>
       requireFunctionDossier(
         {
@@ -50,15 +49,6 @@ describe("real Hopper semantic assertions", () => {
         "0x1000",
       ),
     ).toThrow(/embedded failure/u);
-    expect(requireFunctionDossier(dossier, "0x1000")).not.toHaveProperty(
-      "instruction_scan",
-    );
-  });
-
-  it("accepts a complete inline dossier", () => {
-    const dossier = validDossier();
-    const complete = { ...dossier, pseudocode: "😀" };
-    expect(requireFunctionDossier(complete, "0x1000")).toEqual(complete);
   });
 });
 

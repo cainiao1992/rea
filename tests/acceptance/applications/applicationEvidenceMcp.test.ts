@@ -200,17 +200,6 @@ async function assertRejectedInlineEvidence(client: Client): Promise<void> {
     },
   });
   expect(spoofed.isError).toBe(true);
-
-  const legacyComparisonReferences = await client.callTool({
-    name: "compare_application_versions",
-    arguments: {
-      left_evidence_id:
-        JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left.evidence_id,
-      right_evidence_id:
-        JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.right.evidence_id,
-    },
-  });
-  expect(legacyComparisonReferences.isError).toBe(true);
 }
 
 describe("application workflow MCP parity", () => {

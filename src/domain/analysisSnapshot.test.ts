@@ -89,6 +89,4 @@ describe("analysis snapshot contract", () => {
       }),
     ).toBeUndefined();
   });
-
-  it("rejects an input without the current snapshot shape", () => {});
 });

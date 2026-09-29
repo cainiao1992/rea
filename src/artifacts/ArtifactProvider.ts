@@ -119,7 +119,10 @@ class ArtifactClient implements AnalysisClient {
             inputPath: this.target.sourcePath ?? this.target.path,
             inputFormat: this.target.format,
             outputRoot: parsed.output_root,
-            occurrenceIds: parsed.occurrence_ids,
+            selection:
+              "paths" in parsed
+                ? { paths: parsed.paths }
+                : { occurrenceIds: parsed.occurrence_ids },
             limits: DEFAULT_ARTIFACT_LIMITS,
           },
           options?.signal,

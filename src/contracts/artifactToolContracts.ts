@@ -27,19 +27,34 @@ export const artifactInventoryInputSchema = z.union([
 ]);
 
 /** Exact caller boundary for approved artifact extraction. */
-export const artifactExtractionInputSchema = z.object({
-  occurrence_ids: z.array(z.string().regex(/^occ_[a-f0-9]{64}$/u)).min(1),
+const artifactOccurrenceSelectionSchema = z.strictObject({
+  occurrence_ids: z
+    .array(z.string().regex(/^occ_[a-f0-9]{64}$/u))
+    .min(1)
+    .describe("Alternate exact occurrence IDs from inspect_artifact"),
 });
+const artifactPathSelectionSchema = z.strictObject({
+  paths: z
+    .array(z.string().min(1))
+    .min(1)
+    .describe("Exact logical_path values from inspect_artifact"),
+});
+export const artifactExtractionInputSchema = z.union([
+  artifactPathSelectionSchema,
+  artifactOccurrenceSelectionSchema,
+]);
 
 /** Provider input after the local permission boundary chooses its destination. */
-export const artifactExtractionExecutionSchema =
-  artifactExtractionInputSchema.extend({ output_root: z.string().min(1) });
+export const artifactExtractionExecutionSchema = z.union([
+  artifactPathSelectionSchema.extend({ output_root: z.string().min(1) }),
+  artifactOccurrenceSelectionSchema.extend({ output_root: z.string().min(1) }),
+]);
 
 const exampleInputSchema = z.record(z.string(), jsonValueSchema);
 const examples: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
   inspect_artifact: {},
   extract_artifact: {
-    occurrence_ids: [`occ_${"0".repeat(64)}`],
+    paths: ["Contents/Info.plist"],
   },
 };
 
@@ -77,7 +92,7 @@ export const ARTIFACT_TOOL_CONTRACTS = [
   ),
   artifact(
     "extract_artifact",
-    "Extract selected graph artifacts into a fresh temporary directory chosen by REA. The result includes its location. Rejects traversal and symlink escapes, never overwrites, enforces archive integrity checks, and verifies cleanup.",
+    "Extract selected regular files by logical paths from inspect_artifact (or by occurrence IDs) into a fresh temporary directory chosen by REA. The result includes its location. Rejects traversal and symlink escapes, never overwrites, enforces archive integrity checks, and verifies cleanup.",
     artifactExtractionInputSchema,
   ),
 ] as const satisfies readonly ToolContract[];

@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { isDeepStrictEqual } from "node:util";
 import { join } from "node:path";
 import { TextReader, Uint8ArrayWriter, ZipWriter } from "@zip.js/zip.js";
@@ -126,37 +126,41 @@ const verifyPackagedArtifactExtraction = async ({
   artifactInventory,
   cli,
   environment,
-  workspace,
 }) => {
   const occurrence = artifactInventory?.occurrences?.items?.find(
     ({ logical_path: path }) => path === "app/main.js",
   );
-  if (occurrence?.occurrence_id === undefined)
+  if (occurrence?.logical_path === undefined)
     throw new Error("packaged artifact inventory omitted the selected member");
-  const outputRoot = join(workspace, "artifact-extraction");
   const extraction = json(
     await run(
       cli,
       [
         "extract-artifact",
         artifactArchive,
-        outputRoot,
-        "--occurrence-ids",
-        occurrence.occurrence_id,
+        "--paths",
+        occurrence.logical_path,
         "--json",
       ],
       environment,
     ),
   );
-  if (
-    extraction.operation !== "extract_artifact" ||
-    extraction.provider?.id !== "rea-artifact-graph" ||
-    extraction.normalized_result?.containment_verified !== true ||
-    extraction.normalized_result?.artifacts?.items?.[0]?.relative_path !==
-      "app/main.js" ||
-    (await readFile(join(outputRoot, "app/main.js"), "utf8")) !== "main();"
-  )
-    throw new Error("packaged artifact extraction CLI failed");
+  const outputRoot = extraction.normalized_result?.output_root;
+  try {
+    if (
+      extraction.operation !== "extract_artifact" ||
+      extraction.provider?.id !== "rea-artifact-graph" ||
+      extraction.normalized_result?.containment_verified !== true ||
+      extraction.normalized_result?.artifacts?.items?.[0]?.relative_path !==
+        "app/main.js" ||
+      typeof outputRoot !== "string" ||
+      (await readFile(join(outputRoot, "app/main.js"), "utf8")) !== "main();"
+    )
+      throw new Error("packaged artifact extraction CLI failed");
+  } finally {
+    if (typeof outputRoot === "string")
+      await rm(outputRoot, { recursive: true, force: true });
+  }
 };
 
 const assertRoutedApplicationAnalysis = (analysis) => {

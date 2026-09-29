@@ -34,7 +34,9 @@ export interface ArtifactExtractionInput {
   readonly inputPath: string;
   readonly inputFormat: BinaryTarget["format"];
   readonly outputRoot: string;
-  readonly occurrenceIds: readonly string[];
+  readonly selection:
+    | { readonly paths: readonly string[] }
+    | { readonly occurrenceIds: readonly string[] };
   readonly limits: ArtifactLimits;
 }
 
@@ -43,22 +45,34 @@ export const extractArtifact = async (
   input: ArtifactExtractionInput,
   signal?: AbortSignal,
 ): Promise<ArtifactExtractionResult> => {
-  validateSelection(input.occurrenceIds);
+  validateSelection(input.selection, input.limits);
   const sourcePath = await realpath(input.inputPath);
-  const selectedIds = new Set(input.occurrenceIds);
-  const inventory = await loadInventory(
-    sourcePath,
-    input.limits,
-    selectedIds,
+  const snapshot = await scanArtifactInventory(sourcePath, input.limits, {
     signal,
+  });
+  const selectedOccurrences = resolveSelection(
+    snapshot.occurrences,
+    input.selection,
   );
-  const selected = input.occurrenceIds.map((id) => {
-    const occurrence = inventory.occurrences.get(id);
-    if (occurrence === undefined)
-      throw new ArtifactReaderFailure(
-        "unavailable",
-        `Selected artifact occurrence was not found: ${id}`,
-      );
+  const selectedIds = new Set(
+    selectedOccurrences.map(({ occurrence_id: id }) => id),
+  );
+  const occurrences = new Map<string, ArtifactOccurrence>();
+  const neededNodes = new Set<string>();
+  collectOccurrences(
+    snapshot.occurrences,
+    selectedIds,
+    occurrences,
+    neededNodes,
+  );
+  const nodes = new Map<string, ArtifactNode>();
+  collectNodes(snapshot.nodes, neededNodes, nodes);
+  const inventory: LoadedInventory = {
+    manifest: snapshot.manifest,
+    occurrences,
+    nodes,
+  };
+  const selected = selectedOccurrences.map((occurrence) => {
     if (
       (occurrence.entry_kind !== "file" && occurrence.entry_kind !== "slice") ||
       occurrence.artifact_id === null ||
@@ -67,13 +81,13 @@ export const extractArtifact = async (
     )
       throw new ArtifactReaderFailure(
         "format",
-        `Selected occurrence is not an extractable regular child file: ${id}`,
+        `Selected occurrence is not an extractable regular child file: ${occurrence.occurrence_id}`,
       );
     const node = inventory.nodes.get(occurrence.artifact_id);
     if (node === undefined)
       throw new ArtifactReaderFailure(
         "integrity",
-        `Selected occurrence has no inventory node: ${id}`,
+        `Selected occurrence has no inventory node: ${occurrence.occurrence_id}`,
       );
     return { occurrence, node };
   });
@@ -214,26 +228,6 @@ interface LoadedInventory {
   readonly nodes: ReadonlyMap<string, ArtifactNode>;
 }
 
-const loadInventory = async (
-  path: string,
-  limits: ArtifactLimits,
-  selectedIds: ReadonlySet<string>,
-  signal?: AbortSignal,
-): Promise<LoadedInventory> => {
-  const snapshot = await scanArtifactInventory(path, limits, { signal });
-  const occurrences = new Map<string, ArtifactOccurrence>();
-  const neededNodes = new Set<string>();
-  collectOccurrences(
-    snapshot.occurrences,
-    selectedIds,
-    occurrences,
-    neededNodes,
-  );
-  const nodes = new Map<string, ArtifactNode>();
-  collectNodes(snapshot.nodes, neededNodes, nodes);
-  return { manifest: snapshot.manifest, occurrences, nodes };
-};
-
 const collectOccurrences = (
   items: readonly ArtifactOccurrence[],
   selected: ReadonlySet<string>,
@@ -278,17 +272,77 @@ const createReader = async (
   );
 };
 
-const validateSelection = (ids: readonly string[]): void => {
-  if (ids.length === 0)
+type ArtifactSelection = ArtifactExtractionInput["selection"];
+
+const validateSelection = (
+  selection: ArtifactSelection,
+  limits: ArtifactLimits,
+): void => {
+  const values =
+    "paths" in selection ? selection.paths : selection.occurrenceIds;
+  if (values.length === 0)
     throw new ArtifactReaderFailure(
       "limit",
-      "Extraction requires at least one explicitly selected occurrence",
+      "Extraction requires at least one selected path or occurrence",
     );
-  if (new Set(ids).size !== ids.length)
+  const normalized =
+    "paths" in selection
+      ? values.map((path) => normalizeArtifactPath(path, limits))
+      : values;
+  if (new Set(normalized).size !== normalized.length)
     throw new ArtifactReaderFailure(
       "path",
-      "Extraction occurrence selection contains duplicates",
+      "Extraction selection contains duplicates",
     );
+};
+
+const resolveSelection = (
+  occurrences: readonly ArtifactOccurrence[],
+  selection: ArtifactSelection,
+): ArtifactOccurrence[] => {
+  if ("occurrenceIds" in selection) {
+    const byId = new Map(
+      occurrences.map((occurrence) => [occurrence.occurrence_id, occurrence]),
+    );
+    return selection.occurrenceIds.map((id) => {
+      const occurrence = byId.get(id);
+      if (occurrence === undefined)
+        throw new ArtifactReaderFailure(
+          "unavailable",
+          `Selected artifact occurrence was not found: ${id}`,
+        );
+      return occurrence;
+    });
+  }
+
+  const byPath = new Map<string, ArtifactOccurrence[]>();
+  for (const occurrence of occurrences) {
+    const matches = byPath.get(occurrence.logical_path);
+    if (matches === undefined)
+      byPath.set(occurrence.logical_path, [occurrence]);
+    else matches.push(occurrence);
+  }
+  return selection.paths.map((path) => {
+    const normalizedPath = path.normalize("NFC");
+    const matches = byPath.get(normalizedPath) ?? [];
+    if (matches.length === 0)
+      throw new ArtifactReaderFailure(
+        "unavailable",
+        `Selected artifact path was not found: ${path}`,
+      );
+    if (matches.length > 1)
+      throw new ArtifactReaderFailure(
+        "path",
+        `Selected artifact path is ambiguous: ${path}`,
+      );
+    const match = matches[0];
+    if (match === undefined)
+      throw new ArtifactReaderFailure(
+        "unavailable",
+        `Selected artifact path was not found: ${path}`,
+      );
+    return match;
+  });
 };
 
 const preflight = (entry: ArtifactEntry, limits: ArtifactLimits): void => {

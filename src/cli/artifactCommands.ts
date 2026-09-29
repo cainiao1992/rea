@@ -21,12 +21,24 @@ const registerExtractionCommand = (cli: CliInstance, logger: Logger): void => {
     args: z.object({
       path: z.string().describe("Application or package path"),
     }),
-    options: z.object({
-      occurrenceIds: z
-        .array(z.string().regex(/^occ_[a-f0-9]{64}$/u))
-        .min(1)
-        .describe("Exact artifact occurrence IDs selected for extraction"),
-    }),
+    options: z
+      .object({
+        paths: z
+          .array(z.string().min(1))
+          .min(1)
+          .optional()
+          .describe("Logical artifact paths selected for extraction"),
+        occurrenceIds: z
+          .array(z.string().regex(/^occ_[a-f0-9]{64}$/u))
+          .min(1)
+          .optional()
+          .describe("Alternate exact occurrence IDs selected for extraction"),
+      })
+      .refine(
+        ({ paths, occurrenceIds }) =>
+          (paths === undefined) !== (occurrenceIds === undefined),
+        "Provide paths or occurrence IDs",
+      ),
     alias: { occurrenceIds: "occurrence-ids" },
     run: ({ args, options }) =>
       logCliCommand(logger, "extract-artifact", () =>
@@ -35,7 +47,11 @@ const registerExtractionCommand = (cli: CliInstance, logger: Logger): void => {
           "extract_artifact",
           {
             output_root: createArtifactExtractionDestination(),
-            occurrence_ids: options.occurrenceIds,
+            ...(options.paths !== undefined
+              ? { paths: options.paths }
+              : options.occurrenceIds !== undefined
+                ? { occurrence_ids: options.occurrenceIds }
+                : {}),
           },
           logger,
         ),

@@ -52,7 +52,7 @@ describe("artifact extraction", () => {
         "extract_artifact",
         artifactExtractionExecutionSchema.parse({
           output_root: output,
-          occurrence_ids: [selected.occurrence_id],
+          paths: ["assets/selected.js"],
         }),
       );
     expect(result.ok).toBe(true);
@@ -74,6 +74,22 @@ describe("artifact extraction", () => {
     await expect(
       access(join(output, "assets", "ignored.js")),
     ).rejects.toThrow();
+
+    const traversalOutput = join(root, "traversal-output");
+    const traversal = await new ArtifactProvider()
+      .createClient(targetValue)
+      .execute(
+        "extract_artifact",
+        artifactExtractionExecutionSchema.parse({
+          output_root: traversalOutput,
+          paths: ["../source/assets/ignored.js"],
+        }),
+      );
+    expect(traversal).toMatchObject({
+      ok: false,
+      error: { _tag: "ArtifactOperationError", reason: "path" },
+    });
+    await expect(access(traversalOutput)).rejects.toThrow();
 
     const relocatedOutput = join(root, "relocated-output");
     const relocated = await new ArtifactProvider()

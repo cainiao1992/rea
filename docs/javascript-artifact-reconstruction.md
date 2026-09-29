@@ -144,23 +144,22 @@ represented by metadata only.
 
 ## Bounds and coverage
 
-The input schema bounds artifact entries, cumulative artifact bytes, bytes per
-entry, compression ratio, path depth and length, selected text files, text bytes,
-AST nodes, static findings, bundle modules, source-map originals, and cooperative
-parse time. Source-map original limits are shared across all maps in one
-reconstruction. Combined input limits are rejected if their conservative graph
-projection could exceed the v1 contract's 100,000 nodes or 200,000 edges.
+The reconstruction keeps internal resource safeguards for artifact entries,
+cumulative artifact bytes, bytes per entry, compression ratio, path depth and
+length, selected text files, text bytes, AST nodes, and cooperative parse time.
+These safeguards are not caller-selectable output budgets. Source-map parsing
+reports truncation when its format or parser safety boundary is reached. The
+application graph has no aggregate node, edge, root, or observation prefix cap.
 
 Byte, entry, path, and graph-shape bounds are hard limits. The parse deadline is
 checked before and between bounded parsing and traversal phases; the synchronous
 Babel and JSON parser calls cannot be preempted mid-call, so their input byte
 bounds remain the hard protection for an individual call.
 
-Byte-identical assets share a content-digest node. At most 64 distinct
-observations are retained on that node, as required by the graph contract; every
-inventoried containment edge remains present, and any omitted observations make
-top-level coverage partial and truncated. When an exact omission count is not
-knowable, `omitted_count` is `null` rather than a guessed value.
+Byte-identical assets share a content-digest node. Every distinct observation
+and inventoried containment edge is retained. If parsing or artifact safety
+boundaries omit input, coverage reports that omission; when an exact omission
+count is not knowable, `omitted_count` is `null` rather than a guessed value.
 
 ## Verification boundary
 

@@ -47,12 +47,7 @@ are complete Evidence objects, not only evidence IDs:
       ]
     }
   ],
-  "runtime_observations": ["INSPECT_WEB_PAGE_EVIDENCE"],
-  "limits": {
-    "max_runtime_entities": 10000,
-    "max_reconciliation_items": 20000,
-    "max_static_load_states": 20000
-  }
+  "runtime_observations": ["INSPECT_WEB_PAGE_EVIDENCE"]
 }
 ```
 
@@ -101,13 +96,13 @@ nodes. REA evaluates compatible static candidates conservatively:
 3. Without captured bytes, one unique mapped artifact path can produce a
    medium-confidence location match.
 4. Multiple candidates remain `ambiguous`; no `observed_as` edge is emitted.
-   `candidate_static_count` reports the full qualified layer/node count while
-   `candidate_static_nodes` retains a deterministic bounded prefix.
+   `candidate_static_count` reports the full qualified layer/node count, and
+   `candidate_static_nodes` includes every unique candidate reference.
 5. If captured bytes disagree with the static candidate at the mapped path,
    the result is an explicit mismatch. A path never overrides a digest
    disagreement.
-6. Missing authorization mappings, incomplete input coverage, and output
-   limits remain unknown or truncated rather than becoming absence claims.
+6. Missing authorization mappings and incomplete or truncated input coverage
+   remain unknown or truncated rather than becoming absence claims.
 
 Every successful cross-layer `observed_as` edge has
 `authority: cross-layer-reconciliation` and `state: inferred`. The underlying
@@ -124,7 +119,7 @@ classification:
 - `resident-in-loaded-asset` means a containing asset was observed, but the
   embedded module was not independently observed or shown to execute;
 - `not-observed-in-capture` means the entity did not appear in the complete
-  bounded captures supplied to this call and its artifact path falls beneath
+  authorized captures supplied to this call and its artifact path falls beneath
   an exercised automatic or operator-declared mapping prefix;
 - `unknown` covers incomplete captures, layers outside runtime scope, and
   unresolved correspondence. Nodes outside a mapped artifact prefix stay

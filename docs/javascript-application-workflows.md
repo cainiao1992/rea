@@ -49,7 +49,7 @@ The extractor covers lexical definitions and reads, literal seeds, static
 property slots, object reads/writes/spreads/destructuring, closure captures,
 uniquely resolved local calls, argument/return flow, and explicit Promise
 construction, chaining, aggregation, await, return, assignment, and
-detachment. It also recovers bounded static candidates for EventEmitter
+detachment. It also recovers static candidates for EventEmitter
 registrations/removals and dispatch, Node timers and cancellation handles, asynchronous
 `node:child_process` creation and ownership, configuration sources and direct
 defaults, request construction and response consumers, parse/coercion/
@@ -58,9 +58,9 @@ validation boundaries, and built-in resource acquisition/release.
 Function fingerprints commit normalized syntax, control-flow shape, relation
 shape, literal sets, arity, and detected effects without using local names or
 source offsets. Equal duplicate fingerprints remain ambiguous. Dynamic
-calls/properties/names, parser recovery, unresolved handles, unsupported API
-shapes, and every reached bound stay explicit unknowns; a missing relation is
-never reported as proven behavioral absence.
+calls/properties/names, parser recovery, unresolved handles, and unsupported API
+shapes stay explicit unknowns; a missing relation is never reported as proven
+behavioral absence.
 
 Semantic relations use static-inference authority. `resolved` means the static
 target identity was unique within admitted analysis; it does not mean the path
@@ -122,9 +122,8 @@ relationships recovered by the AST analysis.
 
 Direct return expressions, including expression-bodied arrows, are evaluated
 through an execution-free value lattice. Literal object fields and direct
-return sites are retained without count quotas. Calls, dynamic spreads,
-computed keys, parser recovery, and the value-recursion depth guard remain
-partial or unknown.
+return sites are represented in the result. Calls, dynamic spreads, computed
+keys, and parser recovery remain partial or unknown.
 Nested callable returns are not assigned to their parent callable. Projected
 graph observations carry source ranges but never source text.
 

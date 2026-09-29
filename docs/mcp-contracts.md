@@ -58,9 +58,8 @@ shutdown rules still apply; REA never kills a process it cannot prove it owns.
 ## Tool results
 
 Evidence-producing tools return their result and Evidence context inline. Read
-that result directly; do not fetch a bundle or resource to inspect it. Use
-`get_evidence_bundle` only when the task explicitly needs broader retained
-session history or a bundle for transfer.
+that result directly. Use `get_evidence_bundle` when the task needs broader
+retained session history or an explicit bundle for transfer.
 
 ## Aggregate native context
 

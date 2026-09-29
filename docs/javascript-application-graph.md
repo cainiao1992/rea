@@ -159,9 +159,8 @@ so callers cannot preserve a stale ID after changing semantic content.
 
 ## Structure
 
-The graph does not impose aggregate caps on roots, nodes, edges, or observations.
-Each properties object is valid JSON with at most 64 keys, depth 6, 512
-structural nodes, and 4,096 characters per string. Field-specific validation
+The graph does not impose aggregate caps on roots, nodes, edges, observations,
+or JSON properties. Properties must be valid JSON; field-specific validation
 still applies to paths, identifiers, and evidence values. Extractors report
 actual omissions in coverage instead of silently dropping a prefix.
 

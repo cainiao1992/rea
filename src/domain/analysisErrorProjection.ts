@@ -12,7 +12,6 @@ import {
   BinaryTargetError,
   BrowserObservationError,
   EvidenceFileError,
-  EvidenceLimitError,
   EvidenceReferenceError,
   HopperCancelledError,
   HopperProcessError,
@@ -175,7 +174,6 @@ const STATIC_ERROR_CODES = {
   NoBinaryOpenError: "target_unavailable",
   BinaryTargetError: "target_unavailable",
   EvidenceIntegrityError: "evidence_integrity_mismatch",
-  EvidenceLimitError: "truncated",
   ProviderAdapterError: "execution_failure",
   HopperRemoteError: "execution_failure",
 } as const satisfies Readonly<
@@ -266,8 +264,6 @@ const artifactStateErrorDetails = (
       reason: error.reason,
       ...(error.reason === "limit" ? { truncated: true } : {}),
     };
-  if (error instanceof EvidenceLimitError)
-    return { limit: error.limit, maximum: error.maximum, truncated: true };
   if (error instanceof WorkspaceStorageError)
     return { operation: error.operation, reason: error.reason };
   if (error instanceof UnknownRegistryError) return { reason: error.reason };

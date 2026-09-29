@@ -2,14 +2,13 @@ import type { BinarySessionPort } from "../application/BinarySession.js";
 import {
   EvidenceIntegrityError,
   EvidenceReferenceError,
-  type EvidenceLimitError,
 } from "../domain/errors.js";
 import type { Evidence } from "../domain/evidence.js";
 import { err, ok, type Result } from "../domain/result.js";
 
 type EvidenceAuthorityResult = Result<Evidence[], EvidenceIntegrityError>;
 
-/** Resolve bounded IDs to authoritative records with exact semantic identity. */
+/** Resolve session IDs to authoritative records with exact semantic identity. */
 export const resolveSessionEvidenceIds = (
   session: BinarySessionPort,
   evidenceIds: readonly string[],
@@ -61,7 +60,7 @@ export const resolveSessionEvidenceIds = (
 export const recordSessionEvidenceSources = (
   recordEvidence: BinarySessionPort["recordEvidence"] | undefined,
   sources: readonly Evidence[],
-): Result<null, EvidenceIntegrityError | EvidenceLimitError> => {
+): Result<null, EvidenceIntegrityError> => {
   for (const source of sources) {
     const recorded = recordEvidence?.(source);
     if (recorded !== undefined && !recorded.ok) return recorded;

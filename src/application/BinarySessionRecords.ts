@@ -6,7 +6,6 @@ import type { EvidenceBundle } from "../domain/evidenceBundle.js";
 import { evidenceBundleForTarget } from "../domain/evidenceBundle.js";
 import {
   EvidenceIntegrityError,
-  EvidenceLimitError,
   type AnalysisError,
   type UnknownRegistryError,
 } from "../domain/errors.js";
@@ -36,10 +35,7 @@ export interface ActiveAnalysisBinding {
 
 /** Owns session evidence, snapshots, and residual unknowns. */
 export abstract class BinarySessionRecords {
-  readonly #evidence = new EvidenceLedger({
-    maxRecords: 10_000,
-    maxBytes: 64 * 1024 * 1024,
-  });
+  readonly #evidence = new EvidenceLedger();
   readonly #snapshot = new AnalysisSnapshotCache();
   #snapshotInvalidated = false;
   readonly #snapshotListeners = new Set<() => void | Promise<void>>();
@@ -52,10 +48,7 @@ export abstract class BinarySessionRecords {
 
   recordEvidence(
     evidence: Evidence,
-  ): Result<
-    "added" | "duplicate",
-    EvidenceIntegrityError | EvidenceLimitError
-  > {
+  ): Result<"added" | "duplicate", EvidenceIntegrityError> {
     const recorded = this.#evidence.record(evidence);
     if (recorded.ok && recorded.value === "added") this.#emitSnapshotChanged();
     return recorded;
@@ -75,7 +68,7 @@ export abstract class BinarySessionRecords {
 
   importEvidenceBundle(
     bundle: unknown,
-  ): Result<number, EvidenceIntegrityError | EvidenceLimitError> {
+  ): Result<number, EvidenceIntegrityError> {
     const imported = this.#evidence.import(bundle);
     if (!imported.ok) return imported;
     if (imported.value.changed) this.#emitSnapshotChanged();

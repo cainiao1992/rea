@@ -38,7 +38,6 @@ const ANALYSIS_ERROR_TAGS = [
   "ArtifactOperationError",
   "ProcessCaptureError",
   "EvidenceIntegrityError",
-  "EvidenceLimitError",
   "EvidenceFileError",
   "WorkspaceStorageError",
   "UnknownRegistryError",
@@ -316,18 +315,6 @@ export class EvidenceReferenceError extends EvidenceIntegrityError {
     readonly actual: string | null,
   ) {
     super(`Evidence reference ${reason}: ${evidenceId}`);
-  }
-}
-
-/** A bounded evidence ledger cannot accept more records or serialized bytes. */
-export class EvidenceLimitError extends AnalysisError {
-  readonly _tag = "EvidenceLimitError";
-
-  constructor(
-    readonly limit: "records" | "bytes",
-    readonly maximum: number,
-  ) {
-    super(`Evidence ledger ${limit} limit exceeded (${String(maximum)})`);
   }
 }
 

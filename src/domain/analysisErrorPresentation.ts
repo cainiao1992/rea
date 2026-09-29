@@ -6,7 +6,6 @@ import {
   ConfigurationError,
   EvidenceFileError,
   EvidenceIntegrityError,
-  EvidenceLimitError,
   HopperRemoteError,
   HopperProcessError,
   HopperStartError,
@@ -133,7 +132,6 @@ const STATIC_ERROR_CATEGORIES: Readonly<
   AnalysisCapabilityUnavailableError: "unsupported_provider",
   ProviderSelectionError: "unsupported_provider",
   EvidenceIntegrityError: "integrity_mismatch",
-  EvidenceLimitError: "truncated",
   AnalysisCancelledError: "cancelled",
   HopperCancelledError: "cancelled",
   AnalysisTimeoutError: "timeout",
@@ -158,8 +156,6 @@ export const analysisErrorUserMessage = (error: AnalysisError): string => {
     return artifactMessage(error.reason);
   if (error instanceof EvidenceIntegrityError)
     return "Evidence is invalid or has changed. Recreate or re-import it, then try again.";
-  if (error instanceof EvidenceLimitError)
-    return "Evidence is too large for this session. Reduce the evidence set and try again.";
   if (error instanceof EvidenceFileError)
     return evidenceFileMessage(error.reason);
   if (error instanceof WorkspaceStorageError)
@@ -307,7 +303,6 @@ const KNOWN_ERROR_TAGS = {
   ArtifactOperationError: true,
   ProcessCaptureError: true,
   EvidenceIntegrityError: true,
-  EvidenceLimitError: true,
   EvidenceFileError: true,
   WorkspaceStorageError: true,
   UnknownRegistryError: true,

@@ -17,13 +17,13 @@ const TARGET: BinaryTarget = {
 const PROVIDER = { id: "fixture", name: "Fixture provider", version: "1" };
 
 describe("evidence ledger recording", () => {
-  it("deduplicates and atomically imports bounded bundles", () => {
+  it("deduplicates and atomically imports bundles", () => {
     const evidence = createEvidence(TARGET, PROVIDER, {
       operation: "health",
       parameters: {},
       result: true,
     });
-    const ledger = new EvidenceLedger({ maxRecords: 1, maxBytes: 1_000_000 });
+    const ledger = new EvidenceLedger();
     expect(ledger.record(evidence)).toEqual({ ok: true, value: "added" });
     expect(ledger.record(evidence)).toEqual({ ok: true, value: "duplicate" });
     const relocated = createEvidence(
@@ -56,7 +56,7 @@ describe("evidence ledger recording", () => {
       parameters: { beta: 2, alpha: 1 },
       normalized_result: { beta: 2, alpha: 1 },
     });
-    const ledger = new EvidenceLedger({ maxRecords: 1, maxBytes: 1_000_000 });
+    const ledger = new EvidenceLedger();
     expect(ledger.record(evidence)).toEqual({ ok: true, value: "added" });
     expect(ledger.record(reordered)).toEqual({
       ok: true,
@@ -64,41 +64,32 @@ describe("evidence ledger recording", () => {
     });
   });
 
-  it("returns typed record and byte limit failures without eviction", () => {
-    const first = createEvidence(TARGET, PROVIDER, {
-      operation: "health",
-      parameters: {},
-      result: true,
-    });
-    const second = createEvidence(TARGET, PROVIDER, {
-      operation: "health",
-      parameters: { changed: true },
-      result: true,
-    });
-    const recordBound = new EvidenceLedger({
-      maxRecords: 1,
-      maxBytes: 1_000_000,
-    });
-    expect(recordBound.record(first).ok).toBe(true);
-    expect(recordBound.record(second)).toMatchObject({
-      ok: false,
-      error: { _tag: "EvidenceLimitError", limit: "records", maximum: 1 },
-    });
-    expect(recordBound.export().records).toEqual([first]);
-
-    const byteBound = new EvidenceLedger({ maxRecords: 10, maxBytes: 1 });
-    expect(byteBound.record(first)).toMatchObject({
-      ok: false,
-      error: { _tag: "EvidenceLimitError", limit: "bytes", maximum: 1 },
-    });
-    expect(byteBound.export().records).toEqual([]);
+  it("retains more than ten thousand inline evidence records", () => {
+    const ledger = new EvidenceLedger();
+    for (let index = 0; index < 10_001; index += 1) {
+      const record = createEvidence(TARGET, PROVIDER, {
+        operation: "health",
+        parameters: { index },
+        result: true,
+      });
+      expect(ledger.record(record)).toEqual({ ok: true, value: "added" });
+    }
+    expect(ledger.export().records).toHaveLength(10_001);
   });
 
-  it("counts unknown revisions when enforcing direct record limits", () => {
-    const ledger = new EvidenceLedger({
-      maxRecords: 2,
-      maxBytes: 1_000_000,
+  it("retains inline evidence larger than the former session byte quota", () => {
+    const ledger = new EvidenceLedger();
+    const record = createEvidence(TARGET, PROVIDER, {
+      operation: "health",
+      parameters: {},
+      result: "x".repeat(64 * 1024 * 1024 + 1),
     });
+    expect(ledger.record(record)).toEqual({ ok: true, value: "added" });
+    expect(ledger.get(record.evidence_id)).toEqual(record);
+  });
+
+  it("retains Evidence alongside unknown revisions without a record quota", () => {
+    const ledger = new EvidenceLedger();
     const mutation = createEvidence(undefined, PROVIDER, {
       predicateType: "rea.residual-unknown-mutation/v1",
       operation: "record_unknown",
@@ -125,12 +116,9 @@ describe("evidence ledger recording", () => {
       parameters: {},
       result: true,
     });
-    expect(ledger.record(direct)).toMatchObject({
-      ok: false,
-      error: { _tag: "EvidenceLimitError", limit: "records", maximum: 2 },
-    });
+    expect(ledger.record(direct)).toEqual({ ok: true, value: "added" });
     expect(ledger.export()).toMatchObject({
-      records: [mutation],
+      records: expect.arrayContaining([mutation, direct]),
       unknowns: [expect.objectContaining({ domain: "record-limit-test" })],
     });
   });
@@ -138,7 +126,7 @@ describe("evidence ledger recording", () => {
 
 describe("evidence bundle imports", () => {
   it("rejects conflicting duplicate IDs without mutating the ledger", () => {
-    const ledger = new EvidenceLedger({ maxRecords: 2, maxBytes: 1_000_000 });
+    const ledger = new EvidenceLedger();
     const first = createEvidence(TARGET, PROVIDER, {
       operation: "health",
       parameters: {},
@@ -159,8 +147,8 @@ describe("evidence bundle imports", () => {
     expect(ledger.export().records).toEqual([first]);
   });
 
-  it("atomically rejects Evidence plus unknown when the batch exceeds limits", () => {
-    const ledger = new EvidenceLedger({ maxRecords: 2, maxBytes: 1_000_000 });
+  it("atomically rejects Evidence plus an invalid unknown", () => {
+    const ledger = new EvidenceLedger();
     const output = createEvidence(undefined, PROVIDER, {
       operation: "derived",
       parameters: {},
@@ -177,7 +165,7 @@ describe("evidence bundle imports", () => {
       question: "What remains unresolved?",
       severity: "high",
       domain: "atomic-test",
-      supporting_evidence_ids: [],
+      supporting_evidence_ids: [`ev_${"f".repeat(64)}`],
       contradicting_evidence_ids: [],
       required_authority: "shipped-artifact",
       required_confidence: "observed",
@@ -187,7 +175,7 @@ describe("evidence bundle imports", () => {
     });
     expect(ledger.recordWithUnknown(output, unknown, mutation)).toMatchObject({
       ok: false,
-      error: { _tag: "EvidenceLimitError" },
+      error: { _tag: "UnknownRegistryError" },
     });
     expect(ledger.export()).toMatchObject({ records: [], unknowns: [] });
   });

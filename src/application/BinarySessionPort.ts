@@ -8,7 +8,6 @@ import type { AnalysisProviderSelector } from "../contracts/providerSelection.js
 import type {
   AnalysisError,
   EvidenceIntegrityError,
-  EvidenceLimitError,
   UnknownRegistryError,
 } from "../domain/errors.js";
 import type { Result } from "../domain/result.js";
@@ -45,13 +44,11 @@ export interface BinarySessionPort extends AnalysisOperationPort {
   activeTarget(): BinaryTarget | undefined;
   recordEvidence(
     evidence: Evidence,
-  ): Result<"added" | "duplicate", EvidenceIntegrityError | EvidenceLimitError>;
+  ): Result<"added" | "duplicate", EvidenceIntegrityError>;
   hasEvidence(evidenceId: string): boolean;
   evidenceById(evidenceId: string): Evidence | undefined;
   exportEvidenceBundle(): EvidenceBundle;
-  importEvidenceBundle(
-    bundle: unknown,
-  ): Result<number, EvidenceIntegrityError | EvidenceLimitError>;
+  importEvidenceBundle(bundle: unknown): Result<number, EvidenceIntegrityError>;
   exportAnalysisSnapshot(): Result<AnalysisSnapshot, AnalysisError>;
   importAnalysisSnapshot(
     snapshot: AnalysisSnapshot,

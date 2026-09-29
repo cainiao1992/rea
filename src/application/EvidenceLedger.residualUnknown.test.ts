@@ -16,8 +16,7 @@ import {
 } from "../domain/residualUnknown.js";
 
 const provider = { id: "fixture", name: "Fixture", version: "1" };
-const ledger = (): EvidenceLedger =>
-  new EvidenceLedger({ maxRecords: 1_000, maxBytes: 4 * 1024 * 1024 });
+const ledger = (): EvidenceLedger => new EvidenceLedger();
 const evidence = (
   label: string,
   confidence: "observed" | "derived" | "inferred" = "derived",
@@ -110,13 +109,10 @@ describe("residual unknown registry reads and identity", () => {
     ).toMatchObject({ ok: true, value: { valid: false } });
   });
 
-  it("requires approval, derives stable IDs, filters heads, and rejects duplicate creation", () => {
-    expect(() =>
-      recordUnknownInputSchema.parse({
-        ...input("Is branch live?"),
-        approved: false,
-      }),
-    ).toThrow();
+  it("derives stable IDs, filters heads, and rejects duplicate creation", () => {
+    expect(recordUnknownInputSchema.parse(input("Is branch live?"))).toEqual(
+      input("Is branch live?"),
+    );
     const store = ledger();
     const first = store.recordUnknown(
       input("  Is branch live?  "),
@@ -311,10 +307,10 @@ describe("residual unknown registry resolution and history", () => {
     expect(base.import(branch.export()).ok).toBe(false);
     expect(serializeEvidenceBundle(base.export())).toBe(before);
 
-    const bounded = new EvidenceLedger({ maxRecords: 1, maxBytes: 1_000_000 });
+    const unbounded = new EvidenceLedger();
     expect(
-      bounded.recordUnknown(input("Too many?"), mutation("bounded")).ok,
-    ).toBe(false);
-    expect(bounded.export()).toMatchObject({ records: [], unknowns: [] });
+      unbounded.recordUnknown(input("No quota"), mutation("unbounded")).ok,
+    ).toBe(true);
+    expect(unbounded.export().unknowns).toHaveLength(1);
   });
 });

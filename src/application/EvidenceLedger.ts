@@ -8,7 +8,6 @@ import {
 } from "../domain/evidenceBundle.js";
 import {
   EvidenceIntegrityError,
-  EvidenceLimitError,
   UnknownRegistryError,
 } from "../domain/errors.js";
 import { parseEvidence, type Evidence } from "../domain/evidence.js";
@@ -22,12 +21,7 @@ import {
 } from "../domain/residualUnknown.js";
 import { err, ok, type Result } from "../domain/result.js";
 
-export interface EvidenceLedgerLimits {
-  readonly maxRecords: number;
-  readonly maxBytes: number;
-}
-
-type EvidenceLedgerFailure = EvidenceIntegrityError | EvidenceLimitError;
+type EvidenceLedgerFailure = EvidenceIntegrityError;
 type RecordResult = Result<"added" | "duplicate", EvidenceLedgerFailure>;
 
 /** Describes the state changes made by one atomic bundle import. */
@@ -39,20 +33,11 @@ export interface EvidenceImportDelta {
 
 type ImportResult = Result<EvidenceImportDelta, EvidenceLedgerFailure>;
 
-/** Bounded, session-owned set of immutable evidence records. */
+/** Session-owned set of immutable evidence records. */
 export class EvidenceLedger {
   readonly #records = new Map<string, Evidence>();
   readonly #unknownRevisions = new Map<string, ResidualUnknown>();
   readonly #unknownHeads = new Map<string, ResidualUnknown>();
-  #bytes = 0;
-
-  constructor(private readonly limits: EvidenceLedgerLimits) {
-    if (!Number.isSafeInteger(limits.maxRecords) || limits.maxRecords < 1)
-      throw new RangeError("maxRecords must be a positive safe integer");
-    if (!Number.isSafeInteger(limits.maxBytes) || limits.maxBytes < 1)
-      throw new RangeError("maxBytes must be a positive safe integer");
-  }
-
   /** Record evidence idempotently; conflicting content is rejected. */
   record(input: Evidence): RecordResult {
     let evidence: Evidence;
@@ -71,18 +56,7 @@ export class EvidenceLedger {
         ? ok("duplicate")
         : err(new EvidenceIntegrityError("Conflicting evidence record"));
     }
-    if (
-      this.#exceedsRecordLimit(
-        this.#records.size + 1,
-        this.#unknownRevisions.size,
-      )
-    )
-      return err(new EvidenceLimitError("records", this.limits.maxRecords));
-    const bytes = serializedBytes(evidence);
-    if (this.#bytes + bytes > this.limits.maxBytes)
-      return err(new EvidenceLimitError("bytes", this.limits.maxBytes));
     this.#records.set(evidence.evidence_id, evidence);
-    this.#bytes += bytes;
     return ok("added");
   }
 
@@ -132,7 +106,7 @@ export class EvidenceLedger {
       return err(checked.error);
     }
     const added = pending.size - this.#records.size;
-    this.#commit(pending, pendingUnknowns, checked.value);
+    this.#commit(pending, pendingUnknowns);
     return ok({
       recordsAdded: added,
       unknownsAdded,
@@ -165,10 +139,7 @@ export class EvidenceLedger {
   recordUnknown(
     input: RecordUnknownInput,
     mutationEvidence: Evidence,
-  ): Result<
-    ResidualUnknown,
-    EvidenceIntegrityError | EvidenceLimitError | UnknownRegistryError
-  > {
+  ): Result<ResidualUnknown, EvidenceIntegrityError | UnknownRegistryError> {
     let parsedMutation: Evidence;
     try {
       parsedMutation = parseEvidence(mutationEvidence);
@@ -201,7 +172,7 @@ export class EvidenceLedger {
     mutationInput: Evidence,
   ): Result<
     ResidualUnknown | null,
-    EvidenceIntegrityError | EvidenceLimitError | UnknownRegistryError
+    EvidenceIntegrityError | UnknownRegistryError
   > {
     let evidence: Evidence;
     let mutation: Evidence;
@@ -251,10 +222,7 @@ export class EvidenceLedger {
   updateUnknown(
     input: UpdateUnknownInput,
     mutationEvidence: Evidence,
-  ): Result<
-    ResidualUnknown,
-    EvidenceIntegrityError | EvidenceLimitError | UnknownRegistryError
-  > {
+  ): Result<ResidualUnknown, EvidenceIntegrityError | UnknownRegistryError> {
     const current = this.#unknownHeads.get(input.unknown_id);
     if (current === undefined)
       return err(new UnknownRegistryError("not-found"));
@@ -317,16 +285,12 @@ export class EvidenceLedger {
     this.#records.clear();
     this.#unknownRevisions.clear();
     this.#unknownHeads.clear();
-    this.#bytes = 0;
   }
 
   #appendUnknown(
     unknown: ResidualUnknown,
     mutationEvidenceInput: Evidence,
-  ): Result<
-    ResidualUnknown,
-    EvidenceIntegrityError | EvidenceLimitError | UnknownRegistryError
-  > {
+  ): Result<ResidualUnknown, EvidenceIntegrityError | UnknownRegistryError> {
     let mutationEvidence: Evidence;
     try {
       mutationEvidence = parseEvidence(mutationEvidenceInput);
@@ -345,12 +309,8 @@ export class EvidenceLedger {
   #appendIncremental(
     records: readonly Evidence[],
     unknown?: ResidualUnknown,
-  ): Result<
-    void,
-    EvidenceIntegrityError | EvidenceLimitError | UnknownRegistryError
-  > {
+  ): Result<void, EvidenceIntegrityError | UnknownRegistryError> {
     const additions = new Map<string, Evidence>();
-    let addedBytes = 0;
     for (const evidence of records) {
       const existing =
         additions.get(evidence.evidence_id) ??
@@ -361,22 +321,11 @@ export class EvidenceLedger {
         continue;
       }
       additions.set(evidence.evidence_id, evidence);
-      addedBytes += serializedBytes(evidence);
     }
     const unknownKey =
       unknown === undefined ? undefined : unknownRevisionKey(unknown);
     if (unknownKey !== undefined && this.#unknownRevisions.has(unknownKey))
       return err(new UnknownRegistryError("integrity"));
-    const unknownBytes = unknown === undefined ? 0 : serializedBytes(unknown);
-    if (
-      this.#exceedsRecordLimit(
-        this.#records.size + additions.size,
-        this.#unknownRevisions.size + (unknown === undefined ? 0 : 1),
-      )
-    )
-      return err(new EvidenceLimitError("records", this.limits.maxRecords));
-    if (this.#bytes + addedBytes + unknownBytes > this.limits.maxBytes)
-      return err(new EvidenceLimitError("bytes", this.limits.maxBytes));
     if (unknown !== undefined)
       try {
         validateResidualUnknownAddition(
@@ -395,30 +344,13 @@ export class EvidenceLedger {
       this.#unknownRevisions.set(unknownKey, unknown);
       this.#unknownHeads.set(unknown.unknown_id, unknown);
     }
-    this.#bytes += addedBytes + unknownBytes;
     return ok(undefined);
   }
 
   #validateCandidate(
     records: ReadonlyMap<string, Evidence>,
     unknowns: ReadonlyMap<string, ResidualUnknown>,
-  ): Result<
-    number,
-    EvidenceIntegrityError | EvidenceLimitError | UnknownRegistryError
-  > {
-    if (this.#exceedsRecordLimit(records.size, unknowns.size))
-      return err(new EvidenceLimitError("records", this.limits.maxRecords));
-    const bytes =
-      [...records.values()].reduce(
-        (total, evidence) => total + serializedBytes(evidence),
-        0,
-      ) +
-      [...unknowns.values()].reduce(
-        (total, unknown) => total + serializedBytes(unknown),
-        0,
-      );
-    if (bytes > this.limits.maxBytes)
-      return err(new EvidenceLimitError("bytes", this.limits.maxBytes));
+  ): Result<void, EvidenceIntegrityError | UnknownRegistryError> {
     try {
       parseEvidenceBundle(
         createEvidenceBundle([...records.values()], [...unknowns.values()]),
@@ -426,17 +358,12 @@ export class EvidenceLedger {
     } catch (cause: unknown) {
       return err(new UnknownRegistryError("integrity", { cause }));
     }
-    return ok(bytes);
-  }
-
-  #exceedsRecordLimit(recordCount: number, unknownCount: number): boolean {
-    return recordCount + unknownCount > this.limits.maxRecords;
+    return ok(undefined);
   }
 
   #commit(
     records: ReadonlyMap<string, Evidence>,
     unknowns: ReadonlyMap<string, ResidualUnknown>,
-    bytes: number,
   ): void {
     this.#records.clear();
     for (const [id, evidence] of records) this.#records.set(id, evidence);
@@ -448,12 +375,8 @@ export class EvidenceLedger {
       if (head === undefined || head.revision < unknown.revision)
         this.#unknownHeads.set(unknown.unknown_id, unknown);
     }
-    this.#bytes = bytes;
   }
 }
-
-const serializedBytes = (value: Evidence | ResidualUnknown): number =>
-  Buffer.byteLength(JSON.stringify(value), "utf8");
 
 const unknownRevisionKey = (unknown: ResidualUnknown): string =>
   `${unknown.unknown_id}:${String(unknown.revision)}`;

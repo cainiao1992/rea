@@ -16,7 +16,7 @@ import {
   writeEvidenceBundle,
 } from "./EvidenceBundleFiles.js";
 
-/** Validate and merge one bundle using the same bounded ledger as MCP. */
+/** Validate and merge one bundle using the session Evidence ledger. */
 export const importEvidenceBundleCommand = async (
   path: string,
   policy: EvidenceFilePolicy,
@@ -72,8 +72,7 @@ export const compareEvidenceBundlesCommand = async (input: {
   }
 };
 
-const createLedger = (): EvidenceLedger =>
-  new EvidenceLedger({ maxRecords: 10_000, maxBytes: 64 * 1024 * 1024 });
+const createLedger = (): EvidenceLedger => new EvidenceLedger();
 
 const projectWrite = (
   bundle: EvidenceBundle,

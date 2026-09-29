@@ -95,13 +95,13 @@ export const limitationsFor = (operation: string): readonly string[] => {
     case "read_function_instructions":
       return [
         ...common,
-        "This bounded fast path reads only the requested function instruction window and does not invoke the decompiler or whole-program string/name inventories.",
+        "This fast path reads only the requested function and does not invoke the decompiler or whole-program string/name inventories.",
         "Instruction text is Ghidra-specific and does not claim textual equivalence with Hopper output.",
       ];
     case "procedure_assembly":
       return [
         ...common,
-        "Assembly is Ghidra Listing text and fails rather than silently truncating when the 100,000-instruction or 1 MiB wire bound is exceeded.",
+        "Assembly is Ghidra Listing text and does not claim textual equivalence with Hopper output.",
       ];
     case "procedure_callers":
     case "procedure_callees":
@@ -120,7 +120,6 @@ export const limitationsFor = (operation: string): readonly string[] => {
         ...common,
         "Reference kinds are direct Ghidra ReferenceManager observations; unresolved computed flows without a target are absent and remain unknown.",
         "Synthetic Ghidra entry-point references without actionable memory sources are omitted.",
-        "Instruction scans stop at max_instructions; a truncated scan reports an unknown total and no false continuation.",
       ];
     case "analyze_function":
       return [

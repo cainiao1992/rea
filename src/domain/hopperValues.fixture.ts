@@ -38,7 +38,7 @@ export const ghidraReferenceEdge = () => ({
   kind: ghidraReferenceKind(),
 });
 
-export const ghidraNativeApiBoundary = (mappingsTruncated = false) => ({
+export const ghidraNativeApiBoundary = () => ({
   available: true as const,
   provenance: "ghidra-high-function",
   signature_source: "analysis",
@@ -69,7 +69,6 @@ export const ghidraNativeApiBoundary = (mappingsTruncated = false) => ({
     ],
   },
   parameters: [],
-  parameters_truncated: false,
   jump_tables: [
     {
       dispatch_address: "0x401010",
@@ -89,7 +88,6 @@ export const ghidraNativeApiBoundary = (mappingsTruncated = false) => ({
           ],
         },
       ],
-      data_sources_truncated: false,
       mappings: [
         {
           case_value: 0,
@@ -105,11 +103,9 @@ export const ghidraNativeApiBoundary = (mappingsTruncated = false) => ({
           ],
         },
       ],
-      mappings_truncated: mappingsTruncated,
       limitations: [],
     },
   ],
-  jump_tables_truncated: false,
   pseudocode: {
     classification: "decompiler-generated-non-source" as const,
     compilable: false as const,
@@ -126,10 +122,7 @@ export const ghidraNativeApiBoundary = (mappingsTruncated = false) => ({
   ],
 });
 
-export const ghidraFunctionDossier = (
-  includeAssembly = true,
-  mappingsTruncated = false,
-): JsonValue => {
+export const ghidraFunctionDossier = (includeAssembly = true): JsonValue => {
   const pseudocode = "int fixture_main(void) { return 42; }";
   return {
     procedure: {
@@ -155,7 +148,7 @@ export const ghidraFunctionDossier = (
     ],
     referenced_names: [],
     basic_blocks: [{ start: "0x401000", end: "0x401006", successors: [] }],
-    native_api: ghidraNativeApiBoundary(mappingsTruncated),
+    native_api: ghidraNativeApiBoundary(),
     limitations: [
       "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",
       "Thunk and external classifications are Ghidra FunctionManager observations; they do not resolve targetless calls.",

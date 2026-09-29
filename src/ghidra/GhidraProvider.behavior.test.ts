@@ -419,7 +419,7 @@ describe("Ghidra result projection", () => {
 
 const sessionInfo = () => ({
   name: "REA Ghidra bridge" as const,
-  bridge_version: 6 as const,
+  bridge_version: 7 as const,
   run_id: "11111111-1111-4111-8111-111111111111",
   profile_digest: "a".repeat(64),
   provider: { id: "ghidra" as const, version: "12.1.2" },

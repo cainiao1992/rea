@@ -2,27 +2,25 @@ import { describe, expect, it } from "vitest";
 import { connectGhidraMcp, sessionEvidence } from "./ghidraMcpHarness.js";
 
 describe("Ghidra MCP native API evidence", () => {
-  it("records approved native API truncation once and links its evidence", async () => {
+  it("returns complete native API boundaries without output-cap unknowns", async () => {
     const harness = await connectGhidraMcp("ghidra-native-api");
     const { mcp, session } = harness;
     try {
-      const unapprovedInspection = sessionEvidence(
+      const inspection = sessionEvidence(
         session,
         (
           await mcp.callTool({
             name: "inspect_native_api",
-            arguments: { procedure: "fixture_truncated" },
+            arguments: { procedure: "fixture_main" },
           })
         ).structuredContent,
       );
-      expect(unapprovedInspection.normalized_result).toMatchObject({
+      expect(inspection.normalized_result).toMatchObject({
         boundary: {
           available: true,
-          jump_tables: [{ mappings_truncated: true }],
+          jump_tables: [{ mappings: [{ target_address: "0x401020" }] }],
         },
-        residual_unknowns: [
-          expect.stringContaining("additional data sources or targets"),
-        ],
+        residual_unknowns: [],
       });
       expect(
         (
@@ -32,53 +30,6 @@ describe("Ghidra MCP native API evidence", () => {
           })
         ).structuredContent,
       ).toMatchObject({ result: { items: [] } });
-
-      const approvedInspection = sessionEvidence(
-        session,
-        (
-          await mcp.callTool({
-            name: "inspect_native_api",
-            arguments: {
-              procedure: "fixture_truncated",
-              unknown_registry_approved: true,
-            },
-          })
-        ).structuredContent,
-      );
-      await mcp.callTool({
-        name: "inspect_native_api",
-        arguments: {
-          procedure: "fixture_truncated",
-          unknown_registry_approved: true,
-        },
-      });
-      expect(
-        (
-          await mcp.callTool({
-            name: "list_unknowns",
-            arguments: {},
-          })
-        ).structuredContent,
-      ).toMatchObject({
-        result: {
-          items: [
-            {
-              status: "open",
-              domain: "native-api",
-              question: expect.stringContaining(
-                "additional data sources or targets",
-              ),
-              supporting_evidence_ids: [approvedInspection.evidence_id],
-              recommended_probes: [
-                {
-                  operation: "inspect_native_api",
-                  rationale: expect.stringContaining("ABI probe"),
-                },
-              ],
-            },
-          ],
-        },
-      });
     } finally {
       await harness.close();
     }

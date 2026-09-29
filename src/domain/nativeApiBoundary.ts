@@ -74,9 +74,7 @@ const inferredJumpTableSchema = z
   .object({
     dispatch_address: z.string().min(1),
     data_sources: z.array(jumpTableDataSourceSchema),
-    data_sources_truncated: z.boolean(),
     mappings: z.array(jumpTableMappingSchema),
-    mappings_truncated: z.boolean(),
     limitations: z.array(z.string()),
   })
   .strict();
@@ -89,9 +87,7 @@ const availableNativeApiBoundarySchema = z
     calling_convention: z.string().min(1),
     return_type: inferredReturnTypeSchema,
     parameters: z.array(inferredParameterTypeSchema),
-    parameters_truncated: z.boolean(),
     jump_tables: z.array(inferredJumpTableSchema),
-    jump_tables_truncated: z.boolean(),
     pseudocode: z
       .object({
         classification: z.literal("decompiler-generated-non-source"),

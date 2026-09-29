@@ -77,16 +77,10 @@ import ghidra.program.model.pcode.HighSymbol;
 import ghidra.program.model.pcode.JumpTable;
 
 public final class ReaGhidraBridge extends HeadlessScript {
-    private static final int BRIDGE_VERSION = 6;
+    private static final int BRIDGE_VERSION = 7;
     private static final int MAX_DESCRIPTOR_BYTES = 16 * 1024;
     private static final int MAX_REQUEST_CHARACTERS = 256 * 1024;
-    private static final int MAX_RESPONSE_BYTES = 1024 * 1024;
-    private static final int RESPONSE_ENVELOPE_RESERVE_BYTES = 32 * 1024;
-    private static final int MAX_NATIVE_API_RESPONSE_BYTES = 192 * 1024;
-    private static final int MAX_NATIVE_API_PARAMETERS = 64;
-    private static final int MAX_NATIVE_API_JUMP_TABLES = 4;
-    private static final int MAX_NATIVE_API_LOAD_TABLES = 4;
-    private static final int MAX_NATIVE_API_MAPPINGS = 32;
+    private static final int MAX_RESPONSE_BYTES = 64 * 1024 * 1024;
     private static final int DECOMPILE_TIMEOUT_SECONDS = 30;
     private static final int DECOMPILE_PAYLOAD_MBYTES = 8;
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
@@ -537,18 +531,9 @@ public final class ReaGhidraBridge extends HeadlessScript {
         result.add("referenced_strings", referencedStrings);
         result.add("referenced_names", referencedNames);
         result.add("basic_blocks", blocks);
-        int nativeApiBudget = Math.min(
-            MAX_NATIVE_API_RESPONSE_BYTES,
-            Math.max(
-                0,
-                MAX_RESPONSE_BYTES -
-                encodedUtf8Length(result) -
-                RESPONSE_ENVELOPE_RESERVE_BYTES
-            )
-        );
         result.add(
             "native_api",
-            nativeApiBoundary(function, decompilation, nativeApiBudget)
+            nativeApiBoundary(function, decompilation)
         );
         JsonArray limitations = new JsonArray();
         limitations.add(
@@ -827,8 +812,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
 
     private JsonObject nativeApiBoundary(
         Function function,
-        DecompileResults decompilation,
-        int maximumBytes
+        DecompileResults decompilation
     ) throws Exception {
         if (decompilation == null || decompilation.getHighFunction() == null) {
             return unavailableNativeApiBoundary(
@@ -868,11 +852,9 @@ public final class ReaGhidraBridge extends HeadlessScript {
 
         JsonArray parameters = new JsonArray();
         result.add("parameters", parameters);
-        result.addProperty("parameters_truncated", false);
 
         JsonArray jumpTables = new JsonArray();
         result.add("jump_tables", jumpTables);
-        result.addProperty("jump_tables_truncated", false);
 
         JsonObject pseudocode = new JsonObject();
         pseudocode.addProperty("classification", "decompiler-generated-non-source");
@@ -898,17 +880,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
             "Pseudocode is neither original source nor guaranteed to compile."
         );
         result.add("limitations", limitations);
-        if (encodedUtf8Length(result) > maximumBytes) {
-            return unavailableNativeApiBoundary(
-                "The remaining Ghidra response budget cannot contain a structured native API boundary"
-            );
-        }
-
-        int parameterCount = Math.min(
-            prototype.getNumParams(),
-            MAX_NATIVE_API_PARAMETERS
-        );
-        for (int index = 0; index < parameterCount; index += 1) {
+        for (int index = 0; index < prototype.getNumParams(); index += 1) {
             HighSymbol parameter = prototype.getParam(index);
             if (parameter == null) {
                 continue;
@@ -924,32 +896,12 @@ public final class ReaGhidraBridge extends HeadlessScript {
                     signatureSource
                 )
             );
-            if (encodedUtf8Length(result) > maximumBytes) {
-                parameters.remove(parameters.size() - 1);
-                break;
-            }
         }
-        result.addProperty(
-            "parameters_truncated",
-            prototype.getNumParams() > parameters.size()
-        );
 
         JumpTable[] recoveredJumpTables = highFunction.getJumpTables();
-        int jumpTableCount = Math.min(
-            recoveredJumpTables.length,
-            MAX_NATIVE_API_JUMP_TABLES
-        );
-        for (int index = 0; index < jumpTableCount; index += 1) {
+        for (int index = 0; index < recoveredJumpTables.length; index += 1) {
             jumpTables.add(inferredJumpTable(recoveredJumpTables[index]));
-            if (encodedUtf8Length(result) > maximumBytes) {
-                jumpTables.remove(jumpTables.size() - 1);
-                break;
-            }
         }
-        result.addProperty(
-            "jump_tables_truncated",
-            recoveredJumpTables.length > jumpTables.size()
-        );
         return result;
     }
 
@@ -962,10 +914,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
         unknowns.add("Jump-table mappings are unavailable.");
         unavailable.add("residual_unknowns", unknowns);
         return unavailable;
-    }
-
-    private static int encodedUtf8Length(JsonElement value) {
-        return GSON.toJson(value).getBytes(StandardCharsets.UTF_8).length;
     }
 
     private static JsonObject inferredBoundaryType(
@@ -1059,11 +1007,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
             ? dispatchPathDataReferences(jumpTable)
             : List.of();
         JsonArray dataSources = new JsonArray();
-        int loadTableCount = Math.min(
-            loadTables.length,
-            MAX_NATIVE_API_LOAD_TABLES
-        );
-        for (int index = 0; index < loadTableCount; index += 1) {
+        for (int index = 0; index < loadTables.length; index += 1) {
             JumpTable.LoadTable loadTable = loadTables[index];
             JsonObject source = new JsonObject();
             source.addProperty("address", canonicalAddress(loadTable.getAddress()));
@@ -1084,11 +1028,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
             source.add("evidence", evidence);
             dataSources.add(source);
         }
-        int referencedDataCount = Math.min(
-            referencedDataAddresses.size(),
-            MAX_NATIVE_API_LOAD_TABLES - loadTableCount
-        );
-        for (int index = 0; index < referencedDataCount; index += 1) {
+        for (int index = 0; index < referencedDataAddresses.size(); index += 1) {
             Address address = referencedDataAddresses.get(index);
             JsonObject source = new JsonObject();
             source.addProperty("address", canonicalAddress(address));
@@ -1113,17 +1053,10 @@ public final class ReaGhidraBridge extends HeadlessScript {
             dataSources.add(source);
         }
         result.add("data_sources", dataSources);
-        result.addProperty(
-            "data_sources_truncated",
-            loadTables.length > loadTableCount ||
-            referencedDataAddresses.size() > referencedDataCount
-        );
-
         Address[] targets = jumpTable.getCases();
         Integer[] labels = jumpTable.getLabelValues();
         JsonArray mappings = new JsonArray();
-        int mappingCount = Math.min(targets.length, MAX_NATIVE_API_MAPPINGS);
-        for (int index = 0; index < mappingCount; index += 1) {
+        for (int index = 0; index < targets.length; index += 1) {
             JsonObject mapping = new JsonObject();
             if (labels == null || index >= labels.length || labels[index] == null) {
                 mapping.add("case_value", JsonNull.INSTANCE);
@@ -1134,7 +1067,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
             String targetAddress = canonicalAddress(targets[index]);
             mapping.addProperty("target_address", targetAddress);
             JsonArray dataAddresses = new JsonArray();
-            for (int sourceIndex = 0; sourceIndex < loadTableCount; sourceIndex += 1) {
+            for (int sourceIndex = 0; sourceIndex < loadTables.length; sourceIndex += 1) {
                 dataAddresses.add(
                     canonicalAddress(loadTables[sourceIndex].getAddress())
                 );
@@ -1157,8 +1090,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
             mappings.add(mapping);
         }
         result.add("mappings", mappings);
-        result.addProperty("mappings_truncated", targets.length > mappingCount);
-
         JsonArray limitations = new JsonArray();
         if (loadTables.length == 0 && referencedDataAddresses.isEmpty()) {
             limitations.add(
@@ -1173,15 +1104,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
         if (labels == null || labels.length != targets.length) {
             limitations.add(
                 "Case labels were unavailable or incomplete; null labels are preserved."
-            );
-        }
-        if (
-            loadTables.length > loadTableCount ||
-            referencedDataAddresses.size() > referencedDataCount ||
-            targets.length > mappingCount
-        ) {
-            limitations.add(
-                "Native API jump-table observations reached REA's bounded output limits."
             );
         }
         result.add("limitations", limitations);
@@ -1590,37 +1512,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
             }
         JsonArray result = new JsonArray();
         observed.values().forEach(result::add);
-        return result;
-    }
-
-    private static JsonObject bounded(
-            JsonArray values,
-            int offset,
-            int limit,
-            boolean complete) {
-        int start = Math.min(offset, values.size());
-        int end = Math.min(values.size(), start + limit);
-        JsonArray items = new JsonArray();
-        for (int index = start; index < end; index += 1) {
-            items.add(values.get(index).deepCopy());
-        }
-        boolean hasMore = end < values.size();
-        JsonObject result = new JsonObject();
-        result.add("items", items);
-        if (complete) {
-            result.addProperty("total", values.size());
-        }
-        else {
-            result.add("total", JsonNull.INSTANCE);
-        }
-        result.addProperty("returned", items.size());
-        result.addProperty("truncated", !complete || hasMore);
-        if (complete && hasMore) {
-            result.addProperty("next_offset", end);
-        }
-        else {
-            result.add("next_offset", JsonNull.INSTANCE);
-        }
         return result;
     }
 
@@ -2040,7 +1931,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
             int id = response.get("id").getAsInt();
             JsonObject error = new JsonObject();
             error.addProperty("code", "output_limit");
-            error.addProperty("message", "Ghidra response exceeds the 1 MiB wire limit");
+            error.addProperty("message", "Ghidra response exceeds the internal 64 MiB process-line safety bound");
             JsonObject bounded = new JsonObject();
             bounded.addProperty("id", id);
             bounded.addProperty("ok", false);

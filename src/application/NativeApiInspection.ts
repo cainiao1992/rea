@@ -71,19 +71,7 @@ const availableResidualUnknowns = (
   boundary: Extract<NativeApiBoundary, { readonly available: true }>,
 ): readonly string[] => {
   const unknowns: string[] = [];
-  if (boundary.parameters_truncated)
-    unknowns.push(
-      "Which additional parameters were omitted by the native API boundary limit?",
-    );
-  if (boundary.jump_tables_truncated)
-    unknowns.push(
-      "Which additional jump tables were omitted by the native API boundary limit?",
-    );
   for (const table of boundary.jump_tables) {
-    if (table.data_sources_truncated || table.mappings_truncated)
-      unknowns.push(
-        `Which additional data sources or targets were omitted for the jump table dispatched at ${table.dispatch_address}?`,
-      );
     if (table.data_sources.length === 0)
       unknowns.push(
         `What backing data address produced the jump table dispatched at ${table.dispatch_address}?`,

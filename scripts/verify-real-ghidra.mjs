@@ -191,33 +191,29 @@ async function verifyNativeApiCli(targetPath) {
     {
       cwd: process.cwd(),
       env: process.env,
-      maxBuffer: 2 * 1024 * 1024,
+      maxBuffer: 72 * 1024 * 1024,
     },
   );
   const evidence = JSON.parse(stdout);
   const boundary = evidence.normalized_result?.boundary;
-  const truncated = boundary?.jump_tables?.find(
-    ({ mappings_truncated: mappingsTruncated }) => mappingsTruncated === true,
+  const denseTable = boundary?.jump_tables?.find(
+    ({ mappings }) => mappings.length > 32,
   );
-  const omittedQuestion =
-    "Which additional data sources or targets were omitted";
   if (
     evidence.operation !== "inspect_native_api" ||
     evidence.provider?.id !== "rea-workflow" ||
     evidence.analysis_profile?.provider?.id !== "rea-workflow" ||
     boundary?.available !== true ||
-    truncated?.mappings?.length !== 32 ||
-    !evidence.normalized_result?.residual_unknowns?.some((question) =>
-      question.includes(omittedQuestion),
-    )
+    denseTable === undefined ||
+    evidence.normalized_result?.residual_unknowns?.length !== 0
   )
     throw new Error(
-      `The shipped inspect-native-api CLI did not preserve dense jump-table truncation: ${stdout}`,
+      `The shipped inspect-native-api CLI did not preserve complete dense jump-table output: ${stdout}`,
     );
   return {
     operation: evidence.operation,
     provider: evidence.provider,
-    mappings_returned: truncated.mappings.length,
+    mappings_returned: denseTable.mappings.length,
     residual_unknowns: evidence.normalized_result.residual_unknowns.length,
   };
 }

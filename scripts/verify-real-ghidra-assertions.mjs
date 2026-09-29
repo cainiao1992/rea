@@ -73,20 +73,19 @@ export function assertDenseSwitchDossier(dossier, address) {
     requireAssembly: true,
     requireMultiBlock: true,
   });
-  const truncated = dossier.native_api.jump_tables.find(
-    ({ mappings_truncated: mappingsTruncated }) => mappingsTruncated,
+  const denseTable = dossier.native_api.jump_tables.find(
+    ({ mappings }) => mappings.length > 32,
   );
   if (
-    truncated === undefined ||
-    truncated.mappings.length !== 32 ||
-    truncated.mappings.some(
+    denseTable === undefined ||
+    denseTable.mappings.some(
       ({ target_address: target, evidence }) =>
         !/^0x[0-9a-f]+$/u.test(target) ||
         !evidence.some(({ kind }) => kind === "jump-table"),
     )
   )
     throw new Error(
-      `Ghidra dense jump-table truncation drifted: ${JSON.stringify(dossier.native_api.jump_tables)}`,
+      `Ghidra dense jump-table completeness drifted: ${JSON.stringify(dossier.native_api.jump_tables)}`,
     );
 }
 
@@ -94,8 +93,6 @@ function assertNativeApiBoundary(observed, requireJumpTable) {
   if (
     observed?.available !== true ||
     observed.provenance !== "ghidra-high-function" ||
-    observed.parameters_truncated !== false ||
-    observed.jump_tables_truncated !== false ||
     !["low", "medium", "high"].includes(observed.return_type?.confidence) ||
     !observed.return_type?.evidence?.some(
       ({ source }) => source === "ghidra-high-function",
@@ -111,14 +108,7 @@ function assertNativeApiBoundary(observed, requireJumpTable) {
   if (
     observed.jump_tables.length === 0 ||
     !observed.jump_tables.some(
-      ({
-        data_sources: sources,
-        data_sources_truncated: sourcesTruncated,
-        mappings,
-        mappings_truncated: mappingsTruncated,
-      }) =>
-        !sourcesTruncated &&
-        !mappingsTruncated &&
+      ({ data_sources: sources, mappings }) =>
         sources.length > 0 &&
         sources.every(
           ({ address, evidence }) =>

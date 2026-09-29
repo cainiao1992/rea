@@ -156,7 +156,7 @@ describe("GhidraClient", () => {
     await expect(client.start()).resolves.toMatchObject({
       ok: true,
       value: {
-        bridge_version: 6,
+        bridge_version: 7,
         target: { sha256: TARGET_SHA256 },
       },
     });

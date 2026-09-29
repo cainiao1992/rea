@@ -15,14 +15,16 @@ invoke tools by themselves.
 | `audit_residual_unknowns`         | Audit current residual-unknown heads and evidence-qualified resolution.              |
 | `prepare_bounded_process_capture` | Design an approval-gated, bounded process experiment before execution.               |
 
-Every rendered prompt provides an ordered list of current REA tool names. It
-also requires the agent to keep observations, inferences, and unknowns
-distinct. Requested prompt arguments and completion choices are rendered as
-untrusted selection data, not instructions or authorization.
+Every rendered prompt provides optional starting points using current REA tool
+names. Agents can call tools directly, skip irrelevant suggestions, and inspect
+provider or target state only when it helps answer the request or a tool
+requires it. The prompts also ask agents to keep observations, inferences, and
+unknowns distinct. Requested prompt arguments and completion choices are
+rendered as untrusted selection data, not instructions or authorization.
 
-For target paths in `compare_application_versions`, the rendered workflow
-opens each target before calling `inspect_artifact`; inspection operates on the
-active target and returns the graph and findings together inline.
+For target paths in `compare_application_versions`, the prompt suggests
+opening each target before calling `inspect_artifact`; inspection operates on
+the active target and returns the graph and findings together inline.
 
 Use standard MCP discovery and retrieval:
 

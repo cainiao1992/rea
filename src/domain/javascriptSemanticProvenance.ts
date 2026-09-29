@@ -19,20 +19,17 @@ export const semanticUnresolvedProvenance = (
   reason: string,
 ): JavaScriptBindingProvenance => ({ status, origins: [], reason });
 
-/** Construct ambiguous provenance while retaining every bounded origin. */
+/** Construct ambiguous provenance while retaining every origin. */
 export const semanticAmbiguousProvenance = (
   origins: readonly JavaScriptModuleOrigin[],
   reason: string,
 ): JavaScriptBindingProvenance => ({ status: "ambiguous", origins, reason });
 
-/** Normalize bounded exact module origins into one provenance classification. */
+/** Normalize exact module origins into one provenance classification. */
 export const semanticOriginsProvenance = (
   origins: readonly JavaScriptModuleOrigin[],
-  state: JavaScriptSemanticAnalysisState,
 ): JavaScriptBindingProvenance => {
   const unique = uniqueSemanticOrigins(origins);
-  if (unique.length > state.limits.maxUnionValues)
-    return semanticLimitProvenance(state, "maxUnionValues");
   const origin = unique[0];
   return unique.length === 1 && origin !== undefined
     ? { status: "module", origins: [origin], reason: null }
@@ -54,7 +51,7 @@ export const uniqueSemanticOrigins = (
 /** Mark and return an explicit provenance-limit value. */
 export const semanticLimitProvenance = (
   state: JavaScriptSemanticAnalysisState,
-  limit: "maxValueDepth" | "maxUnionValues",
+  limit: "maxValueDepth",
 ): JavaScriptBindingProvenance => {
   reachSemanticValueLimit(state, limit);
   return semanticUnresolvedProvenance("limit-reached", `${limit} reached.`);

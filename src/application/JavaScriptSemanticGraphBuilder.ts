@@ -75,7 +75,7 @@ interface FileContext extends SemanticFlowProjectionContext {
   readonly callResolutions: ReadonlyMap<string, "candidate" | "resolved">;
 }
 
-/** Project bounded per-file semantic IR into an artifact-bound companion graph. */
+/** Project per-file semantic IR into an artifact-bound companion graph. */
 export const buildJavaScriptSemanticGraph = ({
   rootArtifactSha256,
   applicationGraph,

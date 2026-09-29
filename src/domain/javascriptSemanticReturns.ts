@@ -10,10 +10,7 @@ import type {
   ProjectedPropertyCoverage,
   ProjectedReturnField,
 } from "./javascriptExportShapeComparisonSchemas.js";
-import {
-  reachSemanticLimit,
-  semanticCallableIdForNode,
-} from "./javascriptSemanticProjection.js";
+import { semanticCallableIdForNode } from "./javascriptSemanticProjection.js";
 import {
   resolveSemanticBindingState,
   type JavaScriptSemanticAnalysisState,
@@ -29,14 +26,13 @@ interface ReturnExpression {
   readonly location: JavaScriptSemanticReturnSite["location"];
 }
 
-/** Evaluate bounded direct returns while excluding every nested callable. */
+/** Evaluate direct returns while excluding every nested callable. */
 export const collectSemanticReturns = (
   program: t.Program,
   state: JavaScriptSemanticAnalysisState,
   parserPartial: boolean,
 ): JavaScriptSemanticCallable[] => {
   const nodes = callableNodes(program);
-  let retained = 0;
   return state.callables.map((callable) => {
     const node = nodes.get(callable.callableId);
     if (node === undefined)
@@ -51,14 +47,7 @@ export const collectSemanticReturns = (
       };
     const expressions = directReturnExpressions(node);
     const sites: JavaScriptSemanticReturnSite[] = [];
-    let omitted = 0;
     for (const expression of expressions) {
-      if (retained >= state.limits.maxReturnSites) {
-        omitted += 1;
-        reachSemanticLimit(state, "maxReturnSites");
-        continue;
-      }
-      retained += 1;
       sites.push({
         returnSiteId: semanticReturnSiteId(
           callable.callableId,
@@ -78,11 +67,7 @@ export const collectSemanticReturns = (
     return {
       ...callable,
       returnSites: sites,
-      returnCoverage: semanticReturnCoverage(
-        sites.length,
-        omitted,
-        parserPartial,
-      ),
+      returnCoverage: semanticReturnCoverage(sites.length, parserPartial),
     };
   });
 };

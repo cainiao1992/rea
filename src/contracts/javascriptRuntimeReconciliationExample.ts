@@ -185,7 +185,7 @@ const runtimeEvidence = createEvidence(
     version: "1",
   },
   {
-    predicateType: "rea.electron-page-inspection/v1",
+    predicateType: "rea.electron-page-inspection",
     operation: "inspect_electron_page",
     parameters: {
       cdp_endpoint: "http://127.0.0.1:9223",

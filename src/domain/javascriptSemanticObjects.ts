@@ -5,7 +5,6 @@ import type {
   JavaScriptSemanticObjectOperation,
 } from "./javascriptSemanticIr.js";
 import {
-  reachSemanticLimit,
   semanticCallableIdForNode,
   semanticStaticPropertyName,
 } from "./javascriptSemanticProjection.js";
@@ -140,10 +139,6 @@ const addObjectOperation = (
   state: JavaScriptSemanticAnalysisState,
   output: JavaScriptSemanticObjectOperation[],
 ): void => {
-  if (output.length >= state.limits.maxObjectOperations) {
-    reachSemanticLimit(state, "maxObjectOperations");
-    return;
-  }
   output.push({
     objectOperationId: `object:${input.kind}:${String(input.node.start ?? -1)}:${String(input.node.end ?? -1)}`,
     kind: input.kind,

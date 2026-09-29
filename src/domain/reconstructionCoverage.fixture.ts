@@ -12,7 +12,7 @@ const EVIDENCE_RECORDS = ["1", "2", "3", "4", "5"].map((character) =>
     undefined,
     { id: "fixture", name: "Fixture", version: "1" },
     {
-      predicateType: "rea.coverage-fixture/v1",
+      predicateType: "rea.coverage-fixture",
       operation: `fixture-${character}`,
       parameters: {},
       result: { character },

@@ -25,7 +25,7 @@ export const registerFunctionComparisonTool = (
     async (input, context) => {
       const expected = {
         operation: "analyze_function",
-        predicate: "rea.analysis/v2",
+        predicate: "rea.analysis",
       };
       const left = resolveSessionEvidenceIds(
         session,
@@ -51,7 +51,7 @@ export const registerFunctionComparisonTool = (
       if (!computed.ok) return toCallToolResult(computed, contract);
       const comparison = computed.value;
       const evidence = createEvidence(undefined, FUNCTION_COMPARISON_PROVIDER, {
-        predicateType: "rea.function-comparison/v1",
+        predicateType: "rea.function-comparison",
         operation: contract.name,
         parameters: {
           left_evidence_id: leftEvidence.evidence_id,

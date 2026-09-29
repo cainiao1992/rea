@@ -102,21 +102,15 @@ const evaluateExpression = (
   }
   if (t.isTemplateLiteral(node)) return evaluateTemplate(node, context);
   if (t.isConditionalExpression(node))
-    return mergeValues(
-      [
-        evaluateExpression(node.consequent, nestedContext(context)),
-        evaluateExpression(node.alternate, nestedContext(context)),
-      ],
-      context.state,
-    );
+    return mergeValues([
+      evaluateExpression(node.consequent, nestedContext(context)),
+      evaluateExpression(node.alternate, nestedContext(context)),
+    ]);
   if (t.isLogicalExpression(node))
-    return mergeValues(
-      [
-        evaluateExpression(node.left, nestedContext(context)),
-        evaluateExpression(node.right, nestedContext(context)),
-      ],
-      context.state,
-    );
+    return mergeValues([
+      evaluateExpression(node.left, nestedContext(context)),
+      evaluateExpression(node.right, nestedContext(context)),
+    ]);
   if (t.isObjectExpression(node)) return evaluateObject(node, context);
   if (t.isArrayExpression(node)) return evaluateArray(node, context);
   if (t.isMemberExpression(node) || t.isOptionalMemberExpression(node))
@@ -156,10 +150,8 @@ const evaluateTemplate = (
     candidates = candidates.flatMap((prefix) =>
       values.map((value) => `${prefix}${String(value)}`),
     );
-    if (candidates.length > context.state.limits.maxUnionValues)
-      return limitValue(context.state, "maxUnionValues");
   }
-  return primitiveSet(candidates, context.state);
+  return primitiveSet(candidates);
 };
 
 const evaluateObject = (
@@ -182,12 +174,6 @@ const evaluateObject = (
     }
     const name = propertyName(property.key);
     if (name === "" || !t.isObjectProperty(property)) {
-      unknownProperties = true;
-      if (omittedProperties !== null) omittedProperties += 1;
-      continue;
-    }
-    if (properties.length >= context.state.limits.maxObjectProperties) {
-      reachSemanticValueLimit(context.state, "maxObjectProperties");
       unknownProperties = true;
       if (omittedProperties !== null) omittedProperties += 1;
       continue;
@@ -227,12 +213,6 @@ const evaluateArray = (
       continue;
     }
     if (element === null) {
-      unknownItems = true;
-      if (omittedItems !== null) omittedItems += 1;
-      continue;
-    }
-    if (items.length >= context.state.limits.maxObjectProperties) {
-      reachSemanticValueLimit(context.state, "maxObjectProperties");
       unknownItems = true;
       if (omittedItems !== null) omittedItems += 1;
       continue;
@@ -277,7 +257,7 @@ const evaluateAddition = (
         : `${String(leftValue)}${String(rightValue)}`,
     ),
   );
-  return primitiveSet(values, context.state);
+  return primitiveSet(values);
 };
 
 const evaluateUnary = (
@@ -290,20 +270,11 @@ const evaluateUnary = (
   if (argument === null)
     return { status: "unknown", reason: "Non-primitive unary operand." };
   if (node.operator === "!")
-    return primitiveSet(
-      argument.map((value) => !value),
-      context.state,
-    );
+    return primitiveSet(argument.map((value) => !value));
   if (node.operator === "+")
-    return primitiveSet(
-      argument.map((value) => Number(value)),
-      context.state,
-    );
+    return primitiveSet(argument.map((value) => Number(value)));
   if (node.operator === "-")
-    return primitiveSet(
-      argument.map((value) => -Number(value)),
-      context.state,
-    );
+    return primitiveSet(argument.map((value) => -Number(value)));
   return { status: "unknown", reason: `Unsupported unary ${node.operator}.` };
 };
 
@@ -355,7 +326,7 @@ const provenanceForBinding = (
   if (context.depth >= context.state.limits.maxValueDepth)
     return semanticLimitProvenance(context.state, "maxValueDepth");
   if (binding.directOrigins.length > 0)
-    return semanticOriginsProvenance(binding.directOrigins, context.state);
+    return semanticOriginsProvenance(binding.directOrigins);
   if (binding.initializers.length === 0) return semanticLocalProvenance();
   if (binding.initializers.length > 1)
     return semanticAmbiguousProvenance(
@@ -387,7 +358,6 @@ const provenanceForBinding = (
         ...initializer.projection.map((segment) => String(segment)),
       ],
     })),
-    context.state,
   );
 };
 
@@ -396,8 +366,7 @@ const provenanceForExpression = (
   context: EvaluationContext,
 ): JavaScriptBindingProvenance => {
   const required = requireOrigin(node);
-  if (required !== undefined)
-    return semanticOriginsProvenance([required], context.state);
+  if (required !== undefined) return semanticOriginsProvenance([required]);
   if (t.isIdentifier(node)) {
     const binding = resolveSemanticBindingState(context.state, node, node.name);
     return binding === undefined
@@ -427,7 +396,6 @@ const provenanceForExpression = (
             ...origin,
             importedPath: [...origin.importedPath, member],
           })),
-          context.state,
         );
   }
   if (t.isConditionalExpression(node) || t.isLogicalExpression(node)) {
@@ -471,7 +439,6 @@ const requireOrigin = (node: t.Node): JavaScriptModuleOrigin | undefined => {
 
 const mergeValues = (
   values: readonly JavaScriptSemanticValue[],
-  state: JavaScriptSemanticAnalysisState,
 ): JavaScriptSemanticValue => {
   const primitives = values.flatMap(
     (value) => primitiveCandidates(value) ?? [],
@@ -480,7 +447,7 @@ const mergeValues = (
     values.every(
       (value) => value.status === "union" || value.status === "literal",
     )
-    ? primitiveSet(primitives, state)
+    ? primitiveSet(primitives)
     : { status: "ambiguous", reason: "Branches have incompatible values." };
 };
 
@@ -495,7 +462,7 @@ const memberKey = (
 
 const limitValue = (
   state: JavaScriptSemanticAnalysisState,
-  limit: "maxValueDepth" | "maxUnionValues",
+  limit: "maxValueDepth",
 ): JavaScriptSemanticValue => {
   reachSemanticValueLimit(state, limit);
   return { status: "limit-reached", reason: `${limit} reached.` };

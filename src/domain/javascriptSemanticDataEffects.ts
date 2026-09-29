@@ -16,7 +16,6 @@ import {
   builtinDataEffectMethod as builtinMethod,
   containsSemanticNode as containsNode,
   dataEffectArgumentBindingId as argumentBindingId,
-  dataEffectLimitReached as limitReached,
   dataEffectLiteralString as literalString,
   dataEffectMemberCallee as memberCallee,
   dataEffectMemberObject as memberObject,
@@ -83,15 +82,6 @@ const collectConfigurations = (
   traverseWithContext(program, context, (node, parent) => {
     const details = configurationDetails(node, parent, context);
     if (details === null) return;
-    if (
-      limitReached(
-        output.length,
-        context.state.limits.maxConfigurationOperations,
-        "maxConfigurationOperations",
-        context.state,
-      )
-    )
-      return;
     const operation: JavaScriptSemanticConfigurationOperation = {
       configId: `config:${details.kind}:${String(node.start ?? -1)}:${String(node.end ?? -1)}`,
       kind: details.kind,
@@ -178,15 +168,6 @@ const collectDefaults = (
       containsNode(node.left, source),
     );
     if (sources.length !== 1 || sources[0] === undefined) return;
-    if (
-      limitReached(
-        configurations.length + output.length,
-        context.state.limits.maxConfigurationOperations,
-        "maxConfigurationOperations",
-        context.state,
-      )
-    )
-      return;
     output.push({
       configId: `config:default:${String(node.start ?? -1)}:${String(node.end ?? -1)}`,
       kind: "default",
@@ -216,15 +197,6 @@ const collectRequests = (
       return;
     const method = requestMethod(node, context.state);
     if (method === null) return;
-    if (
-      limitReached(
-        output.length,
-        context.state.limits.maxRequestOperations,
-        "maxRequestOperations",
-        context.state,
-      )
-    )
-      return;
     const endpoint = requestEndpoint(node);
     output.push({
       node,
@@ -276,15 +248,6 @@ const collectResponseConsumers = (
         ? []
         : (requestsByBinding.get(binding.bindingId) ?? []);
     if (linked.length === 0) return;
-    if (
-      limitReached(
-        requests.length + output.length,
-        context.state.limits.maxRequestOperations,
-        "maxRequestOperations",
-        context.state,
-      )
-    )
-      return;
     output.push({
       requestId: `response:${String(node.start ?? -1)}:${String(node.end ?? -1)}`,
       kind: "response-consumer",
@@ -312,15 +275,6 @@ const collectBoundaries = (
     if (!t.isCallExpression(node) && !t.isOptionalCallExpression(node)) return;
     const details = boundaryDetails(node, context.state);
     if (details === null) return;
-    if (
-      limitReached(
-        output.length,
-        context.state.limits.maxBoundaryOperations,
-        "maxBoundaryOperations",
-        context.state,
-      )
-    )
-      return;
     output.push({
       boundaryId: `boundary:${details.kind}:${String(node.start ?? -1)}:${String(node.end ?? -1)}`,
       kind: details.kind,

@@ -5,23 +5,11 @@ import { compareCodePoints } from "./javascriptStaticAnalysisHelpers.js";
 /** Exact retention state for one callable's direct returns. */
 export type JavaScriptSemanticReturnCoverage = {
   readonly retainedCount: number;
-} & (
-  | {
-      readonly status: "complete";
-      readonly omittedCount: 0;
-      readonly limitsReached: readonly [];
-    }
-  | {
-      readonly status: "partial";
-      readonly omittedCount: 0 | null;
-      readonly limitsReached: readonly [];
-    }
-  | {
-      readonly status: "truncated";
-      readonly omittedCount: number;
-      readonly limitsReached: readonly ["maxReturnSites"];
-    }
-);
+} & {
+  readonly status: "complete" | "partial";
+  readonly omittedCount: 0 | null;
+  readonly limitsReached: readonly [];
+};
 
 /** Coverage state for one bounded semantic recovery pass. */
 export type JavaScriptSemanticCoverage =
@@ -69,19 +57,10 @@ export const semanticCoverage = (
 /** Classify one callable's direct-return coverage. */
 export const semanticReturnCoverage = (
   retainedCount: number,
-  omittedCount: number,
   parserPartial: boolean,
-): JavaScriptSemanticReturnCoverage =>
-  omittedCount > 0
-    ? {
-        status: "truncated",
-        retainedCount,
-        omittedCount,
-        limitsReached: ["maxReturnSites"],
-      }
-    : {
-        status: parserPartial ? "partial" : "complete",
-        retainedCount,
-        omittedCount: 0,
-        limitsReached: [],
-      };
+): JavaScriptSemanticReturnCoverage => ({
+  status: parserPartial ? "partial" : "complete",
+  retainedCount,
+  omittedCount: 0,
+  limitsReached: [],
+});

@@ -150,7 +150,6 @@ export const managedMemberComparisonResultSchema = z.strictObject({
   comparison_id: z.string().regex(/^mmc_[a-f0-9]{64}$/u),
   algorithm: z.strictObject({
     name: z.literal("rea-managed-member-comparison"),
-    version: z.literal(1),
     token_identity: z.literal("build-local"),
     name_matching: z.literal("not-used"),
   }),
@@ -247,7 +246,6 @@ export const compareManagedMembers = (
     })}`,
     algorithm: {
       name: "rea-managed-member-comparison" as const,
-      version: 1 as const,
       token_identity: "build-local" as const,
       name_matching: "not-used" as const,
     },

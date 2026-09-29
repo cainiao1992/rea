@@ -19,7 +19,7 @@ export const projectSemanticFunctionFingerprints = (
     return [
       createJavaScriptSemanticFingerprint({
         function_node_id: callable.node_id,
-        algorithm: "rea.javascript-semantic-function/v1",
+        algorithm: "rea.javascript-semantic-function",
         status: fingerprint.status,
         components: {
           parameter_arity: fingerprint.components.parameterArity,

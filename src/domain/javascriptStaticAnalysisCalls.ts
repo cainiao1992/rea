@@ -2,7 +2,7 @@ import * as t from "@babel/types";
 
 import { sanitizeEndpointCandidate } from "./browserObservation.js";
 import {
-  addBoundedFinding,
+  addFindingOnce,
   addLocatedFinding,
   moduleAtOffset,
 } from "./javascriptStaticAnalysisFindings.js";
@@ -143,9 +143,7 @@ const vitePreloadDependencyTable = (source: string): readonly string[] => {
   if (body === undefined) return [];
   return [
     ...body.matchAll(/"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'/gu),
-  ]
-    .map((literal) => (literal[1] ?? literal[2] ?? "").slice(0, 4_096))
-    .slice(0, 256);
+  ].map((literal) => literal[1] ?? literal[2] ?? "");
 };
 
 const inspectEndpointCall = (
@@ -236,14 +234,14 @@ export const addReference = (
   context: FindingContext,
   input: ReferenceInput,
 ): void => {
-  const boundedSpecifier = input.specifier?.slice(0, 4_096) ?? null;
+  const specifier = input.specifier ?? null;
   const reference =
-    boundedSpecifier === null
+    specifier === null
       ? {
           specifier: null,
-          expression: sourceSlice(context.source, input.node).slice(0, 4_096),
+          expression: sourceSlice(context.source, input.node),
         }
-      : { specifier: boundedSpecifier, expression: null };
+      : { specifier, expression: null };
   addLocatedFinding(context, {
     collection: context.accumulator.references,
     key: `reference\0${input.kind}\0${reference.specifier ?? reference.expression}`,
@@ -274,16 +272,15 @@ const addEndpoint = (context: FindingContext, input: EndpointInput): void =>
 export const addSourceMapDirectives = (
   source: string,
   accumulator: AnalysisAccumulator,
-  maximum: number,
 ): void => {
   for (const match of source.matchAll(
     /\/\/[#@]\s*sourceMappingURL\s*=\s*([^\s]+)/gu,
   )) {
-    const declared = match[1]?.slice(0, 4_096);
+    const declared = match[1];
     if (declared === undefined) continue;
     const start = match.index;
     const location = rangeForOffsets(source, start, start + match[0].length);
-    addBoundedFinding(accumulator, `source-map\0${declared}`, maximum, () =>
+    addFindingOnce(accumulator, `source-map\0${declared}`, () =>
       accumulator.sourceMaps.push({ declared_url: declared, location }),
     );
   }

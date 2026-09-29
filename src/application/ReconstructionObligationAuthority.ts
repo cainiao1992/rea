@@ -69,7 +69,7 @@ export const evidenceAuthoritySupportsProof = (
   if (
     evidence.confidence !== "observed" ||
     !proofEvidenceAuthorities[authority].includes(evidence.authority) ||
-    evidence.predicate_type !== "rea.reconstruction-proof/v1" ||
+    evidence.predicate_type !== "rea.reconstruction-proof" ||
     evidence.operation !== "verify_reconstruction_obligations"
   )
     return false;

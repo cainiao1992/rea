@@ -89,13 +89,13 @@ const EXPECTED_PROVIDERS = {
     version: "3",
   },
   compare_artifacts: {
-    predicates: ["rea.artifact-comparison/v1"],
+    predicates: ["rea.artifact-comparison"],
     id: "rea-artifact-comparison",
     name: "REA artifact comparison",
     version: "1",
   },
   compare_functions: {
-    predicates: ["rea.function-comparison/v1"],
+    predicates: ["rea.function-comparison"],
     id: "rea-function-comparison",
     name: "REA function comparison",
     version: "1",

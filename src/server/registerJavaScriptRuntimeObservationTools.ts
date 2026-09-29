@@ -75,7 +75,7 @@ export const registerJavaScriptRuntimeObservationTools = (
             [
               {
                 operation: "list_javascript_runtime_targets",
-                predicate: "rea.javascript-runtime-target-list/v1",
+                predicate: "rea.javascript-runtime-target-list",
               },
             ],
           );

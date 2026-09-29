@@ -1,20 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  inspectWebPageToolInputSchema,
-  webPageInspectionSchema,
-} from "./browserObservation.js";
+import { webPageInspectionSchema } from "./browserObservation.js";
 import { analyzeCapturedWebBundle } from "./webBundleAnalyzer.js";
-import {
-  analyzeWebBundleInputSchema,
-  webBundleAnalysisSchema,
-} from "./webBundleAnalysis.js";
+import { webBundleAnalysisSchema } from "./webBundleAnalysis.js";
 import { createWebTextArtifact } from "./webContentArtifact.js";
 
 const origin = "https://app.example.test";
 
 describe("web bundle analyzer", () => {
-  it("extracts bounded graph, route, endpoint, vendor, and WebMCP evidence", () => {
+  it("extracts graph, route, endpoint, vendor, and WebMCP evidence", () => {
     const source = `
       import { createApp } from "./chunk.js?token=secret";
       const lazy = import("./lazy.js");
@@ -33,7 +27,7 @@ describe("web bundle analyzer", () => {
       });
       const __webpack_require__ = () => createApp(routes, lazy);
     `;
-    const result = analyzeCapturedWebBundle(inspection(source), input());
+    const result = analyzeCapturedWebBundle(inspection(source));
 
     expect(result.observations.chunks.edges).toEqual(
       expect.arrayContaining([
@@ -70,12 +64,12 @@ describe("web bundle analyzer", () => {
       ]),
     );
     expect(JSON.stringify(result)).not.toContain("authorization=secret");
-    expect(result.completeness.status).toBe("complete_within_limits");
+    expect(result.completeness.status).toBe("complete");
   });
 
   it("reports parser gaps without imposing a finding cap", () => {
     const malformed = inspection("function broken( {");
-    const failed = analyzeCapturedWebBundle(malformed, input());
+    const failed = analyzeCapturedWebBundle(malformed);
     expect(failed.completeness).toMatchObject({
       status: "partial",
       parse_failures: 1,
@@ -84,47 +78,52 @@ describe("web bundle analyzer", () => {
 
     const analyzed = analyzeCapturedWebBundle(
       inspection("fetch('/one'); fetch('/two'); fetch('/three');"),
-      input(),
     );
     expect(analyzed.observations.endpoints).toHaveLength(3);
-    expect(analyzed.completeness.status).toBe("complete_within_limits");
+    expect(analyzed.completeness.status).toBe("complete");
   });
 
-  it("propagates source-map truncation into completeness and unknowns", () => {
-    const analysis = analyzeCapturedWebBundle(
-      inspection("export {};"),
-      input(),
-      {
-        status: "truncated",
-        requested: 2,
-        processed: 1,
-        dropped: 1,
-        dropped_script_keys: [`scr_${"2".repeat(64)}`],
-        items: [
-          {
-            script_key: `scr_${"1".repeat(64)}`,
-            declared_url: "https://app.example.test/app.js.map",
-            status: "truncated",
-            artifact: null,
-            original_sources: [],
-            original_module_edges: [],
-            mappings: [],
-            limitation: "Source-map response exceeded the byte budget.",
-          },
-        ],
-      },
-    );
+  it("analyzes AST nodes after the former fixed node ceiling", () => {
+    const source = `${";".repeat(250_001)}fetch('/last');`;
+    const result = analyzeCapturedWebBundle(inspection(source));
 
-    expect(analysis.completeness.status).toBe("truncated");
+    expect(result.observations.endpoints).toContainEqual(
+      expect.objectContaining({ value: "/last" }),
+    );
+    expect(result.completeness.visited_ast_nodes).toBeGreaterThan(250_000);
+    expect(result.completeness.status).toBe("complete");
+  });
+
+  it("reports unavailable source maps as partial without dropping requested maps", () => {
+    const analysis = analyzeCapturedWebBundle(inspection("export {};"), {
+      status: "unavailable",
+      requested: 1,
+      processed: 1,
+      items: [
+        {
+          script_key: `scr_${"1".repeat(64)}`,
+          declared_url: "https://app.example.test/app.js.map",
+          status: "fetch_failed",
+          artifact: null,
+          original_sources: [],
+          original_module_edges: [],
+          mappings: [],
+          limitation: "Source-map fetch failed.",
+        },
+      ],
+    });
+
+    expect(analysis.completeness.status).toBe("partial");
     expect(analysis.unknowns).toContainEqual({
       dimension: "source_maps",
-      reason: "Source-map evidence was truncated by provider safety limits",
-      affected_script_keys: [`scr_${"1".repeat(64)}`, `scr_${"2".repeat(64)}`],
+      reason:
+        "One or more requested source maps were unavailable or incomplete",
+      affected_script_keys: [`scr_${"1".repeat(64)}`],
     });
   });
 
   it("rejects inconsistent source-map coverage counts", () => {
-    const result = analyzeCapturedWebBundle(inspection("export {};"), input());
+    const result = analyzeCapturedWebBundle(inspection("export {};"));
     expect(
       webBundleAnalysisSchema.safeParse({
         ...result,
@@ -139,17 +138,6 @@ describe("web bundle analyzer", () => {
     ).toBe(false);
   });
 });
-
-const input = (overrides: Record<string, unknown> = {}) =>
-  analyzeWebBundleInputSchema.parse({
-    ...inspectWebPageToolInputSchema.parse({
-      cdp_endpoint: "http://127.0.0.1:9222",
-      allowed_origins: [origin],
-      target_id: "page-1",
-      include_script_sources: true,
-    }),
-    ...overrides,
-  });
 
 const inspection = (source: string) =>
   webPageInspectionSchema.parse({
@@ -200,7 +188,6 @@ const inspection = (source: string) =>
         status: "not_approved",
         retained_bytes: 0,
         excluded_fields: 0,
-        truncated_fields: 0,
       },
       nodes: [],
     },

@@ -38,10 +38,6 @@ export const collectSemanticCallable = (input: CollectCallableInput): void => {
   const { node, parent, containerScope, bodyScope, state } = input;
   const kind = callableKind(node);
   if (kind === undefined) return;
-  if (state.callables.length >= state.limits.maxCallables) {
-    reachSemanticLimit(state, "maxCallables");
-    return;
-  }
   const callableId =
     semanticCallableIdForNode(node) ?? "callable:unknown:-1:-1";
   state.callables.push({
@@ -110,10 +106,6 @@ export const collectSemanticReferences = (
       const key = `${String(node.start)}:${role}:${node.name}`;
       if (seen.has(key)) return;
       seen.add(key);
-      if (output.length >= state.limits.maxReferences) {
-        reachSemanticLimit(state, "maxReferences");
-        return;
-      }
       const binding = resolveSemanticBindingState(state, node, node.name);
       const blocked =
         binding === undefined &&
@@ -372,10 +364,6 @@ const addModuleLink = (
     readonly callableId?: string | null;
   },
 ): void => {
-  if (state.moduleLinks.length >= state.limits.maxModuleLinks) {
-    reachSemanticLimit(state, "maxModuleLinks");
-    return;
-  }
   state.moduleLinks.push({ ...link, callableId: link.callableId ?? null });
 };
 

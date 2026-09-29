@@ -10,7 +10,6 @@ import type {
   JavaScriptSemanticFrontier,
 } from "./javascriptSemanticIr.js";
 import {
-  reachSemanticLimit,
   semanticCallableIdForNode,
   semanticReferenceRole,
   semanticStaticPropertyName,
@@ -45,7 +44,6 @@ interface MutableCallAnalysis {
   readonly callResultFlows: JavaScriptSemanticCallResultFlow[];
   readonly closureCaptures: JavaScriptSemanticClosureCapture[];
   readonly frontiers: JavaScriptSemanticFrontier[];
-  retainedArguments: number;
 }
 
 interface CallCollectionContext {
@@ -59,7 +57,7 @@ interface CallCollectionContext {
   >;
 }
 
-/** Recover bounded direct-call and lexical-capture candidates from inert syntax. */
+/** Recover direct-call and lexical-capture candidates from inert syntax. */
 export const collectJavaScriptSemanticCalls = (
   program: t.Program,
   state: JavaScriptSemanticAnalysisState,
@@ -72,7 +70,6 @@ export const collectJavaScriptSemanticCalls = (
     callResultFlows: [],
     closureCaptures: [],
     frontiers: [],
-    retainedArguments: 0,
   };
   const callableById = new Map(
     callables.map((callable) => [callable.callableId, callable]),
@@ -127,10 +124,6 @@ const collectCallSite = (
   context: CallCollectionContext,
 ): void => {
   const { state, callableById, output } = context;
-  if (output.callSites.length >= state.limits.maxCallSites) {
-    reachSemanticLimit(state, "maxCallSites");
-    return;
-  }
   const resolution = resolveLocalCallables({
     node: node.callee,
     state,
@@ -140,7 +133,7 @@ const collectCallSite = (
     bindingCache: context.bindingResolutionCache,
   });
   const callSiteId = semanticCallSiteId(node);
-  const argumentsValue = retainedArguments(node.arguments, state, output);
+  const argumentsValue = retainedArguments(node.arguments);
   const site: JavaScriptSemanticCallSite = {
     callSiteId,
     kind: t.isNewExpression(node) ? "construct" : "call",
@@ -219,16 +212,9 @@ const retainedArguments = (
     | t.JSXNamespacedName
     | t.ArgumentPlaceholder
   )[],
-  state: JavaScriptSemanticAnalysisState,
-  output: MutableCallAnalysis,
 ): JavaScriptSemanticCallSite["arguments"] => {
   const retained: JavaScriptSemanticCallSite["arguments"][number][] = [];
   for (const [index, node] of nodes.entries()) {
-    if (output.retainedArguments >= state.limits.maxCallArguments) {
-      reachSemanticLimit(state, "maxCallArguments");
-      break;
-    }
-    output.retainedArguments += 1;
     retained.push({
       index,
       location: range(node),
@@ -243,7 +229,7 @@ const collectArgumentFlows = (
   node: t.CallExpression | t.OptionalCallExpression | t.NewExpression,
   context: CallCollectionContext,
 ): void => {
-  const { state, callableById, output } = context;
+  const { callableById, output } = context;
   const retainedIndexes = new Set(site.arguments.map(({ index }) => index));
   let positionIsExact = true;
   for (const [index, argument] of node.arguments.entries()) {
@@ -265,10 +251,6 @@ const collectArgumentFlows = (
         index,
         context,
       )) {
-        if (output.argumentFlows.length >= state.limits.maxArgumentFlows) {
-          reachSemanticLimit(state, "maxArgumentFlows");
-          return;
-        }
         const definition = parameter.definitions.find(
           ({ kind }) => kind === "parameter",
         );
@@ -309,10 +291,6 @@ const collectReturnFlows = (
     const callable = callableById.get(callableId);
     if (callable === undefined) continue;
     for (const returnSite of callable.returnSites) {
-      if (output.callReturnFlows.length >= state.limits.maxCallReturnFlows) {
-        reachSemanticLimit(state, "maxCallReturnFlows");
-        return;
-      }
       output.callReturnFlows.push({
         callSiteId: site.callSiteId,
         callableId,
@@ -344,10 +322,6 @@ const collectCapture = (
     bindingIsWithinCallable(binding, owner.bodyScopeId, state)
   )
     return;
-  if (output.closureCaptures.length >= state.limits.maxClosureCaptures) {
-    reachSemanticLimit(state, "maxClosureCaptures");
-    return;
-  }
   output.closureCaptures.push({
     callableId: owner.callableId,
     bindingId: binding.bindingId,
@@ -397,10 +371,6 @@ const addFrontier = (
   state: JavaScriptSemanticAnalysisState,
   output: MutableCallAnalysis,
 ): void => {
-  if (output.frontiers.length >= state.limits.maxFrontiers) {
-    reachSemanticLimit(state, "maxFrontiers");
-    return;
-  }
   output.frontiers.push(frontier);
 };
 

@@ -212,7 +212,7 @@ const createTransformationEvidence = (
     },
     PROVIDER,
     {
-      predicateType: "rea.javascript-export-transformation/v1",
+      predicateType: "rea.javascript-export-transformation",
       operation: PREPARE_OPERATION,
       parameters: {
         selected_alias: input.selected_alias,
@@ -249,7 +249,7 @@ const createCharacterizationEvidence = (
     },
     PROVIDER,
     {
-      predicateType: "rea.runtime-characterization/v1",
+      predicateType: "rea.runtime-characterization",
       operation: EXECUTE_OPERATION,
       parameters: {
         plan_sha256: prepared.plan.plan_sha256,
@@ -340,7 +340,7 @@ const digestPreparation = (
 ): string =>
   createHash("sha256")
     .update(
-      `rea.node-characterization-preparation/v1\0${instrumentedSha256}\0${replayPlanDigest}`,
+      `rea.node-characterization-preparation\0${instrumentedSha256}\0${replayPlanDigest}`,
     )
     .digest("hex");
 

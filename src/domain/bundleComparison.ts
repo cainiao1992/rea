@@ -79,8 +79,6 @@ type RecordPair = z.infer<
   typeof bundleComparisonInputSchema
 >["record_pairs"][number];
 
-const MAX_ENTITIES = 100_000;
-
 /** Compare canonical bundle membership and only explicitly paired observations. */
 export const compareBundles = (
   leftInput: unknown,
@@ -89,7 +87,6 @@ export const compareBundles = (
 ): BundleComparisonResult => {
   const left = parseEvidenceBundle(leftInput);
   const right = parseEvidenceBundle(rightInput);
-  enforceBounds(left, right);
   const leftDigest = bundleDigest(left);
   const rightDigest = bundleDigest(right);
   const recordResult = compareRecords(left, right, recordPairs);
@@ -302,16 +299,6 @@ const historyEvidenceIds = (history: readonly ResidualUnknown[]): string[] =>
       ]),
     ),
   ].sort(ascii);
-
-const enforceBounds = (left: EvidenceBundle, right: EvidenceBundle): void => {
-  const total =
-    left.records.length +
-    right.records.length +
-    left.unknowns.length +
-    right.unknowns.length;
-  if (total > MAX_ENTITIES)
-    throw new TypeError(`Bundle comparison exceeds ${MAX_ENTITIES} entities`);
-};
 
 const bundleDigest = (bundle: EvidenceBundle): string =>
   createHash("sha256").update(serializeEvidenceBundle(bundle)).digest("hex");

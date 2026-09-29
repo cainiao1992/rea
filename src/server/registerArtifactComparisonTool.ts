@@ -25,7 +25,7 @@ export const registerArtifactComparisonTool = (
     async (input, context) => {
       const expected = {
         operation: ["inspect_artifact", "inventory_artifact"],
-        predicate: "rea.analysis/v2",
+        predicate: "rea.analysis",
       };
       const left = resolveSessionEvidenceIds(
         session,
@@ -47,7 +47,7 @@ export const registerArtifactComparisonTool = (
       const leftEvidenceIds = [input.left_evidence_id];
       const rightEvidenceIds = [input.right_evidence_id];
       const evidence = createEvidence(undefined, ARTIFACT_COMPARISON_PROVIDER, {
-        predicateType: "rea.artifact-comparison/v1",
+        predicateType: "rea.artifact-comparison",
         operation: contract.name,
         parameters: {
           left_evidence_ids: leftEvidenceIds,

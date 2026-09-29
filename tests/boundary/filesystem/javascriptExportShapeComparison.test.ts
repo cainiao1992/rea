@@ -240,7 +240,7 @@ describe("JavaScript export return-shape projection", () => {
     });
   });
 
-  it("keeps incomplete source property coverage partial", async () => {
+  it("returns every source property within the supplied inputs", async () => {
     const properties = [
       'a_type: "item"',
       ...Array.from(
@@ -254,7 +254,7 @@ describe("JavaScript export return-shape projection", () => {
     });
     const result = compare(left, right);
 
-    expect(result.coverage.status).toBe("partial");
+    expect(result.coverage.status).toBe("complete-within-inputs");
     expect(result.coverage.left_omitted_fields).toBe(0);
     expect(result.coverage.right_omitted_fields).toBe(0);
   });

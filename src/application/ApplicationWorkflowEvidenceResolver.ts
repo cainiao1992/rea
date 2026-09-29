@@ -34,11 +34,11 @@ const APPLICATION_GRAPH_IDENTITIES = [
   },
   {
     operation: "reconcile_javascript_runtime",
-    predicate: "rea.javascript-runtime-reconciliation/v1",
+    predicate: "rea.javascript-runtime-reconciliation",
   },
   {
     operation: "project_managed_application_graph",
-    predicate: "rea.managed-application-graph/v1",
+    predicate: "rea.managed-application-graph",
   },
 ] as const satisfies readonly EvidenceSemanticIdentity[];
 

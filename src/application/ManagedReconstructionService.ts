@@ -59,7 +59,7 @@ const createManagedReconstructionEvidence = (
     },
     MANAGED_WORKFLOW_PROVIDER,
     {
-      predicateType: "rea.managed-reconstruction-import/v1",
+      predicateType: "rea.managed-reconstruction-import",
       operation: OPERATION,
       parameters: {
         static_members_evidence_id: input.static_members.evidence_id,

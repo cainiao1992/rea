@@ -108,7 +108,7 @@ describe("application workflow CLI parity", () => {
     ]);
     expect(traced).toMatchObject({
       operation: "trace_javascript_semantics",
-      predicate_type: "rea.javascript-semantic-trace/v1",
+      predicate_type: "rea.javascript-semantic-trace",
       normalized_result: {
         source_evidence_id: analyzed.value.evidence_id,
         source_graph_id: result.semantic_graph.graph_id,
@@ -265,7 +265,7 @@ describe("application workflow CLI export Evidence", () => {
     );
     expect(compared).toMatchObject({
       operation: "compare_javascript_export_shapes",
-      predicate_type: "rea.javascript-export-shape-comparison/v1",
+      predicate_type: "rea.javascript-export-shape-comparison",
       normalized_result: {
         summary: { added: 1, removed: 0, changed: 0, unknown: 0 },
         changes: [

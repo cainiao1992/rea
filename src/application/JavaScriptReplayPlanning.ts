@@ -84,12 +84,23 @@ export interface JavaScriptReplayRunner {
   ) => Promise<ReplayExecutionResult>;
 }
 
+const assertReplayManifestWithinProtocolLimit = (
+  input: ControlledReplayInput,
+): void => {
+  if (
+    new TextEncoder().encode(JSON.stringify(input)).byteLength >
+    input.limits.protocol_bytes
+  )
+    throw new RangeError("Replay plan input exceeds its protocol byte limit");
+};
+
 /** Read, normalize, and content-address every input to one replay experiment. */
 export const prepareReplayPlan = async (
   input: ControlledReplayInput,
   policy: EnabledJavaScriptReplayPolicy,
   host: JavaScriptReplayHost,
 ): Promise<PreparedReplayPlan> => {
+  assertReplayManifestWithinProtocolLimit(input);
   const cases = replayCases(input).map((item) => ({
     ...item,
     sha256: digestJson(item.arguments),

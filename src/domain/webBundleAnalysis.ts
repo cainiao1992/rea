@@ -1,38 +1,15 @@
 import { z } from "zod";
 
-import {
-  DEFAULT_BROWSER_INSPECTION_LIMITS,
-  inspectWebPageWithSourceInputSchema,
-} from "./browserObservation.js";
+import { inspectWebPageWithSourceInputSchema } from "./browserObservation.js";
 import { webTextArtifactSchema } from "./webContentArtifact.js";
-
-/** Provider-owned parser and network safety bounds, never caller settings. */
-export const WEB_BUNDLE_ANALYSIS_LIMITS = {
-  max_ast_nodes: 250_000,
-  max_source_maps: 100,
-  max_source_map_bytes: 4 * 1_024 * 1_024,
-  max_total_source_map_bytes: 16 * 1_024 * 1_024,
-  max_source_map_mappings: 10_000,
-} as const;
 
 /** Capture-and-analyze input with optional source-map fetching. */
 export const analyzeWebBundleToolInputSchema =
   inspectWebPageWithSourceInputSchema.safeExtend({
     fetch_source_maps: z.boolean().default(false),
   });
-export const analyzeWebBundleInputSchema =
-  analyzeWebBundleToolInputSchema.transform((input) => ({
-    ...input,
-    limits: DEFAULT_BROWSER_INSPECTION_LIMITS,
-    analysis_limits: WEB_BUNDLE_ANALYSIS_LIMITS,
-  })) as z.ZodType<AnalyzeWebBundleInput>;
-export type AnalyzeWebBundleInput = z.infer<
-  typeof inspectWebPageWithSourceInputSchema
-> & {
-  readonly limits: typeof DEFAULT_BROWSER_INSPECTION_LIMITS;
-  readonly fetch_source_maps: boolean;
-  readonly analysis_limits: typeof WEB_BUNDLE_ANALYSIS_LIMITS;
-};
+export const analyzeWebBundleInputSchema = analyzeWebBundleToolInputSchema;
+export type AnalyzeWebBundleInput = z.infer<typeof analyzeWebBundleInputSchema>;
 
 const sourceLocationSchema = z.object({
   script_key: z.string(),
@@ -93,12 +70,7 @@ const sourceMapSchema = z.union([
   z.object({
     ...sourceMapContextShape,
     ...parsedSourceMapShape,
-    status: z.literal("truncated"),
-    limitation: z.string(),
-  }),
-  z.object({
-    ...sourceMapContextShape,
-    status: z.enum(["fetch_failed", "invalid", "policy_filtered", "truncated"]),
+    status: z.enum(["fetch_failed", "invalid", "policy_filtered"]),
     artifact: z.null(),
     original_sources: z.tuple([]),
     original_module_edges: z.tuple([]),
@@ -117,24 +89,15 @@ const webTextArtifactSummarySchema = z.object({
 
 export const webSourceMapsSchema = z
   .object({
-    status: z.enum([
-      "not_requested",
-      "included",
-      "partial",
-      "unavailable",
-      "truncated",
-    ]),
+    status: z.enum(["not_requested", "included", "partial", "unavailable"]),
     requested: z.number().int().min(0),
     processed: z.number().int().min(0),
-    dropped: z.number().int().min(0),
-    dropped_script_keys: z.array(z.string()),
     items: z.array(sourceMapSchema),
   })
   .superRefine((sourceMaps, context) => {
     if (
-      sourceMaps.requested !== sourceMaps.processed + sourceMaps.dropped ||
-      sourceMaps.processed !== sourceMaps.items.length ||
-      sourceMaps.dropped !== sourceMaps.dropped_script_keys.length
+      sourceMaps.requested !== sourceMaps.processed ||
+      sourceMaps.processed !== sourceMaps.items.length
     )
       context.addIssue({
         code: "custom",
@@ -142,17 +105,14 @@ export const webSourceMapsSchema = z
       });
     const statuses = sourceMaps.items.map(({ status }) => status);
     const included = statuses.filter((status) => status === "included").length;
-    const hasTruncated = statuses.includes("truncated");
     const allowedStatuses =
-      sourceMaps.dropped > 0 || hasTruncated
-        ? ["truncated"]
-        : sourceMaps.items.length === 0
-          ? ["not_requested", "unavailable"]
-          : included === sourceMaps.items.length
-            ? ["included"]
-            : included > 0
-              ? ["partial"]
-              : ["unavailable"];
+      sourceMaps.items.length === 0
+        ? ["not_requested", "unavailable"]
+        : included === sourceMaps.items.length
+          ? ["included"]
+          : included > 0
+            ? ["partial"]
+            : ["unavailable"];
     if (!allowedStatuses.includes(sourceMaps.status))
       context.addIssue({
         code: "custom",
@@ -164,7 +124,7 @@ export const webSourceMapsSchema = z
 export type WebSourceMapItem = z.infer<typeof sourceMapSchema>;
 export type WebSourceMaps = z.infer<typeof webSourceMapsSchema>;
 
-/** Provider-neutral result of bounded JavaScript bundle reverse engineering. */
+/** Provider-neutral result of JavaScript bundle reverse engineering. */
 export const webBundleAnalysisSchema = z.object({
   capture: z.object({
     target_url: z.string(),
@@ -226,7 +186,7 @@ export const webBundleAnalysisSchema = z.object({
     }),
   ),
   completeness: z.object({
-    status: z.enum(["complete_within_limits", "truncated", "partial"]),
+    status: z.enum(["complete", "partial"]),
     parsed_scripts: z.number().int().min(0),
     parse_failures: z.number().int().min(0),
     visited_ast_nodes: z.number().int().min(0),

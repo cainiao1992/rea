@@ -63,7 +63,6 @@ interface JavaScriptBundlerModuleState {
   readonly factory_require_name: string | null;
   readonly source_sha256: string;
   readonly exports: readonly string[];
-  readonly exports_truncated: boolean;
   readonly location: JavaScriptSourceRange;
 }
 
@@ -87,15 +86,12 @@ export interface JavaScriptBundlerRegistration {
   readonly bundler: "webpack" | "rspack" | "esbuild";
   readonly runtime: string;
   readonly chunk_keys: readonly string[];
-  readonly omitted_chunk_keys: number;
   readonly unknown_chunk_keys: number;
   readonly runtime_require_name: string | null;
   readonly runtime_module_cache_status: "observed" | "not-observed";
   readonly entry_module_keys: readonly string[];
-  readonly omitted_entry_module_keys: number;
   readonly unknown_entry_module_keys: number;
   readonly async_chunk_keys: readonly string[];
-  readonly omitted_async_chunk_keys: number;
   readonly unknown_async_chunk_keys: number;
   readonly modules: readonly JavaScriptBundlerModule[];
   readonly location: JavaScriptSourceRange;
@@ -111,12 +107,11 @@ export interface JavaScriptRolePath {
   readonly location: JavaScriptSourceRange;
 }
 
-/** Bounded, deterministic AST-only analysis of one JavaScript source file. */
+/** Deterministic AST-only analysis of one JavaScript source file. */
 export interface JavaScriptStaticAnalysis {
   readonly parse_status: "complete" | "partial" | "failed" | "truncated";
   readonly parse_error_count: number;
   readonly visited_ast_nodes: number;
-  readonly dropped_findings: number;
   readonly references: readonly JavaScriptStaticReference[];
   readonly endpoints: readonly JavaScriptStaticEndpoint[];
   readonly storage: readonly JavaScriptStaticStorage[];
@@ -134,8 +129,6 @@ export interface JavaScriptStaticAnalysis {
 /** Hard bounds applied to one AST-only JavaScript analysis. */
 export interface JavaScriptStaticAnalysisLimits {
   readonly maxAstNodes: number;
-  readonly maxFindings: number;
-  readonly maxModules: number;
   readonly deadline: number;
   readonly now: () => number;
 }

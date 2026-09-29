@@ -39,7 +39,7 @@ const comparison = (
     {
       predicateType: process
         ? "rea.process-comparison"
-        : "rea.artifact-comparison/v1",
+        : "rea.artifact-comparison",
       operation,
       parameters: {},
       result,
@@ -230,7 +230,7 @@ describe("changed behavior", () => {
       undefined,
       { id: "rea-bundle-comparison", name: "Bundle", version: "1" },
       {
-        predicateType: "rea.bundle-comparison/v1",
+        predicateType: "rea.bundle-comparison",
         operation: "compare_bundles",
         parameters: {},
         result: {},

@@ -6,7 +6,6 @@ import type {
   JavaScriptSemanticChildProcessSpawn,
 } from "./javascriptSemanticIr.js";
 import {
-  reachSemanticLimit,
   semanticCallableIdForNode,
   semanticStaticPropertyName,
 } from "./javascriptSemanticProjection.js";
@@ -83,7 +82,6 @@ const collectSpawns = (
         return;
       const method = childProcessMethod(node.callee, state);
       if (method === null) return;
-      if (operationLimitReached(output.length, state)) return;
       output.push({
         node,
         method,
@@ -151,7 +149,6 @@ const collectInteractions = (
         context,
       );
       if (interaction === null) return;
-      if (operationLimitReached(spawns.length + output.length, state)) return;
       output.push(interaction);
     },
     exit: (node) => popCallable(node, callableStack),
@@ -364,15 +361,6 @@ const literalString = (
   if (t.isTemplateLiteral(node) && node.expressions.length === 0)
     return node.quasis[0]?.value.cooked ?? node.quasis[0]?.value.raw ?? null;
   return null;
-};
-
-const operationLimitReached = (
-  retained: number,
-  state: JavaScriptSemanticAnalysisState,
-): boolean => {
-  if (retained < state.limits.maxChildProcessOperations) return false;
-  reachSemanticLimit(state, "maxChildProcessOperations");
-  return true;
 };
 
 const popCallable = (node: t.Node, stack: string[]): void => {

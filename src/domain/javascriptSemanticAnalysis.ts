@@ -14,7 +14,6 @@ import {
   collectSemanticReferences,
   immutableSemanticBindings,
   immutableSemanticScopes,
-  reachSemanticLimit,
   semanticModuleOrigin,
   semanticStaticPropertyName,
 } from "./javascriptSemanticProjection.js";
@@ -249,17 +248,6 @@ const nestedScope = (
 ): JavaScriptSemanticScopeState | undefined => {
   const kind = scopeKind(node, parent);
   if (kind === undefined) return undefined;
-  if (state.scopes.length >= state.limits.maxScopes) {
-    reachSemanticLimit(state, "maxScopes");
-    return {
-      scopeId: `${semanticScopeId(kind, node)}:omitted`,
-      parentScopeId: parentScope.scopeId,
-      kind,
-      location: range(node),
-      bindingsComplete: false,
-      bindings: new Map(),
-    };
-  }
   const scope: JavaScriptSemanticScopeState = {
     scopeId: semanticScopeId(kind, node),
     parentScopeId: parentScope.scopeId,
@@ -445,11 +433,6 @@ const addBinding = (input: AddBindingInput): void => {
   if (binding === undefined) {
     if (!scope.bindingsComplete) {
       state.omittedCount += 1;
-      return;
-    }
-    if (state.bindingsById.size >= state.limits.maxBindings) {
-      scope.bindingsComplete = false;
-      reachSemanticLimit(state, "maxBindings");
       return;
     }
     binding = createBinding(scope, name, kind, mutable);

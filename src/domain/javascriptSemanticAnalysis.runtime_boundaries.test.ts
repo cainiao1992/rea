@@ -85,7 +85,7 @@ describe("JavaScript semantic analysis: runtime boundaries 1", () => {
     expect(ir.timerOperations).toEqual([]);
   });
 
-  it("bounds every added semantic effect family independently", () => {
+  it("retains every added semantic effect family", () => {
     const ir = analyzeJavaScriptSemantics(
       `
         import { spawn } from "node:child_process";
@@ -99,31 +99,17 @@ describe("JavaScript semantic analysis: runtime boundaries 1", () => {
         JSON.parse(raw);
         open(path);
       `,
-      {
-        maxPromiseOperations: 0,
-        maxEventOperations: 0,
-        maxTimerOperations: 0,
-        maxChildProcessOperations: 0,
-        maxConfigurationOperations: 0,
-        maxRequestOperations: 0,
-        maxBoundaryOperations: 0,
-        maxResourceOperations: 0,
-        maxObjectOperations: 0,
-      },
     );
 
-    expect(ir.coverage.limitsReached).toEqual(
-      expect.arrayContaining([
-        "maxBoundaryOperations",
-        "maxChildProcessOperations",
-        "maxConfigurationOperations",
-        "maxEventOperations",
-        "maxPromiseOperations",
-        "maxRequestOperations",
-        "maxResourceOperations",
-        "maxTimerOperations",
-        "maxObjectOperations",
-      ]),
-    );
+    expect(ir.coverage.status).toBe("complete");
+    expect(ir.promiseOperations).toHaveLength(1);
+    expect(ir.eventOperations).toHaveLength(1);
+    expect(ir.timerOperations).toHaveLength(1);
+    expect(ir.childProcessSpawns).toHaveLength(1);
+    expect(ir.configurationOperations).toHaveLength(1);
+    expect(ir.requestOperations).toHaveLength(1);
+    expect(ir.boundaryOperations).toHaveLength(1);
+    expect(ir.resourceOperations).toHaveLength(1);
+    expect(ir.objectOperations.length).toBeGreaterThan(0);
   });
 });

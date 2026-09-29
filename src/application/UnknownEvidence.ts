@@ -19,7 +19,7 @@ export const unknownMutationEvidence = (
   input: RecordUnknownInput,
 ): Evidence =>
   createEvidence(target, UNKNOWN_REGISTRY_PROVIDER, {
-    predicateType: "rea.residual-unknown-mutation/v1",
+    predicateType: "rea.residual-unknown-mutation",
     operation: "record_unknown",
     parameters: { domain: input.domain, severity: input.severity },
     result: {

@@ -31,7 +31,7 @@ export interface LocatedJavaScriptFinding<Value> {
   readonly value: Value;
 }
 
-/** Mutable bounded collections used during one inert AST traversal. */
+/** Mutable collections used during one inert AST traversal. */
 export interface JavaScriptAnalysisAccumulator {
   readonly references: LocatedJavaScriptFinding<JavaScriptStaticReference>[];
   readonly endpoints: LocatedJavaScriptFinding<JavaScriptStaticEndpoint>[];
@@ -48,18 +48,14 @@ export interface JavaScriptAnalysisAccumulator {
   readonly modules: JavaScriptModuleRange[];
   readonly seen: Set<string>;
   visitedNodes: number;
-  droppedFindings: number;
-  moduleCount: number;
   unknownFindings: number;
-  structuralTruncation: boolean;
   truncated: boolean;
 }
 
-/** Shared source, accumulator, and finding bound for helper inspections. */
+/** Shared source and accumulator for helper inspections. */
 export interface JavaScriptFindingContext {
   readonly source: string;
   readonly accumulator: JavaScriptAnalysisAccumulator;
-  readonly maximum: number;
 }
 
 /** Candidate import, require, worker, or service-worker reference. */
@@ -87,7 +83,7 @@ export interface LocatedJavaScriptFindingInput<
   readonly value: Value;
 }
 
-/** Create isolated mutable state for one bounded source analysis. */
+/** Create isolated mutable state for one source analysis. */
 export const createJavaScriptAnalysisAccumulator =
   (): JavaScriptAnalysisAccumulator => ({
     references: [],
@@ -105,9 +101,6 @@ export const createJavaScriptAnalysisAccumulator =
     modules: [],
     seen: new Set(),
     visitedNodes: 0,
-    droppedFindings: 0,
-    moduleCount: 0,
     unknownFindings: 0,
-    structuralTruncation: false,
     truncated: false,
   });

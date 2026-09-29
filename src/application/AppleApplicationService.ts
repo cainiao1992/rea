@@ -19,7 +19,7 @@ export const projectAppleApplicationEvidence = (
     schema: appleApplicationProjectionInputSchema,
     project: projectAppleApplication,
     operation: OPERATION,
-    predicateType: "rea.apple-application-graph/v1",
+    predicateType: "rea.apple-application-graph",
     provider: APPLE_APPLICATION_PROVIDER,
     subjectFormat: () => "ipa",
     protocolError: "Apple application projection produced an invalid result",

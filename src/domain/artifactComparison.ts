@@ -67,7 +67,7 @@ const artifactChangeSchema = z.object({
     .string()
     .regex(/^art_[a-f0-9]{64}$/u)
     .nullable(),
-  evidence_links: z.array(evidenceIdSchema).min(2).max(200),
+  evidence_links: z.array(evidenceIdSchema).min(2),
 });
 
 /** Deterministic artifact comparison with every change returned inline. */

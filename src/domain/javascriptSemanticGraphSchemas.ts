@@ -194,11 +194,6 @@ const sourceRangeSchema = z
 const semanticPropertiesSchema = z
   .record(z.string().min(1).max(128), jsonValueSchema)
   .superRefine((properties, context) => {
-    if (Object.keys(properties).length > 64)
-      context.addIssue({
-        code: "custom",
-        message: "Semantic properties exceed 64 keys",
-      });
     if (
       !isJsonWithinLimits(properties, {
         maxDepth: 6,
@@ -313,7 +308,7 @@ const fingerprintComponentsSchema = z.strictObject({
 /** One bounded rename-resistant function fingerprint. */
 export const javaScriptSemanticFingerprintInputSchema = z.strictObject({
   function_node_id: semanticNodeIdSchema,
-  algorithm: z.literal("rea.javascript-semantic-function/v1"),
+  algorithm: z.literal("rea.javascript-semantic-function"),
   status: z.enum(["complete", "partial", "unavailable"]),
   components: fingerprintComponentsSchema,
   limitations: z.array(boundedTextSchema).max(100),
@@ -340,15 +335,13 @@ const graphCoverageSchema = z.strictObject({
   truncated: z.boolean(),
   omitted_nodes: z.number().int().min(0).nullable(),
   omitted_relations: z.number().int().min(0).nullable(),
-  limits: z
-    .array(
-      z.strictObject({
-        name: z.string().min(1).max(128),
-        value: z.number().int().min(0),
-        unit: z.enum(["items", "bytes", "milliseconds", "depth", "other"]),
-      }),
-    )
-    .max(32),
+  limits: z.array(
+    z.strictObject({
+      name: z.string().min(1).max(128),
+      value: z.number().int().min(0),
+      unit: z.enum(["items", "bytes", "milliseconds", "depth", "other"]),
+    }),
+  ),
   families: z.array(familyCoverageSchema).length(12),
 });
 
@@ -363,7 +356,7 @@ export const javaScriptSemanticGraphInputSchema = z.strictObject({
   fingerprints: z.array(javaScriptSemanticFingerprintSchema),
   unknowns: z.array(javaScriptSemanticUnknownSchema),
   coverage: graphCoverageSchema,
-  limitations: z.array(boundedTextSchema).max(1_000),
+  limitations: z.array(boundedTextSchema),
 });
 
 /** Stored JavaScript Semantic Relation Graph. */

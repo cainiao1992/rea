@@ -128,7 +128,6 @@ export const managedNativeVerificationResultSchema = z
     verification_id: z.string().regex(/^mnv_[a-f0-9]{64}$/u),
     algorithm: z.strictObject({
       name: z.literal("rea-managed-native-verification"),
-      version: z.literal(1),
       token_identity: z.literal("build-local"),
       token_to_address_mapping: z.literal("not-inferred"),
     }),

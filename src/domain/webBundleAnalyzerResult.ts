@@ -23,8 +23,6 @@ export const buildWebBundleAnalysis = (
     accumulator.parseFailures > 0 ||
     unavailable.length > 0 ||
     sourceMapIncomplete;
-  const truncated =
-    accumulator.astLimitReached || sourceMaps.status === "truncated";
   return webBundleAnalysisSchema.parse({
     capture: buildCaptureObservation(inspection, sourceScripts),
     observations: {
@@ -45,7 +43,6 @@ export const buildWebBundleAnalysis = (
       sourceMaps,
     }),
     completeness: buildCompleteness({
-      truncated,
       partial,
       parsedScripts: accumulator.parsedScripts,
       parseFailures: accumulator.parseFailures,
@@ -116,23 +113,16 @@ const buildUnknowns = (input: UnknownsInput): WebBundleAnalysis["unknowns"] => [
         {
           dimension: "source_maps" as const,
           reason:
-            input.sourceMaps.status === "truncated"
-              ? "Source-map evidence was truncated by provider safety limits"
-              : "One or more requested source maps were unavailable or incomplete",
-          affected_script_keys: [
-            ...new Set([
-              ...input.sourceMaps.items
-                .filter(({ status }) => status !== "included")
-                .map(({ script_key }) => script_key),
-              ...input.sourceMaps.dropped_script_keys,
-            ]),
-          ].sort(),
+            "One or more requested source maps were unavailable or incomplete",
+          affected_script_keys: input.sourceMaps.items
+            .filter(({ status }) => status !== "included")
+            .map(({ script_key }) => script_key)
+            .sort(),
         },
       ]),
 ];
 
 interface CompletenessInput {
-  readonly truncated: boolean;
   readonly partial: boolean;
   readonly parsedScripts: number;
   readonly parseFailures: number;
@@ -142,11 +132,7 @@ interface CompletenessInput {
 const buildCompleteness = (
   input: CompletenessInput,
 ): WebBundleAnalysis["completeness"] => ({
-  status: input.truncated
-    ? "truncated"
-    : input.partial
-      ? "partial"
-      : "complete_within_limits",
+  status: input.partial ? "partial" : "complete",
   parsed_scripts: input.parsedScripts,
   parse_failures: input.parseFailures,
   visited_ast_nodes: input.visitedNodes,

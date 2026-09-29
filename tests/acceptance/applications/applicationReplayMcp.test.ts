@@ -243,10 +243,10 @@ async function executeCharacterizationScenario(
   expect(session.exportEvidenceBundle().records).toEqual(
     expect.arrayContaining([
       expect.objectContaining({
-        predicate_type: "rea.javascript-export-transformation/v1",
+        predicate_type: "rea.javascript-export-transformation",
       }),
       expect.objectContaining({
-        predicate_type: "rea.runtime-characterization/v1",
+        predicate_type: "rea.runtime-characterization",
       }),
     ]),
   );

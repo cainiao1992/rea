@@ -115,7 +115,7 @@ export const planManagedRuntimeCorrelationEvidenceValidated = async (
         },
         MANAGED_WORKFLOW_PROVIDER,
         {
-          predicateType: "rea.managed-runtime-correlation-plan/v1",
+          predicateType: "rea.managed-runtime-correlation-plan",
           operation: OPERATION,
           parameters: {
             static_members_evidence_id: staticEvidence.evidence_id,

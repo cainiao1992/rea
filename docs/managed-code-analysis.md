@@ -106,23 +106,22 @@ EncBaseId because ECMA-335 metadata does not require those bit patterns.
 - exact raw bytes or bounded value digest;
 - raw CIL digest plus separately reported method-header, locals-token, and
   exception-region observations where available;
-- a deterministic v1 decoded-instruction-tuple digest for completely decoded
+- a deterministic decoded-instruction-tuple digest for completely decoded
   CIL, with the limitations below.
 
-### Shipped decoded-CIL fingerprint v1
+### Shipped decoded-CIL fingerprint
 
 `inspect_managed_members` exposes two method CIL hashes with different byte
 boundaries:
 
-| Field                  | Shipped v1 input                                                                                          | Excluded from the digest                                                                                                                                      |
+| Field                  | Input                                                                                                     | Excluded from the digest                                                                                                                                      |
 | ---------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `il_sha256`            | The exact `il_size` raw CIL bytes after the tiny or fat method header                                     | Method header, locals signature blob, alignment, and extra sections including exception clauses                                                               |
 | `normalized_il_sha256` | UTF-8 `JSON.stringify` output for the instruction-order array of `[opcode, operand_kind, operand]` tuples | Instruction offsets except projected scalar branch targets, switch targets, resolved metadata/string identities, method header, locals, and exception regions |
 
 The normalized field is available only when the entire CIL stream decodes with
 status `present`. A partial, malformed, absent, or over-limit body reports
-`null`. The tuple format is defined here and does not add a schema-version field
-to the member result.
+`null`. The tuple format is defined here.
 
 Tuple operands use these exact projections:
 
@@ -134,17 +133,17 @@ Tuple operands use these exact projections:
 - signed integer and variable operands: decimal strings; floating-point
   operands: JavaScript's `String` representation of the decoded IEEE value.
 
-Opcode names retain short/long forms and prefix opcodes. This makes v1 a
+Opcode names retain short/long forms and prefix opcodes. This makes the value a
 reproducible decoded-tuple fingerprint, not a canonical semantic CIL identity:
 it does not resolve tokens across MVIDs, does not commit full control flow or
 exception semantics, and does not replace the raw CIL digest. Cross-build
 comparison uses the value only as one unique-only structural tier and reports
-ambiguity when that evidence is insufficient. A future normalized-CIL v2 must
-have an explicit algorithm version, canonical token/literal identities,
+ambiguity when that evidence is insufficient. A future normalized-CIL
+commitment would need canonical token/literal identities,
 complete branch and switch targets, and explicit locals/exception semantics.
 
 For example, a decoded `nop; ret` body serializes exactly as
-`[["nop","none",null],["ret","none",null]]` and has v1 digest
+`[["nop","none",null],["ret","none",null]]` and has digest
 `5e5fad7741cb44bca3a4f045546b7449990da343f612f5f34c0ca30e9eee0636`.
 This vector specifies the tuple order, `null` handling, absence of whitespace,
 UTF-8 encoding, and lowercase hexadecimal output.
@@ -205,7 +204,7 @@ bounded set of observations needed to investigate a proposition:
 - exact strings, numeric constants, enum-like values, and serialization keys;
 - branch, switch, exception, loop, call, and field-flow shape;
 - construction and generic-instantiation sites;
-- raw CIL and decoded-tuple-v1 commitments, plus separate header, locals, and
+- raw CIL and decoded-tuple commitments, plus separate header, locals, and
   exception observations;
 - callers, callees, shared fields, and competing candidates; and
 - limitations from reflection, dynamic dispatch, generated code, protection,
@@ -218,12 +217,11 @@ turn that role into the method's durable identity.
 Cross-version matching is two-stage:
 
 1. Exact identity requires compatible artifact/module commitments and exact
-   raw CIL identity; v1 does not expose a standalone complete-method-body
-   digest.
-2. Structural identity compares normalized signatures, the limited v1
+   raw CIL identity; no standalone complete-method-body digest is exposed.
+2. Structural identity compares normalized signatures, the limited
    decoded-CIL tuple fingerprint, constants, and bounded shape context. It
    reports all candidates at the winning score and remains ambiguous when the
-   evidence does not distinguish them. The v1 digest does not itself remap
+   evidence does not distinguish them. The digest does not itself remap
    metadata tokens.
 
 Tokens are always remapped through observed structure. A caller cannot carry
@@ -374,8 +372,8 @@ manifest supplies those fields. It then pages each declared MethodDef token
 directly by row, so selected methods do not need to appear in the first member
 page of a large application. `il_length` remains accepted as a legacy alias for
 `il_size`; optional `il_sha256` locks the exact raw CIL bytes in addition to
-REA's member-result-v1 decoded-instruction-tuple digest. That normalized field
-has the v1 limits documented above and is not a complete semantic CIL identity.
+REA's decoded-instruction-tuple digest. That normalized field has the limits
+documented above and is not a complete semantic CIL identity.
 
 The optional `application_graph` block reuses those exact-build method
 commitments. For each referenced MethodDef token, the verifier builds a bounded
@@ -424,7 +422,7 @@ The managed-code track advances as reviewable pull requests:
 1. accepted evidence/provider boundary (this document and ADR);
 2. read-only artifact triage and exact identity (shipped);
 3. bounded metadata, signatures, method bodies, raw CIL hashes, and the limited
-   decoded-instruction-tuple fingerprint v1 (shipped; normalized-CIL v2
+   decoded-instruction-tuple fingerprint (shipped; complete normalized-CIL
    semantics remain planned);
 4. obfuscation-resistant slices and cross-version comparison (shipped for
    static member observations);

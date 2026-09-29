@@ -81,15 +81,12 @@ const createBundlerChunkNode = (
           bundler: registration.bundler,
           runtime: registration.runtime,
           chunk_keys: registration.chunk_keys,
-          omitted_chunk_keys: registration.omitted_chunk_keys,
           unknown_chunk_keys: registration.unknown_chunk_keys,
           runtime_require_name: registration.runtime_require_name,
           runtime_module_cache_status: registration.runtime_module_cache_status,
           entry_module_keys: registration.entry_module_keys,
-          omitted_entry_module_keys: registration.omitted_entry_module_keys,
           unknown_entry_module_keys: registration.unknown_entry_module_keys,
           async_chunk_keys: registration.async_chunk_keys,
-          omitted_async_chunk_keys: registration.omitted_async_chunk_keys,
           unknown_async_chunk_keys: registration.unknown_async_chunk_keys,
           module_count: registration.modules.length,
         },
@@ -140,7 +137,6 @@ const addBundlerModuleNodes = (
             structural_fingerprint_status:
               moduleValue.structural_fingerprint_status,
             exports: moduleValue.exports,
-            exports_truncated: moduleValue.exports_truncated,
           },
           evidence: astObservationEvidence({
             sha256: file.sha256,

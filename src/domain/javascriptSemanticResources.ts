@@ -11,7 +11,6 @@ import {
   type JavaScriptSemanticBindingState,
 } from "./javascriptSemanticState.js";
 import {
-  dataEffectLimitReached,
   outerDataEffectBinding,
   traverseDataEffects,
   type DataEffectTraversalContext,
@@ -63,7 +62,6 @@ const collectAcquisitions = (
     if (!t.isCallExpression(node) && !t.isOptionalCallExpression(node)) return;
     const method = acquisitionMethod(node.callee, context.state);
     if (method === null) return;
-    if (resourceLimitReached(output.length, context.state)) return;
     output.push({
       node,
       method,
@@ -105,10 +103,6 @@ const collectReleases = (
     const linked =
       binding === undefined ? [] : (byBinding.get(binding.bindingId) ?? []);
     if (linked.length === 0) return;
-    if (
-      resourceLimitReached(acquisitions.length + output.length, context.state)
-    )
-      return;
     output.push({
       resourceId: `resource:release:${String(node.start ?? -1)}:${String(node.end ?? -1)}`,
       kind: "release",
@@ -192,17 +186,6 @@ const resourceModule = (specifier: string): boolean =>
     "node:tls",
     "tls",
   ].includes(specifier);
-
-const resourceLimitReached = (
-  retained: number,
-  state: JavaScriptSemanticAnalysisState,
-): boolean =>
-  dataEffectLimitReached(
-    retained,
-    state.limits.maxResourceOperations,
-    "maxResourceOperations",
-    state,
-  );
 
 const resourceCandidateId = (candidate: ResourceCandidate): string =>
   `resource:acquire:${String(candidate.node.start ?? -1)}:${String(candidate.node.end ?? -1)}`;

@@ -8,31 +8,23 @@ import {
 } from "./javascriptSemanticAnalysis.fixture.js";
 
 describe("JavaScript semantic analysis: rejection 1", () => {
-  it("reports reference, module-link, depth, and object-property limits", () => {
-    const retained = analyzeJavaScriptSemantics(
-      `
-        const first = require("first");
-        const second = require("second");
-        first;
-        second;
-      `,
-      { maxModuleLinks: 1, maxReferences: 1 },
+  it("retains complete finite facts and reports the recursive depth guard", () => {
+    const names = Array.from(
+      { length: 280 },
+      (_, index) => `key${String(index)}`,
     );
-    expect(retained.moduleLinks).toHaveLength(1);
-    expect(retained.references).toHaveLength(1);
-    expect(retained.coverage.limitsReached).toEqual(
-      expect.arrayContaining(["maxModuleLinks", "maxReferences"]),
-    );
-
     const object = analyzeJavaScriptSemantics(
-      "const object = { first: 1, second: 2 };",
-      { maxObjectProperties: 1 },
+      `const first = require("first"); const second = require("second"); first; second; const object = { ${names.map((name, index) => `${name}: ${String(index)}`).join(", ")} };`,
     );
+    expect(object.moduleLinks).toHaveLength(2);
+    expect(object.references).toHaveLength(4);
     expect(topLevelBinding(object, "object").value).toMatchObject({
       status: "object",
-      unknownProperties: true,
+      unknownProperties: false,
+      properties: expect.arrayContaining([
+        expect.objectContaining({ name: "key279" }),
+      ]),
     });
-    expect(object.coverage.limitsReached).toContain("maxObjectProperties");
 
     const depth = analyzeJavaScriptSemantics(
       'const first = "value"; const second = first;',
@@ -104,15 +96,9 @@ describe("JavaScript semantic analysis: rejection 1", () => {
   });
 
   it.prop([fc.string({ maxLength: 512 })])(
-    "fails closed for arbitrary bounded source text",
+    "fails closed for arbitrary source text",
     (source) => {
-      const ir = analyzeJavaScriptSemantics(source, {
-        maxBindings: 64,
-        maxCallables: 64,
-        maxModuleLinks: 64,
-        maxReferences: 256,
-        maxScopes: 64,
-      });
+      const ir = analyzeJavaScriptSemantics(source);
 
       expect(ir.schema).toBe("JavaScriptSemanticIR");
       expect(["complete", "partial", "truncated", "failed"]).toContain(

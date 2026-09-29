@@ -156,7 +156,7 @@ const createManagedMemberComparisonEvidence = (
   result: z.infer<typeof managedMemberComparisonResultSchema>,
 ): Evidence =>
   createEvidence(undefined, MANAGED_WORKFLOW_PROVIDER, {
-    predicateType: "rea.managed-member-comparison/v1",
+    predicateType: "rea.managed-member-comparison",
     operation: "compare_managed_members",
     parameters: {
       left_evidence_id: parameters.left.evidence_id,

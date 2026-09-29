@@ -1,4 +1,5 @@
 import { projectPermissionFailure } from "./PermissionFailure.js";
+import { artifactExtractionPermissionRequest } from "./ArtifactExtractionDestination.js";
 import { parseConfig, type AppConfig } from "../config.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { EnhancedTools } from "./EnhancedTools.js";
@@ -118,23 +119,11 @@ const authorizeAnalysis = async (
   const requests = [];
   if (tool === "extract_artifact" && typeof arguments_.output_root === "string")
     requests.push({
-      capability: "artifact_extract" as const,
-      path: arguments_.output_root,
+      request: artifactExtractionPermissionRequest(),
       access: "write" as const,
     });
   for (const request of requests) {
-    const result = await authority.authorize(
-      {
-        capability: request.capability,
-        roots: [request.path],
-        executables: [],
-        environment_names: [],
-        network: "none",
-        mount: false,
-        operation_identity: `${tool}:${request.capability}:${request.path}`,
-      },
-      request.access,
-    );
+    const result = await authority.authorize(request.request, request.access);
     if (!result.ok) return err(projectPermissionFailure(result.error));
   }
   if (

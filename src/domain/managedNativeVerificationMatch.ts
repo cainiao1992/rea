@@ -344,7 +344,6 @@ export const buildVerificationResult = ({
   return {
     algorithm: {
       name: "rea-managed-native-verification" as const,
-      version: 1 as const,
       token_identity: "build-local" as const,
       token_to_address_mapping: "not-inferred" as const,
     },

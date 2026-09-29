@@ -17,7 +17,7 @@ const reconciliationEvidence = createEvidence(
     version: "1",
   },
   {
-    predicateType: "rea.javascript-runtime-reconciliation/v1",
+    predicateType: "rea.javascript-runtime-reconciliation",
     operation: "reconcile_javascript_runtime",
     parameters: {
       static_layers:

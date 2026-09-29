@@ -36,7 +36,7 @@ export const registerBundleComparisonTool = (
       if (!computed.ok) return toCallToolResult(computed, contract);
       const comparison = computed.value;
       const evidence = createEvidence(undefined, BUNDLE_COMPARISON_PROVIDER, {
-        predicateType: "rea.bundle-comparison/v1",
+        predicateType: "rea.bundle-comparison",
         operation: contract.name,
         parameters: {
           left_bundle_sha256: comparison.left_bundle_sha256,

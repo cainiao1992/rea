@@ -17,7 +17,7 @@ const completionClaim = ({
     ...new Set(targets.map(({ sha256: digest }) => digest)),
   ].sort();
   const evidence = createEvidence(targets[0], COMPLETION_PROVIDER, {
-    predicateType: "rea.verification/v1",
+    predicateType: "rea.verification",
     operation: "verify_managed_conformance",
     parameters: {
       scenario_id: scenarioId,

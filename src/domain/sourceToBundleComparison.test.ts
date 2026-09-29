@@ -6,10 +6,7 @@ import {
 } from "./javascriptApplicationGraph.js";
 import { createHistoricalSourceGraph } from "./referenceSourceGraph.js";
 import { compareSourceToBundle } from "./sourceToBundleComparison.js";
-import {
-  compareSourceToBundleInputSchema,
-  sourceToBundleComparisonResultSchema,
-} from "./sourceToBundleComparisonSchemas.js";
+import { sourceToBundleComparisonResultSchema } from "./sourceToBundleComparisonSchemas.js";
 import { artifactEvidence } from "./javascriptApplicationGraph.fixture.js";
 
 const HASH = {
@@ -148,10 +145,6 @@ describe("historical source to bundle comparison", () => {
       status: "complete-within-inputs",
       candidate_evaluations: 2,
     });
-  });
-
-  it("does not expose caller-selected comparison limits", () => {
-    expect(compareSourceToBundleInputSchema.shape).not.toHaveProperty("limits");
   });
 });
 

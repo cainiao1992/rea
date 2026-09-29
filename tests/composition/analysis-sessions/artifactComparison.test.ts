@@ -39,6 +39,26 @@ const observe = async (path: string) => {
   );
 };
 
+const evidencePages = (
+  inventory: Awaited<ReturnType<typeof observe>>,
+  side: string,
+) =>
+  Array.from({ length: 101 }, (_, index) =>
+    createEvidence(
+      {
+        path: `${side}-${String(index)}`,
+        sha256: inventory.subject?.digest.sha256 ?? "0".repeat(64),
+        format: inventory.subject?.format ?? "directory",
+      },
+      PROVIDER,
+      {
+        operation: "inventory_artifact",
+        parameters: { page: index, side },
+        result: jsonValueSchema.parse(inventory.normalized_result),
+      },
+    ),
+  );
+
 describe("artifact comparison", () => {
   it("classifies deterministic path changes and cites both inventories", async () => {
     const parent = await createTestTempDirectory("rea-artifact-compare-");
@@ -143,6 +163,28 @@ describe("artifact comparison", () => {
       changes: [],
     });
   }, 15_000);
+
+  it("retains every inventory citation when comparing many evidence pages", async () => {
+    const parent = await createTestTempDirectory(
+      "rea-artifact-pages-evidence-",
+    );
+    const leftPath = join(parent, "left.app");
+    const rightPath = join(parent, "right.app");
+    await Promise.all([mkdir(leftPath), mkdir(rightPath)]);
+    await Promise.all([
+      writeFile(join(leftPath, "main.js"), "left();"),
+      writeFile(join(rightPath, "main.js"), "right();"),
+    ]);
+
+    const leftInventory = await observe(leftPath);
+    const rightInventory = await observe(rightPath);
+    const comparison = compareArtifacts(
+      evidencePages(leftInventory, "left"),
+      evidencePages(rightInventory, "right"),
+    );
+
+    expect(comparison.changes[0]?.evidence_links).toHaveLength(202);
+  });
 
   it("rejects non-inventory and tampered Evidence", async () => {
     const root = await createTestTempDirectory("rea-artifact-invalid-");

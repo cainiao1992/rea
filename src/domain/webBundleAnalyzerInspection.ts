@@ -3,10 +3,7 @@ import * as t from "@babel/types";
 
 import { sanitizeEndpointCandidate } from "./browserObservation.js";
 import type { WebPageInspection } from "./browserObservation.js";
-import type {
-  AnalyzeWebBundleInput,
-  WebBundleAnalysis,
-} from "./webBundleAnalysis.js";
+import type { WebBundleAnalysis } from "./webBundleAnalysis.js";
 import {
   calleeName,
   endpointArgument,
@@ -40,12 +37,10 @@ export interface AnalysisAccumulator {
   visitedNodes: number;
   parsedScripts: number;
   parseFailures: number;
-  astLimitReached: boolean;
 }
 
 export const analyzeScript = (
   script: IncludedScript,
-  input: AnalyzeWebBundleInput,
   accumulator: AnalysisAccumulator,
 ): void => {
   let file: ReturnType<typeof parse>;
@@ -63,10 +58,6 @@ export const analyzeScript = (
   detectVendorFingerprints(script, accumulator);
   t.traverseFast(file, (node) => {
     accumulator.visitedNodes += 1;
-    if (accumulator.visitedNodes > input.analysis_limits.max_ast_nodes) {
-      accumulator.astLimitReached = true;
-      return t.traverseFast.stop;
-    }
     inspectNode(script, node, accumulator);
     return undefined;
   });
@@ -348,7 +339,6 @@ export const emptyAccumulator = (): AnalysisAccumulator => ({
   visitedNodes: 0,
   parsedScripts: 0,
   parseFailures: 0,
-  astLimitReached: false,
 });
 
 export const isIncludedScript = (

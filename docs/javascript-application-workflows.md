@@ -121,9 +121,10 @@ match. An export is linked to a callable only through exact lexical/module
 relationships recovered by the AST analysis.
 
 Direct return expressions, including expression-bodied arrows, are evaluated
-through a bounded execution-free value lattice. Literal object fields are
-static observations. Calls, dynamic spreads, computed keys, parser recovery,
-and exhausted value, property, or return-site limits remain partial or unknown.
+through an execution-free value lattice. Literal object fields and direct
+return sites are retained without count quotas. Calls, dynamic spreads,
+computed keys, parser recovery, and the value-recursion depth guard remain
+partial or unknown.
 Nested callable returns are not assigned to their parent callable. Projected
 graph observations carry source ranges but never source text.
 
@@ -176,3 +177,9 @@ Replay observations retain `controlled-replay` authority. They cannot
 promote static inference into passive runtime observation or prove that the
 original application, renderer, preload, main process, or remote service
 behaved identically.
+
+Module and explicit case lists have no fixed item-count ceiling. Planning checks
+the complete request against the committed worker-protocol byte limit before
+probing executables or reading modules; aggregate module-source and case-input
+bytes have their own limits. Preset-generated cases remain capped at 64 because
+REA expands that scalar request into case records before sandbox startup.

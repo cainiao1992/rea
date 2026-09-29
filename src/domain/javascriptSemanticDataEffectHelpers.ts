@@ -1,7 +1,6 @@
 import * as t from "@babel/types";
 
 import {
-  reachSemanticLimit,
   semanticCallableIdForNode,
   semanticStaticPropertyName,
 } from "./javascriptSemanticProjection.js";
@@ -206,19 +205,3 @@ export const containsSemanticNode = (outer: t.Node, inner: t.Node): boolean =>
   inner.end !== undefined &&
   outer.start <= inner.start &&
   outer.end >= inner.end;
-
-/** Record one bounded data-effect frontier. */
-export const dataEffectLimitReached = (
-  retained: number,
-  limit: number,
-  name:
-    | "maxConfigurationOperations"
-    | "maxRequestOperations"
-    | "maxBoundaryOperations"
-    | "maxResourceOperations",
-  state: JavaScriptSemanticAnalysisState,
-): boolean => {
-  if (retained < limit) return false;
-  reachSemanticLimit(state, name);
-  return true;
-};

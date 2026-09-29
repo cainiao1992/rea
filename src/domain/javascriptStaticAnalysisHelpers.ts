@@ -16,7 +16,6 @@ export const failedJavaScriptStaticAnalysis = (): JavaScriptStaticAnalysis => ({
   parse_status: "failed",
   parse_error_count: 1,
   visited_ast_nodes: 0,
-  dropped_findings: 0,
   references: [],
   endpoints: [],
   storage: [],
@@ -50,7 +49,7 @@ export const argumentNode = (
 ): t.Node | undefined =>
   argument !== null && t.isNode(argument) ? argument : undefined;
 
-/** Recognize the bounded runtime name for a Webpack/Rspack push call. */
+/** Recognize the runtime name for a Webpack/Rspack push call. */
 export const chunkRuntime = (call: t.CallExpression): string | undefined => {
   if (
     !t.isMemberExpression(call.callee) &&
@@ -64,11 +63,10 @@ export const chunkRuntime = (call: t.CallExpression): string | undefined => {
 const findChunkRuntime = (node: t.Node, depth: number): string | undefined => {
   if (depth >= 128) return undefined;
   if (t.isIdentifier(node) && /(?:webpack|rspack)Chunk/iu.test(node.name))
-    return node.name.slice(0, 4_096);
+    return node.name;
   if (t.isMemberExpression(node) || t.isOptionalMemberExpression(node)) {
     const property = propertyName(node.property);
-    if (/(?:webpack|rspack)Chunk/iu.test(property))
-      return property.slice(0, 4_096);
+    if (/(?:webpack|rspack)Chunk/iu.test(property)) return property;
     return t.isNode(node.object)
       ? findChunkRuntime(node.object, depth + 1)
       : undefined;
@@ -106,7 +104,7 @@ export const moduleFactory = (
   return undefined;
 };
 
-/** Derive a bounded literal or explicitly computed module key. */
+/** Derive a literal or explicitly computed module key. */
 export const modulePropertyName = (
   property: t.ObjectMethod | t.ObjectProperty | t.SpreadElement,
 ): string =>
@@ -115,7 +113,7 @@ export const modulePropertyName = (
       !t.isStringLiteral(property.key) &&
       !t.isNumericLiteral(property.key)
       ? `[computed@${String(property.start ?? -1)}]`
-      : propertyName(property.key).slice(0, 4_096) ||
+      : propertyName(property.key) ||
         `[unknown@${String(property.start ?? -1)}]`
     : `[unknown@${String(property.start ?? -1)}]`;
 
@@ -124,31 +122,28 @@ export const factoryRequireName = (
   factory: t.FunctionExpression | t.ArrowFunctionExpression | t.ObjectMethod,
 ): string | null => {
   const parameter = factory.params[2];
-  return t.isIdentifier(parameter) ? parameter.name.slice(0, 4_096) : null;
+  return t.isIdentifier(parameter) ? parameter.name : null;
 };
 
-/** Collect bounded unique literal values and explicit omissions from an array. */
+/** Collect all unique static literal values from an array. */
 export const staticArrayValues = (
   array: t.ArrayExpression,
-  maximum: number,
 ): {
   readonly values: readonly string[];
-  readonly omitted: number;
   readonly unknown: number;
 } => {
   const staticValues = array.elements.flatMap((element) => {
     const value = argumentValue(element);
-    return value === undefined ? [] : [value.slice(0, 4_096)];
+    return value === undefined ? [] : [value];
   });
   const values = [...new Set(staticValues)].sort(compareCodePoints);
   return {
-    values: values.slice(0, maximum),
-    omitted: Math.max(0, values.length - maximum),
+    values,
     unknown: array.elements.length - staticValues.length,
   };
 };
 
-/** Resolve a bounded path composed only from inert literal syntax. */
+/** Resolve a path composed only from inert literal syntax. */
 export const staticPath = (node: t.Node): string | undefined =>
   staticPathAt(node, 0);
 
@@ -162,17 +157,17 @@ export const staticPathResolutionContext = (
 
 const staticPathAt = (node: t.Node, depth: number): string | undefined => {
   if (depth >= 128) return undefined;
-  if (t.isStringLiteral(node)) return node.value.slice(0, 4_096);
+  if (t.isStringLiteral(node)) return node.value;
   if (t.isTemplateLiteral(node) && node.expressions.length === 0) {
     const value = node.quasis[0]?.value.cooked ?? node.quasis[0]?.value.raw;
-    return value?.slice(0, 4_096);
+    return value;
   }
   if (t.isBinaryExpression(node, { operator: "+" })) {
     const left = staticPathAt(node.left, depth + 1);
     const right = staticPathAt(node.right, depth + 1);
     return left === undefined || right === undefined
       ? undefined
-      : `${left}${right}`.slice(0, 4_096);
+      : `${left}${right}`;
   }
   if (t.isCallExpression(node) || t.isNewExpression(node))
     return staticCallPath(node, depth);
@@ -210,7 +205,7 @@ const staticCallPath = (
     if (value === undefined) return undefined;
     parts.push(value);
   }
-  return parts.length === 0 ? undefined : posix.join(...parts).slice(0, 4_096);
+  return parts.length === 0 ? undefined : posix.join(...parts);
 };
 
 const isFilesystemPathExpression = (node: t.Node, depth: number): boolean => {
@@ -310,43 +305,42 @@ export const storageKind = (
   return undefined;
 };
 
-/** Produce a dotted bounded callee name from member syntax. */
+/** Produce a dotted callee name from member syntax. */
 export const calleeName = (node: t.Node): string => calleeNameAt(node, 0);
 
 const calleeNameAt = (node: t.Node, depth: number): string => {
   if (depth >= 128) return "[deep]";
-  if (t.isIdentifier(node)) return node.name.slice(0, 4_096);
+  if (t.isIdentifier(node)) return node.name;
   if (t.isImport(node)) return "import";
   if (t.isMemberExpression(node) || t.isOptionalMemberExpression(node)) {
     const object = t.isNode(node.object)
       ? calleeNameAt(node.object, depth + 1)
       : "";
     const property = propertyName(node.property);
-    return (object === "" ? property : `${object}.${property}`).slice(0, 4_096);
+    return object === "" ? property : `${object}.${property}`;
   }
   return "";
 };
 
 /** Read a literal property name without evaluating computed syntax. */
 export const propertyName = (node: t.Node): string => {
-  if (t.isIdentifier(node)) return node.name.slice(0, 4_096);
+  if (t.isIdentifier(node)) return node.name;
   if (t.isStringLiteral(node) || t.isNumericLiteral(node))
-    return String(node.value).slice(0, 4_096);
+    return String(node.value);
   return "";
 };
 
 /** Return a string literal value without evaluating an expression. */
 export const stringValue = (
   node: t.Node | null | undefined,
-): string | undefined =>
-  t.isStringLiteral(node) ? node.value.slice(0, 4_096) : undefined;
+): string | undefined => (t.isStringLiteral(node) ? node.value : undefined);
 
 /** Return a string or numeric argument literal. */
 export const argumentValue = (
   node: t.Node | null | undefined,
 ): string | undefined => {
   if (t.isStringLiteral(node) || t.isNumericLiteral(node))
-    return String(node.value).slice(0, 4_096);
+    return String(node.value);
   return undefined;
 };
 
@@ -359,7 +353,7 @@ export const prefixedArgument = (
   return value === undefined ? undefined : `${prefix}${value}`;
 };
 
-/** Retain the exact bounded source span represented by an AST node. */
+/** Retain the exact source span represented by an AST node. */
 export const sourceSlice = (source: string, node: t.Node): string =>
   typeof node.start !== "number" || typeof node.end !== "number"
     ? ""
@@ -414,7 +408,7 @@ export const detectVendors = (source: string): string[] =>
 export const registrationKey = (
   registration: JavaScriptBundlerRegistration,
 ): string =>
-  `${registration.runtime}\0${registration.chunk_keys.join("\0")}\0${String(registration.omitted_chunk_keys)}\0${String(registration.unknown_chunk_keys)}\0${registration.modules.map(({ module_key: key, source_sha256: digest }) => `${key}:${digest}`).join("\0")}`;
+  `${registration.runtime}\0${registration.chunk_keys.join("\0")}\0${String(registration.unknown_chunk_keys)}\0${registration.modules.map(({ module_key: key, source_sha256: digest }) => `${key}:${digest}`).join("\0")}`;
 
 /** Sort values by a deterministic unique semantic key. */
 export const sortedUnique = <Value>(

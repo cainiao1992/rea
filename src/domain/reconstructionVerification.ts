@@ -52,13 +52,13 @@ const providers = {
   },
   "structural-function": {
     operation: "compare_functions",
-    predicates: ["rea.function-comparison/v1"],
+    predicates: ["rea.function-comparison"],
     id: "rea-function-comparison",
     name: "REA function comparison",
   },
   "structural-artifact": {
     operation: "compare_artifacts",
-    predicates: ["rea.artifact-comparison/v1"],
+    predicates: ["rea.artifact-comparison"],
     id: "rea-artifact-comparison",
     name: "REA artifact comparison",
   },
@@ -191,8 +191,8 @@ const validateSourceKinds = (
     claim.kind === "behavioral"
       ? ["capture_process_scenario", "rea.process-capture"]
       : claim.kind === "structural-function"
-        ? ["analyze_function", "rea.analysis/v2"]
-        : ["inventory_artifact", "rea.analysis/v2"];
+        ? ["analyze_function", "rea.analysis"]
+        : ["inventory_artifact", "rea.analysis"];
   if (
     sources.some(
       (source) =>

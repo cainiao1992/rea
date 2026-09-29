@@ -181,7 +181,7 @@ const fixtureGraph = (withUnknown = false): JavaScriptSemanticGraph => {
   );
   const fingerprint = createJavaScriptSemanticFingerprint({
     function_node_id: callable.node_id,
-    algorithm: "rea.javascript-semantic-function/v1",
+    algorithm: "rea.javascript-semantic-function",
     status: "complete",
     components: {
       parameter_arity: 0,

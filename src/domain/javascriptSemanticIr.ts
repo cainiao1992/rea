@@ -13,58 +13,12 @@ export type {
 
 /** Hard bounds for one execution-free JavaScript semantic analysis. */
 export interface JavaScriptSemanticLimits {
-  readonly maxScopes: number;
-  readonly maxBindings: number;
-  readonly maxCallables: number;
-  readonly maxReferences: number;
-  readonly maxModuleLinks: number;
-  readonly maxReturnSites: number;
-  readonly maxCallSites: number;
-  readonly maxCallArguments: number;
-  readonly maxArgumentFlows: number;
-  readonly maxCallReturnFlows: number;
-  readonly maxClosureCaptures: number;
-  readonly maxPromiseOperations: number;
-  readonly maxEventOperations: number;
-  readonly maxTimerOperations: number;
-  readonly maxChildProcessOperations: number;
-  readonly maxConfigurationOperations: number;
-  readonly maxRequestOperations: number;
-  readonly maxBoundaryOperations: number;
-  readonly maxResourceOperations: number;
-  readonly maxObjectOperations: number;
-  readonly maxFrontiers: number;
   readonly maxValueDepth: number;
-  readonly maxUnionValues: number;
-  readonly maxObjectProperties: number;
 }
 
-/** Conservative defaults for one source file. */
+/** Stack guard for recursive value and provenance recovery. */
 export const DEFAULT_JAVASCRIPT_SEMANTIC_LIMITS: JavaScriptSemanticLimits = {
-  maxScopes: 4_096,
-  maxBindings: 20_000,
-  maxCallables: 20_000,
-  maxReferences: 100_000,
-  maxModuleLinks: 20_000,
-  maxReturnSites: 20_000,
-  maxCallSites: 20_000,
-  maxCallArguments: 100_000,
-  maxArgumentFlows: 100_000,
-  maxCallReturnFlows: 100_000,
-  maxClosureCaptures: 100_000,
-  maxPromiseOperations: 100_000,
-  maxEventOperations: 100_000,
-  maxTimerOperations: 100_000,
-  maxChildProcessOperations: 100_000,
-  maxConfigurationOperations: 100_000,
-  maxRequestOperations: 100_000,
-  maxBoundaryOperations: 100_000,
-  maxResourceOperations: 100_000,
-  maxObjectOperations: 100_000,
-  maxFrontiers: 20_000,
   maxValueDepth: 16,
-  maxUnionValues: 32,
-  maxObjectProperties: 256,
 };
 
 /** One exact module origin followed through imports, requires, or aliases. */
@@ -211,7 +165,7 @@ export interface JavaScriptSemanticClosureCapture {
   readonly referenceLocation: JavaScriptSourceRange;
 }
 
-/** One bounded promise/task operation recovered from explicit syntax. */
+/** One promise/task operation recovered from explicit syntax. */
 export interface JavaScriptSemanticPromiseOperation {
   readonly promiseId: string;
   readonly kind:
@@ -293,7 +247,7 @@ export interface JavaScriptSemanticEventOperation {
   readonly resolution: "complete" | "partial" | "unresolved";
 }
 
-/** One bounded timer scheduling or cancellation candidate. */
+/** One timer scheduling or cancellation candidate. */
 export interface JavaScriptSemanticTimerOperation {
   readonly timerId: string;
   readonly kind: "schedule" | "cancel";

@@ -39,13 +39,13 @@ export const parseApplicationGraphEvidence = (
     return staticApplicationSource(evidence);
   if (
     evidence.operation === "reconcile_javascript_runtime" &&
-    evidence.predicate_type === "rea.javascript-runtime-reconciliation/v1" &&
+    evidence.predicate_type === "rea.javascript-runtime-reconciliation" &&
     providerMatches(evidence, JAVASCRIPT_RUNTIME_RECONCILIATION_PROVIDER)
   )
     return staticRuntimeSource(evidence);
   if (
     evidence.operation === "project_managed_application_graph" &&
-    evidence.predicate_type === "rea.managed-application-graph/v1" &&
+    evidence.predicate_type === "rea.managed-application-graph" &&
     providerMatches(evidence, MANAGED_WORKFLOW_PROVIDER)
   )
     return managedApplicationSource(evidence);

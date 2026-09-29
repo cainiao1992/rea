@@ -17,7 +17,7 @@ export const createApplicationFeatureTraceEvidence = (
   result: ApplicationFeatureTraceResult,
 ): Evidence =>
   createEvidence(undefined, JAVASCRIPT_APPLICATION_WORKFLOW_PROVIDER, {
-    predicateType: "rea.application-feature-trace/v1",
+    predicateType: "rea.application-feature-trace",
     operation: "trace_application_feature",
     parameters,
     result: jsonValueSchema.parse(result),
@@ -35,7 +35,7 @@ export const createJavaScriptSemanticTraceEvidence = (
   result: JavaScriptSemanticTraceResult,
 ): Evidence =>
   createEvidence(undefined, JAVASCRIPT_APPLICATION_WORKFLOW_PROVIDER, {
-    predicateType: "rea.javascript-semantic-trace/v1",
+    predicateType: "rea.javascript-semantic-trace",
     operation: "trace_javascript_semantics",
     parameters,
     result: jsonValueSchema.parse(result),
@@ -53,7 +53,7 @@ export const createApplicationVersionComparisonEvidence = (
   result: ApplicationVersionComparisonResult,
 ): Evidence =>
   createEvidence(undefined, JAVASCRIPT_APPLICATION_WORKFLOW_PROVIDER, {
-    predicateType: "rea.application-version-comparison/v1",
+    predicateType: "rea.application-version-comparison",
     operation: "compare_application_versions",
     parameters,
     result: jsonValueSchema.parse(result),
@@ -71,7 +71,7 @@ export const createSourceToBundleComparisonEvidence = (
   result: SourceToBundleComparisonResult,
 ): Evidence =>
   createEvidence(undefined, JAVASCRIPT_APPLICATION_WORKFLOW_PROVIDER, {
-    predicateType: "rea.source-to-bundle-comparison/v1",
+    predicateType: "rea.source-to-bundle-comparison",
     operation: "compare_source_to_bundle",
     parameters,
     result: jsonValueSchema.parse(result),
@@ -89,7 +89,7 @@ export const createJavaScriptExportShapeComparisonEvidence = (
   result: JavaScriptExportShapeComparisonResult,
 ): Evidence =>
   createEvidence(undefined, JAVASCRIPT_APPLICATION_WORKFLOW_PROVIDER, {
-    predicateType: "rea.javascript-export-shape-comparison/v1",
+    predicateType: "rea.javascript-export-shape-comparison",
     operation: "compare_javascript_export_shapes",
     parameters,
     result: jsonValueSchema.parse(result),

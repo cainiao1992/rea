@@ -156,21 +156,17 @@ describe("JavaScript semantic analysis: calls 2", () => {
     ]);
   });
 
-  it("bounds Promise recovery with an explicit frontier", () => {
+  it("retains every promise operation found in the finite source", () => {
     const ir = analyzeJavaScriptSemantics(
       `
         Promise.resolve(1);
         Promise.resolve(2);
         Promise.resolve(3);
       `,
-      { maxPromiseOperations: 1 },
     );
 
-    expect(ir.promiseOperations).toHaveLength(1);
-    expect(ir.coverage).toMatchObject({
-      status: "truncated",
-      limitsReached: ["maxPromiseOperations"],
-    });
+    expect(ir.promiseOperations).toHaveLength(3);
+    expect(ir.coverage.status).toBe("complete");
   });
 
   it("fingerprints formatting and local-name changes identically", () => {

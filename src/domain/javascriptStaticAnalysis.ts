@@ -52,7 +52,7 @@ export const analyzeParsedJavaScriptStaticSource = (
 ): JavaScriptStaticAnalysis => {
   const accumulator = createJavaScriptAnalysisAccumulator();
   traverseStaticSource(source, file, accumulator, limits);
-  addSourceMapDirectives(source, accumulator, limits.maxFindings);
+  addSourceMapDirectives(source, accumulator);
   return finalizeStaticAnalysis(source, file, accumulator, limits);
 };
 
@@ -95,12 +95,6 @@ const finalizeStaticAnalysis = (
     ...(accumulator.truncated
       ? ["AST analysis stopped at the configured node or time bound."]
       : []),
-    ...(accumulator.droppedFindings === 0
-      ? []
-      : ["Static findings were truncated at the configured finding bound."]),
-    ...(accumulator.structuralTruncation
-      ? ["Bundler metadata reached a per-record structural bound."]
-      : []),
     ...(accumulator.unknownFindings === 0
       ? []
       : [
@@ -109,15 +103,13 @@ const finalizeStaticAnalysis = (
     "JavaScript syntax was parsed as data and was never evaluated.",
   ];
   return {
-    parse_status:
-      accumulator.truncated || accumulator.droppedFindings > 0
-        ? "truncated"
-        : parserErrors > 0 || accumulator.unknownFindings > 0
-          ? "partial"
-          : "complete",
+    parse_status: accumulator.truncated
+      ? "truncated"
+      : parserErrors > 0 || accumulator.unknownFindings > 0
+        ? "partial"
+        : "complete",
     parse_error_count: parserErrors,
     visited_ast_nodes: Math.min(accumulator.visitedNodes, limits.maxAstNodes),
-    dropped_findings: accumulator.droppedFindings,
     references: finalizeLocatedFindings(
       accumulator.references,
       accumulator.modules,
@@ -170,7 +162,6 @@ const inspectNode = (
   const findings = {
     source,
     accumulator,
-    maximum: limits.maxFindings,
   };
   inspectElectronStaticNode(node, findings);
   if (t.isCallExpression(node)) {

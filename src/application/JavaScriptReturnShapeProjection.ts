@@ -47,7 +47,7 @@ export const projectJavaScriptExportReturnShapes = (input: {
     semanticOmitted === null ? null : semanticOmitted + projectionOmitted;
   const coverage = complete
     ? input.baseCoverage
-    : callable.returnCoverage.status === "truncated" || projectionOmitted > 0
+    : projectionOmitted > 0
       ? truncatedApplicationCoverage(limits, omitted)
       : partialApplicationCoverage(limits, omitted);
   const limitations = [

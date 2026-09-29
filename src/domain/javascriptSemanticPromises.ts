@@ -5,7 +5,6 @@ import type {
   JavaScriptSemanticPromiseOperation,
 } from "./javascriptSemanticIr.js";
 import {
-  reachSemanticLimit,
   semanticCallableIdForNode,
   semanticStaticPropertyName,
 } from "./javascriptSemanticProjection.js";
@@ -110,16 +109,13 @@ const collectCandidates = (
         callableStack.push(callableId);
       const details = promiseCandidateDetails(node, state);
       if (details !== null) {
-        if (output.length >= state.limits.maxPromiseOperations)
-          reachSemanticLimit(state, "maxPromiseOperations");
-        else
-          output.push({
-            node,
-            ...details,
-            promiseId: semanticPromiseId(details.kind, node),
-            ownerCallableId: callableStack.at(-1) ?? null,
-            ancestors: [...ancestors],
-          });
+        output.push({
+          node,
+          ...details,
+          promiseId: semanticPromiseId(details.kind, node),
+          ownerCallableId: callableStack.at(-1) ?? null,
+          ancestors: [...ancestors],
+        });
       }
       ancestors.push(node);
     },

@@ -10,7 +10,7 @@ export const resolveManagedEvidence = (
 ): Result<Evidence[], EvidenceIntegrityError> =>
   resolveSessionEvidenceIds(session, evidenceIds, {
     operation: "inspect_managed_members",
-    predicate: "rea.analysis/v2",
+    predicate: "rea.analysis",
   });
 
 export const resolveManagedArtifactEvidence = (
@@ -19,7 +19,7 @@ export const resolveManagedArtifactEvidence = (
 ): Result<Evidence[], EvidenceIntegrityError> =>
   resolveSessionEvidenceIds(session, [evidenceId], {
     operation: "inspect_managed_artifact",
-    predicate: "rea.analysis/v2",
+    predicate: "rea.analysis",
   });
 
 export const resolveManagedBoundaryEvidence = (
@@ -28,7 +28,7 @@ export const resolveManagedBoundaryEvidence = (
 ): Result<Evidence[], EvidenceIntegrityError> =>
   resolveSessionEvidenceIds(session, [evidenceId], {
     operation: "inspect_managed_native_boundaries",
-    predicate: "rea.analysis/v2",
+    predicate: "rea.analysis",
   });
 
 export const resolveNativeEvidence = (
@@ -44,7 +44,7 @@ export const resolveNativeEvidence = (
         : "inspect_macho or analyze_function";
     const resolved = resolveSessionEvidenceIds(session, [evidenceId], {
       operation: expectedOperation,
-      predicate: "rea.analysis/v2",
+      predicate: "rea.analysis",
     });
     if (!resolved.ok) return resolved;
     records.push(...resolved.value);

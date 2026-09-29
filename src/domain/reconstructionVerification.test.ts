@@ -34,7 +34,7 @@ const source = (
       predicateType:
         authority === "controlled-replay"
           ? "rea.process-capture"
-          : "rea.analysis/v2",
+          : "rea.analysis",
       operation:
         authority === "controlled-replay"
           ? "capture_process_scenario"
@@ -162,7 +162,7 @@ const artifactComparison = (
       version: "1",
     },
     {
-      predicateType: "rea.artifact-comparison/v1",
+      predicateType: "rea.artifact-comparison",
       operation: "compare_artifacts",
       parameters: {
         left_evidence_ids: [left.evidence_id],
@@ -370,7 +370,7 @@ describe("reconstruction verification integrity", () => {
         undefined,
         { id: "fixture", name: "Fixture", version: "1" },
         {
-          predicateType: "rea.residual-unknown-mutation/v1",
+          predicateType: "rea.residual-unknown-mutation",
           operation: "record_unknown",
           parameters: { index },
           result: { action: "record" },

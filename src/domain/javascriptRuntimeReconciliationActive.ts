@@ -55,7 +55,7 @@ const absolutePathSchema = z.string().min(1).max(16_384).refine(isAbsolute);
 const assertIdentity = (evidence: Evidence): void => {
   if (
     evidence.operation !== "capture_electron_scenario" ||
-    evidence.predicate_type !== "rea.electron-active-scenario/v1" ||
+    evidence.predicate_type !== "rea.electron-active-scenario" ||
     evidence.provider.id !== "rea-playwright-electron-active" ||
     evidence.provider.name !==
       "REA Playwright active Electron observation provider" ||

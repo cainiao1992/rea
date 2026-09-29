@@ -144,7 +144,7 @@ export const snapshotTarget = (
   architecture: target.architecture ?? null,
 });
 
-/** Build the immutable provider/profile binding used by snapshot v2. */
+/** Build the immutable provider/profile binding used by a cached snapshot. */
 export const snapshotBinding = (
   profile: AnalysisProfileCommitment,
 ): AnalysisSnapshotBinding =>

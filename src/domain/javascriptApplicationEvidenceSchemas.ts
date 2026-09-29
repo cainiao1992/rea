@@ -191,7 +191,7 @@ const applicationLimitSchema = z.strictObject({
 });
 
 /** Bounded collection coverage without treating omission as absence. */
-const coverageLimitsSchema = z.array(applicationLimitSchema).max(32);
+const coverageLimitsSchema = z.array(applicationLimitSchema);
 const omittedCountSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
 export const applicationCoverageSchema = z.union([
@@ -211,7 +211,7 @@ export const applicationCoverageSchema = z.union([
     status: z.literal("partial"),
     truncated: z.literal(true),
     omitted_count: z.union([omittedCountSchema.positive(), z.null()]),
-    limits: z.array(applicationLimitSchema).min(1).max(32),
+    limits: z.array(applicationLimitSchema).min(1),
   }),
   z.strictObject({
     status: z.enum(["unknown", "unavailable"]),

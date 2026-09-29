@@ -16,7 +16,7 @@ const sourceEvidence = (variant: string) =>
       version: "1",
     },
     {
-      predicateType: "rea.reconstruction-readiness-fixture/v1",
+      predicateType: "rea.reconstruction-readiness-fixture",
       operation: "run_reconstruction_readiness_fixture",
       parameters: { variant },
       result: { passed: true, variant },

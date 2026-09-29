@@ -22,7 +22,7 @@ const proofEvidence = (id: string) =>
     undefined,
     { id: `fixture-${id}`, name: "Fixture verifier", version: "1" },
     {
-      predicateType: "rea.fixture-verification/v1",
+      predicateType: "rea.fixture-verification",
       operation: "run_fixture_verifier",
       parameters: { id },
       result: { passed: true },
@@ -58,7 +58,7 @@ const boundProofEvidence = (
     undefined,
     { id: `proof-${id}`, name: "Reconstruction proof", version: "1" },
     {
-      predicateType: "rea.reconstruction-proof/v1",
+      predicateType: "rea.reconstruction-proof",
       operation: "verify_reconstruction_obligations",
       parameters: {},
       result: {
@@ -248,7 +248,7 @@ describe("reconstruction obligation ledger fail-closed behavior", () => {
       undefined,
       { id: "external", name: "External protocol observer", version: "1" },
       {
-        predicateType: "rea.protocol-observation/v1",
+        predicateType: "rea.protocol-observation",
         operation: "observe_protocol",
         parameters: {},
         result: { status: 200 },

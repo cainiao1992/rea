@@ -48,7 +48,7 @@ describe("JavaScript semantic analysis: dataflow 1", () => {
     ]);
   });
 
-  it("applies independent hard bounds to every new semantic fact family", () => {
+  it("retains all statically recovered call, flow, capture, and frontier facts", () => {
     const ir = analyzeJavaScriptSemantics(
       `
         const captured = 1;
@@ -58,35 +58,24 @@ describe("JavaScript semantic analysis: dataflow 1", () => {
         object[first];
         object[second];
       `,
-      {
-        maxCallSites: 1,
-        maxCallArguments: 1,
-        maxArgumentFlows: 0,
-        maxCallReturnFlows: 0,
-        maxClosureCaptures: 0,
-        maxFrontiers: 1,
-      },
     );
 
-    expect(ir.callSites).toHaveLength(1);
-    expect(ir.callSites[0]?.arguments).toEqual([
-      expect.objectContaining({ index: 0, spread: false }),
+    expect(ir.callSites).toHaveLength(2);
+    expect(ir.callSites.map(({ arguments: args }) => args)).toEqual([
+      [
+        expect.objectContaining({ index: 0, spread: false }),
+        expect.objectContaining({ index: 1, spread: false }),
+      ],
+      [
+        expect.objectContaining({ index: 0, spread: false }),
+        expect.objectContaining({ index: 1, spread: false }),
+      ],
     ]);
-    expect(ir.argumentFlows).toEqual([]);
-    expect(ir.callReturnFlows).toEqual([]);
-    expect(ir.closureCaptures).toEqual([]);
-    expect(ir.frontiers).toHaveLength(1);
-    expect(ir.coverage).toMatchObject({
-      status: "truncated",
-      limitsReached: expect.arrayContaining([
-        "maxCallSites",
-        "maxCallArguments",
-        "maxArgumentFlows",
-        "maxCallReturnFlows",
-        "maxClosureCaptures",
-        "maxFrontiers",
-      ]),
-    });
+    expect(ir.argumentFlows).toHaveLength(4);
+    expect(ir.callReturnFlows).toHaveLength(2);
+    expect(ir.closureCaptures).toHaveLength(1);
+    expect(ir.frontiers).toHaveLength(2);
+    expect(ir.coverage.status).toBe("complete");
   });
 
   it("recovers only direct return sites with literal and unknown object fields", () => {
@@ -137,7 +126,7 @@ describe("JavaScript semantic analysis: dataflow 1", () => {
 });
 
 describe("JavaScript semantic analysis: dataflow 2", () => {
-  it("retains partial property coverage, empty returns, and return limits", () => {
+  it("retains partial property coverage and empty returns", () => {
     const partial = analyzeJavaScriptSemantics(`
       const spread = () => ({ type: "spread", ...dynamic });
       const computed = () => ({ type: "computed", [key]: 1 });
@@ -163,24 +152,9 @@ describe("JavaScript semantic analysis: dataflow 2", () => {
       status: "unknown",
       reason: "Return has no value.",
     });
-
-    const limited = analyzeJavaScriptSemantics(
-      "function many(value) { if (value) return 1; return 2; }",
-      { maxReturnSites: 1 },
-    );
-    expect(onlyCallable(limited, "many")).toMatchObject({
-      returnSites: [{ value: { status: "literal", value: 1 } }],
-      returnCoverage: {
-        status: "truncated",
-        retainedCount: 1,
-        omittedCount: 1,
-        limitsReached: ["maxReturnSites"],
-      },
-    });
-    expect(limited.coverage.limitsReached).toContain("maxReturnSites");
   });
 
-  it("fails closed on assignment ambiguity, alias cycles, and lattice limits", () => {
+  it("fails closed on assignment ambiguity and alias cycles", () => {
     const ambiguous = analyzeJavaScriptSemantics(`
       let current = "first";
       current = "second";
@@ -196,20 +170,6 @@ describe("JavaScript semantic analysis: dataflow 2", () => {
     expect(topLevelBinding(ambiguous, "right").provenance).toMatchObject({
       status: "cycle",
     });
-
-    const limited = analyzeJavaScriptSemantics(
-      'const channel = enabled ? "one" : "two";',
-      { maxUnionValues: 1 },
-    );
-    expect(topLevelBinding(limited, "channel").value).toEqual({
-      status: "limit-reached",
-      reason: "maxUnionValues reached.",
-    });
-    expect(limited.coverage).toMatchObject({
-      status: "truncated",
-      limitsReached: ["maxUnionValues"],
-    });
-    expect(limited.coverage.omittedCount).toBeGreaterThan(0);
   });
 
   it("does not invent exact module paths for dynamic property access", () => {
@@ -234,7 +194,7 @@ describe("JavaScript semantic analysis: dataflow 2", () => {
     ).toEqual([]);
   });
 
-  it("bounds retained scopes and bindings without corrupting outer resolution", () => {
+  it("retains all scopes, bindings, and references without truncation", () => {
     const ir = analyzeJavaScriptSemantics(
       `
         const retained = "yes";
@@ -242,23 +202,22 @@ describe("JavaScript semantic analysis: dataflow 2", () => {
         retained;
         function nested(value) { return retained + value; }
       `,
-      { maxBindings: 1, maxCallables: 0, maxScopes: 1 },
     );
 
-    expect(ir.bindings.map(({ name }) => name)).toEqual(["retained"]);
-    expect(ir.callables).toEqual([]);
-    expect(ir.coverage.status).toBe("truncated");
-    expect(ir.coverage.limitsReached).toEqual(
-      expect.arrayContaining(["maxBindings", "maxCallables", "maxScopes"]),
+    expect(ir.bindings.map(({ name }) => name)).toEqual(
+      expect.arrayContaining(["retained", "omitted", "value"]),
     );
-    expect(ir.references.filter(({ name }) => name === "retained")).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          resolution: "resolved",
-          bindingId: topLevelBinding(ir, "retained").bindingId,
-        }),
-        expect.objectContaining({ resolution: "unknown", bindingId: null }),
-      ]),
-    );
+    expect(ir.callables.map(({ name }) => name)).toContain("nested");
+    expect(ir.coverage.status).toBe("complete");
+    expect(ir.references.filter(({ name }) => name === "retained")).toEqual([
+      expect.objectContaining({
+        resolution: "resolved",
+        bindingId: topLevelBinding(ir, "retained").bindingId,
+      }),
+      expect.objectContaining({
+        resolution: "resolved",
+        bindingId: topLevelBinding(ir, "retained").bindingId,
+      }),
+    ]);
   });
 });

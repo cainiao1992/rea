@@ -124,21 +124,13 @@ const analyzeArtifactFile = (
     parsed,
     {
       maxAstNodes: remainingNodes,
-      maxFindings: Number.MAX_SAFE_INTEGER,
-      maxModules: Number.MAX_SAFE_INTEGER,
       deadline: context.deadline,
       now: context.now,
     },
   );
   const staticFindings = findingCount(analysis);
-  const semanticLimits: JavaScriptSemanticLimits = {
-    ...DEFAULT_JAVASCRIPT_SEMANTIC_LIMITS,
-    maxScopes: remainingNodes,
-    maxBindings: remainingNodes,
-    maxCallables: remainingNodes,
-    maxReferences: remainingNodes,
-    maxModuleLinks: remainingNodes,
-  };
+  const semanticLimits: JavaScriptSemanticLimits =
+    DEFAULT_JAVASCRIPT_SEMANTIC_LIMITS;
   const semantics =
     analysis.parse_status === "complete" || analysis.parse_status === "partial"
       ? analyzeParsedJavaScriptSemantics(parsed, semanticLimits)
@@ -212,13 +204,13 @@ const parsePackage = (
     path: file.path,
     sha256: file.sha256,
     status: "included",
-    name: boundedString(value.name),
-    version: boundedString(value.version),
-    main: boundedString(value.main),
+    name: optionalString(value.name),
+    version: optionalString(value.version),
+    main: optionalString(value.main),
     renderer:
-      boundedString(value.renderer) ??
-      boundedString(value.browser) ??
-      boundedString(value.module),
+      optionalString(value.renderer) ??
+      optionalString(value.browser) ??
+      optionalString(value.module),
     limitation: null,
   };
 };
@@ -253,7 +245,7 @@ const parseHtmlScripts = (
   const baseHref = htmlBaseHref(text);
   const pattern = /<script\b[^>]*\bsrc\s*=\s*(["'])([^"']+)\1[^>]*>/giu;
   for (const match of text.matchAll(pattern)) {
-    const script = match[2]?.slice(0, 4_096);
+    const script = match[2];
     if (script === undefined) continue;
     const start = match.index;
     scripts.push({
@@ -268,7 +260,7 @@ const parseHtmlScripts = (
 
 const htmlBaseHref = (text: string): string | null => {
   const match = /<base\b[^>]*\bhref\s*=\s*(["'])([^"']+)\1[^>]*>/iu.exec(text);
-  return match?.[2]?.slice(0, 4_096) ?? null;
+  return match?.[2] ?? null;
 };
 
 const parseSourceMap = (
@@ -297,7 +289,7 @@ const parseSourceMap = (
       null,
       "Parse deadline elapsed during source-map decoding.",
     );
-  const maps = flattenSourceMaps(value, 10_000);
+  const maps = flattenSourceMaps(value);
   if (maps === undefined)
     return invalidSourceMap(file, "Source map is not a bounded version 3 map.");
   return collectSourceMapOriginals(file, maps, context);
@@ -372,7 +364,6 @@ const unavailableSourceMap = (
 
 const flattenSourceMaps = (
   root: unknown,
-  maximum: number,
 ): Readonly<Record<string, unknown>>[] | undefined => {
   if (!isRecord(root) || root.version !== 3) return undefined;
   const maps: Readonly<Record<string, unknown>>[] = [];
@@ -381,8 +372,6 @@ const flattenSourceMaps = (
     const map = pending.pop();
     if (map === undefined || map.version !== 3) return undefined;
     if (Array.isArray(map.sections)) {
-      if (pending.length + maps.length + map.sections.length > maximum)
-        return undefined;
       for (const section of map.sections) {
         if (!isRecord(section) || !isRecord(section.map)) return undefined;
         pending.push(section.map);
@@ -454,8 +443,8 @@ const resolveSourceName = (root: string, source: string): string =>
     4_096,
   );
 
-const boundedString = (value: unknown): string | null =>
-  typeof value === "string" && value.length > 0 ? value.slice(0, 4_096) : null;
+const optionalString = (value: unknown): string | null =>
+  typeof value === "string" && value.length > 0 ? value : null;
 
 const sha256 = (value: string): string =>
   createHash("sha256").update(value).digest("hex");

@@ -281,13 +281,13 @@ export const projectSemanticFrontiers = (
   }
 };
 
-/** Publish exact semantic analyzer limits reached by any admitted source file. */
+/** Publish the semantic recursion guard when it caused incomplete recovery. */
 export const semanticRecoveryLimits = (
   analysis: JavaScriptArtifactAnalysis,
 ): {
   readonly name: string;
   readonly value: number;
-  readonly unit: "items";
+  readonly unit: "depth";
 }[] => {
   const limits = new Map<string, number>();
   for (const { semantic } of analysis.files) {
@@ -297,5 +297,5 @@ export const semanticRecoveryLimits = (
   }
   return [...limits]
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([name, value]) => ({ name, value, unit: "items" }));
+    .map(([name, value]) => ({ name, value, unit: "depth" }));
 };

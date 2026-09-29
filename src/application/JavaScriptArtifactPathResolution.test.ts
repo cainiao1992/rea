@@ -250,8 +250,6 @@ describe("contextual JavaScript module identity", () => {
       `,
       {
         maxAstNodes: 10_000,
-        maxFindings: 100,
-        maxModules: 100,
         deadline: Number.POSITIVE_INFINITY,
         now: () => 0,
       },

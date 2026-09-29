@@ -173,10 +173,10 @@ it("connects caller results, direct returns, parameters, and captures", () => {
   expect(capture?.evidence.location).not.toEqual(readOuter.evidence.location);
 });
 
-it("preserves semantic analyzer truncation in graph coverage", () => {
+it("preserves the semantic value-depth guard in graph coverage", () => {
   const graph = graphFor(
     "const first = 1; const second = first; const third = second;",
-    { maxReferences: 1 },
+    { maxValueDepth: 1 },
   );
   expect(graph.coverage).toMatchObject({
     status: "partial",
@@ -184,7 +184,7 @@ it("preserves semantic analyzer truncation in graph coverage", () => {
     omitted_nodes: null,
     omitted_relations: null,
     limits: expect.arrayContaining([
-      { name: "semantic.maxReferences", value: 1, unit: "items" },
+      { name: "semantic.maxValueDepth", value: 1, unit: "depth" },
     ]),
   });
   expect(

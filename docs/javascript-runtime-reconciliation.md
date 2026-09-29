@@ -11,7 +11,7 @@ The operation performs no filesystem, browser, or Electron I/O. It accepts only
 semantically verified Evidence produced by `analyze_javascript_application`,
 `inspect_web_page`, `inspect_electron_page`, or
 `observe_javascript_runtime`; matching operation names alone
-is insufficient. Provider identity, predicate version, subject digest, target
+is insufficient. Provider identity, predicate type, subject digest, target
 parameters, and normalized-result schemas are checked before reconciliation.
 
 ## Workflow

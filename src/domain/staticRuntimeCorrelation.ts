@@ -145,12 +145,12 @@ type ComparisonIdentity = readonly [string | readonly string[], string, string];
 
 const EXPECTED: Readonly<Record<string, ComparisonIdentity>> = {
   compare_artifacts: [
-    "rea.artifact-comparison/v1",
+    "rea.artifact-comparison",
     "rea-artifact-comparison",
     "REA artifact comparison",
   ],
   compare_functions: [
-    "rea.function-comparison/v1",
+    "rea.function-comparison",
     "rea-function-comparison",
     "REA function comparison",
   ],

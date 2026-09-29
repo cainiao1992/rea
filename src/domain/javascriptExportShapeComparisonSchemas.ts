@@ -84,7 +84,7 @@ const projectedReturnFieldSchema = z.discriminatedUnion("state", [
   z.strictObject({
     ...projectedReturnFieldShape,
     state: z.literal("union"),
-    value: z.array(semanticPrimitiveSchema).min(1).max(32),
+    value: z.array(semanticPrimitiveSchema).min(1),
     reason: z.null(),
   }),
   z.strictObject({
@@ -125,8 +125,8 @@ const projectedReturnShapeSchema = z
       "cycle",
       "limit-reached",
     ]),
-    fields: z.array(projectedReturnFieldSchema).max(64),
-    property_coverage: z.array(projectedPropertyCoverageSchema).max(64),
+    fields: z.array(projectedReturnFieldSchema),
+    property_coverage: z.array(projectedPropertyCoverageSchema),
   })
   .superRefine((shape, context) => {
     const fieldPaths = shape.fields.map(({ path }) => path);
@@ -153,10 +153,10 @@ export const projectedExportReturnShapesSchema = z
     exported_name: selectorTextSchema,
     callable_id: boundedTextSchema,
     callable_kind: z.enum(["function", "class", "method"]),
-    static_return_shapes: z.array(projectedReturnShapeSchema).max(32),
+    static_return_shapes: z.array(projectedReturnShapeSchema),
     return_shape_coverage: z.strictObject({
       status: z.enum(["complete", "partial", "truncated"]),
-      retained_return_sites: z.number().int().min(0).max(32),
+      retained_return_sites: z.number().int().min(0),
       omitted_return_sites: z.number().int().min(0).nullable(),
       omitted_fields: z.number().int().min(0),
       omitted_property_coverage: z.number().int().min(0),
@@ -188,7 +188,7 @@ const selectorResultShape = {
   graph_id: graphIdSchema,
   requested_module_path: selectorTextSchema,
   requested_export_name: selectorTextSchema,
-  candidates: z.array(exportCandidateSchema).max(1_000),
+  candidates: z.array(exportCandidateSchema),
   omitted_candidates: z.number().int().min(0),
 };
 const selectorResultSchema = z.union([
@@ -217,7 +217,7 @@ const valueAvailabilitySchema = z.discriminatedUnion("availability", [
   }),
   z.strictObject({
     availability: z.literal("union"),
-    values: z.array(semanticPrimitiveSchema).min(1).max(32),
+    values: z.array(semanticPrimitiveSchema).min(1),
   }),
   z.strictObject({
     availability: z.literal("unknown"),
@@ -240,7 +240,7 @@ const comparisonChangeSchema = z.strictObject({
   left_source_range: sourceRangeSchema.nullable(),
   right_source_range: sourceRangeSchema.nullable(),
   evidence_links: z.array(evidenceIdSchema).length(2),
-  limitations: z.array(boundedTextSchema).max(20),
+  limitations: z.array(boundedTextSchema),
 });
 
 /** Bounded static export-return comparison with explicit unknown semantics. */
@@ -254,7 +254,7 @@ export const javaScriptExportShapeComparisonResultSchema = z.strictObject({
     changed: z.number().int().min(0),
     unknown: z.number().int().min(0),
   }),
-  changes: z.array(comparisonChangeSchema).max(10_000),
+  changes: z.array(comparisonChangeSchema),
   coverage: z.strictObject({
     status: z.enum(["complete-within-inputs", "partial", "truncated"]),
     left_graph_status: z.enum([
@@ -284,7 +284,7 @@ export const javaScriptExportShapeComparisonResultSchema = z.strictObject({
     omitted_changes: z.number().int().min(0),
   }),
   evidence_links: z.array(evidenceIdSchema).length(2),
-  limitations: z.array(boundedTextSchema).max(1_000),
+  limitations: z.array(boundedTextSchema),
   runtime_validation: z.strictObject({
     recommended_tool: z.literal("run_controlled_replay"),
     automatically_started: z.literal(false),

@@ -187,7 +187,7 @@ const parseRuntimeCapture = (input: Evidence): ParsedRuntimeCapture => {
   if (evidence.operation === "inspect_web_page") {
     assertEvidenceIdentity(evidence, {
       operation: "inspect_web_page",
-      predicate: "rea.web-page-inspection/v2",
+      predicate: "rea.web-page-inspection",
       providerId: "rea-cdp-browser",
       providerName: "REA Chrome DevTools Protocol observation provider",
       providerVersion: "2",
@@ -216,7 +216,7 @@ const parseRuntimeCapture = (input: Evidence): ParsedRuntimeCapture => {
   if (evidence.operation === "inspect_electron_page") {
     assertEvidenceIdentity(evidence, {
       operation: "inspect_electron_page",
-      predicate: "rea.electron-page-inspection/v1",
+      predicate: "rea.electron-page-inspection",
       providerId: "rea-cdp-electron",
       providerName: "REA Electron file-page CDP observation provider",
       providerVersion: "1",
@@ -244,7 +244,7 @@ const parseRuntimeCapture = (input: Evidence): ParsedRuntimeCapture => {
   if (evidence.operation === "observe_javascript_runtime") {
     assertEvidenceIdentity(evidence, {
       operation: "observe_javascript_runtime",
-      predicate: "rea.javascript-runtime-observation/v1",
+      predicate: "rea.javascript-runtime-observation",
       providerId: "rea-v8-inspector",
       providerName: "REA passive Node/Electron V8 Inspector provider",
       providerVersion: "1",

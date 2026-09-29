@@ -75,7 +75,7 @@ describe("application workflow MCP parity", () => {
         expect.arrayContaining([
           expect.objectContaining({
             operation: "compare_javascript_export_shapes",
-            predicate_type: "rea.javascript-export-shape-comparison/v1",
+            predicate_type: "rea.javascript-export-shape-comparison",
           }),
         ]),
       );

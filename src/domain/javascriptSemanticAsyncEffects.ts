@@ -6,7 +6,6 @@ import type {
   JavaScriptSemanticTimerOperation,
 } from "./javascriptSemanticIr.js";
 import {
-  reachSemanticLimit,
   semanticCallableIdForNode,
   semanticStaticPropertyName,
 } from "./javascriptSemanticProjection.js";
@@ -116,10 +115,6 @@ const collectEvent = (
   );
   if (method === undefined) return;
   const kind = eventKind(method);
-  if (output.length >= state.limits.maxEventOperations) {
-    reachSemanticLimit(state, "maxEventOperations");
-    return;
-  }
   const eventArgument = node.arguments[0];
   const listenerArgument = node.arguments[1];
   const emitter = emitterIdentity(member.object, state);
@@ -191,10 +186,6 @@ const collectTimer = (input: TimerCollectionInput): void => {
   const { node, parent, ownerCallableId, state, output } = input;
   const method = timerMethod(node.callee, state);
   if (method === null) return;
-  if (output.length >= state.limits.maxTimerOperations) {
-    reachSemanticLimit(state, "maxTimerOperations");
-    return;
-  }
   const kind = TIMER_SCHEDULE_METHODS.some((candidate) => candidate === method)
     ? "schedule"
     : "cancel";

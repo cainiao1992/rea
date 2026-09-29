@@ -8,10 +8,9 @@ export interface AstFingerprint {
   readonly truncated: boolean;
 }
 
-/** Bounded static CommonJS export names. */
+/** Static CommonJS export names. */
 export interface StaticExports {
   readonly values: readonly string[];
-  readonly truncated: boolean;
 }
 
 /** Derive a rename-resistant, bounded syntax fingerprint without code execution. */
@@ -41,31 +40,16 @@ export const fingerprintJavaScriptAst = (
 };
 
 /** Collect statically declared CommonJS/bundler export names from one factory. */
-export const collectJavaScriptExports = (
-  node: t.Node,
-  maximumExports: number,
-): StaticExports => {
+export const collectJavaScriptExports = (node: t.Node): StaticExports => {
   const exports = new Set<string>();
-  let truncated = false;
   t.traverseFast(node, (current) => {
-    if (exports.size >= maximumExports) {
-      truncated = true;
-      return t.traverseFast.stop;
-    }
     if (t.isAssignmentExpression(current))
-      collectAssignmentExports(
-        current.left,
-        current.right,
-        exports,
-        maximumExports,
-      );
-    if (t.isCallExpression(current))
-      collectCallExports(current, exports, maximumExports);
+      collectAssignmentExports(current.left, current.right, exports);
+    if (t.isCallExpression(current)) collectCallExports(current, exports);
     return undefined;
   });
   return {
     values: [...exports].sort(compareCodePoints),
-    truncated,
   };
 };
 
@@ -97,31 +81,29 @@ const collectAssignmentExports = (
   left: t.LVal | t.OptionalMemberExpression,
   right: t.Expression,
   output: Set<string>,
-  maximum: number,
 ): void => {
   const path = memberPath(left);
   if (path === "exports" || path === "module.exports") {
-    if (t.isObjectExpression(right)) collectObjectKeys(right, output, maximum);
-    else addExport(output, "default", maximum);
+    if (t.isObjectExpression(right)) collectObjectKeys(right, output);
+    else addExport(output, "default");
     return;
   }
   if (path.startsWith("exports."))
-    addExport(output, path.slice("exports.".length), maximum);
+    addExport(output, path.slice("exports.".length));
   if (path.startsWith("module.exports."))
-    addExport(output, path.slice("module.exports.".length), maximum);
+    addExport(output, path.slice("module.exports.".length));
 };
 
 const collectCallExports = (
   call: t.CallExpression,
   output: Set<string>,
-  maximum: number,
 ): void => {
   const callee = memberPath(call.callee);
   if (callee === "Object.defineProperty") {
     const target = memberPath(call.arguments[0]);
     const name = stringValue(call.arguments[1]);
     if ((target === "exports" || target === "module.exports") && name)
-      addExport(output, name, maximum);
+      addExport(output, name);
   }
   if (!callee.endsWith(".d")) return;
   const target = memberPath(call.arguments[0]);
@@ -130,28 +112,22 @@ const collectCallExports = (
     (target === "exports" || target === "module.exports") &&
     t.isObjectExpression(declarations)
   )
-    collectObjectKeys(declarations, output, maximum);
+    collectObjectKeys(declarations, output);
 };
 
 const collectObjectKeys = (
   object: t.ObjectExpression,
   output: Set<string>,
-  maximum: number,
 ): void => {
   for (const property of object.properties) {
-    if (output.size >= maximum) return;
     if (!t.isObjectProperty(property) && !t.isObjectMethod(property)) continue;
     const name = propertyName(property.key);
-    if (name !== "") addExport(output, name, maximum);
+    if (name !== "") addExport(output, name);
   }
 };
 
-const addExport = (
-  output: Set<string>,
-  name: string,
-  maximum: number,
-): void => {
-  if (output.size < maximum) output.add(name.slice(0, 4_096));
+const addExport = (output: Set<string>, name: string): void => {
+  output.add(name);
 };
 
 const memberPath = (node: t.Node | null | undefined, depth = 0): string => {

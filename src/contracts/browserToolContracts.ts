@@ -138,7 +138,7 @@ export const BROWSER_TOOL_CONTRACTS = [
     name: "inspect_web_page",
     ...toolContractMetadata("inspect_web_page"),
     description:
-      "Passively inspect one approved page target through CDP without evaluating JavaScript, navigating, clicking, closing, or mutating the page. Returns bounded DOM structure, accessibility, scripts, resources, attach-window network and console metadata, workers, and redacted storage inventory as Evidence.",
+      "Passively inspect one approved page target through CDP without evaluating JavaScript, navigating, clicking, closing, or mutating the page. Returns DOM structure, accessibility, scripts, resources, attach-window network and console metadata, workers, and redacted storage inventory as Evidence.",
     kind: "browser-provider",
     inputSchema: inspectWebPageToolInputSchema,
     outputSchema: inspectionOutputSchema,
@@ -157,7 +157,7 @@ export const BROWSER_TOOL_CONTRACTS = [
     name: "analyze_web_bundle",
     ...toolContractMetadata("analyze_web_bundle"),
     description:
-      "Capture JavaScript source from one configured CDP page and statically derive a bounded chunk graph, route and endpoint candidates, vendor fingerprints, page-declared WebMCP metadata, and optionally fetch source maps from allowed origins. JavaScript is parsed but never executed.",
+      "Capture JavaScript source from one configured CDP page and statically derive a chunk graph, route and endpoint candidates, vendor fingerprints, page-declared WebMCP metadata, and optionally fetch source maps from allowed origins. JavaScript is parsed but never executed.",
     kind: "browser-provider",
     inputSchema: analyzeWebBundleToolInputSchema,
     outputSchema: bundleOutputSchema,

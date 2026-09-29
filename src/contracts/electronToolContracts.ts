@@ -115,7 +115,7 @@ export const ELECTRON_TOOL_CONTRACTS = [
     name: "capture_electron_scenario",
     ...toolContractMetadata("capture_electron_scenario"),
     description:
-      "Use this for an explicitly approved, provider-owned Electron run when passive CDP or Inspector observation cannot exercise application behavior. REA owns startup and teardown, accepts bounded click/wait actions plus window-targeted renderer reload/crash and synthetic open-url/second-instance delivery, and returns correlated window/WebContents/process/preload/session/navigation/shell/IPC evidence without retaining payload values. Results identify observed and unavailable event families, coverage status, action targets, and truncation. External shell, navigation, permission, download, popup, updater, and OS-integration effects are blocked and recorded. Use passive Electron tools for observation-only work.",
+      "Use this for an explicitly approved, provider-owned Electron run when passive CDP or Inspector observation cannot exercise application behavior. REA owns startup and teardown, accepts caller-defined click/wait actions plus window-targeted renderer reload/crash and synthetic open-url/second-instance delivery, and returns correlated window/WebContents/process/preload/session/navigation/shell/IPC evidence without retaining payload values. Results identify observed and unavailable event families, coverage status, action targets, and truncation. External shell, navigation, permission, download, popup, updater, and OS-integration effects are blocked and recorded. Use passive Electron tools for observation-only work.",
     kind: "electron-provider",
     inputSchema: electronActiveObservationInputSchema,
     outputSchema: evidenceResultOf(electronActiveObservationResultSchema),

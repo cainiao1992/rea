@@ -208,7 +208,7 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "procedure_info",
-    "Return bounded metadata for one procedure identified by symbol or address: entrypoint, signature, locals, size, and block count. Follow with decompilation or assembly for behavior.",
+    "Return provider metadata for one procedure identified by symbol or address: entrypoint, signature, locals, size, and block count. Follow with decompilation or assembly for behavior.",
     z.object({ procedure, document }),
   ),
   official(
@@ -255,7 +255,7 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "set_addresses_names",
-    "Assign analyst names to an address/name map and return per-address success booleans. This mutates analysis metadata; use for bounded batches and verify failures individually.",
+    "Assign analyst names to multiple addresses in one call and return per-address success booleans. This mutates analysis metadata; verify failures individually.",
     z.object({ names: z.record(z.string(), z.string()), document }),
   ),
   official(
@@ -322,7 +322,7 @@ export const ENHANCED_TOOL_CONTRACTS = [
   ),
   enhanced(
     "find_xrefs_to_name",
-    "Resolve an exact name through the bound provider's exhaustively paged name inventory and return a resolved or unresolved result. Unresolved names use the stable name_not_found reason; this compact xref workflow returns address-only projections.",
+    "Resolve an exact name against the bound provider's name inventory and return a resolved or unresolved result. Unresolved names use the stable name_not_found reason; this xref workflow returns address-only projections.",
     enhancedInputSchemas.find_xrefs_to_name,
   ),
   enhanced(

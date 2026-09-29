@@ -64,7 +64,7 @@ export const NATIVE_TOOL_CONTRACTS = [
   ),
   native(
     "demangle_swift",
-    "Demangle an ordered bounded batch of Swift symbols without requiring Hopper. Each input returns demangled, unchanged, or invalid status.",
+    "Demangle an ordered list of Swift symbols without requiring Hopper. Each input returns demangled, unchanged, or invalid status.",
     z.object({
       symbols: z.array(z.string().min(1)).min(1),
     }),

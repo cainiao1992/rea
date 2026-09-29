@@ -22,7 +22,8 @@ const PROPERTY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   executable: "Approved absolute path of the executable to run.",
   format: "Declared input artifact format.",
   name: "Exact name used by this operation.",
-  pattern: "Text or bounded pattern used to filter matching results.",
+  pattern:
+    "Literal text or regular expression used to filter matching results.",
   phase: "Current plan or execution phase of the operation.",
   plan: "Content-bound execution plan and its approval commitment.",
   query: "Non-empty feature or text query to investigate.",
@@ -41,7 +42,7 @@ const PROPERTY_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "Evidence records supporting the prepared source transformation.",
   status: "Current lifecycle or verification status.",
   summary: "Concise evidence-backed summary of the result.",
-  symbols: "Ordered bounded Swift symbols to demangle.",
+  symbols: "Ordered Swift symbols to demangle.",
   target_id: "Exact authorized CDP target identifier.",
   unknown_id: "Exact residual-unknown identifier.",
 };

@@ -115,6 +115,13 @@ redacted from recorded text. The command-shim directory is placed first in the
 captured process `PATH`; any remaining `PATH` must be explicitly supplied or
 inherited under operator policy.
 
+Scenario arguments, environment names, timed interactions, shim routes and
+output chunks, filesystem checkpoints, and static HTTP/WebSocket scripts are
+accepted without fixed item-count ceilings. The run still obeys its timeout
+and the configured output, frame, process, filesystem, protocol-event,
+body-byte, and connection budgets; each filesystem checkpoint uses those same
+bounded snapshot limits.
+
 ## Reactive process scenarios
 
 Set `reactive` to a process reactive scenario declaration when interaction

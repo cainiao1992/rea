@@ -119,13 +119,13 @@ export const processComparisonContract = (
 export const processScenarioSchema = z
   .object({
     executable: z.string().startsWith("/"),
-    arguments: z.array(z.string()).max(256).default([]),
+    arguments: z.array(z.string()).default([]),
     working_directory: z.string().startsWith("/"),
     environment: z.record(environmentName, z.string()).default({}),
-    inherit_environment: z.array(environmentName).max(64).default([]),
-    secret_aliases: z.array(environmentName).max(64).default([]),
+    inherit_environment: z.array(environmentName).default([]),
+    secret_aliases: z.array(environmentName).default([]),
     network_access: z.literal("host").default("host"),
-    filesystem_roots: z.array(z.string().startsWith("/")).max(16).default([]),
+    filesystem_roots: z.array(z.string().startsWith("/")).default([]),
     terminal: z
       .object({
         columns: z.number().int().min(1).max(1_000).default(80),
@@ -145,14 +145,13 @@ export const processScenarioSchema = z
             z.object({
               type: z.literal("terminal_literal"),
               value: z.string().min(1).max(10_000),
-              occurrence: z.number().int().positive().max(1_000).default(1),
+              occurrence: positiveBudget.default(1),
             }),
             z.object({ type: z.literal("root_exit") }),
             z.object({ type: z.literal("settled") }),
           ]),
         }),
       )
-      .max(64)
       .default([]),
     command_shims: z
       .array(
@@ -161,8 +160,8 @@ export const processScenarioSchema = z
           routes: z
             .array(
               z.object({
-                arguments: z.array(z.string()).max(256),
-                outputs: z.array(outputChunkSchema).max(1_000).default([]),
+                arguments: z.array(z.string()),
+                outputs: z.array(outputChunkSchema).default([]),
                 termination: z.discriminatedUnion("type", [
                   z.object({
                     type: z.literal("exit"),
@@ -173,14 +172,12 @@ export const processScenarioSchema = z
                     signal: z.enum(["SIGINT", "SIGTERM", "SIGKILL"]),
                   }),
                 ]),
-                max_calls: z.number().int().positive().max(100).default(1),
+                max_calls: positiveBudget.default(1),
               }),
             )
-            .min(1)
-            .max(100),
+            .min(1),
         }),
       )
-      .max(32)
       .default([]),
     events: z
       .array(
@@ -204,7 +201,6 @@ export const processScenarioSchema = z
           }),
         ]),
       )
-      .max(1_000)
       .default([]),
     timeout_ms: positiveBudget.max(300_000).default(30_000),
     idle_timeout_ms: positiveBudget.max(300_000).default(30_000),
@@ -270,35 +266,28 @@ export const processScenarioSchema = z
               response_headers: z.record(z.string(), z.string()).default({}),
               delay_ms: z.number().int().nonnegative().max(30_000).default(0),
               disconnect: z.boolean().default(false),
-              max_calls: z.number().int().min(1).max(100).default(1),
+              max_calls: positiveBudget.default(1),
             }),
           )
-          .max(100)
           .default([]),
-        websocket_messages: z
-          .array(z.string().max(1_000_000))
-          .max(100)
-          .default([]),
+        websocket_messages: z.array(z.string().max(1_000_000)).default([]),
         websocket_connections: z
           .array(
             z.object({
-              messages: z
-                .array(
-                  z.object({
-                    data: z.string().max(1_000_000),
-                    delay_ms: z
-                      .number()
-                      .int()
-                      .nonnegative()
-                      .max(30_000)
-                      .default(0),
-                  }),
-                )
-                .max(100),
+              messages: z.array(
+                z.object({
+                  data: z.string().max(1_000_000),
+                  delay_ms: z
+                    .number()
+                    .int()
+                    .nonnegative()
+                    .max(30_000)
+                    .default(0),
+                }),
+              ),
               disconnect_after: z.boolean().default(false),
             }),
           )
-          .max(100)
           .default([]),
       })
       .default({

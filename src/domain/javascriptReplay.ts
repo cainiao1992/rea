@@ -36,7 +36,7 @@ const replaySideSchema = z
 const explicitCaseSchema = z
   .object({
     case_id: z.string().min(1).max(128),
-    arguments: z.array(z.json()).max(16),
+    arguments: z.array(z.json()),
   })
   .strict();
 

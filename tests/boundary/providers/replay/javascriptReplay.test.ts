@@ -129,7 +129,6 @@ const input = (
   },
   cases: [{ case_id: "heading", arguments: ["# Title"] }],
 });
-
 const completedRunner = (): JavaScriptReplayRunner => ({
   execute: async (prepared) => ({
     plan_digest: prepared.publicPlan.plan_digest,

@@ -186,6 +186,7 @@ describe("enhanced MCP tools", () => {
         )
         .sort(),
     ).toEqual(ENHANCED_TOOL_CONTRACTS.map(({ name }) => name).sort());
+    expect(listed.tools.map(({ name }) => name)).not.toContain("open_binary");
   });
 
   it("executes all twelve tools through production registration", async () => {

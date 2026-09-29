@@ -126,23 +126,9 @@ export const resolveCompareApplicationVersionsRequestValidated = (
   input: CompareApplicationVersionsRequest,
   lookup?: EvidenceLookup,
 ): Result<ComparisonInput, AnalysisError> => {
-  const leftReference = input.left ?? input.left_evidence_id;
-  if (leftReference === undefined)
-    return err(
-      new AnalysisInputError("compare_application_versions", undefined, [
-        { path: ["left"], reason: "missing_argument" },
-      ]),
-    );
-  const left = resolveApplicationGraphReference(leftReference, lookup);
+  const left = resolveApplicationGraphReference(input.left, lookup);
   if (!left.ok) return left;
-  const rightReference = input.right ?? input.right_evidence_id;
-  if (rightReference === undefined)
-    return err(
-      new AnalysisInputError("compare_application_versions", undefined, [
-        { path: ["right"], reason: "missing_argument" },
-      ]),
-    );
-  const right = resolveApplicationGraphReference(rightReference, lookup);
+  const right = resolveApplicationGraphReference(input.right, lookup);
   if (!right.ok) return right;
   const leftNative = resolveEvidenceReferences(
     lookup,
@@ -217,16 +203,16 @@ export const resolveCompareJavaScriptExportShapesRequestValidated = (
   lookup?: EvidenceLookup,
 ): Result<ExportShapeComparisonInput, AnalysisError> => {
   const left = graphEvidence(
-    "left" in input
-      ? { application: input.left }
-      : { application_evidence_id: input.left_evidence_id },
+    typeof input.left === "string"
+      ? { application_evidence_id: input.left }
+      : { application: input.left },
     lookup,
   );
   if (!left.ok) return left;
   const right = graphEvidence(
-    "right" in input
-      ? { application: input.right }
-      : { application_evidence_id: input.right_evidence_id },
+    typeof input.right === "string"
+      ? { application_evidence_id: input.right }
+      : { application: input.right },
     lookup,
   );
   if (!right.ok) return right;

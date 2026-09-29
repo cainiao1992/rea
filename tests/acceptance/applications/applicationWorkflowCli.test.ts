@@ -159,10 +159,9 @@ describe("application workflow CLI Evidence resolution", () => {
       [
         "compare-application-versions",
         JSON.stringify({
-          left_evidence_id:
-            JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left
-              .evidence_id,
-          right_evidence_id:
+          left: JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left
+            .evidence_id,
+          right:
             JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.right
               .evidence_id,
         }),
@@ -251,8 +250,8 @@ describe("application workflow CLI export Evidence", () => {
       [
         "compare-javascript-export-shapes",
         JSON.stringify({
-          left_evidence_id: left.value.evidence_id,
-          right_evidence_id: right.value.evidence_id,
+          left: left.value.evidence_id,
+          right: right.value.evidence_id,
           left_module_path: "parser.mjs",
           left_export_name: "default",
           right_module_path: "parser.mjs",

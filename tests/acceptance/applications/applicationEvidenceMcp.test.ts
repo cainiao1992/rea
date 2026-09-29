@@ -108,9 +108,9 @@ async function runEvidenceIdScenarios(harness: TestHarness): Promise<void> {
   const comparedById = await harness.client.callTool({
     name: "compare_application_versions",
     arguments: {
-      left_evidence_id:
-        JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left.evidence_id,
-      right_evidence_id:
+      left: JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left
+        .evidence_id,
+      right:
         JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.right.evidence_id,
     },
   });
@@ -145,15 +145,16 @@ async function runEvidenceIdScenarios(harness: TestHarness): Promise<void> {
   });
   expect(mixedRightInline.isError).not.toBe(true);
 
-  const mixedWithLegacyAlias = await harness.client.callTool({
+  const legacyAliases = await harness.client.callTool({
     name: "compare_application_versions",
     arguments: {
-      left: JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left,
+      left_evidence_id:
+        JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left.evidence_id,
       right_evidence_id:
         JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.right.evidence_id,
     },
   });
-  expect(mixedWithLegacyAlias.isError).not.toBe(true);
+  expect(legacyAliases.isError).toBe(true);
 
   const sourceComparedById = await harness.client.callTool({
     name: "compare_source_to_bundle",
@@ -243,16 +244,16 @@ async function assertRejectedInlineEvidence(client: Client): Promise<void> {
   });
   expect(spoofed.isError).toBe(true);
 
-  const duplicateComparisonReference = await client.callTool({
+  const legacyComparisonReferences = await client.callTool({
     name: "compare_application_versions",
     arguments: {
-      left: JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left,
       left_evidence_id:
         JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.left.evidence_id,
-      right: JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.right,
+      right_evidence_id:
+        JAVASCRIPT_VERSION_COMPARISON_FULL_EVIDENCE_EXAMPLE.right.evidence_id,
     },
   });
-  expect(duplicateComparisonReference.isError).toBe(true);
+  expect(legacyComparisonReferences.isError).toBe(true);
 }
 
 describe("application workflow MCP parity", () => {

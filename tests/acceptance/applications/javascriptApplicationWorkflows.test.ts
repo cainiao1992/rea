@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
-import { compareApplicationVersionsRequestSchema } from "../../../src/contracts/applicationWorkflowInputContracts.js";
+import {
+  compareApplicationVersionsRequestSchema,
+  compareJavaScriptExportShapesRequestSchema,
+} from "../../../src/contracts/applicationWorkflowInputContracts.js";
 import { analyzeJavaScriptApplication } from "../../../src/application/JavaScriptApplicationService.js";
 import { compareApplicationVersionsEvidence } from "../../../src/application/JavaScriptApplicationWorkflowService.js";
 import { createEvidence } from "../../../src/domain/evidence.js";
@@ -162,6 +165,33 @@ describe("JavaScript application comparison workflows", () => {
       compareApplicationVersionsRequestSchema.safeParse({
         ...input,
         limits: { max_comparison_items: 1 },
+      }).success,
+    ).toBe(false);
+    expect(
+      compareApplicationVersionsRequestSchema.safeParse({
+        left_evidence_id: `ev_${"a".repeat(64)}`,
+        right_evidence_id: `ev_${"b".repeat(64)}`,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("uses one consistent Evidence reference shape for export comparisons", () => {
+    const request = {
+      left: `ev_${"a".repeat(64)}`,
+      right: `ev_${"b".repeat(64)}`,
+      left_module_path: "parser.mjs",
+      left_export_name: "default",
+      right_module_path: "parser.mjs",
+      right_export_name: "default",
+    };
+    expect(
+      compareJavaScriptExportShapesRequestSchema.safeParse(request).success,
+    ).toBe(true);
+    expect(
+      compareJavaScriptExportShapesRequestSchema.safeParse({
+        ...request,
+        left_evidence_id: request.left,
+        left: undefined,
       }).success,
     ).toBe(false);
   });

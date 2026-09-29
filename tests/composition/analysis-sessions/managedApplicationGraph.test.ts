@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { projectManagedApplicationGraphEvidence } from "../../../src/application/ManagedApplicationGraphService.js";
+import { managedApplicationGraphReferenceInputSchema } from "../../../src/contracts/managedWorkflowToolContracts.js";
 import { traceApplicationFeatureEvidence } from "../../../src/application/JavaScriptApplicationWorkflowService.js";
 import { MANAGED_STATIC_PROVIDER } from "../../../src/application/InvestigationProviders.js";
 import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
@@ -156,6 +157,26 @@ describe("managed application graph projection", () => {
       source_evidence_id: parsed.evidence_id,
       summary: { matched_seeds: 1 },
     });
+  });
+});
+
+describe("managed application graph request", () => {
+  it("accepts any nonempty set of sources and rejects duplicate IDs", () => {
+    const id = `ev_${"a".repeat(64)}`;
+    expect(
+      managedApplicationGraphReferenceInputSchema.safeParse({
+        managed_members_evidence_id: id,
+      }).success,
+    ).toBe(true);
+    expect(
+      managedApplicationGraphReferenceInputSchema.safeParse({}).success,
+    ).toBe(false);
+    expect(
+      managedApplicationGraphReferenceInputSchema.safeParse({
+        managed_members_evidence_id: id,
+        managed_native_boundaries_evidence_id: id,
+      }).success,
+    ).toBe(false);
   });
 });
 

@@ -59,37 +59,15 @@ const applicationEvidenceReferenceSchema = z.union([
 ]);
 
 /** MCP/CLI comparison request accepting inline Evidence or session Evidence IDs. */
-export const compareApplicationVersionsRequestSchema = z
-  .strictObject({
-    ...compareApplicationVersionsFacts,
-    left: applicationEvidenceReferenceSchema
-      .optional()
-      .describe(
-        "Full application Evidence or an Evidence ID returned this session",
-      ),
-    right: applicationEvidenceReferenceSchema
-      .optional()
-      .describe(
-        "Full application Evidence or an Evidence ID returned this session",
-      ),
-    // Retain the original ID property names for existing callers.
-    left_evidence_id: evidenceIdSchema.optional(),
-    right_evidence_id: evidenceIdSchema.optional(),
-  })
-  .superRefine((input, context) => {
-    for (const side of ["left", "right"] as const) {
-      const alias = `${side}_evidence_id` as const;
-      const hasValue = input[side] !== undefined;
-      const hasAlias = input[alias] !== undefined;
-      if (hasValue === hasAlias) {
-        context.addIssue({
-          code: "custom",
-          path: [side],
-          message: `Provide exactly one of ${side} or ${alias}`,
-        });
-      }
-    }
-  });
+export const compareApplicationVersionsRequestSchema = z.strictObject({
+  ...compareApplicationVersionsFacts,
+  left: applicationEvidenceReferenceSchema.describe(
+    "Full application Evidence or an Evidence ID returned this session",
+  ),
+  right: applicationEvidenceReferenceSchema.describe(
+    "Full application Evidence or an Evidence ID returned this session",
+  ),
+});
 
 const compareSourceToBundleFacts = {
   reference: compareSourceToBundleInputSchema.shape.reference,
@@ -118,29 +96,12 @@ const compareJavaScriptExportShapesFacts = {
     compareJavaScriptExportShapesInputSchema.shape.right_export_name,
 } as const;
 
-/** MCP/CLI export-shape request accepting full Evidence or ledger references. */
-export const compareJavaScriptExportShapesRequestSchema = z.union([
-  z.strictObject({
-    ...compareJavaScriptExportShapesFacts,
-    left: evidenceSchema,
-    right: evidenceSchema,
-  }),
-  z.strictObject({
-    ...compareJavaScriptExportShapesFacts,
-    left: evidenceSchema,
-    right_evidence_id: evidenceIdSchema,
-  }),
-  z.strictObject({
-    ...compareJavaScriptExportShapesFacts,
-    left_evidence_id: evidenceIdSchema,
-    right: evidenceSchema,
-  }),
-  z.strictObject({
-    ...compareJavaScriptExportShapesFacts,
-    left_evidence_id: evidenceIdSchema,
-    right_evidence_id: evidenceIdSchema,
-  }),
-]);
+/** MCP/CLI export-shape request accepting full Evidence or session references. */
+export const compareJavaScriptExportShapesRequestSchema = z.strictObject({
+  ...compareJavaScriptExportShapesFacts,
+  left: applicationEvidenceReferenceSchema,
+  right: applicationEvidenceReferenceSchema,
+});
 
 export type TraceApplicationFeatureRequest = z.output<
   typeof traceApplicationFeatureRequestSchema

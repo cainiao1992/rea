@@ -91,34 +91,24 @@ const managedApplicationGraphReferenceFacts = {} as const;
 
 /** MCP references requiring at least one managed Evidence source. */
 export const managedApplicationGraphReferenceInputSchema = z
-  .union([
-    z.strictObject({
-      ...managedApplicationGraphReferenceFacts,
-      managed_artifact_evidence_id: managedArtifactEvidenceIdSchema,
-      managed_members_evidence_id: managedEvidenceIdSchema.optional(),
-      managed_native_boundaries_evidence_id:
-        managedBoundaryEvidenceIdSchema.optional(),
-    }),
-    z.strictObject({
-      ...managedApplicationGraphReferenceFacts,
-      managed_artifact_evidence_id: managedArtifactEvidenceIdSchema.optional(),
-      managed_members_evidence_id: managedEvidenceIdSchema,
-      managed_native_boundaries_evidence_id:
-        managedBoundaryEvidenceIdSchema.optional(),
-    }),
-    z.strictObject({
-      ...managedApplicationGraphReferenceFacts,
-      managed_artifact_evidence_id: managedArtifactEvidenceIdSchema.optional(),
-      managed_members_evidence_id: managedEvidenceIdSchema.optional(),
-      managed_native_boundaries_evidence_id: managedBoundaryEvidenceIdSchema,
-    }),
-  ])
+  .strictObject({
+    ...managedApplicationGraphReferenceFacts,
+    managed_artifact_evidence_id: managedArtifactEvidenceIdSchema.optional(),
+    managed_members_evidence_id: managedEvidenceIdSchema.optional(),
+    managed_native_boundaries_evidence_id:
+      managedBoundaryEvidenceIdSchema.optional(),
+  })
   .superRefine((input, context) => {
     const ids = [
       input.managed_artifact_evidence_id,
       input.managed_members_evidence_id,
       input.managed_native_boundaries_evidence_id,
     ].filter((id): id is string => id !== undefined);
+    if (ids.length === 0)
+      context.addIssue({
+        code: "custom",
+        message: "Provide at least one managed Evidence source",
+      });
     if (new Set(ids).size !== ids.length)
       context.addIssue({
         code: "custom",

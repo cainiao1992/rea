@@ -83,8 +83,8 @@ describe("application workflow MCP parity", () => {
       const byId = await client.callTool({
         name: "compare_javascript_export_shapes",
         arguments: {
-          left_evidence_id: left.value.evidence_id,
-          right_evidence_id: right.value.evidence_id,
+          left: left.value.evidence_id,
+          right: right.value.evidence_id,
           ...selectors,
         },
       });

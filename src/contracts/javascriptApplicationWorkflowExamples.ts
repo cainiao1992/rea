@@ -111,8 +111,8 @@ export const SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE = {
 
 /** Exact static return-shape comparison using producer-returned Evidence IDs. */
 export const JAVASCRIPT_EXPORT_SHAPE_COMPARISON_EXAMPLE = {
-  left_evidence_id: EXAMPLE_EVIDENCE_ID,
-  right_evidence_id: SECOND_EXAMPLE_EVIDENCE_ID,
+  left: EXAMPLE_EVIDENCE_ID,
+  right: SECOND_EXAMPLE_EVIDENCE_ID,
   left_module_path: "parser.mjs",
   left_export_name: "default",
   right_module_path: "parser.mjs",

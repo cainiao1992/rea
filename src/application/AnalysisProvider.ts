@@ -159,19 +159,10 @@ type CapabilityAvailability =
       readonly availabilityCode?: ProviderRejectionCode;
     };
 
-interface CapabilityLimits {
-  readonly maxResults: number | null;
-  readonly maxPayloadBytes: number | null;
-  readonly timeoutMs: number | null;
-}
-
 export type CapabilityDescriptor = CapabilityAvailability & {
   readonly provider: ProviderIdentity;
   readonly operation: Exclude<AnalysisOperation, "health">;
-  readonly pagination: "none" | "offset" | "cursor";
-  readonly exhaustive: boolean;
   readonly effects: CapabilityEffects;
-  readonly limits: CapabilityLimits;
   readonly limitations: readonly string[];
 };
 

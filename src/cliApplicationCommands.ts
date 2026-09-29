@@ -252,8 +252,8 @@ const registerCoverageCommands = (
         authority,
         {
           path: parsed.data.workspace_path,
-          readCapability: "investigation_workspace_read",
-          writeCapability: "investigation_workspace_write",
+          readCapability: "reconstruction_coverage_read",
+          writeCapability: "reconstruction_coverage_write",
           operation: CLI_COMMANDS.commitReconstructionCoverage,
         },
       );
@@ -282,7 +282,7 @@ const registerCoverageCommands = (
           ),
         };
       const authorized = await authorizeRootPermission(authority, {
-        capability: "investigation_workspace_read",
+        capability: "reconstruction_coverage_read",
         roots: [parsed.data.workspace_path],
         access: "read",
         operation: CLI_COMMANDS.queryReconstructionCoverage,

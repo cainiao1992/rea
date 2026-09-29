@@ -1,5 +1,4 @@
 import type { BinarySessionPort } from "../../application/BinarySession.js";
-import type { ProgressReporter } from "../../application/ProgressReporter.js";
 import type { Evidence } from "../../domain/evidence.js";
 import {
   EvidenceIntegrityError,
@@ -12,29 +11,6 @@ import { evaluateReconstructionClosure } from "../../domain/reconstructionCovera
 import type { z } from "zod";
 import type { reconstructionVerificationInputSchema } from "../../domain/reconstructionVerification.js";
 import { AnalysisInputError } from "../../domain/errors.js";
-
-/** Build the execution context passed to cross-version investigation. */
-export const investigationContext = ({
-  session,
-  signal,
-  integrityContinueEnabled,
-  progress,
-}: {
-  readonly session: BinarySessionPort;
-  readonly signal: AbortSignal;
-  readonly integrityContinueEnabled: boolean;
-  readonly progress?: ProgressReporter;
-}): {
-  readonly session: BinarySessionPort;
-  readonly signal: AbortSignal;
-  readonly integrityContinueEnabled: boolean;
-  readonly progress?: ProgressReporter;
-} => ({
-  session,
-  signal,
-  integrityContinueEnabled,
-  ...(progress === undefined ? {} : { progress }),
-});
 
 export const isIncomplete = (status: string): boolean =>
   status === "unknown" || status === "truncated";

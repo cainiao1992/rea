@@ -11,10 +11,6 @@ import {
   type UnknownRegistryError,
 } from "../domain/errors.js";
 import {
-  parseInvestigationWorkspace,
-  type InvestigationWorkspace,
-} from "../domain/investigationWorkspace.js";
-import {
   parseReconstructionCoverageWorkspace,
   type ReconstructionCoverageWorkspace,
 } from "../domain/reconstructionCoverage.js";
@@ -42,14 +38,13 @@ export interface ActiveAnalysisBinding {
   readonly profile: AnalysisProfileCommitment | null;
 }
 
-/** Owns session evidence, snapshots, workspaces, and residual unknowns. */
+/** Owns session evidence, snapshots, and residual unknowns. */
 export abstract class BinarySessionRecords {
   readonly #evidence = new EvidenceLedger({
     maxRecords: 10_000,
     maxBytes: 64 * 1024 * 1024,
   });
   readonly #snapshot = new AnalysisSnapshotCache();
-  readonly #investigationWorkspaces = new Map<string, InvestigationWorkspace>();
   readonly #coverageWorkspaces = new Map<
     string,
     ReconstructionCoverageWorkspace
@@ -214,30 +209,6 @@ export abstract class BinarySessionRecords {
         // make a committed evidence mutation appear to fail.
       }
     }
-  }
-
-  retainInvestigationWorkspace(
-    workspace: InvestigationWorkspace,
-  ): "added" | "duplicate" {
-    const parsed = parseInvestigationWorkspace(workspace);
-    const key = workspaceKey(parsed.workspace_id, parsed.revision);
-    if (this.#investigationWorkspaces.has(key)) return "duplicate";
-    this.#investigationWorkspaces.set(key, parsed);
-    return "added";
-  }
-
-  investigationWorkspace(
-    workspaceId: string,
-    revision: number,
-  ): InvestigationWorkspace | undefined {
-    const workspace = this.#investigationWorkspaces.get(
-      workspaceKey(workspaceId, revision),
-    );
-    return workspace === undefined ? undefined : structuredClone(workspace);
-  }
-
-  investigationWorkspaces(): readonly InvestigationWorkspace[] {
-    return sortedWorkspaces(this.#investigationWorkspaces.values());
   }
 
   retainReconstructionCoverageWorkspace(

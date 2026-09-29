@@ -193,8 +193,6 @@ const capabilityStatus = (
   available: descriptor.available,
   reason: descriptor.reason,
   availability_code: descriptor.availabilityCode ?? null,
-  pagination: descriptor.pagination,
-  exhaustive: descriptor.exhaustive,
   effects: {
     mutates_artifact: descriptor.effects.mutatesArtifact,
     launches_process: descriptor.effects.launchesProcess,
@@ -203,11 +201,6 @@ const capabilityStatus = (
     may_write_filesystem: descriptor.effects.mayWriteFilesystem,
     changes_permissions: descriptor.effects.changesPermissions,
     requires_root: descriptor.effects.requiresRoot,
-  },
-  limits: {
-    max_results: descriptor.limits.maxResults,
-    max_payload_bytes: descriptor.limits.maxPayloadBytes,
-    timeout_ms: descriptor.limits.timeoutMs,
   },
   limitations: [...descriptor.limitations],
 });

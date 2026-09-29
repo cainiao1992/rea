@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -15,28 +14,6 @@ const verifyMcpToolsAndPrompts = async (client, mcpOptions) => {
   await verifyCompleteToolCatalog(client, mcpOptions);
   await prompts.verifyPromptCatalog(client, mcpOptions, prompts.names);
   await prompts.verifyPromptCompletion(client, mcpOptions, false);
-};
-
-const verifyMcpReplay = async (client, mcpOptions, investigationReplay) => {
-  const replay = await client.callTool(
-    {
-      name: "find_changed_behavior",
-      arguments: { investigation_run: investigationReplay.arguments },
-    },
-    mcpOptions,
-  );
-  const replayEvidence = json(prompts.mcpText(replay));
-  const replayWorkspace = json(
-    await readFile(investigationReplay.workspacePath, "utf8"),
-  );
-  if (
-    replay.isError === true ||
-    replayEvidence.evidence_id !== investigationReplay.evidenceId ||
-    replayWorkspace.revision !== investigationReplay.revision
-  )
-    throw new Error(
-      "packaged MCP did not replay with workspace-only authority",
-    );
 };
 
 const verifyMcpTargetFree = async (client, mcpOptions) => {
@@ -179,12 +156,7 @@ const verifyMcpEvidenceBundle = async (client, mcpOptions, evidenceRoot) => {
 };
 
 /** Connect to the packaged MCP server and exercise the target-free catalog. */
-export async function verifyPackageMcp({
-  cli,
-  environment,
-  evidenceRoot,
-  investigationReplay,
-}) {
+export async function verifyPackageMcp({ cli, environment, evidenceRoot }) {
   const diagnosed = json(
     (
       await execute(cli, ["mcp", "doctor", "--json"], {
@@ -216,7 +188,6 @@ export async function verifyPackageMcp({
     await client.connect(transport);
     const mcpOptions = { timeout: 15_000 };
     await verifyMcpToolsAndPrompts(client, mcpOptions);
-    await verifyMcpReplay(client, mcpOptions, investigationReplay);
     await verifyMcpTargetFree(client, mcpOptions);
     await verifyMcpUnknownProvider(client, mcpOptions);
     await verifyMcpBinaryLifecycle(client, mcpOptions);

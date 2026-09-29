@@ -64,7 +64,6 @@ const SOURCE_PATHS = {
   processCapture: "dist/domain/processCapture.js",
   analysisSnapshot: "dist/domain/analysisSnapshot.js",
   artifactGraph: "dist/domain/artifactGraph.js",
-  investigationWorkspace: "dist/domain/investigationWorkspace.js",
   browserObservation: "dist/domain/browserObservation.js",
   browserScenario: "dist/domain/browserScenario.js",
   browserScenarioCapture: "dist/domain/browserScenarioCapture.js",

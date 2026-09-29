@@ -1,4 +1,4 @@
-import { InvestigationWorkspaceError } from "../domain/errors.js";
+import { WorkspaceStorageError } from "../domain/errors.js";
 import type { EvidenceFilePolicy } from "../domain/evidenceBundle.js";
 import {
   parseReconstructionCoverageWorkspace,
@@ -10,29 +10,27 @@ import {
   readRevisionedWorkspace,
   writeRevisionedWorkspace,
   type RevisionedWorkspaceCodec,
-} from "./InvestigationWorkspaceStore.js";
+} from "./RevisionedWorkspaceStore.js";
 
 const codec: RevisionedWorkspaceCodec<ReconstructionCoverageWorkspace> = {
   parse: parseReconstructionCoverageWorkspace,
   serialize: serializeReconstructionCoverageWorkspace,
   validateNext: (current, next, expectedRevision) => {
     if ((current?.revision ?? null) !== expectedRevision)
-      return err(
-        new InvestigationWorkspaceError("update", "revision-conflict"),
-      );
+      return err(new WorkspaceStorageError("update", "revision-conflict"));
     if (current === null)
       return next.revision === 1 && next.previous_revision_sha256 === null
         ? ok(null)
-        : err(new InvestigationWorkspaceError("update", "revision-conflict"));
+        : err(new WorkspaceStorageError("update", "revision-conflict"));
     if (
       current.name !== next.name ||
       current.workspace_id !== next.workspace_id
     )
-      return err(new InvestigationWorkspaceError("update", "name-conflict"));
+      return err(new WorkspaceStorageError("update", "name-conflict"));
     return next.revision === current.revision + 1 &&
       next.previous_revision_sha256 === current.revision_sha256
       ? ok(null)
-      : err(new InvestigationWorkspaceError("update", "revision-conflict"));
+      : err(new WorkspaceStorageError("update", "revision-conflict"));
   },
 };
 
@@ -41,7 +39,7 @@ export const readReconstructionCoverageWorkspace = (
   path: string,
   policy: EvidenceFilePolicy,
 ): Promise<
-  Result<ReconstructionCoverageWorkspace | null, InvestigationWorkspaceError>
+  Result<ReconstructionCoverageWorkspace | null, WorkspaceStorageError>
 > => readRevisionedWorkspace(path, policy, codec);
 
 /** Atomically append one reconstruction coverage workspace CAS revision. */
@@ -53,7 +51,7 @@ export const writeReconstructionCoverageWorkspace = (
 ): Promise<
   Result<
     { readonly path: string; readonly bytes: number },
-    InvestigationWorkspaceError
+    WorkspaceStorageError
   >
 > =>
   writeRevisionedWorkspace(path, policy, {

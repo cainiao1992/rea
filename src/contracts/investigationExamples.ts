@@ -113,7 +113,6 @@ export const INVESTIGATION_EXAMPLES = {
   },
   verify_reconstruction: {
     specification: {
-      schema_version: 1,
       name: "Terminal compatibility",
       claims: [
         {

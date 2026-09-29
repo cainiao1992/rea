@@ -131,12 +131,7 @@ all three conditions:
 2. `integrity_policy=record-and-continue`;
 3. explicit per-call `integrity_continue_approved=true`.
 
-Contradictory bytes are quarantined from nested expansion, recorded with declared
-and observed hashes, trust, provenance, path, and unpacked state, and bounded by
-`max_integrity_mismatches`. Verified siblings continue. Comparisons classify the
-result as a contradiction and reconstruction cannot treat it as unchanged.
-`investigate-versions` accepts the same policy through
-`--integrity-policy record-and-continue --integrity-continue-approved` and
-`--max-integrity-mismatches`. Its Evidence pages and CAS-linked workspace retain
-contradictions, so a completed run can resume without rescanning or weakening
-trust labels.
+Contradictory bytes are quarantined from nested expansion and recorded with
+declared and observed hashes, trust, provenance, path, and unpacked state.
+Verified siblings continue. Comparisons classify the result as a contradiction
+and reconstruction cannot treat it as unchanged.

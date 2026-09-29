@@ -8,7 +8,6 @@ import { registerCoreAnalysisCommands } from "./cli/coreAnalysisCommands.js";
 import { registerUtilityCommands } from "./cli/utilityCommands.js";
 import { registerArtifactCommands } from "./cli/artifactCommands.js";
 import { registerManagedCommands } from "./cli/managedCommands.js";
-import { registerInvestigationCommands } from "./cliInvestigationCommands.js";
 import { registerEvidenceCommands } from "./cliEvidenceCommands.js";
 import { registerProcessCommands } from "./cliProcessCommands.js";
 import { registerPolicyCommands } from "./cliPolicyCommands.js";
@@ -56,7 +55,6 @@ export const createCli = (): CliInstance => {
   registerUtilityCommands(cli, logger);
   registerArtifactCommands(cli, logger);
   registerManagedCommands(cli, logger);
-  registerInvestigationCommands(cli, logger);
   registerEvidenceCommands(cli, logger);
   registerProcessCommands(cli, logger);
   registerPolicyCommands(cli, logger);

@@ -35,7 +35,6 @@ export const CLI_COMMANDS = Object.freeze({
   evidenceImport: "evidence-import",
   evidenceExport: "evidence-export",
   compare: "compare",
-  investigateVersions: "investigate-versions",
   captureProcess: "capture-process",
   compareProcessCaptures: "compare-process-captures",
   policy: "policy",

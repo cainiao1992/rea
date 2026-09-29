@@ -40,7 +40,7 @@ const ANALYSIS_ERROR_TAGS = [
   "EvidenceIntegrityError",
   "EvidenceLimitError",
   "EvidenceFileError",
-  "InvestigationWorkspaceError",
+  "WorkspaceStorageError",
   "UnknownRegistryError",
   "HopperTimeoutError",
   "HopperCancelledError",
@@ -351,9 +351,9 @@ export class EvidenceFileError extends AnalysisError {
   }
 }
 
-/** Persistent investigation workspace access or CAS validation failed. */
-export class InvestigationWorkspaceError extends AnalysisError {
-  readonly _tag = "InvestigationWorkspaceError";
+/** A persisted reconstruction coverage workspace could not be read or updated. */
+export class WorkspaceStorageError extends AnalysisError {
+  readonly _tag = "WorkspaceStorageError";
 
   constructor(
     readonly operation: "read" | "update",
@@ -370,7 +370,7 @@ export class InvestigationWorkspaceError extends AnalysisError {
       | "io",
     options?: ErrorOptions,
   ) {
-    super(`Investigation workspace ${operation} failed: ${reason}`, options);
+    super(`Workspace storage ${operation} failed: ${reason}`, options);
   }
 }
 

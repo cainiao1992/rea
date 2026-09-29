@@ -429,7 +429,7 @@
     }
   ],
   "cli": {
-    "primary_count": 68,
+    "primary_count": 67,
     "commands": [
       "analyze",
       "analyze-javascript-application",
@@ -474,7 +474,6 @@
       "inspect-web-page",
       "instructions",
       "inventory-artifact",
-      "investigate-versions",
       "list-architectures",
       "list-browser-targets",
       "list-electron-targets",
@@ -509,14 +508,14 @@
   },
   "runtime_catalog": {
     "counts": {
-      "cli_commands": 68,
+      "cli_commands": 67,
       "mcp_tools": 115,
       "mcp_prompts": 6
     },
     "digests": {
-      "tools_sha256": "4722f1a2fe1d16d493e4a1f51450376e2cd0c617b9659d292a61908d8bb05fcf",
+      "tools_sha256": "c0b0319310502e55dd3279361c5a65615a12f25c0e97fb0779b79b7950cecfe0",
       "prompts_sha256": "77c76df62f92484a43cebf5ca110bdf562c38fbee2531d293eeb51d6e712d459",
-      "combined_sha256": "94f7cd1ac629a6bbffa77ba3b3d3f2e208e15df821bc0b14db4f81692d6f8eaa",
+      "combined_sha256": "85d3e5545b3e01eb22b67a1794fdcb737654a1abbea803e1f2445815ee4f17ff",
       "providers_sha256": "7446b51788734ebf6f4f702e3a5a8c9f0b61967490c245f30bd37b2060827e6b"
     }
   }

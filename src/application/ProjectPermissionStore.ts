@@ -39,7 +39,6 @@ const grantSchema = z.object({
 });
 
 const storeSchema = z.object({
-  schema_version: z.literal(1),
   project_id: z.string().regex(/^project_[a-f0-9]{64}$/u),
   project_root: z.string(),
   grants: z.array(grantSchema).max(1_000),
@@ -133,7 +132,6 @@ export const writeProjectPermissionStore = async (
   const project = await identifyPermissionProject(projectRoot);
   if (!project.ok) return project;
   const candidate = storeSchema.safeParse({
-    schema_version: 1,
     project_id: project.value.id,
     project_root: project.value.root,
     grants,

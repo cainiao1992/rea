@@ -412,17 +412,7 @@ export const registerSessionTools = (
     staticRuntimeContract,
     reconstructionContract,
   ] as const;
-  registerInvestigationTools(server, session, investigationContracts, {
-    evidenceFiles: evidenceFilePolicy,
-    ...(options.artifactIntegrityContinueEnabled === undefined
-      ? {}
-      : {
-          integrityContinueEnabled: options.artifactIntegrityContinueEnabled,
-        }),
-    ...(options.permissionAuthority === undefined
-      ? {}
-      : { permissionAuthority: options.permissionAuthority }),
-  });
+  registerInvestigationTools(server, session, investigationContracts);
   registerRecordAndReplayTools(server, session, logger);
   registerContextTools(server, session);
 };

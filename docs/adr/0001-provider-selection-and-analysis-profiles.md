@@ -328,11 +328,11 @@ entries from the previous binding. Auxiliary operations are cacheable only if
 their provider defines an equivalent explicit profile commitment; otherwise
 they remain Evidence but not snapshot entries.
 
-Snapshot v1 is not silently upgraded. Its `loader_args` cannot prove which
-engine version, defaults, or analyzer settings produced the entries. Importing
-v1 returns a typed incompatibility with a recapture instruction. Its embedded
-Evidence bundle may still be imported separately through the existing explicit
-Evidence import flow; it is never promoted into a v2 analysis cache.
+Snapshot v1 cannot be parsed as the current snapshot format. Its `loader_args`
+cannot prove which engine version, defaults, or analyzer settings produced the
+entries, so snapshots must be recaptured before they can be used as a cache.
+An embedded Evidence bundle can still be imported separately through the
+Evidence import flow; it is never promoted into an analysis cache.
 
 ### 8. Add profile commitments to new deep Evidence without rejecting legacy Evidence v2
 
@@ -457,7 +457,7 @@ snapshot's provider.
 | `open_binary` and CLI structured `loaderArgs` output | Retained as a deprecated Hopper-only compatibility projection for 1.x; the analysis profile is authoritative   |
 | `BinaryTarget.loaderArgs`                            | Removed; Hopper derives them inside its adapter and commits normalized semantics in the profile                |
 | Legacy `.hop` input                                  | Classified generically as an analysis database and accepted only by Hopper                                     |
-| Snapshot v1                                          | Rejected for cache replay with explicit recapture guidance; embedded Evidence may be imported separately       |
+| Snapshot v1                                          | Not accepted as the current snapshot format; recapture before cache replay                                     |
 | Existing Evidence v2 without a profile               | Accepted unchanged; profile compatibility is unknown                                                           |
 | New deep-analysis Evidence v2                        | Must include `analysis_profile`; its semantic ID commits the field                                             |
 | Existing status fields                               | Retained for 1.x with additive binding and candidate fields                                                    |
@@ -483,7 +483,6 @@ with a separately documented major contract change.
 | Same target is reopened without a selector                 | Existing binding remains unchanged                                          |
 | Same bytes are opened with a different profile             | Real provider switch and a separate snapshot partition                      |
 | Snapshot provider or profile differs from the binding      | Typed `EvidenceIntegrityError` with `profile_mismatch`; nothing is imported |
-| Snapshot v1 is supplied                                    | Typed incompatibility with recapture or explicit Evidence-import guidance   |
 | Artifact-only target has no deep candidate                 | Target opens unbound; disjoint artifact capabilities remain usable          |
 | Environment prefers Ghidra for an artifact-only target     | Deep selection is `not_applicable`; auxiliary operations remain usable      |
 | Concrete deep provider is requested for artifact-only data | Typed `target_unsupported`; the request is not silently ignored             |
@@ -502,7 +501,7 @@ Positive consequences:
 Costs and tradeoffs:
 
 - Multi-provider hosts must choose when more than one candidate is usable.
-- Snapshot v1 cannot safely serve as a cache after this migration.
+- Snapshots must be recaptured when their provider or profile binding changes.
 - Providers must expose deterministic availability, support, version, and
   profile resolution before they can be admitted.
 - Status and error contracts gain additive structured metadata.

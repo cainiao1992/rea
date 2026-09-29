@@ -1,38 +1,22 @@
 import type { McpServer } from "@modelcontextprotocol/server";
-import type { z } from "zod";
 
 import type { BinarySessionPort } from "../application/BinarySession.js";
-import { runCrossVersionInvestigationValidated } from "../application/CrossVersionInvestigation.js";
-import {
-  authorizeFileReadWithDeferredWrite,
-  type DeferredFileWriteAuthorization,
-} from "../application/DeferredFileAuthorization.js";
 import { SESSION_TOOL_CONTRACTS } from "../contracts/toolContracts.js";
 import { buildCallPath } from "../domain/callPath.js";
-import {
-  changedBehaviorInputSchema,
-  changedBehaviorResultSchema,
-  findChangedBehavior,
-} from "../domain/changedBehavior.js";
+import { findChangedBehavior } from "../domain/changedBehavior.js";
 import { createEvidence } from "../domain/evidence.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { verifyReconstruction } from "../domain/reconstructionVerification.js";
 import { correlateStaticAndRuntime } from "../domain/staticRuntimeCorrelation.js";
-import { mcpProgressReporter } from "./mcpProgress.js";
 import {
   comparisonClosure,
   evidenceClosure,
   functionEvidenceIds,
-  investigationContext,
   isIncomplete,
   recordWorkflowEvidence,
   verifyCoverageReadiness,
 } from "./registerInvestigationTools/helpers.js";
-import type { InvestigationToolPolicies } from "./registerInvestigationTools/types.js";
-import {
-  runDerivedOperation,
-  type DerivedOperationContext,
-} from "./runDerivedOperation.js";
+import { runDerivedOperation } from "./runDerivedOperation.js";
 import {
   CALL_PATH_PROVIDER,
   CHANGED_BEHAVIOR_PROVIDER,
@@ -52,9 +36,8 @@ export const registerInvestigationTools = (
     (typeof SESSION_TOOL_CONTRACTS)[12],
     (typeof SESSION_TOOL_CONTRACTS)[13],
   ],
-  policies: InvestigationToolPolicies,
 ): void => {
-  registerChangedBehavior(server, session, contracts[0], policies);
+  registerChangedBehavior(server, session, contracts[0]);
   registerCallPath(server, session, contracts[1]);
   registerStaticRuntime(server, session, contracts[2]);
   registerReconstruction(server, session, contracts[3]);
@@ -64,23 +47,11 @@ const registerChangedBehavior = (
   server: McpServer,
   session: BinarySessionPort,
   contract: (typeof SESSION_TOOL_CONTRACTS)[10],
-  policies: InvestigationToolPolicies,
 ): void => {
   server.registerTool(
     contract.name,
     contractOptions(contract),
     async (input, context) => {
-      const investigationRun = input.investigation_run;
-      if (investigationRun !== undefined)
-        return runAutomaticInvestigation({
-          server,
-          session,
-          contract,
-          policies,
-          investigationRun,
-          unknownRegistryApproved: input.unknown_registry_approved,
-          context,
-        });
       const closure = evidenceClosure(
         session,
         comparisonClosure(input.comparisons),
@@ -88,7 +59,7 @@ const registerChangedBehavior = (
       if (!closure.ok) return toCallToolResult(closure, contract);
       const links = closure.value;
       const computed = await runDerivedOperation(context, contract.name, () =>
-        findChangedBehavior(input.comparisons, input.offset, input.limit),
+        findChangedBehavior(input.comparisons),
       );
       if (!computed.ok) return toCallToolResult(computed, contract);
       const result = computed.value;
@@ -99,8 +70,6 @@ const registerChangedBehavior = (
           comparison_evidence_ids: input.comparisons.map(
             ({ evidence_id: id }) => id,
           ),
-          offset: input.offset,
-          limit: input.limit,
         },
         result: jsonValueSchema.parse(result),
         confidence: "derived",
@@ -131,81 +100,6 @@ const registerChangedBehavior = (
       return toCallToolResult(recorded, contract);
     },
   );
-};
-
-const runAutomaticInvestigation = async (input: {
-  readonly server: McpServer;
-  readonly session: BinarySessionPort;
-  readonly contract: (typeof SESSION_TOOL_CONTRACTS)[10];
-  readonly policies: InvestigationToolPolicies;
-  readonly investigationRun: NonNullable<
-    z.output<typeof changedBehaviorInputSchema>["investigation_run"]
-  >;
-  readonly unknownRegistryApproved: true | undefined;
-  readonly context: DerivedOperationContext;
-}) => {
-  const { policies, investigationRun, contract, session } = input;
-  const progress = mcpProgressReporter(input.context);
-  let workspaceAuthorization: DeferredFileWriteAuthorization | undefined;
-  if (policies.permissionAuthority !== undefined) {
-    const authority = policies.permissionAuthority;
-    const authorizedWorkspace = await authorizeFileReadWithDeferredWrite(
-      authority,
-      {
-        path: investigationRun.workspace_path,
-        readCapability: "investigation_workspace_read",
-        writeCapability: "investigation_workspace_write",
-        operation: contract.name,
-      },
-    );
-    if (!authorizedWorkspace.ok)
-      return toCallToolResult(authorizedWorkspace, contract);
-    workspaceAuthorization = authorizedWorkspace.value;
-  }
-  const investigated = await runCrossVersionInvestigationValidated(
-    investigationRun,
-    policies.evidenceFiles,
-    {
-      ...investigationContext({
-        session,
-        signal: input.context.mcpReq.signal,
-        integrityContinueEnabled:
-          policies.integrityContinueEnabled?.() ?? false,
-        progress,
-      }),
-      ...(workspaceAuthorization === undefined
-        ? {}
-        : { authorizeWorkspaceWrite: workspaceAuthorization.authorizeWrite }),
-    },
-  );
-  if (!investigated.ok) return toCallToolResult(investigated, contract);
-  session.retainInvestigationWorkspace(investigated.value.workspace);
-  const result = changedBehaviorResultSchema.parse(
-    investigated.value.evidence.normalized_result,
-  );
-  const toolResult = toCallToolResult(
-    recordWorkflowEvidence(
-      session,
-      investigated.value.evidence,
-      input.unknownRegistryApproved,
-      isIncomplete(result.behavior_status),
-      {
-        question: `Automatic changed behavior run ${result.investigation_run?.run_id ?? "unknown"} remains ${result.behavior_status}`,
-        domain: "changed-behavior",
-        requiredAuthority: "controlled-replay",
-        requiredConfidence: "observed",
-        probes: [
-          {
-            operation: "capture_process_scenario",
-            rationale:
-              "Capture both versions under the same bounded scenario and environment.",
-          },
-        ],
-      },
-    ),
-    contract,
-  );
-  return toolResult;
 };
 
 const registerCallPath = (
@@ -294,8 +188,6 @@ const registerStaticRuntime = (
         operation: contract.name,
         parameters: {
           mapping_count: input.mappings.length,
-          offset: input.offset,
-          limit: input.limit,
         },
         result: jsonValueSchema.parse(result),
         confidence: "inferred",
@@ -343,12 +235,7 @@ const registerReconstruction = (
       if (!coverage.ok) return toCallToolResult(coverage, contract);
       const owned = session.exportEvidenceBundle();
       const computed = await runDerivedOperation(context, contract.name, () =>
-        verifyReconstruction(
-          input.specification,
-          owned,
-          input.offset,
-          input.limit,
-        ),
+        verifyReconstruction(input.specification, owned),
       );
       if (!computed.ok) return toCallToolResult(computed, contract);
       const result = computed.value;
@@ -361,8 +248,6 @@ const registerReconstruction = (
         parameters: {
           specification_sha256: result.specification_sha256,
           claim_ids: input.specification.claims.map(({ claim_id: id }) => id),
-          offset: input.offset,
-          limit: input.limit,
         },
         result: jsonValueSchema.parse(result),
         confidence: "derived",

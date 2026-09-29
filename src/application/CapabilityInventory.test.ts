@@ -34,8 +34,6 @@ const status = (
       : (capability.availability_code ?? null),
     input_contract_version: 1,
     output_contract_version: 1,
-    pagination: "none" as const,
-    exhaustive: true,
     effects: {
       mutates_artifact: false,
       launches_process: false,
@@ -44,11 +42,6 @@ const status = (
       may_write_filesystem: false,
       changes_permissions: false,
       requires_root: false,
-    },
-    limits: {
-      max_results: null,
-      max_payload_bytes: null,
-      timeout_ms: null,
     },
     limitations: [],
   })),

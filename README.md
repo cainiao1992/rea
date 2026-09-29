@@ -266,7 +266,6 @@ Uninstall preserves Hopper, Node.js, evidence, captures, external evidence roots
 | Ask an agent to investigate an app and build a feature           | Install the skill, then talk to your agent                                |
 | Inspect or decompile one part of an app from the Terminal        | `rea analyze` or `rea decompile`                                          |
 | Validate, canonicalize, or compare Evidence bundles              | `rea evidence-import`, `rea evidence-export`, or `rea compare`            |
-| Run or resume a persistent two-version artifact analysis         | `rea investigate-versions`                                                |
 | Map a local JavaScript/Electron application without executing it | `rea analyze PATH --approved` or `rea analyze-javascript-application`     |
 | Reuse immutable analysis results without relaunching a provider  | Pass `--snapshot /approved/path/analysis.json` to a deep-analysis command |
 | Import source as historical reference                            | `rea import-reference-source`                                             |
@@ -279,7 +278,6 @@ export REA_EVIDENCE_ROOTS_JSON='["/absolute/path/to/evidence"]'
 rea evidence-import /absolute/path/to/evidence/bundle.json
 rea evidence-export /absolute/path/to/evidence/bundle.json /absolute/path/to/evidence/canonical.json
 rea compare /absolute/path/to/evidence/left.json /absolute/path/to/evidence/right.json
-rea investigate-versions /absolute/path/to/releases/v1 /absolute/path/to/releases/v2 /absolute/path/to/evidence/releases.json --yes --workspace-name releases
 rea analyze /absolute/path/to/releases/app.asar --approved --json
 rea analyze-javascript-application /absolute/path/to/releases/app.asar --approved --json
 ```
@@ -288,16 +286,6 @@ For a directory or `.asar`, generic `rea analyze` automatically selects the
 static JavaScript application provider when neither `--provider` nor
 `--snapshot` is supplied. The dedicated command remains available for explicit
 format and traversal controls. Both routes read the selected local input path.
-
-`investigate-versions` inventories both versions, checkpoints their observed
-Evidence, derives an artifact comparison, and records a changed-behavior report.
-workspace files remain independently restricted by `REA_EVIDENCE_ROOTS_JSON`.
-The workspace uses deterministic content identities and monotonic CAS-linked
-revisions, so the same request resumes an interrupted run or reuses a completed
-run without replacing earlier investigations. It currently compares static
-artifact structure only; it does not execute either version, and its report
-keeps every difference labeled as a behavior candidate. See
-[Persistent investigation workspaces](docs/investigation-workspaces.md).
 
 Historical source import requires a separate allowlist and never treats source as current behavioral authority:
 
@@ -584,7 +572,6 @@ npx -y rea-agents@latest function /Applications/Notes.app 0x1000
 npx -y rea-agents@latest xrefs /Applications/Notes.app 0x1000
 npx -y rea-agents@latest trace /Applications/Notes.app "offline"
 npx -y rea-agents@latest compare /absolute/path/to/left-evidence.json /absolute/path/to/right-evidence.json
-npx -y rea-agents@latest investigate-versions /path/to/v1 /path/to/v2 /absolute/path/to/evidence/releases.json --yes
 npx -y rea-agents@latest capabilities
 npx -y rea-agents@latest providers
 ```

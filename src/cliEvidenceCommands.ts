@@ -78,22 +78,7 @@ export const registerEvidenceCommands = (
       left: z.string().describe("Left Evidence bundle JSON path"),
       right: z.string().describe("Right Evidence bundle JSON path"),
     }),
-    options: z.object({
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Zero-based changed-record offset"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(500)
-        .default(100)
-        .describe("Maximum changed records to return"),
-    }),
-    run: ({ args, options }) =>
+    run: ({ args }) =>
       logCliCommand(logger, "compare", async () => {
         const config = parseConfig(process.env);
         if (!config.ok) return cliError(config.error);
@@ -105,8 +90,6 @@ export const registerEvidenceCommands = (
         const compared = await compareEvidenceBundlesCommand({
           leftPath: args.left,
           rightPath: args.right,
-          offset: options.offset,
-          limit: options.limit,
           policy: config.value.evidenceFilePolicy,
         });
         return compared.ok ? compared.value : cliError(compared.error);

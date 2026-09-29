@@ -407,22 +407,22 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "compare_artifacts",
-    "Compare two bounded sets of inventory_artifact Evidence pages by logical occurrence path, content identity, metadata, and graph relations. Pages must share and satisfy their graph commitment; every delta cites both sets, and gaps yield truncated or unknown, never equivalence.",
+    "Compare complete inventory_artifact Evidence sets by logical occurrence path, content identity, metadata, and graph relations. Every delta cites both sets, and gaps yield truncated or unknown, never equivalence. Returns every change inline.",
     artifactComparisonInputSchema,
   ),
   session(
     "compare_functions",
-    "Compare two explicit bounded sets of analyze_function Evidence pages across identity, exact provider text, calls, references, strings, and address-normalized CFG topology. Missing or provider-incompatible facets remain truncated or unknown; every conclusion cites both Evidence sets.",
+    "Compare two explicit sets of analyze_function Evidence across identity, exact provider text, calls, references, strings, and address-normalized CFG topology. Missing or provider-incompatible facets remain truncated or unknown; every conclusion cites both Evidence sets.",
     functionComparisonInputSchema,
   ),
   session(
     "compare_bundles",
-    "Compare two canonical Evidence v2 bundles by exact record membership, explicit one-to-one observation pairs, and complete residual-unknown revision histories. Missing bundle members describe omission only, never behavioral equivalence; output is digest-anchored and deterministically paginated.",
+    "Compare two canonical Evidence bundles by exact record membership, explicit one-to-one observation pairs, and complete residual-unknown revision histories. Missing bundle members describe omission only, never behavioral equivalence; output is digest-anchored and returns every change inline.",
     bundleComparisonInputSchema,
   ),
   session(
     "find_changed_behavior",
-    "Aggregate validated comparison Evidence, or automatically run and resume a persistent cross-version artifact investigation beneath an approved evidence root. Runtime observations remain distinct from static behavior candidates; missing or incomplete comparisons produce unresolved findings, never causal claims.",
+    "Aggregate validated process and artifact comparison Evidence. Runtime observations remain distinct from static behavior candidates; missing or incomplete comparisons produce unresolved findings, never causal claims. Returns every finding inline.",
     changedBehaviorInputSchema,
   ),
   session(

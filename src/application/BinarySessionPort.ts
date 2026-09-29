@@ -18,7 +18,6 @@ import type {
   UnknownStatus,
   UpdateUnknownInput,
 } from "../domain/residualUnknown.js";
-import type { InvestigationWorkspace } from "../domain/investigationWorkspace.js";
 import type { ReconstructionCoverageWorkspace } from "../domain/reconstructionCoverage.js";
 import type {
   AnalysisOperation,
@@ -58,14 +57,6 @@ export interface BinarySessionPort extends AnalysisOperationPort {
   importAnalysisSnapshot(
     snapshot: AnalysisSnapshot,
   ): Result<number, AnalysisError>;
-  retainInvestigationWorkspace(
-    workspace: InvestigationWorkspace,
-  ): "added" | "duplicate";
-  investigationWorkspace(
-    workspaceId: string,
-    revision: number,
-  ): InvestigationWorkspace | undefined;
-  investigationWorkspaces(): readonly InvestigationWorkspace[];
   retainReconstructionCoverageWorkspace(
     workspace: ReconstructionCoverageWorkspace,
   ): "added" | "duplicate";

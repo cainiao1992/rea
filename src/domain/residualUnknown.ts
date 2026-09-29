@@ -37,7 +37,6 @@ const resolutionSchema = z.discriminatedUnion("disposition", [
 
 /** Strict durable record for one unresolved or evidence-qualified question. */
 const residualUnknownObjectSchema = z.object({
-  registry_version: z.literal(1),
   unknown_id: unknownIdSchema,
   revision: z.number().int().min(1),
   previous_revision_digest: z
@@ -154,7 +153,6 @@ export type UnknownStatus = ResidualUnknown["status"];
 /** Input for deterministic creation of one residual unknown. */
 export const recordUnknownInputSchema = residualUnknownObjectSchema
   .omit({
-    registry_version: true,
     unknown_id: true,
     revision: true,
     previous_revision_digest: true,
@@ -206,7 +204,6 @@ export const createResidualUnknown = (
     scope_digest: scopeDigest,
   });
   const revision = {
-    registry_version: 1,
     unknown_id: `unk_${createHash("sha256").update(identity).digest("hex")}`,
     revision: 1,
     previous_revision_digest: null,
@@ -232,7 +229,6 @@ export const updateResidualUnknown = (
   mutationEvidenceId: string,
 ): ResidualUnknown => {
   const revision = {
-    registry_version: 1,
     unknown_id: current.unknown_id,
     revision: current.revision + 1,
     previous_revision_digest: current.revision_digest,

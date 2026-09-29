@@ -88,7 +88,6 @@ export const observeOwnedProcessLineageWithHost = async (
     status: "verified",
     observedAt: new Date().toISOString(),
     lineage: {
-      schemaVersion: 1,
       runId: ownership.runId,
       launcherPid: launcher.pid,
       launcherParentPid: launcher.parentPid,

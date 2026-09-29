@@ -132,7 +132,6 @@ export class AnalysisSnapshotCache {
     if (target === undefined || profile === undefined)
       return err(new NoBinaryOpenError());
     return ok({
-      snapshot_version: 2,
       target: snapshotTarget(target),
       binding: snapshotBinding(profile),
       entries: this.entries(),

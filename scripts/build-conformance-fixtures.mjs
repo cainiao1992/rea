@@ -37,7 +37,6 @@ await buildPortableFixtures();
 if (hostPlatform === "darwin") await buildDarwinFixtures();
 
 const manifest = {
-  schemaVersion: 1,
   platform: hostPlatform,
   architecture,
   generatedAt: new Date(0).toISOString(),

@@ -157,7 +157,6 @@ const dynamicProvider = (
               status: "verified",
               observedAt: "2026-07-22T10:00:00.000Z",
               lineage: {
-                schemaVersion: 1,
                 runId: context.runId,
                 launcherPid,
                 launcherParentPid: 1,

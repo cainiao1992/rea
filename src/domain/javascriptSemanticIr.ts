@@ -447,10 +447,9 @@ export interface JavaScriptSemanticModuleLink {
   readonly location: JavaScriptSourceRange;
 }
 
-/** Provider-neutral JavaScript semantic IR v4. */
+/** Provider-neutral JavaScript semantic IR. */
 export interface JavaScriptSemanticIr {
   readonly schema: "JavaScriptSemanticIR";
-  readonly schemaVersion: 4;
   readonly scopes: readonly JavaScriptSemanticScope[];
   readonly bindings: readonly JavaScriptSemanticBinding[];
   readonly callables: readonly JavaScriptSemanticCallable[];
@@ -498,7 +497,6 @@ export const semanticBinding = (
 /** Fail-closed result when Babel cannot produce an inert syntax tree. */
 export const failedJavaScriptSemanticIr = (): JavaScriptSemanticIr => ({
   schema: "JavaScriptSemanticIR",
-  schemaVersion: 4,
   scopes: [],
   bindings: [],
   callables: [],

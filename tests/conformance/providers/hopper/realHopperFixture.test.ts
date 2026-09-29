@@ -92,7 +92,6 @@ const fixtureManifest = async (): Promise<string> => {
   await writeFile(
     manifest,
     JSON.stringify({
-      schemaVersion: 1,
       fixtures: [
         {
           name: "c",

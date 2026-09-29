@@ -310,7 +310,6 @@ describe("provider process spawning primitives", () => {
             /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u,
           ),
           lineage: {
-            schemaVersion: 1,
             runId: "provider-process-lineage-run",
             launcherPid: spawned.process.pid,
             launcherParentPid: process.pid,

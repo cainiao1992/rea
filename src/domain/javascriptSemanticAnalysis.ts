@@ -96,7 +96,6 @@ export const analyzeParsedJavaScriptSemantics = (
   );
   return {
     schema: "JavaScriptSemanticIR",
-    schemaVersion: 4,
     scopes: immutableSemanticScopes(state),
     bindings,
     callables,

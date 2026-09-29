@@ -70,7 +70,7 @@ export const JAVASCRIPT_APPLICATION_VERSION_COMPARISON_EXAMPLE = {
 /** Historical source inventory compared with one producer-returned graph ID. */
 export const SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE = {
   reference: createHistoricalSourceGraph({
-    schema: "HistoricalSourceGraph/v1",
+    schema: "HistoricalSourceGraph",
     authority: "historical-reference",
     root_alias: "$REFERENCE_ROOT",
     inventory_state: "complete",

@@ -403,7 +403,7 @@ const uniqueBy = <Value>(
   );
 
 const obligationId = (key: string): string =>
-  `obl_${digest({ schema: "rea.reconstruction-obligation/v1", key })}`;
+  `obl_${digest({ schema: "ReconstructionObligation", key })}`;
 
 const digest = (value: unknown): string => {
   const encoded = canonicalize(value);

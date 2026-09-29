@@ -175,7 +175,6 @@ try {
 
   const summary = {
     verifier_run: await completeVerifierRun(verifierRun),
-    schemaVersion: 1,
     codex,
     codexVersion,
     model: optionalModel ?? null,

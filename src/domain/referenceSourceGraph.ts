@@ -157,7 +157,7 @@ const vcsSchema = z
   .nullable();
 
 const graphShape = {
-  schema: z.literal("HistoricalSourceGraph/v1"),
+  schema: z.literal("HistoricalSourceGraph"),
   authority: z.literal("historical-reference"),
   root_alias: z.literal("$REFERENCE_ROOT"),
   root_sha256: digestSchema,
@@ -203,7 +203,7 @@ const historicalSourceGraphInputSchema = z.strictObject({
 });
 
 const historicalSourceManifestBaseSchema = z.strictObject({
-  schema: z.literal("HistoricalSourceManifest/v1"),
+  schema: z.literal("HistoricalSourceManifest"),
   authority: z.literal("historical-reference"),
   manifest_id: z.string().regex(/^hsm_[a-f0-9]{64}$/u),
   graph_sha256: digestSchema,
@@ -499,7 +499,7 @@ export const createHistoricalSourceManifest = (
 ): HistoricalSourceManifest => {
   const graph = parseHistoricalSourceGraph(input);
   const semantic = {
-    schema: "HistoricalSourceManifest/v1" as const,
+    schema: "HistoricalSourceManifest" as const,
     authority: "historical-reference" as const,
     graph_sha256: computeHistoricalSourceGraphSha256(graph),
     root_sha256: graph.root_sha256,

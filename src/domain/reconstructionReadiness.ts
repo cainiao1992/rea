@@ -59,7 +59,7 @@ export const createReconstructionReadinessReport = (
     snapshot: input,
   };
   const reportDigest = digest({
-    schema: "rea.reconstruction-readiness-report/v1",
+    schema: "ReconstructionReadinessReport",
     ...semantic,
   });
   return reconstructionReadinessReportSchema.parse({

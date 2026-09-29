@@ -197,7 +197,6 @@ describe("owned process-group cleanup discovery", () => {
       status: "verified",
       observedAt: expect.any(String),
       lineage: {
-        schemaVersion: 1,
         runId: "run-token",
         launcherPid: 100,
         launcherParentPid: 1,

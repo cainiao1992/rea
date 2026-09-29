@@ -351,7 +351,7 @@ export class EvidenceFileError extends AnalysisError {
   }
 }
 
-/** A persisted reconstruction coverage workspace could not be read or updated. */
+/** A revisioned workspace could not be read or updated. */
 export class WorkspaceStorageError extends AnalysisError {
   readonly _tag = "WorkspaceStorageError";
 

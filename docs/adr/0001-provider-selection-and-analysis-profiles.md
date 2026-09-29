@@ -302,11 +302,10 @@ the provider imports the target.
 
 ### 7. Make snapshots provider- and profile-exact
 
-Analysis snapshot v2 replaces Hopper loader arguments with an explicit binding
+Analysis snapshots replace Hopper loader arguments with an explicit binding
 commitment:
 
 ```text
-snapshot_version: 2
 target: digest + generic format/kind + selected architecture
 binding: provider identity + analysis profile commitment
 entries: exact immutable queries

@@ -101,7 +101,6 @@ const entrySchema = z.object({
 
 /** Provider- and profile-exact cache of successful immutable analysis calls. */
 export const analysisSnapshotSchema = z.object({
-  snapshot_version: z.literal(2),
   target: targetSchema,
   binding: bindingSchema,
   entries: z.array(entrySchema).max(10_000),

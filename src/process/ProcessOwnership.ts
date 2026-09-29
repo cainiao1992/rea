@@ -35,7 +35,6 @@ export interface ProcessTableEntry {
 
 /** Token-verified process lineage retained for one owned provider run. */
 export interface OwnedProcessLineage {
-  readonly schemaVersion: 1;
   readonly runId: string;
   readonly launcherPid: number;
   readonly launcherParentPid: number;

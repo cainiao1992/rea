@@ -40,7 +40,6 @@ describe("analysis snapshots: persistence", () => {
       }),
     });
     const snapshot: AnalysisSnapshot = {
-      snapshot_version: 2,
       target,
       binding,
       entries: [entry],

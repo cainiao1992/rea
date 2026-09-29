@@ -406,7 +406,7 @@ Failure at one cleanup step does not skip the remaining steps.
 The canonical replay manifest commits:
 
 ```text
-schema and policy versions
+plan structure and policy identity
 REA/provider/runtime/sandbox executable identities and digests
 module aliases, dependency graph, bytes digests, and source references
 stub IDs, versions, source digests, and caller-provided stub digests

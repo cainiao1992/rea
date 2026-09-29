@@ -17,7 +17,6 @@ const manifestPath = await realpath(resolve(manifestArgument));
 const sourceRoot = await resolveSourceRoot(manifestPath, process.argv[3]);
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 if (
-  manifest.schemaVersion !== 1 ||
   !Array.isArray(manifest.fixtures) ||
   (manifest.platform !== "darwin" && manifest.platform !== "linux")
 )

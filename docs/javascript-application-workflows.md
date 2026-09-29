@@ -14,12 +14,11 @@ native-analysis provider. Static artifact observations, passive runtime
 observations, relationship inferences, and unknown or unavailable facts retain
 their original graph authority.
 
-Current `analyze_javascript_application` Evidence uses result schema v2. It
-retains the structural JavaScript Application Graph and a separate semantic
-relation graph bound to the same root artifact digest and structural graph ID.
-Legacy v1 Evidence remains valid for structural workflows, but semantic tracing
-returns an actionable request to reanalyze it rather than treating missing
-semantic data as an empty graph.
+`analyze_javascript_application` Evidence retains the structural JavaScript
+Application Graph and a separate semantic relation graph bound to the same root
+artifact digest and structural graph ID. Semantic tracing requires the semantic
+relation graph and reports when it is unavailable rather than treating missing
+data as an empty graph.
 
 ## Feature tracing
 
@@ -95,7 +94,7 @@ as a residual unknown in a live session.
 ## Historical source-to-bundle comparison
 
 `compare_source_to_bundle` compares one cryptographically committed
-`HistoricalSourceGraph/v1` with authenticated application-graph Evidence. The
+`HistoricalSourceGraph` with authenticated application-graph Evidence. The
 stable scoring model reports every admitted signal and weight: exact source
 digest, source-map original path, exact current path, path suffix, basename, and
 language extension. Exact digest wins over location inference; weak basename

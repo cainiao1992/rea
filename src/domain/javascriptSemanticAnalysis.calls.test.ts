@@ -19,7 +19,7 @@ describe("JavaScript semantic analysis: calls 1", () => {
       const result = alias(input, { mode: "fast" });
     `);
 
-    expect(ir.schemaVersion).toBe(4);
+    expect(ir.schema).toBe("JavaScriptSemanticIR");
     const render = onlyCallable(ir, "render");
     const call = ir.callSites.find(
       ({ calleeCallableIds }) => calleeCallableIds[0] === render.callableId,

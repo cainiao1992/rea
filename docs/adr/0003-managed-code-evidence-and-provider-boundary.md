@@ -385,7 +385,7 @@ requires its own threat model and admission decision.
 - Managed addresses distinguish file offsets, RVAs, native virtual addresses,
   metadata tokens, and CIL offsets. They are not interchangeable.
 - Cache compatibility is exact on artifact/component commitment, member-result
-  schema, parser profile, and producer version. For shipped v1,
+  fields, parser profile, and producer version. For shipped v1,
   `normalized_il_sha256` has no independent algorithm-version field.
 - Provider-neutral workflows may compose canonical managed findings with the
   one native binding, but every source operation retains its actual producer.

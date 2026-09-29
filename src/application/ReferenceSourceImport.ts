@@ -222,7 +222,7 @@ export const importReferenceSource = async (
   const sortedLimitations = [...limitations].sort(compareUnicodeCodePoints);
 
   const input: HistoricalSourceGraphInput = {
-    schema: "HistoricalSourceGraph/v1",
+    schema: "HistoricalSourceGraph",
     authority: "historical-reference",
     root_alias: "$REFERENCE_ROOT",
     inventory_state: deriveInventoryState({

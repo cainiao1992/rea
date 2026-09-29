@@ -115,14 +115,14 @@ export const evaluateReconstructionObligationLedger = ({
         ? "unknown"
         : evaluatedStatus;
   const closureDigest = digestObligationLedgerValue({
-    schema: "rea.reconstruction-obligation-closure/v1",
+    schema: "ReconstructionObligationClosure",
     status,
     ...semantic,
   });
   return reconstructionObligationLedgerSchema.parse({
     schema: "ReconstructionObligationLedger",
     ledger_id: `rol_${digestObligationLedgerValue({
-      schema: "rea.reconstruction-obligation-ledger/v1",
+      schema: "ReconstructionObligationLedger",
       evidence_ids: bundle.records.map(({ evidence_id: id }) => id),
       obligation_ids: obligations.map(({ obligation_id: id }) => id),
       closure_digest: closureDigest,

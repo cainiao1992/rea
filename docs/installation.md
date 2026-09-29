@@ -154,7 +154,10 @@ its supported command-line interface does not attach to an already-open
 document. While another live REA session owns the same target and loader
 profile, a second session reports the owning run ID instead of opening a
 duplicate document. Closing the owning REA session releases this guard; Hopper
-keeps its document open.
+keeps its document open. A later REA session can therefore open another
+document for the same target. REA does not currently identify, focus, or reuse
+that existing GUI document, and the supported launcher exposes no attach or
+reuse action for it.
 
 On supported Linux distributions, approved setup verifies Hopper's official
 `.deb`, `.rpm`, or Arch package before invoking the native package manager.

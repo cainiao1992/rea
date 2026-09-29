@@ -1,9 +1,9 @@
 # Evidence, comparison, and verification workflows
 
-REA results are Evidence v2. Cite evidence IDs and preserve authority,
-limitations, coverage, and residual unknowns. Read the smallest deterministic
-page that answers the question. Continue from a returned next offset while
-`has_more` is true only when exhaustive coverage matters.
+REA results are inline evidence. Cite evidence IDs and preserve authority,
+limitations, coverage, and residual unknowns. Inventory and search tools return
+their complete results in one call; use focused queries when the full inventory
+is not needed.
 
 Use `record_unknown` only with explicit approval and name the authority or
 environment still required. Supply supporting and contradicting evidence IDs.

@@ -52,41 +52,6 @@ const observeOptionsSchema = z.object({
     .max(10_000)
     .default(100)
     .describe("Bounded observation window in milliseconds"),
-  maxEvents: z
-    .number()
-    .int()
-    .min(1)
-    .max(50_000)
-    .default(10_000)
-    .describe("Maximum retained protocol events"),
-  maxScripts: z
-    .number()
-    .int()
-    .min(1)
-    .max(10_000)
-    .default(2_000)
-    .describe("Maximum retained scripts"),
-  maxExecutionContexts: z
-    .number()
-    .int()
-    .min(1)
-    .max(5_000)
-    .default(1_000)
-    .describe("Maximum retained execution contexts"),
-  maxLocationBytes: z
-    .number()
-    .int()
-    .min(64)
-    .max(65_536)
-    .default(16_384)
-    .describe("Maximum bytes in one protocol location"),
-  maxTotalMetadataBytes: z
-    .number()
-    .int()
-    .min(1_024)
-    .max(32 * 1_024 * 1_024)
-    .default(4 * 1_024 * 1_024)
-    .describe("Maximum retained metadata bytes"),
 });
 
 /** Register CLI equivalents of passive V8 Inspector tools. */
@@ -148,13 +113,6 @@ export const registerJavaScriptRuntimeObservationCommands = (
           target_id: args.targetId,
           runtime_kind: options.runtimeKind,
           observation_ms: options.observationMs,
-          limits: {
-            max_events: options.maxEvents,
-            max_scripts: options.maxScripts,
-            max_execution_contexts: options.maxExecutionContexts,
-            max_location_bytes: options.maxLocationBytes,
-            max_total_metadata_bytes: options.maxTotalMetadataBytes,
-          },
         });
         if (!parsed.success) return inputError("observe_javascript_runtime");
         const result = await observeJavaScriptRuntime(

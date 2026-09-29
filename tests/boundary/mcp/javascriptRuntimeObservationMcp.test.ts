@@ -9,6 +9,7 @@ import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { loadConfiguredPermissionAuthority } from "../../../src/application/PermissionConfiguration.js";
 import { observeJavaScriptRuntime } from "../../../src/application/JavaScriptRuntimeObservationService.js";
 import { V8InspectorProvider } from "../../../src/browser/V8InspectorProvider.js";
+import { observeJavaScriptRuntimeInputSchema } from "../../../src/domain/javascriptRuntimeObservation.js";
 import { parseConfig } from "../../../src/config.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { observed } from "../../fixtures/analysisExecution.js";
@@ -118,21 +119,14 @@ describe("JavaScript runtime observation MCP tools", () => {
     const direct = await observeJavaScriptRuntime(
       new V8InspectorProvider(),
       authority.value,
-      {
+      observeJavaScriptRuntimeInputSchema.parse({
         inspector_endpoint: inspector.endpoint,
         allowed_file_roots: [root],
         allowed_origins: [],
         target_id: inspector.targetId,
         runtime_kind: "node",
         observation_ms: 10,
-        limits: {
-          max_events: 10_000,
-          max_scripts: 2_000,
-          max_execution_contexts: 1_000,
-          max_location_bytes: 16_384,
-          max_total_metadata_bytes: 4_194_304,
-        },
-      },
+      }),
     );
     expect(direct.ok).toBe(true);
     if (direct.ok) expect(evidenceId).toBe(direct.value.evidence_id);

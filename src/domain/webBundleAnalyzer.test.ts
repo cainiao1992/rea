@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  inspectWebPageInputSchema,
+  inspectWebPageToolInputSchema,
   webPageInspectionSchema,
 } from "./browserObservation.js";
 import { analyzeCapturedWebBundle } from "./webBundleAnalyzer.js";
@@ -142,7 +142,7 @@ describe("web bundle analyzer", () => {
 
 const input = (overrides: Record<string, unknown> = {}) =>
   analyzeWebBundleInputSchema.parse({
-    ...inspectWebPageInputSchema.parse({
+    ...inspectWebPageToolInputSchema.parse({
       cdp_endpoint: "http://127.0.0.1:9222",
       allowed_origins: [origin],
       target_id: "page-1",

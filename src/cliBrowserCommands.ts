@@ -95,31 +95,6 @@ const registerPageInspection = (
           include_script_sources: options.includeScriptSources,
           include_storage_keys: options.includeStorageKeys,
           include_storage_fingerprints: options.includeStorageFingerprints,
-          limits: {
-            max_frames: options.maxFrames,
-            max_dom_nodes: options.maxDomNodes,
-            max_ax_nodes: options.maxAxNodes,
-            max_ax_text_field_bytes: options.maxAxTextFieldBytes,
-            max_total_ax_text_bytes: options.maxTotalAxTextBytes,
-            max_scripts: options.maxScripts,
-            max_resources: options.maxResources,
-            max_workers: options.maxWorkers,
-            max_storage_keys: options.maxStorageKeys,
-            max_script_source_bytes: options.maxScriptSourceBytes,
-            max_total_script_source_bytes: options.maxTotalScriptSourceBytes,
-            max_network_events: options.maxNetworkEvents,
-            max_console_events: options.maxConsoleEvents,
-            max_console_text_field_bytes: options.maxConsoleTextFieldBytes,
-            max_total_console_text_bytes: options.maxTotalConsoleTextBytes,
-            max_json_body_bytes: options.maxJsonBodyBytes,
-            max_total_json_body_bytes: options.maxTotalJsonBodyBytes,
-            max_json_shape_nodes: options.maxJsonShapeNodes,
-            max_json_shape_depth: options.maxJsonShapeDepth,
-            max_websocket_events: options.maxWebsocketEvents,
-            max_websocket_shape_bytes: options.maxWebsocketShapeBytes,
-            max_total_websocket_shape_bytes:
-              options.maxTotalWebsocketShapeBytes,
-          },
         });
         if (!parsed.success)
           return browserCliError(new AnalysisInputError("inspect_web_page"));

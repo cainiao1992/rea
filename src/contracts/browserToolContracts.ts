@@ -1,7 +1,7 @@
 import type { ToolContract } from "./toolContracts.js";
 import {
   browserTargetListSchema,
-  inspectWebPageInputSchema,
+  inspectWebPageToolInputSchema,
   listBrowserTargetsInputSchema,
   webPageInspectionSchema,
 } from "../domain/browserObservation.js";
@@ -140,7 +140,7 @@ export const BROWSER_TOOL_CONTRACTS = [
     description:
       "Passively inspect one approved page target through CDP without evaluating JavaScript, navigating, clicking, closing, or mutating the page. Returns bounded DOM structure, accessibility, scripts, resources, attach-window network and console metadata, workers, and redacted storage inventory as Evidence.",
     kind: "browser-provider",
-    inputSchema: inspectWebPageInputSchema,
+    inputSchema: inspectWebPageToolInputSchema,
     outputSchema: inspectionOutputSchema,
     examples: [
       {

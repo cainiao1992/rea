@@ -251,25 +251,27 @@ describeBrowser("CdpBrowserProvider: sensitive data 3", () => {
   it("reports independent sensitive-capture truncation at aggregate byte limits", async () => {
     const browser = await startFakeCdpBrowser({ sensitiveShapes: true });
     trackBrowser(browser);
-    const result = await new CdpBrowserProvider().inspectPage(
-      inspectWebPageInputSchema.parse({
-        cdp_endpoint: browser.endpoint,
-        allowed_origins: [browser.allowedOrigin],
-        target_id: "allowed-page",
-        observation_ms: 0,
-        include_console_text: true,
-        include_json_body_shapes: true,
-        include_websocket_shapes: true,
-        limits: {
-          max_console_text_field_bytes: 5,
-          max_total_console_text_bytes: 5,
-          max_json_body_bytes: 10,
-          max_total_json_body_bytes: 10,
-          max_websocket_shape_bytes: 5,
-          max_total_websocket_shape_bytes: 5,
-        },
-      }),
-    );
+    const request = inspectWebPageInputSchema.parse({
+      cdp_endpoint: browser.endpoint,
+      allowed_origins: [browser.allowedOrigin],
+      target_id: "allowed-page",
+      observation_ms: 0,
+      include_console_text: true,
+      include_json_body_shapes: true,
+      include_websocket_shapes: true,
+    });
+    const result = await new CdpBrowserProvider().inspectPage({
+      ...request,
+      limits: {
+        ...request.limits,
+        max_console_text_field_bytes: 5,
+        max_total_console_text_bytes: 5,
+        max_json_body_bytes: 10,
+        max_total_json_body_bytes: 10,
+        max_websocket_shape_bytes: 5,
+        max_total_websocket_shape_bytes: 5,
+      },
+    });
 
     if (!result.ok) throw result.error;
     expect(result.value.console.events[0]?.text_capture).toEqual({

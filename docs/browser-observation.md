@@ -118,8 +118,9 @@ rea capture-web-screenshot http://127.0.0.1:9222 TARGET_ID \
 ```
 
 The omitted observation window and capture options use conservative defaults.
-Set an option only when the investigation needs that additional content; use
-the `limits` object to override bounded collection budgets.
+Set an option only when the investigation needs that additional content.
+Collection budgets are applied internally and cannot be changed per call;
+truncated sections and dropped counts make incomplete captures explicit.
 
 Call `list_browser_targets` first because target IDs are browser-instance-specific. REA rechecks the selected target's current type and origin immediately before attaching.
 
@@ -146,7 +147,7 @@ prove static module ownership.
 
 ## Completeness and limits
 
-The default observation window is 500 ms and the maximum is 10 seconds. Frames (200), DOM nodes (2,000), accessibility nodes (2,000), scripts (200), resources (2,000), workers (500), and each storage key/name inventory (1,000) have conservative defaults and caller-visible hard bounds. Script source bytes, network events, console events, and WebSocket events are bounded separately. The CLI exposes the same limits as kebab-case options such as `--max-frames` and `--max-storage-keys`.
+The default observation window is 500 ms and the maximum is 10 seconds. Frames (200), DOM nodes (2,000), accessibility nodes (2,000), scripts (200), resources (2,000), workers (500), and each storage key/name inventory (1,000) have internal collection budgets. Script source bytes, network events, console events, and WebSocket events are bounded separately. These budgets are fixed by REA rather than caller-configurable; results identify truncated sections and dropped counts.
 
 Every result distinguishes `complete_within_window`, `policy_filtered`, `attach_limited`, and `truncated` coverage. It names affected sections and reports sparse excluded-item and per-event-type dropped counts rather than implying exhaustive capture. Disallowed-origin entries are filtered before collection-limit accounting, so they cannot consume an approved origin's output budget.
 

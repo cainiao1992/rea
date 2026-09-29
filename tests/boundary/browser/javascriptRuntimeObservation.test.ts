@@ -18,6 +18,7 @@ import type {
   JavaScriptRuntimeObservation,
   ObserveJavaScriptRuntimeInput,
 } from "../../../src/domain/javascriptRuntimeObservation.js";
+import { observeJavaScriptRuntimeToolInputSchema } from "../../../src/domain/javascriptRuntimeObservation.js";
 import { javascriptRuntimeReconciliationResultSchema } from "../../../src/domain/javascriptRuntimeReconciliationSchemas.js";
 import type {
   PermissionCeiling,
@@ -27,6 +28,18 @@ import { startFakeV8Inspector } from "../../fixtures/fakeV8Inspector.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 describe("passive V8 Inspector provider", () => {
+  test("keeps collection budgets out of the caller schema", () => {
+    expect(
+      observeJavaScriptRuntimeToolInputSchema.safeParse({
+        inspector_endpoint: "http://127.0.0.1:9229",
+        allowed_file_roots: ["/tmp/app"],
+        allowed_origins: [],
+        target_id: "target-1",
+        limits: {},
+      }).success,
+    ).toBe(false);
+  });
+
   test("returns every approved Inspector target inline", async () => {
     const fixture = await runtimeFixture();
     const fake = await startFakeV8Inspector({

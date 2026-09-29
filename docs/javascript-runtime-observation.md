@@ -79,10 +79,10 @@ targets belong to the same Electron application.
 
 ## Bounds and determinism
 
-Every observation commits the window and exact limits for events, scripts,
-execution contexts, per-location bytes, and total retained metadata bytes.
-Limit hits increment dropped-event counts and set `capture.truncated`; they
-never become completeness claims. Scripts are authorized after capture,
+Every observation records the window and effective internal collection bounds
+for events, scripts, execution contexts, per-location bytes, and total retained
+metadata bytes. These bounds are not caller-configurable. Limit hits increment
+dropped-event counts and set `capture.truncated`; they never become completeness claims. Scripts are authorized after capture,
 deduplicated by stable metadata, and canonically sorted. Wall-clock timestamps
 and protocol script IDs are excluded from the durable result, so identical
 inputs and captured metadata produce the same Evidence ID.

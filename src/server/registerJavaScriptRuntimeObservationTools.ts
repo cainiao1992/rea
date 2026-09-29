@@ -12,6 +12,7 @@ import type { ToolContract } from "../contracts/toolContracts.js";
 import type { AnalysisError } from "../domain/errors.js";
 import type { Evidence } from "../domain/evidence.js";
 import type { Result } from "../domain/result.js";
+import { observeJavaScriptRuntimeInputSchema } from "../domain/javascriptRuntimeObservation.js";
 import type { Logger } from "../logger.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
@@ -60,7 +61,7 @@ export const registerJavaScriptRuntimeObservationTools = (
           observeJavaScriptRuntime(
             options.runtime,
             options.permissionAuthority,
-            parsed,
+            observeJavaScriptRuntimeInputSchema.parse(parsed),
             { signal },
           ),
       ),

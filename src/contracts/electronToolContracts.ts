@@ -4,7 +4,7 @@ import { evidenceResultOf } from "./toolOutputSchemas.js";
 import {
   electronPageInspectionSchema,
   electronTargetListSchema,
-  inspectElectronPageInputSchema,
+  inspectElectronPageToolInputSchema,
   listElectronTargetsInputSchema,
 } from "../domain/electronObservation.js";
 import {
@@ -74,7 +74,7 @@ export const ELECTRON_TOOL_CONTRACTS = [
     description:
       "Passively inspect one approved Electron file page through CDP. Returns root-confined frames, DOM structure, resource paths, and scripts without evaluating renderer JavaScript or invoking Electron APIs; script contents require separate approval.",
     kind: "electron-provider",
-    inputSchema: inspectElectronPageInputSchema,
+    inputSchema: inspectElectronPageToolInputSchema,
     outputSchema: inspectionOutputSchema,
     examples: [
       {

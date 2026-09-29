@@ -24,6 +24,17 @@ const approvedElectronInput = {
   allowed_file_roots: electronFileRootsSchema,
 };
 
+/** Collection bounds for passive Electron capture, applied internally. */
+export const DEFAULT_ELECTRON_INSPECTION_LIMITS = {
+  max_frames: 200,
+  max_dom_nodes: 2_000,
+  max_scripts: 500,
+  max_resources: 2_000,
+  max_workers: 500,
+  max_script_source_bytes: 1_024 * 1_024,
+  max_total_script_source_bytes: 4 * 1_024 * 1_024,
+};
+
 /** Input for listing root-confined file:// page targets from Electron CDP. */
 export const listElectronTargetsInputSchema = z.strictObject({
   ...approvedElectronInput,
@@ -37,35 +48,6 @@ const inspectElectronPageFacts = {
   ...approvedElectronInput,
   target_id: z.string().trim().min(1).max(256),
   observation_ms: z.number().int().min(0).max(10_000).default(100),
-  limits: z
-    .strictObject({
-      max_frames: z.number().int().min(1).max(1_000).default(200),
-      max_dom_nodes: z.number().int().min(1).max(10_000).default(2_000),
-      max_scripts: z.number().int().min(1).max(2_000).default(500),
-      max_resources: z.number().int().min(1).max(10_000).default(2_000),
-      max_workers: z.number().int().min(1).max(5_000).default(500),
-      max_script_source_bytes: z
-        .number()
-        .int()
-        .min(1)
-        .max(4 * 1_024 * 1_024)
-        .default(1_024 * 1_024),
-      max_total_script_source_bytes: z
-        .number()
-        .int()
-        .min(1)
-        .max(16 * 1_024 * 1_024)
-        .default(4 * 1_024 * 1_024),
-    })
-    .default({
-      max_frames: 200,
-      max_dom_nodes: 2_000,
-      max_scripts: 500,
-      max_resources: 2_000,
-      max_workers: 500,
-      max_script_source_bytes: 1_024 * 1_024,
-      max_total_script_source_bytes: 4 * 1_024 * 1_024,
-    }),
 } as const;
 export const inspectElectronPageInputSchema = z
   .union([
@@ -78,17 +60,20 @@ export const inspectElectronPageInputSchema = z
       include_script_sources: z.literal(true),
     }),
   ])
-  .superRefine((input, context) => {
-    if (
-      input.limits.max_script_source_bytes >
-      input.limits.max_total_script_source_bytes
-    )
-      context.addIssue({
-        code: "custom",
-        path: ["limits", "max_script_source_bytes"],
-        message: "Per-script source limit cannot exceed the total source limit",
-      });
-  });
+  .transform((input) => ({
+    ...input,
+    limits: DEFAULT_ELECTRON_INSPECTION_LIMITS,
+  }));
+export const inspectElectronPageToolInputSchema = z.union([
+  z.strictObject({
+    ...inspectElectronPageFacts,
+    include_script_sources: z.literal(false).default(false),
+  }),
+  z.strictObject({
+    ...inspectElectronPageFacts,
+    include_script_sources: z.literal(true),
+  }),
+]);
 export type InspectElectronPageInput = z.infer<
   typeof inspectElectronPageInputSchema
 >;

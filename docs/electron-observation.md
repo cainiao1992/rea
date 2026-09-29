@@ -50,8 +50,8 @@ inventories authorized worker, service-worker, and shared-worker targets with
 bounded opener-target and parent-frame IDs. Worker discovery uses passive
 target metadata; REA does not attach to or execute code in those targets.
 
-The default worker limit is 500 and the caller-visible maximum is 5,000. Like
-every target, frame, script, and resource, a worker URL must resolve beneath an
+The worker collection budget is 500 and is applied internally. Like every
+target, frame, script, and resource, a worker URL must resolve beneath an
 approved canonical root before it is retained. Relationship IDs improve
 attribution but do not prove which static module started a worker or that its
 work completed.

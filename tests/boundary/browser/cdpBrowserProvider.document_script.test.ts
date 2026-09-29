@@ -12,19 +12,21 @@ describeBrowser("CdpBrowserProvider: document script 1", () => {
   it("captures bounded accessibility text only after independent approval", async () => {
     const browser = await startFakeCdpBrowser();
     trackBrowser(browser);
-    const result = await new CdpBrowserProvider().inspectPage(
-      inspectWebPageInputSchema.parse({
-        cdp_endpoint: browser.endpoint,
-        allowed_origins: [browser.allowedOrigin],
-        target_id: "allowed-page",
-        observation_ms: 0,
-        include_accessibility_text: true,
-        limits: {
-          max_ax_text_field_bytes: 6,
-          max_total_ax_text_bytes: 6,
-        },
-      }),
-    );
+    const request = inspectWebPageInputSchema.parse({
+      cdp_endpoint: browser.endpoint,
+      allowed_origins: [browser.allowedOrigin],
+      target_id: "allowed-page",
+      observation_ms: 0,
+      include_accessibility_text: true,
+    });
+    const result = await new CdpBrowserProvider().inspectPage({
+      ...request,
+      limits: {
+        ...request.limits,
+        max_ax_text_field_bytes: 6,
+        max_total_ax_text_bytes: 6,
+      },
+    });
 
     if (!result.ok) throw result.error;
     expect(result.value.accessibility).toMatchObject({
@@ -333,29 +335,31 @@ describeBrowser("CdpBrowserProvider: document script 3", () => {
   it("reports configured truncation without over-reading DOM or script source", async () => {
     const browser = await startFakeCdpBrowser();
     trackBrowser(browser);
-    const result = await new CdpBrowserProvider().inspectPage(
-      inspectWebPageInputSchema.parse({
-        cdp_endpoint: browser.endpoint,
-        allowed_origins: [browser.allowedOrigin],
-        target_id: "allowed-page",
-        observation_ms: 0,
-        include_script_sources: true,
-        limits: {
-          max_frames: 1,
-          max_dom_nodes: 1,
-          max_ax_nodes: 1,
-          max_scripts: 1,
-          max_resources: 1,
-          max_workers: 1,
-          max_storage_keys: 1,
-          max_script_source_bytes: 10,
-          max_total_script_source_bytes: 10,
-          max_network_events: 1,
-          max_console_events: 1,
-          max_websocket_events: 1,
-        },
-      }),
-    );
+    const request = inspectWebPageInputSchema.parse({
+      cdp_endpoint: browser.endpoint,
+      allowed_origins: [browser.allowedOrigin],
+      target_id: "allowed-page",
+      observation_ms: 0,
+      include_script_sources: true,
+    });
+    const result = await new CdpBrowserProvider().inspectPage({
+      ...request,
+      limits: {
+        ...request.limits,
+        max_frames: 1,
+        max_dom_nodes: 1,
+        max_ax_nodes: 1,
+        max_scripts: 1,
+        max_resources: 1,
+        max_workers: 1,
+        max_storage_keys: 1,
+        max_script_source_bytes: 10,
+        max_total_script_source_bytes: 10,
+        max_network_events: 1,
+        max_console_events: 1,
+        max_websocket_events: 1,
+      },
+    });
     if (!result.ok) throw result.error;
     expect(result.value.completeness).toMatchObject({
       status: "truncated",
@@ -377,29 +381,31 @@ describeBrowser("CdpBrowserProvider: document script 4", () => {
   it("bounds frames, resources, workers, accessibility, and storage inventories", async () => {
     const browser = await startFakeCdpBrowser({ extraCollections: true });
     trackBrowser(browser);
-    const result = await new CdpBrowserProvider().inspectPage(
-      inspectWebPageInputSchema.parse({
-        cdp_endpoint: browser.endpoint,
-        allowed_origins: [browser.allowedOrigin],
-        target_id: "allowed-page",
-        observation_ms: 0,
-        include_storage_keys: true,
-        limits: {
-          max_frames: 1,
-          max_dom_nodes: 2,
-          max_ax_nodes: 1,
-          max_scripts: 1,
-          max_resources: 1,
-          max_workers: 1,
-          max_storage_keys: 1,
-          max_script_source_bytes: 10,
-          max_total_script_source_bytes: 10,
-          max_network_events: 1,
-          max_console_events: 1,
-          max_websocket_events: 1,
-        },
-      }),
-    );
+    const request = inspectWebPageInputSchema.parse({
+      cdp_endpoint: browser.endpoint,
+      allowed_origins: [browser.allowedOrigin],
+      target_id: "allowed-page",
+      observation_ms: 0,
+      include_storage_keys: true,
+    });
+    const result = await new CdpBrowserProvider().inspectPage({
+      ...request,
+      limits: {
+        ...request.limits,
+        max_frames: 1,
+        max_dom_nodes: 2,
+        max_ax_nodes: 1,
+        max_scripts: 1,
+        max_resources: 1,
+        max_workers: 1,
+        max_storage_keys: 1,
+        max_script_source_bytes: 10,
+        max_total_script_source_bytes: 10,
+        max_network_events: 1,
+        max_console_events: 1,
+        max_websocket_events: 1,
+      },
+    });
     if (!result.ok) throw result.error;
     expect(result.value.completeness).toMatchObject({
       status: "truncated",

@@ -101,6 +101,14 @@ describe("browser observation contracts", () => {
         max_total_websocket_shape_bytes: 1_048_576,
       },
     });
+    expect(
+      inspectWebPageInputSchema.safeParse({
+        cdp_endpoint: "http://127.0.0.1:9222",
+        allowed_origins: ["https://app.example.test"],
+        target_id: "page-1",
+        limits: {},
+      }).success,
+    ).toBe(false);
   });
 });
 

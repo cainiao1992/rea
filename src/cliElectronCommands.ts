@@ -178,15 +178,6 @@ const registerElectronPageInspection = (
           target_id: args.targetId,
           observation_ms: options.observationMs,
           include_script_sources: options.includeScriptSources,
-          limits: {
-            max_frames: options.maxFrames,
-            max_dom_nodes: options.maxDomNodes,
-            max_scripts: options.maxScripts,
-            max_resources: options.maxResources,
-            max_workers: options.maxWorkers,
-            max_script_source_bytes: options.maxScriptSourceBytes,
-            max_total_script_source_bytes: options.maxTotalScriptSourceBytes,
-          },
         });
         if (!parsed.success) return inputError("inspect_electron_page");
         const result = await inspectElectronPage(

@@ -17,6 +17,7 @@ import type { ToolContract } from "../contracts/toolContracts.js";
 import type { AnalysisError } from "../domain/errors.js";
 import type { Evidence } from "../domain/evidence.js";
 import type { Result } from "../domain/result.js";
+import { inspectElectronPageInputSchema } from "../domain/electronObservation.js";
 import type { Logger } from "../logger.js";
 import { mcpProgressReporter } from "./mcpProgress.js";
 import { logToolExecution } from "./toolLogging.js";
@@ -81,7 +82,7 @@ export const registerElectronTools = (
           inspectElectronPage(
             options.electron,
             options.permissionAuthority,
-            parsed,
+            inspectElectronPageInputSchema.parse(parsed),
             {
               signal,
               progress,

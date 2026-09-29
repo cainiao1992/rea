@@ -19,6 +19,7 @@ import type { ToolContract } from "../contracts/toolContracts.js";
 import type { AnalysisError } from "../domain/errors.js";
 import type { Evidence } from "../domain/evidence.js";
 import { analyzeWebBundleInputSchema } from "../domain/webBundleAnalysis.js";
+import { inspectWebPageInputSchema } from "../domain/browserObservation.js";
 import type { Result } from "../domain/result.js";
 import type { Logger } from "../logger.js";
 import { mcpProgressReporter } from "./mcpProgress.js";
@@ -83,10 +84,12 @@ export const registerBrowserTools = (
         inspectContract,
         { input, context },
         (parsed, { signal, progress }) =>
-          inspectWebPage(options.browser, options.permissionAuthority, parsed, {
-            signal,
-            progress,
-          }),
+          inspectWebPage(
+            options.browser,
+            options.permissionAuthority,
+            inspectWebPageInputSchema.parse(parsed),
+            { signal, progress },
+          ),
       ),
   );
   server.registerTool(

@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { inspectWebPageWithSourceInputSchema } from "./browserObservation.js";
+import {
+  DEFAULT_BROWSER_INSPECTION_LIMITS,
+  inspectWebPageWithSourceInputSchema,
+} from "./browserObservation.js";
 import { webTextArtifactSchema } from "./webContentArtifact.js";
 
 /** Provider-owned parser and network safety bounds, never caller settings. */
@@ -20,11 +23,13 @@ export const analyzeWebBundleToolInputSchema =
 export const analyzeWebBundleInputSchema =
   analyzeWebBundleToolInputSchema.transform((input) => ({
     ...input,
+    limits: DEFAULT_BROWSER_INSPECTION_LIMITS,
     analysis_limits: WEB_BUNDLE_ANALYSIS_LIMITS,
   })) as z.ZodType<AnalyzeWebBundleInput>;
 export type AnalyzeWebBundleInput = z.infer<
   typeof inspectWebPageWithSourceInputSchema
 > & {
+  readonly limits: typeof DEFAULT_BROWSER_INSPECTION_LIMITS;
   readonly fetch_source_maps: boolean;
   readonly analysis_limits: typeof WEB_BUNDLE_ANALYSIS_LIMITS;
 };

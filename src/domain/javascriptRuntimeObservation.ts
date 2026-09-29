@@ -72,35 +72,31 @@ const observedJavaScriptRuntimeKindSchema = javascriptRuntimeKindSchema.or(
   z.literal("unknown"),
 );
 
-export const javascriptRuntimeObservationLimitsSchema = z.strictObject({
-  max_events: z.number().int().min(1).max(50_000).default(10_000),
-  max_scripts: z.number().int().min(1).max(10_000).default(2_000),
-  max_execution_contexts: z.number().int().min(1).max(5_000).default(1_000),
-  max_location_bytes: z.number().int().min(64).max(65_536).default(16_384),
-  max_total_metadata_bytes: z
-    .number()
-    .int()
-    .min(1_024)
-    .max(32 * 1_024 * 1_024)
-    .default(4 * 1_024 * 1_024),
-});
+/** Collection bounds for passive V8 Inspector capture, applied internally. */
+export const DEFAULT_JAVASCRIPT_RUNTIME_OBSERVATION_LIMITS = {
+  max_events: 10_000,
+  max_scripts: 2_000,
+  max_execution_contexts: 1_000,
+  max_location_bytes: 16_384,
+  max_total_metadata_bytes: 4 * 1_024 * 1_024,
+};
 
 /** Input for one bounded, attach-only V8 Inspector observation. */
-export const observeJavaScriptRuntimeInputSchema = z
+export const observeJavaScriptRuntimeToolInputSchema = z
   .strictObject({
     ...runtimeScope,
     target_id: z.string().trim().min(1).max(256),
     runtime_kind: javascriptRuntimeKindSchema.optional(),
     observation_ms: z.number().int().min(0).max(10_000).default(100),
-    limits: javascriptRuntimeObservationLimitsSchema.default({
-      max_events: 10_000,
-      max_scripts: 2_000,
-      max_execution_contexts: 1_000,
-      max_location_bytes: 16_384,
-      max_total_metadata_bytes: 4 * 1_024 * 1_024,
-    }),
   })
   .superRefine(requireRuntimeScope);
+
+/** Internal parsed input with REA's fixed collection bounds applied. */
+export const observeJavaScriptRuntimeInputSchema =
+  observeJavaScriptRuntimeToolInputSchema.transform((input) => ({
+    ...input,
+    limits: DEFAULT_JAVASCRIPT_RUNTIME_OBSERVATION_LIMITS,
+  }));
 export type ObserveJavaScriptRuntimeInput = z.infer<
   typeof observeJavaScriptRuntimeInputSchema
 >;

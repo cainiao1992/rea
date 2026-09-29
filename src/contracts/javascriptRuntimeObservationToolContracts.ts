@@ -5,7 +5,7 @@ import {
   javascriptRuntimeObservationSchema,
   javascriptRuntimeTargetListSchema,
   listJavaScriptRuntimeTargetsInputSchema,
-  observeJavaScriptRuntimeInputSchema,
+  observeJavaScriptRuntimeToolInputSchema,
 } from "../domain/javascriptRuntimeObservation.js";
 
 const root = "/opt/example-app";
@@ -38,7 +38,7 @@ export const JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS = [
     description:
       "Attach passively to one exact approved Node/Electron V8 Inspector target and capture bounded Debugger.scriptParsed plus Runtime execution-context events. REA sends only Runtime.enable and Debugger.enable: it never evaluates, pauses, resumes, reads source, or instruments the target. require/import edges, EventEmitter activity, and Electron IPC remain explicit unknowns; reconcile the returned Evidence with static Application Graph Evidence using reconcile_javascript_runtime.",
     kind: "runtime-provider",
-    inputSchema: observeJavaScriptRuntimeInputSchema,
+    inputSchema: observeJavaScriptRuntimeToolInputSchema,
     outputSchema: evidenceResultOf(javascriptRuntimeObservationSchema),
     examples: [
       {

@@ -106,7 +106,7 @@ Every observation and edge carries all of the following:
   location, or an unavailable reason;
 - extractor name, version, operation, and optional executable digest;
 - coverage status, truncation, omitted count, and named limits;
-- limitations and links to existing Evidence v2 records;
+- limitations and links to existing Evidence records;
 - a content-derived identifier and its declared stability strategy.
 
 Authority and epistemic state are separate fields. An AST observation does not

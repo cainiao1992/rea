@@ -1,6 +1,6 @@
 # Website observation with CDP
 
-REA can attach to a user-owned Chrome-family browser through the Chrome DevTools Protocol (CDP) and produce bounded Evidence v2 about an existing page. This is a passive reverse-engineering capability, not a general browser automation or remote-control surface.
+REA can attach to a user-owned Chrome-family browser through the Chrome DevTools Protocol (CDP) and produce bounded Evidence about an existing page. This is a passive reverse-engineering capability, not a general browser automation or remote-control surface.
 
 ## Shipped surfaces
 
@@ -12,7 +12,7 @@ REA can attach to a user-owned Chrome-family browser through the Chrome DevTools
 - `compare_web_captures` / `rea compare-web-captures` compares passive captures or exact-step-aligned browser scenarios. Scenario results commit reproducible literal normalization and expose alignment failures plus artifact-level action, screenshot, DOM, accessibility, URL, history, storage, and event differences. Missing or truncated evidence is never treated as equivalence.
 - `capture_web_screenshot` / `rea capture-web-screenshot` returns an explicitly approved, bounded, content-addressed visible-viewport PNG.
 - `compare_web_screenshots` / `rea compare-web-screenshots` performs bounded local PNG pixel comparison without OCR or external services.
-- Every surface has equivalent CLI and MCP contracts and returns Evidence v2 provenance.
+- Every surface has equivalent CLI and MCP contracts and returns Evidence provenance.
 - MCP tools return complete results inline and include the Evidence ID. Session evidence can be exported with `export_evidence_bundle`.
 
 Target discovery returns the complete approved target array in one result. The
@@ -113,17 +113,13 @@ rea capture-web-screenshot http://127.0.0.1:9222 TARGET_ID \
 {
   "cdp_endpoint": "http://127.0.0.1:9222",
   "allowed_origins": ["http://127.0.0.1:3000"],
-  "target_id": "TARGET_ID_FROM_LIST_BROWSER_TARGETS",
-  "observation_ms": 500,
-  "include_accessibility_text": false,
-  "include_console_text": false,
-  "include_json_body_shapes": false,
-  "include_websocket_shapes": false,
-  "include_script_sources": false,
-  "include_storage_keys": false,
-  "include_storage_fingerprints": false
+  "target_id": "TARGET_ID_FROM_LIST_BROWSER_TARGETS"
 }
 ```
+
+The omitted observation window and capture options use conservative defaults.
+Set an option only when the investigation needs that additional content; use
+the `limits` object to override bounded collection budgets.
 
 Call `list_browser_targets` first because target IDs are browser-instance-specific. REA rechecks the selected target's current type and origin immediately before attaching.
 
@@ -141,7 +137,7 @@ REA removes sensitive values before normalized event data is retained:
 - Console observations with a stack source retain call type, argument types, timestamp, and redacted source location. When console text capture is selected, only already-delivered primitive values are retained after credential redaction and byte bounds; objects, getters, and remote properties are never expanded.
 - WebSocket observations retain direction, opcode, and payload byte length. When shape capture is selected, bounded text frames are classified as text or value-free JSON shape; binary bytes, hashes, prefixes, and raw frames are never retained.
 - Storage observations always redact values. Key names, IndexedDB names, and cache names require `include_storage_keys`; stable content fingerprints require the additional `include_storage_fingerprints` selection. Cache bodies above 64 KiB and partial IndexedDB remote objects make fingerprint coverage incomplete, so identical observations remain `unknown`.
-- Script metadata is included only when CDP supplies a URL on an allowed origin. Stable keys exclude transient CDP script IDs, and exact transient raw URLs are used only during script/resource reconciliation. URL-less scripts are excluded because their origin cannot be established. When CDP supplies an execution-context association, the accepted script retains its authorized frame ID for later attribution. Source content is omitted unless explicitly requested and becomes a self-verifying `rea://web-content/sha256/...` artifact subject to per-script and aggregate byte limits.
+- Script metadata is included only when CDP supplies a URL on an allowed origin. Stable keys exclude transient CDP script IDs, and exact transient raw URLs are used only during script/resource reconciliation. URL-less scripts are excluded because their origin cannot be established. When CDP supplies an execution-context association, the accepted script retains its authorized frame ID for later attribution. Source content is omitted unless explicitly requested and is returned inline as a self-verifying artifact with its SHA-256 digest, subject to per-script and aggregate byte limits.
 
 Cross-origin frames, resources, scripts, events, and workers are excluded unless their exact origins are also approved. Excluded target details are counted without being exposed.
 Retained workers include bounded opener-target and parent-frame IDs when CDP

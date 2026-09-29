@@ -170,7 +170,7 @@ Before implementation, an adapter proposal must provide:
 
 - a capability matrix covering supported, unsupported, and degraded results;
 - provider identity, version, analysis profile, target digest, authority,
-  limitations, and deterministic locations in every Evidence v2 record;
+  limitations, and deterministic locations in every Evidence record;
 - bounded subprocess or library lifetime, cancellation, timeouts, and cleanup;
 - actionable local diagnostics that retain paths, digests, mismatch locations,
   and provider metadata while redacting credentials, authorization headers,

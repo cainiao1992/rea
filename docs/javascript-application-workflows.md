@@ -7,7 +7,7 @@ are `trace_application_feature`, `trace_javascript_semantics`,
 `compare_javascript_export_shapes`; their CLI equivalents use the same names
 with hyphens.
 
-Both workflows consume Evidence v2 produced by
+Both workflows consume Evidence produced by
 `analyze_javascript_application` or `reconcile_javascript_runtime`. They do not
 read an artifact, execute application code, attach to a process, or open a
 native-analysis provider. Static artifact observations, passive runtime
@@ -41,10 +41,9 @@ provider implicitly.
 rereading mutable files. A seed may identify a semantic or application node,
 literal, function fingerprint, property, endpoint, event, or boundary field.
 The query declares backward provenance, forward influence, callers, or
-ownership and can restrict admitted relation kinds. Node, relation, depth,
-function, module, seed-match, and page limits are validated against exact
-published ranges. A committed cursor returns the next deterministic relation
-page only for the same graph, query, and limits.
+ownership and can restrict admitted relation kinds. REA returns every matching
+seed and the complete reachable subgraph; callers do not choose node, relation,
+depth, function, module, seed-match, or page budgets.
 
 The extractor covers lexical definitions and reads, literal seeds, static
 property slots, object reads/writes/spreads/destructuring, closure captures,
@@ -90,9 +89,8 @@ complete coverage. With partial, unavailable, or truncated input, the same
 condition is `unknown`. The comparison retains every classified item and
 ambiguity candidate. Coverage carries omitted counts and limits from each input
 graph; comparison adds no caller-selected item, candidate, graph node, or edge
-budget. With
-`unknown_registry_approved: true`, unresolved comparison items can be retained
-as a residual unknown in a live session.
+budget. Unresolved comparison items are recorded as a residual unknown linked
+to the comparison Evidence in a live session.
 
 ## Historical source-to-bundle comparison
 
@@ -105,12 +103,13 @@ or extension evidence never forces a mapping.
 
 Each historical source file is classified as `unchanged`, `modified`,
 `removed`, `split`, `merged`, `duplicated`, or `unknown`. Multiple equally
-scored path mappings form a bounded static split inference. Multiple current
+scored path mappings form a static split inference. Multiple current
 nodes with the exact historical digest are duplicated; multiple historical
 paths with exact identity to one current node are merged. `removed` requires
-complete historical and application inventories with no relevant comparison
-truncation. Ambiguous candidates, partial inventories, and exhausted limits
-remain unknown. These static mappings do not claim runtime loading or semantic
+complete historical and application inventories. The comparison analyzes and
+returns all source files, candidate nodes, and matching signals represented in
+the supplied graphs. Partial inventories remain unknown where absence cannot
+be established. These static mappings do not claim runtime loading or semantic
 equivalence.
 
 ## Export return-shape comparison

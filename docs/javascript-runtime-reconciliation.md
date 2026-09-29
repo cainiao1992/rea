@@ -3,8 +3,8 @@
 REA can combine an existing static JavaScript Application Graph with one or
 more passive browser, Electron page, or Node/Electron V8 Inspector captures without collapsing their different
 authorities. The `reconcile_javascript_runtime` MCP tool and
-`rea reconcile-javascript-runtime` CLI command accept Evidence v2 records and
-return derived Evidence v2 containing a combined JavaScript Application Graph
+`rea reconcile-javascript-runtime` CLI command accept Evidence records and
+return derived Evidence containing a combined JavaScript Application Graph
 and explicit match, ambiguity, mismatch, and unknown classifications.
 
 The operation performs no filesystem, browser, or Electron I/O. It accepts only
@@ -30,7 +30,7 @@ parameters, and normalized-result schemas are checked before reconciliation.
    and asset roots need explicit mappings.
 
 The MCP input has this shape; the `analysis` and `runtime_observations` values
-are complete Evidence v2 objects, not only evidence IDs:
+are complete Evidence objects, not only evidence IDs:
 
 ```json
 {

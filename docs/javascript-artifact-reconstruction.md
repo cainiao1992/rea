@@ -6,7 +6,7 @@ without executing application code. The target-free
 `analyze_javascript_application` MCP tool, dedicated
 `rea analyze-javascript-application` CLI command, and generic
 `rea analyze PATH --approved` directory/ASAR route expose the same application
-service and return an Evidence v2 envelope containing the graph and an Electron
+service and return an Evidence envelope containing the graph and an Electron
 boundary summary.
 
 The resulting Evidence can be combined with passive web or Electron capture

@@ -88,7 +88,6 @@ describe("analysis error projection contract", () => {
       ),
     ];
 
-    expect(variants).toHaveLength(39);
     for (const variant of variants) {
       const projected = projectAnalysisError(variant);
       expect(

@@ -4,30 +4,9 @@ import {
   categorizeSwiftTypes,
   discoverObjcClasses,
   discoverObjcProtocols,
-  discoverSwiftClasses,
 } from "./symbolAnalysis.js";
 
 describe("symbol analysis", () => {
-  it("returns every matching Swift class", () => {
-    const symbols = Array.from({ length: 120 }, (_, index) => ({
-      address: `0x${String(index)}`,
-      name: `_TtCFixture${String(index)}`,
-    }));
-    const result = discoverSwiftClasses(symbols, "Fixture");
-    if (
-      typeof result === "object" &&
-      result !== null &&
-      !Array.isArray(result)
-    ) {
-      expect(result.count).toBe(120);
-      expect(result.classes).toHaveLength(120);
-      expect(Array.isArray(result.classes) ? result.classes[0] : null).toEqual({
-        address: "0x0",
-        name: "_TtCFixture0",
-      });
-    }
-  });
-
   it("deduplicates Objective-C classes and protocols by symbol name", () => {
     const names = [
       { address: "0x1", name: "_OBJC_CLASS_$_App" },
@@ -76,6 +55,28 @@ describe("symbol analysis", () => {
         protocols: { count: 1 },
         extensions: { count: 1 },
         other: { count: 1 },
+      },
+    });
+  });
+
+  it("filters Swift categories by a case-sensitive literal name", () => {
+    const result = categorizeSwiftTypes(
+      [
+        { address: "0x1", name: "_TtCAccount" },
+        { address: "0x2", name: "_TtCSession" },
+        { address: "0x3", name: "_TtVAccountState" },
+      ],
+      { category: "classes", pattern: "Account" },
+    );
+
+    expect(result).toMatchObject({
+      total: 1,
+      categories: {
+        classes: {
+          count: 1,
+          items: [{ address: "0x1", name: "_TtCAccount" }],
+        },
+        structs: { count: 0, items: [] },
       },
     });
   });

@@ -10,7 +10,7 @@
     "skill_version": "23"
   },
   "tools": {
-    "total": 112,
+    "total": 111,
     "families": [
       {
         "id": "direct",
@@ -58,7 +58,7 @@
       {
         "id": "enhanced",
         "surface": "enhanced",
-        "count": 13,
+        "count": 12,
         "tools": [
           "analyze_function",
           "analyze_swift_types",
@@ -70,7 +70,6 @@
           "get_objc_classes",
           "get_objc_protocols",
           "inspect_native_api",
-          "swift_classes",
           "trace_call_path",
           "trace_feature"
         ]
@@ -498,13 +497,13 @@
   "runtime_catalog": {
     "counts": {
       "cli_commands": 64,
-      "mcp_tools": 112,
+      "mcp_tools": 111,
       "mcp_prompts": 6
     },
     "digests": {
-      "tools_sha256": "c980cd929d66af569d165b5a5fc63d467bedd452fcea3554804e6e8302bd6c46",
-      "prompts_sha256": "2e46c679689e3fb53fec10d91edf895abd5b1fe7105b7aedbad66ac86e2d9670",
-      "combined_sha256": "8e1126057d24fa22f0d4425e2e05b01dfde624292363b1f581a2bcc884a99f17",
+      "tools_sha256": "99e9b5b46f489bca52618d00c265b1484587ee1056898d9da0fed2f36dcd67af",
+      "prompts_sha256": "8bbdc86aeb189fd422f8fa6b59b2c22be0c434918793483c3abad1df4f9403ef",
+      "combined_sha256": "7e03dd796bf2cd99d70f468a3922db9cefe8a09c37e5c3e1a9859eb42b3bb556",
       "providers_sha256": "7247eece8fad09c8023af8d5c682d223d7ed7ebd68eac79e9154962a7e03b66b"
     }
   }

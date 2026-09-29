@@ -76,28 +76,22 @@ optional prompt arguments that feed later tool selection.
 
 Completion sources are live projections of the current session:
 
-| Argument family     | Source and filtering                                                                                                                                                                                   |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Document            | Current provider `list_documents` result.                                                                                                                                                              |
-| Procedure           | Bounded pagination over `list_procedures`; observed addresses are offered from partial results, while names require exhaustive discovery and a unique address. Optional document context is forwarded. |
-| Provider            | `auto` plus sorted deep candidates from the current binary session; target-free completion does not start them.                                                                                        |
-| Evidence            | Evidence IDs retained in the current session ledger.                                                                                                                                                   |
-| Process capture     | Evidence IDs whose operation and validated result identify process capture.                                                                                                                            |
-| Artifact manifest   | Manifest IDs from schema-valid retained artifact inventories.                                                                                                                                          |
-| Artifact occurrence | Occurrence IDs present in schema-valid retained artifact inventory pages.                                                                                                                              |
-| Residual unknown    | Current non-resolved unknown heads only.                                                                                                                                                               |
+| Argument family     | Source and filtering                                                                                                                                 |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Document            | Current provider `list_documents` result.                                                                                                            |
+| Procedure           | The complete `list_procedures` inventory; all procedure addresses and uniquely named procedures are offered. Optional document context is forwarded. |
+| Provider            | `auto` plus sorted deep candidates from the current binary session; target-free completion does not start them.                                      |
+| Evidence            | Evidence IDs retained in the current session ledger.                                                                                                 |
+| Process capture     | Evidence IDs whose operation and validated result identify process capture.                                                                          |
+| Artifact manifest   | Manifest IDs from schema-valid retained artifact inventories.                                                                                        |
+| Artifact occurrence | Occurrence IDs present in schema-valid retained artifact inventory pages.                                                                            |
+| Residual unknown    | Current non-resolved unknown heads only.                                                                                                             |
 
 Suggestions are Unicode-normalized, case-insensitive prefix matches. The server
-deduplicates them, rejects values longer than 4,096 characters, and sorts by
-code point for deterministic results. It scans at most 10,000 candidates;
-procedure discovery is further bounded to 5,000 unique addresses in pages of 500. If that bound is reached before exhaustive procedure discovery, only
-observed addresses are suggested because global name uniqueness is unknown.
-
-The MCP result carries at most 100 `values`. `total` is the number of matching
-candidates found within REA's scan bound, and `hasMore` reports whether more
-than 100 were found. The MCP completion response has no offset or cursor, so a
-client narrows a large result by sending a longer prefix rather than requesting
-another page.
+deduplicates them and sorts by code point for deterministic results. Procedure
+completion derives candidates from the complete inventory, so a name is offered
+only when it identifies one address in that inventory. Completion returns all
+matching values; it does not expose paging controls.
 
 ## Lifecycle and safety
 

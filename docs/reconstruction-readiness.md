@@ -45,7 +45,7 @@ check project-owned conformance fixtures and fail-closed report behavior.
 | `export-replay`                 | CLI/MCP parity, process/structured failure parity, deterministic replay, tamper rejection, and stale-input rejection  |
 
 Every stage and required check must occur exactly once and link to Evidence in
-the embedded Evidence v2 bundle. `fail`, `unknown`, `unsupported`, `truncated`,
+the embedded Evidence bundle. `fail`, `unknown`, `unsupported`, `truncated`,
 and `skipped` never aggregate to `pass`.
 
 ## Fail-closed rules

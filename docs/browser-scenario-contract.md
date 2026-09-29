@@ -1,11 +1,20 @@
 # Browser scenario contract
 
-`capture_browser_scenario` accepts the versioned provider-neutral
+`capture_browser_scenario` accepts the provider-neutral
 `browserScenarioSchema` through both MCP and the
-`capture-browser-scenario INPUT_JSON` CLI command. Version 1 is declarative and
-bounded: it admits a fixed action vocabulary, exact HTTP(S) origins,
+`capture-browser-scenario INPUT_JSON` CLI command. The request is declarative
+and bounded: it admits a fixed action vocabulary, exact HTTP(S) origins,
 deterministic browser settings, explicit storage and request replay, and finite
 capture limits. `INPUT_JSON` may be inline JSON or a JSON file path.
+
+The minimal request contains only browser launch/connect authority, `start_url`,
+`allowed_origins`, and at least one `actions` entry. Environment settings,
+empty storage, disabled request replay, the required redaction policy, and a
+final sanitized URL capture are supplied by default. Add secret declarations,
+storage seeds, replay routes, query redaction names, and additional artifact or
+event capture only when the investigation needs them. Provider-owned duration,
+action, navigation, event, and artifact budgets are fixed internal limits; the
+request does not accept a caller-controlled `limits` object.
 
 The browser boundary is part of the contract. Launch mode requires a
 caller-selected absolute executable, a provider-owned temporary profile,
@@ -30,7 +39,7 @@ route IDs, undeclared or unused secrets, and provider-owned replay headers fail
 validation. HTTP and WebSocket routing enforces the same declared scope. Exact
 replay may abort unmatched requests or pass through only approved origins.
 
-The result is Evidence v2 with an initial state followed by one record per
+The result is Evidence with an initial state followed by one record per
 declared action. Each step reports action status, elapsed time, sanitized URLs,
 event bounds, and independently typed capture states for screenshot, DOM,
 accessibility, URL, history, and storage. Console, page-error, network,

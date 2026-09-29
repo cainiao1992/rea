@@ -12,14 +12,13 @@ import {
 } from "./webContentArtifact.js";
 
 describe("web content artifacts", () => {
-  it("binds UTF-8 content, size, digest, and URI", () => {
+  it("binds UTF-8 content, size, and digest inline", () => {
     const artifact = createWebTextArtifact(
       "const marker = '😀';",
       "text/javascript",
     );
     expect(webTextArtifactSchema.parse(artifact)).toEqual(artifact);
     expect(artifact.bytes).toBe(Buffer.byteLength(artifact.text));
-    expect(artifact.uri).toBe(`rea://web-content/sha256/${artifact.sha256}`);
   });
 
   it("rejects altered content that reuses an artifact digest", () => {

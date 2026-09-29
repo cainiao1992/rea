@@ -5,7 +5,7 @@ and retain bounded script-load and execution-context metadata. The
 `list_javascript_runtime_targets` and `observe_javascript_runtime` MCP tools
 have equivalent `rea list-javascript-runtime-targets` and
 `rea observe-javascript-runtime` commands. Successful calls return
-deterministic Evidence v2.
+deterministic Evidence.
 
 This authority is disabled by default and is separate from browser CDP,
 Electron file-page inspection, Process Capture, and controlled JavaScript

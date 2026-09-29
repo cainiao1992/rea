@@ -82,18 +82,23 @@ export const DEFAULT_JAVASCRIPT_RUNTIME_OBSERVATION_LIMITS = {
 };
 
 /** Input for one bounded, attach-only V8 Inspector observation. */
-export const observeJavaScriptRuntimeToolInputSchema = z
+export const observeJavaScriptRuntimeToolInputSchema = z.strictObject({
+  discovery_evidence_id: z.string().min(1),
+  target_id: z.string().trim().min(1).max(256),
+  runtime_kind: javascriptRuntimeKindSchema.optional(),
+  observation_ms: z.number().int().min(0).max(10_000).default(100),
+});
+
+/** Input after discovery Evidence supplies the authorized target scope. */
+export const observeJavaScriptRuntimeInputSchema = z
   .strictObject({
     ...runtimeScope,
     target_id: z.string().trim().min(1).max(256),
     runtime_kind: javascriptRuntimeKindSchema.optional(),
     observation_ms: z.number().int().min(0).max(10_000).default(100),
   })
-  .superRefine(requireRuntimeScope);
-
-/** Internal parsed input with REA's fixed collection bounds applied. */
-export const observeJavaScriptRuntimeInputSchema =
-  observeJavaScriptRuntimeToolInputSchema.transform((input) => ({
+  .superRefine(requireRuntimeScope)
+  .transform((input) => ({
     ...input,
     limits: DEFAULT_JAVASCRIPT_RUNTIME_OBSERVATION_LIMITS,
   }));

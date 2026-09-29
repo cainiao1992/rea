@@ -49,7 +49,10 @@ it("advertises the native function discovery-to-dossier workflow", async () => {
   });
 
   expect(client.getInstructions()).toContain(
-    "call binary_overview for target metadata and inventory counts, then search_procedures or list_procedures to choose a function",
+    "use search_procedures or list_procedures to choose a function",
+  );
+  expect(client.getInstructions()).toContain(
+    "Call binary_overview when target metadata or inventory counts are useful",
   );
 
   const tools = new Map(

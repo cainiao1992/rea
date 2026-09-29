@@ -35,6 +35,12 @@ Excluded locations are counted but never retained.
 array. The Inspector discovery response-size ceiling remains internal; an
 oversized response fails explicitly.
 
+For the MCP follow-up call, pass the discovery Evidence ID and selected target
+ID to `observe_javascript_runtime`. REA reuses the endpoint and file/origin
+scope from that retained discovery Evidence, checks the selected ID against its
+target list, and reapplies permission policy. The agent does not repeat roots or
+origins. The CLI continues to accept its endpoint and scope arguments directly.
+
 ## Passive protocol boundary
 
 The provider sends exactly two protocol commands:

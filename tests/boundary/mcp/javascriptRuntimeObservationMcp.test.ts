@@ -81,13 +81,12 @@ describe("JavaScript runtime observation MCP tools", () => {
         targets: [{ target_id: inspector.targetId }],
       },
     });
+    const discoveryEvidenceId = evidenceIdFrom(listed.structuredContent);
 
     const observedRuntime = await client.callTool({
       name: "observe_javascript_runtime",
       arguments: {
-        inspector_endpoint: inspector.endpoint,
-        allowed_file_roots: [root],
-        allowed_origins: [],
+        discovery_evidence_id: discoveryEvidenceId,
         target_id: inspector.targetId,
         runtime_kind: "node",
         observation_ms: 10,

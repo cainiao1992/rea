@@ -55,10 +55,10 @@ import {
 } from "./sessionToolPolicies.js";
 
 const TARGET_FREE_INSTRUCTIONS =
-  "Start with binary_session to see the active target and available providers. For an archive or application package, call open_binary(path), then inspect_artifact for the complete graph and findings; use extract_artifact to materialize its regular contents when needed. For standalone JavaScript or ASAR analysis, use analyze_javascript_application. For managed PE/CLI files, use inspect_managed_artifact. For native binaries, open the target and start with binary_overview. For a live page or runtime, discover targets with list_browser_targets, list_electron_targets, or list_javascript_runtime_targets before inspection; scenario capture tools are for controlled interactions.";
+  "Choose tools from the target and question. For an archive or application package, open_binary(path) binds the active target; use inspect_artifact when its graph and findings help, and extract_artifact when materialized files are needed. For standalone JavaScript or ASAR analysis, use analyze_javascript_application. For managed PE/CLI files, use inspect_managed_artifact. For native binaries, open the target and use focused search, procedure, or function tools directly; binary_overview is available when metadata or inventory context is useful. For a live page or runtime, discover targets with list_browser_targets, list_electron_targets, or list_javascript_runtime_targets when needed; scenario capture tools are for controlled interactions.";
 
 const ACTIVE_TARGET_INSTRUCTIONS =
-  "REA analyzes the active reverse-engineering target. For native binaries, call binary_overview for target metadata and inventory counts, then search_procedures or list_procedures to choose a function and analyze_function with its returned name or address for a complete dossier. Use inspect_native_api when you need to reconstruct a native API boundary, and focused procedure tools when you need only one facet such as assembly, callers, or references.";
+  "REA analyzes the active reverse-engineering target. For native binaries, use search_procedures or list_procedures to choose a function and analyze_function with its returned name or address for a complete dossier. Call binary_overview when target metadata or inventory counts are useful. Use inspect_native_api when you need to reconstruct a native API boundary, and focused procedure tools when you need only one facet such as assembly, callers, or references.";
 
 export interface CreateServerOptions {
   readonly logger?: Logger;
@@ -336,10 +336,18 @@ const registerObservationTools = ({
     ...common,
     electron: options.electronObservation,
     electronActive: options.electronActiveObservation,
+    evidenceLookup:
+      session === undefined
+        ? undefined
+        : (evidenceId) => session.evidenceById(evidenceId),
   });
   registerJavaScriptRuntimeObservationTools(server, {
     ...common,
     runtime: options.javascriptRuntimeObservation,
+    evidenceLookup:
+      session === undefined
+        ? undefined
+        : (evidenceId) => session.evidenceById(evidenceId),
   });
   registerApplicationTools(server, {
     logger,

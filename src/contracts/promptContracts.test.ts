@@ -84,15 +84,14 @@ describe("guided prompt contracts", () => {
     ).toBeLessThan(
       rendered.get("audit_residual_unknowns")?.indexOf("`update_unknown`") ?? 0,
     );
+    expect(rendered.get("prepare_bounded_process_capture")).not.toContain(
+      "`binary_session`",
+    );
     expect(
       rendered
         .get("prepare_bounded_process_capture")
-        ?.indexOf("`binary_session`"),
-    ).toBeLessThan(
-      rendered
-        .get("prepare_bounded_process_capture")
-        ?.indexOf("`capture_process_scenario`") ?? 0,
-    );
+        ?.indexOf("`capture_process_scenario`"),
+    ).toBeGreaterThanOrEqual(0);
     expect(
       rendered
         .get("compare_application_versions")

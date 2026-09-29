@@ -38,14 +38,6 @@ const activeExample = {
   application_root: "/Applications/Example.app/Contents/Resources",
   args: [],
   actions: [{ step_id: "exercise-ipc", kind: "click", selector: "#run" }],
-  limits: {
-    max_duration_ms: 60_000,
-    action_timeout_ms: 5_000,
-    max_actions: 20,
-    max_ipc_events: 2_000,
-    max_processes: 32,
-    max_windows: 32,
-  },
 };
 
 /** Root-confined Electron file-page discovery and inspection contracts. */
@@ -72,7 +64,7 @@ export const ELECTRON_TOOL_CONTRACTS = [
     name: "inspect_electron_page",
     ...toolContractMetadata("inspect_electron_page"),
     description:
-      "Passively inspect one approved Electron file page through CDP. Returns root-confined frames, DOM structure, resource paths, and scripts without evaluating renderer JavaScript or invoking Electron APIs; script contents require separate approval.",
+      "Passively inspect one Electron file page using its list_electron_targets Evidence and returned target ID. Pass the discovery Evidence ID to reuse its endpoint and authorized file roots; this avoids repeating scope and cannot widen permission. Returns frames, DOM structure, resource paths, and scripts without evaluating renderer JavaScript or invoking Electron APIs.",
     kind: "electron-provider",
     inputSchema: inspectElectronPageToolInputSchema,
     outputSchema: inspectionOutputSchema,
@@ -80,8 +72,7 @@ export const ELECTRON_TOOL_CONTRACTS = [
       {
         title: "Inspect an approved Electron page",
         input: {
-          cdp_endpoint: endpoint,
-          allowed_file_roots: [root],
+          discovery_evidence_id: "EVIDENCE_ID_FROM_LIST_ELECTRON_TARGETS",
           target_id: "TARGET_ID_FROM_LIST_ELECTRON_TARGETS",
         },
       },

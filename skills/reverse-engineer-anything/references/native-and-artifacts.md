@@ -2,8 +2,9 @@
 
 ## Native targets
 
-After `open_binary`, use `binary_overview` once and narrow around the requested
-feature. Prefer literal search, names, decompilation, callers, callees, and
+After `open_binary`, use focused search, procedure, or function tools directly.
+Use `binary_overview` when target metadata or inventory context helps answer the
+question. Prefer literal search, names, decompilation, callers, callees, and
 cross-references. Addresses and recovered pseudocode are analysis observations,
 not original source. Provider unavailability and unsupported metadata remain
 unknown rather than false.
@@ -23,14 +24,16 @@ parser and must not become an implicit setup dependency.
 
 ## Packages and extraction
 
-Call `inspect_artifact` before extraction for application bundles, archives,
-ZIP/APK/IPA/MSIX/AppX, ASAR, or DMG inputs. It returns the complete artifact
-graph inline. Cite graph manifest IDs.
+Use `inspect_artifact` for application bundles, archives, ZIP/APK/IPA/MSIX/AppX,
+ASAR, or DMG inputs when the artifact graph and findings help answer the
+question. It returns the complete artifact graph inline. Cite graph manifest
+IDs when using them.
 
-`extract_artifact` takes no arguments and materializes all regular files into a
-fresh temporary directory chosen by REA. Symlinks and encrypted entries are
-inventory facts, not extractable files. The operation still requires the
-filesystem-write permission grant; callers do not choose the destination.
+Use `extract_artifact` when materialized files are needed. It takes no arguments
+and materializes all regular files into a fresh temporary directory chosen by
+REA. Symlinks and encrypted entries are inventory facts, not extractable files.
+The operation still requires the filesystem-write permission grant; callers do
+not choose the destination.
 
 Native DMG traversal is macOS-only, read-only, and requires both operator policy
 and `native_mount_approved: true`; without both, retain the root-hash-only result.

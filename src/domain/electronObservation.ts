@@ -66,11 +66,15 @@ export const inspectElectronPageInputSchema = z
   }));
 export const inspectElectronPageToolInputSchema = z.union([
   z.strictObject({
-    ...inspectElectronPageFacts,
+    discovery_evidence_id: z.string().min(1),
+    target_id: z.string().trim().min(1).max(256),
+    observation_ms: z.number().int().min(0).max(10_000).default(100),
     include_script_sources: z.literal(false).default(false),
   }),
   z.strictObject({
-    ...inspectElectronPageFacts,
+    discovery_evidence_id: z.string().min(1),
+    target_id: z.string().trim().min(1).max(256),
+    observation_ms: z.number().int().min(0).max(10_000).default(100),
     include_script_sources: z.literal(true),
   }),
 ]);

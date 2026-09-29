@@ -28,6 +28,12 @@ Endpoints accept only explicit-port loopback HTTP URLs. Roots are canonicalized 
 inline array. CDP response-size limits remain internal and oversized discovery
 responses fail explicitly.
 
+For the MCP follow-up call, pass the discovery Evidence ID and selected target
+ID to `inspect_electron_page`. REA reuses the endpoint and authorized roots from
+that retained discovery Evidence, checks the selected ID against its target
+list, and reapplies permission policy. The agent does not repeat the roots. The
+CLI continues to accept its endpoint and roots directly.
+
 ```bash
 rea list-electron-targets http://127.0.0.1:9223 --json
 rea inspect-electron-page http://127.0.0.1:9223 TARGET_ID \
@@ -93,16 +99,18 @@ The CLI and MCP surfaces accept the same schema. For a JSON request file:
 rea capture-electron-scenario scenario.json --json
 ```
 
-The result records bounded action status and targets, correlated app/window/WebContents,
+The result records action status and targets, correlated app/window/WebContents,
 preload, session, navigation, shell, permission, popup, download, protocol,
 native-addon, process, and IPC timeline events. IPC channels are capped at
 1,024 characters and argument-shape metadata at 32 entries; values are never
-retained. Renderer crash/restart and deep-link actions are synthetic, bounded
+retained. Renderer crash/restart and deep-link actions are synthetic
 scenario controls; their attempted and observed outcomes remain in the
 timeline. The active hook blocks and records external shell/navigation,
 permission, download, popup, updater, and OS-integration effects. The timeline
-is explicitly partial when attachment starts after application activity or when
-the event budget is exhausted.
+is explicitly partial when attachment starts after application activity. The
+owned experiment has an internal 60-second deadline and a 5-second per-action
+timeout so hung work reaches process cleanup; these are lifecycle timeouts, not
+caller-selected capture limits.
 
 Active Electron Evidence can also be supplied to
 [`reconcile_javascript_runtime`](javascript-runtime-reconciliation.md). That

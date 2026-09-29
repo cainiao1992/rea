@@ -116,18 +116,14 @@ export const PROMPT_CONTRACTS = [
     },
     steps: [
       {
-        tools: [
-          "binary_session",
-          "open_binary",
-          "analyze_javascript_application",
-        ],
+        tools: ["open_binary", "analyze_javascript_application"],
         instruction:
           "For an approved JavaScript/Electron artifact, reconstruct its application graph without execution when useful; open target_path only when no matching target is active.",
       },
       {
-        tools: ["list_documents", "set_current_document", "binary_overview"],
+        tools: ["list_documents", "set_current_document"],
         instruction:
-          "Select an explicitly discovered document, then establish bounded binary, language, segment, and procedure context.",
+          "Select a document only when needed for the requested analysis.",
       },
       {
         tools: ["search_strings", "search_procedures", "procedure_address"],
@@ -294,7 +290,7 @@ export const PROMPT_CONTRACTS = [
     },
     steps: [
       {
-        tools: ["binary_session", "open_binary", "binary_overview"],
+        tools: ["open_binary"],
         instruction:
           "Confirm the target only when needed; open or analyze it if it is not already active and the request requires it.",
       },
@@ -395,11 +391,6 @@ export const PROMPT_CONTRACTS = [
       ),
     },
     steps: [
-      {
-        tools: ["binary_session"],
-        instruction:
-          "Inspect capture capability, declared effects, and limits before proposing execution. An unavailable capability is not permission to widen policy.",
-      },
       {
         tools: ["get_evidence_bundle"],
         instruction:

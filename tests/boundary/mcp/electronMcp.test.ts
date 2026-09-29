@@ -96,11 +96,11 @@ it("exposes root-confined Electron discovery and inspection as Evidence", async 
       targets: [{ target_id: "electron-page" }],
     },
   });
+  const discoveryEvidenceId = evidenceIdFrom(listed.structuredContent);
   const inspected = await client.callTool({
     name: "inspect_electron_page",
     arguments: {
-      cdp_endpoint: browser.endpoint,
-      allowed_file_roots: [root],
+      discovery_evidence_id: discoveryEvidenceId,
       target_id: "electron-page",
       observation_ms: 0,
       include_script_sources: true,
@@ -368,4 +368,13 @@ const evidenceFor = (session: BinarySession, value: unknown) => {
   const evidence = session.evidenceById(value.evidence_id);
   if (evidence === undefined) throw new TypeError("Missing session Evidence");
   return evidence;
+};
+
+const evidenceIdFrom = (value: unknown): string => {
+  if (typeof value !== "object" || value === null)
+    throw new TypeError("Missing structured result");
+  const evidenceId = Reflect.get(value, "evidence_id");
+  if (typeof evidenceId !== "string")
+    throw new TypeError("Missing Evidence ID");
+  return evidenceId;
 };

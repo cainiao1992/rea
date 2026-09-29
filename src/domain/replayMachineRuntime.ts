@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { ReplayMachine } from "./replayMachine.js";
+import { isJsonCompatible, replayValuesEqual } from "./replayMachineValues.js";
 
 type ReplayTransition = ReplayMachine["transitions"][number];
 type IndexedReplayTransition = {
@@ -208,88 +209,6 @@ const triggerMatches = (
   return true;
 };
 
-const replayValuesEqual = (left: unknown, right: unknown): boolean => {
-  const pending: [unknown, unknown][] = [[left, right]];
-  while (pending.length > 0) {
-    const pair = pending.pop();
-    if (pair === undefined) continue;
-    const [currentLeft, currentRight] = pair;
-    if (
-      currentLeft === null ||
-      typeof currentLeft === "string" ||
-      typeof currentLeft === "boolean"
-    ) {
-      if (currentLeft !== currentRight) return false;
-      continue;
-    }
-    if (typeof currentLeft === "number") {
-      if (
-        !Number.isFinite(currentLeft) ||
-        currentLeft !== currentRight ||
-        typeof currentRight !== "number" ||
-        !Number.isFinite(currentRight)
-      )
-        return false;
-      continue;
-    }
-    if (Array.isArray(currentLeft)) {
-      if (
-        !Array.isArray(currentRight) ||
-        currentLeft.length !== currentRight.length
-      )
-        return false;
-      for (let index = 0; index < currentLeft.length; index += 1)
-        pending.push([currentLeft[index], currentRight[index]]);
-      continue;
-    }
-    if (
-      typeof currentLeft !== "object" ||
-      currentLeft === null ||
-      typeof currentRight !== "object" ||
-      currentRight === null ||
-      Array.isArray(currentRight)
-    )
-      return false;
-    const leftKeys = Object.keys(currentLeft).sort();
-    const rightKeys = Object.keys(currentRight).sort();
-    if (
-      leftKeys.length !== rightKeys.length ||
-      leftKeys.some((key, index) => key !== rightKeys[index])
-    )
-      return false;
-    for (const key of leftKeys)
-      pending.push([
-        Reflect.get(currentLeft, key),
-        Reflect.get(currentRight, key),
-      ]);
-  }
-  return true;
-};
-
-const isJsonCompatible = (value: unknown): boolean => {
-  const pending: unknown[] = [value];
-  while (pending.length > 0) {
-    const candidate = pending.pop();
-    if (
-      candidate === null ||
-      typeof candidate === "string" ||
-      typeof candidate === "boolean"
-    )
-      continue;
-    if (typeof candidate === "number") {
-      if (!Number.isFinite(candidate)) return false;
-      continue;
-    }
-    if (Array.isArray(candidate)) {
-      for (const item of candidate) pending.push(item);
-      continue;
-    }
-    if (typeof candidate !== "object") return false;
-    for (const item of Object.values(candidate)) pending.push(item);
-  }
-  return true;
-};
-
 const createTransitionRecord = ({
   sequence,
   atMs,
@@ -413,32 +332,14 @@ export class ReplayMachineRuntime {
     };
     if (!this.#admitEvent(normalizedEvent))
       return this.#refusal("limit_exhausted");
-    const matching = (
-      this.#transitionsByTrigger.get(
-        `${normalizedEvent.protocol}\0${normalizedEvent.path}`,
-      ) ?? []
-    ).filter(({ transition }) => triggerMatches(transition, normalizedEvent));
-    const eligible = matching.filter(
-      ({ transition }) => transition.from === this.#state,
+    const matching = this.#matchingTransitions(normalizedEvent);
+    const eligible = matching.filter(({ transition }) =>
+      this.#transitionStartsHere(transition),
     );
     if (eligible.length === 0)
-      return this.#refusal(
-        matching.length === 0
-          ? "unmatched"
-          : normalizedEvent.protocol === "websocket_connect" &&
-              normalizedEvent.connection === "reconnect"
-            ? "unexpected_reconnect"
-            : "invalid_state",
-      );
+      return this.#refusal(this.#noEligibleReason(matching, normalizedEvent));
     const guarded = eligible.filter(({ transition }) =>
-      transition.guards.every(
-        (guard) =>
-          this.#variables.has(guard.variable) &&
-          replayValuesEqual(
-            this.#variables.get(guard.variable),
-            readValue(guard.value, normalizedEvent, transition),
-          ),
-      ),
+      this.#transitionGuardsMatch(transition, normalizedEvent),
     );
     if (guarded.length === 0) return this.#refusal("guard_failed");
     if (this.#timeline.length >= this.machine.max_transitions)
@@ -492,6 +393,42 @@ export class ReplayMachineRuntime {
       actions: transition.actions,
       transition: record,
     };
+  }
+
+  #matchingTransitions(
+    event: ReplayMachineEvent,
+  ): readonly IndexedReplayTransition[] {
+    return (
+      this.#transitionsByTrigger.get(`${event.protocol}\0${event.path}`) ?? []
+    ).filter(({ transition }) => triggerMatches(transition, event));
+  }
+
+  #transitionStartsHere(transition: ReplayTransition): boolean {
+    return transition.from === this.#state;
+  }
+
+  #noEligibleReason(
+    matching: readonly IndexedReplayTransition[],
+    event: ReplayMachineEvent,
+  ): "unmatched" | "unexpected_reconnect" | "invalid_state" {
+    if (matching.length === 0) return "unmatched";
+    return event.protocol === "websocket_connect" &&
+      event.connection === "reconnect"
+      ? "unexpected_reconnect"
+      : "invalid_state";
+  }
+
+  #transitionGuardsMatch(
+    transition: ReplayTransition,
+    event: ReplayMachineEvent,
+  ): boolean {
+    return transition.guards.every((guard) => {
+      if (!this.#variables.has(guard.variable)) return false;
+      return replayValuesEqual(
+        this.#variables.get(guard.variable),
+        readValue(guard.value, event, transition),
+      );
+    });
   }
 
   #admitEvent(event: ReplayMachineEvent): boolean {

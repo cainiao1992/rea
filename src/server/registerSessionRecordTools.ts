@@ -7,7 +7,7 @@ import {
 } from "../application/EvidenceBundleFiles.js";
 import { SESSION_TOOL_CONTRACTS } from "../contracts/toolContracts.js";
 import type { EvidenceBundle } from "../domain/evidenceBundle.js";
-import { err, ok } from "../domain/result.js";
+import { ok } from "../domain/result.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 import { toCallToolResult } from "./toolResult.js";
 

@@ -43,7 +43,7 @@ export const resultFor = (
     case "CacheStorage.requestEntries":
       return cacheEntriesResult(port);
     case "CacheStorage.requestCachedResponse":
-      return cachedResponseResult();
+      return cachedResponseResult(options);
     default:
       return {};
   }
@@ -190,8 +190,12 @@ const cacheEntriesResult = (port: number) => ({
   returnCount: 1,
 });
 
-const cachedResponseResult = () => ({
-  response: { body: Buffer.from("cache-body-secret").toString("base64") },
+const cachedResponseResult = (options: FakeOptions) => ({
+  response: {
+    body: Buffer.from(
+      options.cachedResponseBody ?? "cache-body-secret",
+    ).toString("base64"),
+  },
 });
 
 export const versionTargetId = (options: FakeOptions): string =>

@@ -4,7 +4,6 @@ import type {
 } from "../domain/browserObservation.js";
 import {
   allowedSanitizedUrl,
-  boundedText,
   numberValue,
   recordValue,
   recordsValue,
@@ -36,7 +35,7 @@ export const captureFrames = (
     const frame = recordValue(tree.frame);
     const frameId = stringValue(frame?.id);
     const sanitized = allowedSanitizedUrl(frame?.url, allowedOrigins);
-    if (frame === undefined || frameId === undefined || frameId.length > 256) {
+    if (frame === undefined || frameId === undefined) {
       completeness?.exclude("frames", "invalid_protocol_value");
       continue;
     }
@@ -50,8 +49,7 @@ export const captureFrames = (
     if (maximum !== undefined && items.length >= maximum) continue;
     items.push({
       frame_id: frameId,
-      parent_frame_id:
-        (stringValue(frame.parentId) ?? "").slice(0, 256) || null,
+      parent_frame_id: stringValue(frame.parentId) ?? null,
       url: sanitized.url,
       origin: sanitized.origin,
     });
@@ -91,8 +89,8 @@ export const captureResources = (
         rawUrl: stringValue(resource.url) ?? "",
         url: url.url,
         origin: url.origin,
-        type: (stringValue(resource.type) ?? "Other").slice(0, 100),
-        mime_type: (stringValue(resource.mimeType) ?? "").slice(0, 256),
+        type: stringValue(resource.type) ?? "Other",
+        mime_type: stringValue(resource.mimeType) ?? "",
         content_size:
           contentSize === undefined ? null : Math.max(0, contentSize),
       });
@@ -159,7 +157,7 @@ export const captureDom = (
       const attributeIndexes = numberArray(attributes[index]);
       const parent = Math.trunc(parents[index] ?? -1);
       const nodeIndex = nodes.length;
-      const nodeName = indexedString(strings, nodeNames[index]).slice(0, 256);
+      const nodeName = indexedString(strings, nodeNames[index]);
       nodes.push({
         index: nodeIndex,
         parent_index: parent < 0 ? -1 : baseIndex + parent,
@@ -168,7 +166,7 @@ export const captureDom = (
         node_value_length: indexedString(strings, nodeValues[index]).length,
         attribute_names: attributeIndexes
           .filter((_value, attributeIndex) => attributeIndex % 2 === 0)
-          .map((value) => indexedString(strings, value).slice(0, 256)),
+          .map((value) => indexedString(strings, value)),
       });
       const metadata = domMetadata({
         strings,
@@ -206,7 +204,6 @@ export const captureAccessibility = (
   results: readonly unknown[],
   options: {
     readonly includeText: boolean;
-    readonly maximumFieldBytes: number;
     readonly unavailable?: boolean;
   },
 ): {
@@ -225,7 +222,6 @@ export const captureAccessibility = (
     }),
   );
   let excludedFields = 0;
-  let truncatedFields = 0;
   const nodes = all.map((node) => {
     const captureText = (value: unknown): string | null => {
       const raw = stringValue(recordValue(value)?.value);
@@ -234,19 +230,11 @@ export const captureAccessibility = (
         excludedFields += 1;
         return null;
       }
-      const captured = boundedUtf8(raw, options.maximumFieldBytes);
-      if (captured.truncated) {
-        truncatedFields += 1;
-        if (captured.text === "" && raw !== "") {
-          excludedFields += 1;
-          return null;
-        }
-      }
-      return captured.text;
+      return raw;
     };
     return {
-      node_id: (stringValue(node.nodeId) ?? "").slice(0, 256),
-      parent_id: (stringValue(node.parentId) ?? "").slice(0, 256) || null,
+      node_id: stringValue(node.nodeId) ?? "",
+      parent_id: stringValue(node.parentId) ?? null,
       role: axText(node.role),
       name: captureText(node.name),
       description: captureText(node.description),
@@ -270,9 +258,7 @@ export const captureAccessibility = (
         ? "unavailable"
         : !options.includeText
           ? "not_approved"
-          : truncatedFields > 0
-            ? "truncated"
-            : "included",
+          : "included",
       retained_bytes: nodes.reduce(
         (total, node) =>
           total +
@@ -281,7 +267,6 @@ export const captureAccessibility = (
         0,
       ),
       excluded_fields: excludedFields,
-      truncated_fields: truncatedFields,
     },
   };
 };
@@ -327,7 +312,7 @@ const accessibilityStates = (
         : typeof raw === "number"
           ? numberValue(raw)
           : typeof raw === "string"
-            ? raw.slice(0, 256)
+            ? raw
             : undefined;
     if (state !== undefined) states.set(name, state);
   }
@@ -337,7 +322,7 @@ const accessibilityStates = (
 };
 
 const axText = (value: unknown): string | null =>
-  boundedText(recordValue(value)?.value, 1_024);
+  stringValue(recordValue(value)?.value) ?? null;
 
 const indexedString = (strings: readonly string[], index: unknown): string => {
   const integer = numberValue(index);
@@ -431,28 +416,6 @@ const domDestination = (
   } catch {
     return { url: null, scope: "unsupported" };
   }
-};
-
-const boundedUtf8 = (
-  value: string,
-  maximumBytes: number,
-): {
-  readonly text: string;
-  readonly bytes: number;
-  readonly truncated: boolean;
-} => {
-  const total = Buffer.byteLength(value);
-  if (total <= maximumBytes)
-    return { text: value, bytes: total, truncated: false };
-  let text = "";
-  let bytes = 0;
-  for (const character of value) {
-    const characterBytes = Buffer.byteLength(character);
-    if (bytes + characterBytes > maximumBytes) break;
-    text += character;
-    bytes += characterBytes;
-  }
-  return { text, bytes, truncated: true };
 };
 
 const domUrlAttributes = [

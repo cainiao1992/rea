@@ -12,8 +12,6 @@ import {
 } from "./javascriptStaticAnalysisHelpers.js";
 import type { JavaScriptFindingContext } from "./javascriptStaticAnalysisState.js";
 
-const MAX_NATIVE_MEMBERS = 64;
-
 interface NativeBindingInput {
   readonly context: JavaScriptFindingContext;
   readonly node: t.Node;
@@ -127,15 +125,7 @@ const addBinding = (input: NativeBindingInput): void => {
   const unique = [
     ...new Set(input.members.filter((member) => member !== "")),
   ].sort(compareCodePoints);
-  const members = (unique.length === 0 ? ["*"] : unique).slice(
-    0,
-    MAX_NATIVE_MEMBERS,
-  );
-  const omitted = Math.max(0, unique.length - MAX_NATIVE_MEMBERS);
-  if (omitted > 0) {
-    context.accumulator.structuralTruncation = true;
-    context.accumulator.droppedFindings += omitted;
-  }
+  const members = unique.length === 0 ? ["*"] : unique;
   addLocatedFinding(context, {
     collection: context.accumulator.nativeAddonBindings,
     key: `native-addon-binding\0${kind}\0${specifier}\0${members.join("\0")}`,
@@ -144,7 +134,6 @@ const addBinding = (input: NativeBindingInput): void => {
       specifier,
       binding_kind: kind,
       members,
-      members_truncated: omitted > 0,
       module_key: null,
       location: range(node),
     },

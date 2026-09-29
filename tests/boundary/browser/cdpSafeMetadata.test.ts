@@ -96,4 +96,49 @@ describe("safe CDP response metadata", () => {
       },
     ]);
   });
+
+  it("retains every parsed header, CSP directive, link, relation, and policy feature", () => {
+    const csp = Array.from(
+      { length: 105 },
+      (_, index) => `x-${String(index)} 'self'`,
+    ).join("; ");
+    const links = Array.from(
+      { length: 105 },
+      (_, index) => `</${String(index)}>; rel="mcp service-desc"`,
+    ).join(", ");
+    const permissions = Array.from(
+      { length: 205 },
+      (_, index) => `feature-${String(index)}=()`,
+    ).join(", ");
+    const headers = Object.fromEntries(
+      Array.from({ length: 501 }, (_, index) => [
+        `x-extra-${String(index)}`,
+        "ok",
+      ]),
+    );
+    const captured = safeResponseMetadata(
+      "request-1",
+      `${origin}/api`,
+      {
+        mimeType: "application/json",
+        headers: {
+          ...headers,
+          "Content-Security-Policy": csp,
+          Link: links,
+          "Permissions-Policy": permissions,
+          "X-Model-Context": "present-after-many-headers",
+        },
+      },
+      new Set([origin]),
+    );
+
+    expect(captured.response.csp.directives).toHaveLength(105);
+    expect(captured.response.links).toHaveLength(105);
+    expect(captured.response.policies.permissions_policy_features).toHaveLength(
+      205,
+    );
+    expect(captured.agentHints).toContainEqual(
+      expect.objectContaining({ declaration: "x-model-context" }),
+    );
+  });
 });

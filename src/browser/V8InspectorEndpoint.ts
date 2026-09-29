@@ -8,26 +8,23 @@ import {
   BrowserObservationError,
   type BrowserObservationOperation,
 } from "../domain/errors.js";
-import { parseCdpEndpointValue, readBoundedCdpJson } from "./CdpEndpoint.js";
-
-const MAX_VERSION_BYTES = 64 * 1_024;
-const MAX_TARGET_LIST_BYTES = 2 * 1_024 * 1_024;
+import { parseCdpEndpointValue, readCdpJson } from "./CdpEndpoint.js";
 
 const versionSchema = z
   .object({
-    Browser: z.string().min(1).max(1_024),
-    "Protocol-Version": z.string().min(1).max(100),
-    "V8-Version": z.string().max(1_024).optional(),
+    Browser: z.string().min(1),
+    "Protocol-Version": z.string().min(1),
+    "V8-Version": z.string().optional(),
   })
   .passthrough();
 
 const targetSchema = z
   .object({
-    id: z.string().min(1).max(256),
-    type: z.string().min(1).max(100),
-    url: z.string().max(65_536),
+    id: z.string().min(1),
+    type: z.string().min(1),
+    url: z.string(),
     attached: z.boolean().default(false),
-    webSocketDebuggerUrl: z.string().min(1).max(2_048),
+    webSocketDebuggerUrl: z.string().min(1),
   })
   .passthrough();
 const targetsSchema = z.array(targetSchema);
@@ -45,25 +42,15 @@ export interface V8InspectorDiscovery {
   readonly targets: readonly V8InspectorTarget[];
 }
 
-/** Discover bounded Node/Electron Inspector targets from one loopback endpoint. */
+/** Discover Node/Electron Inspector targets from one loopback endpoint. */
 export const discoverV8Inspector = async (
   endpoint: string,
   operation: BrowserObservationOperation,
   signal?: AbortSignal,
 ): Promise<V8InspectorDiscovery> => {
   const [versionInput, targetsInput] = await Promise.all([
-    readBoundedCdpJson(
-      new URL("/json/version", endpoint),
-      MAX_VERSION_BYTES,
-      operation,
-      signal,
-    ),
-    readBoundedCdpJson(
-      new URL("/json/list", endpoint),
-      MAX_TARGET_LIST_BYTES,
-      operation,
-      signal,
-    ),
+    readCdpJson(new URL("/json/version", endpoint), operation, signal),
+    readCdpJson(new URL("/json/list", endpoint), operation, signal),
   ]);
   const version = parseCdpEndpointValue(versionSchema, versionInput, operation);
   const targets = parseCdpEndpointValue(targetsSchema, targetsInput, operation);

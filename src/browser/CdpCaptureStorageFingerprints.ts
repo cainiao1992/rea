@@ -10,8 +10,6 @@ import { CdpConnection } from "./CdpConnection.js";
 import { optionalCdpCommand } from "./CdpOptionalCommand.js";
 import { recordValue, recordsValue, stringValue } from "./CdpCaptureValues.js";
 
-const MAX_CACHE_BODY_BYTES = 64 * 1_024;
-
 type StorageFingerprint =
   WebPageInspection["storage"]["content_fingerprints"][number];
 
@@ -383,8 +381,7 @@ const addCacheEntry = async (
   );
   const body = stringValue(recordValue(recordValue(raw)?.response)?.body);
   const decoded = body === undefined ? null : decodeBase64(body);
-  const complete =
-    decoded !== null && decoded.byteLength <= MAX_CACHE_BODY_BYTES;
+  const complete = decoded !== null;
   if (!complete) run.state.complete = false;
   addFingerprint(run.state, {
     scope: "cache_entry",
@@ -426,7 +423,7 @@ const encodedValue = (value: unknown): Uint8Array | string => {
   return encoded;
 };
 
-const stableValue = (value: unknown, depth = 0): unknown => {
+const stableValue = (value: unknown): unknown => {
   if (
     value === null ||
     typeof value === "string" ||
@@ -434,21 +431,18 @@ const stableValue = (value: unknown, depth = 0): unknown => {
     typeof value === "boolean"
   )
     return value;
-  if (depth >= 8) return "<depth-limit>";
-  if (Array.isArray(value))
-    return value.slice(0, 64).map((item) => stableValue(item, depth + 1));
+  if (Array.isArray(value)) return value.map((item) => stableValue(item));
   const record = recordValue(value);
   if (record === undefined) return String(value);
   return Object.fromEntries(
     Object.entries(record)
       .filter(([key]) => key !== "objectId" && key !== "customPreview")
       .sort(([left], [right]) => compareCodePoints(left, right))
-      .slice(0, 64)
-      .map(([key, item]) => [key, stableValue(item, depth + 1)]),
+      .map(([key, item]) => [key, stableValue(item)]),
   );
 };
 
-const stableValueComplete = (value: unknown, depth = 0): boolean => {
+const stableValueComplete = (value: unknown): boolean => {
   if (value instanceof Uint8Array) return true;
   if (
     value === null ||
@@ -458,21 +452,14 @@ const stableValueComplete = (value: unknown, depth = 0): boolean => {
     typeof value === "boolean"
   )
     return true;
-  if (depth >= 8) return false;
   if (Array.isArray(value))
-    return (
-      value.length <= 64 &&
-      value.every((item) => stableValueComplete(item, depth + 1))
-    );
+    return value.every((item) => stableValueComplete(item));
   const record = recordValue(value);
   if (record === undefined) return false;
   const entries = Object.entries(record).filter(
     ([key]) => key !== "objectId" && key !== "customPreview",
   );
-  return (
-    entries.length <= 64 &&
-    entries.every(([, item]) => stableValueComplete(item, depth + 1))
-  );
+  return entries.every(([, item]) => stableValueComplete(item));
 };
 
 const remoteObjectComplete = (value: unknown): boolean => {

@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  boundedSensitiveText,
-  redactSensitiveText,
-} from "./SensitiveTextCapture.js";
+import { redactSensitiveText } from "./SensitiveTextCapture.js";
 
 describe("sensitive console text", () => {
   it("redacts assignments, bearer credentials, and JWT-shaped values", () => {
@@ -15,13 +12,5 @@ describe("sensitive console text", () => {
     ).toBe(
       "authorization=[REDACTED] password=[REDACTED] api_key=[REDACTED] [REDACTED_JWT]",
     );
-  });
-
-  it("bounds UTF-8 after redaction without splitting a code point", () => {
-    expect(boundedSensitiveText("password=secret 你好", 22)).toEqual({
-      text: "password=[REDACTED] ",
-      bytes: 20,
-      truncated: true,
-    });
   });
 });

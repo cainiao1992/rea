@@ -27,8 +27,8 @@ export const ingestResponseBodyShape = (
     invalidResponseBodyShape(state, requestId);
     return;
   }
-  const inferred = inferBodyShape(state, decoded);
-  updateResponseBodyShape(state, requestId, inferred.shape, inferred.truncated);
+  const inferred = inferBodyShape(decoded);
+  updateResponseBodyShape(state, requestId, inferred.shape);
 };
 
 export const requestBodyShape = (
@@ -40,13 +40,9 @@ export const requestBodyShape = (
   const body = stringValue(request.postData);
   if (!isJsonContentType(recordValue(request.headers)) || body === undefined)
     return { status: "unavailable", request: null, response: null };
-  const inferred = inferBodyShape(state, body);
+  const inferred = inferBodyShape(body);
   return {
-    status: inferred.truncated
-      ? "truncated"
-      : inferred.shape === null
-        ? "unavailable"
-        : "included",
+    status: inferred.shape === null ? "unavailable" : "included",
     request: inferred.shape,
     response: null,
   };
@@ -56,48 +52,30 @@ export const updateResponseBodyShape = (
   state: CdpCaptureEventsState,
   requestId: string,
   response: JsonShape | null,
-  truncated: boolean,
 ): void => {
   const current = state.network.get(requestId);
   if (current === undefined) return;
   const request = current.body_shapes.request;
   const status =
-    truncated || current.body_shapes.status === "truncated"
-      ? "truncated"
-      : response !== null
-        ? "included"
-        : request !== null
-          ? "partial"
-          : "unavailable";
+    response !== null
+      ? "included"
+      : request !== null
+        ? "partial"
+        : "unavailable";
   state.network.set(requestId, {
     ...current,
     body_shapes: { status, request, response },
   });
 };
 
-const inferBodyShape = (
-  state: CdpCaptureEventsState,
-  text: string,
-): { readonly shape: JsonShape | null; readonly truncated: boolean } => {
-  const bytes = Buffer.byteLength(text);
-  if (bytes > state.input.limits.max_json_body_bytes) {
-    state.completeness.truncate("json_body_shapes");
-    return { shape: null, truncated: true };
-  }
-  const shape = inferJsonShape(text, {
-    maximumBytes: state.input.limits.max_json_body_bytes,
-    maximumNodes: state.input.limits.max_json_shape_nodes,
-    maximumDepth: state.input.limits.max_json_shape_depth,
-  });
-  if (shape?.truncated === true)
-    state.completeness.truncate("json_body_shapes");
-  return { shape, truncated: shape?.truncated === true };
+const inferBodyShape = (text: string): { readonly shape: JsonShape | null } => {
+  return { shape: inferJsonShape(text) };
 };
 
 const invalidResponseBodyShape = (
   state: CdpCaptureEventsState,
   requestId: string,
 ): void => {
-  updateResponseBodyShape(state, requestId, null, false);
+  updateResponseBodyShape(state, requestId, null);
   state.completeness.exclude("json_body_shapes", "invalid_protocol_value");
 };

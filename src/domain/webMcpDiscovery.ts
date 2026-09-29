@@ -11,8 +11,8 @@ import { jsonShapeSchema } from "./jsonShape.js";
 export const discoverWebMcpToolsInputSchema = z.strictObject({
   cdp_endpoint: browserEndpointSchema,
   allowed_origins: browserAllowedOriginsSchema,
-  target_id: z.string().trim().min(1).max(256),
-  observation_ms: z.number().int().min(0).max(10_000).default(100),
+  target_id: z.string().trim().min(1),
+  observation_ms: z.number().int().min(0).default(100),
 });
 export type DiscoverWebMcpToolsInput = z.infer<
   typeof discoverWebMcpToolsInputSchema

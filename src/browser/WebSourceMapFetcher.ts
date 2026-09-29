@@ -31,33 +31,14 @@ export const fetchWebSourceMaps = async (
   host: SourceMapFetchHost = { fetch: globalThis.fetch },
 ): Promise<SourceMaps> => {
   const items: SourceMapItem[] = [];
-  let remainingBytes = input.analysis_limits.max_total_source_map_bytes;
-  for (const request of requests.slice(
-    0,
-    input.analysis_limits.max_source_maps,
-  )) {
+  for (const request of requests) {
     if (signal?.aborted === true) throw signal.reason;
-    if (remainingBytes === 0) break;
-    const fetched = await fetchOne(request, {
-      input,
-      maximumBytes: Math.min(
-        input.analysis_limits.max_source_map_bytes,
-        remainingBytes,
-      ),
-      signal,
-      host,
-    });
-    items.push(fetched.item);
-    remainingBytes = Math.max(0, remainingBytes - fetched.bytesRead);
+    items.push(await fetchOne(request, input, signal, host));
   }
   const included = items.filter(({ status }) => status === "included").length;
-  const dropped = requests.length - items.length;
-  const truncated =
-    dropped > 0 || items.some(({ status }) => status === "truncated");
   return webSourceMapsSchema.parse({
-    status: truncated
-      ? "truncated"
-      : items.length === 0
+    status:
+      items.length === 0
         ? "unavailable"
         : included === items.length
           ? "included"
@@ -66,40 +47,22 @@ export const fetchWebSourceMaps = async (
             : "unavailable",
     requested: requests.length,
     processed: items.length,
-    dropped,
-    dropped_script_keys: requests
-      .slice(items.length)
-      .map(({ scriptKey }) => scriptKey),
     items,
   });
 };
 
-interface SourceMapFetchResult {
-  readonly item: SourceMapItem;
-  readonly bytesRead: number;
-}
-
-interface SourceMapFetchContext {
-  readonly input: AnalyzeWebBundleInput;
-  readonly maximumBytes: number;
-  readonly signal: AbortSignal | undefined;
-  readonly host: SourceMapFetchHost;
-}
-
 const fetchOne = async (
   request: WebSourceMapRequest,
-  context: SourceMapFetchContext,
-): Promise<SourceMapFetchResult> => {
-  const { input, maximumBytes, signal, host } = context;
+  input: AnalyzeWebBundleInput,
+  signal: AbortSignal | undefined,
+  host: SourceMapFetchHost,
+): Promise<SourceMapItem> => {
   if (!approvedUrl(request.fetchUrl, input.allowed_origins))
-    return {
-      item: emptySourceMapItem(
-        request,
-        "policy_filtered",
-        "Declared source-map URL is outside the approved exact origins.",
-      ),
-      bytesRead: 0,
-    };
+    return emptySourceMapItem(
+      request,
+      "policy_filtered",
+      "Declared source-map URL is outside the approved exact origins.",
+    );
   try {
     const response = await fetchFollowingApprovedRedirects(
       request.fetchUrl,
@@ -108,40 +71,25 @@ const fetchOne = async (
       host,
     );
     if (response === undefined)
-      return {
-        item: emptySourceMapItem(
-          request,
-          "policy_filtered",
-          "A source-map redirect left the approved exact origins.",
-        ),
-        bytesRead: 0,
-      };
+      return emptySourceMapItem(
+        request,
+        "policy_filtered",
+        "A source-map redirect left the approved exact origins.",
+      );
     if (!response.ok)
-      return {
-        item: emptySourceMapItem(
-          request,
-          "fetch_failed",
-          `Source-map server returned HTTP ${String(response.status)}.`,
-        ),
-        bytesRead: 0,
-      };
-    const body = await boundedResponseText(response, maximumBytes);
-    return {
-      item: normalizeSourceMap(request, body.text, input),
-      bytesRead: body.bytes,
-    };
+      return emptySourceMapItem(
+        request,
+        "fetch_failed",
+        `Source-map server returned HTTP ${String(response.status)}.`,
+      );
+    return normalizeSourceMap(request, await response.text());
   } catch (cause: unknown) {
     if (signal?.aborted === true) throw cause;
-    return {
-      item: emptySourceMapItem(
-        request,
-        isLimitError(cause) ? "truncated" : "fetch_failed",
-        isLimitError(cause)
-          ? "Source-map response exceeded the remaining approved byte budget."
-          : "Source-map fetch or validation failed.",
-      ),
-      bytesRead: cause instanceof SourceMapByteLimitError ? cause.bytesRead : 0,
-    };
+    return emptySourceMapItem(
+      request,
+      "fetch_failed",
+      "Source-map fetch or validation failed.",
+    );
   }
 };
 
@@ -152,75 +100,37 @@ const fetchFollowingApprovedRedirects = async (
   host: SourceMapFetchHost,
 ): Promise<Response | undefined> => {
   let current = initialUrl;
-  for (let redirect = 0; redirect <= 5; redirect += 1) {
+  const visited = new Set<string>();
+  for (;;) {
     if (!approvedUrl(current, allowedOrigins)) return undefined;
-    const response = await timedFetch(current, signal, host);
+    if (visited.has(current)) throw new Error("source_map_redirect_loop");
+    visited.add(current);
+    const response = await host.fetch(current, {
+      method: "GET",
+      headers: {
+        Accept: "application/json, application/source-map+json;q=0.9",
+      },
+      redirect: "manual",
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
+      ...(signal === undefined ? {} : { signal }),
+    });
     if (response.status < 300 || response.status >= 400) return response;
     const location = response.headers.get("location");
     if (location === null) return response;
     current = new URL(location, current).href;
   }
-  throw new Error("source_map_redirect_limit");
 };
-
-const timedFetch = async (
-  url: string,
-  signal: AbortSignal | undefined,
-  host: SourceMapFetchHost,
-): Promise<Response> => {
-  const timeout = AbortSignal.timeout(5_000);
-  return await host.fetch(url, {
-    method: "GET",
-    headers: { Accept: "application/json, application/source-map+json;q=0.9" },
-    redirect: "manual",
-    credentials: "omit",
-    referrerPolicy: "no-referrer",
-    signal: signal === undefined ? timeout : AbortSignal.any([signal, timeout]),
-  });
-};
-
-const boundedResponseText = async (
-  response: Response,
-  maximumBytes: number,
-): Promise<{ readonly text: string; readonly bytes: number }> => {
-  const declared = Number(response.headers.get("content-length"));
-  if (Number.isFinite(declared) && declared > maximumBytes)
-    throw new SourceMapByteLimitError(0);
-  if (response.body === null) return { text: "", bytes: 0 };
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder("utf-8", { fatal: true });
-  let bytes = 0;
-  let text = "";
-  for (;;) {
-    const chunk = await reader.read();
-    if (chunk.done) break;
-    bytes += chunk.value.byteLength;
-    if (bytes > maximumBytes) {
-      await reader.cancel();
-      throw new SourceMapByteLimitError(bytes);
-    }
-    text += decoder.decode(chunk.value, { stream: true });
-  }
-  text += decoder.decode();
-  return { text, bytes };
-};
-
-class SourceMapByteLimitError extends RangeError {
-  constructor(readonly bytesRead: number) {
-    super("source_map_bytes");
-  }
-}
 
 const normalizeSourceMap = (
   request: WebSourceMapRequest,
   text: string,
-  input: AnalyzeWebBundleInput,
 ): SourceMapItem => {
   if (!validSourceMapEnvelope(text))
     return emptySourceMapItem(
       request,
       "invalid",
-      "Source-map JSON is not a bounded version 3 map.",
+      "Source-map JSON is not a version 3 map.",
     );
   try {
     const map = new AnyMap(text, request.fetchUrl);
@@ -239,16 +149,12 @@ const normalizeSourceMap = (
       };
     });
     const mappings: ParsedSourceMapItem["mappings"] = [];
-    let totalMappings = 0;
     eachMapping(map, (mapping) => {
       if (
         mapping.source === null ||
         mapping.originalLine === null ||
         mapping.originalColumn === null
       )
-        return;
-      totalMappings += 1;
-      if (mappings.length >= input.analysis_limits.max_source_map_mappings)
         return;
       mappings.push({
         generated_line: mapping.generatedLine,
@@ -258,16 +164,10 @@ const normalizeSourceMap = (
         ),
         original_line: mapping.originalLine,
         original_column: mapping.originalColumn,
-        name: mapping.name?.slice(0, 1_024) ?? null,
+        name: mapping.name ?? null,
       });
     });
     const modules = originalModuleEdges(originalSources);
-    const mappingTruncated = totalMappings > mappings.length;
-    const limitations = mappingTruncated
-      ? [
-          `Mappings were truncated from ${String(totalMappings)} to ${String(mappings.length)}.`,
-        ]
-      : [];
     const parsed = {
       ...sourceMapContext(request),
       artifact: createWebTextArtifact(text, "application/source-map+json"),
@@ -275,13 +175,7 @@ const normalizeSourceMap = (
       original_module_edges: modules,
       mappings,
     };
-    return limitations.length === 0
-      ? { ...parsed, status: "included", limitation: null }
-      : {
-          ...parsed,
-          status: "truncated",
-          limitation: limitations.join(" "),
-        };
+    return { ...parsed, status: "included", limitation: null };
   } catch {
     return emptySourceMapItem(
       request,
@@ -300,7 +194,7 @@ const originalModuleEdges = (
     if (source.artifact === null) continue;
     for (const detector of originalImportDetectors) {
       for (const match of source.artifact.text.matchAll(detector.pattern)) {
-        const specifier = match[1]?.slice(0, 4_096);
+        const specifier = match[1];
         if (specifier === undefined) continue;
         const key = `${source.source}\0${detector.kind}\0${specifier}`;
         if (seen.has(key)) continue;
@@ -327,19 +221,16 @@ const validSourceMapEnvelope = (text: string): boolean => {
   if (!isRecord(parsed) || parsed.version !== 3) return false;
   if (typeof parsed.mappings === "string")
     return Array.isArray(parsed.sources) && Array.isArray(parsed.names);
-  if (!Array.isArray(parsed.sections) || parsed.sections.length > 10_000)
-    return false;
+  if (!Array.isArray(parsed.sections)) return false;
   const pending: unknown[] = [...parsed.sections];
-  let visited = 0;
   while (pending.length > 0) {
     const section = pending.pop();
     if (!isRecord(section) || !isRecord(section.offset) || !("map" in section))
       return false;
-    visited += 1;
-    if (visited > 10_000) return false;
     const map = section.map;
     if (!isRecord(map) || map.version !== 3) return false;
-    if (Array.isArray(map.sections)) pending.push(...map.sections);
+    if (Array.isArray(map.sections))
+      for (const child of map.sections) pending.push(child);
     else if (
       typeof map.mappings !== "string" ||
       !Array.isArray(map.sources) ||
@@ -387,14 +278,13 @@ const emptySourceMapItem = (
 });
 
 const sanitizeSource = (value: string): string => {
-  const bounded = value.slice(0, 4_096);
   try {
-    const parsed = new URL(bounded);
+    const parsed = new URL(value);
     return parsed.protocol === "http:" || parsed.protocol === "https:"
       ? sanitizeBrowserUrl(parsed.href).url
       : `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
   } catch {
-    return bounded.split("#", 1)[0]?.split("?", 1)[0] ?? "";
+    return value.split("#", 1)[0]?.split("?", 1)[0] ?? "";
   }
 };
 
@@ -416,9 +306,6 @@ const sourceMediaType = (source: string | null): string =>
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
-
-const isLimitError = (value: unknown): value is RangeError =>
-  value instanceof RangeError;
 
 const originalImportDetectors = [
   {

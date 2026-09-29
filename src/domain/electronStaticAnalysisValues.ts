@@ -7,9 +7,7 @@ import {
   sourceSlice,
 } from "./javascriptStaticAnalysisHelpers.js";
 
-const MAX_EXPRESSION_CHARACTERS = 4_096;
-
-/** Preserve one literal value or the exact bounded inert expression. */
+/** Preserve one literal value or the exact inert expression. */
 export const electronStaticValue = (
   source: string,
   node: t.Node | null | undefined,
@@ -24,17 +22,14 @@ export const electronStaticValue = (
       };
 };
 
-/** Return an actionable bounded expression without evaluating it. */
+/** Return an actionable expression without evaluating it. */
 export const boundedExpression = (
   source: string,
   node: t.Node | null | undefined,
 ): string => {
   if (node === null || node === undefined) return "[missing-expression]";
   const expression = sourceSlice(source, node).trim();
-  return (expression === "" ? `[${node.type}]` : expression).slice(
-    0,
-    MAX_EXPRESSION_CHARACTERS,
-  );
+  return expression === "" ? `[${node.type}]` : expression;
 };
 
 /** Read one named object property without following spreads or bindings. */
@@ -72,29 +67,25 @@ export function handlerKind(
   return "dynamic-expression";
 }
 
-/** Collect bounded dotted keys from one literal contextBridge API object. */
+/** Collect statically visible dotted keys from one literal contextBridge API object. */
 export const collectContextBridgeMembers = (
   node: t.Node | null | undefined,
-  maximum = 128,
 ): {
   readonly status: "object-literal" | "dynamic" | "missing";
   readonly members: readonly string[];
   readonly unknown: number;
-  readonly omitted: number;
 } => {
   if (node === null || node === undefined)
     return {
       status: "missing",
       members: [],
       unknown: 0,
-      omitted: 0,
     };
   if (!t.isObjectExpression(node))
     return {
       status: "dynamic",
       members: [],
       unknown: 1,
-      omitted: 0,
     };
   const state: { members: string[]; unknown: number } = {
     members: [],
@@ -104,9 +95,8 @@ export const collectContextBridgeMembers = (
   const members = [...new Set(state.members)].sort(compareCodePoints);
   return {
     status: "object-literal",
-    members: members.slice(0, maximum),
+    members,
     unknown: state.unknown,
-    omitted: Math.max(0, members.length - maximum),
   };
 };
 
@@ -130,10 +120,7 @@ const collectMembersAt = (
       state.unknown += 1;
       continue;
     }
-    const path = (prefix === "" ? name : `${prefix}.${name}`).slice(
-      0,
-      MAX_EXPRESSION_CHARACTERS,
-    );
+    const path = prefix === "" ? name : `${prefix}.${name}`;
     state.members.push(path);
     if (t.isObjectProperty(property) && t.isObjectExpression(property.value))
       collectMembersAt(property.value, path, depth + 1, state);
@@ -152,11 +139,7 @@ const literalValue = (
   if (t.isTemplateLiteral(node) && node.expressions.length === 0)
     return {
       found: true,
-      value: (
-        node.quasis[0]?.value.cooked ??
-        node.quasis[0]?.value.raw ??
-        ""
-      ).slice(0, MAX_EXPRESSION_CHARACTERS),
+      value: node.quasis[0]?.value.cooked ?? node.quasis[0]?.value.raw ?? "",
     };
   if (
     t.isUnaryExpression(node, { operator: "-" }) &&

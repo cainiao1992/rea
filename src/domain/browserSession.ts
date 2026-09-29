@@ -6,13 +6,12 @@ import {
 } from "./browserObservation.js";
 import { browserCompletenessSchema } from "./browserCompleteness.js";
 
-/** Input for a bounded, navigation-aware browser observation window. */
-export const observeWebSessionInputSchema = z.object({
+/** Input for a navigation-aware browser observation window. */
+export const observeWebSessionInputSchema = z.strictObject({
   cdp_endpoint: browserEndpointSchema,
   allowed_origins: browserAllowedOriginsSchema,
-  target_id: z.string().trim().min(1).max(256),
-  observation_ms: z.number().int().min(1).max(60_000).default(10_000),
-  max_timeline_events: z.number().int().min(1).max(20_000).default(2_000),
+  target_id: z.string().trim().min(1),
+  observation_ms: z.number().int().min(1).default(10_000),
 });
 export type ObserveWebSessionInput = z.infer<
   typeof observeWebSessionInputSchema

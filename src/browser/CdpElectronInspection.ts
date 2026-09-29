@@ -117,7 +117,7 @@ const runElectronInspection = async (
     target: {
       target_id: context.target.id,
       type: context.target.type,
-      title: context.target.title.slice(0, 16_384),
+      title: context.target.title,
       file_path: main.file_path,
       attached: context.target.attached,
     },
@@ -267,12 +267,12 @@ const captureFrames = async (
       continue;
     }
     frames.push({
-      frame_id: frameId.slice(0, 256),
+      frame_id: frameId,
       parent_frame_id: current.parent,
       file_path: path,
     });
     for (const child of recordsValue(current.tree.childFrames))
-      pending.push({ tree: child, parent: frameId.slice(0, 256) });
+      pending.push({ tree: child, parent: frameId });
   }
   return frames;
 };
@@ -308,8 +308,8 @@ const captureResources = async (
       }
       const item = {
         file_path: path,
-        type: (stringValue(resource.type) ?? "Other").slice(0, 100),
-        mime_type: (stringValue(resource.mimeType) ?? "").slice(0, 256),
+        type: stringValue(resource.type) ?? "Other",
+        mime_type: stringValue(resource.mimeType) ?? "",
         content_size:
           numberValue(resource.contentSize) === undefined
             ? null
@@ -369,13 +369,13 @@ const captureDom = async (
         index: nodes.length,
         parent_index: parent < 0 ? -1 : baseIndex + parent,
         node_type: integer(nodeTypes[index], 0),
-        node_name: stringAt(strings, nodeNames[index]).slice(0, 1_024),
+        node_name: stringAt(strings, nodeNames[index]),
         node_value_length: Buffer.byteLength(
           stringAt(strings, nodeValues[index]),
         ),
         attribute_names: attributeIndexes
           .filter((_value, attributeIndex) => attributeIndex % 2 === 0)
-          .map((value) => stringAt(strings, value).slice(0, 1_024)),
+          .map((value) => stringAt(strings, value)),
       });
     }
   }

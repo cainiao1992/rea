@@ -346,8 +346,7 @@ const accessibilityComparable = (
 } => {
   const text =
     inspection.accessibility.text_capture.status === "included" &&
-    inspection.accessibility.text_capture.excluded_fields === 0 &&
-    inspection.accessibility.text_capture.truncated_fields === 0;
+    inspection.accessibility.text_capture.excluded_fields === 0;
   const nodes =
     inspection.accessibility.total_nodes ===
     inspection.accessibility.nodes.length;

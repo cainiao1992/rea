@@ -5,12 +5,12 @@ REA can attach to a user-owned Chrome-family browser through the Chrome DevTools
 ## Shipped surfaces
 
 - `list_browser_targets` / `rea list-browser-targets` discovers page targets whose current URL matches an approved exact origin.
-- `inspect_web_page` / `rea inspect-web-page` captures bounded DOM structure, accessibility nodes, scripts, resources, safe response/DOM metadata, attach-window network and console metadata, WebSocket frame sizes, workers, quota, and optionally storage key names, redacted storage-content fingerprints, or script sources.
+- `inspect_web_page` / `rea inspect-web-page` captures DOM structure, accessibility nodes, scripts, resources, safe response/DOM metadata, attach-window network and console metadata, WebSocket frame sizes, workers, quota, and optionally storage key names, redacted storage-content fingerprints, or script sources.
 - `analyze_web_bundle` / `rea analyze-web-bundle` parses approved script artifacts without execution and derives chunk edges, route and endpoint candidates, vendor fingerprints, static WebMCP declarations, and optionally approved source-map/original-source evidence.
-- `observe_web_session` / `rea observe-web-session` arms a bounded window for an external user action and records ordered reload, SPA navigation, redirect, failure, lifecycle, and target-termination metadata.
+- `observe_web_session` / `rea observe-web-session` arms an observation window of the requested duration for an external user action and records ordered reload, SPA navigation, redirect, failure, lifecycle, and target-termination metadata.
 - `discover_webmcp_tools` / `rea discover-webmcp-tools` uses the experimental CDP WebMCP domain to return every in-scope registration and its complete structural input-schema summary inline. REA never exposes `WebMCP.invokeTool`; malformed or over-limit protocol payloads fail explicitly instead of returning truncated tool metadata.
 - `compare_web_captures` / `rea compare-web-captures` compares passive captures or exact-step-aligned browser scenarios. Scenario results commit reproducible literal normalization and expose alignment failures plus artifact-level action, screenshot, DOM, accessibility, URL, history, storage, and event differences. Missing or truncated evidence is never treated as equivalence.
-- `capture_web_screenshot` / `rea capture-web-screenshot` returns an explicitly approved, bounded, content-addressed visible-viewport PNG.
+- `capture_web_screenshot` / `rea capture-web-screenshot` returns an explicitly approved, content-addressed visible-viewport PNG.
 - `compare_web_screenshots` / `rea compare-web-screenshots` performs bounded local PNG pixel comparison without OCR or external services.
 - Every surface has equivalent CLI and MCP contracts and returns Evidence provenance.
 - MCP tools return complete results inline and include the Evidence ID. Session evidence can be exported with `export_evidence_bundle`.
@@ -98,9 +98,9 @@ rea inspect-web-page http://127.0.0.1:9222 TARGET_ID \
   --json
 ```
 
-Accessibility text and script content may contain application secrets and become part of the returned Evidence. Accessibility and console text have per-field UTF-8 byte limits; credential-shaped console substrings are redacted. JSON and WebSocket captures retain paths, types, counts, and any per-value truncation only, never values or examples. Storage values remain redacted even when key-name capture is requested. `--include-storage-fingerprints` requests SHA-256 identity/value fingerprints, which support comparison only when cookies, DOM storage, IndexedDB, and Cache Storage were all captured completely.
+Accessibility text and script content may contain application secrets and become part of the returned Evidence. Credential-shaped console substrings are redacted. JSON and WebSocket captures retain complete paths, types, and counts, never values or examples. Storage values remain redacted even when key-name capture is requested. `--include-storage-fingerprints` requests SHA-256 identity/value fingerprints, which support comparison only when cookies, DOM storage, IndexedDB, and Cache Storage were all captured completely.
 
-Screenshot capture returns the visible viewport as image pixels:
+Screenshot capture returns the complete visible viewport as an inline image artifact:
 
 ```bash
 rea capture-web-screenshot http://127.0.0.1:9222 TARGET_ID \
@@ -133,13 +133,13 @@ REA removes sensitive values before normalized event data is retained:
 
 - URLs retain a bounded path and at most 256 bounded query parameter names, replace every retained query value with `[REDACTED]`, and remove credentials and fragments.
 - DOM snapshots retain node types, node names, value lengths, and attribute names, but not text or attribute values.
-- Accessibility structure and roles are retained by default, but names and descriptions require `include_accessibility_text: true` and remain byte-bounded.
+- Accessibility structure and roles are retained by default, while names and descriptions require `include_accessibility_text: true`.
 - Network observations retain method, status, MIME type, size, type, initiator stack location, and redacted URLs. Headers are discarded after an allowlisted projection of length/encoding, structured CSP/Link/policy fields, and untrusted agent hints. Cookies and authorization headers are never retained.
-- Request/response bodies are not requested or parsed by default. When selected, only allowed-origin JSON media types are read within a per-body byte and shape budget, converted immediately to value-free property paths/types, and discarded. `Network.getResponseBody` is never sent unless JSON body shape capture is selected.
-- Console observations with a stack source retain call type, argument types, timestamp, and redacted source location. When console text capture is selected, only already-delivered primitive values are retained after credential redaction and byte bounds; objects, getters, and remote properties are never expanded.
-- WebSocket observations retain direction, opcode, and payload byte length. When shape capture is selected, bounded text frames are classified as text or value-free JSON shape; binary bytes, hashes, prefixes, and raw frames are never retained.
+- Request/response bodies are not requested or parsed by default. When selected, only allowed-origin JSON media types are read, converted immediately to complete value-free property paths/types, and discarded. `Network.getResponseBody` is never sent unless JSON body shape capture is selected.
+- Console observations with a stack source retain call type, argument types, timestamp, and redacted source location. When console text capture is selected, already-delivered primitive values are retained after credential redaction; objects, getters, and remote properties are never expanded.
+- WebSocket observations retain direction, opcode, and payload byte length. When shape capture is selected, text frames are classified as text or complete value-free JSON shape; binary bytes, hashes, prefixes, and raw frames are never retained.
 - Storage observations always redact values. Key names, IndexedDB names, and cache names require `include_storage_keys`; stable content fingerprints require the additional `include_storage_fingerprints` selection. Cache bodies above 64 KiB and partial IndexedDB remote objects make fingerprint coverage incomplete, so identical observations remain `unknown`.
-- Script metadata is included only when CDP supplies a URL on an allowed origin. Stable keys exclude transient CDP script IDs, and exact transient raw URLs are used only during script/resource reconciliation. URL-less scripts are excluded because their origin cannot be established. When CDP supplies an execution-context association, the accepted script retains its authorized frame ID for later attribution. Source content is omitted unless explicitly requested and is returned inline as a self-verifying artifact with its SHA-256 digest, subject to a per-script byte limit.
+- Script metadata is included only when CDP supplies a URL on an allowed origin. Stable keys exclude transient CDP script IDs, and exact transient raw URLs are used only during script/resource reconciliation. URL-less scripts are excluded because their origin cannot be established. When CDP supplies an execution-context association, the accepted script retains its authorized frame ID for later attribution. Source content is omitted unless explicitly requested and is returned inline as a self-verifying artifact with its SHA-256 digest.
 
 Cross-origin frames, resources, scripts, events, and workers are excluded unless their exact origins are also approved. Excluded target details are counted without being exposed.
 Retained workers include validated opener-target and parent-frame IDs when CDP
@@ -148,19 +148,19 @@ prove static module ownership.
 
 ## Completeness and limits
 
-The default observation window is 500 ms and the maximum is 10 seconds. The
+The default inspection window is 500 ms; callers choose its duration. The
 capture returns all in-scope frames, DOM and accessibility nodes, scripts,
 resources, workers, storage names, and observed network, console, and WebSocket
-events. Per-value bounds remain for text fields, individual script sources,
-JSON bodies and shapes, and WebSocket shapes. The result distinguishes
+events. Full selected text, script sources, and JSON shapes are returned inline.
+The result distinguishes
 `complete_within_window`, `policy_filtered`, `attach_limited`, and `truncated`
 coverage. It reports excluded items and any values omitted or truncated by
 validation; it does not drop records to meet an internal collection quota.
 Disallowed-origin entries are filtered before retention.
 
-CDP discovery, WebSocket connection, and each command have a 5-second timeout. Version discovery is capped at 64 KiB, target discovery at 2 MiB and 1,000 targets, each WebSocket message at 16 MiB, and correlated pending commands at 128. These protocol guards remain in force independently of collection quotas. Malformed unsolicited protocol events poison the connection so later commands fail closed.
+CDP discovery, WebSocket connection, and each command have a 5-second timeout. Version discovery is capped at 64 KiB, target discovery at 2 MiB, each WebSocket message at 16 MiB, and correlated pending commands at 128. Target and navigation-event inventories have no separate count cap. These transport bounds protect protocol framing and request correlation; they do not silently trim returned findings. Malformed unsolicited protocol events poison the connection so later commands fail closed.
 
-Network and console coverage starts only after REA attaches and enables the relevant CDP domains. `prior_activity_available` is always `false`; absence from these arrays is not evidence that an event never occurred. Source maps are not fetched by inspection. Bundle analysis can fetch them only after separate approval, with exact-origin redirect checks, no credentials/cookies/referrer, per-map and aggregate byte limits, a total map-count limit, v3 validation, and bounded generated/original mappings. Source-map results report requested, processed, and dropped counts rather than hiding budget truncation.
+Network and console coverage starts only after REA attaches and enables the relevant CDP domains. `prior_activity_available` is always `false`; absence from these arrays is not evidence that an event never occurred. Source maps are not fetched by inspection. Bundle analysis can fetch them only after separate approval, with exact-origin redirect checks and no credentials, cookies, or referrer. Every requested map, mapping, original source, AST node, and finding from parsed content is returned inline; failed maps remain explicitly unavailable and make bundle completeness partial.
 
 ## Non-goals and threat model
 

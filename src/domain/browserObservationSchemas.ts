@@ -119,13 +119,7 @@ const browserNetworkRequestSchema = z.object({
     column: z.number().int().min(0).nullable(),
   }),
   body_shapes: z.object({
-    status: z.enum([
-      "not_approved",
-      "included",
-      "partial",
-      "unavailable",
-      "truncated",
-    ]),
+    status: z.enum(["not_approved", "included", "partial", "unavailable"]),
     request: jsonShapeSchema.nullable(),
     response: jsonShapeSchema.nullable(),
   }),
@@ -138,7 +132,7 @@ const browserConsoleEventSchema = z.object({
   line: z.number().int().min(0).nullable(),
   column: z.number().int().min(0).nullable(),
   text_capture: z.object({
-    status: z.enum(["not_approved", "included", "truncated"]),
+    status: z.enum(["not_approved", "included"]),
     values: z.array(
       z.object({
         argument_index: z.number().int().min(0),
@@ -147,7 +141,6 @@ const browserConsoleEventSchema = z.object({
       }),
     ),
     retained_bytes: z.number().int().min(0),
-    truncated_values: z.number().int().min(0),
   }),
 });
 const browserWebSocketEventSchema = z.object({
@@ -159,7 +152,6 @@ const browserWebSocketEventSchema = z.object({
     .object({
       format: z.enum(["json", "text", "binary"]),
       json_shape: jsonShapeSchema.nullable(),
-      truncated: z.boolean(),
     })
     .nullable(),
 });
@@ -261,10 +253,9 @@ export const webPageInspectionSchema = z.object({
   accessibility: z.object({
     total_nodes: z.number().int().min(0),
     text_capture: z.object({
-      status: z.enum(["not_approved", "included", "truncated", "unavailable"]),
+      status: z.enum(["not_approved", "included", "unavailable"]),
       retained_bytes: z.number().int().min(0),
       excluded_fields: z.number().int().min(0),
-      truncated_fields: z.number().int().min(0),
     }),
     nodes: z.array(browserAxNodeSchema),
   }),

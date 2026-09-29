@@ -12,25 +12,23 @@ import {
 import { sanitizeBrowserUrl } from "../domain/browserObservation.js";
 
 const HTTP_TIMEOUT_MS = 5_000;
-const MAX_VERSION_BYTES = 64 * 1_024;
-const MAX_TARGET_LIST_BYTES = 2 * 1_024 * 1_024;
 
 const endpointVersionSchema = z.object({
-  Browser: z.string().min(1).max(1_024),
-  "Protocol-Version": z.string().min(1).max(100),
-  "User-Agent": z.string().max(16_384),
-  "V8-Version": z.string().max(1_024),
-  "WebKit-Version": z.string().max(1_024),
-  webSocketDebuggerUrl: z.string().min(1).max(2_048),
+  Browser: z.string().min(1),
+  "Protocol-Version": z.string().min(1),
+  "User-Agent": z.string(),
+  "V8-Version": z.string(),
+  "WebKit-Version": z.string(),
+  webSocketDebuggerUrl: z.string().min(1),
 });
 
 const endpointTargetSchema = z.object({
-  id: z.string().min(1).max(256),
-  type: z.string().min(1).max(100),
-  title: z.string().max(16_384).default(""),
-  url: z.string().max(65_536),
+  id: z.string().min(1),
+  type: z.string().min(1),
+  title: z.string().default(""),
+  url: z.string(),
   attached: z.boolean().default(false),
-  webSocketDebuggerUrl: z.string().min(1).max(2_048).optional(),
+  webSocketDebuggerUrl: z.string().min(1).optional(),
 });
 const endpointTargetsSchema = z.array(endpointTargetSchema);
 
@@ -68,21 +66,19 @@ export interface CdpEndpointDiscovery {
   readonly targets: readonly CdpEndpointTarget[];
 }
 
-/** Read bounded CDP discovery endpoints without following redirects. */
+/** Read CDP discovery endpoints without following redirects. */
 export const discoverCdpEndpoint = async (
   endpoint: string,
   operation: BrowserObservationOperation,
   signal?: AbortSignal,
 ): Promise<CdpEndpointDiscovery> => {
-  const versionInput = await readBoundedCdpJson(
+  const versionInput = await readCdpJson(
     new URL("/json/version", endpoint),
-    MAX_VERSION_BYTES,
     operation,
     signal,
   );
-  const targetsInput = await readBoundedCdpJson(
+  const targetsInput = await readCdpJson(
     new URL("/json/list", endpoint),
-    MAX_TARGET_LIST_BYTES,
     operation,
     signal,
   );
@@ -128,7 +124,7 @@ const sanitizeTargetTitle = (value: string, targetUrl: string): string => {
     return sanitizeTargetUrlAlias(value, targetUrl);
   }
   return url.protocol === "http:" || url.protocol === "https:"
-    ? sanitizeBrowserUrl(value).url.slice(0, 16_384)
+    ? sanitizeBrowserUrl(value).url
     : sanitizeTargetUrlAlias(value, targetUrl);
 };
 
@@ -145,11 +141,9 @@ const sanitizeTargetUrlAlias = (value: string, targetUrl: string): string => {
     `(?:${markers.map(escapeRegExp).join("|")})[^\\s<>"']*`,
     "gu",
   );
-  return value
-    .replace(candidatePattern, (candidate) =>
-      sanitizeSameOriginTitleUrl(candidate, parsed),
-    )
-    .slice(0, 16_384);
+  return value.replace(candidatePattern, (candidate) =>
+    sanitizeSameOriginTitleUrl(candidate, parsed),
+  );
 };
 
 const sanitizeSameOriginTitleUrl = (candidate: string, target: URL): string => {
@@ -250,22 +244,19 @@ const cdpWebSocketPath = (
   | { readonly scope: "browser" }
   | { readonly scope: "page"; targetId: string }
   | undefined => {
-  const browserId = pathIdentifier(pathname, "/devtools/browser/", 1_024);
+  const browserId = pathIdentifier(pathname, "/devtools/browser/");
   if (browserId !== undefined) return { scope: "browser" };
-  const targetId = pathIdentifier(pathname, "/devtools/page/", 256);
+  const targetId = pathIdentifier(pathname, "/devtools/page/");
   return targetId === undefined ? undefined : { scope: "page", targetId };
 };
 
 const pathIdentifier = (
   pathname: string,
   prefix: string,
-  maximumLength: number,
 ): string | undefined => {
   if (!pathname.startsWith(prefix)) return undefined;
   const identifier = pathname.slice(prefix.length);
-  return identifier.length > 0 &&
-    identifier.length <= maximumLength &&
-    !identifier.includes("/")
+  return identifier.length > 0 && !identifier.includes("/")
     ? identifier
     : undefined;
 };
@@ -290,10 +281,9 @@ const targetWebSocket = (
   }
 };
 
-/** Read one bounded loopback CDP discovery document without redirects. */
-export const readBoundedCdpJson = async (
+/** Read one loopback CDP discovery document without redirects. */
+export const readCdpJson = async (
   url: URL,
-  maximumBytes: number,
   operation: BrowserObservationOperation,
   signal?: AbortSignal,
 ): Promise<unknown> =>
@@ -314,17 +304,7 @@ export const readBoundedCdpJson = async (
           return;
         }
         const chunks: Buffer[] = [];
-        let bytes = 0;
-        response.on("data", (chunk: Buffer) => {
-          bytes += chunk.length;
-          if (bytes > maximumBytes) {
-            response.destroy(
-              new BrowserObservationError(operation, "payload_limit"),
-            );
-            return;
-          }
-          chunks.push(chunk);
-        });
+        response.on("data", (chunk: Buffer) => chunks.push(chunk));
         response.on("end", () => {
           try {
             resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));

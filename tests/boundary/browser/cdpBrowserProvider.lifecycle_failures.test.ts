@@ -270,7 +270,7 @@ describeBrowser("CdpBrowserProvider: lifecycle failures 3", () => {
     );
 
     for (const [options, reason] of [
-      [{ oversizedDiscovery: true }, "payload_limit"],
+      [{ oversizedDiscovery: true }, "invalid_endpoint_response"],
       [{ invalidBrowserWebSocket: true }, "invalid_endpoint_response"],
     ] as const) {
       const failed = await startFakeCdpBrowser(options);

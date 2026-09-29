@@ -232,7 +232,7 @@ describe("browser scenario MCP tool", () => {
       "evidence_id",
     );
     expect(session.evidenceById(String(evidenceId))).toMatchObject({
-      predicate_type: "rea.browser-scenario-capture/v1",
+      predicate_type: "rea.browser-scenario-capture",
     });
     const captureResult = Reflect.get(
       captured.structuredContent ?? {},

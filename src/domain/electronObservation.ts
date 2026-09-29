@@ -12,20 +12,15 @@ export const electronFileRootsSchema = z
     z
       .string()
       .min(1)
-      .max(16_384)
       .refine(isAbsolute, "Electron file roots must be absolute paths"),
   )
   .min(1)
-  .max(32)
   .transform((roots) => [...new Set(roots)].sort());
 
 const approvedElectronInput = {
   cdp_endpoint: browserEndpointSchema,
   allowed_file_roots: electronFileRootsSchema,
 };
-
-/** Per-script source validation bound for passive Electron capture. */
-export const MAX_ELECTRON_SCRIPT_SOURCE_BYTES = 1_024 * 1_024;
 
 /** Input for listing root-confined file:// page targets from Electron CDP. */
 export const listElectronTargetsInputSchema = z.strictObject({
@@ -38,8 +33,8 @@ export type ListElectronTargetsInput = z.infer<
 /** Input for passive structural inspection of one Electron file page. */
 const inspectElectronPageFacts = {
   ...approvedElectronInput,
-  target_id: z.string().trim().min(1).max(256),
-  observation_ms: z.number().int().min(0).max(10_000).default(100),
+  target_id: z.string().trim().min(1),
+  observation_ms: z.number().int().min(0).default(100),
 } as const;
 export const inspectElectronPageInputSchema = z.union([
   z.strictObject({
@@ -54,14 +49,14 @@ export const inspectElectronPageInputSchema = z.union([
 export const inspectElectronPageToolInputSchema = z.union([
   z.strictObject({
     discovery_evidence_id: z.string().min(1),
-    target_id: z.string().trim().min(1).max(256),
-    observation_ms: z.number().int().min(0).max(10_000).default(100),
+    target_id: z.string().trim().min(1),
+    observation_ms: z.number().int().min(0).default(100),
     include_script_sources: z.literal(false).default(false),
   }),
   z.strictObject({
     discovery_evidence_id: z.string().min(1),
-    target_id: z.string().trim().min(1).max(256),
-    observation_ms: z.number().int().min(0).max(10_000).default(100),
+    target_id: z.string().trim().min(1),
+    observation_ms: z.number().int().min(0).default(100),
     include_script_sources: z.literal(true),
   }),
 ]);
@@ -159,12 +154,12 @@ export const electronPageInspectionSchema = z.object({
   workers: z
     .array(
       z.object({
-        target_id: z.string().min(1).max(256),
-        type: z.string().min(1).max(100),
+        target_id: z.string().min(1),
+        type: z.string().min(1),
         file_path: z.string(),
         attached: z.boolean(),
-        opener_target_id: z.string().min(1).max(256).nullable(),
-        parent_frame_id: z.string().min(1).max(256).nullable(),
+        opener_target_id: z.string().min(1).nullable(),
+        parent_frame_id: z.string().min(1).nullable(),
       }),
     )
     .default([]),

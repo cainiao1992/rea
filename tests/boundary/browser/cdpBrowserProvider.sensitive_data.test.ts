@@ -158,6 +158,33 @@ describeBrowser("CdpBrowserProvider: sensitive data 1", () => {
   });
 });
 
+describeBrowser("CdpBrowserProvider: complete storage fingerprints", () => {
+  it("fingerprints cache bodies above the former byte ceiling", async () => {
+    const body = "x".repeat(64 * 1_024 + 1);
+    const browser = await startFakeCdpBrowser({ cachedResponseBody: body });
+    trackBrowser(browser);
+    const result = await new CdpBrowserProvider().inspectPage(
+      inspectWebPageInputSchema.parse({
+        cdp_endpoint: browser.endpoint,
+        allowed_origins: [browser.allowedOrigin],
+        target_id: "allowed-page",
+        observation_ms: 0,
+        include_storage_keys: true,
+        include_storage_fingerprints: true,
+      }),
+    );
+
+    if (!result.ok) throw result.error;
+    expect(result.value.storage.fingerprints_complete).toBe(true);
+    expect(
+      result.value.storage.content_fingerprints.find(
+        ({ scope }) => scope === "cache_entry",
+      ),
+    ).toMatchObject({ complete: true, value_sha256: expect.any(String) });
+    expect(JSON.stringify(result.value)).not.toContain(body);
+  });
+});
+
 describeBrowser("CdpBrowserProvider: sensitive data 2", () => {
   it("captures only approved redacted console text and value-free payload shapes", async () => {
     const browser = await startFakeCdpBrowser({
@@ -185,7 +212,6 @@ describeBrowser("CdpBrowserProvider: sensitive data 2", () => {
         { argument_index: 1, type: "number", text: "42" },
       ],
       retained_bytes: 26,
-      truncated_values: 0,
     });
     expect(result.value.network.requests[0]?.body_shapes).toMatchObject({
       status: "included",
@@ -227,7 +253,6 @@ describeBrowser("CdpBrowserProvider: sensitive data 2", () => {
         payload_shape: {
           format: "binary",
           json_shape: null,
-          truncated: false,
         },
       }),
     ]);
@@ -247,8 +272,8 @@ describeBrowser("CdpBrowserProvider: sensitive data 2", () => {
   });
 });
 
-describeBrowser("CdpBrowserProvider: sensitive data 3", () => {
-  it("keeps per-value text, body, and WebSocket shape validation", async () => {
+describeBrowser("CdpBrowserProvider: complete sensitive data", () => {
+  it("returns complete approved text and shapes while redacting secrets", async () => {
     const browser = await startFakeCdpBrowser({ sensitiveShapes: true });
     trackBrowser(browser);
     const request = inspectWebPageInputSchema.parse({
@@ -260,41 +285,24 @@ describeBrowser("CdpBrowserProvider: sensitive data 3", () => {
       include_json_body_shapes: true,
       include_websocket_shapes: true,
     });
-    const result = await new CdpBrowserProvider().inspectPage({
-      ...request,
-      limits: {
-        ...request.limits,
-        max_console_text_field_bytes: 5,
-        max_json_body_bytes: 10,
-        max_websocket_shape_bytes: 5,
-      },
-    });
+    const result = await new CdpBrowserProvider().inspectPage(request);
 
     if (!result.ok) throw result.error;
     expect(result.value.console.events[0]?.text_capture).toEqual({
-      status: "truncated",
+      status: "included",
       values: [
-        { argument_index: 0, type: "string", text: "autho" },
+        { argument_index: 0, type: "string", text: "authorization=[REDACTED]" },
         { argument_index: 1, type: "number", text: "42" },
       ],
-      retained_bytes: 7,
-      truncated_values: 1,
+      retained_bytes: 26,
     });
     expect(result.value.network.requests[0]?.body_shapes.status).toBe(
-      "truncated",
+      "included",
     );
     expect(result.value.network.websocket_events[0]?.payload_shape).toEqual({
-      format: "text",
-      json_shape: null,
-      truncated: true,
+      format: "json",
+      json_shape: expect.objectContaining({ root_type: "object" }),
     });
-    expect(result.value.completeness.truncated_sections).toEqual(
-      expect.arrayContaining([
-        "console_text",
-        "json_body_shapes",
-        "websocket_shapes",
-      ]),
-    );
   });
 
   it("fails closed on malformed approved response and binary payload encodings", async () => {

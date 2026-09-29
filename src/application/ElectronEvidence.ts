@@ -24,8 +24,8 @@ export const createElectronEvidence = (
   createEvidence(undefined, provider, {
     predicateType:
       operation === "list_electron_targets"
-        ? "rea.electron-target-list/v1"
-        : "rea.electron-page-inspection/v1",
+        ? "rea.electron-target-list"
+        : "rea.electron-page-inspection",
     operation,
     parameters: parameters(input),
     result: jsonValueSchema.parse(result),

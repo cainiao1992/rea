@@ -75,7 +75,6 @@ const addBrowserWindow = (
           options_status: value.options_status,
           web_preferences_status: value.web_preferences_status,
           web_preferences: value.web_preferences,
-          omitted_web_preferences: value.omitted_web_preferences,
           preload_path: value.preload_path,
           preload_resolution_context: value.preload_resolution_context,
           absence_means_default: false,
@@ -176,7 +175,6 @@ const addContextBridge = (
           api_status: value.api_status,
           members: value.members,
           unknown_members: value.unknown_members,
-          omitted_members: value.omitted_members,
         },
         evidence: astObservationEvidence({
           sha256: file.sha256,

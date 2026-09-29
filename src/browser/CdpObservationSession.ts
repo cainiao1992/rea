@@ -52,12 +52,7 @@ export const observeCdpSession = async (
   const mainFrameId = frameId(initial);
   if (mainFrameId === undefined)
     throw new BrowserObservationError("inspect_web_page", "protocol_error");
-  const capture = new TimelineCapture(
-    context.input.max_timeline_events,
-    allowedOrigins,
-    mainFrameId,
-    initialUrl,
-  );
+  const capture = new TimelineCapture(allowedOrigins, mainFrameId, initialUrl);
   const removeListener = context.connection.onEvent((event) => {
     if (observationEventMatches(event, context.sessionId))
       capture.ingest(event);
@@ -74,7 +69,7 @@ export const observeCdpSession = async (
     );
     await context.connection.send(
       "Network.enable",
-      { maxTotalBufferSize: 1_024 * 1_024 },
+      {},
       context.sessionId,
       context.signal,
     );
@@ -143,7 +138,6 @@ class TimelineCapture {
   readonly #listeners = new Set<(reason: EndReason) => void>();
 
   constructor(
-    private readonly maximum: number,
     private readonly allowedOrigins: ReadonlySet<string>,
     private readonly mainFrameId: string,
     initialUrl: string,
@@ -320,10 +314,6 @@ class TimelineCapture {
     } = options;
     const destination =
       rawUrl == null ? null : scopedUrl(rawUrl, this.allowedOrigins);
-    if (this.timeline.length >= this.maximum) {
-      this.completeness.drop("timeline_events");
-      return;
-    }
     this.#sequence += 1;
     this.timeline.push({
       sequence: this.#sequence,
@@ -331,7 +321,7 @@ class TimelineCapture {
       timestamp: Math.max(0, numberValue(params.timestamp) ?? 0),
       frame_id: boundedId(params.frameId),
       loader_id: boundedId(params.loaderId),
-      request_id: requestId?.slice(0, 256) ?? null,
+      request_id: requestId ?? null,
       url: destination?.scope === "approved" ? destination.url : null,
       destination_scope: destination?.scope ?? null,
       detail,
@@ -449,8 +439,7 @@ const scopedUrl = (
     : { url: null, scope: "unsupported" };
 };
 
-const boundedId = (value: unknown): string | null =>
-  stringValue(value)?.slice(0, 256) ?? null;
+const boundedId = (value: unknown): string | null => stringValue(value) ?? null;
 
 const safeDetail = (value: unknown): string | null => {
   const detail = stringValue(value)?.toLowerCase();

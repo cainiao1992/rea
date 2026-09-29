@@ -319,21 +319,8 @@ const enableObservationDomains = async (
   signal?: AbortSignal,
 ): Promise<void> => {
   await connection.send("Runtime.enable", {}, sessionId, signal);
-  await connection.send(
-    "Debugger.enable",
-    { maxScriptsCacheSize: 4 * 1_024 * 1_024 },
-    sessionId,
-    signal,
-  );
-  await connection.send(
-    "Network.enable",
-    {
-      maxTotalBufferSize: 4 * 1_024 * 1_024,
-      maxResourceBufferSize: 1_024 * 1_024,
-    },
-    sessionId,
-    signal,
-  );
+  await connection.send("Debugger.enable", {}, sessionId, signal);
+  await connection.send("Network.enable", {}, sessionId, signal);
 };
 
 const accessibilityForFrames = async (
@@ -347,7 +334,7 @@ const accessibilityForFrames = async (
     const result = await optionalCdpCommand(
       context,
       "Accessibility.getFullAXTree",
-      { depth: 32, frameId: frame.frame_id },
+      { frameId: frame.frame_id },
       limitations,
     );
     if (result === undefined) unavailable = true;
@@ -356,7 +343,6 @@ const accessibilityForFrames = async (
   if (unavailable) events.completeness.unavailable("accessibility");
   const capture = captureAccessibility(results, {
     includeText: context.input.include_accessibility_text,
-    maximumFieldBytes: context.input.limits.max_ax_text_field_bytes,
     ...(results.length === 0 && unavailable ? { unavailable: true } : {}),
   });
   if (!context.input.include_accessibility_text)
@@ -365,8 +351,6 @@ const accessibilityForFrames = async (
       "not_approved",
       capture.textCapture.excluded_fields,
     );
-  if (capture.textCapture.status === "truncated")
-    events.completeness.truncate("accessibility");
   if (capture.treeIncomplete) events.completeness.truncate("accessibility");
   return capture;
 };
@@ -395,7 +379,7 @@ const normalizedTarget = (
   return {
     target_id: target.id,
     type: target.type,
-    title: target.title.slice(0, 16_384),
+    title: target.title,
     url: url?.url ?? "[unsupported-url]",
     origin: url?.origin ?? "",
     attached: target.attached,

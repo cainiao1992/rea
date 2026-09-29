@@ -131,7 +131,7 @@ export class CdpCaptureEvents implements CdpCaptureEventsState {
   }
 
   responseBodyUnavailable(requestId: string): void {
-    bodyShapes.updateResponseBodyShape(this, requestId, null, false);
+    bodyShapes.updateResponseBodyShape(this, requestId, null);
     this.completeness.unavailable("json_body_shapes");
   }
 

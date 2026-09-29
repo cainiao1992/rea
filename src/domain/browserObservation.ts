@@ -27,16 +27,10 @@ const parseExactOrigin = (value: string): string | undefined => {
   return url.origin;
 };
 
-const MAX_BROWSER_URL_CHARS = 65_536;
-const MAX_SANITIZED_BROWSER_URL_CHARS = 131_072;
-const MAX_QUERY_PARAMETER_NAMES = 256;
-const MAX_QUERY_PARAMETER_NAME_CHARS = 256;
-
 /** Exact normalized HTTP(S) authority used for browser observation scope. */
 export const browserOriginSchema = z
   .string()
   .min(1)
-  .max(2_048)
   .transform((value, context) => {
     const origin = parseExactOrigin(value);
     if (origin === undefined) {
@@ -57,7 +51,6 @@ export const isLiteralLoopbackHostname = (hostname: string): boolean =>
 export const browserEndpointSchema = z
   .string()
   .min(1)
-  .max(2_048)
   .transform((value, context) => {
     let url: URL;
     try {
@@ -89,8 +82,7 @@ export const browserEndpointSchema = z
 export const browserAllowedOriginsSchema = z
   .array(browserOriginSchema)
   .min(1)
-  .max(32)
-  .transform((origins) => [...new Set(origins)].sort());
+  .transform((origins) => Array.from(new Set(origins)).sort());
 
 const browserInput = {
   cdp_endpoint: browserEndpointSchema,
@@ -102,21 +94,10 @@ export const listBrowserTargetsInputSchema = z.object({
   ...browserInput,
 });
 
-/** Per-value limits for optional text and JSON-shape capture. */
-export const DEFAULT_BROWSER_INSPECTION_LIMITS = {
-  max_ax_text_field_bytes: 1_024,
-  max_script_source_bytes: 1_024 * 1_024,
-  max_console_text_field_bytes: 1_024,
-  max_json_body_bytes: 1_024 * 1_024,
-  max_json_shape_nodes: 5_000,
-  max_json_shape_depth: 20,
-  max_websocket_shape_bytes: 64 * 1_024,
-};
-
 const inspectWebPageInputFacts = {
   ...browserInput,
-  target_id: z.string().trim().min(1).max(256),
-  observation_ms: z.number().int().min(0).max(10_000).default(500),
+  target_id: z.string().trim().min(1),
+  observation_ms: z.number().int().min(0).default(500),
   include_accessibility_text: z.boolean().default(false),
   include_console_text: z.boolean().default(false),
   include_json_body_shapes: z.boolean().default(false),
@@ -161,12 +142,8 @@ export const inspectWebPageToolInputSchema = z.union([
   inspectWebPageWithSourceInputSchema,
 ]);
 
-/** Internal parsed input with per-value capture limits applied. */
-export const inspectWebPageInputSchema =
-  inspectWebPageToolInputSchema.transform((input) => ({
-    ...input,
-    limits: DEFAULT_BROWSER_INSPECTION_LIMITS,
-  }));
+/** Parsed passive browser inspection input. */
+export const inspectWebPageInputSchema = inspectWebPageToolInputSchema;
 
 export type ListBrowserTargetsInput = z.infer<
   typeof listBrowserTargetsInputSchema
@@ -174,11 +151,9 @@ export type ListBrowserTargetsInput = z.infer<
 export type InspectWebPageInput = z.infer<typeof inspectWebPageInputSchema>;
 
 export const sanitizedBrowserUrlSchema = z.object({
-  url: z.string().max(MAX_SANITIZED_BROWSER_URL_CHARS),
-  origin: z.string().max(2_048).nullable(),
-  query_parameter_names: z
-    .array(z.string().max(MAX_QUERY_PARAMETER_NAME_CHARS))
-    .max(MAX_QUERY_PARAMETER_NAMES),
+  url: z.string(),
+  origin: z.string().nullable(),
+  query_parameter_names: z.array(z.string()),
   redacted: z.boolean(),
 });
 export type SanitizedBrowserUrl = z.infer<typeof sanitizedBrowserUrlSchema>;
@@ -186,9 +161,8 @@ export type SanitizedBrowserUrl = z.infer<typeof sanitizedBrowserUrlSchema>;
 /** Remove credentials and query values before a browser URL becomes durable. */
 export const sanitizeBrowserUrl = (value: string): SanitizedBrowserUrl => {
   let parsed: URL;
-  const wasTruncated = value.length > MAX_BROWSER_URL_CHARS;
   try {
-    parsed = new URL(value.slice(0, MAX_BROWSER_URL_CHARS));
+    parsed = new URL(value);
   } catch {
     return {
       url: "[unsupported-url]",
@@ -199,15 +173,7 @@ export const sanitizeBrowserUrl = (value: string): SanitizedBrowserUrl => {
   }
   const hadCredentials = parsed.username !== "" || parsed.password !== "";
   const hadFragment = parsed.hash !== "";
-  const names = [
-    ...new Set(
-      [...parsed.searchParams.keys()].map((name) =>
-        name.slice(0, MAX_QUERY_PARAMETER_NAME_CHARS),
-      ),
-    ),
-  ]
-    .sort()
-    .slice(0, MAX_QUERY_PARAMETER_NAMES);
+  const names = [...new Set(parsed.searchParams.keys())].sort();
   parsed.username = "";
   parsed.password = "";
   parsed.hash = "";
@@ -217,20 +183,19 @@ export const sanitizeBrowserUrl = (value: string): SanitizedBrowserUrl => {
     url: parsed.href,
     origin: parsed.origin === "null" ? null : parsed.origin,
     query_parameter_names: names,
-    redacted: wasTruncated || hadCredentials || hadFragment || names.length > 0,
+    redacted: hadCredentials || hadFragment || names.length > 0,
   };
 };
 
 /** Remove credentials, fragments, and query values from endpoint candidates. */
 export const sanitizeEndpointCandidate = (value: string): string => {
-  const bounded = value.slice(0, 4_096);
   try {
-    const parsed = new URL(bounded, "https://rea.invalid");
+    const parsed = new URL(value, "https://rea.invalid");
     const sanitized = sanitizeBrowserUrl(parsed.href).url;
     return parsed.origin === "https://rea.invalid"
       ? sanitized.replace("https://rea.invalid", "")
       : sanitized;
   } catch {
-    return bounded.split("#", 1)[0]?.split("?", 1)[0] ?? "";
+    return value.split("#", 1)[0]?.split("?", 1)[0] ?? "";
   }
 };

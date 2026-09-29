@@ -273,7 +273,7 @@ it("exposes active Electron scenarios through the separately granted MCP boundar
     "evidence_id",
   );
   expect(session.evidenceById(String(evidenceId))).toMatchObject({
-    predicate_type: "rea.electron-active-scenario/v1",
+    predicate_type: "rea.electron-active-scenario",
     parameters: {
       args: ["--token", "<redacted>"],
       actions: [{ step_id: "submit", kind: "click" }],

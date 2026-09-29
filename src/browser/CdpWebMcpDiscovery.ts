@@ -21,7 +21,7 @@ import {
 } from "./CdpCaptureValues.js";
 import { captureFrames, mainFrameUrl } from "./CdpCaptureDocuments.js";
 import { optionalCdpCommand } from "./CdpOptionalCommand.js";
-import { boundedSensitiveText } from "./SensitiveTextCapture.js";
+import { redactSensitiveText } from "./SensitiveTextCapture.js";
 
 interface DiscoveryContext {
   readonly connection: CdpConnection;
@@ -106,7 +106,7 @@ export const discoverWebMcp = async (
     } else
       // CDP sends the enable response before the required toolsAdded replay.
       await delayWithCancellation(
-        Math.max(context.input.observation_ms, 25),
+        context.input.observation_ms,
         "discover_webmcp_tools",
         context.signal,
       );
@@ -167,7 +167,7 @@ const handleFrameDetached = (
   state: FrameScopeState,
 ): boolean => {
   const frameId = stringValue(params.frameId);
-  if (frameId === undefined || frameId.length > 256) {
+  if (frameId === undefined) {
     state.completeness.exclude("webmcp_tools", "invalid_protocol_value");
     return true;
   }
@@ -180,7 +180,7 @@ const handleFrameUpdate = (
   state: FrameScopeState,
 ): boolean => {
   const frameId = stringValue(frame?.id) ?? stringValue(frame?.frameId);
-  if (frameId === undefined || frameId.length > 256) {
+  if (frameId === undefined) {
     state.completeness.exclude("webmcp_tools", "invalid_protocol_value");
     return true;
   }
@@ -293,16 +293,13 @@ const normalizeTool = (
     completeness.exclude("webmcp_tools", "out_of_target_scope");
     return undefined;
   }
-  const description = boundedSensitiveText(
-    stringValue(value.description) ?? "",
-    4_096,
-  ).text;
+  const description = redactSensitiveText(stringValue(value.description) ?? "");
   const annotations = recordValue(value.annotations);
   return {
     tool_key: toolKey(frame.url, name),
-    name: boundedSensitiveText(name, 512).text,
+    name: redactSensitiveText(name),
     description,
-    frame_id: frameId.slice(0, 256),
+    frame_id: frameId,
     frame_url: frame.url,
     owner_origin: frame.origin,
     declaration_kind:
@@ -326,15 +323,9 @@ const normalizeTool = (
 const schemaShape = (value: unknown) => {
   if (recordValue(value) === undefined) return null;
   const encoded = JSON.stringify(value);
-  const shape = inferJsonShape(encoded, {
-    maximumBytes: 256 * 1_024,
-    maximumNodes: 5_000,
-    maximumDepth: 20,
-  });
+  const shape = inferJsonShape(encoded);
   if (shape === null)
     throw new BrowserObservationError("inspect_web_page", "protocol_error");
-  if (shape.truncated)
-    throw new BrowserObservationError("inspect_web_page", "payload_limit");
   return shape;
 };
 

@@ -70,7 +70,7 @@ describe("CDP document capture", () => {
     ]);
   });
 
-  it("bounds approved accessibility text by UTF-8 bytes without splitting characters", () => {
+  it("retains full approved accessibility text", () => {
     const capture = captureAccessibility(
       [
         {
@@ -91,21 +91,19 @@ describe("CDP document capture", () => {
       ],
       {
         includeText: true,
-        maximumFieldBytes: 4,
       },
     );
 
     expect(capture.nodes[0]).toMatchObject({
-      name: "😀",
+      name: "😀a",
       description: "éé",
       states: [{ name: "disabled", value: true }],
     });
     expect(capture.treeIncomplete).toBe(true);
     expect(capture.textCapture).toEqual({
-      status: "truncated",
-      retained_bytes: 8,
+      status: "included",
+      retained_bytes: 9,
       excluded_fields: 0,
-      truncated_fields: 1,
     });
   });
 
@@ -124,7 +122,6 @@ describe("CDP document capture", () => {
       ],
       {
         includeText: false,
-        maximumFieldBytes: 1_024,
       },
     );
 
@@ -133,7 +130,6 @@ describe("CDP document capture", () => {
       status: "not_approved",
       retained_bytes: 0,
       excluded_fields: 2,
-      truncated_fields: 0,
     });
   });
 });

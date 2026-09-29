@@ -63,8 +63,6 @@ describe("web source-map fetching and validation", () => {
       status: "included",
       requested: 1,
       processed: 1,
-      dropped: 0,
-      dropped_script_keys: [],
       items: [
         {
           status: "included",
@@ -96,44 +94,6 @@ describe("web source-map fetching and validation", () => {
     expectInvalidIncludedSourceMaps(result);
   });
 
-  it("validates sectioned maps and reports bounded mapping truncation", async () => {
-    const regular = {
-      version: 3,
-      names: [],
-      sources: ["a.js"],
-      sourcesContent: ["export const a = 1"],
-      mappings: "AAAA;AACA",
-    };
-    const result = await fetchWebSourceMaps(
-      [request],
-      input({ analysis_limits: { max_source_map_mappings: 1 } }),
-      undefined,
-      {
-        fetch: () =>
-          Promise.resolve(
-            new Response(
-              JSON.stringify({
-                version: 3,
-                sections: [{ offset: { line: 0, column: 0 }, map: regular }],
-              }),
-              { status: 200 },
-            ),
-          ),
-      },
-    );
-
-    expect(result).toMatchObject({
-      status: "truncated",
-      items: [
-        {
-          status: "truncated",
-          mappings: [expect.any(Object)],
-          limitation: expect.stringContaining("truncated from 2 to 1"),
-        },
-      ],
-    });
-  });
-
   it("reauthorizes every redirect and never contacts a disallowed origin", async () => {
     const calls: string[] = [];
     const result = await fetchWebSourceMaps([request], input(), undefined, {
@@ -159,101 +119,108 @@ describe("web source-map fetching and validation", () => {
     });
   });
 
-  it("distinguishes invalid JSON from declared or streamed byte truncation", async () => {
-    for (const response of [
-      new Response("not-json", { status: 200 }),
-      new Response("{}", {
-        status: 200,
-        headers: { "content-length": "999999" },
-      }),
-    ]) {
-      const result = await fetchWebSourceMaps(
-        [request],
-        input({ analysis_limits: { max_source_map_bytes: 100 } }),
-        undefined,
-        { fetch: () => Promise.resolve(response) },
-      );
-      expect(result.items[0]?.status).toBe(
-        response.headers.has("content-length") ? "truncated" : "invalid",
-      );
-    }
+  it("follows an approved redirect chain without an arbitrary hop ceiling", async () => {
+    const calls: string[] = [];
+    const result = await fetchWebSourceMaps([request], input(), undefined, {
+      fetch: (url) => {
+        const current = String(url);
+        calls.push(current);
+        const hop = Number(new URL(current).searchParams.get("hop") ?? "0");
+        return Promise.resolve(
+          hop < 7
+            ? new Response(null, {
+                status: 302,
+                headers: {
+                  location: `${origin}/assets/app.js.map?hop=${String(hop + 1)}`,
+                },
+              })
+            : validMapResponse(),
+        );
+      },
+    });
+
+    expect(calls).toHaveLength(8);
+    expect(result.items[0]?.status).toBe("included");
+  });
+
+  it("reports malformed source-map JSON as invalid", async () => {
+    const result = await fetchWebSourceMaps([request], input(), undefined, {
+      fetch: () => Promise.resolve(new Response("not-json", { status: 200 })),
+    });
+    expect(result.items[0]?.status).toBe("invalid");
   });
 });
 
-describe("web source-map aggregate limits", () => {
-  it("bounds aggregate map count and reports omitted requests", async () => {
-    const calls: string[] = [];
-    const requests = [0, 1, 2].map((index) => ({
-      ...request,
-      scriptKey: `scr_${String(index + 1).repeat(64)}`,
-      fetchUrl: `${origin}/assets/${String(index)}.js.map`,
-    }));
-    const result = await fetchWebSourceMaps(
-      requests,
-      input({ analysis_limits: { max_source_maps: 1 } }),
-      undefined,
-      {
-        fetch: (url) => {
-          calls.push(String(url));
-          return Promise.resolve(validMapResponse());
-        },
-      },
-    );
-
-    expect(calls).toEqual([requests[0]?.fetchUrl]);
-    expect(result).toMatchObject({
-      status: "truncated",
-      requested: 3,
-      processed: 1,
-      dropped: 2,
-      dropped_script_keys: [requests[1]?.scriptKey, requests[2]?.scriptKey],
+describe("web source-map collection", () => {
+  it("retains every mapping from a sectioned source map", async () => {
+    const segmentCount = 10_001;
+    const regular = {
+      version: 3,
+      names: [],
+      sources: ["a.js"],
+      sourcesContent: ["export const a = 1"],
+      mappings: Array.from({ length: segmentCount }, () => "AAAA").join(","),
+    };
+    const result = await fetchWebSourceMaps([request], input(), undefined, {
+      fetch: () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              version: 3,
+              sections: [{ offset: { line: 0, column: 0 }, map: regular }],
+            }),
+            { status: 200 },
+          ),
+        ),
     });
+
+    expect(result.status).toBe("included");
+    expect(result.items[0]?.status).toBe("included");
+    expect(result.items[0]?.mappings).toHaveLength(segmentCount);
   });
 
-  it("stops after exhausting the aggregate response-byte budget", async () => {
-    const requests = [0, 1, 2].map((index) => ({
+  it("fetches and returns every requested map inline", async () => {
+    const calls: string[] = [];
+    const requests = Array.from({ length: 101 }, (_, index) => ({
       ...request,
-      scriptKey: `scr_${String(index + 1).repeat(64)}`,
+      scriptKey: `scr_${String(index + 1).padStart(64, "0")}`,
       fetchUrl: `${origin}/assets/${String(index)}.js.map`,
     }));
-    const calls: string[] = [];
-    const result = await fetchWebSourceMaps(
-      requests,
-      input({
-        analysis_limits: {
-          max_source_map_bytes: 128,
-          max_total_source_map_bytes: 128,
-        },
-      }),
-      undefined,
-      {
-        fetch: (url) => {
-          calls.push(String(url));
-          return Promise.resolve(validMapResponse());
-        },
+    const result = await fetchWebSourceMaps(requests, input(), undefined, {
+      fetch: (url) => {
+        calls.push(String(url));
+        return Promise.resolve(validMapResponse());
       },
-    );
-
-    expect(calls).toHaveLength(2);
-    expect(result).toMatchObject({
-      status: "truncated",
-      requested: 3,
-      processed: 2,
-      dropped: 1,
-      dropped_script_keys: [requests[2]?.scriptKey],
-      items: [{ status: "included" }, { status: "truncated" }],
     });
+
+    expect(calls).toHaveLength(requests.length);
+    expect(result).toMatchObject({
+      status: "included",
+      requested: requests.length,
+      processed: requests.length,
+    });
+    expect(result.items).toHaveLength(requests.length);
   });
 
-  it("does not accept caller overrides for provider source-map limits", () => {
-    const parsed = analyzeWebBundleInputSchema.safeParse({
-      cdp_endpoint: "http://127.0.0.1:9222",
-      allowed_origins: [origin],
-      target_id: "page-1",
-      analysis_limits: { max_source_maps: 0 },
+  it("includes source-map text above the former per-map byte budget", async () => {
+    const content = "x".repeat(8 * 1_024 * 1_024 + 1);
+    const map = JSON.stringify({
+      version: 3,
+      names: [],
+      sources: ["large.ts"],
+      sourcesContent: [content],
+      mappings: "AAAA",
+    });
+    const result = await fetchWebSourceMaps([request], input(), undefined, {
+      fetch: () => Promise.resolve(new Response(map, { status: 200 })),
     });
 
-    expect(parsed.success).toBe(false);
+    expect(result.status).toBe("included");
+    expect(result.items[0]?.status).toBe("included");
+    if (result.items[0]?.status !== "included") throw new Error("not included");
+    expect(result.items[0].original_sources[0]?.artifact?.bytes).toBe(
+      Buffer.byteLength(content),
+    );
   });
 });
 
@@ -270,21 +237,11 @@ const validMapResponse = () =>
   );
 
 const input = (overrides: Record<string, unknown> = {}) => {
-  const { analysis_limits: internalLimitOverrides, ...callerOverrides } =
-    overrides;
-  const parsed = analyzeWebBundleInputSchema.parse({
+  return analyzeWebBundleInputSchema.parse({
     cdp_endpoint: "http://127.0.0.1:9222",
     allowed_origins: [origin],
     target_id: "page-1",
     fetch_source_maps: true,
-    ...callerOverrides,
+    ...overrides,
   });
-  const limits = {
-    ...parsed.analysis_limits,
-    ...(internalLimitOverrides as Record<string, number> | undefined),
-  };
-  return {
-    ...parsed,
-    analysis_limits: limits,
-  };
 };

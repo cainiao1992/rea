@@ -55,7 +55,7 @@ const normalizationRuleSchema = z.strictObject({
 
 const normalizationInputSchema = z
   .strictObject({
-    rules: z.array(normalizationRuleSchema).max(128).default([]),
+    rules: z.array(normalizationRuleSchema).default([]),
   })
   .superRefine((normalization, context) => {
     const ruleIds = new Set<string>();
@@ -86,9 +86,7 @@ export const compareBrowserScenariosInputSchema = z.strictObject({
   ),
   normalization: normalizationInputSchema
     .default({ rules: [] })
-    .describe(
-      "Bounded exact-literal rules committed in the comparison result.",
-    ),
+    .describe("Exact-literal rules committed in the comparison result."),
 });
 /** Parsed browser scenario comparison input. */
 export type CompareBrowserScenariosInput = z.infer<
@@ -137,39 +135,37 @@ const builtInNormalizationSchema = z.enum([
   "compare_normalized_text_content",
 ]);
 
-/** Step alignment, recorded normalization, and bounded artifact differences. */
+/** Step alignment, recorded normalization, and inline artifact differences. */
 export const browserScenarioDiffSchema = z.strictObject({
   comparison_kind: z.literal("browser_scenario"),
   overall_status: z.enum(["changed", "unchanged", "unknown"]),
   normalization: z.strictObject({
     built_in_rules: z.array(builtInNormalizationSchema).length(5),
-    rules: z.array(normalizationRuleSchema).max(128),
+    rules: z.array(normalizationRuleSchema),
     sha256: z.string().regex(/^[a-f0-9]{64}$/u),
   }),
   alignment: z.strictObject({
     status: z.enum(["aligned", "partial", "failed"]),
-    aligned_steps: z.number().int().min(0).max(129),
-    before_only: z.array(z.string().min(1).max(64)).max(129),
-    after_only: z.array(z.string().min(1).max(64)).max(129),
-    failures: z.array(alignmentFailureSchema).max(520),
+    aligned_steps: z.number().int().min(0),
+    before_only: z.array(z.string().min(1).max(64)),
+    after_only: z.array(z.string().min(1).max(64)),
+    failures: z.array(alignmentFailureSchema),
   }),
-  steps: z
-    .array(
-      z.strictObject({
-        step_id: z.string().min(1).max(64),
-        before_step_index: z.number().int().min(0).max(128),
-        after_step_index: z.number().int().min(0).max(128),
-        before_action: z.string().min(1).max(64),
-        after_action: z.string().min(1).max(64),
-        status: z.enum(["changed", "unchanged", "unknown"]),
-        artifact_diffs: z.array(artifactDiffSchema).max(8),
-      }),
-    )
-    .max(129),
+  steps: z.array(
+    z.strictObject({
+      step_id: z.string().min(1).max(64),
+      before_step_index: z.number().int().min(0),
+      after_step_index: z.number().int().min(0),
+      before_action: z.string().min(1).max(64),
+      after_action: z.string().min(1).max(64),
+      status: z.enum(["changed", "unchanged", "unknown"]),
+      artifact_diffs: z.array(artifactDiffSchema),
+    }),
+  ),
   artifact_diffs: z.strictObject({
-    total: z.number().int().min(0).max(1_032),
+    total: z.number().int().min(0),
   }),
-  limitations: z.array(z.string().min(1).max(2_048)).max(64),
+  limitations: z.array(z.string().min(1).max(2_048)),
 });
 /** Browser scenario comparison result. */
 export type BrowserScenarioDiff = z.infer<typeof browserScenarioDiffSchema>;

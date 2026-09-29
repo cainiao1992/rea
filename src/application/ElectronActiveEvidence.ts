@@ -15,7 +15,7 @@ export const createElectronActiveEvidence = (
   provider: ProviderIdentity,
 ): Evidence =>
   createEvidence(undefined, provider, {
-    predicateType: "rea.electron-active-scenario/v1",
+    predicateType: "rea.electron-active-scenario",
     operation: "capture_electron_scenario",
     parameters: parameters(input),
     result: jsonValueSchema.parse(result),

@@ -6,7 +6,6 @@ import type {
   ElectronPageInspection,
   InspectElectronPageInput,
 } from "../domain/electronObservation.js";
-import { MAX_ELECTRON_SCRIPT_SOURCE_BYTES } from "../domain/electronObservation.js";
 import { createWebTextArtifact } from "../domain/webContentArtifact.js";
 import type { CdpConnection } from "./CdpConnection.js";
 import { CdpCaptureCompleteness } from "./CdpCaptureCompleteness.js";
@@ -91,8 +90,6 @@ const captureScriptSource = async (
         reason: "source capture was not approved",
       },
     };
-  if (script.length > MAX_ELECTRON_SCRIPT_SOURCE_BYTES)
-    return sourceLimitResult(input.completeness);
   const result = requiredRecord(
     await input.connection.send(
       "Debugger.getScriptSource",
@@ -102,23 +99,11 @@ const captureScriptSource = async (
     ),
   );
   const text = stringValue(result.scriptSource) ?? "";
-  const bytes = Buffer.byteLength(text);
-  if (bytes > MAX_ELECTRON_SCRIPT_SOURCE_BYTES)
-    return sourceLimitResult(input.completeness);
   return {
     source: {
       included: true,
       artifact: createWebTextArtifact(text, "text/javascript"),
     },
-  };
-};
-
-const sourceLimitResult = (
-  completeness: CdpCaptureCompleteness,
-): { readonly source: ElectronScriptSource } => {
-  completeness.truncate("script_sources");
-  return {
-    source: { included: false, reason: "script source byte limit reached" },
   };
 };
 

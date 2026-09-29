@@ -49,17 +49,16 @@ describe("PNG visual diff", () => {
     ).toMatchObject({ status: "dimension_mismatch", compared_pixels: 0 });
   });
 
-  it("rejects images above the caller's decoded pixel limit", () => {
-    const image = artifact(2, 1, [0, 0, 0, 255, 0, 0, 0, 255]);
+  it("rejects malformed PNG dimensions after validating image data", () => {
+    const image = artifact(32_000_001, 1, [0, 0, 0, 255]);
     expect(() =>
       comparePngScreenshots(
         compareWebScreenshotsInputSchema.parse({
           before: image,
           after: image,
-          maximum_pixels: 1,
         }),
       ),
-    ).toThrow("oversized PNG");
+    ).toThrow("Unexpected PNG size");
   });
 
   it("rejects metrics that cannot represent their comparison status", () => {

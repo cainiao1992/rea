@@ -68,15 +68,15 @@ const normalizedHeaders = (value: unknown): ReadonlyMap<string, string> => {
   if (typeof value !== "object" || value === null || Array.isArray(value))
     return new Map();
   const headers = new Map<string, string>();
-  for (const [name, raw] of Object.entries(value).slice(0, 500)) {
-    const normalized = name.toLowerCase().slice(0, 256);
+  for (const [name, raw] of Object.entries(value)) {
+    const normalized = name.toLowerCase();
     const header =
       typeof raw === "string"
         ? raw
         : typeof raw === "number" && Number.isFinite(raw)
           ? String(raw)
           : undefined;
-    if (header !== undefined) headers.set(normalized, header.slice(0, 65_536));
+    if (header !== undefined) headers.set(normalized, header);
   }
   return headers;
 };
@@ -89,13 +89,13 @@ const parseCsp = (
   const directives: ResponseMetadata["csp"]["directives"] = [];
   let nonceCount = 0;
   let hashCount = 0;
-  for (const rawDirective of (value ?? "").split(";").slice(0, 100)) {
+  for (const rawDirective of (value ?? "").split(";")) {
     const [rawName, ...tokens] = rawDirective.trim().split(/\s+/u);
     const name = (rawName ?? "").toLowerCase();
-    if (!/^[a-z][a-z0-9-]{0,99}$/u.test(name)) continue;
+    if (!/^[a-z][a-z0-9-]*$/u.test(name)) continue;
     const sources: ResponseMetadata["csp"]["directives"][number]["sources"] =
       [];
-    for (const token of tokens.slice(0, 100)) {
+    for (const token of tokens) {
       const lower = token.toLowerCase();
       if (lower.startsWith("'nonce-")) {
         nonceCount += 1;
@@ -122,10 +122,9 @@ const cspSource = (
   allowedOrigins: ReadonlySet<string>,
 ): ResponseMetadata["csp"]["directives"][number]["sources"][number] => {
   const lower = token.toLowerCase();
-  if (/^'[a-z0-9-]+'$/u.test(lower))
-    return { kind: "keyword", value: lower.slice(0, 100) };
+  if (/^'[a-z0-9-]+'$/u.test(lower)) return { kind: "keyword", value: lower };
   if (/^[a-z][a-z0-9+.-]*:$/u.test(lower))
-    return { kind: "scheme", value: lower.slice(0, 100) };
+    return { kind: "scheme", value: lower };
   try {
     const parsed = new URL(token, baseUrl);
     return allowedOrigins.has(parsed.origin)
@@ -142,8 +141,8 @@ const parseLinks = (
   allowedOrigins: ReadonlySet<string>,
 ): LinkMetadata[] => {
   const links: LinkMetadata[] = [];
-  for (const entry of splitLinkHeader(value ?? "").slice(0, 100)) {
-    const match = /^\s*<([^>]{1,4096})>(.*)$/u.exec(entry);
+  for (const entry of splitLinkHeader(value ?? "")) {
+    const match = /^\s*<([^>]*)>(.*)$/u.exec(entry);
     if (match === null) continue;
     const parameters = linkParameters(match[2] ?? "");
     const destination = safeDestination(
@@ -157,8 +156,7 @@ const parseLinks = (
       rel: (parameters.get("rel") ?? "")
         .toLowerCase()
         .split(/\s+/u)
-        .filter(Boolean)
-        .slice(0, 32),
+        .filter(Boolean),
       as: boundedHeader(parameters.get("as")),
       type: boundedHeader(parameters.get("type")),
       crossorigin: boundedHeader(parameters.get("crossorigin")),
@@ -184,14 +182,14 @@ const splitLinkHeader = (value: string): string[] => {
 
 const linkParameters = (value: string): ReadonlyMap<string, string> => {
   const parameters = new Map<string, string>();
-  for (const raw of value.split(";").slice(1, 50)) {
+  for (const raw of value.split(";").slice(1)) {
     const separator = raw.indexOf("=");
     const name = (separator < 0 ? raw : raw.slice(0, separator))
       .trim()
       .toLowerCase();
-    if (!/^[a-z][a-z0-9-]{0,99}$/u.test(name)) continue;
+    if (!/^[a-z][a-z0-9-]*$/u.test(name)) continue;
     const parameter = separator < 0 ? "" : raw.slice(separator + 1).trim();
-    parameters.set(name, unquote(parameter).slice(0, 1_024));
+    parameters.set(name, unquote(parameter));
   }
   return parameters;
 };
@@ -222,11 +220,9 @@ const permissionFeatures = (value: string | undefined): string[] =>
       (value ?? "")
         .split(",")
         .map((entry) => entry.split("=", 1)[0]?.trim().toLowerCase() ?? "")
-        .filter((feature) => /^[a-z][a-z0-9-]{0,99}$/u.test(feature)),
+        .filter((feature) => /^[a-z][a-z0-9-]*$/u.test(feature)),
     ),
-  ]
-    .sort()
-    .slice(0, 200);
+  ].sort();
 
 const wellKnownHint = (url: string): AgentHint[] => {
   try {
@@ -245,7 +241,7 @@ const agentHint = (
   url: string | null,
 ): AgentHint => ({
   mechanism,
-  declaration: declaration.slice(0, 256),
+  declaration,
   url,
   trust: "page-declared-untrusted",
 });
@@ -255,7 +251,7 @@ const isAgentRel = (value: string): boolean =>
 
 const policyToken = (value: string | undefined): string | null => {
   const token = (value ?? "").trim().toLowerCase();
-  return /^[a-z][a-z0-9_.-]{0,99}$/u.test(token) ? token : null;
+  return /^[a-z][a-z0-9_.-]*$/u.test(token) ? token : null;
 };
 
 const nonnegativeInteger = (value: string | undefined): number | null => {
@@ -264,7 +260,7 @@ const nonnegativeInteger = (value: string | undefined): number | null => {
 };
 
 const boundedHeader = (value: string | undefined): string | null =>
-  value === undefined ? null : value.trim().toLowerCase().slice(0, 256);
+  value === undefined ? null : value.trim().toLowerCase();
 
 const unquote = (value: string): string =>
   value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;

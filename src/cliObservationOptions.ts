@@ -15,6 +15,15 @@ export const boundedCount = (
     .default(fallback)
     .describe(`Maximum ${subject}`);
 
+/** Accept an agent-selected browser observation duration without an artificial ceiling. */
+export const observationDuration = (fallback: number, minimum = 0) =>
+  z
+    .number()
+    .int()
+    .min(minimum)
+    .default(fallback)
+    .describe("Observation duration in milliseconds");
+
 /** Shared passive browser origin options. */
 export const browserScopeOptions = {
   allowedOrigins: z
@@ -27,12 +36,7 @@ export const browserScopeOptions = {
 
 export const browserPageInspectionOptions = z.object({
   ...browserScopeOptions,
-  observationMs: boundedCount(
-    "observation duration in milliseconds",
-    10_000,
-    500,
-    0,
-  ),
+  observationMs: observationDuration(500),
   includeAccessibilityText: z
     .boolean()
     .default(false)

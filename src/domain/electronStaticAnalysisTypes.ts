@@ -38,7 +38,6 @@ export type ElectronBrowserWindowFinding = ElectronBrowserWindowPreload & {
   readonly options_status: "object-literal" | "dynamic" | "missing";
   readonly web_preferences_status: "object-literal" | "dynamic" | "missing";
   readonly web_preferences: readonly ElectronWebPreference[];
-  readonly omitted_web_preferences: number;
   readonly module_key: string | null;
   readonly location: JavaScriptSourceRange;
 };
@@ -56,7 +55,6 @@ export type ElectronContextBridgeFinding = ElectronContextBridgeApiKey & {
   readonly api_status: "object-literal" | "dynamic" | "missing";
   readonly members: readonly string[];
   readonly unknown_members: number;
-  readonly omitted_members: number;
   readonly module_key: string | null;
   readonly location: JavaScriptSourceRange;
 };
@@ -165,7 +163,6 @@ export interface ElectronNativeAddonBindingFinding {
   readonly specifier: string;
   readonly binding_kind: "import" | "require" | "re-export";
   readonly members: readonly string[];
-  readonly members_truncated: boolean;
   readonly module_key: string | null;
   readonly location: JavaScriptSourceRange;
 }

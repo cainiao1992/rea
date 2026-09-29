@@ -143,7 +143,7 @@ export class CdpBrowserProvider implements BrowserObservationPort {
         : undefined;
       return ok(
         webBundleAnalysisSchema.parse(
-          analyzeCapturedWebBundle(captured.inspection, input, sourceMaps),
+          analyzeCapturedWebBundle(captured.inspection, sourceMaps),
         ),
       );
     } catch (cause: unknown) {
@@ -368,7 +368,7 @@ const selectTargets = (
     allowed.push({
       target_id: target.id,
       type: target.type,
-      title: target.title.slice(0, 16_384),
+      title: target.title,
       url: url.url,
       origin: url.origin,
       attached: target.attached,

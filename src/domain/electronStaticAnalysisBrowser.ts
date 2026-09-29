@@ -27,8 +27,6 @@ import {
 } from "./javascriptStaticAnalysisHelpers.js";
 import type { JavaScriptFindingContext } from "./javascriptStaticAnalysisState.js";
 
-const MAX_WEB_PREFERENCES = 64;
-
 /** Inspect BrowserWindow, contextBridge, and utility-process syntax. */
 export const inspectElectronBrowserNode = (
   node: t.Node,
@@ -48,7 +46,7 @@ const inspectBrowserWindow = (
   if (name !== "BrowserWindow" && !name.endsWith(".BrowserWindow")) return;
   const options = argumentNode(node.arguments[0]);
   const collected = collectWindowOptions(context.source, options);
-  accountForStructure(context, collected.unknown, collected.omitted);
+  context.accumulator.unknownFindings += collected.unknown;
   const finding: ElectronBrowserWindowFinding = {
     options_status:
       options === undefined
@@ -58,7 +56,6 @@ const inspectBrowserWindow = (
           : "dynamic",
     web_preferences_status: collected.status,
     web_preferences: collected.preferences,
-    omitted_web_preferences: collected.omitted,
     ...collected.preload,
     module_key: null,
     location: range(node),
@@ -79,7 +76,6 @@ const collectWindowOptions = (
   readonly preferences: readonly ElectronWebPreference[];
   readonly preload: ElectronBrowserWindowPreload;
   readonly unknown: number;
-  readonly omitted: number;
 } => {
   if (!t.isObjectExpression(options))
     return {
@@ -87,7 +83,6 @@ const collectWindowOptions = (
       preferences: [],
       preload: { preload_path: null, preload_resolution_context: null },
       unknown: options === undefined ? 0 : 1,
-      omitted: 0,
     };
   const property = objectProperty(options, "webPreferences");
   if (property === undefined)
@@ -96,7 +91,6 @@ const collectWindowOptions = (
       preferences: [],
       preload: { preload_path: null, preload_resolution_context: null },
       unknown: 0,
-      omitted: 0,
     };
   if (!t.isObjectExpression(property.value))
     return {
@@ -104,7 +98,6 @@ const collectWindowOptions = (
       preferences: [],
       preload: { preload_path: null, preload_resolution_context: null },
       unknown: 1,
-      omitted: 0,
     };
   return collectWebPreferences(source, property.value);
 };
@@ -117,7 +110,6 @@ const collectWebPreferences = (
   readonly preferences: readonly ElectronWebPreference[];
   readonly preload: ElectronBrowserWindowPreload;
   readonly unknown: number;
-  readonly omitted: number;
 } => {
   const preferences: ElectronWebPreference[] = [];
   let unknown = 0;
@@ -167,10 +159,9 @@ const collectWebPreferences = (
   preferences.sort((left, right) => compareCodePoints(left.name, right.name));
   return {
     status: "object-literal",
-    preferences: preferences.slice(0, MAX_WEB_PREFERENCES),
+    preferences,
     preload,
     unknown,
-    omitted: Math.max(0, preferences.length - MAX_WEB_PREFERENCES),
   };
 };
 
@@ -197,7 +188,7 @@ const inspectContextBridge = (
     (key.status === "dynamic" ? 1 : 0) +
     (worldId?.status === "dynamic" ? 1 : 0) +
     api.unknown;
-  accountForStructure(context, unknown, api.omitted);
+  context.accumulator.unknownFindings += unknown;
   const apiKey: ElectronContextBridgeApiKey =
     key.status === "dynamic"
       ? { api_key: null, api_key_expression: key.expression }
@@ -211,7 +202,6 @@ const inspectContextBridge = (
     api_status: api.status,
     members: api.members,
     unknown_members: api.unknown,
-    omitted_members: api.omitted,
     module_key: null,
     location: range(node),
   };
@@ -264,15 +254,4 @@ const inspectUtilityProcess = (
     node,
     value: finding,
   });
-};
-
-const accountForStructure = (
-  context: JavaScriptFindingContext,
-  unknown: number,
-  omitted: number,
-): void => {
-  context.accumulator.unknownFindings += unknown;
-  if (omitted === 0) return;
-  context.accumulator.structuralTruncation = true;
-  context.accumulator.droppedFindings += omitted;
 };

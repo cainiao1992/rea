@@ -40,7 +40,7 @@ export const createBrowserScenarioEvidence = (
   provider: ProviderIdentity,
 ): Evidence =>
   createEvidence(undefined, provider, {
-    predicateType: "rea.browser-scenario-capture/v1",
+    predicateType: "rea.browser-scenario-capture",
     operation: "capture_browser_scenario",
     parameters: browserScenarioParameters(scenario),
     result: jsonValueSchema.parse(capture),

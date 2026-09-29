@@ -13,12 +13,12 @@ interface DecodedPng {
   readonly rgba: Buffer;
 }
 
-/** Compare two validated screenshots using bounded, deterministic RGBA metrics. */
+/** Compare two validated screenshots using deterministic RGBA metrics. */
 export const comparePngScreenshots = (
   input: CompareWebScreenshotsInput,
 ): WebScreenshotDiff => {
-  const before = decodePng(input.before, input.maximum_pixels);
-  const after = decodePng(input.after, input.maximum_pixels);
+  const before = decodePng(input.before);
+  const after = decodePng(input.after);
   if (before.width !== after.width || before.height !== after.height)
     return {
       status: "dimension_mismatch",
@@ -73,10 +73,7 @@ export const comparePngScreenshots = (
   };
 };
 
-const decodePng = (
-  artifact: WebScreenshotArtifact,
-  maximumPixels: number,
-): DecodedPng => {
+const decodePng = (artifact: WebScreenshotArtifact): DecodedPng => {
   const bytes = decodeCanonicalBase64(artifact.data_base64);
   if (bytes === undefined || !bytes.subarray(0, 8).equals(PNG_SIGNATURE))
     throw new TypeError("Invalid PNG signature");
@@ -92,7 +89,7 @@ const decodePng = (
     const dataEnd = dataStart + length;
     if (dataEnd + 4 > bytes.length) throw new TypeError("Truncated PNG data");
     const data = bytes.subarray(dataStart, dataEnd);
-    if (type === "IHDR") header = parseHeader(data, maximumPixels);
+    if (type === "IHDR") header = parseHeader(data);
     else if (type === "IDAT") compressed.push(data);
     else if (type === "IEND") {
       sawEnd = true;
@@ -115,7 +112,7 @@ const decodePng = (
   };
 };
 
-const parseHeader = (data: Buffer, maximumPixels: number) => {
+const parseHeader = (data: Buffer) => {
   if (data.byteLength !== 13) throw new TypeError("Invalid PNG header");
   const width = data.readUInt32BE(0);
   const height = data.readUInt32BE(4);
@@ -124,14 +121,14 @@ const parseHeader = (data: Buffer, maximumPixels: number) => {
   if (
     width === 0 ||
     height === 0 ||
-    width * height > maximumPixels ||
+    !Number.isSafeInteger(width * height) ||
     bitDepth !== 8 ||
     (colorType !== 2 && colorType !== 6) ||
     data[10] !== 0 ||
     data[11] !== 0 ||
     data[12] !== 0
   )
-    throw new TypeError("Unsupported or oversized PNG");
+    throw new TypeError("Unsupported PNG");
   return { width, height, channels: colorType === 6 ? 4 : 3 };
 };
 

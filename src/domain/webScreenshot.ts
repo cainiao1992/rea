@@ -8,15 +8,13 @@ import {
   browserEndpointSchema,
 } from "./browserObservation.js";
 
-const MAX_SCREENSHOT_BYTES = 8 * 1_024 * 1_024;
-
 /** Self-verifying inline PNG artifact for CLI/MCP parity. */
 export const webScreenshotArtifactSchema = z
   .object({
     sha256: z.string().regex(/^[a-f0-9]{64}$/u),
-    bytes: z.number().int().min(1).max(MAX_SCREENSHOT_BYTES),
+    bytes: z.number().int().min(1),
     media_type: z.literal("image/png"),
-    data_base64: z.string().max(Math.ceil((MAX_SCREENSHOT_BYTES * 4) / 3) + 4),
+    data_base64: z.string(),
   })
   .superRefine((artifact, context) => {
     const bytes = decodeCanonicalBase64(artifact.data_base64);
@@ -34,16 +32,10 @@ export const webScreenshotArtifactSchema = z
 export type WebScreenshotArtifact = z.infer<typeof webScreenshotArtifactSchema>;
 
 /** Input for one read-only visible-viewport screenshot. */
-export const captureWebScreenshotInputSchema = z.object({
+export const captureWebScreenshotInputSchema = z.strictObject({
   cdp_endpoint: browserEndpointSchema,
   allowed_origins: browserAllowedOriginsSchema,
   target_id: z.string().trim().min(1).max(256),
-  maximum_image_bytes: z
-    .number()
-    .int()
-    .min(1)
-    .max(MAX_SCREENSHOT_BYTES)
-    .default(4 * 1_024 * 1_024),
 });
 export type CaptureWebScreenshotInput = z.infer<
   typeof captureWebScreenshotInputSchema
@@ -57,7 +49,7 @@ const browserVersionSchema = z.object({
   js_version: z.string(),
 });
 
-/** Bounded screenshot observation with embedded immutable artifact bytes. */
+/** Screenshot observation with embedded immutable artifact bytes. */
 export const webScreenshotSchema = z.object({
   browser: browserVersionSchema,
   target: z.object({
@@ -76,12 +68,11 @@ export const webScreenshotSchema = z.object({
 });
 export type WebScreenshot = z.infer<typeof webScreenshotSchema>;
 
-/** Input for bounded local pixel comparison of two screenshot artifacts. */
-export const compareWebScreenshotsInputSchema = z.object({
+/** Input for local pixel comparison of two screenshot artifacts. */
+export const compareWebScreenshotsInputSchema = z.strictObject({
   before: webScreenshotArtifactSchema,
   after: webScreenshotArtifactSchema,
   channel_threshold: z.number().int().min(0).max(255).default(0),
-  maximum_pixels: z.number().int().min(1).max(32_000_000).default(16_000_000),
 });
 export type CompareWebScreenshotsInput = z.infer<
   typeof compareWebScreenshotsInputSchema
@@ -153,7 +144,7 @@ export const webScreenshotDiffSchema = z
   });
 export type WebScreenshotDiff = z.infer<typeof webScreenshotDiffSchema>;
 
-/** Create a content-addressed PNG artifact from already bounded bytes. */
+/** Create a content-addressed PNG artifact from captured bytes. */
 export const createWebScreenshotArtifact = (
   bytes: Buffer,
 ): WebScreenshotArtifact => {
@@ -168,10 +159,7 @@ export const createWebScreenshotArtifact = (
 
 /** Strict canonical base64 decoder used before digest validation. */
 export const decodeCanonicalBase64 = (value: string): Buffer | undefined => {
-  if (value.length === 0 || value.length % 4 !== 0 || !BASE64.test(value))
-    return undefined;
+  if (value.length === 0 || value.length % 4 !== 0) return undefined;
   const decoded = Buffer.from(value, "base64");
   return decoded.toString("base64") === value ? decoded : undefined;
 };
-
-const BASE64 = /^(?:[A-Za-z\d+/]{4})*(?:[A-Za-z\d+/]{2}==|[A-Za-z\d+/]{3}=)?$/u;

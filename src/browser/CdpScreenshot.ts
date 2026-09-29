@@ -83,10 +83,7 @@ export const captureCdpScreenshot = async (
   const encoded = stringValue(result?.data);
   const bytes =
     encoded === undefined ? undefined : decodeCanonicalBase64(encoded);
-  if (
-    bytes === undefined ||
-    bytes.byteLength > context.input.maximum_image_bytes
-  )
+  if (bytes === undefined)
     throw new BrowserObservationError("inspect_web_page", "payload_limit");
   const dimensions = pngDimensions(bytes);
   if (navigation.leftScope)
@@ -155,8 +152,8 @@ const pngDimensions = (
     throw new BrowserObservationError("inspect_web_page", "protocol_error");
   const width = bytes.readUInt32BE(16);
   const height = bytes.readUInt32BE(20);
-  if (width === 0 || height === 0 || width * height > 32_000_000)
-    throw new BrowserObservationError("inspect_web_page", "payload_limit");
+  if (width === 0 || height === 0)
+    throw new BrowserObservationError("inspect_web_page", "protocol_error");
   return { width, height };
 };
 

@@ -20,7 +20,7 @@ describeBrowser("CdpBrowserProvider: document script 1", () => {
     ).toBe(false);
   });
 
-  it("captures bounded accessibility text only after independent approval", async () => {
+  it("captures approved accessibility text inline", async () => {
     const browser = await startFakeCdpBrowser();
     trackBrowser(browser);
     const request = inspectWebPageInputSchema.parse({
@@ -30,26 +30,16 @@ describeBrowser("CdpBrowserProvider: document script 1", () => {
       observation_ms: 0,
       include_accessibility_text: true,
     });
-    const result = await new CdpBrowserProvider().inspectPage({
-      ...request,
-      limits: {
-        ...request.limits,
-        max_ax_text_field_bytes: 6,
-      },
-    });
+    const result = await new CdpBrowserProvider().inspectPage(request);
 
     if (!result.ok) throw result.error;
     expect(result.value.accessibility).toMatchObject({
       text_capture: {
-        status: "truncated",
-        retained_bytes: 12,
-        truncated_fields: 2,
+        status: "included",
+        retained_bytes: 27,
       },
-      nodes: [expect.objectContaining({ name: "Submit" })],
+      nodes: [expect.objectContaining({ name: "Submit report" })],
     });
-    expect(result.value.completeness.truncated_sections).toContain(
-      "accessibility",
-    );
   });
 
   it("includes allowed script source only after explicit approval", async () => {
@@ -288,6 +278,38 @@ describeBrowser("CdpBrowserProvider: document script 2", () => {
   });
 });
 
+describeBrowser("CdpBrowserProvider WebMCP inventory completeness", () => {
+  it("retains every field in a large declared WebMCP input schema", async () => {
+    const propertyCount = 5_001;
+    const browser = await startFakeCdpBrowser({
+      webMcpTools: true,
+      webMcpSchemaPropertyCount: propertyCount,
+    });
+    trackBrowser(browser);
+    const result = await new CdpBrowserProvider().discoverWebMcpTools(
+      discoverWebMcpToolsInputSchema.parse({
+        cdp_endpoint: browser.endpoint,
+        allowed_origins: [browser.allowedOrigin],
+        target_id: "allowed-page",
+        observation_ms: 0,
+      }),
+    );
+
+    if (!result.ok) throw result.error;
+    const shape = result.value.tools.items[0]?.input_schema_shape;
+    expect(
+      shape?.properties.filter(({ path }) =>
+        path.startsWith("/properties/field_"),
+      ),
+    ).toHaveLength(propertyCount * 2);
+    expect(shape?.properties).toContainEqual({
+      path: "/properties/field_5000/type",
+      types: ["string"],
+      observations: 1,
+    });
+  });
+});
+
 describeBrowser("CdpBrowserProvider: document script 3", () => {
   it("removes WebMCP declarations after their child frame leaves scope", async () => {
     const browser = await startFakeCdpBrowser({
@@ -369,7 +391,7 @@ describeBrowser("CdpBrowserProvider: document script 3", () => {
     });
   });
 
-  it("returns every DOM node and applies the per-script source limit", async () => {
+  it("returns every DOM node and complete approved script source", async () => {
     const browser = await startFakeCdpBrowser();
     trackBrowser(browser);
     const request = inspectWebPageInputSchema.parse({
@@ -379,24 +401,17 @@ describeBrowser("CdpBrowserProvider: document script 3", () => {
       observation_ms: 0,
       include_script_sources: true,
     });
-    const result = await new CdpBrowserProvider().inspectPage({
-      ...request,
-      limits: {
-        ...request.limits,
-        max_script_source_bytes: 10,
-      },
-    });
+    const result = await new CdpBrowserProvider().inspectPage(request);
     if (!result.ok) throw result.error;
-    expect(result.value.completeness).toMatchObject({
-      truncated_sections: ["script_sources"],
-    });
+    expect(result.value.completeness.truncated_sections).not.toContain(
+      "script_sources",
+    );
     expect(result.value.dom).toMatchObject({ total_nodes: 2 });
     expect(result.value.dom.nodes).toHaveLength(2);
     expect(result.value.scripts.items[0]?.source).toMatchObject({
-      included: false,
-      reason: "declared script length exceeds per-script limit",
+      included: true,
     });
-    expect(browser.commands.map(({ method }) => method)).not.toContain(
+    expect(browser.commands.map(({ method }) => method)).toContain(
       "Debugger.getScriptSource",
     );
   });

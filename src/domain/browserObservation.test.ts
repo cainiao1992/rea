@@ -76,30 +76,6 @@ describe("browser observation contracts", () => {
       include_websocket_shapes: false,
       include_script_sources: false,
       include_storage_keys: false,
-      limits: {
-        max_frames: 200,
-        max_dom_nodes: 2_000,
-        max_ax_nodes: 2_000,
-        max_ax_text_field_bytes: 1_024,
-        max_total_ax_text_bytes: 65_536,
-        max_scripts: 200,
-        max_resources: 2_000,
-        max_workers: 500,
-        max_storage_keys: 1_000,
-        max_script_source_bytes: 1_048_576,
-        max_total_script_source_bytes: 4_194_304,
-        max_network_events: 1_000,
-        max_console_events: 200,
-        max_console_text_field_bytes: 1_024,
-        max_total_console_text_bytes: 65_536,
-        max_json_body_bytes: 1_048_576,
-        max_total_json_body_bytes: 4_194_304,
-        max_json_shape_nodes: 5_000,
-        max_json_shape_depth: 20,
-        max_websocket_events: 500,
-        max_websocket_shape_bytes: 65_536,
-        max_total_websocket_shape_bytes: 1_048_576,
-      },
     });
     expect(
       inspectWebPageInputSchema.safeParse({
@@ -157,7 +133,7 @@ describe("browser observation sensitive surfaces and retention", () => {
     });
   });
 
-  it("bounds retained URL and query-name metadata", () => {
+  it("retains complete URL and query-name metadata while redacting values", () => {
     const longName = `a${"x".repeat(400)}`;
     const parameters = [
       `${longName}=secret`,
@@ -169,17 +145,15 @@ describe("browser observation sensitive surfaces and retention", () => {
     const sanitized = sanitizeBrowserUrl(
       `https://app.example.test/path?${parameters}`,
     );
-    expect(sanitized.query_parameter_names).toHaveLength(256);
-    expect(
-      sanitized.query_parameter_names.every((name) => name.length <= 256),
-    ).toBe(true);
+    expect(sanitized.query_parameter_names).toHaveLength(301);
+    expect(sanitized.query_parameter_names).toContain(longName);
     expect(sanitized.url).not.toContain("secret");
 
     const oversized = sanitizeBrowserUrl(
       `https://app.example.test/${"p".repeat(70_000)}`,
     );
     expect(oversized.origin).toBe("https://app.example.test");
-    expect(oversized.url.length).toBeLessThanOrEqual(131_072);
-    expect(oversized.redacted).toBe(true);
+    expect(oversized.url.length).toBeGreaterThan(70_000);
+    expect(oversized.redacted).toBe(false);
   });
 });

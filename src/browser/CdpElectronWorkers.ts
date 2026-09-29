@@ -4,12 +4,7 @@ import type {
 } from "../domain/electronObservation.js";
 import type { CdpConnection } from "./CdpConnection.js";
 import { CdpCaptureCompleteness } from "./CdpCaptureCompleteness.js";
-import {
-  boundedText,
-  recordValue,
-  recordsValue,
-  stringValue,
-} from "./CdpCaptureValues.js";
+import { recordValue, recordsValue, stringValue } from "./CdpCaptureValues.js";
 import type { CdpEndpointTarget } from "./CdpEndpoint.js";
 import { optionalCdpCommand } from "./CdpOptionalCommand.js";
 import { authorizedElectronFile } from "./ElectronFileScope.js";
@@ -67,7 +62,7 @@ export const captureElectronWorkers = async (input: {
     }
     workers.push({
       target_id: targetId,
-      type: type.slice(0, 100),
+      type,
       file_path: path,
       attached: target.attached === true,
       opener_target_id: openerTargetId,
@@ -80,6 +75,6 @@ export const captureElectronWorkers = async (input: {
 };
 
 const boundedTargetField = (value: unknown): string | null => {
-  const field = boundedText(value, 256);
-  return field === null || field === "" ? null : field;
+  const field = stringValue(value);
+  return field === undefined || field === "" ? null : field;
 };

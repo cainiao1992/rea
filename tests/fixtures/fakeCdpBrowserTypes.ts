@@ -53,11 +53,14 @@ export interface FakeOptions {
     | "same_origin"
     | "outside_policy"
     | "target_detached";
+  readonly sessionTimelineEventCount?: number;
   readonly closeAfterMethod?: string;
   readonly sensitiveShapes?: boolean;
+  readonly cachedResponseBody?: string;
   readonly invalidResponseBodyBase64?: boolean;
   readonly webMcpTools?: boolean;
   readonly webMcpFrameCount?: number;
+  readonly webMcpSchemaPropertyCount?: number;
   readonly webMcpChildLeavesScope?: boolean;
   readonly electronFileUrl?: string;
   readonly duplicateElectronInventory?: boolean;

@@ -126,7 +126,6 @@ const browserParameters = (
         before_artifact_sha256: input.before.sha256,
         after_artifact_sha256: input.after.sha256,
         channel_threshold: input.channel_threshold,
-        maximum_pixels: input.maximum_pixels,
       };
     throw new Error("Browser comparison input did not match a comparison type");
   }
@@ -135,37 +134,25 @@ const browserParameters = (
     allowed_origins: input.allowed_origins,
   };
   if (!("target_id" in input)) return scope;
-  if ("maximum_image_bytes" in input)
-    return {
-      ...scope,
-      target_id: input.target_id,
-      maximum_image_bytes: input.maximum_image_bytes,
-    };
-  if ("max_timeline_events" in input)
-    return {
-      ...scope,
-      target_id: input.target_id,
-      observation_ms: input.observation_ms,
-      max_timeline_events: input.max_timeline_events,
-    };
-  if (!("limits" in input))
-    return {
-      ...scope,
-      target_id: input.target_id,
-      observation_ms: input.observation_ms,
-    };
   return {
     ...scope,
     target_id: input.target_id,
-    observation_ms: input.observation_ms,
-    include_accessibility_text: input.include_accessibility_text,
-    include_console_text: input.include_console_text,
-    include_json_body_shapes: input.include_json_body_shapes,
-    include_websocket_shapes: input.include_websocket_shapes,
-    include_script_sources: input.include_script_sources,
-    include_storage_keys: input.include_storage_keys,
-    include_storage_fingerprints: input.include_storage_fingerprints,
-    limits: input.limits,
+    ...("observation_ms" in input
+      ? { observation_ms: input.observation_ms }
+      : {}),
+    ...("include_accessibility_text" in input
+      ? {
+          include_accessibility_text: input.include_accessibility_text,
+          include_console_text: input.include_console_text,
+          include_json_body_shapes: input.include_json_body_shapes,
+          include_websocket_shapes: input.include_websocket_shapes,
+          include_storage_keys: input.include_storage_keys,
+          include_storage_fingerprints: input.include_storage_fingerprints,
+          ...("include_script_sources" in input
+            ? { include_script_sources: input.include_script_sources }
+            : {}),
+        }
+      : {}),
     ...("fetch_source_maps" in input
       ? { fetch_source_maps: input.fetch_source_maps }
       : {}),
@@ -179,20 +166,20 @@ const isScreenshotComparison = (
 const browserPredicate = (operation: BrowserEvidenceOperation): string => {
   switch (operation) {
     case "list_browser_targets":
-      return "rea.browser-target-list/v1";
+      return "rea.browser-target-list";
     case "inspect_web_page":
-      return "rea.web-page-inspection/v2";
+      return "rea.web-page-inspection";
     case "analyze_web_bundle":
-      return "rea.web-bundle-analysis/v1";
+      return "rea.web-bundle-analysis";
     case "observe_web_session":
-      return "rea.web-observation-session/v1";
+      return "rea.web-observation-session";
     case "discover_webmcp_tools":
-      return "rea.webmcp-discovery/v1";
+      return "rea.webmcp-discovery";
     case "compare_web_captures":
-      return "rea.web-capture-diff/v1";
+      return "rea.web-capture-diff";
     case "capture_web_screenshot":
-      return "rea.web-screenshot/v1";
+      return "rea.web-screenshot";
     case "compare_web_screenshots":
-      return "rea.web-screenshot-diff/v1";
+      return "rea.web-screenshot-diff";
   }
 };

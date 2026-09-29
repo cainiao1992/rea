@@ -125,6 +125,29 @@ describe("browser scenario comparison validation", () => {
     ).toBe(false);
   });
 
+  it("returns every aligned step beyond the former capture ceiling", () => {
+    const before = multiStepScenarioCapture(130, "before");
+    const after = multiStepScenarioCapture(130, "after");
+    const result = compareBrowserScenarios(
+      compareBrowserScenariosInputSchema.parse({
+        before_scenario: before,
+        after_scenario: after,
+      }),
+    );
+
+    expect(result.alignment).toMatchObject({
+      status: "aligned",
+      aligned_steps: 131,
+    });
+    expect(result.steps).toHaveLength(131);
+    expect(result.steps.at(-1)).toMatchObject({
+      before_step_index: 130,
+      after_step_index: 130,
+      status: "changed",
+    });
+    expect(result.artifact_diffs.total).toBe(130);
+  });
+
   it("reports missing aligned steps without claiming equality", () => {
     const before = scenarioCapture({});
     const after = scenarioCapture({ stepId: "open-profile" });
@@ -181,6 +204,37 @@ describe("browser scenario comparison validation", () => {
     ).toBe(false);
   });
 });
+
+const multiStepScenarioCapture = (
+  actionCount: number,
+  content: string,
+): BrowserScenarioCapture => {
+  const capture = scenarioCapture({});
+  const template = capture.steps[1];
+  if (template === undefined) throw new Error("Expected scenario action step");
+  const steps = [
+    capture.steps[0],
+    ...Array.from({ length: actionCount }, (_, index) => ({
+      ...template,
+      step_index: index + 1,
+      step_id: `step-${String(index + 1)}`,
+      event_sequence_start: index + 1,
+      event_sequence_end: index + 1,
+      artifacts: {
+        ...template.artifacts,
+        dom: {
+          state: "captured" as const,
+          value: textArtifact(`${content}-${String(index + 1)}`),
+        },
+      },
+    })),
+  ];
+  return browserScenarioCaptureSchema.parse({
+    ...capture,
+    scenario: { ...capture.scenario, action_count: actionCount },
+    steps,
+  });
+};
 
 interface ScenarioCaptureOptions {
   readonly stepId?: string;

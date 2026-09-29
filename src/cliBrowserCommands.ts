@@ -20,7 +20,7 @@ import { CLI_COMMANDS } from "./cliCommandNames.js";
 import {
   browserPageInspectionOptions,
   browserScopeOptions,
-  boundedCount,
+  observationDuration,
 } from "./cliObservationOptions.js";
 
 /** Register CLI equivalents of the passive browser MCP tools. */
@@ -120,12 +120,7 @@ const registerBundleAnalysis = (
     }),
     options: z.object({
       ...browserScopeOptions,
-      observationMs: boundedCount(
-        "observation duration in milliseconds",
-        10_000,
-        500,
-        0,
-      ),
+      observationMs: observationDuration(500),
       fetchSourceMaps: z
         .boolean()
         .default(false)
@@ -161,19 +156,14 @@ const registerObservationSession = (
   logger: Logger,
 ): void => {
   cli.command(CLI_COMMANDS.observeWebSession, {
-    description: "Observe user-driven page navigation during a bounded window",
+    description: "Observe user-driven page navigation during a chosen window",
     args: z.object({
       endpoint: z.string().describe("Configured loopback CDP HTTP endpoint"),
       targetId: z.string().describe("Target ID from list-browser-targets"),
     }),
     options: z.object({
       ...browserScopeOptions,
-      observationMs: boundedCount(
-        "observation duration in milliseconds",
-        60_000,
-        10_000,
-      ),
-      maxTimelineEvents: boundedCount("timeline events", 20_000, 2_000),
+      observationMs: observationDuration(10_000, 1),
     }),
     run: ({ args, options }) =>
       logCliCommand(logger, "observe-web-session", async () => {
@@ -185,7 +175,6 @@ const registerObservationSession = (
             options.allowedOrigins ?? context.allowedBrowserOrigins,
           target_id: args.targetId,
           observation_ms: options.observationMs,
-          max_timeline_events: options.maxTimelineEvents,
         });
         if (!parsed.success)
           return browserCliError(new AnalysisInputError("observe_web_session"));

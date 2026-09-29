@@ -73,8 +73,7 @@ const attachedSessionId = (
     value === null ||
     !("sessionId" in value) ||
     typeof value.sessionId !== "string" ||
-    value.sessionId.length === 0 ||
-    value.sessionId.length > 256
+    value.sessionId.length === 0
   )
     throw new BrowserObservationError(operation, "protocol_error");
   return value.sessionId;

@@ -131,13 +131,6 @@ const registerScreenshot = (
     }),
     options: z.object({
       ...browserScopeOptions,
-      maximumImageBytes: z
-        .number()
-        .int()
-        .min(1)
-        .max(8 * 1_024 * 1_024)
-        .default(4 * 1_024 * 1_024)
-        .describe("Maximum captured PNG size"),
     }),
     run: ({ args, options }) =>
       logCliCommand(logger, "capture-web-screenshot", async () => {
@@ -148,7 +141,6 @@ const registerScreenshot = (
           allowed_origins:
             options.allowedOrigins ?? context.allowedBrowserOrigins,
           target_id: args.targetId,
-          maximum_image_bytes: options.maximumImageBytes,
         });
         if (!parsed.success) return inputError("capture_web_screenshot");
         const result = await captureWebScreenshot(
@@ -179,13 +171,6 @@ const registerScreenshotDiff = (
         .max(255)
         .default(0)
         .describe("Per-channel difference threshold for changed pixels"),
-      maximumPixels: z
-        .number()
-        .int()
-        .min(1)
-        .max(32_000_000)
-        .default(16_000_000)
-        .describe("Maximum decoded pixels per screenshot"),
     }),
     run: ({ args, options }) =>
       logCliCommand(logger, "compare-web-screenshots", async () => {
@@ -193,7 +178,6 @@ const registerScreenshotDiff = (
           before: parseJson(args.beforeJson),
           after: parseJson(args.afterJson),
           channel_threshold: options.channelThreshold,
-          maximum_pixels: options.maximumPixels,
         });
         if (!parsed.success) return inputError("compare_web_screenshots");
         const result = await compareWebScreenshotEvidence(

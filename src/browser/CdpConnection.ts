@@ -23,8 +23,6 @@ interface PendingCommand {
 
 const CONNECT_TIMEOUT_MS = 5_000;
 const COMMAND_TIMEOUT_MS = 5_000;
-const MAX_PAYLOAD_BYTES = 16 * 1_024 * 1_024;
-const MAX_PENDING_COMMANDS = 128;
 
 /** Correlated, bounded JSON-RPC transport for one CDP target operation. */
 export class CdpConnection {
@@ -53,7 +51,7 @@ export class CdpConnection {
     if (signal?.aborted === true) throw new AnalysisCancelledError(operation);
     const socket = new WebSocket(url, {
       handshakeTimeout: CONNECT_TIMEOUT_MS,
-      maxPayload: MAX_PAYLOAD_BYTES,
+      maxPayload: 0,
       perMessageDeflate: false,
     });
     await waitForOpen(socket, operation, signal);
@@ -87,8 +85,6 @@ export class CdpConnection {
       throw new BrowserObservationError(this.operation, "protocol_error");
     if (this.#closed || this.socket.readyState !== WebSocket.OPEN)
       throw new BrowserObservationError(this.operation, "disconnected");
-    if (this.#pending.size >= MAX_PENDING_COMMANDS)
-      throw new BrowserObservationError(this.operation, "payload_limit");
     if (signal?.aborted === true)
       throw new AnalysisCancelledError(this.operation);
     const id = this.#nextId;

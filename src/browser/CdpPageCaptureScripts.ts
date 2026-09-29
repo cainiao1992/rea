@@ -106,11 +106,7 @@ const captureScriptSource = async (
   script: CapturedScript,
   state: ScriptDraftState,
 ): Promise<WebPageInspection["scripts"]["items"][number]["source"]> => {
-  const { context, events } = state;
-  if (script.length > context.input.limits.max_script_source_bytes) {
-    events.completeness.truncate("script_sources");
-    return sourceExcluded("declared script length exceeds per-script limit");
-  }
+  const { context } = state;
   const result = requiredRecord(
     await context.connection.send(
       "Debugger.getScriptSource",
@@ -120,11 +116,6 @@ const captureScriptSource = async (
     ),
   );
   const content = stringValue(result.scriptSource) ?? "";
-  const bytes = Buffer.byteLength(content);
-  if (bytes > context.input.limits.max_script_source_bytes) {
-    events.completeness.truncate("script_sources");
-    return sourceExcluded("actual source exceeds the per-script byte limit");
-  }
   return sourceResult(content);
 };
 

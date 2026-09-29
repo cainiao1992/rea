@@ -1,10 +1,9 @@
 import type { WebPageInspection } from "../domain/browserObservation.js";
 import { inferJsonShape } from "../domain/jsonShape.js";
 import { safeResponseMetadata } from "./CdpSafeMetadata.js";
-import { boundedSensitiveText } from "./SensitiveTextCapture.js";
+import { redactSensitiveText } from "./SensitiveTextCapture.js";
 import {
   allowedSanitizedUrl,
-  boundedText,
   isHttpUrl,
   numberValue,
   recordValue,
@@ -35,8 +34,7 @@ export const handleExecutionContextCreated = (
   if (
     identifier === undefined ||
     !Number.isSafeInteger(identifier) ||
-    frameId === undefined ||
-    frameId.length > 256
+    frameId === undefined
   )
     return;
   const key = String(identifier);
@@ -58,7 +56,7 @@ export const handleScriptParsed = (
   const scriptId = stringValue(params.scriptId);
   const rawUrl = stringValue(params.url) ?? "";
   const sanitized = allowedSanitizedUrl(rawUrl, state.allowedOrigins);
-  if (scriptId === undefined || scriptId.length > 256) {
+  if (scriptId === undefined) {
     state.completeness.exclude("scripts", "invalid_protocol_value");
     return;
   }
@@ -72,7 +70,7 @@ export const handleScriptParsed = (
     rawUrl,
     url: sanitized.url,
     origin: sanitized.origin,
-    hash: (stringValue(params.hash) ?? "").slice(0, 512),
+    hash: stringValue(params.hash) ?? "",
     length: Math.max(
       0,
       Math.min(
@@ -81,7 +79,7 @@ export const handleScriptParsed = (
       ),
     ),
     isModule: params.isModule === true,
-    language: boundedText(params.scriptLanguage, 100),
+    language: stringValue(params.scriptLanguage) ?? null,
     sourceMapUrl: sourceMap.sanitized,
     sourceMapRawUrl: sourceMap.raw,
     executionContextKey: executionContextKey(params.executionContextId),
@@ -116,7 +114,7 @@ export const handleRequestWillBeSent = (
 ): void => {
   const requestId = stringValue(params.requestId);
   const request = recordValue(params.request);
-  if (requestId === undefined || requestId.length > 256) {
+  if (requestId === undefined) {
     state.completeness.exclude("network_requests", "invalid_protocol_value");
     return;
   }
@@ -150,13 +148,13 @@ export const handleRequestWillBeSent = (
     request_id: requestId,
     url: sanitized.url,
     origin: sanitized.origin ?? "",
-    method: (stringValue(request.method) ?? "GET").slice(0, 32),
-    resource_type: boundedText(params.type, 100),
+    method: stringValue(request.method) ?? "GET",
+    resource_type: stringValue(params.type) ?? null,
     status: null,
     mime_type: null,
     encoded_data_length: null,
     initiator: {
-      type: (stringValue(initiator?.type) ?? "other").slice(0, 100),
+      type: stringValue(initiator?.type) ?? "other",
       url: initiatorUrl?.url ?? null,
       line: integerOrNull(initiatorFrame?.lineNumber),
       column: integerOrNull(initiatorFrame?.columnNumber),
@@ -170,7 +168,7 @@ export const handleResponseReceived = (
   params: UnknownRecord,
 ): void => {
   const requestId = stringValue(params.requestId);
-  if (requestId === undefined || requestId.length > 256) {
+  if (requestId === undefined) {
     state.completeness.exclude("network_requests", "invalid_protocol_value");
     return;
   }
@@ -191,7 +189,7 @@ export const handleResponseReceived = (
   state.network.set(requestId, {
     ...current,
     status: numberValue(response.status) ?? null,
-    mime_type: boundedText(response.mimeType, 256),
+    mime_type: stringValue(response.mimeType) ?? null,
   });
   const metadata = safeResponseMetadata(
     requestId,
@@ -208,7 +206,7 @@ export const handleLoadingFinished = (
   params: UnknownRecord,
 ): void => {
   const requestId = stringValue(params.requestId);
-  if (requestId === undefined || requestId.length > 256) return;
+  if (requestId === undefined) return;
   const current = state.network.get(requestId);
   if (current === undefined) return;
   state.network.set(requestId, {
@@ -239,10 +237,10 @@ export const handleConsoleAPICalled = (
   }
   const arguments_ = recordsValue(params.args);
   state.console.push({
-    type: (stringValue(params.type) ?? "unknown").slice(0, 100),
+    type: stringValue(params.type) ?? "unknown",
     timestamp: numberValue(params.timestamp) ?? 0,
-    argument_types: arguments_.map((argument) =>
-      (stringValue(argument.type) ?? "unknown").slice(0, 100),
+    argument_types: arguments_.map(
+      (argument) => stringValue(argument.type) ?? "unknown",
     ),
     url: source.url,
     line: integerOrNull(frame.lineNumber),
@@ -260,33 +258,25 @@ const captureConsoleText = (
       status: "not_approved",
       values: [],
       retained_bytes: 0,
-      truncated_values: 0,
     };
   const values: WebPageInspection["console"]["events"][number]["text_capture"]["values"] =
     [];
   let retainedBytes = 0;
-  let truncatedValues = 0;
   for (const [argumentIndex, argument] of arguments_.entries()) {
     const primitive = consolePrimitive(argument);
     if (primitive === undefined) continue;
-    const bounded = boundedSensitiveText(
-      primitive.text,
-      state.input.limits.max_console_text_field_bytes,
-    );
+    const text = redactSensitiveText(primitive.text);
     values.push({
       argument_index: argumentIndex,
       type: primitive.type,
-      text: bounded.text,
+      text,
     });
-    retainedBytes += bounded.bytes;
-    if (bounded.truncated) truncatedValues += 1;
+    retainedBytes += Buffer.byteLength(text);
   }
-  if (truncatedValues > 0) state.completeness.truncate("console_text");
   return {
-    status: truncatedValues > 0 ? "truncated" : "included",
+    status: "included",
     values,
     retained_bytes: retainedBytes,
-    truncated_values: truncatedValues,
   };
 };
 
@@ -298,7 +288,6 @@ export const handleWebSocketFrame = (
   const requestId = stringValue(params.requestId);
   if (
     requestId === undefined ||
-    requestId.length > 256 ||
     (!state.network.has(requestId) && !state.allowedWebSockets.has(requestId))
   )
     return;
@@ -324,24 +313,11 @@ const captureWebSocketShape = (
   opcode: number,
 ): WebPageInspection["network"]["websocket_events"][number]["payload_shape"] => {
   if (!state.input.include_websocket_shapes) return null;
-  if (opcode !== 1)
-    return { format: "binary", json_shape: null, truncated: false };
-  const bytes = Buffer.byteLength(payload);
-  if (bytes > state.input.limits.max_websocket_shape_bytes) {
-    state.completeness.truncate("websocket_shapes");
-    return { format: "text", json_shape: null, truncated: true };
-  }
-  const shape = inferJsonShape(payload, {
-    maximumBytes: state.input.limits.max_websocket_shape_bytes,
-    maximumNodes: state.input.limits.max_json_shape_nodes,
-    maximumDepth: state.input.limits.max_json_shape_depth,
-  });
-  if (shape?.truncated === true)
-    state.completeness.truncate("websocket_shapes");
+  if (opcode !== 1) return { format: "binary", json_shape: null };
+  const shape = inferJsonShape(payload);
   return {
     format: shape === null ? "text" : "json",
     json_shape: shape,
-    truncated: shape?.truncated === true,
   };
 };
 
@@ -351,7 +327,7 @@ export const handleWebSocketCreated = (
 ): void => {
   const requestId = stringValue(params.requestId);
   const rawUrl = stringValue(params.url);
-  if (requestId === undefined || requestId.length > 256) {
+  if (requestId === undefined) {
     state.completeness.exclude(
       "websocket_connections",
       "invalid_protocol_value",

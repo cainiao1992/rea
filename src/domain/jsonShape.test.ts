@@ -13,12 +13,10 @@ describe("inferJsonShape", () => {
         ],
         optional: null,
       }),
-      { maximumBytes: 4_096, maximumNodes: 100, maximumDepth: 10 },
     );
 
     expect(shape).toMatchObject({
       root_type: "object",
-      truncated: false,
       properties: expect.arrayContaining([
         { path: "/token", types: ["string"], observations: 1 },
         {
@@ -37,30 +35,22 @@ describe("inferJsonShape", () => {
     expect(JSON.stringify(shape)).not.toContain("second-secret");
   });
 
-  it("rejects malformed and oversized JSON without returning a prefix", () => {
-    const limits = {
-      maximumBytes: 8,
-      maximumNodes: 100,
-      maximumDepth: 10,
-    };
-    expect(inferJsonShape("not-json", limits)).toBeNull();
-    expect(inferJsonShape('{"secret":"value"}', limits)).toBeNull();
+  it("rejects malformed JSON", () => {
+    expect(inferJsonShape("not-json")).toBeNull();
   });
 
-  it("reports node and depth truncation deterministically", () => {
-    expect(
-      inferJsonShape('{"a":{"b":{"c":1}}}', {
-        maximumBytes: 1_024,
-        maximumNodes: 100,
-        maximumDepth: 1,
-      }),
-    ).toMatchObject({ truncated: true, max_depth_observed: 1 });
-    expect(
-      inferJsonShape("[1,2,3,4]", {
-        maximumBytes: 1_024,
-        maximumNodes: 2,
-        maximumDepth: 10,
-      }),
-    ).toMatchObject({ truncated: true, node_count: 2 });
+  it("retains every parsed property beyond the former shape-node limit", () => {
+    const content = Object.fromEntries(
+      Array.from({ length: 5_001 }, (_, index) => [`field_${index}`, index]),
+    );
+    const shape = inferJsonShape(JSON.stringify(content));
+
+    expect(shape?.properties).toHaveLength(5_001);
+    expect(shape?.node_count).toBe(5_002);
+    expect(shape?.properties).toContainEqual({
+      path: "/field_5000",
+      types: ["number"],
+      observations: 1,
+    });
   });
 });

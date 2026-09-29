@@ -82,7 +82,7 @@ export class CdpElectronProvider implements ElectronObservationPort {
         allowed.push({
           target_id: target.id,
           type: target.type,
-          title: target.title.slice(0, 16_384),
+          title: target.title,
           file_path: path,
           attached: target.attached,
         });

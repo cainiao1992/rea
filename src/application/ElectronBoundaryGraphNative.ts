@@ -58,7 +58,6 @@ const addNativeBinding = (input: NativeBindingInput): void => {
           specifier: value.specifier,
           binding_kind: value.binding_kind,
           requested_members: value.members,
-          members_truncated: value.members_truncated,
           resolved_path: resolved,
           native_export_verification: "not-performed",
         },

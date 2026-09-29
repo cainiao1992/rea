@@ -23,6 +23,18 @@ const emitWebMcpEvents = (
   options: FakeOptions,
 ): void => {
   if (command.method === "WebMCP.enable" && options.webMcpTools === true) {
+    const inputSchemaProperties =
+      options.webMcpSchemaPropertyCount === undefined
+        ? {
+            orderId: { type: "string", example: "schema-secret" },
+            includeItems: { type: "boolean", default: true },
+          }
+        : Object.fromEntries(
+            Array.from(
+              { length: options.webMcpSchemaPropertyCount },
+              (_value, index) => [`field_${String(index)}`, { type: "string" }],
+            ),
+          );
     event(socket, "WebMCP.toolsAdded", command.sessionId, {
       tools: [
         {
@@ -32,10 +44,7 @@ const emitWebMcpEvents = (
           backendNodeId: 42,
           inputSchema: {
             type: "object",
-            properties: {
-              orderId: { type: "string", example: "schema-secret" },
-              includeItems: { type: "boolean", default: true },
-            },
+            properties: inputSchemaProperties,
             required: ["orderId"],
           },
           annotations: {
@@ -170,6 +179,17 @@ const emitSessionTimeline = (
       name: "networkIdle",
       timestamp: 15,
     });
+    for (
+      let index = 0;
+      index < (options.sessionTimelineEventCount ?? 0);
+      index += 1
+    )
+      event(socket, "Page.lifecycleEvent", command.sessionId, {
+        frameId: "frame-main",
+        loaderId: "loader-reload",
+        name: `lifecycle-${String(index)}`,
+        timestamp: 16 + index,
+      });
     if (options.sessionTimeline === "target_detached")
       event(socket, "Target.detachedFromTarget", undefined, {
         sessionId: command.sessionId,

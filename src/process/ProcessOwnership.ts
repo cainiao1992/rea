@@ -8,6 +8,7 @@ import {
 } from "./ProcessOwnershipObservation.js";
 import { launcherIdentityFailure } from "./ProcessOwnershipIdentity.js";
 import { descendantsOf, liveProcesses } from "./ProcessOwnershipProcessTree.js";
+import { execFileOutput } from "./ExecFileOutput.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -159,7 +160,7 @@ export const parseProcessEnvironment = (
 const systemHost: ProcessOwnershipHost = {
   async listProcesses() {
     if (process.platform === "win32") return [];
-    const { stdout } = await execFileAsync("ps", [
+    const { stdout } = await execFileOutput("ps", [
       "-axo",
       "pid=,ppid=,pgid=,stat=,command=",
     ]);
@@ -181,7 +182,7 @@ const systemHost: ProcessOwnershipHost = {
         await readFile(`/proc/${pid}/environ`, "utf8"),
       );
     }
-    const { stdout } = await execFileAsync("ps", ["eww", "-p", String(pid)]);
+    const { stdout } = await execFileOutput("ps", ["eww", "-p", String(pid)]);
     const environment: Record<string, string> = {};
     for (const match of stdout.matchAll(
       /(?:^|\s)([A-Za-z_][A-Za-z0-9_]*)=([^\s]*)/gu,

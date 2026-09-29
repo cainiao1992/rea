@@ -6,6 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
+import { execFileOutput } from "../process/ExecFileOutput.js";
+
 const execFileAsync = promisify(execFile);
 const DOWNLOAD_PREFIX = "https://www.hopperapp.com:443/downloader/public/";
 const MAX_PACKAGE_BYTES = 100_000_000;
@@ -236,7 +238,7 @@ const systemLinuxHopperInstallHost = (): LinuxHopperInstallHost => ({
   async launcherStatus(path) {
     try {
       await access(path);
-      const linked = await execFileAsync("ldd", [path]);
+      const linked = await execFileOutput("ldd", [path]);
       if (!linuxSharedLibrariesAvailable(`${linked.stdout}\n${linked.stderr}`))
         return "runtime_dependencies";
       return (await linuxHopperBinarySupported(path))

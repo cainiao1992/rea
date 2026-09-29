@@ -2,10 +2,9 @@ import { constants } from "node:fs";
 import { access, readFile, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 
 import { parseBinaryTarget } from "./BinaryTargetResolver.js";
+import { execFileOutput } from "../process/ExecFileOutput.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { probeHomebrew } from "./homebrew.js";
 import {
@@ -35,7 +34,6 @@ import {
   type DoctorScopeReport,
 } from "./DoctorScope.js";
 
-const execFileAsync = promisify(execFile);
 /** Deep provider IDs whose readiness can be selected explicitly by doctor. */
 export const DOCTOR_PROVIDER_IDS = ["hopper", "ghidra"] as const;
 /** One actionable environment diagnostic. */
@@ -324,7 +322,7 @@ export const systemDoctorHost = (
     return probeHomebrew(async (command) => {
       try {
         const prefix = (
-          await execFileAsync(command, [
+          await execFileOutput(command, [
             "--prefix",
             "--cask",
             "hopper-disassembler",
@@ -347,7 +345,7 @@ export const systemDoctorHost = (
     try {
       await access(path, constants.X_OK);
       return firstIlspyVersionLine(
-        (await execFileAsync(path, ["--version"], { timeout: 10_000 })).stdout,
+        (await execFileOutput(path, ["--version"], { timeout: 10_000 })).stdout,
       );
     } catch {
       return undefined;
@@ -366,7 +364,7 @@ export const systemDoctorHost = (
     try {
       const command = process.platform === "win32" ? "where" : "which";
       const arguments_ = process.platform === "win32" ? ["rea"] : ["-a", "rea"];
-      return uniqueLines((await execFileAsync(command, arguments_)).stdout);
+      return uniqueLines((await execFileOutput(command, arguments_)).stdout);
     } catch {
       return [];
     }
@@ -377,7 +375,7 @@ export const systemDoctorHost = (
 
 const readMacosVersion = async (): Promise<string | undefined> => {
   try {
-    return (await execFileAsync("sw_vers", ["-productVersion"])).stdout.trim();
+    return (await execFileOutput("sw_vers", ["-productVersion"])).stdout.trim();
   } catch {
     return undefined;
   }
@@ -387,7 +385,7 @@ const executableAvailable = async (path: string): Promise<boolean> => {
   try {
     await access(path, constants.X_OK);
     if (process.platform !== "linux") return true;
-    const linked = await execFileAsync("ldd", [path]);
+    const linked = await execFileOutput("ldd", [path]);
     return linuxSharedLibrariesAvailable(`${linked.stdout}\n${linked.stderr}`);
   } catch {
     return false;

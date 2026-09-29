@@ -10,6 +10,7 @@ import {
 } from "../domain/errors.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { cleanupOwnedProcessGroup } from "../process/ProcessOwnership.js";
+import { execFileOutput } from "../process/ExecFileOutput.js";
 import {
   type ProviderProcessLaunch,
   spawnOwnedProviderProcess,
@@ -440,7 +441,11 @@ const hopperApplicationBundle = (launcherPath: string): string | undefined => {
 
 const processIsRunning = async (executablePath: string): Promise<boolean> => {
   try {
-    const processes = await execFileAsync("/bin/ps", ["-ax", "-o", "command="]);
+    const processes = await execFileOutput("/bin/ps", [
+      "-ax",
+      "-o",
+      "command=",
+    ]);
     return processes.stdout
       .split("\n")
       .some((command) => command.trim() === executablePath);

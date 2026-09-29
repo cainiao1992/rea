@@ -1,9 +1,7 @@
-import { execFile } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import type { Readable } from "node:stream";
-import { promisify } from "node:util";
 
 import { parse } from "plist";
 import { z } from "zod";
@@ -15,8 +13,7 @@ import {
   type ArtifactReader,
 } from "./ArtifactReader.js";
 import { DirectoryArtifactReader } from "./DirectoryArtifactReader.js";
-
-const execFileAsync = promisify(execFile);
+import { execFileOutput } from "../process/ExecFileOutput.js";
 const DETACH_TIMEOUT_MS = 120_000;
 const attachOutputSchema = z.object({
   "system-entities": z.array(
@@ -39,12 +36,10 @@ export interface NativeDmgHost {
 const systemHost: NativeDmgHost = {
   async run(arguments_, signal, options) {
     try {
-      const { stdout } = await execFileAsync(
+      const { stdout } = await execFileOutput(
         "/usr/bin/hdiutil",
         [...arguments_],
         {
-          encoding: "utf8",
-          maxBuffer: Number.POSITIVE_INFINITY,
           ...(options === undefined ? {} : { timeout: options.timeoutMs }),
           ...(signal === undefined ? {} : { signal }),
         },

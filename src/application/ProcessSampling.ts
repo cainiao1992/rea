@@ -1,13 +1,10 @@
-import { execFile } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
-import { promisify } from "node:util";
 import type {
   ProcessSample,
   RecordProcessCaptureEvent,
 } from "../domain/processCapture.js";
+import { execFileOutput } from "../process/ExecFileOutput.js";
 import { readProcessRunId } from "../process/ProcessOwnership.js";
-
-const execFileAsync = promisify(execFile);
 const PROC_READ_CONCURRENCY = 64;
 
 interface ProcessRow {
@@ -311,7 +308,7 @@ const sampleLinux = async (
 const readPsRows = async (
   signal: AbortSignal,
 ): Promise<readonly ProcessRow[]> => {
-  const { stdout } = await execFileAsync(
+  const { stdout } = await execFileOutput(
     "ps",
     ["-axo", "pid=,ppid=,pgid=,sess=,command="],
     { signal },

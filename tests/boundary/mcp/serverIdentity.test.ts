@@ -243,7 +243,7 @@ const assertLiveIdentity = async (client: Client): Promise<void> => {
     "For standalone JavaScript or ASAR analysis, use analyze_javascript_application",
   );
   expect(instructions).toContain(
-    "For an archive or application package, call open_binary(path), then inspect_artifact",
+    "For an archive or application package, open_binary(path) binds the active target; use inspect_artifact when its graph and findings help",
   );
   const identity = await client.callTool({
     name: "binary_session",

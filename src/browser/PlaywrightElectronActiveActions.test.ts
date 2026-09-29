@@ -61,6 +61,25 @@ it("rejects non-absolute deep-link values", () => {
   expect(result.success).toBe(false);
 });
 
+it("accepts any argument count while validating each argument", () => {
+  const input = electronActiveObservationInputSchema.parse({
+    executable_path: "/opt/electron",
+    application_path: "/opt/app/main.js",
+    application_root: "/opt/app",
+    args: Array.from({ length: 40 }, (_, index) => `--flag-${index}`),
+  });
+
+  expect(input.args).toHaveLength(40);
+  expect(
+    electronActiveObservationInputSchema.safeParse({
+      executable_path: "/opt/electron",
+      application_path: "/opt/app/main.js",
+      application_root: "/opt/app",
+      args: ["x".repeat(4_097)],
+    }).success,
+  ).toBe(false);
+});
+
 it("redacts action inputs from Playwright failures", async () => {
   const selector = "#secret-selector";
   const input = electronActiveObservationInputSchema.parse({

@@ -116,7 +116,7 @@ describe("target-free MCP workflow", () => {
     const beforeTools = (await mcp.listTools()).tools;
     const beforeNames = beforeTools.map(({ name }) => name);
     expect(mcp.getInstructions()).toContain(
-      "For an archive or application package, call open_binary(path), then inspect_artifact",
+      "For an archive or application package, open_binary(path) binds the active target; use inspect_artifact when its graph and findings help",
     );
     expect(
       beforeTools.find(({ name }) => name === "inspect_artifact")?.description,

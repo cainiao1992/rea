@@ -208,7 +208,7 @@ describe("browser scenario MCP tool", () => {
         ],
       },
       capture: { after_each_step: [], at_end: ["url"], events: [] },
-      limits: { max_duration_ms: 60_000, max_total_metadata_bytes: 4_194_304 },
+      limits: { max_duration_ms: 60_000 },
     });
 
     const captured = await client.callTool({

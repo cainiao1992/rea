@@ -86,10 +86,10 @@ const captureSummaries = (
       kind: capture.kind,
       target_node_id: targetNode.node_id,
       target_key: capture.inspection.target.target_id,
-      target_location: ("url" in capture.inspection.target
-        ? capture.inspection.target.url
-        : capture.inspection.target.file_path
-      ).slice(0, 4_096),
+      target_location:
+        "url" in capture.inspection.target
+          ? capture.inspection.target.url
+          : capture.inspection.target.file_path,
       frames: capture.inspection.frames.length,
       scripts: capture.inspection.scripts.items.length,
       workers: capture.inspection.workers.length,

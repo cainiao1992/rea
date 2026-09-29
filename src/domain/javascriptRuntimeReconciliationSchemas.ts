@@ -173,7 +173,7 @@ const captureSummarySchema = z.strictObject({
   kind: z.enum(["browser", "electron", "v8-inspector", "electron-active"]),
   target_node_id: nodeIdSchema,
   target_key: boundedTextSchema,
-  target_location: boundedTextSchema,
+  target_location: z.string().min(1).max(131_072),
   frames: z.number().int().min(0),
   scripts: z.number().int().min(0),
   workers: z.number().int().min(0),

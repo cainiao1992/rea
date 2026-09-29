@@ -47,11 +47,8 @@ export const buildReconciledApplicationGraph = (
     ...input.runtime.edges,
     ...input.reconciliationEdges,
   ]);
-  const bounded = boundGraphContent(input, merged.nodes, allEdges);
-  const facts = graphCoverageFacts(
-    input,
-    merged.omittedObservations + bounded.omittedItems,
-  );
+  const bounded = boundGraphContent(input, merged, allEdges);
+  const facts = graphCoverageFacts(input, bounded.omittedItems);
   const graph = createJavaScriptApplicationGraph({
     schema: "JavaScriptApplicationGraph",
     root_node_ids: bounded.rootNodeIds,
@@ -77,7 +74,7 @@ export const buildReconciledApplicationGraph = (
   });
   return {
     graph,
-    omittedGraphItems: merged.omittedObservations + bounded.omittedItems,
+    omittedGraphItems: bounded.omittedItems,
   };
 };
 
@@ -92,32 +89,23 @@ const boundGraphContent = (
   readonly omittedItems: number;
 } => {
   const allRoots = preferredRootIds(input);
-  const rootNodeIds = allRoots.slice(0, 1_000);
-  const roots = new Set(rootNodeIds);
+  const rootNodeIds = allRoots;
   const sortedNodes = [...nodes].sort((left, right) =>
     compareCodePoints(left.node_id, right.node_id),
   );
-  const retainedNodes = [
-    ...sortedNodes.filter(({ node_id: id }) => roots.has(id)),
-    ...sortedNodes.filter(({ node_id: id }) => !roots.has(id)),
-  ].slice(0, 100_000);
+  const retainedNodes = sortedNodes;
   const retainedIds = new Set(retainedNodes.map(({ node_id: id }) => id));
   const retainedEdges = [...edges]
     .sort((left, right) => compareCodePoints(left.edge_id, right.edge_id))
     .filter(
       ({ source_node_id: source, target_node_id: target }) =>
         retainedIds.has(source) && retainedIds.has(target),
-    )
-    .slice(0, 200_000);
+    );
   return {
     rootNodeIds,
     nodes: retainedNodes,
     edges: retainedEdges,
-    omittedItems:
-      allRoots.length -
-      rootNodeIds.length +
-      (nodes.length - retainedNodes.length) +
-      (edges.length - retainedEdges.length),
+    omittedItems: 0,
   };
 };
 
@@ -219,16 +207,10 @@ const graphCoverage = (
           limits: [],
         };
 
-const mergeNodes = (
-  nodes: readonly ApplicationNode[],
-): {
-  readonly nodes: ApplicationNode[];
-  readonly omittedObservations: number;
-} => {
+const mergeNodes = (nodes: readonly ApplicationNode[]): ApplicationNode[] => {
   const grouped = new Map<string, ApplicationNode[]>();
   for (const node of nodes)
     grouped.set(node.node_id, [...(grouped.get(node.node_id) ?? []), node]);
-  let omittedObservations = 0;
   const merged = [...grouped.values()].map((group) => {
     const first = group[0];
     if (first === undefined) throw new TypeError("Empty JAG node group");
@@ -249,19 +231,16 @@ const mergeNodes = (
     ].sort((left, right) =>
       compareCodePoints(left.observation_id, right.observation_id),
     );
-    omittedObservations += Math.max(0, observations.length - 64);
     return createJavaScriptApplicationNode({
       kind: first.kind,
       identity: first.identity,
-      observations: observations
-        .slice(0, 64)
-        .map(
-          ({ observation_id: _id, identifier_strategy: _strategy, ...value }) =>
-            value,
-        ),
+      observations: observations.map(
+        ({ observation_id: _id, identifier_strategy: _strategy, ...value }) =>
+          value,
+      ),
     });
   });
-  return { nodes: merged, omittedObservations };
+  return merged;
 };
 
 const uniqueEdges = (edges: readonly ApplicationEdge[]): ApplicationEdge[] => [

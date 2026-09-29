@@ -4,12 +4,10 @@ import type { ApplicationNode } from "../domain/javascriptApplicationGraph.js";
 import {
   completeApplicationCoverage,
   partialApplicationCoverage,
-  truncatedApplicationCoverage,
 } from "../domain/javascriptApplicationEvidenceSchemas.js";
 import type {
   JavaScriptModuleOrigin,
   JavaScriptSemanticIr,
-  JavaScriptSemanticLimits,
   JavaScriptSemanticModuleLink,
 } from "../domain/javascriptSemanticIr.js";
 import type { JavaScriptArtifactFile } from "./JavaScriptArtifactFiles.js";
@@ -31,7 +29,6 @@ import { projectJavaScriptExportReturnShapes } from "./JavaScriptReturnShapeProj
 
 interface SemanticAnalysis {
   readonly ir: JavaScriptSemanticIr;
-  readonly limits: JavaScriptSemanticLimits;
 }
 
 interface RelationshipInput {
@@ -369,16 +366,9 @@ const relationshipEvidence = (
 const semanticCoverage = (
   semantic: SemanticAnalysis,
 ): JavaScriptArtifactGraphCoverage => {
-  const limits = Object.entries(semantic.limits).map(([name, value]) => ({
-    name: `semantic-${camelToKebab(name)}`,
-    value,
-    unit: "items" as const,
-  }));
   if (semantic.ir.coverage.status === "complete")
-    return completeApplicationCoverage(limits);
-  return semantic.ir.coverage.status === "truncated"
-    ? truncatedApplicationCoverage(limits, semantic.ir.coverage.omittedCount)
-    : partialApplicationCoverage(limits, semantic.ir.coverage.omittedCount);
+    return completeApplicationCoverage();
+  return partialApplicationCoverage([], semantic.ir.coverage.omittedCount);
 };
 
 const moduleFormat = (
@@ -419,9 +409,6 @@ const isExportLink = (link: JavaScriptSemanticModuleLink): boolean =>
   link.kind === "export" ||
   link.kind === "re-export" ||
   link.kind === "commonjs-export";
-
-const camelToKebab = (value: string): string =>
-  value.replaceAll(/([a-z])([A-Z])/gu, "$1-$2").toLowerCase();
 
 const compareCodePoints = (left: string, right: string): number =>
   left < right ? -1 : left > right ? 1 : 0;

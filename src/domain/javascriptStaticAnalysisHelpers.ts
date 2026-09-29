@@ -57,32 +57,23 @@ export const chunkRuntime = (call: t.CallExpression): string | undefined => {
   )
     return undefined;
   if (propertyName(call.callee.property) !== "push") return undefined;
-  return findChunkRuntime(call.callee.object, 0);
+  return findChunkRuntime(call.callee.object);
 };
 
-const findChunkRuntime = (node: t.Node, depth: number): string | undefined => {
-  if (depth >= 128) return undefined;
+const findChunkRuntime = (node: t.Node): string | undefined => {
   if (t.isIdentifier(node) && /(?:webpack|rspack)Chunk/iu.test(node.name))
     return node.name;
   if (t.isMemberExpression(node) || t.isOptionalMemberExpression(node)) {
     const property = propertyName(node.property);
     if (/(?:webpack|rspack)Chunk/iu.test(property)) return property;
-    return t.isNode(node.object)
-      ? findChunkRuntime(node.object, depth + 1)
-      : undefined;
+    return t.isNode(node.object) ? findChunkRuntime(node.object) : undefined;
   }
   if (t.isAssignmentExpression(node))
-    return (
-      findChunkRuntime(node.left, depth + 1) ??
-      findChunkRuntime(node.right, depth + 1)
-    );
+    return findChunkRuntime(node.left) ?? findChunkRuntime(node.right);
   if (t.isLogicalExpression(node) || t.isBinaryExpression(node))
-    return (
-      findChunkRuntime(node.left, depth + 1) ??
-      findChunkRuntime(node.right, depth + 1)
-    );
+    return findChunkRuntime(node.left) ?? findChunkRuntime(node.right);
   if (t.isParenthesizedExpression(node) || t.isTSAsExpression(node))
-    return findChunkRuntime(node.expression, depth + 1);
+    return findChunkRuntime(node.expression);
   return undefined;
 };
 
@@ -145,38 +136,36 @@ export const staticArrayValues = (
 
 /** Resolve a path composed only from inert literal syntax. */
 export const staticPath = (node: t.Node): string | undefined =>
-  staticPathAt(node, 0);
+  staticPathAt(node);
 
 /** Classify whether inert path syntax is a module specifier or file expression. */
 export const staticPathResolutionContext = (
   node: t.Node,
 ): JavaScriptStaticPathContext =>
-  isFilesystemPathExpression(node, 0)
+  isFilesystemPathExpression(node)
     ? "filesystem-expression"
     : "module-specifier";
 
-const staticPathAt = (node: t.Node, depth: number): string | undefined => {
-  if (depth >= 128) return undefined;
+const staticPathAt = (node: t.Node): string | undefined => {
   if (t.isStringLiteral(node)) return node.value;
   if (t.isTemplateLiteral(node) && node.expressions.length === 0) {
     const value = node.quasis[0]?.value.cooked ?? node.quasis[0]?.value.raw;
     return value;
   }
   if (t.isBinaryExpression(node, { operator: "+" })) {
-    const left = staticPathAt(node.left, depth + 1);
-    const right = staticPathAt(node.right, depth + 1);
+    const left = staticPathAt(node.left);
+    const right = staticPathAt(node.right);
     return left === undefined || right === undefined
       ? undefined
       : `${left}${right}`;
   }
   if (t.isCallExpression(node) || t.isNewExpression(node))
-    return staticCallPath(node, depth);
+    return staticCallPath(node);
   return undefined;
 };
 
 const staticCallPath = (
   node: t.CallExpression | t.NewExpression,
-  depth: number,
 ): string | undefined => {
   const name = calleeName(node.callee);
   if (name === "URL" || name.endsWith(".URL"))
@@ -185,9 +174,7 @@ const staticCallPath = (
       : undefined;
   if (name === "fileURLToPath" || name.endsWith(".fileURLToPath")) {
     const argument = argumentNode(node.arguments[0]);
-    return argument === undefined
-      ? undefined
-      : staticPathAt(argument, depth + 1);
+    return argument === undefined ? undefined : staticPathAt(argument);
   }
   if (
     (name === "dirname" || name.endsWith(".dirname")) &&
@@ -199,23 +186,20 @@ const staticCallPath = (
   const parts: string[] = [];
   for (const argument of node.arguments) {
     if (isDirectoryIdentity(argumentNode(argument))) continue;
-    const value = t.isNode(argument)
-      ? staticPathAt(argument, depth + 1)
-      : undefined;
+    const value = t.isNode(argument) ? staticPathAt(argument) : undefined;
     if (value === undefined) return undefined;
     parts.push(value);
   }
   return parts.length === 0 ? undefined : posix.join(...parts);
 };
 
-const isFilesystemPathExpression = (node: t.Node, depth: number): boolean => {
-  if (depth >= 128) return false;
+const isFilesystemPathExpression = (node: t.Node): boolean => {
   if (t.isStringLiteral(node)) return node.value.startsWith("/");
   if (isFileIdentity(node) || isDirectoryIdentity(node)) return true;
   if (t.isBinaryExpression(node, { operator: "+" }))
     return (
-      isFilesystemPathExpression(node.left, depth + 1) ||
-      isFilesystemPathExpression(node.right, depth + 1)
+      isFilesystemPathExpression(node.left) ||
+      isFilesystemPathExpression(node.right)
     );
   if (t.isCallExpression(node) || t.isNewExpression(node)) {
     const name = calleeName(node.callee);
@@ -224,15 +208,11 @@ const isFilesystemPathExpression = (node: t.Node, depth: number): boolean => {
     if (name === "fileURLToPath" || name.endsWith(".fileURLToPath"))
       return node.arguments.some((argument) => {
         const value = argumentNode(argument);
-        return (
-          value !== undefined && isFilesystemPathExpression(value, depth + 1)
-        );
+        return value !== undefined && isFilesystemPathExpression(value);
       });
     return node.arguments.some((argument) => {
       const value = argumentNode(argument);
-      return (
-        value !== undefined && isFilesystemPathExpression(value, depth + 1)
-      );
+      return value !== undefined && isFilesystemPathExpression(value);
     });
   }
   return false;
@@ -306,16 +286,13 @@ export const storageKind = (
 };
 
 /** Produce a dotted callee name from member syntax. */
-export const calleeName = (node: t.Node): string => calleeNameAt(node, 0);
+export const calleeName = (node: t.Node): string => calleeNameAt(node);
 
-const calleeNameAt = (node: t.Node, depth: number): string => {
-  if (depth >= 128) return "[deep]";
+const calleeNameAt = (node: t.Node): string => {
   if (t.isIdentifier(node)) return node.name;
   if (t.isImport(node)) return "import";
   if (t.isMemberExpression(node) || t.isOptionalMemberExpression(node)) {
-    const object = t.isNode(node.object)
-      ? calleeNameAt(node.object, depth + 1)
-      : "";
+    const object = t.isNode(node.object) ? calleeNameAt(node.object) : "";
     const property = propertyName(node.property);
     return object === "" ? property : `${object}.${property}`;
   }

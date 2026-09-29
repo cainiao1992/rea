@@ -6,10 +6,7 @@ import {
   type JavaScriptArtifactGraphContext,
 } from "./JavaScriptArtifactGraphContext.js";
 import { artifactObservationEvidence } from "./JavaScriptArtifactGraphEvidence.js";
-import {
-  completeApplicationCoverage,
-  partialApplicationCoverage,
-} from "../domain/javascriptApplicationEvidenceSchemas.js";
+import { completeApplicationCoverage } from "../domain/javascriptApplicationEvidenceSchemas.js";
 import { resolveArtifactPathByContext } from "./JavaScriptArtifactPathResolution.js";
 
 /** Project HTML renderer entrypoints and their local script assets. */
@@ -91,10 +88,7 @@ export const addJavaScriptSourceMapOriginals = (
     const mapFile = context.filesByPath.get(sourceMap.path);
     const mapNode = context.fileNodes.get(sourceMap.path);
     if (mapFile === undefined || mapNode === undefined) continue;
-    const coverage =
-      sourceMap.status === "truncated"
-        ? partialApplicationCoverage([], null)
-        : completeApplicationCoverage();
+    const coverage = completeApplicationCoverage();
     for (const original of sourceMap.sources) {
       const node = context.accumulator.addNode({
         kind: "source-module",

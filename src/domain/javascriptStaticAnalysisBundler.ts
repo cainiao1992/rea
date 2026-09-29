@@ -23,7 +23,6 @@ import type { JavaScriptAnalysisAccumulator as AnalysisAccumulator } from "./jav
 import type {
   JavaScriptBundlerModule,
   JavaScriptBundlerRegistration,
-  JavaScriptStaticAnalysisLimits,
 } from "./javascriptStaticAnalysisTypes.js";
 
 /** Inspect a bundler registration call and recover its module table. */
@@ -31,7 +30,6 @@ export const inspectBundlerRegistration = (
   source: string,
   call: t.CallExpression,
   accumulator: AnalysisAccumulator,
-  limits: JavaScriptStaticAnalysisLimits,
 ): void => {
   const runtime = chunkRuntime(call);
   const entry = call.arguments[0];
@@ -40,7 +38,7 @@ export const inspectBundlerRegistration = (
   const table = entry.elements[1];
   const runtimeValue = runtimeMetadata(entry.elements[2]);
   if (!t.isArrayExpression(chunkIds) || !t.isObjectExpression(table)) return;
-  const recovered = recoverBundlerModules(source, table, accumulator, limits);
+  const recovered = recoverBundlerModules(source, table, accumulator);
   const chunkKeys = staticArrayValues(chunkIds);
   accumulator.unknownFindings += chunkKeys.unknown;
   accumulator.unknownFindings +=
@@ -82,7 +80,6 @@ export const inspectEsbuildWrapper = (
   source: string,
   call: t.CallExpression,
   accumulator: AnalysisAccumulator,
-  limits: JavaScriptStaticAnalysisLimits,
 ): void => {
   const name = calleeName(call.callee);
   const wrapperKind =
@@ -93,7 +90,7 @@ export const inspectEsbuildWrapper = (
         : null;
   const table = call.arguments[0];
   if (wrapperKind === null || !t.isObjectExpression(table)) return;
-  const recovered = recoverBundlerModules(source, table, accumulator, limits);
+  const recovered = recoverBundlerModules(source, table, accumulator);
   if (recovered.modules.length === 0) return;
   accumulator.unknownFindings += recovered.unknownAsyncChunkKeys;
   const registration: JavaScriptBundlerRegistration = {
@@ -129,18 +126,12 @@ const recoverBundlerModules = (
   source: string,
   table: t.ObjectExpression,
   accumulator: AnalysisAccumulator,
-  limits: JavaScriptStaticAnalysisLimits,
 ): RecoveredBundlerModules => {
   const modules: JavaScriptBundlerModule[] = [];
   const asyncChunkKeys: string[] = [];
   let unknownAsyncChunkKeys = 0;
   for (const property of table.properties) {
-    const recovered = recoverBundlerModule(
-      source,
-      property,
-      accumulator,
-      limits,
-    );
+    const recovered = recoverBundlerModule(source, property, accumulator);
     if (recovered === null) continue;
     modules.push(recovered.module);
     asyncChunkKeys.push(...recovered.asyncChunkKeys);
@@ -157,7 +148,6 @@ const recoverBundlerModule = (
   source: string,
   property: t.ObjectMethod | t.ObjectProperty | t.SpreadElement,
   accumulator: AnalysisAccumulator,
-  limits: JavaScriptStaticAnalysisLimits,
 ): {
   readonly module: JavaScriptBundlerModule;
   readonly asyncChunkKeys: readonly string[];
@@ -168,7 +158,7 @@ const recoverBundlerModule = (
   const key = modulePropertyName(property);
   if (key.startsWith("[computed@") || key.startsWith("[unknown@"))
     accumulator.unknownFindings += 1;
-  const fingerprint = fingerprintJavaScriptAst(factory, limits.maxAstNodes);
+  const fingerprint = fingerprintJavaScriptAst(factory);
   const exportsValue = collectJavaScriptExports(factory);
   const requireName = factoryRequireName(factory);
   const asyncChunks = collectBundlerAsyncChunkKeys(factory, requireName);
@@ -179,23 +169,13 @@ const recoverBundlerModule = (
       key,
       requireName,
     });
-  const structuralFingerprint = fingerprint.truncated
-    ? {
-        structural_fingerprint_sha256: null,
-        structural_fingerprint_algorithm: null,
-        structural_fingerprint_status: "truncated" as const,
-      }
-    : {
-        structural_fingerprint_sha256: fingerprint.sha256,
-        structural_fingerprint_algorithm: "babel-ast-v1" as const,
-        structural_fingerprint_status: "complete" as const,
-      };
   return {
     module: {
       module_key: key,
       factory_require_name: requireName,
       source_sha256: sha256Text(sourceSlice(source, factory)),
-      ...structuralFingerprint,
+      structural_fingerprint_sha256: fingerprint,
+      structural_fingerprint_algorithm: "babel-ast-v1",
       exports: exportsValue.values,
       location: range(factory),
     },

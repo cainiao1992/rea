@@ -78,9 +78,7 @@ export const collectJavaScriptSemanticFingerprints = (
       {
         callableId: callable.callableId,
         status:
-          parserPartial ||
-          state.limitsReached.size > 0 ||
-          callable.returnCoverage.status !== "complete"
+          parserPartial || callable.returnCoverage.status !== "complete"
             ? "partial"
             : "complete",
         components: {
@@ -107,7 +105,7 @@ export const collectJavaScriptSemanticFingerprints = (
         },
         limitations: [
           "The fingerprint is a bounded static candidate and does not prove behavioral equivalence.",
-          ...(parserPartial || state.limitsReached.size > 0
+          ...(parserPartial
             ? ["Incomplete semantic recovery makes this fingerprint partial."]
             : []),
         ],

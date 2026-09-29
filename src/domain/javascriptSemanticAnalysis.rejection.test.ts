@@ -2,13 +2,14 @@ import { fc, it } from "@fast-check/vitest";
 import { describe, expect } from "vitest";
 
 import { analyzeJavaScriptSemantics } from "./javascriptSemanticAnalysis.js";
+import type { JavaScriptSemanticValue } from "./javascriptSemanticIr.js";
 import {
   onlyCallable,
   topLevelBinding,
 } from "./javascriptSemanticAnalysis.fixture.js";
 
 describe("JavaScript semantic analysis: rejection 1", () => {
-  it("retains complete finite facts and reports the recursive depth guard", () => {
+  it("retains complete finite facts and deeply nested static values", () => {
     const names = Array.from(
       { length: 280 },
       (_, index) => `key${String(index)}`,
@@ -26,14 +27,22 @@ describe("JavaScript semantic analysis: rejection 1", () => {
       ]),
     });
 
-    const depth = analyzeJavaScriptSemantics(
-      'const first = "value"; const second = first;',
-      { maxValueDepth: 1 },
-    );
-    expect(topLevelBinding(depth, "second").value).toMatchObject({
-      status: "limit-reached",
-    });
-    expect(depth.coverage.limitsReached).toContain("maxValueDepth");
+    const nesting = 40;
+    const nestedValue =
+      Array.from({ length: nesting }, () => "{ next: ").join("") +
+      '"value"' +
+      " }".repeat(nesting);
+    const deep = analyzeJavaScriptSemantics(`const nested = ${nestedValue};`);
+    let value: JavaScriptSemanticValue = topLevelBinding(deep, "nested").value;
+    for (let depth = 0; depth < nesting; depth += 1) {
+      expect(value.status).toBe("object");
+      if (value.status !== "object")
+        throw new TypeError("Expected a recovered nested object");
+      const next = value.properties.find(({ name }) => name === "next");
+      if (next === undefined) throw new TypeError("Missing nested property");
+      value = next.value;
+    }
+    expect(value).toEqual({ status: "literal", value: "value" });
   });
 
   it("is deterministic and returns failed coverage for an unparseable source", () => {

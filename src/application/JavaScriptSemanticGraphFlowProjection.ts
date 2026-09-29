@@ -3,7 +3,6 @@ import type { JavaScriptSemanticGraphNode } from "../domain/javascriptSemanticGr
 import type { JavaScriptSemanticIr } from "../domain/javascriptSemanticIr.js";
 import { sourceRangesEqual } from "../domain/javascriptStaticAnalysisHelpers.js";
 import type { JavaScriptSourceRange } from "../domain/javascriptStaticAnalysisTypes.js";
-import type { JavaScriptArtifactAnalysis } from "./JavaScriptArtifactAnalysisTypes.js";
 import type { JavaScriptArtifactFile } from "./JavaScriptArtifactFiles.js";
 import {
   addSemanticGraphNode,
@@ -279,23 +278,4 @@ export const projectSemanticFrontiers = (
     });
     addSemanticGraphUnknown(context.state, unknown);
   }
-};
-
-/** Publish the semantic recursion guard when it caused incomplete recovery. */
-export const semanticRecoveryLimits = (
-  analysis: JavaScriptArtifactAnalysis,
-): {
-  readonly name: string;
-  readonly value: number;
-  readonly unit: "depth";
-}[] => {
-  const limits = new Map<string, number>();
-  for (const { semantic } of analysis.files) {
-    if (semantic === null) continue;
-    for (const name of semantic.ir.coverage.limitsReached)
-      limits.set(`semantic.${name}`, semantic.limits[name]);
-  }
-  return [...limits]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([name, value]) => ({ name, value, unit: "depth" }));
 };

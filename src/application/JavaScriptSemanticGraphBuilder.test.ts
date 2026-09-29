@@ -5,10 +5,6 @@ import type { JavaScriptArtifactAnalysis } from "./JavaScriptArtifactAnalysisTyp
 import type { JavaScriptArtifactFile } from "./JavaScriptArtifactFiles.js";
 import { queryJavaScriptSemanticGraph } from "../domain/javascriptSemanticQuery.js";
 import { analyzeJavaScriptSemantics } from "../domain/javascriptSemanticAnalysis.js";
-import {
-  DEFAULT_JAVASCRIPT_SEMANTIC_LIMITS,
-  type JavaScriptSemanticLimits,
-} from "../domain/javascriptSemanticIr.js";
 
 const SHA256 = "a".repeat(64);
 const GRAPH_ID = `jag_${"b".repeat(64)}`;
@@ -173,25 +169,19 @@ it("connects caller results, direct returns, parameters, and captures", () => {
   expect(capture?.evidence.location).not.toEqual(readOuter.evidence.location);
 });
 
-it("preserves the semantic value-depth guard in graph coverage", () => {
-  const graph = graphFor(
-    "const first = 1; const second = first; const third = second;",
-    { maxValueDepth: 1 },
-  );
+it("reports complete graph coverage for deeply nested static values", () => {
+  const nesting = 40;
+  const nestedValue =
+    Array.from({ length: nesting }, () => "{ next: ").join("") +
+    '"value"' +
+    " }".repeat(nesting);
+  const graph = graphFor(`const nested = ${nestedValue};`);
   expect(graph.coverage).toMatchObject({
-    status: "partial",
-    truncated: true,
-    omitted_nodes: null,
-    omitted_relations: null,
-    limits: expect.arrayContaining([
-      { name: "semantic.maxValueDepth", value: 1, unit: "depth" },
-    ]),
+    truncated: false,
+    omitted_nodes: 0,
+    omitted_relations: 0,
+    limits: [],
   });
-  expect(
-    graph.coverage.families.find(
-      ({ family }) => family === "promise-ownership",
-    ),
-  ).toMatchObject({ status: "unknown", retained_relations: 0 });
 });
 
 it("projects bounded Promise ownership and unresolved sources", () => {
@@ -259,10 +249,7 @@ it("keeps duplicate function fingerprints ambiguous", () => {
   expect(query.summary.total_seed_matches).toBe(2);
 });
 
-const graphFor = (
-  source: string,
-  inputLimits: Partial<JavaScriptSemanticLimits> = {},
-) => {
+const graphFor = (source: string) => {
   const file: JavaScriptArtifactFile = {
     path: "app.js",
     container_sha256: SHA256,
@@ -273,18 +260,13 @@ const graphFor = (
     unpacked: false,
     text: { included: true, value: source },
   };
-  const semanticLimits = {
-    ...DEFAULT_JAVASCRIPT_SEMANTIC_LIMITS,
-    ...inputLimits,
-  };
   const analysis: JavaScriptArtifactAnalysis = {
     files: [
       {
         file,
         javascript: null,
         semantic: {
-          ir: analyzeJavaScriptSemantics(source, inputLimits),
-          limits: semanticLimits,
+          ir: analyzeJavaScriptSemantics(source),
         },
       },
     ],

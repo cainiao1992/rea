@@ -159,9 +159,81 @@ describe("contextual JavaScript artifact path resolution", () => {
       }),
     ).toMatchObject({ resolution_status: "not-found", resolved_path: null });
   });
+
+  it("resolves inventoried paths longer than the former character ceiling", () => {
+    const declaredPath = `./${"a".repeat(5_000)}.js`;
+    const expectedPath = `app/${declaredPath.slice(2)}`;
+    const files = fileMap([
+      file("app/consumer.js", "root"),
+      file(expectedPath, "root"),
+    ]);
+
+    expect(
+      resolve({
+        declaredPath,
+        sourcePath: "app/consumer.js",
+        context: "module-specifier",
+        files,
+      }),
+    ).toMatchObject({
+      resolution_status: "resolved",
+      resolved_path: expectedPath,
+      limitations: [],
+    });
+  });
 });
 
 describe("contextual JavaScript package path resolution", () => {
+  it("follows package entrypoints beyond the former recursion ceiling", () => {
+    const files = fileMap([
+      file("app/consumer.js", "root"),
+      file(
+        "app/node_modules/pkg-1/package.json",
+        "root",
+        '{"main":"../pkg-2"}',
+      ),
+      file(
+        "app/node_modules/pkg-2/package.json",
+        "root",
+        '{"main":"../pkg-3"}',
+      ),
+      file(
+        "app/node_modules/pkg-3/package.json",
+        "root",
+        '{"main":"../pkg-4"}',
+      ),
+      file(
+        "app/node_modules/pkg-4/package.json",
+        "root",
+        '{"main":"../pkg-5"}',
+      ),
+      file(
+        "app/node_modules/pkg-5/package.json",
+        "root",
+        '{"main":"../pkg-6"}',
+      ),
+      file(
+        "app/node_modules/pkg-6/package.json",
+        "root",
+        '{"main":"entry.js"}',
+      ),
+      file("app/node_modules/pkg-6/entry.js", "root"),
+    ]);
+
+    expect(
+      resolve({
+        declaredPath: "pkg-1",
+        sourcePath: "app/consumer.js",
+        context: "module-specifier",
+        files,
+      }),
+    ).toMatchObject({
+      resolution_status: "resolved",
+      resolved_path: "app/node_modules/pkg-6/entry.js",
+      limitations: [],
+    });
+  });
+
   it("keeps an inventoried but unreadable directory package unavailable", () => {
     const files = fileMap([
       file("app/package.json", "root"),
@@ -272,11 +344,6 @@ describe("contextual JavaScript module identity", () => {
         }});
         window.loadURL("file:///renderer/index.html");
       `,
-      {
-        maxAstNodes: Number.POSITIVE_INFINITY,
-        deadline: Number.POSITIVE_INFINITY,
-        now: () => 0,
-      },
     );
 
     expect(analysis.role_paths).toEqual(

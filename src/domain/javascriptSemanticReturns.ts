@@ -42,7 +42,6 @@ export const collectSemanticReturns = (
           status: "partial" as const,
           retainedCount: 0,
           omittedCount: null,
-          limitsReached: [],
         },
       };
     const expressions = directReturnExpressions(node);

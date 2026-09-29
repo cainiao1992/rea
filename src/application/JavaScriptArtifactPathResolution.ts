@@ -21,7 +21,7 @@ interface ArtifactPathResolutionBase {
   readonly limitations: readonly string[];
 }
 
-/** Explicit outcome of bounded, artifact-confined path resolution. */
+/** Explicit outcome of artifact-confined path resolution. */
 export type ArtifactPathResolution = ArtifactPathResolutionBase &
   (
     | {
@@ -54,7 +54,6 @@ const EXTENSIONS = [
   ".html",
   ".node",
 ];
-const MAX_PACKAGE_DEPTH = 4;
 const NODE_BUILTINS = new Set(
   builtinModules.map((name) => name.replace(/^node:/u, "")),
 );
@@ -74,11 +73,11 @@ type CandidateResolution =
 /** Resolve one declaration under its exact syntax/metadata context. */
 export const resolveArtifactPathByContext = (
   input: ResolveArtifactPathInput,
-): ArtifactPathResolution => resolveAtDepth(input, 0);
+): ArtifactPathResolution => resolvePackagePath(input, new Set());
 
-const resolveAtDepth = (
+const resolvePackagePath = (
   input: ResolveArtifactPathInput,
-  packageDepth: number,
+  packageChain: ReadonlySet<string>,
 ): ArtifactPathResolution => {
   const rejected = rejectDeclaration(input);
   if (rejected !== null) return rejected;
@@ -86,7 +85,7 @@ const resolveAtDepth = (
   if (typeof candidate !== "string") return candidate;
   const confined = confineCandidate(input, candidate);
   if (typeof confined !== "string") return confined;
-  const resolved = resolveCandidate(input, confined, packageDepth);
+  const resolved = resolveCandidate(input, confined, packageChain);
   return outcome(input, resolved);
 };
 
@@ -97,10 +96,6 @@ const rejectDeclaration = (
   if (declared.length === 0)
     return unresolvedOutcome(input, "rejected", [
       "The declared path is empty.",
-    ]);
-  if (declared.length > 4_096)
-    return unresolvedOutcome(input, "rejected", [
-      "The declared path exceeds the 4096-character resolution bound.",
     ]);
   if (declared.includes("\0") || declared.includes("\\"))
     return unresolvedOutcome(input, "rejected", [
@@ -239,7 +234,7 @@ const confineCandidate = (
 const resolveCandidate = (
   input: ResolveArtifactPathInput,
   candidate: string,
-  packageDepth: number,
+  packageChain: ReadonlySet<string>,
 ): CandidateResolution => {
   const source = input.files.get(input.sourcePath);
   for (const path of directCandidates(candidate)) {
@@ -251,14 +246,6 @@ const resolveCandidate = (
     )
       return { resolvedPath: path, status: "resolved", limitations: [] };
   }
-  if (packageDepth >= MAX_PACKAGE_DEPTH)
-    return {
-      resolvedPath: null,
-      status: "unavailable",
-      limitations: [
-        `Directory package resolution exceeded its ${String(MAX_PACKAGE_DEPTH)}-package recursion bound.`,
-      ],
-    };
   const packagePath = posix.join(candidate, "package.json");
   const packageFile = input.files.get(packagePath);
   if (
@@ -275,24 +262,32 @@ const resolveCandidate = (
         `Directory package metadata ${packagePath} was inventoried but its text is unavailable: ${packageFile.text.reason}.`,
       ],
     };
+  if (packageChain.has(packagePath))
+    return {
+      resolvedPath: null,
+      status: "unavailable",
+      limitations: [
+        `Directory package entrypoint cycle includes ${packagePath}.`,
+      ],
+    };
   const main = packageEntry(packageFile.text.value, input.moduleKind);
   if (main.status === "invalid")
     return {
       resolvedPath: null,
       status: "unavailable",
       limitations: [
-        `Directory package metadata ${packagePath} is not valid bounded package JSON.`,
+        `Directory package metadata ${packagePath} is not valid package JSON.`,
       ],
     };
   if (main.status === "missing") return notFoundCandidate();
-  const nested = resolveAtDepth(
+  const nested = resolvePackagePath(
     {
       declaredPath: main.value,
       sourcePath: packagePath,
       context: "package-entrypoint",
       files: input.files,
     },
-    packageDepth + 1,
+    new Set([...packageChain, packagePath]),
   );
   return nested.resolution_status === "resolved"
     ? {
@@ -332,7 +327,7 @@ const packageEntry = (
         : [Reflect.get(value, "main"), Reflect.get(value, "module")];
     const entry = preferred.find((candidate) => candidate !== undefined);
     if (entry === undefined) return { status: "missing" };
-    return boundedPackagePath(entry);
+    return packagePathValue(entry);
   } catch {
     return { status: "invalid" };
   }
@@ -344,24 +339,24 @@ const packageExport = (
 ):
   | { readonly status: "value"; readonly value: string }
   | { readonly status: "invalid" } => {
-  if (typeof value === "string") return boundedPackagePath(value);
+  if (typeof value === "string") return packagePathValue(value);
   if (typeof value !== "object" || value === null || Array.isArray(value))
     return { status: "invalid" };
   const root = Reflect.get(value, ".") ?? value;
-  if (typeof root === "string") return boundedPackagePath(root);
+  if (typeof root === "string") return packagePathValue(root);
   if (typeof root !== "object" || root === null || Array.isArray(root))
     return { status: "invalid" };
   const condition =
     Reflect.get(root, moduleKind ?? "default") ?? Reflect.get(root, "default");
-  return boundedPackagePath(condition);
+  return packagePathValue(condition);
 };
 
-const boundedPackagePath = (
+const packagePathValue = (
   value: unknown,
 ):
   | { readonly status: "value"; readonly value: string }
   | { readonly status: "invalid" } =>
-  typeof value === "string" && value.length > 0 && value.length <= 4_096
+  typeof value === "string" && value.length > 0
     ? { status: "value", value }
     : { status: "invalid" };
 
@@ -369,7 +364,7 @@ const notFoundCandidate = (): CandidateResolution => ({
   resolvedPath: null,
   status: "not-found",
   limitations: [
-    "No bounded extension, directory package, or index candidate exists in the inventoried artifact container.",
+    "No extension, directory package, or index candidate exists in the inventoried artifact container.",
   ],
 });
 

@@ -5,10 +5,6 @@ import type { JavaScriptArtifactAnalysis } from "./JavaScriptArtifactAnalysisTyp
 import type { JavaScriptArtifactFile } from "./JavaScriptArtifactFiles.js";
 import { queryJavaScriptSemanticGraph } from "../domain/javascriptSemanticQuery.js";
 import { analyzeJavaScriptSemantics } from "../domain/javascriptSemanticAnalysis.js";
-import {
-  DEFAULT_JAVASCRIPT_SEMANTIC_LIMITS,
-  type JavaScriptSemanticLimits,
-} from "../domain/javascriptSemanticIr.js";
 
 const SHA256 = "a".repeat(64);
 const GRAPH_ID = `jag_${"b".repeat(64)}`;
@@ -270,10 +266,7 @@ const emptyAnalysis = (): JavaScriptArtifactAnalysis => ({
   limitations: [],
 });
 
-const graphFor = (
-  source: string,
-  inputLimits: Partial<JavaScriptSemanticLimits> = {},
-) => {
+const graphFor = (source: string) => {
   const file: JavaScriptArtifactFile = {
     path: "app.js",
     container_sha256: SHA256,
@@ -284,18 +277,13 @@ const graphFor = (
     unpacked: false,
     text: { included: true, value: source },
   };
-  const semanticLimits = {
-    ...DEFAULT_JAVASCRIPT_SEMANTIC_LIMITS,
-    ...inputLimits,
-  };
   const analysis: JavaScriptArtifactAnalysis = {
     files: [
       {
         file,
         javascript: null,
         semantic: {
-          ir: analyzeJavaScriptSemantics(source, inputLimits),
-          limits: semanticLimits,
+          ir: analyzeJavaScriptSemantics(source),
         },
       },
     ],

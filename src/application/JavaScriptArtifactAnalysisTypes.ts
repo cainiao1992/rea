@@ -2,10 +2,7 @@ import type {
   JavaScriptSourceRange,
   JavaScriptStaticAnalysis,
 } from "../domain/javascriptStaticAnalysisTypes.js";
-import type {
-  JavaScriptSemanticIr,
-  JavaScriptSemanticLimits,
-} from "../domain/javascriptSemanticIr.js";
+import type { JavaScriptSemanticIr } from "../domain/javascriptSemanticIr.js";
 import type { JavaScriptArtifactFile } from "./JavaScriptArtifactFiles.js";
 
 interface JavaScriptStructuredObservation {
@@ -52,30 +49,22 @@ export interface JavaScriptSourceMapOriginal {
   readonly content_sha256: string | null;
 }
 
-/** Bounded local source-map parse result. */
+/** Local source-map parse result. */
 export type JavaScriptSourceMapObservation = JavaScriptStructuredObservation &
   (
     | {
         readonly status: "included";
         readonly sources: readonly JavaScriptSourceMapOriginal[];
-        readonly omitted_sources: 0;
         readonly limitation: null;
-      }
-    | {
-        readonly status: "truncated";
-        readonly sources: readonly JavaScriptSourceMapOriginal[];
-        readonly omitted_sources: number | null;
-        readonly limitation: string;
       }
     | {
         readonly status: "invalid";
         readonly sources: readonly [];
-        readonly omitted_sources: 0;
         readonly limitation: string;
       }
   );
 
-/** Bounded parse status for one inventoried JSON module. */
+/** Parse status for one inventoried JSON module. */
 export type JavaScriptJsonModuleObservation = JavaScriptStructuredObservation &
   (
     | {
@@ -104,11 +93,10 @@ export interface AnalyzedJavaScriptArtifactFile {
   readonly javascript: JavaScriptStaticAnalysis | null;
   readonly semantic: {
     readonly ir: JavaScriptSemanticIr;
-    readonly limits: JavaScriptSemanticLimits;
   } | null;
 }
 
-/** Complete bounded static-analysis projection before graph construction. */
+/** Complete static-analysis projection before graph construction. */
 export interface JavaScriptArtifactAnalysis {
   readonly files: readonly AnalyzedJavaScriptArtifactFile[];
   readonly packages: readonly JavaScriptPackageObservation[];

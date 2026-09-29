@@ -35,7 +35,6 @@ import {
   projectSemanticFrontiers,
   projectSemanticPromises,
   projectSemanticReturnValues,
-  semanticRecoveryLimits,
   type SemanticFlowProjectionContext,
 } from "./JavaScriptSemanticGraphFlowProjection.js";
 import {
@@ -90,10 +89,7 @@ export const buildJavaScriptSemanticGraph = ({
     );
   }
   if (state.roots.size === 0) addFallbackRoot(rootArtifactSha256, state);
-  const semanticTruncated = analysis.files.some(
-    ({ semantic }) => semantic?.ir.coverage.status === "truncated",
-  );
-  const truncated = semanticTruncated;
+  const truncated = false;
   const unknowns = [...state.unknowns.values()];
   return createJavaScriptSemanticGraph({
     schema: "JavaScriptSemanticRelationGraph",
@@ -109,7 +105,7 @@ export const buildJavaScriptSemanticGraph = ({
       truncated,
       omitted_nodes: truncated ? null : 0,
       omitted_relations: truncated ? null : 0,
-      limits: [...semanticRecoveryLimits(analysis)],
+      limits: [],
       families: JAVASCRIPT_SEMANTIC_RELATION_FAMILIES.map((family) => ({
         family,
         status: semanticFamilyStatus(family, analysis, truncated),

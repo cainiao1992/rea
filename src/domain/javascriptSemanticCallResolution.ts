@@ -4,10 +4,7 @@ import type {
   JavaScriptSemanticArgumentFlow,
   JavaScriptSemanticCallable,
 } from "./javascriptSemanticIr.js";
-import {
-  reachSemanticLimit,
-  semanticCallableIdForNode,
-} from "./javascriptSemanticProjection.js";
+import { semanticCallableIdForNode } from "./javascriptSemanticProjection.js";
 import {
   resolveSemanticBindingState,
   type JavaScriptSemanticAnalysisState,
@@ -26,7 +23,6 @@ interface CallResolutionContext {
   readonly state: JavaScriptSemanticAnalysisState;
   readonly callableById: ReadonlyMap<string, JavaScriptSemanticCallable>;
   readonly seenBindings: ReadonlySet<string>;
-  readonly depth: number;
   readonly bindingCache: Map<string, LocalCallableResolution>;
 }
 
@@ -36,11 +32,10 @@ export interface ResolveLocalCallablesInput {
   readonly state: JavaScriptSemanticAnalysisState;
   readonly callableById: ReadonlyMap<string, JavaScriptSemanticCallable>;
   readonly seenBindings: ReadonlySet<string>;
-  readonly depth: number;
   readonly bindingCache: Map<string, LocalCallableResolution>;
 }
 
-/** Resolve bounded local callable candidates without following dynamic properties. */
+/** Resolve local callable candidates without following dynamic properties. */
 export const resolveLocalCallables = (
   input: ResolveLocalCallablesInput,
 ): LocalCallableResolution =>
@@ -48,7 +43,6 @@ export const resolveLocalCallables = (
     state: input.state,
     callableById: input.callableById,
     seenBindings: input.seenBindings,
-    depth: input.depth,
     bindingCache: input.bindingCache,
   });
 
@@ -56,14 +50,6 @@ const resolveCallables = (
   node: t.Node,
   context: CallResolutionContext,
 ): LocalCallableResolution => {
-  if (context.depth >= context.state.limits.maxValueDepth) {
-    reachSemanticLimit(context.state, "maxValueDepth");
-    return {
-      callableIds: [],
-      complete: false,
-      reason: "Call target depth limit reached.",
-    };
-  }
   const direct = semanticCallableIdForNode(node);
   if (direct !== null && context.callableById.has(direct))
     return {
@@ -77,7 +63,7 @@ const resolveCallables = (
     t.isTSTypeAssertion(node) ||
     t.isTSNonNullExpression(node)
   )
-    return resolveCallables(node.expression, nestedContext(context));
+    return resolveCallables(node.expression, context);
   if (t.isConditionalExpression(node) || t.isLogicalExpression(node))
     return resolveAlternatives(
       t.isConditionalExpression(node) ? node.consequent : node.left,
@@ -102,7 +88,7 @@ const resolveIdentifier = (
         complete: false,
         reason: `Unresolved call target ${node.name}.`,
       }
-    : resolveBindingCallables(binding, nestedContext(context));
+    : resolveBindingCallables(binding, context);
 };
 
 const resolveAlternatives = (
@@ -111,7 +97,7 @@ const resolveAlternatives = (
   context: CallResolutionContext,
 ): LocalCallableResolution => {
   const candidates = [left, right].map((candidate) =>
-    resolveCallables(candidate, nestedContext(context)),
+    resolveCallables(candidate, context),
   );
   return {
     callableIds: uniqueCallableIds(
@@ -137,7 +123,7 @@ const resolveBindingCallables = (
   if (binding.initializers.length === 0)
     return missingBindingInitializer(binding);
   const candidateContext = {
-    ...nestedContext(context),
+    ...context,
     seenBindings: new Set([...context.seenBindings, binding.bindingId]),
   };
   const candidates = binding.initializers.map(({ node, projection }) =>
@@ -220,10 +206,6 @@ const rangeContains = (
   (outer.end.line > inner.end.line ||
     (outer.end.line === inner.end.line &&
       outer.end.column >= inner.end.column));
-
-const nestedContext = (
-  context: CallResolutionContext,
-): CallResolutionContext => ({ ...context, depth: context.depth + 1 });
 
 const uniqueCallableIds = (values: readonly string[]): string[] =>
   [...new Set(values)].sort(compareCodePoints);

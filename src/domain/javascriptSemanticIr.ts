@@ -11,16 +11,6 @@ export type {
   JavaScriptSemanticValue,
 } from "./javascriptSemanticValueTypes.js";
 
-/** Hard bounds for one execution-free JavaScript semantic analysis. */
-export interface JavaScriptSemanticLimits {
-  readonly maxValueDepth: number;
-}
-
-/** Stack guard for recursive value and provenance recovery. */
-export const DEFAULT_JAVASCRIPT_SEMANTIC_LIMITS: JavaScriptSemanticLimits = {
-  maxValueDepth: 16,
-};
-
 /** One exact module origin followed through imports, requires, or aliases. */
 export interface JavaScriptModuleOrigin {
   readonly specifier: string;
@@ -45,7 +35,7 @@ export type JavaScriptBindingProvenance =
       readonly reason: string;
     }
   | {
-      readonly status: "unknown" | "cycle" | "limit-reached";
+      readonly status: "unknown" | "cycle";
       readonly origins: readonly [];
       readonly reason: string;
     };
@@ -73,7 +63,7 @@ export interface JavaScriptSemanticDefinition {
   readonly location: JavaScriptSourceRange;
 }
 
-/** One resolved lexical binding plus bounded value and provenance. */
+/** One resolved lexical binding plus static value and provenance. */
 export interface JavaScriptSemanticBinding {
   readonly bindingId: string;
   readonly scopeId: string;
@@ -473,7 +463,7 @@ export const failedJavaScriptSemanticIr = (): JavaScriptSemanticIr => ({
   objectOperations: [],
   functionFingerprints: [],
   frontiers: [],
-  coverage: { status: "failed", omittedCount: null, limitsReached: [] },
+  coverage: { status: "failed", omittedCount: null },
   limitations: [
     "JavaScript parsing failed; no semantic absence claim is available.",
     "No JavaScript was executed.",

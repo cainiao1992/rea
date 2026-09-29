@@ -2,10 +2,6 @@ import { createHash } from "node:crypto";
 
 import { analyzeParsedJavaScriptStaticSource } from "../domain/javascriptStaticAnalysis.js";
 import { analyzeParsedJavaScriptSemantics } from "../domain/javascriptSemanticAnalysis.js";
-import {
-  DEFAULT_JAVASCRIPT_SEMANTIC_LIMITS,
-  type JavaScriptSemanticLimits,
-} from "../domain/javascriptSemanticIr.js";
 import { parseJavaScriptSource } from "../domain/javascriptSourceParser.js";
 import type {
   JavaScriptSourceRange,
@@ -58,10 +54,7 @@ export const analyzeJavaScriptArtifactFiles = (
 const finalizeArtifactAnalysis = (
   state: MutableArtifactAnalysis,
 ): JavaScriptArtifactAnalysis => {
-  const sourceMapTruncations = state.sourceMaps.filter(
-    ({ status }) => status === "truncated",
-  ).length;
-  const truncatedScopes = state.truncatedScopes + sourceMapTruncations;
+  const truncatedScopes = state.truncatedScopes;
   return {
     files: state.files,
     packages: state.packages,
@@ -103,27 +96,16 @@ const analyzeArtifactFile = (
     state.parseFailures += 1;
     return;
   }
-  const analysis = analyzeParsedJavaScriptStaticSource(
-    file.text.value,
-    parsed,
-    {
-      maxAstNodes: Number.POSITIVE_INFINITY,
-      deadline: Number.POSITIVE_INFINITY,
-      now: () => 0,
-    },
-  );
+  const analysis = analyzeParsedJavaScriptStaticSource(file.text.value, parsed);
   const staticFindings = findingCount(analysis);
-  const semanticLimits: JavaScriptSemanticLimits =
-    DEFAULT_JAVASCRIPT_SEMANTIC_LIMITS;
   const semantics =
     analysis.parse_status === "complete" || analysis.parse_status === "partial"
-      ? analyzeParsedJavaScriptSemantics(parsed, semanticLimits)
+      ? analyzeParsedJavaScriptSemantics(parsed)
       : null;
   state.files.push({
     file,
     javascript: analysis,
-    semantic:
-      semantics === null ? null : { ir: semantics, limits: semanticLimits },
+    semantic: semantics === null ? null : { ir: semantics },
   });
   state.visitedNodes += analysis.visited_ast_nodes;
   state.findings += staticFindings + (semantics?.moduleLinks.length ?? 0);
@@ -132,8 +114,6 @@ const analyzeArtifactFile = (
     0,
   );
   if (analysis.parse_status === "failed") state.parseFailures += 1;
-  if (analysis.parse_status === "truncated") state.truncatedScopes += 1;
-  if (semantics?.coverage.status === "truncated") state.truncatedScopes += 1;
 };
 
 const addSourceMap = (
@@ -293,7 +273,6 @@ const collectSourceMapOriginals = (
     sha256: file.sha256,
     status: "included",
     sources,
-    omitted_sources: 0,
     limitation: null,
   };
 };
@@ -308,7 +287,6 @@ const unavailableSourceMap = (
     sha256: file.sha256,
     status: "invalid",
     sources: [],
-    omitted_sources: 0,
     limitation: "Source-map text could not be decoded as UTF-8.",
   };
 };
@@ -340,7 +318,6 @@ const invalidSourceMap = (
   sha256: file.sha256,
   status: "invalid",
   sources: [],
-  omitted_sources: 0,
   limitation,
 });
 
@@ -376,10 +353,7 @@ const pointForOffset = (
 };
 
 const resolveSourceName = (root: string, source: string): string =>
-  `${root}${root !== "" && !root.endsWith("/") ? "/" : ""}${source}`.slice(
-    0,
-    4_096,
-  );
+  `${root}${root !== "" && !root.endsWith("/") ? "/" : ""}${source}`;
 
 const optionalString = (value: unknown): string | null =>
   typeof value === "string" && value.length > 0 ? value : null;

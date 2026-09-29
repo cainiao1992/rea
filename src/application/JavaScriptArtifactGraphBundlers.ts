@@ -134,8 +134,6 @@ const addBundlerModuleNodes = (
               moduleValue.structural_fingerprint_sha256,
             structural_fingerprint_algorithm:
               moduleValue.structural_fingerprint_algorithm,
-            structural_fingerprint_status:
-              moduleValue.structural_fingerprint_status,
             exports: moduleValue.exports,
           },
           evidence: astObservationEvidence({

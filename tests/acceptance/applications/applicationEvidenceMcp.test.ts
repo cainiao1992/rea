@@ -88,7 +88,7 @@ async function runInlineEvidenceScenarios(
       reference: {
         root_sha256: SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE.reference.root_sha256,
       },
-      scoring: { algorithm: "rea-source-to-bundle-signals/v1" },
+      scoring: { algorithm: "rea-source-to-bundle-signals" },
     },
   });
   expect(session.exportEvidenceBundle().records.length).toBeGreaterThan(2);

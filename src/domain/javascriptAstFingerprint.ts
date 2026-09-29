@@ -2,41 +2,19 @@ import { createHash } from "node:crypto";
 
 import * as t from "@babel/types";
 
-/** Complete or prefix-only digest from a bounded AST traversal. */
-export interface AstFingerprint {
-  readonly sha256: string;
-  readonly truncated: boolean;
-}
-
 /** Static CommonJS export names. */
 export interface StaticExports {
   readonly values: readonly string[];
 }
 
-/** Derive a rename-resistant, bounded syntax fingerprint without code execution. */
-export const fingerprintJavaScriptAst = (
-  node: t.Node,
-  maximumTokens: number,
-): AstFingerprint => {
+/** Derive a rename-resistant syntax fingerprint without code execution. */
+export const fingerprintJavaScriptAst = (node: t.Node): string => {
   const tokens: string[] = [];
-  let truncated = false;
   t.traverseFast(node, (current) => {
-    if (tokens.length >= maximumTokens) {
-      truncated = true;
-      return t.traverseFast.stop;
-    }
     tokens.push(...semanticTokens(current));
-    if (tokens.length > maximumTokens) {
-      tokens.length = maximumTokens;
-      truncated = true;
-      return t.traverseFast.stop;
-    }
     return undefined;
   });
-  return {
-    sha256: createHash("sha256").update(JSON.stringify(tokens)).digest("hex"),
-    truncated,
-  };
+  return createHash("sha256").update(JSON.stringify(tokens)).digest("hex");
 };
 
 /** Collect statically declared CommonJS/bundler export names from one factory. */
@@ -130,16 +108,13 @@ const addExport = (output: Set<string>, name: string): void => {
   output.add(name);
 };
 
-const memberPath = (node: t.Node | null | undefined, depth = 0): string => {
-  if (depth >= 128) return "[deep]";
+const memberPath = (node: t.Node | null | undefined): string => {
   if (node === undefined || node === null) return "";
   if (t.isIdentifier(node) || t.isPrivateName(node))
     return t.isIdentifier(node) ? node.name : "";
   if (t.isThisExpression(node)) return "this";
   if (t.isMemberExpression(node) || t.isOptionalMemberExpression(node)) {
-    const object = t.isNode(node.object)
-      ? memberPath(node.object, depth + 1)
-      : "";
+    const object = t.isNode(node.object) ? memberPath(node.object) : "";
     const property = propertyName(node.property);
     return object === "" ? property : `${object}.${property}`;
   }

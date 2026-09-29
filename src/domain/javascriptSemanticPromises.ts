@@ -48,7 +48,6 @@ interface PromiseExpressionResolutionContext {
   readonly candidateByNode: WeakMap<t.Node, PromiseCandidate>;
   readonly state: JavaScriptSemanticAnalysisState;
   readonly seenBindings: ReadonlySet<string>;
-  readonly depth: number;
 }
 
 interface PromiseOwnershipContext {
@@ -388,8 +387,7 @@ const resolvePromiseExpression = (
   rawNode: t.Node,
   context: PromiseExpressionResolutionContext,
 ): PromiseResolution => {
-  const { current, candidateByNode, state, seenBindings, depth } = context;
-  if (depth >= state.limits.maxValueDepth) return unresolvedPromise();
+  const { current, candidateByNode, state, seenBindings } = context;
   const node = unwrapExpression(rawNode);
   const direct = candidateByNode.get(node);
   if (direct !== undefined && direct.promiseId !== current.promiseId)
@@ -411,7 +409,6 @@ const resolvePromiseExpression = (
   return resolvePromiseExpression(initializer.node, {
     ...context,
     seenBindings: nestedSeen,
-    depth: depth + 1,
   });
 };
 
@@ -424,7 +421,6 @@ const promiseResolutionContext = (
   candidateByNode,
   state,
   seenBindings: new Set(),
-  depth: 0,
 });
 
 const unwrapExpression = (node: t.Node): t.Node => {

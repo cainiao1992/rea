@@ -9,8 +9,8 @@ describe("JavaScript AST fingerprints", () => {
     const left = parse(`const value = ${JSON.stringify(`${prefix}left`)};`);
     const right = parse(`const value = ${JSON.stringify(`${prefix}right`)};`);
 
-    expect(fingerprintJavaScriptAst(left, 100).sha256).not.toBe(
-      fingerprintJavaScriptAst(right, 100).sha256,
+    expect(fingerprintJavaScriptAst(left)).not.toBe(
+      fingerprintJavaScriptAst(right),
     );
   });
 });

@@ -117,8 +117,8 @@ describe("application workflow CLI parity", () => {
   }, 20_000);
 });
 
-describe("application workflow CLI Evidence resolution", () => {
-  it("resolves Evidence IDs from an explicitly authorized bundle", async () => {
+describe("application workflow CLI Evidence lookup", () => {
+  it("resolves Evidence IDs from a caller-supplied bundle", async () => {
     const root = await createTestTempDirectory("rea-application-bundle-cli-");
     temporary.push(root);
     const bundlePath = join(root, "evidence.json");
@@ -198,7 +198,7 @@ describe("application workflow CLI Evidence resolution", () => {
       outsideBundlePath,
       serializeEvidenceBundle(createEvidenceBundle([])),
     );
-    const denied = await runCli(
+    const outsideBundle = await runCli(
       [
         "trace-application-feature",
         JSON.stringify(JAVASCRIPT_FEATURE_TRACE_EXAMPLE),
@@ -208,7 +208,10 @@ describe("application workflow CLI Evidence resolution", () => {
       ],
       environment,
     );
-    expect(denied).toMatchObject({ code: "permission_required" });
+    expect(outsideBundle).toMatchObject({
+      code: "evidence_integrity_mismatch",
+      details: { reason: "missing" },
+    });
   }, 30_000);
 });
 

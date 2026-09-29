@@ -123,7 +123,6 @@ const projectedReturnShapeSchema = z
       "unknown",
       "ambiguous",
       "cycle",
-      "limit-reached",
     ]),
     fields: z.array(projectedReturnFieldSchema),
     property_coverage: z.array(projectedPropertyCoverageSchema),

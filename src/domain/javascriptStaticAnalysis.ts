@@ -24,66 +24,49 @@ import {
   createJavaScriptAnalysisAccumulator,
   type JavaScriptAnalysisAccumulator as AnalysisAccumulator,
 } from "./javascriptStaticAnalysisState.js";
-import type {
-  JavaScriptStaticAnalysis,
-  JavaScriptStaticAnalysisLimits,
-} from "./javascriptStaticAnalysisTypes.js";
+import type { JavaScriptStaticAnalysis } from "./javascriptStaticAnalysisTypes.js";
 import {
   parseJavaScriptSource,
   type ParsedJavaScriptSource,
 } from "./javascriptSourceParser.js";
 
-/** Parse one bounded JavaScript artifact and recover static structure only. */
+/** Parse one JavaScript artifact and recover static structure only. */
 export const analyzeJavaScriptStaticSource = (
   source: string,
-  limits: JavaScriptStaticAnalysisLimits,
 ): JavaScriptStaticAnalysis => {
   const file = parseJavaScriptSource(source);
   return file === null
     ? failedJavaScriptStaticAnalysis()
-    : analyzeParsedJavaScriptStaticSource(source, file, limits);
+    : analyzeParsedJavaScriptStaticSource(source, file);
 };
 
 /** Recover static structure from an already parsed JavaScript artifact. */
 export const analyzeParsedJavaScriptStaticSource = (
   source: string,
   file: ParsedJavaScriptSource,
-  limits: JavaScriptStaticAnalysisLimits,
 ): JavaScriptStaticAnalysis => {
   const accumulator = createJavaScriptAnalysisAccumulator();
-  traverseStaticSource(source, file, accumulator, limits);
+  traverseStaticSource(source, file, accumulator);
   addSourceMapDirectives(source, accumulator);
-  return finalizeStaticAnalysis(source, file, accumulator, limits);
+  return finalizeStaticAnalysis(source, file, accumulator);
 };
 
 const traverseStaticSource = (
   source: string,
   file: ParsedJavaScriptSource,
   accumulator: AnalysisAccumulator,
-  limits: JavaScriptStaticAnalysisLimits,
 ): void => {
-  if (limits.now() > limits.deadline) accumulator.truncated = true;
-  if (!accumulator.truncated)
-    t.traverseFast(file, (node) => {
-      accumulator.visitedNodes += 1;
-      if (
-        accumulator.visitedNodes > limits.maxAstNodes ||
-        (accumulator.visitedNodes % 1_024 === 0 &&
-          limits.now() > limits.deadline)
-      ) {
-        accumulator.truncated = true;
-        return t.traverseFast.stop;
-      }
-      inspectNode(source, node, accumulator, limits);
-      return undefined;
-    });
+  t.traverseFast(file, (node) => {
+    accumulator.visitedNodes += 1;
+    inspectNode(source, node, accumulator);
+    return undefined;
+  });
 };
 
 const finalizeStaticAnalysis = (
   source: string,
   file: ParsedJavaScriptSource,
   accumulator: AnalysisAccumulator,
-  limits: JavaScriptStaticAnalysisLimits,
 ): JavaScriptStaticAnalysis => {
   const parserErrors = file.errors.length;
   const limitations = [
@@ -92,9 +75,6 @@ const finalizeStaticAnalysis = (
       : [
           "The parser recovered from syntax errors; affected facts are partial.",
         ]),
-    ...(accumulator.truncated
-      ? ["AST analysis stopped at the configured node or time bound."]
-      : []),
     ...(accumulator.unknownFindings === 0
       ? []
       : [
@@ -103,13 +83,12 @@ const finalizeStaticAnalysis = (
     "JavaScript syntax was parsed as data and was never evaluated.",
   ];
   return {
-    parse_status: accumulator.truncated
-      ? "truncated"
-      : parserErrors > 0 || accumulator.unknownFindings > 0
+    parse_status:
+      parserErrors > 0 || accumulator.unknownFindings > 0
         ? "partial"
         : "complete",
     parse_error_count: parserErrors,
-    visited_ast_nodes: Math.min(accumulator.visitedNodes, limits.maxAstNodes),
+    visited_ast_nodes: accumulator.visitedNodes,
     references: finalizeLocatedFindings(
       accumulator.references,
       accumulator.modules,
@@ -157,7 +136,6 @@ const inspectNode = (
   source: string,
   node: t.Node,
   accumulator: AnalysisAccumulator,
-  limits: JavaScriptStaticAnalysisLimits,
 ): void => {
   const findings = {
     source,
@@ -165,8 +143,8 @@ const inspectNode = (
   };
   inspectElectronStaticNode(node, findings);
   if (t.isCallExpression(node)) {
-    inspectBundlerRegistration(source, node, accumulator, limits);
-    inspectEsbuildWrapper(source, node, accumulator, limits);
+    inspectBundlerRegistration(source, node, accumulator);
+    inspectEsbuildWrapper(source, node, accumulator);
     inspectCall(source, node, findings);
   } else if (t.isNewExpression(node)) inspectCall(source, node, findings);
   if (

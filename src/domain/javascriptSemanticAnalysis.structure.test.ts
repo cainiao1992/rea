@@ -34,7 +34,6 @@ describe("JavaScript semantic analysis: structure 1", () => {
     expect(ir.coverage).toEqual({
       status: "complete",
       omittedCount: 0,
-      limitsReached: [],
     });
     expect(origin(topLevelBinding(ir, "ir"))).toEqual({
       specifier: "electron",

@@ -205,8 +205,7 @@ const structuralFingerprintKey = (node: ApplicationNode): string | null => {
     node,
     "structural_fingerprint_algorithm",
   );
-  const status = uniqueStringProperty(node, "structural_fingerprint_status");
-  return digest === null || algorithm === null || status !== "complete"
+  return digest === null || algorithm === null
     ? null
     : `structural\0${node.kind}\0${algorithm}\0${digest}`;
 };

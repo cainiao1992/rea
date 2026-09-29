@@ -3,7 +3,6 @@ import * as t from "@babel/types";
 import type {
   JavaScriptModuleOrigin,
   JavaScriptSemanticDefinition,
-  JavaScriptSemanticLimits,
   JavaScriptSemanticModuleLink,
   JavaScriptSemanticCallable,
   JavaScriptSemanticScope,
@@ -37,9 +36,8 @@ export interface JavaScriptSemanticScopeState {
   readonly bindings: Map<string, JavaScriptSemanticBindingState>;
 }
 
-/** Shared bounded state for semantic collection and evaluation. */
+/** Shared state for semantic collection and evaluation. */
 export interface JavaScriptSemanticAnalysisState {
-  readonly limits: JavaScriptSemanticLimits;
   readonly scopes: JavaScriptSemanticScopeState[];
   readonly scopesById: Map<string, JavaScriptSemanticScopeState>;
   readonly scopeByNode: WeakMap<t.Node, JavaScriptSemanticScopeState>;
@@ -47,8 +45,6 @@ export interface JavaScriptSemanticAnalysisState {
   readonly callables: JavaScriptSemanticCallable[];
   readonly callableNodesById: Map<string, t.Node>;
   readonly moduleLinks: JavaScriptSemanticModuleLink[];
-  readonly limitsReached: Set<keyof JavaScriptSemanticLimits>;
-  omittedCount: number;
 }
 
 /** Return the active scope from a non-empty construction stack. */

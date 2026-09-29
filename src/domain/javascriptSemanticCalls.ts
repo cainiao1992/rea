@@ -129,7 +129,6 @@ const collectCallSite = (
     state,
     callableById,
     seenBindings: new Set(),
-    depth: 0,
     bindingCache: context.bindingResolutionCache,
   });
   const callSiteId = semanticCallSiteId(node);

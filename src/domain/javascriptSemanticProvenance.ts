@@ -3,7 +3,6 @@ import type {
   JavaScriptModuleOrigin,
   JavaScriptSemanticPrimitive,
 } from "./javascriptSemanticIr.js";
-import type { JavaScriptSemanticAnalysisState } from "./javascriptSemanticState.js";
 import { compareCodePoints } from "./javascriptStaticAnalysisHelpers.js";
 
 /** Construct exact local provenance without inventing module origins. */
@@ -15,7 +14,7 @@ export const semanticLocalProvenance = (): JavaScriptBindingProvenance => ({
 
 /** Construct an unresolved provenance outcome with an actionable reason. */
 export const semanticUnresolvedProvenance = (
-  status: "unknown" | "cycle" | "limit-reached",
+  status: "unknown" | "cycle",
   reason: string,
 ): JavaScriptBindingProvenance => ({ status, origins: [], reason });
 
@@ -47,24 +46,6 @@ export const uniqueSemanticOrigins = (
   ].sort((left, right) =>
     compareCodePoints(semanticOriginKey(left), semanticOriginKey(right)),
   );
-
-/** Mark and return an explicit provenance-limit value. */
-export const semanticLimitProvenance = (
-  state: JavaScriptSemanticAnalysisState,
-  limit: "maxValueDepth",
-): JavaScriptBindingProvenance => {
-  reachSemanticValueLimit(state, limit);
-  return semanticUnresolvedProvenance("limit-reached", `${limit} reached.`);
-};
-
-/** Record one value-lattice limit against the shared semantic analysis state. */
-export const reachSemanticValueLimit = (
-  state: JavaScriptSemanticAnalysisState,
-  limit: keyof JavaScriptSemanticAnalysisState["limits"],
-): void => {
-  state.limitsReached.add(limit);
-  state.omittedCount += 1;
-};
 
 const semanticOriginKey = (origin: JavaScriptModuleOrigin): string =>
   `${origin.specifier}\0${origin.importedPath.join("\0")}`;

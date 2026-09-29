@@ -95,7 +95,6 @@ describe("JavaScript semantic analysis: dataflow 1", () => {
       status: "complete",
       retainedCount: 2,
       omittedCount: 0,
-      limitsReached: [],
     });
     expect(parse.returnSites).toHaveLength(2);
     expect(parse.returnSites[0]?.value).toMatchObject({

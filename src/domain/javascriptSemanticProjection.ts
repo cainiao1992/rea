@@ -55,7 +55,6 @@ export const collectSemanticCallable = (input: CollectCallableInput): void => {
       status: "partial",
       retainedCount: 0,
       omittedCount: null,
-      limitsReached: [],
     },
   });
   state.callableNodesById.set(callableId, node);
@@ -191,15 +190,6 @@ export const semanticStaticPropertyName = (
   computed && !t.isStringLiteral(property) && !t.isNumericLiteral(property)
     ? ""
     : propertyName(property);
-
-/** Record one exact limit hit without inventing the total omitted population. */
-export const reachSemanticLimit = (
-  state: JavaScriptSemanticAnalysisState,
-  limit: keyof JavaScriptSemanticAnalysisState["limits"],
-): void => {
-  state.limitsReached.add(limit);
-  state.omittedCount += 1;
-};
 
 const callableKind = (
   node: t.Node,

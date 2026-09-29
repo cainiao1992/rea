@@ -1,12 +1,10 @@
 import * as t from "@babel/types";
 
 import {
-  DEFAULT_JAVASCRIPT_SEMANTIC_LIMITS,
   failedJavaScriptSemanticIr,
   type JavaScriptModuleOrigin,
   type JavaScriptSemanticDefinition,
   type JavaScriptSemanticIr,
-  type JavaScriptSemanticLimits,
 } from "./javascriptSemanticIr.js";
 import {
   collectSemanticModuleLink,
@@ -63,24 +61,21 @@ interface AddBindingInput {
   readonly projection?: readonly (string | number | null)[];
 }
 
-/** Recover bounded lexical bindings, aliases, constants, and module links. */
+/** Recover lexical bindings, aliases, constants, and module links. */
 export const analyzeJavaScriptSemantics = (
   source: string,
-  inputLimits: Partial<JavaScriptSemanticLimits> = {},
 ): JavaScriptSemanticIr => {
   const file = parseJavaScriptSource(source);
   return file === null
     ? failedJavaScriptSemanticIr()
-    : analyzeParsedJavaScriptSemantics(file, inputLimits);
+    : analyzeParsedJavaScriptSemantics(file);
 };
 
 /** Recover semantics from an already parsed JavaScript artifact. */
 export const analyzeParsedJavaScriptSemantics = (
   file: ParsedJavaScriptSource,
-  inputLimits: Partial<JavaScriptSemanticLimits> = {},
 ): JavaScriptSemanticIr => {
-  const limits = { ...DEFAULT_JAVASCRIPT_SEMANTIC_LIMITS, ...inputLimits };
-  const state = createState(file.program, limits);
+  const state = createState(file.program);
   collectDefinitions(file.program, state);
   const references = collectSemanticReferences(file.program, state);
   const parserPartial = file.errors.length > 0;
@@ -101,16 +96,13 @@ export const analyzeParsedJavaScriptSemantics = (
     references,
     moduleLinks,
     ...derived,
-    coverage: semanticCoverage(state, parserPartial),
+    coverage: semanticCoverage(parserPartial),
     limitations: [
       ...(parserPartial
         ? [
             "The parser recovered from syntax errors; affected bindings are partial.",
           ]
         : []),
-      ...(state.limitsReached.size === 0
-        ? []
-        : ["Semantic recovery stopped retaining facts at explicit limits."]),
       "Values and aliases were recovered from inert syntax only; no JavaScript was executed.",
       "Return sites include only direct callable returns; nested callable returns remain separate.",
       "Local call, argument, return, and closure relations are static candidates and do not prove runtime invocation.",
@@ -120,10 +112,7 @@ export const analyzeParsedJavaScriptSemantics = (
   };
 };
 
-const createState = (
-  program: t.Program,
-  limits: JavaScriptSemanticLimits,
-): JavaScriptSemanticAnalysisState => {
+const createState = (program: t.Program): JavaScriptSemanticAnalysisState => {
   const root: JavaScriptSemanticScopeState = {
     scopeId: semanticScopeId("program", program),
     parentScopeId: null,
@@ -133,7 +122,6 @@ const createState = (
     bindings: new Map(),
   };
   return {
-    limits,
     scopes: [root],
     scopesById: new Map([[root.scopeId, root]]),
     scopeByNode: new WeakMap([[program, root]]),
@@ -141,8 +129,6 @@ const createState = (
     callables: [],
     callableNodesById: new Map(),
     moduleLinks: [],
-    limitsReached: new Set(),
-    omittedCount: 0,
   };
 };
 
@@ -431,10 +417,7 @@ const addBinding = (input: AddBindingInput): void => {
   } = input;
   let binding = scope.bindings.get(name);
   if (binding === undefined) {
-    if (!scope.bindingsComplete) {
-      state.omittedCount += 1;
-      return;
-    }
+    if (!scope.bindingsComplete) return;
     binding = createBinding(scope, name, kind, mutable);
     scope.bindings.set(name, binding);
     state.bindingsById.set(binding.bindingId, binding);

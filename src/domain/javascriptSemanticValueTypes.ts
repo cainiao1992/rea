@@ -1,4 +1,4 @@
-/** Primitive values admitted into the bounded constant lattice. */
+/** Primitive values admitted into the constant lattice. */
 export type JavaScriptSemanticPrimitive = string | number | boolean | null;
 
 type JavaScriptSemanticObjectValue = {
@@ -29,7 +29,7 @@ type JavaScriptSemanticArrayValue = {
     }
 );
 
-/** Bounded, execution-free value lattice for JavaScript expressions. */
+/** Execution-free value lattice for JavaScript expressions. */
 export type JavaScriptSemanticValue =
   | {
       readonly status: "literal";
@@ -42,7 +42,7 @@ export type JavaScriptSemanticValue =
   | JavaScriptSemanticObjectValue
   | JavaScriptSemanticArrayValue
   | {
-      readonly status: "unknown" | "ambiguous" | "cycle" | "limit-reached";
+      readonly status: "unknown" | "ambiguous" | "cycle";
       readonly reason: string;
     };
 

@@ -11,7 +11,7 @@ export interface JavaScriptSourcePoint {
   readonly column: number;
 }
 
-/** One exact source range within a bounded JavaScript artifact. */
+/** One exact source range within a JavaScript artifact. */
 export interface JavaScriptSourceRange {
   readonly start: JavaScriptSourcePoint;
   readonly end: JavaScriptSourcePoint;
@@ -67,19 +67,10 @@ interface JavaScriptBundlerModuleState {
 }
 
 /** One exact module factory recovered from a Webpack/Rspack registration. */
-export type JavaScriptBundlerModule = JavaScriptBundlerModuleState &
-  (
-    | {
-        readonly structural_fingerprint_sha256: string;
-        readonly structural_fingerprint_algorithm: "babel-ast-v1";
-        readonly structural_fingerprint_status: "complete";
-      }
-    | {
-        readonly structural_fingerprint_sha256: null;
-        readonly structural_fingerprint_algorithm: null;
-        readonly structural_fingerprint_status: "truncated";
-      }
-  );
+export interface JavaScriptBundlerModule extends JavaScriptBundlerModuleState {
+  readonly structural_fingerprint_sha256: string;
+  readonly structural_fingerprint_algorithm: "babel-ast-v1";
+}
 
 /** One statically recognized bundler chunk or module registration. */
 export interface JavaScriptBundlerRegistration {
@@ -109,7 +100,7 @@ export interface JavaScriptRolePath {
 
 /** Deterministic AST-only analysis of one JavaScript source file. */
 export interface JavaScriptStaticAnalysis {
-  readonly parse_status: "complete" | "partial" | "failed" | "truncated";
+  readonly parse_status: "complete" | "partial" | "failed";
   readonly parse_error_count: number;
   readonly visited_ast_nodes: number;
   readonly references: readonly JavaScriptStaticReference[];
@@ -127,8 +118,3 @@ export interface JavaScriptStaticAnalysis {
 }
 
 /** Hard bounds applied to one AST-only JavaScript analysis. */
-export interface JavaScriptStaticAnalysisLimits {
-  readonly maxAstNodes: number;
-  readonly deadline: number;
-  readonly now: () => number;
-}

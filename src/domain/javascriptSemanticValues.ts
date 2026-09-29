@@ -17,9 +17,7 @@ import {
   stringValue,
 } from "./javascriptStaticAnalysisHelpers.js";
 import {
-  reachSemanticValueLimit,
   semanticAmbiguousProvenance,
-  semanticLimitProvenance,
   semanticLocalProvenance,
   semanticOriginsProvenance,
   semanticUnresolvedProvenance,
@@ -34,7 +32,6 @@ import {
 interface EvaluationContext {
   readonly state: JavaScriptSemanticAnalysisState;
   readonly bindings: ReadonlySet<string>;
-  readonly depth: number;
 }
 
 /** Evaluate one binding in the bounded constant-value lattice. */
@@ -42,21 +39,21 @@ export const evaluateSemanticBinding = (
   binding: JavaScriptSemanticBindingState,
   state: JavaScriptSemanticAnalysisState,
 ): JavaScriptSemanticValue =>
-  evaluateBinding(binding, { state, bindings: new Set(), depth: 0 });
+  evaluateBinding(binding, { state, bindings: new Set() });
 
 /** Evaluate one arbitrary inert expression in the established lexical state. */
 export const evaluateSemanticExpression = (
   node: t.Node,
   state: JavaScriptSemanticAnalysisState,
 ): JavaScriptSemanticValue =>
-  evaluateExpression(node, { state, bindings: new Set(), depth: 0 });
+  evaluateExpression(node, { state, bindings: new Set() });
 
 /** Follow module provenance through destructuring, members, and aliases. */
 export const evaluateSemanticProvenance = (
   binding: JavaScriptSemanticBindingState,
   state: JavaScriptSemanticAnalysisState,
 ): JavaScriptBindingProvenance =>
-  provenanceForBinding(binding, { state, bindings: new Set(), depth: 0 });
+  provenanceForBinding(binding, { state, bindings: new Set() });
 
 const evaluateBinding = (
   binding: JavaScriptSemanticBindingState,
@@ -64,8 +61,6 @@ const evaluateBinding = (
 ): JavaScriptSemanticValue => {
   if (context.bindings.has(binding.bindingId))
     return { status: "cycle", reason: `Alias cycle at ${binding.name}.` };
-  if (context.depth >= context.state.limits.maxValueDepth)
-    return limitValue(context.state, "maxValueDepth");
   if (binding.initializers.length === 0)
     return {
       status: "unknown",
@@ -90,8 +85,6 @@ const evaluateExpression = (
   node: t.Node,
   context: EvaluationContext,
 ): JavaScriptSemanticValue => {
-  if (context.depth >= context.state.limits.maxValueDepth)
-    return limitValue(context.state, "maxValueDepth");
   const literal = primitiveValue(node);
   if (literal.found) return { status: "literal", value: literal.value };
   if (t.isIdentifier(node)) {
@@ -323,8 +316,6 @@ const provenanceForBinding = (
       "cycle",
       `Alias cycle at ${binding.name}.`,
     );
-  if (context.depth >= context.state.limits.maxValueDepth)
-    return semanticLimitProvenance(context.state, "maxValueDepth");
   if (binding.directOrigins.length > 0)
     return semanticOriginsProvenance(binding.directOrigins);
   if (binding.initializers.length === 0) return semanticLocalProvenance();
@@ -460,20 +451,11 @@ const memberKey = (
   return undefined;
 };
 
-const limitValue = (
-  state: JavaScriptSemanticAnalysisState,
-  limit: "maxValueDepth",
-): JavaScriptSemanticValue => {
-  reachSemanticValueLimit(state, limit);
-  return { status: "limit-reached", reason: `${limit} reached.` };
-};
-
 const nestedContext = (
   context: EvaluationContext,
   bindingId?: string,
 ): EvaluationContext => ({
   state: context.state,
-  depth: context.depth + 1,
   bindings:
     bindingId === undefined
       ? context.bindings

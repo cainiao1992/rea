@@ -49,7 +49,6 @@ export interface JavaScriptAnalysisAccumulator {
   readonly seen: Set<string>;
   visitedNodes: number;
   unknownFindings: number;
-  truncated: boolean;
 }
 
 /** Shared source and accumulator for helper inspections. */
@@ -102,5 +101,4 @@ export const createJavaScriptAnalysisAccumulator =
     seen: new Set(),
     visitedNodes: 0,
     unknownFindings: 0,
-    truncated: false,
   });

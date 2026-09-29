@@ -18,7 +18,7 @@ import type {
   JavaScriptRuntimeObservation,
   ObserveJavaScriptRuntimeInput,
 } from "../../../src/domain/javascriptRuntimeObservation.js";
-import { observeJavaScriptRuntimeToolInputSchema } from "../../../src/domain/javascriptRuntimeObservation.js";
+import { observeJavaScriptRuntimeInputSchema } from "../../../src/domain/javascriptRuntimeObservation.js";
 import { javascriptRuntimeReconciliationResultSchema } from "../../../src/domain/javascriptRuntimeReconciliationSchemas.js";
 import type {
   PermissionCeiling,
@@ -30,7 +30,7 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 describe("passive V8 Inspector provider", () => {
   test("rejects unknown runtime observation fields", () => {
     expect(
-      observeJavaScriptRuntimeToolInputSchema.safeParse({
+      observeJavaScriptRuntimeInputSchema.safeParse({
         inspector_endpoint: "http://127.0.0.1:9229",
         target_id: "target-1",
         unknown_field: true,

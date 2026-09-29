@@ -24,10 +24,7 @@ export const workerRequest = (prepared: PreparedReplayPlan) => ({
   limits: {
     resultDepth: prepared.publicPlan.limits.result_depth,
     resultNodes: prepared.publicPlan.limits.result_nodes,
-    exceptionBytes: Math.min(
-      64 * 1024,
-      prepared.publicPlan.limits.output_bytes,
-    ),
+    exceptionBytes: prepared.publicPlan.limits.output_bytes,
   },
 });
 

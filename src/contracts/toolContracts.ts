@@ -173,7 +173,7 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "list_strings",
-    "List every provider-defined string, or filter to one address, as address/value pairs. Ghidra reports charset, missing-terminator status, byte length, and explicit value truncation.",
+    "List every provider-defined string, or filter to one address, as address/value pairs. Ghidra also reports encoding, terminator status, and byte length.",
     z.object({ document, address: optionalAddress }),
   ),
   official(
@@ -293,7 +293,7 @@ export const OFFICIAL_TOOL_CONTRACTS = [
 /** Closed provider operation names exposed by direct analysis adapters. */
 export type OfficialToolName = (typeof OFFICIAL_TOOL_CONTRACTS)[number]["name"];
 
-/** Bounded workflows composed from one or more bridge operations. */
+/** Workflow tools composed from one or more provider operations. */
 export const ENHANCED_TOOL_CONTRACTS = [
   enhanced(
     "get_objc_classes",

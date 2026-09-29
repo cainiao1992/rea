@@ -33,7 +33,7 @@ describe("Ghidra MCP capability routing", () => {
         result: {
           open: true,
           analysis_provider_binding: {
-            provider: { id: "ghidra", version: "12.1.2" },
+            provider: { id: "ghidra", version: "12.1.4" },
           },
           tool_availability: expect.arrayContaining([
             expect.objectContaining({

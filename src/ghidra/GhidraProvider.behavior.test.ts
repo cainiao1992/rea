@@ -14,11 +14,11 @@ import { err, ok } from "../domain/result.js";
 import { GhidraSessionError } from "./GhidraSessionError.js";
 import { silentLogger } from "../logger.js";
 
-const INSTALL = "/opt/ghidra_12.1.2_PUBLIC";
+const INSTALL = "/opt/ghidra_12.1.4_PUBLIC";
 const installationHost = (): GhidraInstallationHost => ({
   platform: "linux",
   architecture: "x64",
-  readText: () => "application.version=12.1.2\n",
+  readText: () => "application.version=12.1.4\n",
   executable: () => true,
   probeJava: () => ({
     version: "21.0.11",
@@ -85,7 +85,7 @@ describe("Ghidra provider", () => {
       status: "available",
       diagnostics: {
         install_dir: INSTALL,
-        provider_version: "12.1.2",
+        provider_version: "12.1.4",
         java_version: "21.0.11",
       },
     });
@@ -255,7 +255,7 @@ describe("Ghidra client projection", () => {
     expect(resolved.ok).toBe(true);
     if (!resolved.ok || resolved.value.profile === null) return;
     expect(resolved.value.profile).toMatchObject({
-      provider: { id: "ghidra", name: "Ghidra", version: "12.1.2" },
+      provider: { id: "ghidra", name: "Ghidra", version: "12.1.4" },
       parameters: {
         import_mode: "ephemeral-read-only",
         analyzer_preset: "ghidra-default",
@@ -289,7 +289,7 @@ describe("Ghidra client projection", () => {
         provider: {
           id: "ghidra",
           name: "Ghidra",
-          version: "12.1.2",
+          version: "12.1.4",
         },
         analysisProfile: resolved.value.profile,
         result: [{ address: "0x1000", value: "fixture_main" }],
@@ -411,7 +411,7 @@ const sessionInfo = () => ({
   name: "REA Ghidra bridge" as const,
   run_id: "11111111-1111-4111-8111-111111111111",
   profile_digest: "a".repeat(64),
-  provider: { id: "ghidra" as const, version: "12.1.2" },
+  provider: { id: "ghidra" as const, version: "12.1.4" },
   read_only: true as const,
   analysis_complete: true,
   analysis_timed_out: false,

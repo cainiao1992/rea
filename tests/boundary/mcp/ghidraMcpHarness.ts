@@ -22,7 +22,7 @@ import {
   ghidraReferenceEdge,
 } from "../../../src/domain/hopperValues.fixture.js";
 
-const INSTALL = "/opt/ghidra_12.1.2_PUBLIC";
+const INSTALL = "/opt/ghidra_12.1.4_PUBLIC";
 
 export const connectGhidraMcp = async (name: string) => {
   const calls: GhidraOperation[] = [];
@@ -98,7 +98,7 @@ export const sessionEvidence = (session: BinarySession, value: unknown) => {
 const installationHost = (): GhidraInstallationHost => ({
   platform: "linux",
   architecture: "x64",
-  readText: () => "application.version=12.1.2\n",
+  readText: () => "application.version=12.1.4\n",
   executable: () => true,
   probeJava: () => ({
     version: "21.0.11",
@@ -113,7 +113,7 @@ const sessionInfo = (profileDigest: string, targetSha256: string) => ({
   name: "REA Ghidra bridge" as const,
   run_id: "11111111-1111-4111-8111-111111111111",
   profile_digest: profileDigest,
-  provider: { id: "ghidra" as const, version: "12.1.2" },
+  provider: { id: "ghidra" as const, version: "12.1.4" },
   read_only: true as const,
   analysis_complete: true,
   analysis_timed_out: false,

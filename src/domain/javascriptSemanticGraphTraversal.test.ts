@@ -15,6 +15,7 @@ import {
   type JavaScriptSemanticGraphNode,
 } from "./javascriptSemanticGraph.js";
 import { queryJavaScriptSemanticGraph } from "./javascriptSemanticQuery.js";
+import type { JsonValue } from "./jsonValue.js";
 
 const SHA = "a".repeat(64);
 const JAG_ID = `jag_${"b".repeat(64)}`;
@@ -91,7 +92,7 @@ const unknownEvidence = (): ApplicationGraphEvidence => ({
 const node = (
   kind: (typeof JAVASCRIPT_SEMANTIC_NODE_KINDS)[number],
   role: string,
-  properties: Record<string, string | number | boolean | null> = {},
+  properties: Record<string, JsonValue> = {},
   functionNodeId: string | null = null,
 ): JavaScriptSemanticGraphNode =>
   createJavaScriptSemanticGraphNode({
@@ -317,6 +318,16 @@ it("traverses paths beyond the former fixed depth ceiling", () => {
 
   expect(result.summary.traversed_nodes).toBe(74);
   expect(result.nodes).toHaveLength(74);
+});
+
+it("accepts deeply nested semantic properties", () => {
+  let nested: JsonValue = "leaf";
+  for (let index = 0; index < 12; index += 1)
+    nested = { [`level-${String(index)}`]: nested };
+
+  const result = node("binding", "deep-properties", { nested });
+
+  expect(result.properties).toEqual({ nested });
 });
 
 it("keeps relevant dynamic frontiers unknown", () => {

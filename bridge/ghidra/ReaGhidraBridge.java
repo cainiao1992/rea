@@ -683,10 +683,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
             facts.addProperty("external", symbol.isExternal());
             facts.addProperty("type", normalizedSymbolType(symbol));
             facts.addProperty("source", normalizedSource(symbol.getSource()));
-            addBounded(
-                result,
-                new InventoryItem(address, symbol.getName(true), facts)
-            );
+            result.add(new InventoryItem(address, symbol.getName(true), facts));
         }
         result.sort(INVENTORY_ORDER);
         nameInventory = List.copyOf(result);
@@ -761,7 +758,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
                 instance.isMissingNullTerminator() ? "missing" : "present_or_not_required"
             );
             facts.addProperty("byte_length", Math.max(0, data.getLength()));
-            addBounded(result, new InventoryItem(data.getAddress(), value, facts));
+            result.add(new InventoryItem(data.getAddress(), value, facts));
         }
         result.sort(INVENTORY_ORDER);
         stringInventory = List.copyOf(result);
@@ -1685,10 +1682,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
 
     private static String normalizedSource(SourceType source) {
         return source.name().toLowerCase(Locale.ROOT);
-    }
-
-    private static void addBounded(List<InventoryItem> destination, InventoryItem item) {
-        destination.add(item);
     }
 
     private static ValueMatcher literalMatcher(String pattern, boolean caseSensitive) {

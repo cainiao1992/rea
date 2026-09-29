@@ -9,7 +9,7 @@ const nodeIdSchema = z.string().regex(/^jag_node_[a-f0-9]{64}$/u);
 const edgeIdSchema = z.string().regex(/^jag_edge_[a-f0-9]{64}$/u);
 const boundedTextSchema = z.string().min(1);
 
-/** Literal starting point for one bounded application trace. */
+/** Literal starting point for one application feature trace. */
 const applicationFeatureSeedSchema = z.strictObject({
   kind: z.enum([
     "node-id",

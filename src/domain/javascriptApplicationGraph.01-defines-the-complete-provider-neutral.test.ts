@@ -79,6 +79,53 @@ const createLargeNativeExportGraph = (): JavaScriptApplicationGraph => {
   });
 };
 
+it("accepts deeply nested canonical application properties", () => {
+  let nested: unknown = "leaf";
+  for (let index = 0; index < 12; index += 1)
+    nested = { [`level-${String(index)}`]: nested };
+  const node = createJavaScriptApplicationNode({
+    kind: "native-export",
+    identity: {
+      strategy: "canonical-path",
+      stability: "artifact-version",
+      artifact_sha256: APPLICATION_GRAPH_DIGESTS.nativeAddon,
+      path: "native/deep-export",
+    },
+    observations: [
+      {
+        label: "deep export",
+        properties: { nested },
+        evidence: artifactEvidence(
+          APPLICATION_GRAPH_DIGESTS.nativeAddon,
+          "native/deep-export",
+          "native-analysis-provider",
+        ),
+      },
+    ],
+  });
+
+  const graph = createJavaScriptApplicationGraph({
+    schema: "JavaScriptApplicationGraph",
+    root_node_ids: [node.node_id],
+    nodes: [node],
+    edges: [],
+    coverage: {
+      status: "complete",
+      truncated: false,
+      omitted_count: 0,
+      limits: [],
+    },
+    limitations: [],
+  });
+
+  expect(graph.nodes[0]?.observations[0]?.properties).toEqual({ nested });
+  expect(
+    parseJavaScriptApplicationGraph(
+      JSON.parse(serializeJavaScriptApplicationGraph(graph)),
+    ),
+  ).toEqual(graph);
+});
+
 describe("JavaScript Application Graph", () => {
   it("defines the complete provider-neutral node and relation vocabulary", () => {
     expect(JAVASCRIPT_APPLICATION_NODE_KINDS).toEqual([

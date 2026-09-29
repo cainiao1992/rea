@@ -3,14 +3,8 @@ import { createHash } from "node:crypto";
 import canonicalize from "canonicalize";
 import { z } from "zod";
 
-import { isJsonWithinLimits } from "./jsonLimits.js";
 import { jsonObjectSchema, type JsonValue } from "./jsonValue.js";
 
-const PROFILE_JSON_LIMITS = Object.freeze({
-  maxDepth: 16,
-  maxStringLength: 16 * 1024,
-  maxNodes: 4_096,
-});
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 
 /** Concrete provider identity committed by an analysis profile. */
@@ -20,14 +14,9 @@ export const committedProviderSchema = z.object({
   version: z.string().min(1),
 });
 
-const boundedParametersSchema = jsonObjectSchema.refine(
-  (parameters) => isJsonWithinLimits(parameters, PROFILE_JSON_LIMITS),
-  { message: "Analysis profile parameters exceed structural limits" },
-);
-
 const unsignedAnalysisProfileSchema = z.object({
   provider: committedProviderSchema,
-  parameters: boundedParametersSchema,
+  parameters: jsonObjectSchema,
 });
 
 /** Canonical, provider-neutral commitment to analysis-affecting semantics. */

@@ -96,21 +96,23 @@ const node = (
   kind: (typeof JAVASCRIPT_SEMANTIC_NODE_KINDS)[number],
   role: string,
   properties: Record<string, string | number | boolean | null> = {},
-  functionNodeId: string | null = null,
-  modulePath = "bundle.js",
+  options: {
+    readonly functionNodeId?: string | null;
+    readonly modulePath?: string;
+  } = {},
 ): JavaScriptSemanticGraphNode =>
   createJavaScriptSemanticGraphNode({
     kind,
     identity: {
       artifact_sha256: SHA,
-      module_path: modulePath,
+      module_path: options.modulePath ?? "bundle.js",
       source_range: {
         start: { line: 1, column: role.length },
         end: { line: 1, column: role.length + 1 },
       },
       role_key: role,
     },
-    function_node_id: functionNodeId,
+    function_node_id: options.functionNodeId ?? null,
     application_node_ids: [],
     label: role,
     properties,
@@ -120,7 +122,7 @@ const node = (
 it("accepts semantic module paths longer than the former schema ceiling", () => {
   const modulePath = `${"segment/".repeat(600)}entry.js`;
   expect(
-    node("module", "long-path", {}, null, modulePath).identity.module_path,
+    node("module", "long-path", {}, { modulePath }).identity.module_path,
   ).toBe(modulePath);
 });
 

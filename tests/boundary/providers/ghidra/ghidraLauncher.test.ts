@@ -98,7 +98,7 @@ describe("Ghidra headless launcher", () => {
     const command = ghidraHeadlessCommand({
       platform: "win32",
       analyzeHeadlessPath:
-        "C:\\Program Files\\Ghidra 12.1.2\\support\\analyzeHeadless.bat",
+        "C:\\Program Files\\Ghidra 12.1.4\\support\\analyzeHeadless.bat",
       arguments: [
         "C:\\REA Runtime\\project",
         "rea-project",
@@ -116,7 +116,7 @@ describe("Ghidra headless launcher", () => {
         "/v:off",
         "/s",
         "/c",
-        '""C:\\Program Files\\Ghidra 12.1.2\\support\\analyzeHeadless.bat" "C:\\REA Runtime\\project" "rea-project" "-import" "C:\\REA Runtime\\target.exe""',
+        '""C:\\Program Files\\Ghidra 12.1.4\\support\\analyzeHeadless.bat" "C:\\REA Runtime\\project" "rea-project" "-import" "C:\\REA Runtime\\target.exe""',
       ],
     });
   });
@@ -159,7 +159,7 @@ describe("Ghidra headless launcher", () => {
       runId: "d6fcbb66-e829-4ff6-a535-0035aec63139",
       targetPath: "/tmp/fixture",
       targetSha256: "b".repeat(64),
-      providerVersion: "12.1.2",
+      providerVersion: "12.1.4",
       profileDigest: "a".repeat(64),
     });
     expect(launched.ok).toBe(true);

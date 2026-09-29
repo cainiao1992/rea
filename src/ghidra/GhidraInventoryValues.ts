@@ -4,7 +4,7 @@ import { AnalysisInputError, AnalysisOutputError } from "../domain/errors.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { err, ok, type Result } from "../domain/result.js";
 
-/** Read-only direct operations admitted by the Ghidra v1 adapter. */
+/** Read-only direct inventory operations admitted by the Ghidra adapter. */
 export const GHIDRA_INVENTORY_OPERATIONS = [
   "address_name",
   "list_documents",
@@ -170,7 +170,7 @@ const resultSchemas = {
   search_strings: z.array(searchItem),
 } satisfies Readonly<Record<GhidraInventoryOperation, z.ZodType>>;
 
-/** Require exact, bounded Java-bridge output before creating Evidence. */
+/** Validate exact Java-bridge output before creating Evidence. */
 export const parseGhidraInventoryResult = (
   operation: GhidraInventoryOperation,
   value: JsonValue,

@@ -31,7 +31,7 @@ const PROPERTY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   result: "Primary structured result returned by this operation.",
   left: "Left-hand input used for comparison or differential execution.",
   limits:
-    "Bounded resource-consumption and result-size limits for this operation.",
+    "Resource budgets that bound execution and retained output for this operation.",
   mode: "Operation mode that selects the requested behavior.",
   overwrite: "Whether an existing destination may be replaced.",
   path: "Local filesystem path used by this operation.",

@@ -23,7 +23,7 @@ const fixturePath = fileURLToPath(
   new URL("../../../fixtures/fakeGhidra.mjs", import.meta.url),
 );
 const PROFILE_DIGEST = "a".repeat(64);
-const PROVIDER_VERSION = "12.1.2";
+const PROVIDER_VERSION = "12.1.4";
 const TARGET_SHA256 = createHash("sha256")
   .update(readFileSync(fixturePath))
   .digest("hex");

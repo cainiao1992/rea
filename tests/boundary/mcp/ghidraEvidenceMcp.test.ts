@@ -18,9 +18,9 @@ describe("Ghidra MCP evidence parity", () => {
       );
       expect(listed).toMatchObject({
         operation: "list_procedures",
-        provider: { id: "ghidra", name: "Ghidra", version: "12.1.2" },
+        provider: { id: "ghidra", name: "Ghidra", version: "12.1.4" },
         analysis_profile: {
-          provider: { id: "ghidra", version: "12.1.2" },
+          provider: { id: "ghidra", version: "12.1.4" },
           parameters: {
             import_mode: "ephemeral-read-only",
             analyzer_preset: "ghidra-default",
@@ -78,7 +78,7 @@ describe("Ghidra MCP evidence parity", () => {
       );
       expect(pseudocode).toMatchObject({
         operation: "procedure_pseudo_code",
-        provider: { id: "ghidra", version: "12.1.2" },
+        provider: { id: "ghidra", version: "12.1.4" },
         normalized_result: expect.stringContaining("return 42"),
         limitations: expect.arrayContaining([
           expect.stringContaining("not text-equivalent to Hopper"),

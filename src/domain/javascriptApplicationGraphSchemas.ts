@@ -5,7 +5,6 @@ import {
   applicationGraphEvidenceSchema,
   applicationNodeIdentitySchema,
 } from "./javascriptApplicationEvidenceSchemas.js";
-import { isJsonWithinDepth } from "./jsonLimits.js";
 import { jsonValueSchema } from "./jsonValue.js";
 
 const boundedTextSchema = z.string().min(1);
@@ -70,15 +69,10 @@ export const JAVASCRIPT_APPLICATION_RELATIONS = [
 /** Provider-neutral relation categories. */
 const applicationRelationSchema = z.enum(JAVASCRIPT_APPLICATION_RELATIONS);
 
-const applicationPropertiesSchema = z
-  .record(z.string().min(1), jsonValueSchema)
-  .superRefine((properties, context) => {
-    if (!isJsonWithinDepth(properties, 6))
-      context.addIssue({
-        code: "custom",
-        message: "Application graph properties exceed the supported depth",
-      });
-  });
+const applicationPropertiesSchema = z.record(
+  z.string().min(1),
+  jsonValueSchema,
+);
 
 /** One node observation before its semantic identifier is derived. */
 const applicationNodeObservationInputSchema = z.strictObject({

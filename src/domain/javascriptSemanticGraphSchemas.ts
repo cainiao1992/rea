@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import { applicationGraphEvidenceSchema } from "./javascriptApplicationEvidenceSchemas.js";
-import { isJsonWithinDepth } from "./jsonLimits.js";
 import { jsonValueSchema } from "./jsonValue.js";
 
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
@@ -190,15 +189,7 @@ const sourceRangeSchema = z
       });
   });
 
-const semanticPropertiesSchema = z
-  .record(z.string().min(1), jsonValueSchema)
-  .superRefine((properties, context) => {
-    if (!isJsonWithinDepth(properties, 6))
-      context.addIssue({
-        code: "custom",
-        message: "Semantic properties exceed the supported depth",
-      });
-  });
+const semanticPropertiesSchema = z.record(z.string().min(1), jsonValueSchema);
 
 const semanticNodeIdentitySchema = z.strictObject({
   artifact_sha256: digestSchema,

@@ -159,12 +159,6 @@ const registerTraceCommand = (cli: CliInstance, logger: Logger): void => {
         .boolean()
         .default(false)
         .describe("Match the query with exact letter case"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .default(10_000)
-        .describe("Maximum matching results to return"),
       snapshot: z
         .string()
         .min(1)
@@ -183,7 +177,6 @@ const registerTraceCommand = (cli: CliInstance, logger: Logger): void => {
           {
             query: args.query,
             case_sensitive: options.caseSensitive,
-            limit: options.limit,
           },
           directAnalysisOptions(logger, options.snapshot, options.provider),
         ),

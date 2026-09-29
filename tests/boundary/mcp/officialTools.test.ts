@@ -82,6 +82,28 @@ describe("read_bytes contract", () => {
   });
 });
 
+describe("list_strings contract", () => {
+  it("describes optional provider string metadata inline", () => {
+    const contract = OFFICIAL_TOOL_CONTRACTS.find(
+      ({ name }) => name === "list_strings",
+    );
+    expect(
+      contract?.outputSchema.shape.result.safeParse([
+        {
+          address: "0x1000",
+          value: "coffee",
+          string: {
+            encoding: "UTF-8",
+            termination: "present_or_not_required",
+            byte_length: 6,
+          },
+        },
+        { address: "0x1008", value: "beans" },
+      ]).success,
+    ).toBe(true);
+  });
+});
+
 afterEach(async () => {
   await Promise.all(
     resources.splice(0).map(async (resource) => resource.close()),

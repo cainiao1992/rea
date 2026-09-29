@@ -5,6 +5,7 @@ import {
   analysisProfilesEqual,
   createAnalysisProfile,
 } from "./analysisProfile.js";
+import type { JsonValue } from "./jsonValue.js";
 
 const PROVIDER = {
   id: "fixture",
@@ -58,15 +59,25 @@ describe("analysis profile commitments", () => {
     expect(analysisProfileSchema.parse(profile)).toEqual(profile);
   });
 
-  it("rejects digest tampering and structurally unsafe parameters", () => {
+  it("accepts deep, large, and long-string profile parameters", () => {
+    let nested: JsonValue = "leaf";
+    for (let index = 0; index < 24; index += 1)
+      nested = { [`level-${String(index)}`]: nested };
+    const parameters = {
+      nested,
+      entries: Array.from({ length: 5_000 }, (_, index) => index),
+      long_value: "x".repeat(20 * 1024),
+    };
+
+    const profile = createAnalysisProfile(PROVIDER, parameters);
+
+    expect(analysisProfileSchema.parse(profile)).toEqual(profile);
+  });
+
+  it("rejects digest tampering", () => {
     const profile = createAnalysisProfile(PROVIDER, { loader: "default" });
     expect(() =>
       analysisProfileSchema.parse({ ...profile, digest: "0".repeat(64) }),
     ).toThrow(/digest/u);
-    expect(() =>
-      createAnalysisProfile(PROVIDER, {
-        oversized: "x".repeat(65 * 1024),
-      }),
-    ).toThrow(/structural limits/u);
   });
 });

@@ -76,6 +76,18 @@ const bookmarkFacetSchema = z.discriminatedUnion("state", [
   }),
 ]);
 
+const addressedString = z.object({
+  address: z.string(),
+  value: z.string(),
+  string: z
+    .object({
+      encoding: z.string().min(1),
+      termination: z.enum(["missing", "present_or_not_required"]),
+      byte_length: z.number().int().min(0),
+    })
+    .optional(),
+});
+
 /** Exact structured-content schemas shared by direct analysis providers. */
 export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   address_name: resultOf(nullableText),
@@ -90,7 +102,7 @@ export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   list_names: resultOf(z.array(addressedValue)),
   list_procedures: resultOf(z.array(addressedValue)),
   list_segments: segmentOutput,
-  list_strings: resultOf(z.array(addressedValue)),
+  list_strings: resultOf(z.array(addressedString)),
   next_address: resultOf(z.string()),
   prev_address: resultOf(z.string()),
   procedure_address: resultOf(z.string()),

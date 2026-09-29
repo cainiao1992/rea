@@ -186,6 +186,10 @@ describe("canonical CLI catalog", () => {
       expect(cliCommandOptionNames(cli, name)).toContain("provider");
     }
   });
+
+  it("does not impose a private result limit on feature tracing", () => {
+    expect(cliCommandOptionNames(createCli(), "trace")).not.toContain("limit");
+  });
 });
 
 describe("canonical product catalog drift", () => {

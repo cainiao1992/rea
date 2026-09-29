@@ -64,6 +64,23 @@ const request = async (
   limits: { resultDepth: 16, resultNodes: 10_000, exceptionBytes: 4096 },
 });
 
+it("uses the caller's full output budget for exception text", async () => {
+  const message = "x".repeat(70_000);
+  const workerRequest = await request("exception.mjs", "esm", "default", [
+    message,
+  ]);
+  workerRequest.limits.exceptionBytes = 80_000;
+  const result = await runWorker(workerRequest);
+
+  expect(result.code).toBe(0);
+  const response = JSON.parse(result.stdout) as {
+    readonly left: readonly {
+      readonly exception: { readonly message: string };
+    }[];
+  };
+  expect(response.left[0]?.exception.message).toBe(`fixture:${message}`);
+});
+
 describe("disposable JavaScript replay worker", () => {
   it("rejects malformed runtime-hop requests before loading modules", async () => {
     const result = await runWorker({

@@ -1,6 +1,7 @@
 import { z } from "incur";
 
 import { runProviderAnalysis } from "../application/DirectAnalysis.js";
+import { createArtifactExtractionDestination } from "../application/ArtifactExtractionDestination.js";
 import { logCliCommand } from "../cliLogging.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
 import type { Logger } from "../logger.js";
@@ -30,13 +31,6 @@ const registerInventoryCommand = (cli: CliInstance, logger: Logger): void => {
         .boolean()
         .default(false)
         .describe("Approve continuing after recorded integrity mismatches"),
-      maxIntegrityMismatches: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .default(10)
-        .describe("Maximum integrity mismatches to record before stopping"),
       nativeMountApproved: z
         .boolean()
         .default(false)
@@ -45,7 +39,6 @@ const registerInventoryCommand = (cli: CliInstance, logger: Logger): void => {
     alias: {
       integrityPolicy: "integrity-policy",
       integrityContinueApproved: "integrity-continue-approved",
-      maxIntegrityMismatches: "max-integrity-mismatches",
       nativeMountApproved: "native-mount-approved",
     },
     run: ({ args, options }) =>
@@ -56,7 +49,6 @@ const registerInventoryCommand = (cli: CliInstance, logger: Logger): void => {
           {
             integrity_policy: options.integrityPolicy,
             integrity_continue_approved: options.integrityContinueApproved,
-            max_integrity_mismatches: options.maxIntegrityMismatches,
             native_mount_approved: options.nativeMountApproved,
           },
           logger,
@@ -70,7 +62,6 @@ const registerExtractionCommand = (cli: CliInstance, logger: Logger): void => {
     description: "Extract explicitly selected artifact occurrences safely",
     args: z.object({
       path: z.string().describe("Application or package path"),
-      outputRoot: z.string().describe("Absent absolute output root"),
     }),
     options: z.object({
       occurrenceIds: z
@@ -86,8 +77,7 @@ const registerExtractionCommand = (cli: CliInstance, logger: Logger): void => {
           args.path,
           "extract_artifact",
           {
-            approved: true,
-            output_root: args.outputRoot,
+            output_root: createArtifactExtractionDestination(),
             occurrence_ids: options.occurrenceIds,
           },
           logger,

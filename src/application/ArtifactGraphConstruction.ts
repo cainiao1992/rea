@@ -318,18 +318,6 @@ export const classifyArtifactContent = (
   return byPath;
 };
 
-export const pageOf = <Value>(
-  items: readonly Value[],
-  offset: number,
-  limit: number,
-) => ({
-  items: items.slice(offset, offset + limit),
-  offset,
-  limit,
-  total: items.length,
-  next_offset: offset + limit < items.length ? offset + limit : null,
-});
-
 export const toOutputLimits = (limits: ArtifactLimits) => ({
   max_entries: limits.maxEntries,
   max_total_bytes: limits.maxTotalBytes,

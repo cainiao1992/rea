@@ -26,11 +26,8 @@ import type { BinaryTarget } from "../domain/binaryTarget.js";
 import { scanArtifactInventory } from "./ArtifactInventory.js";
 import {
   digestCanonical,
-  pageOf,
   toOutputLimits,
 } from "./ArtifactGraphConstruction.js";
-
-const PAGE_SIZE = 500;
 
 /** Already-approved extraction request from a caller-owned policy boundary. */
 export interface ArtifactExtractionInput {
@@ -38,8 +35,6 @@ export interface ArtifactExtractionInput {
   readonly inputFormat: BinaryTarget["format"];
   readonly outputRoot: string;
   readonly occurrenceIds: readonly string[];
-  readonly offset: number;
-  readonly limit: number;
   readonly limits: ArtifactLimits;
 }
 
@@ -201,8 +196,8 @@ const createExtractionResult = (
       ...extractionSemantic,
       extraction_id: `aex_${digestCanonical(extractionSemantic)}`,
     },
-    output_root: "$OUTPUT_ROOT",
-    artifacts: pageOf(extracted, input.offset, input.limit),
+    output_root: input.outputRoot,
+    artifacts: extracted,
     containment_verified: true,
     cleanup: { attempted: false, verified: true, residual_paths: [] },
     limits: toOutputLimits(input.limits),
@@ -284,10 +279,10 @@ const createReader = async (
 };
 
 const validateSelection = (ids: readonly string[]): void => {
-  if (ids.length === 0 || ids.length > PAGE_SIZE)
+  if (ids.length === 0)
     throw new ArtifactReaderFailure(
       "limit",
-      "Extraction requires 1 to 500 explicitly selected occurrences",
+      "Extraction requires at least one explicitly selected occurrence",
     );
   if (new Set(ids).size !== ids.length)
     throw new ArtifactReaderFailure(

@@ -13,7 +13,7 @@ import {
 } from "../../../../src/artifacts/ArtifactPaths.js";
 import { ArtifactProvider } from "../../../../src/artifacts/ArtifactProvider.js";
 import { ArtifactReaderFailure } from "../../../../src/artifacts/ArtifactReader.js";
-import { artifactExtractionInputSchema } from "../../../../src/contracts/artifactToolContracts.js";
+import { artifactExtractionExecutionSchema } from "../../../../src/contracts/artifactToolContracts.js";
 import { artifactInventoryResultSchema } from "../../../../src/domain/artifactGraph.js";
 import type { BinaryTarget } from "../../../../src/domain/binaryTarget.js";
 import { parseBinaryTarget } from "../../../../src/application/BinaryTargetResolver.js";
@@ -47,10 +47,10 @@ describe("artifact archive safety", () => {
       if (!parsed.ok) return;
       const result = await inventory(parsed.value);
       expect(result.manifest.root_format).toBe(format);
-      expect(result.nodes.items.map(({ kind }) => kind)).toEqual(
+      expect(result.nodes.map(({ kind }) => kind)).toEqual(
         expect.arrayContaining(["javascript", "native-addon"]),
       );
-      const selected = result.occurrences.items.find(
+      const selected = result.occurrences.find(
         ({ logical_path: logicalPath }) => logicalPath === "Assets/main.js",
       );
       expect(selected).toBeDefined();
@@ -60,8 +60,7 @@ describe("artifact archive safety", () => {
         .createClient(parsed.value)
         .execute(
           "extract_artifact",
-          artifactExtractionInputSchema.parse({
-            approved: true,
+          artifactExtractionExecutionSchema.parse({
             output_root: output,
             occurrence_ids: [selected.occurrence_id],
           }),

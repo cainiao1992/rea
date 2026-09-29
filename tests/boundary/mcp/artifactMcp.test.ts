@@ -94,12 +94,9 @@ it.each([
 );
 
 const artifactInventoryResultSchema = z.object({
-  occurrences: z.object({
-    items: z.array(
-      z.object({ logical_path: z.string(), hash_status: z.string() }),
-    ),
-    total: z.number(),
-  }),
+  occurrences: z.array(
+    z.object({ logical_path: z.string(), hash_status: z.string() }),
+  ),
   integrity_contradictions: z.array(
     z.object({
       logical_path: z.string(),
@@ -170,7 +167,7 @@ it("records an approved mismatch, preserves verified siblings, and never reports
       ]),
     );
     expect(inventory.integrity_contradictions).toHaveLength(2);
-    expect(inventory.occurrences.items).toEqual(
+    expect(inventory.occurrences).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           logical_path: "main.js",
@@ -209,27 +206,25 @@ it("records an approved mismatch, preserves verified siblings, and never reports
     const compared = await client.callTool({
       name: "compare_artifacts",
       arguments: {
-        left_evidence_ids: [evidence.evidence_id],
-        right_evidence_ids: [evidence.evidence_id],
+        left_evidence_id: evidence.evidence_id,
+        right_evidence_id: evidence.evidence_id,
       },
     });
     expect(compared.isError).not.toBe(true);
     expect(compactResult(compared.structuredContent).result).toMatchObject({
       status: "contradiction",
       summary: { contradiction: 2 },
-      changes: {
-        items: expect.arrayContaining([
-          expect.objectContaining({
-            logical_path: "main.js",
-            classification: "contradiction",
-            dimensions: ["integrity"],
-          }),
-          expect.objectContaining({
-            logical_path: "second.js",
-            classification: "contradiction",
-          }),
-        ]),
-      },
+      changes: expect.arrayContaining([
+        expect.objectContaining({
+          logical_path: "main.js",
+          classification: "contradiction",
+          dimensions: ["integrity"],
+        }),
+        expect.objectContaining({
+          logical_path: "second.js",
+          classification: "contradiction",
+        }),
+      ]),
     });
   } finally {
     await Promise.allSettled([client.close(), server.close(), session.close()]);
@@ -382,11 +377,9 @@ it("returns full artifact graphs inline and compares changed inventories", async
       z
         .object({
           manifest: z.object({ root_format: z.literal("ipa") }),
-          occurrences: z.object({
-            items: z.array(z.object({ logical_path: z.string() })),
-          }),
+          occurrences: z.array(z.object({ logical_path: z.string() })),
         })
-        .parse(inventoryResult.result).occurrences.items,
+        .parse(inventoryResult.result).occurrences,
     ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -410,8 +403,8 @@ it("returns full artifact graphs inline and compares changed inventories", async
     const compared = await client.callTool({
       name: "compare_artifacts",
       arguments: {
-        left_evidence_ids: [evidence.evidence_id],
-        right_evidence_ids: [changedEvidence.evidence_id],
+        left_evidence_id: evidence.evidence_id,
+        right_evidence_id: changedEvidence.evidence_id,
         unknown_registry_approved: true,
       },
     });

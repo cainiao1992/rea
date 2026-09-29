@@ -26,16 +26,10 @@ describe("artifact inventory policy resolution", () => {
 
   it("admits parsed continuation intent only under operator policy", () => {
     expect(() =>
-      resolveArtifactIntegrityPolicy(
-        { mode: "record-and-continue", maxMismatches: 10 },
-        false,
-      ),
+      resolveArtifactIntegrityPolicy({ mode: "record-and-continue" }, false),
     ).toThrow("requires explicit approval and operator policy");
     expect(
-      resolveArtifactIntegrityPolicy(
-        { mode: "record-and-continue", maxMismatches: 10 },
-        true,
-      ),
-    ).toEqual({ mode: "record-and-continue", maxMismatches: 10 });
+      resolveArtifactIntegrityPolicy({ mode: "record-and-continue" }, true),
+    ).toEqual({ mode: "record-and-continue" });
   });
 });

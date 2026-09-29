@@ -42,10 +42,8 @@ const comparisonDimensionSchema = z.enum([
 
 /** Strict Evidence-backed input for deterministic artifact comparison. */
 export const artifactComparisonInputSchema = z.strictObject({
-  left_evidence_ids: z.array(evidenceIdSchema).min(1).max(100),
-  right_evidence_ids: z.array(evidenceIdSchema).min(1).max(100),
-  offset: z.number().int().min(0).default(0),
-  limit: z.number().int().min(1).max(500).default(100),
+  left_evidence_id: evidenceIdSchema,
+  right_evidence_id: evidenceIdSchema,
   unknown_registry_approved: z
     .literal(true)
     .optional()
@@ -76,7 +74,7 @@ const artifactChangeSchema = z.object({
   evidence_links: z.array(evidenceIdSchema).min(2).max(200),
 });
 
-/** Bounded deterministic artifact comparison with an independently paged delta. */
+/** Deterministic artifact comparison with every change returned inline. */
 export const artifactComparisonResultSchema = z.object({
   status: comparisonStatusSchema,
   left_manifest_id: z.string().regex(/^agm_[a-f0-9]{64}$/u),
@@ -89,13 +87,7 @@ export const artifactComparisonResultSchema = z.object({
     unknown: z.number().int().min(0),
     contradiction: z.number().int().min(0).default(0),
   }),
-  changes: z.object({
-    items: z.array(artifactChangeSchema).max(500),
-    offset: z.number().int().min(0),
-    limit: z.number().int().min(1).max(500),
-    total: z.number().int().min(0),
-    next_offset: z.number().int().min(0).nullable(),
-  }),
+  changes: z.array(artifactChangeSchema),
   limitations: z.array(z.string()),
 });
 
@@ -104,12 +96,10 @@ export type ArtifactComparisonResult = z.infer<
 >;
 type ArtifactChange = z.infer<typeof artifactChangeSchema>;
 
-/** Compare complete inventory pages without treating missing evidence as equality. */
+/** Compare complete inventory evidence without treating missing evidence as equality. */
 export const compareArtifacts = (
   leftEvidence: unknown,
   rightEvidence: unknown,
-  offset: number,
-  limit: number,
 ): ArtifactComparisonResult => {
   const left = parseArtifactInventoryEvidence(leftEvidence);
   const right = parseArtifactInventoryEvidence(rightEvidence);
@@ -140,7 +130,6 @@ export const compareArtifacts = (
     changes,
     leftCovered && rightCovered,
   );
-  const page = changes.slice(offset, offset + limit);
   return artifactComparisonResultSchema.parse({
     status:
       !leftComplete || !rightComplete
@@ -159,14 +148,7 @@ export const compareArtifacts = (
     left_manifest_id: left.inventory.manifest.manifest_id,
     right_manifest_id: right.inventory.manifest.manifest_id,
     summary,
-    changes: {
-      items: page,
-      offset,
-      limit,
-      total: changes.length,
-      next_offset:
-        offset + page.length < changes.length ? offset + page.length : null,
-    },
+    changes,
     limitations: [...new Set(limitations)].sort((a, b) => a.localeCompare(b)),
   });
 };
@@ -400,10 +382,10 @@ interface RelationProjection {
   /** Logical parent is stable across graph-root ID changes. */
   readonly parent_logical_path: string | null;
   readonly child_artifact_id: string;
-  readonly relation: ArtifactInventoryResult["edges"]["items"][number]["relation"];
+  readonly relation: ArtifactInventoryResult["edges"][number]["relation"];
   readonly logical_path: string | null;
   /** Producer is semantic provenance; edge ordinal is presentation order. */
-  readonly producer: ArtifactInventoryResult["edges"]["items"][number]["producer"];
+  readonly producer: ArtifactInventoryResult["edges"][number]["producer"];
 }
 
 const summarize = (

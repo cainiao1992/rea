@@ -231,10 +231,10 @@ const allObservations = (
     inventory.manifest,
     evidenceId,
   ),
-  ...inventory.nodes.items.map((node) =>
+  ...inventory.nodes.map((node) =>
     observation("artifact", node.artifact_id, node, evidenceId),
   ),
-  ...inventory.occurrences.items.map((occurrence) =>
+  ...inventory.occurrences.map((occurrence) =>
     observation("occurrence", occurrence.occurrence_id, occurrence, evidenceId),
   ),
   ...inventory.integrity_contradictions.map((value) =>
@@ -261,7 +261,7 @@ const allRelationships = (
   inventory: ArtifactInventoryResult,
   evidenceId: string,
 ): ArtifactInspectionResult["derived_relationships"] =>
-  inventory.edges.items.map((edge) => {
+  inventory.edges.map((edge) => {
     const semantic = {
       relation: edge.relation,
       source_artifact_id: edge.parent_artifact_id,
@@ -412,17 +412,11 @@ const branch = (
 };
 
 const inspectionCoverage = (
-  inventory: ArtifactInventoryResult,
+  _inventory: ArtifactInventoryResult,
   omissions: Readonly<Record<string, number>>,
 ): ArtifactInspectionResult["coverage"]["status"] => {
   if (Object.values(omissions).some((count) => count > 0)) return "truncated";
-  return [
-    inventory.nodes.next_offset,
-    inventory.occurrences.next_offset,
-    inventory.edges.next_offset,
-  ].some((offset) => offset !== null)
-    ? "partial"
-    : "complete-within-substeps";
+  return "complete-within-substeps";
 };
 
 const digestCanonical = (value: unknown): string => {

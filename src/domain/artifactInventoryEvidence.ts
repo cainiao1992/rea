@@ -16,7 +16,7 @@ export interface InventorySet {
   readonly manifest: ArtifactInventoryResult["manifest"];
   readonly nodes: readonly ArtifactNode[];
   readonly occurrences: readonly ArtifactOccurrence[];
-  readonly edges: readonly ArtifactInventoryResult["edges"]["items"][number][];
+  readonly edges: readonly ArtifactInventoryResult["edges"][number][];
   readonly integrityContradictions: readonly IntegrityContradiction[];
   readonly limitations: readonly string[];
   readonly complete: boolean;
@@ -56,22 +56,22 @@ export const parseArtifactInventoryEvidence = (
 
 const validateInventoryPage = (inventory: ArtifactInventoryResult): void => {
   assertUnique(
-    inventory.nodes.items.map(({ artifact_id: id }) => id),
+    inventory.nodes.map(({ artifact_id: id }) => id),
     "node ID",
   );
   assertUnique(
-    inventory.occurrences.items.map(({ occurrence_id: id }) => id),
+    inventory.occurrences.map(({ occurrence_id: id }) => id),
     "occurrence ID",
   );
   assertUnique(
-    inventory.occurrences.items.map(({ logical_path: path }) => path),
+    inventory.occurrences.map(({ logical_path: path }) => path),
     "logical path",
   );
   assertUnique(
-    inventory.edges.items.map(({ edge_id: id }) => id),
+    inventory.edges.map(({ edge_id: id }) => id),
     "edge ID",
   );
-  for (const node of inventory.nodes.items)
+  for (const node of inventory.nodes)
     if (node.artifact_id !== `art_${digestCanonical({ sha256: node.sha256 })}`)
       throw new TypeError("Artifact node ID is not content-addressed");
 };
@@ -91,10 +91,7 @@ const assembleInventorySet = (
   const nodes = new Map<string, ArtifactNode>();
   const occurrences = new Map<string, ArtifactOccurrence>();
   const paths = new Map<string, ArtifactOccurrence>();
-  const edges = new Map<
-    string,
-    ArtifactInventoryResult["edges"]["items"][number]
-  >();
+  const edges = new Map<string, ArtifactInventoryResult["edges"][number]>();
   for (const page of pages) {
     if (canonicalJson(page.inventory.manifest) !== manifestJson)
       throw new TypeError("Artifact inventory pages do not share one manifest");
@@ -105,9 +102,9 @@ const assembleInventorySet = (
       throw new TypeError(
         "Artifact inventory pages do not share integrity contradictions",
       );
-    for (const node of page.inventory.nodes.items)
+    for (const node of page.inventory.nodes)
       mergeExact(nodes, node.artifact_id, node, "node");
-    for (const occurrence of page.inventory.occurrences.items) {
+    for (const occurrence of page.inventory.occurrences) {
       mergeExact(
         occurrences,
         occurrence.occurrence_id,
@@ -116,7 +113,7 @@ const assembleInventorySet = (
       );
       mergeExact(paths, occurrence.logical_path, occurrence, "logical path");
     }
-    for (const edge of page.inventory.edges.items)
+    for (const edge of page.inventory.edges)
       mergeExact(edges, edge.edge_id, edge, "edge");
   }
   const inventory = orderedInventory(first.inventory, pages, {
@@ -136,7 +133,7 @@ const orderedInventory = (
     readonly occurrences: ReadonlyMap<string, ArtifactOccurrence>;
     readonly edges: ReadonlyMap<
       string,
-      ArtifactInventoryResult["edges"]["items"][number]
+      ArtifactInventoryResult["edges"][number]
     >;
   },
 ): InventorySet => {
@@ -242,7 +239,7 @@ const validateOccurrence = (
 };
 
 const validateEdge = (
-  edge: ArtifactInventoryResult["edges"]["items"][number],
+  edge: ArtifactInventoryResult["edges"][number],
   nodeIds: ReadonlySet<string>,
   occurrenceIds: ReadonlySet<string>,
 ): void => {

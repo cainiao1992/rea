@@ -28,8 +28,8 @@ describe("artifact archive inventory", () => {
     expect(parsed.ok && parsed.value.format).toBe("apk");
     if (!parsed.ok) return;
     const zipResult = await inventory(parsed.value);
-    expect(zipResult.occurrences.total).toBe(3);
-    expect(zipResult.nodes.items.map(({ kind }) => kind)).toEqual(
+    expect(zipResult.occurrences.length).toBe(3);
+    expect(zipResult.nodes.map(({ kind }) => kind)).toEqual(
       expect.arrayContaining(["javascript", "dynamic-library"]),
     );
     const cliEvidence = parseEvidence(
@@ -86,7 +86,7 @@ describe("artifact archive inventory", () => {
     const asarPath = join(root, "app.asar");
     await createPackage(source, asarPath);
     const asarResult = await inventory(target(asarPath, "asar"));
-    expect(asarResult.occurrences.items).toEqual(
+    expect(asarResult.occurrences).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ logical_path: "main.js" }),
       ]),
@@ -95,7 +95,7 @@ describe("artifact archive inventory", () => {
     const unpackedPath = join(root, "unpacked.asar");
     await createPackageWithOptions(source, unpackedPath, { unpack: "*.js" });
     const unpackedResult = await inventory(target(unpackedPath, "asar"));
-    expect(unpackedResult.occurrences.items).toEqual(
+    expect(unpackedResult.occurrences).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           logical_path: "main.js",

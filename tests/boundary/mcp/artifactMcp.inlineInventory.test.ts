@@ -46,17 +46,14 @@ it("returns every artifact occurrence in one MCP call", async () => {
     );
     const inventory = z
       .object({
-        occurrences: z.object({
-          items: z.array(z.object({ logical_path: z.string() })),
-          total: z.number(),
-        }),
+        occurrences: z.array(z.object({ logical_path: z.string() })),
       })
       .parse(
         z.object({ result: z.unknown() }).parse(result.structuredContent)
           .result,
       );
-    expect(inventory.occurrences.items).toHaveLength(fileCount + 1);
-    expect(inventory.occurrences.total).toBe(fileCount + 1);
+    expect(inventory.occurrences).toHaveLength(fileCount + 1);
+    expect(inventory.occurrences.length).toBe(fileCount + 1);
   } finally {
     await Promise.allSettled([client.close(), server.close(), session.close()]);
   }

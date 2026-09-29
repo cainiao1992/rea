@@ -179,11 +179,6 @@ const digestArtifactEntry = async (
           unpacked: entry.unpacked,
         },
       );
-    if (context.pendingContradictions.length >= context.integrity.maxMismatches)
-      throw new ArtifactReaderFailure(
-        "limit",
-        "Artifact integrity mismatch limit exceeded",
-      );
     context.pendingContradictions.push({
       logicalPath,
       declaredSha256: entry.declaredSha256,

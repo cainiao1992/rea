@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import { inventoryArtifact } from "../../../src/application/ArtifactInventory.js";
+import { artifactInventoryResultSchema } from "../../../src/domain/artifactGraph.js";
 import {
   artifactComparisonResultSchema,
   compareArtifacts,
@@ -27,23 +28,8 @@ const PROVIDER = {
   version: "1",
 } as const;
 
-const observe = async (
-  path: string,
-  page: {
-    readonly nodeOffset?: number;
-    readonly nodeLimit?: number;
-    readonly occurrenceOffset?: number;
-    readonly edgeOffset?: number;
-  } = {},
-) => {
-  const inventory = await inventoryArtifact(path, LIMITS, {
-    nodeOffset: page.nodeOffset ?? 0,
-    nodeLimit: page.nodeLimit ?? 500,
-    occurrenceOffset: page.occurrenceOffset ?? 0,
-    occurrenceLimit: 500,
-    edgeOffset: page.edgeOffset ?? 0,
-    edgeLimit: 500,
-  });
+const observe = async (path: string) => {
+  const inventory = await inventoryArtifact(path, LIMITS);
   return createEvidence(
     {
       path,
@@ -76,20 +62,21 @@ describe("artifact comparison", () => {
     ]);
     const left = await observe(leftPath);
     const right = await observe(rightPath);
-    const first = compareArtifacts(left, right, 0, 1);
-    const second = compareArtifacts(left, right, 0, 1);
+    const first = compareArtifacts(left, right);
+    const second = compareArtifacts(left, right);
     expect(first).toEqual(second);
     expect(artifactComparisonResultSchema.parse(first)).toMatchObject({
       status: "changed",
       summary: { added: 1, changed: 2, unknown: 0 },
-      changes: { limit: 1, total: 3, next_offset: 1 },
+      changes: expect.arrayContaining([
+        expect.objectContaining({ logical_path: "added.txt" }),
+      ]),
     });
-    expect(first.changes.items[0]?.evidence_links).toEqual([
+    expect(first.changes[0]?.evidence_links).toEqual([
       left.evidence_id,
       right.evidence_id,
     ]);
-    const all = compareArtifacts(left, right, 0, 500);
-    expect(all.changes.items).toEqual(
+    expect(first.changes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           logical_path: "added.txt",
@@ -107,8 +94,30 @@ describe("artifact comparison", () => {
   it("reports incomplete inventory as truncated, never unchanged", async () => {
     const root = await createTestTempDirectory("rea-artifact-truncated-");
     await writeFile(join(root, "one.txt"), "one");
-    const incomplete = await observe(root, { nodeLimit: 1 });
-    const comparison = compareArtifacts(incomplete, incomplete, 0, 100);
+    const complete = await observe(root);
+    const completeInventory = artifactInventoryResultSchema.parse(
+      complete.normalized_result,
+    );
+    const incomplete = createEvidence(
+      {
+        path: root,
+        sha256: complete.subject?.digest.sha256 ?? "0".repeat(64),
+        format: "directory",
+      },
+      PROVIDER,
+      {
+        operation: "inventory_artifact",
+        parameters: {},
+        result: jsonValueSchema.parse({
+          ...completeInventory,
+          nodes: [],
+        }),
+        confidence: "observed",
+        authority: "shipped-artifact",
+        limitations: ["Inventory node observations are unavailable."],
+      },
+    );
+    const comparison = compareArtifacts(incomplete, incomplete);
     expect(comparison).toMatchObject({
       status: "truncated",
       summary: { unchanged: 0, unknown: 2 },
@@ -118,7 +127,7 @@ describe("artifact comparison", () => {
     );
   });
 
-  it("assembles bounded page sets for graphs larger than one page", async () => {
+  it("compares every graph member for inventories larger than 500 entries", async () => {
     const root = await createTestTempDirectory("rea-artifact-pages-");
     await Promise.all(
       Array.from({ length: 501 }, async (_, index) =>
@@ -128,18 +137,18 @@ describe("artifact comparison", () => {
         ),
       ),
     );
-    const pages = await Promise.all([
-      observe(root),
-      observe(root, {
-        nodeOffset: 500,
-        occurrenceOffset: 500,
-        edgeOffset: 500,
-      }),
-    ]);
-    expect(compareArtifacts(pages, pages, 0, 100)).toMatchObject({
+    const complete = await observe(root);
+    expect(complete.normalized_result).toMatchObject({
+      nodes: expect.arrayContaining([
+        expect.objectContaining({ kind: expect.any(String) }),
+      ]),
+      occurrences: expect.any(Array),
+      edges: expect.any(Array),
+    });
+    expect(compareArtifacts(complete, complete)).toMatchObject({
       status: "unchanged",
       summary: { unchanged: 502, unknown: 0 },
-      changes: { total: 0 },
+      changes: [],
     });
   }, 15_000);
 
@@ -147,19 +156,14 @@ describe("artifact comparison", () => {
     const root = await createTestTempDirectory("rea-artifact-invalid-");
     const evidence = await observe(root);
     expect(() =>
-      compareArtifacts(
-        { ...evidence, operation: "binary_overview" },
-        evidence,
-        0,
-        10,
-      ),
+      compareArtifacts({ ...evidence, operation: "binary_overview" }, evidence),
     ).toThrow(/identifier/u);
     const wrongOperation = createEvidence(undefined, PROVIDER, {
       operation: "binary_overview",
       parameters: {},
       result: evidence.normalized_result,
     });
-    expect(() => compareArtifacts(wrongOperation, evidence, 0, 10)).toThrow(
+    expect(() => compareArtifacts(wrongOperation, evidence)).toThrow(
       /inventory_artifact/u,
     );
     const mismatchedSubject = createEvidence(
@@ -171,7 +175,7 @@ describe("artifact comparison", () => {
         result: evidence.normalized_result,
       },
     );
-    expect(() => compareArtifacts(mismatchedSubject, evidence, 0, 10)).toThrow(
+    expect(() => compareArtifacts(mismatchedSubject, evidence)).toThrow(
       /root digest/u,
     );
   });

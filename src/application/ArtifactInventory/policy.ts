@@ -7,10 +7,7 @@ import type {
 /** Parsed caller intent for integrity mismatch handling. */
 export type ArtifactIntegrityIntent =
   | { readonly mode: "fail" }
-  | {
-      readonly mode: "record-and-continue";
-      readonly maxMismatches: number;
-    };
+  | { readonly mode: "record-and-continue" };
 
 /** Resolve caller approval and operator policy before native reader selection. */
 export const resolveNativeMountPolicy = (

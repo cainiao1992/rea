@@ -4,15 +4,6 @@ import type {
   IntegrityContradiction,
 } from "../../domain/artifactGraph.js";
 
-export interface InventoryPageInput {
-  readonly nodeOffset: number;
-  readonly nodeLimit: number;
-  readonly occurrenceOffset: number;
-  readonly occurrenceLimit: number;
-  readonly edgeOffset: number;
-  readonly edgeLimit: number;
-}
-
 /** Resolved native mount authority admitted to the artifact reader. */
 export type ArtifactNativeMountPolicy =
   | { readonly status: "disabled" }
@@ -25,10 +16,7 @@ export const NATIVE_MOUNT_DISABLED: ArtifactNativeMountPolicy = {
 /** Resolved integrity behavior admitted to the artifact scanner. */
 export type ArtifactIntegrityPolicy =
   | { readonly mode: "fail" }
-  | {
-      readonly mode: "record-and-continue";
-      readonly maxMismatches: number;
-    };
+  | { readonly mode: "record-and-continue" };
 
 export const STRICT_INTEGRITY_POLICY: ArtifactIntegrityPolicy = {
   mode: "fail",
@@ -45,8 +33,8 @@ export interface ArtifactInventoryOptions {
 export interface ArtifactInventorySnapshot {
   readonly manifest: ArtifactInventoryResult["manifest"];
   readonly nodes: readonly ArtifactNode[];
-  readonly occurrences: ArtifactInventoryResult["occurrences"]["items"];
-  readonly edges: ArtifactInventoryResult["edges"]["items"];
+  readonly occurrences: ArtifactInventoryResult["occurrences"];
+  readonly edges: ArtifactInventoryResult["edges"];
   readonly limits: ArtifactInventoryResult["limits"];
   readonly provenance: ReadonlyArray<
     ArtifactInventoryResult["provenance"][number]

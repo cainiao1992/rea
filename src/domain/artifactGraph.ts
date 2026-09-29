@@ -182,28 +182,15 @@ const artifactGraphManifestSchema = z.object({
   edge_count: z.number().int().min(0),
 });
 
-/** Independently bounded offset page used for deterministic graph traversal. */
-const artifactPageSchema = <Item extends z.ZodType>(item: Item) =>
-  z.object({
-    items: z.array(item),
-    offset: z.number().int().min(0),
-    limit: z.number().int().min(1),
-    total: z.number().int().min(0),
-    next_offset: z.number().int().min(0).nullable(),
-  });
-
-/** Inventory observation containing stable manifest identity and bounded pages. */
+/** Complete inventory observation containing the stable artifact graph. */
 export const artifactInventoryResultSchema = z.object({
   manifest: artifactGraphManifestSchema,
-  nodes: artifactPageSchema(artifactNodeSchema),
-  occurrences: artifactPageSchema(artifactOccurrenceSchema),
-  edges: artifactPageSchema(artifactEdgeSchema),
+  nodes: z.array(artifactNodeSchema),
+  occurrences: z.array(artifactOccurrenceSchema),
+  edges: z.array(artifactEdgeSchema),
   limits: artifactTraversalLimitsSchema,
-  provenance: z.array(artifactCommandSchema).max(256),
-  integrity_contradictions: z
-    .array(integrityContradictionSchema)
-    .max(100)
-    .default([]),
+  provenance: z.array(artifactCommandSchema),
+  integrity_contradictions: z.array(integrityContradictionSchema).default([]),
   limitations: z.array(z.string()),
 });
 
@@ -220,7 +207,7 @@ const extractedArtifactSchema = z.object({
 const artifactExtractionManifestSchema = z.object({
   extraction_id: extractionIdSchema,
   source_manifest_id: manifestIdSchema,
-  selected_occurrence_ids: z.array(occurrenceIdSchema).min(1).max(500),
+  selected_occurrence_ids: z.array(occurrenceIdSchema).min(1),
   files_sha256: sha256Schema,
   output_root_alias: z.literal("$OUTPUT_ROOT"),
 });
@@ -230,15 +217,15 @@ export const artifactExtractionResultSchema = z.object({
   manifest: artifactGraphManifestSchema,
   extraction_manifest: artifactExtractionManifestSchema,
   output_root: z.string().min(1),
-  artifacts: artifactPageSchema(extractedArtifactSchema),
+  artifacts: z.array(extractedArtifactSchema),
   containment_verified: z.boolean(),
   cleanup: z.object({
     attempted: z.boolean(),
     verified: z.boolean(),
-    residual_paths: z.array(boundedRelativePathSchema).max(500),
+    residual_paths: z.array(boundedRelativePathSchema),
   }),
   limits: artifactTraversalLimitsSchema,
-  provenance: z.array(artifactCommandSchema).max(256),
+  provenance: z.array(artifactCommandSchema),
   limitations: z.array(z.string()),
 });
 

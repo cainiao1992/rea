@@ -13,7 +13,7 @@ import {
   ARTIFACT_TOOL_CONTRACTS,
   artifactInspectionInputSchema,
   artifactInventoryInputSchema,
-  artifactExtractionInputSchema,
+  artifactExtractionExecutionSchema,
   type ArtifactToolName,
 } from "../contracts/artifactToolContracts.js";
 import type { BinaryTarget } from "../domain/binaryTarget.js";
@@ -52,11 +52,6 @@ export class ArtifactProvider implements AnalysisProvider {
         operation: contract.name,
         available: true as const,
         reason: null,
-        pagination:
-          contract.name === "inspect_artifact"
-            ? ("none" as const)
-            : ("offset" as const),
-        exhaustive: false,
         effects: Object.freeze({
           mutatesArtifact: false,
           launchesProcess: true,
@@ -65,11 +60,6 @@ export class ArtifactProvider implements AnalysisProvider {
           mayWriteFilesystem: contract.name === "extract_artifact",
           changesPermissions: false,
           requiresRoot: false,
-        }),
-        limits: Object.freeze({
-          maxResults: 500,
-          maxPayloadBytes: 4 * 1024 * 1024,
-          timeoutMs: 120_000,
         }),
         limitations: Object.freeze([
           "DMG child inventory is macOS-only and requires per-call approval plus operator policy; PKG remains root-hash-only.",
@@ -124,15 +114,13 @@ class ArtifactClient implements AnalysisClient {
         return inspected;
       }
       if (operation === "extract_artifact") {
-        const parsed = artifactExtractionInputSchema.parse(parameters);
+        const parsed = artifactExtractionExecutionSchema.parse(parameters);
         const result = await extractArtifact(
           {
             inputPath: this.target.sourcePath ?? this.target.path,
             inputFormat: this.target.format,
             outputRoot: parsed.output_root,
             occurrenceIds: parsed.occurrence_ids,
-            offset: 0,
-            limit: parsed.occurrence_ids.length,
             limits: DEFAULT_ARTIFACT_LIMITS,
           },
           options?.signal,
@@ -145,12 +133,10 @@ class ArtifactClient implements AnalysisClient {
               this.target.sourcePath ?? this.target.path,
               result.manifest,
             ),
-            locations: result.artifacts.items.map(
-              ({ relative_path: path }) => ({
-                kind: "artifact-path" as const,
-                path,
-              }),
-            ),
+            locations: result.artifacts.map(({ relative_path: path }) => ({
+              kind: "artifact-path" as const,
+              path,
+            })),
           }),
         );
       }
@@ -164,7 +150,7 @@ class ArtifactClient implements AnalysisClient {
             this.target.sourcePath ?? this.target.path,
             result.manifest,
           ),
-          locations: result.occurrences.items.map(({ logical_path: path }) => ({
+          locations: result.occurrences.map(({ logical_path: path }) => ({
             kind: "artifact-path" as const,
             path,
           })),
@@ -188,7 +174,6 @@ class ArtifactClient implements AnalysisClient {
       native_mount_approved: parsed.native_mount_approved,
       integrity_policy: parsed.integrity_policy,
       integrity_continue_approved: parsed.integrity_continue_approved,
-      max_integrity_mismatches: parsed.max_integrity_mismatches,
     });
     await options?.progress?.report({
       phase: "inspect_artifact.inventory",
@@ -201,12 +186,10 @@ class ArtifactClient implements AnalysisClient {
       this.target.sourcePath ?? this.target.path,
       inventory.manifest,
     );
-    const locations = inventory.occurrences.items.map(
-      ({ logical_path: path }) => ({
-        kind: "artifact-path" as const,
-        path,
-      }),
-    );
+    const locations = inventory.occurrences.map(({ logical_path: path }) => ({
+      kind: "artifact-path" as const,
+      path,
+    }));
     const inventoryEvidence = createEvidence(subject, IDENTITY, {
       operation: "inventory_artifact",
       parameters: inventoryParameters,
@@ -237,7 +220,6 @@ class ArtifactClient implements AnalysisClient {
       readonly native_mount_approved: boolean;
       readonly integrity_policy: "fail" | "record-and-continue";
       readonly integrity_continue_approved: boolean;
-      readonly max_integrity_mismatches: number;
     },
     options?: ExecutionOptions,
   ) {
@@ -255,7 +237,6 @@ class ArtifactClient implements AnalysisClient {
             ? { mode: "fail" }
             : {
                 mode: parsed.integrity_policy,
-                maxMismatches: parsed.max_integrity_mismatches,
               },
           this.integrityContinueEnabled,
         ),

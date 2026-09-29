@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 
 import { ArtifactProvider } from "../../../../src/artifacts/ArtifactProvider.js";
-import { artifactExtractionInputSchema } from "../../../../src/contracts/artifactToolContracts.js";
+import { artifactExtractionExecutionSchema } from "../../../../src/contracts/artifactToolContracts.js";
 import {
   artifactExtractionResultSchema,
   artifactInventoryResultSchema,
@@ -22,7 +22,7 @@ describe("artifact extraction", () => {
     await writeFile(join(source, "assets", "ignored.js"), "ignored();\n");
     const targetValue = target(source, "directory");
     const graph = await inventory(targetValue);
-    const selected = graph.occurrences.items.find(
+    const selected = graph.occurrences.find(
       ({ logical_path: path }) => path === "assets/selected.js",
     );
     expect(selected).toBeDefined();
@@ -34,8 +34,7 @@ describe("artifact extraction", () => {
       .createClient(targetValue)
       .execute(
         "extract_artifact",
-        artifactExtractionInputSchema.parse({
-          approved: true,
+        artifactExtractionExecutionSchema.parse({
           output_root: cancelledOutput,
           occurrence_ids: [selected.occurrence_id],
         }),
@@ -51,8 +50,7 @@ describe("artifact extraction", () => {
       .createClient(targetValue)
       .execute(
         "extract_artifact",
-        artifactExtractionInputSchema.parse({
-          approved: true,
+        artifactExtractionExecutionSchema.parse({
           output_root: output,
           occurrence_ids: [selected.occurrence_id],
         }),
@@ -63,9 +61,11 @@ describe("artifact extraction", () => {
       result.value.result,
     );
     expect(firstExtraction).toMatchObject({
-      output_root: "$OUTPUT_ROOT",
+      output_root: output,
       containment_verified: true,
-      artifacts: { total: 1 },
+      artifacts: expect.arrayContaining([
+        expect.objectContaining({ relative_path: "assets/selected.js" }),
+      ]),
       extraction_manifest: { output_root_alias: "$OUTPUT_ROOT" },
     });
     expect(await readFile(join(output, "assets", "selected.js"), "utf8")).toBe(
@@ -80,8 +80,7 @@ describe("artifact extraction", () => {
       .createClient(targetValue)
       .execute(
         "extract_artifact",
-        artifactExtractionInputSchema.parse({
-          approved: true,
+        artifactExtractionExecutionSchema.parse({
           output_root: relocatedOutput,
           occurrence_ids: [selected.occurrence_id],
         }),
@@ -97,8 +96,7 @@ describe("artifact extraction", () => {
       .createClient(targetValue)
       .execute(
         "extract_artifact",
-        artifactExtractionInputSchema.parse({
-          approved: true,
+        artifactExtractionExecutionSchema.parse({
           output_root: output,
           occurrence_ids: [selected.occurrence_id],
         }),

@@ -41,7 +41,7 @@ describe("artifact directory inventory", () => {
     const left = artifactInventoryResultSchema.parse(first.value.result);
     const right = artifactInventoryResultSchema.parse(second.value.result);
     expect(left.manifest).toEqual(right.manifest);
-    expect(left.nodes.items.map(({ kind }) => kind)).toEqual(
+    expect(left.nodes.map(({ kind }) => kind)).toEqual(
       expect.arrayContaining([
         "executable",
         "framework",
@@ -50,17 +50,17 @@ describe("artifact directory inventory", () => {
       ]),
     );
     expect(
-      left.occurrences.items.find(({ logical_path: path }) =>
+      left.occurrences.find(({ logical_path: path }) =>
         path.endsWith("outside"),
       ),
     ).toMatchObject({ artifact_id: null, entry_kind: "symlink" });
-    const script = left.occurrences.items.find(({ logical_path: path }) =>
+    const script = left.occurrences.find(({ logical_path: path }) =>
       path.endsWith("main.js"),
     );
-    const sourceMap = left.occurrences.items.find(({ logical_path: path }) =>
+    const sourceMap = left.occurrences.find(({ logical_path: path }) =>
       path.endsWith("main.js.MAP"),
     );
-    expect(left.edges.items).toEqual(
+    expect(left.edges).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           relation: "maps-source",

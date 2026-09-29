@@ -7,30 +7,14 @@ import {
 } from "./browserObservation.js";
 
 export const BROWSER_SCENARIO_LIMITS = {
-  actions: 128,
-  secrets: 64,
-  storageEntries: 512,
-  replayRoutes: 256,
-  durationMs: 300_000,
   actionTimeoutMs: 60_000,
 } as const;
 
-/** Fixed internal budgets for provider-owned scenario capture. */
+/** Fixed internal deadlines for provider-owned scenario capture. */
 export interface BrowserScenarioCaptureLimits {
   readonly max_duration_ms: number;
   readonly action_timeout_ms: number;
   readonly navigation_timeout_ms: number;
-  readonly max_events: number;
-  readonly max_frames: number;
-  readonly max_workers: number;
-  readonly max_popups: number;
-  readonly max_websockets: number;
-  readonly max_dom_nodes: number;
-  readonly max_accessibility_nodes: number;
-  readonly max_screenshots: number;
-  readonly max_screenshot_bytes: number;
-  readonly max_storage_entries: number;
-  readonly max_total_metadata_bytes: number;
 }
 
 export const BROWSER_SCENARIO_CAPTURE_LIMITS: BrowserScenarioCaptureLimits =
@@ -38,17 +22,6 @@ export const BROWSER_SCENARIO_CAPTURE_LIMITS: BrowserScenarioCaptureLimits =
     max_duration_ms: 60_000,
     action_timeout_ms: 5_000,
     navigation_timeout_ms: 10_000,
-    max_events: 2_000,
-    max_frames: 100,
-    max_workers: 20,
-    max_popups: 10,
-    max_websockets: 100,
-    max_dom_nodes: 10_000,
-    max_accessibility_nodes: 10_000,
-    max_screenshots: 16,
-    max_screenshot_bytes: 4 * 1_024 * 1_024,
-    max_storage_entries: 256,
-    max_total_metadata_bytes: 4 * 1_024 * 1_024,
   });
 
 export const scenarioIdentifierSchema = z
@@ -117,7 +90,7 @@ const queryEntrySchema = z.strictObject({
 /** URL whose values remain explicit public literals or declared secret references. */
 export const browserScenarioUrlSchema = z.strictObject({
   url: browserScenarioBaseUrlSchema,
-  query: z.array(queryEntrySchema).max(64).default([]),
+  query: z.array(queryEntrySchema).default([]),
 });
 export type BrowserScenarioUrl = z.infer<typeof browserScenarioUrlSchema>;
 
@@ -290,25 +263,22 @@ export const browserScenarioStorageSchema = z
           same_site: z.enum(["Strict", "Lax", "None"]),
         }),
       )
-      .max(128)
       .default([]),
     local_storage: z
       .array(
         z.strictObject({
           origin: browserOriginSchema,
-          entries: z.array(storageEntrySchema).max(128),
+          entries: z.array(storageEntrySchema),
         }),
       )
-      .max(32)
       .default([]),
     session_storage: z
       .array(
         z.strictObject({
           origin: browserOriginSchema,
-          entries: z.array(storageEntrySchema).max(128),
+          entries: z.array(storageEntrySchema),
         }),
       )
-      .max(32)
       .default([]),
   })
   .default({ cookies: [], local_storage: [], session_storage: [] })
@@ -332,7 +302,7 @@ const replayResponseSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("response"),
     status: z.number().int().min(100).max(599),
-    headers: z.array(replayHeaderSchema).max(64).default([]),
+    headers: z.array(replayHeaderSchema).default([]),
     body: browserScenarioValueSchema.optional(),
   }),
   z.strictObject({
@@ -361,10 +331,7 @@ export const browserScenarioRequestReplaySchema = z
     z.strictObject({
       mode: z.literal("exact"),
       unmatched: z.enum(["abort", "passthrough-approved-origins"]),
-      routes: z
-        .array(replayRouteSchema)
-        .min(1)
-        .max(BROWSER_SCENARIO_LIMITS.replayRoutes),
+      routes: z.array(replayRouteSchema).min(1),
     }),
   ])
   .default({ mode: "disabled" })
@@ -386,7 +353,7 @@ const REQUIRED_REDACTED_HEADERS = [
   "set-cookie",
 ] as const;
 
-const normalizedNames = (maximum: number) =>
+const normalizedNames = () =>
   z
     .array(
       z
@@ -396,7 +363,6 @@ const normalizedNames = (maximum: number) =>
         .max(256)
         .transform((value) => value.toLowerCase()),
     )
-    .max(maximum)
     .transform((values) => [...new Set(values)].sort());
 
 export const browserScenarioRedactionSchema = z
@@ -404,8 +370,8 @@ export const browserScenarioRedactionSchema = z
     secret_values: z
       .literal("replace-with-secret-reference")
       .default("replace-with-secret-reference"),
-    query_parameter_names: normalizedNames(128).default([]),
-    header_names: normalizedNames(128).default([...REQUIRED_REDACTED_HEADERS]),
+    query_parameter_names: normalizedNames().default([]),
+    header_names: normalizedNames().default([...REQUIRED_REDACTED_HEADERS]),
   })
   .superRefine(({ header_names: names }, context) => {
     for (const required of REQUIRED_REDACTED_HEADERS)

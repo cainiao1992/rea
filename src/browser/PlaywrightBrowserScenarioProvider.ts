@@ -30,7 +30,6 @@ import type {
   BrowserScenarioSessionFactory,
   BrowserScenarioSessionPort,
 } from "./BrowserScenarioSessionPort.js";
-import { BrowserScenarioCaptureBudget } from "./PlaywrightScenarioArtifacts.js";
 
 const OPERATION = "capture_browser_scenario" as const;
 let defaultFactory: Promise<BrowserScenarioSessionFactory> | undefined;
@@ -134,16 +133,13 @@ const createStep = (
 const initialStep = async (input: {
   readonly session: BrowserScenarioSessionPort;
   readonly scenario: BrowserScenario;
-  readonly budget: BrowserScenarioCaptureBudget;
   readonly elapsedMs: number;
   readonly maximumTimeoutMs: number;
   readonly signal: AbortSignal | undefined;
 }): Promise<BrowserScenarioStep> => {
-  const { session, scenario, budget, elapsedMs, maximumTimeoutMs, signal } =
-    input;
+  const { session, scenario, elapsedMs, maximumTimeoutMs, signal } = input;
   const artifacts = await session.capture(
     requestedForStep(scenario, 0),
-    budget,
     maximumTimeoutMs,
     signal,
   );
@@ -165,7 +161,6 @@ const initialStep = async (input: {
 const executeStep = async (input: {
   readonly session: BrowserScenarioSessionPort;
   readonly scenario: BrowserScenario;
-  readonly budget: BrowserScenarioCaptureBudget;
   readonly action: BrowserScenarioAction;
   readonly stepIndex: number;
   readonly startedAt: number;
@@ -175,7 +170,6 @@ const executeStep = async (input: {
   const {
     session,
     scenario,
-    budget,
     action,
     stepIndex,
     startedAt,
@@ -234,7 +228,7 @@ const executeStep = async (input: {
             ? "scenario request cancelled"
             : "scenario duration limit reached",
         )
-      : await session.capture(requested, budget, remaining, signal);
+      : await session.capture(requested, remaining, signal);
   return createStep({
     stepIndex,
     stepId: action.step_id,
@@ -260,7 +254,6 @@ const globalCompleteness = (
   const truncated = steps.flatMap(
     ({ completeness }) => completeness.truncated_sections,
   );
-  truncated.push(...session.eventTruncationSections());
   if (session.mode === "connect") missing.push("events");
   return classifyBrowserScenarioCompleteness(missing, truncated);
 };
@@ -273,13 +266,8 @@ const runScenario = async (
   if (options.signal?.aborted === true)
     throw new BrowserObservationError(OPERATION, "cancelled");
   const startedAt = Date.now();
-  const budget = new BrowserScenarioCaptureBudget(
-    scenario.limits.max_screenshots,
-    scenario.limits.max_total_metadata_bytes,
-  );
   const session = await factory.open(scenario, {
     ...(options.signal === undefined ? {} : { signal: options.signal }),
-    budget,
     deadlineAt: startedAt + scenario.limits.max_duration_ms,
   });
   const steps: BrowserScenarioStep[] = [];
@@ -289,7 +277,6 @@ const runScenario = async (
       await initialStep({
         session,
         scenario,
-        budget,
         elapsedMs: Date.now() - startedAt,
         maximumTimeoutMs:
           scenario.limits.max_duration_ms - (Date.now() - startedAt),
@@ -301,7 +288,6 @@ const runScenario = async (
       const step = await executeStep({
         session,
         scenario,
-        budget,
         action,
         stepIndex: offset + 1,
         startedAt,

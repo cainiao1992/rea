@@ -11,77 +11,28 @@ import {
 } from "../domain/browserScenarioCapture.js";
 import type { BrowserScenarioSecrets } from "./BrowserScenarioSecrets.js";
 
-const TEXT_ARTIFACT_MAX_BYTES = 1_048_576;
-
 const historyValueSchema = z.strictObject({
   length: z.number().int().min(0),
-  navigation_entries: z
-    .array(
-      z.strictObject({
-        type: z.string(),
-        name: z.string(),
-      }),
-    )
-    .max(10_000),
+  navigation_entries: z.array(
+    z.strictObject({
+      type: z.string(),
+      name: z.string(),
+    }),
+  ),
 });
 
 const storageValueSchema = z.strictObject({
-  local_storage: z.array(z.tuple([z.string(), z.string()])).max(10_000),
-  session_storage: z.array(z.tuple([z.string(), z.string()])).max(10_000),
+  local_storage: z.array(z.tuple([z.string(), z.string()])),
+  session_storage: z.array(z.tuple([z.string(), z.string()])),
 });
 
 type SnapshotKind = BrowserScenario["capture"]["after_each_step"][number];
 
-/** Shared retained-count budget for one scenario's screenshot artifacts. */
-export class BrowserScenarioCaptureBudget {
-  private screenshotCount = 0;
-  private metadataBytes = 0;
-
-  constructor(
-    private readonly maximumScreenshots: number,
-    private readonly maximumMetadataBytes: number,
-  ) {}
-
-  claimScreenshot(): boolean {
-    if (this.screenshotCount >= this.maximumScreenshots) return false;
-    this.screenshotCount += 1;
-    return true;
-  }
-
-  claimMetadata(bytes: number): boolean {
-    if (this.metadataBytes + bytes > this.maximumMetadataBytes) return false;
-    this.metadataBytes += bytes;
-    return true;
-  }
-}
-
 const notRequested = () => ({ state: "not_requested" as const });
 const missing = (reason: string) => ({ state: "missing" as const, reason });
-const truncated = (observed: number, retained: number, reason: string) => ({
-  state: "truncated" as const,
-  observed,
-  retained,
-  reason,
-});
 
-const textArtifact = (
-  text: string,
-  maximumBytes: number,
-  budget: BrowserScenarioCaptureBudget,
-) => {
+const textArtifact = (text: string) => {
   const bytes = Buffer.from(text);
-  if (bytes.byteLength > maximumBytes)
-    return truncated(
-      bytes.byteLength,
-      0,
-      `artifact exceeds ${maximumBytes} bytes`,
-    );
-  if (!budget.claimMetadata(bytes.byteLength))
-    return truncated(
-      bytes.byteLength,
-      0,
-      "scenario metadata byte limit reached",
-    );
   return {
     state: "captured" as const,
     value: {
@@ -92,23 +43,7 @@ const textArtifact = (
   };
 };
 
-const metadataArtifact = <Value>(
-  value: Value,
-  budget: BrowserScenarioCaptureBudget,
-) => {
-  const bytes = Buffer.byteLength(JSON.stringify(value));
-  return budget.claimMetadata(bytes)
-    ? { state: "captured" as const, value }
-    : truncated(bytes, 0, "scenario metadata byte limit reached");
-};
-
-const captureScreenshot = async (
-  page: Page,
-  scenario: BrowserScenario,
-  budget: BrowserScenarioCaptureBudget,
-) => {
-  if (!budget.claimScreenshot())
-    return truncated(1, 0, "scenario screenshot count limit reached");
+const captureScreenshot = async (page: Page) => {
   try {
     const bytes = await page.screenshot({
       type: "png",
@@ -116,8 +51,6 @@ const captureScreenshot = async (
       animations: "disabled",
       caret: "hide",
     });
-    if (bytes.byteLength > scenario.limits.max_screenshot_bytes)
-      return truncated(bytes.byteLength, 0, "screenshot byte limit reached");
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     return {
       state: "captured" as const,
@@ -136,20 +69,10 @@ const captureScreenshot = async (
 const captureDom = async (input: {
   readonly page: Page;
   readonly secrets: BrowserScenarioSecrets;
-  readonly maximumBytes: number;
-  readonly maximumNodes: number;
-  readonly budget: BrowserScenarioCaptureBudget;
 }) => {
-  const { page, secrets, maximumBytes, maximumNodes, budget } = input;
+  const { page, secrets } = input;
   try {
-    const nodes = await page.locator("*").count();
-    if (nodes > maximumNodes)
-      return truncated(nodes, 0, "DOM node limit reached");
-    return textArtifact(
-      secrets.redact(await page.content()),
-      Math.min(maximumBytes, TEXT_ARTIFACT_MAX_BYTES),
-      budget,
-    );
+    return textArtifact(secrets.redact(await page.content()));
   } catch {
     return missing("DOM capture failed");
   }
@@ -158,21 +81,11 @@ const captureDom = async (input: {
 const captureAccessibility = async (input: {
   readonly page: Page;
   readonly secrets: BrowserScenarioSecrets;
-  readonly maximumBytes: number;
-  readonly maximumNodes: number;
-  readonly budget: BrowserScenarioCaptureBudget;
 }) => {
-  const { page, secrets, maximumBytes, maximumNodes, budget } = input;
+  const { page, secrets } = input;
   try {
     const text = await page.locator("html").ariaSnapshot();
-    const nodes = text.split("\n").filter((line) => line.trim() !== "").length;
-    if (nodes > maximumNodes)
-      return truncated(nodes, 0, "accessibility node limit reached");
-    return textArtifact(
-      secrets.redact(text),
-      Math.min(maximumBytes, TEXT_ARTIFACT_MAX_BYTES),
-      budget,
-    );
+    return textArtifact(secrets.redact(text));
   } catch {
     return missing("accessibility capture failed");
   }
@@ -192,10 +105,7 @@ const navigationType = (
   }
 };
 
-const captureHistory = async (
-  page: Page,
-  budget: BrowserScenarioCaptureBudget,
-) => {
+const captureHistory = async (page: Page) => {
   try {
     const raw = historyValueSchema.parse(
       await page.evaluate(`(() => ({
@@ -208,12 +118,6 @@ const captureHistory = async (
         )
       }))()`),
     );
-    if (raw.navigation_entries.length > 256)
-      return truncated(
-        raw.navigation_entries.length,
-        0,
-        "navigation history entry limit reached",
-      );
     const value = {
       length: raw.length,
       current_url: sanitizeBrowserUrl(page.url()),
@@ -222,7 +126,7 @@ const captureHistory = async (
         name: sanitizeBrowserUrl(name),
       })),
     };
-    return metadataArtifact(value, budget);
+    return value;
   } catch {
     return missing("history capture failed");
   }
@@ -233,9 +137,8 @@ const captureStorage = async (input: {
   readonly page: Page;
   readonly scenario: BrowserScenario;
   readonly secrets: BrowserScenarioSecrets;
-  readonly budget: BrowserScenarioCaptureBudget;
 }) => {
-  const { context, page, scenario, secrets, budget } = input;
+  const { context, page, scenario, secrets } = input;
   try {
     const cookies = await context.cookies(scenario.allowed_origins);
     const pageStorage = storageValueSchema.parse(
@@ -244,12 +147,6 @@ const captureStorage = async (input: {
         session_storage: Object.entries(window.sessionStorage)
       }))()`),
     );
-    const observed =
-      cookies.length +
-      pageStorage.local_storage.length +
-      pageStorage.session_storage.length;
-    if (observed > scenario.limits.max_storage_entries)
-      return truncated(observed, 0, "storage entry limit reached");
     const value = {
       cookies: cookies.map((cookie) => ({
         name: cookie.name,
@@ -269,7 +166,7 @@ const captureStorage = async (input: {
         ...secrets.fingerprint(value),
       })),
     };
-    return metadataArtifact(value, budget);
+    return value;
   } catch {
     return missing("storage capture failed");
   }
@@ -293,9 +190,8 @@ export const capturePlaywrightStepArtifacts = async (input: {
   readonly scenario: BrowserScenario;
   readonly secrets: BrowserScenarioSecrets;
   readonly requested: ReadonlySet<SnapshotKind>;
-  readonly budget: BrowserScenarioCaptureBudget;
 }): Promise<BrowserStepArtifacts> => {
-  const { context, page, scenario, secrets, requested, budget } = input;
+  const { context, page, scenario, secrets, requested } = input;
   const allowed = isAllowedPage(page, new Set(scenario.allowed_origins));
   const denied = () => missing("current page is outside approved origins");
   const state = <Value>(
@@ -310,33 +206,17 @@ export const capturePlaywrightStepArtifacts = async (input: {
         ? capture()
         : Promise.resolve(denied());
   return browserStepArtifactsSchema.parse({
-    screenshot: await state("screenshot", () =>
-      captureScreenshot(page, scenario, budget),
-    ),
-    dom: await state("dom", () =>
-      captureDom({
-        page,
-        secrets,
-        maximumBytes: scenario.limits.max_total_metadata_bytes,
-        maximumNodes: scenario.limits.max_dom_nodes,
-        budget,
-      }),
-    ),
+    screenshot: await state("screenshot", () => captureScreenshot(page)),
+    dom: await state("dom", () => captureDom({ page, secrets })),
     accessibility: await state("accessibility", () =>
-      captureAccessibility({
-        page,
-        secrets,
-        maximumBytes: scenario.limits.max_total_metadata_bytes,
-        maximumNodes: scenario.limits.max_accessibility_nodes,
-        budget,
-      }),
+      captureAccessibility({ page, secrets }),
     ),
     url: await state("url", async () =>
-      metadataArtifact(sanitizeBrowserUrl(page.url()), budget),
+      Promise.resolve(sanitizeBrowserUrl(page.url())),
     ),
-    history: await state("history", () => captureHistory(page, budget)),
+    history: await state("history", () => captureHistory(page)),
     storage: await state("storage", () =>
-      captureStorage({ context, page, scenario, secrets, budget }),
+      captureStorage({ context, page, scenario, secrets }),
     ),
   });
 };

@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { expect, it } from "vitest";
 
 import { sanitizeBrowserUrl } from "./browserObservation.js";
@@ -84,6 +86,58 @@ it("does not attach a content digest to redacted storage secrets", () => {
       },
     }).success,
   ).toBe(false);
+});
+
+it("accepts complete storage, history, and text artifacts beyond former caps", () => {
+  const text = "x".repeat(1_048_577);
+  const fingerprint = {
+    name: "entry",
+    value_state: "hashed",
+    value_sha256: "a".repeat(64),
+  } as const;
+  const parsed = browserStepArtifactsSchema.safeParse({
+    screenshot: { state: "not_requested" },
+    dom: {
+      state: "captured",
+      value: {
+        sha256: createHash("sha256").update(text).digest("hex"),
+        bytes: Buffer.byteLength(text),
+        text,
+      },
+    },
+    accessibility: { state: "not_requested" },
+    url: { state: "not_requested" },
+    history: {
+      state: "captured",
+      value: {
+        length: 257,
+        current_url: sanitizeBrowserUrl("https://example.test/"),
+        navigation_entries: Array.from({ length: 257 }, () => ({
+          type: "navigate",
+          name: sanitizeBrowserUrl("https://example.test/"),
+        })),
+      },
+    },
+    storage: {
+      state: "captured",
+      value: {
+        cookies: Array.from({ length: 513 }, () => ({
+          name: fingerprint.name,
+          domain: "example.test",
+          path: "/",
+          secure: true,
+          http_only: false,
+          same_site: "Lax",
+          value_state: fingerprint.value_state,
+          value_sha256: fingerprint.value_sha256,
+        })),
+        local_storage: Array.from({ length: 513 }, () => fingerprint),
+        session_storage: Array.from({ length: 513 }, () => fingerprint),
+      },
+    },
+  });
+
+  expect(parsed.success).toBe(true);
 });
 
 it("derives equality eligibility from exact completeness state", () => {

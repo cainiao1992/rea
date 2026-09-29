@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import type { BrowserScenarioSessionPort } from "./BrowserScenarioSessionPort.js";
 import { PlaywrightBrowserScenarioProvider } from "./PlaywrightBrowserScenarioProvider.js";
-import { BrowserScenarioCaptureBudget } from "./PlaywrightScenarioArtifacts.js";
 import { sanitizeBrowserUrl } from "../domain/browserObservation.js";
 import {
   browserScenarioSchema,
@@ -108,13 +107,6 @@ class FakeSession implements BrowserScenarioSessionPort {
   closeCalls = 0;
   performCalls = 0;
   captureCalls = 0;
-  eventTruncations: (
-    | "events"
-    | "frames"
-    | "workers"
-    | "popups"
-    | "websockets"
-  )[] = [];
   onPerform: (() => void) | undefined;
   private step = 0;
 
@@ -151,10 +143,6 @@ class FakeSession implements BrowserScenarioSessionPort {
     return { retained: 0, dropped: 0, items: [] };
   }
 
-  eventTruncationSections() {
-    return this.eventTruncations;
-  }
-
   async perform(
     _action: BrowserScenarioAction,
     _timeout: number,
@@ -168,7 +156,8 @@ class FakeSession implements BrowserScenarioSessionPort {
 
   capture(
     requested: ReadonlySet<SnapshotKind>,
-    _budget: BrowserScenarioCaptureBudget,
+    _maximumTimeoutMs: number,
+    _signal?: AbortSignal,
   ): Promise<BrowserStepArtifacts> {
     this.captureCalls += 1;
     if (this.failCapture) return Promise.reject(new Error("capture failed"));
@@ -227,6 +216,19 @@ describe("PlaywrightBrowserScenarioProvider", () => {
     expect(session.closeCalls).toBe(1);
   });
 
+  it("returns an initial state and every step beyond the former action ceiling", async () => {
+    const session = new FakeSession("launch");
+    const provider = new PlaywrightBrowserScenarioProvider({
+      open: () => Promise.resolve(session),
+    });
+    const result = await provider.captureScenario(scenario({ actions: 129 }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.scenario.action_count).toBe(129);
+    expect(result.value.steps).toHaveLength(130);
+    expect(result.value.steps.at(-1)?.step_id).toBe("wait_128");
+  });
+
   it("makes missing and truncated captures ineligible for equality", async () => {
     const session = new FakeSession("launch", true);
     const provider = new PlaywrightBrowserScenarioProvider({
@@ -242,24 +244,6 @@ describe("PlaywrightBrowserScenarioProvider", () => {
       equality_eligible: false,
       missing_sections: ["dom"],
       truncated_sections: ["screenshot"],
-    });
-  });
-
-  it("makes event limit truncation ineligible for equality", async () => {
-    const session = new FakeSession("launch");
-    session.eventTruncations = ["events", "websockets"];
-    const provider = new PlaywrightBrowserScenarioProvider({
-      open: () => Promise.resolve(session),
-    });
-    const result = await provider.captureScenario(
-      scenario({ events: ["websockets"] }),
-    );
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.value.completeness).toMatchObject({
-      status: "truncated",
-      equality_eligible: false,
-      truncated_sections: ["events", "websockets"],
     });
   });
 
@@ -347,16 +331,5 @@ describe("PlaywrightBrowserScenarioProvider", () => {
     if (!result.ok) return;
     expect(result.value.steps[1]?.status).toBe("cancelled");
     expect(session.closeCalls).toBe(1);
-  });
-});
-
-describe("BrowserScenarioCaptureBudget", () => {
-  it("enforces cumulative screenshot and metadata limits", () => {
-    const budget = new BrowserScenarioCaptureBudget(1, 10);
-    expect(budget.claimScreenshot()).toBe(true);
-    expect(budget.claimScreenshot()).toBe(false);
-    expect(budget.claimMetadata(6)).toBe(true);
-    expect(budget.claimMetadata(5)).toBe(false);
-    expect(budget.claimMetadata(4)).toBe(true);
   });
 });

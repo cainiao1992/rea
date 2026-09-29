@@ -2,19 +2,20 @@
 
 `capture_browser_scenario` accepts the provider-neutral
 `browserScenarioSchema` through both MCP and the
-`capture-browser-scenario INPUT_JSON` CLI command. The request is declarative
-and bounded: it admits a fixed action vocabulary, exact HTTP(S) origins,
-deterministic browser settings, explicit storage and request replay, and finite
-capture limits. `INPUT_JSON` may be inline JSON or a JSON file path.
+`capture-browser-scenario INPUT_JSON` CLI command. The request is declarative:
+it admits a fixed action vocabulary, exact HTTP(S) origins, deterministic
+browser settings, explicit storage and request replay, and provider-owned
+liveness deadlines. `INPUT_JSON` may be inline JSON or a JSON file path.
 
 The minimal request contains only browser launch/connect authority, `start_url`,
 `allowed_origins`, and at least one `actions` entry. Environment settings,
 empty storage, disabled request replay, the required redaction policy, and a
 final sanitized URL capture are supplied by default. Add secret declarations,
 storage seeds, replay routes, query redaction names, and additional artifact or
-event capture only when the investigation needs them. Provider-owned duration,
-action, navigation, event, and artifact budgets are fixed internal limits; the
-request does not accept a caller-controlled `limits` object.
+event capture only when the investigation needs them. Action, secret, storage,
+and replay-route counts are not capped. Duration, action, and navigation
+timeouts remain fixed provider-owned liveness limits; the request does not
+accept a caller-controlled `limits` object.
 
 The browser boundary is part of the contract. Launch mode requires a
 caller-selected absolute executable, a provider-owned temporary profile,
@@ -44,9 +45,13 @@ declared action. Each step reports action status, elapsed time, sanitized URLs,
 event bounds, and independently typed capture states for screenshot, DOM,
 accessibility, URL, history, and storage. Console, page-error, network,
 WebSocket, frame, worker, popup, and cancelled-download events are attributed to
-steps and bounded by the scenario limits. Missing and truncated sections remain
-explicit and make the capture ineligible for equality claims. Attach-mode
-captures also declare the unavoidable pre-attach event gap.
+steps and all observed events and requested artifacts are returned inline.
+There are no event, frame, worker, popup, WebSocket, DOM-node,
+accessibility-node, storage-entry, screenshot-count, or cumulative
+metadata-byte caps. Requested artifacts and observed events are returned
+inline without application-defined size ceilings. Other missing sections
+remain explicit and make the capture ineligible for equality claims.
+Attach-mode captures also declare the unavoidable pre-attach event gap.
 
 Browser automation is disabled by default. The administrator ceiling is
 configured with:
@@ -84,6 +89,6 @@ capture fields and are preserved in the result.
 Each aligned step reports changed, unchanged, or unknown. Changed and unknown
 action, screenshot, DOM, accessibility, URL, history, storage, and event
 artifacts carry their normalized before/after digests and capture states.
-`max_changes` bounds retained artifact records while total and omitted counts
-remain visible. Missing, truncated, or mismatched capture coverage remains
-unknown instead of being treated as equality.
+Every changed or unknown artifact record is returned inline for each aligned
+step. Missing, truncated, or mismatched capture coverage remains unknown
+instead of being treated as equality.

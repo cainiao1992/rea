@@ -21,10 +21,7 @@ import {
   type OpenedScenarioBrowser,
 } from "./PlaywrightScenarioBrowser.js";
 import { performPlaywrightScenarioAction } from "./PlaywrightScenarioActions.js";
-import {
-  BrowserScenarioCaptureBudget,
-  capturePlaywrightStepArtifacts,
-} from "./PlaywrightScenarioArtifacts.js";
+import { capturePlaywrightStepArtifacts } from "./PlaywrightScenarioArtifacts.js";
 import { PlaywrightScenarioEvents } from "./PlaywrightScenarioEvents.js";
 import { withPlaywrightExecutionBoundary } from "./PlaywrightExecutionBoundary.js";
 
@@ -275,7 +272,6 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
     environment: Readonly<Record<string, string | undefined>>,
     options: {
       readonly signal?: AbortSignal;
-      readonly budget: BrowserScenarioCaptureBudget;
       readonly deadlineAt: number;
     },
   ): Promise<PlaywrightScenarioSession> {
@@ -312,9 +308,7 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
       const events = new PlaywrightScenarioEvents({
         page: opened.page,
         enabled: new Set(scenario.capture.events),
-        limits: scenario.limits,
         secrets,
-        budget: options.budget,
         allowedOrigins: scenario.allowed_origins,
       });
       const session = new PlaywrightScenarioSession(
@@ -362,10 +356,6 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
     return this.eventCapture.result();
   }
 
-  eventTruncationSections() {
-    return this.eventCapture.truncationSections();
-  }
-
   async perform(
     action: BrowserScenarioAction,
     maximumTimeoutMs: number,
@@ -389,7 +379,6 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
     requested: ReadonlySet<
       BrowserScenario["capture"]["after_each_step"][number]
     >,
-    budget: BrowserScenarioCaptureBudget,
     maximumTimeoutMs: number,
     signal?: AbortSignal,
   ) {
@@ -401,7 +390,6 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
           scenario: this.scenario,
           secrets: this.secrets,
           requested,
-          budget,
         }),
       maximumTimeoutMs,
       signal,
@@ -421,9 +409,9 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
   }
 
   redactError(error: unknown): string {
-    return this.secrets
-      .redact(error instanceof Error ? error.message : "browser action failed")
-      .slice(0, 4_096);
+    return this.secrets.redact(
+      error instanceof Error ? error.message : "browser action failed",
+    );
   }
 }
 
@@ -441,18 +429,11 @@ export class PlaywrightScenarioSessionFactory
     scenario: BrowserScenario,
     options: {
       readonly signal?: AbortSignal;
-      readonly budget?: BrowserScenarioCaptureBudget;
       readonly deadlineAt?: number;
     } = {},
   ): Promise<BrowserScenarioSessionPort> {
     return PlaywrightScenarioSession.open(scenario, this.environment, {
       ...(options.signal === undefined ? {} : { signal: options.signal }),
-      budget:
-        options.budget ??
-        new BrowserScenarioCaptureBudget(
-          scenario.limits.max_screenshots,
-          scenario.limits.max_total_metadata_bytes,
-        ),
       deadlineAt:
         options.deadlineAt ?? Date.now() + scenario.limits.max_duration_ms,
     });

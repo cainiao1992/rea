@@ -6,7 +6,6 @@ import type {
   BrowserScenarioEvent,
   BrowserStepArtifacts,
 } from "../domain/browserScenarioCapture.js";
-import type { BrowserScenarioCaptureBudget } from "./PlaywrightScenarioArtifacts.js";
 
 type SnapshotKind = BrowserScenario["capture"]["after_each_step"][number];
 
@@ -25,13 +24,6 @@ export interface BrowserScenarioSessionPort {
     readonly dropped: number;
     readonly items: readonly BrowserScenarioEvent[];
   };
-  eventTruncationSections(): readonly (
-    | "events"
-    | "frames"
-    | "workers"
-    | "popups"
-    | "websockets"
-  )[];
   perform(
     action: BrowserScenarioAction,
     maximumTimeoutMs: number,
@@ -39,7 +31,6 @@ export interface BrowserScenarioSessionPort {
   ): Promise<void>;
   capture(
     requested: ReadonlySet<SnapshotKind>,
-    budget: BrowserScenarioCaptureBudget,
     maximumTimeoutMs: number,
     signal?: AbortSignal,
   ): Promise<BrowserStepArtifacts>;
@@ -52,7 +43,6 @@ export interface BrowserScenarioSessionFactory {
     scenario: BrowserScenario,
     options?: {
       readonly signal?: AbortSignal;
-      readonly budget?: BrowserScenarioCaptureBudget;
       readonly deadlineAt?: number;
     },
   ): Promise<BrowserScenarioSessionPort>;

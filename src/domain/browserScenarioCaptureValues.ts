@@ -6,17 +6,11 @@ import { sanitizedBrowserUrlSchema } from "./browserObservation.js";
 import { webScreenshotArtifactSchema } from "./webScreenshot.js";
 
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
-const boundedTextSchema = z.string().max(1_048_576);
-
 const textArtifactSchema = z
   .strictObject({
     sha256: digestSchema,
-    bytes: z
-      .number()
-      .int()
-      .min(0)
-      .max(16 * 1_024 * 1_024),
-    text: boundedTextSchema,
+    bytes: z.number().int().min(0),
+    text: z.string(),
   })
   .superRefine((artifact, context) => {
     const bytes = Buffer.from(artifact.text);
@@ -49,20 +43,18 @@ export const captureStateSchema = <Schema extends z.ZodType>(value: Schema) =>
 const historySchema = z.strictObject({
   length: z.number().int().min(0),
   current_url: sanitizedBrowserUrlSchema,
-  navigation_entries: z
-    .array(
-      z.strictObject({
-        type: z.enum([
-          "navigate",
-          "reload",
-          "back_forward",
-          "prerender",
-          "unknown",
-        ]),
-        name: sanitizedBrowserUrlSchema,
-      }),
-    )
-    .max(256),
+  navigation_entries: z.array(
+    z.strictObject({
+      type: z.enum([
+        "navigate",
+        "reload",
+        "back_forward",
+        "prerender",
+        "unknown",
+      ]),
+      name: sanitizedBrowserUrlSchema,
+    }),
+  ),
 });
 
 const hashedStorageValueShape = {
@@ -83,35 +75,33 @@ export type BrowserStorageValueFingerprint = z.infer<
 
 const storageValueSchema = z.discriminatedUnion("value_state", [
   z.strictObject({
-    name: z.string().max(1_024),
+    name: z.string(),
     ...hashedStorageValueShape,
   }),
   z.strictObject({
-    name: z.string().max(1_024),
+    name: z.string(),
     ...redactedStorageValueShape,
   }),
 ]);
 
 const cookieShape = {
-  name: z.string().max(1_024),
-  domain: z.string().max(2_048),
-  path: z.string().max(4_096),
+  name: z.string(),
+  domain: z.string(),
+  path: z.string(),
   secure: z.boolean(),
   http_only: z.boolean(),
   same_site: z.enum(["Strict", "Lax", "None"]),
 };
 
 const storageSnapshotSchema = z.strictObject({
-  cookies: z
-    .array(
-      z.discriminatedUnion("value_state", [
-        z.strictObject({ ...cookieShape, ...hashedStorageValueShape }),
-        z.strictObject({ ...cookieShape, ...redactedStorageValueShape }),
-      ]),
-    )
-    .max(512),
-  local_storage: z.array(storageValueSchema).max(512),
-  session_storage: z.array(storageValueSchema).max(512),
+  cookies: z.array(
+    z.discriminatedUnion("value_state", [
+      z.strictObject({ ...cookieShape, ...hashedStorageValueShape }),
+      z.strictObject({ ...cookieShape, ...redactedStorageValueShape }),
+    ]),
+  ),
+  local_storage: z.array(storageValueSchema),
+  session_storage: z.array(storageValueSchema),
 });
 
 export const browserStepArtifactsSchema = z.strictObject({
@@ -132,10 +122,10 @@ const eventBase = {
 const eventUrl = sanitizedBrowserUrlSchema.nullable();
 const networkEventShape = {
   ...eventBase,
-  method: z.string().min(1).max(32),
+  method: z.string().min(1),
   url: sanitizedBrowserUrlSchema,
-  resource_type: z.string().min(1).max(64),
-  header_names: z.array(z.string().max(256)).max(256),
+  resource_type: z.string().min(1),
+  header_names: z.array(z.string()),
 };
 const webSocketFrameShape = {
   ...eventBase,
@@ -149,15 +139,15 @@ export const browserScenarioEventSchema = z.union([
   z.strictObject({
     ...eventBase,
     kind: z.literal("console"),
-    level: z.string().min(1).max(64),
-    text: z.string().max(65_536),
+    level: z.string().min(1),
+    text: z.string(),
     url: eventUrl,
   }),
   z.strictObject({
     ...eventBase,
     kind: z.literal("page-error"),
-    message: z.string().max(65_536),
-    stack: z.string().max(262_144).nullable(),
+    message: z.string(),
+    stack: z.string().nullable(),
   }),
   z.strictObject({
     ...networkEventShape,
@@ -175,7 +165,7 @@ export const browserScenarioEventSchema = z.union([
     ...networkEventShape,
     kind: z.literal("request-failed"),
     status: z.null(),
-    failure: z.string().min(1).max(1_024),
+    failure: z.string().min(1),
   }),
   z.strictObject({
     ...eventBase,
@@ -185,7 +175,7 @@ export const browserScenarioEventSchema = z.union([
   z.strictObject({
     ...webSocketFrameShape,
     payload_type: z.literal("text"),
-    payload_text: z.string().max(65_536),
+    payload_text: z.string(),
   }),
   z.strictObject({
     ...webSocketFrameShape,
@@ -204,12 +194,12 @@ export const browserScenarioEventSchema = z.union([
       "popup-closed",
     ]),
     url: eventUrl,
-    name: z.string().max(1_024).nullable(),
+    name: z.string().nullable(),
   }),
   z.strictObject({
     ...eventBase,
     kind: z.literal("download-cancelled"),
-    suggested_filename: z.string().max(1_024),
+    suggested_filename: z.string(),
     url: sanitizedBrowserUrlSchema,
   }),
 ]);
@@ -310,7 +300,7 @@ export const browserScenarioStepSchema = z.union([
   z.strictObject({
     ...browserScenarioStepShape,
     status: z.enum(["failed", "cancelled"]),
-    error: z.string().max(4_096),
+    error: z.string(),
   }),
 ]);
 export type BrowserScenarioStep = z.infer<typeof browserScenarioStepSchema>;

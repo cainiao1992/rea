@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import {
-  BROWSER_SCENARIO_LIMITS,
   BROWSER_SCENARIO_CAPTURE_LIMITS,
   browserScenarioActionSchema,
   browserScenarioAllowedOriginsSchema,
@@ -42,13 +41,11 @@ export const browserScenarioInputSchema = z.strictObject({
   actions: z
     .array(browserScenarioActionSchema)
     .min(1)
-    .max(BROWSER_SCENARIO_LIMITS.actions)
-    .describe("Required bounded sequence of explicit browser actions."),
+    .describe("Required sequence of explicit browser actions."),
   storage: browserScenarioStorageSchema,
   request_replay: browserScenarioRequestReplaySchema,
   secrets: z
     .array(browserScenarioSecretSchema)
-    .max(BROWSER_SCENARIO_LIMITS.secrets)
     .default([])
     .describe(
       "Optional references to approved environment variables. Secret values are never supplied inline; declarations are required only when an action, URL, storage value, or replay route references a secret.",

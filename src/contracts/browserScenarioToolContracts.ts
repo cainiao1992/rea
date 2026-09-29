@@ -30,7 +30,7 @@ export const BROWSER_SCENARIO_TOOL_CONTRACTS = [
     name: "capture_browser_scenario",
     ...toolContractMetadata("capture_browser_scenario"),
     description:
-      "Run a controlled browser scenario when passive observation cannot exercise the application. Choose launch mode with an approved executable or connect mode with an approved loopback CDP target, declare the exact start origin scope, and provide explicit actions. Environment, empty storage, disabled request replay, redaction, and a URL-only final capture have safe defaults; declare secrets, initial storage, exact request replay, or additional retained artifacts only when needed. Provider-owned duration and collection budgets are fixed. Returns step-indexed Evidence with explicit missing/truncated sections and equality eligibility.",
+      "Run a controlled browser scenario when passive observation cannot exercise the application. Choose launch mode with an approved executable or connect mode with an approved loopback CDP target, declare the exact start origin scope, and provide explicit actions. Environment, empty storage, disabled request replay, redaction, and a URL-only final capture have safe defaults; declare secrets, initial storage, exact request replay, or additional retained artifacts only when needed. Provider-owned duration, action, and navigation timeouts remain fixed. There are no action, secret, storage, route, event, frame, DOM, network, or cumulative metadata count caps; every observation is returned inline. Oversized text or screenshot artifacts fail with a payload-limit error instead of being silently omitted.",
     kind: "browser-provider",
     inputSchema: browserScenarioInputSchema,
     outputSchema: evidenceResultOf(browserScenarioCaptureSchema),

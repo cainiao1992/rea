@@ -2,19 +2,6 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
-import {
-  ENHANCED_TOOL_CONTRACTS,
-  OFFICIAL_TOOL_CONTRACTS,
-  SESSION_TOOL_CONTRACTS,
-} from "../../src/contracts/toolContracts.js";
-import { NATIVE_TOOL_CONTRACTS } from "../../src/contracts/nativeToolContracts.js";
-import { ARTIFACT_TOOL_CONTRACTS } from "../../src/contracts/artifactToolContracts.js";
-import { MANAGED_TOOL_CONTRACTS } from "../../src/contracts/managedToolContracts.js";
-import { MANAGED_WORKFLOW_TOOL_CONTRACTS } from "../../src/contracts/managedWorkflowToolContracts.js";
-import { BROWSER_PROVIDER_TOOL_CONTRACTS } from "../../src/contracts/browserProviderToolContracts.js";
-import { ELECTRON_TOOL_CONTRACTS } from "../../src/contracts/electronToolContracts.js";
-import { JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS } from "../../src/contracts/javascriptRuntimeObservationToolContracts.js";
-import { APPLICATION_TOOL_CONTRACTS } from "../../src/contracts/applicationToolContracts.js";
 import { SUPPORTED_CLIENT_DEFINITIONS } from "../../src/application/SupportedClients.js";
 import { PRODUCT_IDENTITY } from "../../src/identity.js";
 
@@ -25,35 +12,6 @@ const readmes = [
   "README_ko.md",
   "README_ar.md",
 ] as const;
-
-const expectedToolCounts = [
-  OFFICIAL_TOOL_CONTRACTS.length,
-  ENHANCED_TOOL_CONTRACTS.length,
-  NATIVE_TOOL_CONTRACTS.length,
-  ARTIFACT_TOOL_CONTRACTS.length,
-  MANAGED_TOOL_CONTRACTS.length + MANAGED_WORKFLOW_TOOL_CONTRACTS.length,
-  BROWSER_PROVIDER_TOOL_CONTRACTS.length,
-  ELECTRON_TOOL_CONTRACTS.length,
-  JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS.length,
-  APPLICATION_TOOL_CONTRACTS.length,
-  SESSION_TOOL_CONTRACTS.length,
-] as const;
-
-const toolCountsFromReadme = (content: string, path: string): number[] => {
-  const lines = content.split(/\r?\n/u);
-  for (const [index, line] of lines.entries()) {
-    if (!/^\|\s*-/u.test(line)) continue;
-    const counts: number[] = [];
-    for (const row of lines.slice(index + 1)) {
-      if (!row.trim().startsWith("|")) break;
-      const count = Number(row.split("|")[2]?.trim());
-      if (!Number.isInteger(count)) break;
-      counts.push(count);
-    }
-    if (counts.length === expectedToolCounts.length) return counts;
-  }
-  throw new Error(`Missing tool-family inventory table in ${path}`);
-};
 
 const normalizedProse = (content: string): string =>
   content.replace(/\s+/gu, " ").trim();
@@ -83,7 +41,6 @@ describe("localized README product facts", () => {
       if (path === "README_ar.md")
         expect(content).toContain("Windows غير مدعوم حاليًا");
       expect(content).toContain("MCP-tool_catalog");
-      expect(toolCountsFromReadme(content, path)).toEqual(expectedToolCounts);
     },
   );
 

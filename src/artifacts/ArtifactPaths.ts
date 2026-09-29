@@ -1,18 +1,11 @@
-import { Buffer } from "node:buffer";
 import { posix } from "node:path";
 
-import {
-  ArtifactReaderFailure,
-  type ArtifactLimits,
-} from "./ArtifactReader.js";
+import { ArtifactReaderFailure } from "./ArtifactReader.js";
 
 const DRIVE_OR_UNC = /^(?:[A-Za-z]:|\\|\/\/)/u;
 
 /** Normalize an untrusted logical archive path without touching filesystem. */
-export const normalizeArtifactPath = (
-  input: string,
-  limits: Pick<ArtifactLimits, "maxDepth" | "maxPathBytes">,
-): string => {
+export const normalizeArtifactPath = (input: string): string => {
   if (
     input.includes("\0") ||
     input.includes("\\") ||
@@ -28,8 +21,6 @@ export const normalizeArtifactPath = (
   if (
     normalized.length === 0 ||
     parts.some((part) => part === "" || part === "." || part === "..") ||
-    parts.length > limits.maxDepth ||
-    Buffer.byteLength(normalized, "utf8") > limits.maxPathBytes ||
     posix.normalize(normalized) !== normalized
   )
     throw new ArtifactReaderFailure("path", "Artifact path is not normalized");

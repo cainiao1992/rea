@@ -148,56 +148,80 @@ const visitReader = async (
   containerSha256: string,
   context: ReadContext,
 ): Promise<void> => {
-  for await (const entry of reader.entries(context.signal)) {
-    abortIfNeeded(context.signal);
-    const path = normalizeArtifactPath(
-      prefix === "" ? entry.path : `${prefix}/${entry.path}`,
-      {
-        maxDepth: JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.artifact.maxDepth,
-        maxPathBytes:
-          JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.artifact.maxPathBytes,
-      },
-    );
-    const nestedAsar = isFilesystemAsar(entry, path);
-    context.registry.add(path, nestedAsar ? "directory" : entry.kind);
-    if (nestedAsar) {
-      await visitNestedAsar(entry, path, context);
-      continue;
-    }
-    const expected = context.expected.get(path);
-    if (expected === undefined) continue;
-    const selection = context.selections.get(path);
-    const text = await readTextIfSelected(context, {
+  const stack: Array<{
+    readonly reader: ArtifactReader;
+    readonly prefix: string;
+    readonly containerSha256: string;
+    readonly iterator: AsyncIterator<ArtifactEntry>;
+    readonly owned: boolean;
+  }> = [
+    {
       reader,
-      entry,
-      expected,
-      selection,
-    });
-    context.files.push({
-      path,
-      container_sha256: containerSha256,
-      sha256: expected.sha256,
-      bytes: expected.bytes,
-      inventory_artifact_id: expected.inventoryArtifactId,
-      kind: expected.kind,
-      unpacked: entry.unpacked,
-      text,
-    });
-  }
-};
-
-const visitNestedAsar = async (
-  entry: ArtifactEntry,
-  path: string,
-  context: ReadContext,
-): Promise<void> => {
-  const inventory = expectedContainer(path, context);
-  context.containers.push(inventory);
-  const nested = new AsarArtifactReader(entry.adapterKey);
+      prefix,
+      containerSha256,
+      iterator: reader.entries(context.signal)[Symbol.asyncIterator](),
+      owned: false,
+    },
+  ];
   try {
-    await visitReader(nested, path, inventory.sha256, context);
+    while (stack.length > 0) {
+      const frame = stack.at(-1);
+      if (frame === undefined) break;
+      const next = await frame.iterator.next();
+      if (next.done) {
+        stack.pop();
+        if (frame.owned) await frame.reader.close();
+        continue;
+      }
+      const entry = next.value;
+      abortIfNeeded(context.signal);
+      const path = normalizeArtifactPath(
+        frame.prefix === "" ? entry.path : `${frame.prefix}/${entry.path}`,
+      );
+      const nestedAsar = isFilesystemAsar(entry, path);
+      context.registry.add(path, nestedAsar ? "directory" : entry.kind);
+      if (nestedAsar) {
+        const inventory = expectedContainer(path, context);
+        context.containers.push(inventory);
+        const nested = new AsarArtifactReader(entry.adapterKey);
+        stack.push({
+          reader: nested,
+          prefix: path,
+          containerSha256: inventory.sha256,
+          iterator: nested.entries(context.signal)[Symbol.asyncIterator](),
+          owned: true,
+        });
+        continue;
+      }
+      const expected = context.expected.get(path);
+      if (expected === undefined) continue;
+      const selection = context.selections.get(path);
+      const text = await readTextIfSelected(context, {
+        reader: frame.reader,
+        entry,
+        expected,
+        selection,
+      });
+      context.files.push({
+        path,
+        container_sha256: frame.containerSha256,
+        sha256: expected.sha256,
+        bytes: expected.bytes,
+        inventory_artifact_id: expected.inventoryArtifactId,
+        kind: expected.kind,
+        unpacked: entry.unpacked,
+        text,
+      });
+    }
   } finally {
-    await nested.close();
+    await Promise.allSettled(
+      stack
+        .filter(({ owned }) => owned)
+        .map(async ({ reader, iterator }) => {
+          await iterator.return?.();
+          await reader.close();
+        }),
+    );
   }
 };
 
@@ -333,8 +357,8 @@ const readBounded = async (
     if (bytes > maximum) {
       stream.destroy();
       throw new ArtifactReaderFailure(
-        "limit",
-        "Selected JavaScript artifact text exceeded its byte limit",
+        "integrity",
+        "Artifact entry grew after inventory and exceeded the selected text read size",
       );
     }
     chunks.push(chunk);

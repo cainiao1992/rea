@@ -47,14 +47,6 @@ const inventory = (digit: string) => {
       },
     ],
     edges: [],
-    limits: {
-      max_entries: 100,
-      max_total_bytes: 1024,
-      max_entry_bytes: 1024,
-      max_compression_ratio: 10,
-      max_depth: 10,
-      max_path_bytes: 256,
-    },
     provenance: [],
     limitations: [],
   });

@@ -16,10 +16,7 @@ import {
   ArtifactPathRegistry,
   normalizeArtifactPath,
 } from "./ArtifactPaths.js";
-import {
-  ArtifactReaderFailure,
-  type ArtifactLimits,
-} from "./ArtifactReader.js";
+import { ArtifactReaderFailure } from "./ArtifactReader.js";
 
 /** One file durably written to an operation-owned output tree. */
 export interface SafeOutputFile {
@@ -40,24 +37,18 @@ export type SafeOutputCleanup =
 /** Symlink-resistant materialization in an exclusively owned, initially absent tree. */
 export class SafeOutputTree {
   readonly #registry = new ArtifactPathRegistry();
-  readonly #limits: ArtifactLimits;
   readonly #outputRoot: string;
-  #totalBytes = 0;
   #published = false;
   #cleanup: SafeOutputCleanup = {
     status: "not-required",
   };
 
-  private constructor(outputRoot: string, limits: ArtifactLimits) {
+  private constructor(outputRoot: string) {
     this.#outputRoot = outputRoot;
-    this.#limits = limits;
   }
 
   /** Exclusively create the absent destination as this operation's owned tree. */
-  static async create(
-    outputRoot: string,
-    limits: ArtifactLimits,
-  ): Promise<SafeOutputTree> {
+  static async create(outputRoot: string): Promise<SafeOutputTree> {
     if (!isAbsolute(outputRoot))
       throw new ArtifactReaderFailure(
         "path",
@@ -96,7 +87,7 @@ export class SafeOutputTree {
       } finally {
         await stagingHandle.close();
       }
-      return new SafeOutputTree(canonicalOutput, limits);
+      return new SafeOutputTree(canonicalOutput);
     } catch (cause: unknown) {
       await rm(canonicalOutput, { recursive: true, force: true });
       throw cause;
@@ -111,7 +102,7 @@ export class SafeOutputTree {
     return structuredClone(this.#cleanup);
   }
 
-  /** Stream one selected regular file with exact byte and digest verification. */
+  /** Stream one regular file with exact byte and digest verification. */
   async write(
     relativePath: string,
     source: Readable,
@@ -119,7 +110,7 @@ export class SafeOutputTree {
     signal?: AbortSignal,
   ): Promise<SafeOutputFile> {
     this.#assertWritable();
-    const path = normalizeArtifactPath(relativePath, this.#limits);
+    const path = normalizeArtifactPath(relativePath);
     this.#registry.add(path, "file");
     const destination = await this.#prepareParent(path);
     const handle = await open(
@@ -143,16 +134,6 @@ export class SafeOutputTree {
         abortIfNeeded(signal);
         const chunk = streamChunkToBuffer(raw);
         bytes += chunk.length;
-        if (bytes > this.#limits.maxEntryBytes)
-          throw new ArtifactReaderFailure(
-            "limit",
-            `Observed entry bytes exceed limit: ${path}`,
-          );
-        if (this.#totalBytes + bytes > this.#limits.maxTotalBytes)
-          throw new ArtifactReaderFailure(
-            "limit",
-            "Observed extraction bytes exceed cumulative limit",
-          );
         hash.update(chunk);
         await writeAll(handle, chunk);
       }
@@ -170,7 +151,6 @@ export class SafeOutputTree {
           "integrity",
           `Durable readback verification failed: ${path}`,
         );
-      this.#totalBytes += bytes;
       return { relativePath: path, sha256, bytesWritten: bytes };
     } catch (cause: unknown) {
       await handle.close().catch(() => undefined);

@@ -5,7 +5,6 @@ import {
 import {
   ArtifactReaderFailure,
   type ArtifactEntry,
-  type ArtifactLimits,
   type ArtifactReader,
 } from "../../artifacts/ArtifactReader.js";
 import { AsarArtifactReader } from "../../artifacts/AsarArtifactReader.js";
@@ -21,7 +20,7 @@ import {
   STRICT_INTEGRITY_POLICY,
   type ArtifactIntegrityPolicy,
 } from "./types.js";
-import { hashReadable, preflightEntry } from "./hash.js";
+import { hashReadable } from "./hash.js";
 
 export interface PendingIntegrityContradiction {
   readonly logicalPath: string;
@@ -42,7 +41,6 @@ const emptyScan = (): {
 
 interface ScanContext {
   readonly reader: ArtifactReader;
-  readonly limits: ArtifactLimits;
   readonly signal: AbortSignal | undefined;
   readonly integrity: ArtifactIntegrityPolicy;
   readonly nodes: Map<string, ArtifactNode>;
@@ -50,12 +48,10 @@ interface ScanContext {
   readonly pendingContradictions: PendingIntegrityContradiction[];
   readonly occurrenceByPath: Map<string, MutableOccurrence>;
   readonly registry: ArtifactPathRegistry;
-  totalBytes: number;
 }
 
 export const scanReader = async (
   reader: ArtifactReader | undefined,
-  limits: ArtifactLimits,
   signal?: AbortSignal,
   integrity: ArtifactIntegrityPolicy = STRICT_INTEGRITY_POLICY,
 ): Promise<{
@@ -68,7 +64,6 @@ export const scanReader = async (
     return { nodes, occurrences, pendingContradictions };
   const context: ScanContext = {
     reader,
-    limits,
     signal,
     integrity,
     nodes,
@@ -76,7 +71,6 @@ export const scanReader = async (
     pendingContradictions,
     occurrenceByPath: new Map<string, MutableOccurrence>(),
     registry: new ArtifactPathRegistry(),
-    totalBytes: 0,
   };
   await visitArtifactEntries(context, reader, "");
   return { nodes, occurrences, pendingContradictions };
@@ -87,53 +81,93 @@ const visitArtifactEntries = async (
   currentReader: ArtifactReader,
   prefix: string,
 ): Promise<void> => {
-  for await (const entry of currentReader.entries(context.signal)) {
-    if (context.occurrences.length >= context.limits.maxEntries)
-      throw new ArtifactReaderFailure("limit", "Artifact entry limit exceeded");
-    const logicalPath = normalizeArtifactPath(
-      prefix.length === 0 ? entry.path : `${prefix}/${entry.path}`,
-      context.limits,
-    );
-    const expandableAsar = isExpandableAsar(entry, logicalPath);
-    context.registry.add(
-      logicalPath,
-      expandableAsar ? "directory" : entry.kind,
-    );
-    preflightEntry(entry, context.limits);
-    const parent = nearestParent(logicalPath, context.occurrenceByPath);
-    const occurrence = createOccurrence(
-      entry,
-      logicalPath,
-      parent?.occurrence_id ?? null,
-    );
-    let digested:
-      | { readonly node: ArtifactNode; readonly mismatched: boolean }
-      | undefined;
-    try {
-      digested = await digestArtifactEntry(
-        context,
-        currentReader,
+  const stack: Array<{
+    readonly reader: ArtifactReader;
+    readonly prefix: string;
+    readonly iterator: AsyncIterator<ArtifactEntry>;
+    readonly owned: boolean;
+  }> = [
+    {
+      reader: currentReader,
+      prefix,
+      iterator: currentReader.entries(context.signal)[Symbol.asyncIterator](),
+      owned: false,
+    },
+  ];
+  try {
+    while (stack.length > 0) {
+      const frame = stack.at(-1);
+      if (frame === undefined) break;
+      const next = await frame.iterator.next();
+      if (next.done) {
+        stack.pop();
+        if (frame.owned) await frame.reader.close();
+        continue;
+      }
+      const entry = next.value;
+      const logicalPath = normalizeArtifactPath(
+        frame.prefix.length === 0
+          ? entry.path
+          : `${frame.prefix}/${entry.path}`,
+      );
+      const expandableAsar = isExpandableAsar(entry, logicalPath);
+      context.registry.add(
+        logicalPath,
+        expandableAsar ? "directory" : entry.kind,
+      );
+      const parent = nearestParent(logicalPath, context.occurrenceByPath);
+      const occurrence = createOccurrence(
         entry,
         logicalPath,
+        parent?.occurrence_id ?? null,
       );
-    } catch (cause: unknown) {
-      if (!isUnavailableUnpackedEntry(cause, entry)) throw cause;
-      occurrence.hash_status = "unavailable";
-      occurrence.limitations.push(UNAVAILABLE_UNPACKED_LIMITATION);
-    }
-    if (digested !== undefined) {
-      context.nodes.set(digested.node.artifact_id, digested.node);
-      occurrence.artifact_id = digested.node.artifact_id;
-      occurrence.hash_status = digested.mismatched ? "mismatched" : "verified";
-      if (digested.mismatched)
-        occurrence.limitations.push(
-          "Declared integrity metadata contradicts observed bytes.",
+      let digested:
+        | { readonly node: ArtifactNode; readonly mismatched: boolean }
+        | undefined;
+      try {
+        digested = await digestArtifactEntry(
+          context,
+          frame.reader,
+          entry,
+          logicalPath,
         );
+      } catch (cause: unknown) {
+        if (!isUnavailableUnpackedEntry(cause, entry)) throw cause;
+        occurrence.hash_status = "unavailable";
+        occurrence.limitations.push(UNAVAILABLE_UNPACKED_LIMITATION);
+      }
+      if (digested !== undefined) {
+        context.nodes.set(digested.node.artifact_id, digested.node);
+        occurrence.artifact_id = digested.node.artifact_id;
+        occurrence.hash_status = digested.mismatched
+          ? "mismatched"
+          : "verified";
+        if (digested.mismatched)
+          occurrence.limitations.push(
+            "Declared integrity metadata contradicts observed bytes.",
+          );
+      }
+      context.occurrences.push(occurrence);
+      context.occurrenceByPath.set(logicalPath, occurrence);
+      if (expandableAsar && digested?.mismatched !== true) {
+        const nested = new AsarArtifactReader(entry.adapterKey);
+        stack.push({
+          reader: nested,
+          prefix: logicalPath,
+          iterator: nested.entries(context.signal)[Symbol.asyncIterator](),
+          owned: true,
+        });
+      }
     }
-    context.occurrences.push(occurrence);
-    context.occurrenceByPath.set(logicalPath, occurrence);
-    if (expandableAsar && digested?.mismatched !== true)
-      await visitNestedAsar(context, entry.adapterKey, logicalPath);
+  } finally {
+    await Promise.allSettled(
+      stack
+        .filter(({ owned }) => owned)
+        .map(async ({ reader, iterator }) => {
+          await iterator.return?.();
+          await reader.close();
+        }),
+    );
   }
 };
 
@@ -147,23 +181,10 @@ const digestArtifactEntry = async (
 > => {
   if ((entry.kind !== "file" && entry.kind !== "slice") || entry.encrypted)
     return undefined;
-  const remainingBytes = context.limits.maxTotalBytes - context.totalBytes;
-  if (remainingBytes <= 0)
-    throw new ArtifactReaderFailure(
-      "limit",
-      "Artifact total byte limit exceeded",
-    );
-  if (entry.declaredSize !== null && entry.declaredSize > remainingBytes)
-    throw new ArtifactReaderFailure(
-      "limit",
-      "Declared artifact bytes exceed remaining cumulative limit",
-    );
   const digest = await hashReadable(
     await currentReader.open(entry, context.signal),
-    Math.min(context.limits.maxEntryBytes, remainingBytes),
     context.signal,
   );
-  context.totalBytes += digest.bytes;
   const mismatched =
     entry.declaredSha256 !== null && entry.declaredSha256 !== digest.sha256;
   if (mismatched && entry.declaredSha256 !== null) {
@@ -207,19 +228,6 @@ const digestArtifactEntry = async (
     }),
     mismatched,
   };
-};
-
-const visitNestedAsar = async (
-  context: ScanContext,
-  adapterKey: string,
-  logicalPath: string,
-): Promise<void> => {
-  const nested = new AsarArtifactReader(adapterKey);
-  try {
-    await visitArtifactEntries(context, nested, logicalPath);
-  } finally {
-    await nested.close();
-  }
 };
 
 const isExpandableAsar = (entry: ArtifactEntry, logicalPath: string): boolean =>

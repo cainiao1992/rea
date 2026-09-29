@@ -89,8 +89,10 @@ maximum authority:
 - reference-source roots;
 - native mount enablement.
 
-Artifact extraction retains its existing explicit per-call approval and maps to
-an administrator root ceiling of `/` for compatibility.
+Artifact extraction takes no path or occurrence selectors. It materializes all
+regular files into a fresh REA-chosen temporary directory. The write still
+passes through the active permission evaluator; the tool caller does not choose
+an output path.
 
 `rea policy status`, `list`, `explain`, and `revoke` inspect the same evaluator
 used by MCP. Optional project grants require both

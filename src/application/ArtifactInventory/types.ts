@@ -35,7 +35,6 @@ export interface ArtifactInventorySnapshot {
   readonly nodes: readonly ArtifactNode[];
   readonly occurrences: ArtifactInventoryResult["occurrences"];
   readonly edges: ArtifactInventoryResult["edges"];
-  readonly limits: ArtifactInventoryResult["limits"];
   readonly provenance: ReadonlyArray<
     ArtifactInventoryResult["provenance"][number]
   >;

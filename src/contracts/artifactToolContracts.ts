@@ -26,36 +26,18 @@ export const artifactInventoryInputSchema = z.union([
   z.object({ ...artifactInventoryFacts, ...integrityInput.continue }),
 ]);
 
-/** Exact caller boundary for approved artifact extraction. */
-const artifactOccurrenceSelectionSchema = z.strictObject({
-  occurrence_ids: z
-    .array(z.string().regex(/^occ_[a-f0-9]{64}$/u))
-    .min(1)
-    .describe("Alternate exact occurrence IDs from inspect_artifact"),
-});
-const artifactPathSelectionSchema = z.strictObject({
-  paths: z
-    .array(z.string().min(1))
-    .min(1)
-    .describe("Exact logical_path values from inspect_artifact"),
-});
-export const artifactExtractionInputSchema = z.union([
-  artifactPathSelectionSchema,
-  artifactOccurrenceSelectionSchema,
-]);
+/** Extraction needs no selector: it materializes every regular child file. */
+export const artifactExtractionInputSchema = z.strictObject({});
 
 /** Provider input after the local permission boundary chooses its destination. */
-export const artifactExtractionExecutionSchema = z.union([
-  artifactPathSelectionSchema.extend({ output_root: z.string().min(1) }),
-  artifactOccurrenceSelectionSchema.extend({ output_root: z.string().min(1) }),
-]);
+export const artifactExtractionExecutionSchema = z.strictObject({
+  output_root: z.string().min(1),
+});
 
 const exampleInputSchema = z.record(z.string(), jsonValueSchema);
 const examples: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
   inspect_artifact: {},
-  extract_artifact: {
-    paths: ["Contents/Info.plist"],
-  },
+  extract_artifact: {},
 };
 
 const artifact = <
@@ -87,12 +69,12 @@ const artifact = <
 export const ARTIFACT_TOOL_CONTRACTS = [
   artifact(
     "inspect_artifact",
-    "Inspect an active archive or application package in one call. Returns the complete content-addressed artifact graph, source Evidence, observations, relationships, integrity contradictions, hypotheses, unexplored branches, limitations, and next probes inline. It does not extract files; use extract_artifact for selected occurrences.",
+    "Inspect an active archive or application package in one call. Returns the complete content-addressed artifact graph, source Evidence, observations, relationships, integrity contradictions, hypotheses, unexplored branches, limitations, and next probes inline. It does not extract files; use extract_artifact to materialize its regular contents.",
     artifactInventoryInputSchema,
   ),
   artifact(
     "extract_artifact",
-    "Extract selected regular files by logical paths from inspect_artifact (or by occurrence IDs) into a fresh temporary directory chosen by REA. The result includes its location. Rejects traversal and symlink escapes, never overwrites, enforces archive integrity checks, and verifies cleanup.",
+    "Extract all regular files from the active archive or application package into a fresh temporary directory chosen by REA. The result includes its location. Rejects traversal and symlink escapes, never overwrites, enforces archive integrity checks, and verifies cleanup.",
     artifactExtractionInputSchema,
   ),
 ] as const satisfies readonly ToolContract[];

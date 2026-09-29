@@ -9,22 +9,13 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import { SafeOutputTree } from "../../../src/artifacts/SafeOutputTree.js";
 
-const LIMITS = {
-  maxEntries: 10,
-  maxTotalBytes: 1_024,
-  maxEntryBytes: 512,
-  maxCompressionRatio: 10,
-  maxDepth: 8,
-  maxPathBytes: 256,
-} as const;
-
 describe("safe artifact output tree", () => {
   it.skipIf(process.platform !== "linux")(
     "closes the parent descriptor when the output disappears before commit",
     async () => {
       const parent = await createTestTempDirectory("rea-safe-output-");
       const output = join(parent, "published");
-      const tree = await SafeOutputTree.create(output, LIMITS);
+      const tree = await SafeOutputTree.create(output);
       await rm(output, { recursive: true });
       await expect(tree.commit()).rejects.toThrow();
       const targets = await Promise.all(
@@ -42,7 +33,7 @@ describe("safe artifact output tree", () => {
   it("removes only its owned tree after digest failure and proves absence", async () => {
     const parent = await createTestTempDirectory("rea-safe-output-");
     const output = join(parent, "published");
-    const tree = await SafeOutputTree.create(output, LIMITS);
+    const tree = await SafeOutputTree.create(output);
     await expect(
       tree.write(
         "nested/file.txt",
@@ -61,7 +52,7 @@ describe("safe artifact output tree", () => {
   it("publishes files while building and preserves them after sealing", async () => {
     const parent = await createTestTempDirectory("rea-safe-output-");
     const output = join(parent, "published");
-    const tree = await SafeOutputTree.create(output, LIMITS);
+    const tree = await SafeOutputTree.create(output);
     const bytes = Buffer.from("visible before seal");
     const digest = createHash("sha256").update(bytes).digest("hex");
 
@@ -79,7 +70,7 @@ describe("safe artifact output tree", () => {
 
   it("returns detached cleanup reports", async () => {
     const parent = await createTestTempDirectory("rea-safe-output-");
-    const tree = await SafeOutputTree.create(join(parent, "published"), LIMITS);
+    const tree = await SafeOutputTree.create(join(parent, "published"));
     const cleanup = await tree.rollback();
     if (cleanup.status !== "complete") throw new Error("expected cleanup");
     (cleanup.residualPaths as unknown as string[]).push("/forged/path");

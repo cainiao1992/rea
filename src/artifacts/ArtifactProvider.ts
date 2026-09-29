@@ -23,10 +23,7 @@ import {
 } from "../domain/errors.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { err, ok } from "../domain/result.js";
-import {
-  ArtifactReaderFailure,
-  type ArtifactLimits,
-} from "./ArtifactReader.js";
+import { ArtifactReaderFailure } from "./ArtifactReader.js";
 import { ARTIFACT_GRAPH_PROVIDER } from "../application/InvestigationProviders.js";
 import { createEvidence } from "../domain/evidence.js";
 import { createArtifactInspection } from "../domain/artifactInspection.js";
@@ -119,11 +116,6 @@ class ArtifactClient implements AnalysisClient {
             inputPath: this.target.sourcePath ?? this.target.path,
             inputFormat: this.target.format,
             outputRoot: parsed.output_root,
-            selection:
-              "paths" in parsed
-                ? { paths: parsed.paths }
-                : { occurrenceIds: parsed.occurrence_ids },
-            limits: DEFAULT_ARTIFACT_LIMITS,
           },
           options?.signal,
         );
@@ -225,36 +217,23 @@ class ArtifactClient implements AnalysisClient {
     },
     options?: ExecutionOptions,
   ) {
-    return inventoryArtifactFully(
-      this.target.sourcePath ?? this.target.path,
-      DEFAULT_ARTIFACT_LIMITS,
-      {
-        ...(options?.signal === undefined ? {} : { signal: options.signal }),
-        nativeMount: resolveNativeMountPolicy(
-          parsed.native_mount_approved === true,
-          this.nativeMountEnabled,
-        ),
-        integrity: resolveArtifactIntegrityPolicy(
-          parsed.integrity_policy === "fail"
-            ? { mode: "fail" }
-            : {
-                mode: parsed.integrity_policy,
-              },
-          this.integrityContinueEnabled,
-        ),
-      },
-    );
+    return inventoryArtifactFully(this.target.sourcePath ?? this.target.path, {
+      ...(options?.signal === undefined ? {} : { signal: options.signal }),
+      nativeMount: resolveNativeMountPolicy(
+        parsed.native_mount_approved === true,
+        this.nativeMountEnabled,
+      ),
+      integrity: resolveArtifactIntegrityPolicy(
+        parsed.integrity_policy === "fail"
+          ? { mode: "fail" }
+          : {
+              mode: parsed.integrity_policy,
+            },
+        this.integrityContinueEnabled,
+      ),
+    });
   }
 }
-
-const DEFAULT_ARTIFACT_LIMITS: ArtifactLimits = {
-  maxEntries: 10_000,
-  maxTotalBytes: 1_073_741_824,
-  maxEntryBytes: 268_435_456,
-  maxCompressionRatio: 1_000,
-  maxDepth: 20,
-  maxPathBytes: 4_096,
-};
 
 const isArtifactOperation = (
   operation: AnalysisOperation,

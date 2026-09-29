@@ -27,9 +27,10 @@ Call `inspect_artifact` before extraction for application bundles, archives,
 ZIP/APK/IPA/MSIX/AppX, ASAR, or DMG inputs. It returns the complete artifact
 graph inline. Cite graph manifest IDs.
 
-`extract_artifact` requires explicit approval, an absent absolute output root,
-and selected occurrence IDs. Never extract every entry implicitly. Symlinks and
-encrypted entries are inventory facts, not extractable files.
+`extract_artifact` takes no arguments and materializes all regular files into a
+fresh temporary directory chosen by REA. Symlinks and encrypted entries are
+inventory facts, not extractable files. The operation still requires the
+filesystem-write permission grant; callers do not choose the destination.
 
 Native DMG traversal is macOS-only, read-only, and requires both operator policy
 and `native_mount_approved: true`; without both, retain the root-hash-only result.

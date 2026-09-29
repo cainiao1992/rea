@@ -8,7 +8,6 @@ import {
 import {
   ArtifactReaderFailure,
   type ArtifactEntry,
-  type ArtifactLimits,
   type ArtifactReader,
 } from "../artifacts/ArtifactReader.js";
 import { DirectoryArtifactReader } from "../artifacts/DirectoryArtifactReader.js";
@@ -24,35 +23,28 @@ import {
 } from "../domain/artifactGraph.js";
 import type { BinaryTarget } from "../domain/binaryTarget.js";
 import { scanArtifactInventory } from "./ArtifactInventory.js";
-import {
-  digestCanonical,
-  toOutputLimits,
-} from "./ArtifactGraphConstruction.js";
+import { digestCanonical } from "./ArtifactGraphConstruction.js";
 
 /** Already-approved extraction request from a caller-owned policy boundary. */
 export interface ArtifactExtractionInput {
   readonly inputPath: string;
   readonly inputFormat: BinaryTarget["format"];
   readonly outputRoot: string;
-  readonly selection:
-    | { readonly paths: readonly string[] }
-    | { readonly occurrenceIds: readonly string[] };
-  readonly limits: ArtifactLimits;
 }
 
-/** Extract selected inventory occurrences into an exclusively owned absent root. */
+/** Extract every regular inventory occurrence into an exclusively owned absent root. */
 export const extractArtifact = async (
   input: ArtifactExtractionInput,
   signal?: AbortSignal,
 ): Promise<ArtifactExtractionResult> => {
-  validateSelection(input.selection, input.limits);
   const sourcePath = await realpath(input.inputPath);
-  const snapshot = await scanArtifactInventory(sourcePath, input.limits, {
+  const snapshot = await scanArtifactInventory(sourcePath, {
     signal,
   });
-  const selectedOccurrences = resolveSelection(
-    snapshot.occurrences,
-    input.selection,
+  const selectedOccurrences = snapshot.occurrences.filter(
+    (occurrence) =>
+      (occurrence.entry_kind === "file" || occurrence.entry_kind === "slice") &&
+      occurrence.logical_path !== ".",
   );
   const selectedIds = new Set(
     selectedOccurrences.map(({ occurrence_id: id }) => id),
@@ -130,25 +122,25 @@ const materializeSelection = async ({
     selected.map((item) => [item.occurrence.logical_path, item]),
   );
   const reader = await createReader(sourcePath, input.inputFormat);
-  const output = await SafeOutputTree.create(input.outputRoot, input.limits);
+  const output = await SafeOutputTree.create(input.outputRoot);
   let readerClosed = false;
   const extracted: ExtractedOccurrence[] = [];
   try {
-    const found = new Set<string>();
+    const materialized: SelectedOccurrence[] = [];
     const registry = new ArtifactPathRegistry();
-    let entryCount = 0;
     for await (const entry of reader.entries(signal)) {
-      entryCount += 1;
-      if (entryCount > input.limits.maxEntries)
-        throw new ArtifactReaderFailure(
-          "limit",
-          "Artifact entry limit exceeded during extraction",
-        );
-      const path = normalizeArtifactPath(entry.path, input.limits);
+      const path = normalizeArtifactPath(entry.path);
       registry.add(path, entry.kind);
       const selectedItem = byPath.get(path);
-      if (selectedItem === undefined) continue;
-      preflight(entry, input.limits);
+      if (selectedItem === undefined) {
+        if (entry.kind === "file" || entry.kind === "slice")
+          throw new ArtifactReaderFailure(
+            "integrity",
+            `Regular artifact entry is missing from inventory: ${path}`,
+          );
+        continue;
+      }
+      preflight(entry);
       const stream = await reader.open(entry, signal);
       const written = await output.write(
         path,
@@ -163,13 +155,8 @@ const materializeSelection = async ({
         bytes_written: written.bytesWritten,
         created: true,
       });
-      found.add(path);
+      materialized.push(selectedItem);
     }
-    if (found.size !== selected.length)
-      throw new ArtifactReaderFailure(
-        "integrity",
-        "Selected inventory occurrence disappeared before extraction",
-      );
     await reader.close();
     readerClosed = true;
     extracted.sort((left, right) =>
@@ -178,7 +165,7 @@ const materializeSelection = async ({
     const result = createExtractionResult(
       input,
       inventory,
-      selected,
+      materialized,
       extracted,
     );
     await output.commit();
@@ -214,10 +201,9 @@ const createExtractionResult = (
     artifacts: extracted,
     containment_verified: true,
     cleanup: { attempted: false, verified: true, residual_paths: [] },
-    limits: toOutputLimits(input.limits),
     provenance: [],
     limitations: [
-      "Only caller-selected regular file occurrences were materialized.",
+      "All regular files in the active artifact were materialized; nested archive contents remain represented by their containing file.",
     ],
   });
 };
@@ -272,99 +258,10 @@ const createReader = async (
   );
 };
 
-type ArtifactSelection = ArtifactExtractionInput["selection"];
-
-const validateSelection = (
-  selection: ArtifactSelection,
-  limits: ArtifactLimits,
-): void => {
-  const values =
-    "paths" in selection ? selection.paths : selection.occurrenceIds;
-  if (values.length === 0)
-    throw new ArtifactReaderFailure(
-      "limit",
-      "Extraction requires at least one selected path or occurrence",
-    );
-  const normalized =
-    "paths" in selection
-      ? values.map((path) => normalizeArtifactPath(path, limits))
-      : values;
-  if (new Set(normalized).size !== normalized.length)
-    throw new ArtifactReaderFailure(
-      "path",
-      "Extraction selection contains duplicates",
-    );
-};
-
-const resolveSelection = (
-  occurrences: readonly ArtifactOccurrence[],
-  selection: ArtifactSelection,
-): ArtifactOccurrence[] => {
-  if ("occurrenceIds" in selection) {
-    const byId = new Map(
-      occurrences.map((occurrence) => [occurrence.occurrence_id, occurrence]),
-    );
-    return selection.occurrenceIds.map((id) => {
-      const occurrence = byId.get(id);
-      if (occurrence === undefined)
-        throw new ArtifactReaderFailure(
-          "unavailable",
-          `Selected artifact occurrence was not found: ${id}`,
-        );
-      return occurrence;
-    });
-  }
-
-  const byPath = new Map<string, ArtifactOccurrence[]>();
-  for (const occurrence of occurrences) {
-    const matches = byPath.get(occurrence.logical_path);
-    if (matches === undefined)
-      byPath.set(occurrence.logical_path, [occurrence]);
-    else matches.push(occurrence);
-  }
-  return selection.paths.map((path) => {
-    const normalizedPath = path.normalize("NFC");
-    const matches = byPath.get(normalizedPath) ?? [];
-    if (matches.length === 0)
-      throw new ArtifactReaderFailure(
-        "unavailable",
-        `Selected artifact path was not found: ${path}`,
-      );
-    if (matches.length > 1)
-      throw new ArtifactReaderFailure(
-        "path",
-        `Selected artifact path is ambiguous: ${path}`,
-      );
-    const match = matches[0];
-    if (match === undefined)
-      throw new ArtifactReaderFailure(
-        "unavailable",
-        `Selected artifact path was not found: ${path}`,
-      );
-    return match;
-  });
-};
-
-const preflight = (entry: ArtifactEntry, limits: ArtifactLimits): void => {
+const preflight = (entry: ArtifactEntry): void => {
   if ((entry.kind !== "file" && entry.kind !== "slice") || entry.encrypted)
     throw new ArtifactReaderFailure(
       "format",
       `Selected artifact entry cannot be read: ${entry.path}`,
-    );
-  if (entry.declaredSize !== null && entry.declaredSize > limits.maxEntryBytes)
-    throw new ArtifactReaderFailure(
-      "limit",
-      `Selected artifact exceeds byte limit: ${entry.path}`,
-    );
-  if (
-    entry.declaredSize !== null &&
-    entry.compressedSize !== null &&
-    (entry.compressedSize === 0
-      ? entry.declaredSize > 0
-      : entry.declaredSize / entry.compressedSize > limits.maxCompressionRatio)
-  )
-    throw new ArtifactReaderFailure(
-      "limit",
-      `Selected artifact exceeds compression ratio limit: ${entry.path}`,
     );
 };

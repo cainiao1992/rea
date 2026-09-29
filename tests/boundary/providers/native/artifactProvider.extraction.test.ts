@@ -14,7 +14,7 @@ import {
 import type { BinaryTarget } from "../../../../src/domain/binaryTarget.js";
 
 describe("artifact extraction", () => {
-  it("extracts only selected occurrences through an exclusively owned output tree", async () => {
+  it("extracts all regular occurrences through an exclusively owned output tree", async () => {
     const root = await createTestTempDirectory("rea-extract-");
     const source = join(root, "source");
     await mkdir(join(source, "assets"), { recursive: true });
@@ -22,11 +22,11 @@ describe("artifact extraction", () => {
     await writeFile(join(source, "assets", "ignored.js"), "ignored();\n");
     const targetValue = target(source, "directory");
     const graph = await inventory(targetValue);
-    const selected = graph.occurrences.find(
-      ({ logical_path: path }) => path === "assets/selected.js",
-    );
-    expect(selected).toBeDefined();
-    if (selected === undefined) return;
+    expect(
+      graph.occurrences.some(
+        ({ logical_path }) => logical_path === "assets/selected.js",
+      ),
+    ).toBe(true);
     const cancelledOutput = join(root, "cancelled-output");
     const controller = new AbortController();
     controller.abort();
@@ -36,7 +36,6 @@ describe("artifact extraction", () => {
         "extract_artifact",
         artifactExtractionExecutionSchema.parse({
           output_root: cancelledOutput,
-          occurrence_ids: [selected.occurrence_id],
         }),
         { signal: controller.signal },
       );
@@ -52,7 +51,6 @@ describe("artifact extraction", () => {
         "extract_artifact",
         artifactExtractionExecutionSchema.parse({
           output_root: output,
-          paths: ["assets/selected.js"],
         }),
       );
     expect(result.ok).toBe(true);
@@ -71,25 +69,9 @@ describe("artifact extraction", () => {
     expect(await readFile(join(output, "assets", "selected.js"), "utf8")).toBe(
       "selected();\n",
     );
-    await expect(
-      access(join(output, "assets", "ignored.js")),
-    ).rejects.toThrow();
-
-    const traversalOutput = join(root, "traversal-output");
-    const traversal = await new ArtifactProvider()
-      .createClient(targetValue)
-      .execute(
-        "extract_artifact",
-        artifactExtractionExecutionSchema.parse({
-          output_root: traversalOutput,
-          paths: ["../source/assets/ignored.js"],
-        }),
-      );
-    expect(traversal).toMatchObject({
-      ok: false,
-      error: { _tag: "ArtifactOperationError", reason: "path" },
-    });
-    await expect(access(traversalOutput)).rejects.toThrow();
+    expect(await readFile(join(output, "assets", "ignored.js"), "utf8")).toBe(
+      "ignored();\n",
+    );
 
     const relocatedOutput = join(root, "relocated-output");
     const relocated = await new ArtifactProvider()
@@ -98,7 +80,6 @@ describe("artifact extraction", () => {
         "extract_artifact",
         artifactExtractionExecutionSchema.parse({
           output_root: relocatedOutput,
-          occurrence_ids: [selected.occurrence_id],
         }),
       );
     expect(relocated.ok).toBe(true);
@@ -114,7 +95,6 @@ describe("artifact extraction", () => {
         "extract_artifact",
         artifactExtractionExecutionSchema.parse({
           output_root: output,
-          occurrence_ids: [selected.occurrence_id],
         }),
       );
     expect(second).toMatchObject({

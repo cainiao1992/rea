@@ -31,16 +31,6 @@ export interface ArtifactReader {
   close(): Promise<void>;
 }
 
-/** Hard traversal limits shared by every reader and extraction operation. */
-export interface ArtifactLimits {
-  readonly maxEntries: number;
-  readonly maxTotalBytes: number;
-  readonly maxEntryBytes: number;
-  readonly maxCompressionRatio: number;
-  readonly maxDepth: number;
-  readonly maxPathBytes: number;
-}
-
 /** Typed adapter failure translated at provider boundary. */
 export class ArtifactReaderFailure extends Error {
   constructor(
@@ -48,7 +38,6 @@ export class ArtifactReaderFailure extends Error {
       | "cancelled"
       | "format"
       | "integrity"
-      | "limit"
       | "path"
       | "policy"
       | "unavailable",

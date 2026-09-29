@@ -7,21 +7,12 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import { scanArtifactInventory } from "../../../src/application/ArtifactInventory.js";
 
-const LIMITS = {
-  maxEntries: 10,
-  maxTotalBytes: 1_024,
-  maxEntryBytes: 512,
-  maxCompressionRatio: 10,
-  maxDepth: 8,
-  maxPathBytes: 256,
-} as const;
-
 describe("artifact inventory snapshot", () => {
   it("retains the complete scan after the source directory changes", async () => {
     const root = await createTestTempDirectory("rea-inventory-snapshot-");
     await writeFile(join(root, "a.txt"), "a");
     await writeFile(join(root, "b.txt"), "b");
-    const snapshot = await scanArtifactInventory(root, LIMITS);
+    const snapshot = await scanArtifactInventory(root);
 
     await rm(join(root, "b.txt"));
     expect(snapshot.occurrences.map(({ logical_path: path }) => path)).toEqual([

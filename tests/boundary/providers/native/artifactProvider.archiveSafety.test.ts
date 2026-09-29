@@ -50,11 +50,11 @@ describe("artifact archive safety", () => {
       expect(result.nodes.map(({ kind }) => kind)).toEqual(
         expect.arrayContaining(["javascript", "native-addon"]),
       );
-      const selected = result.occurrences.find(
-        ({ logical_path: logicalPath }) => logicalPath === "Assets/main.js",
-      );
-      expect(selected).toBeDefined();
-      if (selected === undefined) return;
+      expect(
+        result.occurrences.some(
+          ({ logical_path: logicalPath }) => logicalPath === "Assets/main.js",
+        ),
+      ).toBe(true);
       const output = join(root, "output");
       const extracted = await new ArtifactProvider()
         .createClient(parsed.value)
@@ -62,7 +62,6 @@ describe("artifact archive safety", () => {
           "extract_artifact",
           artifactExtractionExecutionSchema.parse({
             output_root: output,
-            occurrence_ids: [selected.occurrence_id],
           }),
         );
       expect(extracted.ok).toBe(true);
@@ -80,10 +79,17 @@ describe("artifact archive safety", () => {
     },
   );
 
-  it("rejects unsafe paths, collisions, and default compression bombs", async () => {
+  it("rejects unsafe paths and collisions", async () => {
+    expect(
+      normalizeArtifactPath(
+        Array.from({ length: 24 }, (_, index) => `level${String(index)}`).join(
+          "/",
+        ) + "/entry.js",
+      ).split("/"),
+    ).toHaveLength(25);
     let unsafePathError: unknown;
     try {
-      normalizeArtifactPath("../escape", limits());
+      normalizeArtifactPath("../escape");
     } catch (error: unknown) {
       unsafePathError = error;
     }
@@ -105,18 +111,6 @@ describe("artifact archive safety", () => {
       reason: "path",
       message: "Artifact path collision: a.js",
     });
-
-    const root = await createTestTempDirectory("rea-bomb-");
-    const zipPath = join(root, "bomb.zip");
-    const writer = new ZipWriter(new Uint8ArrayWriter());
-    await writer.add("zeros", new TextReader("0".repeat(10_000_000)));
-    await writeFile(zipPath, await writer.close());
-    const client = new ArtifactProvider().createClient(target(zipPath, "zip"));
-    const result = await client.execute("inventory_artifact", {});
-    expect(result).toMatchObject({
-      ok: false,
-      error: { _tag: "ArtifactOperationError", reason: "limit" },
-    });
   });
 });
 const inventory = async (targetValue: BinaryTarget) => {
@@ -126,16 +120,3 @@ const inventory = async (targetValue: BinaryTarget) => {
   if (!result.ok) throw result.error;
   return artifactInventoryResultSchema.parse(result.value.result);
 };
-
-const target = (
-  path: string,
-  format: Extract<BinaryTarget, { kind: "archive" }>["format"] | "directory",
-): BinaryTarget => ({
-  path,
-  sourcePath: path,
-  sha256: "0".repeat(64),
-  kind: "archive",
-  format: format === "directory" ? "asar" : format,
-});
-
-const limits = () => ({ maxDepth: 20, maxPathBytes: 4_096 });

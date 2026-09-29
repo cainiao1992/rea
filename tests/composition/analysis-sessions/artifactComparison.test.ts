@@ -14,14 +14,6 @@ import {
 import { createEvidence } from "../../../src/domain/evidence.js";
 import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
 
-const LIMITS = {
-  maxEntries: 1_000,
-  maxTotalBytes: 1024 * 1024,
-  maxEntryBytes: 1024 * 1024,
-  maxCompressionRatio: 100,
-  maxDepth: 20,
-  maxPathBytes: 1024,
-} as const;
 const PROVIDER = {
   id: "rea-artifact-graph",
   name: "REA artifact graph",
@@ -29,7 +21,7 @@ const PROVIDER = {
 } as const;
 
 const observe = async (path: string) => {
-  const inventory = await inventoryArtifact(path, LIMITS);
+  const inventory = await inventoryArtifact(path);
   return createEvidence(
     {
       path,

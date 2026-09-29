@@ -205,16 +205,6 @@ const graphLimitations = (
 
 const reconstructionLimits = () => [
   {
-    name: "max-entries",
-    value: JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.artifact.maxEntries,
-    unit: "items" as const,
-  },
-  {
-    name: "max-total-artifact-bytes",
-    value: JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.artifact.maxTotalBytes,
-    unit: "bytes" as const,
-  },
-  {
     name: "max-text-files",
     value: JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.maxTextFiles,
     unit: "items" as const,

@@ -2,10 +2,7 @@ import { createHash } from "node:crypto";
 
 import canonicalize from "canonicalize";
 
-import type {
-  ArtifactEntry,
-  ArtifactLimits,
-} from "../artifacts/ArtifactReader.js";
+import type { ArtifactEntry } from "../artifacts/ArtifactReader.js";
 import type {
   ArtifactCommand,
   ArtifactEdge,
@@ -55,7 +52,7 @@ export const createOccurrence = (
   compressed_size: entry.compressedSize,
   executable: entry.executable,
   encrypted: entry.encrypted,
-  hash_status: entry.encrypted ? "unavailable" : "not-hashed-limit",
+  hash_status: entry.encrypted ? "unavailable" : "not-hashed",
   source_location:
     entry.byteOffset === null || entry.declaredSize === null
       ? null
@@ -317,15 +314,6 @@ export const classifyArtifactContent = (
     };
   return byPath;
 };
-
-export const toOutputLimits = (limits: ArtifactLimits) => ({
-  max_entries: limits.maxEntries,
-  max_total_bytes: limits.maxTotalBytes,
-  max_entry_bytes: limits.maxEntryBytes,
-  max_compression_ratio: limits.maxCompressionRatio,
-  max_depth: limits.maxDepth,
-  max_path_bytes: limits.maxPathBytes,
-});
 
 export const digestCanonical = (value: unknown): string => {
   const encoded = canonicalize(value);

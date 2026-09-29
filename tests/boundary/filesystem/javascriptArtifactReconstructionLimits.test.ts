@@ -8,10 +8,6 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import { readJavaScriptArtifactFiles } from "../../../src/application/JavaScriptArtifactFiles.js";
 import { reconstructJavaScriptArtifact } from "../../../src/application/JavaScriptArtifactReconstruction.js";
-import {
-  artifactLimitsForReconstruction,
-  javascriptArtifactReconstructionInputSchema,
-} from "../../../src/application/JavaScriptArtifactReconstructionInput.js";
 import { scanArtifactInventory } from "../../../src/application/ArtifactInventory.js";
 import {
   type ArtifactEntry,
@@ -163,10 +159,7 @@ it("retains every repeated content observation and containment path", async () =
 
 it("rejects traversal from a production reader seam and malformed ASAR containers", async () => {
   const root = await fixtureDirectory();
-  const snapshot = await scanArtifactInventory(
-    root,
-    artifactLimitsForReconstruction(),
-  );
+  const snapshot = await scanArtifactInventory(root);
   await expect(
     readJavaScriptArtifactFiles(new TraversalReader(), snapshot),
   ).rejects.toMatchObject({ reason: "path" });
@@ -194,12 +187,6 @@ it("preserves cancellation and explicit format diagnostics", async () => {
     reason: "format",
     message: expect.stringContaining(root),
   });
-  expect(
-    javascriptArtifactReconstructionInputSchema.safeParse({
-      input_path: root,
-      limits: { max_entries: 100_000 },
-    }).success,
-  ).toBe(false);
 });
 
 class TraversalReader implements ArtifactReader {

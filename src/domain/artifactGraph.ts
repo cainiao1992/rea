@@ -10,7 +10,6 @@ const contradictionIdSchema = z.string().regex(/^ic_[a-f0-9]{64}$/u);
 const boundedRelativePathSchema = z
   .string()
   .min(1)
-  .max(4_096)
   .refine(
     (path) =>
       !path.startsWith("/") &&
@@ -60,16 +59,6 @@ const artifactFormatSchema = z.enum([
   "file",
   "unknown",
 ]);
-
-/** Exact bounded policy applied while discovering or extracting artifacts. */
-const artifactTraversalLimitsSchema = z.object({
-  max_entries: z.number().int().min(1).max(1_000_000),
-  max_total_bytes: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
-  max_entry_bytes: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
-  max_compression_ratio: z.number().min(1).max(100_000),
-  max_depth: z.number().int().min(0).max(100),
-  max_path_bytes: z.number().int().min(1).max(65_535),
-});
 
 /** File byte interval for an artifact derived without writing it to disk. */
 const artifactByteRangeSchema = z.object({
@@ -125,12 +114,7 @@ const artifactOccurrenceSchema = z.object({
     .nullable(),
   executable: z.boolean(),
   encrypted: z.boolean(),
-  hash_status: z.enum([
-    "verified",
-    "mismatched",
-    "not-hashed-limit",
-    "unavailable",
-  ]),
+  hash_status: z.enum(["verified", "mismatched", "not-hashed", "unavailable"]),
   source_location: artifactByteRangeSchema.nullable(),
   limitations: z.array(z.string()),
 });
@@ -188,7 +172,6 @@ export const artifactInventoryResultSchema = z.object({
   nodes: z.array(artifactNodeSchema),
   occurrences: z.array(artifactOccurrenceSchema),
   edges: z.array(artifactEdgeSchema),
-  limits: artifactTraversalLimitsSchema,
   provenance: z.array(artifactCommandSchema),
   integrity_contradictions: z.array(integrityContradictionSchema).default([]),
   limitations: z.array(z.string()),
@@ -224,7 +207,6 @@ export const artifactExtractionResultSchema = z.object({
     verified: z.boolean(),
     residual_paths: z.array(boundedRelativePathSchema),
   }),
-  limits: artifactTraversalLimitsSchema,
   provenance: z.array(artifactCommandSchema),
   limitations: z.array(z.string()),
 });

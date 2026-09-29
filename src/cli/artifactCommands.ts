@@ -17,41 +17,18 @@ export const registerArtifactCommands = (
 
 const registerExtractionCommand = (cli: CliInstance, logger: Logger): void => {
   cli.command(CLI_COMMANDS.extractArtifact, {
-    description: "Extract explicitly selected artifact occurrences safely",
+    description: "Extract all regular artifact contents safely",
     args: z.object({
       path: z.string().describe("Application or package path"),
     }),
-    options: z
-      .object({
-        paths: z
-          .array(z.string().min(1))
-          .min(1)
-          .optional()
-          .describe("Logical artifact paths selected for extraction"),
-        occurrenceIds: z
-          .array(z.string().regex(/^occ_[a-f0-9]{64}$/u))
-          .min(1)
-          .optional()
-          .describe("Alternate exact occurrence IDs selected for extraction"),
-      })
-      .refine(
-        ({ paths, occurrenceIds }) =>
-          (paths === undefined) !== (occurrenceIds === undefined),
-        "Provide paths or occurrence IDs",
-      ),
-    alias: { occurrenceIds: "occurrence-ids" },
-    run: ({ args, options }) =>
+    options: z.object({}),
+    run: ({ args }) =>
       logCliCommand(logger, "extract-artifact", () =>
         runProviderAnalysis(
           args.path,
           "extract_artifact",
           {
             output_root: createArtifactExtractionDestination(),
-            ...(options.paths !== undefined
-              ? { paths: options.paths }
-              : options.occurrenceIds !== undefined
-                ? { occurrence_ids: options.occurrenceIds }
-                : {}),
           },
           logger,
         ),

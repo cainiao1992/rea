@@ -4,7 +4,6 @@ import type { Stats } from "node:fs";
 
 import {
   ArtifactReaderFailure,
-  type ArtifactLimits,
   type ArtifactReader,
 } from "../../artifacts/ArtifactReader.js";
 import {
@@ -21,7 +20,6 @@ import {
   materializeDirectoryNodes,
   rekeyOccurrences,
   rootOccurrenceFor,
-  toOutputLimits,
   type MutableOccurrence,
 } from "../ArtifactGraphConstruction.js";
 import { classifyRoot } from "./classify.js";
@@ -40,7 +38,6 @@ import {
 
 export const scanCanonicalArtifactInventory = async (
   path: string,
-  limits: ArtifactLimits,
   options: ArtifactInventoryOptions = {},
 ): Promise<ArtifactInventorySnapshot> => {
   const integrity = options.integrity ?? STRICT_INTEGRITY_POLICY;
@@ -48,11 +45,7 @@ export const scanCanonicalArtifactInventory = async (
   const rootFormat = await classifyRoot(path, metadata.isDirectory());
   const rootDigest = metadata.isDirectory()
     ? null
-    : await hashReadable(
-        createReadStream(path),
-        limits.maxTotalBytes,
-        options.signal,
-      );
+    : await hashReadable(createReadStream(path), options.signal);
   const reader = await createReader(
     path,
     rootFormat,
@@ -63,7 +56,6 @@ export const scanCanonicalArtifactInventory = async (
   try {
     const { nodes, occurrences, pendingContradictions } = await scanReader(
       reader,
-      limits,
       options.signal,
       integrity,
     );
@@ -73,7 +65,6 @@ export const scanCanonicalArtifactInventory = async (
       rootFormat,
       rootDigest,
       reader,
-      limits,
       signal: options.signal,
       nodes,
       occurrences,
@@ -90,7 +81,6 @@ interface SnapshotBuildInput {
   readonly rootFormat: ArtifactNode["format"];
   readonly rootDigest: HashResult | null;
   readonly reader: ArtifactReader | undefined;
-  readonly limits: ArtifactLimits;
   readonly signal: AbortSignal | undefined;
   readonly nodes: Map<string, ArtifactNode>;
   readonly occurrences: MutableOccurrence[];
@@ -100,8 +90,7 @@ interface SnapshotBuildInput {
 const buildInventorySnapshot = async (
   input: SnapshotBuildInput,
 ): Promise<ArtifactInventorySnapshot> => {
-  const { path, metadata, rootFormat, rootDigest, reader, limits, signal } =
-    input;
+  const { path, metadata, rootFormat, rootDigest, reader, signal } = input;
   materializeDirectoryNodes(input.occurrences, input.nodes);
   const rootNode = createRootNode({
     path,
@@ -140,7 +129,7 @@ const buildInventorySnapshot = async (
   const orderedOccurrences = sortOccurrences(input.occurrences);
   const orderedEdges = sortEdges(edges);
 
-  await verifyRootDigest(path, rootDigest, limits.maxTotalBytes, signal);
+  await verifyRootDigest(path, rootDigest, signal);
 
   const graphSha256 = digestCanonical({
     nodes: orderedNodes,
@@ -160,7 +149,6 @@ const buildInventorySnapshot = async (
     nodes: orderedNodes,
     occurrences: orderedOccurrences,
     edges: orderedEdges,
-    limits: toOutputLimits(limits),
     provenance: reader?.provenance() ?? [],
     integrity_contradictions: integrityContradictions,
     limitations: buildLimitations(rootFormat, reader, integrityContradictions),
@@ -210,15 +198,10 @@ const buildIntegrityContradictions = (
 const verifyRootDigest = async (
   path: string,
   rootDigest: HashResult | null,
-  maxTotalBytes: number,
   signal: AbortSignal | undefined,
 ): Promise<void> => {
   if (rootDigest === null) return;
-  const verified = await hashReadable(
-    createReadStream(path),
-    maxTotalBytes,
-    signal,
-  );
+  const verified = await hashReadable(createReadStream(path), signal);
   if (
     verified.sha256 !== rootDigest.sha256 ||
     verified.bytes !== rootDigest.bytes

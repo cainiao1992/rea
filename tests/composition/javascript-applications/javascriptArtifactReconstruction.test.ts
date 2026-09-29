@@ -164,14 +164,7 @@ it("keeps ASAR analysis usable when unpacked native companion bytes are absent",
   await createPackageWithOptions(source, archive, { unpack: "**/*.node" });
   await rm(join(`${archive}.unpacked`, "native", "addon.node"));
 
-  const snapshot = await scanArtifactInventory(archive, {
-    maxEntries: 8_000,
-    maxTotalBytes: 512 * 1024 * 1024,
-    maxEntryBytes: 128 * 1024 * 1024,
-    maxCompressionRatio: 1_000,
-    maxDepth: 64,
-    maxPathBytes: 4_096,
-  });
+  const snapshot = await scanArtifactInventory(archive);
   const missingNative = snapshot.occurrences.find(
     ({ logical_path }) => logical_path === "native/addon.node",
   );

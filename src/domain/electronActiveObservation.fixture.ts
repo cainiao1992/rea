@@ -51,6 +51,6 @@ export const createElectronActiveObservationFixtureResult = (
       observed: 1,
     },
     limitations: [
-      "IPC payloads are represented only by bounded value shapes; values are never retained.",
+      "IPC payloads are represented by value shapes; payload values are never retained.",
     ],
   });

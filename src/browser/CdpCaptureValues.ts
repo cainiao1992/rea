@@ -35,11 +35,6 @@ export const requiredRecord = (value: unknown): UnknownRecord => {
   return record;
 };
 
-export const boundedText = (value: unknown, maximum = 1_024): string | null => {
-  const text = stringValue(value);
-  return text === undefined ? null : text.slice(0, maximum);
-};
-
 export const isHttpUrl = (value: string | undefined): boolean => {
   if (value === undefined) return false;
   try {

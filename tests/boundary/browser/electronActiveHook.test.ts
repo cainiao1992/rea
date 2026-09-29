@@ -87,6 +87,8 @@ electron.ipcMain.handle(channel, async () => ({ ok: true }));
 await electron.ipcMain.handlers.get(channel)({ sender: { id: 9 }, senderFrame: { routingId: 7 } }, ...Array.from({ length: 40 }, () => ({ value: true })));
 window.webContents.send("main-to-renderer", { value: true });
 window.webContents.emit("render-process-gone", { reason: "crashed" });
+const longEventName = "l".repeat(2048);
+window.webContents.emit(longEventName);
 const utility = electron.utilityProcess.fork("utility.js");
 utility.emit("message", { data: { value: true } });
 utility.postMessage({ value: true });
@@ -163,6 +165,14 @@ it("retains active hook lifecycle and IPC evidence without a count ceiling", asy
   });
   expect(ipc?.channel).toBe("x".repeat(2_048));
   expect(ipc?.argument_shapes).toHaveLength(40);
+  expect(snapshot.events).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        kind: "web-contents-lifecycle",
+        event: "l".repeat(2048),
+      }),
+    ]),
+  );
 });
 
 it("preserves fatal process termination after recording uncaught exceptions", async () => {

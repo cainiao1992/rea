@@ -56,4 +56,14 @@ describe("Electron file scope", () => {
       await authorizedElectronFile("file:///tmp/root%2Findex.html", roots),
     ).toBeUndefined();
   });
+
+  it("accepts file URLs with long query text inside a root", async () => {
+    const root = await createTestTempDirectory("rea-electron-long-url-");
+    const path = join(root, "index.html");
+    await writeFile(path, "allowed");
+    const roots = await canonicalElectronRoots([root]);
+    const value = `${pathToFileURL(path).href}?${"x".repeat(70_000)}`;
+
+    await expect(authorizedElectronFile(value, roots)).resolves.toBe(path);
+  });
 });

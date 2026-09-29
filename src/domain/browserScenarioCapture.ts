@@ -21,21 +21,21 @@ export {
   type BrowserStepArtifacts,
 } from "./browserScenarioCaptureValues.js";
 
-/** Step-indexed, explicitly bounded browser scenario observation. */
+/** Step-indexed browser scenario observation. */
 export const browserScenarioCaptureSchema = z
   .strictObject({
     browser: z.strictObject({
       mode: z.enum(["launch", "connect"]),
       process_ownership: z.enum(["provider-owned", "external"]),
       cleanup: z.enum(["terminated-owned-process", "disconnected-external"]),
-      product: z.string().min(1).max(1_024),
-      version: z.string().min(1).max(256),
+      product: z.string().min(1),
+      version: z.string().min(1),
     }),
     scenario: z.strictObject({
-      start_origin: z.string().min(1).max(2_048),
-      allowed_origins: z.array(z.string().min(1).max(2_048)).min(1).max(32),
+      start_origin: z.string().min(1),
+      allowed_origins: z.array(z.string().min(1)).min(1),
       action_count: z.number().int().min(1),
-      secret_references: z.array(z.string().min(1).max(64)),
+      secret_references: z.array(z.string().min(1)),
     }),
     duration_ms: z.number().int().min(0),
     steps: z.array(browserScenarioStepSchema).min(1),
@@ -45,7 +45,7 @@ export const browserScenarioCaptureSchema = z
       items: z.array(browserScenarioEventSchema),
     }),
     completeness: browserScenarioCompletenessSchema,
-    limitations: z.array(z.string().min(1).max(2_048)).max(64),
+    limitations: z.array(z.string().min(1)),
   })
   .superRefine((capture, context) => {
     if (capture.events.retained !== capture.events.items.length)

@@ -30,13 +30,13 @@ export const captureStateSchema = <Schema extends z.ZodType>(value: Schema) =>
     }),
     z.strictObject({
       state: z.literal("missing"),
-      reason: z.string().min(1).max(1_024),
+      reason: z.string().min(1),
     }),
     z.strictObject({
       state: z.literal("truncated"),
       observed: z.number().int().min(0),
       retained: z.number().int().min(0),
-      reason: z.string().min(1).max(1_024),
+      reason: z.string().min(1),
     }),
   ]);
 
@@ -281,8 +281,8 @@ export const classifyBrowserScenarioCompleteness = (
 
 const browserScenarioStepShape = {
   step_index: z.number().int().min(0),
-  step_id: z.string().min(1).max(64),
-  action: z.string().min(1).max(64),
+  step_id: z.string().min(1),
+  action: z.string().min(1),
   elapsed_ms: z.number().int().min(0),
   before_url: sanitizedBrowserUrlSchema,
   after_url: sanitizedBrowserUrlSchema,

@@ -41,7 +41,7 @@ import {
 } from "./PlaywrightElectronActiveActions.js";
 
 const OPERATION = "capture_electron_scenario" as const;
-const RUN_TIMEOUT_MS = 60_000;
+const STARTUP_TIMEOUT_MS = 60_000;
 
 /** Public identity for provider-owned Electron runtime experiments. */
 export const PLAYWRIGHT_ELECTRON_ACTIVE_PROVIDER_IDENTITY: ProviderIdentity =
@@ -165,14 +165,14 @@ export class PlaywrightElectronActiveProvider
     try {
       if (options.signal?.aborted === true)
         throw new BrowserObservationError(OPERATION, "cancelled");
-      const deadline = Date.now() + RUN_TIMEOUT_MS;
+      const startupDeadline = Date.now() + STARTUP_TIMEOUT_MS;
       const paths = await canonicalPaths(input);
       application = await electron.launch({
         executablePath: paths.executable,
         cwd: paths.root,
         env: safeElectronEnvironment(runId),
         args: ["-r", hookPath, paths.application, ...input.args],
-        timeout: Math.max(1, deadline - Date.now()),
+        timeout: Math.max(1, startupDeadline - Date.now()),
       });
       const leaderPid = application.process().pid;
       if (
@@ -192,16 +192,10 @@ export class PlaywrightElectronActiveProvider
         expectedCommand: paths.executable,
         sweepTokenOwnedProcesses: true,
       };
-      const actions = await runElectronActions(
-        application,
-        input,
-        options,
-        deadline,
-      );
+      const actions = await runElectronActions(application, input, options);
       const state = await runWithExecutionLimits(
         readApplicationState(application),
         options.signal,
-        deadline,
       );
       outcome = ok(createResult(paths, input, actions, state));
     } catch (cause: unknown) {
@@ -341,7 +335,7 @@ const createResult = (
     },
     coverage: createCoverage(hookSnapshot),
     limitations: [
-      "IPC payloads are represented only by bounded value shapes; values are never retained, channels are capped at 1,024 characters, and argument-shape arrays at 32 entries.",
+      "IPC payloads are represented by value shapes; payload values are never retained.",
       "IPC direction and sender/receiver identifiers are observed only where Electron exposes them at the hooked boundary.",
       "The runtime timeline records lifecycle, navigation, shell, permission, popup, download, protocol, preload, native-addon, process, and IPC events; activity before hook installation is unavailable.",
       "The preload and renderer process contexts are not instrumented by the main-process -r hook; preload configuration and contextBridge API-shape events are main-boundary observations, not proof of renderer-side execution.",

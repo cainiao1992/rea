@@ -4,8 +4,6 @@ const {
   createElectronActiveBoundaryPatches,
 } = require("./electron-active-hook-boundaries.cjs");
 
-const MAX_EVENT_NAME_LENGTH = 128;
-const MAX_IDENTIFIER_LENGTH = 256;
 const ipcEventKinds = new Set([
   "main-handler-invocation",
   "main-event-invocation",
@@ -23,9 +21,6 @@ let observedIpc = 0;
 let observedRuntime = 0;
 let sequence = 0;
 let correlationSequence = 0;
-
-const boundedString = (value, maximum) =>
-  typeof value === "string" ? value.slice(0, maximum) : null;
 
 const shape = (value, depth = 0) => {
   if (depth > 2 || value === null) return value === null ? "null" : "nested";
@@ -64,7 +59,7 @@ const isAllowedNavigation = (value) => {
 
 const processType = () =>
   typeof process.type === "string" && process.type.length > 0
-    ? process.type.slice(0, MAX_IDENTIFIER_LENGTH)
+    ? process.type
     : "main";
 
 const identity = (value, prefix) => {
@@ -72,9 +67,9 @@ const identity = (value, prefix) => {
   const id = value.id;
   const processId = value.pid;
   return typeof id === "string" || typeof id === "number"
-    ? `${prefix}:${String(id)}`.slice(0, MAX_IDENTIFIER_LENGTH)
+    ? `${prefix}:${String(id)}`
     : typeof processId === "number"
-      ? `${prefix}:pid:${String(processId)}`.slice(0, MAX_IDENTIFIER_LENGTH)
+      ? `${prefix}:pid:${String(processId)}`
       : null;
 };
 
@@ -82,7 +77,7 @@ const frameIdentity = (event) => {
   const frame = event?.senderFrame ?? event?.frame;
   const id = frame?.frameTreeNodeId ?? frame?.routingId ?? frame?.id;
   return typeof id === "string" || typeof id === "number"
-    ? `frame:${String(id)}`.slice(0, MAX_IDENTIFIER_LENGTH)
+    ? `frame:${String(id)}`
     : null;
 };
 
@@ -119,20 +114,24 @@ const record = (event) => {
     : [];
   events.push({
     ...raw,
-    correlation_id: boundedString(raw.correlation_id, MAX_IDENTIFIER_LENGTH),
-    event: boundedString(raw.event, MAX_EVENT_NAME_LENGTH),
+    correlation_id: raw.correlation_id,
+    event: typeof raw.event === "string" ? raw.event : null,
     channel: typeof raw.channel === "string" ? raw.channel : null,
-    sender: boundedString(raw.sender, MAX_IDENTIFIER_LENGTH),
-    receiver: boundedString(raw.receiver, MAX_IDENTIFIER_LENGTH),
-    frame: boundedString(raw.frame, MAX_IDENTIFIER_LENGTH),
-    target: boundedString(raw.target, MAX_IDENTIFIER_LENGTH),
-    argument_shapes: argumentShapes.map(
-      (value) => boundedString(value, 64) ?? "unknown",
+    sender: typeof raw.sender === "string" ? raw.sender : null,
+    receiver: typeof raw.receiver === "string" ? raw.receiver : null,
+    frame: typeof raw.frame === "string" ? raw.frame : null,
+    target: typeof raw.target === "string" ? raw.target : null,
+    argument_shapes: argumentShapes.map((value) =>
+      typeof value === "string" ? value : "unknown",
     ),
-    result_shape: boundedString(raw.result_shape, 64),
-    process_type: boundedString(raw.process_type, MAX_IDENTIFIER_LENGTH),
-    artifact_path: boundedString(raw.artifact_path, 16_384),
-    artifact_sha256: boundedString(raw.artifact_sha256, 64),
+    result_shape:
+      typeof raw.result_shape === "string" ? raw.result_shape : null,
+    process_type:
+      typeof raw.process_type === "string" ? raw.process_type : null,
+    artifact_path:
+      typeof raw.artifact_path === "string" ? raw.artifact_path : null,
+    artifact_sha256:
+      typeof raw.artifact_sha256 === "string" ? raw.artifact_sha256 : null,
   });
   return events.at(-1);
 };

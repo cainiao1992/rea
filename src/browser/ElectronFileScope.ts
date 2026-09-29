@@ -17,7 +17,7 @@ export const authorizedElectronFile = async (
   value: string,
   roots: readonly string[],
 ): Promise<string | undefined> => {
-  if (value.length > 65_536 || /%(?:2f|5c)/iu.test(value)) return undefined;
+  if (/%(?:2f|5c)/iu.test(value)) return undefined;
   let url: URL;
   try {
     url = new URL(value);

@@ -10,7 +10,6 @@ import type {
 } from "../domain/electronActiveObservation.js";
 
 const OPERATION = "capture_electron_scenario" as const;
-const ACTION_TIMEOUT_MS = 5_000;
 
 const hookEventSchema = z.strictObject({
   sequence: z.number().int().min(1),
@@ -108,7 +107,6 @@ export const runElectronActions = async (
   application: ElectronApplication,
   input: ElectronActiveObservationInput,
   options: ExecutionOptions,
-  deadline: number,
 ): Promise<ElectronActions> => {
   const actions: ElectronActions = [];
   for (const action of input.actions) {
@@ -118,18 +116,13 @@ export const runElectronActions = async (
     const windowIndex = actionWindowIndex(action);
     let selectedWindow: Page | undefined;
     try {
-      const remaining = deadline - Date.now();
-      if (remaining <= 0)
-        throw new BrowserObservationError(OPERATION, "timeout");
       selectedWindow =
         windowIndex === null
           ? undefined
           : await waitForWindow({
               application,
               windowIndex,
-              timeout: ACTION_TIMEOUT_MS,
               signal: options.signal,
-              deadline,
             });
       if (
         (action.kind === "click" ||
@@ -143,10 +136,7 @@ export const runElectronActions = async (
         application,
         action,
         selectedWindow,
-        remaining,
-        actionTimeoutMs: ACTION_TIMEOUT_MS,
         options,
-        deadline,
       });
       actions.push({
         step_id: action.step_id,
@@ -179,20 +169,14 @@ type RunActionContext = {
   readonly application: ElectronApplication;
   readonly action: ElectronAction;
   readonly selectedWindow: Page | undefined;
-  readonly remaining: number;
-  readonly actionTimeoutMs: number;
   readonly options: ExecutionOptions;
-  readonly deadline: number;
 };
 
 const runAction = async ({
   application,
   action,
   selectedWindow,
-  remaining,
-  actionTimeoutMs,
   options,
-  deadline,
 }: RunActionContext): Promise<void> => {
   switch (action.kind) {
     case "click":
@@ -200,25 +184,21 @@ const runAction = async ({
         throw new BrowserObservationError(OPERATION, "window_not_found");
       await runWithExecutionLimits(
         selectedWindow.locator(action.selector).click({
-          timeout: Math.min(actionTimeoutMs, remaining),
+          timeout: 0,
         }),
         options.signal,
-        deadline,
       );
       return;
     case "wait": {
       const page =
         selectedWindow ??
         (await application.firstWindow({
-          timeout: Math.min(actionTimeoutMs, remaining),
+          timeout: 0,
         }));
       await runWithExecutionLimits(
-        page.waitForTimeout(Math.min(action.duration_ms, remaining)),
+        page.waitForTimeout(action.duration_ms),
         options.signal,
-        deadline,
       );
-      if (action.duration_ms > remaining)
-        throw new BrowserObservationError(OPERATION, "timeout");
       return;
     }
     case "renderer-reload":
@@ -226,10 +206,9 @@ const runAction = async ({
         throw new BrowserObservationError(OPERATION, "window_not_found");
       await runWithExecutionLimits(
         selectedWindow.reload({
-          timeout: Math.min(actionTimeoutMs, remaining),
+          timeout: 0,
         }),
         options.signal,
-        deadline,
       );
       return;
     case "renderer-crash": {
@@ -241,7 +220,6 @@ const runAction = async ({
           return true;
         }, action.window_index),
         options.signal,
-        deadline,
       );
       if (!crashed)
         throw new BrowserObservationError(OPERATION, "window_not_found");
@@ -251,7 +229,6 @@ const runAction = async ({
       await runWithExecutionLimits(
         emitDeepLink(application, action),
         options.signal,
-        deadline,
       );
       return;
   }
@@ -273,20 +250,15 @@ const actionWindowIndex = (action: ElectronAction): number | null => {
 type WaitForWindowContext = {
   readonly application: ElectronApplication;
   readonly windowIndex: number;
-  readonly timeout: number;
   readonly signal: AbortSignal | undefined;
-  readonly deadline: number;
 };
 
 const waitForWindow = async ({
   application,
   windowIndex,
-  timeout,
   signal,
-  deadline,
 }: WaitForWindowContext): Promise<Page> => {
-  const stopAt = Math.min(deadline, Date.now() + timeout);
-  while (Date.now() < stopAt) {
+  while (true) {
     if (signal?.aborted === true)
       throw new BrowserObservationError(OPERATION, "cancelled");
     const window = application.windows()[windowIndex];
@@ -294,10 +266,8 @@ const waitForWindow = async ({
     await runWithExecutionLimits(
       new Promise<void>((resolve) => setTimeout(resolve, 25)),
       signal,
-      stopAt,
     );
   }
-  throw new BrowserObservationError(OPERATION, "window_not_found");
 };
 
 const emitDeepLink = (
@@ -430,35 +400,39 @@ export const readApplicationState = async (
   };
 };
 
-/** Apply a deadline and caller cancellation to one Playwright operation. */
+/** Apply an optional lifecycle deadline and caller cancellation to an operation. */
 export const runWithExecutionLimits = async <Value>(
   operation: Promise<Value>,
   signal: AbortSignal | undefined,
-  deadline: number,
+  deadline?: number,
 ): Promise<Value> => {
   if (signal?.aborted === true)
     throw new BrowserObservationError(OPERATION, "cancelled");
+  if (signal === undefined && deadline === undefined) return operation;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let abortListener: (() => void) | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () => reject(new BrowserObservationError(OPERATION, "timeout")),
-      Math.max(1, deadline - Date.now()),
+  const interruptions: Promise<never>[] = [];
+  if (deadline !== undefined)
+    interruptions.push(
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new BrowserObservationError(OPERATION, "timeout")),
+          Math.max(1, deadline - Date.now()),
+        );
+      }),
     );
-  });
-  const cancellation =
-    signal === undefined
-      ? timeout
-      : Promise.race([
-          timeout,
-          new Promise<never>((_, reject) => {
-            abortListener = () =>
-              reject(new BrowserObservationError(OPERATION, "cancelled"));
-            signal.addEventListener("abort", abortListener, { once: true });
-          }),
-        ]);
+  if (signal !== undefined)
+    interruptions.push(
+      new Promise<never>((_, reject) => {
+        abortListener = () =>
+          reject(new BrowserObservationError(OPERATION, "cancelled"));
+        signal.addEventListener("abort", abortListener, { once: true });
+      }),
+    );
   try {
-    return await Promise.race([operation, cancellation]);
+    return interruptions.length === 0
+      ? await operation
+      : await Promise.race([operation, ...interruptions]);
   } finally {
     if (timer !== undefined) clearTimeout(timer);
     if (abortListener !== undefined)

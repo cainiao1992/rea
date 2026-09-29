@@ -165,3 +165,36 @@ it("accepts complete browser inputs beyond former string length caps", () => {
       : undefined,
   ).toBe(longToken);
 });
+
+it("accepts caller-selected viewport sizes and click counts without ceilings", () => {
+  const input = {
+    browser: {
+      mode: "launch",
+      executable_path: "/opt/chromium",
+      headless: true,
+      user_data: "temporary-owned",
+      cleanup: "close-and-delete-profile",
+    },
+    start_url: { url: "https://app.example.test/" },
+    allowed_origins: ["https://app.example.test"],
+    environment: {
+      viewport: { width: 20_000, height: 10_000, device_scale_factor: 8 },
+    },
+    actions: [
+      {
+        step_id: "many-clicks",
+        action: "click",
+        locator: { kind: "css", selector: "#item" },
+        click_count: 4,
+      },
+    ],
+  };
+
+  const parsed = browserScenarioSchema.parse(input);
+  expect(parsed.environment.viewport).toEqual({
+    width: 20_000,
+    height: 10_000,
+    device_scale_factor: 8,
+  });
+  expect(parsed.actions[0]).toMatchObject({ click_count: 4 });
+});

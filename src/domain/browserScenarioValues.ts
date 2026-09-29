@@ -95,9 +95,9 @@ export const browserScenarioEnvironmentSchema = z
   .strictObject({
     viewport: z
       .strictObject({
-        width: z.number().int().min(320).max(7_680).default(1_280),
-        height: z.number().int().min(240).max(4_320).default(720),
-        device_scale_factor: z.number().min(0.5).max(4).default(1),
+        width: z.number().int().positive().default(1_280),
+        height: z.number().int().positive().default(720),
+        device_scale_factor: z.number().positive().default(1),
       })
       .default({ width: 1_280, height: 720, device_scale_factor: 1 }),
     locale: z
@@ -182,7 +182,7 @@ export const browserScenarioActionSchema = z.discriminatedUnion("action", [
     action: z.literal("click"),
     locator: locatorSchema,
     button: z.enum(["left", "middle", "right"]).default("left"),
-    click_count: z.number().int().min(1).max(3).default(1),
+    click_count: z.number().int().positive().default(1),
   }),
   z.strictObject({
     ...stepBase,
@@ -382,8 +382,8 @@ const snapshotKindSchema = z.enum([
 
 export const browserScenarioCaptureSchema = z
   .strictObject({
-    after_each_step: z.array(snapshotKindSchema).max(6).default([]),
-    at_end: z.array(snapshotKindSchema).max(6).default(["url"]),
+    after_each_step: z.array(snapshotKindSchema).default([]),
+    at_end: z.array(snapshotKindSchema).default(["url"]),
     events: z
       .array(
         z.enum([

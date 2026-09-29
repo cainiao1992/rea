@@ -7,7 +7,7 @@ import {
 import { createElectronActiveObservationFixtureResult } from "../domain/electronActiveObservation.fixture.js";
 import { runElectronActions } from "./PlaywrightElectronActiveActions.js";
 
-it("parses bounded window, renderer, and deep-link actions for agents", () => {
+it("parses window, renderer, and deep-link actions for agents", () => {
   const input = electronActiveObservationInputSchema.parse({
     executable_path: "/opt/electron",
     application_path: "/opt/app/main.js",
@@ -122,12 +122,7 @@ it("redacts action inputs from Playwright failures", async () => {
     windows: () => [page],
   };
 
-  const result = await runElectronActions(
-    application as never,
-    input,
-    {},
-    Date.now() + 1_000,
-  );
+  const result = await runElectronActions(application as never, input, {});
 
   expect(result[0]).toMatchObject({
     status: "failed",
@@ -154,7 +149,6 @@ it("retains complete action errors and Electron window text", async () => {
     { windows: () => [page] } as never,
     input,
     {},
-    Date.now() + 1_000,
   );
   const result = createElectronActiveObservationFixtureResult("/opt/app");
   const longUrl = `file://${"/segment".repeat(10_000)}`;
@@ -281,12 +275,7 @@ it("runs an untargeted deep-link without requiring a BrowserWindow", async () =>
     evaluate: async () => true,
   };
 
-  const result = await runElectronActions(
-    application as never,
-    input,
-    {},
-    Date.now() + 1_000,
-  );
+  const result = await runElectronActions(application as never, input, {});
 
   expect(result).toMatchObject([
     {
@@ -295,6 +284,30 @@ it("runs an untargeted deep-link without requiring a BrowserWindow", async () =>
       error: null,
     },
   ]);
+});
+
+it("honors caller-selected Electron waits beyond the former action timeout", async () => {
+  const input = electronActiveObservationInputSchema.parse({
+    executable_path: "/opt/electron",
+    application_path: "/opt/app/main.js",
+    application_root: "/opt/app",
+    actions: [{ step_id: "wait-long", kind: "wait", duration_ms: 60_000 }],
+  });
+  let duration = 0;
+  const page = {
+    waitForTimeout: async (value: number) => {
+      duration = value;
+    },
+  };
+  const application = {
+    windows: () => [page],
+    firstWindow: async () => page,
+  };
+
+  const result = await runElectronActions(application as never, input, {});
+
+  expect(result[0]).toMatchObject({ status: "completed" });
+  expect(duration).toBe(60_000);
 });
 
 it("rejects action outcomes that disagree with their error state", () => {

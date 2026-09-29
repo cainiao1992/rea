@@ -8,6 +8,7 @@ import {
   browserScenarioEventSchema,
   browserStepArtifactsSchema,
 } from "./browserScenarioCaptureValues.js";
+import { browserScenarioCaptureSchema } from "./browserScenarioCapture.js";
 
 const networkEvent = {
   sequence: 1,
@@ -138,6 +139,69 @@ it("accepts complete storage, history, and text artifacts beyond former caps", (
   });
 
   expect(parsed.success).toBe(true);
+});
+
+it("accepts complete scenario output beyond former string and origin caps", () => {
+  const longText = "detail".repeat(1_000);
+  const origins = Array.from(
+    { length: 33 },
+    (_, index) => `https://site-${index}.example.test`,
+  );
+  const step = (index: number) => ({
+    step_index: index,
+    step_id: longText,
+    action: longText,
+    elapsed_ms: 0,
+    before_url: sanitizeBrowserUrl("https://example.test/"),
+    after_url: sanitizeBrowserUrl("https://example.test/"),
+    event_sequence_start: 1,
+    event_sequence_end: 0,
+    artifacts: {
+      screenshot: { state: "not_requested" },
+      dom: { state: "not_requested" },
+      accessibility: { state: "not_requested" },
+      url: { state: "not_requested" },
+      history: { state: "not_requested" },
+      storage: { state: "not_requested" },
+    },
+    completeness: {
+      status: "complete",
+      equality_eligible: true,
+      missing_sections: [],
+      truncated_sections: [],
+    },
+    status: "completed",
+    error: null,
+  });
+  const parsed = browserScenarioCaptureSchema.parse({
+    browser: {
+      mode: "launch",
+      process_ownership: "provider-owned",
+      cleanup: "terminated-owned-process",
+      product: longText,
+      version: longText,
+    },
+    scenario: {
+      start_origin: longText,
+      allowed_origins: origins,
+      action_count: 1,
+      secret_references: [longText],
+    },
+    duration_ms: 0,
+    steps: [step(0), step(1)],
+    events: { retained: 0, dropped: 0, items: [] },
+    completeness: {
+      status: "complete",
+      equality_eligible: true,
+      missing_sections: [],
+      truncated_sections: [],
+    },
+    limitations: Array.from({ length: 65 }, () => longText),
+  });
+
+  expect(parsed.scenario.allowed_origins).toHaveLength(33);
+  expect(parsed.steps[0]?.step_id).toBe(longText);
+  expect(parsed.limitations).toHaveLength(65);
 });
 
 it("derives equality eligibility from exact completeness state", () => {

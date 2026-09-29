@@ -48,7 +48,6 @@ const registerWebMcp = (
         .number()
         .int()
         .min(0)
-        .max(10_000)
         .default(100)
         .describe("Observation duration in milliseconds"),
     }),

@@ -146,7 +146,7 @@ export const nativeApiInspectionResultSchema = z
       })
       .strict(),
     boundary: nativeApiBoundarySchema,
-    substeps: z.array(nativeApiInspectionSubstepSchema).min(3).max(3),
+    substeps: z.array(nativeApiInspectionSubstepSchema).length(3),
     unsupported_branches: z.array(z.string().min(1)),
     residual_unknowns: z.array(z.string().min(1)),
   })

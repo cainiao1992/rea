@@ -164,22 +164,30 @@ const propertyFields = (
   prefix: string,
 ): CandidateField[] => {
   const output: CandidateField[] = [];
-  const visit = (current: JsonValue, path: string, depth: number): void => {
-    if (output.length >= 512 || depth > 6) return;
+  const pending: { readonly current: JsonValue; readonly path: string }[] = [
+    { current: value, path: prefix },
+  ];
+  while (pending.length > 0) {
+    const next = pending.pop();
+    if (next === undefined) continue;
+    const { current, path } = next;
     if (typeof current === "string") {
       output.push({ basis: "property", field: path, value: current });
-      return;
+      continue;
     }
     if (Array.isArray(current)) {
-      for (const [index, item] of current.entries())
-        visit(item, `${path}[${String(index)}]`, depth + 1);
-      return;
+      for (let index = current.length - 1; index >= 0; index -= 1) {
+        const item = current[index];
+        if (item !== undefined)
+          pending.push({ current: item, path: `${path}[${String(index)}]` });
+      }
+      continue;
     }
-    if (current !== null && typeof current === "object")
-      for (const key of Object.keys(current).sort(compareCodePoints))
-        visit(current[key] ?? null, `${path}.${key}`, depth + 1);
-  };
-  visit(value, prefix, 0);
+    if (current !== null && typeof current === "object") {
+      for (const key of Object.keys(current).sort(compareCodePoints).reverse())
+        pending.push({ current: current[key] ?? null, path: `${path}.${key}` });
+    }
+  }
   return output;
 };
 

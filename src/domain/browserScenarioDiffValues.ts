@@ -37,7 +37,6 @@ const normalizationRuleSchema = z.strictObject({
   artifacts: z
     .array(normalizableArtifactKindSchema)
     .min(1)
-    .max(7)
     .describe("Artifact families whose durable string fields use this rule."),
   match: z
     .string()

@@ -7,7 +7,7 @@ import { err, ok, type Result } from "../domain/result.js";
 const remoteErrorSchema = z
   .object({
     code: z.number().int(),
-    message: z.string().max(512),
+    message: z.string(),
     type: z
       .enum([
         "remote",
@@ -42,10 +42,10 @@ const eventSchema = z
       z
         .object({
           type: z.literal("progress"),
-          phase: z.string().min(1).max(64),
+          phase: z.string().min(1),
           completed: z.number().nonnegative().finite(),
           total: z.number().nonnegative().finite().nullable(),
-          message: z.string().min(1).max(512),
+          message: z.string().min(1),
           terminal: z.boolean().optional(),
         })
         .strict(),

@@ -1189,7 +1189,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         if (!results.decompileCompleted()) {
             throw new RequestFailure(
                 "decompile_failed",
-                "Ghidra decompilation failed: " + boundedMessage(results.getErrorMessage())
+                "Ghidra decompilation failed: " + diagnosticMessage(results.getErrorMessage())
             );
         }
         return results;
@@ -1506,11 +1506,11 @@ public final class ReaGhidraBridge extends HeadlessScript {
         return canonicalOffset(inclusive.getAddressSpace(), offset.add(BigInteger.ONE));
     }
 
-    private static String boundedMessage(String value) {
+    private static String diagnosticMessage(String value) {
         if (value == null || value.isBlank()) {
             return "native decompiler returned no detail";
         }
-        return truncate(value.replaceAll("[\\r\\n]+", " "), 512).value;
+        return value.replaceAll("[\\r\\n]+", " ");
     }
 
     private JsonArray inventory(
@@ -1689,15 +1689,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
 
     private static void addBounded(List<InventoryItem> destination, InventoryItem item) {
         destination.add(item);
-    }
-
-    private static TruncatedValue truncate(String value, int maximumCodePoints) {
-        int codePoints = value.codePointCount(0, value.length());
-        if (codePoints <= maximumCodePoints) {
-            return new TruncatedValue(value, false);
-        }
-        int end = value.offsetByCodePoints(0, maximumCodePoints);
-        return new TruncatedValue(value.substring(0, end), true);
     }
 
     private static ValueMatcher literalMatcher(String pattern, boolean caseSensitive) {
@@ -1914,7 +1905,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
     private record InventoryItem(Address address, String value, JsonObject facts) {}
     private record FunctionEntry(Function function, InventoryItem item) {}
     private record InstructionScan(List<Instruction> instructions, boolean truncated) {}
-    private record TruncatedValue(String value, boolean truncated) {}
     private record SessionDescriptor(
         String transport,
         String endpointPath,

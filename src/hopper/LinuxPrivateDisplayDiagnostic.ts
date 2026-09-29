@@ -5,15 +5,12 @@ import {
   type HopperStartupDiagnostic,
 } from "../domain/hopperStartupFailure.js";
 
-export const LINUX_PRIVATE_DISPLAY_DIAGNOSTIC_PREFIX = "REA_X11_DIAGNOSTIC_V1=";
+export const LINUX_PRIVATE_DISPLAY_DIAGNOSTIC_PREFIX = "REA_X11_DIAGNOSTIC=";
 
 const diagnosticContextSchema = z.object({
   component: z.literal("hopper_private_display"),
   operation: z.enum(["probe", "launch"]),
-  reason: z
-    .string()
-    .regex(/^[a-z0-9_]+$/u)
-    .max(64),
+  reason: z.string().regex(/^[a-z0-9_]+$/u),
   socket_directory: z.literal("/tmp/.X11-unix"),
   socket_directory_mode: z
     .string()
@@ -30,23 +27,18 @@ const diagnosticContextSchema = z.object({
   fallback_reason: z
     .string()
     .regex(/^[a-z0-9_]+$/u)
-    .max(64)
     .nullable(),
   xvfb_stderr_bytes: z.number().int().nonnegative().safe(),
-  xvfb_stderr_truncated: z.boolean(),
 });
 
-const failureCodeSchema = z
-  .string()
-  .max(64)
-  .transform((value, context) => {
-    if (isHopperStartupFailureCode(value)) return value;
-    context.addIssue({
-      code: "custom",
-      message: "Unknown startup failure code",
-    });
-    return z.NEVER;
+const failureCodeSchema = z.string().transform((value, context) => {
+  if (isHopperStartupFailureCode(value)) return value;
+  context.addIssue({
+    code: "custom",
+    message: "Unknown startup failure code",
   });
+  return z.NEVER;
+});
 
 const diagnosticSchema = z.discriminatedUnion("status", [
   diagnosticContextSchema
@@ -64,16 +56,13 @@ export type LinuxPrivateDisplayDiagnosticParse =
       readonly reason:
         | "diagnostic_missing"
         | "diagnostic_multiple"
-        | "diagnostic_malformed"
-        | "diagnostic_truncated";
+        | "diagnostic_malformed";
     };
 
-/** Parse exactly one bounded, versioned helper diagnostic from stderr. */
+/** Parse exactly one helper diagnostic from stderr. */
 export const parseLinuxPrivateDisplayDiagnostic = (
   stderr: string,
-  truncated: boolean,
 ): LinuxPrivateDisplayDiagnosticParse => {
-  if (truncated) return { ok: false, reason: "diagnostic_truncated" };
   const records = stderr
     .split("\n")
     .filter((line) => line.startsWith(LINUX_PRIVATE_DISPLAY_DIAGNOSTIC_PREFIX));

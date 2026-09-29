@@ -114,9 +114,8 @@ const runtimeChecks = (
     broken.length === 0
       ? `${String(inventory.candidates.length)} runtime executable candidates passed bounded version probes.`
       : `${String(broken.length)} of ${String(inventory.candidates.length)} runtime executable candidates failed bounded version probes: ${broken
-          .slice(0, 5)
           .map(({ lexical_path: path }) => path)
-          .join(", ")}${broken.length > 5 ? ", …" : ""}`;
+          .join(", ")}`;
   return [
     check("node-toolchains", broken.length === 0, detail, {
       remediation:

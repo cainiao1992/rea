@@ -17,6 +17,7 @@ import {
 import { DirectoryArtifactReader } from "./DirectoryArtifactReader.js";
 
 const execFileAsync = promisify(execFile);
+const DETACH_TIMEOUT_MS = 120_000;
 const attachOutputSchema = z.object({
   "system-entities": z.array(
     z.object({
@@ -31,18 +32,20 @@ export interface NativeDmgHost {
   run(
     arguments_: readonly string[],
     signal?: AbortSignal,
+    options?: { readonly timeoutMs: number },
   ): Promise<{ readonly stdout: string; readonly exitCode: number }>;
 }
 
 const systemHost: NativeDmgHost = {
-  async run(arguments_, signal) {
+  async run(arguments_, signal, options) {
     try {
       const { stdout } = await execFileAsync(
         "/usr/bin/hdiutil",
         [...arguments_],
         {
           encoding: "utf8",
-          timeout: 120_000,
+          maxBuffer: Number.POSITIVE_INFINITY,
+          ...(options === undefined ? {} : { timeout: options.timeoutMs }),
           ...(signal === undefined ? {} : { signal }),
         },
       );
@@ -76,7 +79,7 @@ export class NativeDmgArtifactReader implements ArtifactReader {
     signal?: AbortSignal,
     host: NativeDmgHost = systemHost,
   ): Promise<NativeDmgArtifactReader> {
-    if (process.platform !== "darwin")
+    if (process.platform !== "darwin" && host === systemHost)
       throw new ArtifactReaderFailure(
         "unavailable",
         "Native DMG traversal is available only on macOS",
@@ -110,7 +113,9 @@ export class NativeDmgArtifactReader implements ArtifactReader {
     let detachFailure: unknown;
     for (const device of [...this.#devices].reverse()) {
       try {
-        await runChecked(this.host, ["detach", device]);
+        await runChecked(this.host, ["detach", device], undefined, {
+          timeoutMs: DETACH_TIMEOUT_MS,
+        });
         this.#provenance.push(command(["detach", device], ["mount"]));
       } catch (cause: unknown) {
         detachFailure ??= cause;
@@ -204,8 +209,9 @@ const runChecked = async (
   host: NativeDmgHost,
   arguments_: readonly string[],
   signal?: AbortSignal,
+  options?: { readonly timeoutMs: number },
 ): Promise<{ readonly stdout: string; readonly exitCode: 0 }> => {
-  const result = await host.run(arguments_, signal);
+  const result = await host.run(arguments_, signal, options);
   if (result.exitCode !== 0)
     throw new ArtifactReaderFailure(
       "unavailable",

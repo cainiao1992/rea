@@ -16,8 +16,6 @@ import { resolveLinuxRuntimeClosure } from "./LinuxRuntimeClosure.js";
 
 import { readBoundedFileBytes } from "../process/BoundedFileBytes.js";
 
-const VERSION_OUTPUT_LIMIT = 16 * 1024;
-
 /** Production planning host for descriptor-backed reads and fail-closed probes. */
 export class SystemJavaScriptReplayHost implements JavaScriptReplayHost {
   async readSource(
@@ -56,7 +54,7 @@ export class SystemJavaScriptReplayHost implements JavaScriptReplayHost {
       throw new TypeError(`Replay executable is not a file: ${canonicalPath}`);
     const [bytes, version] = await Promise.all([
       readFile(canonicalPath),
-      capture(canonicalPath, versionArguments, VERSION_OUTPUT_LIMIT),
+      capture(canonicalPath, versionArguments),
     ]);
     return {
       path: canonicalPath,
@@ -176,10 +174,9 @@ export class SystemJavaScriptReplayHost implements JavaScriptReplayHost {
 const capture = async (
   executable: string,
   arguments_: readonly string[],
-  maximumBytes: number,
 ): Promise<string> => {
   if (arguments_.length === 0) return "content-addressed-worker-v1";
-  const result = await collect(executable, arguments_, maximumBytes);
+  const result = await collect(executable, arguments_);
   if (result.code !== 0)
     throw new TypeError(`Replay executable probe failed: ${executable}`);
   return result.stdout.length > 0 ? result.stdout : result.stderr;
@@ -190,12 +187,7 @@ const run = async (
   arguments_: readonly string[],
   stdio?: StdioOptions,
 ): Promise<void> => {
-  const result = await collect(
-    executable,
-    arguments_,
-    VERSION_OUTPUT_LIMIT,
-    stdio,
-  );
+  const result = await collect(executable, arguments_, stdio);
   if (result.code !== 0)
     throw new TypeError(
       `Replay feature probe failed (${String(result.code)}): ${executable}: ${result.stderr.trim()}`,
@@ -207,12 +199,7 @@ const runExpectFailure = async (
   arguments_: readonly string[],
   stdio: StdioOptions,
 ): Promise<void> => {
-  const result = await collect(
-    executable,
-    arguments_,
-    VERSION_OUTPUT_LIMIT,
-    stdio,
-  );
+  const result = await collect(executable, arguments_, stdio);
   if (result.code === 0)
     throw new TypeError(
       `Replay denial probe unexpectedly succeeded: ${executable}`,
@@ -222,7 +209,6 @@ const runExpectFailure = async (
 const collect = async (
   executable: string,
   arguments_: readonly string[],
-  maximumBytes: number,
   stdio: StdioOptions = ["ignore", "pipe", "pipe"],
 ): Promise<{
   readonly code: number | null;
@@ -235,17 +221,13 @@ const collect = async (
     timeout.unref();
     let stdout = "";
     let stderr = "";
-    const retain = (current: string, chunk: Buffer): string => {
-      const remaining = Math.max(0, maximumBytes - Buffer.byteLength(current));
-      return current + chunk.subarray(0, remaining).toString("utf8");
-    };
     if (child.stdout !== null)
       child.stdout.on("data", (chunk: Buffer) => {
-        stdout = retain(stdout, chunk);
+        stdout += chunk.toString("utf8");
       });
     if (child.stderr !== null)
       child.stderr.on("data", (chunk: Buffer) => {
-        stderr = retain(stderr, chunk);
+        stderr += chunk.toString("utf8");
       });
     child.once("error", (error) => {
       clearTimeout(timeout);

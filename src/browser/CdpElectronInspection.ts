@@ -58,7 +58,7 @@ export const inspectCdpElectronPage = async (
     limitations: [
       "Local file paths exposed by the selected CDP target are retained in the observation.",
       "REA does not evaluate renderer JavaScript, invoke Electron APIs, navigate, click, or close the page.",
-      "Script contents require separate source-capture approval and remain byte bounded.",
+      "Script contents require separate source-capture approval.",
     ],
     mainFrameId: undefined,
     navigationDuringCapture: false,
@@ -162,7 +162,7 @@ const enableElectronCapture = async (
   );
   await context.connection.send(
     "Debugger.enable",
-    { maxScriptsCacheSize: 4 * 1_024 * 1_024 },
+    {},
     context.sessionId,
     context.signal,
   );

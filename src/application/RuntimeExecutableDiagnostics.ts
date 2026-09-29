@@ -1,11 +1,9 @@
-import { execFile } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { constants } from "node:fs";
 import { access, realpath } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 
 const TOOL_NAMES = ["node", "npm", "npx"] as const;
-const MAX_OUTPUT_BYTES = 65_536;
-const MAX_DIAGNOSTIC_BYTES = 4_096;
 const PROBE_CONCURRENCY = 4;
 
 type RuntimeToolName = (typeof TOOL_NAMES)[number];
@@ -17,7 +15,7 @@ type RuntimeProbeFailureCode =
   | "runtime_spawn_failed"
   | "runtime_nonzero_exit";
 
-/** Stable, bounded classification of one failed executable probe. */
+/** Classification of one failed executable probe with its complete stderr. */
 interface RuntimeProbeFailure {
   readonly code: RuntimeProbeFailureCode;
   readonly exit_code: number | null;
@@ -64,7 +62,7 @@ export interface RuntimeExecutableInventoryOptions {
   readonly timeoutMs?: number;
 }
 
-/** Inventory and bounded-probe Node toolchain candidates under one exact PATH. */
+/** Inventory and probe Node toolchain candidates under one exact PATH. */
 export const inspectRuntimeExecutables = async (
   options: RuntimeExecutableInventoryOptions,
 ): Promise<RuntimeExecutableInventory> => {
@@ -108,8 +106,7 @@ export const inspectRuntimeExecutables = async (
   const diagnostics = await mapConcurrentBounded(
     uniqueCandidates,
     PROBE_CONCURRENCY,
-    (candidate) =>
-      probeCandidate(candidate, options.timeoutMs ?? 5_000, options.path),
+    (candidate) => probeCandidate(candidate, options.timeoutMs, options.path),
   );
   return {
     launcher_node: await canonicalPath(options.launcherNode),
@@ -152,7 +149,7 @@ const probeCandidate = async (
     readonly pathIndex: number | null;
     readonly selection: RuntimeExecutableDiagnostic["selection"];
   },
-  timeoutMs: number,
+  timeoutMs: number | undefined,
   effectivePath: string,
 ): Promise<RuntimeExecutableDiagnostic> => {
   const canonical = await canonicalPath(candidate.path);
@@ -180,43 +177,67 @@ type VersionResult =
 
 const executeVersion = (
   path: string,
-  timeoutMs: number,
+  timeoutMs: number | undefined,
   effectivePath: string,
 ): Promise<VersionResult> =>
   new Promise((resolve) => {
-    const child = execFile(
-      path,
-      ["--version"],
-      {
-        encoding: "utf8",
-        timeout: timeoutMs,
-        maxBuffer: MAX_OUTPUT_BYTES,
-        windowsHide: true,
-        env: environmentWithPath(effectivePath),
-      },
-      (cause: Error | null, stdout: string, stderr: string) => {
-        if (cause === null) {
-          const version =
-            firstNonemptyLine(stdout) ?? firstNonemptyLine(stderr);
-          if (version !== undefined) resolve({ ok: true, version });
-          else
-            resolve({
-              ok: false,
-              failure: failure("runtime_invalid_version_output", child, stderr),
-            });
+    const child = spawn(path, ["--version"], {
+      windowsHide: true,
+      env: environmentWithPath(effectivePath),
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    let spawnError: Error | undefined;
+    let timeout: NodeJS.Timeout | undefined;
+    let timedOut = false;
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr?.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.once("error", (cause: Error) => {
+      spawnError = cause;
+    });
+    if (timeoutMs !== undefined && timeoutMs > 0) {
+      timeout = setTimeout(() => {
+        timedOut = true;
+        child.kill();
+      }, timeoutMs);
+      timeout.unref();
+    }
+    child.once("close", () => {
+      if (timeout !== undefined) clearTimeout(timeout);
+      if (spawnError === undefined && child.exitCode === 0) {
+        const version = firstNonemptyLine(stdout) ?? firstNonemptyLine(stderr);
+        if (version !== undefined) {
+          resolve({ ok: true, version });
           return;
         }
         resolve({
           ok: false,
-          failure: classifyProbeFailure(cause, child, stderr),
+          failure: failure("runtime_invalid_version_output", child, stderr),
         });
-      },
-    );
+        return;
+      }
+      const cause =
+        spawnError ??
+        new Error("Runtime version probe did not exit successfully");
+      resolve({
+        ok: false,
+        failure: timedOut
+          ? failure("runtime_timeout", child, stderr)
+          : classifyProbeFailure(cause, child, stderr),
+      });
+    });
   });
 
 const classifyProbeFailure = (
   cause: Error,
-  child: ReturnType<typeof execFile>,
+  child: ChildProcess,
   stderr: string,
 ): RuntimeProbeFailure => {
   const dependency = missingDynamicLibrary(stderr);
@@ -238,7 +259,7 @@ const classifyProbeFailure = (
 
 const failure = (
   code: RuntimeProbeFailureCode,
-  child: ReturnType<typeof execFile>,
+  child: ChildProcess,
   stderr: string,
   dependency: string | null = null,
 ): RuntimeProbeFailure => ({
@@ -246,7 +267,7 @@ const failure = (
   exit_code: child.exitCode,
   signal: child.signalCode,
   dependency,
-  stderr: bounded(stderr.trim()),
+  stderr: stderr.trim(),
 });
 
 const missingDynamicLibrary = (stderr: string): string | null =>
@@ -279,11 +300,6 @@ const firstNonemptyLine = (value: string): string | undefined =>
     .split(/\r?\n/u)
     .find((line) => line.trim().length > 0)
     ?.trim();
-
-const bounded = (value: string): string =>
-  value.length <= MAX_DIAGNOSTIC_BYTES
-    ? value
-    : value.slice(-MAX_DIAGNOSTIC_BYTES);
 
 const unique = (values: readonly string[]): string[] => [...new Set(values)];
 

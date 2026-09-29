@@ -4,8 +4,6 @@ import { readFile, realpath } from "node:fs/promises";
 
 import type { ReplayRuntimeFileIdentity } from "../application/JavaScriptReplayPlanning.js";
 
-const LDD_OUTPUT_LIMIT = 64 * 1024;
-
 /** Resolve and content-address the exact ELF closure mounted into a replay. */
 export const resolveLinuxRuntimeClosure = async (
   nodePath: string,
@@ -50,11 +48,7 @@ const collectLdd = async (
     timeout.unref();
     let stdout = "";
     child.stdout.on("data", (chunk: Buffer) => {
-      const remaining = Math.max(
-        0,
-        LDD_OUTPUT_LIMIT - Buffer.byteLength(stdout),
-      );
-      stdout += chunk.subarray(0, remaining).toString("utf8");
+      stdout += chunk.toString("utf8");
     });
     child.once("error", (error) => {
       clearTimeout(timeout);

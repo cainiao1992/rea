@@ -19,7 +19,6 @@ import { parseLinuxPrivateDisplayDiagnostic } from "./LinuxPrivateDisplayDiagnos
 const PYTHON_PATH = "/usr/bin/python3";
 const UNSHARE_PATH = "/usr/bin/unshare";
 const DEFAULT_PROBE_TIMEOUT_MS = 5_000;
-const PROBE_OUTPUT_LIMIT_BYTES = 64 * 1024;
 
 export type LinuxPrivateDisplayRunnableStrategy = Exclude<
   HopperPrivateDisplayStrategy,
@@ -31,7 +30,6 @@ export interface LinuxPrivateDisplayProbeProcessResult {
   readonly exitCode: number | null | undefined;
   readonly stderr: string;
   readonly stderrBytes: number;
-  readonly stderrTruncated: boolean;
   readonly cleanupIncomplete: boolean;
 }
 
@@ -87,7 +85,6 @@ export const selectLinuxPrivateDisplayStrategy = async (options: {
         isolated.diagnostic.effective_socket_directory_mode,
       effective_mount_read_only: isolated.diagnostic.effective_mount_read_only,
       xvfb_stderr_bytes: isolated.diagnostic.xvfb_stderr_bytes,
-      xvfb_stderr_truncated: isolated.diagnostic.xvfb_stderr_truncated,
     });
   return {
     ok: true,
@@ -101,7 +98,7 @@ export const selectLinuxPrivateDisplayStrategy = async (options: {
   };
 };
 
-/** Run one helper probe in an owned process group with a hard output bound. */
+/** Run one helper probe in an owned process group and retain its full diagnostics. */
 export const runLinuxPrivateDisplayProbe: LinuxPrivateDisplayProbeRunner =
   async (strategy, options) => {
     if (options.signal?.aborted === true)
@@ -123,9 +120,7 @@ export const runLinuxPrivateDisplayProbe: LinuxPrivateDisplayProbeRunner =
       ownsProcessLifetime: true,
       cleanup: () => cleanupOwnedProcessGroup(started.ownership),
     };
-    const supervisor = new ProviderProcessSupervisor(launch, {
-      maxOutputBytesPerStream: PROBE_OUTPUT_LIMIT_BYTES,
-    });
+    const supervisor = new ProviderProcessSupervisor(launch);
     const outcome = await waitForProbeExit(
       supervisor,
       options.timeoutMs,
@@ -147,7 +142,6 @@ export const runLinuxPrivateDisplayProbe: LinuxPrivateDisplayProbeRunner =
       exitCode: snapshot.exitCode,
       stderr: snapshot.stderr.text,
       stderrBytes: snapshot.stderr.bytes,
-      stderrTruncated: snapshot.stderr.truncated,
       cleanupIncomplete,
     };
   };
@@ -230,10 +224,7 @@ const evaluatedProbe = async (
       ok: false,
       diagnostic: syntheticDiagnostic(strategy, "cleanup_incomplete"),
     };
-  const parsed = parseLinuxPrivateDisplayDiagnostic(
-    processResult.stderr,
-    processResult.stderrTruncated,
-  );
+  const parsed = parseLinuxPrivateDisplayDiagnostic(processResult.stderr);
   if (!parsed.ok)
     return {
       ok: false,
@@ -281,7 +272,6 @@ const syntheticDiagnostic = (
   strategy,
   fallback_reason: null,
   xvfb_stderr_bytes: 0,
-  xvfb_stderr_truncated: false,
 });
 
 const unavailable = (
@@ -303,7 +293,6 @@ const emptyProcessResult = (
   exitCode: undefined,
   stderr: "",
   stderrBytes: 0,
-  stderrTruncated: false,
   cleanupIncomplete: false,
 });
 

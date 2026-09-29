@@ -6,7 +6,6 @@ import type {
   ProcessCleanupResult,
 } from "./ProcessOwnership.js";
 
-const DEFAULT_OUTPUT_BYTES = 64 * 1024;
 const DEFAULT_TERMINATION_GRACE_MS = 250;
 const DEFAULT_KILL_GRACE_MS = 1_000;
 
@@ -49,14 +48,10 @@ export interface ProviderProcessSnapshot {
   readonly stdout: {
     readonly text: string;
     readonly bytes: number;
-    readonly retainedBytes: number;
-    readonly truncated: boolean;
   };
   readonly stderr: {
     readonly text: string;
     readonly bytes: number;
-    readonly retainedBytes: number;
-    readonly truncated: boolean;
   };
   readonly exitCode: number | null | undefined;
   readonly signal: NodeJS.Signals | null | undefined;
@@ -69,7 +64,6 @@ export type ProviderProcessDiagnostic =
       readonly stream: "stdout" | "stderr";
       readonly bytes: number;
       readonly totalBytes: number;
-      readonly truncated: boolean;
     }
   | {
       readonly type: "exit";
@@ -79,9 +73,8 @@ export type ProviderProcessDiagnostic =
     }
   | { readonly type: "error"; readonly message: string };
 
-/** Options for bounded capture and lifecycle diagnostics. */
+/** Options for process lifecycle diagnostics. */
 export interface ProviderProcessSupervisorOptions {
-  readonly maxOutputBytesPerStream?: number;
   readonly onDiagnostic?: (event: ProviderProcessDiagnostic) => void;
 }
 
@@ -150,8 +143,8 @@ export const spawnOwnedProviderProcess = async (
  */
 export class ProviderProcessSupervisor {
   readonly #options: ProviderProcessSupervisorOptions;
-  readonly #stdout: BoundedByteCapture;
-  readonly #stderr: BoundedByteCapture;
+  readonly #stdout = new ProcessOutputCapture();
+  readonly #stderr = new ProcessOutputCapture();
   readonly #exit = deferred<{
     readonly code: number | null;
     readonly signal: NodeJS.Signals | null;
@@ -188,11 +181,6 @@ export class ProviderProcessSupervisor {
     options: ProviderProcessSupervisorOptions = {},
   ) {
     this.#options = options;
-    const limit = options.maxOutputBytesPerStream ?? DEFAULT_OUTPUT_BYTES;
-    if (!Number.isSafeInteger(limit) || limit <= 0)
-      throw new RangeError("Provider output limit must be a positive integer");
-    this.#stdout = new BoundedByteCapture(limit);
-    this.#stderr = new BoundedByteCapture(limit);
     this.#attach(launch.process.stdout, "stdout");
     this.#attach(launch.process.stderr, "stderr");
     launch.process.once("exit", this.#onExit);
@@ -202,7 +190,7 @@ export class ProviderProcessSupervisor {
       this.#recordExit(launch.process.exitCode, launch.process.signalCode);
   }
 
-  /** Latest bounded output and exit observation. */
+  /** Latest complete output and exit observation. */
   snapshot(): ProviderProcessSnapshot {
     return {
       stdout: this.#stdout.snapshot(),
@@ -325,7 +313,7 @@ export class ProviderProcessSupervisor {
 
   #capture(
     stream: "stdout" | "stderr",
-    capture: BoundedByteCapture,
+    capture: ProcessOutputCapture,
     chunk: Buffer | string,
   ): void {
     const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
@@ -335,7 +323,6 @@ export class ProviderProcessSupervisor {
       stream,
       bytes: bytes.byteLength,
       totalBytes: capture.bytes,
-      truncated: capture.truncated,
     });
   }
 
@@ -352,36 +339,24 @@ export class ProviderProcessSupervisor {
   }
 }
 
-class BoundedByteCapture {
+class ProcessOutputCapture {
   readonly #chunks: Buffer[] = [];
   #bytes = 0;
-  #retainedBytes = 0;
-
-  constructor(readonly limit: number) {}
 
   get bytes(): number {
     return this.#bytes;
   }
 
-  get truncated(): boolean {
-    return this.#bytes > this.#retainedBytes;
-  }
-
   append(chunk: Buffer): void {
     this.#bytes += chunk.byteLength;
-    const remaining = this.limit - this.#retainedBytes;
-    if (remaining <= 0) return;
-    const retained = Buffer.from(chunk.subarray(0, remaining));
-    this.#chunks.push(retained);
-    this.#retainedBytes += retained.byteLength;
+    this.#chunks.push(Buffer.from(chunk));
   }
 
   snapshot(): ProviderProcessSnapshot["stdout"] {
+    const text = Buffer.concat(this.#chunks, this.#bytes).toString("utf8");
     return {
-      text: Buffer.concat(this.#chunks, this.#retainedBytes).toString("utf8"),
+      text,
       bytes: this.#bytes,
-      retainedBytes: this.#retainedBytes,
-      truncated: this.truncated,
     };
   }
 }

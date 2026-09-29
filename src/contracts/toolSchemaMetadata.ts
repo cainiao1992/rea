@@ -131,7 +131,7 @@ const fallbackPropertyDescription = (property: string): string => {
   if (property.endsWith("_uri"))
     return `Canonical URI for ${words.slice(0, -4)}.`;
   if (property.endsWith("_bytes"))
-    return `Bounded byte count for ${words.slice(0, -6)}.`;
+    return `Byte count for ${words.slice(0, -6)}.`;
   if (property.endsWith("_root") || property.endsWith("_roots"))
     return `Approved canonical filesystem ${words}.`;
   if (property.startsWith("is_") || property.startsWith("has_"))

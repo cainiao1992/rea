@@ -10,7 +10,6 @@ import { promisify } from "node:util";
 import { parseBinaryTarget } from "../dist/application/BinaryTargetResolver.js";
 import { resolveGhidraAnalysisProfile } from "../dist/ghidra/GhidraAnalysisProfile.js";
 import { GhidraClient } from "../dist/ghidra/GhidraClient.js";
-import { GHIDRA_DECOMPILE_REQUEST_TIMEOUT_MS } from "../dist/ghidra/GhidraDefaults.js";
 import {
   inspectGhidraInstallation,
   SUPPORTED_GHIDRA_VERSION,
@@ -252,7 +251,6 @@ async function verifyTarget(targetPath, variant, expectedTarget = null) {
     targetSha256: parsedTarget.value.sha256,
     providerVersion: SUPPORTED_GHIDRA_VERSION,
     profileDigest: profile.value.profile.digest,
-    requestTimeoutMs: GHIDRA_DECOMPILE_REQUEST_TIMEOUT_MS,
   });
 
   let runtimeCoordinates;

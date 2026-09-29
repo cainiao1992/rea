@@ -22,7 +22,6 @@ export type GhidraDiagnostic =
       readonly stream: "stdout" | "stderr";
       readonly bytes: number;
       readonly totalBytes: number;
-      readonly truncated: boolean;
     }
   | {
       readonly type: "launcher-exit";

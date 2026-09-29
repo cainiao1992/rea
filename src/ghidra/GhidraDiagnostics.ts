@@ -77,6 +77,4 @@ const boundedStream = (
 ): JsonValue => ({
   text: redact(stream.text),
   bytes: stream.bytes,
-  retained_bytes: stream.retainedBytes,
-  truncated: stream.truncated,
 });

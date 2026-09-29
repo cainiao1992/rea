@@ -9,19 +9,13 @@ export const parseStringArray = (
   name: string,
 ): Result<readonly string[], ConfigurationError> => {
   try {
-    const parsed = z
-      .array(z.string().min(1))
-      .max(128)
-      .safeParse(JSON.parse(encoded));
+    const parsed = z.array(z.string().min(1)).safeParse(JSON.parse(encoded));
     return parsed.success
       ? ok(parsed.data)
       : err(
-          new ConfigurationError(
-            parsed.error.issues.some(({ code }) => code === "too_big")
-              ? `${name} must encode at most 128 strings`
-              : `${name} must encode an array of strings`,
-            { cause: parsed.error },
-          ),
+          new ConfigurationError(`${name} must encode an array of strings`, {
+            cause: parsed.error,
+          }),
         );
   } catch (cause: unknown) {
     return err(new ConfigurationError(`${name} must be valid JSON`, { cause }));
@@ -44,13 +38,9 @@ export const parseBrowserArray = (
   encoded: string,
   name: string,
   itemSchema: z.ZodType<string>,
-  maximum: number,
 ): Result<readonly string[], ConfigurationError> => {
   try {
-    const parsed = z
-      .array(itemSchema)
-      .max(maximum)
-      .safeParse(JSON.parse(encoded));
+    const parsed = z.array(itemSchema).safeParse(JSON.parse(encoded));
     return parsed.success
       ? ok([...new Set(parsed.data)].sort())
       : err(

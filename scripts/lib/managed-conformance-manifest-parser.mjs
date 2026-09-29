@@ -100,7 +100,7 @@ function parseManagedAppManifestMethod(rawMethod, index) {
       method.signature_sha256,
       `${prefix}.signature_sha256`,
     ),
-    il_size: ilSize(method, prefix),
+    il_size: nonNegativeInteger(method.il_size, `${prefix}.il_size`),
     il_sha256:
       method.il_sha256 === undefined
         ? undefined
@@ -110,26 +110,6 @@ function parseManagedAppManifestMethod(rawMethod, index) {
       `${prefix}.normalized_il_sha256`,
     ),
   };
-}
-
-function ilSize(method, prefix) {
-  const hasIlSize = method.il_size !== undefined;
-  const hasIlLength = method.il_length !== undefined;
-  ensure(
-    hasIlSize || hasIlLength,
-    `${prefix}.il_size is required; il_length is accepted as a legacy alias`,
-  );
-  if (hasIlSize && hasIlLength)
-    ensure(
-      method.il_size === method.il_length,
-      `${prefix}.il_size and ${prefix}.il_length disagree`,
-    );
-  const value = hasIlSize ? method.il_size : method.il_length;
-  ensure(
-    Number.isInteger(value) && value >= 0,
-    `${prefix}.il_size must be a non-negative integer`,
-  );
-  return value;
 }
 
 function object(value, name) {
@@ -156,6 +136,14 @@ function string(value, name) {
 function optionalString(value, name) {
   if (value === undefined) return undefined;
   return string(value, name);
+}
+
+function nonNegativeInteger(value, name) {
+  ensure(
+    Number.isInteger(value) && value >= 0,
+    `${name} must be a non-negative integer`,
+  );
+  return value;
 }
 
 function digest(value, name) {

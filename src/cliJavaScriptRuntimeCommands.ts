@@ -32,9 +32,8 @@ const observeOptionsSchema = z.object({
     .number()
     .int()
     .min(0)
-    .max(10_000)
     .default(100)
-    .describe("Bounded observation window in milliseconds"),
+    .describe("Observation window in milliseconds"),
 });
 
 /** Register CLI equivalents of passive V8 Inspector tools. */

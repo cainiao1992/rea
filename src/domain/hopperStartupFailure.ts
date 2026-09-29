@@ -76,10 +76,9 @@ interface HopperStartupDiagnosticContext {
   readonly strategy: HopperPrivateDisplayStrategy;
   readonly fallback_reason: string | null;
   readonly xvfb_stderr_bytes: number;
-  readonly xvfb_stderr_truncated: boolean;
 }
 
-/** Bounded, non-secret facts emitted by the Linux private-display adapter. */
+/** Non-secret facts emitted by the Linux private-display adapter. */
 export type HopperStartupDiagnostic = HopperStartupDiagnosticContext &
   (
     | {

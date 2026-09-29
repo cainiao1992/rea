@@ -1,20 +1,5 @@
 import { z } from "incur";
 
-/** Bound a CLI observation count while preserving its subject-specific help. */
-export const boundedCount = (
-  subject: string,
-  maximum: number,
-  fallback: number,
-  minimum = 1,
-) =>
-  z
-    .number()
-    .int()
-    .min(minimum)
-    .max(maximum)
-    .default(fallback)
-    .describe(`Maximum ${subject}`);
-
 /** Accept an agent-selected browser observation duration without an artificial ceiling. */
 export const observationDuration = (fallback: number, minimum = 0) =>
   z
@@ -40,11 +25,11 @@ export const browserPageInspectionOptions = z.object({
   includeAccessibilityText: z
     .boolean()
     .default(false)
-    .describe("Include bounded accessibility text"),
+    .describe("Include accessibility text"),
   includeConsoleText: z
     .boolean()
     .default(false)
-    .describe("Include bounded console message text"),
+    .describe("Include console message text"),
   includeJsonBodyShapes: z
     .boolean()
     .default(false)
@@ -56,7 +41,7 @@ export const browserPageInspectionOptions = z.object({
   includeScriptSources: z
     .boolean()
     .default(false)
-    .describe("Include bounded JavaScript source text"),
+    .describe("Include JavaScript source text"),
   includeStorageKeys: z
     .boolean()
     .default(false)
@@ -72,7 +57,7 @@ export const electronPageInspectionOptions = z.object({
   includeScriptSources: z
     .boolean()
     .default(false)
-    .describe("Include bounded JavaScript source text"),
+    .describe("Include JavaScript source text"),
 });
 
 export const javascriptApplicationOptions = z.object({

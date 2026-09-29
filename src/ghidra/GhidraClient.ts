@@ -435,7 +435,6 @@ export class GhidraClient {
         stream: event.stream,
         bytes: event.bytes,
         totalBytes: event.totalBytes,
-        truncated: event.truncated,
       });
       return;
     }

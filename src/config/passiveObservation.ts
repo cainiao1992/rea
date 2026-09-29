@@ -71,14 +71,12 @@ const parseBrowserObservationPolicy = (
     env.REA_BROWSER_CDP_ENDPOINTS_JSON,
     "REA_BROWSER_CDP_ENDPOINTS_JSON",
     browserEndpointSchema,
-    16,
   );
   if (!endpoints.ok) return endpoints;
   const origins = parseBrowserArray(
     env.REA_BROWSER_ALLOWED_ORIGINS_JSON,
     "REA_BROWSER_ALLOWED_ORIGINS_JSON",
     browserOriginSchema,
-    32,
   );
   if (!origins.ok) return origins;
   if (env.REA_BROWSER_OBSERVE_ENABLED !== "true")

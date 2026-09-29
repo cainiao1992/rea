@@ -51,14 +51,12 @@ export const parseBrowserScenarioPolicy = (
     env.REA_BROWSER_SCENARIO_CDP_ENDPOINTS_JSON,
     "REA_BROWSER_SCENARIO_CDP_ENDPOINTS_JSON",
     browserEndpointSchema,
-    16,
   );
   if (!cdpEndpoints.ok) return cdpEndpoints;
   const allowedOrigins = parseBrowserArray(
     env.REA_BROWSER_SCENARIO_ALLOWED_ORIGINS_JSON,
     "REA_BROWSER_SCENARIO_ALLOWED_ORIGINS_JSON",
     browserOriginSchema,
-    32,
   );
   if (!allowedOrigins.ok) return allowedOrigins;
   const allowedEnvironment = parseStringArray(

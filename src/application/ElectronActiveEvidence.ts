@@ -72,7 +72,5 @@ const redactArgument = (argument: string): string => {
     )
   )
     return `${argument.slice(0, argument.indexOf("=") + 1)}<redacted>`;
-  return argument.length > 256
-    ? `${argument.slice(0, 256)}<redacted>`
-    : argument;
+  return argument;
 };

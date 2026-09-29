@@ -237,7 +237,7 @@ const toolAvailabilityMode = z.discriminatedUnion("available", [
   z.object({
     name: z.string(),
     available: z.literal(true),
-    missing_operations: z.array(z.string()).max(0),
+    missing_operations: z.array(z.string()).length(0),
     remediation: z.null(),
   }),
   z.object({

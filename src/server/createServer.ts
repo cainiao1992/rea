@@ -149,7 +149,6 @@ const createMcpServer = (
     {
       capabilities: {},
       inputRequired: {
-        maxRounds: 3,
         roundTimeoutMs: PROCESS_CAPTURE_ELICITATION_POLICY.roundTimeoutMs,
       },
       requestState: { verify: processCaptureStateCodec.verify },

@@ -505,6 +505,6 @@ const bounded = (value: string, maximumBytes: number): string => {
 void main().catch((error: unknown) => {
   const message =
     error instanceof Error ? error.message : "Replay worker failed";
-  process.stderr.write(message.slice(0, 4096));
+  process.stderr.write(message);
   process.exitCode = 70;
 });

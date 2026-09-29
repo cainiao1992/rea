@@ -36,11 +36,8 @@ UNEXPECTED_DISPLAY_GEOMETRY = 77
 X11_INPUT_FAILED = 78
 RUNTIME_DEPENDENCY_UNAVAILABLE = 79
 X11_SOCKET_DIRECTORY_UNUSABLE = 80
-DIAGNOSTIC_PREFIX = "REA_X11_DIAGNOSTIC_V1="
+DIAGNOSTIC_PREFIX = "REA_X11_DIAGNOSTIC="
 X11_SOCKET_DIRECTORY = Path("/tmp/.X11-unix")
-XVFB_STDERR_LIMIT = 16 * 1024
-
-
 class AdapterFailure(Exception):
     def __init__(
         self,
@@ -48,20 +45,18 @@ class AdapterFailure(Exception):
         reason: str,
         message: str,
         stderr_bytes: int = 0,
-        stderr_truncated: bool = False,
     ) -> None:
         super().__init__(message)
         self.code = code
         self.reason = reason
         self.stderr_bytes = stderr_bytes
-        self.stderr_truncated = stderr_truncated
 
-    def with_stderr(self, capture: BoundedStderr) -> AdapterFailure:
-        self.stderr_bytes, self.stderr_truncated, _ = capture.snapshot()
+    def with_stderr(self, capture: CapturedStderr) -> AdapterFailure:
+        self.stderr_bytes, _ = capture.snapshot()
         return self
 
 
-class BoundedStderr:
+class CapturedStderr:
     def __init__(self, stream: object) -> None:
         self._stream = stream
         self._retained = bytearray()
@@ -77,15 +72,13 @@ class BoundedStderr:
                 return
             with self._lock:
                 self._bytes += len(chunk)
-                remaining = XVFB_STDERR_LIMIT - len(self._retained)
-                if remaining > 0:
-                    self._retained.extend(chunk[:remaining])
+                self._retained.extend(chunk)
 
-    def snapshot(self) -> tuple[int, bool, str]:
+    def snapshot(self) -> tuple[int, str]:
         with self._lock:
             retained = bytes(self._retained)
             total = self._bytes
-        return total, total > len(retained), retained.decode("utf-8", "replace")
+        return total, retained.decode("utf-8", "replace")
 
     def close(self) -> None:
         self._thread.join(timeout=0.5)
@@ -284,12 +277,10 @@ def diagnostic(
     operation: str,
     status: str,
     failure: AdapterFailure | None = None,
-    capture: BoundedStderr | None = None,
+    capture: CapturedStderr | None = None,
 ) -> dict[str, object]:
     mode, read_only, _ = socket_directory_state()
-    captured_bytes, captured_truncated, _ = (
-        (0, False, "") if capture is None else capture.snapshot()
-    )
+    captured_bytes, _ = (0, "") if capture is None else capture.snapshot()
     return {
         "component": "hopper_private_display",
         "operation": operation,
@@ -307,9 +298,6 @@ def diagnostic(
         "xvfb_stderr_bytes": captured_bytes
         if failure is None
         else failure.stderr_bytes,
-        "xvfb_stderr_truncated": captured_truncated
-        if failure is None
-        else failure.stderr_truncated,
     }
 
 
@@ -440,8 +428,8 @@ def authorize_display(
         ) from error
 
 
-def classify_xvfb_failure(capture: BoundedStderr) -> AdapterFailure:
-    stderr_bytes, stderr_truncated, text = capture.snapshot()
+def classify_xvfb_failure(capture: CapturedStderr) -> AdapterFailure:
+    stderr_bytes, text = capture.snapshot()
     mode, read_only, directory = socket_directory_state()
     if read_only is True:
         return AdapterFailure(
@@ -449,7 +437,6 @@ def classify_xvfb_failure(capture: BoundedStderr) -> AdapterFailure:
             "socket_directory_read_only",
             "X11 socket directory is read-only",
             stderr_bytes,
-            stderr_truncated,
         )
     if directory and mode != "1777":
         return AdapterFailure(
@@ -457,7 +444,6 @@ def classify_xvfb_failure(capture: BoundedStderr) -> AdapterFailure:
             "socket_directory_mode",
             "X11 socket directory mode is not 1777",
             stderr_bytes,
-            stderr_truncated,
         )
     if mode is not None and not directory:
         return AdapterFailure(
@@ -465,7 +451,6 @@ def classify_xvfb_failure(capture: BoundedStderr) -> AdapterFailure:
             "socket_directory_type",
             "X11 socket path is not a directory",
             stderr_bytes,
-            stderr_truncated,
         )
     lowered = text.lower()
     if "error while loading shared libraries" in lowered:
@@ -474,7 +459,6 @@ def classify_xvfb_failure(capture: BoundedStderr) -> AdapterFailure:
             "missing_library",
             "Xvfb shared library unavailable",
             stderr_bytes,
-            stderr_truncated,
         )
     if any(
         marker in lowered
@@ -489,21 +473,19 @@ def classify_xvfb_failure(capture: BoundedStderr) -> AdapterFailure:
             "address_collision",
             "private display address collision",
             stderr_bytes,
-            stderr_truncated,
         )
     return AdapterFailure(
         PRIVATE_DISPLAY_UNAVAILABLE,
         "xvfb_startup_failed",
         "private X display unavailable",
         stderr_bytes,
-        stderr_truncated,
     )
 
 
 def start_xvfb(
     session: Path,
     args: argparse.Namespace,
-) -> tuple[subprocess.Popen[bytes], str, Path, BoundedStderr]:
+) -> tuple[subprocess.Popen[bytes], str, Path, CapturedStderr]:
     authority = session / "Xauthority"
     collision: AdapterFailure | None = None
     for _ in range(3):
@@ -550,7 +532,7 @@ def start_xvfb(
                 "xvfb_startup_failed",
                 "Xvfb stderr unavailable",
             )
-        capture = BoundedStderr(process.stderr)
+        capture = CapturedStderr(process.stderr)
         deadline = time.monotonic() + 2
         socket = Path(f"/tmp/.X11-unix/X{display_number}")
         while time.monotonic() < deadline and process.poll() is None:

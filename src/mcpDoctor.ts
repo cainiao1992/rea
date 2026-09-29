@@ -9,7 +9,6 @@ import { TOOL_CONTRACTS } from "./contracts/toolContracts.js";
 import { PRODUCT_IDENTITY } from "./identity.js";
 import { MCP_STARTUP_POLICY } from "./mcpStartupPolicy.js";
 
-const STDERR_LIMIT_BYTES = 64 * 1_024;
 const OUTPUT_FORMATS = ["toon", "json", "yaml", "md", "jsonl"] as const;
 type OutputFormat = (typeof OUTPUT_FORMATS)[number];
 
@@ -35,7 +34,7 @@ interface McpDoctorCheck {
   readonly detail: string;
 }
 
-/** Diagnose the actual production stdio adapter with one bounded SDK session. */
+/** Diagnose the actual production stdio adapter with one startup-bounded SDK session. */
 export const runProductionMcpDoctor = async (options: McpDoctorOptions) => {
   const deadline =
     Date.now() + (options.deadlineMs ?? MCP_STARTUP_POLICY.doctorDeadlineMs);
@@ -44,7 +43,7 @@ export const runProductionMcpDoctor = async (options: McpDoctorOptions) => {
     () => controller.abort(new Error("Production MCP doctor deadline expired")),
     Math.max(1, deadline - Date.now()),
   );
-  const stderr = boundedStderr();
+  const stderr = captureStderr();
   const transport = new TrackedStdioClientTransport({
     command: options.command,
     args: [...options.args],
@@ -319,27 +318,20 @@ const targetFreeEnvironment = (
   return result;
 };
 
-const boundedStderr = () => {
-  let text = "";
+const captureStderr = () => {
+  const chunks: Buffer[] = [];
   let bytes = 0;
-  let truncated = false;
   return {
     append(chunk: unknown) {
       const buffer = Buffer.isBuffer(chunk)
         ? chunk
         : Buffer.from(String(chunk), "utf8");
       bytes += buffer.byteLength;
-      const retained = Buffer.byteLength(text, "utf8");
-      if (retained < STDERR_LIMIT_BYTES)
-        text += buffer
-          .subarray(0, STDERR_LIMIT_BYTES - retained)
-          .toString("utf8");
-      if (bytes > STDERR_LIMIT_BYTES) truncated = true;
+      chunks.push(Buffer.from(buffer));
     },
     value: () => ({
-      stderr: text,
+      stderr: Buffer.concat(chunks, bytes).toString("utf8"),
       stderr_bytes: bytes,
-      stderr_truncated: truncated,
     }),
   };
 };

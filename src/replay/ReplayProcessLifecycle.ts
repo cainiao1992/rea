@@ -26,18 +26,14 @@ export const boundedCollector = (maximum: number) => {
   };
 };
 
-const collect = async (
-  executable: string,
-  arguments_: readonly string[],
-  maximum: number,
-) =>
+const collect = async (executable: string, arguments_: readonly string[]) =>
   new Promise<{ code: number | null; stdout: string; stderr: string }>(
     (resolve, reject) => {
       const child = spawn(executable, [...arguments_], {
         stdio: ["ignore", "pipe", "pipe"],
       });
-      const stdout = boundedCollector(maximum);
-      const stderr = boundedCollector(maximum);
+      const stdout = unboundedCollector();
+      const stderr = unboundedCollector();
       const timeout = setTimeout(() => child.kill("SIGKILL"), 5_000);
       timeout.unref();
       child.stdout?.on("data", stdout.append);
@@ -58,11 +54,13 @@ export const killUnit = async (
   unit: string,
 ): Promise<void> => {
   try {
-    await collect(
-      systemctl,
-      ["--user", "kill", "--kill-whom=all", "--signal=SIGKILL", unit],
-      4096,
-    );
+    await collect(systemctl, [
+      "--user",
+      "kill",
+      "--kill-whom=all",
+      "--signal=SIGKILL",
+      unit,
+    ]);
   } catch {
     /* cleanup continues */
   }
@@ -73,11 +71,13 @@ export const observeCleanup = async (
   unit: string,
 ): Promise<ReplayExecutionResult["cleanup"]> => {
   try {
-    const state = await collect(
-      systemctl,
-      ["--user", "show", "--property=ActiveState", "--value", unit],
-      4096,
-    );
+    const state = await collect(systemctl, [
+      "--user",
+      "show",
+      "--property=ActiveState",
+      "--value",
+      unit,
+    ]);
     const activeState = state.stdout.trim();
     if (
       state.code !== 0 ||
@@ -85,7 +85,7 @@ export const observeCleanup = async (
       activeState === "failed" ||
       activeState.length === 0
     ) {
-      await collect(systemctl, ["--user", "reset-failed", unit], 4096);
+      await collect(systemctl, ["--user", "reset-failed", unit]);
       return { state: "complete", residual_resources: [] };
     }
     return { state: "incomplete", residual_resources: [unit] };
@@ -99,13 +99,23 @@ export const observeUnitResult = async (
   unit: string,
 ): Promise<string> => {
   try {
-    const result = await collect(
-      systemctl,
-      ["--user", "show", "--property=Result", "--value", unit],
-      4096,
-    );
+    const result = await collect(systemctl, [
+      "--user",
+      "show",
+      "--property=Result",
+      "--value",
+      unit,
+    ]);
     return result.stdout.trim();
   } catch {
     return "unknown";
   }
+};
+
+const unboundedCollector = () => {
+  const chunks: Buffer[] = [];
+  return {
+    append: (chunk: Buffer) => chunks.push(chunk),
+    value: () => Buffer.concat(chunks).toString("utf8"),
+  };
 };

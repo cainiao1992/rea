@@ -246,7 +246,7 @@ const generatedCandidate = ({
 }: GeneratedCandidateInput): ReconstructionObligationCandidate => ({
   obligation_id: obligationId(key),
   obligation_version: 1,
-  title: title.slice(0, 500),
+  title,
   origin: "generated",
   application_layer: candidatePolicy.applicationLayer,
   family: candidatePolicy.family,

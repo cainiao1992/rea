@@ -3,7 +3,7 @@ import { access, open } from "node:fs/promises";
 import { err, ok, type Result } from "../domain/result.js";
 import { GhidraSessionError } from "./GhidraSessionError.js";
 
-/** Local bridge transports admitted by the versioned session descriptor. */
+/** Local bridge transports used by the current Ghidra session. */
 export type GhidraTransportKind = "unix-socket" | "authenticated-loopback-tcp";
 
 /** Private runtime coordinate used to discover one bridge listener. */
@@ -16,8 +16,6 @@ export interface GhidraEndpoint {
 export type GhidraConnectTarget =
   | { readonly path: string }
   | { readonly host: "127.0.0.1"; readonly port: number };
-
-const MAX_ENDPOINT_BYTES = 1024;
 
 /** Observe a ready endpoint, returning null while its bridge is not listening. */
 export const observeGhidraEndpoint = async (
@@ -54,14 +52,10 @@ export const observeGhidraEndpoint = async (
         );
   }
   try {
-    const bytes = Buffer.alloc(MAX_ENDPOINT_BYTES + 1);
-    const observed = await handle.read(bytes, 0, bytes.length, 0);
-    if (observed.bytesRead === 0 || observed.bytesRead > MAX_ENDPOINT_BYTES)
+    const encoded = await handle.readFile("utf8");
+    if (encoded.length === 0)
       return err(endpointFailure(endpoint, "Ghidra TCP endpoint is invalid"));
-    return parseTcpEndpoint(
-      endpoint,
-      bytes.subarray(0, observed.bytesRead).toString("utf8"),
-    );
+    return parseTcpEndpoint(endpoint, encoded);
   } catch (cause: unknown) {
     return err(endpointFailure(endpoint, "Ghidra endpoint read failed", cause));
   } finally {

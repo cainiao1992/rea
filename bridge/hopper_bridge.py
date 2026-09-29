@@ -873,13 +873,13 @@ def _safe_diagnostic(error):
     """Project one exception without retaining provider or credential text."""
     diagnostic_type = _diagnostic_type(error)
     if diagnostic_type == "capability_unavailable":
-        message = str(error)[:512]
+        message = str(error)
     elif diagnostic_type == "authorization":
         message = "Invalid bridge capability"
     elif diagnostic_type == "invalid_request":
         message = "Invalid Hopper bridge request"
     else:
-        message = "%s: Hopper bridge operation failed" % type(error).__name__[:128]
+        message = "%s: Hopper bridge operation failed" % type(error).__name__
     return {"code": -32000, "message": message, "type": diagnostic_type}
 
 

@@ -14,8 +14,8 @@ const responseSchema = z.discriminatedUnion("ok", [
     ok: z.literal(false),
     error: z
       .object({
-        code: z.string().min(1).max(128),
-        message: z.string().min(1).max(4_096),
+        code: z.string().min(1),
+        message: z.string().min(1),
       })
       .strict(),
   }),

@@ -43,7 +43,7 @@ const sourceToBundleSignalSchema = z.strictObject({
 const sourceToBundleCandidateSchema = z.strictObject({
   current_node_id: nodeIdSchema,
   current_node_kind: z.enum(JAVASCRIPT_APPLICATION_NODE_KINDS),
-  score: z.number().int().min(1).max(300),
+  score: z.number().int().min(1),
   confidence: z.enum(["exact", "high", "medium", "low"]),
   signals: z.array(sourceToBundleSignalSchema).min(1),
 });
@@ -114,7 +114,7 @@ export const sourceToBundleComparisonResultSchema = z.strictObject({
     retained_application_nodes: z.number().int().min(0),
     candidate_evaluations: z.number().int().min(0),
   }),
-  evidence_links: z.array(evidenceIdSchema).min(1).max(1),
+  evidence_links: z.array(evidenceIdSchema).length(1),
   limitations: z.array(textSchema),
 });
 

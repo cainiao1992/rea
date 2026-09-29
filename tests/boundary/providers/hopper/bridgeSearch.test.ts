@@ -239,7 +239,7 @@ describe("Hopper bridge search", () => {
     });
   });
 
-  it("returns regex matches without imposing a path-count limit", async () => {
+  it("returns matching entries for regex searches", async () => {
     await expect(
       probe({
         action: "search",

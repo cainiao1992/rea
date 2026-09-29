@@ -1,10 +1,12 @@
 # JavaScript and Electron application artifacts
 
-Use `analyze_javascript_application` for an operator-supplied ASAR or extracted
-tree beneath an approved investigation root. Every call requires `approved:
-true`; source-map contents require separate approval. Keep the default summary.
-Use its counts, roots, node kinds, top findings, coverage, unknowns, and graph
-page URIs before requesting more data.
+Use `analyze_javascript_application` directly on the operator-supplied ASAR or
+extracted tree. It reads the selected local path without an approval flag or
+configured investigation root. The complete result, graph, and Evidence context
+are returned inline, so inspect them directly without fetching resource links.
+Source-map contents are part of the static analysis. Start from its findings,
+coverage, unknowns, and graph context, then make a focused follow-up only when a
+specific question remains unanswered.
 
 BrowserWindow preferences, preload and contextBridge surfaces, IPC
 registrations, utility processes, and native binding requests are static syntax

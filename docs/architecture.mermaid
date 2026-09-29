@@ -16,8 +16,7 @@ graph TD
         APP["src/application/<br/>Shared CLI/MCP workflows<br/>enhanced analysis and investigations"]
         SESSION["SessionProviderRouter + BinarySession<br/>one immutable deep binding per target<br/>disjoint auxiliary routing"]
         REGISTRY["AnalysisProviderRegistry<br/>sorted deep candidates<br/>deterministic selection, no fallback"]
-        WORKSPACE["Investigation workspace store<br/>approved roots, canonical JSON<br/>atomic CAS revisions and locks"]
-        JS_RECON["JavaScript artifact reconstruction<br/>bounded directory/ASAR reads<br/>AST-only bundle projection"]
+        JS_RECON["JavaScript artifact reconstruction<br/>directory/ASAR reads<br/>AST-only bundle projection"]
     end
 
     subgraph "Provider Layers"
@@ -37,7 +36,7 @@ graph TD
     end
 
     subgraph "Domain Layer"
-        DOMAIN["src/domain/<br/>Pure side-effect-free modules<br/>evidence, comparisons, application graphs, workspace commitments"]
+        DOMAIN["src/domain/<br/>Pure side-effect-free modules<br/>evidence, comparisons, application graphs"]
     end
 
     subgraph "Configuration"
@@ -59,7 +58,6 @@ graph TD
     REGISTRY --> HOPPER
     REGISTRY --> GHIDRA
     SESSION --> AUX
-    APP --> WORKSPACE
     APP --> JS_RECON
     APP --> INSTALL
     SERVER --> CONTRACTS

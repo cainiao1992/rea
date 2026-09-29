@@ -49,20 +49,20 @@ Use ESM TypeScript, two-space indentation, and Prettier defaults. Keep compiler 
 
 Start from the analyst question and desired result, not a provider API. Before adding a tool, inspect the existing contract and its nearest alternative.
 
-- Use bounded **inspect/search** tools for facts about a target or candidate set; use **trace** tools for relationships; use **compare** tools for explicitly paired inputs.
-- Add a **workflow** when agents repeatedly orchestrate the same calls. Compose inside REA and return joined evidence instead of making callers loop.
+- Use **inspect/search** tools for facts about a target or candidate set; use **trace** tools for relationships; use **compare** tools for explicitly paired inputs.
+- Add a **workflow** when observed agent use shows a repeated sequence that REA can compose without losing analyst control. Return useful results inline so callers can choose their next action.
 - Use **observe/capture/replay** only when runtime activity is required, and declare authority and lifecycle effects in the contract.
 - Extend an existing tool when intent and result contract are unchanged. Add a tool for a distinct analyst outcome or materially different authority.
 - Keep caller-facing names and results provider-neutral. Put engine-specific behavior in provider adapters and report each provider's exact coverage.
-- Bound work, make truncation and unsupported facets explicit, and keep observed, derived, inferred, and unknown results distinct.
-- Include artifact identity, source locations, Evidence links, actionable errors, and limits when they affect conclusions.
+- Keep results complete by default. Add a limit only when it follows from a real format, protocol, authority, or resource-safety constraint; explain truncation and unsupported facets. Keep observed, derived, inferred, and unknown results distinct.
+- Include artifact identity, source locations, Evidence references, actionable errors, and relevant limitations when they affect conclusions. Return the evidence needed for the next analysis inline rather than requiring a resource or identifier lookup.
 - Implement shared application workflows behind CLI and MCP adapters. Update canonical contracts and generated catalog together.
 
 See [docs/tool-design.md](docs/tool-design.md) for the design checklist. When usability or tool selection changes, evaluate representative CLI/MCP tasks as well as schema and transport behavior.
 
 ## Testing Guidelines
 
-Name tests `*.test.ts`. Use Vitest and production seams (`tests/fixtures/`) rather than module mocks. Domain tests assert pure behavior; adapter tests use fake launcher/socket seams; MCP tests connect with the client SDK version pinned in `package.json`. Preserve the canonical tool inventory defined by `TOOL_CONTRACTS` and verified through `CATALOG_IDENTITY` and generated product metadata. Cover malformed input, cancellation, timeouts, process exit, concurrency, limits, and clean shutdown. Real Hopper, Ghidra, browser, JavaScript replay, managed conformance, and any real managed-tool claims cannot be replaced by mocks; use the corresponding `verify:*` command.
+Name tests `*.test.ts`. Use Vitest and production seams (`tests/fixtures/`) rather than module mocks. Domain tests assert pure behavior; adapter tests use fake launcher/socket seams; MCP tests connect with the client SDK version pinned in `package.json`. Preserve the canonical tool inventory defined by `TOOL_CONTRACTS` and verified through `CATALOG_IDENTITY` and generated product metadata. Cover malformed input, cancellation, lifecycle cleanup, and actual format, protocol, and permission boundaries. Do not add tests that merely freeze arbitrary caps or prescribed call sequences. Real Hopper, Ghidra, browser, JavaScript replay, managed conformance, and any real managed-tool claims cannot be replaced by mocks; use the corresponding `verify:*` command.
 
 Keep tool catalogs complete and self-describing; prefer capability- and session-scoped availability over schema truncation. Serialized bytes alone do not measure agent usability or model context cost.
 

@@ -557,14 +557,15 @@ The first six implementation stages are shipped:
 4. Ghidra availability, target/profile resolution, doctor checks, and a private
    read-only headless session were admitted without declaring operations.
 5. Program identity, procedures, strings, symbols, memory blocks,
-   address/name resolution, containing-procedure resolution, and bounded search
+   address/name resolution, containing-procedure resolution, and search
    were admitted with exact wire schemas and real debug/stripped ELF
    conformance.
-6. Function metadata, persistent bounded decompilation, assembly, resolved
+6. Function metadata, persistent decompilation, assembly, resolved
    callers/callees, typed references, xrefs, CFG, and complete function dossiers
-   were admitted. A bounded per-Program queue serializes API access, and real
-   conformance covers x86-64 and AArch64 ELF, PE, Mach-O, stripped symbols,
-   targetless indirect calls, cancellation, deadlines, and cleanup.
+   were admitted. A serial per-Program queue keeps API access ordered without a
+   fixed queue length or per-operation deadline. Real conformance covers
+   x86-64 and AArch64 ELF, PE, Mach-O, stripped symbols, targetless indirect
+   calls, cancellation, and cleanup.
 
 Future stages may deepen format and indirect-flow coverage, but must continue
 to compare normalized semantics rather than provider-specific pseudocode or

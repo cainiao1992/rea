@@ -233,7 +233,8 @@ v1 meaning is deliberately narrower than a canonical semantic CIL identity.
 For a completely decoded method, REA serializes the instruction-order array of
 `[opcode, operand_kind, operand]` tuples with JavaScript `JSON.stringify`,
 encodes that text as UTF-8, and reports its lowercase SHA-256. The tuple
-projection is defined here; the member result carries no schema-version field.
+projection is defined here; the member result carries only the described
+normalized digest.
 
 Operands retain the current decoder projection: metadata and user-string
 operands are build-local lowercase hexadecimal tokens, scalar branch operands

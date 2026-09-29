@@ -370,10 +370,9 @@ Before evaluating methods, the verifier fails closed on target SHA-256, MVID,
 assembly name, runtime-family, and managed-architecture mismatches whenever the
 manifest supplies those fields. It then pages each declared MethodDef token
 directly by row, so selected methods do not need to appear in the first member
-page of a large application. `il_length` remains accepted as a legacy alias for
-`il_size`; optional `il_sha256` locks the exact raw CIL bytes in addition to
-REA's decoded-instruction-tuple digest. That normalized field has the limits
-documented above and is not a complete semantic CIL identity.
+page of a large application. Optional `il_sha256` locks the exact raw CIL bytes
+in addition to REA's decoded-instruction-tuple digest. That normalized field
+has the limits documented above and is not a complete semantic CIL identity.
 
 The optional `application_graph` block reuses those exact-build method
 commitments. For each referenced MethodDef token, the verifier builds a bounded

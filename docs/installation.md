@@ -197,10 +197,10 @@ REA's Ghidra provider is bring-your-own and supports Linux x64 with the exact
 official Ghidra 12.1.2 release and a 64-bit full JDK 21. An experimental
 Windows x64 P0 supports approved native x86-64 PE applications. It supplies
 discovery, analysis-profile commitment, an isolated read-only headless session,
-ten bounded inventory/name/search operations, and nine function-analysis
-operations covering metadata, decompilation, assembly, resolved calls, typed
-references, xrefs, CFG, and dossiers. GUI state and analysis mutations remain
-unavailable through Ghidra.
+ten inventory/name/search operations and nine function-analysis operations,
+for 19 read-only operations total. Function analysis covers metadata,
+decompilation, assembly, resolved calls, typed references, xrefs, CFG, and
+dossiers. GUI state and analysis mutations remain unavailable through Ghidra.
 
 Extract Ghidra and install the JDK outside REA, then export absolute paths:
 
@@ -244,14 +244,15 @@ reparse-point-safe, or Job Object semantics; use only approved non-sensitive
 fixtures.
 
 Operations begin only after default auto-analysis completes. The provider
-startup deadline fails the open rather than exposing partial analysis. One session contains exactly
-one imported Program; use `provider_id: "ghidra"`, `--provider ghidra`, or
+startup deadline fails the open rather than exposing partial analysis. One
+session contains exactly one imported Program; use `provider_id: "ghidra"`, `--provider ghidra`, or
 `REA_ANALYSIS_PROVIDER=ghidra` when both Hopper and Ghidra support the target.
-One persistent decompiler is owned by the Program, Ghidra API calls cross a
-bounded 32-request serial queue, and each native decompile is limited to 30
-seconds. Unresolved computed calls remain unknown, reference-kind provenance is
-preserved, and provider-specific pseudocode is never treated as original source
-or Hopper-equivalent text.
+One persistent decompiler is owned by the Program, and a serial queue keeps
+Ghidra API calls on the owning Program thread without a fixed queue length.
+Operations run until a result, caller cancellation, or provider shutdown; there
+is no fixed per-operation or response-size ceiling. Unresolved computed calls
+remain unknown, reference-kind provenance is preserved, and provider-specific
+pseudocode is never treated as original source or Hopper-equivalent text.
 
 Run `GHIDRA_INSTALL_DIR=... npm run verify:ghidra` from a source checkout to
 compile and analyze source-owned x86-64 debug/stripped ELF, AArch64 ELF,

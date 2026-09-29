@@ -1,9 +1,11 @@
 # Evidence, comparison, and verification workflows
 
-REA results are inline evidence. Cite evidence IDs and preserve authority,
-limitations, coverage, and residual unknowns. Inventory and search tools return
-their complete results in one call; use focused queries when the full inventory
-is not needed.
+REA returns Evidence with each result. Read that result directly, cite its
+Evidence ID when another tool or your explanation needs a stable reference, and
+preserve authority, limitations, coverage, and residual unknowns. If a result
+is incomplete or paginated, continue only when the remaining data matters to
+the task; do not fetch a bundle or resource merely to read a result already
+returned inline.
 
 Use `record_unknown` only with explicit approval and name the authority or
 environment still required. Supply supporting and contradicting evidence IDs.

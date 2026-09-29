@@ -57,8 +57,10 @@ shutdown rules still apply; REA never kills a process it cannot prove it owns.
 
 ## Tool results
 
-Evidence-producing tools return their result and Evidence context inline. A
-workflow can retrieve retained Evidence records with `get_evidence_bundle`.
+Evidence-producing tools return their result and Evidence context inline. Read
+that result directly; do not fetch a bundle or resource to inspect it. Use
+`get_evidence_bundle` only when the task explicitly needs broader retained
+session history or a bundle for transfer.
 
 ## Aggregate native context
 

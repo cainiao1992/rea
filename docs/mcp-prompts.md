@@ -8,12 +8,12 @@ invoke tools by themselves.
 
 | Prompt                            | Purpose                                                                              |
 | --------------------------------- | ------------------------------------------------------------------------------------ |
-| `investigate_feature`             | Trace a feature from discovery into bounded function evidence.                       |
+| `investigate_feature`             | Trace a feature from discovery into relevant function evidence.                      |
 | `compare_application_versions`    | Compare two shipped artifacts, with optional static and runtime follow-up.           |
 | `verify_reconstruction`           | Evaluate a finite reconstruction specification against retained comparison Evidence. |
 | `trace_crash`                     | Correlate a crash symptom with static paths and optional process capture evidence.   |
 | `audit_residual_unknowns`         | Audit current residual-unknown heads and evidence-qualified resolution.              |
-| `prepare_bounded_process_capture` | Design an approval-gated, bounded process experiment before execution.               |
+| `prepare_bounded_process_capture` | Design an approval-gated controlled process experiment before execution.             |
 
 Every rendered prompt provides optional starting points using current REA tool
 names. Agents can call tools directly, skip irrelevant suggestions, and inspect
@@ -21,6 +21,9 @@ provider or target state only when it helps answer the request or a tool
 requires it. The prompts also ask agents to keep observations, inferences, and
 unknowns distinct. Requested prompt arguments and completion choices are
 rendered as untrusted selection data, not instructions or authorization.
+Tool results include their Evidence inline. Prompts do not require a bundle or
+resource fetch to read a result; an Evidence ID is only a reference when a
+prompt argument or tool explicitly accepts one.
 
 For target paths in `compare_application_versions`, the prompt suggests
 opening each target before calling `inspect_artifact`; inspection operates on
@@ -53,7 +56,8 @@ cached prompt catalog.
 
 MCP `completion/complete` completes guided-prompt arguments; it does not define
 completion for arbitrary tool-call arguments. REA attaches completion to
-optional prompt arguments that feed later tool selection.
+optional prompt arguments that accept a session value. Suggestions provide
+identifiers only; they do not retrieve or replace the inline Evidence result.
 
 ```json
 {
@@ -83,8 +87,8 @@ Completion sources are live projections of the current session:
 | Document            | Current provider `list_documents` result.                                                                                                            |
 | Procedure           | The complete `list_procedures` inventory; all procedure addresses and uniquely named procedures are offered. Optional document context is forwarded. |
 | Provider            | `auto` plus sorted deep candidates from the current binary session; target-free completion does not start them.                                      |
-| Evidence            | Evidence IDs retained in the current session ledger.                                                                                                 |
-| Process capture     | Evidence IDs whose operation and validated result identify process capture.                                                                          |
+| Evidence            | Evidence IDs retained in the current session ledger, offered only for prompt arguments that accept Evidence references.                              |
+| Process capture     | IDs for retained Evidence whose operation and validated result identify process capture.                                                             |
 | Artifact manifest   | Manifest IDs from schema-valid retained artifact inventories.                                                                                        |
 | Artifact occurrence | Occurrence IDs present in schema-valid retained artifact inventory pages.                                                                            |
 | Residual unknown    | Current non-resolved unknown heads only.                                                                                                             |

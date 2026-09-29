@@ -1,19 +1,21 @@
 # MCP tool design
 
 Design tools around analyst tasks. A provider API is an implementation detail;
-expose it directly only when users need a bounded, reusable primitive that
-cannot be expressed through an existing contract.
+expose it directly when it gives agents a useful, reusable capability that
+cannot be expressed through an existing contract. Do not impose caller-facing
+limits merely to make work fit an assumed agent budget. Keep real input-format,
+protocol, authority, and resource-safety constraints, and report their effects.
 
 ## Choose the tool shape
 
-| Shape | Use it for | Contract should return |
-| --- | --- | --- |
-| `inspect` | Facts about one explicit target, address, object, or resource | Bounded fields, source locations, and facet-level availability |
-| `search` / `list` | Finding candidate targets or entities | Stable ordering, filters, pagination, and exact totals or an explicit unknown |
-| `trace` | Relationships across code, metadata, UI resources, or observations | Typed edges, evidence per edge, traversal limits, and unresolved paths |
-| `compare` | Two explicitly identified artifacts, versions, or evidence sets | Paired identity, comparable coverage, and deltas with evidence |
-| `workflow` | A repeated analyst question that otherwise requires a fragile call sequence | The composed result, contributing evidence, and partial/unavailable facets |
-| `observe` / `capture` / `replay` | A question that requires runtime behavior | Required authority, launch/attach behavior, bounds, lifecycle, and cleanup status |
+| Shape                            | Use it for                                                           | Contract should return                                                                                         |
+| -------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `inspect`                        | Facts about one explicit target, address, object, or resource        | Relevant fields, source locations, and facet-level availability                                                |
+| `search` / `list`                | Finding candidate targets or entities                                | Stable ordering and useful result context; expose pagination when the result format or caller's query needs it |
+| `trace`                          | Relationships across code, metadata, UI resources, or observations   | Typed edges, supporting evidence, and unresolved paths; identify any genuine traversal boundary                |
+| `compare`                        | Two explicitly identified artifacts, versions, or evidence sets      | Paired identity, comparable coverage, and deltas with evidence                                                 |
+| `workflow`                       | A distinct analyst outcome that benefits from composition inside REA | A useful inline result, contributing evidence, and partial/unavailable facets                                  |
+| `observe` / `capture` / `replay` | A question that requires runtime behavior                            | Required authority, launch/attach behavior, real operational constraints, lifecycle, and cleanup status        |
 
 These are task shapes, not required prefixes. Name a tool for the action and
 object agents reason about; keep the name distinct from nearby alternatives.
@@ -24,27 +26,32 @@ object agents reason about; keep the name distinct from nearby alternatives.
 2. Inspect the canonical tool contracts, current provider capabilities, and
    representative CLI/MCP traces. Record the nearest competing tool.
 3. Extend an existing contract when the intent and result are the same. Add a
-   bounded batch when agents repeat scalar calls over a coherent set. Add a
-   workflow when agents repeatedly compose the same stages. Add a new tool when
-   it answers a distinct analyst question or has a materially different
-   authority or result contract.
+   batch or composed workflow when it materially improves a demonstrated task;
+   do not force agents through extra calls or collapse distinct tasks into one
+   tool. Add a tool when it answers a distinct analyst question or has a
+   materially different authority or result contract.
 4. Keep public tool names and result semantics provider-neutral. Put engine-
    specific parsing and protocol handling in adapters. Advertise exact support
    per provider; do not create parallel tools just because engines differ.
-5. Keep prompts instructional. A prompt can suggest a sequence, but it does not
-   replace a tool that must perform bounded work or return durable evidence.
+5. Keep prompts optional and concise. They may point out useful tools, but must
+   not prescribe a call sequence when the task can be answered directly.
 
-Avoid scalar-tool sprawl, model-authored N+1 loops, opaque mode flags, and
-mega-tools that combine unrelated discovery, execution, and mutation.
+Avoid opaque mode flags and mega-tools that combine unrelated discovery,
+execution, and mutation. Prefer a useful direct tool call over a tool sequence
+or model-authored loop when one call can answer the question.
 
 ## Define the contract
 
-- Use strict object inputs with explicit required fields, enums, and bounds.
-- Make pagination, truncation, partial failure, cancellation, and expected
-  unavailable states explicit. Missing evidence is unknown, not empty or false.
-- Return task-oriented results with artifact identity, provider/version,
-  addresses or resource paths, Evidence IDs, confidence, and limitations when
-  they affect the conclusion.
+- Use strict object inputs with explicit required fields and enums. Add numeric
+  bounds only when the format, protocol, authority, or a measured resource
+  constraint requires them.
+- Return complete results by default. Make real pagination, truncation, partial
+  failure, cancellation, and unavailable states explicit. Missing evidence is
+  unknown, not empty or false.
+- Return task-oriented results inline with artifact identity, provider/version,
+  addresses or resource paths, Evidence references, confidence, and relevant
+  limitations. Do not require agents to fetch a resource or dereference an
+  opaque Evidence link to understand a tool result.
 - Separate observed facts from derived and inferred edges. Cite the evidence
   supporting every important relationship; preserve unresolved edges.
 - Declare read-only, mutation, process, filesystem, network, and UI effects

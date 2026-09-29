@@ -34,7 +34,6 @@ interface ScriptDraftState {
   readonly frameIds: ReadonlySet<string>;
   readonly rawResources: readonly CapturedResource[];
   readonly resources: WebPageInspection["resources"];
-  totalSourceBytes: number;
 }
 
 type ScriptDraftItem = Omit<
@@ -52,7 +51,6 @@ export const captureScripts = async (
     frameIds,
     rawResources,
     resources,
-    totalSourceBytes: 0,
   };
   const drafts: {
     readonly item: ScriptDraftItem;
@@ -113,13 +111,6 @@ const captureScriptSource = async (
     events.completeness.truncate("script_sources");
     return sourceExcluded("declared script length exceeds per-script limit");
   }
-  if (
-    state.totalSourceBytes + script.length >
-    context.input.limits.max_total_script_source_bytes
-  ) {
-    events.completeness.truncate("script_sources");
-    return sourceExcluded("total script source limit reached");
-  }
   const result = requiredRecord(
     await context.connection.send(
       "Debugger.getScriptSource",
@@ -130,15 +121,10 @@ const captureScriptSource = async (
   );
   const content = stringValue(result.scriptSource) ?? "";
   const bytes = Buffer.byteLength(content);
-  if (
-    bytes > context.input.limits.max_script_source_bytes ||
-    state.totalSourceBytes + bytes >
-      context.input.limits.max_total_script_source_bytes
-  ) {
+  if (bytes > context.input.limits.max_script_source_bytes) {
     events.completeness.truncate("script_sources");
-    return sourceExcluded("actual source exceeds configured byte limits");
+    return sourceExcluded("actual source exceeds the per-script byte limit");
   }
-  state.totalSourceBytes += bytes;
   return sourceResult(content);
 };
 

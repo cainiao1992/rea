@@ -51,34 +51,6 @@ const registerWebMcp = (
         .max(10_000)
         .default(100)
         .describe("Observation duration in milliseconds"),
-      maxTools: z
-        .number()
-        .int()
-        .min(1)
-        .max(5_000)
-        .default(500)
-        .describe("Maximum page-declared WebMCP tools to return"),
-      maxSchemaBytes: z
-        .number()
-        .int()
-        .min(1)
-        .max(1_024 * 1_024)
-        .default(256 * 1_024)
-        .describe("Maximum serialized size of one declared tool schema"),
-      maxSchemaNodes: z
-        .number()
-        .int()
-        .min(1)
-        .max(100_000)
-        .default(5_000)
-        .describe("Maximum nodes in one declared tool schema"),
-      maxSchemaDepth: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .default(20)
-        .describe("Maximum nesting depth in one declared tool schema"),
     }),
     run: ({ args, options }) =>
       logCliCommand(logger, "discover-webmcp-tools", async () => {
@@ -90,10 +62,6 @@ const registerWebMcp = (
             options.allowedOrigins ?? context.allowedBrowserOrigins,
           target_id: args.targetId,
           observation_ms: options.observationMs,
-          max_tools: options.maxTools,
-          max_schema_bytes: options.maxSchemaBytes,
-          max_schema_nodes: options.maxSchemaNodes,
-          max_schema_depth: options.maxSchemaDepth,
         });
         if (!parsed.success) return inputError("discover_webmcp_tools");
         const result = await discoverWebMcpTools(
@@ -118,13 +86,6 @@ const registerCaptureDiff = (
       afterJson: z.string().describe("Later normalized web capture JSON"),
     }),
     options: z.object({
-      maxChanges: z
-        .number()
-        .int()
-        .min(1)
-        .max(20_000)
-        .default(2_000)
-        .describe("Maximum normalized changes to return"),
       normalizationJson: z
         .string()
         .default('{"rules":[]}')
@@ -141,14 +102,12 @@ const registerCaptureDiff = (
             before_scenario: before,
             after_scenario: after,
             normalization: parseJson(options.normalizationJson),
-            max_changes: options.maxChanges,
           });
         const parsed = scenarioComparison.success
           ? scenarioComparison
           : browserCaptureComparisonInputSchema.safeParse({
               before,
               after,
-              max_changes: options.maxChanges,
             });
         if (!parsed.success) return inputError("compare_web_captures");
         const result = await compareWebCaptureEvidence(

@@ -8,20 +8,11 @@ import {
 import { jsonShapeSchema } from "./jsonShape.js";
 
 /** Input for passive discovery of page-registered WebMCP tools. */
-export const discoverWebMcpToolsInputSchema = z.object({
+export const discoverWebMcpToolsInputSchema = z.strictObject({
   cdp_endpoint: browserEndpointSchema,
   allowed_origins: browserAllowedOriginsSchema,
   target_id: z.string().trim().min(1).max(256),
   observation_ms: z.number().int().min(0).max(10_000).default(100),
-  max_tools: z.number().int().min(1).max(5_000).default(500),
-  max_schema_bytes: z
-    .number()
-    .int()
-    .min(1)
-    .max(1_024 * 1_024)
-    .default(256 * 1_024),
-  max_schema_nodes: z.number().int().min(1).max(100_000).default(5_000),
-  max_schema_depth: z.number().int().min(1).max(100).default(20),
 });
 export type DiscoverWebMcpToolsInput = z.infer<
   typeof discoverWebMcpToolsInputSchema

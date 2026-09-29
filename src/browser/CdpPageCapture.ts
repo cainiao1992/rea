@@ -84,7 +84,7 @@ export const capturePage = async (
     allowedOrigins,
     limitations: [
       "Observation starts when REA attaches; prior network and console activity is unavailable.",
-      "Raw network headers, bodies, cookies, storage values, console objects, and WebSocket payloads are never retained; separately approved captures retain only bounded redacted text or value-free shapes.",
+      "Raw network headers, bodies, cookies, storage values, console objects, and WebSocket payloads are never retained; separately approved captures retain only redacted text or value-free shapes.",
       "Source maps are reported only as declarative URLs and are not fetched.",
       "URL-less scripts and console events without an allowed source URL are excluded because their origin cannot be proven.",
     ],
@@ -109,12 +109,10 @@ const captureAuthorizedPage = async (
   const frameCapture = captureFrames(
     frameResult,
     allowedOrigins,
-    input.limits.max_frames,
+    undefined,
     state.events.completeness,
   );
   const frames = frameCapture.items;
-  if (frameCapture.total > frames.length)
-    state.events.completeness.truncate("frames");
   const captureFrame = frames[0];
   if (captureFrame === undefined)
     throw new BrowserObservationError("inspect_web_page", "target_not_allowed");
@@ -122,19 +120,13 @@ const captureAuthorizedPage = async (
   const resourceCapture = captureResources(
     await connection.send("Page.getResourceTree", {}, sessionId, signal),
     allowedOrigins,
-    input.limits.max_resources,
     state.events.completeness,
   );
-  if (resourceCapture.total > resourceCapture.items.length)
-    state.events.completeness.truncate("resources");
   const resources = stableWebResources(
     resourceCapture.items.map(publicResource),
   );
   const dom = await capturePageDom(state);
-  if (dom.total > dom.nodes.length) state.events.completeness.truncate("dom");
   const accessibility = await accessibilityForFrames(state, frames);
-  if (accessibility.total > accessibility.nodes.length)
-    state.events.completeness.truncate("accessibility");
   const scripts = await captureScripts({
     context,
     events: state.events,
@@ -142,19 +134,15 @@ const captureAuthorizedPage = async (
     resources,
     frameIds: new Set(frames.map((frame) => frame.frame_id)),
   });
-  const workerCapture = await captureWorkers(
+  const workers = await captureWorkers(
     { context, allowedOrigins, limitations, events: state.events },
     new Set(frames.map((frame) => frame.frame_id)),
   );
-  if (workerCapture.total > workerCapture.items.length)
-    state.events.completeness.truncate("workers");
   const storageCapture = await captureStorage(
     context,
     frames[0]?.origin ?? new URL(attachedUrl).origin,
     limitations,
   );
-  if (storageCapture.truncated)
-    state.events.completeness.truncate("storage_keys");
   if (!input.include_storage_keys)
     state.events.completeness.exclude("storage_keys", "not_approved", null);
   const completedFrameResult = await authorizedFrameTree(
@@ -175,7 +163,7 @@ const captureAuthorizedPage = async (
       accessibility,
       scripts: scripts.inventory,
       resources,
-      workers: workerCapture.items,
+      workers,
       storage: storageCapture.value,
     }),
     sourceMapRequests: scripts.sourceMapRequests,
@@ -213,8 +201,7 @@ const authorizeObservationWindow = async (
   await report(context.progress, 1, "Enabling passive CDP domains");
   await connection.send("Page.enable", {}, sessionId, signal);
   const initialFrameResult = await authorizedFrameTree(context, allowedOrigins);
-  const mainFrame = captureFrames(initialFrameResult, allowedOrigins, 1)
-    .items[0];
+  const mainFrame = captureFrames(initialFrameResult, allowedOrigins).items[0];
   if (mainFrame === undefined)
     throw new BrowserObservationError("inspect_web_page", "target_not_allowed");
   events.beginAuthorizedFrame(mainFrame.frame_id);
@@ -367,16 +354,11 @@ const accessibilityForFrames = async (
     else results.push(result);
   }
   if (unavailable) events.completeness.unavailable("accessibility");
-  const capture = captureAccessibility(
-    results,
-    context.input.limits.max_ax_nodes,
-    {
-      includeText: context.input.include_accessibility_text,
-      maximumFieldBytes: context.input.limits.max_ax_text_field_bytes,
-      maximumTotalBytes: context.input.limits.max_total_ax_text_bytes,
-      ...(results.length === 0 && unavailable ? { unavailable: true } : {}),
-    },
-  );
+  const capture = captureAccessibility(results, {
+    includeText: context.input.include_accessibility_text,
+    maximumFieldBytes: context.input.limits.max_ax_text_field_bytes,
+    ...(results.length === 0 && unavailable ? { unavailable: true } : {}),
+  });
   if (!context.input.include_accessibility_text)
     events.completeness.exclude(
       "accessibility",

@@ -58,7 +58,12 @@ export const discoverWebMcp = async (
   const initialUrl = mainFrameUrl(frameTree);
   if (allowedSanitizedUrl(initialUrl, origins) === undefined)
     throw new BrowserObservationError("inspect_web_page", "target_not_allowed");
-  const frames = captureFrames(frameTree, origins, 1_000, completeness).items;
+  const frames = captureFrames(
+    frameTree,
+    origins,
+    undefined,
+    completeness,
+  ).items;
   const frameUrls = new Map(
     frames.map((frame) => [
       frame.frame_id,
@@ -263,10 +268,6 @@ const ingestWebMcpEvent = (options: WebMcpIngestOptions): void => {
   for (const declared of recordsValue(params.tools)) {
     const normalized = normalizeTool(declared, input, frames, completeness);
     if (normalized === undefined) continue;
-    if (!tools.has(normalized.tool_key) && tools.size >= input.max_tools) {
-      completeness.drop("webmcp_tools");
-      continue;
-    }
     tools.set(normalized.tool_key, normalized);
   }
 };
@@ -308,7 +309,7 @@ const normalizeTool = (
       numberValue(value.backendNodeId) === undefined
         ? "imperative"
         : "declarative",
-    input_schema_shape: schemaShape(value.inputSchema, input, completeness),
+    input_schema_shape: schemaShape(value.inputSchema),
     annotations: {
       read_only: booleanOrNull(annotations?.readOnly),
       untrusted_content: booleanOrNull(annotations?.untrustedContent),
@@ -322,19 +323,18 @@ const normalizeTool = (
   };
 };
 
-const schemaShape = (
-  value: unknown,
-  input: DiscoverWebMcpToolsInput,
-  completeness: CdpCaptureCompleteness,
-) => {
+const schemaShape = (value: unknown) => {
   if (recordValue(value) === undefined) return null;
   const encoded = JSON.stringify(value);
   const shape = inferJsonShape(encoded, {
-    maximumBytes: input.max_schema_bytes,
-    maximumNodes: input.max_schema_nodes,
-    maximumDepth: input.max_schema_depth,
+    maximumBytes: 256 * 1_024,
+    maximumNodes: 5_000,
+    maximumDepth: 20,
   });
-  if (shape === null || shape.truncated) completeness.truncate("webmcp_tools");
+  if (shape === null)
+    throw new BrowserObservationError("inspect_web_page", "protocol_error");
+  if (shape.truncated)
+    throw new BrowserObservationError("inspect_web_page", "payload_limit");
   return shape;
 };
 

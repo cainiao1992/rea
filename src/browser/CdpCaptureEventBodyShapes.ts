@@ -80,13 +80,10 @@ const inferBodyShape = (
   text: string,
 ): { readonly shape: JsonShape | null; readonly truncated: boolean } => {
   const bytes = Buffer.byteLength(text);
-  const remaining =
-    state.input.limits.max_total_json_body_bytes - state.jsonBodyBytes;
-  if (bytes > state.input.limits.max_json_body_bytes || bytes > remaining) {
+  if (bytes > state.input.limits.max_json_body_bytes) {
     state.completeness.truncate("json_body_shapes");
     return { shape: null, truncated: true };
   }
-  state.jsonBodyBytes += bytes;
   const shape = inferJsonShape(text, {
     maximumBytes: state.input.limits.max_json_body_bytes,
     maximumNodes: state.input.limits.max_json_shape_nodes,

@@ -16,7 +16,7 @@ import {
   stringValue,
 } from "./CdpCaptureValues.js";
 
-/** Capture redacted, bounded storage metadata for one authorized origin. */
+/** Capture redacted storage metadata for one authorized origin. */
 export const captureStorage = async (
   context: {
     readonly connection: CdpConnection;
@@ -28,7 +28,6 @@ export const captureStorage = async (
   limitations: string[],
 ): Promise<{
   readonly value: WebPageInspection["storage"];
-  readonly truncated: boolean;
 }> => {
   const quota = recordValue(
     await optionalCdpCommand(
@@ -64,22 +63,17 @@ export const captureStorage = async (
     : undefined;
   const cacheValues = recordsValue(recordValue(cacheRaw)?.caches);
   const caches = capturedCaches(cacheValues);
-  const maximum = context.input.limits.max_storage_keys;
   const fingerprints = context.input.include_storage_fingerprints
     ? await captureStorageFingerprints({
         context,
         origin,
         local,
         session,
-        indexedDbNames: indexed.slice(0, maximum),
-        caches: caches.slice(0, maximum),
+        indexedDbNames: indexed,
+        caches,
         limitations,
       })
-    : { items: [], complete: false as const, truncated: false };
-  const truncated =
-    [local.items, session.items, indexed, caches].some(
-      (items) => items.length > maximum,
-    ) || fingerprints.truncated;
+    : { items: [], complete: false };
   const structuredStorageComplete =
     indexedRaw !== undefined &&
     Array.isArray(indexedValues) &&
@@ -91,25 +85,15 @@ export const captureStorage = async (
       origin,
       usage_bytes: numberValue(quota?.usage) ?? null,
       quota_bytes: numberValue(quota?.quota) ?? null,
-      local_storage_keys: local.items
-        .map(({ key }) => key.slice(0, 1_024))
-        .slice(0, maximum),
-      session_storage_keys: session.items
-        .map(({ key }) => key.slice(0, 1_024))
-        .slice(0, maximum),
-      indexed_db_names: indexed
-        .map((name) => name.slice(0, 1_024))
-        .slice(0, maximum),
-      cache_names: caches
-        .map(({ name }) => name.slice(0, 1_024))
-        .slice(0, maximum),
+      local_storage_keys: local.items.map(({ key }) => key.slice(0, 1_024)),
+      session_storage_keys: session.items.map(({ key }) => key.slice(0, 1_024)),
+      indexed_db_names: indexed.map((name) => name.slice(0, 1_024)),
+      cache_names: caches.map(({ name }) => name.slice(0, 1_024)),
       content_fingerprints: [...fingerprints.items],
       fingerprint_algorithm: "sha256",
-      fingerprints_complete:
-        fingerprints.complete && structuredStorageComplete && !truncated,
+      fingerprints_complete: fingerprints.complete && structuredStorageComplete,
       values_redacted: true,
     },
-    truncated,
   };
 };
 

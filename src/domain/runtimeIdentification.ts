@@ -25,7 +25,6 @@ const observationSchema = z.strictObject({
 const runtimeObservationShape = {
   family: runtimeFamilySchema,
   observations: z.array(observationSchema),
-  omitted_observations: z.number().int().min(0),
 };
 const identifiedRuntimeSchema = z.discriminatedUnion("inspection", [
   z.strictObject({
@@ -50,12 +49,7 @@ const identifiedRuntimeSchema = z.discriminatedUnion("inspection", [
 
 /** Authenticated artifact inventory pages to classify by runtime family. */
 const runtimeIdentificationInputSchema = z.strictObject({
-  inventory_evidence: z.array(evidenceSchema).min(1).max(100),
-  limits: z
-    .strictObject({
-      max_observations: z.number().int().min(1).max(10_000).default(1_000),
-    })
-    .default({ max_observations: 1_000 }),
+  inventory_evidence: z.array(evidenceSchema).min(1),
 });
 
 /** Provider-neutral runtime identification with explicit tooling availability. */
@@ -63,12 +57,11 @@ export const runtimeIdentificationResultSchema = z.strictObject({
   identification_id: z.string().regex(/^rid_[a-f0-9]{64}$/u),
   root_sha256: digestSchema,
   root_format: z.string().min(1).max(100),
-  source_evidence_ids: z.array(evidenceIdSchema).min(1).max(100),
+  source_evidence_ids: z.array(evidenceIdSchema).min(1),
   runtimes: z.array(identifiedRuntimeSchema),
   coverage: z.strictObject({
-    status: z.enum(["complete-within-inventory", "partial", "truncated"]),
+    status: z.enum(["complete-within-inventory", "partial"]),
     inventory_complete: z.boolean(),
-    omitted_observations: z.number().int().min(0),
   }),
   limitations: z.array(z.string().min(1).max(4_096)).max(100),
 });
@@ -165,22 +158,15 @@ export const identifyRuntimes = (
         sha256: rootObservation.sha256,
         format: rootObservation.format,
       });
-  let remaining = parsed.limits.max_observations;
-  let omitted = 0;
   const runtimes = [...grouped.entries()]
     .sort(([left], [right]) => compare(left, right))
     .map(([family, values]) => {
       const unique = deduplicate(values);
-      const observations = unique.slice(0, remaining);
-      remaining -= observations.length;
-      const omittedObservations = unique.length - observations.length;
-      omitted += omittedObservations;
       const provider = providerFor(family, inventory.manifest.root_format);
       return {
         family,
         ...runtimeInspection(provider),
-        observations,
-        omitted_observations: omittedObservations,
+        observations: unique,
       };
     });
   const limitations = [
@@ -188,9 +174,6 @@ export const identifyRuntimes = (
       ? [
           "Source inventory pages are incomplete; absent runtimes remain unknown.",
         ]
-      : []),
-    ...(omitted > 0
-      ? [`${String(omitted)} runtime observations were omitted by the limit.`]
       : []),
     "Runtime families are identified from exact artifact formats and paths; semantic claims require the named provider.",
   ];
@@ -202,14 +185,10 @@ export const identifyRuntimes = (
       .sort(compare),
     runtimes,
     coverage: {
-      status:
-        omitted > 0
-          ? ("truncated" as const)
-          : inventory.complete
-            ? ("complete-within-inventory" as const)
-            : ("partial" as const),
+      status: inventory.complete
+        ? ("complete-within-inventory" as const)
+        : ("partial" as const),
       inventory_complete: inventory.complete,
-      omitted_observations: omitted,
     },
     limitations,
   };

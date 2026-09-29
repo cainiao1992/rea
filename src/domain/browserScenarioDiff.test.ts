@@ -109,15 +109,22 @@ describe("browser scenario comparison", () => {
         expect.objectContaining({ artifact: "dom", status: "changed" }),
       ],
     });
-    expect(compared.artifact_diffs).toEqual({
-      total: 2,
-      retained: 2,
-      omitted: 0,
-    });
+    expect(compared.artifact_diffs).toEqual({ total: 2 });
   });
 });
 
 describe("browser scenario comparison validation", () => {
+  it("does not accept caller limits that would omit difference records", () => {
+    const capture = scenarioCapture({});
+    expect(
+      compareBrowserScenariosInputSchema.safeParse({
+        before_scenario: capture,
+        after_scenario: capture,
+        max_changes: 1,
+      }).success,
+    ).toBe(false);
+  });
+
   it("reports missing aligned steps without claiming equality", () => {
     const before = scenarioCapture({});
     const after = scenarioCapture({ stepId: "open-profile" });

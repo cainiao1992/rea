@@ -20,7 +20,4 @@ export interface CdpCaptureEventsState {
   originViolation: boolean;
   navigationDuringCapture: boolean;
   mainFrameId: string | undefined;
-  consoleTextBytes: number;
-  jsonBodyBytes: number;
-  websocketShapeBytes: number;
 }

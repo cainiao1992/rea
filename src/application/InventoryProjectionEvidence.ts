@@ -16,7 +16,7 @@ import { err, ok, type Result } from "../domain/result.js";
 
 interface InventoryProjectionInput {
   readonly inventory_evidence: readonly Evidence[];
-  readonly limits: unknown;
+  readonly limits?: unknown;
 }
 
 interface InventoryProjectionResult {
@@ -69,7 +69,9 @@ export const projectInventoryEvidence = <
           operation: options.operation,
           parameters: {
             inventory_evidence_ids: [...result.source_evidence_ids],
-            limits: jsonValueSchema.parse(parsed.data.limits),
+            ...("limits" in parsed.data && parsed.data.limits !== undefined
+              ? { limits: jsonValueSchema.parse(parsed.data.limits) }
+              : {}),
           },
           result: jsonValueSchema.parse(result),
           rawResult: null,

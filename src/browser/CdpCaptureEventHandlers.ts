@@ -40,13 +40,6 @@ export const handleExecutionContextCreated = (
   )
     return;
   const key = String(identifier);
-  if (
-    state.executionContextFrames.size >= state.input.limits.max_scripts &&
-    !state.executionContextFrames.has(key)
-  ) {
-    state.completeness.truncate("scripts");
-    return;
-  }
   state.executionContextFrames.set(key, frameId);
 };
 
@@ -71,13 +64,6 @@ export const handleScriptParsed = (
   }
   if (sanitized === undefined) {
     state.completeness.exclude("scripts", exclusionReasonForUrl(rawUrl));
-    return;
-  }
-  if (
-    state.scripts.size >= state.input.limits.max_scripts &&
-    !state.scripts.has(scriptId)
-  ) {
-    state.completeness.drop("scripts");
     return;
   }
   const sourceMap = sourceMapForScript(params.sourceMapURL, rawUrl, state);
@@ -148,13 +134,6 @@ export const handleRequestWillBeSent = (
     state.network.delete(requestId);
     return;
   }
-  if (
-    state.network.size >= state.input.limits.max_network_events &&
-    !state.network.has(requestId)
-  ) {
-    state.completeness.drop("network_requests");
-    return;
-  }
   const initiator = recordValue(params.initiator);
   const initiatorFrame = initiatorLocation(initiator);
   const rawInitiatorUrl = stringValue(initiatorFrame?.url);
@@ -214,10 +193,6 @@ export const handleResponseReceived = (
     status: numberValue(response.status) ?? null,
     mime_type: boundedText(response.mimeType, 256),
   });
-  if (state.responseMetadata.length >= state.input.limits.max_network_events) {
-    state.completeness.truncate("metadata");
-    return;
-  }
   const metadata = safeResponseMetadata(
     requestId,
     sanitized.url,
@@ -262,19 +237,13 @@ export const handleConsoleAPICalled = (
     );
     return;
   }
-  if (state.console.length >= state.input.limits.max_console_events) {
-    state.completeness.drop("console_events");
-    return;
-  }
   const arguments_ = recordsValue(params.args);
   state.console.push({
     type: (stringValue(params.type) ?? "unknown").slice(0, 100),
     timestamp: numberValue(params.timestamp) ?? 0,
-    argument_types: arguments_
-      .map((argument) =>
-        (stringValue(argument.type) ?? "unknown").slice(0, 100),
-      )
-      .slice(0, 100),
+    argument_types: arguments_.map((argument) =>
+      (stringValue(argument.type) ?? "unknown").slice(0, 100),
+    ),
     url: source.url,
     line: integerOrNull(frame.lineNumber),
     column: integerOrNull(frame.columnNumber),
@@ -300,15 +269,9 @@ const captureConsoleText = (
   for (const [argumentIndex, argument] of arguments_.entries()) {
     const primitive = consolePrimitive(argument);
     if (primitive === undefined) continue;
-    const remaining =
-      state.input.limits.max_total_console_text_bytes - state.consoleTextBytes;
-    if (remaining <= 0) {
-      truncatedValues += 1;
-      continue;
-    }
     const bounded = boundedSensitiveText(
       primitive.text,
-      Math.min(state.input.limits.max_console_text_field_bytes, remaining),
+      state.input.limits.max_console_text_field_bytes,
     );
     values.push({
       argument_index: argumentIndex,
@@ -316,7 +279,6 @@ const captureConsoleText = (
       text: bounded.text,
     });
     retainedBytes += bounded.bytes;
-    state.consoleTextBytes += bounded.bytes;
     if (bounded.truncated) truncatedValues += 1;
   }
   if (truncatedValues > 0) state.completeness.truncate("console_text");
@@ -340,10 +302,6 @@ export const handleWebSocketFrame = (
     (!state.network.has(requestId) && !state.allowedWebSockets.has(requestId))
   )
     return;
-  if (state.websockets.length >= state.input.limits.max_websocket_events) {
-    state.completeness.drop("websocket_frames");
-    return;
-  }
   const response = recordValue(params.response);
   const payload = stringValue(response?.payloadData) ?? "";
   const opcode = Math.max(0, Math.trunc(numberValue(response?.opcode) ?? 0));
@@ -369,17 +327,10 @@ const captureWebSocketShape = (
   if (opcode !== 1)
     return { format: "binary", json_shape: null, truncated: false };
   const bytes = Buffer.byteLength(payload);
-  const remaining =
-    state.input.limits.max_total_websocket_shape_bytes -
-    state.websocketShapeBytes;
-  if (
-    bytes > state.input.limits.max_websocket_shape_bytes ||
-    bytes > remaining
-  ) {
+  if (bytes > state.input.limits.max_websocket_shape_bytes) {
     state.completeness.truncate("websocket_shapes");
     return { format: "text", json_shape: null, truncated: true };
   }
-  state.websocketShapeBytes += bytes;
   const shape = inferJsonShape(payload, {
     maximumBytes: state.input.limits.max_websocket_shape_bytes,
     maximumNodes: state.input.limits.max_json_shape_nodes,
@@ -429,13 +380,6 @@ export const handleWebSocketCreated = (
   }
   if (!state.allowedOrigins.has(parsed.origin)) {
     state.completeness.exclude("websocket_connections", "disallowed_origin");
-    return;
-  }
-  if (
-    !state.allowedWebSockets.has(requestId) &&
-    state.allowedWebSockets.size >= state.input.limits.max_websocket_events
-  ) {
-    state.completeness.drop("websocket_connections");
     return;
   }
   state.allowedWebSockets.add(requestId);

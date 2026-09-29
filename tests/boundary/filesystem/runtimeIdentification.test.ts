@@ -63,7 +63,6 @@ describe("runtime identification", () => {
       coverage: {
         status: "complete-within-inventory",
         inventory_complete: true,
-        omitted_observations: 0,
       },
     });
     expect(first.runtimes.map(({ family }) => family)).toEqual([
@@ -115,25 +114,29 @@ describe("runtime identification", () => {
     ).toBe(false);
   });
 
-  it("reports bounded runtime-observation truncation", async () => {
-    const root = await createTestTempDirectory("rea-runtime-limit-");
+  it("accepts more than 100 supplied inventory Evidence records", async () => {
+    const root = await createTestTempDirectory("rea-runtime-pages-");
     const path = join(root, "Fixture.apk");
     const writer = new ZipWriter(new Uint8ArrayWriter());
     await writer.add("one.js", new TextReader("one"));
-    await writer.add("two.js", new TextReader("two"));
     await writeFile(path, await writer.close());
     const inventory = parseEvidence(
       await runProviderAnalysis(path, "inventory_artifact", {}),
     );
     const result = identifyRuntimes({
-      inventory_evidence: [inventory],
-      limits: { max_observations: 1 },
+      inventory_evidence: Array.from({ length: 101 }, () => inventory),
     });
-    expect(result.coverage).toMatchObject({
-      status: "truncated",
-      omitted_observations: expect.any(Number),
-    });
-    expect(result.coverage.omitted_observations).toBeGreaterThan(0);
+
+    expect(result.source_evidence_ids).toHaveLength(101);
+    expect(result.coverage.status).toBe("complete-within-inventory");
+    expect(result.runtimes).toContainEqual(
+      expect.objectContaining({
+        family: "javascript",
+        observations: expect.arrayContaining([
+          expect.objectContaining({ path: "one.js" }),
+        ]),
+      }),
+    );
   });
 
   it("does not route nested DEX content to the APK-only provider", async () => {

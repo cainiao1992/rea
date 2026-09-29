@@ -26,10 +26,9 @@ type Change = WebCaptureChange;
 export const compareWebCaptures = (
   input: CompareWebCapturesInput,
 ): WebCaptureDiff => {
-  const remaining = { value: input.max_changes };
   const before = input.before.inspection;
   const after = input.after.inspection;
-  const dimensions = compareWebCaptureDimensions(input, remaining);
+  const dimensions = compareWebCaptureDimensions(input);
   const statuses = Object.values(dimensions).map(({ status }) => status);
   return webCaptureDiffSchema.parse({
     overall_status: statuses.includes("changed")
@@ -75,52 +74,44 @@ const compareIdentities = (
   );
 };
 
-const compareDimension =
-  (remaining: { value: number }) =>
-  (
-    before: ReadonlyMap<string, string>,
-    after: ReadonlyMap<string, string>,
-    complete: boolean,
-    reason: string,
-  ): Dimension => {
-    const all = compareIdentities(before, after);
-    const retained = all.slice(0, remaining.value);
-    remaining.value -= retained.length;
-    if (all.length > 0)
-      return {
-        status: "changed",
-        total_changes: all.length,
-        changes: retained,
-        omitted_changes: all.length - retained.length,
+const compareDimension = (
+  before: ReadonlyMap<string, string>,
+  after: ReadonlyMap<string, string>,
+  complete: boolean,
+  reason: string,
+): Dimension => {
+  const all = compareIdentities(before, after);
+  if (all.length > 0)
+    return {
+      status: "changed",
+      total_changes: all.length,
+      changes: all,
+      reason: null,
+    };
+  return complete
+    ? {
+        status: "unchanged",
+        total_changes: 0,
+        changes: [],
         reason: null,
+      }
+    : {
+        status: "unknown",
+        total_changes: 0,
+        changes: [],
+        reason,
       };
-    return complete
-      ? {
-          status: "unchanged",
-          total_changes: 0,
-          changes: [],
-          omitted_changes: 0,
-          reason: null,
-        }
-      : {
-          status: "unknown",
-          total_changes: 0,
-          changes: [],
-          omitted_changes: 0,
-          reason,
-        };
-  };
+};
 
 const accessibilityDimension = (
   before: WebPageInspection,
   after: WebPageInspection,
-  remaining: { value: number },
 ): Dimension => {
   const beforeAccess = accessibilityComparable(before);
   const afterAccess = accessibilityComparable(after);
   const textComparable = beforeAccess.text && afterAccess.text;
   const nodesComparable = beforeAccess.nodes && afterAccess.nodes;
-  return compareDimension(remaining)(
+  return compareDimension(
     singleton(
       "accessibility_tree",
       digest(
@@ -149,7 +140,6 @@ const accessibilityDimension = (
 const storageDimension = (
   before: WebPageInspection,
   after: WebPageInspection,
-  remaining: { value: number },
 ): Dimension => {
   const keysComplete =
     storageKeysComparable(before) && storageKeysComparable(after);
@@ -162,7 +152,7 @@ const storageDimension = (
     before.storage,
     after.storage,
   );
-  return compareDimension(remaining)(
+  return compareDimension(
     storageMap(
       before.storage,
       keysComplete,
@@ -182,11 +172,10 @@ const storageDimension = (
 
 const compareWebCaptureDimensions = (
   input: CompareWebCapturesInput,
-  remaining: { value: number },
 ): WebCaptureDiff["dimensions"] => {
   const before = input.before.inspection;
   const after = input.after.inspection;
-  const dimension = compareDimension(remaining);
+  const dimension = compareDimension;
   return {
     dom_structure: dimension(
       singleton("document", digest(domProjection(before))),
@@ -235,8 +224,8 @@ const compareWebCaptureDimensions = (
       webMcpComplete(input.before.webmcp) && webMcpComplete(input.after.webmcp),
       "WebMCP discovery was unavailable or incomplete in at least one capture.",
     ),
-    accessibility: accessibilityDimension(before, after, remaining),
-    storage: storageDimension(before, after, remaining),
+    accessibility: accessibilityDimension(before, after),
+    storage: storageDimension(before, after),
   };
 };
 

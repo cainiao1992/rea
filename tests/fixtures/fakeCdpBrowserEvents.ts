@@ -11,6 +11,17 @@ export const emitEvents = (
   emitDebuggerEvents(socket, command, port, options);
   emitNetworkEvents(socket, command, port, options);
   emitRuntimeEvents(socket, command, port, options);
+  emitWebMcpEvents(socket, command, port, options);
+  emitSessionTimeline(socket, command, port, options);
+  emitCaptureNavigation(socket, command, options);
+};
+
+const emitWebMcpEvents = (
+  socket: WebSocket,
+  command: FakeCdpCommand,
+  port: number,
+  options: FakeOptions,
+): void => {
   if (command.method === "WebMCP.enable" && options.webMcpTools === true) {
     event(socket, "WebMCP.toolsAdded", command.sessionId, {
       tools: [
@@ -60,6 +71,16 @@ export const emitEvents = (
               },
             ]
           : []),
+        ...(options.webMcpFrameCount !== undefined &&
+        options.webMcpFrameCount > 0
+          ? [
+              {
+                name: "beyond_frame_limit_tool",
+                description: "Registered in an in-scope frame after index 999",
+                frameId: `webmcp-frame-${String(options.webMcpFrameCount - 1)}`,
+              },
+            ]
+          : []),
         ...(options.webMcpChildLeavesScope === true
           ? [
               {
@@ -90,7 +111,14 @@ export const emitEvents = (
       });
     }
   }
-  emitCaptureNavigation(socket, command, options);
+};
+
+const emitSessionTimeline = (
+  socket: WebSocket,
+  command: FakeCdpCommand,
+  port: number,
+  options: FakeOptions,
+): void => {
   if (
     command.method === "Page.setLifecycleEventsEnabled" &&
     options.sessionTimeline !== undefined

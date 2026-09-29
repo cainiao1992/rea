@@ -20,20 +20,18 @@ export type CapturedResource = Omit<
   "resource_key"
 > & { readonly rawUrl: string };
 
-/** Normalize allowed frames while retaining a bounded prefix and total count. */
+/** Normalize every allowed frame, optionally selecting a leading frame. */
 export const captureFrames = (
   result: unknown,
   allowedOrigins: ReadonlySet<string>,
-  maximum: number,
+  maximum?: number,
   completeness?: CdpCaptureCompleteness,
 ): {
-  readonly total: number;
   readonly items: WebPageInspection["frames"];
 } => {
   const root = recordValue(requiredRecord(result).frameTree);
-  if (root === undefined) return { total: 0, items: [] };
+  if (root === undefined) return { items: [] };
   const items: WebPageInspection["frames"] = [];
-  let total = 0;
   for (const tree of walkFrameTrees(root)) {
     const frame = recordValue(tree.frame);
     const frameId = stringValue(frame?.id);
@@ -49,8 +47,7 @@ export const captureFrames = (
       );
       continue;
     }
-    total += 1;
-    if (items.length >= maximum) continue;
+    if (maximum !== undefined && items.length >= maximum) continue;
     items.push({
       frame_id: frameId,
       parent_frame_id:
@@ -59,7 +56,7 @@ export const captureFrames = (
       origin: sanitized.origin,
     });
   }
-  return { total, items };
+  return { items };
 };
 
 /** Read the current main-frame URL from an untrusted Page.getFrameTree result. */
@@ -68,20 +65,17 @@ export const mainFrameUrl = (result: unknown): string | undefined =>
     recordValue(recordValue(requiredRecord(result).frameTree)?.frame)?.url,
   );
 
-/** Normalize allowed resources while retaining a bounded prefix and total count. */
+/** Normalize every allowed resource. */
 export const captureResources = (
   result: unknown,
   allowedOrigins: ReadonlySet<string>,
-  maximum: number,
   completeness?: CdpCaptureCompleteness,
 ): {
-  readonly total: number;
   readonly items: readonly CapturedResource[];
 } => {
   const root = recordValue(requiredRecord(result).frameTree);
-  if (root === undefined) return { total: 0, items: [] };
+  if (root === undefined) return { items: [] };
   const items: CapturedResource[] = [];
-  let total = 0;
   for (const tree of walkFrameTrees(root)) {
     for (const resource of recordsValue(tree.resources)) {
       const url = allowedSanitizedUrl(resource.url, allowedOrigins);
@@ -92,8 +86,6 @@ export const captureResources = (
         );
         continue;
       }
-      total += 1;
-      if (items.length >= maximum) continue;
       const contentSize = numberValue(resource.contentSize);
       items.push({
         rawUrl: stringValue(resource.url) ?? "",
@@ -106,7 +98,7 @@ export const captureResources = (
       });
     }
   }
-  return { total, items };
+  return { items };
 };
 
 const walkFrameTrees = function* (
@@ -163,11 +155,7 @@ export const captureDom = (
       : [];
     const baseIndex = nodes.length;
     total += nodeTypes.length;
-    for (
-      let index = 0;
-      index < nodeTypes.length && nodes.length < input.limits.max_dom_nodes;
-      index += 1
-    ) {
+    for (let index = 0; index < nodeTypes.length; index += 1) {
       const attributeIndexes = numberArray(attributes[index]);
       const parent = Math.trunc(parents[index] ?? -1);
       const nodeIndex = nodes.length;
@@ -180,8 +168,7 @@ export const captureDom = (
         node_value_length: indexedString(strings, nodeValues[index]).length,
         attribute_names: attributeIndexes
           .filter((_value, attributeIndex) => attributeIndex % 2 === 0)
-          .map((value) => indexedString(strings, value).slice(0, 256))
-          .slice(0, 200),
+          .map((value) => indexedString(strings, value).slice(0, 256)),
       });
       const metadata = domMetadata({
         strings,
@@ -192,10 +179,6 @@ export const captureDom = (
         allowedOrigins,
       });
       for (const url of metadata.urls) {
-        if (urls.length >= input.limits.max_resources) {
-          completeness?.truncate("metadata");
-          continue;
-        }
         urls.push(url);
         if (url.destination_scope !== "approved") {
           excludedUrls += 1;
@@ -214,18 +197,16 @@ export const captureDom = (
     total,
     nodes,
     urls,
-    agentHints: agentHints.slice(0, input.limits.max_resources),
+    agentHints,
     excludedUrls,
   };
 };
 
 export const captureAccessibility = (
   results: readonly unknown[],
-  maximum: number,
   options: {
     readonly includeText: boolean;
     readonly maximumFieldBytes: number;
-    readonly maximumTotalBytes: number;
     readonly unavailable?: boolean;
   },
 ): {
@@ -243,10 +224,9 @@ export const captureAccessibility = (
       return nodeId === undefined ? [] : [nodeId];
     }),
   );
-  let retainedBytes = 0;
   let excludedFields = 0;
   let truncatedFields = 0;
-  const nodes = all.slice(0, maximum).map((node) => {
+  const nodes = all.map((node) => {
     const captureText = (value: unknown): string | null => {
       const raw = stringValue(recordValue(value)?.value);
       if (raw === undefined) return null;
@@ -254,12 +234,7 @@ export const captureAccessibility = (
         excludedFields += 1;
         return null;
       }
-      const available = Math.max(0, options.maximumTotalBytes - retainedBytes);
-      const captured = boundedUtf8(
-        raw,
-        Math.min(options.maximumFieldBytes, available),
-      );
-      retainedBytes += captured.bytes;
+      const captured = boundedUtf8(raw, options.maximumFieldBytes);
       if (captured.truncated) {
         truncatedFields += 1;
         if (captured.text === "" && raw !== "") {
@@ -279,13 +254,6 @@ export const captureAccessibility = (
       states: accessibilityStates(node.properties),
     };
   });
-  for (const node of all.slice(maximum)) {
-    for (const value of [node.name, node.description]) {
-      if (stringValue(recordValue(value)?.value) === undefined) continue;
-      excludedFields += 1;
-      if (options.includeText) truncatedFields += 1;
-    }
-  }
   return {
     total: all.length,
     nodes,
@@ -305,7 +273,13 @@ export const captureAccessibility = (
           : truncatedFields > 0
             ? "truncated"
             : "included",
-      retained_bytes: retainedBytes,
+      retained_bytes: nodes.reduce(
+        (total, node) =>
+          total +
+          Buffer.byteLength(node.name ?? "") +
+          Buffer.byteLength(node.description ?? ""),
+        0,
+      ),
       excluded_fields: excludedFields,
       truncated_fields: truncatedFields,
     },

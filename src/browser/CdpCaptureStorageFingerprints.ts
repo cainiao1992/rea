@@ -37,9 +37,7 @@ interface StorageFingerprintContext {
 
 interface FingerprintState {
   readonly items: StorageFingerprint[];
-  readonly maximum: number;
   complete: boolean;
-  truncated: boolean;
 }
 
 interface FingerprintRun {
@@ -60,10 +58,8 @@ interface CaptureStorageFingerprintInput {
 
 type StorageFingerprintCapture = {
   readonly items: readonly StorageFingerprint[];
-} & (
-  | { readonly complete: true; readonly truncated: false }
-  | { readonly complete: false; readonly truncated: boolean }
-);
+  readonly complete: boolean;
+};
 
 /** Capture stable hashes of approved storage content without returning values. */
 export const captureStorageFingerprints = async ({
@@ -77,9 +73,7 @@ export const captureStorageFingerprints = async ({
 }: CaptureStorageFingerprintInput): Promise<StorageFingerprintCapture> => {
   const state: FingerprintState = {
     items: [],
-    maximum: context.input.limits.max_storage_keys,
     complete: local.complete && session.complete,
-    truncated: false,
   };
   const run = { context, limitations, state };
   addStorageItems(state, "local_storage", local.items);
@@ -94,16 +88,8 @@ export const captureStorageFingerprints = async ({
     ),
   );
   const complete =
-    state.complete &&
-    !state.truncated &&
-    state.items.every(({ complete }) => complete);
-  return complete
-    ? { items: state.items, complete: true, truncated: false }
-    : {
-        items: state.items,
-        complete: false,
-        truncated: state.truncated,
-      };
+    state.complete && state.items.every(({ complete }) => complete);
+  return { items: state.items, complete };
 };
 
 const addStorageItems = (
@@ -175,10 +161,6 @@ const addIndexedDb = async (
   names: readonly string[],
 ): Promise<void> => {
   for (const databaseName of names) {
-    if (run.state.items.length >= run.state.maximum) {
-      run.state.truncated = true;
-      return;
-    }
     const raw = await optionalCdpCommand(
       run.context,
       "IndexedDB.requestDatabase",
@@ -261,57 +243,62 @@ const addIndexedDbRecords = async (
     readonly objectStoreName: string;
   },
 ): Promise<void> => {
-  const remaining = run.state.maximum - run.state.items.length;
-  if (remaining <= 0) {
-    run.state.truncated = true;
-    return;
-  }
-  const raw = await optionalCdpCommand(
-    run.context,
-    "IndexedDB.requestData",
-    {
-      securityOrigin: input.origin,
-      databaseName: input.databaseName,
-      objectStoreName: input.objectStoreName,
-      indexName: "",
-      skipCount: 0,
-      pageSize: remaining,
-    },
-    run.limitations,
-  );
-  const result = recordValue(raw);
-  if (raw === undefined || result === undefined) {
-    run.state.complete = false;
-    return;
-  }
-  if (
-    !Array.isArray(result.objectStoreDataEntries) ||
-    typeof result.hasMore !== "boolean"
-  ) {
-    run.state.complete = false;
-    return;
-  }
-  const entries = recordsValue(result.objectStoreDataEntries);
-  if (entries.length !== result.objectStoreDataEntries.length)
-    run.state.complete = false;
-  for (const entry of entries) {
-    const key = stableValue(entry.key);
-    const primaryKey = stableValue(entry.primaryKey);
-    const value = stableValue(entry.value);
-    addFingerprint(run.state, {
-      scope: "indexed_db_record",
-      identity: {
-        database: input.databaseName,
-        store: input.objectStoreName,
-        key,
-        primaryKey,
+  let skipCount = 0;
+  while (true) {
+    const raw = await optionalCdpCommand(
+      run.context,
+      "IndexedDB.requestData",
+      {
+        securityOrigin: input.origin,
+        databaseName: input.databaseName,
+        objectStoreName: input.objectStoreName,
+        indexName: "",
+        skipCount,
+        pageSize: STORAGE_ENTRY_PAGE_SIZE,
       },
-      value,
-      complete: remoteObjectComplete(entry.value),
-    });
+      run.limitations,
+    );
+    const result = recordValue(raw);
+    if (raw === undefined || result === undefined) {
+      run.state.complete = false;
+      return;
+    }
+    if (
+      !Array.isArray(result.objectStoreDataEntries) ||
+      typeof result.hasMore !== "boolean"
+    ) {
+      run.state.complete = false;
+      return;
+    }
+    const entries = recordsValue(result.objectStoreDataEntries);
+    if (entries.length !== result.objectStoreDataEntries.length)
+      run.state.complete = false;
+    for (const entry of entries) {
+      const key = stableValue(entry.key);
+      const primaryKey = stableValue(entry.primaryKey);
+      const value = stableValue(entry.value);
+      addFingerprint(run.state, {
+        scope: "indexed_db_record",
+        identity: {
+          database: input.databaseName,
+          store: input.objectStoreName,
+          key,
+          primaryKey,
+        },
+        value,
+        complete: remoteObjectComplete(entry.value),
+      });
+    }
+    if (result.hasMore !== true) return;
+    if (
+      entries.length === 0 ||
+      skipCount > Number.MAX_SAFE_INTEGER - entries.length
+    ) {
+      run.state.complete = false;
+      return;
+    }
+    skipCount += entries.length;
   }
-  if (result.hasMore === true || entries.length > remaining)
-    run.state.truncated = true;
 };
 
 const addCaches = async (
@@ -319,34 +306,44 @@ const addCaches = async (
   caches: readonly CapturedCache[],
 ): Promise<void> => {
   for (const cache of caches) {
-    const remaining = run.state.maximum - run.state.items.length;
-    if (remaining <= 0) {
-      run.state.truncated = true;
-      return;
+    let skipCount = 0;
+    let returnCount: number | undefined;
+    while (returnCount === undefined || skipCount < returnCount) {
+      const raw = await optionalCdpCommand(
+        run.context,
+        "CacheStorage.requestEntries",
+        { cacheId: cache.id, skipCount, pageSize: STORAGE_ENTRY_PAGE_SIZE },
+        run.limitations,
+      );
+      const result = recordValue(raw);
+      if (raw === undefined || result === undefined) {
+        run.state.complete = false;
+        break;
+      }
+      if (
+        !Array.isArray(result.cacheDataEntries) ||
+        typeof result.returnCount !== "number" ||
+        !Number.isSafeInteger(result.returnCount) ||
+        result.returnCount < 0
+      ) {
+        run.state.complete = false;
+        break;
+      }
+      const entries = recordsValue(result.cacheDataEntries);
+      if (entries.length !== result.cacheDataEntries.length)
+        run.state.complete = false;
+      for (const entry of entries) await addCacheEntry(run, cache, entry);
+      returnCount = result.returnCount;
+      if (skipCount + entries.length >= returnCount) break;
+      if (
+        entries.length === 0 ||
+        skipCount > Number.MAX_SAFE_INTEGER - entries.length
+      ) {
+        run.state.complete = false;
+        break;
+      }
+      skipCount += entries.length;
     }
-    const raw = await optionalCdpCommand(
-      run.context,
-      "CacheStorage.requestEntries",
-      { cacheId: cache.id, skipCount: 0, pageSize: remaining },
-      run.limitations,
-    );
-    const result = recordValue(raw);
-    if (raw === undefined || result === undefined) {
-      run.state.complete = false;
-      continue;
-    }
-    if (
-      !Array.isArray(result.cacheDataEntries) ||
-      typeof result.returnCount !== "number"
-    ) {
-      run.state.complete = false;
-      continue;
-    }
-    const entries = recordsValue(result.cacheDataEntries);
-    if (entries.length !== result.cacheDataEntries.length)
-      run.state.complete = false;
-    for (const entry of entries) await addCacheEntry(run, cache, entry);
-    if (result.returnCount > entries.length) run.state.truncated = true;
   }
 };
 
@@ -406,10 +403,6 @@ const addFingerprint = (
     readonly complete: boolean;
   },
 ): void => {
-  if (state.items.length >= state.maximum) {
-    state.truncated = true;
-    return;
-  }
   state.items.push({
     scope: input.scope,
     identity_sha256: digest(input.identity),
@@ -420,6 +413,8 @@ const addFingerprint = (
       stableValueComplete(input.value),
   });
 };
+
+const STORAGE_ENTRY_PAGE_SIZE = 1_000;
 
 const digest = (value: unknown): string =>
   createHash("sha256").update(encodedValue(value)).digest("hex");

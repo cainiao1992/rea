@@ -248,7 +248,7 @@ describeBrowser("CdpBrowserProvider: sensitive data 2", () => {
 });
 
 describeBrowser("CdpBrowserProvider: sensitive data 3", () => {
-  it("reports independent sensitive-capture truncation at aggregate byte limits", async () => {
+  it("keeps per-value text, body, and WebSocket shape validation", async () => {
     const browser = await startFakeCdpBrowser({ sensitiveShapes: true });
     trackBrowser(browser);
     const request = inspectWebPageInputSchema.parse({
@@ -265,20 +265,20 @@ describeBrowser("CdpBrowserProvider: sensitive data 3", () => {
       limits: {
         ...request.limits,
         max_console_text_field_bytes: 5,
-        max_total_console_text_bytes: 5,
         max_json_body_bytes: 10,
-        max_total_json_body_bytes: 10,
         max_websocket_shape_bytes: 5,
-        max_total_websocket_shape_bytes: 5,
       },
     });
 
     if (!result.ok) throw result.error;
     expect(result.value.console.events[0]?.text_capture).toEqual({
       status: "truncated",
-      values: [{ argument_index: 0, type: "string", text: "autho" }],
-      retained_bytes: 5,
-      truncated_values: 2,
+      values: [
+        { argument_index: 0, type: "string", text: "autho" },
+        { argument_index: 1, type: "number", text: "42" },
+      ],
+      retained_bytes: 7,
+      truncated_values: 1,
     });
     expect(result.value.network.requests[0]?.body_shapes.status).toBe(
       "truncated",

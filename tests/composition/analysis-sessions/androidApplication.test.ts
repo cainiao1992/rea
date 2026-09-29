@@ -46,11 +46,9 @@ describe("Android application projection", () => {
     );
     const first = projectAndroidApplicationEvidence({
       inventory_evidence: [inventory],
-      limits: { max_components: 100 },
     });
     const second = projectAndroidApplicationEvidence({
       inventory_evidence: [inventory],
-      limits: { max_components: 100 },
     });
     expect(first.ok).toBe(true);
     expect(second.ok).toBe(true);
@@ -67,7 +65,6 @@ describe("Android application projection", () => {
       coverage: {
         status: "complete-within-inventory",
         inventory_complete: true,
-        omitted_components: 0,
       },
     });
     expect(left.components.manifests).toHaveLength(1);
@@ -104,5 +101,35 @@ describe("Android application projection", () => {
       ok: false,
       error: { _tag: "AnalysisInputError" },
     });
+  });
+
+  it("returns every component and bridge candidate from the inventory", async () => {
+    const root = await createTestTempDirectory("rea-android-complete-");
+    const path = join(root, "Fixture.apk");
+    const writer = new ZipWriter(new Uint8ArrayWriter());
+    const dex = Uint8Array.from([0x64, 0x65, 0x78, 0x0a, 0x30, 0x33, 0x35, 0]);
+    for (let index = 0; index < 1_001; index += 1)
+      await writer.add(
+        `classes${String(index).padStart(4, "0")}.dex`,
+        new Uint8ArrayReader(dex),
+      );
+    await writer.add("lib/arm64-v8a/libnative.so", new TextReader("native"));
+    await writeFile(path, await writer.close());
+
+    const inventory = parseEvidence(
+      await runProviderAnalysis(path, "inventory_artifact", {}),
+    );
+    const result = projectAndroidApplicationEvidence({
+      inventory_evidence: [inventory],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const projection = androidApplicationProjectionResultSchema.parse(
+      result.value.normalized_result,
+    );
+    expect(projection.components.dex).toHaveLength(1_001);
+    expect(projection.bridge_candidates).toHaveLength(1_001);
+    expect(projection.coverage.status).toBe("complete-within-inventory");
   });
 });

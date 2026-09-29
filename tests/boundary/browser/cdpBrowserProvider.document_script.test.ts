@@ -9,6 +9,17 @@ import { startFakeCdpBrowser } from "../../fixtures/fakeCdpBrowser.js";
 import { describeBrowser, trackBrowser } from "./cdpBrowserProvider.support.js";
 
 describeBrowser("CdpBrowserProvider: document script 1", () => {
+  it("rejects removed caller-facing WebMCP item and schema limits", () => {
+    expect(
+      discoverWebMcpToolsInputSchema.safeParse({
+        cdp_endpoint: "http://127.0.0.1:9222",
+        allowed_origins: ["https://example.test"],
+        target_id: "target",
+        max_tools: 1,
+      }).success,
+    ).toBe(false);
+  });
+
   it("captures bounded accessibility text only after independent approval", async () => {
     const browser = await startFakeCdpBrowser();
     trackBrowser(browser);
@@ -24,7 +35,6 @@ describeBrowser("CdpBrowserProvider: document script 1", () => {
       limits: {
         ...request.limits,
         max_ax_text_field_bytes: 6,
-        max_total_ax_text_bytes: 6,
       },
     });
 
@@ -32,7 +42,7 @@ describeBrowser("CdpBrowserProvider: document script 1", () => {
     expect(result.value.accessibility).toMatchObject({
       text_capture: {
         status: "truncated",
-        retained_bytes: 6,
+        retained_bytes: 12,
         truncated_fields: 2,
       },
       nodes: [expect.objectContaining({ name: "Submit" })],
@@ -223,7 +233,7 @@ describeBrowser("CdpBrowserProvider: document script 2", () => {
     );
   });
 
-  it("bounds WebMCP registration replay and reports dropped declarations", async () => {
+  it("returns every WebMCP registration in the replay", async () => {
     const browser = await startFakeCdpBrowser({
       webMcpTools: true,
       extraCollections: true,
@@ -235,19 +245,46 @@ describeBrowser("CdpBrowserProvider: document script 2", () => {
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
         observation_ms: 0,
-        max_tools: 1,
       }),
     );
 
     if (!result.ok) throw result.error;
     expect(result.value.tools).toMatchObject({
       total: 2,
-      items: [expect.any(Object)],
+      items: [expect.any(Object), expect.any(Object)],
     });
-    expect(result.value.completeness).toMatchObject({
-      status: "truncated",
-      dropped_events: { webmcp_tools: 1 },
+    expect(result.value.completeness.truncated_sections).not.toContain(
+      "webmcp_tools",
+    );
+  });
+
+  it("retains registrations from authorized frames beyond the former frame cap", async () => {
+    const browser = await startFakeCdpBrowser({
+      webMcpTools: true,
+      webMcpFrameCount: 1_001,
     });
+    trackBrowser(browser);
+    const result = await new CdpBrowserProvider().discoverWebMcpTools(
+      discoverWebMcpToolsInputSchema.parse({
+        cdp_endpoint: browser.endpoint,
+        allowed_origins: [browser.allowedOrigin],
+        target_id: "allowed-page",
+        observation_ms: 0,
+      }),
+    );
+
+    if (!result.ok) throw result.error;
+    expect(result.value.tools.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "beyond_frame_limit_tool",
+          frame_id: "webmcp-frame-1000",
+        }),
+      ]),
+    );
+    expect(result.value.completeness.truncated_sections).not.toContain(
+      "webmcp_tools",
+    );
   });
 });
 
@@ -332,7 +369,7 @@ describeBrowser("CdpBrowserProvider: document script 3", () => {
     });
   });
 
-  it("reports configured truncation without over-reading DOM or script source", async () => {
+  it("returns every DOM node and applies the per-script source limit", async () => {
     const browser = await startFakeCdpBrowser();
     trackBrowser(browser);
     const request = inspectWebPageInputSchema.parse({
@@ -346,27 +383,15 @@ describeBrowser("CdpBrowserProvider: document script 3", () => {
       ...request,
       limits: {
         ...request.limits,
-        max_frames: 1,
-        max_dom_nodes: 1,
-        max_ax_nodes: 1,
-        max_scripts: 1,
-        max_resources: 1,
-        max_workers: 1,
-        max_storage_keys: 1,
         max_script_source_bytes: 10,
-        max_total_script_source_bytes: 10,
-        max_network_events: 1,
-        max_console_events: 1,
-        max_websocket_events: 1,
       },
     });
     if (!result.ok) throw result.error;
     expect(result.value.completeness).toMatchObject({
-      status: "truncated",
-      truncated_sections: ["dom", "script_sources"],
+      truncated_sections: ["script_sources"],
     });
     expect(result.value.dom).toMatchObject({ total_nodes: 2 });
-    expect(result.value.dom.nodes).toHaveLength(1);
+    expect(result.value.dom.nodes).toHaveLength(2);
     expect(result.value.scripts.items[0]?.source).toMatchObject({
       included: false,
       reason: "declared script length exceeds per-script limit",
@@ -378,7 +403,7 @@ describeBrowser("CdpBrowserProvider: document script 3", () => {
 });
 
 describeBrowser("CdpBrowserProvider: document script 4", () => {
-  it("bounds frames, resources, workers, accessibility, and storage inventories", async () => {
+  it("returns every frame, resource, worker, accessibility, and storage inventory item", async () => {
     const browser = await startFakeCdpBrowser({ extraCollections: true });
     trackBrowser(browser);
     const request = inspectWebPageInputSchema.parse({
@@ -388,44 +413,18 @@ describeBrowser("CdpBrowserProvider: document script 4", () => {
       observation_ms: 0,
       include_storage_keys: true,
     });
-    const result = await new CdpBrowserProvider().inspectPage({
-      ...request,
-      limits: {
-        ...request.limits,
-        max_frames: 1,
-        max_dom_nodes: 2,
-        max_ax_nodes: 1,
-        max_scripts: 1,
-        max_resources: 1,
-        max_workers: 1,
-        max_storage_keys: 1,
-        max_script_source_bytes: 10,
-        max_total_script_source_bytes: 10,
-        max_network_events: 1,
-        max_console_events: 1,
-        max_websocket_events: 1,
-      },
-    });
+    const result = await new CdpBrowserProvider().inspectPage(request);
     if (!result.ok) throw result.error;
-    expect(result.value.completeness).toMatchObject({
-      status: "truncated",
-      truncated_sections: [
-        "accessibility",
-        "frames",
-        "resources",
-        "storage_keys",
-        "workers",
-      ],
-    });
-    expect(result.value.frames).toHaveLength(1);
-    expect(result.value.resources).toHaveLength(1);
-    expect(result.value.workers).toHaveLength(1);
-    expect(result.value.accessibility).toMatchObject({ total_nodes: 2 });
-    expect(result.value.accessibility.nodes).toHaveLength(1);
-    expect(result.value.storage.local_storage_keys).toHaveLength(1);
-    expect(result.value.storage.session_storage_keys).toHaveLength(1);
-    expect(result.value.storage.indexed_db_names).toHaveLength(1);
-    expect(result.value.storage.cache_names).toHaveLength(1);
+    expect(result.value.completeness.truncated_sections).toEqual([]);
+    expect(result.value.frames.length).toBeGreaterThan(1);
+    expect(result.value.resources.length).toBeGreaterThan(1);
+    expect(result.value.workers.length).toBeGreaterThan(1);
+    expect(result.value.accessibility).toMatchObject({ total_nodes: 4 });
+    expect(result.value.accessibility.nodes).toHaveLength(4);
+    expect(result.value.storage.local_storage_keys.length).toBeGreaterThan(1);
+    expect(result.value.storage.session_storage_keys.length).toBeGreaterThan(1);
+    expect(result.value.storage.indexed_db_names).toHaveLength(2);
+    expect(result.value.storage.cache_names).toHaveLength(2);
     expect(result.value.storage.content_fingerprints).toEqual([]);
   });
 });

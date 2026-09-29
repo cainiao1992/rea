@@ -4,7 +4,6 @@ import canonicalize from "canonicalize";
 import { z } from "zod";
 
 import { parseArtifactInventoryEvidence } from "./artifactInventoryEvidence.js";
-import { projectBoundedCartesian } from "./boundedCartesianProjection.js";
 import { evidenceSchema } from "./evidence.js";
 
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
@@ -19,12 +18,7 @@ const componentSchema = z.strictObject({
 
 /** Authenticated APK inventory pages projected as one Android application. */
 export const androidApplicationProjectionInputSchema = z.strictObject({
-  inventory_evidence: z.array(evidenceSchema).min(1).max(100),
-  limits: z
-    .strictObject({
-      max_components: z.number().int().min(1).max(10_000).default(1_000),
-    })
-    .default({ max_components: 1_000 }),
+  inventory_evidence: z.array(evidenceSchema).min(1),
 });
 
 /** Deterministic, execution-free Android application inventory projection. */
@@ -32,7 +26,7 @@ export const androidApplicationProjectionResultSchema = z.strictObject({
   projection_id: z.string().regex(/^adp_[a-f0-9]{64}$/u),
   root_sha256: digestSchema,
   root_format: z.literal("apk"),
-  source_evidence_ids: z.array(evidenceIdSchema).min(1).max(100),
+  source_evidence_ids: z.array(evidenceIdSchema).min(1),
   components: z.strictObject({
     manifests: z.array(componentSchema),
     resources: z.array(componentSchema),
@@ -67,10 +61,8 @@ export const androidApplicationProjectionResultSchema = z.strictObject({
     }),
   ),
   coverage: z.strictObject({
-    status: z.enum(["complete-within-inventory", "partial", "truncated"]),
+    status: z.enum(["complete-within-inventory", "partial"]),
     inventory_complete: z.boolean(),
-    omitted_components: z.number().int().min(0),
-    omitted_bridge_candidates: z.number().int().min(0),
   }),
   limitations: z.array(z.string().min(1).max(4_096)).max(100),
 });
@@ -115,26 +107,14 @@ export const projectAndroidApplication = (
       } satisfies Component;
     });
   const classified = classify(all);
-  const components = retain(classified, parsed.limits.max_components);
-  const omittedComponents = count(classified) - count(components);
   const bridgeProjection = bridgeCandidates(
-    [...components.dex, ...components.jvm_classes],
-    components.native_libraries,
-    parsed.limits.max_components,
+    [...classified.dex, ...classified.jvm_classes],
+    classified.native_libraries,
   );
+  const components = classified;
   const limitations = [
     ...(!inventory.complete
       ? ["Source inventory pages are incomplete; absence is unknown."]
-      : []),
-    ...(omittedComponents > 0
-      ? [
-          `${String(omittedComponents)} component observations were omitted by the projection limit.`,
-        ]
-      : []),
-    ...(bridgeProjection.omitted > 0
-      ? [
-          `${String(bridgeProjection.omitted)} bridge hypotheses were omitted by the projection limit.`,
-        ]
       : []),
     "Manifest, resource, signing, and bytecode semantics require a dedicated Android provider; this projection reports exact inventory paths and hashes only.",
     "Bridge candidates are path-based hypotheses, not decoded JNI declarations or observed runtime calls.",
@@ -149,15 +129,10 @@ export const projectAndroidApplication = (
     runtime_families: runtimeFamilies(all),
     bridge_candidates: bridgeProjection.candidates,
     coverage: {
-      status:
-        omittedComponents > 0 || bridgeProjection.omitted > 0
-          ? ("truncated" as const)
-          : inventory.complete
-            ? ("complete-within-inventory" as const)
-            : ("partial" as const),
+      status: inventory.complete
+        ? ("complete-within-inventory" as const)
+        : ("partial" as const),
       inventory_complete: inventory.complete,
-      omitted_components: omittedComponents,
-      omitted_bridge_candidates: bridgeProjection.omitted,
     },
     limitations,
   };
@@ -195,27 +170,6 @@ const classify = (all: readonly Component[]) => ({
   ),
 });
 
-const retain = <Groups extends Record<string, readonly Component[]>>(
-  groups: Groups,
-  maximum: number,
-): { [Key in keyof Groups]: Component[] } => {
-  let remaining = maximum;
-  // SAFETY: the projection preserves every key from Groups and replaces only
-  // each readonly Component array with a bounded mutable Component array.
-  return Object.fromEntries(
-    Object.entries(groups).map(([key, values]) => {
-      const selected = [...values]
-        .sort((left, right) => compare(left.path, right.path))
-        .slice(0, remaining);
-      remaining -= selected.length;
-      return [key, selected];
-    }),
-  ) as { [Key in keyof Groups]: Component[] };
-};
-
-const count = (groups: Record<string, readonly Component[]>): number =>
-  Object.values(groups).reduce((total, values) => total + values.length, 0);
-
 const runtimeFamilies = (all: readonly Component[]) => {
   const paths = all.map(({ path }) => path.toLowerCase());
   const families = new Set<
@@ -247,21 +201,16 @@ const runtimeFamilies = (all: readonly Component[]) => {
 const bridgeCandidates = (
   managed: readonly Component[],
   native: readonly Component[],
-  maximum: number,
 ) => {
-  const projection = projectBoundedCartesian(
-    managed,
-    native,
-    maximum,
-    (source, target) => ({
+  const candidates = managed.flatMap((source) =>
+    native.map((target) => ({
       managed_path: source.path,
       native_path: target.path,
       basis: bridgeBasis(target.path),
-    }),
+    })),
   );
   return {
-    candidates: projection.values,
-    omitted: projection.omitted,
+    candidates,
   };
 };
 

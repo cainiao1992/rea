@@ -57,6 +57,7 @@ export interface FakeOptions {
   readonly sensitiveShapes?: boolean;
   readonly invalidResponseBodyBase64?: boolean;
   readonly webMcpTools?: boolean;
+  readonly webMcpFrameCount?: number;
   readonly webMcpChildLeavesScope?: boolean;
   readonly electronFileUrl?: string;
   readonly duplicateElectronInventory?: boolean;

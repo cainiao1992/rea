@@ -76,7 +76,6 @@ export const compareBrowserScenarios = (
     afterCapture: input.after_scenario,
     alignment,
     rules: normalization.rules,
-    maxChanges: input.max_changes,
   });
   const failures = [...alignment.failures, ...compared.failures];
   const alignmentStatus =
@@ -110,21 +109,12 @@ export const compareBrowserScenarios = (
     steps: compared.steps,
     artifact_diffs: {
       total: compared.totalArtifactDiffs,
-      retained:
-        compared.totalArtifactDiffs -
-        Math.max(0, compared.totalArtifactDiffs - input.max_changes),
-      omitted: Math.max(0, compared.totalArtifactDiffs - input.max_changes),
     },
     limitations: [
       "Steps align only by exact, unique step_id; missing, duplicate, or action-mismatched steps are reported and prevent an unchanged claim.",
       "Only declared literal normalization rules are applied, in canonical rule_id order, to already-redacted durable capture fields.",
       "Elapsed time and event sequence/index values are excluded as volatile; screenshot bytes are compared by content digest.",
       "A changed status proves an observed normalized difference. Missing or truncated evidence, incompatible capture context, or alignment failure prevents an unchanged claim.",
-      ...(compared.totalArtifactDiffs > input.max_changes
-        ? [
-            `${String(compared.totalArtifactDiffs - input.max_changes)} artifact difference record(s) were omitted by max_changes.`,
-          ]
-        : []),
     ],
   });
 };
@@ -178,13 +168,11 @@ interface CompareAlignedStepsInput {
   readonly afterCapture: BrowserScenarioCapture;
   readonly alignment: ScenarioAlignment;
   readonly rules: readonly BrowserScenarioNormalizationRule[];
-  readonly maxChanges: number;
 }
 
 const compareAlignedSteps = (
   input: CompareAlignedStepsInput,
 ): AlignedStepComparison => {
-  const remaining = { value: input.maxChanges };
   let totalArtifactDiffs = 0;
   const steps: BrowserScenarioDiff["steps"] = [];
   const failures: BrowserScenarioAlignmentFailure[] = [];
@@ -209,8 +197,6 @@ const compareAlignedSteps = (
       diff === null ? [] : [diff],
     );
     totalArtifactDiffs += reportable.length;
-    const retained = reportable.slice(0, remaining.value);
-    remaining.value -= retained.length;
     const statuses = artifacts.map(({ status }) => status);
     steps.push({
       step_id: stepId,
@@ -223,8 +209,7 @@ const compareAlignedSteps = (
         : statuses.includes("unknown")
           ? "unknown"
           : "unchanged",
-      artifact_diffs: retained,
-      omitted_artifact_diffs: reportable.length - retained.length,
+      artifact_diffs: reportable,
     });
   }
   return { steps, failures, totalArtifactDiffs };

@@ -10,10 +10,9 @@ export const captureSnapshotSchema = z.object({
 });
 
 /** Input for deterministic comparison of two normalized web captures. */
-export const compareWebCapturesInputSchema = z.object({
+export const compareWebCapturesInputSchema = z.strictObject({
   before: captureSnapshotSchema,
   after: captureSnapshotSchema,
-  max_changes: z.number().int().min(1).max(20_000).default(2_000),
 });
 
 const changeSchema = z.object({
@@ -23,7 +22,6 @@ const changeSchema = z.object({
 const emptyDimensionShape = {
   total_changes: z.literal(0),
   changes: z.tuple([]),
-  omitted_changes: z.literal(0),
 };
 const dimensionSchema = z.union([
   z
@@ -31,17 +29,13 @@ const dimensionSchema = z.union([
       status: z.literal("changed"),
       total_changes: z.number().int().min(1),
       changes: z.array(changeSchema),
-      omitted_changes: z.number().int().min(0),
       reason: z.null(),
     })
     .superRefine((dimension, context) => {
-      if (
-        dimension.changes.length + dimension.omitted_changes !==
-        dimension.total_changes
-      )
+      if (dimension.changes.length !== dimension.total_changes)
         context.addIssue({
           code: "custom",
-          message: "Retained and omitted changes must equal total changes",
+          message: "Inline changes must equal total changes",
           path: ["total_changes"],
         });
     }),
@@ -60,7 +54,6 @@ const legacyUnknownDimension: z.input<typeof dimensionSchema> = {
   status: "unknown",
   total_changes: 0,
   changes: [],
-  omitted_changes: 0,
   reason: "Dimension was not recorded by this version 1 capture diff.",
 };
 

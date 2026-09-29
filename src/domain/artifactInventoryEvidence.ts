@@ -28,7 +28,7 @@ interface ParsedInventorySet {
   readonly inventory: InventorySet;
 }
 
-/** Parse, merge, and verify a bounded set of inventory Evidence pages. */
+/** Parse, merge, and verify inventory Evidence pages. */
 export const parseArtifactInventoryEvidence = (
   input: unknown,
 ): ParsedInventorySet =>
@@ -91,11 +91,11 @@ const assembleInventorySet = (
     readonly inventory: ArtifactInventoryResult;
   }[],
 ): ParsedInventorySet => {
-  if (pages.length === 0 || pages.length > 100)
-    throw new TypeError("Artifact comparison requires 1 to 100 Evidence pages");
+  if (pages.length === 0)
+    throw new TypeError("Artifact inventory requires Evidence pages");
   const first = pages[0];
   if (first === undefined)
-    throw new TypeError("Artifact comparison requires Evidence pages");
+    throw new TypeError("Artifact inventory requires Evidence pages");
   const manifestJson = canonicalJson(first.inventory.manifest);
   const nodes = new Map<string, ArtifactNode>();
   const occurrences = new Map<string, ArtifactOccurrence>();

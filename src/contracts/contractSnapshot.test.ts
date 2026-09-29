@@ -76,7 +76,6 @@ describe("tool contract surface", () => {
         "before_scenario",
         "after_scenario",
         "normalization",
-        "max_changes",
       ]),
     );
     const example = contract.examples[0];

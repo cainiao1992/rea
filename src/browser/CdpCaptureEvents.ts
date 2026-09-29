@@ -13,7 +13,7 @@ import { recordValue } from "./CdpCaptureValues.js";
 
 export { type CapturedScript } from "./CdpCaptureEventTypes.js";
 
-/** Bounded event accumulator that drops payload values at ingestion time. */
+/** Event accumulator that validates and normalizes payloads at ingestion. */
 export class CdpCaptureEvents implements CdpCaptureEventsState {
   readonly scripts = new Map<string, CapturedScript>();
   readonly executionContextFrames = new Map<string, string>();
@@ -33,9 +33,6 @@ export class CdpCaptureEvents implements CdpCaptureEventsState {
   originViolation = false;
   navigationDuringCapture = false;
   mainFrameId: string | undefined = undefined;
-  consoleTextBytes = 0;
-  jsonBodyBytes = 0;
-  websocketShapeBytes = 0;
 
   readonly input: InspectWebPageInput;
   readonly allowedOrigins: ReadonlySet<string>;
@@ -57,9 +54,6 @@ export class CdpCaptureEvents implements CdpCaptureEventsState {
     this.websockets.length = 0;
     this.responseMetadata.length = 0;
     this.agentHints.length = 0;
-    this.consoleTextBytes = 0;
-    this.jsonBodyBytes = 0;
-    this.websocketShapeBytes = 0;
     this.completeness.reset();
     if (!this.input.include_console_text)
       this.completeness.exclude("console_text", "not_approved", null);

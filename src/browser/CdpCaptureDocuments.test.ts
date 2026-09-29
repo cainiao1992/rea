@@ -11,7 +11,7 @@ import { inspectWebPageInputSchema } from "../domain/browserObservation.js";
 const origin = "https://app.example.test";
 
 describe("CDP document capture", () => {
-  it("walks deeply nested frame trees iteratively and retains a bounded prefix", () => {
+  it("walks deeply nested frame trees and returns every frame and resource", () => {
     let frameTree: Record<string, unknown> = {
       frame: { id: "frame-0", url: `${origin}/0` },
       resources: [{ url: `${origin}/0.js`, type: "Script" }],
@@ -27,12 +27,10 @@ describe("CDP document capture", () => {
       };
     }
     const result = { frameTree };
-    const frames = captureFrames(result, new Set([origin]), 3);
-    const resources = captureResources(result, new Set([origin]), 2);
-    expect(frames).toMatchObject({ total: 2_000 });
-    expect(frames.items).toHaveLength(3);
-    expect(resources).toMatchObject({ total: 2_000 });
-    expect(resources.items).toHaveLength(2);
+    const frames = captureFrames(result, new Set([origin]));
+    const resources = captureResources(result, new Set([origin]));
+    expect(frames.items).toHaveLength(2_000);
+    expect(resources.items).toHaveLength(2_000);
   });
 
   it("rebases parent indexes when allowed DOM documents are combined", () => {
@@ -91,25 +89,23 @@ describe("CDP document capture", () => {
           ],
         },
       ],
-      10,
       {
         includeText: true,
         maximumFieldBytes: 4,
-        maximumTotalBytes: 7,
       },
     );
 
     expect(capture.nodes[0]).toMatchObject({
       name: "😀",
-      description: "é",
+      description: "éé",
       states: [{ name: "disabled", value: true }],
     });
     expect(capture.treeIncomplete).toBe(true);
     expect(capture.textCapture).toEqual({
       status: "truncated",
-      retained_bytes: 6,
+      retained_bytes: 8,
       excluded_fields: 0,
-      truncated_fields: 2,
+      truncated_fields: 1,
     });
   });
 
@@ -126,11 +122,9 @@ describe("CDP document capture", () => {
           ],
         },
       ],
-      10,
       {
         includeText: false,
         maximumFieldBytes: 1_024,
-        maximumTotalBytes: 64 * 1_024,
       },
     );
 

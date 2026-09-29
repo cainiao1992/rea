@@ -21,10 +21,7 @@ interface CaptureWorkersInput {
 export const captureWorkers = async (
   input: CaptureWorkersInput,
   frameIds: ReadonlySet<string>,
-): Promise<{
-  readonly total: number;
-  readonly items: WebPageInspection["workers"];
-}> => {
+): Promise<WebPageInspection["workers"]> => {
   const { context, allowedOrigins, limitations, events } = input;
   const completeness = events.completeness;
   const result = await optionalCdpCommand(
@@ -34,7 +31,6 @@ export const captureWorkers = async (
     limitations,
   );
   const items: WebPageInspection["workers"] = [];
-  let total = 0;
   if (result === undefined) completeness.unavailable("workers");
   for (const target of recordsValue(recordValue(result)?.targetInfos)) {
     const type = stringValue(target.type) ?? "";
@@ -60,8 +56,6 @@ export const captureWorkers = async (
       );
       continue;
     }
-    total += 1;
-    if (items.length >= context.input.limits.max_workers) continue;
     items.push({
       target_id: (stringValue(target.targetId) ?? "").slice(0, 256),
       type: type.slice(0, 100),
@@ -72,5 +66,5 @@ export const captureWorkers = async (
       parent_frame_id: boundedText(target.parentFrameId, 256) ?? null,
     });
   }
-  return { total, items };
+  return items;
 };

@@ -89,13 +89,6 @@ export const compareBrowserScenariosInputSchema = z.strictObject({
     .describe(
       "Bounded exact-literal rules committed in the comparison result.",
     ),
-  max_changes: z
-    .number()
-    .int()
-    .min(1)
-    .max(20_000)
-    .default(2_000)
-    .describe("Maximum changed or unknown artifact records to retain."),
 });
 /** Parsed browser scenario comparison input. */
 export type CompareBrowserScenariosInput = z.infer<
@@ -170,14 +163,11 @@ export const browserScenarioDiffSchema = z.strictObject({
         after_action: z.string().min(1).max(64),
         status: z.enum(["changed", "unchanged", "unknown"]),
         artifact_diffs: z.array(artifactDiffSchema).max(8),
-        omitted_artifact_diffs: z.number().int().min(0).max(8),
       }),
     )
     .max(129),
   artifact_diffs: z.strictObject({
     total: z.number().int().min(0).max(1_032),
-    retained: z.number().int().min(0).max(1_032),
-    omitted: z.number().int().min(0).max(1_032),
   }),
   limitations: z.array(z.string().min(1).max(2_048)).max(64),
 });

@@ -14,14 +14,6 @@ import {
   type WebCaptureDiff,
 } from "./webCaptureDiff.js";
 
-const maxChangesSchema = z
-  .number()
-  .int()
-  .min(1)
-  .max(20_000)
-  .default(2_000)
-  .describe("Maximum normalized change records to retain.");
-
 /** Caller-visible object schema for passive and scenario capture comparisons. */
 export const browserCaptureComparisonInputSchema = z
   .strictObject({
@@ -41,7 +33,6 @@ export const browserCaptureComparisonInputSchema = z
       .unwrap()
       .optional()
       .describe("Exact-literal normalization policy."),
-    max_changes: maxChangesSchema,
   })
   .superRefine((input, context) => {
     const passive = input.before !== undefined && input.after !== undefined;
@@ -70,7 +61,7 @@ export type BrowserCaptureComparisonInput = z.output<
 >;
 type ScenarioCapturePair = Pick<
   BrowserCaptureComparisonInput,
-  "before_scenario" | "after_scenario" | "normalization" | "max_changes"
+  "before_scenario" | "after_scenario" | "normalization"
 > & {
   before_scenario: NonNullable<
     BrowserCaptureComparisonInput["before_scenario"]
@@ -107,9 +98,5 @@ const toPassiveComparison = (
 ): CompareWebCapturesInput => {
   if (input.before === undefined || input.after === undefined)
     throw new Error("Validated passive comparison is missing a capture");
-  return {
-    before: input.before,
-    after: input.after,
-    max_changes: input.max_changes,
-  };
+  return { before: input.before, after: input.after };
 };

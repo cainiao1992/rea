@@ -104,15 +104,15 @@ const browserParameters = (
         after_browser: input.after_scenario.browser,
         before_start_origin: input.before_scenario.scenario.start_origin,
         after_start_origin: input.after_scenario.scenario.start_origin,
-        max_changes: input.max_changes,
         normalization_sha256: commitBrowserScenarioNormalization(
           input.normalization ?? { rules: [] },
         ).sha256,
       };
     if (
-      "max_changes" in input &&
       input.before !== undefined &&
-      input.after !== undefined
+      input.after !== undefined &&
+      "inspection" in input.before &&
+      "inspection" in input.after
     )
       return {
         before_target_id: input.before.inspection.target.target_id,
@@ -120,7 +120,6 @@ const browserParameters = (
           input.before.inspection.capture_window.ended_at,
         after_target_id: input.after.inspection.target.target_id,
         after_capture_ended_at: input.after.inspection.capture_window.ended_at,
-        max_changes: input.max_changes,
       };
     if (isScreenshotComparison(input))
       return {
@@ -142,22 +141,18 @@ const browserParameters = (
       target_id: input.target_id,
       maximum_image_bytes: input.maximum_image_bytes,
     };
-  if ("max_tools" in input)
-    return {
-      ...scope,
-      target_id: input.target_id,
-      observation_ms: input.observation_ms,
-      max_tools: input.max_tools,
-      max_schema_bytes: input.max_schema_bytes,
-      max_schema_nodes: input.max_schema_nodes,
-      max_schema_depth: input.max_schema_depth,
-    };
-  if (!("include_accessibility_text" in input))
+  if ("max_timeline_events" in input)
     return {
       ...scope,
       target_id: input.target_id,
       observation_ms: input.observation_ms,
       max_timeline_events: input.max_timeline_events,
+    };
+  if (!("limits" in input))
+    return {
+      ...scope,
+      target_id: input.target_id,
+      observation_ms: input.observation_ms,
     };
   return {
     ...scope,

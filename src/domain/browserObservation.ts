@@ -102,30 +102,15 @@ export const listBrowserTargetsInputSchema = z.object({
   ...browserInput,
 });
 
-/** Collection bounds for passive browser capture, applied internally. */
+/** Per-value limits for optional text and JSON-shape capture. */
 export const DEFAULT_BROWSER_INSPECTION_LIMITS = {
-  max_frames: 200,
-  max_dom_nodes: 2_000,
-  max_ax_nodes: 2_000,
   max_ax_text_field_bytes: 1_024,
-  max_total_ax_text_bytes: 64 * 1_024,
-  max_scripts: 200,
-  max_resources: 2_000,
-  max_workers: 500,
-  max_storage_keys: 1_000,
   max_script_source_bytes: 1_024 * 1_024,
-  max_total_script_source_bytes: 4 * 1_024 * 1_024,
-  max_network_events: 1_000,
-  max_console_events: 200,
   max_console_text_field_bytes: 1_024,
-  max_total_console_text_bytes: 64 * 1_024,
   max_json_body_bytes: 1_024 * 1_024,
-  max_total_json_body_bytes: 4 * 1_024 * 1_024,
   max_json_shape_nodes: 5_000,
   max_json_shape_depth: 20,
-  max_websocket_events: 500,
   max_websocket_shape_bytes: 64 * 1_024,
-  max_total_websocket_shape_bytes: 1_024 * 1_024,
 };
 
 const inspectWebPageInputFacts = {
@@ -176,7 +161,7 @@ export const inspectWebPageToolInputSchema = z.union([
   inspectWebPageWithSourceInputSchema,
 ]);
 
-/** Internal parsed input with REA's fixed collection bounds applied. */
+/** Internal parsed input with per-value capture limits applied. */
 export const inspectWebPageInputSchema =
   inspectWebPageToolInputSchema.transform((input) => ({
     ...input,

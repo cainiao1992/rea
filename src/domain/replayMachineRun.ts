@@ -16,74 +16,11 @@ const refusalOutcomeSchema = z.enum([
   "limit_exhausted",
 ]);
 
-const MAX_DIRECT_REPLAY_EVENTS = 10_000;
-const MAX_DIRECT_REPLAY_ACTION_BYTES = 4 * 1_024 * 1_024;
-const MAX_DIRECT_REPLAY_ACTION_FIELDS = 1_024;
-const MAX_DIRECT_REPLAY_SENSITIVE_CAPTURES = 1_024;
-
-const actionFieldCount = (machine: ReplayMachine): number =>
-  machine.transitions.reduce(
-    (total, transition) =>
-      total +
-      transition.actions.reduce(
-        (fields, action) =>
-          fields +
-          (action.type === "http_response"
-            ? Object.keys(action.headers).length + 1
-            : action.type === "websocket_send"
-              ? 1
-              : 0),
-        0,
-      ),
-    0,
-  );
-
-const maximumSensitiveCapturesPerEvent = (machine: ReplayMachine): number =>
-  Math.max(
-    0,
-    ...machine.transitions.map(
-      ({ captures }) => captures.filter(({ sensitive }) => sensitive).length,
-    ),
-  );
-
 /** Complete declarative input for one direct replay-machine run. */
-export const replayMachineRunInputSchema = z
-  .strictObject({
-    machine: replayMachineSchema,
-    events: z.array(replayMachineEventSchema).max(MAX_DIRECT_REPLAY_EVENTS),
-  })
-  .superRefine(({ machine, events }, context) => {
-    const actionBytes = Buffer.byteLength(
-      JSON.stringify(
-        machine.transitions.map(({ id, actions }) => ({ id, actions })),
-      ),
-    );
-    if (actionBytes > MAX_DIRECT_REPLAY_ACTION_BYTES)
-      context.addIssue({
-        code: "custom",
-        path: ["machine", "transitions"],
-        message: "direct replay actions exceed the 4 MiB output boundary",
-        input: machine.transitions,
-      });
-    if (actionFieldCount(machine) > MAX_DIRECT_REPLAY_ACTION_FIELDS)
-      context.addIssue({
-        code: "custom",
-        path: ["machine", "transitions"],
-        message: "direct replay actions exceed the 1,024-field output boundary",
-        input: machine.transitions,
-      });
-    if (
-      maximumSensitiveCapturesPerEvent(machine) * events.length >
-      MAX_DIRECT_REPLAY_SENSITIVE_CAPTURES
-    )
-      context.addIssue({
-        code: "custom",
-        path: ["events"],
-        message:
-          "direct replay events exceed the 1,024 sensitive-capture operation boundary",
-        input: events,
-      });
-  });
+export const replayMachineRunInputSchema = z.strictObject({
+  machine: replayMachineSchema,
+  events: z.array(replayMachineEventSchema),
+});
 
 const replayMachineRunDecisionSchema = z.strictObject({
   event_sequence: z.number().int().nonnegative(),
@@ -99,20 +36,19 @@ const replayRunActionSchema = z.discriminatedUnion("type", [
       z
         .string()
         .min(1)
-        .max(256)
         .regex(/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u),
-      z.string().max(8_192),
+      z.string(),
     ),
-    body: z.string().max(1_000_000),
+    body: z.string(),
   }),
   z.strictObject({
     type: z.literal("websocket_send"),
-    data: z.string().max(1_000_000),
+    data: z.string(),
   }),
   z.strictObject({ type: z.literal("disconnect") }),
   z.strictObject({
     type: z.literal("delay"),
-    duration_ms: z.number().int().nonnegative().max(30_000),
+    duration_ms: z.number().int().nonnegative(),
   }),
 ]);
 
@@ -126,14 +62,12 @@ const replayMachineRunJournalEntrySchema = z.strictObject({
   transition_id: replayRunIdentifierSchema,
   state_before: replayRunIdentifierSchema,
   state_after: replayRunIdentifierSchema,
-  captured_aliases: z
-    .array(
-      z.strictObject({
-        name: replayRunIdentifierSchema,
-        sensitive: z.boolean(),
-      }),
-    )
-    .max(32),
+  captured_aliases: z.array(
+    z.strictObject({
+      name: replayRunIdentifierSchema,
+      sensitive: z.boolean(),
+    }),
+  ),
 });
 
 /** Capture-value-free result of directly evaluating a finite replay machine. */
@@ -141,20 +75,14 @@ export const replayMachineRunOutputSchema = z.strictObject({
   initial_state: replayRunIdentifierSchema,
   final_state: replayRunIdentifierSchema,
   terminal: z.boolean(),
-  decisions: z
-    .array(replayMachineRunDecisionSchema)
-    .max(MAX_DIRECT_REPLAY_EVENTS),
-  transition_journal: z
-    .array(replayMachineRunJournalEntrySchema)
-    .max(MAX_DIRECT_REPLAY_EVENTS),
-  transition_actions: z
-    .array(
-      z.strictObject({
-        transition_id: replayRunIdentifierSchema,
-        actions: z.array(replayRunActionSchema).max(32),
-      }),
-    )
-    .max(2_000),
+  decisions: z.array(replayMachineRunDecisionSchema),
+  transition_journal: z.array(replayMachineRunJournalEntrySchema),
+  transition_actions: z.array(
+    z.strictObject({
+      transition_id: replayRunIdentifierSchema,
+      actions: z.array(replayRunActionSchema),
+    }),
+  ),
   limits: z.strictObject({
     configured: z.strictObject({
       transitions: z.number().int().positive(),
@@ -214,6 +142,9 @@ export const runReplayMachine = (
   const decisions: ReplayMachineRunOutput["decisions"] = [];
   const transitionJournal: ReplayMachineRunOutput["transition_journal"] = [];
   const usedTransitionIds = new Set<string>();
+  const transitionById = new Map(
+    input.machine.transitions.map((transition) => [transition.id, transition]),
+  );
 
   for (const [eventSequence, event] of input.events.entries()) {
     const decision = runtime.dispatch(event);
@@ -224,9 +155,7 @@ export const runReplayMachine = (
     });
     if (decision.outcome !== "matched") continue;
     usedTransitionIds.add(decision.transition.transition_id);
-    const definition = input.machine.transitions.find(
-      ({ id }) => id === decision.transition.transition_id,
-    );
+    const definition = transitionById.get(decision.transition.transition_id);
     if (definition === undefined)
       throw new TypeError("Replay runtime selected an unknown transition");
     transitionJournal.push({

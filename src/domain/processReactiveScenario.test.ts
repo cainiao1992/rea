@@ -40,11 +40,66 @@ const baseScenario = () => ({
 });
 
 describe("process reactive scenario schema", () => {
-  it("parses a bounded terminal scenario", () => {
+  it("parses a terminal scenario", () => {
     expect(processReactiveScenarioSchema.parse(baseScenario())).toMatchObject({
       initial_state: "starting",
     });
-    expect(PROCESS_REACTIVE_LIMITS.triggerDepth).toBe(6);
+    expect(PROCESS_REACTIVE_LIMITS.triggerDepth).toBe(256);
+  });
+
+  it("accepts caller-defined scenario sizes without count ceilings", () => {
+    const states = Array.from({ length: 40 }, (_, index) => ({
+      id: `state_${String(index)}`,
+      max_visits: 300,
+      deadline_ms: 30_000,
+      on: [] as unknown[],
+    }));
+    const manyPredicates = {
+      kind: "repeat",
+      trigger: {
+        kind: "all",
+        triggers: Array.from({ length: 20 }, () => terminalTrigger()),
+      },
+      min: 1,
+      max: 1_000,
+    };
+    const sendInputs = Array.from({ length: 300 }, () => ({
+      type: "send_input",
+      data: "x",
+      sensitive: false,
+    }));
+    const transitions = Array.from({ length: 130 }, (_, index) => ({
+      id: `transition_${String(index)}`,
+      priority: index,
+      max_uses: 300,
+      when: index === 0 ? manyPredicates : terminalTrigger(),
+      actions: index === 0 ? sendInputs : [],
+      target:
+        index > 0 && index <= 39
+          ? { kind: "goto", state: `state_${String(index)}` }
+          : { kind: "finish", outcome: "passed" },
+    }));
+    states[0]!.on = transitions;
+    for (let index = 1; index < states.length; index += 1) {
+      const state = states[index]!;
+      state.on = [
+        {
+          ...finishTransition(),
+          id: `finish_${String(index)}`,
+          max_uses: 300,
+          actions: [{ type: "checkpoint", name: `ready_${String(index)}` }],
+        },
+      ];
+    }
+    const parsed = processReactiveScenarioSchema.safeParse({
+      initial_state: "state_0",
+      deadline_ms: 30_000,
+      states,
+    });
+    expect(
+      parsed.success,
+      parsed.success ? "" : JSON.stringify(parsed.error.issues),
+    ).toBe(true);
   });
 
   it.each([

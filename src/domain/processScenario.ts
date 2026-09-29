@@ -207,8 +207,7 @@ export const processScenarioSchema = z
     settle_ms: z.number().int().nonnegative().max(10_000).default(100),
     limits: z
       .object({
-        output_bytes: positiveBudget.max(10_000_000).default(1_000_000),
-        frames: positiveBudget.max(100_000).default(10_000),
+        output_bytes: positiveBudget.safe().default(1_000_000),
         files: positiveBudget.max(100_000).default(10_000),
         file_bytes: positiveBudget.max(100_000_000).default(10_000_000),
         processes: positiveBudget.max(10_000).default(1_000),
@@ -217,9 +216,9 @@ export const processScenarioSchema = z
         connections: positiveBudget.max(1_000).default(100),
         filesystem_depth: z.number().int().min(1).max(64).default(16),
       })
+      .strict()
       .default({
         output_bytes: 1_000_000,
-        frames: 10_000,
         files: 10_000,
         file_bytes: 10_000_000,
         processes: 1_000,

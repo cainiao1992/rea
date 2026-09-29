@@ -30,17 +30,19 @@ it("returns detached terminal and filesystem checkpoint observations", async () 
     columns: 40,
     rows: 12,
     scrollback: 100,
-    maxFrames: 10,
-    maxBytes: 10_000,
+    maxBytes: 100_000,
     normalize: (value) => value,
     recordEvent: (collection, index) =>
       observed.push(`${collection}:${String(index)}`),
   });
   renderer.write("A", 20);
   renderer.resize(40, 12, 10);
+  for (let index = 0; index < 20; index += 1)
+    renderer.resize(40, 12, 11 + index);
   const frames = await renderer.frames();
-  expect(frames.map(({ at_ms }) => at_ms)).toEqual([20, 10]);
-  expect(observed).toEqual(["rendered_frames:0", "rendered_frames:1"]);
+  expect(frames).toHaveLength(22);
+  expect(frames.slice(0, 2).map(({ at_ms }) => at_ms)).toEqual([20, 10]);
+  expect(observed).toHaveLength(22);
   if (frames[0] !== undefined) Reflect.set(frames[0], "cursor_x", 999);
   expect((await renderer.frames())[0]?.cursor_x).not.toBe(999);
   await renderer.dispose();

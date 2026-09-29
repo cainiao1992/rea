@@ -1,7 +1,6 @@
 import type { ProcessObservation } from "./processObservation.js";
 import { matchProcessReactiveTrigger } from "./processReactiveMatching.js";
 import {
-  PROCESS_REACTIVE_LIMITS,
   type ProcessReactiveAction,
   type ProcessReactiveScenario,
 } from "./processReactiveScenario.js";
@@ -150,10 +149,7 @@ const observeInput = (
   );
   if (duplicate !== undefined) return { kind: "invalid" };
   const prior = snapshot.observations.at(-1);
-  if (
-    (prior !== undefined && observation.capture_order <= prior.capture_order) ||
-    snapshot.observations.length >= PROCESS_REACTIVE_LIMITS.retainedObservations
-  )
+  if (prior !== undefined && observation.capture_order <= prior.capture_order)
     return { kind: "invalid" };
   return {
     kind: "new",
@@ -228,14 +224,11 @@ export const reduceProcessReactiveScenario = (
   const observed = admitted.snapshot;
   const state = scenario.states.find(({ id }) => id === observed.active_state);
   if (state === undefined) return finishedDecision(observed, "target_lost");
-  const budget = { remaining: PROCESS_REACTIVE_LIMITS.evaluationWork };
   const matches = state.on.map((transition) => ({
     transition,
-    match: matchProcessReactiveTrigger(transition.when, observed, budget),
+    match: matchProcessReactiveTrigger(transition.when, observed),
     uses: counterValue(observed.transition_uses, transition.id),
   }));
-  if (matches.some(({ match }) => match.overflow))
-    return finishedDecision(observed, "capture_incomplete");
   const evaluations: ProcessReactiveEvaluation[] = matches.map(
     ({ transition, match, uses }) => ({
       transition_id: transition.id,
@@ -254,8 +247,9 @@ export const reduceProcessReactiveScenario = (
   );
   if (eligible.length === 0)
     return { kind: "waiting", snapshot: observed, evaluations };
-  const minimumPriority = Math.min(
-    ...eligible.map(({ transition }) => transition.priority),
+  const minimumPriority = eligible.reduce(
+    (minimum, { transition }) => Math.min(minimum, transition.priority),
+    Number.POSITIVE_INFINITY,
   );
   const winners = eligible.filter(
     ({ transition }) => transition.priority === minimumPriority,

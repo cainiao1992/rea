@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-import { PROCESS_REACTIVE_LIMITS } from "./processReactiveScenario.js";
-
 const processReactiveOutcomeSchema = z.enum([
   "passed",
   "predicate_timeout",
@@ -18,23 +16,17 @@ const processReactiveTransitionShape = {
   sequence: z.number().int().nonnegative(),
   transition_id: z.string().min(1).max(64),
   state_before: z.string().min(1).max(64),
-  trigger_event_ids: z
-    .array(z.string().min(1))
-    .max(PROCESS_REACTIVE_LIMITS.predicates),
-  action_event_ids: z
-    .array(z.string().min(1))
-    .max(PROCESS_REACTIVE_LIMITS.actionsPerTransition),
-  action_types: z
-    .array(
-      z.enum([
-        "send_input",
-        "resize",
-        "close_stdin",
-        "send_signal",
-        "checkpoint",
-      ]),
-    )
-    .max(PROCESS_REACTIVE_LIMITS.actionsPerTransition),
+  trigger_event_ids: z.array(z.string().min(1)),
+  action_event_ids: z.array(z.string().min(1)),
+  action_types: z.array(
+    z.enum([
+      "send_input",
+      "resize",
+      "close_stdin",
+      "send_signal",
+      "checkpoint",
+    ]),
+  ),
 };
 
 const processReactiveTransitionSchema = z.union([
@@ -67,9 +59,7 @@ const processReactiveRunShape = {
       }),
     )
     .default([]),
-  transitions: z
-    .array(processReactiveTransitionSchema)
-    .max(PROCESS_REACTIVE_LIMITS.transitions),
+  transitions: z.array(processReactiveTransitionSchema),
 };
 
 /** Serialized reactive reducer state admitted by process capture. */

@@ -10,7 +10,6 @@ import {
   reduceProcessReactiveScenario,
 } from "./processReactiveRuntime.js";
 import {
-  PROCESS_REACTIVE_LIMITS,
   processReactiveScenarioSchema,
   type ProcessReactiveAction,
   type ProcessReactiveScenario,
@@ -154,55 +153,35 @@ const offer = (
 };
 
 describe("process reactive runtime lifecycle", () => {
-  it("preserves overflow when no any branch matches", () => {
-    const scenario = scenarioWith([
-      finish("bounded_any", {
-        kind: "any",
-        triggers: [
-          terminalTrigger("never"),
-          {
-            kind: "event",
-            source: "shim",
-            exact: { name: "also-never" },
-            ignore_fields: [],
-            since: { kind: "scenario_start" },
-            consume: false,
-            cardinality: { min: 1, max: 1 },
-          },
-        ],
-      }),
-    ]);
+  it("matches terminal text after the previous retained-data ceiling", () => {
+    const scenario = scenarioWith([finish("large_output", terminalTrigger())]);
     const decision = reduceProcessReactiveScenario(
       scenario,
       createProcessReactiveSnapshot(scenario),
       {
         kind: "observation",
         observation: observation("terminal_raw", 0, {
-          data: "x".repeat(PROCESS_REACTIVE_LIMITS.evaluationWork + 1),
+          data: `${"x".repeat(70_000)}Ready`,
         }),
       },
     );
-    expect(decision).toMatchObject({
-      kind: "finished",
-      outcome: "capture_incomplete",
-    });
+    expect(decision.kind).toBe("proposal");
   });
-  it("fails closed at the deterministic per-reduction work budget", () => {
-    const transitions = Array.from(
-      { length: PROCESS_REACTIVE_LIMITS.predicates },
-      (_, index) =>
-        finish(`event_${String(index)}`, {
-          kind: "event",
-          source: "shim",
-          exact: { name: `expected_${String(index)}` },
-          ignore_fields: ["sequence"],
-          since: { kind: "scenario_start" },
-          consume: false,
-          cardinality: { min: 1, max: 1 },
-        }),
+
+  it("evaluates all configured predicates against all retained observations", () => {
+    const transitions = Array.from({ length: 80 }, (_, index) =>
+      finish(`event_${String(index)}`, {
+        kind: "event",
+        source: "shim",
+        exact: { name: `expected_${String(index)}` },
+        ignore_fields: ["sequence"],
+        since: { kind: "scenario_start" },
+        consume: false,
+        cardinality: { min: 1, max: 1 },
+      }),
     );
     const scenario = scenarioWith(transitions);
-    const retained = Array.from({ length: 128 }, (_, order) =>
+    const retained = Array.from({ length: 130 }, (_, order) =>
       observation("shim", order, { name: "other", sequence: order }),
     );
     const snapshot = {
@@ -217,9 +196,8 @@ describe("process reactive runtime lifecycle", () => {
         sequence: retained.length,
       }),
     );
-    expect(decision).toMatchObject({
-      kind: "finished",
-      outcome: "capture_incomplete",
-    });
+    expect(decision).toMatchObject({ kind: "waiting" });
+    if (decision.kind === "waiting")
+      expect(decision.snapshot.observations).toHaveLength(131);
   });
 });

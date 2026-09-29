@@ -1,9 +1,12 @@
-import canonicalize from "canonicalize";
 import { z } from "zod";
 
 import type { ReplayMachine } from "./replayMachine.js";
 
 type ReplayTransition = ReplayMachine["transitions"][number];
+type IndexedReplayTransition = {
+  readonly transition: ReplayTransition;
+  readonly declarationOrder: number;
+};
 type ReplayValueSource = ReplayTransition["captures"][number]["value"];
 interface TransitionRecordOptions {
   readonly sequence: number;
@@ -22,12 +25,8 @@ const replayEventHeadersSchema = z
     z
       .string()
       .min(1)
-      .max(256)
       .regex(/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u),
-    z
-      .string()
-      .max(8_192)
-      .regex(/^[\t\x20-\x7e\x80-\xff]*$/u),
+    z.string().regex(/^[\t\x20-\x7e\x80-\xff]*$/u),
   )
   .superRefine((headers, context) => {
     const normalized = Object.keys(headers).map((name) => name.toLowerCase());
@@ -41,9 +40,9 @@ const replayEventHeadersSchema = z
 
 const replayEventFields = {
   at_ms: z.number().int().safe().nonnegative(),
-  path: z.string().startsWith("/").max(8_192),
+  path: z.string().startsWith("/"),
   headers: replayEventHeadersSchema,
-  body: z.string().max(1_000_000),
+  body: z.string(),
 };
 
 export const replayMachineEventSchema = z.discriminatedUnion("protocol", [
@@ -53,7 +52,6 @@ export const replayMachineEventSchema = z.discriminatedUnion("protocol", [
     method: z
       .string()
       .min(1)
-      .max(16)
       .transform((method) => method.toUpperCase()),
     ...replayEventFields,
   }),
@@ -162,6 +160,9 @@ const actionJsonBody = (transition: ReplayTransition): string | undefined => {
   return undefined;
 };
 
+const triggerKey = (transition: ReplayTransition): string =>
+  `${transition.trigger.protocol}\0${transition.trigger.path}`;
+
 const readValue = (
   source: ReplayValueSource,
   event: ReplayMachineEvent,
@@ -207,19 +208,87 @@ const triggerMatches = (
   return true;
 };
 
-const isJsonCompatible = (value: unknown): boolean => {
-  if (value === null || typeof value === "string" || typeof value === "boolean")
-    return true;
-  if (typeof value === "number") return Number.isFinite(value);
-  if (Array.isArray(value)) return value.every(isJsonCompatible);
-  if (typeof value !== "object") return false;
-  return Object.values(value).every(isJsonCompatible);
+const replayValuesEqual = (left: unknown, right: unknown): boolean => {
+  const pending: [unknown, unknown][] = [[left, right]];
+  while (pending.length > 0) {
+    const pair = pending.pop();
+    if (pair === undefined) continue;
+    const [currentLeft, currentRight] = pair;
+    if (
+      currentLeft === null ||
+      typeof currentLeft === "string" ||
+      typeof currentLeft === "boolean"
+    ) {
+      if (currentLeft !== currentRight) return false;
+      continue;
+    }
+    if (typeof currentLeft === "number") {
+      if (
+        !Number.isFinite(currentLeft) ||
+        currentLeft !== currentRight ||
+        typeof currentRight !== "number" ||
+        !Number.isFinite(currentRight)
+      )
+        return false;
+      continue;
+    }
+    if (Array.isArray(currentLeft)) {
+      if (
+        !Array.isArray(currentRight) ||
+        currentLeft.length !== currentRight.length
+      )
+        return false;
+      for (let index = 0; index < currentLeft.length; index += 1)
+        pending.push([currentLeft[index], currentRight[index]]);
+      continue;
+    }
+    if (
+      typeof currentLeft !== "object" ||
+      currentLeft === null ||
+      typeof currentRight !== "object" ||
+      currentRight === null ||
+      Array.isArray(currentRight)
+    )
+      return false;
+    const leftKeys = Object.keys(currentLeft).sort();
+    const rightKeys = Object.keys(currentRight).sort();
+    if (
+      leftKeys.length !== rightKeys.length ||
+      leftKeys.some((key, index) => key !== rightKeys[index])
+    )
+      return false;
+    for (const key of leftKeys)
+      pending.push([
+        Reflect.get(currentLeft, key),
+        Reflect.get(currentRight, key),
+      ]);
+  }
+  return true;
 };
 
-const replayValuesEqual = (left: unknown, right: unknown): boolean =>
-  isJsonCompatible(left) &&
-  isJsonCompatible(right) &&
-  (Object.is(left, right) || canonicalize(left) === canonicalize(right));
+const isJsonCompatible = (value: unknown): boolean => {
+  const pending: unknown[] = [value];
+  while (pending.length > 0) {
+    const candidate = pending.pop();
+    if (
+      candidate === null ||
+      typeof candidate === "string" ||
+      typeof candidate === "boolean"
+    )
+      continue;
+    if (typeof candidate === "number") {
+      if (!Number.isFinite(candidate)) return false;
+      continue;
+    }
+    if (Array.isArray(candidate)) {
+      for (const item of candidate) pending.push(item);
+      continue;
+    }
+    if (typeof candidate !== "object") return false;
+    for (const item of Object.values(candidate)) pending.push(item);
+  }
+  return true;
+};
 
 const createTransitionRecord = ({
   sequence,
@@ -241,6 +310,10 @@ const createTransitionRecord = ({
 
 /** Stateful evaluator for one validated replay-machine instance. */
 export class ReplayMachineRuntime {
+  readonly #transitionsByTrigger = new Map<
+    string,
+    readonly IndexedReplayTransition[]
+  >();
   readonly #variables = new Map<string, unknown>();
   readonly #sensitiveValues = new Map<string, Set<string>>();
   readonly #uses = new Map<string, number>();
@@ -256,6 +329,25 @@ export class ReplayMachineRuntime {
   constructor(readonly machine: ReplayMachine) {
     this.#state = machine.initial_state;
     this.#stateVisits.set(machine.initial_state, 1);
+    const byTrigger = new Map<string, IndexedReplayTransition[]>();
+    for (const [
+      declarationOrder,
+      transition,
+    ] of machine.transitions.entries()) {
+      const key = triggerKey(transition);
+      const indexed = byTrigger.get(key) ?? [];
+      indexed.push({ transition, declarationOrder });
+      byTrigger.set(key, indexed);
+    }
+    for (const [key, indexed] of byTrigger)
+      this.#transitionsByTrigger.set(
+        key,
+        indexed.sort(
+          (left, right) =>
+            left.transition.priority - right.transition.priority ||
+            left.declarationOrder - right.declarationOrder,
+        ),
+      );
   }
 
   /** Current machine state after all accepted transitions. */
@@ -321,19 +413,14 @@ export class ReplayMachineRuntime {
     };
     if (!this.#admitEvent(normalizedEvent))
       return this.#refusal("limit_exhausted");
-    const matching = this.machine.transitions
-      .map((transition, declarationOrder) => ({
-        transition,
-        declarationOrder,
-      }))
-      .filter(({ transition }) => triggerMatches(transition, normalizedEvent));
-    const eligible = matching
-      .filter(({ transition }) => transition.from === this.#state)
-      .sort(
-        (left, right) =>
-          left.transition.priority - right.transition.priority ||
-          left.declarationOrder - right.declarationOrder,
-      );
+    const matching = (
+      this.#transitionsByTrigger.get(
+        `${normalizedEvent.protocol}\0${normalizedEvent.path}`,
+      ) ?? []
+    ).filter(({ transition }) => triggerMatches(transition, normalizedEvent));
+    const eligible = matching.filter(
+      ({ transition }) => transition.from === this.#state,
+    );
     if (eligible.length === 0)
       return this.#refusal(
         matching.length === 0

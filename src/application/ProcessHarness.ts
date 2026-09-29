@@ -106,7 +106,6 @@ const createTerminalRenderer = (
     columns: scenario.terminal.columns,
     rows: scenario.terminal.rows,
     scrollback: scenario.terminal.scrollback,
-    maxFrames: scenario.limits.frames,
     maxBytes: scenario.limits.output_bytes,
     normalize: (value) =>
       normalizeProcessText(value, scenario, temporaryRoot, terminalPid()),

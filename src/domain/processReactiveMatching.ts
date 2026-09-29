@@ -2,49 +2,31 @@ import canonicalize from "canonicalize";
 
 import type { ProcessObservation } from "./processObservation.js";
 import { comparableProcessObservationPayload } from "./processObservation.js";
-import {
-  PROCESS_REACTIVE_LIMITS,
-  type ProcessReactiveFrontier,
-  type ProcessReactiveTrigger,
+import type {
+  ProcessReactiveFrontier,
+  ProcessReactiveTrigger,
 } from "./processReactiveScenario.js";
 import type { ProcessReactiveSnapshot } from "./processReactiveRuntime.js";
 
-/** Internal bounded trigger-match result used by the pure reducer. */
+/** Trigger match result used by the pure reducer. */
 export type ProcessReactiveTriggerMatch = {
   readonly eventIds: readonly string[];
   readonly consumeIds: readonly string[];
   readonly lastOrder: number;
-} & (
-  | { readonly matched: true; readonly overflow: false }
-  | { readonly matched: false; readonly overflow: boolean }
-);
-
-interface EvaluationBudget {
-  remaining: number;
-}
+  readonly matched: boolean;
+};
 
 interface TriggerMatchContext {
   readonly snapshot: ProcessReactiveSnapshot;
-  readonly budget: EvaluationBudget;
   readonly afterOrder: number;
   readonly upperOrder: number | null;
 }
 
-const spendEvaluationWork = (
-  budget: EvaluationBudget,
-  units: number,
-): boolean => {
-  if (units > budget.remaining) return false;
-  budget.remaining -= units;
-  return true;
-};
-
-const noMatch = (overflow = false): ProcessReactiveTriggerMatch => ({
-  matched: false,
+const noMatch = (): ProcessReactiveTriggerMatch => ({
   eventIds: [],
   consumeIds: [],
   lastOrder: -1,
-  overflow,
+  matched: false,
 });
 
 const frontierOrder = (
@@ -102,7 +84,6 @@ const matchEvent = (
   );
   const matches: ProcessObservation[] = [];
   for (const observation of eligibleObservations(trigger.since, context)) {
-    if (!spendEvaluationWork(context.budget, 1)) return noMatch(true);
     if (
       observation.source === trigger.source &&
       canonicalJson(
@@ -121,11 +102,10 @@ const matchEvent = (
     return noMatch();
   const eventIds = matches.map(({ event_id }) => event_id);
   return {
-    matched: true,
     eventIds,
     consumeIds: trigger.consume ? eventIds : [],
     lastOrder: matches.at(-1)?.capture_order ?? context.afterOrder,
-    overflow: false,
+    matched: true,
   };
 };
 
@@ -150,7 +130,6 @@ const matchTerminalText = (
 ): ProcessReactiveTriggerMatch => {
   const chunks: { observation: ProcessObservation; text: string }[] = [];
   for (const observation of eligibleObservations(trigger.since, context)) {
-    if (!spendEvaluationWork(context.budget, 1)) return noMatch(true);
     if (
       observation.source === "terminal_raw" &&
       typeof observation.payload === "object" &&
@@ -159,18 +138,6 @@ const matchTerminalText = (
       typeof observation.payload["data"] === "string"
     )
       chunks.push({ observation, text: observation.payload["data"] });
-  }
-  let rawBytes = 0;
-  for (const { text } of chunks) {
-    if (text.length > PROCESS_REACTIVE_LIMITS.terminalMatchBytes)
-      return noMatch(true);
-    const bytes = Buffer.byteLength(text);
-    rawBytes += bytes;
-    if (
-      rawBytes > PROCESS_REACTIVE_LIMITS.terminalMatchBytes ||
-      !spendEvaluationWork(context.budget, bytes)
-    )
-      return noMatch(true);
   }
   const range = occurrenceRange(
     chunks.map(({ text }) => text).join(""),
@@ -194,29 +161,32 @@ const matchTerminalText = (
     .map(({ observation }) => observation);
   const eventIds = matched.map(({ event_id }) => event_id);
   return {
-    matched: true,
     eventIds,
     consumeIds: trigger.consume ? eventIds : [],
     lastOrder: matched.at(-1)?.capture_order ?? context.afterOrder,
-    overflow: false,
+    matched: true,
   };
 };
 
 const mergeMatches = (
   matches: readonly ProcessReactiveTriggerMatch[],
 ): ProcessReactiveTriggerMatch => {
-  const base = {
-    eventIds: [...new Set(matches.flatMap(({ eventIds }) => eventIds))],
-    consumeIds: [...new Set(matches.flatMap(({ consumeIds }) => consumeIds))],
-    lastOrder: Math.max(-1, ...matches.map(({ lastOrder }) => lastOrder)),
+  const eventIds = new Set<string>();
+  const consumeIds = new Set<string>();
+  let lastOrder = -1;
+  let matched = true;
+  for (const match of matches) {
+    for (const eventId of match.eventIds) eventIds.add(eventId);
+    for (const eventId of match.consumeIds) consumeIds.add(eventId);
+    lastOrder = Math.max(lastOrder, match.lastOrder);
+    matched &&= match.matched;
+  }
+  return {
+    eventIds: [...eventIds],
+    consumeIds: [...consumeIds],
+    lastOrder,
+    matched,
   };
-  return matches.every(({ matched }) => matched)
-    ? { ...base, matched: true, overflow: false }
-    : {
-        ...base,
-        matched: false,
-        overflow: matches.some(({ overflow }) => overflow),
-      };
 };
 
 const matchEarliestPrefix = (
@@ -234,7 +204,7 @@ const matchEarliestPrefix = (
       ...context,
       upperOrder: observation.capture_order,
     });
-    if (matched.matched || matched.overflow) return matched;
+    if (matched.matched) return matched;
   }
   return noMatch();
 };
@@ -255,9 +225,7 @@ const matchTrigger = (
       matchTrigger(child, context),
     );
     const matches = evaluated.filter(({ matched }) => matched);
-    return matches.length === 0
-      ? noMatch(evaluated.some(({ overflow }) => overflow))
-      : mergeMatches(matches);
+    return matches.length === 0 ? noMatch() : mergeMatches(matches);
   }
   if (trigger.kind === "sequence") {
     const matches: ProcessReactiveTriggerMatch[] = [];
@@ -267,7 +235,7 @@ const matchTrigger = (
         ...context,
         afterOrder: cursor,
       });
-      if (!matched.matched) return noMatch(matched.overflow);
+      if (!matched.matched) return noMatch();
       matches.push(matched);
       cursor = matched.lastOrder;
     }
@@ -289,22 +257,19 @@ const matchTrigger = (
       ...context,
       afterOrder: cursor,
     });
-    if (excess.matched || excess.overflow) return noMatch(excess.overflow);
+    if (excess.matched) return noMatch();
   }
-  if (matches.length < trigger.min)
-    return noMatch(matches.some(({ overflow }) => overflow));
+  if (matches.length < trigger.min) return noMatch();
   return mergeMatches(matches);
 };
 
-/** Match one trigger using a shared deterministic work budget. */
+/** Match one trigger against every eligible retained observation. */
 export const matchProcessReactiveTrigger = (
   trigger: ProcessReactiveTrigger,
   snapshot: ProcessReactiveSnapshot,
-  budget: EvaluationBudget,
 ): ProcessReactiveTriggerMatch =>
   matchTrigger(trigger, {
     snapshot,
-    budget,
     afterOrder: -1,
     upperOrder: null,
   });

@@ -118,8 +118,8 @@ inherited under operator policy.
 Scenario arguments, environment names, timed interactions, shim routes and
 output chunks, filesystem checkpoints, and static HTTP/WebSocket scripts are
 accepted without fixed item-count ceilings. The run still obeys its timeout
-and the configured output, frame, process, filesystem, protocol-event,
-body-byte, and connection budgets; each filesystem checkpoint uses those same
+and the configured output-byte, process, filesystem, protocol-event, body-byte,
+and connection budgets; each filesystem checkpoint uses those same
 bounded snapshot limits.
 
 ## Reactive process scenarios
@@ -127,8 +127,8 @@ bounded snapshot limits.
 Set `reactive` to a process reactive scenario declaration when interaction
 must follow observed output instead of guessed delays. The graph declares an
 initial state, absolute scenario and state deadlines, explicitly prioritized
-transitions, bounded uses and visits, trigger predicates, ordered actions, and
-either a next state or `passed` outcome.
+transitions, caller-chosen use and visit counts, trigger predicates, ordered
+actions, and either a next state or `passed` outcome.
 
 The admitted runtime slice matches decoded UTF-8 terminal literals and exact
 `terminal_raw`, `interaction`, `process`, `filesystem`, `http`, `websocket`, or
@@ -136,7 +136,7 @@ The admitted runtime slice matches decoded UTF-8 terminal literals and exact
 event-complete lifecycle. Filesystem events identify named checkpoints; shim
 events identify a command and route. Live predicates receive the same normalized
 and redacted payload later persisted in Evidence. Predicates may compose with
-bounded `all`, `any`, `sequence`, and `repeat` nodes and may select a frontier at
+`all`, `any`, `sequence`, and `repeat` nodes and may select a frontier at
 scenario start, state entry, a prior checkpoint, or an exact event ID. Actions
 can write PTY input, resize it, signal the root process, or capture a named
 filesystem checkpoint. `terminal_rendered`, `lifecycle`, and `replay_transition`
@@ -145,9 +145,12 @@ target launches.
 
 Reactive results are recorded in `reactive_run`, including the terminal outcome,
 active state, matched event IDs, action evidence IDs, and deterministic
-transition journal. Terminal controls also commit the last admitted observation
-order, so later output cannot be moved ahead of a timeout, cancellation, or
-target loss during validation. If the process exits before the graph finishes,
+transition journal. The reducer retains and evaluates every admitted
+observation through the scenario deadline; it has no fixed state, transition,
+predicate, action, repeat, or history-count ceilings. Recursive input depth has
+a stack safety guard. Terminal controls also commit the last admitted
+observation order, so later output cannot be moved ahead of a timeout,
+cancellation, or target loss during validation. If the process exits before the graph finishes,
 the outcome is `target_lost`; state/scenario deadlines remain distinct
 `predicate_timeout`/`scenario_deadline` outcomes. Timed `events` remain
 available for fixed schedules, but they are not silently translated into the
@@ -163,9 +166,10 @@ the initial tree.
 
 Each command shim matches an exact argument array. Routes can emit timed stdout
 or stderr chunks and then exit or receive `SIGINT`, `SIGTERM`, or `SIGKILL`.
-Unmatched and exhausted calls are recorded. Shim observations are bounded by
-the scenario protocol-event limit; exceeding it marks the whole capture
-truncated while replay continues.
+Unmatched and exhausted calls are recorded. Shim observations are included in
+the capture without a separate fixed count ceiling. Other configured
+observation and byte budgets remain explicit in the capture result when they
+affect completeness.
 
 ## Run a replay machine directly
 
@@ -178,9 +182,13 @@ transition. It never returns request bodies, request headers, or captured
 values. It also reports the initial and final states, whether the final state is
 terminal, configured limits, and committed usage.
 
-The direct boundary accepts at most 10,000 events, 4 MiB of declared action
-JSON, 1,024 action text fields, and 1,024 possible sensitive-capture operations.
-These caps bound both returned content and secret-redaction work.
+The direct evaluator has no fixed state, transition, event, guard, capture,
+action, or action-byte count ceiling. It indexes transitions by protocol and
+path, evaluates events in order, and returns a decision for each offered event
+plus actions for used transitions. Caller-declared `max_uses`, `max_visits`,
+`max_transitions`, and protocol budgets determine the finite run; there is no
+upper schema cap on those values. Result size follows the input and is not
+truncated by an arbitrary item quota.
 
 Refused events remain data rather than aborting the run. Outcomes distinguish
 unmatched events, invalid states, failed guards, exhausted transitions, invalid

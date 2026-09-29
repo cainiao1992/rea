@@ -373,10 +373,7 @@ export const captureTerminalFrames = (options: {
   options.terminal.onData((data) => {
     options.onOutput();
     const bytes = Buffer.byteLength(data);
-    if (
-      options.frames.length >= options.scenario.limits.frames ||
-      outputBytes + bytes > options.scenario.limits.output_bytes
-    ) {
+    if (outputBytes + bytes > options.scenario.limits.output_bytes) {
       truncated = true;
       return;
     }

@@ -1,13 +1,8 @@
 import { z } from "zod";
 
 interface ReactivePreflightLimits {
-  readonly states: number;
-  readonly transitions: number;
-  readonly predicates: number;
   readonly triggerDepth: number;
-  readonly childrenPerComposite: number;
   readonly jsonDepth: number;
-  readonly jsonNodes: number;
 }
 
 type PendingTrigger = { readonly value: unknown; readonly depth: number };
@@ -33,16 +28,9 @@ const inspectJsonValue = (
 ): boolean => {
   const pending: PendingTrigger[] = [{ value, depth: 1 }];
   const seen = new WeakSet<object>();
-  let nodes = 0;
   while (pending.length > 0) {
     const current = pending.pop();
     if (current === undefined) break;
-    nodes += 1;
-    if (nodes > limits.jsonNodes)
-      return reject(
-        context,
-        "event exact JSON exceeds the configured node limit",
-      );
     if (current.depth > limits.jsonDepth)
       return reject(
         context,
@@ -53,11 +41,6 @@ const inspectJsonValue = (
       return reject(context, "event exact JSON must not contain cycles");
     seen.add(current.value);
     if (Array.isArray(current.value)) {
-      if (current.value.length + nodes > limits.jsonNodes)
-        return reject(
-          context,
-          "event exact JSON exceeds the configured node limit",
-        );
       for (const child of current.value)
         pending.push({ value: child, depth: current.depth + 1 });
       continue;
@@ -65,11 +48,6 @@ const inspectJsonValue = (
     if (!isUnknownRecord(current.value)) continue;
     for (const key in current.value) {
       if (!Object.hasOwn(current.value, key)) continue;
-      if (nodes + pending.length >= limits.jsonNodes)
-        return reject(
-          context,
-          "event exact JSON exceeds the configured node limit",
-        );
       pending.push({
         value: current.value[key],
         depth: current.depth + 1,
@@ -79,21 +57,11 @@ const inspectJsonValue = (
   return true;
 };
 
-const collectTriggerRoots = (
-  states: readonly unknown[],
-  context: z.RefinementCtx,
-  limits: ReactivePreflightLimits,
-): PendingTrigger[] | null => {
+const collectTriggerRoots = (states: readonly unknown[]): PendingTrigger[] => {
   const pending: PendingTrigger[] = [];
-  let transitions = 0;
   for (const stateValue of states) {
     if (!isUnknownRecord(stateValue) || !Array.isArray(stateValue["on"]))
       continue;
-    transitions += stateValue["on"].length;
-    if (transitions > limits.transitions) {
-      reject(context, "scenario has too many transitions");
-      return null;
-    }
     for (const transitionValue of stateValue["on"])
       if (isUnknownRecord(transitionValue))
         pending.push({ value: transitionValue["when"], depth: 1 });
@@ -118,8 +86,6 @@ const enqueueTriggerChildren = (
     return true;
   const children = trigger["triggers"];
   if (!Array.isArray(children)) return true;
-  if (children.length > traversal.limits.childrenPerComposite)
-    return reject(traversal.context, "trigger group has too many children");
   for (const child of children)
     traversal.pending.push({ value: child, depth: depth + 1 });
   return true;
@@ -130,14 +96,9 @@ const inspectTriggerTree = (
   context: z.RefinementCtx,
   limits: ReactivePreflightLimits,
 ): boolean => {
-  let nodes = 0;
-  const maximumNodes = limits.predicates * limits.triggerDepth;
   while (pending.length > 0) {
     const current = pending.pop();
     if (current === undefined) break;
-    nodes += 1;
-    if (nodes > maximumNodes)
-      return reject(context, "trigger tree exceeds the configured limit");
     if (current.depth > limits.triggerDepth)
       return reject(context, "trigger nesting exceeds the configured limit");
     if (
@@ -166,12 +127,7 @@ export const preflightProcessReactiveScenario = (
   limits: ReactivePreflightLimits,
 ): unknown => {
   if (!isUnknownRecord(input) || !Array.isArray(input["states"])) return input;
-  if (input["states"].length > limits.states) {
-    reject(context, "scenario has too many states");
-    return z.NEVER;
-  }
-  const pending = collectTriggerRoots(input["states"], context, limits);
-  if (pending === null || !inspectTriggerTree(pending, context, limits))
-    return z.NEVER;
+  const pending = collectTriggerRoots(input["states"]);
+  if (!inspectTriggerTree(pending, context, limits)) return z.NEVER;
   return input;
 };

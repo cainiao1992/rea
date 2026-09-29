@@ -5,35 +5,18 @@ import { processObservationSourceSchema } from "./processObservation.js";
 import { definitelyAvailableCheckpoints } from "./processReactiveCheckpointDataflow.js";
 import { preflightProcessReactiveScenario } from "./processReactiveScenarioPreflight.js";
 
-/** Fixed public bounds for process reactive scenarios. */
+/** Structural depth guard for recursive Zod parsing. */
 export const PROCESS_REACTIVE_LIMITS = {
-  states: 32,
-  transitions: 128,
-  triggerDepth: 6,
-  predicates: 64,
-  actions: 256,
-  actionsPerTransition: 16,
-  childrenPerComposite: 16,
-  stateVisits: 256,
-  transitionUses: 256,
-  repeat: 64,
-  retainedObservations: 256,
-  terminalMatchBytes: 65_536,
-  evaluationWork: 8_192,
-  jsonDepth: 20,
-  jsonNodes: 1_024,
-  runtimeMs: 300_000,
+  // Recursive Zod schemas need a practical stack guard, not a small tree quota.
+  triggerDepth: 256,
+  jsonDepth: 256,
 } as const;
 
 const identifierSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]{0,63}$/u);
 const checkpointNameSchema = z
   .string()
   .regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/u);
-const positiveRuntime = z
-  .number()
-  .int()
-  .positive()
-  .max(PROCESS_REACTIVE_LIMITS.runtimeMs);
+const positiveRuntime = z.number().int().safe().positive();
 
 const frontierSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("scenario_start") }),
@@ -118,8 +101,8 @@ const processReactiveTriggerSchema: z.ZodType<ProcessReactiveTrigger> = z.lazy(
         consume: z.boolean(),
         cardinality: z
           .strictObject({
-            min: z.number().int().positive().max(256),
-            max: z.number().int().positive().max(256),
+            min: z.number().int().safe().positive(),
+            max: z.number().int().safe().positive(),
           })
           .refine(({ min, max }) => min <= max, {
             message: "cardinality min must not exceed max",
@@ -132,37 +115,28 @@ const processReactiveTriggerSchema: z.ZodType<ProcessReactiveTrigger> = z.lazy(
         literal: z.string().min(1).max(10_000),
         case_sensitive: z.literal(true),
         control_sequences: z.literal("include"),
-        occurrence: z.number().int().positive().max(1_000),
+        occurrence: z.number().int().safe().positive(),
         since: frontierSchema,
         consume: z.boolean(),
       }),
       z.strictObject({
         kind: z.literal("all"),
-        triggers: z
-          .array(processReactiveTriggerSchema)
-          .min(2)
-          .max(PROCESS_REACTIVE_LIMITS.childrenPerComposite),
+        triggers: z.array(processReactiveTriggerSchema).min(2),
       }),
       z.strictObject({
         kind: z.literal("any"),
-        triggers: z
-          .array(processReactiveTriggerSchema)
-          .min(2)
-          .max(PROCESS_REACTIVE_LIMITS.childrenPerComposite),
+        triggers: z.array(processReactiveTriggerSchema).min(2),
       }),
       z.strictObject({
         kind: z.literal("sequence"),
-        triggers: z
-          .array(processReactiveTriggerSchema)
-          .min(1)
-          .max(PROCESS_REACTIVE_LIMITS.childrenPerComposite),
+        triggers: z.array(processReactiveTriggerSchema).min(1),
       }),
       z
         .strictObject({
           kind: z.literal("repeat"),
           trigger: processReactiveTriggerSchema,
-          min: z.number().int().positive().max(PROCESS_REACTIVE_LIMITS.repeat),
-          max: z.number().int().positive().max(PROCESS_REACTIVE_LIMITS.repeat),
+          min: z.number().int().safe().positive(),
+          max: z.number().int().safe().positive(),
         })
         .refine(({ min, max }) => min <= max, {
           message: "repeat min must not exceed max",
@@ -207,34 +181,24 @@ const transitionTargetSchema = z.discriminatedUnion("kind", [
 
 const transitionSchema = z.strictObject({
   id: identifierSchema,
-  priority: z.number().int().min(0).max(1_000),
-  max_uses: z
-    .number()
-    .int()
-    .positive()
-    .max(PROCESS_REACTIVE_LIMITS.transitionUses),
+  priority: z.number().int().safe().min(0),
+  max_uses: z.number().int().safe().positive(),
   when: processReactiveTriggerSchema,
-  actions: z
-    .array(processReactiveActionSchema)
-    .max(PROCESS_REACTIVE_LIMITS.actionsPerTransition),
+  actions: z.array(processReactiveActionSchema),
   target: transitionTargetSchema,
 });
 
 const stateSchema = z.strictObject({
   id: identifierSchema,
-  max_visits: z
-    .number()
-    .int()
-    .positive()
-    .max(PROCESS_REACTIVE_LIMITS.stateVisits),
+  max_visits: z.number().int().safe().positive(),
   deadline_ms: positiveRuntime,
-  on: z.array(transitionSchema).min(1).max(128),
+  on: z.array(transitionSchema).min(1),
 });
 
 const scenarioShapeSchema = z.strictObject({
   initial_state: identifierSchema,
   deadline_ms: positiveRuntime,
-  states: z.array(stateSchema).min(1).max(PROCESS_REACTIVE_LIMITS.states),
+  states: z.array(stateSchema).min(1),
 });
 
 /** Parsed process reactive scenario declaration. */
@@ -242,23 +206,19 @@ export type ProcessReactiveScenario = z.infer<typeof scenarioShapeSchema>;
 
 type TriggerMeasurements = {
   readonly depth: number;
-  readonly predicates: number;
 };
 
 const measureTrigger = (
   trigger: ProcessReactiveTrigger,
 ): TriggerMeasurements => {
   if (trigger.kind === "event" || trigger.kind === "terminal_text")
-    return { depth: 1, predicates: 1 };
+    return { depth: 1 };
   const children =
     trigger.kind === "repeat" ? [trigger.trigger] : trigger.triggers;
   const measured = children.map(measureTrigger);
   return {
-    depth: 1 + Math.max(...measured.map(({ depth }) => depth)),
-    predicates: measured.reduce(
-      (total, { predicates }) => total + predicates,
-      0,
-    ),
+    depth:
+      1 + measured.reduce((maximum, { depth }) => Math.max(maximum, depth), 0),
   };
 };
 
@@ -320,9 +280,6 @@ type GraphValidation = {
     readonly path: PropertyKey[];
   }>;
   readonly adjacency: ReadonlyMap<string, Set<string>>;
-  transitions: number;
-  predicates: number;
-  actions: number;
 };
 
 type ReactiveTransition =
@@ -336,10 +293,7 @@ const validateTransition = (input: {
   readonly context: z.RefinementCtx;
 }): void => {
   const { transition, validation, path, context } = input;
-  validation.transitions += 1;
-  validation.actions += transition.actions.length;
   const measured = measureTrigger(transition.when);
-  validation.predicates += measured.predicates;
   validateTriggerSemantics(transition.when, [...path, "when"], context);
   if (measured.depth > PROCESS_REACTIVE_LIMITS.triggerDepth)
     context.addIssue({
@@ -387,25 +341,6 @@ const validateTotalsAndReferences = (
   validation: GraphValidation,
   context: z.RefinementCtx,
 ): void => {
-  for (const [count, limit, message] of [
-    [
-      validation.transitions,
-      PROCESS_REACTIVE_LIMITS.transitions,
-      "scenario has too many transitions",
-    ],
-    [
-      validation.predicates,
-      PROCESS_REACTIVE_LIMITS.predicates,
-      "scenario has too many predicates",
-    ],
-    [
-      validation.actions,
-      PROCESS_REACTIVE_LIMITS.actions,
-      "scenario has too many actions",
-    ],
-  ] as const)
-    if (count > limit)
-      context.addIssue({ code: "custom", message, path: ["states"] });
   const available = definitelyAvailableCheckpoints(scenario);
   for (const reference of validation.checkpointReferences)
     if (!available.get(reference.stateId)?.has(reference.name))
@@ -466,9 +401,6 @@ const validateScenarioGraph = (
     checkpoints: new Set(),
     checkpointReferences: [],
     adjacency: new Map(stateIds.map((id) => [id, new Set<string>()])),
-    transitions: 0,
-    predicates: 0,
-    actions: 0,
   };
   for (const [stateIndex, state] of scenario.states.entries()) {
     if (state.deadline_ms > scenario.deadline_ms)

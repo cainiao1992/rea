@@ -6,9 +6,9 @@ import { z } from "zod";
 const replayIdentifierSchema = z
   .string()
   .regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/u);
-const replayPathSchema = z
-  .array(z.union([z.string().max(256), z.number().int().nonnegative()]))
-  .max(32);
+const replayPathSchema = z.array(
+  z.union([z.string(), z.number().int().nonnegative()]),
+);
 const sensitiveHeaderNames = new Set([
   "authorization",
   "cookie",
@@ -18,12 +18,8 @@ const sensitiveHeaderNames = new Set([
 const headerNameSchema = z
   .string()
   .min(1)
-  .max(256)
   .regex(/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u);
-const headerValueSchema = z
-  .string()
-  .max(8_192)
-  .regex(/^[\t\x20-\x7e\x80-\xff]*$/u);
+const headerValueSchema = z.string().regex(/^[\t\x20-\x7e\x80-\xff]*$/u);
 const replayHeaderMatchersSchema = z
   .record(headerNameSchema, headerValueSchema)
   .superRefine((headers, context) => {
@@ -73,11 +69,10 @@ const replayTriggerSchema = z.discriminatedUnion("protocol", [
     method: z
       .string()
       .min(1)
-      .max(16)
       .transform((method) => method.toUpperCase()),
     path: z.string().startsWith("/"),
     headers: replayHeaderMatchersSchema.default({}),
-    body: z.string().max(1_000_000).nullable().default(null),
+    body: z.string().nullable().default(null),
   }),
   z.strictObject({
     protocol: z.literal("websocket_connect"),
@@ -87,7 +82,7 @@ const replayTriggerSchema = z.discriminatedUnion("protocol", [
   z.strictObject({
     protocol: z.literal("websocket_message"),
     path: z.string().startsWith("/"),
-    body: z.string().max(1_000_000).nullable().default(null),
+    body: z.string().nullable().default(null),
   }),
 ]);
 
@@ -96,16 +91,16 @@ const replayActionSchema = z.discriminatedUnion("type", [
     type: z.literal("http_response"),
     status: z.number().int().min(100).max(599),
     headers: z.record(headerNameSchema, headerValueSchema).default({}),
-    body: z.string().max(1_000_000),
+    body: z.string(),
   }),
   z.strictObject({
     type: z.literal("websocket_send"),
-    data: z.string().max(1_000_000),
+    data: z.string(),
   }),
   z.strictObject({ type: z.literal("disconnect") }),
   z.strictObject({
     type: z.literal("delay"),
-    duration_ms: z.number().int().nonnegative().max(30_000),
+    duration_ms: z.number().int().nonnegative(),
   }),
 ]);
 
@@ -113,7 +108,7 @@ const replayTransitionSchema = z.strictObject({
   id: replayIdentifierSchema,
   from: replayIdentifierSchema,
   to: replayIdentifierSchema,
-  priority: z.number().int().min(0).max(1_000).default(100),
+  priority: z.number().int().min(0).default(100),
   trigger: replayTriggerSchema,
   guards: z
     .array(
@@ -122,7 +117,6 @@ const replayTransitionSchema = z.strictObject({
         value: replayValueSourceSchema,
       }),
     )
-    .max(32)
     .default([]),
   captures: z
     .array(
@@ -132,10 +126,9 @@ const replayTransitionSchema = z.strictObject({
         sensitive: z.boolean().default(false),
       }),
     )
-    .max(32)
     .default([]),
-  actions: z.array(replayActionSchema).min(1).max(32),
-  max_uses: z.number().int().min(1).max(10_000),
+  actions: z.array(replayActionSchema).min(1),
+  max_uses: z.number().int().min(1),
 });
 
 const transitionSignature = (
@@ -158,19 +151,18 @@ const replayMachineBaseSchema = z.strictObject({
       z.strictObject({
         name: replayIdentifierSchema,
         terminal: z.boolean().default(false),
-        max_visits: z.number().int().min(1).max(100_000).default(100_000),
+        max_visits: z.number().int().min(1).default(100_000),
       }),
     )
-    .min(1)
-    .max(256),
-  transitions: z.array(replayTransitionSchema).min(1).max(2_000),
-  max_transitions: z.number().int().min(1).max(100_000),
+    .min(1),
+  transitions: z.array(replayTransitionSchema).min(1),
+  max_transitions: z.number().int().min(1),
   limits: z
     .strictObject({
-      connections: z.number().int().min(1).max(1_000).default(100),
-      messages: z.number().int().min(1).max(100_000).default(10_000),
-      bytes: z.number().int().min(1).max(10_000_000).default(1_000_000),
-      duration_ms: z.number().int().min(1).max(300_000).default(30_000),
+      connections: z.number().int().min(1).default(100),
+      messages: z.number().int().min(1).default(10_000),
+      bytes: z.number().int().min(1).default(1_000_000),
+      duration_ms: z.number().int().min(1).default(30_000),
     })
     .default({
       connections: 100,

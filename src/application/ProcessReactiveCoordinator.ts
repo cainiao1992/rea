@@ -35,8 +35,26 @@ export interface ProcessReactiveTimerHost {
 
 const systemTimerHost: ProcessReactiveTimerHost = {
   schedule: (callback, delayMs) => {
-    const timer = setTimeout(callback, delayMs);
-    return { cancel: () => clearTimeout(timer) };
+    const maximumTimerDelay = 2_147_483_647;
+    let remaining = Math.max(0, delayMs);
+    let timer: NodeJS.Timeout | undefined;
+    let cancelled = false;
+    const scheduleNext = (): void => {
+      if (cancelled) return;
+      const interval = Math.min(remaining, maximumTimerDelay);
+      timer = setTimeout(() => {
+        remaining -= interval;
+        if (remaining === 0) callback();
+        else scheduleNext();
+      }, interval);
+    };
+    scheduleNext();
+    return {
+      cancel: () => {
+        cancelled = true;
+        if (timer !== undefined) clearTimeout(timer);
+      },
+    };
   },
 };
 

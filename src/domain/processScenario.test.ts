@@ -16,6 +16,23 @@ describe("process scenario collection inputs", () => {
     expect(scenario.checkpoints).toHaveLength(65);
   });
 
+  it("lets callers raise the output byte budget without a tool-side ceiling", () => {
+    const scenario = processScenarioSchema.parse({
+      executable: "/bin/echo",
+      working_directory: "/tmp",
+      limits: { output_bytes: 10_000_001 },
+    });
+
+    expect(scenario.limits.output_bytes).toBe(10_000_001);
+    expect(
+      processScenarioSchema.safeParse({
+        executable: "/bin/echo",
+        working_directory: "/tmp",
+        limits: { frames: 100_001 },
+      }).success,
+    ).toBe(false);
+  });
+
   it("accepts large interaction and replay descriptions under the run budgets", () => {
     const environment = Object.fromEntries(
       Array.from({ length: 65 }, (_, index) => [`APP_VALUE_${index}`, "x"]),

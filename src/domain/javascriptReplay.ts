@@ -16,18 +16,13 @@ const replayModuleSchema = z
     path: absolutePathSchema,
     format: z.enum(["esm", "commonjs-factory"]),
     role: z.enum(["module", "stub"]).default("module"),
-    dependencies: z
-      .record(z.string().min(1).max(256), aliasSchema)
-      .refine((value) => Object.keys(value).length <= 128, {
-        message: "Replay modules may declare at most 128 dependencies",
-      })
-      .default({}),
+    dependencies: z.record(z.string().min(1).max(256), aliasSchema).default({}),
   })
   .strict();
 
 const replaySideSchema = z
   .object({
-    modules: z.array(replayModuleSchema).min(1).max(128),
+    modules: z.array(replayModuleSchema).min(1),
     entry_alias: aliasSchema,
     entry_export: z.string().min(1).max(256).default("default"),
   })
@@ -117,7 +112,7 @@ const determinismSchema = z
 const controlledReplayInputShape = {
   left: replaySideSchema,
   right: replaySideSchema.optional(),
-  cases: z.array(explicitCaseSchema).max(128).default([]),
+  cases: z.array(explicitCaseSchema).default([]),
   generator: generatorSchema.optional(),
   determinism: determinismSchema.default({
     clock_iso: "2000-01-01T00:00:00.000Z",
@@ -173,12 +168,6 @@ export const controlledReplayInputSchema = z
         code: "custom",
         path: ["cases"],
         message: "At least one explicit or generated case is required",
-      });
-    if (value.cases.length + (value.generator?.count ?? 0) > 128)
-      context.addIssue({
-        code: "custom",
-        path: ["generator", "count"],
-        message: "Explicit and generated replay cases must total at most 128",
       });
   });
 

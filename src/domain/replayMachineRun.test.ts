@@ -335,7 +335,7 @@ describe("direct replay machine protocol and limits", () => {
   });
 });
 
-describe("direct replay machine output bounds", () => {
+describe("direct replay machine large inputs", () => {
   it("records large repeated actions once instead of amplifying each match", () => {
     const largeBody = "x".repeat(1_000_000);
     const input = parseMachineRun(
@@ -374,7 +374,7 @@ describe("direct replay machine output bounds", () => {
     expect(JSON.stringify(result).length).toBeLessThan(1_100_000);
   });
 
-  it("rejects aggregate action output above four MiB", () => {
+  it("retains actions above the former four MiB aggregate cap", () => {
     const largeBody = "x".repeat(1_000_000);
     const parsed = replayMachineRunInputSchema.safeParse({
       machine: {
@@ -395,31 +395,42 @@ describe("direct replay machine output bounds", () => {
         ],
         max_transitions: 1,
       },
-      events: [],
+      events: [
+        {
+          protocol: "websocket_connect",
+          connection: "initial",
+          at_ms: 0,
+          method: null,
+          path: "/socket",
+          headers: {},
+          body: "",
+        },
+      ],
     });
 
-    expect(parsed.success).toBe(false);
-    if (!parsed.success)
-      expect(parsed.error.issues).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ path: ["machine", "transitions"] }),
-        ]),
-      );
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      const result = runReplayMachine(parsed.data);
+      expect(result.transition_actions[0]?.actions).toHaveLength(5);
+      expect(JSON.stringify(result).length).toBeGreaterThan(5 * 1_000_000);
+    }
   });
 
-  it("bounds action-field and sensitive-redaction work structurally", () => {
+  it("accepts event counts and action fields beyond former caps", () => {
     const input = loginRun();
-    const excessiveCaptures = replayMachineRunInputSchema.safeParse({
+    const largeEventRun = replayMachineRunInputSchema.safeParse({
       ...input,
-      events: Array.from({ length: 1_025 }, () => input.events[0]),
+      events: Array.from({ length: 10_001 }, (_, index) =>
+        httpEvent("/missing", index),
+      ),
     });
-    expect(excessiveCaptures.success).toBe(false);
-    if (!excessiveCaptures.success)
-      expect(excessiveCaptures.error.issues).toEqual(
-        expect.arrayContaining([expect.objectContaining({ path: ["events"] })]),
+    expect(largeEventRun.success).toBe(true);
+    if (largeEventRun.success)
+      expect(runReplayMachine(largeEventRun.data).decisions).toHaveLength(
+        10_001,
       );
 
-    const excessiveFields = replayMachineRunInputSchema.safeParse({
+    const largeHeaderTable = replayMachineRunInputSchema.safeParse({
       machine: {
         initial_state: "waiting",
         states: [{ name: "waiting" }, { name: "done", terminal: true }],
@@ -447,14 +458,25 @@ describe("direct replay machine output bounds", () => {
         ],
         max_transitions: 1,
       },
-      events: [],
+      events: [
+        {
+          protocol: "http",
+          connection: "not_applicable",
+          at_ms: 0,
+          method: "GET",
+          path: "/done",
+          headers: {},
+          body: "",
+        },
+      ],
     });
-    expect(excessiveFields.success).toBe(false);
-    if (!excessiveFields.success)
-      expect(excessiveFields.error.issues).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ path: ["machine", "transitions"] }),
-        ]),
-      );
+    expect(largeHeaderTable.success).toBe(true);
+    if (largeHeaderTable.success) {
+      const result = runReplayMachine(largeHeaderTable.data);
+      const action = result.transition_actions[0]?.actions[0];
+      expect(action?.type).toBe("http_response");
+      if (action?.type === "http_response")
+        expect(Object.keys(action.headers)).toHaveLength(1_024);
+    }
   });
 });

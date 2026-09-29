@@ -321,7 +321,8 @@ Every limit has a conservative product default. The v1 plan and result commit:
 - cgroup memory, swap, task, and CPU ceilings;
 - Node/V8 heap ceiling as defense in depth;
 - private tmpfs bytes;
-- module count and aggregate bytes, case count, and input bytes;
+- serialized worker-protocol bytes, aggregate module bytes, and case-input
+  bytes; preset-generated cases also have a fixed preflight count ceiling;
 - stdout, stderr, exception, stack, and aggregate retained-output bytes; and
 - structured-result depth and node count.
 

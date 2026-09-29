@@ -17,14 +17,13 @@ interface TerminalRendererOptions {
   readonly columns: number;
   readonly rows: number;
   readonly scrollback: number;
-  readonly maxFrames: number;
   readonly maxBytes: number;
   readonly normalize: (value: string) => string;
   readonly recordEvent?: RecordProcessCaptureEvent;
 }
 
-/** Owns one headless terminal and serializes writes into deterministic frames. */
 /**
+ * Owns one headless terminal and serializes writes into deterministic frames.
  * Reconstructs bounded terminal states while raw PTY chunks remain authoritative.
  *
  * Rendered frames answer what an operator saw after control-sequence handling;
@@ -108,10 +107,7 @@ export class TerminalRenderer {
     const bytes =
       Buffer.byteLength(serializedState) +
       lines.reduce((total, line) => total + Buffer.byteLength(line), 0);
-    if (
-      this.#frames.length >= this.options.maxFrames ||
-      this.#capturedBytes + bytes > this.options.maxBytes
-    ) {
+    if (this.#capturedBytes + bytes > this.options.maxBytes) {
       this.#truncated = true;
       return;
     }

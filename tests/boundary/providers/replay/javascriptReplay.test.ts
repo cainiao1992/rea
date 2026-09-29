@@ -185,24 +185,10 @@ describe("controlled JavaScript replay planning", () => {
     ).toBe(true);
   });
 
-  it("rejects relative paths and more than 128 combined cases", () => {
+  it("rejects relative module paths", () => {
     expect(
       controlledReplayInputSchema.safeParse({
         ...input("plan", "relative/parser.mjs"),
-      }).success,
-    ).toBe(false);
-    expect(
-      controlledReplayInputSchema.safeParse({
-        ...input("plan"),
-        cases: Array.from({ length: 65 }, (_, index) => ({
-          case_id: `explicit-${String(index)}`,
-          arguments: [],
-        })),
-        generator: {
-          preset: "parser-boundaries",
-          seed: 1,
-          count: 64,
-        },
       }).success,
     ).toBe(false);
   });

@@ -77,7 +77,7 @@ describe("policy revocation approval", () => {
     const store = join(project, ".rea", "permissions.json");
     const grant = {
       grant_id: "project:revoke-me",
-      capability: "evidence_read" as const,
+      capability: "managed_runtime" as const,
       roots: [project],
       executables: [],
       environment_names: [],

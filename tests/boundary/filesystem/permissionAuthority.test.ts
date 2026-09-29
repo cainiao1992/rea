@@ -69,7 +69,7 @@ describe("permission authority filesystem boundaries", () => {
     await symlink(join(outside, "secret"), join(root, "escape"));
     const ceiling = await canonicalizePermissionCeilings([
       {
-        capability: "evidence_read",
+        capability: "process_capture",
         roots: [join(sandbox, "root-alias")],
         executables: [],
         environment_names: [],
@@ -90,7 +90,7 @@ describe("permission authority filesystem boundaries", () => {
     ]);
     const inside = await canonicalizePermissionRequest(
       {
-        capability: "evidence_read",
+        capability: "process_capture",
         roots: [join(root, "inside")],
         executables: [],
         environment_names: [],
@@ -102,7 +102,7 @@ describe("permission authority filesystem boundaries", () => {
     );
     const escaped = await canonicalizePermissionRequest(
       {
-        capability: "evidence_read",
+        capability: "process_capture",
         roots: [join(root, "escape")],
         executables: [],
         environment_names: [],
@@ -128,7 +128,7 @@ describe("permission authority filesystem boundaries", () => {
     const sandbox = await createTestTempDirectory("rea-permission-write-");
     const result = await canonicalizePermissionRequest(
       {
-        capability: "evidence_write",
+        capability: "process_capture",
         roots: [join(sandbox, "new.json")],
         executables: [],
         environment_names: [],
@@ -319,7 +319,7 @@ describe("permission authority policy reload", () => {
 });
 
 const evidenceScope = (root: string): PermissionScope => ({
-  capability: "evidence_read",
+  capability: "process_capture",
   roots: [root],
   executables: [],
   environment_names: [],
@@ -329,7 +329,7 @@ const evidenceScope = (root: string): PermissionScope => ({
 
 const administratorGrant = (scope: PermissionScope): PermissionGrant => ({
   ...scope,
-  grant_id: "administrator:evidence_read",
+  grant_id: "administrator:process_capture",
   lifetime: "administrator",
   operation_identity: null,
   expires_at: null,

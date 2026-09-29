@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
-import type { PermissionAuthority } from "../../../src/application/PermissionAuthority.js";
 import type { ProjectPermissionStore } from "../../../src/application/ProjectPermissionStore.js";
 import type { PermissionGrant } from "../../../src/domain/permissionPolicy.js";
 import { ok } from "../../../src/domain/result.js";
@@ -54,30 +53,20 @@ describe("runtime permission reload", () => {
     await validReadStarted.promise;
 
     expect(runtime.options.processPolicy?.().status).toBe("disabled");
-    expect(runtime.options.evidenceFilePolicy?.roots).toEqual([
-      fixture.oldRoot,
-    ]);
     expect(runtime.options.artifactIntegrityContinueEnabled?.()).toBe(false);
     expectOptionalPolicies(runtime.options, { status: "disabled" });
-    expect(await canRead(runtime.authority, fixture.oldRoot)).toBe(true);
-    expect(await canRead(runtime.authority, fixture.newRoot)).toBe(false);
 
     releaseValidRead.resolve();
     await expect
-      .poll(() => canRead(runtime.authority, fixture.newRoot))
-      .toBe(true);
+      .poll(() => runtime.options.processPolicy?.().status)
+      .toBe("enabled");
 
     expect(runtime.options.processPolicy?.().status).toBe("enabled");
-    expect(runtime.options.evidenceFilePolicy?.roots).toEqual([
-      fixture.newRoot,
-    ]);
     expect(runtime.options.artifactIntegrityContinueEnabled?.()).toBe(true);
     expectOptionalPolicies(runtime.options, {
       status: "enabled",
       root: fixture.newRoot,
     });
-    expect(await canRead(runtime.authority, fixture.oldRoot)).toBe(false);
-    expect(await canRead(runtime.authority, fixture.newRoot)).toBe(true);
   });
 
   it("serializes overlapping reloads so an older read cannot commit last", async () => {
@@ -109,17 +98,12 @@ describe("runtime permission reload", () => {
     releaseFirstRead.resolve();
     await secondReadStarted.promise;
     await expect
-      .poll(() => canRead(runtime.authority, fixture.latestRoot))
-      .toBe(true);
+      .poll(() => runtime.options.processPolicy?.().status)
+      .toBe("disabled");
 
     expect(runtime.options.processPolicy?.().status).toBe("disabled");
-    expect(runtime.options.evidenceFilePolicy?.roots).toEqual([
-      fixture.latestRoot,
-    ]);
     expect(runtime.options.artifactIntegrityContinueEnabled?.()).toBe(false);
     expectOptionalPolicies(runtime.options, { status: "disabled" });
-    expect(await canRead(runtime.authority, fixture.newRoot)).toBe(false);
-    expect(await canRead(runtime.authority, fixture.latestRoot)).toBe(true);
   });
 
   it("continues with later reloads after an unexpected reload rejection", async () => {
@@ -135,22 +119,14 @@ describe("runtime permission reload", () => {
     runtime.reload();
     runtime.reload();
     await expect.poll(() => reads).toBe(2);
-    await expect
-      .poll(() => canRead(runtime.authority, fixture.newRoot))
-      .toBe(true);
 
     expect(reads).toBe(2);
     expect(runtime.options.processPolicy?.().status).toBe("enabled");
-    expect(runtime.options.evidenceFilePolicy?.roots).toEqual([
-      fixture.newRoot,
-    ]);
     expect(runtime.options.artifactIntegrityContinueEnabled?.()).toBe(true);
     expectOptionalPolicies(runtime.options, {
       status: "enabled",
       root: fixture.newRoot,
     });
-    expect(await canRead(runtime.authority, fixture.oldRoot)).toBe(false);
-    expect(await canRead(runtime.authority, fixture.newRoot)).toBe(true);
   });
 });
 
@@ -199,7 +175,6 @@ const reloadFixture = async () => {
     ),
   );
   const env: NodeJS.ProcessEnv = {
-    REA_EVIDENCE_ROOTS_JSON: JSON.stringify([oldRoot]),
     REA_PERMISSION_PROJECT_ROOT: projectRoot,
     REA_PERMISSION_PROJECT_STORE: join(directory, "permissions.json"),
   };
@@ -211,7 +186,6 @@ const configure = (
   root: string,
   enabled: boolean,
 ): void => {
-  env.REA_EVIDENCE_ROOTS_JSON = JSON.stringify([root]);
   env.REA_PROCESS_CAPTURE_ENABLED = String(enabled);
   env.REA_PROCESS_EXECUTABLE_ROOTS_JSON = JSON.stringify([root]);
   env.REA_PROCESS_WORKING_ROOTS_JSON = JSON.stringify([root]);
@@ -271,14 +245,12 @@ const startRuntime = async (
     },
   });
   expect(result).toBe(0);
-  const authority = options?.permissionAuthority;
-  if (reload === undefined || options === undefined || authority === undefined)
+  if (reload === undefined || options === undefined)
     throw new Error("Runtime reload seam was not initialized");
   const capturedOptions = options;
   return {
     reload,
     options: capturedOptions,
-    authority,
   };
 };
 
@@ -294,7 +266,7 @@ const projectStore = (
 const projectGrant = (id: string, root: string) =>
   ({
     grant_id: `project:${id}`,
-    capability: "evidence_read",
+    capability: "process_capture",
     roots: [root],
     executables: [],
     environment_names: [],
@@ -304,25 +276,6 @@ const projectGrant = (id: string, root: string) =>
     operation_identity: null,
     expires_at: null,
   }) satisfies PermissionGrant;
-
-const canRead = async (
-  authority: PermissionAuthority,
-  root: string,
-): Promise<boolean> =>
-  (
-    await authority.explain(
-      {
-        capability: "evidence_read",
-        roots: [root],
-        executables: [],
-        environment_names: [],
-        network: "none",
-        mount: false,
-        operation_identity: `read:${root}`,
-      },
-      "read",
-    )
-  ).ok;
 
 const deferred = <T>() => {
   let resolvePromise!: (value: T | PromiseLike<T>) => void;

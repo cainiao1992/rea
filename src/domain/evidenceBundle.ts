@@ -45,14 +45,6 @@ export const evidenceBundleSchema = z.object({
 
 export type EvidenceBundle = z.infer<typeof evidenceBundleSchema>;
 
-export interface EvidenceFilePolicy {
-  readonly roots: readonly string[];
-  readonly maxBytes: number;
-  readonly maxDepth: number;
-  readonly maxStringLength: number;
-  readonly maxNodes: number;
-}
-
 /** Project records into a deterministic bundle whose order has no semantics. */
 export const createEvidenceBundle = (
   records: readonly Evidence[],

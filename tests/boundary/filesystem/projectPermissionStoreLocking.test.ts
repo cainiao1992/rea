@@ -20,7 +20,7 @@ describe("permission store write ownership", () => {
     const result = await writeProjectPermissionStore(path, project, [
       {
         grant_id: "project:new",
-        capability: "evidence_read",
+        capability: "process_capture",
         roots: [project],
         executables: [],
         environment_names: [],

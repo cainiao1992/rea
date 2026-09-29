@@ -7,13 +7,6 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import { readReferenceSource } from "../../../src/reference/ReferenceSourceReader.js";
 
-const limits = {
-  maxBytes: 1_024,
-  maxEntries: 10,
-  maxDepth: 4,
-  maxPathBytes: 100,
-} as const;
-
 describe("readReferenceSource entries", () => {
   it("returns explicit entries in canonical code-point path order", async () => {
     const root = await createTestTempDirectory("rea-reference-");
@@ -24,7 +17,7 @@ describe("readReferenceSource entries", () => {
     await writeFile(join(root, "\u{e000}"), "p");
     await writeFile(join(root, "\u{10000}"), "a");
 
-    const result = await readReferenceSource(root, limits);
+    const result = await readReferenceSource(root);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -37,7 +30,6 @@ describe("readReferenceSource entries", () => {
       "𐀀",
     ]);
     expect(result.value.bytesRead).toBe(5);
-    expect(result.value.truncated).toBe(false);
     expect(
       result.value.entries.map((entry) =>
         entry.status === "read" && entry.kind === "file"
@@ -59,7 +51,7 @@ describe("readReferenceSource entries", () => {
     await symlink(join(outside, "secret"), join(root, "external"));
     await symlink("absent", join(root, "missing"));
 
-    const result = await readReferenceSource(root, limits);
+    const result = await readReferenceSource(root);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -97,56 +89,42 @@ describe("readReferenceSource entries", () => {
     expect(JSON.stringify(result.value.entries)).not.toContain(outside);
   });
 
-  it("makes byte, file, depth, and path limits explicit per entry", async () => {
-    const root = await createTestTempDirectory("rea-reference-");
-    await writeFile(join(root, "a"), "too large");
-    await writeFile(join(root, "b"), "b");
-    await mkdir(join(root, "deep"));
-    await writeFile(join(root, "deep", "c"), "c");
+  it("reads a source file larger than the former 16 MiB ceiling", async () => {
+    const root = await createTestTempDirectory("rea-reference-large-");
+    const size = 16 * 1024 * 1024 + 1;
+    await writeFile(join(root, "large.bin"), Buffer.alloc(size, 0x61));
 
-    const result = await readReferenceSource(root, {
-      maxBytes: 1,
-      maxEntries: 1,
-      maxDepth: 1,
-      maxPathBytes: 4,
-    });
+    const result = await readReferenceSource(root);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.truncated).toBe(true);
-    expect(result.value.entries).toEqual([
+    expect(result.value.bytesRead).toBe(size);
+    expect(result.value.entries).toContainEqual(
       expect.objectContaining({
-        path: "a",
+        status: "read",
         kind: "file",
-        status: "failed",
-        code: "limit",
-        size: 9,
+        path: "large.bin",
+        size,
       }),
-    ]);
-    expect(result.value.limitations).toContain(
-      "Traversal stopped because the entry limit was reached.",
-    );
-    expect(result.value.entries).not.toContainEqual(
-      expect.objectContaining({ path: "<tree>" }),
     );
   });
 
-  it("applies maxEntries as a global limit across every entry kind", async () => {
-    const root = await createTestTempDirectory("rea-reference-");
-    await writeFile(join(root, "a"), "a");
-    await writeFile(join(root, "b"), "b");
-    await writeFile(join(root, "c"), "c");
+  it("traverses source directories deeper than the former depth ceiling", async () => {
+    const root = await createTestTempDirectory("rea-reference-deep-");
+    const segments = Array.from({ length: 40 }, (_, index) => `d${index}`);
+    const directory = join(root, ...segments);
+    await mkdir(directory, { recursive: true });
+    await writeFile(join(directory, "deep.txt"), "deep");
 
-    const result = await readReferenceSource(root, {
-      ...limits,
-      maxEntries: 1,
-    });
+    const result = await readReferenceSource(root);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.entries.map(({ path }) => path)).toEqual(["a"]);
-    expect(result.value.bytesRead).toBe(1);
-    expect(result.value.truncated).toBe(true);
+    const path = [...segments, "deep.txt"].join("/");
+    expect(result.value.entries).toContainEqual(
+      expect.objectContaining({ status: "read", kind: "file", path }),
+    );
+    expect(result.value.entries).toHaveLength(41);
   });
 });
 
@@ -158,7 +136,7 @@ describe("readReferenceSource failures and exclusions", () => {
     await writeFile(join(root, "kept"), "kept");
     const checked: string[] = [];
 
-    const result = await readReferenceSource(root, limits, {
+    const result = await readReferenceSource(root, {
       shouldExclude: (path) => {
         checked.push(path);
         return path === "ignored";
@@ -174,7 +152,7 @@ describe("readReferenceSource failures and exclusions", () => {
   it("sanitizes exclusion callback failures", async () => {
     const root = await createTestTempDirectory("rea-reference-");
     await writeFile(join(root, "file"), "value");
-    const result = await readReferenceSource(root, limits, {
+    const result = await readReferenceSource(root, {
       shouldExclude: () => {
         throw new Error("private callback detail");
       },
@@ -192,7 +170,7 @@ describe("readReferenceSource failures and exclusions", () => {
 
   it("sanitizes filesystem errors", async () => {
     const missing = join(tmpdir(), "rea-secret-root-that-does-not-exist");
-    const result = await readReferenceSource(missing, limits);
+    const result = await readReferenceSource(missing);
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -205,7 +183,7 @@ describe("readReferenceSource failures and exclusions", () => {
   it("returns typed failures for cancellation and invalid roots", async () => {
     const controller = new AbortController();
     controller.abort();
-    const cancelled = await readReferenceSource("/unused", limits, {
+    const cancelled = await readReferenceSource("/unused", {
       signal: controller.signal,
     });
     expect(cancelled).toEqual({
@@ -217,10 +195,7 @@ describe("readReferenceSource failures and exclusions", () => {
       },
     });
 
-    const invalid = await readReferenceSource(
-      "/path/that/does/not/exist",
-      limits,
-    );
+    const invalid = await readReferenceSource("/path/that/does/not/exist");
     expect(invalid.ok).toBe(false);
     if (invalid.ok) return;
     expect(invalid.error.code).toBe("invalid-root");

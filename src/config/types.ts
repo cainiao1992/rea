@@ -1,6 +1,5 @@
 import type { LogLevel } from "../logger.js";
 import type { ProcessExecutionPolicy } from "../domain/processCapture.js";
-import type { EvidenceFilePolicy } from "../domain/evidenceBundle.js";
 import type { ReferenceSourcePolicy } from "../domain/referenceSourcePolicy.js";
 import type {
   PermissionCeiling,
@@ -30,8 +29,6 @@ export interface AppConfig {
   readonly processExecutionPolicy: ProcessExecutionPolicy;
   readonly artifactNativeMountEnabled: boolean;
   readonly artifactIntegrityContinueEnabled: boolean;
-  readonly evidenceFilePolicy: EvidenceFilePolicy;
-  readonly analysisSnapshotFilePolicy: EvidenceFilePolicy;
   readonly referenceSourcePolicy: ReferenceSourcePolicy;
   readonly browserObservationPolicy: BrowserObservationPolicy;
   readonly browserScenarioPolicy: BrowserScenarioPolicy;

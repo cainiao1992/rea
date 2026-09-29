@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   type AnalysisSnapshot,
+  analysisSnapshotSchema,
   snapshotBinding,
   snapshotEvidenceForQuery,
   snapshotTarget,
@@ -15,6 +16,32 @@ import { createEvidence } from "./evidence.js";
 import { createEvidenceBundle } from "./evidenceBundle.js";
 
 describe("analysis snapshot contract", () => {
+  it("accepts snapshots with more than ten thousand analysis entries", () => {
+    const binding = snapshotBinding(ANALYSIS_SNAPSHOT_PROFILE);
+    const entry = {
+      query_id: `query_${"0".repeat(64)}`,
+      operation: "analyze_function",
+      parameters: {},
+      execution: {
+        result: null,
+        raw_result: null,
+        provider: binding.provider,
+        limitations: [],
+        locations: [],
+        subject: null,
+      },
+    };
+
+    const parsed = analysisSnapshotSchema.parse({
+      target: snapshotTarget(ANALYSIS_SNAPSHOT_TARGET),
+      binding,
+      entries: Array.from({ length: 10_001 }, () => entry),
+      evidence_bundle: createEvidenceBundle([]),
+    });
+
+    expect(parsed.entries).toHaveLength(10_001);
+  });
+
   it("finds only Evidence committed to the exact binding and profile", () => {
     const evidence = createEvidence(
       ANALYSIS_SNAPSHOT_TARGET,

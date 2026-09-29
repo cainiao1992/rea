@@ -81,7 +81,6 @@ export const traverseDirectory = async (
   for (const name of names.value) {
     const result = await processEntry(state, current, name, directories);
     if (!result.ok) return result;
-    if (state.stopReason !== undefined) break;
   }
   directories.reverse();
   state.pending.push(...directories);
@@ -145,14 +144,6 @@ const processEntry = async (
       },
     };
   if (excluded.value) return { ok: true, value: undefined };
-  if (!reserveEntry(state)) return { ok: true, value: undefined };
-  if (Buffer.byteLength(path) > state.limits.maxPathBytes) {
-    state.entries.push(
-      entryFailure(path, "unknown", "limit", "Path exceeds maxPathBytes"),
-    );
-    state.truncated = true;
-    return { ok: true, value: undefined };
-  }
   const metadata = await readMetadata(absolute);
   if (!metadata.ok) {
     state.entries.push(entryFailure(path, "unknown", "io", metadata.message));
@@ -170,15 +161,8 @@ const processEntry = async (
   if (metadata.value.isSymbolicLink())
     state.entries.push(await describeSymlink(state.root, absolute, path));
   else if (metadata.value.isDirectory()) {
-    if (current.depth < state.limits.maxDepth) {
-      state.entries.push({ status: "read", kind: "directory", path });
-      directories.push({ path: absolute, depth: current.depth + 1 });
-    } else {
-      state.entries.push(
-        entryFailure(path, "directory", "limit", "Directory exceeds maxDepth"),
-      );
-      state.truncated = true;
-    }
+    state.entries.push({ status: "read", kind: "directory", path });
+    directories.push({ path: absolute });
   } else if (!metadata.value.isFile())
     state.entries.push(
       entryFailure(
@@ -199,33 +183,16 @@ const processFileEntry = async (
   path: string,
   metadata: BigStats,
 ): Promise<void> => {
-  const remaining = state.limits.maxBytes - state.bytesRead;
-  if (metadata.size > BigInt(remaining)) {
-    state.entries.push(
-      entryFailure(
-        path,
-        "file",
-        "limit",
-        "File exceeds remaining maxBytes",
-        safeSize(metadata.size),
-      ),
-    );
-    state.truncated = true;
-    return;
-  }
   const result = await readStableFile({
     root: state.root,
     rootIdentity: state.rootIdentity,
     absolute,
     path,
     expected: metadata,
-    remaining,
     ...(state.signal === undefined ? {} : { signal: state.signal }),
   });
   if (result.status === "read" && result.kind === "file")
     state.bytesRead += result.bytes.byteLength;
-  else if (result.status === "failed" && result.code === "limit")
-    state.truncated = true;
   state.entries.push(result);
 };
 
@@ -290,14 +257,4 @@ const applyExclusion = (
   } catch {
     return { ok: false };
   }
-};
-
-const reserveEntry = (state: TraversalState): boolean => {
-  if (state.filesSeen < state.limits.maxEntries) {
-    state.filesSeen += 1;
-    return true;
-  }
-  state.truncated = true;
-  state.stopReason = "entry-limit";
-  return false;
 };

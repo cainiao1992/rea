@@ -26,8 +26,6 @@ export const projectReferenceSourceEntryFailure = (
 ): string => {
   if (entry.code === "cancelled")
     return "This entry was not read because the import was cancelled. Start the import again when ready.";
-  if (entry.code === "limit")
-    return "This entry was not read because an import limit was reached. Import a smaller directory or raise the configured limits.";
   if (entry.code === "unsupported")
     return "This entry cannot be read safely on this system. Exclude it or import the directory on a supported system.";
   if (entry.kind === "directory")
@@ -50,7 +48,7 @@ const failedEntry = (
       path: entry.path,
       kind: "directory",
       classifications,
-      tree_state: entry.code === "limit" ? "partial" : "unreadable",
+      tree_state: "unreadable",
       limitations: [limitation],
     };
   if (entry.kind === "symlink")
@@ -69,7 +67,7 @@ const failedEntry = (
     size: entry.size ?? null,
     language: null,
     classifications: entry.kind === "file" ? classifications : ["unknown"],
-    content_state: entry.code === "limit" ? "too-large" : "unreadable",
+    content_state: "unreadable",
     limitations: [limitation],
   };
 };

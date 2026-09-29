@@ -74,8 +74,6 @@ export async function verifyPackageEnvironment({
     REA_ANALYSIS_PROVIDER: "auto",
     ...packageHopperEnvironment(root),
     REA_NPX_LOG: npxLog,
-    REA_EVIDENCE_ROOTS_JSON: JSON.stringify([evidenceRoot]),
-    REA_REFERENCE_ROOTS_JSON: JSON.stringify([referenceRoot]),
     REA_REFERENCE_SECRET_PATTERNS_JSON: JSON.stringify([".env"]),
   };
   return {

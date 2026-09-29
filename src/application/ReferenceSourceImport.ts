@@ -137,18 +137,14 @@ const deriveInventoryState = (
   return "complete";
 };
 
-const sortAndLimit = (
+const sortExclusions = (
   exclusions: HistoricalSourceGraphInput["exclusions"],
-  maxExclusions: number,
-): HistoricalSourceGraphInput["exclusions"] => {
-  const sorted = [...exclusions].sort((left, right) => {
+): HistoricalSourceGraphInput["exclusions"] =>
+  [...exclusions].sort((left, right) => {
     const byPath = compareUnicodeCodePoints(left.path, right.path);
     if (byPath !== 0) return byPath;
     return compareUnicodeCodePoints(left.reason, right.reason);
   });
-  if (sorted.length <= maxExclusions) return sorted;
-  return sorted.slice(0, maxExclusions);
-};
 
 /**
  * Import a reference source directory into a committed historical source graph.
@@ -163,7 +159,7 @@ export const importReferenceSource = async (
   if (isAborted(options.signal)) return err(cancelled());
   const prepared = await prepareReferenceSourceImport(options);
   if (!prepared.ok) return prepared;
-  const { ignored, limits, root, secrets } = prepared.value;
+  const { ignored, root, secrets } = prepared.value;
   if (isAborted(options.signal)) return err(cancelled());
 
   const exclusions: HistoricalSourceGraphInput["exclusions"] = [];
@@ -180,7 +176,7 @@ export const importReferenceSource = async (
   };
 
   const [readResult, vcs] = await Promise.all([
-    readReferenceSource(root, limits, {
+    readReferenceSource(root, {
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       shouldExclude,
     }),
@@ -190,12 +186,7 @@ export const importReferenceSource = async (
   if (!readResult.ok) {
     const error = readResult.error;
     if (error.code === "cancelled") return err(cancelled());
-    return err(
-      failure(
-        error.code === "invalid-limits" ? "invalid-limits" : "io",
-        error.message,
-      ),
-    );
+    return err(failure("io", error.message));
   }
 
   if (isAborted(options.signal)) return err(cancelled());
@@ -218,7 +209,7 @@ export const importReferenceSource = async (
   const sortedEntries = [...entries].sort((left, right) =>
     compareUnicodeCodePoints(left.path, right.path),
   );
-  const sortedExclusions = sortAndLimit(exclusions, limits.maxEntries);
+  const sortedExclusions = sortExclusions(exclusions);
   const sortedLimitations = [...limitations].sort(compareUnicodeCodePoints);
 
   const input: HistoricalSourceGraphInput = {

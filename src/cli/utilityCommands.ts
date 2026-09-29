@@ -7,13 +7,8 @@ import {
 } from "../application/DirectAnalysis.js";
 import { importReferenceSource } from "../application/ReferenceSourceImport.js";
 import { projectReferenceSourceImportError } from "../application/ReferenceSourceImportTypes.js";
-import { loadConfiguredPermissionAuthority } from "../application/PermissionConfiguration.js";
 import { parseConfig } from "../config.js";
-import {
-  AnalysisProtocolError,
-  PermissionRequiredError,
-  projectAnalysisError,
-} from "../domain/errors.js";
+import { projectAnalysisError } from "../domain/errors.js";
 import { PRODUCT_IDENTITY } from "../identity.js";
 import { logCliCommand } from "../cliLogging.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
@@ -110,11 +105,11 @@ const registerReferenceSourceCommand = (
   logger: Logger,
 ): void => {
   cli.command(CLI_COMMANDS.importReferenceSource, {
-    description: "Import a bounded source tree as historical reference only",
+    description: "Import a source tree as historical reference only",
     args: z.object({
       root: z
         .string()
-        .describe("Source root allowed by REA_REFERENCE_ROOTS_JSON"),
+        .describe("Local source directory to import as historical reference"),
     }),
     run: ({ args }) =>
       logCliCommand(logger, "import-reference-source", async () => {
@@ -124,36 +119,6 @@ const registerReferenceSourceCommand = (
             error: "Import failed",
             ...projectAnalysisError(config.error),
           };
-        const authority = await loadConfiguredPermissionAuthority(config.value);
-        if (!authority.ok)
-          return {
-            error: "Import failed",
-            ...projectAnalysisError(authority.error),
-          };
-        const authorized = await authority.value.authorize(
-          {
-            capability: "reference_read",
-            roots: [args.root],
-            executables: [],
-            environment_names: [],
-            network: "none",
-            mount: false,
-            operation_identity: `import_reference_source:${args.root}`,
-          },
-          "read",
-        );
-        if (!authorized.ok) {
-          const error =
-            authorized.error instanceof PermissionRequiredError
-              ? authorized.error
-              : new AnalysisProtocolError(authorized.error.message, {
-                  cause: authorized.error,
-                });
-          return {
-            error: "Import failed",
-            ...projectAnalysisError(error),
-          };
-        }
         const imported = await importReferenceSource({
           root: args.root,
           caller: "rea-cli",

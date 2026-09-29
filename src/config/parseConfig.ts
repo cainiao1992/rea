@@ -6,11 +6,7 @@ import {
   parseAbsoluteRoots,
   parseLoaderArgs,
 } from "./parsers.js";
-import {
-  filePolicy,
-  permissionScope,
-  administratorGrants,
-} from "./permissions.js";
+import { permissionScope, administratorGrants } from "./permissions.js";
 import type { AppConfig } from "./types.js";
 import type { PermissionCeiling } from "../domain/permissionPolicy.js";
 import {
@@ -53,9 +49,6 @@ const defaultHopperLauncherPath = (): string =>
 
 interface ParsedArrays {
   readonly loaderArgs: readonly string[];
-  readonly evidenceRoots: readonly string[];
-  readonly analysisSnapshotRoots: readonly string[];
-  readonly referenceRoots: readonly string[];
   readonly secretPatterns: readonly string[];
   readonly managedRuntimeRoots: readonly string[];
 }
@@ -74,21 +67,6 @@ const parseAllArrays = (
 ): Result<ParsedArrays, ConfigurationError> => {
   const loaderArgs = parseLoaderArgs(env.HOPPER_LOADER_ARGS_JSON);
   if (!loaderArgs.ok) return loaderArgs;
-  const evidenceRoots = parseStringArray(
-    env.REA_EVIDENCE_ROOTS_JSON,
-    "REA_EVIDENCE_ROOTS_JSON",
-  );
-  if (!evidenceRoots.ok) return evidenceRoots;
-  const analysisSnapshotRoots = parseStringArray(
-    env.REA_ANALYSIS_SNAPSHOT_ROOTS_JSON,
-    "REA_ANALYSIS_SNAPSHOT_ROOTS_JSON",
-  );
-  if (!analysisSnapshotRoots.ok) return analysisSnapshotRoots;
-  const referenceRoots = parseStringArray(
-    env.REA_REFERENCE_ROOTS_JSON,
-    "REA_REFERENCE_ROOTS_JSON",
-  );
-  if (!referenceRoots.ok) return referenceRoots;
   const secretPatterns = parseStringArray(
     env.REA_REFERENCE_SECRET_PATTERNS_JSON,
     "REA_REFERENCE_SECRET_PATTERNS_JSON",
@@ -101,9 +79,6 @@ const parseAllArrays = (
   if (!managedRuntimeRoots.ok) return managedRuntimeRoots;
   return ok({
     loaderArgs: loaderArgs.value,
-    evidenceRoots: evidenceRoots.value,
-    analysisSnapshotRoots: analysisSnapshotRoots.value,
-    referenceRoots: referenceRoots.value,
     secretPatterns: secretPatterns.value,
     managedRuntimeRoots: managedRuntimeRoots.value,
   });
@@ -123,12 +98,7 @@ const buildPermissionCeilings = (
   policies: ParsedPolicies,
 ): readonly PermissionCeiling[] => {
   const ceilings: PermissionCeiling[] = [
-    permissionScope("evidence_read", arrays.evidenceRoots),
-    permissionScope("evidence_write", arrays.evidenceRoots),
-    permissionScope("snapshot_read", arrays.analysisSnapshotRoots),
-    permissionScope("snapshot_write", arrays.analysisSnapshotRoots),
     permissionScope("artifact_extract", ["/"]),
-    permissionScope("reference_read", arrays.referenceRoots),
   ];
   appendProcessCaptureCeiling(ceilings, policies.processCapture);
   appendPassiveObservationCeilings(ceilings, policies.passiveObservation);
@@ -159,15 +129,8 @@ const buildAppConfig = (
   artifactNativeMountEnabled: env.REA_ARTIFACT_NATIVE_MOUNT_ENABLED === "true",
   artifactIntegrityContinueEnabled:
     env.REA_ARTIFACT_INTEGRITY_CONTINUE_ENABLED === "true",
-  evidenceFilePolicy: filePolicy(arrays.evidenceRoots),
-  analysisSnapshotFilePolicy: filePolicy(arrays.analysisSnapshotRoots),
   referenceSourcePolicy: {
-    roots: arrays.referenceRoots,
     secretPatterns: arrays.secretPatterns,
-    maxBytes: 16 * 1024 * 1024,
-    maxEntries: 10_000,
-    maxDepth: 32,
-    maxPathBytes: 4_096,
   },
   browserObservationPolicy: policies.passiveObservation.browser,
   browserScenarioPolicy: policies.browserScenario,

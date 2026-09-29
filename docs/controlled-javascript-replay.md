@@ -79,8 +79,8 @@ Each left/right run is retained as its own `observed` source Evidence. A
 differential envelope is `derived` and links those source Evidence IDs, so the
 comparison never erases the underlying observations.
 
-Optional `reproducer_export` is committed by the plan and requires separate
-`evidence_write` authority.
+Optional `reproducer_export` is committed by the plan and writes to its
+caller-supplied path after the sandbox has stopped.
 The owner-only manifest is written only after complete sandbox cleanup. Source
 bytes are excluded unless `include_sources: true` was explicitly approved.
 An export failure is retained in the result and does not erase a completed

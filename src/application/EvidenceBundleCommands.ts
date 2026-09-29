@@ -2,10 +2,7 @@ import {
   EvidenceIntegrityError,
   type AnalysisError,
 } from "../domain/errors.js";
-import type {
-  EvidenceFilePolicy,
-  EvidenceBundle,
-} from "../domain/evidenceBundle.js";
+import type { EvidenceBundle } from "../domain/evidenceBundle.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { err, ok, type Result } from "../domain/result.js";
@@ -19,9 +16,8 @@ import {
 /** Validate and merge one bundle using the session Evidence ledger. */
 export const importEvidenceBundleCommand = async (
   path: string,
-  policy: EvidenceFilePolicy,
 ): Promise<Result<JsonValue, AnalysisError>> => {
-  const loaded = await readEvidenceBundle(path, policy);
+  const loaded = await readEvidenceBundle(path);
   if (!loaded.ok) return loaded;
   const ledger = createLedger();
   const imported = ledger.import(loaded.value);
@@ -39,13 +35,12 @@ export const exportEvidenceBundleCommand = async (
   sourcePath: string,
   outputPath: string,
   overwrite: boolean,
-  policy: EvidenceFilePolicy,
 ): Promise<Result<JsonValue, AnalysisError>> => {
-  const loaded = await readEvidenceBundle(sourcePath, policy);
+  const loaded = await readEvidenceBundle(sourcePath);
   if (!loaded.ok) return loaded;
   return projectWrite(
     loaded.value,
-    await writeEvidenceBundle(loaded.value, outputPath, overwrite, policy),
+    await writeEvidenceBundle(loaded.value, outputPath, overwrite),
   );
 };
 
@@ -53,11 +48,10 @@ export const exportEvidenceBundleCommand = async (
 export const compareEvidenceBundlesCommand = async (input: {
   readonly leftPath: string;
   readonly rightPath: string;
-  readonly policy: EvidenceFilePolicy;
 }): Promise<Result<JsonValue, AnalysisError>> => {
   const [left, right] = await Promise.all([
-    readEvidenceBundle(input.leftPath, input.policy),
-    readEvidenceBundle(input.rightPath, input.policy),
+    readEvidenceBundle(input.leftPath),
+    readEvidenceBundle(input.rightPath),
   ]);
   if (!left.ok) return left;
   if (!right.ok) return right;

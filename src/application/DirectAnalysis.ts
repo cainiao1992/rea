@@ -32,10 +32,6 @@ import type { AnalysisSnapshot } from "../domain/analysisSnapshot.js";
 import { loadConfiguredPermissionAuthority } from "./PermissionConfiguration.js";
 import type { PermissionAuthority } from "./PermissionAuthority.js";
 import {
-  authorizeFileReadWithDeferredWrite,
-  type DeferredFileWriteAuthorization,
-} from "./DeferredFileAuthorization.js";
-import {
   REA_WORKFLOW_PROVIDER,
   workflowAnalysisProfile,
 } from "./InvestigationProviders.js";
@@ -155,31 +151,6 @@ const permissionAuthorityFor = (
     ? loadConfiguredPermissionAuthority(config)
     : Promise.resolve(ok(supplied));
 
-const authorizeSnapshotAccess = async (
-  authority: PermissionAuthority,
-  tool:
-    | NativeToolName
-    | ArtifactAnalysisOperation
-    | ManagedToolName
-    | DirectAnalysisTool,
-  snapshotPath: string | undefined,
-): Promise<
-  Result<DeferredFileWriteAuthorization | undefined, AnalysisError>
-> =>
-  snapshotPath === undefined
-    ? ok(undefined)
-    : authorizeFileReadWithDeferredWrite(authority, {
-        path: snapshotPath,
-        readCapability: "snapshot_read",
-        writeCapability: "snapshot_write",
-        operation: tool,
-      });
-
-const authorizeDeferredWrite = (
-  authorization: DeferredFileWriteAuthorization | undefined,
-): Promise<Result<null, AnalysisError>> =>
-  authorization?.authorizeWrite() ?? Promise.resolve(ok(null));
-
 const authorizeAnalysisRun = async (input: {
   readonly config: AppConfig;
   readonly suppliedAuthority: PermissionAuthority | undefined;
@@ -189,10 +160,7 @@ const authorizeAnalysisRun = async (input: {
     | ManagedToolName
     | DirectAnalysisTool;
   readonly arguments: Readonly<Record<string, JsonValue>>;
-  readonly snapshotPath: string | undefined;
-}): Promise<
-  Result<DeferredFileWriteAuthorization | undefined, AnalysisError>
-> => {
+}): Promise<Result<null, AnalysisError>> => {
   const authority = await permissionAuthorityFor(
     input.config,
     input.suppliedAuthority,
@@ -204,11 +172,7 @@ const authorizeAnalysisRun = async (input: {
     input.arguments,
   );
   if (!operation.ok) return operation;
-  return authorizeSnapshotAccess(
-    authority.value,
-    input.tool,
-    input.snapshotPath,
-  );
+  return ok(null);
 };
 
 const runAnalysis = async (
@@ -235,7 +199,6 @@ const runAnalysis = async (
     suppliedAuthority: options.permissionAuthority,
     tool,
     arguments: arguments_,
-    snapshotPath,
   });
   if (!authorization.ok) return cliError(authorization.error);
   const session = createBinarySession(config.value, logger);
@@ -243,7 +206,6 @@ const runAnalysis = async (
     const prepared = await prepareSnapshot({
       path,
       snapshotPath,
-      policy: config.value.analysisSnapshotFilePolicy,
     });
     if (!prepared.ok) return cliError(prepared.error);
     const { snapshot } = prepared.value;
@@ -272,8 +234,6 @@ const runAnalysis = async (
       });
       if (cached !== undefined) return cached;
     }
-    const writable = await authorizeDeferredWrite(authorization.value);
-    if (!writable.ok) return cliError(writable.error);
     const { output, evidence } = await executeAnalysisTool({
       session,
       openedTarget: opened.value,
@@ -290,7 +250,6 @@ const runAnalysis = async (
         snapshot.value,
         snapshotPath,
         true,
-        config.value.analysisSnapshotFilePolicy,
       );
       if (!written.ok) return cliError(written.error);
     }
@@ -386,14 +345,13 @@ const withProcessCancellation = async <Value>(
 const prepareSnapshot = async (options: {
   readonly path: string;
   readonly snapshotPath: string | undefined;
-  readonly policy: Parameters<typeof readAnalysisSnapshot>[1];
 }): Promise<
   Result<{ readonly snapshot?: AnalysisSnapshot }, AnalysisError>
 > => {
-  const { path, snapshotPath, policy } = options;
+  const { path, snapshotPath } = options;
   if (snapshotPath === undefined || !(await fileExists(snapshotPath)))
     return ok({});
-  const loaded = await readAnalysisSnapshot(snapshotPath, policy);
+  const loaded = await readAnalysisSnapshot(snapshotPath);
   if (!loaded.ok) return loaded;
   const target = await parseBinaryTarget(path);
   if (!target.ok) return target;

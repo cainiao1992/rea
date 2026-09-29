@@ -2,13 +2,6 @@ import { type BigIntStats } from "node:fs";
 
 import { type Result } from "../domain/result.js";
 
-export interface ReferenceSourceLimits {
-  readonly maxBytes: number;
-  readonly maxEntries: number;
-  readonly maxDepth: number;
-  readonly maxPathBytes: number;
-}
-
 export interface ReferenceSourceReaderOptions {
   readonly signal?: AbortSignal;
   readonly shouldExclude?: (path: string) => boolean;
@@ -18,7 +11,6 @@ export type ReferenceSourceFailureCode =
   | "cancelled"
   | "changed"
   | "io"
-  | "limit"
   | "symlink"
   | "unsupported";
 
@@ -55,19 +47,13 @@ export interface ReferenceSourceRead {
   readonly root: string;
   readonly entries: readonly ReferenceSourceEntry[];
   readonly bytesRead: number;
-  readonly truncated: boolean;
   /** Node exposes no portable openat traversal; pathname identity is checked around each operation. */
   readonly limitations: readonly string[];
 }
 
 export interface ReferenceSourceReaderError {
   readonly tag: "reference-source-reader";
-  readonly code:
-    | "cancelled"
-    | "invalid-limits"
-    | "invalid-root"
-    | "io"
-    | "unsupported";
+  readonly code: "cancelled" | "invalid-root" | "io" | "unsupported";
   readonly message: string;
 }
 
@@ -75,21 +61,16 @@ export type BigStats = BigIntStats;
 
 export type PendingDirectory = {
   readonly path: string;
-  readonly depth: number;
 };
 
 export type TraversalState = {
   readonly root: string;
   readonly rootIdentity: BigStats;
-  readonly limits: ReferenceSourceLimits;
   readonly signal?: AbortSignal;
   readonly shouldExclude?: (path: string) => boolean;
   readonly entries: ReferenceSourceEntry[];
   readonly pending: PendingDirectory[];
   bytesRead: number;
-  filesSeen: number;
-  truncated: boolean;
-  stopReason: "entry-limit" | undefined;
 };
 
 export type StableFileRequest = {
@@ -98,7 +79,6 @@ export type StableFileRequest = {
   readonly absolute: string;
   readonly path: string;
   readonly expected: BigStats;
-  readonly remaining: number;
   readonly signal?: AbortSignal;
 };
 

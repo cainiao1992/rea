@@ -103,7 +103,7 @@ const entrySchema = z.object({
 export const analysisSnapshotSchema = z.object({
   target: targetSchema,
   binding: bindingSchema,
-  entries: z.array(entrySchema).max(10_000),
+  entries: z.array(entrySchema),
   evidence_bundle: evidenceBundleSchema,
 });
 

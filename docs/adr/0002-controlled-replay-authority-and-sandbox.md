@@ -168,9 +168,10 @@ requires an active permission grant and literal per-call approval bound to the
 exact replay plan. Project, session, and administrator grants may satisfy the
 permission-policy layer, but none replace that per-run approval.
 
-Reproducer export is a separate host write after the sandbox has stopped. It
-uses the existing bounded `evidence_write` authority and a separate export
-approval; `javascript_replay` alone never writes a host file.
+Reproducer export is a separate host write after the sandbox has stopped. This
+ADR's root-scoped `evidence_write` authority was removed; current exports use
+the path supplied by the caller, while replay still waits for complete sandbox
+cleanup before writing.
 
 ### 2. Admit extracted modules only
 

@@ -2,7 +2,6 @@ import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
 import { err, ok } from "../domain/result.js";
 import { traverseDirectory } from "./ReferenceSourceReaderEntries.js";
 import {
-  type ReferenceSourceLimits,
   type ReferenceSourceReaderOptions,
   type ReferenceSourceRead,
   type ReferenceSourceResult,
@@ -16,24 +15,16 @@ import {
 
 export type {
   ReferenceSourceEntry,
-  ReferenceSourceLimits,
   ReferenceSourceRead,
   ReferenceSourceReaderOptions,
 } from "./ReferenceSourceReaderTypes.js";
 
-const DEFAULT_LIMITS: ReferenceSourceLimits = {
-  maxBytes: 16 * 1024 * 1024,
-  maxEntries: 10_000,
-  maxDepth: 32,
-  maxPathBytes: 4_096,
-};
 const PATH_RACE_LIMITATION =
   "Path identity is revalidated around operations; Node lacks portable descriptor-relative openat traversal, so a syscall-boundary pathname race remains.";
 
-/** Read a bounded source tree without intentionally following symbolic links. */
+/** Read a source tree without intentionally following symbolic links. */
 export const readReferenceSource = async (
   root: string,
-  limits: ReferenceSourceLimits = DEFAULT_LIMITS,
   options: ReferenceSourceReaderOptions = {},
 ): Promise<ReferenceSourceResult<ReferenceSourceRead>> => {
   if (!noFollowOpenSupported())
@@ -42,23 +33,19 @@ export const readReferenceSource = async (
       code: "unsupported",
       message: "Safe no-follow file opens are unavailable",
     });
-  const prepared = await prepareRoot(root, limits, options.signal);
+  const prepared = await prepareRoot(root, options.signal);
   if (!prepared.ok) return prepared;
   const { canonicalRoot, rootIdentity } = prepared.value;
   const state: TraversalState = {
     root: canonicalRoot,
     rootIdentity,
-    limits,
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     ...(options.shouldExclude === undefined
       ? {}
       : { shouldExclude: options.shouldExclude }),
     entries: [],
-    pending: [{ path: canonicalRoot, depth: 0 }],
+    pending: [{ path: canonicalRoot }],
     bytesRead: 0,
-    filesSeen: 0,
-    truncated: false,
-    stopReason: undefined,
   };
   const traversal = await traverse(state);
   if (!traversal.ok) return traversal;
@@ -69,20 +56,14 @@ export const readReferenceSource = async (
     root: canonicalRoot,
     entries: state.entries,
     bytesRead: state.bytesRead,
-    truncated: state.truncated,
-    limitations: [
-      PATH_RACE_LIMITATION,
-      ...(state.stopReason === "entry-limit"
-        ? ["Traversal stopped because the entry limit was reached."]
-        : []),
-    ],
+    limitations: [PATH_RACE_LIMITATION],
   });
 };
 
 const traverse = async (
   state: TraversalState,
 ): Promise<ReferenceSourceResult<undefined>> => {
-  while (state.pending.length > 0 && state.stopReason === undefined) {
+  while (state.pending.length > 0) {
     if (isAborted(state.signal))
       return err({
         tag: "reference-source-reader",

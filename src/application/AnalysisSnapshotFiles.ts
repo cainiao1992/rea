@@ -3,19 +3,17 @@ import {
   serializeAnalysisSnapshot,
   type AnalysisSnapshot,
 } from "../domain/analysisSnapshot.js";
-import type { EvidenceFilePolicy } from "../domain/evidenceBundle.js";
 import { EvidenceFileError, EvidenceIntegrityError } from "../domain/errors.js";
 import { err, ok, type Result } from "../domain/result.js";
-import { readBoundedJson, writeBoundedText } from "./BoundedJsonFiles.js";
+import { readJsonFile, writeTextFile } from "./JsonFiles.js";
 
 type SnapshotFailure = EvidenceFileError | EvidenceIntegrityError;
 
-/** Read and validate a bounded analysis snapshot inside an approved root. */
+/** Read and validate an analysis snapshot from the caller's path. */
 export const readAnalysisSnapshot = async (
   path: string,
-  policy: EvidenceFilePolicy,
 ): Promise<Result<AnalysisSnapshot, SnapshotFailure>> => {
-  const loaded = await readBoundedJson(path, policy);
+  const loaded = await readJsonFile(path);
   if (!loaded.ok) return loaded;
   try {
     return ok(parseAnalysisSnapshot(loaded.value));
@@ -26,12 +24,11 @@ export const readAnalysisSnapshot = async (
   }
 };
 
-/** Atomically write a deterministic analysis snapshot inside an approved root. */
+/** Atomically write a deterministic analysis snapshot to the caller's path. */
 export const writeAnalysisSnapshot = async (
   snapshot: AnalysisSnapshot,
   path: string,
   overwrite: boolean,
-  policy: EvidenceFilePolicy,
 ): Promise<
   Result<{ readonly path: string; readonly bytes: number }, SnapshotFailure>
 > => {
@@ -43,7 +40,7 @@ export const writeAnalysisSnapshot = async (
       new EvidenceIntegrityError(snapshotValidationMessage(cause), { cause }),
     );
   }
-  return writeBoundedText(encoded, path, overwrite, policy);
+  return writeTextFile(encoded, path, overwrite);
 };
 
 const snapshotValidationMessage = (cause: unknown): string =>

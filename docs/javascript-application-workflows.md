@@ -178,8 +178,8 @@ promote static inference into passive runtime observation or prove that the
 original application, renderer, preload, main process, or remote service
 behaved identically.
 
-Module and explicit case lists have no fixed item-count ceiling. Planning checks
-the complete request against the committed worker-protocol byte limit before
-probing executables or reading modules; aggregate module-source and case-input
-bytes have their own limits. Preset-generated cases remain capped at 64 because
-REA expands that scalar request into case records before sandbox startup.
+Module, explicit case, and preset-generated case lists have no fixed
+item-count ceiling. Replay plans commit the caller's resource budgets, and the
+worker protocol checks the complete request against that declared byte budget
+before probing executables or reading modules. Aggregate module-source and
+case-input bytes are likewise checked against the caller's declared budgets.

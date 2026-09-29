@@ -2,24 +2,20 @@ import {
   parseEvidenceBundle,
   serializeEvidenceBundle,
   type EvidenceBundle,
-  type EvidenceFilePolicy,
 } from "../domain/evidenceBundle.js";
 import { EvidenceFileError, EvidenceIntegrityError } from "../domain/errors.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { parseProcessCapture } from "../domain/processCapture.js";
-import { readBoundedJson, writeBoundedText } from "./BoundedJsonFiles.js";
+import { readJsonFile, writeTextFile } from "./JsonFiles.js";
 
 type EvidenceReadFailure = EvidenceFileError | EvidenceIntegrityError;
 type EvidenceWriteFailure = EvidenceFileError | EvidenceIntegrityError;
 
-/** Read and validate a bounded evidence bundle inside an approved root. */
+/** Read and validate an evidence bundle at the caller-supplied path. */
 export const readEvidenceBundle = async (
   path: string,
-  policy: EvidenceFilePolicy,
 ): Promise<Result<EvidenceBundle, EvidenceReadFailure>> => {
-  if (policy.roots.length === 0)
-    return err(new EvidenceFileError("read", "disabled"));
-  const loaded = await readBoundedJson(path, policy);
+  const loaded = await readJsonFile(path);
   if (!loaded.ok) return loaded;
   try {
     const bundle = parseEvidenceBundle(loaded.value);
@@ -37,20 +33,17 @@ export const readEvidenceBundle = async (
   }
 };
 
-/** Atomically write deterministic evidence JSON inside an approved root. */
+/** Atomically write deterministic evidence JSON at the caller-supplied path. */
 export const writeEvidenceBundle = async (
   bundle: EvidenceBundle,
   path: string,
   overwrite: boolean,
-  policy: EvidenceFilePolicy,
 ): Promise<
   Result<
     { readonly path: string; readonly bytes: number },
     EvidenceWriteFailure
   >
 > => {
-  if (policy.roots.length === 0)
-    return err(new EvidenceFileError("write", "disabled"));
   let encoded: string;
   try {
     encoded = serializeEvidenceBundle(bundle);
@@ -61,5 +54,5 @@ export const writeEvidenceBundle = async (
       }),
     );
   }
-  return writeBoundedText(encoded, path, overwrite, policy);
+  return writeTextFile(encoded, path, overwrite);
 };

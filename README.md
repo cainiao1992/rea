@@ -257,7 +257,7 @@ rea uninstall
 rea uninstall --purge-data # also removes only ~/.rea/cache and ~/.rea/state
 ```
 
-Uninstall preserves Hopper, Node.js, evidence, captures, external evidence roots, unrelated skills, and other MCP servers. It refuses malformed client configuration and never follows purge-data symlinks.
+Uninstall preserves Hopper, Node.js, Evidence files, captures, unrelated skills, and other MCP servers. It refuses malformed client configuration and never follows purge-data symlinks.
 
 ### CLI or agent?
 
@@ -266,35 +266,38 @@ Uninstall preserves Hopper, Node.js, evidence, captures, external evidence roots
 | Ask an agent to investigate an app and build a feature           | Install the skill, then talk to your agent                                |
 | Inspect or decompile one part of an app from the Terminal        | `rea analyze` or `rea decompile`                                          |
 | Validate, canonicalize, or compare Evidence bundles              | `rea evidence-import`, `rea evidence-export`, or `rea compare`            |
-| Map a local JavaScript/Electron application without executing it | `rea analyze PATH --approved` or `rea analyze-javascript-application`     |
+| Map a local JavaScript/Electron application without executing it | `rea analyze PATH` or `rea analyze-javascript-application`                |
 | Reuse immutable analysis results without relaunching a provider  | Pass `--snapshot /approved/path/analysis.json` to a deep-analysis command |
 | Import source as historical reference                            | `rea import-reference-source`                                             |
 | Capture or compare controlled process behavior                   | `rea capture-process` or `rea compare-process-captures`                   |
 
-Filesystem evidence commands and MCP file tools are disabled until the operator approves absolute roots:
-
 ```bash
-export REA_EVIDENCE_ROOTS_JSON='["/absolute/path/to/evidence"]'
 rea evidence-import /absolute/path/to/evidence/bundle.json
 rea evidence-export /absolute/path/to/evidence/bundle.json /absolute/path/to/evidence/canonical.json
 rea compare /absolute/path/to/evidence/left.json /absolute/path/to/evidence/right.json
-rea analyze /absolute/path/to/releases/app.asar --approved --json
-rea analyze-javascript-application /absolute/path/to/releases/app.asar --approved --json
+```
+
+JavaScript application analysis reads the selected directory or ASAR directly;
+the command uses the supplied path directly:
+
+```bash
+rea analyze /absolute/path/to/releases/app.asar --json
+rea analyze-javascript-application /absolute/path/to/releases/app.asar --json
 ```
 
 For a directory or `.asar`, generic `rea analyze` automatically selects the
 static JavaScript application provider when neither `--provider` nor
-`--snapshot` is supplied. The dedicated command remains available for explicit
-format and traversal controls. Both routes read the selected local input path.
+`--snapshot` is supplied. Both routes return the analysis and its Evidence
+context inline.
 
-Historical source import requires a separate allowlist and never treats source as current behavioral authority:
+Historical source import takes the directory directly and never treats source
+as current behavioral authority:
 
 ```bash
-export REA_REFERENCE_ROOTS_JSON='["/absolute/path/to/source"]'
 rea import-reference-source /absolute/path/to/source
 ```
 
-Exports never replace an existing file unless `--overwrite` is explicit. Imports are size/depth bounded, validate every Evidence ID and manifest, and never execute bundle content.
+Imports read the path supplied to the command and validate every Evidence ID and manifest. Exports never replace an existing file unless `--overwrite` is explicit.
 
 Provider-neutral analysis snapshots persist successful, immutable REA calls and
 their Evidence records. They are exact caches rather than Hopper databases:
@@ -302,16 +305,14 @@ REA reuses a v2 entry only when the binary digest, kind, format, architecture,
 operation parameters, concrete provider build, and canonical analysis-profile
 digest match. Hopper loader defaults and configured overrides are normalized by
 the Hopper adapter and committed to that profile, so overrides occupy a distinct
-safe cache partition instead of disabling snapshots. Snapshot v1 cannot prove
-those semantics and is rejected with recapture guidance. Cursor-dependent and
+safe cache partition instead of disabling snapshots. Cursor-dependent and
 mutating calls are never cached. Snapshot files can contain proprietary analysis
-results and local paths, so REA keeps them local, writes them with owner-only
-permissions, and requires a separate approved root:
+results and local paths, so REA keeps them local and writes them with owner-only
+permissions. The caller supplies the snapshot path directly:
 
 ```bash
-export REA_ANALYSIS_SNAPSHOT_ROOTS_JSON='["/absolute/path/to/analysis"]'
 rea analyze /absolute/path/to/app --snapshot /absolute/path/to/analysis/app.json
-# The same exact query can now be answered from the snapshot.
+# The same exact query can be answered from that snapshot.
 rea analyze /absolute/path/to/app --snapshot /absolute/path/to/analysis/app.json
 ```
 
@@ -380,8 +381,8 @@ REA is already useful for native application, browser, and Electron investigatio
 - Attach to a user-owned Chrome-family browser over a configured loopback CDP endpoint; capture exact-origin web structure, safe metadata, approved value-free payload shapes, bundle/source-map evidence, WebMCP declarations, user-action timelines, capture diffs, and explicitly approved screenshots without navigation or JavaScript evaluation.
 - Inspect Electron `file://` renderer pages through a separate canonical-root permission boundary without invoking Electron APIs; script contents remain separately approved and byte bounded.
 - Attach to one exact approved Node or Electron V8 Inspector target and retain bounded `scriptParsed` plus execution-context lifecycle metadata without evaluation, breakpoints, resume, source reads, or instrumentation. require/import edges, EventEmitter activity, Electron IPC, PID identity, and role identity remain unknown. See [passive Node and Electron runtime observation](docs/javascript-runtime-observation.md).
-- Validate and canonically serialize a provider-neutral [JavaScript Application Graph v1](docs/javascript-application-graph.md) spanning packages, ASAR entries, Electron roles, JavaScript/source-map entities, browser/runtime instances, IPC, endpoints, storage, and native add-ons. This shipped domain contract performs no extraction or I/O by itself.
-- Reconstruct bounded static package, entrypoint, Webpack/Rspack module, import, worker, endpoint, storage, source-map, BrowserWindow, preload, contextBridge, IPC, utility-process, and native-add-on structure from an approved local directory or ASAR through `analyze_javascript_application` or `rea analyze-javascript-application`. The AST-only [application service](docs/javascript-artifact-reconstruction.md) never executes bootstrap code, pairs only unique exact literal IPC channels, and reports dynamic or ambiguous channels as unresolved.
+- Validate and canonically serialize a provider-neutral [JavaScript Application Graph](docs/javascript-application-graph.md) spanning packages, ASAR entries, Electron roles, JavaScript/source-map entities, browser/runtime instances, IPC, endpoints, storage, and native add-ons. This shipped domain contract performs no extraction or I/O by itself.
+- Reconstruct static package, entrypoint, Webpack/Rspack module, import, worker, endpoint, storage, source-map, BrowserWindow, preload, contextBridge, IPC, utility-process, and native-add-on structure from a selected local directory or ASAR through `analyze_javascript_application` or `rea analyze-javascript-application`. Results and Evidence context are returned inline. The AST-only [application service](docs/javascript-artifact-reconstruction.md) never executes bootstrap code, pairs only unique exact literal IPC channels, and reports dynamic or ambiguous channels as unresolved.
 - Reconcile that static graph with existing passive web or Electron Evidence through `reconcile_javascript_runtime` or `rea reconcile-javascript-runtime`. Exact captured bytes outrank caller-declared file/URL mappings; target, frame, script, worker, cache, and asset ambiguity stays explicit, source-map authority stays separate, and a module resident in an observed bundle is never reported as executed. See [JavaScript static/runtime reconciliation](docs/javascript-runtime-reconciliation.md).
 - Trace a literal route, string, API, IPC channel, module, or native export through authenticated application Evidence with explicit traversal bounds, then hand exact native artifact digests and requested exports to retained Ghidra or Hopper Evidence without automatic provider switching. Compare application versions using unique-only digest, source-map, structural, and semantic tiers; map a committed historical source inventory to bundle nodes with explicit digest and path scores; compare one exact JavaScript export's static return shapes through unique literal discriminants and bounded JSON Pointer changes. Duplicate, dynamic, incomplete, ambiguous, and truncated facts stay unknown. See [cross-layer JavaScript application workflows](docs/javascript-application-workflows.md).
 - Classify PE/CLI managed artifacts with `inspect_managed_artifact` / `rea inspect-managed-artifact`, inspect bounded metadata members, signatures, raw CIL hashes, limited decoded-instruction-tuple v1 hashes, separately reported exception regions, call edges, and field-access anchors with `inspect_managed_members` / `rea inspect-managed-members`, inventory declared ModuleRef/ImplMap/PInvoke and non-IL method boundary indicators with `inspect_managed_native_boundaries` / `rea inspect-managed-native-boundaries`, then compare two authenticated member observations with `compare_managed_members` / `rea compare-managed-members`. `verify_managed_native_boundaries` / `rea verify-managed-native-boundaries` checks managed P/Invoke declarations against authenticated native export or function Evidence while keeping verified, inferred, contradicted, and unresolved states distinct. The comparison treats build-local tokens as build-local and uses unique decoded-CIL/signature and structural method-shape tiers, never names alone; the v1 tuple hash does not itself resolve tokens or fully commit control flow. `project_managed_application_graph` / `rea project-managed-application-graph` projects authenticated managed artifact/member/native-boundary Evidence into the existing application graph for cross-layer feature tracing. `import_managed_reconstruction` / `rea import-managed-reconstruction` admits user-supplied decompiler C#/IL/pseudocode as analyst inference only after exact artifact SHA-256, MVID, signature, and the shipped v1 decoded-IL commitment match. Separately, `plan_managed_runtime_correlation` / `rea plan-managed-runtime-correlation` can admit a default-disabled, permission-gated runtime-correlation plan locked to the same build evidence. These paths never load the assembly, resolve CLR dependencies, execute target code, run a decompiler, or translate managed tokens into native addresses; full normalized-CIL v2 semantics, native-body bridge mapping, and an actual runtime executor remain future managed-code contracts.

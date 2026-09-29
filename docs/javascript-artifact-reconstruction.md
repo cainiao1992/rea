@@ -1,11 +1,11 @@
 # JavaScript artifact reconstruction
 
 REA can project an operator-supplied Electron/JavaScript application directory
-or ASAR into [JavaScript Application Graph v1](javascript-application-graph.md)
+or ASAR into [JavaScript Application Graph](javascript-application-graph.md)
 without executing application code. The target-free
 `analyze_javascript_application` MCP tool, dedicated
 `rea analyze-javascript-application` CLI command, and generic
-`rea analyze PATH --approved` directory/ASAR route expose the same application
+`rea analyze PATH` directory/ASAR route expose the same application
 service and return an Evidence envelope containing the graph and an Electron
 boundary summary.
 
@@ -26,10 +26,10 @@ rea analyze-javascript-application /absolute/path/to/apps/app.asar \
 ```
 
 Generic `rea analyze` selects this static provider for directories and `.asar`
-paths when neither `--provider` nor `--snapshot` is supplied. Use the dedicated
-command when setting explicit format or reconstruction limits. Native targets,
-single JavaScript files, `.app` bundles, and explicit deep-provider or snapshot
-requests retain the native deep-analysis route.
+paths when neither `--provider` nor `--snapshot` is supplied. The dedicated
+command and the generic route return their complete results inline. Native
+targets, single JavaScript files, `.app` bundles, and explicit deep-provider or
+snapshot requests retain the native deep-analysis route.
 
 Configure an MCP client with the ordinary REA setup command:
 
@@ -48,7 +48,7 @@ The equivalent MCP input is:
 
 `input_path` must be absolute. `format` accepts `auto`, `asar`, or `directory`.
 The result retains the canonical local path, root artifact digest, artifact
-manifest and graph commitments, JavaScript Application Graph v1, static
+manifest and graph commitments, JavaScript Application Graph, static
 Electron summary, reconstruction statistics, and explicit limitations. It does
 not require a live Hopper, Ghidra, browser, or Electron process.
 

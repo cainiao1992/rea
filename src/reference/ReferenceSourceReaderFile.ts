@@ -75,10 +75,9 @@ const prepareFileRead = async (
 const readFileContents = async (request: {
   readonly handle: FileHandle;
   readonly path: string;
-  readonly remaining: number;
   readonly signal?: AbortSignal;
 }): Promise<FileContentsRead> => {
-  const { handle, path, remaining, signal } = request;
+  const { handle, path, signal } = request;
   const chunks: Buffer[] = [];
   let total = 0;
   for (;;) {
@@ -93,20 +92,8 @@ const readFileContents = async (request: {
           total,
         ),
       };
-    const capacity = Math.min(READ_CHUNK_BYTES, remaining + 1 - total);
-    if (capacity <= 0)
-      return {
-        status: "failed",
-        entry: entryFailure(
-          path,
-          "file",
-          "limit",
-          "File exceeds remaining maxBytes",
-          total,
-        ),
-      };
-    const chunk = Buffer.allocUnsafe(capacity);
-    const read = await handle.read(chunk, 0, capacity, null);
+    const chunk = Buffer.allocUnsafe(READ_CHUNK_BYTES);
+    const read = await handle.read(chunk, 0, chunk.byteLength, null);
     if (isAborted(signal))
       return {
         status: "failed",
@@ -120,17 +107,6 @@ const readFileContents = async (request: {
       };
     if (read.bytesRead === 0) break;
     total += read.bytesRead;
-    if (total > remaining)
-      return {
-        status: "failed",
-        entry: entryFailure(
-          path,
-          "file",
-          "limit",
-          "File exceeds remaining maxBytes",
-          total,
-        ),
-      };
     chunks.push(chunk.subarray(0, read.bytesRead));
   }
   return { status: "ok", chunks, total };
@@ -184,8 +160,7 @@ const finalizeFileRead = async (
 export const readStableFile = async (
   request: StableFileRequest,
 ): Promise<ReferenceSourceEntry> => {
-  const { root, rootIdentity, absolute, path, expected, remaining, signal } =
-    request;
+  const { root, rootIdentity, absolute, path, expected, signal } = request;
   let handle: FileHandle | undefined;
   try {
     const parentBefore = await validateDirectory(
@@ -207,7 +182,6 @@ export const readStableFile = async (
     const contents = await readFileContents({
       handle,
       path,
-      remaining,
       ...(signal === undefined ? {} : { signal }),
     });
     if (contents.status === "failed") return contents.entry;

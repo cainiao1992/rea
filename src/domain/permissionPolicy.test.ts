@@ -131,7 +131,7 @@ describe("permission policy", () => {
 describe("permission policy lifecycle", () => {
   it("consumes once grants and applies revocation and ceiling reload immediately", () => {
     const ceiling = {
-      capability: "evidence_write" as const,
+      capability: "process_capture" as const,
       roots: ["/workspace/evidence"],
       executables: [],
       environment_names: [],
@@ -180,7 +180,7 @@ describe("permission policy lifecycle", () => {
 
   it("reports a missing scope when revoked grants cover a different root", () => {
     const ceiling = {
-      capability: "evidence_write" as const,
+      capability: "process_capture" as const,
       roots: ["/workspace"],
       executables: [],
       environment_names: [],

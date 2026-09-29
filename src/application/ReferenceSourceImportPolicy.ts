@@ -4,20 +4,15 @@ import { join, resolve } from "node:path";
 import ignore from "ignore";
 
 import { err, ok, type Result } from "../domain/result.js";
-import type { ReferenceSourceLimits } from "../reference/ReferenceSourceReader.js";
-import { isPathWithinRoot } from "../domain/localPath.js";
 import {
   DEFAULT_REFERENCE_SOURCE_IGNORE_PATTERNS,
-  DEFAULT_REFERENCE_SOURCE_LIMITS,
   type ReferenceSourceImportError,
   type ReferenceSourceImportOptions,
 } from "./ReferenceSourceImportTypes.js";
-import { canonicalizeConfiguredRoots } from "./ConfiguredRoots.js";
 
-/** Validated, authorized inputs ready for filesystem traversal. */
+/** Validated inputs ready for filesystem traversal. */
 export interface PreparedReferenceSourceImport {
   readonly root: string;
-  readonly limits: ReferenceSourceLimits;
   readonly ignored: ReturnType<typeof ignore>;
   readonly secrets: ReturnType<typeof ignore>;
 }
@@ -31,52 +26,16 @@ const failure = (
   message,
 });
 
-const validLimits = (limits: ReferenceSourceLimits): boolean =>
-  Object.values(limits).every(
-    (value) => Number.isSafeInteger(value) && value > 0,
-  );
-
-const maximumLimits = (
-  options: ReferenceSourceImportOptions,
-): ReferenceSourceLimits => ({
-  maxBytes: options.policy.maxBytes,
-  maxEntries: options.policy.maxEntries,
-  maxDepth: options.policy.maxDepth,
-  maxPathBytes: options.policy.maxPathBytes,
-});
-
-const clampLimits = (
-  requested: ReferenceSourceLimits,
-  maximum: ReferenceSourceLimits,
-): ReferenceSourceLimits => ({
-  maxBytes: Math.min(requested.maxBytes, maximum.maxBytes),
-  maxEntries: Math.min(requested.maxEntries, maximum.maxEntries),
-  maxDepth: Math.min(requested.maxDepth, maximum.maxDepth),
-  maxPathBytes: Math.min(requested.maxPathBytes, maximum.maxPathBytes),
-});
-
-const authorizeRoot = async (
+const resolveRoot = async (
   requestedRoot: string,
-  approvedRoots: readonly string[],
 ): Promise<Result<string, ReferenceSourceImportError>> => {
-  if (approvedRoots.length === 0)
-    return err(failure("policy", "No approved reference source roots"));
   try {
     if (!(await stat(requestedRoot)).isDirectory())
       return err(
         failure("invalid-root", "Reference source root is not a directory"),
       );
     const canonicalRoot = await realpath(resolve(requestedRoot));
-    const canonicalApprovedRoots = await canonicalizeConfiguredRoots(
-      approvedRoots.map((approvedRoot) => resolve(approvedRoot)),
-    );
-    for (const canonicalApproved of canonicalApprovedRoots) {
-      if (isPathWithinRoot(canonicalApproved, canonicalRoot))
-        return ok(canonicalRoot);
-    }
-    return err(
-      failure("policy", "Reference source root is outside approved roots"),
-    );
+    return ok(canonicalRoot);
   } catch {
     return err(
       failure("invalid-root", "Reference source root could not be resolved"),
@@ -102,23 +61,16 @@ const buildIgnored = async (
   return ignored;
 };
 
-/** Validate limits, authorize root, and build non-executing path filters. */
+/** Resolve the caller-selected directory and build path filters. */
 export const prepareReferenceSourceImport = async (
   options: ReferenceSourceImportOptions,
 ): Promise<
   Result<PreparedReferenceSourceImport, ReferenceSourceImportError>
 > => {
-  const requested = options.limits ?? DEFAULT_REFERENCE_SOURCE_LIMITS;
-  const maximum = maximumLimits(options);
-  if (!validLimits(requested) || !validLimits(maximum))
-    return err(
-      failure("invalid-limits", "Import limits must be positive integers"),
-    );
-  const root = await authorizeRoot(options.root, options.policy.roots);
+  const root = await resolveRoot(options.root);
   if (!root.ok) return root;
   return ok({
     root: root.value,
-    limits: clampLimits(requested, maximum),
     ignored: await buildIgnored(root.value, options.excludePaths ?? []),
     secrets: ignore().add([...options.policy.secretPatterns]),
   });

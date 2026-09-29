@@ -1,17 +1,8 @@
 import { isLiteralLoopbackHostname } from "../domain/browserObservation.js";
-import type { EvidenceFilePolicy } from "../domain/evidenceBundle.js";
 import type {
   PermissionCeiling,
   PermissionGrant,
 } from "../domain/permissionPolicy.js";
-
-export const filePolicy = (roots: readonly string[]): EvidenceFilePolicy => ({
-  roots,
-  maxBytes: 64 * 1024 * 1024,
-  maxDepth: 64,
-  maxStringLength: 1024 * 1024,
-  maxNodes: 1_000_000,
-});
 
 export const permissionScope = (
   capability: PermissionCeiling["capability"],

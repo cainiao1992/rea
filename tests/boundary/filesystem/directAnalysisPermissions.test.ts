@@ -15,7 +15,6 @@ import {
 import { parseBinaryTarget } from "../../../src/application/BinaryTargetResolver.js";
 import { createEvidence } from "../../../src/domain/evidence.js";
 import { createEvidenceBundle } from "../../../src/domain/evidenceBundle.js";
-import { permissionAuthorityForRoot } from "../../fixtures/permissionAuthority.js";
 import {
   REA_WORKFLOW_PROVIDER,
   workflowAnalysisProfile,
@@ -27,7 +26,7 @@ afterEach(async () => {
   vi.unstubAllEnvs();
 });
 
-describe("direct analysis snapshot filesystem permissions", () => {
+describe("direct analysis snapshot files", () => {
   it("forwards the CLI provider selector ahead of the environment preference", async () => {
     const directory = await createTestTempDirectory("rea-direct-provider-");
     const targetPath = join(directory, "fixture.hop");
@@ -55,7 +54,7 @@ describe("direct analysis snapshot filesystem permissions", () => {
     });
   });
 
-  it("replays a cache hit with snapshot read authority only", async () => {
+  it("replays a cache hit from the supplied path without root configuration", async () => {
     const directory = await createTestTempDirectory("rea-direct-snapshot-");
     const snapshotPath = join(directory, "analysis.json");
     const launcherPath = join(directory, "hopper-launcher");
@@ -84,22 +83,9 @@ describe("direct analysis snapshot filesystem permissions", () => {
       entries: [],
       evidence_bundle: createEvidenceBundle([evidence]),
     };
-    const policy = {
-      roots: [directory],
-      maxBytes: 1024 * 1024,
-      maxDepth: 64,
-      maxStringLength: 1024,
-      maxNodes: 10_000,
-    };
     expect(
-      (await writeAnalysisSnapshot(snapshot, snapshotPath, false, policy)).ok,
+      (await writeAnalysisSnapshot(snapshot, snapshotPath, false)).ok,
     ).toBe(true);
-    const authority = await permissionAuthorityForRoot(
-      directory,
-      ["snapshot_read", "snapshot_write"],
-      ["snapshot_read"],
-    );
-    vi.stubEnv("REA_ANALYSIS_SNAPSHOT_ROOTS_JSON", JSON.stringify([directory]));
     vi.stubEnv("HOPPER_LAUNCHER_PATH", launcherPath);
 
     await expect(
@@ -109,7 +95,6 @@ describe("direct analysis snapshot filesystem permissions", () => {
         {},
         {
           snapshotPath,
-          permissionAuthority: authority,
         },
       ),
     ).resolves.toEqual(evidence);

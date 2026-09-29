@@ -5,21 +5,13 @@ import {
   exportEvidenceBundleCommand,
   importEvidenceBundleCommand,
 } from "./application/EvidenceBundleCommands.js";
-import { parseConfig } from "./config.js";
 import { logCliCommand } from "./cliLogging.js";
 import type { Logger } from "./logger.js";
 import { CLI_COMMANDS } from "./cliCommandNames.js";
 import type { JsonValue } from "./domain/jsonValue.js";
-import {
-  AnalysisProtocolError,
-  PermissionRequiredError,
-  projectAnalysisError,
-  type AnalysisError,
-} from "./domain/errors.js";
-import { loadConfiguredPermissionAuthority } from "./application/PermissionConfiguration.js";
-import type { AppConfig } from "./config.js";
+import { projectAnalysisError, type AnalysisError } from "./domain/errors.js";
 
-/** Register filesystem-gated Evidence commands. */
+/** Register caller-path Evidence commands. */
 export const registerEvidenceCommands = (
   cli: ReturnType<typeof Cli.create>,
   logger: Logger,
@@ -31,16 +23,7 @@ export const registerEvidenceCommands = (
     }),
     run: ({ args }) =>
       logCliCommand(logger, "evidence-import", async () => {
-        const config = parseConfig(process.env);
-        if (!config.ok) return cliError(config.error);
-        const denied = await authorizeEvidence(config.value, [
-          { capability: "evidence_read", path: args.path, access: "read" },
-        ]);
-        if (denied !== undefined) return cliError(denied);
-        const imported = await importEvidenceBundleCommand(
-          args.path,
-          config.value.evidenceFilePolicy,
-        );
+        const imported = await importEvidenceBundleCommand(args.path);
         return imported.ok ? imported.value : cliError(imported.error);
       }),
   });
@@ -55,18 +38,10 @@ export const registerEvidenceCommands = (
     }),
     run: ({ args, options }) =>
       logCliCommand(logger, "evidence-export", async () => {
-        const config = parseConfig(process.env);
-        if (!config.ok) return cliError(config.error);
-        const denied = await authorizeEvidence(config.value, [
-          { capability: "evidence_read", path: args.source, access: "read" },
-          { capability: "evidence_write", path: args.output, access: "write" },
-        ]);
-        if (denied !== undefined) return cliError(denied);
         const exported = await exportEvidenceBundleCommand(
           args.source,
           args.output,
           options.overwrite,
-          config.value.evidenceFilePolicy,
         );
         return exported.ok ? exported.value : cliError(exported.error);
       }),
@@ -80,54 +55,13 @@ export const registerEvidenceCommands = (
     }),
     run: ({ args }) =>
       logCliCommand(logger, "compare", async () => {
-        const config = parseConfig(process.env);
-        if (!config.ok) return cliError(config.error);
-        const denied = await authorizeEvidence(config.value, [
-          { capability: "evidence_read", path: args.left, access: "read" },
-          { capability: "evidence_read", path: args.right, access: "read" },
-        ]);
-        if (denied !== undefined) return cliError(denied);
         const compared = await compareEvidenceBundlesCommand({
           leftPath: args.left,
           rightPath: args.right,
-          policy: config.value.evidenceFilePolicy,
         });
         return compared.ok ? compared.value : cliError(compared.error);
       }),
   });
-};
-
-const authorizeEvidence = async (
-  config: AppConfig,
-  requests: readonly {
-    readonly capability: "evidence_read" | "evidence_write";
-    readonly path: string;
-    readonly access: "read" | "write";
-  }[],
-): Promise<AnalysisError | undefined> => {
-  const authority = await loadConfiguredPermissionAuthority(config);
-  if (!authority.ok) return authority.error;
-  for (const request of requests) {
-    const result = await authority.value.authorize(
-      {
-        capability: request.capability,
-        roots: [request.path],
-        executables: [],
-        environment_names: [],
-        network: "none",
-        mount: false,
-        operation_identity: `cli:${request.capability}:${request.path}`,
-      },
-      request.access,
-    );
-    if (!result.ok)
-      return result.error instanceof PermissionRequiredError
-        ? result.error
-        : new AnalysisProtocolError(result.error.message, {
-            cause: result.error,
-          });
-  }
-  return undefined;
 };
 
 const cliError = (error: AnalysisError): JsonValue => ({

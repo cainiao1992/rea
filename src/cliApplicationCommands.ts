@@ -29,7 +29,6 @@ import {
   buildReconstructionObligationLedgerEvidenceValidated,
   resolveReconstructionObligationLedgerRequest,
 } from "./application/ReconstructionObligationLedgerService.js";
-import { authorizeRootPermission } from "./application/DeferredFileAuthorization.js";
 import { loadConfiguredPermissionAuthority } from "./application/PermissionConfiguration.js";
 import { CLI_COMMANDS } from "./cliCommandNames.js";
 import { parseCliJsonInput } from "./cliJsonInput.js";
@@ -297,7 +296,7 @@ const registerJsonCommand = <Input>({
       logCliCommand(logger, name, async () => {
         const input = await parseCliJsonInput(args.inputJson, name);
         if (!input.ok) return input.error;
-        const lookup = await loadEvidenceLookup(options.evidenceBundle, name);
+        const lookup = await loadEvidenceLookup(options.evidenceBundle);
         if (!lookup.ok)
           return {
             error: "Application workflow failed",
@@ -322,25 +321,12 @@ const registerJsonCommand = <Input>({
 
 const loadEvidenceLookup = async (
   bundlePath: string | undefined,
-  operation: string,
 ): Promise<
   | { readonly ok: true; readonly value: EvidenceLookup | undefined }
   | { readonly ok: false; readonly error: AnalysisError }
 > => {
   if (bundlePath === undefined) return { ok: true, value: undefined };
-  const configured = await loadConfiguredAuthority();
-  if (!configured.ok) return configured;
-  const authorized = await authorizeRootPermission(configured.authority, {
-    capability: "evidence_read",
-    roots: [bundlePath],
-    access: "read",
-    operation,
-  });
-  if (!authorized.ok) return authorized;
-  const loaded = await readEvidenceBundle(
-    bundlePath,
-    configured.config.evidenceFilePolicy,
-  );
+  const loaded = await readEvidenceBundle(bundlePath);
   if (!loaded.ok) return loaded;
   const records = new Map(
     loaded.value.records.map((record) => [record.evidence_id, record]),

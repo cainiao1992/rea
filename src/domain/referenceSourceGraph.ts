@@ -5,13 +5,11 @@ import canonicalize from "canonicalize";
 import { z } from "zod";
 
 import { compareUnicodeCodePoints } from "./unicodeCodePointOrder.js";
-const MAX_PATH = 4_096;
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
-const boundedTextSchema = z.string().min(1).max(1_024);
+const boundedTextSchema = z.string().min(1);
 const relativePathSchema = z
   .string()
   .min(1)
-  .max(MAX_PATH)
   .refine(
     (path) =>
       !path.startsWith("/") &&
@@ -35,14 +33,14 @@ const classificationSchema = z.enum([
 
 const entryBaseShape = {
   path: relativePathSchema,
-  classifications: z.array(classificationSchema).min(1).max(8),
-  limitations: z.array(boundedTextSchema).max(100),
+  classifications: z.array(classificationSchema).min(1),
+  limitations: z.array(boundedTextSchema),
 };
 
 const sourceFileBaseShape = {
   ...entryBaseShape,
   kind: z.literal("file"),
-  language: z.string().min(1).max(100).nullable(),
+  language: z.string().min(1).nullable(),
 };
 
 const sourceFileSchema = z.union([
@@ -60,7 +58,6 @@ const sourceFileSchema = z.union([
       "redacted-secret",
       "excluded",
       "unreadable",
-      "too-large",
       "unknown",
     ]),
   }),
@@ -81,7 +78,6 @@ const sourceDirectorySchema = z.strictObject({
 const symlinkTargetSchema = z
   .string()
   .min(1)
-  .max(MAX_PATH)
   .refine(
     (target) =>
       target === "<outside-root>" ||
@@ -112,7 +108,7 @@ const sourceEntrySchema = z.union([
 
 const sourceRelationshipSchema = z.strictObject({
   from_path: relativePathSchema,
-  to: z.string().min(1).max(MAX_PATH),
+  to: z.string().min(1),
   kind: z.enum(["imports", "requires", "references", "declares-module"]),
   resolution: z.enum(["internal", "external", "unresolved", "unknown"]),
   parse_state: z.enum(["parsed", "partial", "unknown"]),
@@ -120,7 +116,7 @@ const sourceRelationshipSchema = z.strictObject({
 
 const parseFailureSchema = z.strictObject({
   path: relativePathSchema,
-  parser: z.string().min(1).max(100),
+  parser: z.string().min(1),
   reason: boundedTextSchema,
 });
 
@@ -162,23 +158,22 @@ const graphShape = {
   root_alias: z.literal("$REFERENCE_ROOT"),
   root_sha256: digestSchema,
   inventory_state: z.enum(["complete", "partial", "unknown"]),
-  entries: z.array(sourceEntrySchema).max(100_000),
-  relationships: z.array(sourceRelationshipSchema).max(200_000),
-  parse_failures: z.array(parseFailureSchema).max(10_000),
-  exclusions: z.array(exclusionSchema).max(100_000),
-  languages: z.array(z.string().min(1).max(100)).max(1_000),
-  manifests: z.array(relativePathSchema).max(10_000),
+  entries: z.array(sourceEntrySchema),
+  relationships: z.array(sourceRelationshipSchema),
+  parse_failures: z.array(parseFailureSchema),
+  exclusions: z.array(exclusionSchema),
+  languages: z.array(z.string().min(1)),
+  manifests: z.array(relativePathSchema),
   vcs: vcsSchema,
   provenance: z.strictObject({
-    importer: z.string().min(1).max(100),
-    importer_version: z.string().min(1).max(100).nullable(),
+    importer: z.string().min(1),
+    importer_version: z.string().min(1).nullable(),
     caller: z
       .string()
       .min(1)
-      .max(200)
       .regex(/^[\w .:@/+-]+$/u),
   }),
-  limitations: z.array(boundedTextSchema).max(1_000),
+  limitations: z.array(boundedTextSchema),
 };
 
 const historicalSourceGraphStructureSchema = z
@@ -209,8 +204,8 @@ const historicalSourceManifestBaseSchema = z.strictObject({
   graph_sha256: digestSchema,
   root_sha256: digestSchema,
   inventory_state: z.enum(["complete", "partial", "unknown"]),
-  entry_count: z.number().int().min(0).max(100_000),
-  relationship_count: z.number().int().min(0).max(200_000),
+  entry_count: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  relationship_count: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
 });
 
 export type HistoricalSourceGraph = z.infer<typeof historicalSourceGraphSchema>;

@@ -45,18 +45,11 @@ describe("analysis snapshots: persistence", () => {
       entries: [entry],
       evidence_bundle: createEvidenceBundle([]),
     };
-    const policy = {
-      roots: [directory],
-      maxBytes: 1024 * 1024,
-      maxDepth: 64,
-      maxStringLength: 1024,
-      maxNodes: 10_000,
-    };
-    const written = await writeAnalysisSnapshot(snapshot, path, false, policy);
+    const written = await writeAnalysisSnapshot(snapshot, path, false);
     expect(written.ok).toBe(true);
     expect((await readFile(path, "utf8")).endsWith("\n")).toBe(true);
     expect((await stat(path)).mode & 0o777).toBe(0o600);
-    expect((await readAnalysisSnapshot(path, policy)).ok).toBe(true);
+    expect((await readAnalysisSnapshot(path)).ok).toBe(true);
 
     const altered: unknown = JSON.parse(await readFile(path, "utf8"));
     if (
@@ -77,7 +70,7 @@ describe("analysis snapshots: persistence", () => {
       throw new TypeError("fixture entry is malformed");
     Reflect.set(first.parameters, "address", "0x2000");
     await writeFile(path, JSON.stringify(altered));
-    const loaded = await readAnalysisSnapshot(path, policy);
+    const loaded = await readAnalysisSnapshot(path);
     expect(loaded.ok).toBe(false);
     if (!loaded.ok) expect(loaded.error._tag).toBe("EvidenceIntegrityError");
     expect(() => parseAnalysisSnapshot(altered)).toThrow(/identifier/u);

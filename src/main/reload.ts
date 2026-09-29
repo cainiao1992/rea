@@ -55,14 +55,6 @@ export const registerConfigReload = (input: {
             return;
           }
           runtimeState.currentConfig = refreshed.value;
-          Object.assign(
-            runtimeState.evidencePolicy,
-            refreshed.value.evidenceFilePolicy,
-          );
-          Object.assign(
-            runtimeState.snapshotPolicy,
-            refreshed.value.analysisSnapshotFilePolicy,
-          );
         })
         .catch(() => {
           serverLogger.error(MCP_PERMISSION_RELOAD_FAILED);

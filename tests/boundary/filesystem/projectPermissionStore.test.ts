@@ -17,7 +17,7 @@ describe("project permission store", () => {
     const path = join(project, ".rea", "permissions.json");
     const grant = {
       grant_id: "project:evidence-read",
-      capability: "evidence_read" as const,
+      capability: "process_capture" as const,
       roots: [project],
       executables: [],
       environment_names: [],
@@ -122,7 +122,7 @@ describe("project permission store", () => {
     const path = join(project, ".rea", "permissions.json");
     const grant = (grantId: string) => ({
       grant_id: grantId,
-      capability: "evidence_read" as const,
+      capability: "process_capture" as const,
       roots: [project],
       executables: [],
       environment_names: [],

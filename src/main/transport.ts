@@ -60,8 +60,6 @@ export const startMcpTransport = async (
           logger: serverContext.logger,
           processPolicy: () =>
             serverContext.runtimeState.currentConfig.processExecutionPolicy,
-          evidenceFilePolicy: serverContext.runtimeState.evidencePolicy,
-          analysisSnapshotFilePolicy: serverContext.runtimeState.snapshotPolicy,
           permissionAuthority: serverContext.permissionAuthority,
           ...optionalProviders,
           artifactIntegrityContinueEnabled: () =>
@@ -93,7 +91,6 @@ export const startMcpTransport = async (
 const runtimeAvailability = (state: RuntimeState) => ({
   processCaptureEnabled:
     state.currentConfig.processExecutionPolicy.status === "enabled",
-  evidenceFileRoots: state.currentConfig.evidenceFilePolicy.roots.length,
   browserObservationEnabled:
     state.currentConfig.browserObservationPolicy.status === "enabled",
   browserScenarioEnabled:

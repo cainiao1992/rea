@@ -83,11 +83,10 @@ Existing environment settings map to administrator ceilings. They remain the
 maximum authority:
 
 - process roots, executables, environment names, and external networking;
-- Evidence read/write roots;
-- investigation input and workspace roots;
-- snapshot read/write roots;
-- reference-source roots;
 - native mount enablement.
+
+Evidence bundles and analysis snapshots use the path supplied to the CLI or MCP
+tool; they do not require configured roots or separate read/write grants.
 
 Artifact extraction takes no path or occurrence selectors. It materializes all
 regular files into a fresh REA-chosen temporary directory. The write still
@@ -122,7 +121,7 @@ administrator ceiling. A request outside that ceiling reports
 `elicitation_supported: false` and `restart_required: true`; interactive consent
 cannot silently widen administrator policy.
 
-`analyze_javascript_application` reads the selected local directory or ASAR directly. It has no per-call approval flag or configured investigation root.
+`analyze_javascript_application` reads the supplied local directory or ASAR path directly and returns its result and Evidence inline; no approval flag or root configuration is needed.
 
 ## Integrity record-and-continue
 

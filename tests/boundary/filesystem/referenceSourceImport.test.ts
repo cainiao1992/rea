@@ -18,13 +18,6 @@ import {
 } from "../../../src/application/ReferenceSourceImportTypes.js";
 import { createHistoricalSourceManifest } from "../../../src/domain/referenceSourceGraph.js";
 
-const limits = {
-  maxBytes: 1024 * 1024,
-  maxEntries: 1_000,
-  maxDepth: 16,
-  maxPathBytes: 4_096,
-};
-
 const fixture = async (parent: string, name: string): Promise<string> => {
   const root = join(parent, name);
   await mkdir(join(root, "src"), { recursive: true });
@@ -38,20 +31,13 @@ const fixture = async (parent: string, name: string): Promise<string> => {
   return root;
 };
 
-const importTree = (
-  root: string,
-  approvedRoot: string | readonly string[],
-  signal?: AbortSignal,
-) =>
+const importTree = (root: string, signal?: AbortSignal) =>
   importReferenceSource({
     root,
     caller: "reference-import-test",
     policy: {
-      roots: typeof approvedRoot === "string" ? [approvedRoot] : approvedRoot,
       secretPatterns: [".env", ".env.*"],
-      ...limits,
     },
-    limits,
     ...(signal === undefined ? {} : { signal }),
   });
 
@@ -83,7 +69,6 @@ describe("reference source import error projection", () => {
       ["symlink", "io"],
       ["file", "io"],
       ["file", "cancelled"],
-      ["file", "limit"],
       ["unknown", "unsupported"],
     ] as const) {
       const message = projectReferenceSourceEntryFailure({
@@ -102,11 +87,9 @@ describe("reference source import error projection", () => {
   it("projects every import failure without raw parser or policy text", () => {
     const expectedCategories = {
       cancelled: "cancelled",
-      "invalid-limits": "invalid_input",
       "invalid-root": "invalid_input",
       io: "execution_failure",
       parse: "execution_failure",
-      policy: "permission_required",
     } as const;
     for (const [code, category] of Object.entries(expectedCategories)) {
       const projected = projectReferenceSourceImportError({
@@ -117,14 +100,54 @@ describe("reference source import error projection", () => {
       expect(projected.category).toBe(category);
       expect(projected.message).not.toContain("SECRET");
       expect(projected.message).not.toContain("/private/path");
-      expect(projected.message).toMatch(
-        /try again|when ready|positive integer|Check that|REA_REFERENCE_ROOTS_JSON/u,
-      );
+      expect(projected.message).toMatch(/try again|when ready|Check that/u);
     }
   });
 });
 
 describe("reference source import behavior", () => {
+  it("imports a source file larger than the former 16 MiB ceiling", async () => {
+    const root = await createTestTempDirectory("rea-reference-large-");
+    const size = 16 * 1024 * 1024 + 1;
+    await writeFile(join(root, "large.bin"), Buffer.alloc(size, 0x61));
+
+    const result = await importReferenceSource({
+      root,
+      caller: "reference-import-test",
+      policy: { secretPatterns: [] },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.entries).toContainEqual(
+      expect.objectContaining({
+        path: "large.bin",
+        kind: "file",
+        size,
+        content_state: "hashed",
+      }),
+    );
+  });
+
+  it("imports more than ten thousand source entries", async () => {
+    const root = await createTestTempDirectory("rea-reference-many-");
+    await Promise.all(
+      Array.from({ length: 10_001 }, (_, index) =>
+        writeFile(join(root, `entry-${String(index).padStart(5, "0")}`), ""),
+      ),
+    );
+
+    const result = await importReferenceSource({
+      root,
+      caller: "reference-import-test",
+      policy: { secretPatterns: [] },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.entries).toHaveLength(10_001);
+  });
+
   it("imports BMP and supplementary filenames in Unicode code point order", async () => {
     const root = await createTestTempDirectory("reference-unicode-");
     try {
@@ -134,11 +157,11 @@ describe("reference source import behavior", () => {
           writeFile(join(root, path), "export const value = 1;\n"),
         ),
       );
-      const result = await importTree(root, root);
+      const result = await importTree(root);
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.value.entries.map(({ path }) => path)).toEqual(paths);
-      const repeated = await importTree(root, root);
+      const repeated = await importTree(root);
       expect(repeated).toEqual(result);
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -151,8 +174,8 @@ describe("reference source import behavior", () => {
       const leftRoot = await fixture(parent, "left");
       const rightRoot = await fixture(parent, "right");
       const [left, right] = await Promise.all([
-        importTree(leftRoot, parent),
-        importTree(rightRoot, parent),
+        importTree(leftRoot),
+        importTree(rightRoot),
       ]);
       expect(left.ok).toBe(true);
       expect(right.ok).toBe(true);
@@ -179,42 +202,20 @@ describe("reference source import behavior", () => {
     }
   });
 
-  it("fails closed outside policy and honors cancellation", async () => {
-    const parent = await createTestTempDirectory("rea-reference-policy-");
+  it("imports the caller-selected directory and honors cancellation", async () => {
     const outside = await createTestTempDirectory("rea-reference-outside-");
     try {
       const root = await fixture(outside, "tree");
-      const denied = await importTree(root, parent);
-      expect(denied).toMatchObject({
-        ok: false,
-        error: { code: "policy" },
-      });
+      expect(await importTree(root)).toMatchObject({ ok: true });
       const controller = new AbortController();
       controller.abort();
-      const cancelled = await importTree(root, outside, controller.signal);
+      const cancelled = await importTree(root, controller.signal);
       expect(cancelled).toMatchObject({
         ok: false,
         error: { code: "cancelled" },
       });
     } finally {
-      await Promise.all([
-        rm(parent, { recursive: true, force: true }),
-        rm(outside, { recursive: true, force: true }),
-      ]);
-    }
-  });
-
-  it("uses a valid reference root when another configured root is missing", async () => {
-    const parent = await createTestTempDirectory("rea-reference-roots-");
-    try {
-      const root = await fixture(parent, "tree");
-      const imported = await importTree(root, [
-        join(parent, "missing"),
-        parent,
-      ]);
-      expect(imported).toMatchObject({ ok: true });
-    } finally {
-      await rm(parent, { recursive: true, force: true });
+      await rm(outside, { recursive: true, force: true });
     }
   });
 
@@ -231,7 +232,7 @@ describe("reference source import behavior", () => {
         author: { name: "REA Test", email: "rea@example.invalid" },
         message: "fixture",
       });
-      const result = await importTree(root, parent);
+      const result = await importTree(root);
       expect(result.ok).toBe(true);
       if (!result.ok) throw result.error;
       expect(result.value.vcs).toEqual({ kind: "git", head: oid, dirty: null });

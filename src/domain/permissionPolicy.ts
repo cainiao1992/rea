@@ -10,13 +10,8 @@ export const PERMISSION_CAPABILITIES = [
   "electron_observe",
   "electron_automate",
   "v8_inspector_observe",
-  "evidence_read",
-  "evidence_write",
-  "snapshot_read",
-  "snapshot_write",
   "artifact_extract",
   "native_mount",
-  "reference_read",
   "javascript_replay",
   "managed_runtime",
 ] as const;

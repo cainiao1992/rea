@@ -7,7 +7,6 @@ import { isPathWithinRoot } from "../domain/localPath.js";
 import {
   type BigStats,
   type ReferenceSourceFailureCode,
-  type ReferenceSourceLimits,
   type ReferenceSourceResult,
 } from "./ReferenceSourceReaderTypes.js";
 
@@ -23,11 +22,6 @@ export const sameFile = (left: BigStats, right: BigStats): boolean =>
 
 export const isAborted = (signal?: AbortSignal): boolean =>
   signal?.aborted === true;
-
-const validLimits = (limits: ReferenceSourceLimits): boolean =>
-  Object.values(limits).every(
-    (value) => Number.isSafeInteger(value) && value > 0,
-  );
 
 export const noFollowOpenSupported = (): boolean =>
   Number.isSafeInteger(constants.O_NOFOLLOW) && constants.O_NOFOLLOW !== 0;
@@ -80,7 +74,6 @@ export const validateDirectory = async (
 
 export const prepareRoot = async (
   root: string,
-  limits: ReferenceSourceLimits,
   signal?: AbortSignal,
 ): Promise<
   ReferenceSourceResult<{
@@ -88,10 +81,6 @@ export const prepareRoot = async (
     readonly rootIdentity: BigStats;
   }>
 > => {
-  if (!validLimits(limits))
-    return err(
-      failure("invalid-limits", "Reader limits must be positive integers"),
-    );
   if (isAborted(signal)) return err(cancelled());
   try {
     const metadata = await bigLstat(root);

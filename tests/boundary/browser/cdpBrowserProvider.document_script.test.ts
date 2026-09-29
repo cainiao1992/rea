@@ -9,13 +9,13 @@ import { startFakeCdpBrowser } from "../../fixtures/fakeCdpBrowser.js";
 import { describeBrowser, trackBrowser } from "./cdpBrowserProvider.support.js";
 
 describeBrowser("CdpBrowserProvider: document script 1", () => {
-  it("rejects removed caller-facing WebMCP item and schema limits", () => {
+  it("rejects unknown WebMCP discovery fields", () => {
     expect(
       discoverWebMcpToolsInputSchema.safeParse({
         cdp_endpoint: "http://127.0.0.1:9222",
         allowed_origins: ["https://example.test"],
         target_id: "target",
-        max_tools: 1,
+        unknown_field: true,
       }).success,
     ).toBe(false);
   });

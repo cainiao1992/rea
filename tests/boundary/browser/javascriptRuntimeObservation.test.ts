@@ -28,12 +28,12 @@ import { startFakeV8Inspector } from "../../fixtures/fakeV8Inspector.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 describe("passive V8 Inspector provider", () => {
-  test("keeps collection budgets out of the caller schema", () => {
+  test("rejects unknown runtime observation fields", () => {
     expect(
       observeJavaScriptRuntimeToolInputSchema.safeParse({
         inspector_endpoint: "http://127.0.0.1:9229",
         target_id: "target-1",
-        limits: {},
+        unknown_field: true,
       }).success,
     ).toBe(false);
   });

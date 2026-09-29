@@ -200,11 +200,11 @@ describe("CdpElectronProvider target selection", () => {
 });
 
 describe("Electron request schemas", () => {
-  it("rejects unknown fields and removed collection limits", () => {
+  it("rejects unknown request fields", () => {
     expect(
       listElectronTargetsInputSchema.safeParse({
         cdp_endpoint: "http://127.0.0.1:9223",
-        allowed_file_root: "/tmp/app",
+        unknown_field: true,
       }).success,
     ).toBe(false);
     expect(
@@ -212,7 +212,7 @@ describe("Electron request schemas", () => {
         cdp_endpoint: "http://127.0.0.1:9223",
         target_id: "page-1",
         observation_ms: 0,
-        limits: { max_dom_nodes: 20 },
+        unknown_field: true,
       }).success,
     ).toBe(false);
   });

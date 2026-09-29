@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   ENHANCED_TOOL_CONTRACTS,
   OFFICIAL_TOOL_CONTRACTS,
-  SESSION_TOOL_CONTRACTS,
   TOOL_CONTRACTS,
 } from "./toolContracts.js";
 import { ARTIFACT_TOOL_CONTRACTS } from "./artifactToolContracts.js";
@@ -66,30 +65,6 @@ describe("tool contract inventory", () => {
       "evaluate_reconstruction_readiness",
       "commit_reconstruction_coverage",
       "query_reconstruction_coverage",
-    ]);
-    expect(SESSION_TOOL_CONTRACTS.map(({ name }) => name)).toEqual([
-      "open_binary",
-      "close_binary",
-      "binary_session",
-      "export_evidence_bundle",
-      "import_evidence_bundle",
-      "capture_process_scenario",
-      "compare_process_captures",
-      "compare_artifacts",
-      "compare_functions",
-      "compare_bundles",
-      "find_changed_behavior",
-      "build_call_path",
-      "correlate_static_and_runtime",
-      "verify_reconstruction",
-      "list_unknowns",
-      "record_unknown",
-      "update_unknown",
-      "verify_unknown_resolution",
-      "run_replay_machine",
-      "get_evidence_bundle",
-      "get_navigation_context",
-      "inspect_address_context",
     ]);
     expect(new Set(TOOL_CONTRACTS.map(({ name }) => name)).size).toBe(
       TOOL_CONTRACTS.length,

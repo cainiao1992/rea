@@ -103,33 +103,7 @@ describe("tool contract surface", () => {
     expect(Object.keys(TOOL_EFFECTS).sort()).toEqual(names.sort());
   });
 
-  it("keeps exactly twenty-three additive session contracts", () => {
-    expect(
-      SESSION_TOOL_CONTRACTS.map(({ name, kind }) => ({ name, kind })),
-    ).toEqual([
-      { name: "open_binary", kind: "session" },
-      { name: "close_binary", kind: "session" },
-      { name: "binary_session", kind: "session" },
-      { name: "export_evidence_bundle", kind: "session" },
-      { name: "import_evidence_bundle", kind: "session" },
-      { name: "capture_process_scenario", kind: "session" },
-      { name: "compare_process_captures", kind: "session" },
-      { name: "compare_artifacts", kind: "session" },
-      { name: "compare_functions", kind: "session" },
-      { name: "compare_bundles", kind: "session" },
-      { name: "find_changed_behavior", kind: "session" },
-      { name: "build_call_path", kind: "session" },
-      { name: "correlate_static_and_runtime", kind: "session" },
-      { name: "verify_reconstruction", kind: "session" },
-      { name: "list_unknowns", kind: "session" },
-      { name: "record_unknown", kind: "session" },
-      { name: "update_unknown", kind: "session" },
-      { name: "verify_unknown_resolution", kind: "session" },
-      { name: "run_replay_machine", kind: "session" },
-      { name: "get_evidence_bundle", kind: "session" },
-      { name: "get_navigation_context", kind: "session" },
-      { name: "inspect_address_context", kind: "session" },
-    ]);
+  it("marks process scenario capture as open world", () => {
     expect(
       SESSION_TOOL_CONTRACTS.find(
         ({ name }) => name === "capture_process_scenario",

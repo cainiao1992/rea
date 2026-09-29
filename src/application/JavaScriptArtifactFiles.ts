@@ -14,7 +14,6 @@ import {
 } from "../artifacts/ArtifactReader.js";
 import { streamChunkToBuffer } from "../artifacts/StreamBytes.js";
 import type { ArtifactInventorySnapshot } from "./ArtifactInventory.js";
-import { JAVASCRIPT_APPLICATION_RESOURCE_LIMITS } from "./JavaScriptArtifactReconstructionInput.js";
 
 /** Relevant file categories projected from the complete artifact inventory. */
 export type JavaScriptArtifactFileKind =
@@ -25,7 +24,7 @@ export type JavaScriptArtifactFileKind =
   | "source-map"
   | "native-addon";
 
-/** One content-addressed local artifact file and its bounded text availability. */
+/** One content-addressed local artifact file and its text availability. */
 export interface JavaScriptArtifactFile {
   readonly path: string;
   readonly container_sha256: string;
@@ -38,11 +37,7 @@ export interface JavaScriptArtifactFile {
     | { readonly included: true; readonly value: string }
     | {
         readonly included: false;
-        readonly reason:
-          | "not-applicable"
-          | "file-limit"
-          | "byte-limit"
-          | "invalid-utf8";
+        readonly reason: "not-applicable" | "invalid-utf8";
       };
 }
 
@@ -58,10 +53,7 @@ export interface JavaScriptArtifactContainer {
 export interface JavaScriptArtifactFileSet {
   readonly files: readonly JavaScriptArtifactFile[];
   readonly containers: readonly JavaScriptArtifactContainer[];
-  readonly text_files_selected: number;
   readonly text_bytes_read: number;
-  readonly omitted_text_files: number;
-  readonly limit_omitted_text_files: number;
   readonly invalid_utf8_files: number;
 }
 
@@ -73,15 +65,9 @@ interface ExpectedFile {
   readonly kind: JavaScriptArtifactFileKind;
 }
 
-interface Selection {
-  readonly selected: boolean;
-  readonly reason: "file-limit" | "byte-limit" | null;
-}
-
 interface ReadContext {
   readonly expected: ReadonlyMap<string, ExpectedFile>;
   readonly expectedContainers: ReadonlyMap<string, JavaScriptArtifactContainer>;
-  readonly selections: ReadonlyMap<string, Selection>;
   readonly registry: ArtifactPathRegistry;
   readonly files: JavaScriptArtifactFile[];
   readonly containers: JavaScriptArtifactContainer[];
@@ -94,10 +80,9 @@ interface ReadTextInput {
   readonly reader: ArtifactReader;
   readonly entry: ArtifactEntry;
   readonly expected: ExpectedFile;
-  readonly selection: Selection | undefined;
 }
 
-/** Read only selected textual entries through an already-inventoried reader. */
+/** Read all relevant textual entries through an already-inventoried reader. */
 export const readJavaScriptArtifactFiles = async (
   reader: ArtifactReader,
   snapshot: ArtifactInventorySnapshot,
@@ -105,11 +90,9 @@ export const readJavaScriptArtifactFiles = async (
 ): Promise<JavaScriptArtifactFileSet> => {
   const inventory = expectedInventory(snapshot);
   const expected = inventory.files;
-  const selections = selectTextFiles(expected);
   const context: ReadContext = {
     expected,
     expectedContainers: inventory.containers,
-    selections,
     registry: new ArtifactPathRegistry(),
     files: [],
     containers: [],
@@ -122,22 +105,12 @@ export const readJavaScriptArtifactFiles = async (
     compareCodePoints(left.path, right.path),
   );
   assertExpectedFilesWereVisited(expected, files);
-  const selected = [...selections.values()].filter(
-    ({ selected: isSelected }) => isSelected,
-  ).length;
   return {
     files,
     containers: context.containers.sort((left, right) =>
       compareCodePoints(left.path, right.path),
     ),
-    text_files_selected: selected,
     text_bytes_read: context.textBytes,
-    omitted_text_files: [...selections.values()].filter(
-      ({ selected: isSelected }) => !isSelected,
-    ).length,
-    limit_omitted_text_files: [...selections.values()].filter(
-      ({ reason }) => reason === "file-limit" || reason === "byte-limit",
-    ).length,
     invalid_utf8_files: context.invalidUtf8,
   };
 };
@@ -195,12 +168,10 @@ const visitReader = async (
       }
       const expected = context.expected.get(path);
       if (expected === undefined) continue;
-      const selection = context.selections.get(path);
-      const text = await readTextIfSelected(context, {
+      const text = await readText(context, {
         reader: frame.reader,
         entry,
         expected,
-        selection,
       });
       context.files.push({
         path,
@@ -238,20 +209,14 @@ const expectedContainer = (
   return container;
 };
 
-const readTextIfSelected = async (
+const readText = async (
   context: ReadContext,
   input: ReadTextInput,
 ): Promise<JavaScriptArtifactFile["text"]> => {
   if (input.expected.kind === "native-addon")
     return { included: false, reason: "not-applicable" };
-  if (input.selection?.selected !== true)
-    return {
-      included: false,
-      reason: input.selection?.reason ?? "file-limit",
-    };
-  const bytes = await readBounded(
+  const bytes = await readAll(
     await input.reader.open(input.entry, context.signal),
-    JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.maxTextFileBytes,
     context.signal,
   );
   const digest = createHash("sha256").update(bytes).digest("hex");
@@ -310,42 +275,8 @@ const expectedInventory = (
   return { files, containers };
 };
 
-const selectTextFiles = (
-  files: ReadonlyMap<string, ExpectedFile>,
-): ReadonlyMap<string, Selection> => {
-  const selected = new Map<string, Selection>();
-  let fileCount = 0;
-  let bytes = 0;
-  const ordered = [...files.values()].sort((left, right) => {
-    const priority = filePriority(left.kind) - filePriority(right.kind);
-    return priority === 0 ? compareCodePoints(left.path, right.path) : priority;
-  });
-  for (const file of ordered) {
-    if (file.kind === "native-addon") continue;
-    if (
-      fileCount >= JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.maxTextFiles ||
-      file.bytes > JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.maxTextFileBytes
-    ) {
-      selected.set(file.path, { selected: false, reason: "file-limit" });
-      continue;
-    }
-    if (
-      bytes + file.bytes >
-      JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.maxTotalTextBytes
-    ) {
-      selected.set(file.path, { selected: false, reason: "byte-limit" });
-      continue;
-    }
-    selected.set(file.path, { selected: true, reason: null });
-    fileCount += 1;
-    bytes += file.bytes;
-  }
-  return selected;
-};
-
-const readBounded = async (
+const readAll = async (
   stream: Readable,
-  maximum: number,
   signal?: AbortSignal,
 ): Promise<Buffer> => {
   const chunks: Buffer[] = [];
@@ -354,13 +285,6 @@ const readBounded = async (
     abortIfNeeded(signal);
     const chunk = streamChunkToBuffer(raw);
     bytes += chunk.length;
-    if (bytes > maximum) {
-      stream.destroy();
-      throw new ArtifactReaderFailure(
-        "integrity",
-        "Artifact entry grew after inventory and exceeded the selected text read size",
-      );
-    }
     chunks.push(chunk);
   }
   return Buffer.concat(chunks, bytes);
@@ -389,23 +313,6 @@ const relevantKind = (path: string): JavaScriptArtifactFileKind | undefined => {
   if (lower.endsWith(".map")) return "source-map";
   if (lower.endsWith(".node")) return "native-addon";
   return undefined;
-};
-
-const filePriority = (kind: JavaScriptArtifactFileKind): number => {
-  switch (kind) {
-    case "package-json":
-      return 0;
-    case "html":
-      return 1;
-    case "javascript":
-      return 2;
-    case "json":
-      return 3;
-    case "source-map":
-      return 4;
-    case "native-addon":
-      return 5;
-  }
 };
 
 const isFilesystemAsar = (entry: ArtifactEntry, path: string): boolean =>

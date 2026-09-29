@@ -8,7 +8,8 @@ import {
 } from "./processReactiveScenario.js";
 import { replayMachineSchema } from "./replayMachine.js";
 
-const positiveBudget = z.number().int().positive();
+const positiveBudget = z.number().int().safe().positive();
+const maximumTimerDelay = 2_147_483_647;
 const timedEventBase = { at_ms: z.number().int().nonnegative() };
 const environmentName = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/u);
 const reservedEnvironment = new Set([
@@ -23,11 +24,11 @@ export const normalizationSchema = z.object({
   paths: z.boolean(),
   pids: z.boolean(),
   ports: z.boolean(),
-  time_bucket_ms: positiveBudget.max(60_000),
+  time_bucket_ms: positiveBudget,
   patterns: z.array(
     z.object({
-      pattern: z.string().max(500),
-      replacement: z.string().max(100),
+      pattern: z.string(),
+      replacement: z.string(),
     }),
   ),
 });
@@ -38,9 +39,9 @@ const commandNameSchema = z
   .string()
   .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u);
 const outputChunkSchema = z.object({
-  at_ms: z.number().int().nonnegative().max(300_000),
+  at_ms: z.number().int().safe().nonnegative().max(maximumTimerDelay),
   stream: z.enum(["stdout", "stderr"]),
-  data: z.string().max(1_000_000),
+  data: z.string(),
 });
 
 /** Compute a canonical SHA-256 commitment independent of object key order. */
@@ -128,9 +129,9 @@ export const processScenarioSchema = z
     filesystem_roots: z.array(z.string().startsWith("/")).default([]),
     terminal: z
       .object({
-        columns: z.number().int().min(1).max(1_000).default(80),
-        rows: z.number().int().min(1).max(1_000).default(24),
-        scrollback: z.number().int().min(0).max(10_000).default(1_000),
+        columns: z.number().int().min(1).max(65_535).default(80),
+        rows: z.number().int().min(1).max(65_535).default(24),
+        scrollback: z.number().int().min(0).default(1_000),
       })
       .default({ columns: 80, rows: 24, scrollback: 1_000 }),
     checkpoints: z
@@ -140,11 +141,16 @@ export const processScenarioSchema = z
           trigger: z.discriminatedUnion("type", [
             z.object({
               type: z.literal("time"),
-              at_ms: z.number().int().nonnegative().max(300_000),
+              at_ms: z
+                .number()
+                .int()
+                .safe()
+                .nonnegative()
+                .max(maximumTimerDelay),
             }),
             z.object({
               type: z.literal("terminal_literal"),
-              value: z.string().min(1).max(10_000),
+              value: z.string().min(1),
               occurrence: positiveBudget.default(1),
             }),
             z.object({ type: z.literal("root_exit") }),
@@ -191,8 +197,8 @@ export const processScenarioSchema = z
           z.object({
             ...timedEventBase,
             type: z.literal("resize"),
-            columns: z.number().int().min(1).max(1_000),
-            rows: z.number().int().min(1).max(1_000),
+            columns: z.number().int().min(1).max(65_535),
+            rows: z.number().int().min(1).max(65_535),
           }),
           z.object({
             ...timedEventBase,
@@ -202,19 +208,19 @@ export const processScenarioSchema = z
         ]),
       )
       .default([]),
-    timeout_ms: positiveBudget.max(300_000).default(30_000),
-    idle_timeout_ms: positiveBudget.max(300_000).default(30_000),
-    settle_ms: z.number().int().nonnegative().max(10_000).default(100),
+    timeout_ms: positiveBudget.default(30_000),
+    idle_timeout_ms: positiveBudget.default(30_000),
+    settle_ms: z.number().int().safe().nonnegative().default(100),
     limits: z
       .object({
-        output_bytes: positiveBudget.safe().default(1_000_000),
-        files: positiveBudget.max(100_000).default(10_000),
-        file_bytes: positiveBudget.max(100_000_000).default(10_000_000),
-        processes: positiveBudget.max(10_000).default(1_000),
-        protocol_events: positiveBudget.max(100_000).default(10_000),
-        protocol_body_bytes: positiveBudget.max(10_000_000).default(1_000_000),
-        connections: positiveBudget.max(1_000).default(100),
-        filesystem_depth: z.number().int().min(1).max(64).default(16),
+        output_bytes: positiveBudget.default(1_000_000),
+        files: positiveBudget.default(10_000),
+        file_bytes: positiveBudget.default(10_000_000),
+        processes: positiveBudget.default(1_000),
+        protocol_events: positiveBudget.default(10_000),
+        protocol_body_bytes: positiveBudget.default(1_000_000),
+        connections: positiveBudget.default(100),
+        filesystem_depth: z.number().int().safe().nonnegative().default(16),
       })
       .strict()
       .default({
@@ -232,15 +238,14 @@ export const processScenarioSchema = z
         paths: z.boolean().default(true),
         pids: z.boolean().default(true),
         ports: z.boolean().default(true),
-        time_bucket_ms: positiveBudget.max(60_000).default(10),
+        time_bucket_ms: positiveBudget.default(10),
         patterns: z
           .array(
             z.object({
-              pattern: z.string().max(500),
-              replacement: z.string().max(100),
+              pattern: z.string(),
+              replacement: z.string(),
             }),
           )
-          .max(32)
           .default([]),
       })
       .default({
@@ -256,31 +261,38 @@ export const processScenarioSchema = z
         http: z
           .array(
             z.object({
-              method: z.string().max(16),
+              method: z.string(),
               path: z.string().startsWith("/"),
               status: z.number().int().min(100).max(599),
-              body: z.string().max(1_000_000),
+              body: z.string(),
               request_headers: z.record(z.string(), z.string()).default({}),
-              request_body: z.string().max(1_000_000).optional(),
+              request_body: z.string().optional(),
               response_headers: z.record(z.string(), z.string()).default({}),
-              delay_ms: z.number().int().nonnegative().max(30_000).default(0),
+              delay_ms: z
+                .number()
+                .int()
+                .safe()
+                .nonnegative()
+                .max(maximumTimerDelay)
+                .default(0),
               disconnect: z.boolean().default(false),
               max_calls: positiveBudget.default(1),
             }),
           )
           .default([]),
-        websocket_messages: z.array(z.string().max(1_000_000)).default([]),
+        websocket_messages: z.array(z.string()).default([]),
         websocket_connections: z
           .array(
             z.object({
               messages: z.array(
                 z.object({
-                  data: z.string().max(1_000_000),
+                  data: z.string(),
                   delay_ms: z
                     .number()
                     .int()
+                    .safe()
                     .nonnegative()
-                    .max(30_000)
+                    .max(maximumTimerDelay)
                     .default(0),
                 }),
               ),

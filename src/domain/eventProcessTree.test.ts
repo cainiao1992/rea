@@ -5,10 +5,42 @@ import {
   getDescendants,
   maxTreeDepth,
   reconstructProcessTree,
+  type ProcessNode,
   type ProcessTreeEvent,
 } from "./eventProcessTree.js";
 
 describe("event-backed process tree reconstruction", () => {
+  it("walks trees larger than ten thousand nodes", () => {
+    const childPids = Array.from({ length: 10_001 }, (_, index) => index + 2);
+    const root: ProcessNode = {
+      pid: 1,
+      ppid: null,
+      process_name: "root",
+      executable: null,
+      arguments: [],
+      children: childPids,
+      spawn_time_ms: null,
+      exit_time_ms: null,
+      exit_code: null,
+      is_re_exec: false,
+      is_reparented: false,
+      previous_ppid: null,
+    };
+    const children = childPids.map(
+      (pid): ProcessNode => ({
+        ...root,
+        pid,
+        ppid: 1,
+        children: [],
+      }),
+    );
+
+    expect(maxTreeDepth([root, ...children], 1)).toBe(1);
+    expect(getDescendants([root, ...children], 1)).toHaveLength(
+      childPids.length,
+    );
+  });
+
   it("reconstructs a simple process tree", () => {
     const events: ProcessTreeEvent[] = [
       {
@@ -78,7 +110,9 @@ describe("event-backed process tree reconstruction", () => {
     expect(result.events_unmatched).toBe(0);
     expect(result.short_lived_descendants).toBe(2);
   });
+});
 
+describe("short-lived process descendants", () => {
   it("detects short-lived descendants", () => {
     const events: ProcessTreeEvent[] = [
       {

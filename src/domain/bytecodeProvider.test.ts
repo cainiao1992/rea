@@ -136,4 +136,25 @@ describe("bytecode provider", () => {
     const parsed = bytecodeAnalysisSchema.safeParse(result);
     expect(parsed.success).toBe(true);
   });
+
+  it("returns every artifact when the inventory exceeds ten thousand entries", () => {
+    const artifacts = Array.from({ length: 10_001 }, (_, index) => ({
+      path: `classes/${index}.class`,
+      family: "jvm" as const,
+      format: "class" as const,
+      size: 1,
+      digest: "a".repeat(64),
+      symbols: [],
+      is_standard_library: false,
+      is_generated: false,
+      is_vendored: false,
+    }));
+
+    const result = analyzeBytecodeArtifacts(artifacts, "jvm");
+
+    expect(result.artifacts).toHaveLength(artifacts.length);
+    expect(bytecodeAnalysisSchema.parse(result).artifacts).toHaveLength(
+      artifacts.length,
+    );
+  });
 });

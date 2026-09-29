@@ -211,8 +211,8 @@ const initializePage = async (
   scenario: BrowserScenario,
   secrets: BrowserScenarioSecrets,
 ): Promise<Set<Page>> => {
-  context.setDefaultTimeout(scenario.limits.action_timeout_ms);
-  context.setDefaultNavigationTimeout(scenario.limits.navigation_timeout_ms);
+  context.setDefaultTimeout(0);
+  context.setDefaultNavigationTimeout(0);
   const ownedPages = new Set([page]);
   if (scenario.browser.mode === "connect")
     await blockAttachedServiceWorkers(page);
@@ -272,25 +272,19 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
     environment: Readonly<Record<string, string | undefined>>,
     options: {
       readonly signal?: AbortSignal;
-      readonly deadlineAt: number;
     },
   ): Promise<PlaywrightScenarioSession> {
-    const remaining = (): number => options.deadlineAt - Date.now();
     if (options.signal?.aborted === true)
       throw new BrowserObservationError(OPERATION, "cancelled");
     const secrets = BrowserScenarioSecrets.resolve(scenario, environment);
     if (secrets === undefined)
       throw new BrowserObservationError(OPERATION, "secret_unavailable");
-    const opening = openPlaywrightScenarioBrowser(
-      scenario,
-      environment,
-      remaining(),
-    );
+    const opening = openPlaywrightScenarioBrowser(scenario, environment);
     let opened: OpenedScenarioBrowser;
     try {
       opened = await withPlaywrightExecutionBoundary(
         () => opening,
-        remaining(),
+        undefined,
         options.signal,
       );
     } catch (cause: unknown) {
@@ -302,7 +296,7 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
     try {
       await withPlaywrightExecutionBoundary(
         () => initializePage(opened.context, opened.page, scenario, secrets),
-        remaining(),
+        undefined,
         options.signal,
       );
       const events = new PlaywrightScenarioEvents({
@@ -321,12 +315,9 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
         () =>
           opened.page.goto(secrets.url(scenario.start_url), {
             waitUntil: "load",
-            timeout: Math.min(
-              scenario.limits.navigation_timeout_ms,
-              remaining(),
-            ),
+            timeout: 0,
           }),
-        remaining(),
+        undefined,
         options.signal,
       );
       return session;
@@ -358,7 +349,6 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
 
   async perform(
     action: BrowserScenarioAction,
-    maximumTimeoutMs: number,
     signal?: AbortSignal,
   ): Promise<void> {
     await withPlaywrightExecutionBoundary(
@@ -367,10 +357,8 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
           page: this.opened.page,
           action,
           secrets: this.secrets,
-          defaultTimeoutMs: this.scenario.limits.action_timeout_ms,
-          maximumTimeoutMs,
         }),
-      maximumTimeoutMs,
+      "timeout_ms" in action ? action.timeout_ms : undefined,
       signal,
     );
   }
@@ -379,7 +367,6 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
     requested: ReadonlySet<
       BrowserScenario["capture"]["after_each_step"][number]
     >,
-    maximumTimeoutMs: number,
     signal?: AbortSignal,
   ) {
     return withPlaywrightExecutionBoundary(
@@ -391,7 +378,7 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
           secrets: this.secrets,
           requested,
         }),
-      maximumTimeoutMs,
+      undefined,
       signal,
     );
   }
@@ -429,13 +416,8 @@ export class PlaywrightScenarioSessionFactory
     scenario: BrowserScenario,
     options: {
       readonly signal?: AbortSignal;
-      readonly deadlineAt?: number;
     } = {},
   ): Promise<BrowserScenarioSessionPort> {
-    return PlaywrightScenarioSession.open(scenario, this.environment, {
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
-      deadlineAt:
-        options.deadlineAt ?? Date.now() + scenario.limits.max_duration_ms,
-    });
+    return PlaywrightScenarioSession.open(scenario, this.environment, options);
   }
 }

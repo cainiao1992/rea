@@ -50,7 +50,7 @@ export const parseActiveElectronCapture = (
   };
 };
 
-const absolutePathSchema = z.string().min(1).max(16_384).refine(isAbsolute);
+const absolutePathSchema = z.string().min(1).refine(isAbsolute);
 
 const assertIdentity = (evidence: Evidence): void => {
   if (

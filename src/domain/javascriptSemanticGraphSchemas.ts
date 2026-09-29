@@ -1,11 +1,11 @@
 import { z } from "zod";
 
 import { applicationGraphEvidenceSchema } from "./javascriptApplicationEvidenceSchemas.js";
-import { isJsonWithinLimits } from "./jsonLimits.js";
+import { isJsonWithinDepth } from "./jsonLimits.js";
 import { jsonValueSchema } from "./jsonValue.js";
 
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
-const boundedTextSchema = z.string().min(1).max(4_096);
+const boundedTextSchema = z.string().min(1);
 const semanticNodeIdSchema = z.string().regex(/^jsrg_node_[a-f0-9]{64}$/u);
 const semanticRelationIdSchema = z
   .string()
@@ -192,18 +192,12 @@ const sourceRangeSchema = z
   });
 
 const semanticPropertiesSchema = z
-  .record(z.string().min(1).max(128), jsonValueSchema)
+  .record(z.string().min(1), jsonValueSchema)
   .superRefine((properties, context) => {
-    if (
-      !isJsonWithinLimits(properties, {
-        maxDepth: 6,
-        maxNodes: 512,
-        maxStringLength: 4_096,
-      })
-    )
+    if (!isJsonWithinDepth(properties, 6))
       context.addIssue({
         code: "custom",
-        message: "Semantic properties exceed structural limits",
+        message: "Semantic properties exceed the supported depth",
       });
   });
 
@@ -211,7 +205,7 @@ const semanticNodeIdentitySchema = z.strictObject({
   artifact_sha256: digestSchema,
   module_path: relativePathSchema,
   source_range: sourceRangeSchema.nullable(),
-  role_key: z.string().min(1).max(1_024),
+  role_key: z.string().min(1),
 });
 
 /** One semantic entity before its canonical identifier is derived. */
@@ -220,7 +214,7 @@ export const javaScriptSemanticNodeInputSchema = z.strictObject({
   identity: semanticNodeIdentitySchema,
   function_node_id: semanticNodeIdSchema.nullable(),
   application_node_ids: z.array(z.string().regex(/^jag_node_[a-f0-9]{64}$/u)),
-  label: z.string().min(1).max(1_024).nullable(),
+  label: z.string().min(1).nullable(),
   properties: semanticPropertiesSchema,
   evidence: applicationGraphEvidenceSchema,
 });
@@ -271,7 +265,7 @@ export const JAVASCRIPT_SEMANTIC_UNKNOWN_REASONS = [
 export const javaScriptSemanticUnknownInputSchema = z.strictObject({
   node_id: semanticNodeIdSchema.nullable(),
   family: z.enum(JAVASCRIPT_SEMANTIC_RELATION_FAMILIES),
-  relation_kinds: z.array(z.enum(JAVASCRIPT_SEMANTIC_RELATIONS)).min(1).max(45),
+  relation_kinds: z.array(z.enum(JAVASCRIPT_SEMANTIC_RELATIONS)).min(1),
   reason: z.enum(JAVASCRIPT_SEMANTIC_UNKNOWN_REASONS),
   detail: boundedTextSchema,
   candidate_node_ids: z.array(semanticNodeIdSchema),
@@ -285,24 +279,22 @@ export const javaScriptSemanticUnknownSchema =
   });
 
 const fingerprintComponentsSchema = z.strictObject({
-  parameter_arity: z.number().int().min(0).max(10_000),
+  parameter_arity: z.number().int().min(0),
   normalized_ast_sha256: digestSchema,
   control_flow_sha256: digestSchema,
   relation_shape_sha256: digestSchema,
   literal_set_sha256: digestSchema,
-  effects: z
-    .array(
-      z.enum([
-        "async",
-        "child-process",
-        "event",
-        "network",
-        "promise",
-        "resource",
-        "timer",
-      ]),
-    )
-    .max(7),
+  effects: z.array(
+    z.enum([
+      "async",
+      "child-process",
+      "event",
+      "network",
+      "promise",
+      "resource",
+      "timer",
+    ]),
+  ),
 });
 
 /** One bounded rename-resistant function fingerprint. */
@@ -311,7 +303,7 @@ export const javaScriptSemanticFingerprintInputSchema = z.strictObject({
   algorithm: z.literal("rea.javascript-semantic-function"),
   status: z.enum(["complete", "partial", "unavailable"]),
   components: fingerprintComponentsSchema,
-  limitations: z.array(boundedTextSchema).max(100),
+  limitations: z.array(boundedTextSchema),
   evidence: applicationGraphEvidenceSchema,
 });
 
@@ -337,7 +329,7 @@ const graphCoverageSchema = z.strictObject({
   omitted_relations: z.number().int().min(0).nullable(),
   limits: z.array(
     z.strictObject({
-      name: z.string().min(1).max(128),
+      name: z.string().min(1),
       value: z.number().int().min(0),
       unit: z.enum(["items", "bytes", "milliseconds", "depth", "other"]),
     }),

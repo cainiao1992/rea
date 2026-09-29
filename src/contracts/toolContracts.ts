@@ -363,7 +363,7 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "close_binary",
-    "Optionally write a provider-neutral analysis snapshot atomically, then close the active target and every provider resource started for it. Snapshot files require an operator-approved root and explicit overwrite; a failed save leaves the session open so cached analysis is not lost.",
+    "Optionally write a provider-neutral analysis snapshot atomically to the caller-supplied path, then close the active target and every provider resource started for it. Existing files require explicit overwrite; a failed save leaves the session open so cached analysis is not lost.",
     closeBinaryInputSchema,
   ),
   session(
@@ -378,7 +378,7 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "import_evidence_bundle",
-    "Read a bounded local JSON bundle beneath an operator-approved root, validate every Evidence ID and canonical manifest, then atomically merge it. Imported content is data only and is never executed.",
+    "Read the JSON bundle at the supplied local path, validate every Evidence ID and canonical manifest, then atomically merge it. Imported content is data only and is never executed.",
     importEvidenceBundleInputSchema,
   ),
   session(
@@ -418,7 +418,7 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "correlate_static_and_runtime",
-    "Evaluate explicit caller-declared hypotheses between exact static comparison findings and runtime comparison dimensions. Similar names or paths are never auto-matched, consistent cochange never proves causality, and unknown or truncated inputs remain unresolved.",
+    "Evaluate every explicit caller-declared hypothesis between exact static comparison findings and runtime comparison dimensions. Similar names or paths are never auto-matched, consistent cochange never proves causality, and unknown or truncated inputs remain unresolved. Returns all correlations and their complete Evidence closure inline.",
     staticRuntimeCorrelationInputSchema,
   ),
   session(

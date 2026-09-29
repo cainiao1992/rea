@@ -6,32 +6,13 @@ import {
   browserOriginSchema,
 } from "./browserObservation.js";
 
-export const BROWSER_SCENARIO_LIMITS = {
-  actionTimeoutMs: 60_000,
-} as const;
-
-/** Fixed internal deadlines for provider-owned scenario capture. */
-export interface BrowserScenarioCaptureLimits {
-  readonly max_duration_ms: number;
-  readonly action_timeout_ms: number;
-  readonly navigation_timeout_ms: number;
-}
-
-export const BROWSER_SCENARIO_CAPTURE_LIMITS: BrowserScenarioCaptureLimits =
-  Object.freeze({
-    max_duration_ms: 60_000,
-    action_timeout_ms: 5_000,
-    navigation_timeout_ms: 10_000,
-  });
-
 export const scenarioIdentifierSchema = z
   .string()
-  .regex(/^[A-Za-z][A-Za-z0-9._-]{0,63}$/u);
+  .regex(/^[A-Za-z][A-Za-z0-9._-]*$/u);
 
 const absoluteExecutablePathSchema = z
   .string()
   .min(1)
-  .max(4_096)
   .refine(
     (value) =>
       value.startsWith("/") ||
@@ -43,7 +24,6 @@ const absoluteExecutablePathSchema = z
 const browserScenarioBaseUrlSchema = z
   .string()
   .min(1)
-  .max(65_536)
   .transform((value, context) => {
     let url: URL;
     try {
@@ -72,7 +52,7 @@ const browserScenarioBaseUrlSchema = z
 export const browserScenarioValueSchema = z.discriminatedUnion("source", [
   z.strictObject({
     source: z.literal("literal"),
-    value: z.string().max(65_536),
+    value: z.string(),
     classification: z.literal("public"),
   }),
   z.strictObject({
@@ -83,7 +63,7 @@ export const browserScenarioValueSchema = z.discriminatedUnion("source", [
 export type BrowserScenarioValue = z.infer<typeof browserScenarioValueSchema>;
 
 const queryEntrySchema = z.strictObject({
-  name: z.string().min(1).max(256),
+  name: z.string().min(1),
   value: browserScenarioValueSchema,
 });
 
@@ -105,7 +85,7 @@ export const browserScenarioBrowserSchema = z.discriminatedUnion("mode", [
   z.strictObject({
     mode: z.literal("connect"),
     cdp_endpoint: browserEndpointSchema,
-    target_id: z.string().trim().min(1).max(256),
+    target_id: z.string().trim().min(1),
     ownership: z.literal("external"),
     cleanup: z.literal("disconnect-only"),
   }),
@@ -123,13 +103,11 @@ export const browserScenarioEnvironmentSchema = z
     locale: z
       .string()
       .min(2)
-      .max(64)
       .regex(/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/u)
       .default("en-US"),
     timezone: z
       .string()
       .min(1)
-      .max(128)
       .regex(/^[A-Za-z0-9_+-]+(?:\/[A-Za-z0-9_+-]+)*$/u)
       .default("UTC"),
     color_scheme: z.enum(["light", "dark", "no-preference"]).default("light"),
@@ -151,7 +129,7 @@ export const browserScenarioEnvironmentSchema = z
 const locatorSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("test_id"),
-    value: z.string().min(1).max(512),
+    value: z.string().min(1),
   }),
   z.strictObject({
     kind: z.literal("role"),
@@ -171,12 +149,12 @@ const locatorSchema = z.discriminatedUnion("kind", [
       "tab",
       "textbox",
     ]),
-    name: z.string().min(1).max(1_024),
+    name: z.string().min(1),
     exact: z.literal(true),
   }),
   z.strictObject({
     kind: z.literal("css"),
-    selector: z.string().min(1).max(4_096),
+    selector: z.string().min(1),
   }),
 ]);
 
@@ -186,8 +164,10 @@ const stepBase = {
     .number()
     .int()
     .min(1)
-    .max(BROWSER_SCENARIO_LIMITS.actionTimeoutMs)
-    .optional(),
+    .optional()
+    .describe(
+      "Optional action deadline in milliseconds; omitted means wait until completion or request cancellation.",
+    ),
 };
 
 export const browserScenarioActionSchema = z.discriminatedUnion("action", [
@@ -214,7 +194,7 @@ export const browserScenarioActionSchema = z.discriminatedUnion("action", [
     ...stepBase,
     action: z.literal("press"),
     locator: locatorSchema,
-    key: z.string().min(1).max(64),
+    key: z.string().min(1),
   }),
   z.strictObject({
     ...stepBase,
@@ -240,13 +220,15 @@ export const browserScenarioActionSchema = z.discriminatedUnion("action", [
       .number()
       .int()
       .min(1)
-      .max(BROWSER_SCENARIO_LIMITS.actionTimeoutMs),
+      .describe(
+        "Wait this many milliseconds; the wait ends early on cancellation.",
+      ),
   }),
 ]);
 export type BrowserScenarioAction = z.infer<typeof browserScenarioActionSchema>;
 
 const storageEntrySchema = z.strictObject({
-  name: z.string().min(1).max(1_024),
+  name: z.string().min(1),
   value: browserScenarioValueSchema,
 });
 
@@ -255,7 +237,7 @@ export const browserScenarioStorageSchema = z
     cookies: z
       .array(
         z.strictObject({
-          name: z.string().min(1).max(1_024),
+          name: z.string().min(1),
           value: browserScenarioValueSchema,
           destination: browserScenarioUrlSchema,
           http_only: z.boolean(),
@@ -289,7 +271,6 @@ export const browserScenarioStorageSchema = z
 const headerNameSchema = z
   .string()
   .min(1)
-  .max(256)
   .regex(/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/u)
   .transform((value) => value.toLowerCase());
 
@@ -341,7 +322,7 @@ export const browserScenarioRequestReplaySchema = z
 
 export const browserScenarioSecretSchema = z.strictObject({
   secret_id: scenarioIdentifierSchema,
-  environment_variable: z.string().regex(/^[A-Z_][A-Z0-9_]{0,127}$/u),
+  environment_variable: z.string().regex(/^[A-Z_][A-Z0-9_]*$/u),
   purpose: z.enum(["input", "storage", "request-replay"]),
   redaction: z.literal("replace-with-secret-reference"),
 });
@@ -360,7 +341,6 @@ const normalizedNames = () =>
         .string()
         .trim()
         .min(1)
-        .max(256)
         .transform((value) => value.toLowerCase()),
     )
     .transform((values) => [...new Set(values)].sort());

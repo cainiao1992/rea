@@ -84,7 +84,7 @@ describe("passive V8 Inspector provider", () => {
     }
   });
 
-  test("captures only bounded metadata with two enable commands", async () => {
+  test("captures complete metadata with two enable commands", async () => {
     const fixture = await runtimeFixture();
     const outside = await temporaryFile("secret.js");
     const fake = await startFakeV8Inspector({
@@ -182,6 +182,36 @@ describe("passive V8 Inspector provider", () => {
   );
 });
 
+describe("complete Inspector script hashes", () => {
+  test("keeps more than one hundred long script hashes distinct", async () => {
+    const fixture = await runtimeFixture();
+    const url = pathToFileURL(fixture.entry).href;
+    const prefix = "h".repeat(512);
+    const scriptHashes = Array.from(
+      { length: 101 },
+      (_, index) => `${prefix}${String(index)}`,
+    );
+    const fake = await startFakeV8Inspector({
+      targetUrl: url,
+      scriptUrls: scriptHashes.map(() => url),
+      scriptHashes,
+    });
+    try {
+      const result = await new V8InspectorProvider().observe(
+        observeInput(fake.endpoint, fake.targetId, fixture.root, "node"),
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.scripts.items).toHaveLength(scriptHashes.length);
+      expect(
+        new Set(result.value.scripts.items.map(({ cdp_hash }) => cdp_hash)),
+      ).toEqual(new Set(scriptHashes));
+    } finally {
+      await fake.close();
+    }
+  });
+});
+
 describe("undeclared V8 runtime role", () => {
   test("observes a target without inventing a runtime role", async () => {
     const fixture = await runtimeFixture();
@@ -212,6 +242,32 @@ describe("undeclared V8 runtime role", () => {
 });
 
 describe("passive V8 Inspector evidence", () => {
+  test("retains authorized script locations longer than the former byte ceiling", async () => {
+    const fixture = await runtimeFixture();
+    const longUrl = `https://example.test/${"a".repeat(20_000)}`;
+    const fake = await startFakeV8Inspector({
+      targetUrl: longUrl,
+      scriptUrls: [longUrl],
+    });
+    try {
+      const input = {
+        ...observeInput(fake.endpoint, fake.targetId, fixture.root, "node"),
+        allowed_origins: ["https://example.test"],
+      };
+      const result = await new V8InspectorProvider().observe(input);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.scripts.items).toHaveLength(1);
+      expect(result.value.scripts.items[0]?.location).toMatchObject({
+        kind: "url",
+        origin: "https://example.test",
+        sanitized_url: longUrl,
+      });
+    } finally {
+      await fake.close();
+    }
+  });
+
   test("returns every authorized script beyond the former collection ceiling", async () => {
     const fixture = await runtimeFixture();
     const scriptUrls = [

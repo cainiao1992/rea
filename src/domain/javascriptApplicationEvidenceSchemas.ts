@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
-const boundedTextSchema = z.string().min(1).max(4_096);
-const boundedKeySchema = z.string().min(1).max(512);
+const boundedTextSchema = z.string().min(1);
+const boundedKeySchema = z.string().min(1);
 const unsafePathSegments = new Set(["", ".", ".."]);
 const isSafeRelativePath = (path: string): boolean => {
   if (path.startsWith("/") || path.includes("\\")) return false;
@@ -11,7 +11,6 @@ const isSafeRelativePath = (path: string): boolean => {
 const relativePathSchema = z
   .string()
   .min(1)
-  .max(4_096)
   .refine(
     isSafeRelativePath,
     "Expected a normalized relative POSIX path without traversal",
@@ -138,7 +137,7 @@ const applicationLocationSchema = z.discriminatedUnion("kind", [
   fileOffsetRangeSchema,
   z.strictObject({
     kind: z.literal("url"),
-    url: z.string().min(1).max(16_384),
+    url: z.string().min(1),
   }),
   z.strictObject({
     kind: z.literal("runtime"),
@@ -170,14 +169,14 @@ const applicationLocationReferenceSchema = z.discriminatedUnion("available", [
 
 /** Versioned extractor coordinates attached to every graph fact. */
 const applicationExtractorSchema = z.strictObject({
-  name: z.string().min(1).max(128),
-  version: z.string().min(1).max(128),
-  operation: z.string().min(1).max(256),
+  name: z.string().min(1),
+  version: z.string().min(1),
+  operation: z.string().min(1),
   executable_sha256: digestSchema.nullable(),
 });
 
 const applicationLimitSchema = z.strictObject({
-  name: z.string().min(1).max(128),
+  name: z.string().min(1),
   value: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
   unit: z.enum([
     "items",
@@ -265,8 +264,8 @@ const applicationGraphEvidenceBaseSchema = z.strictObject({
   location: applicationLocationReferenceSchema,
   extractor: applicationExtractorSchema,
   coverage: applicationCoverageSchema,
-  limitations: z.array(boundedTextSchema).max(100),
-  evidence_ids: z.array(z.string().regex(/^ev_[a-f0-9]{64}$/u)).max(100),
+  limitations: z.array(boundedTextSchema),
+  evidence_ids: z.array(z.string().regex(/^ev_[a-f0-9]{64}$/u)),
 });
 
 type EvidenceValue = z.infer<typeof applicationGraphEvidenceBaseSchema>;
@@ -431,7 +430,7 @@ export const applicationNodeIdentitySchema = z.discriminatedUnion("strategy", [
   z.strictObject({
     strategy: z.literal("structural-fingerprint"),
     stability: z.literal("cross-version-inference"),
-    algorithm: z.string().min(1).max(128),
+    algorithm: z.string().min(1),
     fingerprint_sha256: digestSchema,
     basis: z
       .array(
@@ -444,8 +443,7 @@ export const applicationNodeIdentitySchema = z.discriminatedUnion("strategy", [
           "api-usage",
         ]),
       )
-      .min(1)
-      .max(6),
+      .min(1),
   }),
   z.strictObject({
     strategy: z.literal("artifact-local-key"),

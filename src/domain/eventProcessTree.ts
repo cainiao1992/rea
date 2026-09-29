@@ -65,7 +65,7 @@ export const processTreeReconstructionSchema = z.strictObject({
   /** Root PID of the process tree. */
   root_pid: z.number().int().positive(),
   /** All reconstructed process nodes. */
-  processes: z.array(processNodeSchema).min(0).max(10_000),
+  processes: z.array(processNodeSchema).min(0),
   /** Events that were consumed. */
   events_consumed: z.number().int().nonnegative(),
   /** Events that could not be matched. */
@@ -207,9 +207,9 @@ export function getDescendants(
   const visited = new Set<number>();
   const result: number[] = [];
   const queue: number[] = [rootPid];
-  while (queue.length > 0) {
-    const pid = queue.shift();
-    if (pid === undefined) break;
+  for (let head = 0; head < queue.length; head += 1) {
+    const pid = queue[head];
+    if (pid === undefined) continue;
     if (visited.has(pid)) continue;
     visited.add(pid);
     const node = byPid.get(pid);
@@ -239,12 +239,24 @@ export function maxTreeDepth(
   rootPid: number,
 ): number {
   const byPid = new Map(processes.map((p) => [p.pid, p]));
-  function depth(pid: number, visited: Set<number>): number {
-    if (visited.has(pid)) return 0;
-    visited.add(pid);
-    const node = byPid.get(pid);
-    if (!node || node.children.length === 0) return 0;
-    return 1 + Math.max(...node.children.map((c) => depth(c, visited)));
+  const pending = [{ pid: rootPid, depth: 0 }];
+  const visited = new Set<number>();
+  let maximumDepth = 0;
+
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current || visited.has(current.pid)) continue;
+    visited.add(current.pid);
+
+    const node = byPid.get(current.pid);
+    if (!node || node.children.length === 0) continue;
+
+    const childDepth = current.depth + 1;
+    maximumDepth = Math.max(maximumDepth, childDepth);
+    for (const childPid of node.children)
+      if (!visited.has(childPid))
+        pending.push({ pid: childPid, depth: childDepth });
   }
-  return depth(rootPid, new Set());
+
+  return maximumDepth;
 }

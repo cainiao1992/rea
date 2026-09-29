@@ -5,6 +5,22 @@ export interface JsonLimits {
   readonly maxNodes: number;
 }
 
+/** Return whether a JSON value fits a depth constraint without size quotas. */
+export const isJsonWithinDepth = (root: unknown, maxDepth: number): boolean => {
+  const pending: Array<{ readonly value: unknown; readonly depth: number }> = [
+    { value: root, depth: 0 },
+  ];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (current === undefined) break;
+    if (current.depth > maxDepth) return false;
+    if (typeof current.value !== "object" || current.value === null) continue;
+    for (const value of Object.values(current.value))
+      pending.push({ value, depth: current.depth + 1 });
+  }
+  return true;
+};
+
 /** Return whether every node, key, and string fits within the supplied limits. */
 export const isJsonWithinLimits = (
   root: unknown,

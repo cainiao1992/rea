@@ -62,7 +62,6 @@ it("opens a managed PE and executes the managed static provider through MCP", as
     }),
     availabilityPolicy: () => ({
       processCaptureEnabled: false,
-      evidenceFileRoots: 0,
       investigationInputRoots: 0,
       browserObservationEnabled: false,
       electronObservationEnabled: false,

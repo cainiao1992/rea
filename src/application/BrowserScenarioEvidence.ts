@@ -21,6 +21,9 @@ const browserScenarioParameters = (
     step_id,
     action,
   })),
+  action_timeouts_ms: scenario.actions.map((item) =>
+    "timeout_ms" in item ? (item.timeout_ms ?? null) : null,
+  ),
   secret_declarations: scenario.secrets.map(
     ({ secret_id, environment_variable, purpose, redaction }) => ({
       secret_id,
@@ -30,7 +33,6 @@ const browserScenarioParameters = (
     }),
   ),
   capture: scenario.capture,
-  limits: { ...scenario.limits },
 });
 
 /** Create Evidence without retaining resolved scenario secret values. */

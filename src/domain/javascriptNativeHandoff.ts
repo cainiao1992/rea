@@ -106,7 +106,7 @@ const requestedExports = (nodes: readonly ApplicationNode[]): string[] => {
       ...stringArray(observation.properties.members),
     ]),
   );
-  return [...new Set(values)].sort(compareCodePoints).slice(0, 1_000);
+  return [...new Set(values)].sort(compareCodePoints);
 };
 
 const stringArray = (value: unknown): string[] =>

@@ -1,5 +1,4 @@
 import { lstat, realpath } from "node:fs/promises";
-import { performance } from "node:perf_hooks";
 
 import { AsarArtifactReader } from "../artifacts/AsarArtifactReader.js";
 import {
@@ -34,10 +33,7 @@ export interface JavaScriptArtifactReconstructionResult {
   readonly statistics: {
     readonly relevant_files: number;
     readonly nested_asar_containers: number;
-    readonly text_files_selected: number;
     readonly text_bytes_read: number;
-    readonly omitted_text_files: number;
-    readonly limit_omitted_text_files: number;
     readonly invalid_utf8_files: number;
     readonly parsed_javascript_files: number;
     readonly visited_ast_nodes: number;
@@ -67,9 +63,7 @@ export const reconstructJavaScriptArtifact = async (
   const reader = createReader(path, format);
   try {
     const files = await readJavaScriptArtifactFiles(reader, snapshot, signal);
-    const analysis = analyzeJavaScriptArtifactFiles(files, () =>
-      performance.now(),
-    );
+    const analysis = analyzeJavaScriptArtifactFiles(files);
     abortIfNeeded(signal);
     const graph = buildJavaScriptArtifactGraph(snapshot, files, analysis);
     const semanticGraph = buildJavaScriptSemanticGraph({
@@ -89,10 +83,7 @@ export const reconstructJavaScriptArtifact = async (
       statistics: {
         relevant_files: files.files.length,
         nested_asar_containers: files.containers.length,
-        text_files_selected: files.text_files_selected,
         text_bytes_read: files.text_bytes_read,
-        omitted_text_files: files.omitted_text_files,
-        limit_omitted_text_files: files.limit_omitted_text_files,
         invalid_utf8_files: files.invalid_utf8_files,
         parsed_javascript_files: analysis.files.filter(
           ({ javascript }) => javascript !== null,

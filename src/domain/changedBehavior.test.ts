@@ -25,6 +25,7 @@ const right = source("2");
 const comparison = (
   operation: "compare_process_captures" | "compare_artifacts",
   result: JsonValue,
+  input: { readonly salt?: number; readonly evidenceLinks?: string[] } = {},
 ): Evidence => {
   const process = operation === "compare_process_captures";
   return createEvidence(
@@ -41,11 +42,14 @@ const comparison = (
         ? "rea.process-comparison"
         : "rea.artifact-comparison",
       operation,
-      parameters: {},
+      parameters: input.salt === undefined ? {} : { salt: input.salt },
       result,
       confidence: "derived",
       authority: "analyst-inference",
-      evidenceLinks: [left.evidence_id, right.evidence_id],
+      evidenceLinks: input.evidenceLinks ?? [
+        left.evidence_id,
+        right.evidence_id,
+      ],
     },
   );
 };
@@ -260,5 +264,32 @@ describe("changed behavior", () => {
     expect(() => findChangedBehavior([danglingNested])).toThrow(
       /outside its top-level closure/u,
     );
+  });
+});
+
+describe("changed behavior aggregation", () => {
+  it("keeps all comparisons and their complete evidence closure", () => {
+    const comparisons = Array.from({ length: 101 }, (_, comparisonIndex) =>
+      comparison(
+        "compare_process_captures",
+        processResult({ status: "changed", terminal: "changed" }),
+        {
+          salt: comparisonIndex,
+          evidenceLinks: Array.from(
+            { length: 200 },
+            (_, linkIndex) =>
+              `ev_${(comparisonIndex * 200 + linkIndex + 1)
+                .toString(16)
+                .padStart(64, "0")}`,
+          ),
+        },
+      ),
+    );
+
+    const result = findChangedBehavior(comparisons);
+
+    expect(result.summary.observed_changes).toBe(comparisons.length);
+    expect(result.evidence_links).toHaveLength(comparisons.length * 201);
+    expect(result.findings.items[0]?.evidence_links).toHaveLength(201);
   });
 });

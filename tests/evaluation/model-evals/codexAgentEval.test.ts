@@ -9,7 +9,7 @@ describe("Codex agent release evaluation", () => {
       type: "mcp_tool_call",
       server: "rea",
       tool: "analyze_javascript_application",
-      arguments: { input_path: "/tmp/app", approved: true },
+      arguments: { input_path: "/tmp/app" },
     };
     const metrics = evaluateCodexEvents(
       [
@@ -150,7 +150,7 @@ describe("Codex agent completion evaluation", () => {
             type: "mcp_tool_call",
             server: "rea",
             tool: "analyze_javascript_application",
-            arguments: { input_path: "/tmp/app.asar", approved: true },
+            arguments: { input_path: "/tmp/app.asar" },
             result: { structured_content: { error: { code: "denied" } } },
             error: null,
             status: "failed",

@@ -5,13 +5,10 @@ import { z } from "zod";
 import {
   AnalysisCancelledError,
   AnalysisError,
-  AnalysisTimeoutError,
   BrowserObservationError,
   type BrowserObservationOperation,
 } from "../domain/errors.js";
 import { sanitizeBrowserUrl } from "../domain/browserObservation.js";
-
-const HTTP_TIMEOUT_MS = 5_000;
 
 const endpointVersionSchema = z.object({
   Browser: z.string().min(1),
@@ -322,9 +319,6 @@ export const readCdpJson = async (
           reject(endpointFailure(cause, operation, signal)),
         );
       },
-    );
-    request_.setTimeout(HTTP_TIMEOUT_MS, () =>
-      request_.destroy(new AnalysisTimeoutError(operation, HTTP_TIMEOUT_MS)),
     );
     request_.on("error", (cause: unknown) =>
       reject(endpointFailure(cause, operation, signal)),

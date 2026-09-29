@@ -8,9 +8,8 @@ import {
 import { artifactObservationEvidence } from "./JavaScriptArtifactGraphEvidence.js";
 import {
   completeApplicationCoverage,
-  truncatedApplicationCoverage,
+  partialApplicationCoverage,
 } from "../domain/javascriptApplicationEvidenceSchemas.js";
-import { javaScriptAnalysisLimits } from "./JavaScriptArtifactGraphContext.js";
 import { resolveArtifactPathByContext } from "./JavaScriptArtifactPathResolution.js";
 
 /** Project HTML renderer entrypoints and their local script assets. */
@@ -94,10 +93,7 @@ export const addJavaScriptSourceMapOriginals = (
     if (mapFile === undefined || mapNode === undefined) continue;
     const coverage =
       sourceMap.status === "truncated"
-        ? truncatedApplicationCoverage(
-            javaScriptAnalysisLimits(),
-            sourceMap.omitted_sources,
-          )
+        ? partialApplicationCoverage([], null)
         : completeApplicationCoverage();
     for (const original of sourceMap.sources) {
       const node = context.accumulator.addNode({

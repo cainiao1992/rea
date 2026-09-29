@@ -1,11 +1,10 @@
 import { writeAnalysisSnapshot } from "../application/AnalysisSnapshotFiles.js";
-import { err, ok } from "../domain/result.js";
+import { ok } from "../domain/result.js";
 import {
   reportLifecycleEnd,
   reportLifecycleStart,
 } from "./lifecycleProgress.js";
 import { mcpProgressReporter } from "./mcpProgress.js";
-import { projectPermissionFailure } from "../application/PermissionFailure.js";
 import type { LifecycleToolRegistration } from "./registerSessionTools.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
@@ -17,8 +16,6 @@ export const registerCloseLifecycleTool = ({
   session,
   logger,
   contracts: [, closeContract],
-  snapshotFilePolicy,
-  permissionAuthority,
 }: LifecycleToolRegistration): void => {
   server.registerTool(
     closeContract.name,
@@ -33,32 +30,12 @@ export const registerCloseLifecycleTool = ({
         await reportLifecycleEnd(progress, closeContract.name, closed.ok);
         return toCallToolResult(closed, closeContract);
       }
-      if (permissionAuthority !== undefined) {
-        const authorized = await permissionAuthority.authorize(
-          {
-            capability: "snapshot_write",
-            roots: [input.snapshot_path],
-            executables: [],
-            environment_names: [],
-            network: "none",
-            mount: false,
-            operation_identity: `close_binary:snapshot:${input.snapshot_path}`,
-          },
-          "write",
-        );
-        if (!authorized.ok)
-          return toCallToolResult(
-            err(projectPermissionFailure(authorized.error)),
-            closeContract,
-          );
-      }
       const snapshot = session.exportAnalysisSnapshot();
       if (!snapshot.ok) return toCallToolResult(snapshot, closeContract);
       const written = await writeAnalysisSnapshot(
         snapshot.value,
         input.snapshot_path,
         input.overwrite,
-        snapshotFilePolicy,
       );
       if (!written.ok) return toCallToolResult(written, closeContract);
       await reportLifecycleStart(

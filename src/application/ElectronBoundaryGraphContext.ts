@@ -54,7 +54,7 @@ export const electronObservationIdentity = (
   observation_sha256: sha256Text(
     `${context.snapshot.manifest.root_sha256}\0${scope}\0${key}`,
   ),
-  scope: scope.slice(0, 4_096),
+  scope,
 });
 
 /** Add a direct AST syntax relationship. */

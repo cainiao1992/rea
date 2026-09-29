@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { BrowserScenarioSecrets } from "./BrowserScenarioSecrets.js";
 import { browserScenarioSchema } from "../domain/browserScenario.js";
-import { BROWSER_SCENARIO_CAPTURE_LIMITS } from "../domain/browserScenarioValues.js";
 
 const secret = (secret_id: string) => ({ source: "secret", secret_id });
 const literal = (value: string) => ({
@@ -120,7 +119,7 @@ const baseScenario = () => ({
 });
 
 describe("browserScenarioSchema", () => {
-  it("accepts and normalizes a bounded declared scenario", () => {
+  it("accepts and normalizes a declared scenario", () => {
     const parsed = browserScenarioSchema.parse(baseScenario());
     expect(parsed.allowed_origins).toEqual([
       "https://api.example.test",
@@ -150,10 +149,23 @@ describe("browserScenarioSchema", () => {
       "proxy-authorization",
       "set-cookie",
     ]);
-    expect(parsed.limits).toEqual(BROWSER_SCENARIO_CAPTURE_LIMITS);
+    expect(parsed).not.toHaveProperty("limits");
   });
 
-  it("rejects caller supplied capture limits", () => {
+  it("accepts caller selected action timeouts without a fixed ceiling", () => {
+    const input = baseScenario();
+    input.actions[0] = { ...input.actions[0], timeout_ms: 120_000 } as never;
+    input.actions[1] = {
+      step_id: "pause",
+      action: "wait_for_timeout",
+      duration_ms: 120_001,
+    } as never;
+    const actions = browserScenarioSchema.parse(input).actions;
+    expect(actions[0]).toMatchObject({ timeout_ms: 120_000 });
+    expect(actions[1]).toMatchObject({ duration_ms: 120_001 });
+  });
+
+  it("does not accept the removed provider timeout configuration", () => {
     expect(
       browserScenarioSchema.safeParse({
         ...baseScenario(),

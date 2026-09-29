@@ -7,7 +7,7 @@ import type {
 export const recommendedReconstructionProbes = (
   reasons: readonly ClosureReason[],
 ): readonly { operation: string; subject_id: string; rationale: string }[] =>
-  reasons.slice(0, 100).map((reason) => ({
+  reasons.map((reason) => ({
     operation: probeOperation(reason.code),
     subject_id: reason.subject_id,
     rationale: reason.detail,

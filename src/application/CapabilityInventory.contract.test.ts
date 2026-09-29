@@ -9,7 +9,6 @@ describe("capability inventory contract", () => {
       { open: false, capabilities: [] },
       {
         processCaptureEnabled: false,
-        evidenceFileRoots: 0,
       },
     );
     const unavailable = inventory.find(({ available }) => !available);

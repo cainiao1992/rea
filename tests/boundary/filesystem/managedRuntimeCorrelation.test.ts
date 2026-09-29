@@ -13,7 +13,10 @@ import {
 import { MANAGED_STATIC_PROVIDER } from "../../../src/application/InvestigationProviders.js";
 import { createPermissionAuthority } from "../../../src/application/PermissionAuthority.js";
 import { createEvidence } from "../../../src/domain/evidence.js";
-import { managedRuntimeCorrelationResultSchema } from "../../../src/domain/managedRuntimeCorrelation.js";
+import {
+  managedRuntimeCorrelationInputSchema,
+  managedRuntimeCorrelationResultSchema,
+} from "../../../src/domain/managedRuntimeCorrelation.js";
 import type { PermissionCeiling } from "../../../src/domain/permissionPolicy.js";
 import { inspectManagedMembersBytes } from "../../../src/dotnet/ManagedMemberInspector.js";
 import {
@@ -81,6 +84,24 @@ describe("managed runtime correlation planning", () => {
     const plan = managedRuntimeCorrelationResultSchema.parse(
       result.value.normalized_result,
     );
+    expect(
+      managedRuntimeCorrelationInputSchema.safeParse({
+        ...inputFor(fixture.evidence, fixture.method),
+        bounds: {
+          timeout_ms: 60_001,
+          max_threads: 257,
+          max_output_bytes: 1_048_577,
+          allow_network: false,
+          allow_ui: false,
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      managedRuntimeCorrelationResultSchema.safeParse({
+        ...plan,
+        limitations: Array.from({ length: 1_001 }, () => "x".repeat(4_097)),
+      }).success,
+    ).toBe(true);
     expect(plan).toMatchObject({
       executed: false,
       authority_model: {

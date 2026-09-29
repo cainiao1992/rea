@@ -190,14 +190,13 @@ interface AddEdgeContext {
 }
 
 const addEdge = (context: AddEdgeContext): void => {
-  const bounded = context.specifier.slice(0, 4_096);
-  const key = `edge\0${context.script.script_key}\0${context.kind}\0${bounded}`;
+  const key = `edge\0${context.script.script_key}\0${context.kind}\0${context.specifier}`;
   addUnique(context.accumulator, key, () =>
     context.accumulator.edges.push({
       from_script_key: context.script.script_key,
       kind: context.kind,
-      specifier: bounded,
-      resolved_url: resolveSpecifier(bounded, context.script.url),
+      specifier: context.specifier,
+      resolved_url: resolveSpecifier(context.specifier, context.script.url),
       location: location(context.script.script_key, context.node),
     }),
   );
@@ -252,11 +251,9 @@ const addWebMcpDeclaration = (
   const key = `webmcp\0${script.script_key}\0${name ?? ""}\0${schemaPropertyNames.join("\0")}`;
   addUnique(accumulator, key, () =>
     accumulator.webMcp.push({
-      name: name?.slice(0, 256) ?? null,
-      description: description?.slice(0, 2_048) ?? null,
-      schema_property_names: [...new Set(schemaPropertyNames)]
-        .sort()
-        .slice(0, 256),
+      name: name ?? null,
+      description: description ?? null,
+      schema_property_names: [...new Set(schemaPropertyNames)].sort(),
       trust: "page-declared-untrusted",
       location: location(script.script_key, node),
     }),

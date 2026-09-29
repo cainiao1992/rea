@@ -55,24 +55,24 @@ export const collectJavaScriptExports = (node: t.Node): StaticExports => {
 
 const semanticTokens = (node: t.Node): string[] => {
   const tokens = [`node:${node.type}`];
-  if (t.isStringLiteral(node)) tokens.push(`string:${bounded(node.value)}`);
+  if (t.isStringLiteral(node)) tokens.push(`string:${node.value}`);
   else if (t.isNumericLiteral(node))
     tokens.push(`number:${String(node.value)}`);
   else if (t.isBooleanLiteral(node))
     tokens.push(`boolean:${String(node.value)}`);
   else if (t.isRegExpLiteral(node))
-    tokens.push(`regexp:${bounded(node.pattern)}/${node.flags}`);
+    tokens.push(`regexp:${node.pattern}/${node.flags}`);
   else if (t.isBinaryExpression(node) || t.isLogicalExpression(node))
     tokens.push(`operator:${node.operator}`);
   else if (t.isUnaryExpression(node) || t.isUpdateExpression(node))
     tokens.push(`operator:${node.operator}`);
   if (t.isMemberExpression(node) || t.isOptionalMemberExpression(node)) {
     const property = propertyName(node.property);
-    if (property !== "") tokens.push(`property:${bounded(property)}`);
+    if (property !== "") tokens.push(`property:${property}`);
   }
   if ((t.isObjectProperty(node) || t.isObjectMethod(node)) && !node.computed) {
     const key = propertyName(node.key);
-    if (key !== "") tokens.push(`key:${bounded(key)}`);
+    if (key !== "") tokens.push(`key:${key}`);
   }
   return tokens;
 };
@@ -155,8 +155,6 @@ const propertyName = (node: t.Node): string => {
 
 const stringValue = (node: t.Node | null | undefined): string | undefined =>
   t.isStringLiteral(node) ? node.value : undefined;
-
-const bounded = (value: string): string => value.slice(0, 1_024);
 
 const compareCodePoints = (left: string, right: string): number =>
   left < right ? -1 : left > right ? 1 : 0;

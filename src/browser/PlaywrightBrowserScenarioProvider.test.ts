@@ -143,11 +143,7 @@ class FakeSession implements BrowserScenarioSessionPort {
     return { retained: 0, dropped: 0, items: [] };
   }
 
-  async perform(
-    _action: BrowserScenarioAction,
-    _timeout: number,
-    signal?: AbortSignal,
-  ) {
+  async perform(_action: BrowserScenarioAction, signal?: AbortSignal) {
     this.performCalls += 1;
     this.onPerform?.();
     if (signal?.aborted === true) throw new Error("request cancelled");
@@ -156,7 +152,6 @@ class FakeSession implements BrowserScenarioSessionPort {
 
   capture(
     requested: ReadonlySet<SnapshotKind>,
-    _maximumTimeoutMs: number,
     _signal?: AbortSignal,
   ): Promise<BrowserStepArtifacts> {
     this.captureCalls += 1;

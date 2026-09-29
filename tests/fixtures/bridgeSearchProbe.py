@@ -1,4 +1,4 @@
-"""Execute REA's bridge regex helpers without starting a Hopper socket."""
+"""Exercise REA's bridge inventory search without starting a Hopper socket."""
 
 import json
 from pathlib import Path
@@ -15,19 +15,6 @@ def _load_bridge(path):
 def _probe(namespace, payload):
     action = payload["action"]
     try:
-        if action == "match":
-            flags = (
-                0
-                if payload.get("case_sensitive", False)
-                else namespace["re"].IGNORECASE
-            )
-            expression = namespace["re"].compile(payload["pattern"], flags)
-            matched = expression.search(payload["value"]) is not None
-            return {
-                "action": action,
-                "ok": True,
-                "matched": matched,
-            }
         if action == "search":
             inventory = tuple(tuple(item) for item in payload["items"])
             namespace["_search_inventory"] = lambda _document, _kind: inventory

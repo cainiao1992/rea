@@ -94,6 +94,31 @@ describe("web bundle analyzer", () => {
     expect(result.completeness.status).toBe("complete");
   });
 
+  it("retains complete long chunk and WebMCP declaration text", () => {
+    const specifier = `./${"chunk".repeat(1_000)}.js`;
+    const name = "tool".repeat(100);
+    const description = "untrusted declaration ".repeat(150);
+    const propertyName = "property".repeat(100);
+    const result = analyzeCapturedWebBundle(
+      inspection(`
+        import "${specifier}";
+        document.modelContext.registerTool({
+          name: "${name}",
+          description: "${description}",
+          inputSchema: { properties: { "${propertyName}": { type: "string" } } }
+        });
+      `),
+    );
+
+    expect(result.observations.chunks.edges[0]?.specifier).toBe(specifier);
+    expect(result.observations.webmcp_declarations[0]).toMatchObject({
+      name,
+      description,
+      schema_property_names: [propertyName],
+      trust: "page-declared-untrusted",
+    });
+  });
+
   it("reports unavailable source maps as partial without dropping requested maps", () => {
     const analysis = analyzeCapturedWebBundle(inspection("export {};"), {
       status: "unavailable",

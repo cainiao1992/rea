@@ -8,12 +8,12 @@ import { evidenceSchema } from "./evidence.js";
 
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
-const pathSchema = z.string().min(1).max(4_096);
+const pathSchema = z.string().min(1);
 const componentSchema = z.strictObject({
   path: pathSchema,
   artifact_id: z.string().regex(/^art_[a-f0-9]{64}$/u),
   sha256: digestSchema,
-  format: z.string().min(1).max(100),
+  format: z.string().min(1),
 });
 
 /** Authenticated APK inventory pages projected as one Android application. */
@@ -64,7 +64,7 @@ export const androidApplicationProjectionResultSchema = z.strictObject({
     status: z.enum(["complete-within-inventory", "partial"]),
     inventory_complete: z.boolean(),
   }),
-  limitations: z.array(z.string().min(1).max(4_096)).max(100),
+  limitations: z.array(z.string().min(1)),
 });
 
 export type AndroidApplicationProjectionInput = z.infer<

@@ -73,19 +73,6 @@ async function verifyBridgeRejections(client) {
       { document: null, procedure: 17 },
       "invalid_request",
     ),
-    unboundedRegex: await expectRemoteFailure(
-      client,
-      "search_strings",
-      {
-        pattern: "a+",
-        mode: "regex",
-        case_sensitive: true,
-        offset: 0,
-        limit: 100,
-        document: null,
-      },
-      "invalid_request",
-    ),
     undeclaredMutation: await expectRemoteFailure(
       client,
       "set_comment",
@@ -122,7 +109,7 @@ export async function verifyInventoryOperations({
     document: null,
   });
   if (stringSearch.total !== 2 || stringSearch.items.length !== 2)
-    throw new Error("Ghidra bounded regex string search drifted");
+    throw new Error("Ghidra regex string search drifted");
   const stringItem = strings.find(
     (item) => item.value === "REA_GHIDRA_INVENTORY_ENTRY",
   );

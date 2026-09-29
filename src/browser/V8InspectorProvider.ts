@@ -4,7 +4,6 @@ import type {
 } from "../application/AnalysisProvider.js";
 import type { JavaScriptRuntimeObservationPort } from "../application/JavaScriptRuntimeObservationPort.js";
 import {
-  MAX_JAVASCRIPT_RUNTIME_LOCATION_BYTES,
   javascriptRuntimeObservationSchema,
   javascriptRuntimeTargetListSchema,
   type JavaScriptRuntimeObservation,
@@ -20,7 +19,6 @@ import {
 } from "../domain/errors.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
-  boundedText,
   numberValue,
   recordValue,
   stringValue,
@@ -273,11 +271,7 @@ const ingestScript = (
   state.scriptsObserved += 1;
   const value = recordValue(event.params);
   const rawUrl = stringValue(value?.url);
-  if (
-    rawUrl === undefined ||
-    rawUrl === "" ||
-    Buffer.byteLength(rawUrl) > MAX_JAVASCRIPT_RUNTIME_LOCATION_BYTES
-  ) {
+  if (rawUrl === undefined || rawUrl === "") {
     state.invalidScripts += 1;
     retainEvent(state, 0);
     return;
@@ -285,7 +279,7 @@ const ingestScript = (
   const draft: ScriptDraft = {
     rawUrl,
     executionContextKey: contextKey(value?.executionContextId),
-    cdpHash: boundedText(value?.hash, 512),
+    cdpHash: stringValue(value?.hash) ?? null,
     length: nonnegativeInteger(value?.length),
     isModule: value?.isModule === true,
   };
@@ -320,7 +314,7 @@ const ingestContext = (
   }
   const origin =
     event.method === "Runtime.executionContextCreated"
-      ? boundedText(runtimeContext?.origin, 4_096)
+      ? (stringValue(runtimeContext?.origin) ?? null)
       : null;
   const draft: ContextDraft = {
     contextKey: key,

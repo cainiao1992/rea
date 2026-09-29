@@ -134,13 +134,11 @@ const initialStep = async (input: {
   readonly session: BrowserScenarioSessionPort;
   readonly scenario: BrowserScenario;
   readonly elapsedMs: number;
-  readonly maximumTimeoutMs: number;
   readonly signal: AbortSignal | undefined;
 }): Promise<BrowserScenarioStep> => {
-  const { session, scenario, elapsedMs, maximumTimeoutMs, signal } = input;
+  const { session, scenario, elapsedMs, signal } = input;
   const artifacts = await session.capture(
     requestedForStep(scenario, 0),
-    maximumTimeoutMs,
     signal,
   );
   return createStep({
@@ -163,19 +161,10 @@ const executeStep = async (input: {
   readonly scenario: BrowserScenario;
   readonly action: BrowserScenarioAction;
   readonly stepIndex: number;
-  readonly startedAt: number;
   readonly priorFailure: boolean;
   readonly signal: AbortSignal | undefined;
 }): Promise<BrowserScenarioStep> => {
-  const {
-    session,
-    scenario,
-    action,
-    stepIndex,
-    startedAt,
-    priorFailure,
-    signal,
-  } = input;
+  const { session, scenario, action, stepIndex, priorFailure, signal } = input;
   const beforeUrl = session.currentUrl();
   const eventStart = session.nextEventSequence();
   const requested = requestedForStep(scenario, stepIndex);
@@ -208,10 +197,7 @@ const executeStep = async (input: {
     outcome = { status: "cancelled", error: "scenario request cancelled" };
   } else {
     try {
-      const elapsed = Date.now() - startedAt;
-      const remaining = scenario.limits.max_duration_ms - elapsed;
-      if (remaining <= 0) throw new Error("Scenario duration limit reached");
-      await session.perform(action, remaining, signal);
+      await session.perform(action, signal);
     } catch (cause: unknown) {
       outcome = {
         status: requestCancelled() ? "cancelled" : "failed",
@@ -219,16 +205,10 @@ const executeStep = async (input: {
       };
     }
   }
-  const remaining = scenario.limits.max_duration_ms - (Date.now() - startedAt);
   const artifacts =
-    outcome.status === "cancelled" || remaining <= 0
-      ? unavailableArtifacts(
-          requested,
-          outcome.status === "cancelled"
-            ? "scenario request cancelled"
-            : "scenario duration limit reached",
-        )
-      : await session.capture(requested, remaining, signal);
+    outcome.status === "cancelled"
+      ? unavailableArtifacts(requested, "scenario request cancelled")
+      : await session.capture(requested, signal);
   return createStep({
     stepIndex,
     stepId: action.step_id,
@@ -266,10 +246,10 @@ const runScenario = async (
   if (options.signal?.aborted === true)
     throw new BrowserObservationError(OPERATION, "cancelled");
   const startedAt = Date.now();
-  const session = await factory.open(scenario, {
-    ...(options.signal === undefined ? {} : { signal: options.signal }),
-    deadlineAt: startedAt + scenario.limits.max_duration_ms,
-  });
+  const session = await factory.open(
+    scenario,
+    options.signal === undefined ? {} : { signal: options.signal },
+  );
   const steps: BrowserScenarioStep[] = [];
   let cleanup: "terminated-owned-process" | "disconnected-external" | undefined;
   try {
@@ -278,8 +258,6 @@ const runScenario = async (
         session,
         scenario,
         elapsedMs: Date.now() - startedAt,
-        maximumTimeoutMs:
-          scenario.limits.max_duration_ms - (Date.now() - startedAt),
         signal: options.signal,
       }),
     );
@@ -290,7 +268,6 @@ const runScenario = async (
         scenario,
         action,
         stepIndex: offset + 1,
-        startedAt,
         priorFailure: failed,
         signal: options.signal,
       });

@@ -78,7 +78,7 @@ const authority = (exportRoot?: string): PermissionAuthority => {
       ? []
       : [
           {
-            capability: "evidence_write" as const,
+            capability: "process_capture" as const,
             roots: [exportRoot],
             executables: [],
             environment_names: [],
@@ -99,7 +99,7 @@ const authority = (exportRoot?: string): PermissionAuthority => {
         },
         ...exportCeiling.map((item) => ({
           ...item,
-          grant_id: "administrator:evidence_write",
+          grant_id: "administrator:process_capture",
           lifetime: "administrator" as const,
           operation_identity: null,
           expires_at: null,
@@ -191,6 +191,29 @@ describe("controlled JavaScript replay planning", () => {
         ...input("plan", "relative/parser.mjs"),
       }).success,
     ).toBe(false);
+  });
+
+  it("accepts caller replay budgets above former tool-side ceilings", () => {
+    expect(
+      controlledReplayInputSchema.safeParse({
+        ...input("plan"),
+        generator: { preset: "parser-boundaries", seed: 1, count: 65 },
+        limits: {
+          wall_time_ms: 60_000,
+          memory_bytes: 1024 * 1024 * 1024,
+          tasks: 64,
+          cpu_quota_percent: 200,
+          tmpfs_bytes: 128 * 1024 * 1024,
+          module_bytes: 32 * 1024 * 1024,
+          input_bytes: 2 * 1024 * 1024,
+          protocol_bytes: 128 * 1024 * 1024,
+          output_bytes: 8 * 1024 * 1024,
+          stderr_bytes: 512 * 1024,
+          result_depth: 128,
+          result_nodes: 200_000,
+        },
+      }).success,
+    ).toBe(true);
   });
 
   it("rejects oversized aggregate cases before probing or reading", async () => {

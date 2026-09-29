@@ -35,7 +35,7 @@ const functionDimensionContextShape = {
   dimension: dimensionNameSchema,
   left_count: z.number().int().min(0).nullable(),
   right_count: z.number().int().min(0).nullable(),
-  evidence_links: z.array(evidenceIdSchema).min(2).max(200),
+  evidence_links: z.array(evidenceIdSchema).min(2),
   limitations: z.array(z.string()),
 };
 

@@ -209,7 +209,7 @@ describe("analysis error projection: caller contract", () => {
       const projected = projectAnalysisError(
         new PermissionRequiredError({
           requested: {
-            capability: "evidence_read",
+            capability: "process_capture",
             roots: ["/workspace/evidence.json"],
             executables: [],
             environment_names: [],

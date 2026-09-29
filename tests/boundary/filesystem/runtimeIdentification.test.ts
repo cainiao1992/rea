@@ -22,35 +22,7 @@ describe("runtime identification", () => {
   it("identifies APK runtime families and exposes missing semantic providers", async () => {
     const root = await createTestTempDirectory("rea-runtime-");
     const path = join(root, "Fixture.apk");
-    const writer = new ZipWriter(new Uint8ArrayWriter());
-    await writer.add(
-      "AndroidManifest.xml",
-      new Uint8ArrayReader(Uint8Array.from([3, 0, 8, 0, 8, 0, 0, 0])),
-    );
-    await writer.add(
-      "classes.dex",
-      new Uint8ArrayReader(
-        Uint8Array.from([...Buffer.from("dex\n035\0"), 0, 0, 0, 0]),
-      ),
-    );
-    await writer.add(
-      "assets/Fixture.class",
-      new Uint8ArrayReader(
-        Uint8Array.from([0xca, 0xfe, 0xba, 0xbe, 0, 0, 0, 61]),
-      ),
-    );
-    await writer.add(
-      "assets/module.wasm",
-      new Uint8ArrayReader(Uint8Array.from([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0])),
-    );
-    await writer.add("assets/main.js", new TextReader("bridge.call();"));
-    await writer.add(
-      "lib/arm64-v8a/libfixture.so",
-      new Uint8ArrayReader(
-        Uint8Array.from([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0]),
-      ),
-    );
-    await writeFile(path, await writer.close());
+    await writeApkRuntimeFixture(path);
 
     const inventory = parseEvidence(
       await runProviderAnalysis(path, "inventory_artifact", {}),
@@ -101,6 +73,28 @@ describe("runtime identification", () => {
         }),
       ]),
     );
+    const widened = runtimeIdentificationResultSchema.parse({
+      ...first,
+      root_format: "x".repeat(101),
+      source_evidence_ids: Array.from(
+        { length: 101 },
+        () => inventory.evidence_id,
+      ),
+      limitations: Array.from({ length: 101 }, () => "x".repeat(4_097)),
+      runtimes: first.runtimes.map((runtime) => ({
+        ...runtime,
+        ...(runtime.provider_id === null
+          ? { reason: "x".repeat(1_001) }
+          : { provider_id: `provider-${"x".repeat(200)}` }),
+        observations: runtime.observations.map((observation) => ({
+          ...observation,
+          path: "x".repeat(4_097),
+          format: "x".repeat(101),
+        })),
+      })),
+    });
+    expect(widened.limitations).toHaveLength(101);
+    expect(widened.runtimes[0]?.observations[0]?.path).toHaveLength(4_097);
     const available = first.runtimes.find(
       ({ inspection }) => inspection === "available",
     );
@@ -165,3 +159,33 @@ describe("runtime identification", () => {
     );
   });
 });
+
+const writeApkRuntimeFixture = async (path: string): Promise<void> => {
+  const writer = new ZipWriter(new Uint8ArrayWriter());
+  await writer.add(
+    "AndroidManifest.xml",
+    new Uint8ArrayReader(Uint8Array.from([3, 0, 8, 0, 8, 0, 0, 0])),
+  );
+  await writer.add(
+    "classes.dex",
+    new Uint8ArrayReader(
+      Uint8Array.from([...Buffer.from("dex\n035\0"), 0, 0, 0, 0]),
+    ),
+  );
+  await writer.add(
+    "assets/Fixture.class",
+    new Uint8ArrayReader(
+      Uint8Array.from([0xca, 0xfe, 0xba, 0xbe, 0, 0, 0, 61]),
+    ),
+  );
+  await writer.add(
+    "assets/module.wasm",
+    new Uint8ArrayReader(Uint8Array.from([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0])),
+  );
+  await writer.add("assets/main.js", new TextReader("bridge.call();"));
+  await writer.add(
+    "lib/arm64-v8a/libfixture.so",
+    new Uint8ArrayReader(Uint8Array.from([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0])),
+  );
+  await writeFile(path, await writer.close());
+};

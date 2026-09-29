@@ -69,7 +69,7 @@ export const protocolCaptureSchema = z.strictObject({
   /** Protocol family for this capture. */
   family: protocolFamilySchema,
   /** Captured messages in order. */
-  messages: z.array(protocolMessageSchema).min(0).max(10_000),
+  messages: z.array(protocolMessageSchema).min(0),
   /** Aggregated schema hypotheses across all messages. */
   inferred_schema: z.array(schemaHypothesisSchema).default([]),
   /** Whether any message was truncated. */
@@ -192,7 +192,7 @@ export function decodeMessagePack(rawPayload: Uint8Array): {
   }
   return {
     decoded_fields: fields,
-    truncated: rawPayload.length > 10_000,
+    truncated: false,
   };
 }
 
@@ -236,7 +236,7 @@ export function decodeGrpcFrame(rawPayload: Uint8Array): {
         inferred: false,
       },
     ],
-    truncated: length > 10_000,
+    truncated: false,
   };
 }
 

@@ -9,7 +9,7 @@ import { err, ok, type Result } from "./result.js";
 
 const conformancePackageIdSchema = z.string().regex(/^cp_[a-f0-9]{64}$/u);
 
-const scenarioIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]{0,99}$/u);
+const scenarioIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]*$/u);
 
 const scenarioManifestSchema = z.strictObject({
   scenario_id: scenarioIdSchema,
@@ -35,8 +35,7 @@ const replayPlanSchema = z.strictObject({
         timeout_ms: z.number().int().positive(),
       }),
     )
-    .min(1)
-    .max(100),
+    .min(1),
   /** Environment variables to set (never inherit host paths). */
   environment: z.record(z.string(), z.string()).default({}),
 });
@@ -44,22 +43,20 @@ const replayPlanSchema = z.strictObject({
 const shimPlanSchema = z.strictObject({
   scenario_id: scenarioIdSchema,
   /** Shims to install, each intercepting a named effect. */
-  shims: z
-    .array(
-      z.strictObject({
-        shim_id: z.string().min(1),
-        kind: z.enum(["filesystem", "network", "process", "signal"]),
-        target: z.string().min(1),
-        policy: z.enum(["observe", "allow", "block", "emulate"]),
-      }),
-    )
-    .max(50),
+  shims: z.array(
+    z.strictObject({
+      shim_id: z.string().min(1),
+      kind: z.enum(["filesystem", "network", "process", "signal"]),
+      target: z.string().min(1),
+      policy: z.enum(["observe", "allow", "block", "emulate"]),
+    }),
+  ),
 });
 
 const expectedEvidenceSchema = z.strictObject({
   scenario_id: scenarioIdSchema,
   /** Expected evidence envelopes. */
-  envelopes: z.array(evidenceEnvelopeSchema).max(100),
+  envelopes: z.array(evidenceEnvelopeSchema),
   /** Expected evidence bundle. */
   bundle: evidenceBundleSchema.nullable(),
   /** Required dimensions that must be present in the evidence. */
@@ -77,8 +74,7 @@ const verifierContractSchema = z.strictObject({
         comparison: z.enum(["exact", "semantic", "fuzzy"]),
       }),
     )
-    .min(1)
-    .max(50),
+    .min(1),
   /** Tolerance for timing differences in milliseconds. */
   timing_tolerance_ms: z.number().int().nonnegative().default(0),
 });
@@ -88,15 +84,15 @@ const conformancePackageContentsSchema = z.strictObject({
   description: z.string().min(1),
   created_at: z.string().datetime(),
   /** Scenario manifests. */
-  scenarios: z.array(scenarioManifestSchema).min(1).max(100),
+  scenarios: z.array(scenarioManifestSchema).min(1),
   /** Exactly one replay plan for each scenario. */
-  replay_plans: z.array(replayPlanSchema).min(1).max(100),
+  replay_plans: z.array(replayPlanSchema).min(1),
   /** At most one optional shim plan for each scenario. */
   shim_plans: z.array(shimPlanSchema).default([]),
   /** Exactly one expected-evidence record for each scenario. */
-  expected_evidence: z.array(expectedEvidenceSchema).min(1).max(100),
+  expected_evidence: z.array(expectedEvidenceSchema).min(1),
   /** Exactly one verifier contract for each scenario. */
-  verifier_contracts: z.array(verifierContractSchema).min(1).max(100),
+  verifier_contracts: z.array(verifierContractSchema).min(1),
 });
 
 const conformancePackageRecordSchema = conformancePackageContentsSchema.extend({

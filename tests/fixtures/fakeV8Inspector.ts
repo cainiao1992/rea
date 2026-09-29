@@ -12,6 +12,7 @@ interface FakeV8InspectorOptions {
   readonly targetUrl: string;
   readonly targetType?: "node" | "page";
   readonly scriptUrls?: readonly string[];
+  readonly scriptHashes?: readonly string[];
   readonly additionalTargetUrl?: string;
   readonly additionalTargetCount?: number;
   readonly closeOnMethod?: string;
@@ -126,7 +127,7 @@ export const startFakeV8Inspector = async (
                 scriptId: String(index + 1),
                 url,
                 executionContextId: 1,
-                hash: `hash-${String(index)}`,
+                hash: options.scriptHashes?.[index] ?? `hash-${String(index)}`,
                 length: 100 + index,
                 isModule: index % 2 === 0,
               },

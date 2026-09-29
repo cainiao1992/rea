@@ -7,7 +7,7 @@ const exec = promisify(execFile);
 const packedHopperBridge = "package/bridge/hopper_bridge.py";
 const packedGhidraBridge = "package/bridge/ghidra/ReaGhidraBridge.java";
 
-/** Verify that the packed production bridge rejects a catastrophic regex. */
+/** Verify regex search through the packaged production bridge. */
 export async function verifyPackedBridge({
   root,
   workspace,
@@ -38,20 +38,32 @@ export async function verifyPackedBridge({
         join(root, "tests/fixtures/bridgeSearchProbe.py"),
         join(workspace, packedHopperBridge),
         JSON.stringify({
-          action: "match",
-          pattern: "(a|aa){1,35}b",
-          value: "a".repeat(35),
-          case_sensitive: true,
+          action: "search",
+          items: [
+            ["0x1000", "REA_GHIDRA_INVENTORY_ENTRY"],
+            ["0x2000", "unrelated"],
+            ["0x3000", "REA_GHIDRA_LEAF_VALUE"],
+          ],
+          params: {
+            pattern: "^REA_GHIDRA_(?:INVENTORY_ENTRY|LEAF_VALUE)$",
+            mode: "regex",
+            case_sensitive: true,
+          },
         }),
       ])
     ).stdout,
   );
+  const matches = probe.result;
   if (
-    probe.ok !== false ||
-    probe.diagnostic_type !== "invalid_request" ||
-    probe.message !== "Regex exceeds the 10000-path backtracking budget"
+    probe.ok !== true ||
+    !Array.isArray(matches) ||
+    matches.length !== 2 ||
+    matches[0]?.address !== "0x1000" ||
+    matches[0]?.value !== "REA_GHIDRA_INVENTORY_ENTRY" ||
+    matches[1]?.address !== "0x3000" ||
+    matches[1]?.value !== "REA_GHIDRA_LEAF_VALUE"
   )
     throw new Error(
-      `packaged Hopper bridge omitted regex bounds: ${JSON.stringify(probe)}`,
+      `packaged Hopper bridge regex search drifted: ${JSON.stringify(probe)}`,
     );
 }

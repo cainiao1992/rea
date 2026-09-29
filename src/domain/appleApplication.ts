@@ -4,7 +4,6 @@ import canonicalize from "canonicalize";
 import { z } from "zod";
 
 import { parseArtifactInventoryEvidence } from "./artifactInventoryEvidence.js";
-import { projectBoundedCartesian } from "./boundedCartesianProjection.js";
 import { evidenceSchema } from "./evidence.js";
 
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
@@ -20,12 +19,7 @@ const componentSchema = z.strictObject({
 
 /** Authenticated artifact inventory pages projected as one Apple application. */
 export const appleApplicationProjectionInputSchema = z.strictObject({
-  inventory_evidence: z.array(evidenceSchema).min(1).max(100),
-  limits: z
-    .strictObject({
-      max_components: z.number().int().min(1).max(10_000).default(1_000),
-    })
-    .default({ max_components: 1_000 }),
+  inventory_evidence: z.array(evidenceSchema).min(1),
 });
 
 /** Deterministic, execution-free Apple application inventory projection. */
@@ -33,7 +27,7 @@ export const appleApplicationProjectionResultSchema = z.strictObject({
   projection_id: z.string().regex(/^aap_[a-f0-9]{64}$/u),
   root_sha256: digestSchema,
   root_format: z.literal("ipa"),
-  source_evidence_ids: z.array(evidenceIdSchema).min(1).max(100),
+  source_evidence_ids: z.array(evidenceIdSchema).min(1),
   application_roots: z.array(boundedPathSchema),
   components: z.strictObject({
     bundle_metadata: z.array(componentSchema),
@@ -66,12 +60,10 @@ export const appleApplicationProjectionResultSchema = z.strictObject({
     }),
   ),
   coverage: z.strictObject({
-    status: z.enum(["complete-within-inventory", "partial", "truncated"]),
+    status: z.enum(["complete-within-inventory", "partial"]),
     inventory_complete: z.boolean(),
-    omitted_components: z.number().int().min(0),
-    omitted_bridge_candidates: z.number().int().min(0),
   }),
-  limitations: z.array(z.string().min(1).max(4_096)).max(100),
+  limitations: z.array(z.string().min(1).max(4_096)),
 });
 
 export type AppleApplicationProjectionInput = z.infer<
@@ -123,23 +115,15 @@ export const projectAppleApplication = (
     ),
   ].sort(compare);
   const classified = classifyComponents(all, roots);
-  const retained = retainComponents(classified, parsed.limits.max_components);
-  const omitted = componentCount(classified) - componentCount(retained);
   const runtimeFamilies = identifyRuntimeFamilies(all);
   const bridgeProjection = identifyBridgeCandidates(
-    retained.javascript,
+    classified.javascript,
     deduplicateComponents([
-      ...retained.executables,
-      ...retained.native_libraries,
+      ...classified.executables,
+      ...classified.native_libraries,
     ]),
-    parsed.limits.max_components,
   );
-  const limitations = projectionLimitations(
-    inventory.complete,
-    omitted,
-    bridgeProjection.omitted,
-    roots,
-  );
+  const limitations = projectionLimitations(inventory.complete, roots);
   const withoutId = {
     root_sha256: inventory.manifest.root_sha256,
     root_format: "ipa" as const,
@@ -147,19 +131,14 @@ export const projectAppleApplication = (
       .map(({ evidence_id: id }) => id)
       .sort(compare),
     application_roots: roots,
-    components: retained,
+    components: classified,
     runtime_families: runtimeFamilies,
     bridge_candidates: bridgeProjection.candidates,
     coverage: {
-      status:
-        omitted > 0 || bridgeProjection.omitted > 0
-          ? ("truncated" as const)
-          : inventory.complete
-            ? ("complete-within-inventory" as const)
-            : ("partial" as const),
+      status: inventory.complete
+        ? ("complete-within-inventory" as const)
+        : ("partial" as const),
       inventory_complete: inventory.complete,
-      omitted_components: omitted,
-      omitted_bridge_candidates: bridgeProjection.omitted,
     },
     limitations,
   };
@@ -193,27 +172,6 @@ const classifyComponents = (
     ),
   };
 };
-
-const retainComponents = <Groups extends Record<string, readonly Component[]>>(
-  groups: Groups,
-  maximum: number,
-): { [Key in keyof Groups]: Component[] } => {
-  let remaining = maximum;
-  // SAFETY: the projection preserves every key from Groups and replaces only
-  // each readonly Component array with a bounded mutable Component array.
-  return Object.fromEntries(
-    Object.entries(groups).map(([key, values]) => {
-      const retained = [...values]
-        .sort((left, right) => compare(left.path, right.path))
-        .slice(0, remaining);
-      remaining -= retained.length;
-      return [key, retained];
-    }),
-  ) as { [Key in keyof Groups]: Component[] };
-};
-
-const componentCount = (groups: Record<string, readonly Component[]>): number =>
-  Object.values(groups).reduce((total, values) => total + values.length, 0);
 
 const deduplicateComponents = (values: readonly Component[]): Component[] =>
   [...new Map(values.map((value) => [value.path, value])).values()].sort(
@@ -257,23 +215,15 @@ const identifyRuntimeFamilies = (all: readonly Component[]) => {
 const identifyBridgeCandidates = (
   scripts: readonly Component[],
   native: readonly Component[],
-  maximum: number,
-) => {
-  const projection = projectBoundedCartesian(
-    scripts,
-    native,
-    maximum,
-    (script, item) => ({
+) => ({
+  candidates: scripts.flatMap((script) =>
+    native.map((item) => ({
       source_path: script.path,
       native_path: item.path,
       basis: bridgeBasis(item.path),
-    }),
-  );
-  return {
-    candidates: projection.values,
-    omitted: projection.omitted,
-  };
-};
+    })),
+  ),
+});
 
 const bridgeBasis = (
   path: string,
@@ -292,22 +242,10 @@ const bridgeBasis = (
 
 const projectionLimitations = (
   complete: boolean,
-  omitted: number,
-  omittedBridges: number,
   roots: readonly string[],
 ): string[] => [
   ...(!complete
     ? ["Source inventory pages are incomplete; absence is unknown."]
-    : []),
-  ...(omitted > 0
-    ? [
-        `${String(omitted)} component observations were omitted by the projection limit.`,
-      ]
-    : []),
-  ...(omittedBridges > 0
-    ? [
-        `${String(omittedBridges)} bridge hypotheses were omitted by the projection limit.`,
-      ]
     : []),
   ...(roots.length === 0
     ? [

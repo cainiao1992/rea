@@ -45,10 +45,7 @@ const electronBoundarySummarySchema = z.strictObject({
 const reconstructionStatisticsSchema = z.strictObject({
   relevant_files: countSchema,
   nested_asar_containers: countSchema,
-  text_files_selected: countSchema,
   text_bytes_read: countSchema,
-  omitted_text_files: countSchema,
-  limit_omitted_text_files: countSchema,
   invalid_utf8_files: countSchema,
   parsed_javascript_files: countSchema,
   visited_ast_nodes: countSchema,

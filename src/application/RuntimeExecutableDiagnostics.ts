@@ -4,7 +4,6 @@ import { access, realpath } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 
 const TOOL_NAMES = ["node", "npm", "npx"] as const;
-const MAX_CANDIDATES_PER_TOOL = 16;
 const MAX_OUTPUT_BYTES = 65_536;
 const MAX_DIAGNOSTIC_BYTES = 4_096;
 const PROBE_CONCURRENCY = 4;
@@ -142,7 +141,6 @@ const discoverToolCandidates = async (
         break;
       }
     }
-    if (candidates.length >= MAX_CANDIDATES_PER_TOOL) break;
   }
   return candidates;
 };

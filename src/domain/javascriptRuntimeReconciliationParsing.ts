@@ -279,11 +279,9 @@ const assertV8RuntimeParameters = (
   const parameters = z
     .object({
       inspector_endpoint: browserEndpointSchema,
-      allowed_file_roots: z
-        .array(z.string().min(1).max(16_384).refine(isAbsolute))
-        .max(32),
-      allowed_origins: z.array(browserOriginSchema).max(32),
-      target_id: z.string().trim().min(1).max(256),
+      allowed_file_roots: z.array(z.string().min(1).refine(isAbsolute)),
+      allowed_origins: z.array(browserOriginSchema),
+      target_id: z.string().trim().min(1),
       runtime_kind: javascriptRuntimeKindSchema.optional(),
     })
     .passthrough()
@@ -405,7 +403,7 @@ const assertRuntimeParameters = (
       },
 ): void => {
   const common = {
-    target_id: z.string().trim().min(1).max(256),
+    target_id: z.string().trim().min(1),
     cdp_endpoint: browserEndpointSchema,
     include_script_sources: z.boolean(),
   };

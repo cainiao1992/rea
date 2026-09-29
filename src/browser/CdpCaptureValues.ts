@@ -78,19 +78,24 @@ export const delayWithCancellation = async (
   operation: BrowserObservationOperation,
   signal?: AbortSignal,
 ): Promise<void> => {
-  if (durationMs === 0) return;
-  if (signal?.aborted === true) throw new AnalysisCancelledError(operation);
-  await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, durationMs);
-    const onAbort = (): void => {
-      clearTimeout(timer);
-      signal?.removeEventListener("abort", onAbort);
-      reject(new AnalysisCancelledError(operation));
-    };
-    signal?.addEventListener("abort", onAbort, { once: true });
-    if (signal?.aborted === true) onAbort();
-  });
+  const maximumTimerDelay = 2_147_483_647;
+  let remaining = durationMs;
+  while (remaining > 0) {
+    if (signal?.aborted === true) throw new AnalysisCancelledError(operation);
+    const delay = Math.min(remaining, maximumTimerDelay);
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        signal?.removeEventListener("abort", onAbort);
+        resolve();
+      }, delay);
+      const onAbort = (): void => {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
+        reject(new AnalysisCancelledError(operation));
+      };
+      signal?.addEventListener("abort", onAbort, { once: true });
+      if (signal?.aborted === true) onAbort();
+    });
+    remaining -= delay;
+  }
 };

@@ -6,10 +6,7 @@ import {
 import type { JavaScriptArtifactAnalysis } from "./JavaScriptArtifactAnalysisTypes.js";
 import type { JavaScriptArtifactFileSet } from "./JavaScriptArtifactFiles.js";
 import { JavaScriptArtifactGraphAccumulator } from "./JavaScriptArtifactGraphAccumulator.js";
-import {
-  javaScriptAnalysisLimits,
-  type JavaScriptArtifactGraphContext,
-} from "./JavaScriptArtifactGraphContext.js";
+import type { JavaScriptArtifactGraphContext } from "./JavaScriptArtifactGraphContext.js";
 import {
   addJavaScriptHtmlRoles,
   addJavaScriptSourceMapOriginals,
@@ -22,7 +19,6 @@ import {
 import {
   completeApplicationCoverage,
   partialApplicationCoverage,
-  truncatedApplicationCoverage,
 } from "../domain/javascriptApplicationEvidenceSchemas.js";
 import {
   addJavaScriptArtifactContainers,
@@ -31,14 +27,13 @@ import {
   addJavaScriptPackageNodes,
   createJavaScriptArtifactRootNode,
 } from "./JavaScriptArtifactGraphStructure.js";
-import { JAVASCRIPT_APPLICATION_RESOURCE_LIMITS } from "./JavaScriptArtifactReconstructionInput.js";
 import { addElectronBoundaries } from "./ElectronBoundaryGraph.js";
 import {
   classifyElectronIpcPairings,
   collectElectronIpcRecords,
 } from "./ElectronBoundaryAnalysis.js";
 
-/** Project bounded artifact and AST facts into JavaScript Application Graph. */
+/** Project artifact and AST facts into JavaScript Application Graph. */
 export const buildJavaScriptArtifactGraph = (
   snapshot: ArtifactInventorySnapshot,
   fileSet: JavaScriptArtifactFileSet,
@@ -85,7 +80,6 @@ export const buildJavaScriptArtifactGraph = (
 };
 
 const graphCoverage = (context: JavaScriptArtifactGraphContext) => {
-  const exactLimitOmissions = context.fileSet.limit_omitted_text_files;
   const sourceMapPolicyGap = context.analysis.source_maps.some(
     ({ status }) => status === "invalid",
   );
@@ -104,40 +98,9 @@ const graphCoverage = (context: JavaScriptArtifactGraphContext) => {
     malformedStructuredData ||
     partialJavaScript;
   if (context.analysis.truncated_scopes > 0)
-    return truncatedApplicationCoverage(
-      reconstructionLimits(),
-      truncationOmittedCount(context),
-    );
-  if (exactLimitOmissions > 0)
-    return truncatedApplicationCoverage(
-      reconstructionLimits(),
-      exactLimitOmissions,
-    );
-  if (unknownGap)
-    return partialApplicationCoverage(reconstructionLimits(), null);
-  return completeApplicationCoverage(reconstructionLimits());
-};
-
-const truncationOmittedCount = (
-  context: JavaScriptArtifactGraphContext,
-): number | null => {
-  const staticTruncations = context.analysis.files.filter(
-    ({ javascript }) => javascript?.parse_status === "truncated",
-  );
-  if (staticTruncations.length > 0) return null;
-  const semanticTruncations = context.analysis.files.flatMap(({ semantic }) =>
-    semantic?.ir.coverage.status === "truncated" ? [semantic.ir.coverage] : [],
-  );
-  const sourceMapTruncations = context.analysis.source_maps.filter(
-    ({ status }) => status === "truncated",
-  );
-  if (sourceMapTruncations.length > 0) return null;
-  if (semanticTruncations.length !== context.analysis.truncated_scopes)
-    return null;
-  const omissions = semanticTruncations.map(({ omittedCount }) => omittedCount);
-  return omissions.some((omitted) => omitted === null)
-    ? null
-    : omissions.reduce<number>((total, omitted) => total + (omitted ?? 0), 0);
+    return partialApplicationCoverage([], null);
+  if (unknownGap) return partialApplicationCoverage([], null);
+  return completeApplicationCoverage();
 };
 
 const graphLimitations = (
@@ -202,17 +165,3 @@ const graphLimitations = (
         ]),
   ];
 };
-
-const reconstructionLimits = () => [
-  {
-    name: "max-text-files",
-    value: JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.maxTextFiles,
-    unit: "items" as const,
-  },
-  {
-    name: "max-total-text-bytes",
-    value: JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.maxTotalTextBytes,
-    unit: "bytes" as const,
-  },
-  ...javaScriptAnalysisLimits(),
-];

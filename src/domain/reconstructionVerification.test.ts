@@ -313,6 +313,47 @@ describe("reconstruction verification", () => {
 });
 
 describe("reconstruction verification integrity", () => {
+  it("accepts evidence closures larger than the former count ceilings", () => {
+    const evidenceIds = Array.from(
+      { length: 20_101 },
+      (_, index) => `ev_${index.toString(16).padStart(64, "0")}`,
+    );
+    const claimLinks = evidenceIds.slice(0, 202);
+    const claim = {
+      claim_id: "claim",
+      kind: "structural-artifact",
+      dimension: "overall",
+      status: "pass",
+      observed_status: "unchanged",
+      comparison_evidence_id: claimLinks[0],
+      left_evidence_ids: [claimLinks[1]],
+      right_evidence_ids: [claimLinks[2]],
+      evidence_links: claimLinks,
+      unknown_ids: [],
+      limitations: [],
+    };
+    const result = {
+      status: "pass",
+      specification_sha256: "a".repeat(64),
+      summary: {
+        total: 1,
+        passed: 1,
+        failed: 0,
+        unknown: 0,
+        behavioral: 0,
+        structural: 1,
+      },
+      claims: { items: [claim] },
+      recommended_probes: [],
+      evidence_links: evidenceIds,
+      limitations: [],
+    };
+
+    expect(reconstructionVerificationResultSchema.parse(result)).toEqual(
+      result,
+    );
+  });
+
   it("rejects dangling or extra comparison closure", () => {
     const left = source("1", "controlled-replay");
     const right = source("2", "controlled-replay");

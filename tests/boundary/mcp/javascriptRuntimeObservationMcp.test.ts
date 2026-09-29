@@ -9,7 +9,11 @@ import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { loadConfiguredPermissionAuthority } from "../../../src/application/PermissionConfiguration.js";
 import { observeJavaScriptRuntime } from "../../../src/application/JavaScriptRuntimeObservationService.js";
 import { V8InspectorProvider } from "../../../src/browser/V8InspectorProvider.js";
-import { observeJavaScriptRuntimeInputSchema } from "../../../src/domain/javascriptRuntimeObservation.js";
+import {
+  javascriptRuntimeObservationSchema,
+  javascriptRuntimeTargetListSchema,
+  observeJavaScriptRuntimeInputSchema,
+} from "../../../src/domain/javascriptRuntimeObservation.js";
 import { parseConfig } from "../../../src/config.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { observed } from "../../fixtures/analysisExecution.js";
@@ -29,43 +33,89 @@ describe("JavaScript runtime observation MCP tools", () => {
     );
   });
 
+  test("accepts long caller windows and complete observation metadata", () => {
+    const repeated = (count: number): string[] =>
+      Array.from({ length: count }, (_, index) => `item-${index}`);
+    const scope = {
+      inspector_endpoint: "http://127.0.0.1:9222",
+      allowed_file_roots: ["/tmp/rea-runtime"],
+      allowed_origins: [],
+    };
+    expect(
+      observeJavaScriptRuntimeInputSchema.parse({
+        ...scope,
+        target_id: "target",
+        observation_ms: 2_147_483_648,
+      }).observation_ms,
+    ).toBe(2_147_483_648);
+    expect(
+      javascriptRuntimeTargetListSchema.parse({
+        runtime: {
+          product: "Node.js",
+          protocol_version: "1.0",
+          v8_version: null,
+        },
+        targets: [],
+        excluded: {
+          outside_file_roots: 0,
+          outside_origins: 0,
+          unsupported_location: 0,
+          unconnectable: 0,
+        },
+        limitations: repeated(101),
+      }).limitations,
+    ).toHaveLength(101);
+
+    const unknowns = repeated(101);
+    const limitations = repeated(101);
+    expect(
+      javascriptRuntimeObservationSchema.parse({
+        runtime: {
+          product: "Node.js",
+          protocol_version: "1.0",
+          v8_version: null,
+        },
+        target: {
+          target_id: "target",
+          protocol_type: "node",
+          attached: false,
+          location: { kind: "file", file_path: "/tmp/rea-runtime/main.js" },
+          runtime_kind: "node",
+          runtime_kind_authority: "caller-declared-unverified",
+        },
+        capture: {
+          observation_ms: 10_001,
+          events_observed: 0,
+          events_retained: 0,
+          events_dropped: 0,
+          metadata_bytes_retained: 0,
+          truncated: false,
+          truncation_reasons: repeated(21),
+        },
+        scripts: {
+          items: [],
+          observed_total: 0,
+          excluded: {
+            outside_file_roots: 0,
+            outside_origins: 0,
+            unsupported_location: 0,
+            invalid_protocol_value: 0,
+          },
+        },
+        execution_contexts: [],
+        directly_observed: repeated(21),
+        unavailable_without_instrumentation: repeated(21),
+        unknowns,
+        limitations,
+      }),
+    ).toMatchObject({ unknowns, limitations });
+  });
+
   test("lists and observes one target as retained Evidence", async () => {
     const root = await createTestTempDirectory("rea-v8-mcp-");
     temporary.push(root);
-    const entry = join(root, "entry.js");
-    await writeFile(entry, "export const value = 1;\n");
-    const inspector = await startFakeV8Inspector({
-      targetUrl: pathToFileURL(entry).href,
-    });
-    resources.push(inspector);
-    const config = parseConfig({
-      REA_V8_INSPECTOR_OBSERVE_ENABLED: "true",
-      REA_V8_INSPECTOR_ENDPOINTS_JSON: JSON.stringify([inspector.endpoint]),
-      REA_V8_INSPECTOR_FILE_ROOTS_JSON: JSON.stringify([root]),
-    });
-    if (!config.ok) throw config.error;
-    const authority = await loadConfiguredPermissionAuthority(config.value);
-    if (!authority.ok) throw authority.error;
-    const session = createTestBinarySession(() => ({
-      execute: () => Promise.resolve(observed(null)),
-      close: () => Promise.resolve(),
-    }));
-    const server = createServer(session, session, {
-      javascriptRuntimeObservation: new V8InspectorProvider(),
-      permissionAuthority: authority.value,
-      availabilityPolicy: () => ({
-        processCaptureEnabled: false,
-        evidenceFileRoots: 0,
-        investigationInputRoots: 0,
-        v8InspectorObservationEnabled: true,
-      }),
-    });
-    const client = new Client({ name: "v8-mcp-test", version: "1" });
-    const [clientTransport, serverTransport] =
-      InMemoryTransport.createLinkedPair();
-    resources.push(client, server, session);
-    await server.connect(serverTransport);
-    await client.connect(clientTransport);
+    const { entry, inspector, authority, client, session } =
+      await createObservationClient(root, resources);
 
     const listed = await client.callTool({
       name: "list_javascript_runtime_targets",
@@ -115,22 +165,69 @@ describe("JavaScript runtime observation MCP tools", () => {
       "Runtime.enable",
       "Debugger.enable",
     ]);
-    const direct = await observeJavaScriptRuntime(
-      new V8InspectorProvider(),
-      authority.value,
-      observeJavaScriptRuntimeInputSchema.parse({
-        inspector_endpoint: inspector.endpoint,
-        allowed_file_roots: [root],
-        allowed_origins: [],
-        target_id: inspector.targetId,
-        runtime_kind: "node",
-        observation_ms: 10,
-      }),
-    );
+    const direct = await observeDirectly(root, inspector, authority);
     expect(direct.ok).toBe(true);
     if (direct.ok) expect(evidenceId).toBe(direct.value.evidence_id);
   });
 });
+
+const createObservationClient = async (
+  root: string,
+  resources: Array<{ close(): Promise<unknown> }>,
+) => {
+  const entry = join(root, "entry.js");
+  await writeFile(entry, "export const value = 1;\n");
+  const inspector = await startFakeV8Inspector({
+    targetUrl: pathToFileURL(entry).href,
+  });
+  resources.push(inspector);
+  const config = parseConfig({
+    REA_V8_INSPECTOR_OBSERVE_ENABLED: "true",
+    REA_V8_INSPECTOR_ENDPOINTS_JSON: JSON.stringify([inspector.endpoint]),
+    REA_V8_INSPECTOR_FILE_ROOTS_JSON: JSON.stringify([root]),
+  });
+  if (!config.ok) throw config.error;
+  const authority = await loadConfiguredPermissionAuthority(config.value);
+  if (!authority.ok) throw authority.error;
+  const session = createTestBinarySession(() => ({
+    execute: () => Promise.resolve(observed(null)),
+    close: () => Promise.resolve(),
+  }));
+  const server = createServer(session, session, {
+    javascriptRuntimeObservation: new V8InspectorProvider(),
+    permissionAuthority: authority.value,
+    availabilityPolicy: () => ({
+      processCaptureEnabled: false,
+      investigationInputRoots: 0,
+      v8InspectorObservationEnabled: true,
+    }),
+  });
+  const client = new Client({ name: "v8-mcp-test", version: "1" });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  resources.push(client, server, session);
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  return { entry, inspector, authority: authority.value, client, session };
+};
+
+const observeDirectly = (
+  root: string,
+  inspector: Awaited<ReturnType<typeof startFakeV8Inspector>>,
+  authority: Parameters<typeof observeJavaScriptRuntime>[1],
+) =>
+  observeJavaScriptRuntime(
+    new V8InspectorProvider(),
+    authority,
+    observeJavaScriptRuntimeInputSchema.parse({
+      inspector_endpoint: inspector.endpoint,
+      allowed_file_roots: [root],
+      allowed_origins: [],
+      target_id: inspector.targetId,
+      runtime_kind: "node",
+      observation_ms: 10,
+    }),
+  );
 
 const evidenceIdFrom = (value: unknown): string => {
   if (typeof value !== "object" || value === null)

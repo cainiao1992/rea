@@ -29,7 +29,8 @@ it("reconstructs package, Electron roles, Webpack/Rspack modules, and cross-laye
   expect(result.statistics).toMatchObject({
     modules: 4,
     parse_failures: 0,
-    omitted_text_files: 0,
+    relevant_files: expect.any(Number),
+    text_bytes_read: expect.any(Number),
   });
   expect(graph.nodes.map(({ kind }) => kind)).toEqual(
     expect.arrayContaining([

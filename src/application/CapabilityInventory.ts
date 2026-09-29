@@ -28,7 +28,6 @@ type ToolAvailabilityReason = "available" | ToolUnavailabilityReason;
 type ProviderDescriptor = ProviderCapability;
 export type AvailabilityPolicy = {
   readonly processCaptureEnabled: boolean;
-  readonly evidenceFileRoots: number;
   readonly browserObservationEnabled?: boolean;
   readonly browserScenarioEnabled?: boolean;
   readonly electronObservationEnabled?: boolean;
@@ -229,11 +228,6 @@ const policyAvailability = ({
   if (name === "plan_managed_runtime_correlation")
     return { reason: "available", remediation: null };
   if (kind === "application") return { reason: "available", remediation: null };
-  if (name === "import_evidence_bundle" && policy.evidenceFileRoots === 0)
-    return {
-      reason: "policy_disabled",
-      remediation: "Configure or grant an evidence_read root.",
-    };
   const electron = electronPolicyAvailability(name, kind, policy);
   if (electron !== null) return electron;
   if (kind === "runtime-provider")

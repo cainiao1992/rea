@@ -118,17 +118,11 @@ const configureAttachedEnvironment = async (
 export const openPlaywrightScenarioBrowser = async (
   scenario: BrowserScenario,
   environment: Readonly<Record<string, string | undefined>>,
-  maximumTimeoutMs: number,
 ): Promise<OpenedScenarioBrowser> => {
   if (scenario.browser.mode === "connect") {
     const browser = await chromium.connectOverCDP(
       scenario.browser.cdp_endpoint,
-      {
-        timeout: Math.min(
-          scenario.limits.navigation_timeout_ms,
-          maximumTimeoutMs,
-        ),
-      },
+      { timeout: 0 },
     );
     try {
       const target = await findConnectedPage(
@@ -165,7 +159,7 @@ export const openPlaywrightScenarioBrowser = async (
       handleSIGHUP: false,
       handleSIGINT: false,
       handleSIGTERM: false,
-      timeout: maximumTimeoutMs,
+      timeout: 0,
     });
     const browser = context.browser();
     if (browser === null) {

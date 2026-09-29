@@ -179,7 +179,6 @@ export const prepareReplayPlan = async (
         : {
             path: input.reproducer_export.path,
             include_sources: input.reproducer_export.include_sources,
-            authority: "evidence_write" as const,
           },
   };
   const publicPlan: ReplayPlan = {

@@ -5,8 +5,8 @@ import { reconstructionObligationLedgerSchema } from "./reconstructionObligation
 
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
-const stableIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._:/-]{0,199}$/u);
-const boundedTextSchema = z.string().trim().min(1).max(4_096);
+const stableIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._:/-]*$/u);
+const boundedTextSchema = z.string().trim().min(1);
 
 export const readinessStatusSchema = z.enum([
   "pass",
@@ -62,8 +62,8 @@ const capabilitySchema = z.strictObject({
     "writes-workspace",
     "network-observation",
   ]),
-  authority_scopes: z.array(stableIdSchema).max(100),
-  limits: z.array(limitSchema).max(100),
+  authority_scopes: z.array(stableIdSchema),
+  limits: z.array(limitSchema),
   unavailable_reason: boundedTextSchema.nullable(),
 });
 
@@ -78,7 +78,7 @@ const fixtureSchema = z.strictObject({
   ]),
   artifact_sha256: digestSchema,
   environment_id: stableIdSchema,
-  deliberate_faults: z.array(stableIdSchema).min(1).max(100),
+  deliberate_faults: z.array(stableIdSchema).min(1),
 });
 
 const workflowCandidateSchema = z.strictObject({
@@ -96,7 +96,7 @@ const grantSchema = z.strictObject({
   scope: stableIdSchema,
   decision: z.enum(["granted", "denied", "cancelled", "restart-required"]),
   launched_process: z.boolean(),
-  evidence_ids: z.array(evidenceIdSchema).max(100),
+  evidence_ids: z.array(evidenceIdSchema),
 });
 
 const comparisonSchema = z.strictObject({
@@ -108,9 +108,9 @@ const comparisonSchema = z.strictObject({
   unavailable_authority: z.boolean(),
   unstable: z.boolean(),
   deliberate_divergence_ref: boundedTextSchema.nullable(),
-  divergence_refs: z.array(boundedTextSchema).max(100),
-  contradiction_ids: z.array(stableIdSchema).max(100),
-  evidence_ids: z.array(evidenceIdSchema).min(1).max(1_000),
+  divergence_refs: z.array(boundedTextSchema),
+  contradiction_ids: z.array(stableIdSchema),
+  evidence_ids: z.array(evidenceIdSchema).min(1),
 });
 
 const contradictionSchema = z.strictObject({
@@ -118,8 +118,8 @@ const contradictionSchema = z.strictObject({
   declared_sha256: digestSchema,
   observed_sha256: digestSchema,
   policy: z.literal("record-and-continue"),
-  affected_comparison_ids: z.array(stableIdSchema).min(1).max(100),
-  evidence_ids: z.array(evidenceIdSchema).min(2).max(100),
+  affected_comparison_ids: z.array(stableIdSchema).min(1),
+  evidence_ids: z.array(evidenceIdSchema).min(2),
 });
 
 const operationOutcomeSchema = z.strictObject({
@@ -140,14 +140,14 @@ const operationOutcomeSchema = z.strictObject({
   mcp_status: z.enum(["success", "non-success"]).nullable(),
   error_code: stableIdSchema.nullable(),
   recovered: z.boolean(),
-  evidence_ids: z.array(evidenceIdSchema).max(100),
+  evidence_ids: z.array(evidenceIdSchema),
 });
 
 const cleanupSchema = z.strictObject({
   run_id: stableIdSchema,
   cancelled: z.boolean(),
   owned_resources_remaining: z.number().int().min(0),
-  diagnostic_evidence_ids: z.array(evidenceIdSchema).max(100),
+  diagnostic_evidence_ids: z.array(evidenceIdSchema),
 });
 
 const closureObservationSchema = z.strictObject({
@@ -155,21 +155,21 @@ const closureObservationSchema = z.strictObject({
   ledger_digest: digestSchema,
   status: z.enum(["ready", "open", "failed", "unknown"]),
   required_open: z.number().int().min(0),
-  newly_verified_obligation_ids: z.array(stableIdSchema).max(10_000),
-  evidence_ids: z.array(evidenceIdSchema).min(1).max(1_000),
+  newly_verified_obligation_ids: z.array(stableIdSchema),
+  evidence_ids: z.array(evidenceIdSchema).min(1),
 });
 
 const delegationCheckSchema = z.strictObject({
   candidate_id: stableIdSchema,
   delegates_to_authority: z.boolean(),
-  evidence_ids: z.array(evidenceIdSchema).min(1).max(100),
+  evidence_ids: z.array(evidenceIdSchema).min(1),
 });
 
 const stageCheckSchema = z.strictObject({
   check_id: stableIdSchema,
   status: readinessStatusSchema,
   detail: boundedTextSchema,
-  evidence_ids: z.array(evidenceIdSchema).max(100),
+  evidence_ids: z.array(evidenceIdSchema),
 });
 
 const stageSchema = z.strictObject({
@@ -178,8 +178,8 @@ const stageSchema = z.strictObject({
   status: readinessStatusSchema,
   capability_issue: stableIdSchema.nullable(),
   next_action: boundedTextSchema.nullable(),
-  evidence_ids: z.array(evidenceIdSchema).max(1_000),
-  checks: z.array(stageCheckSchema).max(100),
+  evidence_ids: z.array(evidenceIdSchema),
+  checks: z.array(stageCheckSchema),
 });
 
 const replaySchema = z.strictObject({
@@ -187,7 +187,7 @@ const replaySchema = z.strictObject({
   deterministic: z.boolean(),
   tamper_detected: z.boolean(),
   stale_input_detected: z.boolean(),
-  evidence_ids: z.array(evidenceIdSchema).max(100),
+  evidence_ids: z.array(evidenceIdSchema),
 });
 
 export const reconstructionReadinessInputSchema = z.strictObject({
@@ -196,26 +196,26 @@ export const reconstructionReadinessInputSchema = z.strictObject({
     server_version: boundedTextSchema,
     catalog_digest: digestSchema,
     skill_digest: digestSchema.nullable(),
-    versions: z.array(versionObservationSchema).min(1).max(100),
-    providers: z.array(providerIdentitySchema).max(100),
+    versions: z.array(versionObservationSchema).min(1),
+    providers: z.array(providerIdentitySchema),
   }),
   client: z.strictObject({
     name: boundedTextSchema,
     version: boundedTextSchema,
-    negotiated_capabilities: z.array(stableIdSchema).max(100),
+    negotiated_capabilities: z.array(stableIdSchema),
   }),
-  capabilities: z.array(capabilitySchema).min(1).max(1_000),
-  fixtures: z.array(fixtureSchema).min(1).max(100),
-  workflow_candidates: z.array(workflowCandidateSchema).min(1).max(1_000),
-  grants: z.array(grantSchema).max(1_000),
+  capabilities: z.array(capabilitySchema).min(1),
+  fixtures: z.array(fixtureSchema).min(1),
+  workflow_candidates: z.array(workflowCandidateSchema).min(1),
+  grants: z.array(grantSchema),
   evidence_bundle: evidenceBundleSchema,
-  comparisons: z.array(comparisonSchema).max(1_000),
-  contradictions: z.array(contradictionSchema).max(1_000),
+  comparisons: z.array(comparisonSchema),
+  contradictions: z.array(contradictionSchema),
   obligation_ledger: reconstructionObligationLedgerSchema,
-  operation_outcomes: z.array(operationOutcomeSchema).max(10_000),
-  cleanup: z.array(cleanupSchema).max(1_000),
-  closure_history: z.array(closureObservationSchema).min(2).max(1_000),
-  delegation_checks: z.array(delegationCheckSchema).min(1).max(1_000),
+  operation_outcomes: z.array(operationOutcomeSchema),
+  cleanup: z.array(cleanupSchema),
+  closure_history: z.array(closureObservationSchema).min(2),
+  delegation_checks: z.array(delegationCheckSchema).min(1),
   replay: replaySchema,
   stages: z
     .array(stageSchema)
@@ -239,7 +239,7 @@ const findingSchema = z.strictObject({
   stage_id: readinessStageIdSchema,
   status: z.enum(["fail", "unknown"]),
   detail: boundedTextSchema,
-  evidence_ids: z.array(evidenceIdSchema).max(100),
+  evidence_ids: z.array(evidenceIdSchema),
 });
 
 export const reconstructionReadinessReportSchema = z.strictObject({
@@ -283,8 +283,8 @@ export const reconstructionReadinessReportSchema = z.strictObject({
         seen.add(stage.stage_id);
       });
     }),
-  findings: z.array(findingSchema).max(10_000),
-  evidence_links: z.array(evidenceIdSchema).max(100_000),
+  findings: z.array(findingSchema),
+  evidence_links: z.array(evidenceIdSchema),
   snapshot: reconstructionReadinessInputSchema,
 });
 

@@ -176,7 +176,6 @@ describe("browser scenario MCP tool", () => {
       permissionAuthority: authority.value,
       availabilityPolicy: () => ({
         processCaptureEnabled: false,
-        evidenceFileRoots: 0,
         investigationInputRoots: 0,
         browserObservationEnabled: true,
         browserScenarioEnabled: true,
@@ -208,7 +207,6 @@ describe("browser scenario MCP tool", () => {
         ],
       },
       capture: { after_each_step: [], at_end: ["url"], events: [] },
-      limits: { max_duration_ms: 60_000 },
     });
 
     const captured = await client.callTool({

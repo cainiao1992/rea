@@ -43,6 +43,30 @@ describe("runtime executable diagnostics", () => {
     expect(pathNodes.every(({ healthy }) => healthy)).toBe(true);
   });
 
+  it("reports every PATH candidate beyond the former per-tool cap", async () => {
+    const directories = await Promise.all(
+      Array.from({ length: 17 }, () => temporaryRoot()),
+    );
+    await Promise.all(
+      directories.map((directory) =>
+        symlink(process.execPath, join(directory, "node")),
+      ),
+    );
+
+    const inventory = await inspectRuntimeExecutables({
+      platform: process.platform,
+      path: directories.join(delimiter),
+      launcherNode: process.execPath,
+    });
+
+    expect(
+      inventory.candidates.filter(
+        ({ tool, path_index: pathIndex }) =>
+          tool === "node" && pathIndex !== null,
+      ),
+    ).toHaveLength(17);
+  });
+
   it("distinguishes a healthy primary runtime from a broken shadowed candidate", async () => {
     const healthy = await temporaryRoot();
     const broken = await temporaryRoot();

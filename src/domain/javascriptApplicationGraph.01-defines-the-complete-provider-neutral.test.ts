@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeJavaScriptApplicationGraphSha256,
   createJavaScriptApplicationGraph,
+  createJavaScriptApplicationNode,
   javascriptApplicationGraphSchema,
   parseJavaScriptApplicationGraph,
   serializeJavaScriptApplicationGraph,
@@ -13,7 +14,11 @@ import {
   JAVASCRIPT_APPLICATION_NODE_KINDS,
   JAVASCRIPT_APPLICATION_RELATIONS,
 } from "./javascriptApplicationGraphSchemas.js";
-import { buildSyntheticJavaScriptApplicationGraph } from "./javascriptApplicationGraph.fixture.js";
+import {
+  APPLICATION_GRAPH_DIGESTS,
+  artifactEvidence,
+  buildSyntheticJavaScriptApplicationGraph,
+} from "./javascriptApplicationGraph.fixture.js";
 
 const nodeByLabel = (
   graph: JavaScriptApplicationGraph,
@@ -24,6 +29,54 @@ const nodeByLabel = (
   );
   if (node === undefined) throw new TypeError(`Missing fixture node: ${label}`);
   return node;
+};
+
+const createLargeNativeExportGraph = (): JavaScriptApplicationGraph => {
+  const properties = Object.fromEntries(
+    Array.from({ length: 1_001 }, (_, index) => [
+      `${"export-property-"}${"k".repeat(120)}-${index}`,
+      "v".repeat(4_097),
+    ]),
+  );
+  const nodes = Array.from({ length: 1_001 }, (_, index) => {
+    const path = `native/exports/${index}.symbol`;
+    return createJavaScriptApplicationNode({
+      kind: "native-export",
+      identity: {
+        strategy: "canonical-path",
+        stability: "artifact-version",
+        artifact_sha256: APPLICATION_GRAPH_DIGESTS.nativeAddon,
+        path,
+      },
+      observations: [
+        {
+          label: index === 0 ? "large export graph label ".repeat(300) : path,
+          properties: index === 0 ? properties : {},
+          evidence: artifactEvidence(
+            APPLICATION_GRAPH_DIGESTS.nativeAddon,
+            path,
+            "native-analysis-provider",
+          ),
+        },
+      ],
+    });
+  });
+  const first = nodes[0];
+  if (first === undefined) throw new TypeError("Missing native export");
+
+  return createJavaScriptApplicationGraph({
+    schema: "JavaScriptApplicationGraph",
+    root_node_ids: [first.node_id],
+    nodes,
+    edges: [],
+    coverage: {
+      status: "complete",
+      truncated: false,
+      omitted_count: 0,
+      limits: [],
+    },
+    limitations: [],
+  });
 };
 
 describe("JavaScript Application Graph", () => {
@@ -100,6 +153,20 @@ describe("JavaScript Application Graph", () => {
         edges: semantic.edges.toReversed(),
       }),
     ).toEqual(graph);
+  });
+
+  it("keeps large native-export graphs and their complete properties", () => {
+    const graph = createLargeNativeExportGraph();
+    const largeExport = graph.nodes.find(({ observations }) =>
+      observations.some(({ label }) =>
+        label?.startsWith("large export graph label "),
+      ),
+    );
+
+    expect(graph.nodes).toHaveLength(1_001);
+    expect(
+      Object.keys(largeExport?.observations[0]?.properties ?? {}),
+    ).toHaveLength(1_001);
   });
 
   it("represents the synthetic ASAR to preload to IPC to native chain", () => {

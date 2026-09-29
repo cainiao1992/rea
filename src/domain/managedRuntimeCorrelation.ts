@@ -13,7 +13,7 @@ import type { JsonValue } from "./jsonValue.js";
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
 const tokenSchema = z.string().regex(/^0x[0-9a-f]{8}$/u);
-const boundedTextSchema = z.string().min(1).max(4_096);
+const boundedTextSchema = z.string().min(1);
 
 const managedRuntimeEffectSchema = z.enum([
   "attach",
@@ -30,9 +30,9 @@ const managedRuntimeHostSchema = z.strictObject({
 });
 
 const managedRuntimeBoundsSchema = z.strictObject({
-  timeout_ms: z.number().int().min(1).max(60_000).default(5_000),
-  max_threads: z.number().int().min(1).max(256).default(32),
-  max_output_bytes: z.number().int().min(0).max(1_048_576).default(65_536),
+  timeout_ms: z.number().int().min(1).default(5_000),
+  max_threads: z.number().int().min(1).default(32),
+  max_output_bytes: z.number().int().min(0).default(65_536),
   allow_network: z.literal(false).default(false),
   allow_ui: z.literal(false).default(false),
 });
@@ -109,7 +109,7 @@ export const managedRuntimeCorrelationResultSchema = z.strictObject({
   bounds: managedRuntimeBoundsSchema,
   unsupported_until_executor_exists: z.literal(true),
   evidence_links: z.array(evidenceIdSchema).length(1),
-  limitations: z.array(boundedTextSchema).max(1_000),
+  limitations: z.array(boundedTextSchema),
 });
 
 export type ManagedRuntimeCorrelationInput = z.infer<

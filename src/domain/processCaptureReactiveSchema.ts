@@ -14,8 +14,8 @@ const processReactiveOutcomeSchema = z.enum([
 
 const processReactiveTransitionShape = {
   sequence: z.number().int().nonnegative(),
-  transition_id: z.string().min(1).max(64),
-  state_before: z.string().min(1).max(64),
+  transition_id: z.string().min(1),
+  state_before: z.string().min(1),
   trigger_event_ids: z.array(z.string().min(1)),
   action_event_ids: z.array(z.string().min(1)),
   action_types: z.array(
@@ -32,7 +32,7 @@ const processReactiveTransitionShape = {
 const processReactiveTransitionSchema = z.union([
   z.object({
     ...processReactiveTransitionShape,
-    state_after: z.string().min(1).max(64),
+    state_after: z.string().min(1),
     outcome: z.null(),
   }),
   z.object({
@@ -43,7 +43,7 @@ const processReactiveTransitionSchema = z.union([
 ]);
 
 const processReactiveRunShape = {
-  active_state: z.string().min(1).max(64),
+  active_state: z.string().min(1),
   controls: z
     .array(
       z.object({

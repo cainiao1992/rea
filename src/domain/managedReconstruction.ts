@@ -22,7 +22,7 @@ const decompilerSchema = z.strictObject({
   version: z.string().min(1).max(128).nullable(),
   family: z.enum(["ilspy", "dnspy", "dnlib", "mono-cecil", "other"]),
   executable_sha256: digestSchema.nullable(),
-  options: z.array(z.string().max(512)).max(50).default([]),
+  options: z.array(z.string().max(512)).default([]),
 });
 
 const managedReconstructionMethodInputSchema = z.strictObject({
@@ -47,8 +47,8 @@ type ManagedReconstructionMethodInput = z.infer<
 export const managedReconstructionImportInputSchema = z.strictObject({
   static_members: evidenceSchema,
   decompiler: decompilerSchema,
-  methods: z.array(managedReconstructionMethodInputSchema).min(1).max(50),
-  notes: z.array(z.string().min(1).max(4_096)).max(100).default([]),
+  methods: z.array(managedReconstructionMethodInputSchema).min(1),
+  notes: z.array(z.string().min(1).max(4_096)).default([]),
 });
 
 const importedMethodSchema = z.strictObject({
@@ -95,16 +95,16 @@ export const managedReconstructionImportResultSchema = z.strictObject({
     options_sha256: digestSchema,
   }),
   summary: z.strictObject({
-    imported_methods: z.number().int().min(1).max(50),
-    decompiled_csharp_methods: z.number().int().min(0).max(50),
-    decompiled_il_methods: z.number().int().min(0).max(50),
-    pseudocode_methods: z.number().int().min(0).max(50),
+    imported_methods: z.number().int().min(1),
+    decompiled_csharp_methods: z.number().int().min(0),
+    decompiled_il_methods: z.number().int().min(0),
+    pseudocode_methods: z.number().int().min(0),
     total_text_bytes: z.number().int().min(1),
   }),
-  methods: z.array(importedMethodSchema).min(1).max(50),
-  notes: z.array(z.string().min(1).max(4_096)).max(100),
+  methods: z.array(importedMethodSchema).min(1),
+  notes: z.array(z.string().min(1).max(4_096)),
   evidence_links: z.array(evidenceIdSchema).length(1),
-  limitations: z.array(z.string().min(1).max(4_096)).max(1_000),
+  limitations: z.array(z.string().min(1).max(4_096)),
 });
 
 export type ManagedReconstructionImportInput = z.infer<

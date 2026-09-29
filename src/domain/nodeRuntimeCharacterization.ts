@@ -24,7 +24,7 @@ const nodeRuntimeCharacterizationPlanSchema =
 
 export const nodeCharacterizationPreparationInputSchema = z
   .strictObject({
-    selected_alias: z.string().min(1).max(200),
+    selected_alias: z.string().min(1),
     expected_effect: nodeCharacterizationExpectedEffectSchema,
     instrumentation: javascriptExportInstrumentationInputSchema,
     replay: controlledReplayPlanInputSchema,

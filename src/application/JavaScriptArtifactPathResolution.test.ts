@@ -5,7 +5,31 @@ import {
   type ResolveArtifactPathInput,
 } from "./JavaScriptArtifactPathResolution.js";
 import type { JavaScriptArtifactFile } from "./JavaScriptArtifactFiles.js";
+import { artifactLocalIdentity } from "./JavaScriptArtifactGraphContext.js";
+import { applicationNodeIdentitySchema } from "../domain/javascriptApplicationEvidenceSchemas.js";
 import { analyzeJavaScriptStaticSource } from "../domain/javascriptStaticAnalysis.js";
+
+describe("artifact-local graph identity", () => {
+  it("preserves complete long namespace and key values", () => {
+    const digest = "a".repeat(64);
+    const namespacePrefix = "n".repeat(512);
+    const keyPrefix = "k".repeat(4_096);
+    const first = artifactLocalIdentity(
+      digest,
+      `${namespacePrefix}a`,
+      `${keyPrefix}a`,
+    );
+    const second = artifactLocalIdentity(
+      digest,
+      `${namespacePrefix}b`,
+      `${keyPrefix}b`,
+    );
+
+    expect(applicationNodeIdentitySchema.parse(first)).toEqual(first);
+    expect(applicationNodeIdentitySchema.parse(second)).toEqual(second);
+    expect(first).not.toEqual(second);
+  });
+});
 
 describe("contextual JavaScript artifact path resolution", () => {
   it.each([
@@ -249,7 +273,7 @@ describe("contextual JavaScript module identity", () => {
         window.loadURL("file:///renderer/index.html");
       `,
       {
-        maxAstNodes: 10_000,
+        maxAstNodes: Number.POSITIVE_INFINITY,
         deadline: Number.POSITIVE_INFINITY,
         now: () => 0,
       },
@@ -315,6 +339,6 @@ const file = (
   unpacked: false,
   text:
     text === null
-      ? { included: false, reason: "file-limit" }
+      ? { included: false, reason: "invalid-utf8" }
       : { included: true, value: text },
 });

@@ -34,23 +34,19 @@ interface PerformActionInput {
   readonly page: Page;
   readonly action: BrowserScenarioAction;
   readonly secrets: BrowserScenarioSecrets;
-  readonly defaultTimeoutMs: number;
-  readonly maximumTimeoutMs: number;
 }
 
 /** Execute one admitted declarative action with no caller-supplied code. */
 export const performPlaywrightScenarioAction = async (
   input: PerformActionInput,
 ): Promise<void> => {
-  const { page, action, secrets, defaultTimeoutMs, maximumTimeoutMs } = input;
+  const { page, action, secrets } = input;
   const timeout = "timeout_ms" in action ? action.timeout_ms : undefined;
-  const options = {
-    timeout: Math.min(timeout ?? defaultTimeoutMs, maximumTimeoutMs),
-  };
+  const options = timeout === undefined ? {} : { timeout };
   switch (action.action) {
     case "goto":
       await page.goto(secrets.url(action.destination), {
-        timeout: options.timeout,
+        ...options,
         waitUntil: action.wait_until,
       });
       return;
@@ -89,8 +85,6 @@ export const performPlaywrightScenarioAction = async (
       });
       return;
     case "wait_for_timeout":
-      if (action.duration_ms > maximumTimeoutMs)
-        throw new Error("Scenario duration limit reached");
       await page.waitForTimeout(action.duration_ms);
   }
 };

@@ -28,6 +28,13 @@ describe("web content artifacts", () => {
         .success,
     ).toBe(false);
   });
+
+  it("preserves provider media types longer than the former field ceiling", () => {
+    const mediaType = `application/${"x".repeat(300)}`;
+    const artifact = createWebTextArtifact("content", mediaType);
+
+    expect(webTextArtifactSchema.parse(artifact).media_type).toBe(mediaType);
+  });
 });
 
 describe("stable web inventory", () => {

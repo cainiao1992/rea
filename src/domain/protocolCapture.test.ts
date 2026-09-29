@@ -12,6 +12,32 @@ import {
 } from "./protocolCapture.js";
 
 describe("protocol capture", () => {
+  it("accepts every captured message", () => {
+    const message: ProtocolMessage = {
+      sequence: 0,
+      at_ms: 0,
+      family: "json-rpc",
+      direction: "request",
+      endpoint: null,
+      content_type: null,
+      raw_payload: null,
+      decoded_fields: [],
+      schema_hypotheses: [],
+      truncated: false,
+      credentials_redacted: false,
+    };
+
+    expect(
+      protocolCaptureSchema.parse({
+        family: "json-rpc",
+        messages: Array.from({ length: 10_001 }, (_, sequence) => ({
+          ...message,
+          sequence,
+        })),
+      }).messages,
+    ).toHaveLength(10_001);
+  });
+
   it("classifies gRPC from content type", () => {
     expect(classifyProtocolFamily("application/grpc+proto", null)).toBe("grpc");
   });
@@ -87,6 +113,12 @@ describe("JSON-RPC decoding", () => {
 });
 
 describe("MessagePack decoding", () => {
+  it("does not report unobserved payload bytes as truncation", () => {
+    const result = decodeMessagePack(new Uint8Array(10_001).fill(0x82));
+
+    expect(result.truncated).toBe(false);
+  });
+
   it("detects map type", () => {
     const payload = new Uint8Array([0x82]);
     const result = decodeMessagePack(payload);

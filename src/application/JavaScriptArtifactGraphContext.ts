@@ -2,7 +2,6 @@ import type { ArtifactInventorySnapshot } from "./ArtifactInventory.js";
 import {
   completeApplicationCoverage,
   partialApplicationCoverage,
-  truncatedApplicationCoverage,
   type ApplicationGraphEvidence,
 } from "../domain/javascriptApplicationEvidenceSchemas.js";
 import type { ApplicationNode } from "../domain/javascriptApplicationGraph.js";
@@ -214,10 +213,8 @@ export const javascriptAnalysisCoverage = (
   >,
 ): JavaScriptArtifactGraphCoverage =>
   analysis.parse_status === "complete"
-    ? completeApplicationCoverage(javaScriptAnalysisLimits())
-    : analysis.parse_status === "truncated"
-      ? truncatedApplicationCoverage(javaScriptAnalysisLimits(), null)
-      : partialApplicationCoverage(javaScriptAnalysisLimits(), null);
+    ? completeApplicationCoverage()
+    : partialApplicationCoverage([], null);
 
 /** Stable identity for a fact scoped to one exact artifact. */
 export const artifactLocalIdentity = (
@@ -228,8 +225,8 @@ export const artifactLocalIdentity = (
   strategy: "artifact-local-key" as const,
   stability: "artifact-version" as const,
   artifact_sha256: sha256,
-  namespace: namespace.slice(0, 512),
-  key: key.slice(0, 4_096),
+  namespace,
+  key,
 });
 
 /** Select the graph node kind for one inventoried relevant file. */
@@ -344,17 +341,3 @@ export const sourceNodeFor = (
   moduleKey === null
     ? context.sourceModuleNodes.get(path)
     : context.moduleNodes.get(moduleLookupKey(path, moduleKey));
-
-/** Actual parser safety bounds committed to graph evidence coverage. */
-export const javaScriptAnalysisLimits = () => [
-  {
-    name: "max-ast-nodes",
-    value: 2_000_000,
-    unit: "items" as const,
-  },
-  {
-    name: "max-parse-milliseconds",
-    value: 30_000,
-    unit: "milliseconds" as const,
-  },
-];

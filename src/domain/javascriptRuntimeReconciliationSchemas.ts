@@ -11,10 +11,9 @@ import {
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
 const nodeIdSchema = z.string().regex(/^jag_node_[a-f0-9]{64}$/u);
-const boundedTextSchema = z.string().min(1).max(4_096);
+const boundedTextSchema = z.string().min(1);
 const safePrefixSchema = z
   .string()
-  .max(4_096)
   .refine(
     (value) =>
       value === "" ||
@@ -29,7 +28,6 @@ const runtimeFileMappingSchema = z.strictObject({
   root: z
     .string()
     .min(1)
-    .max(16_384)
     .refine(isAbsolute, "Runtime file mapping root must be absolute")
     .overwrite((value) => resolve(value)),
   artifact_prefix: safePrefixSchema.default(""),
@@ -40,7 +38,6 @@ const runtimeUrlMappingSchema = z.strictObject({
   prefix: z
     .string()
     .min(1)
-    .max(16_384)
     .refine(
       (value) => normalizeRuntimeUrlPrefix(value) !== null,
       "Runtime URL prefix must be HTTP(S) without credentials, query, or fragment",
@@ -144,7 +141,7 @@ const layerSummarySchema = z.strictObject({
   evidence_id: evidenceIdSchema,
   graph_id: z.string().regex(/^jag_[a-f0-9]{64}$/u),
   root_artifact_sha256: digestSchema,
-  input_path: z.string().min(1).max(16_384),
+  input_path: z.string().min(1),
   format: z.enum(["asar", "directory"]),
   runtime_mappings: z.array(runtimeLocationMappingSchema),
 });
@@ -155,7 +152,7 @@ const captureSummarySchema = z.strictObject({
   kind: z.enum(["browser", "electron", "v8-inspector", "electron-active"]),
   target_node_id: nodeIdSchema,
   target_key: boundedTextSchema,
-  target_location: z.string().min(1).max(131_072),
+  target_location: z.string().min(1),
   frames: z.number().int().min(0),
   scripts: z.number().int().min(0),
   workers: z.number().int().min(0),

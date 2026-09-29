@@ -24,14 +24,9 @@ export interface BrowserScenarioSessionPort {
     readonly dropped: number;
     readonly items: readonly BrowserScenarioEvent[];
   };
-  perform(
-    action: BrowserScenarioAction,
-    maximumTimeoutMs: number,
-    signal?: AbortSignal,
-  ): Promise<void>;
+  perform(action: BrowserScenarioAction, signal?: AbortSignal): Promise<void>;
   capture(
     requested: ReadonlySet<SnapshotKind>,
-    maximumTimeoutMs: number,
     signal?: AbortSignal,
   ): Promise<BrowserStepArtifacts>;
   close(): Promise<"terminated-owned-process" | "disconnected-external">;
@@ -43,7 +38,6 @@ export interface BrowserScenarioSessionFactory {
     scenario: BrowserScenario,
     options?: {
       readonly signal?: AbortSignal;
-      readonly deadlineAt?: number;
     },
   ): Promise<BrowserScenarioSessionPort>;
 }

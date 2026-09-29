@@ -26,7 +26,6 @@ import type {
   JavaScriptSourceMapObservation,
   JavaScriptSourceMapOriginal,
 } from "./JavaScriptArtifactAnalysisTypes.js";
-import { JAVASCRIPT_APPLICATION_RESOURCE_LIMITS } from "./JavaScriptArtifactReconstructionInput.js";
 import { analyzeJavaScriptJsonModule } from "./JavaScriptJsonModules.js";
 
 interface MutableArtifactAnalysis {
@@ -44,22 +43,14 @@ interface MutableArtifactAnalysis {
 
 interface ArtifactAnalysisContext {
   readonly state: MutableArtifactAnalysis;
-  readonly deadline: number;
-  readonly now: () => number;
 }
 
-/** Analyze every selected source under shared AST and parser safety bounds. */
+/** Analyze every text source from the artifact without a result quota. */
 export const analyzeJavaScriptArtifactFiles = (
   fileSet: JavaScriptArtifactFileSet,
-  now: () => number,
 ): JavaScriptArtifactAnalysis => {
   const state = emptyArtifactAnalysis();
-  const context = {
-    state,
-    deadline:
-      now() + JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.maxParseMilliseconds,
-    now,
-  };
+  const context = { state };
   for (const file of fileSet.files) analyzeArtifactFile(file, context);
   return finalizeArtifactAnalysis(state);
 };
@@ -87,7 +78,7 @@ const finalizeArtifactAnalysis = (
       "Static paths and relationships may remain unresolved when expressions are dynamic or obfuscated.",
       ...(truncatedScopes === 0
         ? []
-        : ["One or more static-analysis scopes reached an approved bound."]),
+        : ["Some static-analysis scopes were truncated."]),
     ],
   };
 };
@@ -105,13 +96,6 @@ const analyzeArtifactFile = (
     state.files.push({ file, javascript: null, semantic: null });
     return;
   }
-  const remainingNodes =
-    JAVASCRIPT_APPLICATION_RESOURCE_LIMITS.maxAstNodes - state.visitedNodes;
-  if (remainingNodes <= 0 || context.now() > context.deadline) {
-    state.files.push({ file, javascript: null, semantic: null });
-    state.truncatedScopes += 1;
-    return;
-  }
   const parsed = parseJavaScriptSource(file.text.value);
   if (parsed === null) {
     const analysis = failedJavaScriptStaticAnalysis();
@@ -123,9 +107,9 @@ const analyzeArtifactFile = (
     file.text.value,
     parsed,
     {
-      maxAstNodes: remainingNodes,
-      deadline: context.deadline,
-      now: context.now,
+      maxAstNodes: Number.POSITIVE_INFINITY,
+      deadline: Number.POSITIVE_INFINITY,
+      now: () => 0,
     },
   );
   const staticFindings = findingCount(analysis);
@@ -156,10 +140,7 @@ const addSourceMap = (
   file: JavaScriptArtifactFile,
   context: ArtifactAnalysisContext,
 ): void => {
-  const sourceMap = parseSourceMap(file, {
-    deadline: context.deadline,
-    now: context.now,
-  });
+  const sourceMap = parseSourceMap(file);
   context.state.sourceMaps.push(sourceMap);
 };
 
@@ -265,43 +246,23 @@ const htmlBaseHref = (text: string): string | null => {
 
 const parseSourceMap = (
   file: JavaScriptArtifactFile,
-  context: {
-    readonly deadline: number;
-    readonly now: () => number;
-  },
 ): JavaScriptSourceMapObservation => {
   if (!file.text.included) return unavailableSourceMap(file);
-  if (context.now() > context.deadline)
-    return truncatedSourceMap(
-      file,
-      null,
-      "Parse deadline reached before source-map decoding.",
-    );
   let value: unknown;
   try {
     value = JSON.parse(file.text.value);
   } catch {
     return invalidSourceMap(file, "Source map is not valid JSON.");
   }
-  if (context.now() > context.deadline)
-    return truncatedSourceMap(
-      file,
-      null,
-      "Parse deadline elapsed during source-map decoding.",
-    );
   const maps = flattenSourceMaps(value);
   if (maps === undefined)
-    return invalidSourceMap(file, "Source map is not a bounded version 3 map.");
-  return collectSourceMapOriginals(file, maps, context);
+    return invalidSourceMap(file, "Source map is not a version 3 map.");
+  return collectSourceMapOriginals(file, maps);
 };
 
 const collectSourceMapOriginals = (
   file: JavaScriptArtifactFile,
   maps: readonly Readonly<Record<string, unknown>>[],
-  context: {
-    readonly deadline: number;
-    readonly now: () => number;
-  },
 ): JavaScriptSourceMapObservation => {
   const sources: JavaScriptSourceMapOriginal[] = [];
   for (const map of maps) {
@@ -313,15 +274,6 @@ const collectSourceMapOriginals = (
       : [];
     const root = typeof map.sourceRoot === "string" ? map.sourceRoot : "";
     for (const [index, raw] of names.entries()) {
-      if (sources.length % 1_024 === 0 && context.now() > context.deadline)
-        return {
-          path: file.path,
-          sha256: file.sha256,
-          status: "truncated",
-          sources,
-          omitted_sources: null,
-          limitation: "Parse deadline elapsed during source-map traversal.",
-        };
       if (typeof raw !== "string")
         return invalidSourceMap(
           file,
@@ -357,8 +309,7 @@ const unavailableSourceMap = (
     status: "invalid",
     sources: [],
     omitted_sources: 0,
-    limitation:
-      "Source-map text was unavailable within the selected input limits.",
+    limitation: "Source-map text could not be decoded as UTF-8.",
   };
 };
 
@@ -380,19 +331,6 @@ const flattenSourceMaps = (
   }
   return maps;
 };
-
-const truncatedSourceMap = (
-  file: JavaScriptArtifactFile,
-  omitted: number | null,
-  limitation: string,
-): JavaScriptSourceMapObservation => ({
-  path: file.path,
-  sha256: file.sha256,
-  status: "truncated",
-  sources: [],
-  omitted_sources: omitted,
-  limitation,
-});
 
 const invalidSourceMap = (
   file: JavaScriptArtifactFile,

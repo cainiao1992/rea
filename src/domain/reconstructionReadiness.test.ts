@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { RECONSTRUCTION_READINESS_EXAMPLE } from "../contracts/reconstructionReadinessExample.js";
 import { createReconstructionReadinessReport } from "./reconstructionReadiness.js";
-import type { ReconstructionReadinessInput } from "./reconstructionReadinessSchemas.js";
+import {
+  reconstructionReadinessInputSchema,
+  type ReconstructionReadinessInput,
+} from "./reconstructionReadinessSchemas.js";
 
 const input = (
   overrides: Partial<ReconstructionReadinessInput> = {},
@@ -12,6 +15,17 @@ const input = (
 });
 
 describe("reconstruction readiness report", () => {
+  it("accepts every caller supplied capability", () => {
+    const capability = RECONSTRUCTION_READINESS_EXAMPLE.capabilities[0];
+    if (capability === undefined) throw new TypeError("Missing capability");
+
+    const parsed = reconstructionReadinessInputSchema.parse(
+      input({ capabilities: Array.from({ length: 1_001 }, () => capability) }),
+    );
+
+    expect(parsed.capabilities).toHaveLength(1_001);
+  });
+
   it("passes the complete repository conformance journey deterministically", () => {
     const first = createReconstructionReadinessReport(input());
     const second = createReconstructionReadinessReport(input());

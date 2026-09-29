@@ -26,7 +26,7 @@ const contentNode = (
   });
 
 describe("JavaScript Application Graph", () => {
-  it("rejects false truncation claims and unbounded properties", () => {
+  it("rejects false truncation claims and accepts large properties", () => {
     const truncated = artifactEvidence(
       APPLICATION_GRAPH_DIGESTS.asar,
       "dist/module.js",
@@ -75,11 +75,11 @@ describe("JavaScript Application Graph", () => {
     const properties = Object.fromEntries(
       Array.from({ length: 65 }, (_, index) => [`key-${String(index)}`, index]),
     );
-    expect(() =>
+    expect(
       contentNode(
         artifactEvidence(APPLICATION_GRAPH_DIGESTS.asar, "dist/module.js"),
         properties,
-      ),
-    ).toThrow(/exceed 64 keys/u);
+      ).observations[0]?.properties,
+    ).toEqual(properties);
   });
 });

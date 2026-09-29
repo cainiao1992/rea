@@ -7,24 +7,21 @@ import {
   browserOriginSchema,
 } from "./browserObservation.js";
 
-const boundedTextSchema = z.string().min(1).max(4_096);
+const observationTextSchema = z.string().min(1);
 
 const runtimeFileRootsSchema = z
   .array(
     z
       .string()
       .min(1)
-      .max(16_384)
       .refine(isAbsolute, "Runtime file roots must be absolute paths")
       .overwrite(resolve),
   )
-  .max(32)
   .overwrite((roots) => [...new Set(roots)].sort())
   .default([]);
 
 const runtimeOriginsSchema = z
   .array(browserOriginSchema)
-  .max(32)
   .overwrite((origins) => [...new Set(origins)].sort())
   .default([]);
 
@@ -72,24 +69,21 @@ const observedJavaScriptRuntimeKindSchema = javascriptRuntimeKindSchema.or(
   z.literal("unknown"),
 );
 
-/** Maximum accepted source location byte length in one inspector event. */
-export const MAX_JAVASCRIPT_RUNTIME_LOCATION_BYTES = 16_384;
-
 /** Input for one bounded, attach-only V8 Inspector observation. */
 export const observeJavaScriptRuntimeToolInputSchema = z.strictObject({
   discovery_evidence_id: z.string().min(1),
-  target_id: z.string().trim().min(1).max(256),
+  target_id: z.string().trim().min(1),
   runtime_kind: javascriptRuntimeKindSchema.optional(),
-  observation_ms: z.number().int().min(0).max(10_000).default(100),
+  observation_ms: z.number().int().min(0).default(100),
 });
 
 /** Input after discovery Evidence supplies the authorized target scope. */
 export const observeJavaScriptRuntimeInputSchema = z
   .strictObject({
     ...runtimeScope,
-    target_id: z.string().trim().min(1).max(256),
+    target_id: z.string().trim().min(1),
     runtime_kind: javascriptRuntimeKindSchema.optional(),
-    observation_ms: z.number().int().min(0).max(10_000).default(100),
+    observation_ms: z.number().int().min(0).default(100),
   })
   .superRefine(requireRuntimeScope);
 export type ObserveJavaScriptRuntimeInput = z.infer<
@@ -97,25 +91,25 @@ export type ObserveJavaScriptRuntimeInput = z.infer<
 >;
 
 export const javascriptRuntimeVersionSchema = z.strictObject({
-  product: z.string().min(1).max(1_024),
-  protocol_version: z.string().min(1).max(100),
-  v8_version: z.string().max(1_024).nullable(),
+  product: z.string().min(1),
+  protocol_version: z.string().min(1),
+  v8_version: z.string().nullable(),
 });
 
 export const javascriptRuntimeLocationSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("file"),
-    file_path: z.string().min(1).max(16_384),
+    file_path: z.string().min(1),
     authority: z.literal("scope-fallback").optional(),
   }),
   z.strictObject({
     kind: z.literal("url"),
-    origin: z.string().min(1).max(2_048),
-    sanitized_url: z.string().min(1).max(65_536),
+    origin: z.string().min(1),
+    sanitized_url: z.string().min(1),
   }),
   z.strictObject({
     kind: z.literal("builtin"),
-    specifier: z.string().min(1).max(4_096),
+    specifier: z.string().min(1),
   }),
 ]);
 export type JavaScriptRuntimeLocation = z.infer<
@@ -123,8 +117,8 @@ export type JavaScriptRuntimeLocation = z.infer<
 >;
 
 const javascriptRuntimeTargetSchema = z.strictObject({
-  target_id: z.string().min(1).max(256),
-  protocol_type: z.string().min(1).max(100),
+  target_id: z.string().min(1),
+  protocol_type: z.string().min(1),
   attached: z.boolean(),
   location: javascriptRuntimeLocationSchema,
 });
@@ -139,7 +133,7 @@ export const javascriptRuntimeTargetListSchema = z.strictObject({
     unsupported_location: z.number().int().min(0),
     unconnectable: z.number().int().min(0),
   }),
-  limitations: z.array(boundedTextSchema).max(100),
+  limitations: z.array(observationTextSchema),
 });
 export type JavaScriptRuntimeTargetList = z.infer<
   typeof javascriptRuntimeTargetListSchema
@@ -148,18 +142,18 @@ export type JavaScriptRuntimeTargetList = z.infer<
 const javascriptRuntimeScriptSchema = z.strictObject({
   script_key: z.string().regex(/^v8_script_[a-f0-9]{64}$/u),
   location: javascriptRuntimeLocationSchema,
-  execution_context_key: z.string().max(64).nullable(),
-  cdp_hash: z.string().max(512).nullable(),
+  execution_context_key: z.string().nullable(),
+  cdp_hash: z.string().nullable(),
   length: z.number().int().min(0),
   is_module: z.boolean(),
   status: z.literal("observed-loaded"),
 });
 
 const javascriptRuntimeContextSchema = z.strictObject({
-  context_key: z.string().min(1).max(64),
+  context_key: z.string().min(1),
   state: z.enum(["created", "destroyed", "cleared"]),
-  name: z.string().max(1_024).nullable(),
-  origin: z.string().max(4_096).nullable(),
+  name: z.string().nullable(),
+  origin: z.string().nullable(),
 });
 
 /** Deterministic passive script/context snapshot from one bounded window. */
@@ -179,7 +173,7 @@ export const javascriptRuntimeObservationSchema = z.strictObject({
     events_dropped: z.number().int().min(0),
     metadata_bytes_retained: z.number().int().min(0),
     truncated: z.boolean(),
-    truncation_reasons: z.array(boundedTextSchema).max(20),
+    truncation_reasons: z.array(observationTextSchema),
   }),
   scripts: z.strictObject({
     items: z.array(javascriptRuntimeScriptSchema),
@@ -192,10 +186,10 @@ export const javascriptRuntimeObservationSchema = z.strictObject({
     }),
   }),
   execution_contexts: z.array(javascriptRuntimeContextSchema),
-  directly_observed: z.array(boundedTextSchema).max(20),
-  unavailable_without_instrumentation: z.array(boundedTextSchema).max(20),
-  unknowns: z.array(boundedTextSchema).max(100),
-  limitations: z.array(boundedTextSchema).max(100),
+  directly_observed: z.array(observationTextSchema),
+  unavailable_without_instrumentation: z.array(observationTextSchema),
+  unknowns: z.array(observationTextSchema),
+  limitations: z.array(observationTextSchema),
 });
 export type JavaScriptRuntimeObservation = z.infer<
   typeof javascriptRuntimeObservationSchema

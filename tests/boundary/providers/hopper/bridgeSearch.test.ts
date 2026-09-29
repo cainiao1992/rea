@@ -239,6 +239,31 @@ describe("Hopper bridge search", () => {
     });
   });
 
+  it("returns regex matches without imposing a path-count limit", async () => {
+    await expect(
+      probe({
+        action: "search",
+        items: [
+          ["0x1000", "REA_GHIDRA_INVENTORY_ENTRY"],
+          ["0x2000", "unrelated"],
+          ["0x3000", "REA_GHIDRA_LEAF_VALUE"],
+        ],
+        params: {
+          pattern: "^REA_GHIDRA_(?:INVENTORY_ENTRY|LEAF_VALUE)$",
+          mode: "regex",
+          case_sensitive: true,
+        },
+      }),
+    ).resolves.toEqual({
+      action: "search",
+      ok: true,
+      result: [
+        { address: "0x1000", value: "REA_GHIDRA_INVENTORY_ENTRY" },
+        { address: "0x3000", value: "REA_GHIDRA_LEAF_VALUE" },
+      ],
+    });
+  });
+
   it("returns the complete value for a long literal match", async () => {
     const value = `${"x".repeat(4_096)}needle`;
     await expect(

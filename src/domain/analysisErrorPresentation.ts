@@ -78,8 +78,6 @@ export const analysisErrorCategory = (
     return "unavailable";
   if (error instanceof ArtifactOperationError)
     return artifactErrorCategory(error.reason);
-  if (error instanceof EvidenceFileError && error.reason === "disabled")
-    return "unavailable";
   if (error instanceof WorkspaceStorageError)
     return workspaceStorageCategory(error.reason);
   return STATIC_ERROR_CATEGORIES[error._tag] ?? "execution_failure";
@@ -255,14 +253,8 @@ const artifactMessage = (reason: ArtifactOperationError["reason"]): string => {
 };
 
 const evidenceFileMessage = (reason: EvidenceFileError["reason"]): string => {
-  if (reason === "disabled")
-    return "Evidence file access is disabled. Enable an evidence directory or use inline evidence.";
-  if (reason === "outside-root")
-    return "Evidence path is outside the allowed directory. Choose a path inside the configured evidence directory.";
   if (reason === "not-file")
-    return "Evidence path does not point to a file. Choose an evidence file and try again.";
-  if (reason === "too-large")
-    return "Evidence file is too large. Reduce its size and try again.";
+    return "Evidence path does not point to a regular file. Choose a file and try again.";
   if (reason === "exists")
     return "Evidence file already exists. Choose another path or allow overwrite.";
   if (reason === "invalid-json")

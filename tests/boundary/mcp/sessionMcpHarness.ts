@@ -43,17 +43,8 @@ export const createSessionMcpHarness = async (
     resolveAnalysisProfile: () =>
       Promise.resolve(ok({ profile: SNAPSHOT_PROFILE, compatibility: {} })),
   });
-  const filePolicy = {
-    roots: [root],
-    maxBytes: 1024 * 1024,
-    maxDepth: 68,
-    maxStringLength: 1024,
-    maxNodes: 10_000,
-  };
   const server = createServer(session, session, {
     logger: silentLogger,
-    evidenceFilePolicy: filePolicy,
-    analysisSnapshotFilePolicy: filePolicy,
   });
   const mcp = new Client({ name: "session-test", version: "1.0.0" });
   const [clientTransport, serverTransport] =

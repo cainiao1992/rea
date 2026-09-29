@@ -89,7 +89,7 @@ const targetEntity = (
     label: target.title,
     properties: {
       runtime_type: target.type,
-      location: location.value.slice(0, 4_096),
+      location: location.value,
       attached: target.attached,
     },
     section: "target",
@@ -117,7 +117,7 @@ const frameEntities = (
       label: location.value,
       properties: {
         parent_frame_id: frame.parent_frame_id,
-        location: location.value.slice(0, 4_096),
+        location: location.value,
       },
       section: "frames",
     });
@@ -145,7 +145,7 @@ const scriptEntities = (
         : null,
       label: location.value,
       properties: {
-        location: location.value.slice(0, 4_096),
+        location: location.value,
         cdp_hash: script.cdp_hash,
         length: script.length,
         is_module: script.is_module,
@@ -186,7 +186,7 @@ const workerEntities = (
       label: location.value,
       properties: {
         runtime_type: worker.type,
-        location: location.value.slice(0, 4_096),
+        location: location.value,
         attached: worker.attached,
         opener_target_id: worker.opener_target_id,
         parent_frame_id: worker.parent_frame_id,
@@ -233,7 +233,7 @@ const runtimeEntity = (
     },
     observations: [
       {
-        label: input.label.slice(0, 1_024) || null,
+        label: input.label || null,
         properties: input.properties,
         evidence: runtimeEvidence(capture, input),
       },

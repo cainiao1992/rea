@@ -12,9 +12,9 @@ import {
 
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
 
-/** Strict bounded input for aggregating existing comparison Evidence. */
+/** Input for aggregating existing comparison Evidence. */
 export const changedBehaviorInputSchema = z.object({
-  comparisons: z.array(evidenceSchema).max(100).default([]),
+  comparisons: z.array(evidenceSchema).default([]),
 });
 
 const findingSchema = z.object({
@@ -28,7 +28,7 @@ const findingSchema = z.object({
   ]),
   status: comparisonStatusSchema,
   source_comparison_id: evidenceIdSchema,
-  evidence_links: z.array(evidenceIdSchema).min(3).max(201),
+  evidence_links: z.array(evidenceIdSchema).min(3),
   limitations: z.array(z.string()),
 });
 
@@ -50,7 +50,7 @@ export const changedBehaviorResultSchema = z
     findings: z.object({
       items: z.array(findingSchema),
     }),
-    evidence_links: z.array(evidenceIdSchema).min(3).max(20_100),
+    evidence_links: z.array(evidenceIdSchema).min(3),
     limitations: z.array(z.string()),
   })
   .superRefine((result, context) => {
@@ -125,8 +125,6 @@ export const findChangedBehavior = (
   const links = uniqueSorted(
     evidence.flatMap((item) => [item.evidence_id, ...item.evidence_links]),
   );
-  if (links.length > 20_100)
-    throw new TypeError("Changed-behavior Evidence closure exceeds limit");
   return changedBehaviorResultSchema.parse({
     behavior_status: behaviorStatus(runtimeStatuses),
     summary: {

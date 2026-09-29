@@ -16,21 +16,52 @@ describe("process scenario collection inputs", () => {
     expect(scenario.checkpoints).toHaveLength(65);
   });
 
-  it("lets callers raise the output byte budget without a tool-side ceiling", () => {
+  it("allows a zero-depth filesystem observation", () => {
+    expect(
+      processScenarioSchema.parse({
+        executable: "/bin/echo",
+        working_directory: "/tmp",
+        limits: { filesystem_depth: 0 },
+      }).limits.filesystem_depth,
+    ).toBe(0);
+  });
+
+  it("accepts caller budgets above the former tool-side ceilings", () => {
     const scenario = processScenarioSchema.parse({
       executable: "/bin/echo",
       working_directory: "/tmp",
-      limits: { output_bytes: 10_000_001 },
+      timeout_ms: 600_000,
+      idle_timeout_ms: 900_000,
+      settle_ms: 20_000,
+      limits: {
+        output_bytes: 10_000_001,
+        files: 100_001,
+        file_bytes: 100_000_001,
+        processes: 10_001,
+        protocol_events: 100_001,
+        protocol_body_bytes: 10_000_001,
+        connections: 1_001,
+        filesystem_depth: 100,
+      },
+      checkpoints: [
+        {
+          name: "later",
+          trigger: { type: "time", at_ms: 600_000 },
+        },
+      ],
     });
 
     expect(scenario.limits.output_bytes).toBe(10_000_001);
-    expect(
-      processScenarioSchema.safeParse({
-        executable: "/bin/echo",
-        working_directory: "/tmp",
-        limits: { frames: 100_001 },
-      }).success,
-    ).toBe(false);
+    expect(scenario.limits.files).toBe(100_001);
+    expect(scenario.limits.file_bytes).toBe(100_000_001);
+    expect(scenario.limits.processes).toBe(10_001);
+    expect(scenario.limits.protocol_events).toBe(100_001);
+    expect(scenario.limits.protocol_body_bytes).toBe(10_000_001);
+    expect(scenario.limits.connections).toBe(1_001);
+    expect(scenario.limits.filesystem_depth).toBe(100);
+    expect(scenario.timeout_ms).toBe(600_000);
+    expect(scenario.idle_timeout_ms).toBe(900_000);
+    expect(scenario.settle_ms).toBe(20_000);
   });
 
   it("accepts large interaction and replay descriptions under the run budgets", () => {

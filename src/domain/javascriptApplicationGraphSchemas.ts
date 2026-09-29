@@ -5,10 +5,10 @@ import {
   applicationGraphEvidenceSchema,
   applicationNodeIdentitySchema,
 } from "./javascriptApplicationEvidenceSchemas.js";
-import { isJsonWithinLimits } from "./jsonLimits.js";
+import { isJsonWithinDepth } from "./jsonLimits.js";
 import { jsonValueSchema } from "./jsonValue.js";
 
-const boundedTextSchema = z.string().min(1).max(4_096);
+const boundedTextSchema = z.string().min(1);
 
 /** Node kinds admitted by JavaScript Application Graph. */
 export const JAVASCRIPT_APPLICATION_NODE_KINDS = [
@@ -71,29 +71,18 @@ export const JAVASCRIPT_APPLICATION_RELATIONS = [
 const applicationRelationSchema = z.enum(JAVASCRIPT_APPLICATION_RELATIONS);
 
 const applicationPropertiesSchema = z
-  .record(z.string().min(1).max(128), jsonValueSchema)
+  .record(z.string().min(1), jsonValueSchema)
   .superRefine((properties, context) => {
-    if (Object.keys(properties).length > 64)
+    if (!isJsonWithinDepth(properties, 6))
       context.addIssue({
         code: "custom",
-        message: "Application graph properties exceed 64 keys",
-      });
-    if (
-      !isJsonWithinLimits(properties, {
-        maxDepth: 6,
-        maxNodes: 512,
-        maxStringLength: 4_096,
-      })
-    )
-      context.addIssue({
-        code: "custom",
-        message: "Application graph properties exceed structural limits",
+        message: "Application graph properties exceed the supported depth",
       });
   });
 
 /** One node observation before its semantic identifier is derived. */
 const applicationNodeObservationInputSchema = z.strictObject({
-  label: z.string().min(1).max(1_024).nullable(),
+  label: z.string().min(1).nullable(),
   properties: applicationPropertiesSchema,
   evidence: applicationGraphEvidenceSchema,
 });

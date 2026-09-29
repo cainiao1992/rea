@@ -16,16 +16,15 @@ import { SESSION_TOOL_CONTRACTS } from "../contracts/toolContracts.js";
 import type { AnalysisSnapshot } from "../domain/analysisSnapshot.js";
 import { UnknownRegistryError, type AnalysisError } from "../domain/errors.js";
 import type { Evidence } from "../domain/evidence.js";
-import type { EvidenceFilePolicy } from "../domain/evidenceBundle.js";
 import type {
   ProcessCapture,
   ProcessExecutionPolicy,
   ProcessScenario,
 } from "../domain/processCapture.js";
 import { err, ok, type Result } from "../domain/result.js";
+import { projectPermissionFailure } from "../application/PermissionFailure.js";
 import type { Logger } from "../logger.js";
 import { mcpProgressReporter } from "./mcpProgress.js";
-import { projectPermissionFailure } from "../application/PermissionFailure.js";
 import {
   authorizeProcessCaptureWithElicitation,
   type ProcessCaptureElicitation,
@@ -46,10 +45,7 @@ import {
   sessionAvailabilityPolicy,
   type SessionAvailability,
 } from "./sessionAvailabilityPolicy.js";
-import {
-  DENY_EVIDENCE_FILE_POLICY,
-  DENY_PROCESS_POLICY,
-} from "./sessionToolPolicies.js";
+import { DENY_PROCESS_POLICY } from "./sessionToolPolicies.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 import { toCallToolResult } from "./toolResult.js";
@@ -182,10 +178,8 @@ export interface LifecycleToolRegistration {
     (typeof SESSION_TOOL_CONTRACTS)[1],
     (typeof SESSION_TOOL_CONTRACTS)[2],
   ];
-  readonly snapshotFilePolicy: EvidenceFilePolicy;
   readonly startedAt: string;
   readonly availabilityPolicy: () => SessionAvailability;
-  readonly permissionAuthority?: PermissionAuthority;
 }
 
 const registerLifecycleTools = (
@@ -209,8 +203,6 @@ const registerOpenLifecycleTool = ({
   session,
   logger,
   contracts: [openContract],
-  snapshotFilePolicy,
-  permissionAuthority,
 }: LifecycleToolRegistration): void => {
   server.registerTool(
     openContract.name,
@@ -218,29 +210,7 @@ const registerOpenLifecycleTool = ({
     async (input, context) => {
       let snapshot: AnalysisSnapshot | undefined;
       if (input.snapshot_path !== undefined) {
-        if (permissionAuthority !== undefined) {
-          const authorized = await permissionAuthority.authorize(
-            {
-              capability: "snapshot_read",
-              roots: [input.snapshot_path],
-              executables: [],
-              environment_names: [],
-              network: "none",
-              mount: false,
-              operation_identity: `open_binary:snapshot:${input.snapshot_path}`,
-            },
-            "read",
-          );
-          if (!authorized.ok)
-            return toCallToolResult(
-              err(projectPermissionFailure(authorized.error)),
-              openContract,
-            );
-        }
-        const loaded = await readAnalysisSnapshot(
-          input.snapshot_path,
-          snapshotFilePolicy,
-        );
+        const loaded = await readAnalysisSnapshot(input.snapshot_path);
         if (!loaded.ok) return toCallToolResult(loaded, openContract);
         snapshot = loaded.value;
       }
@@ -278,8 +248,6 @@ const registerOpenLifecycleTool = ({
 /** Register MCP-only target lifecycle operations on a long-lived session. */
 export interface SessionToolOptions {
   readonly processPolicy?: () => ProcessExecutionPolicy;
-  readonly evidenceFilePolicy?: EvidenceFilePolicy;
-  readonly analysisSnapshotFilePolicy?: EvidenceFilePolicy;
   readonly startedAt?: string;
   readonly permissionAuthority?: PermissionAuthority;
   readonly processCaptureElicitation?: ProcessCaptureElicitation;
@@ -335,10 +303,6 @@ export const registerSessionTools = (
   options: SessionToolOptions = {},
 ): void => {
   const processPolicy = options.processPolicy ?? (() => DENY_PROCESS_POLICY);
-  const evidenceFilePolicy =
-    options.evidenceFilePolicy ?? DENY_EVIDENCE_FILE_POLICY;
-  const analysisSnapshotFilePolicy =
-    options.analysisSnapshotFilePolicy ?? DENY_EVIDENCE_FILE_POLICY;
   const [
     openContract,
     closeContract,
@@ -361,15 +325,10 @@ export const registerSessionTools = (
     session,
     logger,
     contracts: [openContract, closeContract, statusContract],
-    snapshotFilePolicy: analysisSnapshotFilePolicy,
     startedAt: options.startedAt ?? new Date().toISOString(),
     availabilityPolicy: sessionAvailabilityPolicy(options.availabilityPolicy, {
       processPolicy: processPolicy(),
-      evidenceFilePolicy,
     }),
-    ...(options.permissionAuthority === undefined
-      ? {}
-      : { permissionAuthority: options.permissionAuthority }),
   });
   registerEvidenceTools({
     server,
@@ -377,10 +336,6 @@ export const registerSessionTools = (
     exportContract,
     importContract,
     snapshotContract,
-    filePolicy: evidenceFilePolicy,
-    ...(options.permissionAuthority === undefined
-      ? {}
-      : { permissionAuthority: options.permissionAuthority }),
   });
   registerProcessTools({
     server,
@@ -398,12 +353,7 @@ export const registerSessionTools = (
   registerProcessComparisonTool(server, session, compareContract);
   registerArtifactComparisonTool(server, session, compareArtifactsContract);
   registerFunctionComparisonTool(server, session, compareFunctionsContract);
-  registerBundleComparisonTool(
-    server,
-    session,
-    compareBundlesContract,
-    evidenceFilePolicy,
-  );
+  registerBundleComparisonTool(server, session, compareBundlesContract);
   const investigationContracts = [
     changedBehaviorContract,
     callPathContract,

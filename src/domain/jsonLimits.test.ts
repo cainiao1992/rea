@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isJsonWithinLimits } from "./jsonLimits.js";
+import { isJsonWithinDepth, isJsonWithinLimits } from "./jsonLimits.js";
 
 const limits = {
   maxDepth: 3,
@@ -9,6 +9,18 @@ const limits = {
 };
 
 describe("JSON limits", () => {
+  it("checks depth without rejecting large keys, collections, or strings", () => {
+    const properties = Object.fromEntries(
+      Array.from({ length: 1_001 }, (_, index) => [
+        `${"k".repeat(128)}${index}`,
+        "v".repeat(4_097),
+      ]),
+    );
+
+    expect(isJsonWithinDepth(properties, 6)).toBe(true);
+    expect(isJsonWithinDepth({ nested: { value: true } }, 1)).toBe(false);
+  });
+
   it("traverses nested object and array values", () => {
     expect(isJsonWithinLimits({ one: ["two", { three: 3 }] }, limits)).toBe(
       true,

@@ -5,7 +5,6 @@ import { z } from "zod";
 const absolutePathSchema = z
   .string()
   .min(1)
-  .max(16_384)
   .refine(isAbsolute, "path must be absolute");
 
 const windowIndexSchema = z.number().int().min(0);
@@ -13,7 +12,6 @@ const windowIndexSchema = z.number().int().min(0);
 const deepLinkUrlSchema = z
   .string()
   .min(1)
-  .max(4_096)
   .refine((value) => {
     try {
       return new URL(value).protocol.length > 0;
@@ -24,29 +22,29 @@ const deepLinkUrlSchema = z
 
 const actionSchema = z.discriminatedUnion("kind", [
   z.strictObject({
-    step_id: z.string().min(1).max(128),
+    step_id: z.string().min(1),
     kind: z.literal("click"),
-    selector: z.string().min(1).max(512),
+    selector: z.string().min(1),
     window_index: windowIndexSchema.default(0),
   }),
   z.strictObject({
-    step_id: z.string().min(1).max(128),
+    step_id: z.string().min(1),
     kind: z.literal("wait"),
     duration_ms: z.number().int().min(0),
     window_index: windowIndexSchema.optional(),
   }),
   z.strictObject({
-    step_id: z.string().min(1).max(128),
+    step_id: z.string().min(1),
     kind: z.literal("renderer-reload"),
     window_index: windowIndexSchema.default(0),
   }),
   z.strictObject({
-    step_id: z.string().min(1).max(128),
+    step_id: z.string().min(1),
     kind: z.literal("renderer-crash"),
     window_index: windowIndexSchema.default(0),
   }),
   z.strictObject({
-    step_id: z.string().min(1).max(128),
+    step_id: z.string().min(1),
     kind: z.literal("deep-link"),
     delivery: z.enum(["open-url", "second-instance"]),
     url: deepLinkUrlSchema,
@@ -58,7 +56,7 @@ export const electronActiveObservationInputSchema = z.strictObject({
   executable_path: absolutePathSchema,
   application_path: absolutePathSchema,
   application_root: absolutePathSchema,
-  args: z.array(z.string().max(4_096)).default([]),
+  args: z.array(z.string()).default([]),
   actions: z.array(actionSchema).default([]),
 });
 export type ElectronActiveObservationInput = z.infer<
@@ -67,7 +65,7 @@ export type ElectronActiveObservationInput = z.infer<
 
 const ipcEventSchema = z.strictObject({
   sequence: z.number().int().min(1),
-  correlation_id: z.string().max(256).nullable().default(null),
+  correlation_id: z.string().nullable().default(null),
   kind: z.enum([
     "main-handler-invocation",
     "main-event-invocation",
@@ -79,13 +77,12 @@ const ipcEventSchema = z.strictObject({
     "ipc-renderer-invoke",
     "ipc-renderer-post-message",
   ]),
-  event: z.string().max(128).nullable().optional(),
+  event: z.string().nullable().optional(),
   phase: z
     .enum(["attempted", "completed", "blocked", "failed", "observed"])
     .nullable()
     .optional(),
-  channel: z.string().max(1_024).nullable(),
-  channel_truncated: z.boolean().default(false),
+  channel: z.string().nullable(),
   direction: z
     .enum([
       "renderer-to-main",
@@ -95,19 +92,18 @@ const ipcEventSchema = z.strictObject({
     ])
     .nullable()
     .optional(),
-  sender: z.string().max(256).nullable().optional(),
-  receiver: z.string().max(256).nullable().optional(),
-  frame: z.string().max(256).nullable().default(null),
-  target: z.string().max(256).nullable().optional(),
-  argument_shapes: z.array(z.string().max(64)).max(32),
-  argument_shapes_truncated: z.boolean().default(false),
-  result_shape: z.string().max(64).nullable(),
-  process_type: z.string().max(128).nullable(),
-  source: z.string().max(64).default("electron-active-hook"),
+  sender: z.string().nullable().optional(),
+  receiver: z.string().nullable().optional(),
+  frame: z.string().nullable().default(null),
+  target: z.string().nullable().optional(),
+  argument_shapes: z.array(z.string()),
+  result_shape: z.string().nullable(),
+  process_type: z.string().nullable(),
+  source: z.string().default("electron-active-hook"),
   capture_method: z
     .enum(["api-wrapper", "event-emitter", "process-hook"])
     .default("api-wrapper"),
-  artifact_path: z.string().max(16_384).nullable().default(null),
+  artifact_path: z.string().nullable().default(null),
   artifact_sha256: z
     .string()
     .regex(/^[a-f0-9]{64}$/u)
@@ -118,7 +114,7 @@ const ipcEventSchema = z.strictObject({
 
 const timelineEventSchema = z.strictObject({
   sequence: z.number().int().min(1),
-  correlation_id: z.string().max(256).nullable().default(null),
+  correlation_id: z.string().nullable().default(null),
   kind: z.enum([
     "main-handler-invocation",
     "main-event-invocation",
@@ -144,10 +140,9 @@ const timelineEventSchema = z.strictObject({
     "updater",
     "error",
   ]),
-  event: z.string().max(128).nullable(),
+  event: z.string().nullable(),
   phase: z.enum(["attempted", "completed", "blocked", "failed", "observed"]),
-  channel: z.string().max(1_024).nullable(),
-  channel_truncated: z.boolean(),
+  channel: z.string().nullable(),
   direction: z
     .enum([
       "renderer-to-main",
@@ -156,17 +151,16 @@ const timelineEventSchema = z.strictObject({
       "utility-to-main",
     ])
     .nullable(),
-  sender: z.string().max(256).nullable(),
-  receiver: z.string().max(256).nullable(),
-  frame: z.string().max(256).nullable(),
-  target: z.string().max(256).nullable(),
-  argument_shapes: z.array(z.string().max(64)).max(32),
-  argument_shapes_truncated: z.boolean(),
-  result_shape: z.string().max(64).nullable(),
-  process_type: z.string().max(128).nullable(),
-  source: z.string().max(64),
+  sender: z.string().nullable(),
+  receiver: z.string().nullable(),
+  frame: z.string().nullable(),
+  target: z.string().nullable(),
+  argument_shapes: z.array(z.string()),
+  result_shape: z.string().nullable(),
+  process_type: z.string().nullable(),
+  source: z.string(),
   capture_method: z.enum(["api-wrapper", "event-emitter", "process-hook"]),
-  artifact_path: z.string().max(16_384).nullable(),
+  artifact_path: z.string().nullable(),
   artifact_sha256: z
     .string()
     .regex(/^[a-f0-9]{64}$/u)
@@ -176,16 +170,16 @@ const timelineEventSchema = z.strictObject({
 
 const processMetricSchema = z.strictObject({
   pid: z.number().int().min(1),
-  type: z.string().min(1).max(128),
-  name: z.string().max(256).nullable(),
-  service_name: z.string().max(256).nullable(),
+  type: z.string().min(1),
+  name: z.string().nullable(),
+  service_name: z.string().nullable(),
 });
 
 const windowResultSchema = z.strictObject({
-  window_id: z.string().max(256),
-  web_contents_id: z.string().max(256),
-  url: z.string().max(65_536),
-  title: z.string().max(16_384),
+  window_id: z.string(),
+  web_contents_id: z.string(),
+  url: z.string(),
+  title: z.string(),
   visible: z.boolean().nullable(),
   destroyed: z.boolean(),
 });
@@ -198,14 +192,14 @@ const coverageSchema = z.strictObject({
     "target_exited",
     "cleanup_failed",
   ]),
-  observed_event_families: z.array(z.string().max(128)).max(32),
-  unavailable_event_families: z.array(z.string().max(128)).max(32),
-  observed_roles: z.array(z.string().max(128)).max(16),
+  observed_event_families: z.array(z.string()),
+  unavailable_event_families: z.array(z.string()),
+  observed_roles: z.array(z.string()),
   pre_capture_activity: z.literal("unavailable"),
 });
 
 const actionResultContextShape = {
-  step_id: z.string().min(1).max(128),
+  step_id: z.string().min(1),
   kind: z.enum([
     "click",
     "wait",
@@ -214,7 +208,7 @@ const actionResultContextShape = {
     "deep-link",
   ]),
   window_index: windowIndexSchema.nullable(),
-  target: z.string().max(256).nullable(),
+  target: z.string().nullable(),
   elapsed_ms: z.number().int().min(0),
 };
 
@@ -236,7 +230,7 @@ export const electronActiveObservationResultSchema = z.strictObject({
   application: z.strictObject({
     executable_path: absolutePathSchema,
     application_path: absolutePathSchema,
-    electron_version: z.string().min(1).max(256),
+    electron_version: z.string().min(1),
     process_ownership: z.literal("provider-owned"),
     cleanup: z.literal("terminated-owned-process"),
   }),
@@ -262,7 +256,7 @@ export const electronActiveObservationResultSchema = z.strictObject({
     observed_roles: [],
     pre_capture_activity: "unavailable",
   }),
-  limitations: z.array(z.string().max(4_096)).max(100),
+  limitations: z.array(z.string()),
 });
 export type ElectronActiveObservationResult = z.infer<
   typeof electronActiveObservationResultSchema

@@ -37,25 +37,28 @@ describe("CDP connection", () => {
     }
   });
 
-  it("returns a typed timeout for an unresponsive CDP command", async () => {
+  it("waits for an unresponsive command until caller cancellation", async () => {
     const browser = await startFakeCdpBrowser({ hangOnMethod: "Page.enable" });
     browsers.push(browser);
     const connection = await CdpConnection.connect(
       browser.browserWebSocketUrl,
       "observe_web_session",
     );
-    vi.useFakeTimers();
     try {
-      const pending = connection.send("Page.enable");
+      const controller = new AbortController();
+      const pending = connection.send(
+        "Page.enable",
+        {},
+        undefined,
+        controller.signal,
+      );
       const assertion = expect(pending).rejects.toMatchObject({
-        _tag: "AnalysisTimeoutError",
+        _tag: "AnalysisCancelledError",
         operation: "observe_web_session",
-        timeoutMs: 5_000,
       });
-      await vi.advanceTimersByTimeAsync(5_000);
+      controller.abort();
       await assertion;
     } finally {
-      vi.useRealTimers();
       await connection.close();
     }
   });

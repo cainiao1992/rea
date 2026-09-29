@@ -155,10 +155,7 @@ const staticEvidence = createEvidence(
       statistics: {
         relevant_files: 1,
         nested_asar_containers: 0,
-        text_files_selected: 1,
         text_bytes_read: script.bytes,
-        omitted_text_files: 0,
-        limit_omitted_text_files: 0,
         invalid_utf8_files: 0,
         parsed_javascript_files: 1,
         visited_ast_nodes: 1,

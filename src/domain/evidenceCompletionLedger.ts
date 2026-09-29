@@ -4,7 +4,7 @@ import canonicalize from "canonicalize";
 import { z } from "zod";
 
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
-const claimIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]{0,99}$/u);
+const claimIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]*$/u);
 
 /** Terminal outcome recorded for one verifier claim. */
 export const evidenceCompletionStatusSchema = z.enum([
@@ -19,11 +19,11 @@ export const evidenceCompletionStatusSchema = z.enum([
 export const evidenceCompletionRecordSchema = z.strictObject({
   claim_id: claimIdSchema,
   status: evidenceCompletionStatusSchema,
-  evidence_ids: z.array(evidenceIdSchema).min(1).max(100),
+  evidence_ids: z.array(evidenceIdSchema).min(1),
 });
 
 const completionSummarySchema = z.strictObject({
-  total: z.number().int().min(1).max(10_000),
+  total: z.number().int().min(1),
   pass: z.number().int().nonnegative(),
   fail: z.number().int().nonnegative(),
   unsupported: z.number().int().nonnegative(),
@@ -34,7 +34,7 @@ const completionSummarySchema = z.strictObject({
 
 const completionLedgerObjectSchema = z.strictObject({
   ledger_id: z.string().regex(/^ecl_[a-f0-9]{64}$/u),
-  records: z.array(evidenceCompletionRecordSchema).min(1).max(10_000),
+  records: z.array(evidenceCompletionRecordSchema).min(1),
   summary: completionSummarySchema,
 });
 

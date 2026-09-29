@@ -22,12 +22,7 @@ describe("runtime configuration", () => {
       expect(result.value.hopperLoaderArgs).toEqual([]);
       expect(result.value.logLevel).toBe("info");
       expect(result.value.referenceSourcePolicy).toEqual({
-        roots: [],
         secretPatterns: [],
-        maxBytes: 16 * 1024 * 1024,
-        maxEntries: 10_000,
-        maxDepth: 32,
-        maxPathBytes: 4_096,
       });
       expect(result.value.browserObservationPolicy).toEqual({
         status: "disabled",
@@ -400,27 +395,8 @@ describe("runtime target configuration", () => {
         processExecutionPolicy: {
           status: "disabled",
         },
-        evidenceFilePolicy: {
-          roots: [],
-          maxBytes: 64 * 1024 * 1024,
-          maxDepth: 64,
-          maxStringLength: 1024 * 1024,
-          maxNodes: 1_000_000,
-        },
-        analysisSnapshotFilePolicy: {
-          roots: [],
-          maxBytes: 64 * 1024 * 1024,
-          maxDepth: 64,
-          maxStringLength: 1024 * 1024,
-          maxNodes: 1_000_000,
-        },
         referenceSourcePolicy: {
-          roots: [],
           secretPatterns: [],
-          maxBytes: 16 * 1024 * 1024,
-          maxEntries: 10_000,
-          maxDepth: 32,
-          maxPathBytes: 4_096,
         },
       },
     });
@@ -446,40 +422,17 @@ describe("runtime collection configuration", () => {
     expect(parseConfig({ REA_LOG_LEVEL: "verbose" }).ok).toBe(false);
   });
 
-  it("parses reference source policy roots and secret patterns", () => {
+  it("parses reference source secret patterns", () => {
     const result = parseConfig({
-      REA_REFERENCE_ROOTS_JSON: '["/approved", "/srv/reference"]',
       REA_REFERENCE_SECRET_PATTERNS_JSON: '["*.env", "*.pem", "secrets/"]',
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.referenceSourcePolicy).toEqual({
-        roots: ["/approved", "/srv/reference"],
         secretPatterns: ["*.env", "*.pem", "secrets/"],
-        maxBytes: 16 * 1024 * 1024,
-        maxEntries: 10_000,
-        maxDepth: 32,
-        maxPathBytes: 4_096,
       });
     }
   });
-
-  it("parses evidence roots", () => {
-    const result = parseConfig({
-      REA_EVIDENCE_ROOTS_JSON: '["/evidence"]',
-    });
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value.evidenceFilePolicy.roots).toEqual(["/evidence"]);
-    }
-  });
-
-  it.each(["not-json", "{}", '["/ok", 1]'])(
-    "rejects invalid reference source roots: %s",
-    (encoded) => {
-      expect(parseConfig({ REA_REFERENCE_ROOTS_JSON: encoded }).ok).toBe(false);
-    },
-  );
 
   it.each(["not-json", "{}", '["*.ok", 1]'])(
     "rejects invalid reference source secret patterns: %s",

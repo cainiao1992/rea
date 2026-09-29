@@ -75,6 +75,29 @@ describe("reconstruction coverage closure", () => {
     });
   });
 
+  it("returns recommendations for every missing required surface", () => {
+    const workspace = completeReconstructionCoverageData();
+    const boundary = workspace.boundaries[0];
+    if (boundary === undefined) throw new Error("Expected fixture boundary");
+    const missingSurfaces = Array.from(
+      { length: 10_001 },
+      (_, index) => `missing.surface.${index}`,
+    );
+    const incomplete = createReconstructionCoverageData({
+      ...workspace,
+      boundaries: [{ ...boundary, required_surface_ids: missingSurfaces }],
+    });
+
+    const result = evaluateReconstructionClosure(
+      incomplete,
+      boundary.boundary_id,
+      RECONSTRUCTION_COVERAGE_NOW,
+    );
+
+    expect(result.reasons).toHaveLength(missingSurfaces.length);
+    expect(result.recommended_probes).toHaveLength(missingSurfaces.length);
+  });
+
   it("invalidates stale verifier contracts and detected authority routing", () => {
     const workspace = completeReconstructionCoverageData();
     const owner = workspace.owners[0];

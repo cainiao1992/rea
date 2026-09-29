@@ -12,10 +12,8 @@ export const PROCESS_REACTIVE_LIMITS = {
   jsonDepth: 256,
 } as const;
 
-const identifierSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]{0,63}$/u);
-const checkpointNameSchema = z
-  .string()
-  .regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/u);
+const identifierSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]*$/u);
+const checkpointNameSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/u);
 const positiveRuntime = z.number().int().safe().positive();
 
 const frontierSchema = z.discriminatedUnion("kind", [
@@ -93,7 +91,6 @@ const processReactiveTriggerSchema: z.ZodType<ProcessReactiveTrigger> = z.lazy(
         exact: jsonValueSchema,
         ignore_fields: z
           .array(ignoredFieldSchema)
-          .max(5)
           .refine((values) => new Set(values).size === values.length, {
             message: "ignored event fields must be unique",
           }),
@@ -112,7 +109,7 @@ const processReactiveTriggerSchema: z.ZodType<ProcessReactiveTrigger> = z.lazy(
         kind: z.literal("terminal_text"),
         view: z.literal("decoded"),
         encoding: z.literal("utf8"),
-        literal: z.string().min(1).max(10_000),
+        literal: z.string().min(1),
         case_sensitive: z.literal(true),
         control_sequences: z.literal("include"),
         occurrence: z.number().int().safe().positive(),
@@ -156,13 +153,13 @@ const signalTargetSchema = z.discriminatedUnion("kind", [
 const processReactiveActionSchema = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("send_input"),
-    data: z.string().max(1_000_000),
+    data: z.string(),
     sensitive: z.boolean(),
   }),
   z.strictObject({
     type: z.literal("resize"),
-    columns: z.number().int().min(1).max(1_000),
-    rows: z.number().int().min(1).max(1_000),
+    columns: z.number().int().positive(),
+    rows: z.number().int().positive(),
   }),
   z.strictObject({ type: z.literal("close_stdin") }),
   z.strictObject({

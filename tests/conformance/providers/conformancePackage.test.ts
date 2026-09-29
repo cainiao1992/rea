@@ -168,6 +168,90 @@ describe("conformance package parsing", () => {
 });
 
 describe("conformance package construction", () => {
+  it("accepts packages with more than 100 scenarios and steps", () => {
+    const scenarioTemplate = validPackageInput.scenarios[0];
+    const replayTemplate = validPackageInput.replay_plans[0];
+    if (scenarioTemplate === undefined || replayTemplate === undefined)
+      throw new Error("Conformance package fixture is incomplete");
+    const scenarios = Array.from({ length: 101 }, (_, index) => {
+      const scenarioId = `scenario-${index}`;
+      return {
+        ...scenarioTemplate,
+        scenario_id: scenarioId,
+        name: scenarioId,
+        description: scenarioId,
+        fixture_path: `tests/conformance/${scenarioId}`,
+        expected_exit_code: 0,
+        expected_patterns: [],
+      };
+    });
+    const scenarioIds = scenarios.map(({ scenario_id }) => scenario_id);
+    const packageWithManyScenarios = createConformancePackage({
+      ...validPackageInput,
+      scenarios,
+      replay_plans: scenarioIds.map((scenario_id) => ({
+        ...replayTemplate,
+        scenario_id,
+        environment: {},
+        steps: Array.from({ length: 101 }, (_, index) => ({
+          step_id: `step-${index}`,
+          action: "inspect",
+          arguments: [],
+          timeout_ms: 1,
+        })),
+      })),
+      expected_evidence: scenarioIds.map((scenario_id) => ({
+        scenario_id,
+        bundle: null,
+        required_dimensions: [],
+        envelopes: Array.from({ length: 101 }, (_, index) => ({
+          evidence_id: `ev_${String(index).padStart(64, "0")}`,
+          subject: null,
+          provider: { id: "fixture", name: "Fixture", version: null },
+          predicate_type: "observation",
+          operation: "inspect",
+          parameters: {},
+          raw_result: null,
+          normalized_result: null,
+          confidence: "observed" as const,
+          authority: "shipped-artifact" as const,
+          environment: null,
+          limitations: [],
+          locations: [],
+          evidence_links: [],
+        })),
+      })),
+      verifier_contracts: scenarioIds.map((scenario_id) => ({
+        scenario_id,
+        timing_tolerance_ms: 0,
+        dimensions: Array.from({ length: 51 }, (_, index) => ({
+          name: `dimension-${index}`,
+          required: true,
+          comparison: "exact" as const,
+        })),
+      })),
+      shim_plans: scenarioIds.map((scenario_id) => ({
+        scenario_id,
+        shims: Array.from({ length: 51 }, (_, index) => ({
+          shim_id: `shim-${index}`,
+          kind: "filesystem" as const,
+          target: `/tmp/${index}`,
+          policy: "observe" as const,
+        })),
+      })),
+    });
+
+    expect(packageWithManyScenarios.scenarios).toHaveLength(101);
+    expect(packageWithManyScenarios.replay_plans[0]?.steps).toHaveLength(101);
+    expect(
+      packageWithManyScenarios.expected_evidence[0]?.envelopes,
+    ).toHaveLength(101);
+    expect(
+      packageWithManyScenarios.verifier_contracts[0]?.dimensions,
+    ).toHaveLength(51);
+    expect(packageWithManyScenarios.shim_plans[0]?.shims).toHaveLength(51);
+  });
+
   it("derives a deterministic identifier from parsed contents", () => {
     const same = createConformancePackage(validPackageInput);
     const changed = createConformancePackage({

@@ -50,6 +50,12 @@ describe("managed member comparison", () => {
     expect(result.limitations).toContain(
       "Names are reported as observations but are not used as a matching basis.",
     );
+    expect(
+      managedMemberComparisonResultSchema.safeParse({
+        ...result,
+        limitations: Array.from({ length: 101 }, () => "x".repeat(4_097)),
+      }).success,
+    ).toBe(true);
   });
 
   it("uses structural method shape when build-local token operands drift", () => {

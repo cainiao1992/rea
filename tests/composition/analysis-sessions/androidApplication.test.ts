@@ -84,6 +84,12 @@ describe("Android application projection", () => {
       expect.objectContaining({ basis: "react-native-convention" }),
     ]);
     expect(JSON.stringify(left)).not.toContain("opaque signing");
+    expect(
+      androidApplicationProjectionResultSchema.safeParse({
+        ...left,
+        limitations: Array.from({ length: 101 }, () => "x".repeat(4_097)),
+      }).success,
+    ).toBe(true);
   });
 
   it("rejects non-APK inventory Evidence", async () => {

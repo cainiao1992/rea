@@ -82,12 +82,12 @@ const mappingSchema = z
   })
   .strict();
 
-/** Strict bounded input for explicit static/runtime hypothesis correlation. */
+/** Strict input for explicit static/runtime hypothesis correlation. */
 export const staticRuntimeCorrelationInputSchema = z
   .object({
-    static_comparisons: z.array(evidenceSchema).min(1).max(100),
-    runtime_comparisons: z.array(evidenceSchema).min(1).max(100),
-    mappings: z.array(mappingSchema).min(1).max(500),
+    static_comparisons: z.array(evidenceSchema).min(1),
+    runtime_comparisons: z.array(evidenceSchema).min(1),
+    mappings: z.array(mappingSchema).min(1),
   })
   .strict();
 
@@ -115,7 +115,7 @@ const correlationItemSchema = z.object({
   }),
   observed_pattern: observedPatternSchema,
   classification: z.enum(["hypothesis", "contradiction", "unresolved_branch"]),
-  evidence_links: z.array(evidenceIdSchema).min(2).max(20_100),
+  evidence_links: z.array(evidenceIdSchema).min(2),
   limitations: z.array(z.string()),
 });
 
@@ -130,7 +130,7 @@ export const staticRuntimeCorrelationResultSchema = z.object({
   correlations: z.object({
     items: z.array(correlationItemSchema),
   }),
-  evidence_links: z.array(evidenceIdSchema).min(2).max(20_100),
+  evidence_links: z.array(evidenceIdSchema).min(2),
   limitations: z.array(z.string()),
 });
 
@@ -187,8 +187,6 @@ export const correlateStaticAndRuntime = (
   const links = uniqueSorted(
     correlations.flatMap(({ evidence_links: evidenceLinks }) => evidenceLinks),
   );
-  if (links.length > 20_100)
-    throw new TypeError("Static/runtime Evidence closure exceeds limit");
   const unresolved = correlations.filter(
     ({ classification }) => classification === "unresolved_branch",
   );
@@ -423,8 +421,8 @@ const comparisonParameterLinks = (evidence: Evidence): string[] => {
     .object({
       left_evidence_id: evidenceIdSchema.optional(),
       right_evidence_id: evidenceIdSchema.optional(),
-      left_evidence_ids: z.array(evidenceIdSchema).min(1).max(100).optional(),
-      right_evidence_ids: z.array(evidenceIdSchema).min(1).max(100).optional(),
+      left_evidence_ids: z.array(evidenceIdSchema).min(1).optional(),
+      right_evidence_ids: z.array(evidenceIdSchema).min(1).optional(),
     })
     .passthrough()
     .parse(evidence.parameters);
@@ -441,10 +439,18 @@ const comparisonParameterLinks = (evidence: Evidence): string[] => {
   return [...left, ...right];
 };
 
-const sameSet = (left: readonly string[], right: readonly string[]): boolean =>
-  left.length === right.length &&
-  new Set(left).size === left.length &&
-  left.every((item) => right.includes(item));
+const sameSet = (
+  left: readonly string[],
+  right: readonly string[],
+): boolean => {
+  if (left.length !== right.length) return false;
+  const rightSet = new Set(right);
+  return (
+    rightSet.size === right.length &&
+    new Set(left).size === left.length &&
+    left.every((item) => rightSet.has(item))
+  );
+};
 
 const observedPattern = (
   staticStatus: ComparisonStatus,

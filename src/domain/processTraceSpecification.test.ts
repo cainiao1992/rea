@@ -74,6 +74,49 @@ const partialSpecification = (): ProcessTraceSpecification => ({
   },
 });
 describe("process trace specification", () => {
+  it("accepts event sets and cardinalities beyond the former fixed ceilings", () => {
+    const ids = Array.from({ length: 257 }, (_, index) => `event-${index}`);
+    const events = ids.map((id) => ({
+      id,
+      source: "terminal_raw" as const,
+      exact: { id },
+      cardinality: { kind: "required" as const },
+    }));
+    const trace = processTraceSpecificationSchema.safeParse({
+      events: [
+        {
+          id: "repeated",
+          source: "terminal_raw",
+          exact: "event",
+          cardinality: { kind: "exact", count: 10_001 },
+        },
+      ],
+      language: {
+        kind: "finite_traces",
+        variants: [
+          {
+            id: "long-trace",
+            trace: Array.from({ length: 10_001 }, () => "repeated"),
+          },
+        ],
+      },
+    });
+    expect(trace.success).toBe(true);
+
+    const eventSet = processTraceSpecificationSchema.safeParse({
+      events,
+      language: {
+        kind: "partial_order",
+        happens_before: ids.slice(1).map((after, index) => ({
+          before: ids[index] ?? "",
+          after,
+        })),
+        prefix: Array.from({ length: 4_097 }, () => ids[0] ?? ""),
+      },
+    });
+    expect(eventSet.success).toBe(true);
+  });
+
   it("rejects cycles, implicit concurrency, overlap, and unsatisfiable variants", () => {
     const base = partialSpecification();
     expect(

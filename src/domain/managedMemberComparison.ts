@@ -21,7 +21,7 @@ import { keyMembers, sha256 } from "./managedMemberComparisonMatch.js";
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 const evidenceIdSchema = z.string().regex(/^ev_[a-f0-9]{64}$/u);
 const tokenSchema = z.string().regex(/^0x[0-9a-f]{8}$/u);
-const boundedTextSchema = z.string().min(1).max(4_096);
+const boundedTextSchema = z.string().min(1);
 
 /** Two authenticated managed member observations. */
 export const compareManagedMembersInputSchema = z
@@ -113,26 +113,24 @@ const comparisonItemSchema = <
 
 const comparisonItemContextShape = {
   evidence_links: z.array(evidenceIdSchema).length(2),
-  limitations: z.array(boundedTextSchema).max(100),
+  limitations: z.array(boundedTextSchema),
 };
 
 const methodComparisonItemSchema = comparisonItemSchema(
   {
     ...comparisonItemContextShape,
     item_id: z.string().regex(/^mmc_method_[a-f0-9]{64}$/u),
-    dimensions: z
-      .array(
-        z.enum([
-          "signature",
-          "cil",
-          "opcode-shape",
-          "call-shape",
-          "field-shape",
-          "exception-shape",
-          "availability",
-        ]),
-      )
-      .max(7),
+    dimensions: z.array(
+      z.enum([
+        "signature",
+        "cil",
+        "opcode-shape",
+        "call-shape",
+        "field-shape",
+        "exception-shape",
+        "availability",
+      ]),
+    ),
   },
   memberIdentitySchema,
 );

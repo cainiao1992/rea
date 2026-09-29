@@ -39,10 +39,6 @@ export {
 } from "./reconstructionVerificationSchemas.js";
 export type { ReconstructionVerificationResult } from "./reconstructionVerificationSchemas.js";
 
-const MAX_BUNDLE_RECORDS = 20_100;
-const MAX_UNKNOWN_REVISIONS = 10_000;
-const MAX_CANONICAL_BYTES = 32 * 1024 * 1024;
-
 const providers = {
   behavioral: {
     operation: "compare_process_captures",
@@ -76,12 +72,7 @@ export const verifyReconstruction = (
 ): ReconstructionVerificationResult => {
   const specification =
     reconstructionSpecificationSchema.parse(specificationInput);
-  enforceInputSize(bundleInput);
   const bundle = parseEvidenceBundle(bundleInput);
-  if (bundle.records.length > MAX_BUNDLE_RECORDS)
-    throw new TypeError("Reconstruction Evidence record limit exceeded");
-  if (bundle.unknowns.length > MAX_UNKNOWN_REVISIONS)
-    throw new TypeError("Reconstruction unknown revision limit exceeded");
   const records = new Map(
     bundle.records.map((item) => [item.evidence_id, item]),
   );
@@ -95,8 +86,6 @@ export const verifyReconstruction = (
   const evidenceLinks = uniqueSorted(
     results.flatMap(({ evidence_links: links }) => links),
   );
-  if (evidenceLinks.length > 20_100)
-    throw new TypeError("Reconstruction Evidence closure exceeds limit");
   const output = {
     status: failed > 0 ? "fail" : unresolved > 0 ? "unknown" : "pass",
     specification_sha256: digest({
@@ -248,8 +237,8 @@ const sourceSides = (
   }
   const parsed = z
     .object({
-      left_evidence_ids: z.array(evidenceIdSchema).min(1).max(100),
-      right_evidence_ids: z.array(evidenceIdSchema).min(1).max(100),
+      left_evidence_ids: z.array(evidenceIdSchema).min(1),
+      right_evidence_ids: z.array(evidenceIdSchema).min(1),
     })
     .passthrough()
     .parse(parameters);
@@ -372,15 +361,6 @@ const digest = (value: unknown): string => {
   if (encoded === undefined)
     throw new TypeError("Specification canonicalization failed");
   return createHash("sha256").update(encoded).digest("hex");
-};
-
-const enforceInputSize = (value: unknown): void => {
-  const encoded = canonicalize(value);
-  if (
-    encoded === undefined ||
-    Buffer.byteLength(encoded, "utf8") > MAX_CANONICAL_BYTES
-  )
-    throw new TypeError("Reconstruction Evidence bundle exceeds byte limit");
 };
 
 const count = (

@@ -26,12 +26,12 @@ const resolutionSchema = z.discriminatedUnion("disposition", [
   z.object({
     disposition: z.literal("verified"),
     rationale: boundedText,
-    evidence_ids: z.array(evidenceIdSchema).min(1).max(100),
+    evidence_ids: z.array(evidenceIdSchema).min(1),
   }),
   z.object({
     disposition: z.enum(["withdrawn", "out-of-scope"]),
     rationale: boundedText,
-    evidence_ids: z.array(evidenceIdSchema).max(100),
+    evidence_ids: z.array(evidenceIdSchema),
   }),
 ]);
 
@@ -58,8 +58,8 @@ const residualUnknownObjectSchema = z.object({
   ]),
   severity: z.enum(["low", "medium", "high", "critical"]),
   domain: z.string().trim().min(1).max(100),
-  supporting_evidence_ids: z.array(evidenceIdSchema).max(100),
-  contradicting_evidence_ids: z.array(evidenceIdSchema).max(100),
+  supporting_evidence_ids: z.array(evidenceIdSchema),
+  contradicting_evidence_ids: z.array(evidenceIdSchema),
   required_authority: z
     .enum([
       "shipped-artifact",
@@ -71,10 +71,10 @@ const residualUnknownObjectSchema = z.object({
     .nullable(),
   required_confidence: z.enum(["observed", "derived", "inferred"]),
   required_environment: environmentRequirementSchema.nullable(),
-  recommended_probes: z.array(probeSchema).max(20),
-  relationships: z.array(relationshipSchema).max(100),
+  recommended_probes: z.array(probeSchema),
+  relationships: z.array(relationshipSchema),
   resolution: resolutionSchema.nullable(),
-  mutation_evidence_ids: z.array(evidenceIdSchema).min(1).max(100),
+  mutation_evidence_ids: z.array(evidenceIdSchema).min(1),
 });
 
 export const residualUnknownSchema = residualUnknownObjectSchema.superRefine(
@@ -126,10 +126,9 @@ export const residualUnknownSchema = residualUnknownObjectSchema.superRefine(
           code: "custom",
           message: "Evidence IDs must be unique",
         });
+    const contradictingEvidence = new Set(value.contradicting_evidence_ids);
     if (
-      value.supporting_evidence_ids.some((id) =>
-        value.contradicting_evidence_ids.includes(id),
-      )
+      value.supporting_evidence_ids.some((id) => contradictingEvidence.has(id))
     )
       context.addIssue({
         code: "custom",
@@ -165,8 +164,8 @@ export const recordUnknownInputSchema = residualUnknownObjectSchema
     mutation_evidence_ids: true,
   })
   .extend({
-    supporting_evidence_ids: z.array(evidenceIdSchema).max(100).default([]),
-    contradicting_evidence_ids: z.array(evidenceIdSchema).max(100).default([]),
+    supporting_evidence_ids: z.array(evidenceIdSchema).default([]),
+    contradicting_evidence_ids: z.array(evidenceIdSchema).default([]),
   });
 
 export type RecordUnknownInput = z.infer<typeof recordUnknownInputSchema>;
@@ -177,13 +176,13 @@ export const updateUnknownInputSchema = z.object({
   expected_revision: z.number().int().min(1),
   status: residualUnknownObjectSchema.shape.status,
   severity: residualUnknownObjectSchema.shape.severity,
-  supporting_evidence_ids: z.array(evidenceIdSchema).max(100),
-  contradicting_evidence_ids: z.array(evidenceIdSchema).max(100),
+  supporting_evidence_ids: z.array(evidenceIdSchema),
+  contradicting_evidence_ids: z.array(evidenceIdSchema),
   required_authority: residualUnknownObjectSchema.shape.required_authority,
   required_confidence: residualUnknownObjectSchema.shape.required_confidence,
   required_environment: environmentRequirementSchema.nullable(),
-  recommended_probes: z.array(probeSchema).max(20),
-  relationships: z.array(relationshipSchema).max(100),
+  recommended_probes: z.array(probeSchema),
+  relationships: z.array(relationshipSchema),
   resolution: resolutionSchema.nullable(),
 });
 

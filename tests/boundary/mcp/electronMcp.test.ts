@@ -71,7 +71,6 @@ it("exposes root-confined Electron discovery and inspection as Evidence", async 
     permissionAuthority: authority.value,
     availabilityPolicy: () => ({
       processCaptureEnabled: false,
-      evidenceFileRoots: 0,
       investigationInputRoots: 1,
       electronObservationEnabled: true,
     }),
@@ -222,7 +221,6 @@ it("exposes active Electron scenarios through the separately granted MCP boundar
     permissionAuthority: authority.value,
     availabilityPolicy: () => ({
       processCaptureEnabled: false,
-      evidenceFileRoots: 0,
       investigationInputRoots: 0,
       electronAutomationEnabled: true,
     }),
@@ -297,7 +295,6 @@ it("exposes the target-free static JavaScript application workflow", async () =>
     permissionAuthority: authority.value,
     availabilityPolicy: () => ({
       processCaptureEnabled: false,
-      evidenceFileRoots: 0,
       investigationInputRoots: 1,
     }),
   });

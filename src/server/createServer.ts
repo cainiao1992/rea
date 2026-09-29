@@ -23,7 +23,6 @@ import type { JavaScriptRuntimeObservationPort } from "../application/JavaScript
 import type { ManagedRuntimePolicy } from "../application/ManagedRuntimeCorrelationService.js";
 import { MANAGED_RUNTIME_DISABLED } from "../application/ManagedRuntimeCorrelationService.js";
 import type { PermissionAuthority } from "../application/PermissionAuthority.js";
-import type { EvidenceFilePolicy } from "../domain/evidenceBundle.js";
 import type { ProcessExecutionPolicy } from "../domain/processCapture.js";
 import { PRODUCT_IDENTITY } from "../identity.js";
 import { silentLogger, type Logger } from "../logger.js";
@@ -49,10 +48,7 @@ import { registerGuidedPrompts } from "./registerPrompts.js";
 import { registerSessionTools } from "./registerSessionTools.js";
 import type { SessionAvailability } from "./sessionAvailabilityPolicy.js";
 import { sessionAvailabilityPolicy } from "./sessionAvailabilityPolicy.js";
-import {
-  DENY_EVIDENCE_FILE_POLICY,
-  DENY_PROCESS_POLICY,
-} from "./sessionToolPolicies.js";
+import { DENY_PROCESS_POLICY } from "./sessionToolPolicies.js";
 
 const TARGET_FREE_INSTRUCTIONS =
   "Choose tools from the target and question. For an archive or application package, open_binary(path) binds the active target; use inspect_artifact when its graph and findings help, and extract_artifact when materialized files are needed. For standalone JavaScript or ASAR analysis, use analyze_javascript_application. For managed PE/CLI files, use inspect_managed_artifact. For native binaries, open the target and use focused search, procedure, or function tools directly; binary_overview is available when metadata or inventory context is useful. For a live page or runtime, discover targets with list_browser_targets, list_electron_targets, or list_javascript_runtime_targets when needed; scenario capture tools are for controlled interactions.";
@@ -63,8 +59,6 @@ const ACTIVE_TARGET_INSTRUCTIONS =
 export interface CreateServerOptions {
   readonly logger?: Logger;
   readonly processPolicy?: () => ProcessExecutionPolicy;
-  readonly evidenceFilePolicy?: EvidenceFilePolicy;
-  readonly analysisSnapshotFilePolicy?: EvidenceFilePolicy;
   readonly permissionAuthority?: PermissionAuthority;
   readonly browserObservation?: BrowserObservationPort;
   readonly browserScenarioCapture?: BrowserScenarioCapturePort;
@@ -87,7 +81,6 @@ const installSessionToolAvailability = (
   if (session === undefined) return undefined;
   const policy = sessionAvailabilityPolicy(options.availabilityPolicy, {
     processPolicy: options.processPolicy?.() ?? DENY_PROCESS_POLICY,
-    evidenceFilePolicy: options.evidenceFilePolicy ?? DENY_EVIDENCE_FILE_POLICY,
     optionalFeatures: {
       browserObservationEnabled: options.browserObservation !== undefined,
       browserScenarioEnabled: options.browserScenarioCapture !== undefined,
@@ -357,7 +350,6 @@ const registerObservationTools = ({
       session === undefined
         ? undefined
         : (evidenceId) => session.evidenceById(evidenceId),
-    evidenceFilePolicy: options.evidenceFilePolicy ?? DENY_EVIDENCE_FILE_POLICY,
     permissionAuthority,
     replay: {
       policy:

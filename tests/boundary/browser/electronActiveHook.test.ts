@@ -157,14 +157,12 @@ it("retains active hook lifecycle and IPC evidence without a count ceiling", asy
   );
   expect(ipc).toMatchObject({
     correlation_id: expect.stringMatching(/^capture:\d+:\d+$/u),
-    channel_truncated: true,
-    argument_shapes_truncated: true,
     direction: "renderer-to-main",
     sender: "webContents:9",
     frame: "frame:7",
   });
-  expect(ipc?.channel).toHaveLength(1_024);
-  expect(ipc?.argument_shapes).toHaveLength(32);
+  expect(ipc?.channel).toBe("x".repeat(2_048));
+  expect(ipc?.argument_shapes).toHaveLength(40);
 });
 
 it("preserves fatal process termination after recording uncaught exceptions", async () => {

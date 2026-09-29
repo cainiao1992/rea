@@ -36,7 +36,7 @@ const sourceEvidence = (label: string) =>
   );
 
 describe("bundle comparison MCP integration", () => {
-  it("reads two approved bounded bundle files and records a compact result", async () => {
+  it("reads caller-selected bundle files and records a compact result", async () => {
     const root = await createTestTempDirectory("rea-bundle-mcp-");
     roots.push(root);
     const leftPath = join(root, "left.json");
@@ -53,7 +53,7 @@ describe("bundle comparison MCP integration", () => {
         serializeEvidenceBundle(createEvidenceBundle([rightRecord])),
       ),
     ]);
-    const connected = await connect(root);
+    const connected = await connect();
     try {
       const result = await connected.client.callTool({
         name: "compare_bundles",
@@ -78,7 +78,7 @@ describe("bundle comparison MCP integration", () => {
     }
   });
 
-  it("rejects a bundle path outside the approved root", async () => {
+  it("reads a bundle path outside any configured roots", async () => {
     const root = await createTestTempDirectory("rea-bundle-root-");
     const outside = await createTestTempDirectory("rea-bundle-outside-");
     roots.push(root, outside);
@@ -89,7 +89,7 @@ describe("bundle comparison MCP integration", () => {
       writeFile(leftPath, encoded),
       writeFile(rightPath, encoded),
     ]);
-    const connected = await connect(root);
+    const connected = await connect();
     try {
       const result = await connected.client.callTool({
         name: "compare_bundles",
@@ -98,36 +98,9 @@ describe("bundle comparison MCP integration", () => {
           right_bundle_path: rightPath,
         },
       });
-      expect(result).toMatchObject({
-        isError: true,
-        structuredContent: { error: { code: "outside_approved_root" } },
-      });
-    } finally {
-      await connected.close();
-    }
-  });
-
-  it("rejects an oversized approved bundle", async () => {
-    const root = await createTestTempDirectory("rea-bundle-size-");
-    roots.push(root);
-    const leftPath = join(root, "left.json");
-    const rightPath = join(root, "right.json");
-    await Promise.all([
-      writeFile(leftPath, " ".repeat(2_000)),
-      writeFile(rightPath, serializeEvidenceBundle(createEvidenceBundle([]))),
-    ]);
-    const connected = await connect(root, 1_024);
-    try {
-      const result = await connected.client.callTool({
-        name: "compare_bundles",
-        arguments: {
-          left_bundle_path: leftPath,
-          right_bundle_path: rightPath,
-        },
-      });
-      expect(result).toMatchObject({
-        isError: true,
-        structuredContent: { error: { code: "truncated" } },
+      expect(result.isError).not.toBe(true);
+      expect(result.structuredContent).toMatchObject({
+        result: { status: "unchanged" },
       });
     } finally {
       await connected.close();
@@ -135,21 +108,13 @@ describe("bundle comparison MCP integration", () => {
   });
 });
 
-const connect = async (root: string, maxBytes = 1024 * 1024) => {
+const connect = async () => {
   const session = createTestBinarySession(() => ({
     health: () => Promise.resolve(),
     execute: () => Promise.resolve(observed(null)),
     close: () => Promise.resolve(),
   }));
-  const server = createServer(session, session, {
-    evidenceFilePolicy: {
-      roots: [root],
-      maxBytes,
-      maxDepth: 68,
-      maxStringLength: 1024 * 1024,
-      maxNodes: 100_000,
-    },
-  });
+  const server = createServer(session, session);
   const client = new Client({ name: "bundle-comparison-test", version: "1" });
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair();

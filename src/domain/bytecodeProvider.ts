@@ -66,7 +66,7 @@ export const bytecodeAnalysisSchema = z.strictObject({
   /** Bytecode family. */
   family: bytecodeFamilySchema,
   /** All discovered artifacts. */
-  artifacts: z.array(bytecodeArtifactSchema).min(0).max(10_000),
+  artifacts: z.array(bytecodeArtifactSchema),
   /** Total symbols across all artifacts. */
   total_symbols: z.number().int().nonnegative(),
   /** Symbols classified as application code. */
@@ -176,26 +176,29 @@ export function analyzeBytecodeArtifacts(
   artifacts: readonly BytecodeArtifact[],
   family: BytecodeFamily,
 ): BytecodeAnalysis {
-  const applicationSymbols = artifacts
-    .flatMap((a) => a.symbols)
-    .filter((s) => s.provenance === "application").length;
-  const generatedSymbols = artifacts
-    .flatMap((a) => a.symbols)
-    .filter((s) => s.provenance === "generated").length;
-  const vendoredSymbols = artifacts
-    .flatMap((a) => a.symbols)
-    .filter((s) => s.provenance === "vendored").length;
-  const standardLibrarySymbols = artifacts
-    .flatMap((a) => a.symbols)
-    .filter((s) => s.provenance === "standard_library").length;
+  const totals = artifacts.reduce(
+    (counts, artifact) => {
+      counts.total += artifact.symbols.length;
+      for (const symbol of artifact.symbols) counts[symbol.provenance] += 1;
+      return counts;
+    },
+    {
+      total: 0,
+      application: 0,
+      generated: 0,
+      vendored: 0,
+      standard_library: 0,
+      bundled: 0,
+    },
+  );
 
   return {
     family,
-    artifacts: artifacts.slice(0, 10_000),
-    total_symbols: artifacts.reduce((sum, a) => sum + a.symbols.length, 0),
-    application_symbols: applicationSymbols,
-    generated_symbols: generatedSymbols,
-    vendored_symbols: vendoredSymbols,
-    standard_library_symbols: standardLibrarySymbols,
+    artifacts: [...artifacts],
+    total_symbols: totals.total,
+    application_symbols: totals.application,
+    generated_symbols: totals.generated,
+    vendored_symbols: totals.vendored,
+    standard_library_symbols: totals.standard_library,
   };
 }

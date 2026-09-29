@@ -173,6 +173,22 @@ describe("process reactive runtime predicates", () => {
       });
     }
   });
+  it("matches caller supplied terminal literals longer than the former schema cap", () => {
+    const literal = "Ready".repeat(2_001);
+    const scenario = scenarioWith([
+      finish("long_literal", terminalTrigger(literal)),
+    ]);
+    const decision = offer(
+      scenario,
+      createProcessReactiveSnapshot(scenario),
+      observation("terminal_raw", 0, { data: `prefix${literal}suffix` }),
+    );
+
+    expect(decision).toMatchObject({
+      kind: "transition",
+      record: { transition_id: "long_literal" },
+    });
+  });
   it("evaluates ordered and repeated predicates without array-order arbitration", () => {
     const event = (name: string) => ({
       kind: "event" as const,

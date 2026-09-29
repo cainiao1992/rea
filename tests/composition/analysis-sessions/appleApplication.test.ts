@@ -14,7 +14,73 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { projectAppleApplicationEvidence } from "../../../src/application/AppleApplicationService.js";
 import { runProviderAnalysis } from "../../../src/application/DirectAnalysis.js";
 import { appleApplicationProjectionResultSchema } from "../../../src/domain/appleApplication.js";
-import { parseEvidence } from "../../../src/domain/evidence.js";
+import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
+
+async function createCompleteAppleProjection() {
+  const root = await createTestTempDirectory("rea-apple-complete-");
+  const path = join(root, "Complete.ipa");
+  const writer = new ZipWriter(new Uint8ArrayWriter());
+  for (let index = 0; index < 1_001; index++) {
+    const name = String(index).padStart(4, "0");
+    await writer.add(
+      `Payload/Complete.app/Frameworks/F${name}.framework/Info.plist`,
+      new TextReader("<plist><dict/></plist>"),
+    );
+  }
+  for (let index = 0; index < 101; index++) {
+    const name = String(index).padStart(3, "0");
+    await writer.add(
+      `Payload/Complete.app/script-${name}.js`,
+      new TextReader("bridge.call();"),
+    );
+    await writer.add(
+      `Payload/Complete.app/Frameworks/Native${name}.dylib`,
+      new Uint8ArrayReader(
+        Uint8Array.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0, 0, 1]),
+      ),
+    );
+  }
+  await writeFile(path, await writer.close());
+
+  const inventory = parseEvidence(
+    await runProviderAnalysis(path, "inventory_artifact", {}),
+  );
+  const subject = inventory.subject;
+  expect(subject).not.toBeNull();
+  if (subject === null)
+    throw new TypeError("Missing fixture inventory subject");
+  const inventoryPages = Array.from({ length: 101 }, (_, index) =>
+    createEvidence(
+      {
+        path: subject.local_path,
+        sha256: subject.digest.sha256,
+        format: subject.format,
+        ...(subject.architecture === null
+          ? {}
+          : { architecture: subject.architecture }),
+      },
+      inventory.provider,
+      {
+        predicateType: inventory.predicate_type,
+        operation: inventory.operation,
+        parameters: {
+          ...inventory.parameters,
+          projection_test_page: index,
+        },
+        result: inventory.normalized_result,
+      },
+    ),
+  );
+  const result = projectAppleApplicationEvidence({
+    inventory_evidence: inventoryPages,
+  });
+
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new TypeError("Could not project fixture inventory");
+  return appleApplicationProjectionResultSchema.parse(
+    result.value.normalized_result,
+  );
+}
 
 describe("Apple application projection", () => {
   it("projects deterministic IPA components and bridge hypotheses from exact inventory Evidence", async () => {
@@ -53,11 +119,9 @@ describe("Apple application projection", () => {
     );
     const first = projectAppleApplicationEvidence({
       inventory_evidence: [inventory],
-      limits: { max_components: 100 },
     });
     const second = projectAppleApplicationEvidence({
       inventory_evidence: [inventory],
-      limits: { max_components: 100 },
     });
     expect(first.ok).toBe(true);
     expect(second.ok).toBe(true);
@@ -75,7 +139,6 @@ describe("Apple application projection", () => {
       coverage: {
         status: "complete-within-inventory",
         inventory_complete: true,
-        omitted_components: 0,
       },
     });
     expect(left.components.bundle_metadata).toHaveLength(1);
@@ -99,7 +162,7 @@ describe("Apple application projection", () => {
     expect(JSON.stringify(left)).not.toContain("opaque signing bytes");
   });
 
-  it("rejects non-IPA Evidence and reports projection truncation", async () => {
+  it("rejects non-IPA Evidence", async () => {
     const root = await createTestTempDirectory("rea-apple-invalid-");
     const path = join(root, "fixture.zip");
     const writer = new ZipWriter(new Uint8ArrayWriter());
@@ -114,6 +177,28 @@ describe("Apple application projection", () => {
       ok: false,
       error: { _tag: "AnalysisInputError" },
     });
+  });
+
+  it("returns every component, inventory page, and bridge hypothesis", async () => {
+    const projection = await createCompleteAppleProjection();
+    expect(projection.components.frameworks).toHaveLength(1_001);
+    expect(projection.components.bundle_metadata).toHaveLength(1_001);
+    expect(projection.components.javascript).toHaveLength(101);
+    expect(projection.components.native_libraries).toHaveLength(101);
+    expect(projection.source_evidence_ids).toHaveLength(101);
+    expect(projection.bridge_candidates).toHaveLength(10_201);
+    expect(projection.coverage).toEqual({
+      status: "complete-within-inventory",
+      inventory_complete: true,
+    });
+    expect(projection).not.toHaveProperty("omitted_components");
+    expect(projection).not.toHaveProperty("omitted_bridge_candidates");
+    expect(
+      appleApplicationProjectionResultSchema.parse({
+        ...projection,
+        limitations: Array.from({ length: 101 }, (_, index) => `fact ${index}`),
+      }).limitations,
+    ).toHaveLength(101);
   });
 
   it("infers an application root when the IPA omits directory entries", async () => {

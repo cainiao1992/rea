@@ -324,14 +324,7 @@ export class EvidenceFileError extends AnalysisError {
 
   constructor(
     readonly operation: "read" | "write",
-    readonly reason:
-      | "disabled"
-      | "outside-root"
-      | "not-file"
-      | "too-large"
-      | "exists"
-      | "invalid-json"
-      | "io",
+    readonly reason: "not-file" | "exists" | "invalid-json" | "io",
     options?: ErrorOptions,
   ) {
     super(`Evidence bundle ${operation} failed: ${reason}`, options);

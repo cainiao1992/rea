@@ -8,7 +8,7 @@ import {
   type ProcessObservationSource,
 } from "./processObservation.js";
 
-const identifierSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]{0,63}$/u);
+const identifierSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]*$/u);
 
 /** Process observation families admitted by a declared trace specification. */
 export const processTraceSourceSchema = processObservationSourceSchema;
@@ -19,13 +19,13 @@ const cardinalitySchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("optional") }),
   z.strictObject({
     kind: z.literal("exact"),
-    count: z.number().int().min(0).max(10_000),
+    count: z.number().int().min(0),
   }),
   z
     .strictObject({
       kind: z.literal("range"),
-      min: z.number().int().min(0).max(10_000),
-      max: z.number().int().min(0).max(10_000),
+      min: z.number().int().min(0),
+      max: z.number().int().min(0),
     })
     .refine(({ min, max }) => min <= max, {
       message: "cardinality min must not exceed max",
@@ -47,7 +47,6 @@ const eventDeclarationSchema = z.strictObject({
         "elapsed_ms",
       ]),
     )
-    .max(5)
     .refine((values) => new Set(values).size === values.length, {
       message: "ignored event fields must be unique",
     })
@@ -64,7 +63,6 @@ const partialOrderLanguageSchema = z.strictObject({
         after: identifierSchema,
       }),
     )
-    .max(4_096)
     .default([]),
   not_before: z
     .array(
@@ -73,21 +71,17 @@ const partialOrderLanguageSchema = z.strictObject({
         anchor: identifierSchema,
       }),
     )
-    .max(4_096)
     .default([]),
   unordered_groups: z
-    .array(
-      z.strictObject({ events: z.array(identifierSchema).min(2).max(256) }),
-    )
-    .max(256)
+    .array(z.strictObject({ events: z.array(identifierSchema).min(2) }))
     .default([]),
-  prefix: z.array(identifierSchema).max(4_096).default([]),
-  suffix: z.array(identifierSchema).max(4_096).default([]),
+  prefix: z.array(identifierSchema).default([]),
+  suffix: z.array(identifierSchema).default([]),
 });
 
 const finiteTraceTokenSchema = z.union([
   identifierSchema,
-  z.strictObject({ unordered: z.array(identifierSchema).min(2).max(256) }),
+  z.strictObject({ unordered: z.array(identifierSchema).min(2) }),
 ]);
 
 const finiteTraceLanguageSchema = z.strictObject({
@@ -96,15 +90,14 @@ const finiteTraceLanguageSchema = z.strictObject({
     .array(
       z.strictObject({
         id: identifierSchema,
-        trace: z.array(finiteTraceTokenSchema).max(4_096),
+        trace: z.array(finiteTraceTokenSchema),
       }),
     )
-    .min(1)
-    .max(64),
+    .min(1),
 });
 
 const specificationShapeSchema = z.strictObject({
-  events: z.array(eventDeclarationSchema).min(1).max(256),
+  events: z.array(eventDeclarationSchema).min(1),
   language: z.discriminatedUnion("kind", [
     partialOrderLanguageSchema,
     finiteTraceLanguageSchema,

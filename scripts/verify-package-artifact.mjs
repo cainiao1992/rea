@@ -88,12 +88,7 @@ const verifyPackagedElectronApplication = async ({
   const applicationAnalysis = json(
     await run(
       cli,
-      [
-        "analyze-javascript-application",
-        applicationRoot,
-        "--approved",
-        "--json",
-      ],
+      ["analyze-javascript-application", applicationRoot, "--json"],
       environment,
     ),
   );
@@ -106,11 +101,7 @@ const verifyPackagedElectronApplication = async ({
   )
     throw new Error("packaged JavaScript application analysis CLI failed");
   const routedApplicationAnalysis = json(
-    await run(
-      cli,
-      ["analyze", applicationRoot, "--approved", "--json"],
-      environment,
-    ),
+    await run(cli, ["analyze", applicationRoot, "--json"], environment),
   );
   assertRoutedApplicationAnalysis(routedApplicationAnalysis);
 };

@@ -272,7 +272,6 @@ const connectBrowser = async (browser: FakeCdpBrowser) => {
     permissionAuthority: authority.value,
     availabilityPolicy: () => ({
       processCaptureEnabled: false,
-      evidenceFileRoots: 0,
       investigationInputRoots: 0,
       browserObservationEnabled: true,
     }),

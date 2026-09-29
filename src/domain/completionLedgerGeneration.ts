@@ -9,17 +9,17 @@ import {
   type EvidenceCompletionLedger,
 } from "./evidenceCompletionLedger.js";
 
-const identifierSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]{0,99}$/u);
+const identifierSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]*$/u);
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 const identitySchema = z.strictObject({
   id: identifierSchema,
-  version: z.string().min(1).max(100),
+  version: z.string().min(1),
 });
 const environmentSchema = z.strictObject({
   platform: identifierSchema,
   architecture: identifierSchema,
   runtime: identifierSchema,
-  runtime_version: z.string().min(1).max(100),
+  runtime_version: z.string().min(1),
 });
 const scenarioSchema = z.strictObject({
   id: identifierSchema,
@@ -55,7 +55,7 @@ const verifierRunSchema = z
         launcher_pid: z.number().int().positive(),
         launcher_parent_pid: z.number().int().nonnegative(),
         process_group_id: z.number().int().positive().nullable(),
-        reason: z.string().min(1).max(500),
+        reason: z.string().min(1),
       }),
     ]),
   })
@@ -76,7 +76,7 @@ const verifierRunSchema = z
 const reportClaimSchema = z.strictObject({
   claim_id: identifierSchema,
   scenario: scenarioSchema,
-  artifact_sha256s: z.array(digestSchema).max(100),
+  artifact_sha256s: z.array(digestSchema),
   provider: identitySchema,
   status: evidenceCompletionRecordSchema.shape.status,
   evidence_ids: evidenceCompletionRecordSchema.shape.evidence_ids,
@@ -86,7 +86,7 @@ const completionVerifierReportObjectSchema = z.strictObject({
   verifier: identitySchema,
   verifier_run: verifierRunSchema,
   environment: environmentSchema,
-  claims: z.array(reportClaimSchema).min(1).max(10_000),
+  claims: z.array(reportClaimSchema).min(1),
 });
 
 /** Strict output contract implemented by completion-aware verifiers. */
@@ -113,8 +113,8 @@ const completionManifestObjectSchema = z.strictObject({
   manifest_id: z.string().regex(/^ecm_[a-f0-9]{64}$/u),
   verifier: identitySchema,
   environment: environmentSchema,
-  skill_digests: z.array(skillDigestSchema).min(1).max(100),
-  claims: z.array(manifestClaimSchema).min(1).max(10_000),
+  skill_digests: z.array(skillDigestSchema).min(1),
+  claims: z.array(manifestClaimSchema).min(1),
 });
 type CompletionManifestValue = z.infer<typeof completionManifestObjectSchema>;
 

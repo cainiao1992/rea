@@ -3,7 +3,6 @@ import WebSocket, { type RawData } from "ws";
 import {
   AnalysisCancelledError,
   AnalysisError,
-  AnalysisTimeoutError,
   BrowserObservationError,
   type BrowserObservationOperation,
 } from "../domain/errors.js";
@@ -17,14 +16,10 @@ export interface CdpEvent {
 interface PendingCommand {
   readonly resolve: (value: unknown) => void;
   readonly reject: (error: AnalysisError) => void;
-  readonly timer: ReturnType<typeof setTimeout>;
   readonly removeAbort: () => void;
 }
 
-const CONNECT_TIMEOUT_MS = 5_000;
-const COMMAND_TIMEOUT_MS = 5_000;
-
-/** Correlated, bounded JSON-RPC transport for one CDP target operation. */
+/** Correlated JSON-RPC transport for one CDP target operation. */
 export class CdpConnection {
   readonly #pending = new Map<number, PendingCommand>();
   readonly #listeners = new Set<(event: CdpEvent) => void>();
@@ -50,7 +45,7 @@ export class CdpConnection {
   ): Promise<CdpConnection> {
     if (signal?.aborted === true) throw new AnalysisCancelledError(operation);
     const socket = new WebSocket(url, {
-      handshakeTimeout: CONNECT_TIMEOUT_MS,
+      handshakeTimeout: 0,
       maxPayload: 0,
       perMessageDeflate: false,
     });
@@ -74,7 +69,7 @@ export class CdpConnection {
     return () => this.#disconnectListeners.delete(listener);
   }
 
-  /** Execute one bounded command, optionally within a flat target session. */
+  /** Execute one command, optionally within a flat target session. */
   async send(
     method: string,
     params: Readonly<Record<string, unknown>> = {},
@@ -93,21 +88,14 @@ export class CdpConnection {
       const onAbort = (): void => {
         const pending = this.#pending.get(id);
         if (pending === undefined) return;
-        clearTimeout(pending.timer);
         pending.removeAbort();
         this.#pending.delete(id);
         reject(new AnalysisCancelledError(this.operation));
       };
       signal?.addEventListener("abort", onAbort, { once: true });
-      const timer = setTimeout(() => {
-        signal?.removeEventListener("abort", onAbort);
-        this.#pending.delete(id);
-        reject(new AnalysisTimeoutError(this.operation, COMMAND_TIMEOUT_MS));
-      }, COMMAND_TIMEOUT_MS);
       this.#pending.set(id, {
         resolve,
         reject,
-        timer,
         removeAbort: () => signal?.removeEventListener("abort", onAbort),
       });
       this.socket.send(
@@ -208,7 +196,6 @@ export class CdpConnection {
   }
 
   #complete(id: number, pending: PendingCommand): void {
-    clearTimeout(pending.timer);
     pending.removeAbort();
     this.#pending.delete(id);
   }
@@ -247,11 +234,6 @@ const waitForOpen = async (
   signal?: AbortSignal,
 ): Promise<void> =>
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      cleanup();
-      terminateSocket(socket);
-      reject(new AnalysisTimeoutError(operation, CONNECT_TIMEOUT_MS));
-    }, CONNECT_TIMEOUT_MS);
     const onOpen = (): void => {
       cleanup();
       resolve();
@@ -266,18 +248,26 @@ const waitForOpen = async (
             }),
       );
     };
+    const onClose = (code: number, reason: Buffer): void => {
+      onFailure(
+        new Error(
+          `CDP WebSocket closed before opening (${code}: ${reason.toString("utf8")})`,
+        ),
+      );
+    };
     const onAbort = (): void => {
       terminateSocket(socket);
       onFailure(new AnalysisCancelledError(operation));
     };
     const cleanup = (): void => {
-      clearTimeout(timer);
       socket.off("open", onOpen);
       socket.off("error", onFailure);
+      socket.off("close", onClose);
       signal?.removeEventListener("abort", onAbort);
     };
     socket.once("open", onOpen);
     socket.once("error", onFailure);
+    socket.once("close", onClose);
     signal?.addEventListener("abort", onAbort, { once: true });
     if (signal?.aborted === true) onAbort();
   });

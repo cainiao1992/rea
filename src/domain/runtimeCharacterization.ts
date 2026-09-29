@@ -4,19 +4,19 @@ import canonicalize from "canonicalize";
 import { z } from "zod";
 
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
-const stableIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._:/-]{0,199}$/u);
+const stableIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._:/-]*$/u);
 
 const runtimeIdentitySchema = z.strictObject({
-  family: z.string().trim().min(1).max(100),
+  family: z.string().trim().min(1),
   provider_id: stableIdSchema,
-  executable_path: z.string().min(1).max(4_096),
+  executable_path: z.string().min(1),
   executable_sha256: digestSchema,
-  version: z.string().trim().min(1).max(500),
+  version: z.string().trim().min(1),
   profile_sha256: digestSchema,
 });
 
 const artifactIdentitySchema = z.strictObject({
-  path: z.string().min(1).max(4_096),
+  path: z.string().min(1),
   sha256: digestSchema,
   byte_length: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
 });
@@ -24,7 +24,7 @@ const artifactIdentitySchema = z.strictObject({
 const callableIdentitySchema = z.strictObject({
   callable_id: stableIdSchema,
   module_id: stableIdSchema,
-  export_name: z.string().min(1).max(1_000),
+  export_name: z.string().min(1),
   semantic_evidence_id: z
     .string()
     .regex(/^ev_[a-f0-9]{64}$/u)
@@ -38,18 +38,18 @@ export const runtimeCharacterizationPlanSchema = z.strictObject({
   artifact: artifactIdentitySchema,
   runtime: runtimeIdentitySchema,
   callable: callableIdentitySchema,
-  working_directory: z.string().min(1).max(4_096),
-  isolated_home: z.string().min(1).max(4_096),
+  working_directory: z.string().min(1),
+  isolated_home: z.string().min(1),
   expected_effect: z.enum(["pure", "bounded-effects", "observation-only"]),
-  allowed_boundaries: z.array(stableIdSchema).max(1_000),
+  allowed_boundaries: z.array(stableIdSchema),
   limits: z.strictObject({
-    max_calls: z.number().int().min(1).max(10_000),
-    max_processes: z.number().int().min(0).max(1_000),
-    max_files: z.number().int().min(0).max(100_000),
+    max_calls: z.number().int().min(1),
+    max_processes: z.number().int().min(0),
+    max_files: z.number().int().min(0),
     max_bytes: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
-    max_handles: z.number().int().min(0).max(100_000),
-    timeout_ms: z.number().int().min(1).max(300_000),
-    idle_timeout_ms: z.number().int().min(1).max(300_000),
+    max_handles: z.number().int().min(0),
+    timeout_ms: z.number().int().min(1),
+    idle_timeout_ms: z.number().int().min(1),
   }),
   determinism: z.strictObject({
     clock: z.enum(["fixed", "real"]),

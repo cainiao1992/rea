@@ -59,6 +59,19 @@ describe("Evidence completion ledger", () => {
     expect(left.ledger_id).toMatch(/^ecl_[a-f0-9]{64}$/u);
   });
 
+  it("accepts every Evidence ID supplied for one claim", () => {
+    const evidenceIds = Array.from(
+      { length: 101 },
+      (_, index) => `ev_${index.toString(16).padStart(64, "0")}`,
+    );
+
+    expect(
+      createEvidenceCompletionLedger([
+        record("scenario.many-evidence-items", "pass", evidenceIds),
+      ]).records[0]?.evidence_ids,
+    ).toHaveLength(evidenceIds.length);
+  });
+
   it("rejects missing, malformed, and duplicate Evidence IDs", () => {
     expect(() =>
       createEvidenceCompletionLedger([record("scenario.empty", "pass", [])]),

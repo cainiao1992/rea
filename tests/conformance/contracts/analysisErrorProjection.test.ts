@@ -29,17 +29,9 @@ describe("analysis error projection contract", () => {
       ).map(
         (reason) => new ArtifactOperationError("inventory_artifact", reason),
       ),
-      ...(
-        [
-          "disabled",
-          "outside-root",
-          "not-file",
-          "too-large",
-          "exists",
-          "invalid-json",
-          "io",
-        ] as const
-      ).map((reason) => new EvidenceFileError("read", reason)),
+      ...(["not-file", "exists", "invalid-json", "io"] as const).map(
+        (reason) => new EvidenceFileError("read", reason),
+      ),
       ...(
         [
           "disabled",

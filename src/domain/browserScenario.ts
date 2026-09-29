@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import {
-  BROWSER_SCENARIO_CAPTURE_LIMITS,
   browserScenarioActionSchema,
   browserScenarioAllowedOriginsSchema,
   browserScenarioBrowserSchema,
@@ -18,7 +17,6 @@ import {
 } from "./browserScenarioValues.js";
 
 export {
-  BROWSER_SCENARIO_LIMITS,
   browserScenarioActionSchema,
   browserScenarioUrlSchema,
   browserScenarioValueSchema,
@@ -54,14 +52,7 @@ export const browserScenarioInputSchema = z.strictObject({
   capture: browserScenarioCaptureSchema,
 });
 
-const scenarioShapeSchema = browserScenarioInputSchema.transform(
-  (scenario) => ({
-    ...scenario,
-    limits: BROWSER_SCENARIO_CAPTURE_LIMITS,
-  }),
-);
-
-type ScenarioShape = z.infer<typeof scenarioShapeSchema>;
+type ScenarioShape = z.infer<typeof browserScenarioInputSchema>;
 
 const addIssue = (
   context: z.RefinementCtx,
@@ -348,8 +339,8 @@ const validateBrowserScenario = (
   validateRedactionCoverage(scenario, context);
 };
 
-/** Strict provider-neutral contract for one bounded browser capture scenario. */
-export const browserScenarioSchema = scenarioShapeSchema.superRefine(
+/** Strict provider-neutral contract for one controlled browser scenario. */
+export const browserScenarioSchema = browserScenarioInputSchema.superRefine(
   validateBrowserScenario,
 );
 export type BrowserScenario = z.infer<typeof browserScenarioSchema>;

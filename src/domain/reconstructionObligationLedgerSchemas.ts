@@ -106,7 +106,7 @@ const fixtureBindingSchema = z.strictObject({
   fixture_id: stableIdSchema,
   case_kind: obligationCaseKindSchema,
   authority: obligationProofAuthoritySchema,
-  evidence_ids: z.array(evidenceIdSchema).min(1).max(100),
+  evidence_ids: z.array(evidenceIdSchema).min(1),
 });
 
 const nondeterminismSchema = z.strictObject({
@@ -121,7 +121,7 @@ const verifierBindingSchema = z.strictObject({
   authority: obligationProofAuthoritySchema,
   status: z.enum(["pass", "fail", "unknown", "unsupported", "skipped"]),
   result_evidence_id: evidenceIdSchema,
-  enumerated_obligation_ids: z.array(stableIdSchema).min(1).max(10_000),
+  enumerated_obligation_ids: z.array(stableIdSchema).min(1),
   nondeterminism: nondeterminismSchema,
 });
 
@@ -129,21 +129,19 @@ export const reconstructionObligationManifestBindingSchema = z.strictObject({
   obligation_id: stableIdSchema,
   owner: ownerBindingSchema,
   parser_type: parserTypeBindingSchema.nullable(),
-  original_cases: z.array(observedCaseSchema).max(100),
-  fixtures: z.array(fixtureBindingSchema).max(100),
+  original_cases: z.array(observedCaseSchema),
+  fixtures: z.array(fixtureBindingSchema),
   verifier: verifierBindingSchema.nullable(),
 });
 
 export const reconstructionObligationManifestSchema = z.strictObject({
-  bindings: z.array(reconstructionObligationManifestBindingSchema).max(10_000),
-  contradictions: z
-    .array(
-      z.strictObject({
-        obligation_id: stableIdSchema,
-        evidence_ids: z.array(evidenceIdSchema).min(2).max(100),
-      }),
-    )
-    .max(10_000),
+  bindings: z.array(reconstructionObligationManifestBindingSchema),
+  contradictions: z.array(
+    z.strictObject({
+      obligation_id: stableIdSchema,
+      evidence_ids: z.array(evidenceIdSchema).min(2),
+    }),
+  ),
 });
 
 export const reviewedReconstructionObligationSchema = z.strictObject({
@@ -154,17 +152,17 @@ export const reviewedReconstructionObligationSchema = z.strictObject({
   family: z.string().trim().min(1).max(100),
   target: obligationTargetSchema,
   required: z.boolean(),
-  required_case_kinds: z.array(obligationCaseKindSchema).min(1).max(5),
+  required_case_kinds: z.array(obligationCaseKindSchema).min(1),
   required_original_authority: obligationOriginalAuthoritySchema,
   required_fixture_authority: obligationProofAuthoritySchema,
   required_verifier_authority: obligationProofAuthoritySchema,
   requires_parser_type: z.boolean(),
-  dependency_obligation_ids: z.array(stableIdSchema).max(1_000),
-  residual_unknown_ids: z.array(stableIdSchema).max(1_000),
-  unavailable_authority: z.array(boundedTextSchema).max(100),
-  required_next_evidence: z.array(boundedTextSchema).max(100),
+  dependency_obligation_ids: z.array(stableIdSchema),
+  residual_unknown_ids: z.array(stableIdSchema),
+  unavailable_authority: z.array(boundedTextSchema),
+  required_next_evidence: z.array(boundedTextSchema),
   disposition: z.enum(["active", "blocked", "out-of-scope"]),
-  review_evidence_ids: z.array(evidenceIdSchema).min(1).max(100),
+  review_evidence_ids: z.array(evidenceIdSchema).min(1),
 });
 
 const diagnosticSchema = z.strictObject({
@@ -203,22 +201,22 @@ export const reconstructionObligationSchema = z.strictObject({
   application_layer: obligationLayerSchema,
   family: z.string().trim().min(1).max(100),
   target: obligationTargetSchema,
-  authority_references: z.array(authorityReferenceSchema).min(1).max(1_000),
+  authority_references: z.array(authorityReferenceSchema).min(1),
   source_state: z.enum(["candidate", "observed", "reviewed", "unknown"]),
-  observed_cases: z.array(observedCaseSchema).max(100),
+  observed_cases: z.array(observedCaseSchema),
   required: z.boolean(),
-  required_case_kinds: z.array(obligationCaseKindSchema).min(1).max(5),
+  required_case_kinds: z.array(obligationCaseKindSchema).min(1),
   required_original_authority: obligationOriginalAuthoritySchema,
   required_fixture_authority: obligationProofAuthoritySchema,
   required_verifier_authority: obligationProofAuthoritySchema,
   requires_parser_type: z.boolean(),
-  dependency_obligation_ids: z.array(stableIdSchema).max(1_000),
-  residual_unknown_ids: z.array(stableIdSchema).max(1_000),
-  unavailable_authority: z.array(boundedTextSchema).max(100),
-  required_next_evidence: z.array(boundedTextSchema).max(100),
+  dependency_obligation_ids: z.array(stableIdSchema),
+  residual_unknown_ids: z.array(stableIdSchema),
+  unavailable_authority: z.array(boundedTextSchema),
+  required_next_evidence: z.array(boundedTextSchema),
   binding: reconstructionObligationManifestBindingSchema.nullable(),
   status: obligationStatusSchema,
-  diagnostics: z.array(diagnosticSchema).max(1_000),
+  diagnostics: z.array(diagnosticSchema),
 });
 
 const countBySchema = <Schema extends z.ZodType>(
@@ -274,9 +272,9 @@ export const reconstructionObligationLedgerSchema = z.strictObject({
       depends_on_obligation_id: stableIdSchema,
     }),
   ),
-  obligations: z.array(reconstructionObligationSchema).max(10_000),
-  evidence_links: z.array(evidenceIdSchema).max(100_000),
-  limitations: z.array(boundedTextSchema).max(1_000),
+  obligations: z.array(reconstructionObligationSchema),
+  evidence_links: z.array(evidenceIdSchema),
+  limitations: z.array(boundedTextSchema),
 });
 
 export const reconstructionObligationLedgerInputSchema = z.strictObject({

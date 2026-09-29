@@ -39,6 +39,56 @@ const baseScenario = () => ({
   ],
 });
 
+const buildLargeCallerScenario = () => {
+  const states = Array.from({ length: 40 }, (_, index) => ({
+    id: `state_${String(index)}`,
+    max_visits: 300,
+    deadline_ms: 30_000,
+    on: [] as unknown[],
+  }));
+  const manyPredicates = {
+    kind: "repeat",
+    trigger: {
+      kind: "all",
+      triggers: Array.from({ length: 20 }, () => terminalTrigger()),
+    },
+    min: 1,
+    max: 1_000,
+  };
+  const sendInputs = Array.from({ length: 300 }, () => ({
+    type: "send_input",
+    data: "x",
+    sensitive: false,
+  }));
+  states[0]!.on = Array.from({ length: 130 }, (_, index) => ({
+    id: `transition_${String(index)}`,
+    priority: index,
+    max_uses: 300,
+    when: index === 0 ? manyPredicates : terminalTrigger(),
+    actions: index === 0 ? sendInputs : [],
+    target:
+      index > 0 && index <= 39
+        ? { kind: "goto", state: `state_${String(index)}` }
+        : { kind: "finish", outcome: "passed" },
+  }));
+  for (let index = 1; index < states.length; index += 1) {
+    const state = states[index]!;
+    state.on = [
+      {
+        ...finishTransition(),
+        id: `finish_${String(index)}`,
+        max_uses: 300,
+        actions: [{ type: "checkpoint", name: `ready_${String(index)}` }],
+      },
+    ];
+  }
+  return processReactiveScenarioSchema.safeParse({
+    initial_state: "state_0",
+    deadline_ms: 30_000,
+    states,
+  });
+};
+
 describe("process reactive scenario schema", () => {
   it("parses a terminal scenario", () => {
     expect(processReactiveScenarioSchema.parse(baseScenario())).toMatchObject({
@@ -48,58 +98,47 @@ describe("process reactive scenario schema", () => {
   });
 
   it("accepts caller-defined scenario sizes without count ceilings", () => {
-    const states = Array.from({ length: 40 }, (_, index) => ({
-      id: `state_${String(index)}`,
-      max_visits: 300,
-      deadline_ms: 30_000,
-      on: [] as unknown[],
-    }));
-    const manyPredicates = {
-      kind: "repeat",
-      trigger: {
-        kind: "all",
-        triggers: Array.from({ length: 20 }, () => terminalTrigger()),
-      },
-      min: 1,
-      max: 1_000,
-    };
-    const sendInputs = Array.from({ length: 300 }, () => ({
-      type: "send_input",
-      data: "x",
-      sensitive: false,
-    }));
-    const transitions = Array.from({ length: 130 }, (_, index) => ({
-      id: `transition_${String(index)}`,
-      priority: index,
-      max_uses: 300,
-      when: index === 0 ? manyPredicates : terminalTrigger(),
-      actions: index === 0 ? sendInputs : [],
-      target:
-        index > 0 && index <= 39
-          ? { kind: "goto", state: `state_${String(index)}` }
-          : { kind: "finish", outcome: "passed" },
-    }));
-    states[0]!.on = transitions;
-    for (let index = 1; index < states.length; index += 1) {
-      const state = states[index]!;
-      state.on = [
-        {
-          ...finishTransition(),
-          id: `finish_${String(index)}`,
-          max_uses: 300,
-          actions: [{ type: "checkpoint", name: `ready_${String(index)}` }],
-        },
-      ];
-    }
-    const parsed = processReactiveScenarioSchema.safeParse({
-      initial_state: "state_0",
-      deadline_ms: 30_000,
-      states,
-    });
+    const parsed = buildLargeCallerScenario();
     expect(
       parsed.success,
       parsed.success ? "" : JSON.stringify(parsed.error.issues),
     ).toBe(true);
+  });
+
+  it("accepts long caller supplied identifiers, terminal matchers, and input", () => {
+    const identifier = `transition_${"x".repeat(128)}`;
+    const checkpoint = `checkpoint_${"x".repeat(128)}`;
+    const literal = "Ready".repeat(2_001);
+    const data = "input".repeat(200_001);
+    const parsed = processReactiveScenarioSchema.safeParse({
+      initial_state: "starting",
+      deadline_ms: 30_000,
+      states: [
+        {
+          id: "starting",
+          max_visits: 1,
+          deadline_ms: 5_000,
+          on: [
+            {
+              ...finishTransition(),
+              id: identifier,
+              when: { ...terminalTrigger(), literal },
+              actions: [
+                { type: "checkpoint", name: checkpoint },
+                { type: "send_input", data, sensitive: false },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.states[0]?.on[0]?.id).toBe(identifier);
+      expect(parsed.data.states[0]?.on[0]?.when).toMatchObject({ literal });
+      expect(parsed.data.states[0]?.on[0]?.actions[1]).toMatchObject({ data });
+    }
   });
 
   it.each([

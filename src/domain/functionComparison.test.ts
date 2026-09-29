@@ -122,11 +122,7 @@ describe("function comparison", () => {
         }),
       ]),
     );
-    for (const dimension of result.dimensions)
-      expect(dimension.evidence_links).toEqual([
-        FUNCTION_COMPARISON_EXAMPLE.left.evidence_id,
-        FUNCTION_COMPARISON_EXAMPLE.right.evidence_id,
-      ]);
+    expectInlineComparisonEvidence(result);
     expectFunctionDimensionAlgebra(result);
   });
 
@@ -251,6 +247,35 @@ describe("function comparison", () => {
     expect(pseudocode?.left_digest).not.toBe(pseudocode?.right_digest);
   });
 });
+
+const expectInlineComparisonEvidence = (
+  result: ReturnType<typeof compareFunctions>,
+): void => {
+  for (const dimension of result.dimensions)
+    expect(dimension.evidence_links).toEqual([
+      FUNCTION_COMPARISON_EXAMPLE.left.evidence_id,
+      FUNCTION_COMPARISON_EXAMPLE.right.evidence_id,
+    ]);
+  const firstDimension = result.dimensions[0];
+  expect(firstDimension).toBeDefined();
+  if (firstDimension === undefined) return;
+  expect(
+    functionComparisonResultSchema.safeParse({
+      ...result,
+      dimensions: result.dimensions.map((dimension, index) =>
+        index === 0
+          ? {
+              ...dimension,
+              evidence_links: Array.from(
+                { length: 201 },
+                () => FUNCTION_COMPARISON_EXAMPLE.left.evidence_id,
+              ),
+            }
+          : dimension,
+      ),
+    }).success,
+  ).toBe(true);
+};
 
 const expectFunctionDimensionAlgebra = (
   result: ReturnType<typeof compareFunctions>,

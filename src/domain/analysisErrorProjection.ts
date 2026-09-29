@@ -107,12 +107,10 @@ const artifactOperationCode = (
 
 const evidenceFileCode = (
   reason: EvidenceFileError["reason"],
-): AnalysisErrorProjection["code"] => {
-  if (reason === "outside-root") return "outside_approved_root";
-  if (reason === "too-large") return "truncated";
-  if (reason === "disabled") return "capability_unavailable";
-  return "execution_failure";
-};
+): AnalysisErrorProjection["code"] =>
+  reason === "invalid-json"
+    ? "evidence_integrity_mismatch"
+    : "execution_failure";
 
 const workspaceStorageCode = (
   reason: WorkspaceStorageError["reason"],

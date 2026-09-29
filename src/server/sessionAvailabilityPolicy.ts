@@ -1,12 +1,10 @@
 import type { AvailabilityPolicy } from "../application/CapabilityInventory.js";
-import type { EvidenceFilePolicy } from "../domain/evidenceBundle.js";
 import type { ProcessExecutionPolicy } from "../domain/processCapture.js";
 
 export type SessionAvailability = AvailabilityPolicy;
 
 export interface SessionAvailabilityDefaults {
   readonly processPolicy: ProcessExecutionPolicy;
-  readonly evidenceFilePolicy: EvidenceFilePolicy;
   readonly optionalFeatures?: Pick<
     SessionAvailability,
     | "browserObservationEnabled"
@@ -27,7 +25,6 @@ export const sessionAvailabilityPolicy = (
   configured ??
   (() => ({
     processCaptureEnabled: defaults.processPolicy.status === "enabled",
-    evidenceFileRoots: defaults.evidenceFilePolicy.roots.length,
     browserObservationEnabled:
       defaults.optionalFeatures?.browserObservationEnabled ?? false,
     browserScenarioEnabled:

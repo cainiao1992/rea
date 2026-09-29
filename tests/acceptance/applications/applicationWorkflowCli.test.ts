@@ -131,9 +131,7 @@ describe("application workflow CLI Evidence resolution", () => {
         ]),
       ),
     );
-    const environment = {
-      REA_EVIDENCE_ROOTS_JSON: JSON.stringify([root]),
-    };
+    const environment = {};
 
     const traced = await runCli(
       [
@@ -246,23 +244,20 @@ describe("application workflow CLI export Evidence", () => {
       bundlePath,
       serializeEvidenceBundle(createEvidenceBundle([left.value, right.value])),
     );
-    const compared = await runCli(
-      [
-        "compare-javascript-export-shapes",
-        JSON.stringify({
-          left: left.value.evidence_id,
-          right: right.value.evidence_id,
-          left_module_path: "parser.mjs",
-          left_export_name: "default",
-          right_module_path: "parser.mjs",
-          right_export_name: "default",
-        }),
-        "--evidence-bundle",
-        bundlePath,
-        "--json",
-      ],
-      { REA_EVIDENCE_ROOTS_JSON: JSON.stringify([root]) },
-    );
+    const compared = await runCli([
+      "compare-javascript-export-shapes",
+      JSON.stringify({
+        left: left.value.evidence_id,
+        right: right.value.evidence_id,
+        left_module_path: "parser.mjs",
+        left_export_name: "default",
+        right_module_path: "parser.mjs",
+        right_export_name: "default",
+      }),
+      "--evidence-bundle",
+      bundlePath,
+      "--json",
+    ]);
     expect(compared).toMatchObject({
       operation: "compare_javascript_export_shapes",
       predicate_type: "rea.javascript-export-shape-comparison",

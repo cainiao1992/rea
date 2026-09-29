@@ -17,6 +17,7 @@ import type {
 } from "../../../src/application/JavaScriptReplayPlanning.js";
 import { PermissionAuthority } from "../../../src/application/PermissionAuthority.js";
 import { createPermissionPolicy } from "../../../src/domain/permissionPolicy.js";
+import { createRuntimeCharacterizationPlan } from "../../../src/domain/runtimeCharacterization.js";
 import {
   nodeCharacterizationPreparationInputSchema,
   nodeCharacterizationPreparationOutputSchema,
@@ -41,6 +42,12 @@ describe("Node runtime characterization", () => {
     const output = nodeCharacterizationPreparationOutputSchema.parse(
       prepared.value,
     );
+    const { plan_sha256: _planSha256, ...planWithoutDigest } = output.plan;
+    const expandedPlan = createRuntimeCharacterizationPlan({
+      ...planWithoutDigest,
+      limits: { ...output.plan.limits, max_calls: 10_001 },
+    });
+    expect(expandedPlan.limits.max_calls).toBe(10_001);
     expect(output).toMatchObject({
       phase: "preparation",
       plan: {
@@ -92,14 +99,26 @@ describe("Node runtime characterization", () => {
     expect(await readFile(fixture.path)).toEqual(Buffer.from(fixture.bytes));
   });
 
-  it("rejects aliases that cannot fit the provider-neutral plan identity", async () => {
+  it("accepts aliases longer than the former identity ceiling", async () => {
     const input = preparationInput(await createFixture());
-    expect(() =>
+    const alias = "a".repeat(201);
+    expect(
       nodeCharacterizationPreparationInputSchema.parse({
         ...input,
-        selected_alias: "a".repeat(201),
-      }),
-    ).toThrow();
+        selected_alias: alias,
+        replay: {
+          ...input.replay,
+          left: {
+            ...input.replay.left,
+            entry_alias: alias,
+            modules: input.replay.left.modules.map((module) => ({
+              ...module,
+              alias,
+            })),
+          },
+        },
+      }).selected_alias,
+    ).toBe(alias);
   });
 
   it("maps replay-only alias syntax to a provider-neutral module identity", async () => {

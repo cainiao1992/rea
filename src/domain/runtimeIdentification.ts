@@ -17,10 +17,10 @@ const runtimeFamilySchema = z.enum([
   "webassembly",
 ]);
 const observationSchema = z.strictObject({
-  path: z.string().min(1).max(4_096),
+  path: z.string().min(1),
   artifact_id: z.string().regex(/^art_[a-f0-9]{64}$/u),
   sha256: digestSchema,
-  format: z.string().min(1).max(100),
+  format: z.string().min(1),
 });
 const runtimeObservationShape = {
   family: runtimeFamilySchema,
@@ -30,20 +30,20 @@ const identifiedRuntimeSchema = z.discriminatedUnion("inspection", [
   z.strictObject({
     ...runtimeObservationShape,
     inspection: z.literal("available"),
-    provider_id: z.string().min(1).max(200),
+    provider_id: z.string().min(1),
     reason: z.null(),
   }),
   z.strictObject({
     ...runtimeObservationShape,
     inspection: z.literal("provider-missing"),
     provider_id: z.null(),
-    reason: z.string().min(1).max(1_000),
+    reason: z.string().min(1),
   }),
   z.strictObject({
     ...runtimeObservationShape,
     inspection: z.literal("provider-selection-required"),
     provider_id: z.null(),
-    reason: z.string().min(1).max(1_000),
+    reason: z.string().min(1),
   }),
 ]);
 
@@ -56,14 +56,14 @@ const runtimeIdentificationInputSchema = z.strictObject({
 export const runtimeIdentificationResultSchema = z.strictObject({
   identification_id: z.string().regex(/^rid_[a-f0-9]{64}$/u),
   root_sha256: digestSchema,
-  root_format: z.string().min(1).max(100),
+  root_format: z.string().min(1),
   source_evidence_ids: z.array(evidenceIdSchema).min(1),
   runtimes: z.array(identifiedRuntimeSchema),
   coverage: z.strictObject({
     status: z.enum(["complete-within-inventory", "partial"]),
     inventory_complete: z.boolean(),
   }),
-  limitations: z.array(z.string().min(1).max(4_096)).max(100),
+  limitations: z.array(z.string().min(1)),
 });
 
 export type RuntimeIdentificationInput = z.input<

@@ -105,11 +105,7 @@ export const runControlledReplayValidated = async (
       ),
     );
 
-  const exportContext = await authorizeReproducerExport(
-    dependencies.authority,
-    input,
-    prepared.value,
-  );
+  const exportContext = await authorizeReproducerExport(input);
   if (!exportContext.ok) return exportContext;
 
   const executed = await executeValidatedReplay({
@@ -201,45 +197,12 @@ interface ReproducerExportContext {
   readonly includeSources: boolean;
 }
 
-const authorizeReproducerExport = async (
-  authority: PermissionAuthority | undefined,
+const authorizeReproducerExport = (
   input: ControlledReplayExecutionInput,
-  prepared: Awaited<ReturnType<typeof prepareReplayPlan>>,
-): Promise<Result<ReproducerExportContext | undefined, AnalysisError>> => {
+): Result<ReproducerExportContext | undefined, AnalysisError> => {
   if (input.reproducer_export === undefined) return ok(undefined);
-  if (authority === undefined)
-    return err(
-      new AnalysisCapabilityUnavailableError(
-        "rea-javascript-replay",
-        OPERATION,
-        "JavaScript replay permission policy is not configured",
-      ),
-    );
-  const exportAuthorized = await authority.authorize(
-    {
-      capability: "evidence_write",
-      roots: [input.reproducer_export.path],
-      executables: [],
-      environment_names: [],
-      network: "none",
-      mount: false,
-      operation_identity: `${OPERATION}:reproducer:${prepared.publicPlan.plan_digest}`,
-    },
-    "write",
-  );
-  if (!exportAuthorized.ok)
-    return err(projectPermissionFailure(exportAuthorized.error));
-  const canonicalExportPath = exportAuthorized.value.request.roots[0];
-  if (canonicalExportPath !== input.reproducer_export.path)
-    return err(
-      new AnalysisInputError(`${OPERATION}:reproducer_export:path`, {
-        cause: new TypeError(
-          `Use the canonical reproducer path: ${canonicalExportPath ?? "unavailable"}`,
-        ),
-      }),
-    );
   return ok({
-    path: canonicalExportPath,
+    path: input.reproducer_export.path,
     includeSources: input.reproducer_export.include_sources === true,
   });
 };

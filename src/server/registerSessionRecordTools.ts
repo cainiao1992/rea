@@ -5,15 +5,9 @@ import {
   readEvidenceBundle,
   writeEvidenceBundle,
 } from "../application/EvidenceBundleFiles.js";
-import type { PermissionAuthority } from "../application/PermissionAuthority.js";
 import { SESSION_TOOL_CONTRACTS } from "../contracts/toolContracts.js";
-import type { AnalysisError } from "../domain/errors.js";
-import type {
-  EvidenceBundle,
-  EvidenceFilePolicy,
-} from "../domain/evidenceBundle.js";
-import { err, ok, type Result } from "../domain/result.js";
-import { projectPermissionFailure } from "../application/PermissionFailure.js";
+import type { EvidenceBundle } from "../domain/evidenceBundle.js";
+import { err, ok } from "../domain/result.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 import { toCallToolResult } from "./toolResult.js";
 
@@ -23,8 +17,6 @@ interface EvidenceToolRegistration {
   readonly exportContract: (typeof SESSION_TOOL_CONTRACTS)[3];
   readonly importContract: (typeof SESSION_TOOL_CONTRACTS)[4];
   readonly snapshotContract: (typeof SESSION_TOOL_CONTRACTS)[19];
-  readonly filePolicy: EvidenceFilePolicy;
-  readonly permissionAuthority?: PermissionAuthority;
 }
 
 /** Register evidence bundle import and export tools. */
@@ -40,27 +32,16 @@ const registerExportEvidenceTool = ({
   server,
   session,
   exportContract,
-  filePolicy,
-  permissionAuthority,
 }: EvidenceToolRegistration): void => {
   server.registerTool(
     exportContract.name,
     toolRegistrationOptions(exportContract),
     async (input) => {
       const bundle = session.exportEvidenceBundle();
-      const denied = await authorizeEvidencePath({
-        authority: permissionAuthority,
-        capability: "evidence_write",
-        path: input.path,
-        access: "write",
-        operationIdentity: `export_evidence:${input.path}`,
-      });
-      if (denied !== undefined) return toCallToolResult(denied, exportContract);
       const written = await writeEvidenceBundle(
         bundle,
         input.path,
         input.overwrite,
-        filePolicy,
       );
       return written.ok
         ? toCallToolResult(
@@ -94,23 +75,13 @@ const registerImportEvidenceTool = ({
   server,
   session,
   importContract,
-  filePolicy,
-  permissionAuthority,
 }: EvidenceToolRegistration): void => {
   server.registerTool(
     importContract.name,
     toolRegistrationOptions(importContract),
     async (input) => {
       const path = input.path;
-      const denied = await authorizeEvidencePath({
-        authority: permissionAuthority,
-        capability: "evidence_read",
-        path,
-        access: "read",
-        operationIdentity: `import_evidence:${path}`,
-      });
-      if (denied !== undefined) return toCallToolResult(denied, importContract);
-      const loaded = await readEvidenceBundle(path, filePolicy);
+      const loaded = await readEvidenceBundle(path);
       if (!loaded.ok) return toCallToolResult(loaded, importContract);
       const retainedUnknownRevisions = new Set(
         session
@@ -138,35 +109,6 @@ const registerImportEvidenceTool = ({
 const unknownRevisionKey = (
   unknown: EvidenceBundle["unknowns"][number],
 ): string => `${unknown.unknown_id}:${String(unknown.revision)}`;
-
-interface EvidenceAuthorizationInput {
-  readonly authority: PermissionAuthority | undefined;
-  readonly capability: "evidence_read" | "evidence_write";
-  readonly path: string;
-  readonly access: "read" | "write";
-  readonly operationIdentity: string;
-}
-
-const authorizeEvidencePath = async (
-  input: EvidenceAuthorizationInput,
-): Promise<Result<never, AnalysisError> | undefined> => {
-  if (input.authority === undefined) return undefined;
-  const authorized = await input.authority.authorize(
-    {
-      capability: input.capability,
-      roots: [input.path],
-      executables: [],
-      environment_names: [],
-      network: "none",
-      mount: false,
-      operation_identity: input.operationIdentity,
-    },
-    input.access,
-  );
-  return authorized.ok
-    ? undefined
-    : err(projectPermissionFailure(authorized.error));
-};
 
 interface UnknownToolRegistration {
   readonly server: McpServer;

@@ -3,11 +3,10 @@ import { z } from "zod";
 import { evidenceEnvelopeSchema } from "./evidence.js";
 
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
-const absolutePathSchema = z.string().startsWith("/").max(4096);
+const absolutePathSchema = z.string().startsWith("/");
 const aliasSchema = z
   .string()
   .min(1)
-  .max(256)
   .regex(/^[A-Za-z0-9_./:@-]+$/u);
 
 const replayModuleSchema = z
@@ -16,7 +15,7 @@ const replayModuleSchema = z
     path: absolutePathSchema,
     format: z.enum(["esm", "commonjs-factory"]),
     role: z.enum(["module", "stub"]).default("module"),
-    dependencies: z.record(z.string().min(1).max(256), aliasSchema).default({}),
+    dependencies: z.record(z.string().min(1), aliasSchema).default({}),
   })
   .strict();
 
@@ -24,13 +23,13 @@ const replaySideSchema = z
   .object({
     modules: z.array(replayModuleSchema).min(1),
     entry_alias: aliasSchema,
-    entry_export: z.string().min(1).max(256).default("default"),
+    entry_export: z.string().min(1).default("default"),
   })
   .strict();
 
 const explicitCaseSchema = z
   .object({
-    case_id: z.string().min(1).max(128),
+    case_id: z.string().min(1),
     arguments: z.array(z.json()),
   })
   .strict();
@@ -43,59 +42,59 @@ const generatorSchema = z
       "clipboard-boundaries",
     ]),
     seed: z.number().int().min(0).max(0xffff_ffff),
-    count: z.number().int().min(1).max(64),
+    count: z.number().int().safe().min(1),
   })
   .strict();
 
 const replayLimitsSchema = z
   .object({
-    wall_time_ms: z.number().int().min(100).max(10_000).default(3_000),
+    wall_time_ms: z.number().int().safe().min(1).default(3_000),
     memory_bytes: z
       .number()
       .int()
-      .min(16 * 1024 * 1024)
-      .max(512 * 1024 * 1024)
+      .safe()
+      .positive()
       .default(128 * 1024 * 1024),
-    tasks: z.number().int().min(1).max(32).default(8),
-    cpu_quota_percent: z.number().int().min(1).max(100).default(50),
+    tasks: z.number().int().safe().min(1).default(8),
+    cpu_quota_percent: z.number().int().safe().min(1).default(50),
     tmpfs_bytes: z
       .number()
       .int()
-      .min(1024 * 1024)
-      .max(64 * 1024 * 1024)
+      .safe()
+      .min(1)
       .default(16 * 1024 * 1024),
     module_bytes: z
       .number()
       .int()
+      .safe()
       .min(1)
-      .max(16 * 1024 * 1024)
       .default(4 * 1024 * 1024),
     input_bytes: z
       .number()
       .int()
+      .safe()
       .min(1)
-      .max(1024 * 1024)
       .default(256 * 1024),
     protocol_bytes: z
       .number()
       .int()
-      .min(1024 * 1024)
-      .max(64 * 1024 * 1024)
+      .safe()
+      .min(1)
       .default(16 * 1024 * 1024),
     output_bytes: z
       .number()
       .int()
+      .safe()
       .min(1)
-      .max(4 * 1024 * 1024)
       .default(512 * 1024),
     stderr_bytes: z
       .number()
       .int()
+      .safe()
       .min(0)
-      .max(256 * 1024)
       .default(32 * 1024),
-    result_depth: z.number().int().min(1).max(64).default(16),
-    result_nodes: z.number().int().min(1).max(100_000).default(10_000),
+    result_depth: z.number().int().safe().min(1).default(16),
+    result_nodes: z.number().int().safe().min(1).default(10_000),
   })
   .strict();
 
@@ -258,7 +257,6 @@ const replayPlanSchema = z
       .object({
         path: z.string().min(1),
         include_sources: z.boolean(),
-        authority: z.literal("evidence_write"),
       })
       .strict()
       .nullable(),

@@ -77,12 +77,7 @@ export const electronScopeOptions = {
 
 export const electronPageInspectionOptions = z.object({
   ...electronScopeOptions,
-  observationMs: boundedCount(
-    "observation duration in milliseconds",
-    10_000,
-    100,
-    0,
-  ),
+  observationMs: observationDuration(100),
   includeScriptSources: z
     .boolean()
     .default(false)

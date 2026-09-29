@@ -5,9 +5,7 @@ const {
 } = require("./electron-active-hook-boundaries.cjs");
 
 const MAX_EVENT_NAME_LENGTH = 128;
-const MAX_CHANNEL_LENGTH = 1_024;
 const MAX_IDENTIFIER_LENGTH = 256;
-const MAX_ARGUMENT_SHAPES = 32;
 const ipcEventKinds = new Set([
   "main-handler-invocation",
   "main-event-invocation",
@@ -101,14 +99,12 @@ const record = (event) => {
     event: null,
     phase: "observed",
     channel: null,
-    channel_truncated: false,
     direction: null,
     sender: null,
     receiver: null,
     frame: null,
     target: null,
     argument_shapes: [],
-    argument_shapes_truncated: false,
     result_shape: null,
     process_type: processType(),
     source: "electron-active-hook",
@@ -125,21 +121,14 @@ const record = (event) => {
     ...raw,
     correlation_id: boundedString(raw.correlation_id, MAX_IDENTIFIER_LENGTH),
     event: boundedString(raw.event, MAX_EVENT_NAME_LENGTH),
-    channel: boundedString(raw.channel, MAX_CHANNEL_LENGTH),
-    channel_truncated:
-      raw.channel_truncated === true ||
-      (typeof raw.channel === "string" &&
-        raw.channel.length > MAX_CHANNEL_LENGTH),
+    channel: typeof raw.channel === "string" ? raw.channel : null,
     sender: boundedString(raw.sender, MAX_IDENTIFIER_LENGTH),
     receiver: boundedString(raw.receiver, MAX_IDENTIFIER_LENGTH),
     frame: boundedString(raw.frame, MAX_IDENTIFIER_LENGTH),
     target: boundedString(raw.target, MAX_IDENTIFIER_LENGTH),
-    argument_shapes: argumentShapes
-      .slice(0, MAX_ARGUMENT_SHAPES)
-      .map((value) => boundedString(value, 64) ?? "unknown"),
-    argument_shapes_truncated:
-      raw.argument_shapes_truncated === true ||
-      argumentShapes.length > MAX_ARGUMENT_SHAPES,
+    argument_shapes: argumentShapes.map(
+      (value) => boundedString(value, 64) ?? "unknown",
+    ),
     result_shape: boundedString(raw.result_shape, 64),
     process_type: boundedString(raw.process_type, MAX_IDENTIFIER_LENGTH),
     artifact_path: boundedString(raw.artifact_path, 16_384),
@@ -157,10 +146,7 @@ const recordIpc = (kind, channel, args, details = {}) =>
     return record({
       kind,
       channel: typeof channel === "string" ? channel : null,
-      argument_shapes: values
-        .slice(0, MAX_ARGUMENT_SHAPES)
-        .map((value) => shape(value)),
-      argument_shapes_truncated: values.length > MAX_ARGUMENT_SHAPES,
+      argument_shapes: values.map((value) => shape(value)),
       ...details,
     });
   })();

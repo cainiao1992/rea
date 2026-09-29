@@ -132,7 +132,6 @@ describe("server and catalog identity", () => {
   it("reports composed, host, and target-specific availability truthfully", () => {
     const policy = {
       processCaptureEnabled: true,
-      evidenceFileRoots: 1,
       investigationInputRoots: 1,
     };
     const composed = buildCapabilityInventory(

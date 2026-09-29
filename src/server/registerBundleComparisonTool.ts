@@ -5,7 +5,6 @@ import { readEvidenceBundle } from "../application/EvidenceBundleFiles.js";
 import { SESSION_TOOL_CONTRACTS } from "../contracts/toolContracts.js";
 import { compareBundles } from "../domain/bundleComparison.js";
 import { createEvidence } from "../domain/evidence.js";
-import type { EvidenceFilePolicy } from "../domain/evidenceBundle.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { ok } from "../domain/result.js";
 import { runDerivedOperation } from "./runDerivedOperation.js";
@@ -18,15 +17,14 @@ export const registerBundleComparisonTool = (
   server: McpServer,
   session: BinarySessionPort,
   contract: (typeof SESSION_TOOL_CONTRACTS)[9],
-  evidenceFilePolicy: EvidenceFilePolicy,
 ): void => {
   server.registerTool(
     contract.name,
     toolRegistrationOptions(contract),
     async (input, context) => {
       const [left, right] = await Promise.all([
-        readEvidenceBundle(input.left_bundle_path, evidenceFilePolicy),
-        readEvidenceBundle(input.right_bundle_path, evidenceFilePolicy),
+        readEvidenceBundle(input.left_bundle_path),
+        readEvidenceBundle(input.right_bundle_path),
       ]);
       if (!left.ok) return toCallToolResult(left, contract);
       if (!right.ok) return toCallToolResult(right, contract);

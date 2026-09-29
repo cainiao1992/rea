@@ -453,10 +453,10 @@ const processCaptureShapeSchema: z.ZodType<UnverifiedProcessCapture> = z.object(
         z.object({
           sequence: z.number().int().nonnegative(),
           at_ms: z.number().int().nonnegative(),
-          transition_id: z.string().min(1).max(64),
-          state_before: z.string().min(1).max(64),
-          state_after: z.string().min(1).max(64),
-          sensitive_aliases: z.array(z.string().min(1).max(64)).max(32),
+          transition_id: z.string().min(1),
+          state_before: z.string().min(1),
+          state_after: z.string().min(1),
+          sensitive_aliases: z.array(z.string().min(1)),
         }),
       )
       .default([]),

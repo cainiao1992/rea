@@ -179,6 +179,26 @@ describe("CdpElectronProvider target access", () => {
   });
 });
 
+describe("Electron request schemas", () => {
+  it("rejects unknown fields and misspelled inspection limits", () => {
+    expect(
+      listElectronTargetsInputSchema.safeParse({
+        cdp_endpoint: "http://127.0.0.1:9223",
+        allowed_file_roots: ["/tmp/app"],
+        allowed_file_root: "/tmp/app",
+      }).success,
+    ).toBe(false);
+    expect(
+      inspectElectronPageInputSchema.safeParse({
+        cdp_endpoint: "http://127.0.0.1:9223",
+        allowed_file_roots: ["/tmp/app"],
+        target_id: "page-1",
+        limits: { max_dom_nodes: 20, max_dom_node: 20 },
+      }).success,
+    ).toBe(false);
+  });
+});
+
 describe("CdpElectronProvider capture", () => {
   it("captures Electron script source only after separate approval", async () => {
     const root = await electronFixture();

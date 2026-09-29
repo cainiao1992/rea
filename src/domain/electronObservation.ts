@@ -25,7 +25,7 @@ const approvedElectronInput = {
 };
 
 /** Input for listing root-confined file:// page targets from Electron CDP. */
-export const listElectronTargetsInputSchema = z.object({
+export const listElectronTargetsInputSchema = z.strictObject({
   ...approvedElectronInput,
 });
 export type ListElectronTargetsInput = z.infer<
@@ -38,7 +38,7 @@ const inspectElectronPageFacts = {
   target_id: z.string().trim().min(1).max(256),
   observation_ms: z.number().int().min(0).max(10_000).default(100),
   limits: z
-    .object({
+    .strictObject({
       max_frames: z.number().int().min(1).max(1_000).default(200),
       max_dom_nodes: z.number().int().min(1).max(10_000).default(2_000),
       max_scripts: z.number().int().min(1).max(2_000).default(500),
@@ -69,11 +69,11 @@ const inspectElectronPageFacts = {
 } as const;
 export const inspectElectronPageInputSchema = z
   .union([
-    z.object({
+    z.strictObject({
       ...inspectElectronPageFacts,
       include_script_sources: z.literal(false).default(false),
     }),
-    z.object({
+    z.strictObject({
       ...inspectElectronPageFacts,
       include_script_sources: z.literal(true),
     }),

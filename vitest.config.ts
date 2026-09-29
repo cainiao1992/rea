@@ -15,11 +15,9 @@ const LOCAL_ONLY = process.env.CI !== "true";
 
 // Keep local runs to one worker and one project at a time. CI shards have
 // dedicated capacity and retain the existing bounded worker budget.
-export const MAX_TEST_WORKERS = LOCAL_ONLY
-  ? 1
-  : Math.min(2, availableParallelism());
+const MAX_TEST_WORKERS = LOCAL_ONLY ? 1 : Math.min(2, availableParallelism());
 
-export const TEST_PROJECTS = [
+const TEST_PROJECTS = [
   {
     name: "domain",
     include: ["src/{contracts,domain}/**/*.test.ts"],

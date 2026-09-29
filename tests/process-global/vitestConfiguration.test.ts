@@ -6,10 +6,7 @@ import { promisify } from "node:util";
 
 import { describe, expect, it } from "vitest";
 
-import vitestConfiguration, {
-  MAX_TEST_WORKERS,
-  TEST_PROJECTS,
-} from "../../vitest.config.js";
+import vitestConfiguration from "../../vitest.config.js";
 
 const execute = promisify(execFile);
 const EXPECTED_PROJECTS = [
@@ -30,29 +27,28 @@ describe("Vitest project configuration", () => {
     expect(vitestConfiguration.test?.reporters).toEqual(["default"]);
     expect(vitestConfiguration.test?.retry).toBe(0);
     const local = process.env.CI !== "true";
-    expect(MAX_TEST_WORKERS).toBe(
-      local ? 1 : Math.min(2, availableParallelism()),
+    const maxWorkers = local ? 1 : Math.min(2, availableParallelism());
+    expect(vitestConfiguration.test?.maxWorkers).toBe(maxWorkers);
+    const projects = (vitestConfiguration.test?.projects ?? []).flatMap(
+      (project) =>
+        typeof project === "object" && project !== null && "test" in project
+          ? [project.test]
+          : [],
     );
+    expect(projects).toHaveLength(EXPECTED_PROJECTS.length);
     expect(
-      TEST_PROJECTS.every(
+      projects.every(
         ({ fileParallelism, maxWorkers, sequence }) =>
-          maxWorkers === MAX_TEST_WORKERS &&
+          maxWorkers === vitestConfiguration.test?.maxWorkers &&
           (local
             ? fileParallelism === false && sequence?.groupOrder !== undefined
             : true),
       ),
     ).toBe(true);
-    expect(TEST_PROJECTS.map(({ name }) => name).sort()).toEqual(
-      EXPECTED_PROJECTS,
-    );
-    const sharedModuleProjects = new Set([
-      "domain",
-      "mcp-boundary",
-      "services",
-    ]);
+    expect(projects.map(({ name }) => name).sort()).toEqual(EXPECTED_PROJECTS);
     expect(
-      TEST_PROJECTS.every(({ name, isolate }) =>
-        sharedModuleProjects.has(name)
+      projects.every(({ name, isolate }) =>
+        name === "domain" || name === "mcp-boundary" || name === "services"
           ? isolate === false
           : isolate === undefined,
       ),

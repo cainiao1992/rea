@@ -7,7 +7,7 @@ import {
   type ProviderIdentity,
   type ExecutionOptions,
 } from "../application/AnalysisProvider.js";
-import { inventoryArtifactFully } from "../application/ArtifactInventory.js";
+import { inventoryArtifact } from "../application/ArtifactInventory.js";
 import { extractArtifact } from "../application/ArtifactExtraction.js";
 import {
   ARTIFACT_ANALYSIS_OPERATIONS,
@@ -217,7 +217,7 @@ class ArtifactClient implements AnalysisClient {
     },
     options?: ExecutionOptions,
   ) {
-    return inventoryArtifactFully(this.target.sourcePath ?? this.target.path, {
+    return inventoryArtifact(this.target.sourcePath ?? this.target.path, {
       ...(options?.signal === undefined ? {} : { signal: options.signal }),
       nativeMount: resolveNativeMountPolicy(
         parsed.native_mount_approved === true,

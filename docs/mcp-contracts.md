@@ -45,7 +45,7 @@ REA accepts ordinary `tools/call` progress tokens. Updates are monotonic,
 rate-bounded to at most one intermediate update per 100 ms, and always allow a
 terminal update. Unknown totals are omitted; REA does not fabricate percentages.
 Provider calls receive the request cancellation signal. Artifact traversal,
-hashing, cross-version scanning/checkpoints, Hopper requests, and process capture
+hashing, version comparisons, Hopper requests, and process capture
 check the same signal. Cancellation is distinct from timeout. A cleanup failure
 uses `cleanup_incomplete` and lists only the owned resource kinds that remain.
 Derived comparisons and reconstruction verification yield before computation

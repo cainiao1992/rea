@@ -5,10 +5,10 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { expect, it } from "vitest";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { itWithCaptureCapability } from "./processCaptureCapability.js";
 
 import {
   captureProcessScenario,
-  probeProcessCaptureCapability,
   ProcessCaptureError,
 } from "../../../src/application/ProcessHarness.js";
 import {
@@ -21,42 +21,45 @@ const processFixture = fileURLToPath(
 );
 const execFileAsync = promisify(execFile);
 
-it("does not follow or disclose symlink targets outside declared roots", async () => {
-  const root = await createTestTempDirectory("rea-symlink-test-");
-  await symlink("/etc/passwd", join(root, "escape"));
-  try {
-    const capability = await probeProcessCaptureCapability();
-    if (!capability.available) return;
-    const result = await captureProcessScenario(
-      parseProcessScenario({
-        executable: "/usr/bin/true",
-        working_directory: root,
-        filesystem_roots: [root],
-      }),
-      {
-        status: "enabled",
-        executableRoots: ["/usr/bin"],
-        workingRoots: [root],
-        allowedEnvironment: [],
-        networkAccess: "external",
-      },
-    );
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw result.error;
-    const escaped = result.value.files_after.find((file) =>
-      file.path.endsWith(":escape"),
-    );
-    expect(escaped?.symlink_target).toBe("<outside-declared-root>");
-    expect(result.value.truncated).toBe(true);
-    expect(JSON.stringify(result.value.files_after)).not.toContain(root);
-    expect(JSON.stringify(result.value.files_after)).not.toContain(
-      "/etc/passwd",
-    );
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
+itWithCaptureCapability(
+  "does not follow or disclose symlink targets outside declared roots",
+  async () => {
+    const root = await createTestTempDirectory("rea-symlink-test-");
+    await symlink("/etc/passwd", join(root, "escape"));
+    try {
+      const result = await captureProcessScenario(
+        parseProcessScenario({
+          executable: "/usr/bin/true",
+          working_directory: root,
+          filesystem_roots: [root],
+        }),
+        {
+          status: "enabled",
+          executableRoots: ["/usr/bin"],
+          workingRoots: [root],
+          allowedEnvironment: [],
+          networkAccess: "external",
+        },
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw result.error;
+      const escaped = result.value.files_after.find((file) =>
+        file.path.endsWith(":escape"),
+      );
+      expect(escaped?.symlink_target).toBe("<outside-declared-root>");
+      expect(result.value.truncated).toBe(true);
+      expect(JSON.stringify(result.value.files_after)).not.toContain(root);
+      expect(JSON.stringify(result.value.files_after)).not.toContain(
+        "/etc/passwd",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
 
+// Policy denial is decided before any process is launched, so this assertion
+// stays ungated and still runs on hosts without native PTY authority.
 it("does not launch when policy denies capture", async () => {
   const scenario = parseProcessScenario({
     executable: "/bin/sh",
@@ -70,158 +73,260 @@ it("does not launch when policy denies capture", async () => {
   expect(result.error).toBeInstanceOf(ProcessCaptureError);
 });
 
-it("distinguishes timeout from cancellation and cleans both runs", async () => {
-  const capability = await probeProcessCaptureCapability();
-  if (!capability.available) return;
-  const policy: ProcessExecutionPolicy = {
-    status: "enabled",
-    executableRoots: [dirname(process.execPath)],
-    workingRoots: [dirname(processFixture)],
-    allowedEnvironment: [],
-    networkAccess: "external",
-  };
-  const timedOut = await captureProcessScenario(
-    parseProcessScenario({
-      executable: process.execPath,
-      arguments: [processFixture, "hang"],
-      working_directory: dirname(processFixture),
-      timeout_ms: 50,
-      idle_timeout_ms: 5_000,
-    }),
-    policy,
-  );
-  expect(timedOut.ok).toBe(true);
-  if (!timedOut.ok) throw timedOut.error;
-  expect(timedOut.value.exit.reason).toBe("timeout");
-  expect(timedOut.value.cleanup).toEqual({
-    owned_process_group: "verified",
-    temporary_root: "removed",
-  });
-
-  const controller = new AbortController();
-  setTimeout(() => controller.abort(), 50);
-  const cancelled = await captureProcessScenario(
-    parseProcessScenario({
-      executable: process.execPath,
-      arguments: [processFixture, "hang"],
-      working_directory: dirname(processFixture),
-      timeout_ms: 5_000,
-      idle_timeout_ms: 5_000,
-    }),
-    policy,
-    controller.signal,
-  );
-  expect(cancelled.ok).toBe(false);
-  if (cancelled.ok) throw new Error("expected cancellation");
-  expect(cancelled.error.message).toContain("cancelled");
-});
-
-it("captures source-owned interactive, resize, Unicode, and signal behavior", async () => {
-  const capability = await probeProcessCaptureCapability();
-  if (!capability.available) return;
-  const result = await captureProcessScenario(
-    parseProcessScenario({
-      executable: process.execPath,
-      arguments: [processFixture, "interactive"],
-      working_directory: dirname(processFixture),
-      events: [
-        { type: "input", at_ms: 100, data: "answer" },
-        { type: "resize", at_ms: 300, columns: 100, rows: 40 },
-        { type: "signal", at_ms: 700, signal: "SIGINT" },
-      ],
-      normalization: { time_bucket_ms: 60_000 },
-      timeout_ms: 2_000,
-      idle_timeout_ms: 2_000,
-    }),
-    {
+itWithCaptureCapability(
+  "distinguishes timeout from cancellation and cleans both runs",
+  async () => {
+    const policy: ProcessExecutionPolicy = {
       status: "enabled",
       executableRoots: [dirname(process.execPath)],
       workingRoots: [dirname(processFixture)],
       allowedEnvironment: [],
       networkAccess: "external",
-    },
-  );
-  if (!result.ok) throw result.error;
-  expect(result.ok).toBe(true);
-  const output = result.value.frames.map(({ data }) => data).join("");
-  expect(output).toContain("prompt>");
-  expect(output).toContain("input:answer unicode:雪");
-  expect(output).toContain("resize:100x40");
-  expect(output).toContain("signal:SIGINT");
-  expect(result.value.exit.code).toBe(0);
-});
+    };
+    const timedOut = await captureProcessScenario(
+      parseProcessScenario({
+        executable: process.execPath,
+        arguments: [processFixture, "hang"],
+        working_directory: dirname(processFixture),
+        timeout_ms: 50,
+        idle_timeout_ms: 5_000,
+      }),
+      policy,
+    );
+    expect(timedOut.ok).toBe(true);
+    if (!timedOut.ok) throw timedOut.error;
+    expect(timedOut.value.exit.reason).toBe("timeout");
+    expect(timedOut.value.cleanup).toEqual({
+      owned_process_group: "verified",
+      temporary_root: "removed",
+    });
 
-it("dispatches scheduled events before a silent PTY produces output", async () => {
-  const capability = await probeProcessCaptureCapability();
-  if (!capability.available) return;
-  const result = await captureProcessScenario(
-    parseProcessScenario({
-      executable: process.execPath,
-      arguments: [processFixture, "silent-interactive"],
-      working_directory: dirname(processFixture),
-      events: [
-        { type: "resize", at_ms: 25, columns: 100, rows: 40 },
-        { type: "input", at_ms: 50, data: "answer" },
-      ],
-      timeout_ms: 2_000,
-      idle_timeout_ms: 2_000,
-    }),
-    {
-      status: "enabled",
-      executableRoots: [
-        join(dirname(process.execPath), "missing"),
-        dirname(process.execPath),
-      ],
-      workingRoots: [
-        join(dirname(processFixture), "missing"),
-        dirname(processFixture),
-      ],
-      allowedEnvironment: [],
-      networkAccess: "external",
-    },
-  );
-  expect(result.ok).toBe(true);
-  if (!result.ok) throw result.error;
-  expect(result.value.frames.map(({ data }) => data).join("")).toContain(
-    "input:answer",
-  );
-  expect(result.value.interaction_events).toMatchObject([
-    { type: "resize", outcome: "dispatched" },
-    { type: "input", outcome: "dispatched" },
-  ]);
-});
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 50);
+    const cancelled = await captureProcessScenario(
+      parseProcessScenario({
+        executable: process.execPath,
+        arguments: [processFixture, "hang"],
+        working_directory: dirname(processFixture),
+        timeout_ms: 5_000,
+        idle_timeout_ms: 5_000,
+      }),
+      policy,
+      controller.signal,
+    );
+    expect(cancelled.ok).toBe(false);
+    if (cancelled.ok) throw new Error("expected cancellation");
+    expect(cancelled.error.message).toContain("cancelled");
+  },
+);
 
-it("samples and cleans a source-owned child and grandchild process tree", async () => {
-  const capability = await probeProcessCaptureCapability();
-  if (!capability.available) return;
-  const result = await captureProcessScenario(
-    parseProcessScenario({
-      executable: process.execPath,
-      arguments: [processFixture, "tree"],
-      working_directory: dirname(processFixture),
-      timeout_ms: 2_000,
-      idle_timeout_ms: 2_000,
-    }),
-    {
-      status: "enabled",
-      executableRoots: [dirname(process.execPath)],
-      workingRoots: [dirname(processFixture)],
-      allowedEnvironment: [],
-      networkAccess: "external",
-    },
-  );
-  expect(result.ok).toBe(true);
-  if (!result.ok) throw result.error;
-  const commands = result.value.process_samples.map(({ command }) => command);
-  expect(commands.some((command) => command.includes("tree-child"))).toBe(true);
-  expect(commands.some((command) => command.includes("forks.js"))).toBe(false);
-  expect(commands.some((command) => command.includes("tree-grandchild"))).toBe(
-    true,
-  );
-  expect(JSON.stringify(result.value.process_samples)).not.toContain(
-    dirname(processFixture),
-  );
-  const { stdout } = await execFileAsync("ps", ["-axo", "command="]);
-  expect(stdout).not.toContain(`${processFixture} tree-child`);
-  expect(stdout).not.toContain(`${processFixture} tree-grandchild`);
-}, 20_000);
+// Each action is triggered by observed terminal output rather than a wall-clock
+// offset. A fixed `at_ms` can fire before the child has written its prompt under
+// host contention, which drops the input and the resize echo and made this test
+// load-flaky.
+//
+// This also covers the reactive `resize` path against time bucketing: rendered
+// frames must share the normalized clock used by captured frames. They did not,
+// so the capture failed validation with "rendered_frames: timestamps must be
+// ordered" until the renderer call in ProcessReactiveEffects was normalized.
+itWithCaptureCapability(
+  "captures source-owned interactive, resize, Unicode, and signal behavior",
+  async () => {
+    const result = await captureProcessScenario(
+      parseProcessScenario({
+        executable: process.execPath,
+        arguments: [processFixture, "interactive"],
+        working_directory: dirname(processFixture),
+        normalization: { time_bucket_ms: 10 },
+        timeout_ms: 20_000,
+        idle_timeout_ms: 10_000,
+        reactive: {
+          initial_state: "awaiting_prompt",
+          deadline_ms: 15_000,
+          states: [
+            {
+              id: "awaiting_prompt",
+              max_visits: 1,
+              deadline_ms: 10_000,
+              on: [
+                {
+                  id: "answer",
+                  priority: 0,
+                  max_uses: 1,
+                  when: {
+                    kind: "terminal_text",
+                    view: "decoded",
+                    encoding: "utf8",
+                    literal: "prompt>",
+                    case_sensitive: true,
+                    control_sequences: "include",
+                    occurrence: 1,
+                    since: { kind: "scenario_start" },
+                    consume: true,
+                  },
+                  actions: [
+                    { type: "send_input", data: "answer", sensitive: false },
+                  ],
+                  target: { kind: "goto", state: "awaiting_resize" },
+                },
+              ],
+            },
+            {
+              id: "awaiting_resize",
+              max_visits: 1,
+              deadline_ms: 10_000,
+              on: [
+                {
+                  id: "resize",
+                  priority: 0,
+                  max_uses: 1,
+                  when: {
+                    kind: "terminal_text",
+                    view: "decoded",
+                    encoding: "utf8",
+                    literal: "input:answer",
+                    case_sensitive: true,
+                    control_sequences: "include",
+                    occurrence: 1,
+                    since: { kind: "scenario_start" },
+                    consume: true,
+                  },
+                  actions: [{ type: "resize", columns: 100, rows: 40 }],
+                  target: { kind: "goto", state: "awaiting_signal" },
+                },
+              ],
+            },
+            {
+              id: "awaiting_signal",
+              max_visits: 1,
+              deadline_ms: 10_000,
+              on: [
+                {
+                  id: "signal",
+                  priority: 0,
+                  max_uses: 1,
+                  when: {
+                    kind: "terminal_text",
+                    view: "decoded",
+                    encoding: "utf8",
+                    literal: "resize:100x40",
+                    case_sensitive: true,
+                    control_sequences: "include",
+                    occurrence: 1,
+                    since: { kind: "scenario_start" },
+                    consume: true,
+                  },
+                  actions: [
+                    {
+                      type: "send_signal",
+                      target: { kind: "root" },
+                      signal: "SIGINT",
+                    },
+                  ],
+                  target: { kind: "finish", outcome: "passed" },
+                },
+              ],
+            },
+          ],
+        },
+      }),
+      {
+        status: "enabled",
+        executableRoots: [dirname(process.execPath)],
+        workingRoots: [dirname(processFixture)],
+        allowedEnvironment: [],
+        networkAccess: "external",
+      },
+    );
+    if (!result.ok) throw result.error;
+    expect(result.ok).toBe(true);
+    const output = result.value.frames.map(({ data }) => data).join("");
+    expect(output).toContain("prompt>");
+    expect(output).toContain("input:answer unicode:雪");
+    expect(output).toContain("resize:100x40");
+    expect(output).toContain("signal:SIGINT");
+    expect(result.value.exit.code).toBe(0);
+  },
+);
+
+itWithCaptureCapability(
+  "dispatches scheduled events before a silent PTY produces output",
+  async () => {
+    const result = await captureProcessScenario(
+      parseProcessScenario({
+        executable: process.execPath,
+        arguments: [processFixture, "silent-interactive"],
+        working_directory: dirname(processFixture),
+        events: [
+          { type: "resize", at_ms: 25, columns: 100, rows: 40 },
+          { type: "input", at_ms: 50, data: "answer" },
+        ],
+        timeout_ms: 2_000,
+        idle_timeout_ms: 2_000,
+      }),
+      {
+        status: "enabled",
+        executableRoots: [
+          join(dirname(process.execPath), "missing"),
+          dirname(process.execPath),
+        ],
+        workingRoots: [
+          join(dirname(processFixture), "missing"),
+          dirname(processFixture),
+        ],
+        allowedEnvironment: [],
+        networkAccess: "external",
+      },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw result.error;
+    expect(result.value.frames.map(({ data }) => data).join("")).toContain(
+      "input:answer",
+    );
+    expect(result.value.interaction_events).toMatchObject([
+      { type: "resize", outcome: "dispatched" },
+      { type: "input", outcome: "dispatched" },
+    ]);
+  },
+);
+
+itWithCaptureCapability(
+  "samples and cleans a source-owned child and grandchild process tree",
+  async () => {
+    const result = await captureProcessScenario(
+      parseProcessScenario({
+        executable: process.execPath,
+        arguments: [processFixture, "tree"],
+        working_directory: dirname(processFixture),
+        timeout_ms: 2_000,
+        idle_timeout_ms: 2_000,
+      }),
+      {
+        status: "enabled",
+        executableRoots: [dirname(process.execPath)],
+        workingRoots: [dirname(processFixture)],
+        allowedEnvironment: [],
+        networkAccess: "external",
+      },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw result.error;
+    const commands = result.value.process_samples.map(({ command }) => command);
+    expect(commands.some((command) => command.includes("tree-child"))).toBe(
+      true,
+    );
+    expect(commands.some((command) => command.includes("forks.js"))).toBe(
+      false,
+    );
+    expect(
+      commands.some((command) => command.includes("tree-grandchild")),
+    ).toBe(true);
+    expect(JSON.stringify(result.value.process_samples)).not.toContain(
+      dirname(processFixture),
+    );
+    const { stdout } = await execFileAsync("ps", ["-axo", "command="]);
+    expect(stdout).not.toContain(`${processFixture} tree-child`);
+    expect(stdout).not.toContain(`${processFixture} tree-grandchild`);
+  },
+  20_000,
+);

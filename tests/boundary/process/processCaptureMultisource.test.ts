@@ -1,13 +1,11 @@
 import { rm } from "node:fs/promises";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, it } from "vitest";
+import { expect } from "vitest";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { itWithCaptureCapability } from "./processCaptureCapability.js";
 
-import {
-  captureProcessScenario,
-  probeProcessCaptureCapability,
-} from "../../../src/application/ProcessHarness.js";
+import { captureProcessScenario } from "../../../src/application/ProcessHarness.js";
 import {
   parseProcessScenario,
   type ProcessCapture,
@@ -187,81 +185,83 @@ function createMultiSourceScenario(root: string, script: string) {
 }
 
 // This is the single multi-source acceptance matrix for the process boundary.
-it("runs the committed multi-source reactive fixture deterministically", async () => {
-  const root = await createTestTempDirectory("rea-reactive-e2e-");
-  const script = fileURLToPath(
-    new URL("../../fixtures/processReactiveScenario.mjs", import.meta.url),
-  );
-  const run = () =>
-    captureProcessScenario(createMultiSourceScenario(root, script), {
-      status: "enabled",
-      executableRoots: [dirname(process.execPath)],
-      workingRoots: [root],
-      allowedEnvironment: [],
-      networkAccess: "external",
-    });
-  try {
-    const capability = await probeProcessCaptureCapability();
-    if (!capability.available) return;
-    const first = await run();
-    const second = await run();
-    if (!first.ok) throw first.error;
-    if (!second.ok) throw second.error;
-    expect(first.ok).toBe(true);
-    expect(second.ok).toBe(true);
-    const trace = (capture: ProcessCapture) =>
-      capture.reactive_run?.transitions.map((transition) => ({
-        transition_id: transition.transition_id,
-        from: transition.state_before,
-        to: transition.state_after,
-        outcome: transition.outcome,
-        trigger_collections: transition.trigger_event_ids.map(
-          (id) => id.split(".")[1],
-        ),
-      }));
-    expect(
-      first.value.reactive_run?.outcome,
-      JSON.stringify({
-        run: first.value.reactive_run,
-        processes: first.value.process_samples,
-        checkpoints: first.value.filesystem_checkpoints,
-        shims: first.value.shim_events,
-        protocols: first.value.protocol_events,
-      }),
-    ).toBe("passed");
-    expect(trace(first.value)).toEqual(trace(second.value));
-    expect(trace(first.value)).toEqual([
-      expect.objectContaining({ transition_id: "checkpoint_ready" }),
-      expect.objectContaining({
-        transition_id: "finish_all_sources",
-        trigger_collections: expect.arrayContaining([
-          "frames",
-          "process_samples",
-          "filesystem_checkpoints",
-          "shim_events",
-          "protocol_events",
-        ]),
-      }),
-    ]);
-    for (const outcome of ["action_rejected", "target_lost"] as const) {
-      const failedActionCapture = {
-        ...first.value,
-        reactive_run: {
-          status: "finished" as const,
-          outcome,
-          active_state: "ready",
-          transitions: [],
-          controls: [],
-        },
-      };
+itWithCaptureCapability(
+  "runs the committed multi-source reactive fixture deterministically",
+  async () => {
+    const root = await createTestTempDirectory("rea-reactive-e2e-");
+    const script = fileURLToPath(
+      new URL("../../fixtures/processReactiveScenario.mjs", import.meta.url),
+    );
+    const run = () =>
+      captureProcessScenario(createMultiSourceScenario(root, script), {
+        status: "enabled",
+        executableRoots: [dirname(process.execPath)],
+        workingRoots: [root],
+        allowedEnvironment: [],
+        networkAccess: "external",
+      });
+    try {
+      const first = await run();
+      const second = await run();
+      if (!first.ok) throw first.error;
+      if (!second.ok) throw second.error;
+      expect(first.ok).toBe(true);
+      expect(second.ok).toBe(true);
+      const trace = (capture: ProcessCapture) =>
+        capture.reactive_run?.transitions.map((transition) => ({
+          transition_id: transition.transition_id,
+          from: transition.state_before,
+          to: transition.state_after,
+          outcome: transition.outcome,
+          trigger_collections: transition.trigger_event_ids.map(
+            (id) => id.split(".")[1],
+          ),
+        }));
       expect(
-        processCaptureIssues(failedActionCapture).filter(({ path }) =>
-          path.startsWith("reactive_run"),
-        ),
-      ).toEqual([]);
+        first.value.reactive_run?.outcome,
+        JSON.stringify({
+          run: first.value.reactive_run,
+          processes: first.value.process_samples,
+          checkpoints: first.value.filesystem_checkpoints,
+          shims: first.value.shim_events,
+          protocols: first.value.protocol_events,
+        }),
+      ).toBe("passed");
+      expect(trace(first.value)).toEqual(trace(second.value));
+      expect(trace(first.value)).toEqual([
+        expect.objectContaining({ transition_id: "checkpoint_ready" }),
+        expect.objectContaining({
+          transition_id: "finish_all_sources",
+          trigger_collections: expect.arrayContaining([
+            "frames",
+            "process_samples",
+            "filesystem_checkpoints",
+            "shim_events",
+            "protocol_events",
+          ]),
+        }),
+      ]);
+      for (const outcome of ["action_rejected", "target_lost"] as const) {
+        const failedActionCapture = {
+          ...first.value,
+          reactive_run: {
+            status: "finished" as const,
+            outcome,
+            active_state: "ready",
+            transitions: [],
+            controls: [],
+          },
+        };
+        expect(
+          processCaptureIssues(failedActionCapture).filter(({ path }) =>
+            path.startsWith("reactive_run"),
+          ),
+        ).toEqual([]);
+      }
+      expect(first.value.truncated).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
     }
-    expect(first.value.truncated).toBe(false);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-}, 30_000);
+  },
+  30_000,
+);

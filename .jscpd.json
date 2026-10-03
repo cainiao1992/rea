@@ -1,5 +1,6 @@
 {
-  "threshold": 3,
+  "_comment": "Test files are intentionally NOT excluded: the gate used to report zero clones because it skipped **/*.test.ts, hiding all test-tree duplication. Current actual is ~2.6% lines across src+ and tests/, down from 3.4% when tests were included. Lower this as duplication is removed.",
+  "threshold": 2.7,
   "reporters": ["consoleFull"],
   "ignore": [
     "node_modules/**",
@@ -7,8 +8,11 @@
     "docs/**",
     ".codex/**",
     ".devin/**",
-    "**/*.test.ts",
-    "tests/fixtures/**"
+    "tests/fixtures/**",
+    "tests/conformance/**/*.c",
+    "tests/conformance/**/*.m",
+    "tests/conformance/**/*.swift",
+    "tests/conformance/**/*.xib"
   ],
   "gitignore": true,
   "minLines": 5,

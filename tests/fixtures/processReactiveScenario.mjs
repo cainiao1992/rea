@@ -9,8 +9,15 @@ const worker = spawn(
   ["-e", 'process.title = "rea-reactive-worker"; setTimeout(() => {}, 750);'],
   { stdio: "ignore" },
 );
-process.stdout.write("Collecting\n");
+// "Collecting" must reach the capture coordinator as an observation *after*
+// the one carrying "Ready", because the ready transition consumes that
+// observation and advances the terminal frontier. Writing both back to back
+// let the PTY coalesce them into a single chunk, so whether the collecting
+// trigger could match depended on host timing and the multi-source run
+// intermittently resolved target_lost instead of passed. The synchronous probe
+// below guarantees the reader has drained the first chunk before this one.
 spawnSync(process.argv[2], ["probe"], { stdio: "ignore" });
+process.stdout.write("Collecting\n");
 await writeFile("reactive-result.txt", "created");
 await fetch(`${process.env.REA_REPLAY_HTTP_URL}/reactive`);
 await new Promise((resolve, reject) => {

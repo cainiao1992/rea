@@ -300,23 +300,33 @@ jobs:
           node -e "const report = JSON.parse(require('node:fs').readFileSync('windows-capabilities.json', 'utf8'));
           if (report.platform !== 'win32' || report.architecture !== 'x64')
           throw new Error('expected a Windows x64 capability report');"
+      # Keep this list aligned with tests/process-global/curatedWindowsLane.test.ts,
+      # which fails when any path below is renamed or removed. Vitest silently
+      # ignores unmatched paths, so a stale entry would otherwise report green
+      # while skipping coverage.
+      #
+      # Every path here must pass on windows-latest WITHOUT verified Windows
+      # native authority. src/ghidra/GhidraProvider.test.ts,
+      # src/ghidra/GhidraProvider.behavior.test.ts successors, and
+      # tests/boundary/process/providerProcess.test.ts are deliberately absent:
+      # they require Job Object process ownership and private-runtime DACL
+      # enforcement, which this runner does not provide by design. Those claims
+      # belong behind the same approval boundary as the real Ghidra Windows
+      # workflow, not in the default lane.
       - name: Run curated Windows capability tests
         run: >-
           npx vitest run --coverage.enabled=false
-          tests/composition/analysis-sessions/binaryTarget.test.ts
+          tests/boundary/filesystem/binaryTarget.test.ts
           tests/conformance/providers/ghidra/windowsCapabilities.test.ts
           tests/conformance/providers/ghidra/ghidraWindowsFixture.test.ts
-          tests/boundary/providers/ghidra/ghidraInstallation.test.ts
-          tests/boundary/providers/ghidra/ghidraProvider.test.ts
+          src/ghidra/GhidraInstallation.test.ts
           tests/boundary/providers/ghidra/ghidraTransport.test.ts
           tests/boundary/providers/ghidra/ghidraTargetSnapshot.test.ts
           tests/boundary/providers/ghidra/ghidraLauncher.test.ts
-          tests/boundary/process/processOwnership.test.ts
-          tests/boundary/process/processOwnershipPart2.test.ts
-          tests/boundary/process/processOwnershipPart3.test.ts
-          tests/boundary/process/processOwnershipValidation.test.ts
-          tests/boundary/process/processOwnershipValidationPart2.test.ts
-          tests/boundary/process/processOwnershipValidationPart3.test.ts
+          src/process/ProcessOwnership.test.ts
+          src/process/ProcessOwnership.part2.test.ts
+          src/process/ProcessOwnership.part3.test.ts
+          src/process/ProcessOwnership.validation.test.ts
           tests/conformance/providers/ghidra/realGhidraWindowsWorkflow.test.ts
       - run: npm run verify:package:windows
       - uses: actions/upload-artifact@v4

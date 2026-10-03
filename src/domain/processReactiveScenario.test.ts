@@ -89,6 +89,41 @@ const buildLargeCallerScenario = () => {
   });
 };
 
+/**
+ * The field each rejection row below is meant to invalidate. Asserting only
+ * that the scenario is rejected would still pass if a typo in the fixture
+ * made it invalid for an unrelated reason, so each row must also produce an
+ * issue pointing at the intended path with the expected code.
+ */
+const REJECTION_FIELD: Readonly<
+  Record<
+    string,
+    { readonly path: readonly (string | number)[]; readonly code: string }
+  >
+> = {
+  "unknown major version": { path: [], code: "unrecognized_keys" },
+  "missing state bound": {
+    path: ["states", 0, "max_visits"],
+    code: "invalid_type",
+  },
+  "missing transition bound": {
+    path: ["states", 0, "on", 0, "max_uses"],
+    code: "invalid_type",
+  },
+  "unsupported trigger": {
+    path: ["states", 0, "on", 0, "when", "kind"],
+    code: "invalid_union",
+  },
+  "zero-minimum event absence predicate": {
+    path: ["states", 0, "on", 0, "when", "cardinality", "min"],
+    code: "too_small",
+  },
+  "unsupported terminal interpretation": {
+    path: ["states", 0, "on", 0, "when", "control_sequences"],
+    code: "invalid_value",
+  },
+};
+
 describe("process reactive scenario schema", () => {
   it("parses a terminal scenario", () => {
     expect(processReactiveScenarioSchema.parse(baseScenario())).toMatchObject({
@@ -225,8 +260,19 @@ describe("process reactive scenario schema", () => {
         ],
       },
     ],
-  ])("rejects %s", (_name, input) => {
-    expect(processReactiveScenarioSchema.safeParse(input).success).toBe(false);
+  ])("rejects %s at the expected field", (_name, input) => {
+    const expected = REJECTION_FIELD[_name];
+    expect(expected, `no expected rejection field for ${_name}`).toBeDefined();
+    if (expected === undefined) return;
+    const parsed = processReactiveScenarioSchema.safeParse(input);
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    expect(
+      parsed.error.issues.map((issue) => ({
+        path: issue.path,
+        code: issue.code,
+      })),
+    ).toContainEqual({ path: [...expected.path], code: expected.code });
   });
 });
 

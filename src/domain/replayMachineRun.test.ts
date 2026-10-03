@@ -335,6 +335,25 @@ describe("direct replay machine protocol and limits", () => {
   });
 });
 
+/**
+ * Assert every dispatched action is a websocket_send carrying `body` byte for
+ * byte. Comparing the serialized size instead would let escaping or padding
+ * satisfy the assertion even if a body were truncated.
+ */
+const expectActionsRetained = (
+  actions: readonly { readonly type: string; readonly data?: string }[],
+  body: string,
+): void => {
+  expect(actions).toHaveLength(5);
+  for (const action of actions) {
+    expect(action.type).toBe("websocket_send");
+    expect(action.data).toBe(body);
+  }
+  expect(
+    actions.reduce((total, action) => total + (action.data?.length ?? 0), 0),
+  ).toBe(5 * body.length);
+};
+
 describe("direct replay machine large inputs", () => {
   it("records large repeated actions once instead of amplifying each match", () => {
     const largeBody = "x".repeat(1_000_000);
@@ -411,8 +430,10 @@ describe("direct replay machine large inputs", () => {
     expect(parsed.success).toBe(true);
     if (parsed.success) {
       const result = runReplayMachine(parsed.data);
-      expect(result.transition_actions[0]?.actions).toHaveLength(5);
-      expect(JSON.stringify(result).length).toBeGreaterThan(5 * 1_000_000);
+      expectActionsRetained(
+        result.transition_actions[0]?.actions ?? [],
+        largeBody,
+      );
     }
   });
 

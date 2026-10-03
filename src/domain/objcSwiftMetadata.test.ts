@@ -1,3 +1,4 @@
+import { fc } from "@fast-check/vitest";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -6,12 +7,9 @@ import {
   isGetterSelector,
   isSetterSelector,
   inspectNativeDispatchMetadata,
-  objcSwiftMetadataSchema,
   propertyNameFromSelector,
   swiftDeclsByKind,
-  type ObjcClass,
   type ObjcMethod,
-  type ObjcProtocol,
   type SwiftDecl,
   type DbSaveResult,
 } from "./objcSwiftMetadata.js";
@@ -92,15 +90,59 @@ describe("ObjC/Swift metadata", () => {
     expect(isDbSaveComplete(result, 11, 5, 3)).toBe(false);
   });
 
-  it("validates a well-formed metadata result", () => {
-    const meta = {
-      objc_classes: [] as ObjcClass[],
-      objc_protocols: [] as ObjcProtocol[],
-      swift_decls: [] as SwiftDecl[],
-      db_save_result: null,
-    };
-    const result = objcSwiftMetadataSchema.safeParse(meta);
-    expect(result.success).toBe(true);
+  it("is monotone in every expected count and total at the observed count", () => {
+    fc.assert(
+      fc.property(
+        fc.record({
+          operation: fc.constantFrom(
+            "save",
+            "readback",
+            "open_database",
+            "close_database",
+            "export",
+            "import",
+          ),
+          succeeded: fc.boolean(),
+          preserved_names: fc.nat({ max: 50 }),
+          preserved_comments: fc.nat({ max: 50 }),
+          preserved_bookmarks: fc.nat({ max: 50 }),
+          database_path: fc.option(fc.string(), { nil: null }),
+          error: fc.option(fc.string(), { nil: null }),
+        }),
+        fc.nat({ max: 50 }),
+        fc.nat({ max: 50 }),
+        fc.nat({ max: 50 }),
+        (result, names, comments, bookmarks) => {
+          // Completeness is downward closed: if demanding more was met,
+          // demanding less must also be met.
+          if (isDbSaveComplete(result, names + 1, comments, bookmarks)) {
+            expect(isDbSaveComplete(result, names, comments, bookmarks)).toBe(
+              true,
+            );
+          }
+          if (isDbSaveComplete(result, names, comments + 1, bookmarks)) {
+            expect(isDbSaveComplete(result, names, comments, bookmarks)).toBe(
+              true,
+            );
+          }
+          if (isDbSaveComplete(result, names, comments, bookmarks + 1)) {
+            expect(isDbSaveComplete(result, names, comments, bookmarks)).toBe(
+              true,
+            );
+          }
+          // Expecting exactly what was preserved is complete iff the save worked.
+          expect(
+            isDbSaveComplete(
+              result,
+              result.preserved_names,
+              result.preserved_comments,
+              result.preserved_bookmarks,
+            ),
+          ).toBe(result.succeeded);
+        },
+      ),
+      { numRuns: 200 },
+    );
   });
 
   it("bounds symbol projections and labels symbol-only metadata as partial", () => {

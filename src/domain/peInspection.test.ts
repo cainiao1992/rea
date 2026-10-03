@@ -150,9 +150,13 @@ describe("PE/COFF static inspection", () => {
     expect(parseDebugType(99)).toBe("UNKNOWN");
   });
 
-  it("validates a well-formed manifest", () => {
-    const result = peManifestSchema.safeParse(validManifest);
-    expect(result.success).toBe(true);
+  it("rejects a manifest whose section table is malformed", () => {
+    const malformed = {
+      ...validManifest,
+      sections: [{ ...validManifest.sections[0]!, name: 7 }],
+    };
+    const result = peManifestSchema.safeParse(malformed);
+    expect(result.success).toBe(false);
   });
 
   it("accepts static manifests with more than 96 PE sections", () => {

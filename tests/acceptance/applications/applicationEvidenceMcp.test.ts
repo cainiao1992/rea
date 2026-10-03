@@ -56,8 +56,13 @@ async function runInlineEvidenceScenarios(
   expect(traced.isError).not.toBe(true);
   expect(traced.structuredContent).toMatchObject({
     result: {
-      source_graph_id: expect.any(String),
-      coverage: { status: expect.any(String) },
+      seed: { kind: "module", value: "renderer.js", match: "exact" },
+      summary: { matched_seeds: 1, traced_nodes: 1, unknown_facts: 0 },
+      coverage: {
+        status: "complete-within-source",
+        source_graph_status: "complete",
+        total_seed_matches: 1,
+      },
     },
   });
 
@@ -70,8 +75,12 @@ async function runInlineEvidenceScenarios(
   expect(compared.isError).not.toBe(true);
   expect(compared.structuredContent).toMatchObject({
     result: {
-      summary: { unknown: expect.any(Number) },
-      coverage: { status: expect.any(String) },
+      summary: { unchanged: 0, added: 2, removed: 0, changed: 1, unknown: 0 },
+      coverage: {
+        left_graph_status: "complete",
+        right_graph_status: "complete",
+        status: "complete-within-inputs",
+      },
     },
   });
 
@@ -171,7 +180,15 @@ async function assertRejectedEvidenceReferences(
     });
     expect(rejected).toMatchObject({
       isError: true,
-      structuredContent: { error: expect.any(Object) },
+      structuredContent: {
+        // A recorded Evidence with the wrong operation or predicate is an
+        // invalid caller input, not a provider failure.
+        error: {
+          code: "invalid_request",
+          category: "invalid_input",
+          retryable: true,
+        },
+      },
     });
   }
 }

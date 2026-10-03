@@ -129,6 +129,34 @@ interface StartCaptureRuntimeOptions {
   readonly signal?: AbortSignal;
 }
 
+/**
+ * Wait until the capture journal stops growing.
+ *
+ * node-pty reports buffered output through `onData` callbacks rather than an
+ * awaitable read, so chunks can still be in flight after the child exits. The
+ * quiet interval is measured in elapsed time rather than scheduler turns:
+ * consecutive `setImmediate` turns elapse in microseconds, so any fixed number
+ * of them finishes long before a delayed pty callback under host contention,
+ * which is exactly when the trailing chunk matters. `maxWaitMs` bounds the
+ * total wait so a pathological stream cannot stall exit.
+ */
+const settleTrailingJournal = async (
+  journal: readonly ProcessCaptureEventJournalEntry[],
+  quietMs = 25,
+  maxWaitMs = 500,
+): Promise<void> => {
+  const deadline = Date.now() + maxWaitMs;
+  let observed = journal.length;
+  let lastChangeAt = Date.now();
+  while (Date.now() < deadline) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 4));
+    if (journal.length !== observed) {
+      observed = journal.length;
+      lastChangeAt = Date.now();
+    } else if (Date.now() - lastChangeAt >= quietMs) return;
+  }
+};
+
 const reactiveCapture = (
   options: StartCaptureRuntimeOptions,
   protocolEvents: () => LoopbackReplay["events"],
@@ -356,6 +384,14 @@ const completeCapture = async (options: {
     // during settlement after the PTY exits. Make target loss terminal only
     // after that journal has drained, otherwise the coordinator's control
     // priority discards a valid multi-source completion predicate.
+    //
+    // Draining the coordinator is not sufficient on its own: node-pty delivers
+    // buffered output through onData callbacks, which run outside the
+    // coordinator's queue. A trailing chunk that has not been delivered yet has
+    // produced no journal entry, so the drain has nothing to wait for and the
+    // target is declared lost while a terminal trigger is still satisfiable.
+    // Let any trailing chunks land first.
+    await settleTrailingJournal(options.eventJournal);
     await runtime.reactive.coordinator.drain();
     await runtime.reactive.coordinator.submit({ kind: "target_lost" });
     runtime.reactive.unsubscribe();

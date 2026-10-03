@@ -17,11 +17,11 @@ import type {
 } from "../../../src/application/JavaScriptReplayPlanning.js";
 import { PermissionAuthority } from "../../../src/application/PermissionAuthority.js";
 import { createPermissionPolicy } from "../../../src/domain/permissionPolicy.js";
-import { createRuntimeCharacterizationPlan } from "../../../src/domain/runtimeCharacterization.js";
 import {
   nodeCharacterizationPreparationInputSchema,
   nodeCharacterizationPreparationOutputSchema,
 } from "../../../src/domain/nodeRuntimeCharacterization.js";
+import { createRuntimeCharacterizationPlan } from "../../../src/domain/runtimeCharacterization.js";
 
 const sha256 = (value: Uint8Array): string =>
   createHash("sha256").update(value).digest("hex");
@@ -42,12 +42,6 @@ describe("Node runtime characterization", () => {
     const output = nodeCharacterizationPreparationOutputSchema.parse(
       prepared.value,
     );
-    const { plan_sha256: _planSha256, ...planWithoutDigest } = output.plan;
-    const expandedPlan = createRuntimeCharacterizationPlan({
-      ...planWithoutDigest,
-      limits: { ...output.plan.limits, max_calls: 10_001 },
-    });
-    expect(expandedPlan.limits.max_calls).toBe(10_001);
     expect(output).toMatchObject({
       phase: "preparation",
       plan: {
@@ -99,28 +93,6 @@ describe("Node runtime characterization", () => {
     expect(await readFile(fixture.path)).toEqual(Buffer.from(fixture.bytes));
   });
 
-  it("accepts aliases longer than the former identity ceiling", async () => {
-    const input = preparationInput(await createFixture());
-    const alias = "a".repeat(201);
-    expect(
-      nodeCharacterizationPreparationInputSchema.parse({
-        ...input,
-        selected_alias: alias,
-        replay: {
-          ...input.replay,
-          left: {
-            ...input.replay.left,
-            entry_alias: alias,
-            modules: input.replay.left.modules.map((module) => ({
-              ...module,
-              alias,
-            })),
-          },
-        },
-      }).selected_alias,
-    ).toBe(alias);
-  });
-
   it("maps replay-only alias syntax to a provider-neutral module identity", async () => {
     const fixture = await createFixture();
     const input = preparationInput(fixture);
@@ -151,6 +123,49 @@ describe("Node runtime characterization", () => {
         },
       },
     });
+  });
+
+  // Neither the declared call budget nor the alias length has a ceiling. The
+  // absence of a cap cannot be asserted through the preparation path, because
+  // the budget is derived from the case count, so reaching a large value end to
+  // end would mean submitting tens of thousands of cases. Assert it where a
+  // bound would actually be added, at a value far above any ceiling a change
+  // would plausibly introduce.
+  it("admits call budgets and aliases beyond any plausible ceiling", async () => {
+    const fixture = await createFixture();
+    const input = preparationInput(fixture);
+    const alias = "a".repeat(4_096);
+    const parsed = nodeCharacterizationPreparationInputSchema.parse({
+      ...input,
+      selected_alias: alias,
+      replay: {
+        ...input.replay,
+        left: {
+          ...input.replay.left,
+          entry_alias: alias,
+          modules: input.replay.left.modules.map((module) => ({
+            ...module,
+            alias,
+          })),
+        },
+      },
+    });
+    expect(parsed.selected_alias).toBe(alias);
+
+    const prepared = await prepareNodeCharacterization(
+      dependenciesFor(fixture.root, () => undefined),
+      input,
+    );
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) return;
+    const { plan_sha256: _digest, ...plan } =
+      nodeCharacterizationPreparationOutputSchema.parse(prepared.value).plan;
+    expect(
+      createRuntimeCharacterizationPlan({
+        ...plan,
+        limits: { ...plan.limits, max_calls: 10_000_001 },
+      }).limits.max_calls,
+    ).toBe(10_000_001);
   });
 });
 

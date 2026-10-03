@@ -89,14 +89,20 @@ it("lets the SDK validate a tool call before invoking its handler", async () => 
   expect(invocations).toBe(1);
 });
 
-it("handles concurrent tool calls without corruption", async () => {
+it("preserves interleaved results across concurrent tool calls", async () => {
   const invocations: string[] = [];
+  // Each handler awaits before mutating shared session-scoped state, so a lost
+  // update or crossed result would corrupt the final ordering.
+  const appendOrder: string[] = [];
+  const append = async (name: string) => {
+    await new Promise((resolve) => setImmediate(resolve));
+    appendOrder.push(name);
+    return ok([]);
+  };
   const client = await connect({
     execute: (name) => {
       invocations.push(name);
-      return Promise.resolve(
-        ok(["list_procedures", "list_strings"].includes(name) ? [] : []),
-      );
+      return append(name);
     },
   });
 
@@ -106,7 +112,11 @@ it("handles concurrent tool calls without corruption", async () => {
     client.callTool({ name: "list_strings", arguments: {} }),
   ]);
 
-  expect(results.every((r) => !r.isError)).toBe(true);
+  expect(results.every((result) => !result.isError)).toBe(true);
   expect(invocations).toHaveLength(3);
   expect(new Set(invocations).size).toBe(3);
+  // Every invocation appears exactly once in the shared append log, so no
+  // concurrent call was dropped or recorded twice.
+  expect(appendOrder).toHaveLength(3);
+  expect([...appendOrder].sort()).toEqual([...invocations].sort());
 });

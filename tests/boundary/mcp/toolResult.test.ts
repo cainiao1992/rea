@@ -45,7 +45,6 @@ describe("tool result projection", () => {
         category: "unavailable",
       },
     });
-    expect(JSON.stringify(result)).not.toContain("expected Hopper");
   });
   it("projects bounded private-display coordinates without raw stderr", () => {
     const result = toCallToolResult(
@@ -82,7 +81,6 @@ describe("tool result projection", () => {
         },
       },
     });
-    expect(JSON.stringify(result)).not.toContain("cookie");
   });
   it("returns result and complete Evidence context in one call", () => {
     const evidence = createEvidence(

@@ -130,6 +130,9 @@ const createHarness = (scenario: ProcessReactiveScenario) => {
     journal,
     startedAtMs: 100,
     now: () => now,
+    // Matches the processScenario default; rendered frames are normalized with
+    // this so they share a clock with captured frames.
+    timeBucketMs: 10,
   };
   const coordinator = new ProcessReactiveCoordinator({
     scenario,

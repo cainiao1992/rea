@@ -3,69 +3,212 @@ import { describe, expect, it } from "vitest";
 import {
   ENHANCED_TOOL_CONTRACTS,
   OFFICIAL_TOOL_CONTRACTS,
+  SESSION_TOOL_CONTRACTS,
   TOOL_CONTRACTS,
 } from "./toolContracts.js";
 import { ARTIFACT_TOOL_CONTRACTS } from "./artifactToolContracts.js";
 import { MANAGED_TOOL_CONTRACTS } from "./managedToolContracts.js";
 import { MANAGED_WORKFLOW_TOOL_CONTRACTS } from "./managedWorkflowToolContracts.js";
 import { NATIVE_TOOL_CONTRACTS } from "./nativeToolContracts.js";
-import { BROWSER_TOOL_CONTRACTS } from "./browserToolContracts.js";
+import { BROWSER_PROVIDER_TOOL_CONTRACTS } from "./browserProviderToolContracts.js";
 import { ELECTRON_TOOL_CONTRACTS } from "./electronToolContracts.js";
+import { JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS } from "./javascriptRuntimeObservationToolContracts.js";
 import { APPLICATION_TOOL_CONTRACTS } from "./applicationToolContracts.js";
 
+const GROUPS = {
+  official: OFFICIAL_TOOL_CONTRACTS,
+  enhanced: ENHANCED_TOOL_CONTRACTS,
+  native: NATIVE_TOOL_CONTRACTS,
+  artifact: ARTIFACT_TOOL_CONTRACTS,
+  managed: MANAGED_TOOL_CONTRACTS,
+  managed_workflow: MANAGED_WORKFLOW_TOOL_CONTRACTS,
+  browser_provider: BROWSER_PROVIDER_TOOL_CONTRACTS,
+  electron: ELECTRON_TOOL_CONTRACTS,
+  javascript_runtime_observation: JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS,
+  application: APPLICATION_TOOL_CONTRACTS,
+  session: SESSION_TOOL_CONTRACTS,
+} as const;
+
+/**
+ * Published tool names that must remain in the inventory.
+ *
+ * This is a floor, not an equality. Structural invariants already prove every
+ * group member is published, so on their own a contract removed from both its
+ * group and the aggregate would regenerate the catalog with no failing test.
+ * These names catch that removal. Adding a tool needs no edit here; removing
+ * one is a deliberate API change that must delete its name deliberately.
+ */
+const PUBLISHED_TOOL_NAME_FLOOR = [
+  "address_name",
+  "address_to_file_offset",
+  "analyze_function",
+  "analyze_javascript_application",
+  "analyze_swift_types",
+  "analyze_web_bundle",
+  "batch_decompile",
+  "binary_overview",
+  "binary_session",
+  "build_call_path",
+  "build_reconstruction_obligation_ledger",
+  "capture_browser_scenario",
+  "capture_electron_scenario",
+  "capture_process_scenario",
+  "capture_web_screenshot",
+  "close_binary",
+  "comment",
+  "compare_application_versions",
+  "compare_artifacts",
+  "compare_bundles",
+  "compare_functions",
+  "compare_javascript_export_shapes",
+  "compare_managed_members",
+  "compare_process_captures",
+  "compare_source_to_bundle",
+  "compare_web_captures",
+  "compare_web_screenshots",
+  "correlate_static_and_runtime",
+  "current_address",
+  "current_document",
+  "current_procedure",
+  "decode_interface_builder",
+  "demangle_swift",
+  "discover_webmcp_tools",
+  "evaluate_reconstruction_coverage",
+  "execute_node_characterization",
+  "export_evidence_bundle",
+  "extract_artifact",
+  "find_changed_behavior",
+  "find_code_for_string",
+  "find_xrefs_to_name",
+  "get_call_graph",
+  "get_evidence_bundle",
+  "get_navigation_context",
+  "get_objc_classes",
+  "get_objc_protocols",
+  "goto_address",
+  "import_evidence_bundle",
+  "import_managed_reconstruction",
+  "inline_comment",
+  "inspect_address_context",
+  "inspect_artifact",
+  "inspect_electron_page",
+  "inspect_macho",
+  "inspect_managed_artifact",
+  "inspect_managed_members",
+  "inspect_managed_native_boundaries",
+  "inspect_native_api",
+  "inspect_native_dispatch_metadata",
+  "inspect_plist",
+  "inspect_signature",
+  "inspect_web_page",
+  "list_architectures",
+  "list_bookmarks",
+  "list_browser_targets",
+  "list_documents",
+  "list_electron_targets",
+  "list_javascript_runtime_targets",
+  "list_names",
+  "list_procedures",
+  "list_segments",
+  "list_strings",
+  "list_unknowns",
+  "next_address",
+  "observe_javascript_runtime",
+  "observe_web_session",
+  "open_binary",
+  "plan_managed_runtime_correlation",
+  "prepare_node_characterization",
+  "prev_address",
+  "procedure_address",
+  "procedure_assembly",
+  "procedure_callees",
+  "procedure_callers",
+  "procedure_info",
+  "procedure_pseudo_code",
+  "procedure_references",
+  "project_managed_application_graph",
+  "read_bytes",
+  "read_function_instructions",
+  "reconcile_javascript_runtime",
+  "record_unknown",
+  "resolve_containing_procedure",
+  "run_controlled_replay",
+  "run_replay_machine",
+  "search_procedures",
+  "search_strings",
+  "set_address_name",
+  "set_addresses_names",
+  "set_bookmark",
+  "set_comment",
+  "set_current_document",
+  "set_inline_comment",
+  "trace_application_feature",
+  "trace_call_path",
+  "trace_feature",
+  "trace_javascript_semantics",
+  "trace_native_ui_action",
+  "unset_bookmark",
+  "update_unknown",
+  "verify_managed_native_boundaries",
+  "verify_reconstruction",
+  "verify_unknown_resolution",
+  "xrefs",
+] as const;
+
+// These assertions are deliberately structural rather than numeric. Pinning
+// group sizes made every additive catalog change require a test edit, which
+// blocked additive change without catching defects. Removal is still covered:
+// the floor above catches a contract dropped from both its group and the
+// aggregate.
 describe("tool contract inventory", () => {
-  it("publishes the canonical analysis and session tool inventory", () => {
-    expect(OFFICIAL_TOOL_CONTRACTS).toHaveLength(36);
-    expect(ENHANCED_TOOL_CONTRACTS).toHaveLength(14);
-    expect(NATIVE_TOOL_CONTRACTS).toHaveLength(5);
-    expect(ARTIFACT_TOOL_CONTRACTS.map(({ name }) => name)).toEqual([
-      "inspect_artifact",
-      "extract_artifact",
-      "decode_interface_builder",
-    ]);
-    expect(MANAGED_TOOL_CONTRACTS.map(({ name }) => name)).toEqual([
-      "inspect_managed_artifact",
-      "inspect_managed_members",
-      "inspect_managed_native_boundaries",
-    ]);
-    expect(MANAGED_WORKFLOW_TOOL_CONTRACTS.map(({ name }) => name)).toEqual([
-      "compare_managed_members",
-      "verify_managed_native_boundaries",
-      "import_managed_reconstruction",
-      "plan_managed_runtime_correlation",
-      "project_managed_application_graph",
-    ]);
-    expect(BROWSER_TOOL_CONTRACTS.map(({ name }) => name)).toEqual([
-      "list_browser_targets",
-      "inspect_web_page",
-      "analyze_web_bundle",
-      "observe_web_session",
-      "discover_webmcp_tools",
-      "compare_web_captures",
-      "capture_web_screenshot",
-      "compare_web_screenshots",
-    ]);
-    expect(ELECTRON_TOOL_CONTRACTS.map(({ name }) => name)).toEqual([
-      "list_electron_targets",
-      "inspect_electron_page",
-      "analyze_javascript_application",
-      "reconcile_javascript_runtime",
-      "capture_electron_scenario",
-    ]);
-    expect(APPLICATION_TOOL_CONTRACTS.map(({ name }) => name)).toEqual([
-      "trace_application_feature",
-      "trace_javascript_semantics",
-      "compare_application_versions",
-      "compare_source_to_bundle",
-      "compare_javascript_export_shapes",
-      "run_controlled_replay",
-      "prepare_node_characterization",
-      "execute_node_characterization",
-      "build_reconstruction_obligation_ledger",
-      "evaluate_reconstruction_coverage",
-    ]);
-    expect(new Set(TOOL_CONTRACTS.map(({ name }) => name)).size).toBe(
-      TOOL_CONTRACTS.length,
+  it("assigns every published tool a unique name", () => {
+    const names = TOOL_CONTRACTS.map(({ name }) => name);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it("contains every group member in the published inventory", () => {
+    const published = new Set(TOOL_CONTRACTS.map(({ name }) => name));
+    for (const [group, contracts] of Object.entries(GROUPS)) {
+      for (const { name } of contracts) {
+        expect(
+          published.has(name),
+          `${group} tool ${name} is not in TOOL_CONTRACTS`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("keeps every published tool name in the declared floor", () => {
+    const published = new Set(TOOL_CONTRACTS.map(({ name }) => name));
+    const removed = PUBLISHED_TOOL_NAME_FLOOR.filter(
+      (name) => !published.has(name),
     );
+    expect(
+      removed,
+      "published tool names were removed; deleting one is a deliberate API change",
+    ).toEqual([]);
+  });
+
+  it("keeps groups mutually disjoint", () => {
+    const entries = Object.entries(GROUPS);
+    for (const [leftName, left] of entries) {
+      for (const [rightName, right] of entries) {
+        if (leftName >= rightName) continue;
+        const rightNames = new Set(right.map(({ name }) => name));
+        const overlap = left
+          .map(({ name }) => name)
+          .filter((name) => rightNames.has(name));
+        expect(
+          overlap,
+          `${leftName} and ${rightName} both publish ${overlap.join(", ")}`,
+        ).toEqual([]);
+      }
+    }
+  });
+
+  it("publishes a non-empty inventory from every group", () => {
+    for (const [group, contracts] of Object.entries(GROUPS)) {
+      expect(contracts.length, `${group} is empty`).toBeGreaterThan(0);
+    }
   });
 });

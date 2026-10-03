@@ -1,5 +1,3 @@
-import { describe, expect, it } from "vitest";
-
 import {
   createProcessObservation,
   type ProcessObservationSource,
@@ -15,7 +13,7 @@ import {
   type ProcessReactiveScenario,
 } from "./processReactiveScenario.js";
 
-const terminalTrigger = (literal = "Ready") => ({
+export const terminalTrigger = (literal = "Ready") => ({
   kind: "terminal_text" as const,
   view: "decoded" as const,
   encoding: "utf8" as const,
@@ -26,24 +24,22 @@ const terminalTrigger = (literal = "Ready") => ({
   since: { kind: "scenario_start" as const },
   consume: false,
 });
-
-const scenarioWith = (
+export const scenarioWith = (
   transitions: readonly unknown[],
 ): ProcessReactiveScenario =>
   processReactiveScenarioSchema.parse({
     initial_state: "starting",
-    deadline_ms: 30_000,
+    deadline_ms: 30000,
     states: [
       {
         id: "starting",
         max_visits: 4,
-        deadline_ms: 5_000,
+        deadline_ms: 5000,
         on: transitions,
       },
     ],
   });
-
-const finish = (
+export const finish = (
   id: string,
   when: unknown,
   priority = 100,
@@ -56,8 +52,7 @@ const finish = (
   actions,
   target: { kind: "finish", outcome: "passed" },
 });
-
-const collectionFor = (source: ProcessObservationSource) => {
+export const collectionFor = (source: ProcessObservationSource) => {
   switch (source) {
     case "terminal_raw":
       return "frames" as const;
@@ -80,8 +75,7 @@ const collectionFor = (source: ProcessObservationSource) => {
       return "lifecycle" as const;
   }
 };
-
-const observation = (
+export const observation = (
   source: ProcessObservationSource,
   order: number,
   payload: unknown,
@@ -98,8 +92,10 @@ const observation = (
     },
     payload,
   });
-
-const succeededEffect = (action: ProcessReactiveAction, order: number) => ({
+export const succeededEffect = (
+  action: ProcessReactiveAction,
+  order: number,
+) => ({
   status: "succeeded" as const,
   observation:
     action.type === "checkpoint"
@@ -126,8 +122,7 @@ const succeededEffect = (action: ProcessReactiveAction, order: number) => ({
           outcome: "dispatched",
         }),
 });
-
-const offer = (
+export const offer = (
   scenario: ProcessReactiveScenario,
   snapshot: ReturnType<typeof createProcessReactiveSnapshot>,
   value: ReturnType<typeof observation>,
@@ -151,53 +146,3 @@ const offer = (
       )
     : proposed;
 };
-
-describe("process reactive runtime lifecycle", () => {
-  it("matches terminal text after the previous retained-data ceiling", () => {
-    const scenario = scenarioWith([finish("large_output", terminalTrigger())]);
-    const decision = reduceProcessReactiveScenario(
-      scenario,
-      createProcessReactiveSnapshot(scenario),
-      {
-        kind: "observation",
-        observation: observation("terminal_raw", 0, {
-          data: `${"x".repeat(70_000)}Ready`,
-        }),
-      },
-    );
-    expect(decision.kind).toBe("proposal");
-  });
-
-  it("evaluates all configured predicates against all retained observations", () => {
-    const transitions = Array.from({ length: 80 }, (_, index) =>
-      finish(`event_${String(index)}`, {
-        kind: "event",
-        source: "shim",
-        exact: { name: `expected_${String(index)}` },
-        ignore_fields: ["sequence"],
-        since: { kind: "scenario_start" },
-        consume: false,
-        cardinality: { min: 1, max: 1 },
-      }),
-    );
-    const scenario = scenarioWith(transitions);
-    const retained = Array.from({ length: 130 }, (_, order) =>
-      observation("shim", order, { name: "other", sequence: order }),
-    );
-    const snapshot = {
-      ...createProcessReactiveSnapshot(scenario),
-      observations: retained,
-    };
-    const decision = offer(
-      scenario,
-      snapshot,
-      observation("shim", retained.length, {
-        name: "other",
-        sequence: retained.length,
-      }),
-    );
-    expect(decision).toMatchObject({ kind: "waiting" });
-    if (decision.kind === "waiting")
-      expect(decision.snapshot.observations).toHaveLength(131);
-  });
-});

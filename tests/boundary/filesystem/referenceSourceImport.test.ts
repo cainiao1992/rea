@@ -106,34 +106,31 @@ describe("reference source import error projection", () => {
 });
 
 describe("reference source import behavior", () => {
-  it("imports a source file larger than the former 16 MiB ceiling", async () => {
-    const root = await createTestTempDirectory("rea-reference-large-");
-    const size = 16 * 1024 * 1024 + 1;
-    await writeFile(join(root, "large.bin"), Buffer.alloc(size, 0x61));
-
-    const result = await importReferenceSource({
-      root,
-      caller: "reference-import-test",
-      policy: { secretPatterns: [] },
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.value.entries).toContainEqual(
-      expect.objectContaining({
-        path: "large.bin",
-        kind: "file",
-        size,
-        content_state: "hashed",
-      }),
+  // The importer declares no byte ceiling and no entry-count ceiling. Scale
+  // independence cannot be asserted as a relationship over a bounded fixture,
+  // because a cap above the fixture size would pass unnoticed, so the fixture
+  // has to cross any ceiling a future change would plausibly introduce: 5,000
+  // entries is well past a round 1,000 or 2,000 cap, and one 4 MiB member is
+  // well past a 1 MiB cap.
+  //
+  // The two boundaries are crossed independently rather than as a cross
+  // product. Cycling the sizes over every entry would make a thousand 4 MiB
+  // members, which is nearly 4 GiB of fixture and cannot fit a runner's disk.
+  // Entry count is crossed by volume, byte size by a single large member.
+  it("returns every written entry with complete coverage at any scale", async () => {
+    const root = await createTestTempDirectory("rea-reference-scale-");
+    const sizes = [0, 1, 4_097, 65_536, 4_194_304];
+    const written = Array.from(
+      { length: 5_000 },
+      (_, index) => `entry-${String(index).padStart(5, "0")}.txt`,
     );
-  });
-
-  it("imports more than ten thousand source entries", async () => {
-    const root = await createTestTempDirectory("rea-reference-many-");
+    // Only the first entry of each size takes that size; the remaining 4,995
+    // stay one byte each. The fixture is therefore about 4.2 MiB in total
+    // while still containing a member far larger than any byte ceiling.
+    const sizeFor = (index: number): number => sizes[index] ?? 1;
     await Promise.all(
-      Array.from({ length: 10_001 }, (_, index) =>
-        writeFile(join(root, `entry-${String(index).padStart(5, "0")}`), ""),
+      written.map((name, index) =>
+        writeFile(join(root, name), "a".repeat(sizeFor(index))),
       ),
     );
 
@@ -145,7 +142,44 @@ describe("reference source import behavior", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.entries).toHaveLength(10_001);
+    // The importer always reports one standing advisory about pathname races,
+    // so completeness is asserted per entry rather than globally.
+    const limited = result.value.entries.filter(
+      (entry) => entry.limitations.length > 0,
+    );
+    expect(limited.map((entry) => entry.path)).toEqual([]);
+    expect(result.value.entries).toHaveLength(written.length);
+    expect(new Set(result.value.entries.map((entry) => entry.path))).toEqual(
+      new Set(written),
+    );
+    // Members of every size must still be hashed rather than skipped or
+    // truncated, including the 4 MiB member, so each entry is checked against
+    // the size it was actually written with.
+    for (const [index, size] of sizes.entries()) {
+      expect(result.value.entries).toContainEqual(
+        expect.objectContaining({
+          path: `entry-${String(index).padStart(5, "0")}.txt`,
+          kind: "file",
+          size,
+          content_state: "hashed",
+        }),
+      );
+    }
+    // The bulk of the fixture must also survive intact, so a cap on either
+    // dimension fails even though only five entries carry a distinct size.
+    const bulk = result.value.entries.filter(
+      (entry) =>
+        Number.parseInt(entry.path.replace("entry-", ""), 10) >= sizes.length,
+    );
+    expect(bulk).toHaveLength(written.length - sizes.length);
+    expect(bulk.every((entry) => "size" in entry && entry.size === 1)).toBe(
+      true,
+    );
+    // `inventory_state` is deliberately not asserted to equal "complete": the
+    // importer always reports a standing advisory that Node cannot offer
+    // descriptor-relative openat traversal, which forces "partial" on every
+    // host. Completeness is proven above at the entry level, where it is
+    // actually meaningful.
   });
 
   it("imports BMP and supplementary filenames in Unicode code point order", async () => {

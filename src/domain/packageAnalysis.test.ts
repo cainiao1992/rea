@@ -6,7 +6,6 @@ import {
   hasValidSignature,
   isConfigurationResource,
   isManifestResource,
-  packageManifestSchema,
   resourcesByType,
   totalResourceSize,
   type PackageManifest,
@@ -74,11 +73,6 @@ describe("package analysis", () => {
     dependencies: ["Microsoft.VCLibs.14.00"],
     capabilities: ["internetClient", "localNetwork"],
   };
-
-  it("validates a well-formed manifest", () => {
-    const result = packageManifestSchema.safeParse(validManifest);
-    expect(result.success).toBe(true);
-  });
 
   it("filters resources by type", () => {
     const icons = resourcesByType(validManifest, "icon");

@@ -9,6 +9,7 @@ import type {
   ProcessReactiveScenario,
 } from "../domain/processReactiveScenario.js";
 import type { ProcessCaptureJournal } from "./ProcessCaptureJournal.js";
+import { normalizeProcessElapsedTime } from "./ProcessNormalization.js";
 
 /** Minimal PTY authority used by the admitted reactive action slice. */
 export interface ProcessReactiveTerminal {
@@ -43,6 +44,8 @@ export interface ProcessReactiveEffectHost {
   readonly journal: ProcessCaptureJournal;
   readonly startedAtMs: number;
   readonly now: () => number;
+  /** Time bucket the scenario normalizes rendered-frame timestamps with. */
+  readonly timeBucketMs: number;
 }
 
 const elapsed = (host: ProcessReactiveEffectHost): number =>
@@ -71,15 +74,24 @@ const interactionType = (
 };
 
 const performTerminalAction = (
+  host: Pick<ProcessReactiveEffectHost, "renderer" | "timeBucketMs">,
   terminal: ProcessReactiveTerminal,
-  renderer: ProcessReactiveRenderer,
   action: Exclude<ProcessReactiveAction, { readonly type: "checkpoint" }>,
   atMs: number,
 ): void => {
   if (action.type === "send_input") terminal.write(action.data);
   else if (action.type === "resize") {
     terminal.resize(action.columns, action.rows);
-    renderer.resize(action.columns, action.rows, atMs);
+    // Rendered frames share the normalized clock used by captured terminal
+    // frames and by the scheduled-event resize path. Passing the raw elapsed
+    // time here stamped this frame on a different clock, so the next bucketed
+    // frame could appear to move backwards and fail capture validation with
+    // "rendered_frames: timestamps must be ordered".
+    host.renderer.resize(
+      action.columns,
+      action.rows,
+      normalizeProcessElapsedTime(atMs, host.timeBucketMs),
+    );
   } else if (action.type === "close_stdin") terminal.closeInput();
   else terminal.kill(action.signal);
 };
@@ -126,7 +138,7 @@ const executeTerminalAction = (
   const atMs = elapsed(host);
   let outcome: InteractionEvent["outcome"] = "dispatched";
   try {
-    performTerminalAction(terminal, host.renderer, action, atMs);
+    performTerminalAction(host, terminal, action, atMs);
   } catch {
     outcome = "failed";
   }

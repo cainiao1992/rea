@@ -99,9 +99,12 @@ describe("mobile application investigation", () => {
     architectures: ["arm64-v8a", "armeabi-v7a"],
   };
 
-  it("validates a well-formed manifest", () => {
-    const result = mobileArtifactManifestSchema.safeParse(validManifest);
-    expect(result.success).toBe(true);
+  it("rejects a manifest with a negative total size", () => {
+    const result = mobileArtifactManifestSchema.safeParse({
+      ...validManifest,
+      total_size: -1,
+    });
+    expect(result.success).toBe(false);
   });
 
   it("filters native libs by architecture", () => {

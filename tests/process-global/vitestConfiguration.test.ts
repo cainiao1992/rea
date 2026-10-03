@@ -18,17 +18,19 @@ const EXPECTED_PROJECTS = [
   "domain",
   "evaluation",
   "mcp-boundary",
+  "process-boundary",
   "process-global",
   "services",
 ];
 describe("Vitest project configuration", () => {
-  it("keeps deterministic execution retry-free and locally quiet", () => {
+  it("keeps deterministic execution retry-free and parallelism bounded", () => {
     expect(vitestConfiguration.test?.coverage?.enabled).toBe(false);
     expect(vitestConfiguration.test?.reporters).toEqual(["default"]);
     expect(vitestConfiguration.test?.retry).toBe(0);
-    const local = process.env.CI !== "true";
-    const maxWorkers = local ? 1 : Math.min(2, availableParallelism());
-    expect(vitestConfiguration.test?.maxWorkers).toBe(maxWorkers);
+    // Local and CI deliberately share one worker budget so a green local run
+    // implies the same concurrency CI will exercise.
+    const expectedWorkers = Math.min(2, availableParallelism());
+    expect(vitestConfiguration.test?.maxWorkers).toBe(expectedWorkers);
     const projects = (vitestConfiguration.test?.projects ?? []).flatMap(
       (project) =>
         typeof project === "object" && project !== null && "test" in project
@@ -37,13 +39,7 @@ describe("Vitest project configuration", () => {
     );
     expect(projects).toHaveLength(EXPECTED_PROJECTS.length);
     expect(
-      projects.every(
-        ({ fileParallelism, maxWorkers, sequence }) =>
-          maxWorkers === vitestConfiguration.test?.maxWorkers &&
-          (local
-            ? fileParallelism === false && sequence?.groupOrder !== undefined
-            : true),
-      ),
+      projects.every(({ maxWorkers }) => maxWorkers === expectedWorkers),
     ).toBe(true);
     expect(projects.map(({ name }) => name).sort()).toEqual(EXPECTED_PROJECTS);
     expect(
@@ -53,6 +49,28 @@ describe("Vitest project configuration", () => {
           : isolate === undefined,
       ),
     ).toBe(true);
+  });
+
+  it("serialises only the projects that own host-level state", () => {
+    const projects = (vitestConfiguration.test?.projects ?? []).flatMap(
+      (project) =>
+        typeof project === "object" && project !== null && "test" in project
+          ? [project.test]
+          : [],
+    );
+    const serial = projects
+      .filter(({ fileParallelism }) => fileParallelism === false)
+      .map(({ name }) => name)
+      .sort();
+    // Acceptance drives the compiled CLI and MCP stdio surfaces;
+    // process-global inspects the runner configuration itself;
+    // process-boundary runs real PTY capture scenarios that contend for host
+    // terminal resources and still schedule some actions by wall clock.
+    expect(serial).toEqual([
+      "acceptance",
+      "process-boundary",
+      "process-global",
+    ]);
   });
 
   it("classifies every deterministic test in exactly one project", async () => {

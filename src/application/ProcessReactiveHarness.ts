@@ -108,6 +108,7 @@ export const startProcessReactiveHarness = (options: {
             journal: options.capture.journal,
             startedAtMs: options.started,
             now: Date.now,
+            timeBucketMs: options.scenario.normalization.time_bucket_ms,
           },
           actions,
           signal,

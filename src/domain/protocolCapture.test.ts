@@ -211,15 +211,25 @@ describe("schema inference", () => {
 });
 
 describe("protocol capture schema validation", () => {
-  it("validates a well-formed capture", () => {
-    const capture = {
-      family: "grpc" as const,
+  it("rejects a capture with an unknown protocol family", () => {
+    const result = protocolCaptureSchema.safeParse({
+      family: "smtp",
       messages: [],
       inferred_schema: [],
       has_truncated: false,
       credentials_detected: false,
-    };
-    const result = protocolCaptureSchema.safeParse(capture);
-    expect(result.success).toBe(true);
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a capture that declares a non-boolean truncation flag", () => {
+    const result = protocolCaptureSchema.safeParse({
+      family: "grpc",
+      messages: [],
+      inferred_schema: [],
+      has_truncated: "no",
+      credentials_detected: false,
+    });
+    expect(result.success).toBe(false);
   });
 });

@@ -36,7 +36,26 @@ describe("application workflow CLI parity", () => {
     ]);
     expect(traced).toMatchObject({
       operation: "trace_application_feature",
-      normalized_result: { source_evidence_id: expect.any(String) },
+      predicate_type: "rea.application-feature-trace",
+      normalized_result: {
+        seed: { kind: "module", value: "renderer.js", match: "exact" },
+        summary: {
+          matched_seeds: 1,
+          traced_nodes: 1,
+          traced_edges: 0,
+          terminal_paths: 0,
+          native_handoffs: 0,
+          observed_facts: 1,
+          inferred_facts: 0,
+          unknown_facts: 0,
+          unavailable_facts: 0,
+        },
+        coverage: {
+          status: "complete-within-source",
+          source_graph_status: "complete",
+          total_seed_matches: 1,
+        },
+      },
     });
 
     const root = await createTestTempDirectory("rea-application-cli-");
@@ -53,8 +72,22 @@ describe("application workflow CLI parity", () => {
     ]);
     expect(compared).toMatchObject({
       operation: "compare_application_versions",
+      predicate_type: "rea.application-version-comparison",
       normalized_result: {
-        summary: { unknown: expect.any(Number) },
+        summary: {
+          unchanged: 0,
+          added: 2,
+          removed: 0,
+          changed: 1,
+          unknown: 0,
+        },
+        coverage: {
+          left_graph_status: "complete",
+          right_graph_status: "complete",
+          left_graph_omitted_count: 0,
+          right_graph_omitted_count: 0,
+          status: "complete-within-inputs",
+        },
       },
     });
     const sourceCompared = await runCli([
@@ -67,7 +100,26 @@ describe("application workflow CLI parity", () => {
     ]);
     expect(sourceCompared).toMatchObject({
       operation: "compare_source_to_bundle",
-      normalized_result: { reference: expect.any(Object) },
+      predicate_type: "rea.source-to-bundle-comparison",
+      normalized_result: {
+        reference: { inventory_state: "complete" },
+        summary: {
+          unchanged: 0,
+          modified: 0,
+          removed: 1,
+          split: 0,
+          merged: 0,
+          duplicated: 0,
+          unknown: 0,
+        },
+        coverage: {
+          status: "complete-within-inputs",
+          reference_inventory_state: "complete",
+          application_graph_status: "complete",
+          retained_source_files: 1,
+          retained_application_nodes: 1,
+        },
+      },
     });
   }, 20_000);
 

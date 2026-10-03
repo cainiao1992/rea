@@ -3,6 +3,7 @@ import {
   createJavaScriptApplicationGraph,
   createJavaScriptApplicationNode,
   type ApplicationGraphEvidence,
+  type ApplicationNode,
   type JavaScriptApplicationGraph,
 } from "./javascriptApplicationGraph.js";
 
@@ -13,7 +14,8 @@ export const APPLICATION_GRAPH_DIGESTS = {
   capture: "4".repeat(64),
 } as const;
 
-const completeCoverage = {
+/** Coverage block asserting nothing was truncated or omitted. */
+export const completeCoverage = {
   status: "complete",
   truncated: false,
   omitted_count: 0,
@@ -399,3 +401,86 @@ export const buildSyntheticJavaScriptApplicationGraph =
       ],
     });
   };
+
+/** Find the fixture node carrying an observation with the given label. */
+export const nodeByLabel = (
+  graph: JavaScriptApplicationGraph,
+  label: string,
+): ApplicationNode => {
+  const node = graph.nodes.find(({ observations }) =>
+    observations.some((observation) => observation.label === label),
+  );
+  if (node === undefined) throw new TypeError(`Missing fixture node: ${label}`);
+  return node;
+};
+
+/** Return the first value, failing loudly when a fixture is empty. */
+export const firstOf = <Value>(
+  values: readonly Value[],
+  label: string,
+): Value => {
+  const value = values[0];
+  if (value === undefined) throw new TypeError(`Missing fixture ${label}`);
+  return value;
+};
+
+/** Shared fixture helper. */
+export const graphForNode = (
+  node: ApplicationNode,
+): JavaScriptApplicationGraph =>
+  createJavaScriptApplicationGraph({
+    schema: "JavaScriptApplicationGraph",
+    root_node_ids: [node.node_id],
+    nodes: [node],
+    edges: [],
+    coverage: completeCoverage,
+    limitations: [],
+  });
+
+/** Shared fixture helper. */
+export const unknownEvidence = (
+  limitations: string[] = ["The extractor could not classify this fact."],
+): ApplicationGraphEvidence => ({
+  authority: "unknown",
+  state: "unknown",
+  confidence: "unknown",
+  artifact: {
+    available: false,
+    reason: "unknown",
+    detail: "Artifact provenance is unknown.",
+  },
+  location: {
+    available: false,
+    reason: "unknown",
+    detail: "Source location is unknown.",
+  },
+  extractor: {
+    name: "test",
+    version: "1",
+    operation: "unknown",
+    executable_sha256: null,
+  },
+  coverage: {
+    status: "unknown",
+    truncated: false,
+    omitted_count: null,
+    limits: [],
+  },
+  limitations,
+  evidence_ids: [],
+});
+
+/** Shared fixture helper. */
+export const contentNode = (
+  evidence: ApplicationGraphEvidence,
+  properties: Record<string, unknown> = {},
+): ApplicationNode =>
+  createJavaScriptApplicationNode({
+    kind: "javascript-module",
+    identity: {
+      strategy: "content-digest",
+      stability: "global-exact",
+      sha256: APPLICATION_GRAPH_DIGESTS.asar,
+    },
+    observations: [{ label: "module", properties, evidence }],
+  });

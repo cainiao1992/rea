@@ -57,30 +57,22 @@ describe("curl installer scenarios", { timeout: 20_000 }, () => {
     });
   });
 
+  // Every installer failure must carry a recovery action. AGENTS.md requires
+  // actionable diagnostics, including for mismatch locations, so a failure that
+  // only states what went wrong is a regression.
+  // The installer is the one surface whose output is read directly by a person
+  // in a terminal, so the exact wording is a real contract and stays pinned.
+  // Alongside it, each row asserts the two properties that matter
+  // independently of phrasing: the failure is announced as a REA installation
+  // failure, and the message carries a recovery action. A copy edit then shows
+  // up as one reviewable diff instead of silently losing the guidance.
   it.each([
     [
       "unsupported Node",
+      ["--version", "0.3.0"],
       { FAKE_NODE_VERSION: "20.0.0" },
       "REA installation failed: Node.js 20.0.0 is unsupported; use Node.js 22.19+ or 24.11+.\n",
     ],
-    [
-      "npm failure",
-      { FAKE_NPM_FAIL: "1" },
-      "REA installation failed: npm could not install REA. Check registry access and npm permissions, then retry.\n",
-    ],
-    [
-      "version mismatch",
-      { FAKE_REA_VERSION: "9.9.9" },
-      "REA installation failed: installed version 9.9.9 does not match 0.3.0.\n",
-    ],
-  ] as const)("fails closed on %s", async (_name, overrides, message) => {
-    const fixture = await createFixture();
-    await expect(
-      runInstaller(fixture, ["--version", "0.3.0"], overrides),
-    ).rejects.toMatchObject({ stderr: message });
-  });
-
-  it.each([
     [
       "unreadable Node version",
       ["--version", "0.3.0"],
@@ -106,6 +98,12 @@ describe("curl installer scenarios", { timeout: 20_000 }, () => {
       "REA installation failed: the latest release tag was invalid. Retry later or pass --version VERSION.\n",
     ],
     [
+      "npm failure",
+      ["--version", "0.3.0"],
+      { FAKE_NPM_FAIL: "1" },
+      "REA installation failed: npm could not install REA. Check registry access and npm permissions, then retry.\n",
+    ],
+    [
       "npm prefix",
       ["--version", "0.3.0"],
       { FAKE_PLATFORM: "Darwin", FAKE_NPM_PREFIX_FAIL: "1" },
@@ -123,15 +121,29 @@ describe("curl installer scenarios", { timeout: 20_000 }, () => {
       { FAKE_REA_VERSION_FAIL: "1" },
       "REA installation failed: the installed REA version could not be read. Reinstall the requested version, then retry.\n",
     ],
+    [
+      "version mismatch",
+      ["--version", "0.3.0"],
+      { FAKE_REA_VERSION: "9.9.9" },
+      "REA installation failed: installed version 9.9.9 does not match 0.3.0. Reinstall the requested version, then retry.\n",
+    ],
   ] as const)(
-    "reports exact recovery for %s failure",
+    "fails closed with actionable recovery for %s",
     async (_name, args, overrides, message) => {
       const fixture = await createFixture();
-      await expect(
-        runInstaller(fixture, args, overrides),
-      ).rejects.toMatchObject({
-        stderr: message,
-      });
+      const failure = await runInstaller(fixture, args, overrides).then(
+        () => undefined,
+        (cause: unknown) => cause,
+      );
+      expect(failure).toBeInstanceOf(Error);
+      const stderr = String((failure as { stderr?: unknown }).stderr ?? "");
+      expect(stderr).toBe(message);
+      expect(stderr.startsWith("REA installation failed: ")).toBe(true);
+      // Actionable guidance must survive any rewording.
+      expect(stderr).toMatch(
+        /\b(?:Check|Repair|Reinstall|Install|Retry|then retry|use Node)\b/,
+      );
+      expect(await readdir(fixture.temporary)).toEqual([]);
     },
   );
 

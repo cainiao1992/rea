@@ -1,12 +1,10 @@
 import { rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { expect, it } from "vitest";
+import { expect } from "vitest";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { itWithCaptureCapability } from "./processCaptureCapability.js";
 
-import {
-  captureProcessScenario,
-  probeProcessCaptureCapability,
-} from "../../../src/application/ProcessHarness.js";
+import { captureProcessScenario } from "../../../src/application/ProcessHarness.js";
 import {
   parseProcessScenario,
   type ProcessCapture,
@@ -268,153 +266,158 @@ function assertReplayValidation(capture: ProcessCapture): void {
   );
 }
 
-it("drives a process from terminal observations and retains the reactive transition journal", async () => {
-  const root = await createTestTempDirectory("rea-reactive-harness-test-");
-  const script = join(root, "reactive.mjs");
-  await writeFile(
-    script,
-    [
-      'import { createInterface } from "node:readline";',
-      "const input = createInterface({ input: process.stdin, terminal: false });",
-      'process.stdout.write("Ready\\n");',
-      'input.once("line", () => { process.stdout.write("Done\\n"); input.close(); });',
-    ].join("\n"),
-  );
-  const scenario = createInteractiveScenario(root, script);
-  try {
-    const capability = await probeProcessCaptureCapability();
-    if (!capability.available) return;
-    const result = await captureProcessScenario(scenario, {
-      status: "enabled",
-      executableRoots: [dirname(process.execPath)],
-      workingRoots: [root],
-      allowedEnvironment: [],
-      networkAccess: "external",
-    });
-    if (!result.ok) throw result.error;
-    assertCompletedCapture(result.value);
-    assertControlAndTransitionValidation(result.value);
-    assertReplayValidation(result.value);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-it("records target loss before post-exit settlement can win the deadline race", async () => {
-  const root = await createTestTempDirectory("rea-reactive-target-loss-test-");
-  const script = join(root, "exit.mjs");
-  await writeFile(script, 'process.stdout.write("exiting\\n");\n');
-  const scenario = parseProcessScenario({
-    executable: process.execPath,
-    arguments: [script],
-    working_directory: root,
-    settle_ms: 500,
-    reactive: {
-      initial_state: "waiting",
-      deadline_ms: 5_000,
-      states: [
-        {
-          id: "waiting",
-          max_visits: 1,
-          // Leave process startup scheduling headroom; this test targets
-          // post-exit settlement ordering, not a 300ms startup deadline.
-          deadline_ms: 2_000,
-          on: [
-            {
-              id: "unreachable",
-              priority: 0,
-              max_uses: 1,
-              when: {
-                kind: "terminal_text",
-                view: "decoded",
-                encoding: "utf8",
-                literal: "never-produced",
-                case_sensitive: true,
-                control_sequences: "include",
-                occurrence: 1,
-                since: { kind: "scenario_start" },
-                consume: true,
-              },
-              actions: [],
-              target: { kind: "finish", outcome: "passed" },
-            },
-          ],
-        },
-      ],
-    },
-  });
-  try {
-    const capability = await probeProcessCaptureCapability();
-    if (!capability.available) return;
-    const result = await captureProcessScenario(scenario, {
-      status: "enabled",
-      executableRoots: [dirname(process.execPath)],
-      workingRoots: [root],
-      allowedEnvironment: [],
-      networkAccess: "external",
-    });
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw result.error;
-    expect(result.value.reactive_run).toMatchObject({
-      status: "finished",
-      outcome: "target_lost",
-      active_state: "waiting",
-      transitions: [],
-      controls: [
-        expect.objectContaining({
-          kind: "target_lost",
-        }),
-      ],
-    });
-    const frame = result.value.frames.at(-1);
-    const journal = result.value.event_journal;
-    const reactiveRun = result.value.reactive_run;
-    if (frame === undefined || journal === undefined || reactiveRun === null)
-      throw new Error("ordered reactive evidence missing");
-    const laterCaptureOrder = journal.length;
-    const withLaterMatch = {
-      ...result.value,
-      frames: [
-        ...result.value.frames,
-        {
-          ...frame,
-          sequence: result.value.frames.length,
-          at_ms: frame.at_ms + 1,
-          data: "never-produced",
-        },
-      ],
-      event_journal: [
-        ...journal,
-        {
-          capture_order: laterCaptureOrder,
-          collection: "frames" as const,
-          index: result.value.frames.length,
-        },
-      ],
-    };
-    expect(
-      processCaptureIssues(withLaterMatch).filter(({ path }) =>
-        path.startsWith("reactive_run"),
-      ),
-    ).toEqual([]);
-    expect(
-      processCaptureIssues({
-        ...withLaterMatch,
-        reactive_run: {
-          ...reactiveRun,
-          controls: reactiveRun.controls.map((control) => ({
-            ...control,
-            after_capture_order: laterCaptureOrder,
-          })),
-        },
-      }),
-    ).toContainEqual(
-      expect.objectContaining({
-        path: "reactive_run.outcome",
-        message: "reactive outcome differs from deterministic journal replay",
-      }),
+itWithCaptureCapability(
+  "drives a process from terminal observations and retains the reactive transition journal",
+  async () => {
+    const root = await createTestTempDirectory("rea-reactive-harness-test-");
+    const script = join(root, "reactive.mjs");
+    await writeFile(
+      script,
+      [
+        'import { createInterface } from "node:readline";',
+        "const input = createInterface({ input: process.stdin, terminal: false });",
+        'process.stdout.write("Ready\\n");',
+        'input.once("line", () => { process.stdout.write("Done\\n"); input.close(); });',
+      ].join("\n"),
     );
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-}, 10_000);
+    const scenario = createInteractiveScenario(root, script);
+    try {
+      const result = await captureProcessScenario(scenario, {
+        status: "enabled",
+        executableRoots: [dirname(process.execPath)],
+        workingRoots: [root],
+        allowedEnvironment: [],
+        networkAccess: "external",
+      });
+      if (!result.ok) throw result.error;
+      assertCompletedCapture(result.value);
+      assertControlAndTransitionValidation(result.value);
+      assertReplayValidation(result.value);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+itWithCaptureCapability(
+  "records target loss before post-exit settlement can win the deadline race",
+  async () => {
+    const root = await createTestTempDirectory(
+      "rea-reactive-target-loss-test-",
+    );
+    const script = join(root, "exit.mjs");
+    await writeFile(script, 'process.stdout.write("exiting\\n");\n');
+    const scenario = parseProcessScenario({
+      executable: process.execPath,
+      arguments: [script],
+      working_directory: root,
+      settle_ms: 500,
+      reactive: {
+        initial_state: "waiting",
+        deadline_ms: 5_000,
+        states: [
+          {
+            id: "waiting",
+            max_visits: 1,
+            // Leave process startup scheduling headroom; this test targets
+            // post-exit settlement ordering, not a 300ms startup deadline.
+            deadline_ms: 2_000,
+            on: [
+              {
+                id: "unreachable",
+                priority: 0,
+                max_uses: 1,
+                when: {
+                  kind: "terminal_text",
+                  view: "decoded",
+                  encoding: "utf8",
+                  literal: "never-produced",
+                  case_sensitive: true,
+                  control_sequences: "include",
+                  occurrence: 1,
+                  since: { kind: "scenario_start" },
+                  consume: true,
+                },
+                actions: [],
+                target: { kind: "finish", outcome: "passed" },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    try {
+      const result = await captureProcessScenario(scenario, {
+        status: "enabled",
+        executableRoots: [dirname(process.execPath)],
+        workingRoots: [root],
+        allowedEnvironment: [],
+        networkAccess: "external",
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw result.error;
+      expect(result.value.reactive_run).toMatchObject({
+        status: "finished",
+        outcome: "target_lost",
+        active_state: "waiting",
+        transitions: [],
+        controls: [
+          expect.objectContaining({
+            kind: "target_lost",
+          }),
+        ],
+      });
+      const frame = result.value.frames.at(-1);
+      const journal = result.value.event_journal;
+      const reactiveRun = result.value.reactive_run;
+      if (frame === undefined || journal === undefined || reactiveRun === null)
+        throw new Error("ordered reactive evidence missing");
+      const laterCaptureOrder = journal.length;
+      const withLaterMatch = {
+        ...result.value,
+        frames: [
+          ...result.value.frames,
+          {
+            ...frame,
+            sequence: result.value.frames.length,
+            at_ms: frame.at_ms + 1,
+            data: "never-produced",
+          },
+        ],
+        event_journal: [
+          ...journal,
+          {
+            capture_order: laterCaptureOrder,
+            collection: "frames" as const,
+            index: result.value.frames.length,
+          },
+        ],
+      };
+      expect(
+        processCaptureIssues(withLaterMatch).filter(({ path }) =>
+          path.startsWith("reactive_run"),
+        ),
+      ).toEqual([]);
+      expect(
+        processCaptureIssues({
+          ...withLaterMatch,
+          reactive_run: {
+            ...reactiveRun,
+            controls: reactiveRun.controls.map((control) => ({
+              ...control,
+              after_capture_order: laterCaptureOrder,
+            })),
+          },
+        }),
+      ).toContainEqual(
+        expect.objectContaining({
+          path: "reactive_run.outcome",
+          message: "reactive outcome differs from deterministic journal replay",
+        }),
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  10_000,
+);

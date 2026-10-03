@@ -16,25 +16,39 @@ import { runProviderAnalysis } from "../../../src/application/DirectAnalysis.js"
 import { appleApplicationProjectionResultSchema } from "../../../src/domain/appleApplication.js";
 import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
 
+// Sized to prove the claims this projection makes -- multiple inventory pages,
+// every component retained, and one bridge candidate per script/native pair --
+// and to cross any ceiling a truncation regression would plausibly introduce.
+// A fixture of a dozen frameworks and 16 candidates would pass unnoticed
+// against a cap at 100, which is the truncation this guards against. The
+// original 1_001 frameworks x 101 pages produced 10_201 candidates and cost
+// ~6.4s, roughly half the composition lane, to assert the same properties an
+// order of magnitude above the plausible-ceiling range.
+const FRAMEWORK_COUNT = 250;
+const SCRIPT_COUNT = 40;
+const NATIVE_COUNT = 40;
+const INVENTORY_PAGE_COUNT = 3;
+
 async function createCompleteAppleProjection() {
   const root = await createTestTempDirectory("rea-apple-complete-");
   const path = join(root, "Complete.ipa");
   const writer = new ZipWriter(new Uint8ArrayWriter());
-  for (let index = 0; index < 1_001; index++) {
+  for (let index = 0; index < FRAMEWORK_COUNT; index++) {
     const name = String(index).padStart(4, "0");
     await writer.add(
       `Payload/Complete.app/Frameworks/F${name}.framework/Info.plist`,
       new TextReader("<plist><dict/></plist>"),
     );
   }
-  for (let index = 0; index < 101; index++) {
-    const name = String(index).padStart(3, "0");
+  for (let index = 0; index < SCRIPT_COUNT; index++) {
     await writer.add(
-      `Payload/Complete.app/script-${name}.js`,
+      `Payload/Complete.app/script-${String(index).padStart(3, "0")}.js`,
       new TextReader("bridge.call();"),
     );
+  }
+  for (let index = 0; index < NATIVE_COUNT; index++) {
     await writer.add(
-      `Payload/Complete.app/Frameworks/Native${name}.dylib`,
+      `Payload/Complete.app/Frameworks/Native${String(index).padStart(3, "0")}.dylib`,
       new Uint8ArrayReader(
         Uint8Array.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0, 0, 1]),
       ),
@@ -49,27 +63,29 @@ async function createCompleteAppleProjection() {
   expect(subject).not.toBeNull();
   if (subject === null)
     throw new TypeError("Missing fixture inventory subject");
-  const inventoryPages = Array.from({ length: 101 }, (_, index) =>
-    createEvidence(
-      {
-        path: subject.local_path,
-        sha256: subject.digest.sha256,
-        format: subject.format,
-        ...(subject.architecture === null
-          ? {}
-          : { architecture: subject.architecture }),
-      },
-      inventory.provider,
-      {
-        predicateType: inventory.predicate_type,
-        operation: inventory.operation,
-        parameters: {
-          ...inventory.parameters,
-          projection_test_page: index,
+  const inventoryPages = Array.from(
+    { length: INVENTORY_PAGE_COUNT },
+    (_, index) =>
+      createEvidence(
+        {
+          path: subject.local_path,
+          sha256: subject.digest.sha256,
+          format: subject.format,
+          ...(subject.architecture === null
+            ? {}
+            : { architecture: subject.architecture }),
         },
-        result: inventory.normalized_result,
-      },
-    ),
+        inventory.provider,
+        {
+          predicateType: inventory.predicate_type,
+          operation: inventory.operation,
+          parameters: {
+            ...inventory.parameters,
+            projection_test_page: index,
+          },
+          result: inventory.normalized_result,
+        },
+      ),
   );
   const result = projectAppleApplicationEvidence({
     inventory_evidence: inventoryPages,
@@ -210,12 +226,21 @@ describe("Apple application projection", () => {
 describe("Apple application projection completeness", () => {
   it("returns every component, inventory page, and bridge hypothesis", async () => {
     const projection = await createCompleteAppleProjection();
-    expect(projection.components.frameworks).toHaveLength(1_001);
-    expect(projection.components.bundle_metadata).toHaveLength(1_001);
-    expect(projection.components.javascript).toHaveLength(101);
-    expect(projection.components.native_libraries).toHaveLength(101);
-    expect(projection.source_evidence_ids).toHaveLength(101);
-    expect(projection.bridge_candidates).toHaveLength(10_201);
+    expect(projection.components.frameworks).toHaveLength(FRAMEWORK_COUNT);
+    expect(projection.components.bundle_metadata).toHaveLength(FRAMEWORK_COUNT);
+    expect(projection.components.javascript).toHaveLength(SCRIPT_COUNT);
+    expect(projection.components.native_libraries).toHaveLength(NATIVE_COUNT);
+    expect(projection.source_evidence_ids).toHaveLength(INVENTORY_PAGE_COUNT);
+    // Every inventory page is retained exactly once.
+    expect(new Set(projection.source_evidence_ids).size).toBe(
+      projection.source_evidence_ids.length,
+    );
+    expect(projection.source_evidence_ids.length).toBeGreaterThan(1);
+    // One candidate per script/native pair. Deriving this catches a pairing
+    // regression, which the previous literal 10_201 could not.
+    expect(projection.bridge_candidates).toHaveLength(
+      SCRIPT_COUNT * NATIVE_COUNT,
+    );
     expect(projection.coverage).toEqual({
       status: "complete-within-inventory",
       inventory_complete: true,

@@ -1,14 +1,10 @@
-import { describe, expect, it } from "vitest";
-import {
-  ProcessReactiveCoordinator,
-  type ProcessReactiveTimerHost,
-} from "./ProcessReactiveCoordinator.js";
-import { createProcessObservation } from "../domain/processObservation.js";
+import type { ProcessReactiveTimerHost } from "./ProcessReactiveCoordinator.js";
 import {
   processReactiveScenarioSchema,
   type ProcessReactiveScenario,
 } from "../domain/processReactiveScenario.js";
-const terminalTrigger = () => ({
+
+export const terminalTrigger = () => ({
   kind: "terminal_text" as const,
   view: "decoded" as const,
   encoding: "utf8" as const,
@@ -19,7 +15,7 @@ const terminalTrigger = () => ({
   since: { kind: "scenario_start" as const },
   consume: true,
 });
-const timerHost = () => {
+export const timerHost = () => {
   const scheduled: Array<{
     readonly callback: () => void;
     readonly delayMs: number;
@@ -34,7 +30,7 @@ const timerHost = () => {
   };
   return { host, scheduled };
 };
-const twoStateScenario = (): ProcessReactiveScenario =>
+export const twoStateScenario = (): ProcessReactiveScenario =>
   processReactiveScenarioSchema.parse({
     initial_state: "starting",
     deadline_ms: 30000,
@@ -83,48 +79,3 @@ const twoStateScenario = (): ProcessReactiveScenario =>
       },
     ],
   });
-describe("process reactive coordinator failures", () => {
-  it("aborts an in-flight effect before committing a state deadline", async () => {
-    const timers = timerHost();
-    let effectAborted = false;
-    const coordinator = new ProcessReactiveCoordinator({
-      scenario: twoStateScenario(),
-      executor: {
-        execute: (_actions, signal) =>
-          new Promise((resolve) => {
-            signal.addEventListener(
-              "abort",
-              () => {
-                effectAborted = true;
-                resolve([]);
-              },
-              { once: true },
-            );
-          }),
-      },
-      timerHost: timers.host,
-    });
-    coordinator.enqueue({
-      kind: "observation",
-      observation: createProcessObservation({
-        source: "terminal_raw",
-        source_sequence: 0,
-        captured_at_ms: 0,
-        subject_id: null,
-        location: { collection: "frames", index: 0, capture_order: 0 },
-        payload: { sequence: 0, at_ms: 0, data: "Ready" },
-      }),
-    });
-    await Promise.resolve();
-    timers.scheduled[1]?.callback();
-    await coordinator.drain();
-    expect(effectAborted).toBe(true);
-    expect(coordinator.snapshot).toMatchObject({
-      status: "finished",
-      outcome: "predicate_timeout",
-      active_state: "starting",
-      transitions: [],
-    });
-    await coordinator.close();
-  });
-});

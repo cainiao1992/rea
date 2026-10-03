@@ -177,8 +177,9 @@ describe("artifact comparison", () => {
 describe("artifact comparison completeness", () => {
   it("compares every graph member for inventories larger than 500 entries", async () => {
     const root = await createTestTempDirectory("rea-artifact-pages-");
+    const entryCount = 501;
     await Promise.all(
-      Array.from({ length: 501 }, async (_, index) =>
+      Array.from({ length: entryCount }, async (_, index) =>
         writeFile(
           join(root, `file-${String(index).padStart(3, "0")}.txt`),
           String(index),
@@ -186,13 +187,32 @@ describe("artifact comparison completeness", () => {
       ),
     );
     const complete = await observe(root);
-    expect(complete.normalized_result).toMatchObject({
-      nodes: expect.arrayContaining([
-        expect.objectContaining({ kind: expect.any(String) }),
-      ]),
-      occurrences: expect.any(Array),
-      edges: expect.any(Array),
-    });
+    const graph = artifactInventoryResultSchema.parse(
+      complete.normalized_result,
+    );
+    // The real risk above 500 entries is silent truncation, so assert the
+    // manifest counts reconcile with the arrays actually returned and that
+    // every written file is present. Deriving from `entryCount` keeps this
+    // valid at any size instead of freezing a page boundary.
+    expect(graph.manifest.node_count).toBe(graph.nodes.length);
+    expect(graph.manifest.occurrence_count).toBe(graph.occurrences.length);
+    expect(graph.manifest.edge_count).toBe(graph.edges.length);
+    const written = new Set(
+      Array.from(
+        { length: entryCount },
+        (_, index) => `file-${String(index).padStart(3, "0")}.txt`,
+      ),
+    );
+    // Occurrences carry the inventory paths, so completeness is checked there.
+    const paths = new Set(
+      graph.occurrences.map((occurrence) => occurrence.logical_path),
+    );
+    expect([...written].filter((path) => !paths.has(path))).toEqual([]);
+    expect(
+      graph.occurrences.filter(
+        (occurrence) => occurrence.entry_kind === "file",
+      ),
+    ).toHaveLength(entryCount);
     expect(compareArtifacts(complete, complete)).toMatchObject({
       status: "unchanged",
       summary: { unchanged: 502, unknown: 0 },

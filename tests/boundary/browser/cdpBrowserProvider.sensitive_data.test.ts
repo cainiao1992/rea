@@ -317,7 +317,14 @@ describeBrowser("CdpBrowserProvider: complete sensitive data", () => {
         cdp_endpoint: browser.endpoint,
         allowed_origins: [browser.allowedOrigin],
         target_id: "allowed-page",
-        observation_ms: 0,
+        // Unlike the sibling cases, this scenario asserts outcomes produced
+        // *after* the observation window closes: the response-body fetch has to
+        // run and has to reject the malformed base64. A zero-length window
+        // races that phase, so the expected `partial` status and the
+        // `json_body_shapes` exclusion below depend on host speed. This window
+        // is long enough for the fetch to complete, which makes the assertions
+        // measure the malformed-body rejection instead of the machine's load.
+        observation_ms: 200,
         include_json_body_shapes: true,
         include_websocket_shapes: true,
       }),
@@ -327,6 +334,7 @@ describeBrowser("CdpBrowserProvider: complete sensitive data", () => {
     expect(result.value.network.requests[0]?.body_shapes).toMatchObject({
       status: "partial",
       request: expect.any(Object),
+      // The security-relevant claim: malformed base64 never yields a shape.
       response: null,
     });
     expect(result.value.network.websocket_events[1]).toMatchObject({

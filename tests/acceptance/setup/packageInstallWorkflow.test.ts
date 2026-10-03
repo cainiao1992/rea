@@ -106,11 +106,13 @@ describe("package installation workflows", () => {
       ({ run }: { readonly run?: unknown }) => run === "npm run verify:package",
     );
     const npmPublishIndex = publishSteps.findIndex(
-      ({ run }: { readonly run?: unknown }) =>
-        run === "npm publish --access public",
+      ({ name }: { readonly name?: unknown }) => name === "Publish",
     );
     expect(verifyPackageIndex).toBeGreaterThanOrEqual(0);
     expect(npmPublishIndex).toBeGreaterThan(verifyPackageIndex);
+    expect(publishSteps[npmPublishIndex]?.run).toContain(
+      "npm publish --access public",
+    );
 
     const publishedCanary = publishSteps.find(
       ({ name }: { readonly name?: unknown }) =>

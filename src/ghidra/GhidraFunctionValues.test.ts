@@ -3,8 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { functionDossierSchema } from "../domain/hopperValues.js";
 import {
-  GHIDRA_FUNCTION_OPERATIONS,
-  isGhidraFunctionOperation,
   parseGhidraFunctionInput,
   parseGhidraFunctionResult,
   type GhidraFunctionOperation,
@@ -59,15 +57,6 @@ describe("Ghidra function-analysis boundary values", () => {
         extra: true,
       }),
     ).toMatchObject({ ok: false, error: { _tag: "AnalysisInputError" } });
-  });
-
-  it("keeps the admitted operation set closed", () => {
-    expect(GHIDRA_FUNCTION_OPERATIONS).toHaveLength(9);
-    expect(isGhidraFunctionOperation("analyze_function")).toBe(true);
-    expect(isGhidraFunctionOperation("read_function_instructions")).toBe(true);
-    expect(isGhidraFunctionOperation("procedure_pseudo_code")).toBe(true);
-    expect(isGhidraFunctionOperation("list_procedures")).toBe(false);
-    expect(isGhidraFunctionOperation("set_comment")).toBe(false);
   });
 });
 

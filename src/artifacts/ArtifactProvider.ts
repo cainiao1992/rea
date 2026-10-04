@@ -7,9 +7,12 @@ import {
   type ProviderIdentity,
   type ExecutionOptions,
 } from "../application/AnalysisProvider.js";
+import { inspectBundleKeyedArchive } from "./KeyedArchiveReader.js";
+import { basename, dirname } from "node:path";
 import { inventoryArtifact } from "../application/ArtifactInventory.js";
 import { extractArtifact } from "../application/ArtifactExtraction.js";
 import { analyzeInterfaceBuilderBundle } from "../application/InterfaceBuilderAnalysis.js";
+import { analyzeAppleAssetCatalogs } from "../application/AppleAssetCatalogAnalysis.js";
 import {
   ARTIFACT_ANALYSIS_OPERATIONS,
   artifactInventoryInputSchema,
@@ -38,34 +41,47 @@ const IDENTITY: ProviderIdentity = Object.freeze(ARTIFACT_GRAPH_PROVIDER);
 
 /** Read-only inventory and exclusively owned extraction provider. */
 export class ArtifactProvider implements AnalysisProvider {
+  readonly #capabilities: readonly CapabilityDescriptor[];
+
   constructor(
     private readonly nativeMountEnabled = false,
     private readonly integrityContinueEnabled = false,
-  ) {}
-
-  readonly #capabilities: readonly CapabilityDescriptor[] = Object.freeze(
-    ARTIFACT_ANALYSIS_OPERATIONS.map((operation) =>
-      Object.freeze({
-        provider: IDENTITY,
-        operation,
-        available: true as const,
-        reason: null,
-        effects: Object.freeze({
-          mutatesArtifact: false,
-          launchesProcess: operation !== "decode_interface_builder",
-          mayShowUi: false,
-          mayAccessNetwork: false,
-          mayWriteFilesystem: operation === "extract_artifact",
-          changesPermissions: false,
-          requiresRoot: false,
-        }),
-        limitations: Object.freeze([
-          "DMG child inventory is macOS-only and requires per-call approval plus operator policy; PKG remains root-hash-only.",
-          "ASAR files discovered in filesystem-backed inventories are expanded without bulk extraction; other nested containers remain recorded only.",
-        ]),
+    platform: NodeJS.Platform = process.platform,
+  ) {
+    this.#capabilities = Object.freeze(
+      ARTIFACT_ANALYSIS_OPERATIONS.map((operation) => {
+        const common = {
+          provider: IDENTITY,
+          operation,
+          effects: Object.freeze({
+            mutatesArtifact: false,
+            launchesProcess:
+              operation !== "decode_interface_builder" &&
+              operation !== "inspect_keyed_archive",
+            mayShowUi: false,
+            mayAccessNetwork: false,
+            mayWriteFilesystem: operation === "extract_artifact",
+            changesPermissions: false,
+            requiresRoot: false,
+          }),
+          limitations: Object.freeze([
+            "DMG child inventory is macOS-only and requires per-call approval plus operator policy; PKG remains root-hash-only.",
+            "ASAR files discovered in filesystem-backed inventories are expanded without bulk extraction; other nested containers remain recorded only.",
+          ]),
+        };
+        return Object.freeze(
+          operation === "inspect_asset_catalog" && platform !== "darwin"
+            ? {
+                ...common,
+                available: false as const,
+                availabilityCode: "unsupported_host" as const,
+                reason: "Apple asset catalogs require macOS assetutil.",
+              }
+            : { ...common, available: true as const, reason: null },
+        );
       }),
-    ),
-  );
+    );
+  }
 
   identity(): ProviderIdentity {
     return IDENTITY;
@@ -138,6 +154,53 @@ class ArtifactClient implements AnalysisClient {
           }),
         );
       }
+      if (operation === "inspect_keyed_archive") {
+        const standalone =
+          this.target.kind === "artifact" && this.target.format === "plist";
+        if (
+          standalone &&
+          parameters.path !== undefined &&
+          parameters.path !== "." &&
+          parameters.path !== basename(this.target.path)
+        )
+          throw new ArtifactReaderFailure(
+            "path",
+            "For an active plist, path must select that archive (omit path or use its basename)",
+          );
+        const bundlePath = standalone
+          ? dirname(this.target.path)
+          : this.target.sourcePath;
+        if (
+          bundlePath === undefined ||
+          (!standalone && !bundlePath.toLowerCase().endsWith(".app"))
+        )
+          throw new ArtifactReaderFailure(
+            "unavailable",
+            "inspect_keyed_archive requires an active plist or .app bundle",
+          );
+        const result = await inspectBundleKeyedArchive({
+          bundlePath,
+          targetSha256: this.target.sha256,
+          parameters: standalone
+            ? { ...parameters, path: basename(this.target.path) }
+            : parameters,
+          ...(options?.signal === undefined ? {} : { signal: options.signal }),
+        });
+        if (standalone && result.archive_sha256 !== this.target.sha256)
+          throw new ArtifactReaderFailure(
+            "integrity",
+            `Active archive digest changed: expected ${this.target.sha256}, observed ${result.archive_sha256}`,
+          );
+        return ok(
+          createAnalysisExecution(result, IDENTITY, {
+            limitations: result.limitations,
+            locations: [{ kind: "artifact-path", path: result.archive_path }],
+          }),
+        );
+      }
+      if (operation === "inspect_asset_catalog") {
+        return await this.inspectAssetCatalog(parameters, options);
+      }
       if (operation === "extract_artifact") {
         const parsed = artifactExtractionExecutionSchema.parse(parameters);
         const result = await extractArtifact(
@@ -186,6 +249,37 @@ class ArtifactClient implements AnalysisClient {
 
   close(): Promise<void> {
     return Promise.resolve();
+  }
+
+  private async inspectAssetCatalog(
+    parameters: Readonly<Record<string, JsonValue>>,
+    options?: ExecutionOptions,
+  ) {
+    const bundlePath = this.target.sourcePath;
+    if (
+      this.target.kind !== "executable" ||
+      bundlePath === undefined ||
+      !bundlePath.toLowerCase().endsWith(".app")
+    )
+      throw new ArtifactReaderFailure(
+        "unavailable",
+        "inspect_asset_catalog requires an active .app bundle target",
+      );
+    const result = await analyzeAppleAssetCatalogs({
+      bundlePath,
+      targetSha256: this.target.sha256,
+      page: parameters,
+      ...(options?.signal === undefined ? {} : { signal: options.signal }),
+    });
+    return ok(
+      createAnalysisExecution(result, IDENTITY, {
+        limitations: result.limitations,
+        locations: result.catalogs.map(({ path }) => ({
+          kind: "artifact-path" as const,
+          path,
+        })),
+      }),
+    );
   }
 
   private async inspectArtifact(

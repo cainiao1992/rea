@@ -71,6 +71,10 @@ it("does not launch when policy denies capture", async () => {
   expect(result.ok).toBe(false);
   if (result.ok) throw new Error("expected policy refusal");
   expect(result.error).toBeInstanceOf(ProcessCaptureError);
+  expect(result.error).toMatchObject({
+    userCategory: "permission_required",
+    message: "process capture is disabled",
+  });
 });
 
 itWithCaptureCapability(
@@ -245,6 +249,11 @@ itWithCaptureCapability(
     expect(output).toContain("input:answer unicode:雪");
     expect(output).toContain("resize:100x40");
     expect(output).toContain("signal:SIGINT");
+    const resized = result.value.rendered_frames.find(
+      ({ columns, rows }) => columns === 100 && rows === 40,
+    );
+    expect(resized).toBeDefined();
+    expect(resized?.lines.join("\n")).toContain("input:answer unicode:雪");
     expect(result.value.exit.code).toBe(0);
   },
 );

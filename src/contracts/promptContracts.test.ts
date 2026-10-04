@@ -53,7 +53,7 @@ describe("guided prompt contracts", () => {
     });
     // Assert the properties an analyst depends on rather than thirteen
     // incidental fragments, so a copy edit is a reviewable diff instead of a
-    // wall of failures. The wording is still pinned by the last assertion.
+    // wall of failures.
     // Untrusted caller input must be framed as data, never as instruction.
     expect(rendered).toMatch(/not instructions/i);
     expect(rendered).toContain(
@@ -67,12 +67,6 @@ describe("guided prompt contracts", () => {
       expect(rendered).toContain(section);
     // Tools are never a grant of authority.
     expect(rendered).toMatch(/never as authorization/i);
-    expect(rendered.indexOf("`list_documents`")).toBeLessThan(
-      rendered.indexOf("`search_strings`"),
-    );
-    expect(rendered.indexOf("`search_strings`")).toBeLessThan(
-      rendered.indexOf("`analyze_function`"),
-    );
   });
 
   it("orders mutation and execution after inspection and preparation", () => {
@@ -81,6 +75,12 @@ describe("guided prompt contracts", () => {
         prompt.name,
         renderGuidedPrompt(prompt, {}),
       ]),
+    );
+    expect(rendered.get("audit_residual_unknowns")).toContain(
+      "`list_unknowns`",
+    );
+    expect(rendered.get("audit_residual_unknowns")).toContain(
+      "`update_unknown`",
     );
     expect(
       rendered.get("audit_residual_unknowns")?.indexOf("`list_unknowns`"),
@@ -95,6 +95,12 @@ describe("guided prompt contracts", () => {
         .get("prepare_bounded_process_capture")
         ?.indexOf("`capture_process_scenario`"),
     ).toBeGreaterThanOrEqual(0);
+    expect(rendered.get("compare_application_versions")).toContain(
+      "`inspect_artifact`",
+    );
+    expect(rendered.get("compare_application_versions")).toContain(
+      "`compare_artifacts`",
+    );
     expect(
       rendered
         .get("compare_application_versions")

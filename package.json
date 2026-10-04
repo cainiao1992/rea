@@ -42,6 +42,7 @@
     "dist",
     "install.sh",
     "bridge/hopper_bridge.py",
+    "bridge/native/ReaNativeUI.swift",
     "bridge/ghidra/ReaGhidraBridge.java",
     "scripts/rea.mjs",
     "scripts/electron-active-hook.cjs",
@@ -116,6 +117,9 @@
     "typecheck": "tsc --noEmit",
     "verify:test-temp-hygiene": "npm run build:cached && node scripts/verify-test-temp-hygiene.mjs",
     "verify:hopper": "npm run verify:fixtures && npm run build:cached && node scripts/verify-real-hopper.mjs",
+    "verify:apple-dispatch": "npm run build:cached && node scripts/verify-apple-dispatch.mjs",
+    "verify:native-ui": "npm run build:cached && node scripts/verify-native-ui.mjs",
+    "verify:keyed-archive": "npm run build:cached && node scripts/verify-keyed-archive.mjs",
     "verify:ghidra": "npm run build:cached && node scripts/verify-real-ghidra.mjs",
     "verify:ghidra:aarch64-jump-table": "npm run build:cached && node scripts/verify-real-ghidra.mjs --aarch64-jump-table",
     "verify:interface-builder": "npm run build:cached && node scripts/verify-interface-builder.mjs",
@@ -150,7 +154,9 @@
     "docs:check:built": "node scripts/generate-package-metadata.mjs --check && node scripts/generate-mcp-tool-catalog.mjs --check && node scripts/generate-skill-metadata.mjs --check && node scripts/generate-product-catalog.mjs --check && node scripts/generate-completion-ledger.mjs --check && node scripts/check-doc-facts.mjs && node scripts/generate-error-schema.mjs --check",
     "docs:error-schema": "npm run build:cached && node scripts/generate-error-schema.mjs",
     "prepack": "node scripts/prepack.mjs",
-    "prepare": "node scripts/prepare.mjs"
+    "prepare": "node scripts/prepare.mjs",
+    "verify:asset-catalog": "npm run build:cached && node scripts/verify-asset-catalog.mjs",
+    "verify:native-ui:permissions": "npm run build:cached && node scripts/verify-native-ui.mjs --allow-permission-denial"
   },
   "lint-staged": {
     "*.{cjs,cts,js,jsx,mjs,mts,ts,tsx}": [

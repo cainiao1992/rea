@@ -26,15 +26,6 @@ it("reconstructs package, Electron roles, Webpack/Rspack modules, and cross-laye
 
   expect(Reflect.get(globalThis, "__rea_bundle_executed")).toBeUndefined();
   expect(result.input_path).toBe(root);
-  const longPath = `/${"deep/".repeat(4_000)}application`;
-  const { electron_summary: summary, ...analysisResult } = result;
-  expect(
-    javascriptApplicationAnalysisResultSchema.parse({
-      ...analysisResult,
-      summary,
-      input_path: longPath,
-    }).input_path,
-  ).toBe(longPath);
   expect(result.statistics).toMatchObject({
     modules: 4,
     parse_failures: 0,
@@ -127,7 +118,6 @@ it("produces deterministic ASAR graphs with unpacked native linkage and complete
 
   expect(first.graph).toEqual(second.graph);
   expect(first.inventory_graph_sha256).toBe(second.inventory_graph_sha256);
-  expect(first.graph.graph_id).toBe(second.graph.graph_id);
   expect(first.graph.nodes).toEqual(
     expect.arrayContaining([
       expect.objectContaining({

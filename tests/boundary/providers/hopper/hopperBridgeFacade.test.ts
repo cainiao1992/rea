@@ -22,6 +22,25 @@ const probeResultSchema = z.strictObject({
   current_document: z.literal("fixture"),
   current_address: z.literal("0x401000"),
   strings: z.strictObject({ "0x401234": z.literal("fixture string") }),
+  inventory_replies: z.array(
+    z.strictObject({
+      id: z.number().int(),
+      result: z.array(
+        z.strictObject({ address: z.string(), value: z.string() }),
+      ),
+    }),
+  ),
+  provider_faults: z.array(
+    z.strictObject({
+      id: z.literal(1),
+      error: z.strictObject({
+        code: z.literal(-32000),
+        message: z.string(),
+        type: z.literal("bridge_exception"),
+      }),
+    }),
+  ),
+  malformed_requests: z.array(z.unknown()),
   session_document_reused: z.literal(true),
   shared_document_shutdown: z.strictObject({
     shutdown: z.literal(true),
@@ -87,6 +106,52 @@ describe("Hopper API facade", () => {
       },
     );
     const result = probeResultSchema.parse(JSON.parse(stdout));
+    expect(result.provider_faults.map((reply) => reply.error.message)).toEqual([
+      "TypeError: Hopper bridge operation failed",
+      "ValueError: Hopper bridge operation failed",
+      "KeyError: Hopper bridge operation failed",
+    ]);
+    expect(result.malformed_requests).toEqual([
+      ...[0, 0, 0, 0, 0, 2, 3, 0, 4, 5, 6, 7].map((id) => ({
+        id,
+        error: {
+          code: -32000,
+          type: "invalid_request",
+          message: "Invalid Hopper bridge request",
+        },
+      })),
+      {
+        id: 8,
+        error: {
+          code: -32000,
+          type: "authorization",
+          message: "Invalid bridge capability",
+        },
+      },
+      { id: 9, result: "0x401000" },
+    ]);
+    expect(result.inventory_replies).toEqual([
+      {
+        id: 1,
+        result: [
+          { address: "0x2", value: "string-2" },
+          { address: "0x10", value: "string-16" },
+          { address: "0x100", value: "string-256" },
+        ],
+      },
+      {
+        id: 2,
+        result: [
+          { address: "0x2", value: "name-2" },
+          { address: "0x10", value: "name-16" },
+          { address: "0x100", value: "name-256" },
+        ],
+      },
+      { id: 3, result: [{ address: "0x10", value: "string-16" }] },
+      { id: 4, result: [{ address: "0x10", value: "name-16" }] },
+      { id: 5, result: [] },
+      { id: 6, result: [] },
+    ]);
     expect(stdout).not.toContain("supersecret");
     expect(result.analysis_guard.message).toContain(
       "requires completed Hopper background analysis",

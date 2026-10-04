@@ -32,6 +32,7 @@ import { verifyHopperFunctionBasics } from "./lib/real-hopper-function-basics.mj
 import { openAndVerifyLargeFixture } from "./lib/real-hopper-exhaustive-search.mjs";
 import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
 import { requireHopperSelection } from "./lib/real-hopper-selection.mjs";
+import { verifyHopperInventories } from "./lib/real-hopper-inventory.mjs";
 import { startUnrelatedHopperSentinel } from "./lib/unrelated-hopper-sentinel.mjs";
 const execFileAsync = promisify(execFile);
 const verifierRun = createVerifierRun();
@@ -310,6 +311,7 @@ try {
     options,
   );
   requireSuccessfulTool(overview, "binary_overview");
+  const inventoryCounts = await verifyHopperInventories(client, options);
   requireEvidenceProvider(
     documents,
     "list_documents",
@@ -442,6 +444,7 @@ try {
     segmentCount: firstOverview.segment_count,
     analyses: [firstAnalysis, secondAnalysis],
     fixtureAnalysis,
+    inventoryCounts,
     largeInventory,
     fixtureManifest: fixtureTargets.manifestPath,
     bundledMcpRunning,

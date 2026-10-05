@@ -129,23 +129,22 @@ jobs:
           verification_root="$(mktemp -d)"
           trap 'rm -rf -- "${verification_root}"' EXIT
           cd "${verification_root}"
-          for attempt in $(seq 1 20); do
-            published_version="$(npm view "rea-agents@${version}" version --json 2>/dev/null || true)"
+          for attempt in $(seq 1 80); do
+            published_version="$(npm view --prefer-online "rea-agents@${version}" version --json 2>/dev/null || true)"
             if [ "${published_version}" = "\"${version}\"" ]; then
-              if npm exec --yes --package="rea-agents@${version}" -- rea --help \
-                && npm exec --yes --package="rea-agents@${version}" -- rea --llms \
-                && node "${GITHUB_WORKSPACE}/scripts/verify-published-package.mjs" "${version}"; then
-                exit 0
-              fi
-              echo "Published rea-agents@${version} is visible, but CLI verification failed on attempt ${attempt}" >&2
+              echo "rea-agents@${version} is visible on npm after attempt ${attempt}; verifying the published CLI."
+              npm exec --yes --package="rea-agents@${version}" -- rea --help
+              npm exec --yes --package="rea-agents@${version}" -- rea --llms
+              node "${GITHUB_WORKSPACE}/scripts/verify-published-package.mjs" "${version}"
+              exit 0
             else
-              echo "rea-agents@${version} is not visible on npm yet (attempt ${attempt}/20)" >&2
+              echo "rea-agents@${version} is not visible on npm yet (attempt ${attempt}/80; up to 20 minutes)" >&2
             fi
-            if [ "${attempt}" -lt 20 ]; then
+            if [ "${attempt}" -lt 80 ]; then
               sleep 15
             fi
           done
-          echo "Published rea-agents@${version} failed registry and CLI verification" >&2
+          echo "rea-agents@${version} did not become visible on npm within 20 minutes" >&2
           exit 1
 
   publish-mcp:

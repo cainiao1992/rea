@@ -1,4 +1,5 @@
 import type {
+  BrowserContext,
   ConsoleMessage,
   Download,
   Frame,
@@ -34,6 +35,9 @@ type UnindexedEvent = BrowserScenarioEvent extends infer Event
 
 interface EventCaptureOptions {
   readonly page: Page;
+  readonly context?: BrowserContext;
+  /** A fresh launch context is wholly owned; connected contexts can contain other tabs. */
+  readonly ownsContext?: boolean;
   readonly enabled: ReadonlySet<EventName>;
   readonly secrets: BrowserScenarioSecrets;
 }
@@ -45,10 +49,41 @@ export class PlaywrightScenarioEvents {
   private sequence = 0;
   private readonly enabled: ReadonlySet<EventName>;
   private readonly secrets: BrowserScenarioSecrets;
+  private readonly ownsContext: boolean;
+  private readonly pages = new Set<Page>();
+  private readonly incompleteFamilies = new Set<EventName>();
 
   constructor(options: EventCaptureOptions) {
     this.enabled = options.enabled;
     this.secrets = options.secrets;
+    this.ownsContext = options.ownsContext === true;
+    this.pages.add(options.page);
+    if (this.ownsContext && this.enabled.size > 0)
+      (options.context ?? options.page.context()).on("page", (page) =>
+        this.popup(page),
+      );
+    if (this.enabled.has("network")) {
+      const context = options.context ?? options.page.context();
+      const inScope = (request: Request): boolean => {
+        if (this.ownsContext) return true;
+        try {
+          return this.pages.has(request.frame().page());
+        } catch {
+          // Initial popup navigations can lack a frame. Never guess ownership
+          // from a URL in a shared context; connect captures are attach-limited.
+          return false;
+        }
+      };
+      context.on("request", (request) => {
+        if (inScope(request)) this.request("request", request);
+      });
+      context.on("response", (response) => {
+        if (inScope(response.request())) this.response(response);
+      });
+      context.on("requestfailed", (request) => {
+        if (inScope(request)) this.request("request-failed", request);
+      });
+    }
     this.observePage(options.page);
   }
 
@@ -62,6 +97,20 @@ export class PlaywrightScenarioEvents {
 
   lastSequence(): number {
     return this.sequence;
+  }
+
+  /** Report selected popup event families with unrecoverable pre-discovery gaps. */
+  limitations(): readonly string[] {
+    const popupGaps = [...this.incompleteFamilies].map(
+      (family) =>
+        `Popup ${family} events before Page discovery are unavailable; later events are retained.`,
+    );
+    return this.enabled.has("network") && !this.ownsContext
+      ? [
+          "Shared-context network capture excludes requests without a known root or descendant Page frame.",
+          ...popupGaps,
+        ]
+      : popupGaps;
   }
 
   result(): {
@@ -98,13 +147,6 @@ export class PlaywrightScenarioEvents {
             error.stack === undefined ? null : this.secrets.redact(error.stack),
         });
       });
-    if (this.enabled.has("network")) {
-      page.on("request", (request) => this.request("request", request));
-      page.on("response", (response) => this.response(response));
-      page.on("requestfailed", (request) =>
-        this.request("request-failed", request),
-      );
-    }
     if (this.enabled.has("websockets"))
       page.on("websocket", (socket) => this.webSocket(socket));
     if (this.enabled.has("frames")) {
@@ -116,9 +158,8 @@ export class PlaywrightScenarioEvents {
     }
     if (this.enabled.has("workers"))
       page.on("worker", (worker) => this.worker(worker));
-    // Every selectable event can also be emitted by a child popup page, and a
-    // popup is only reachable through this one subscription, so any selection at
-    // all must observe popups. Lifecycle events stay gated on `popups` below.
+    // Any selected family needs descendant discovery in shared contexts.
+    // Popup lifecycle records remain gated on their own selector below.
     if (this.enabled.size > 0) page.on("popup", (popup) => this.popup(popup));
     if (this.enabled.has("downloads"))
       page.on("download", (download) => this.download(download));
@@ -241,6 +282,15 @@ export class PlaywrightScenarioEvents {
   }
 
   private popup(page: Page): void {
+    if (this.pages.has(page)) return;
+    this.pages.add(page);
+    for (const family of [
+      "frames",
+      "workers",
+      "websockets",
+      "downloads",
+    ] as const)
+      if (this.enabled.has(family)) this.incompleteFamilies.add(family);
     const opened = {
       url: page.url() === "" ? null : this.safeUrl(page.url()),
       name: null,

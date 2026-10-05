@@ -515,3 +515,53 @@ describe("provider process spawning primitives", () => {
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
 });
+
+describe("provider process configured-platform spawning", () => {
+  it.skipIf(process.platform === "win32")(
+    "uses the configured platform when establishing process-group identity",
+    async () => {
+      const windowsConfigured = await spawnOwnedProviderProcess({
+        command: process.execPath,
+        arguments: [processFixturePath, "graceful"],
+        runId: "provider-process-configured-win32-run",
+        platform: "win32",
+      });
+      const posixConfigured = await spawnOwnedProviderProcess({
+        command: process.execPath,
+        arguments: [processFixturePath, "graceful"],
+        runId: "provider-process-configured-posix-run",
+        platform: "linux",
+      });
+      try {
+        await Promise.all([
+          waitForProviderProcessReady(windowsConfigured.process),
+          waitForProviderProcessReady(posixConfigured.process),
+        ]);
+        await expect(
+          observeOwnedProcessLineage(windowsConfigured.ownership),
+        ).resolves.toMatchObject({
+          status: "unavailable",
+          reason: "owned launcher process-group identity did not match",
+          launcherPid: windowsConfigured.process.pid,
+        });
+        await expect(
+          observeOwnedProcessLineage(posixConfigured.ownership),
+        ).resolves.toMatchObject({
+          status: "verified",
+          lineage: {
+            runId: "provider-process-configured-posix-run",
+            launcherPid: posixConfigured.process.pid,
+            launcherParentPid: process.pid,
+            processGroupId: posixConfigured.process.pid,
+            descendants: [],
+          },
+        });
+      } finally {
+        await Promise.all([
+          stopProviderProcessFixture(windowsConfigured.process),
+          stopProviderProcessFixture(posixConfigured.process),
+        ]);
+      }
+    },
+  );
+});

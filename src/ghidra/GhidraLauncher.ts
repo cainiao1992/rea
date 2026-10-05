@@ -131,6 +131,7 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
         // the per-process run token remain the cleanup authority.
         expectedCommand: null,
         windowsVerbatimArguments: platform === "win32",
+        platform,
         env: ghidraLaunchEnvironment(paths, this.options.javaHome, platform),
       });
       await writeFileAtomic(

@@ -113,7 +113,8 @@ const contextualCandidate = (
 ): string | ArtifactPathResolution => {
   const { context } = input;
   const declared =
-    context === "module-specifier" || context === "html-reference"
+    context === "html-reference" ||
+    (context === "module-specifier" && input.moduleKind !== "require")
       ? stripQueryAndFragment(input.declaredPath)
       : input.declaredPath;
   if (context === "html-reference") return htmlCandidate(input);

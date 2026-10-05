@@ -162,6 +162,7 @@ export type ElectronUtilityProcessFinding = ElectronUtilityProcessFindingState &
 export interface ElectronNativeAddonBindingFinding {
   readonly specifier: string;
   readonly binding_kind: "import" | "require" | "re-export";
+  readonly module_kind: "import" | "require";
   readonly members: readonly string[];
   readonly module_key: string | null;
   readonly location: JavaScriptSourceRange;

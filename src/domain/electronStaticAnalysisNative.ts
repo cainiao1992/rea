@@ -17,6 +17,7 @@ interface NativeBindingInput {
   readonly node: t.Node;
   readonly specifier: string;
   readonly kind: ElectronNativeAddonBindingFinding["binding_kind"];
+  readonly moduleKind: ElectronNativeAddonBindingFinding["module_kind"];
   readonly members: readonly string[];
 }
 
@@ -36,7 +37,7 @@ const inspectImport = (
   node: t.ImportDeclaration,
   context: JavaScriptFindingContext,
 ): void => {
-  if (!isNativeSpecifier(node.source.value)) return;
+  if (!isNativeSpecifier(node.source.value, "import")) return;
   const members = node.specifiers.map((specifier) => {
     if (t.isImportDefaultSpecifier(specifier)) return "default";
     if (t.isImportNamespaceSpecifier(specifier)) return "*";
@@ -47,6 +48,7 @@ const inspectImport = (
     node,
     specifier: node.source.value,
     kind: "import",
+    moduleKind: "import",
     members,
   });
 };
@@ -58,7 +60,7 @@ const inspectNamedExport = (
   if (
     node.source === null ||
     node.source === undefined ||
-    !isNativeSpecifier(node.source.value)
+    !isNativeSpecifier(node.source.value, "import")
   )
     return;
   const members = node.specifiers.map((specifier) => {
@@ -70,6 +72,7 @@ const inspectNamedExport = (
     node,
     specifier: node.source.value,
     kind: "re-export",
+    moduleKind: "import",
     members,
   });
 };
@@ -78,13 +81,17 @@ const inspectExportAll = (
   node: t.ExportAllDeclaration,
   context: JavaScriptFindingContext,
 ): void => {
-  if (node.source === undefined || !isNativeSpecifier(node.source.value))
+  if (
+    node.source === undefined ||
+    !isNativeSpecifier(node.source.value, "import")
+  )
     return;
   addBinding({
     context,
     node,
     specifier: node.source.value,
     kind: "re-export",
+    moduleKind: "import",
     members: ["*"],
   });
 };
@@ -100,6 +107,7 @@ const inspectRequireBinding = (
     node,
     specifier: required.specifier,
     kind: "require",
+    moduleKind: "require",
     members:
       required.member === null ? bindingMembers(node.id) : [required.member],
   });
@@ -116,6 +124,7 @@ const inspectReExport = (
     node,
     specifier: required.specifier,
     kind: "re-export",
+    moduleKind: "require",
     members: [required.member ?? exportedMember(node.left) ?? "*"],
   });
 };
@@ -133,6 +142,7 @@ const addBinding = (input: NativeBindingInput): void => {
     value: {
       specifier,
       binding_kind: kind,
+      module_kind: input.moduleKind,
       members,
       module_key: null,
       location: range(node),
@@ -162,7 +172,7 @@ const nativeRequire = (
   )
     return undefined;
   const specifier = stringValue(argumentNode(node.arguments[0]));
-  return specifier !== undefined && isNativeSpecifier(specifier)
+  return specifier !== undefined && isNativeSpecifier(specifier, "require")
     ? { specifier, member: null }
     : undefined;
 };
@@ -193,7 +203,13 @@ const exportedMember = (node: t.Node): string | undefined => {
   return undefined;
 };
 
-const isNativeSpecifier = (specifier: string): boolean => {
-  const path = specifier.split("#", 1)[0]?.split("?", 1)[0] ?? "";
+const isNativeSpecifier = (
+  specifier: string,
+  moduleKind: ElectronNativeAddonBindingFinding["module_kind"],
+): boolean => {
+  const path =
+    moduleKind === "require"
+      ? specifier
+      : (specifier.split("#", 1)[0]?.split("?", 1)[0] ?? "");
   return path.toLowerCase().endsWith(".node");
 };

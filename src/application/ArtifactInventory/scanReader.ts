@@ -73,6 +73,12 @@ export const scanReader = async (
     registry: new ArtifactPathRegistry(),
   };
   await visitArtifactEntries(context, reader, "");
+  // Archive directories may appear after their children. Resolve containment
+  // against the complete index before directory identities are materialized.
+  for (const occurrence of occurrences)
+    occurrence.parent_occurrence_id =
+      nearestParent(occurrence.logical_path, context.occurrenceByPath)
+        ?.occurrence_id ?? null;
   return { nodes, occurrences, pendingContradictions };
 };
 
@@ -115,12 +121,7 @@ const visitArtifactEntries = async (
         logicalPath,
         expandableAsar ? "directory" : entry.kind,
       );
-      const parent = nearestParent(logicalPath, context.occurrenceByPath);
-      const occurrence = createOccurrence(
-        entry,
-        logicalPath,
-        parent?.occurrence_id ?? null,
-      );
+      const occurrence = createOccurrence(entry, logicalPath, null);
       let digested:
         | { readonly node: ArtifactNode; readonly mismatched: boolean }
         | undefined;

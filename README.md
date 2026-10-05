@@ -19,6 +19,12 @@
 
 <img src="docs/assets/rea-hopper-analysis.png" alt="REA launching its analysis bridge inside Hopper while inspecting a native binary" width="1200" />
 
+<br />
+
+<code>npx rea-agents setup</code>
+
+<br />
+
 <table aria-label="REA community">
 <tr>
 <td align="center" width="360">
@@ -30,10 +36,6 @@
 </td>
 </tr>
 </table>
-
-<br />
-
-<code>npx rea-agents setup</code>
 
 <br />
 

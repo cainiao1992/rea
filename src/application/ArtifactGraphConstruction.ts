@@ -81,7 +81,8 @@ export const materializeDirectoryNodes = (
   for (const directory of directories) {
     const children = (childrenByParent.get(directory.occurrence_id) ?? [])
       .map(({ logical_path, artifact_id, entry_kind }) => ({
-        name: logical_path.split("/").at(-1),
+        // Intermediate directory entries may be absent from an archive.
+        name: logical_path.slice(directory.logical_path.length + 1),
         artifact_id,
         entry_kind,
       }))

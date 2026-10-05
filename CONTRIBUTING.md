@@ -96,8 +96,16 @@ Run the full checks, isolated package verifier, package dry run, and two-target 
 
 ```bash
 npm pack
-npm exec --yes --package ./morluto-rea-0.1.0.tgz -- rea --help
 ```
+
+Use the exact filename printed by `npm pack` to run the packaged executable:
+
+```bash
+npm exec --yes --package ./rea-agents-VERSION.tgz -- rea --help
+```
+
+Replace `VERSION` with the packed version; do not use a tarball from an earlier
+build.
 
 Publish the public package:
 
@@ -110,6 +118,6 @@ After npm registry propagation, verify the published CLI and connect the client 
 ```bash
 npx -y rea-agents@latest --help
 npx -y rea-agents@latest doctor
-npx -y rea-agents@latest setup --yes
+npx -y rea-agents@latest setup --yes --all-detected
 npx -y rea-agents@latest mcp
 ```

@@ -7,7 +7,7 @@ are `trace_application_feature`, `trace_javascript_semantics`,
 `compare_javascript_export_shapes`; their CLI equivalents use the same names
 with hyphens.
 
-Both workflows consume Evidence produced by
+These workflows consume Evidence produced by
 `analyze_javascript_application` or `reconcile_javascript_runtime`. They do not
 read an artifact, execute application code, attach to a process, or open a
 native-analysis provider. Static artifact observations, passive runtime

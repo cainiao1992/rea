@@ -1,26 +1,31 @@
 # Managed-code analysis plan
 
-This document turns
-[ADR-0003](adr/0003-managed-code-evidence-and-provider-boundary.md) into an
-implementation and verification plan. REA currently ships read-only PE/CLI
-triage and exact identity through `inspect_managed_artifact` and
-`rea inspect-managed-artifact`, plus file-backed metadata, signature,
-method-body CIL, exception-region, call-edge, and field-access inspection
-through `inspect_managed_members` and `rea inspect-managed-members`, and
-declared ModuleRef/ImplMap/PInvoke and native implementation boundary inventory
-through `inspect_managed_native_boundaries` and
-`rea inspect-managed-native-boundaries`, plus obfuscation-resistant member
-comparison through `compare_managed_members` and `rea compare-managed-members`,
-managed/native export or function Evidence matching through
-`verify_managed_native_boundaries` and `rea verify-managed-native-boundaries`,
-decompiler reconstruction import through `import_managed_reconstruction` and
-`rea import-managed-reconstruction`, and default-disabled runtime-correlation
-admission planning through `plan_managed_runtime_correlation` and
-`rea plan-managed-runtime-correlation`, plus static managed graph projection
-through `project_managed_application_graph` and
-`rea project-managed-application-graph`. Native-body bridge mapping and runtime
-execution remain planned behavior. The current product inventory remains the
-one in [`product-catalog.json`](product-catalog.json).
+REA inspects .NET PE/CLI artifacts without loading or executing their code.
+It can identify an assembly, inspect metadata and CIL, compare members across
+builds, and connect declared native calls to supplied native-analysis evidence.
+CIL is Common Intermediate Language, the instruction format used by managed
+assemblies.
+
+The eight shipped tools are:
+
+| Task                                                                        | MCP tool                            |
+| --------------------------------------------------------------------------- | ----------------------------------- |
+| Identify an artifact and its managed deployment form                        | `inspect_managed_artifact`          |
+| Inspect types, signatures, method bodies, calls, and field access           | `inspect_managed_members`           |
+| List declared native calls and native implementation indicators             | `inspect_managed_native_boundaries` |
+| Compare members across builds and map build-local tokens                    | `compare_managed_members`           |
+| Check native call declarations against supplied export or function evidence | `verify_managed_native_boundaries`  |
+| Import decompiled code against verified static member identities            | `import_managed_reconstruction`     |
+| Plan a separately approved runtime experiment without executing it          | `plan_managed_runtime_correlation`  |
+| Add managed findings to an application graph                                | `project_managed_application_graph` |
+
+Each has a matching CLI command: replace underscores with hyphens and prefix
+the name with `rea`, for example `rea inspect-managed-artifact`.
+Native-body bridge mapping and runtime execution remain planned.
+
+This guide describes the implementation and verification of
+[ADR-0003](adr/0003-managed-code-evidence-and-provider-boundary.md). The canonical
+tool inventory is [`product-catalog.json`](product-catalog.json).
 
 ## Analysis objective
 

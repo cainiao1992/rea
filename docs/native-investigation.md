@@ -127,10 +127,14 @@ UI actions may change application data or trigger network activity.
 
 ## Provider and verification boundaries
 
-Ghidra 12.1.4 with a full 64-bit JDK 21 is bring-your-own. Linux x64 and macOS
-x64/arm64 are admitted; macOS requires the matching native decompiler. Windows
-x64 P0 remains limited to approved native PE applications. There is no GUI or
-mutation authority and no automatic fallback to Hopper.
+Install Ghidra 12.1.4 and a full 64-bit JDK 21 separately, then configure REA to
+use them. Ghidra analysis supports Linux x64 and macOS x64/arm64; macOS requires
+the matching native decompiler. Windows Ghidra analysis is unavailable until
+Job Object process ownership, private runtime DACLs, and reparse-safe path checks
+are implemented and verified. See [Windows Ghidra P0](windows-ghidra-p0.md) and
+[issue #527](https://github.com/morluto/rea/issues/527).
+Ghidra has no GUI or mutation authority, and REA never falls back automatically
+to Hopper.
 
 - `npm run verify:ghidra`: host-native debug/stripped targets, native type layout,
   instruction/call facts, value dependencies and process/project cleanup.
@@ -138,8 +142,12 @@ mutation authority and no automatic fallback to Hopper.
   relative tables, plus ARM64 Mach-O on an ARM64 macOS host.
 - `npm run verify:apple-dispatch`: source-built Objective-C protocols/classes and
   Swift conformances/vtables, repeated after stripping local symbols.
-- `npm run verify:native-ui`: one source-owned fixture window, selected capture
-  or a reported OS permission denial, changed-target rejection and cleanup.
+- `npm run verify:native-ui`: one source-owned fixture window, successful
+  selected-window capture and approved actions, changed-target rejection, and
+  cleanup. Missing OS permissions fail this lane.
+- `npm run verify:native-ui:permissions`: permits a permission-denial result and
+  reports `positive_e2e: false` when capture is denied. That result verifies the
+  permission boundary, not successful UI capture or actions.
 
 macOS ARM64 is the real host verified during this implementation. Admission of
 macOS Intel does not claim an Intel verification run. Unsupported metadata and

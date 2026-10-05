@@ -4,8 +4,9 @@ REA can attach to a user-owned Electron/Chromium CDP endpoint and inspect existi
 
 This passive runtime surface is distinct from the target-free static
 [`analyze_javascript_application`](javascript-artifact-reconstruction.md)
-workflow. Static analysis reads an approved ASAR or extracted directory under
-observations and static inferences are never silently treated as the same fact.
+workflow. Static analysis reads a local ASAR or extracted directory without
+executing application code. Passive observation inspects an existing Electron
+page. The results keep static inferences and runtime observations distinct.
 Use the separate
 [`reconcile_javascript_runtime`](javascript-runtime-reconciliation.md) workflow
 when both Evidence sets already exist.
@@ -18,7 +19,7 @@ The capability is disabled by default:
 export REA_ELECTRON_OBSERVE_ENABLED=true
 ```
 
-The capability is disabled by default. Its permission ceiling is loopback-only. REA accepts local hostless `file://` URLs that resolve to regular files; remote hosts, encoded path separators, and nonexistent paths are rejected. There is no separate filesystem-root configuration.
+Its permission ceiling is loopback-only. REA accepts local hostless `file://` URLs that resolve to regular files; remote hosts, encoded path separators, and nonexistent paths are rejected. There is no separate filesystem-root configuration.
 
 ## Workflow
 

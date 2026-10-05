@@ -63,34 +63,21 @@ Supported options are `--version <semver>`, `--dry-run`, `--no-setup`, `--no-pro
 
 ## Review setup changes
 
-`rea setup` uses an inline, scroll-preserving journey inspired by the clarity of
-PostHog's CLI wizard. It begins with the outcome instead of the installer
-mechanics:
+`rea setup` detects your agents and analysis tools, then asks what to configure:
 
-- investigate local applications from a supported agent;
-- recover evidence through an available deep-analysis provider;
-- use the bundled skill for a repeatable investigation workflow.
+1. Choose **Agent integration** to install the guided workflow and configure MCP
+   access. Select the agents that should receive a registration. Detected agents
+   are selected by default; deselect any you do not want to change.
+2. Select **Hopper** if you want setup to connect or install it. Setup can also
+   save verified paths for an existing Ghidra installation.
+3. Review the plan and approve it. The approval prompt defaults to **Yes**, but
+   you must confirm before REA applies changes.
 
-REA then summarizes the detected clients and asks which capabilities to set up.
-The capability picker pre-selects `Agent integration` (the MCP registration and
-matching guided workflow together) when detected agents exist, and presents the
-optional Hopper provider alongside it. Selecting agent integration opens a second
-checklist for the exact detected agents that should receive a registration; all
-detected agents are pre-selected. Detection provides context and pre-selection;
-it does not authorize a configuration write until the user confirms.
+Selecting agent integration installs the bundled workflow even if you deselect
+all agents. Choosing no capabilities exits without changes. You can cancel at
+any prompt.
 
-Because the user has explicitly invoked `rea setup`, the wizard biases toward the
-happy path: capabilities and agents are pre-selected, and the final approval
-defaults to **Yes**. The user can still deselect any item or cancel at any prompt.
-Choosing no capabilities exits without changes. Selecting agent integration
-always includes the bundled skill, even if all agents are deselected. The picker
-keeps its navigation, selection, confirmation, and cancellation keys visible
-instead of relying on a transient hint.
-
-Every selected path converges on the same exact preflight. REA validates the
-current state, prints the proposed effects, and asks for final approval with
-**Yes** as the default. Selection alone never authorizes a mutation. The plan
-identifies:
+Before applying changes, REA checks your current configuration. The plan lists:
 
 - an existing Hopper installation, a verified existing Ghidra installation, or the official Hopper package it proposes to install;
 - each detected agent configuration path;
@@ -103,13 +90,9 @@ Hopper installation or any file write. Declining, pressing Ctrl-C, or selecting
 nothing makes no changes. Agent configuration writes preserve unrelated
 entries, create backups, use atomic replacement, and verify their result.
 
-Progress remains append-only so completed and failed operations stay visible in
-terminal history. After a successful run, the completion message names the
-verified capabilities now available, such as configured MCP clients, the
-selected analysis provider, and the installed skill, and gives the corresponding
-next action. When an agent must restart to load its registration, REA says so;
-otherwise it suggests beginning an investigation. It does not advertise a
-capability that the final diagnostic check did not verify.
+After setup, REA reports which agents, analysis tools, and workflow files passed
+its final checks. Restart any agent named in the completion message, then begin
+your investigation. Failed steps and diagnostics remain in terminal history.
 
 Select exact clients in scripts with repeatable `--client` flags, or retain
 automatic discovery explicitly with `--all-detected`. Use `--skill=false` to

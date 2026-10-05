@@ -102,6 +102,76 @@ const observe = (
     },
   );
 
+describe("function comparison normalized identity", () => {
+  it.each(["sub_deallocate", "sub_deadbeef_handler", "fcn.dispatch"])(
+    "recognizes the explicit symbol %s without a generated-name prefix false positive",
+    (name) => {
+      const named = (base: "0x1000" | "0x2000") =>
+        functionDossierSchema.parse({
+          ...dossier("return 0;", base),
+          procedure: {
+            address: base,
+            name,
+            signature: "int helper(void)",
+            locals: [],
+          },
+        });
+      const result = compareFunctions(
+        observe("b", named("0x1000")),
+        observe("c", named("0x2000")),
+      );
+      expect(result.function_match).toMatchObject({
+        status: "matched",
+        method: "symbol",
+      });
+      expect(
+        result.dimensions.find(({ dimension }) => dimension === "identity"),
+      ).toMatchObject({ status: "unchanged" });
+    },
+  );
+
+  it.each(["sub_deadbeef", "fcn.00401000"])(
+    "keeps %s as an address-derived name",
+    (name) => {
+      const generated = (base: "0x1000" | "0x2000") =>
+        functionDossierSchema.parse({
+          ...dossier("return 0;", base),
+          procedure: {
+            address: base,
+            name,
+            signature: "int helper(void)",
+            locals: [],
+          },
+        });
+      const result = compareFunctions(
+        observe("d", generated("0x1000")),
+        observe("e", generated("0x2000")),
+      );
+      expect(result.function_match.status).toBe("ambiguous");
+      expect(
+        result.dimensions.find(({ dimension }) => dimension === "identity"),
+      ).toMatchObject({ status: "unknown" });
+    },
+  );
+  it.each([
+    { name: "sub_deallocate", status: "unchanged" },
+    { name: "sub_deadbeef", status: "unknown" },
+  ])("preserves the calls dimension for callee $name", ({ name, status }) => {
+    const calling = (base: "0x1000" | "0x2000") =>
+      functionDossierSchema.parse({
+        ...dossier("return helper();", base),
+        callees: [{ address: base === "0x1000" ? "0x1010" : "0x2010", name }],
+      });
+    const result = compareFunctions(
+      observe("6", calling("0x1000")),
+      observe("7", calling("0x2000")),
+    );
+    expect(
+      result.dimensions.find(({ dimension }) => dimension === "calls"),
+    ).toMatchObject({ status });
+  });
+});
+
 describe("function comparison CFG address normalization", () => {
   it("matches CFG successors by numeric address", () => {
     const make = (base: "0x1000" | "0x2000") =>

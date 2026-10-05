@@ -200,6 +200,13 @@ describe("Ghidra headless launcher", () => {
     expect(capture.environment.GHIDRA_HEADLESS_JAVA_OPTIONS).toContain(
       `-Duser.home=${join(runtimeRoot, "home")}`,
     );
+    expect(capture.environment.GHIDRA_HEADLESS_JAVA_OPTIONS).toBe(
+      `-Duser.home=${join(runtimeRoot, "home")} -Djava.io.tmpdir=${join(runtimeRoot, "tmp")}`,
+    );
+    if (process.platform === "win32")
+      expect(capture.environment.GHIDRA_HEADLESS_JAVA_OPTIONS).not.toContain(
+        '"',
+      );
     if (process.platform !== "win32")
       expect(
         (await stat(join(runtimeRoot, "ownership.json"))).mode & 0o777,

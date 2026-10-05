@@ -312,10 +312,10 @@ const ghidraLaunchEnvironment = (
   javaHome: string | undefined,
   platform: NodeJS.Platform,
 ): NodeJS.ProcessEnv => {
-  const javaOptions =
-    platform === "win32"
-      ? `"-Duser.home=${paths.homeRoot}" "-Djava.io.tmpdir=${paths.tempRoot}"`
-      : `-Duser.home=${paths.homeRoot} -Djava.io.tmpdir=${paths.tempRoot}`;
+  // analyzeHeadless.bat wraps GHIDRA_HEADLESS_JAVA_OPTIONS in its own quotes
+  // when it builds VMARG_LIST. Nested quotes break cmd.exe tokenization before
+  // Ghidra starts, so keep this option list unquoted on every platform.
+  const javaOptions = `-Duser.home=${paths.homeRoot} -Djava.io.tmpdir=${paths.tempRoot}`;
   return {
     ...ghidraJavaEnvironment(javaHome, process.env, platform),
     HOME: paths.homeRoot,

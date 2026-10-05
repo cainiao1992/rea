@@ -149,6 +149,34 @@ describe("JavaScript semantic analysis: dataflow 1", () => {
   });
 });
 
+describe("JavaScript semantic analysis: read-modify-write", () => {
+  it.each(["+= 1", "++", "--", "||= 1", "&&= 1", "??= 1"])(
+    "retains the property read in a read-modify-write operation: %s",
+    (operator) => {
+      const ir = analyzeJavaScriptSemantics(`
+        const source = { count: 1 };
+        source.count ${operator};
+      `);
+      expect(ir.objectOperations.map(({ kind }) => kind)).toEqual([
+        "read",
+        "write",
+      ]);
+    },
+  );
+
+  it("keeps plain member assignment write-only and member access read-only", () => {
+    const ir = analyzeJavaScriptSemantics(`
+      const source = { count: 1 };
+      source.count = 2;
+      const value = source.count;
+    `);
+    expect(ir.objectOperations.map(({ kind }) => kind)).toEqual([
+      "write",
+      "read",
+    ]);
+  });
+});
+
 describe("JavaScript semantic analysis: dataflow 2", () => {
   it("retains partial property coverage and empty returns", () => {
     const partial = analyzeJavaScriptSemantics(`

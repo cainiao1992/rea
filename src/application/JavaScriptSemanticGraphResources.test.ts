@@ -170,6 +170,18 @@ it("projects built-in resource acquisition and release", () => {
   ).toMatchObject({ status: "partial" });
 });
 
+it.each(["+= 1", "++"])(
+  "projects both property dependencies for %s",
+  (operator) => {
+    const graph = graphFor(`
+      const source = { count: 1 };
+      source.count ${operator};
+    `);
+    const relations = graph.relations.map(({ relation }) => relation);
+    expect(relations).toContain("reads-property");
+    expect(relations).toContain("writes-property");
+  },
+);
 it("does not project a literal property slot for dynamic destructuring", () => {
   const graph = graphFor(`
     const source = { token: "TOKEN" };

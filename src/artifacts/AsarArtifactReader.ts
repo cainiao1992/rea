@@ -1,6 +1,6 @@
 import { Readable } from "node:stream";
 
-import { extractFile, listPackage, statFile } from "@electron/asar";
+import { extractFile, listPackage, statFile, uncache } from "@electron/asar";
 
 import {
   ArtifactReaderFailure,
@@ -23,6 +23,8 @@ export class AsarArtifactReader implements ArtifactReader {
   async *entries(signal?: AbortSignal): AsyncIterable<ArtifactEntry> {
     let paths: string[];
     try {
+      // ASAR caches headers by path even after the archive has been replaced.
+      uncache(this.path);
       paths = listPackage(this.path, { isPack: false }).sort((left, right) =>
         left.localeCompare(right, "en"),
       );
@@ -103,6 +105,7 @@ export class AsarArtifactReader implements ArtifactReader {
   }
 
   close(): Promise<void> {
+    uncache(this.path);
     return Promise.resolve();
   }
 

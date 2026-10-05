@@ -238,11 +238,12 @@ const permissions = (raw: string | null) => {
   return { read: null, write: null, execute: null, raw };
 };
 
+/** A whole decimal or hexadecimal integer literal, with no surrounding text. */
+const NUMERIC_PATTERN = /^(?:0x[a-fA-F0-9]+|\d+)$/u;
+
 const numeric = (value: string): number | null => {
-  const token = value.split(/\s+/u)[0];
-  if (token === undefined || !/^(?:0x[a-fA-F0-9]+|\d+)$/u.test(token))
-    return null;
-  const parsed = Number.parseInt(token, token.startsWith("0x") ? 16 : 10);
+  if (!NUMERIC_PATTERN.test(value)) return null;
+  const parsed = Number.parseInt(value, value.startsWith("0x") ? 16 : 10);
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 };
 
@@ -275,7 +276,7 @@ const hexField = (
   name: string,
 ): string | null => {
   const value = stringField(fields, name);
-  if (value === null || !/^(?:0x[a-fA-F0-9]+|\d+)$/u.test(value)) return null;
+  if (value === null || !NUMERIC_PATTERN.test(value)) return null;
   return `0x${BigInt(value).toString(16)}`;
 };
 

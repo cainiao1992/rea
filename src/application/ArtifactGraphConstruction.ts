@@ -248,12 +248,18 @@ export const createArtifactEdges = (
 export const nearestParent = (
   path: string,
   occurrences: ReadonlyMap<string, MutableOccurrence>,
+  expandedContainerIds: ReadonlySet<string>,
 ): MutableOccurrence | undefined => {
   const parts = path.split("/");
   while (parts.length > 1) {
     parts.pop();
     const candidate = occurrences.get(parts.join("/"));
-    if (candidate?.entry_kind === "directory") return candidate;
+    if (
+      candidate !== undefined &&
+      (candidate.entry_kind === "directory" ||
+        expandedContainerIds.has(candidate.occurrence_id))
+    )
+      return candidate;
   }
   return undefined;
 };

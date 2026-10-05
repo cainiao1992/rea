@@ -403,7 +403,8 @@ const summarize = (
     unchanged: covered
       ? Math.max(
           0,
-          Math.min(left.occurrences.length, right.occurrences.length) -
+          left.occurrences.length -
+            counts.removed -
             counts.changed -
             counts.contradiction -
             counts.unknown,

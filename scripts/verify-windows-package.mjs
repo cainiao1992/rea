@@ -1,15 +1,25 @@
 #!/usr/bin/env node
 
 import { execFile } from "node:child_process";
-import { access, mkdtemp, rm } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parse as parseJsonc } from "jsonc-parser";
+import { supportedClients } from "../dist/application/SupportedClients.js";
 import { promisify } from "node:util";
 
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 
 import { verifyCompleteToolCatalog } from "./lib/verify-package-core.mjs";
+import { verifyPackageUpdate } from "./verify-package-update.mjs";
 import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
 
 const exec = promisify(execFile);
@@ -89,6 +99,117 @@ try {
     await client.close();
   }
 
+  const home = join(workspace, "home");
+  const setupEnvironment = {
+    ...environment,
+    HOME: home,
+    USERPROFILE: home,
+    APPDATA: join(home, "AppData", "Roaming"),
+    XDG_CONFIG_HOME: join(home, ".config"),
+    OPENCODE_CONFIG: join(home, ".config", "opencode", "opencode.jsonc"),
+    COPILOT_HOME: join(home, ".copilot"),
+  };
+  await mkdir(join(home, ".config", "opencode"), { recursive: true });
+  await writeFile(
+    setupEnvironment.OPENCODE_CONFIG,
+    '{\n  // preserve user settings\n  "theme": "dark",\n}\n',
+  );
+  const setupArgs = [
+    "setup",
+    "--yes",
+    "--client",
+    "opencode",
+    "--client",
+    "vscode",
+    "--client",
+    "copilot_cli",
+    "--skill=false",
+    "--json",
+  ];
+  const setup = JSON.parse(
+    (
+      await exec(process.execPath, [entry, ...setupArgs], {
+        env: setupEnvironment,
+        windowsHide: true,
+      })
+    ).stdout,
+  );
+  if (setup.status !== "ready" || setup.appliedActions.length !== 3)
+    throw new Error(
+      `Packaged agent-only setup failed: ${JSON.stringify(setup)}`,
+    );
+  const expectedCommand =
+    process.platform === "win32"
+      ? [process.execPath, entry, "mcp"]
+      : [entry, "mcp"];
+  const clients = supportedClients(home, process.platform, setupEnvironment);
+  for (const id of ["opencode", "vscode", "copilot_cli"]) {
+    const clientLocation = clients.find(({ name }) => name === id);
+    if (clientLocation === undefined)
+      throw new Error(`Missing packaged client ${id}`);
+    const text = await readFile(clientLocation.configPath, "utf8");
+    const config = parseJsonc(text);
+    const registration =
+      id === "opencode"
+        ? config.mcp?.rea
+        : id === "vscode"
+          ? config.servers?.rea
+          : config.mcpServers?.rea;
+    const actualCommand =
+      id === "opencode"
+        ? registration?.command
+        : [registration?.command, ...(registration?.args ?? [])];
+    if (JSON.stringify(actualCommand) !== JSON.stringify(expectedCommand))
+      throw new Error(
+        `Packaged ${id} has an unusable launcher: ${JSON.stringify(actualCommand)}`,
+      );
+    if (id === "opencode" && !text.includes("// preserve user settings"))
+      throw new Error("Packaged setup discarded OpenCode JSONC comments");
+  }
+  const repeated = JSON.parse(
+    (
+      await exec(process.execPath, [entry, ...setupArgs], {
+        env: setupEnvironment,
+        windowsHide: true,
+      })
+    ).stdout,
+  );
+  if (
+    repeated.status !== "ready" ||
+    repeated.plannedActions.length !== 0 ||
+    repeated.appliedActions.length !== 0
+  )
+    throw new Error("Packaged agent setup is not idempotent");
+  const uninstalled = JSON.parse(
+    (
+      await exec(process.execPath, [entry, "uninstall", "--json"], {
+        env: setupEnvironment,
+        windowsHide: true,
+      })
+    ).stdout,
+  );
+  for (const id of ["opencode", "vscode", "copilot_cli"])
+    if (
+      uninstalled.items?.find(({ name }) => name === id)?.status !== "removed"
+    )
+      throw new Error(`Packaged uninstall did not remove ${id}`);
+
+  if (process.platform !== "win32")
+    await npm(
+      ["install", "--global", "--ignore-scripts", "--prefix", prefix, tarball],
+      workspace,
+    );
+  const update = await verifyPackageUpdate({
+    prefix,
+    packageRoot:
+      process.platform === "win32"
+        ? join(prefix, "node_modules", "rea-agents")
+        : join(prefix, "lib", "node_modules", "rea-agents"),
+    tarball,
+    workspace,
+    environment,
+  });
+
   process.stdout.write(
     `${JSON.stringify({
       verifier_run: await completeVerifierRun(verifierRun),
@@ -97,6 +218,10 @@ try {
       package: packageResult.filename,
       tools: toolCount,
       ghidra_bridge: "present",
+      agent_setup: ["opencode", "vscode", "copilot_cli"],
+      setup_idempotent: true,
+      uninstall: true,
+      update,
     })}\n`,
   );
 } finally {

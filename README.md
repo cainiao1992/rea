@@ -102,7 +102,7 @@ Set up REA with your agent:
 npx rea-agents setup
 ```
 
-Choose **Agent Integration**, select your agents, then review and approve the plan. Setup configures MCP access and installs REA's guided workflow. It can connect an existing Hopper or Ghidra installation, or offer to install Hopper if you need it.
+Choose which supported agents should use REA, then review the exact paths and changes before approving. Existing REA registrations are selected by default; newly detected agents are available to select, but detection alone does not select them. Setup adds MCP access and REA's guided workflow for selected agents. Hopper is a separate optional choice with its own consent. Setup can also record an existing Ghidra installation.
 
 Setup shows its changes before applying them and backs up existing configuration. See [Installation and setup](docs/installation.md) for requirements and setup options.
 
@@ -110,7 +110,7 @@ Setup shows its changes before applying them and backs up existing configuration
 
 After setup, restart your agent and [describe the app or feature](#just-ask-your-agent) you want to understand. Hopper can run in demo mode; if it shows a first-run prompt, choose the demo or enter an existing license.
 
-REA can configure Claude Code, Claude Desktop, Codex, Cursor, Gemini CLI, and Windsurf. It detects Devin but does not configure it. Other agents can use the [manual MCP configuration](#manual-mcp-configuration).
+REA supports Claude Code, Claude Desktop, Codex, Cursor, Gemini CLI, Windsurf, Devin, OpenCode, Antigravity, GitHub Copilot CLI, and VS Code. Existing REA registrations are selected by default during setup; other detected agents remain unselected until chosen. Other agents can use the [manual MCP configuration](#manual-mcp-configuration).
 
 ### From the terminal with npx
 
@@ -138,7 +138,7 @@ npm install --global rea-agents
 rea setup
 ```
 
-Update either installation with `rea upgrade`.
+Update either installation with `rea update`.
 
 ### Requirements
 
@@ -411,7 +411,7 @@ See [provider evaluation](docs/provider-evaluation.md) for coverage and remainin
 
 ## Using REA with other agents
 
-Setup detects Claude Code, Claude Desktop, Codex, Cursor, Gemini CLI, Windsurf, and Devin. It automatically configures the first six when present; detected Devin installations are reported but left unchanged. Any agent that supports local MCP servers can use REA with the configuration below.
+Setup offers supported agent integrations for selection. Existing REA registrations are selected by default; newly detected agents remain unselected until chosen. Any agent that supports local MCP servers can use the configuration below.
 
 ### Manual MCP configuration
 
@@ -431,11 +431,11 @@ Setup detects Claude Code, Claude Desktop, Codex, Cursor, Gemini CLI, Windsurf, 
 <!-- x-release-please-end -->
 
 Persistent registrations should use one exact package version. `rea setup`
-maintains that pin, upgrades the bundled skill at the same time, and gives Codex
-a 30-second startup allowance for a cold package-runner start. An interactive
-`rea upgrade` opens the updated setup plan after installing the new executable;
-structured or non-interactive upgrades tell you to run that sync explicitly.
-Restart clients whose MCP registration changed.
+maintains that pin, updates the bundled skill at the same time, and gives Codex
+a 30-second startup allowance for a cold package-runner start. `rea update`
+installs an exact release and verifies the new executable. It returns an
+unapplied maintenance plan for existing REA integrations, with a scoped setup
+command to review and approve their changes. Restart affected agents afterward.
 
 MCP clients that support prompts can also discover six ordered investigation
 workflows through `prompts/list`. Their optional identifier arguments use the
@@ -491,7 +491,7 @@ Or install the `rea` command globally:
 ```bash
 npm install --global rea-agents
 rea --help
-rea upgrade
+rea update
 rea mcp
 ```
 
@@ -645,7 +645,7 @@ No decompiler can guarantee the original source. REA gives an agent pseudocode, 
 <details>
 <summary><strong>Which agents can use REA?</strong></summary>
 
-Any agent that can run a local MCP server can use the manual configuration. Setup detects Claude Code, Claude Desktop, Codex, Cursor, Gemini CLI, Windsurf, and Devin; it automatically configures the first six when present and reports Devin without modifying it.
+Any agent that can run a local MCP server can use the manual configuration. Setup offers the supported integrations listed in [Installation and setup](docs/installation.md#supported-agents); existing REA registrations are selected by default, and other detected agents require selection.
 
 </details>
 

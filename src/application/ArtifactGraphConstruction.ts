@@ -61,6 +61,17 @@ export const createOccurrence = (
   limitations: [...entry.limitations],
 });
 
+/** Preserve collation order and break distinct-name ties by UTF-16 code units. */
+export const compareDirectoryChildNames = (
+  left: string,
+  right: string,
+): number => {
+  const collated = left.localeCompare(right);
+  if (collated !== 0) return collated;
+  if (left < right) return -1;
+  return left > right ? 1 : 0;
+};
+
 export const materializeDirectoryNodes = (
   occurrences: MutableOccurrence[],
   nodes: Map<string, ArtifactNode>,
@@ -86,9 +97,7 @@ export const materializeDirectoryNodes = (
         artifact_id,
         entry_kind,
       }))
-      .sort((left, right) =>
-        String(left.name).localeCompare(String(right.name)),
-      );
+      .sort((left, right) => compareDirectoryChildNames(left.name, right.name));
     const node = createArtifactNode({
       sha256: digestCanonical({ kind: "directory", children }),
       size: 0,

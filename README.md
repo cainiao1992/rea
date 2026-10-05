@@ -31,7 +31,7 @@
 
 <br />
 
-<code>npm install --global rea-agents && rea setup</code>
+<code>npx rea-agents setup</code>
 
 <br />
 
@@ -94,13 +94,15 @@ REA shows how it reached its conclusions. It does not claim to recover original 
 
 ### Run setup (recommended)
 
+Set up REA with your agent:
+
 ```bash
-npx --yes rea-agents@latest setup
+npx rea-agents setup
 ```
 
 Choose **Agent Integration**, select your agents, then review and approve the plan. Setup configures MCP access and installs REA's guided workflow. It can connect an existing Hopper or Ghidra installation, or offer to install Hopper if you need it.
 
-Setup shows its changes before applying them and backs up existing configuration. It does not install or upgrade Node.js, npm, Homebrew, Ghidra, or Java. See [Installation and setup](docs/installation.md) for requirements, setup options, and the optional curl installer.
+Setup shows its changes before applying them and backs up existing configuration. See [Installation and setup](docs/installation.md) for requirements and setup options.
 
 ### With an agent (recommended)
 
@@ -119,16 +121,22 @@ npx -y rea-agents@latest analyze /Applications/Notes.app
 
 ### Install the rea command
 
-If you prefer a global command:
+Install the command-line interface:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/morluto/rea/main/install.sh | bash
+```
+
+The installer adds `rea` to your system and starts setup when run in a terminal. It requires Node.js and npm to be installed already.
+
+Alternatively, install with npm, then run setup:
 
 ```bash
 npm install --global rea-agents
 rea setup
-rea doctor
-rea analyze /Applications/Notes.app
 ```
 
-Update it with `rea upgrade`. For project-local installations or one-off runs, use `npx`.
+Update either installation with `rea upgrade`.
 
 ### Requirements
 

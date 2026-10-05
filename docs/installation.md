@@ -4,22 +4,27 @@ REA separates installing its CLI from configuring external software and agents.
 
 ## Start setup
 
-The recommended setup entrypoint is:
+Start setup with:
 
 ```bash
-npx --yes rea-agents@latest setup
+npx rea-agents setup
 ```
 
-If npm asks to download and run the package, that approval applies only to the
-current package-runner invocation. REA still prints its own setup plan and asks
-for separate approval before changing agent configuration or installing a
-product-owned component.
+If npm asks to download and run REA, that approval applies only to downloading
+the package. REA shows its own plan and asks before changing agent configuration
+or installing Hopper.
 
-The explicit `@latest` request prevents a project dependency or stale npx cache
-entry from choosing the setup version.
-REA runs the version npm selected and never silently replaces an intentional
-version request after launch. To repair registrations written by an older
-release, rerun the command above and review the resulting setup plan.
+The short command can use a REA version installed in the current project. To
+request the latest release explicitly, use:
+
+```bash
+npx rea-agents@latest setup
+```
+
+REA runs the version npm selects. To update older agent registrations, run the
+latest-version command and review its setup plan. For unattended package
+downloads, add `--yes` before the package name; this does not approve REA's
+setup changes.
 
 For an intentional rollback, make the package request explicit:
 
@@ -35,7 +40,7 @@ REA supports Node.js 22.19+ and 24.11+ (including newer releases). It uses the n
 
 Running `npm install rea-agents` without `--global` installs the executable only
 in the current project's `node_modules/.bin`; it does not make `rea` available
-on the shell `PATH`. Use the explicit setup command above for the guided setup
+on the shell `PATH`. Use the setup command above for the guided setup
 journey, `npx -y rea-agents@latest` for unattended one-off commands, or install globally
 with `npm install --global rea-agents` for a shell-visible `rea` command.
 

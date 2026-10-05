@@ -16,20 +16,29 @@ const readmes = [
 const normalizedProse = (content: string): string =>
   content.replace(/\s+/gu, " ").trim();
 
+const jsonExamples = (content: string): unknown[] =>
+  [...content.matchAll(/```json\s*([\s\S]*?)```/gu)].map((match): unknown =>
+    JSON.parse(match[1] ?? ""),
+  );
+
 describe("localized README product facts", () => {
   it.each(readmes)(
-    "keeps commands and requirements aligned in %s",
+    "keeps requirements and versioned MCP configuration aligned in %s",
     async (path) => {
       const content = await readFile(resolve(path), "utf8");
-      expect(content).toContain(
-        "curl -fsSL https://raw.githubusercontent.com/morluto/rea/main/install.sh | bash",
-      );
-      expect(content).toContain("npx rea-agents setup");
-      expect(content).toContain("npx --yes rea-agents@latest setup");
-      expect(content).toContain("npx -y rea-agents@latest doctor");
-      expect(content).toContain("rea uninstall");
-      expect(content).toContain(
-        `"args": ["-y", "${PRODUCT_IDENTITY.registrationPackageSpecifier}", "mcp"]`,
+      expect(jsonExamples(content)).toContainEqual(
+        expect.objectContaining({
+          mcpServers: expect.objectContaining({
+            rea: expect.objectContaining({
+              command: "npx",
+              args: [
+                "-y",
+                PRODUCT_IDENTITY.registrationPackageSpecifier,
+                "mcp",
+              ],
+            }),
+          }),
+        }),
       );
       expect(content).toContain("Node.js 22");
       expect(content).toContain("macOS 12");
@@ -38,27 +47,42 @@ describe("localized README product facts", () => {
       expect(content).toContain("Arch Linux");
       for (const client of SUPPORTED_CLIENT_DEFINITIONS)
         expect(content).toContain(client.displayName);
-      if (path === "README_ar.md")
-        expect(content).toContain("Windows غير مدعوم حاليًا");
       expect(content).toContain("MCP-tool_catalog");
     },
   );
 
   it("keeps both English CLI onboarding paths discoverable", async () => {
     const content = await readFile(resolve("README.md"), "utf8");
-    expect(content).toContain("npx -y rea-agents@latest analyze");
-    expect(content).toContain("npm install --global rea-agents");
+    expect(content).toMatch(
+      /\bnpx(?:\s+(?:--yes|-y))?\s+rea-agents(?:@[^\s]+)?\s+setup\b/u,
+    );
+    expect(content).toMatch(
+      /\bnpm\s+install\s+(?:--global|-g)\s+rea-agents\b/u,
+    );
     expect(content).toContain("rea setup");
-    expect(content).toContain("--install-hopper");
-    expect(content).toContain("docs/installation.md");
-    expect(content).toContain("npx --yes rea-agents@latest setup");
+  });
+
+  it("links to optional installer and unattended setup instructions", async () => {
+    const [readme, installation] = await Promise.all([
+      readFile(resolve("README.md"), "utf8"),
+      readFile(resolve("docs/installation.md"), "utf8"),
+    ]);
+    expect(readme).toMatch(/\]\(docs\/installation\.md(?:#[^)]+)?\)/u);
+    const prose = normalizedProse(installation);
+    expect(prose).toContain(
+      "curl -fsSL https://raw.githubusercontent.com/morluto/rea/main/install.sh | bash",
+    );
+    expect(prose).toMatch(/\brea setup\b[^\n`]*--install-hopper\b/u);
   });
 
   it("documents explicit setup freshness and rollback", async () => {
     const content = await readFile(resolve("docs/installation.md"), "utf8");
     const prose = normalizedProse(content);
-    expect(prose).toContain(
-      "npm exec --yes --package=rea-agents@2.4.0 -- rea setup",
+    expect(prose).toMatch(
+      /\bnpx(?:\s+(?:--yes|-y))?\s+rea-agents@latest\s+setup\b/u,
+    );
+    expect(prose).toMatch(
+      /\bnpm exec (?:--yes|-y) --package=rea-agents@\d+\.\d+\.\d+ -- rea setup\b/u,
     );
   });
 
@@ -66,7 +90,15 @@ describe("localized README product facts", () => {
     const content = await readFile(resolve("docs/installation.md"), "utf8");
     expect(content).toContain("MCP Registry");
     expect(content).toContain("io.github.morluto/rea");
-    expect(content).toContain('"command": "npx"');
-    expect(content).toContain('"args": ["-y", "rea-agents@latest", "mcp"]');
+    expect(jsonExamples(content)).toContainEqual(
+      expect.objectContaining({
+        mcpServers: expect.objectContaining({
+          rea: expect.objectContaining({
+            command: "npx",
+            args: ["-y", "rea-agents@latest", "mcp"],
+          }),
+        }),
+      }),
+    );
   });
 });

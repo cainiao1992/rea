@@ -191,3 +191,73 @@ describe("FAT64 dispatch slice validation", () => {
     ).toThrow("Requested FAT architecture is absent");
   });
 });
+
+describe("byte-swapped universal Apple dispatch metadata", () => {
+  const wrapped = (fat64: boolean) => {
+    const thin = fixture();
+    const offset = 256;
+    const bytes = Buffer.alloc(offset + thin.length);
+    bytes.writeUInt32LE(fat64 ? 0xcafebabf : 0xcafebabe, 0);
+    bytes.writeUInt32LE(1, 4);
+    bytes.writeUInt32LE(0x0100000c, 8);
+    if (fat64) {
+      bytes.writeBigUInt64LE(BigInt(offset), 16);
+      bytes.writeBigUInt64LE(BigInt(thin.length), 24);
+    } else {
+      bytes.writeUInt32LE(offset, 16);
+      bytes.writeUInt32LE(thin.length, 20);
+    }
+    thin.copy(bytes, offset);
+    return bytes;
+  };
+
+  it.each([false, true])(
+    "decodes selected little-endian FAT slices (fat64=%s)",
+    (fat64) => {
+      const result = decodeAppleDispatchMetadata(
+        wrapped(fat64),
+        100,
+        provenance,
+      );
+      expect(result.objc_classes[0]).toMatchObject({
+        name: "Fixture",
+        location: { address: "0x100000200", file_offset: 256 + 512 },
+      });
+      expect(result.objc_dispatch_implementations[0]).toMatchObject({
+        implementation_address: "0x100000700",
+        location: { file_offset: 256 + 0x488 },
+      });
+    },
+  );
+
+  it.each([6, 16])(
+    "states the header byte order when its architecture table is truncated at %i bytes",
+    (length) => {
+      expect(() =>
+        decodeAppleDispatchMetadata(
+          wrapped(false).subarray(0, length),
+          100,
+          provenance,
+        ),
+      ).toThrow(
+        "Malformed FAT architecture table (FAT header byte order: little-endian)",
+      );
+    },
+  );
+
+  it("validates the selected thin slice's own byte order", () => {
+    const bytes = wrapped(false);
+    bytes.writeUInt32BE(0xfeedfacf, 256);
+    expect(() => decodeAppleDispatchMetadata(bytes, 100, provenance)).toThrow(
+      "Only little-endian 64-bit Mach-O metadata is supported",
+    );
+  });
+
+  it("checks the full little-endian FAT64 slice extent", () => {
+    const bytes = wrapped(true);
+    bytes.writeBigUInt64LE(0x100000000n, 16);
+    expect(() => decodeAppleDispatchMetadata(bytes, 100, provenance)).toThrow(
+      "FAT slice exceeds file (FAT header byte order: little-endian)",
+    );
+  });
+});

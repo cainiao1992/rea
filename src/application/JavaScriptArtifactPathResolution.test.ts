@@ -326,6 +326,149 @@ describe("contextual JavaScript package path resolution", () => {
   });
 });
 
+describe("directory package entrypoint precedence", () => {
+  it.each([
+    ["require", '{"main":"actual.cjs"}', "actual.cjs"],
+    ["require", '{"exports":{"require":"./actual.cjs"}}', "actual.cjs"],
+    ["import", '{"exports":{"import":"./actual.mjs"}}', "actual.mjs"],
+  ] as const)(
+    "prefers declared %s entrypoints over index files",
+    (moduleKind, metadata, entry) => {
+      const files = fileMap([
+        file("app/consumer.js", "root"),
+        file("app/node_modules/fixture/package.json", "root", metadata),
+        file(`app/node_modules/fixture/${entry}`, "root"),
+        file("app/node_modules/fixture/index.js", "root"),
+      ]);
+      expect(
+        resolve({
+          declaredPath: "fixture",
+          sourcePath: "app/consumer.js",
+          context: "module-specifier",
+          moduleKind,
+          files,
+        }),
+      ).toMatchObject({
+        resolution_status: "resolved",
+        resolved_path: `app/node_modules/fixture/${entry}`,
+      });
+    },
+  );
+
+  it.each(["{}", '{"main":"."}'])(
+    "preserves index fallback for package metadata %s",
+    (metadata) => {
+      const files = fileMap([
+        file("app/consumer.js", "root"),
+        file("app/entry/package.json", "root", metadata),
+        file("app/entry/index.js", "root"),
+      ]);
+      expect(
+        resolve({
+          declaredPath: "./entry",
+          sourcePath: "app/consumer.js",
+          context: "module-specifier",
+          moduleKind: "require",
+          files,
+        }),
+      ).toMatchObject({
+        resolution_status: "resolved",
+        resolved_path: "app/entry/index.js",
+      });
+    },
+  );
+
+  it.each([null, "{"])(
+    "keeps unreadable or invalid metadata explicit even when an index exists",
+    (metadata) => {
+      const files = fileMap([
+        file("app/consumer.js", "root"),
+        file("app/entry/package.json", "root", metadata),
+        file("app/entry/index.js", "root"),
+      ]);
+      expect(
+        resolve({
+          declaredPath: "./entry",
+          sourcePath: "app/consumer.js",
+          context: "module-specifier",
+          moduleKind: "require",
+          files,
+        }),
+      ).toMatchObject({
+        resolution_status: "unavailable",
+        resolved_path: null,
+      });
+    },
+  );
+
+  it("does not replace a missing exports target with an index", () => {
+    const files = fileMap([
+      file("app/consumer.js", "root"),
+      file(
+        "app/node_modules/fixture/package.json",
+        "root",
+        '{"exports":"./missing.js"}',
+      ),
+      file("app/node_modules/fixture/index.js", "root"),
+    ]);
+    expect(
+      resolve({
+        declaredPath: "fixture",
+        sourcePath: "app/consumer.js",
+        context: "module-specifier",
+        moduleKind: "require",
+        files,
+      }),
+    ).toMatchObject({
+      resolution_status: "not-found",
+      resolved_path: null,
+    });
+  });
+
+  it("keeps direct files ahead of a relative directory package", () => {
+    const files = fileMap([
+      file("app/consumer.js", "root"),
+      file("app/entry.js", "root"),
+      file("app/entry/package.json", "root", '{"main":"actual.js"}'),
+      file("app/entry/actual.js", "root"),
+      file("app/entry/index.js", "root"),
+    ]);
+    expect(
+      resolve({
+        declaredPath: "./entry",
+        sourcePath: "app/consumer.js",
+        context: "module-specifier",
+        moduleKind: "require",
+        files,
+      }),
+    ).toMatchObject({
+      resolution_status: "resolved",
+      resolved_path: "app/entry.js",
+    });
+  });
+
+  it("retains cycle diagnostics when directory packages refer to each other", () => {
+    const files = fileMap([
+      file("app/consumer.js", "root"),
+      file("app/a/package.json", "root", '{"main":"../b"}'),
+      file("app/b/package.json", "root", '{"main":"../a"}'),
+    ]);
+    expect(
+      resolve({
+        declaredPath: "./a",
+        sourcePath: "app/consumer.js",
+        context: "module-specifier",
+        moduleKind: "require",
+        files,
+      }),
+    ).toMatchObject({
+      resolution_status: "unavailable",
+      resolved_path: null,
+      limitations: [expect.stringContaining("cycle")],
+    });
+  });
+});
+
 describe("contextual JavaScript module identity", () => {
   it("retains CommonJS and ESM file-base identity during inert extraction", () => {
     const analysis = analyzeJavaScriptStaticSource(

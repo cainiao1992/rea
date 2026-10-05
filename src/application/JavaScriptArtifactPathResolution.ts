@@ -78,6 +78,7 @@ export const resolveArtifactPathByContext = (
 const resolvePackagePath = (
   input: ResolveArtifactPathInput,
   packageChain: ReadonlySet<string>,
+  mode: "full" | "files-and-index" = "full",
 ): ArtifactPathResolution => {
   const rejected = rejectDeclaration(input);
   if (rejected !== null) return rejected;
@@ -85,7 +86,13 @@ const resolvePackagePath = (
   if (typeof candidate !== "string") return candidate;
   const confined = confineCandidate(input, candidate);
   if (typeof confined !== "string") return confined;
-  const resolved = resolveCandidate(input, confined, packageChain);
+  const resolved =
+    mode === "files-and-index"
+      ? (resolveFileCandidates(input, [
+          ...fileCandidates(confined),
+          ...indexCandidates(confined),
+        ]) ?? notFoundCandidate())
+      : resolveCandidate(input, confined, packageChain);
   return outcome(input, resolved);
 };
 
@@ -182,16 +189,18 @@ const hasContainerCandidate = (
   candidate: string,
   containerSha256: string | undefined,
 ): boolean =>
-  [...directCandidates(candidate), posix.join(candidate, "package.json")].some(
-    (path) => {
-      const file = files.get(path);
-      return (
-        file !== undefined &&
-        (containerSha256 === undefined ||
-          file.container_sha256 === containerSha256)
-      );
-    },
-  );
+  [
+    ...fileCandidates(candidate),
+    ...indexCandidates(candidate),
+    posix.join(candidate, "package.json"),
+  ].some((path) => {
+    const file = files.get(path);
+    return (
+      file !== undefined &&
+      (containerSha256 === undefined ||
+        file.container_sha256 === containerSha256)
+    );
+  });
 
 const htmlCandidate = (
   input: ResolveArtifactPathInput,
@@ -237,16 +246,9 @@ const resolveCandidate = (
   candidate: string,
   packageChain: ReadonlySet<string>,
 ): CandidateResolution => {
+  const direct = resolveFileCandidates(input, fileCandidates(candidate));
+  if (direct !== null) return direct;
   const source = input.files.get(input.sourcePath);
-  for (const path of directCandidates(candidate)) {
-    const target = input.files.get(path);
-    if (
-      target !== undefined &&
-      (source === undefined ||
-        target.container_sha256 === source.container_sha256)
-    )
-      return { resolvedPath: path, status: "resolved", limitations: [] };
-  }
   const packagePath = posix.join(candidate, "package.json");
   const packageFile = input.files.get(packagePath);
   if (
@@ -254,7 +256,10 @@ const resolveCandidate = (
     (source !== undefined &&
       packageFile.container_sha256 !== source.container_sha256)
   )
-    return notFoundCandidate();
+    return (
+      resolveFileCandidates(input, indexCandidates(candidate)) ??
+      notFoundCandidate()
+    );
   if (!packageFile.text.included)
     return {
       resolvedPath: null,
@@ -263,15 +268,14 @@ const resolveCandidate = (
         `Directory package metadata ${packagePath} was inventoried but its text is unavailable: ${packageFile.text.reason}.`,
       ],
     };
-  if (packageChain.has(packagePath))
-    return {
-      resolvedPath: null,
-      status: "unavailable",
-      limitations: [
-        `Directory package entrypoint cycle includes ${packagePath}.`,
-      ],
-    };
-  const main = packageEntry(packageFile.text.value, input.moduleKind);
+  const main = packageEntry(
+    packageFile.text.value,
+    input.moduleKind,
+    input.context === "module-specifier" &&
+      !input.declaredPath.startsWith(".") &&
+      !input.declaredPath.startsWith("/") &&
+      !hasScheme(input.declaredPath),
+  );
   if (main.status === "invalid")
     return {
       resolvedPath: null,
@@ -280,17 +284,41 @@ const resolveCandidate = (
         `Directory package metadata ${packagePath} is not valid package JSON.`,
       ],
     };
-  if (main.status === "missing") return notFoundCandidate();
-  const nested = resolvePackagePath(
-    {
-      declaredPath: main.value,
-      sourcePath: packagePath,
-      context: "package-entrypoint",
-      files: input.files,
-    },
-    new Set([...packageChain, packagePath]),
-  );
-  return nested.resolution_status === "resolved"
+  if (packageChain.has(packagePath)) {
+    return {
+      resolvedPath: null,
+      status: "unavailable",
+      limitations: [
+        `Directory package entrypoint cycle includes ${packagePath}.`,
+      ],
+    };
+  }
+  if (main.status === "missing")
+    return (
+      resolveFileCandidates(input, indexCandidates(candidate)) ??
+      notFoundCandidate()
+    );
+  const entryInput: ResolveArtifactPathInput = {
+    declaredPath: main.value,
+    sourcePath: packagePath,
+    context: "package-entrypoint",
+    files: input.files,
+  };
+  const chain = new Set([...packageChain, packagePath]);
+  if (main.source === "legacy") {
+    const entry = resolvePackagePath(entryInput, chain, "files-and-index");
+    if (entry.resolution_status !== "not-found") return candidateOutcome(entry);
+    const index = resolveFileCandidates(input, indexCandidates(candidate));
+    if (index !== null) return index;
+  }
+  // Preserve recursive artifact package lookup only after legacy file/index fallbacks.
+  return candidateOutcome(resolvePackagePath(entryInput, chain));
+};
+
+const candidateOutcome = (
+  nested: ArtifactPathResolution,
+): CandidateResolution =>
+  nested.resolution_status === "resolved"
     ? {
         resolvedPath: nested.resolved_path,
         status: nested.resolution_status,
@@ -301,19 +329,42 @@ const resolveCandidate = (
         status: nested.resolution_status,
         limitations: nested.limitations,
       };
+
+const resolveFileCandidates = (
+  input: ResolveArtifactPathInput,
+  candidates: readonly string[],
+): CandidateResolution | null => {
+  const source = input.files.get(input.sourcePath);
+  for (const path of candidates) {
+    const target = input.files.get(path);
+    if (
+      target !== undefined &&
+      (source === undefined ||
+        target.container_sha256 === source.container_sha256)
+    )
+      return { resolvedPath: path, status: "resolved", limitations: [] };
+  }
+  return null;
 };
 
-const directCandidates = (candidate: string): readonly string[] => [
+const fileCandidates = (candidate: string): readonly string[] => [
   candidate,
   ...EXTENSIONS.map((extension) => `${candidate}${extension}`),
-  ...EXTENSIONS.map((extension) => posix.join(candidate, `index${extension}`)),
 ];
+
+const indexCandidates = (candidate: string): readonly string[] =>
+  EXTENSIONS.map((extension) => posix.join(candidate, `index${extension}`));
 
 const packageEntry = (
   text: string,
   moduleKind: ResolveArtifactPathInput["moduleKind"],
+  useExports: boolean,
 ):
-  | { readonly status: "value"; readonly value: string }
+  | {
+      readonly status: "value";
+      readonly value: string;
+      readonly source: "legacy" | "exports";
+    }
   | { readonly status: "missing" }
   | { readonly status: "invalid" } => {
   try {
@@ -321,14 +372,20 @@ const packageEntry = (
     if (typeof value !== "object" || value === null)
       return { status: "invalid" };
     const rawExports = Reflect.get(value, "exports");
-    if (rawExports !== undefined) return packageExport(rawExports, moduleKind);
+    if (useExports && rawExports !== undefined && rawExports !== null) {
+      const exported = packageExport(rawExports, moduleKind);
+      return exported.status === "value"
+        ? { ...exported, source: "exports" }
+        : exported;
+    }
     const preferred =
       moduleKind === "import"
         ? [Reflect.get(value, "module"), Reflect.get(value, "main")]
         : [Reflect.get(value, "main"), Reflect.get(value, "module")];
     const entry = preferred.find((candidate) => candidate !== undefined);
     if (entry === undefined) return { status: "missing" };
-    return packagePathValue(entry);
+    const legacy = packagePathValue(entry);
+    return legacy.status === "value" ? { ...legacy, source: "legacy" } : legacy;
   } catch {
     return { status: "invalid" };
   }

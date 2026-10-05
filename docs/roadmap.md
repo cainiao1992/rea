@@ -1,4 +1,40 @@
-# Installation roadmap
+# REA roadmap
+
+## Tool direction
+
+REA provides inspection, capture, and comparison tools that return evidence
+directly. Agents choose commands, paths, browser actions, scripts, and local
+fixture servers, then compose experiments from those results. CLI and MCP must
+expose equivalent behavior and preserve observations, inferences, and unknowns.
+
+[#555](https://github.com/morluto/rea/pull/555) removed REA permission grants,
+scope ceilings, elicitation, and repeated approval fields.
+[#572](https://github.com/morluto/rea/pull/572) removed the replay engines,
+Node characterization prepare/execute flow, and plan-only managed runtime
+correlation tool. Those systems are retired roadmap items. Existing evidence
+authority labels remain readable as provenance; they do not imply a current
+replay executor.
+
+Local operations use the current user's OS permissions. Input and protocol
+validation, provider prerequisites, target identity, cancellation, and owned
+resource cleanup remain part of each tool's contract. Setup still discloses
+installation changes and requires approval before writing or installing.
+
+## Remaining evidence and provider work
+
+The [platform roadmap](https://github.com/morluto/rea/issues/32),
+[process and Hopper fidelity tracker](https://github.com/morluto/rea/issues/48),
+and [browser tracker](https://github.com/morluto/rea/issues/39) track remaining
+capabilities and proof. Their scope follows direct tools and agent-composed
+experiments; custom replay languages and grant systems are not completion gates.
+
+Current boundary work includes
+[inline Evidence composition](https://github.com/morluto/rea/issues/551),
+[CLI/MCP managed-tool and seed parity](https://github.com/morluto/rea/issues/553),
+[partial-evidence comparison](https://github.com/morluto/rea/issues/558), and
+[native PTY failure diagnostics](https://github.com/morluto/rea/issues/568).
+Removing replay does not resolve these defects. Real-provider and platform
+claims still require their corresponding verification lanes.
 
 ## Shipped behavior
 

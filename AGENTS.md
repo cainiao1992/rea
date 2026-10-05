@@ -46,6 +46,16 @@ Configuration is parsed and validated by `src/config.ts` and `src/config/`. Keep
 
 Use ESM TypeScript, two-space indentation, and Prettier defaults. Keep compiler strictness intact (`strict`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`). Use `camelCase` for values/functions, `PascalCase` for classes/types, and `UPPER_SNAKE_CASE` for constants. Parse unknown values at every MCP, environment, and subprocess boundary. Avoid `any`, unchecked casts, non-null assertions, import-time I/O, and floating promises. Exported APIs require concise JSDoc. Model expected failures with the tagged error algebra and `Result`, not broad exception wrappers.
 
+## Boundary Contracts
+
+Treat a boundary as a contract between the producer's actual representation and the consumer's required meaning. When implementing or auditing a boundary, trace the value through parsing, normalization, authorization, serialization, and the CLI/MCP result. Establish affected callers from their code paths; similar tool names or workflows do not prove that they share a schema or failure mode.
+
+Keep portable evidence and scenario validation distinct from host-native execution checks. Absolute filesystem paths, file URLs, and HTTP paths have different semantics; do not substitute one platform's syntax for the domain concept. Interpret provider metadata according to its documented or observed producer behavior. When a transformation loses information, preserve the reported value and an explicit unknown rather than guessing a canonical identity.
+
+Preserve meaningful failure reasons through application and adapter layers. A configured permission ceiling is distinct from an active grant, and malformed input is distinct from unsupported or unauthorized input. Diagnostics should identify the failed constraint and what any reported missing scope was compared against. Recovery advice must address that reason and point to an available workflow; generic catches must not erase actionable validation details.
+
+Verify the representation consumed at the next boundary. Internal validator success does not establish JSON Schema validity or client compatibility: validate advertised input and output schemas against their declared dialect after SDK conversion, and keep generated contracts aligned. Use representative producer data and regressions that exercise the failed behavior. Platform and provider support claims require the corresponding real workflow; package startup, capability probes, and mock transport tests establish only their narrower claims. Report unverified coverage explicitly.
+
 ## Designing MCP Tools
 
 Start from the analyst question and desired result, not a provider API. Before adding a tool, inspect the existing contract and its nearest alternative.

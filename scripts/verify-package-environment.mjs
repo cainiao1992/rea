@@ -1,5 +1,6 @@
 import { chmod, mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { supportedClients } from "../dist/application/SupportedClients.js";
 
 /** Create an isolated prefix, fake PATH, client configs, and environment. */
 export async function verifyPackageEnvironment({
@@ -48,7 +49,11 @@ export async function verifyPackageEnvironment({
     chmod(hopper, 0o755),
     chmod(npx, 0o755),
   ]);
-  const claudeDir = join(home, "Library/Application Support/Claude");
+  const claudeDir = supportedClients(home, process.platform, {}).find(
+    ({ name }) => name === "claude_desktop",
+  )?.markerPath;
+  if (claudeDir === undefined)
+    throw new Error("Claude Desktop fixture has no configuration directory");
   const codexDir = join(home, ".codex");
   const cursorDir = join(home, ".cursor");
   await Promise.all([
@@ -69,6 +74,12 @@ export async function verifyPackageEnvironment({
   const environment = {
     ...process.env,
     HOME: home,
+    USERPROFILE: home,
+    APPDATA: join(home, "AppData", "Roaming"),
+    CLAUDE_CONFIG_DIR: home,
+    CODEX_HOME: codexDir,
+    COPILOT_HOME: join(home, ".copilot"),
+    OPENCODE_CONFIG: undefined,
     XDG_CONFIG_HOME: join(home, ".config"),
     PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
     REA_ANALYSIS_PROVIDER: "auto",

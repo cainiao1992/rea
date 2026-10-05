@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parse as parseJsonc, type ParseError } from "jsonc-parser";
 
 import { readClientRegistrationStatuses } from "../../../src/application/ClientRegistrationStatus.js";
@@ -18,6 +18,20 @@ const command = [
   PRODUCT_IDENTITY.registrationPackageSpecifier,
   "mcp",
 ] as const;
+
+beforeEach(() => {
+  for (const name of [
+    "APPDATA",
+    "CLAUDE_CONFIG_DIR",
+    "CODEX_HOME",
+    "COPILOT_HOME",
+    "OPENCODE_CONFIG",
+    "XDG_CONFIG_HOME",
+  ])
+    vi.stubEnv(name, undefined);
+});
+
+afterEach(() => vi.unstubAllEnvs());
 
 const getClients = (home: string) =>
   supportedClients(home).filter(({ name }) =>

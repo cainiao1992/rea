@@ -9,9 +9,10 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { supportedClients } from "../../../src/application/SupportedClients.js";
 
 import {
   configureTomlClient,
@@ -24,7 +25,19 @@ import {
 } from "../../../src/application/Uninstall.js";
 
 const roots: string[] = [];
+beforeEach(() => {
+  for (const name of [
+    "APPDATA",
+    "CLAUDE_CONFIG_DIR",
+    "CODEX_HOME",
+    "COPILOT_HOME",
+    "OPENCODE_CONFIG",
+    "XDG_CONFIG_HOME",
+  ])
+    vi.stubEnv(name, undefined);
+});
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await Promise.all(
     roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
   );
@@ -34,20 +47,9 @@ describe("client configuration filesystem lifecycle", () => {
   it("detects every supported client and skips absent clients", async () => {
     const home = await createTestTempDirectory("rea-detect-");
     roots.push(home);
-    for (const marker of [
-      ".claude",
-      "Library/Application Support/Claude",
-      ".codex",
-      ".cursor",
-      ".gemini",
-      ".codeium/windsurf",
-      ".config/devin",
-      ".config/opencode",
-      ".gemini/config",
-      ".copilot",
-      "Library/Application Support/Code/User",
-    ])
-      await mkdir(join(home, marker), { recursive: true });
+    for (const client of supportedClients(home))
+      if (client.markerPath !== undefined)
+        await mkdir(client.markerPath, { recursive: true });
     const detected = await detectClients(home);
     expect(detected.map(({ name }) => name)).toEqual([
       "claude_code",

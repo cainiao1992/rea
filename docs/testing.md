@@ -183,7 +183,6 @@ behavior, and complete CI evidence before merging.
 | `npm run check:changed`           | Cached typecheck/lint and branch-related source feedback                                                                |
 | `npm run check:pr`                | Opt-in complete local deterministic gate and generated-file checks                                                      |
 | `npm run docs:check`              | Committed generated-document freshness, without API HTML rendering                                                      |
-| `npm run docs:api:cached`         | Explicit cached API HTML rendering                                                                                      |
 
 For example:
 

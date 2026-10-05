@@ -144,8 +144,6 @@
     "config:print": "node scripts/print-mcp-config.mjs",
     "evidence:generate": "npm run build:cached && node scripts/generate-completion-ledger.mjs",
     "evidence:check": "npm run build:cached && node scripts/generate-completion-ledger.mjs --check",
-    "docs:api": "typedoc",
-    "docs:api:cached": "turbo run docs:api",
     "docs:generate": "node scripts/run-exclusive.mjs docs npm run docs:generate:unlocked",
     "docs:generate:unlocked": "npm run metadata:generate && npm run build:cached && node scripts/generate-mcp-tool-catalog.mjs && node scripts/generate-skill-metadata.mjs && node scripts/generate-product-catalog.mjs && node scripts/generate-completion-ledger.mjs && node scripts/generate-error-schema.mjs",
     "docs:check": "node scripts/run-exclusive.mjs docs turbo run docs:check:built",
@@ -210,7 +208,6 @@
     "oxfmt": "0.72.0",
     "oxlint": "1.73.0",
     "turbo": "2.10.5",
-    "typedoc": "0.28.20",
     "typescript": "7.0.2",
     "vitest": "5.0.3",
     "yaml": "2.9.0"

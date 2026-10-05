@@ -100,11 +100,4 @@ describe("release configuration", () => {
       ],
     });
   });
-
-  it("keeps TypeDoc unversioned and outside the tracked documentation tree", async () => {
-    await expect(readJson("typedoc.json")).resolves.toMatchObject({
-      includeVersion: false,
-      out: "build/api-docs",
-    });
-  });
 });

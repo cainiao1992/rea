@@ -15,19 +15,19 @@
 [![MIT license](https://img.shields.io/badge/license-MIT-f4c430?style=flat-square)](LICENSE)
 [![Discord](https://img.shields.io/discord/1556595354999332884?logo=discord&logoColor=white&label=Discord&color=5865F2)](https://discord.gg/GkcryMnJDM)
 
+[Quick start](#quick-start) · [Current status](#current-status) · [Investigation model](#the-investigation-model) · [Tool catalog](#tool-catalog-for-investigation) · [Roadmap](#roadmap) · [How it works](#how-it-works)
+
 <table aria-label="REA community">
 <tr>
 <td align="center" width="360">
   <a href="https://discord.gg/GkcryMnJDM">
     <img src="docs/assets/discord.svg" height="42" alt="Discord" /><br />
-    <strong>Community</strong>
+    <strong>Join the Reverse Engineering Community</strong>
   </a><br />
   <sub>Discord · Q&amp;A · Show and Tell</sub>
 </td>
 </tr>
 </table>
-
-[Quick start](#quick-start) · [Current status](#current-status) · [Investigation model](#the-investigation-model) · [Tool catalog](#tool-catalog-for-investigation) · [Roadmap](#roadmap) · [How it works](#how-it-works)
 
 <br />
 

@@ -262,3 +262,53 @@ describe("conformance replay package boundary", () => {
     ).rejects.toThrow(/replay_plans references unknown scenario missing/u);
   });
 });
+
+describe("conformance structured JSON drift", () => {
+  it("detects an added own __proto__ field in captured JSON as drift", async () => {
+    const expected = createEvidence(
+      undefined,
+      { id: "fixture-provider", name: "Fixture provider", version: "1" },
+      { operation: "run", parameters: {}, result: { filesystem: {} } },
+    );
+    const pkg = createConformancePackage({
+      ...validPackageInput,
+      expected_evidence: [
+        {
+          scenario_id: "s1",
+          envelopes: [expected],
+          bundle: null,
+          required_dimensions: ["filesystem"],
+        },
+      ],
+      verifier_contracts: [
+        {
+          scenario_id: "s1",
+          dimensions: [
+            { name: "filesystem", required: true, comparison: "semantic" },
+          ],
+          timing_tolerance_ms: 0,
+        },
+      ],
+    });
+    const captured: unknown = JSON.parse('{"__proto__":{"added":true}}');
+    const actualEvidenceId = `ev_${"4".repeat(64)}`;
+    const result = await replayConformancePackage(
+      pkg,
+      {
+        s1: {
+          evidence_id: actualEvidenceId,
+          normalized_result: { filesystem: captured },
+        },
+      },
+      passingRunner,
+    );
+
+    expect(result.drift_detected).toBe(true);
+    expect(result.trust_gate_results[0]?.verdict).toBe("fail");
+    expect(result.first_drift).toMatchObject({
+      scenario_id: "s1",
+      dimension: "filesystem",
+      evidence_id: actualEvidenceId,
+    });
+  });
+});

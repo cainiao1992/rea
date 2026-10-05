@@ -198,3 +198,39 @@ describe("conformance trust gates", () => {
     expect(result.verdict).toBe("fail");
   });
 });
+
+describe("conformance structured JSON comparison", () => {
+  it.each([
+    ['{"__proto__":{"version":1}}', '{"__proto__":{"version":2}}'],
+    ['{"__proto__":"before"}', '{"__proto__":"after"}'],
+    ["{}", '{"__proto__":null}'],
+    [
+      '{"entries":[{"payload":{"__proto__":{"version":1}}}]}',
+      '{"entries":[{"payload":{"__proto__":{"version":2}}}]}',
+    ],
+    ['{"constructor":1}', '{"constructor":2}'],
+    ['{"prototype":1}', '{"prototype":2}'],
+  ])("preserves changed own JSON keys in %s", (before, after) => {
+    const expected: unknown = JSON.parse(before);
+    const actual: unknown = JSON.parse(after);
+
+    expect(compareDimension("filesystem", expected, actual)).toMatchObject({
+      status: "mismatch",
+    });
+    expect(JSON.stringify(expected)).toBe(before);
+    expect(JSON.stringify(actual)).toBe(after);
+  });
+
+  it("ignores key order while preserving own JSON keys in nested objects", () => {
+    const expected: unknown = JSON.parse(
+      '{"__proto__":{"a":1,"b":2},"constructor":[{"x":1,"prototype":2}]}',
+    );
+    const actual: unknown = JSON.parse(
+      '{"constructor":[{"prototype":2,"x":1}],"__proto__":{"b":2,"a":1}}',
+    );
+
+    expect(compareDimension("filesystem", expected, actual)).toMatchObject({
+      status: "match",
+    });
+  });
+});

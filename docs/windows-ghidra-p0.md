@@ -1,19 +1,25 @@
 # Windows Ghidra P0
 
-Status: experimental. This boundary is useful for approved local fixtures, but
-it is not general Windows REA support and must not be used for hostile,
-sensitive, security-decision, or concurrently mutable targets.
+Status: experimental and currently unavailable. The production adapter reports
+`unsupported_host` because verified Job Object process ownership, private
+runtime DACLs, and reparse-safe path admission are not implemented. Installation
+paths or manual MCP registration do not enable operations.
+
+This guide describes the intended P0 boundary and adapter mechanisms. It does
+not establish general Windows REA support. Even after the required controls
+are implemented, hostile, sensitive, security-decision, and concurrently
+mutable targets require separate acceptance.
 
 ## Supported boundary
 
-The P0 accepts exactly:
+Once the required native controls are implemented, the intended P0 is limited to:
 
 - a Windows x64 host;
 - Node.js 22.19+ or 24.11+;
 - an operator-installed official Ghidra 12.1.4 distribution;
 - a 64-bit full JDK 21;
 - an explicit native, non-managed, non-DLL x86-64 PE application; and
-- the existing 19 read-only Ghidra inventory and function-analysis operations.
+- the 22 read-only Ghidra inventory and function-analysis operations.
 
 Hopper, Ghidra GUI state, mutation, controlled JavaScript replay, process
 capture, browser/Electron observation, artifact extraction, and general
@@ -27,7 +33,7 @@ another package on Windows. The production adapter uses the packaged Java
 
 ## Configuration
 
-Install REA, Ghidra, and JDK 21 separately. In PowerShell:
+For installation diagnostics, configure REA, Ghidra, and JDK 21 in PowerShell. Analysis remains blocked:
 
 ```powershell
 npm install --global rea-agents
@@ -135,7 +141,7 @@ Hosted CI builds, type-checks, runs the curated Windows tests, records the named
 host capability report, packs the real npm artifact, installs it in isolation,
 and compares the packaged MCP catalog with `TOOL_CONTRACTS`.
 
-The controlled real-engine lane is intentionally separate:
+The controlled real-engine lane requires the missing native authority and currently remains blocked:
 
 ```powershell
 $env:GHIDRA_INSTALL_DIR = "C:\tools\ghidra_12.1.4_PUBLIC"
@@ -144,13 +150,14 @@ npm ci
 npm run verify:ghidra:windows
 ```
 
-The verifier creates an ignored deterministic x86-64 PE fixture, checks its
-fixed SHA-256, opens Ghidra 12.1.4 through the production Java bridge, exercises
-all 19 admitted operations, verifies the target/snapshot/import digest chain,
-and checks endpoint, project, process, and runtime cleanup. The GitHub workflow
+The verifier requires the native authority before opening Ghidra. Its intended
+checks include a deterministic x86-64 PE fixture, the read-only operation
+contract, target/snapshot/import digest linkage, and endpoint, project,
+process, and runtime cleanup. The GitHub workflow
 accepts only the fixed `real-ghidra-windows` repository-dispatch event against
 default-branch `main`, a protected `real-ghidra-windows` environment, and a
 self-hosted runner labelled `Windows`, `x64`, and `ghidra-12-1-2`.
 
-Passing this verifier proves the bounded P0 operation claim. It does not close
-the DACL, reparse-point, named-pipe, or Job Object gates above.
+Build, package, or adapter-test success does not prove the P0 operation claim.
+Real-engine acceptance requires the native controls and the separate
+verification lane; broader target and IPC security requirements remain distinct.

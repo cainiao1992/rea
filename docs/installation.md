@@ -87,7 +87,7 @@ current state, prints the proposed effects, and asks for final approval with
 **Yes** as the default. Selection alone never authorizes a mutation. The plan
 identifies:
 
-- an existing Hopper installation, a validated bring-your-own Ghidra environment, or the official Hopper package it proposes to install;
+- an existing Hopper installation, a verified existing Ghidra installation, or the official Hopper package it proposes to install;
 - each detected agent configuration path;
 - the REA skill destination;
 - external software, network origins, integrity evidence, and package-manager
@@ -100,8 +100,8 @@ entries, create backups, use atomic replacement, and verify their result.
 
 Progress remains append-only so completed and failed operations stay visible in
 terminal history. After a successful run, the completion message names the
-verified capabilities now available—for example configured MCP clients, the
-selected analysis provider, and the installed skill—and gives the corresponding
+verified capabilities now available, such as configured MCP clients, the
+selected analysis provider, and the installed skill, and gives the corresponding
 next action. When an agent must restart to load its registration, REA says so;
 otherwise it suggests beginning an investigation. It does not advertise a
 capability that the final diagnostic check did not verify.
@@ -193,15 +193,22 @@ copying license secrets into logs, or killing unrelated Hopper processes.
 
 ## Ghidra
 
-REA's Ghidra provider is bring-your-own and supports Linux x64 with the exact
-official Ghidra 12.1.4 release and a 64-bit full JDK 21. macOS is not an
-admitted Ghidra host. An experimental
-Windows x64 P0 supports approved native x86-64 PE applications. It supplies
-discovery, analysis-profile commitment, an isolated read-only headless session,
-ten inventory/name/search operations and nine function-analysis operations,
-for 19 read-only operations total. Function analysis covers metadata,
-decompilation, assembly, resolved calls, typed references, xrefs, CFG, and
-dossiers. GUI state and analysis mutations remain unavailable through Ghidra.
+REA connects to an existing Ghidra installation on Linux x64 or macOS x64/arm64.
+It requires Ghidra 12.1.4 and a 64-bit full JDK 21. On macOS, the installation
+must include the native decompiler for the host architecture; REA does not
+build it or change Gatekeeper quarantine settings.
+
+The adapter exposes 22 read-only operations: ten inventory/name/search
+operations and twelve function-analysis operations. These cover metadata,
+decompilation, assembly, resolved calls, typed references, xrefs, function
+dossiers, instructions, and recovered data types. GUI controls and annotation
+changes require Hopper.
+
+Windows Ghidra operations are currently unavailable. The adapter reports
+`unsupported_host` until verified Job Object process ownership, private runtime
+DACLs, and reparse-safe path admission are implemented. The
+[Windows Ghidra P0 guide](windows-ghidra-p0.md) describes the intended boundary
+and remaining controls.
 
 Extract Ghidra and install the JDK outside REA, then export absolute paths:
 
@@ -212,7 +219,7 @@ rea doctor --json
 rea setup
 ```
 
-PowerShell configuration for Windows uses the same non-secret paths:
+For Windows diagnostics, use the same installation paths in PowerShell. These settings do not enable the blocked analysis operations:
 
 ```powershell
 $env:GHIDRA_INSTALL_DIR = "C:\tools\ghidra_12.1.4_PUBLIC"
@@ -222,9 +229,9 @@ rea providers --json
 ```
 
 `rea setup` does not mutate Windows client configuration or install Hopper,
-Ghidra, Java, Python, or another package. Register the built `rea mcp` command
-manually in the intended client and preserve the two environment variables.
-See [Windows Ghidra P0](windows-ghidra-p0.md) for a complete example.
+Ghidra, Java, Python, or another package. Manual MCP registration does not
+enable the blocked Ghidra operations. See [Windows Ghidra P0](windows-ghidra-p0.md)
+for diagnostics and the proposed registration format.
 
 Doctor validates the platform, architecture, application version,
 `support/analyzeHeadless` or `support/analyzeHeadless.bat`, Java
@@ -237,12 +244,10 @@ installs, upgrades, or modifies Ghidra or Java.
 Each verified session uses an ephemeral temporary project and isolated
 home/cache/config/temp paths. REA passes `-readOnly`, `-deleteProject`, uses
 Ghidra's default analysis and resource settings, and loads its packaged Java
-bridge via `-scriptPath`; it never opens an existing user project. Linux uses a
-current-user-only local bridge socket and descriptor. Windows P0 uses
-token-authenticated IPv4 loopback, a token-free endpoint record, and bounded
-process-tree termination. It does not yet prove private DACL,
-reparse-point-safe, or Job Object semantics; use only approved non-sensitive
-fixtures.
+bridge via `-scriptPath`; it never opens an existing user project. Linux and
+macOS use a current-user-only local bridge socket and descriptor. The
+experimental Windows transport uses authenticated IPv4 loopback, but missing
+native ownership and path controls keep Windows operations unavailable.
 
 Operations begin only after default auto-analysis completes. The provider
 startup deadline fails the open rather than exposing partial analysis. One
@@ -256,8 +261,9 @@ remain unknown, reference-kind provenance is preserved, and provider-specific
 pseudocode is never treated as original source or Hopper-equivalent text.
 
 Run `GHIDRA_INSTALL_DIR=... npm run verify:ghidra` from a source checkout to
-compile and analyze debug and stripped x86-64 ELF fixtures on Linux x64. This lane needs only a host C compiler
-in addition to Ghidra and its JDK.
+compile and analyze debug and stripped host-native fixtures (ELF on Linux x64
+or Mach-O on macOS), plus a native DWARF 4 type-layout object. This lane needs a
+host C compiler in addition to Ghidra and its JDK.
 
 Run `GHIDRA_INSTALL_DIR=... npm run verify:ghidra:cross-format` to add AArch64
 ELF, x86-64 PE, and x86-64 Mach-O fixture coverage. This separate lane needs
@@ -267,8 +273,10 @@ host-native Ghidra acceptance lane.
 
 On a controlled Windows x64 runner, use
 `npm run verify:ghidra:windows`. The verifier generates a deterministic native
-PE fixture from source bytes, exercises every admitted Ghidra operation, checks
-target/snapshot/import digest identity, and requires complete runtime cleanup.
+PE fixture from source bytes and requires the Windows native authority before
+opening the provider. This lane remains blocked until those controls are
+implemented; its intended checks include operation coverage, digest identity,
+and complete runtime cleanup.
 
 ## Diagnose, update, and remove
 

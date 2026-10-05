@@ -62,7 +62,7 @@ npx rea-agents setup
 
 ## البدء السريع
 
-### باستخدام وكيل برمجة — موصى به
+### باستخدام وكيل برمجة (موصى به)
 
 ```bash
 npx --yes rea-agents@latest setup

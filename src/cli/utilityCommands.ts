@@ -14,6 +14,7 @@ import { PRODUCT_IDENTITY } from "../identity.js";
 import { logCliCommand } from "../cliLogging.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
 import type { Logger } from "../logger.js";
+import { isReferenceSourceImportCliFailure } from "./referenceSourceImportStatus.js";
 import type { CliInstance } from "./types.js";
 
 export const registerUtilityCommands = (
@@ -181,26 +182,31 @@ const registerReferenceSourceCommand = (
         .describe("Local source directory to import as historical reference"),
     }),
     run: ({ args }) =>
-      logCliCommand(logger, "import-reference-source", async () => {
-        const config = parseConfig(environment);
-        if (!config.ok)
-          return {
-            error: "Import failed",
-            ...projectAnalysisError(config.error),
-          };
-        const imported = await importReferenceSource({
-          root: args.root,
-          caller: "rea-cli",
-          policy: config.value.referenceSourcePolicy,
-          importer: PRODUCT_IDENTITY.packageName,
-          importerVersion: null,
-        });
-        return imported.ok
-          ? imported.value
-          : {
+      logCliCommand(
+        logger,
+        "import-reference-source",
+        async () => {
+          const config = parseConfig(environment);
+          if (!config.ok)
+            return {
               error: "Import failed",
-              ...projectReferenceSourceImportError(imported.error),
+              ...projectAnalysisError(config.error),
             };
-      }),
+          const imported = await importReferenceSource({
+            root: args.root,
+            caller: "rea-cli",
+            policy: config.value.referenceSourcePolicy,
+            importer: PRODUCT_IDENTITY.packageName,
+            importerVersion: null,
+          });
+          return imported.ok
+            ? imported.value
+            : {
+                error: "Import failed",
+                ...projectReferenceSourceImportError(imported.error),
+              };
+        },
+        isReferenceSourceImportCliFailure,
+      ),
   });
 };

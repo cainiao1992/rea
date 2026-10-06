@@ -323,17 +323,22 @@ server through `npx` with the `mcp` command.
 
 For a client that requires manual configuration, use:
 
+<!-- x-release-please-start-version -->
+
 ```json
 {
   "mcpServers": {
     "rea": {
       "command": "npx",
-      "args": ["-y", "rea-agents@latest", "mcp"]
+      "args": ["-y", "rea-agents@4.0.1", "mcp"]
     }
   }
 }
 ```
 
-Use an exact `rea-agents@VERSION` in the arguments when a reproducible client
-configuration is required. `rea setup` writes the same package-runner shape and
-pins it to the exact version that performed setup.
+<!-- x-release-please-end -->
+
+Persistent registrations should use one exact package version. `rea setup`
+writes the same package-runner shape and pins it to the exact version that
+performed setup. Run current setup to refresh an older registration, then
+restart the client.

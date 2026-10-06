@@ -7,12 +7,13 @@ import { SUPPORTED_NODE_VERSION_RANGE } from "../../src/domain/runtimeVersion.js
 const readJson = async (path: string): Promise<unknown> =>
   JSON.parse(await readFile(path, "utf8")) as unknown;
 
-const readmes = [
+const versionedDocumentation = [
   "README.md",
   "README_zh.md",
   "README_ja.md",
   "README_ko.md",
   "README_ar.md",
+  "docs/installation.md",
 ] as const;
 
 describe("release configuration", () => {
@@ -29,7 +30,10 @@ describe("release configuration", () => {
       packages: {
         ".": {
           "extra-files": [
-            ...readmes.map((path) => ({ type: "generic", path })),
+            ...versionedDocumentation.map((path) => ({
+              type: "generic",
+              path,
+            })),
             {
               type: "generic",
               path: "src/generatedPackageMetadata.ts",
@@ -55,7 +59,7 @@ describe("release configuration", () => {
     });
   });
 
-  it.each(readmes)(
+  it.each(versionedDocumentation)(
     "marks the versioned package example in %s",
     async (path) => {
       const content = await readFile(path, "utf8");

@@ -95,7 +95,7 @@ describe("localized README product facts", () => {
         mcpServers: expect.objectContaining({
           rea: expect.objectContaining({
             command: "npx",
-            args: ["-y", "rea-agents@latest", "mcp"],
+            args: ["-y", PRODUCT_IDENTITY.registrationPackageSpecifier, "mcp"],
           }),
         }),
       }),

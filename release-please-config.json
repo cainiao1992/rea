@@ -21,6 +21,7 @@
         { "type": "generic", "path": "README_ja.md" },
         { "type": "generic", "path": "README_ko.md" },
         { "type": "generic", "path": "README_ar.md" },
+        { "type": "generic", "path": "docs/installation.md" },
         {
           "type": "generic",
           "path": "src/generatedPackageMetadata.ts"

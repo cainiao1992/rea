@@ -2,12 +2,47 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { analyzeJavaScriptApplication } from "./JavaScriptApplicationService.js";
 
 describe("JavaScript application failure diagnostics", () => {
+  it("identifies the rejected result field in caller-visible diagnostics", async () => {
+    const inputPath = await createTestTempDirectory("rea-js-schema-failure-");
+    await writeFile(join(inputPath, "main.js"), "export const value = 1;\n");
+    const cause = new z.ZodError([
+      {
+        code: "custom",
+        path: ["semantic_graph", "nodes", 42, "application_node_ids", 0],
+        message: "Semantic node references an absent application node",
+      },
+    ]);
+    const result = await analyzeJavaScriptApplication(
+      { input_path: inputPath, format: "directory" },
+      {
+        progress: {
+          report: async (event) => {
+            if (event.terminal) throw cause;
+          },
+        },
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected analysis failure");
+    expect(result.error.cause).toBe(cause);
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "unreadable_output",
+      details: {
+        operation: "analyze_javascript_application",
+        reason:
+          "Result schema rejected 1 issue at /semantic_graph/nodes/42/application_node_ids/0 (custom)",
+      },
+    });
+  });
+
   it("retains unexpected failures and their input identity in caller-visible diagnostics", async () => {
     const inputPath = await createTestTempDirectory("rea-js-failure-");
     await writeFile(join(inputPath, "main.js"), "export const value = 1;\n");

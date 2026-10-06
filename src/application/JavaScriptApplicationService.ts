@@ -7,7 +7,7 @@ import {
 } from "../domain/javascriptApplicationAnalysis.js";
 import {
   AnalysisInputError,
-  AnalysisProtocolError,
+  AnalysisOutputError,
 } from "../domain/analysisErrorCore.js";
 import { ArtifactOperationError } from "../domain/artifactOperationError.js";
 import { type AnalysisError } from "../domain/analysisErrorBase.js";
@@ -79,10 +79,9 @@ export const analyzeJavaScriptApplicationValidated = async (
       );
     if (cause instanceof z.ZodError)
       return err(
-        new AnalysisProtocolError(
-          "JavaScript application analysis produced an invalid result",
-          { cause },
-        ),
+        new AnalysisOutputError(OPERATION, describeResultSchemaFailure(cause), {
+          cause,
+        }),
       );
     if (
       cause instanceof Error &&
@@ -108,6 +107,22 @@ export const analyzeJavaScriptApplicationValidated = async (
     );
   }
 };
+
+const describeResultSchemaFailure = (cause: z.ZodError): string => {
+  const issue = cause.issues[0];
+  if (issue === undefined) return "Result schema rejected an unknown issue";
+  const path = issue.path.flatMap((part) =>
+    typeof part === "string" || typeof part === "number" ? [part] : [],
+  );
+  const pointer =
+    path.length === 0
+      ? "/"
+      : `/${path.map((part) => escapePointerPart(String(part))).join("/")}`;
+  return `Result schema rejected ${String(cause.issues.length)} ${cause.issues.length === 1 ? "issue" : "issues"} at ${pointer} (${issue.code})`;
+};
+
+const escapePointerPart = (part: string): string =>
+  part.replaceAll("~", "~0").replaceAll("/", "~1");
 
 const FILESYSTEM_ERROR_CODES = new Set([
   "ENOENT",

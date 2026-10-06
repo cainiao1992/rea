@@ -229,7 +229,12 @@ const sourceSides = (
   evidence: Evidence,
 ): { left: string[]; right: string[] } => {
   const parameters = evidence.parameters;
-  if (claim.kind === "behavioral") {
+  let singularSides: { left: string[]; right: string[] } | undefined;
+  if (
+    claim.kind === "behavioral" ||
+    (claim.kind === "structural-function" &&
+      ("left_evidence_id" in parameters || "right_evidence_id" in parameters))
+  ) {
     const parsed = z
       .object({
         left_evidence_id: evidenceIdSchema,
@@ -237,10 +242,15 @@ const sourceSides = (
       })
       .passthrough()
       .parse(parameters);
-    return {
+    singularSides = {
       left: [parsed.left_evidence_id],
       right: [parsed.right_evidence_id],
     };
+    if (
+      claim.kind === "behavioral" ||
+      !("left_evidence_ids" in parameters || "right_evidence_ids" in parameters)
+    )
+      return singularSides;
   }
   const parsed = z
     .object({
@@ -249,6 +259,14 @@ const sourceSides = (
     })
     .passthrough()
     .parse(parameters);
+  if (
+    singularSides !== undefined &&
+    (parsed.left_evidence_ids.length !== 1 ||
+      parsed.right_evidence_ids.length !== 1 ||
+      parsed.left_evidence_ids[0] !== singularSides.left[0] ||
+      parsed.right_evidence_ids[0] !== singularSides.right[0])
+  )
+    throw new TypeError("Function comparison source Evidence aliases disagree");
   return { left: parsed.left_evidence_ids, right: parsed.right_evidence_ids };
 };
 

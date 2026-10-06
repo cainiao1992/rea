@@ -17,6 +17,11 @@ const environmentSchema = z.object({
     .min(1)
     .refine(isAbsolute, "JAVA_HOME must be absolute")
     .optional(),
+  REA_GHIDRA_NATIVEAOT_JAR: z
+    .string()
+    .min(1)
+    .refine(isAbsolute, "REA_GHIDRA_NATIVEAOT_JAR must be absolute")
+    .optional(),
   REA_ILSPY_CMD_PATH: z
     .string()
     .min(1)

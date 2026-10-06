@@ -44,6 +44,7 @@
     "bridge/hopper_bridge.py",
     "bridge/native/ReaNativeUI.swift",
     "bridge/ghidra/ReaGhidraBridge.java",
+    "bridge/ghidra/ReaGhidraExtensions.java",
     "bridge/ghidra/ReaGhidraPrepareCom.java",
     "scripts/rea.mjs",
     "scripts/electron-active-hook.cjs",
@@ -168,7 +169,10 @@
     "verify:windows-native:artifact": "node scripts/verify-windows-native-artifact.mjs",
     "prepublishOnly": "npm run verify:windows-native:artifact",
     "verify:windows-native": "node scripts/verify-windows-native.mjs",
-    "verify:ghidra:windows:package": "node scripts/verify-packaged-ghidra-windows.mjs"
+    "verify:ghidra:windows:package": "node scripts/verify-packaged-ghidra-windows.mjs",
+    "build:ghidra:nativeaot": "node scripts/build-ghidra-nativeaot.mjs",
+    "build:fixtures:nativeaot": "node scripts/generate-nativeaot-fixtures.mjs",
+    "verify:ghidra:nativeaot": "npm run build:cached && node scripts/verify-real-ghidra-nativeaot.mjs"
   },
   "lint-staged": {
     "*.{cjs,cts,js,jsx,mjs,mts,ts,tsx}": [

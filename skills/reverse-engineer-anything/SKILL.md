@@ -4,7 +4,7 @@ description: Reverse engineer native, managed, Electron/JavaScript, packaged, fi
 metadata:
   version: "25"
   tool_count: 125
-  catalog_digest: "297aced29e7ce5e845c505d5f2e9e2dee42b7ed3e628f088f424fe8088c9e8dc"
+  catalog_digest: "ed9c36900e9223561d38ba30a44921f4ff101d5eca989920f9edc9dc91df470b"
 ---
 
 # REA
@@ -89,6 +89,9 @@ explicit path or endpoint and do not need it.
   `extract_firmware` when extraction is requested, with a caller-selected new
   absolute output directory. These tools use caller-supplied Binwalk/Unblob on
   Linux; see the [firmware guide](https://github.com/morluto/rea/blob/main/docs/firmware-analysis.md).
+- .NET NativeAOT PE/ELF: native Ghidra analysis. Native code can yield pseudocode;
+  consult the NativeAOT workflow in `references/native-and-artifacts.md` for
+  optional metadata recovery and its supported host/layout boundary.
 - User-owned browser page already open: `list_browser_targets`.
 - User-owned Electron runtime already open: `list_electron_targets`.
 - Native executable, library, or analysis database: `open_binary`, then

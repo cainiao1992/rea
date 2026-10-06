@@ -165,6 +165,36 @@ Synthetic producer regressions run independently:
 npm run test:focused -- tests/boundary/android/jadxIntegration.test.ts tests/boundary/mcp/androidAnalysisMcp.test.ts
 ```
 
+## Optional NativeAOT Ghidra analysis
+
+This lane is separate from the default native lane. `build:fixtures:nativeaot`
+requires an existing .NET SDK 8.0.416, the platform NativeAOT compiler/linker and
+runtime pack 8.0.22. It builds benign sources into ignored `_reference/` and
+records independent symbol/directory/SHA oracles; it never executes the target.
+Linux also builds stripped, ordinary-native and small malformed/ambiguous/layout
+negative inputs. The optional Windows fixture workflow builds a PE on a Windows
+runner; analyzing that PE on Linux does not verify a Windows Ghidra host.
+
+Build the clean pinned upstream adapter with `build:ghidra:nativeaot`, then set
+`REA_GHIDRA_NATIVEAOT_JAR`. Run `verify:ghidra:nativeaot -- symbols`, `-- stripped`,
+`-- ordinary`, `-- unsupported`, `-- malformed`, `-- ambiguous`, and
+`-- loader-failure`, and `-- default-native` separately. The loader-failure mode source-builds
+a deliberately failing JDK 21 initializer and checks the actual loader cause and
+cleanup. The default-native mode verifies ordinary analysis with the optional
+extension disabled.
+The real MCP lane checks source identity, inline format discovery, metadata
+relationships/slots against independent compiler symbols, frozen strings,
+pseudocode and owned cleanup. Set `REA_NATIVEAOT_PROOF_CLI=1` for one equivalent
+CLI type inspection; this costs an additional full import. Select an unpacked
+installed package with `REA_NATIVEAOT_PROOF_PACKAGE_ROOT`, a fixture directory
+with `REA_NATIVEAOT_PROOF_FIXTURE_ROOT`, and optional evidence capture directory
+with `REA_NATIVEAOT_PROOF_CAPTURE_DIR` (absolute paths).
+
+Keep builds/imports sequential on small hosts; scope `GHIDRA_HEADLESS_MAXMEM`
+(e.g. `768M`) to this command and use CPU affinity if needed. REA does not install
+or upgrade Java, Ghidra, .NET or native toolchains. See
+[the supported layout and provenance](ghidra-nativeaot.md).
+
 ## DOS Ghidra analysis
 
 `npm run verify:ghidra:dos` requires the supported Ghidra and JDK installation

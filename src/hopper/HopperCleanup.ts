@@ -98,13 +98,13 @@ const requestShutdown = async (
       );
     return;
   }
+  const method =
+    input.retainDocument || input.launch?.shutdownMode === "process-cleanup"
+      ? "shutdown"
+      : "shutdown_document";
   const shutdown = await input
-    .request(
-      input.retainDocument || input.launch?.shutdownMode === "process-cleanup"
-        ? "shutdown"
-        : "shutdown_document",
-    )
-    .catch(() => err(new HopperProcessError(null)));
+    .request(method)
+    .catch((cause: unknown) => err(shutdownRequestFailure(method, cause)));
   if (
     shutdown.ok &&
     isHopperCleanupRequired(shutdown.value) &&
@@ -127,7 +127,10 @@ const requestShutdown = async (
     (!state.shutdownConfirmed && state.cleanupResult === undefined)
   )
     input.logger.warn(
-      { status: shutdown.ok ? "invalid-acknowledgement" : "failed" },
+      {
+        status: shutdown.ok ? "invalid-acknowledgement" : "failed",
+        ...(shutdown.ok ? {} : shutdownFailureDetails(shutdown.error)),
+      },
       "Hopper document shutdown was not confirmed",
     );
 };
@@ -137,15 +140,66 @@ const fallbackDocumentShutdown = async (
 ): Promise<boolean> => {
   const fallback = await input
     .request("shutdown_document")
-    .catch(() => err(new HopperProcessError(null)));
+    .catch((cause: unknown) =>
+      err(shutdownRequestFailure("shutdown_document", cause)),
+    );
   const confirmed =
     fallback.ok && isHopperShutdownAcknowledgement(fallback.value);
   if (!confirmed)
     input.logger.warn(
-      { status: fallback.ok ? "invalid-acknowledgement" : "failed" },
+      {
+        status: fallback.ok ? "invalid-acknowledgement" : "failed",
+        ...(fallback.ok ? {} : shutdownFailureDetails(fallback.error)),
+      },
       "Hopper document shutdown fallback was not confirmed",
     );
   return confirmed;
+};
+
+const shutdownRequestFailure = (
+  operation: "shutdown" | "shutdown_document",
+  cause: unknown,
+): HopperProcessError => {
+  const failure = new HopperProcessError(null, undefined, operation);
+  failure.cause = cause;
+  return failure;
+};
+
+const shutdownFailureDetails = (
+  error: HopperError,
+): Record<string, JsonValue> => ({
+  errorTag: error._tag,
+  ...(error instanceof HopperProcessError && error.operation !== undefined
+    ? { operation: error.operation }
+    : {}),
+  ...(error instanceof HopperProcessError && error.requestId !== undefined
+    ? { requestId: error.requestId }
+    : {}),
+  ...(error.cause === undefined
+    ? {}
+    : { failure_cause: describeFailureCause(error.cause) }),
+});
+
+const describeFailureCause = (cause: unknown): JsonValue => {
+  if (cause instanceof Error) {
+    const code = "code" in cause ? cause.code : undefined;
+    return {
+      name: cause.name,
+      message: cause.message,
+      ...(typeof code === "string" ||
+      (typeof code === "number" && Number.isFinite(code))
+        ? { code }
+        : {}),
+    };
+  }
+  if (typeof cause === "string") return { type: "string", message: cause };
+  if (
+    cause === null ||
+    typeof cause === "boolean" ||
+    (typeof cause === "number" && Number.isFinite(cause))
+  )
+    return { type: cause === null ? "null" : typeof cause, value: cause };
+  return { type: typeof cause };
 };
 
 const stopProcess = async (

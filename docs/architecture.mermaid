@@ -1,7 +1,7 @@
 graph TD
     subgraph "Entry Points"
-        CLI["src/cli.ts<br/>One-shot CLI adapter<br/>setup, diagnostics, analysis, decompilation"]
-        MAIN["src/main.ts<br/>MCP stdio server adapter<br/>config, session, process lifetime"]
+        CLI["src/cli.ts + src/cli/<br/>One-shot CLI adapter<br/>setup, diagnostics, analysis, decompilation"]
+        MAIN["src/main.ts + src/main/<br/>MCP stdio server adapter<br/>config, session, process lifetime"]
         DISPATCH["scripts/rea.mjs<br/>Executable dispatcher<br/>routes mcp / one-shot"]
     end
 
@@ -9,14 +9,14 @@ graph TD
         SERVER["src/server/<br/>MCP request translation<br/>createServer, tool registration, toolResult"]
         HOPPER_BRIDGE["bridge/hopper_bridge.py<br/>Runs inside Hopper<br/>adapts operations to Hopper Python API"]
         GHIDRA_BRIDGE["bridge/ghidra/ReaGhidraBridge.java<br/>Packaged HeadlessScript<br/>inventory, decompiler, references, CFG"]
-        INSTALL["Host installation adapters<br/>macOS: verified vendor DMG to ~/Applications<br/>Linux: verified vendor package + apt/dnf/pacman"]
+        INSTALL["src/cli/ + src/application/Setup*<br/>Host installation adapters<br/>macOS: verified vendor DMG to ~/Applications<br/>Linux: verified vendor package + apt/dnf/pacman"]
     end
 
     subgraph "Application Layer"
         APP["src/application/<br/>Shared CLI/MCP workflows<br/>enhanced analysis and investigations"]
         SESSION["SessionProviderRouter + BinarySession<br/>one immutable deep binding per target<br/>disjoint auxiliary routing"]
         REGISTRY["AnalysisProviderRegistry<br/>sorted deep candidates<br/>deterministic selection, no fallback"]
-        JS_RECON["JavaScript artifact reconstruction<br/>directory/ASAR reads<br/>AST-only bundle projection"]
+        JS_RECON["src/application/ + src/artifacts/<br/>JavaScript artifact reconstruction<br/>directory/ASAR reads<br/>AST-only bundle projection"]
     end
 
     subgraph "Provider Layers"
@@ -48,7 +48,7 @@ graph TD
     end
 
     subgraph "Configuration"
-        CONFIG["src/config.ts<br/>Zod-validated env parsing<br/>provider settings and origins"]
+        CONFIG["src/config.ts + src/config/<br/>Zod-validated env parsing<br/>provider settings and origins"]
     end
 
     subgraph "Tests"

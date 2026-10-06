@@ -453,7 +453,7 @@ The [current status](#current-status) section describes shipped capabilities. Th
 
 1. **Expand browser and Electron interaction:** add scenario actions beyond the current click and wait operations.
 2. **Observe native apps at runtime:** explore LLDB, Frida, system logs, and native API tracing.
-3. **Evaluate more tools and targets:** assess IDA/Hex-Rays, Binary Ninja, Rizin, LIEF, Windows-native tools, mobile apps, and firmware.
+3. **Evaluate more tools and targets:** assess Binary Ninja, Rizin, LIEF, Windows-native tools, mobile apps, and firmware. IDA support already ships via the bring-your-own upstream adapter; see the [IDA provider guide](docs/ida-provider.md).
 
 Setup already lets you choose agent integration and Hopper installation. Support for installing additional analysis tools is future work, described in the [installation roadmap](docs/roadmap.md).
 

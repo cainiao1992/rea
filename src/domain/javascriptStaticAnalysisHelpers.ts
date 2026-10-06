@@ -386,7 +386,8 @@ export const sourceRangesEqual = (
 
 const pointForOffset = (source: string, offset: number) => {
   const before = source.slice(0, offset);
-  const lines = before.split("\n");
+  // Match JavaScript line terminators, treating CRLF as a single newline.
+  const lines = before.split(/\r\n|[\n\r\u2028\u2029]/u);
   return { line: lines.length, column: lines.at(-1)?.length ?? 0 };
 };
 

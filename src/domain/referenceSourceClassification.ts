@@ -321,11 +321,10 @@ const isPathUnderAny = (path: string, names: ReadonlySet<string>): boolean => {
 /** Detect a source language from a POSIX path. */
 export const detectReferenceSourceLanguage = (path: string): string | null => {
   const filename = posix.basename(path);
-  if (filename === "Dockerfile" || filename.startsWith("Dockerfile."))
-    return "Dockerfile";
-  if (filename.toLowerCase().startsWith("dockerfile")) return "Dockerfile";
-
   const lower = filename.toLowerCase();
+  if (lower === "dockerfile" || lower.startsWith("dockerfile."))
+    return "Dockerfile";
+
   if (lower.endsWith(".d.ts")) return "TypeScript";
   if (lower.endsWith(".d.mts")) return "TypeScript";
   if (lower.endsWith(".d.cts")) return "TypeScript";

@@ -285,7 +285,8 @@ const filenameIsTest = (filename: string): boolean => {
   if (lower.includes(".test.") || lower.includes(".spec.")) return true;
   if (lower.startsWith("test_") || lower.startsWith("spec_")) return true;
   if (lower.endsWith("_test") || lower.endsWith("_spec")) return true;
-  return false;
+  const stem = basenameParts(lower).base;
+  return stem.endsWith("_test") || stem.endsWith("_spec");
 };
 
 const filenameIsGenerated = (filename: string): boolean => {

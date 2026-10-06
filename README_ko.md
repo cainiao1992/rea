@@ -15,6 +15,8 @@
 [![MIT license](https://img.shields.io/badge/license-MIT-f4c430?style=flat-square)](LICENSE)
 [![Discord](https://img.shields.io/discord/1556595354999332884?logo=discord&logoColor=white&label=Discord&color=5865F2)](https://discord.gg/GkcryMnJDM)
 
+<a href="https://trendshift.io/repositories/82054?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-82054" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/82054/weekly?language=TypeScript" alt="morluto/rea | Trendshift" width="250" height="55" /></a>
+
 [빠른 시작](#빠른-시작) · [현재 지원 범위](#현재-지원-범위) · [바이너리에서 동작까지](#바이너리에서-동작까지) · [조사 도구 카탈로그](#조사-도구-카탈로그) · [로드맵](#로드맵) · [작동 방식](#작동-방식)
 
 <table aria-label="REA community">

@@ -2,6 +2,7 @@ import * as t from "@babel/types";
 
 import { compareCodePoints } from "./canonicalOrdering.js";
 import type { ElectronStaticValue } from "./electronStaticAnalysisTypes.js";
+import { semanticStaticPropertyName } from "./javascriptAstValues.js";
 import {
   propertyName,
   sourceSlice,
@@ -32,15 +33,27 @@ export const boundedExpression = (
   return expression === "" ? `[${node.type}]` : expression;
 };
 
-/** Read one named object property without following spreads or bindings. */
+/** Find the effective explicit property, preserving unresolved overrides. */
 export const objectProperty = (
-  object: t.ObjectExpression,
+  object: t.Node | undefined,
   name: string,
-): t.ObjectProperty | undefined =>
-  object.properties.find(
-    (property): property is t.ObjectProperty =>
-      t.isObjectProperty(property) && propertyName(property.key) === name,
-  );
+):
+  | { readonly status: "missing" | "dynamic" }
+  | { readonly status: "explicit"; readonly property: t.ObjectProperty } => {
+  if (object === undefined) return { status: "missing" };
+  if (!t.isObjectExpression(object)) return { status: "dynamic" };
+  for (const property of object.properties.toReversed()) {
+    if (t.isSpreadElement(property)) return { status: "dynamic" };
+    const key = semanticStaticPropertyName(property.key, property.computed);
+    if (key === "" && !t.isStringLiteral(property.key))
+      return { status: "dynamic" };
+    if (key !== name) continue;
+    return t.isObjectProperty(property)
+      ? { status: "explicit", property }
+      : { status: "dynamic" };
+  }
+  return { status: "missing" };
+};
 
 type PresentHandlerKind =
   | "inline-function"

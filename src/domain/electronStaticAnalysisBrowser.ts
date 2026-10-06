@@ -77,29 +77,18 @@ const collectWindowOptions = (
   readonly preload: ElectronBrowserWindowPreload;
   readonly unknown: number;
 } => {
-  if (!t.isObjectExpression(options))
+  const lookup = objectProperty(options, "webPreferences");
+  if (
+    lookup.status !== "explicit" ||
+    !t.isObjectExpression(lookup.property.value)
+  )
     return {
-      status: options === undefined ? "missing" : "dynamic",
+      status: lookup.status === "missing" ? "missing" : "dynamic",
       preferences: [],
       preload: { preload_path: null, preload_resolution_context: null },
-      unknown: options === undefined ? 0 : 1,
+      unknown: lookup.status === "missing" ? 0 : 1,
     };
-  const property = objectProperty(options, "webPreferences");
-  if (property === undefined)
-    return {
-      status: "missing",
-      preferences: [],
-      preload: { preload_path: null, preload_resolution_context: null },
-      unknown: 0,
-    };
-  if (!t.isObjectExpression(property.value))
-    return {
-      status: "dynamic",
-      preferences: [],
-      preload: { preload_path: null, preload_resolution_context: null },
-      unknown: 1,
-    };
-  return collectWebPreferences(source, property.value);
+  return collectWebPreferences(source, lookup.property.value);
 };
 
 const collectWebPreferences = (
@@ -224,11 +213,13 @@ const inspectUtilityProcess = (
   const modulePath =
     moduleNode === undefined ? undefined : staticPath(moduleNode);
   const options = argumentNode(node.arguments[2]);
+  const serviceNameProperty = objectProperty(options, "serviceName");
   const serviceName =
-    t.isObjectExpression(options) &&
-    objectProperty(options, "serviceName") !== undefined
-      ? staticPath(objectProperty(options, "serviceName")?.value ?? options)
+    serviceNameProperty.status === "explicit"
+      ? staticPath(serviceNameProperty.property.value)
       : undefined;
+  if (serviceNameProperty.status !== "missing" && serviceName === undefined)
+    context.accumulator.unknownFindings += 1;
   if (modulePath === undefined) context.accumulator.unknownFindings += 1;
   const moduleReference =
     modulePath === undefined || moduleNode === undefined

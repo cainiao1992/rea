@@ -30,21 +30,31 @@ export const resolveJadxConfiguration = async (
     throw unavailable(
       "Set REA_JADX_MCP_JAR to the absolute path of a caller-supplied jadx-headless-mcp 0.7.1 JAR. REA does not download or install it.",
     );
+  const java =
+    environment.JAVA_HOME === undefined
+      ? "java"
+      : join(environment.JAVA_HOME, "bin", "java");
   try {
     await access(jar, constants.R_OK);
     if (!(await stat(jar)).isFile())
       throw unavailable(`REA_JADX_MCP_JAR is not a regular file: ${jar}`);
-    return {
-      jar: await realpath(jar),
-      java:
-        environment.JAVA_HOME === undefined
-          ? "java"
-          : join(environment.JAVA_HOME, "bin", "java"),
-    };
   } catch (cause) {
     if (cause instanceof AnalysisCapabilityUnavailableError) throw cause;
     throw unavailable(
       `Cannot read REA_JADX_MCP_JAR ${jar}: ${cause instanceof Error ? cause.message : String(cause)}`,
     );
   }
+  if (environment.JAVA_HOME !== undefined) {
+    try {
+      await access(java, constants.R_OK | constants.X_OK);
+      if (!(await stat(java)).isFile())
+        throw unavailable(`JAVA_HOME java is not a regular file: ${java}`);
+    } catch (cause) {
+      if (cause instanceof AnalysisCapabilityUnavailableError) throw cause;
+      throw unavailable(
+        `Cannot execute JAVA_HOME java ${java}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
+    }
+  }
+  return { jar: await realpath(jar), java };
 };

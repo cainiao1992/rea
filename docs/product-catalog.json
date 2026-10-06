@@ -7,7 +7,7 @@
       "client": "2.3.1",
       "core": "2.3.1"
     },
-    "skill_version": "27"
+    "skill_version": "24"
   },
   "tools": {
     "total": 117,
@@ -558,9 +558,9 @@
       "mcp_prompts": 6
     },
     "digests": {
-      "tools_sha256": "eec70858c8de9e04fc3a87f38ad9e2f0b75ed8717afae80d1837a348f1232086",
+      "tools_sha256": "be74884c49199aa22146a94dfbf8c11dd0ae0b87c0896e32a10b9ff691fdd342",
       "prompts_sha256": "4762db348821fec787a5b8c6423f2c48a71f6f0ec2afee97b16ad69030ec504b",
-      "combined_sha256": "55ea35002d0e7ac5267b58794116927ef784d3d0a64c015fbf523ce680fd1960",
+      "combined_sha256": "f63ae9b3480f206700cf334c54b3267aff8d0c3a7f4e782d8b5f7952cfdd5271",
       "providers_sha256": "c1a6849b2524347e6cf9e004a17ba1805f86114b2da72eb689a075afbbb1aada"
     }
   }

@@ -291,8 +291,7 @@ const parseWithBabel = (
   language: string | null,
 ): {
   ast: File | undefined;
-  parseState: ReferenceSourceImportParseState;
-  reason?: string;
+  reasons: readonly string[];
 } => {
   const plugins: ParserPlugin[] = ["jsx"];
   if (language === "TypeScript" || language === "TSX") {
@@ -316,12 +315,11 @@ const parseWithBabel = (
       errorRecovery: true,
       plugins,
     });
-    return { ast, parseState: "parsed" };
+    return { ast, reasons: ast.errors.map((error) => error.message) };
   } catch (cause: unknown) {
     return {
       ast: undefined,
-      parseState: "unknown",
-      reason: cause instanceof Error ? cause.message : "Parse failed",
+      reasons: [cause instanceof Error ? cause.message : "Parse failed"],
     };
   }
 };
@@ -336,18 +334,17 @@ export const parseReferenceSourceImports = (
     return { relationships: [], parse_failures: [] };
 
   const source = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-  const { ast, parseState, reason } = parseWithBabel(path, source, language);
+  const { ast, reasons } = parseWithBabel(path, source, language);
+  const parseFailures = reasons.map((reason) => ({
+    path,
+    parser: "babel",
+    reason,
+  }));
 
-  if (ast === undefined || parseState === "unknown") {
+  if (ast === undefined) {
     return {
       relationships: [],
-      parse_failures: [
-        {
-          path,
-          parser: "babel",
-          reason: reason ?? "Unknown parse failure",
-        },
-      ],
+      parse_failures: parseFailures,
     };
   }
 
@@ -356,7 +353,13 @@ export const parseReferenceSourceImports = (
   extractRequireAndDynamicImports(ast.program.body, path, relationships);
 
   return {
-    relationships,
-    parse_failures: [],
+    relationships: relationships.map((relationship) => ({
+      ...relationship,
+      parse_state:
+        parseFailures.length > 0 && relationship.parse_state === "parsed"
+          ? "partial"
+          : relationship.parse_state,
+    })),
+    parse_failures: parseFailures,
   };
 };

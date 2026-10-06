@@ -209,6 +209,19 @@ describe("Ghidra provider", () => {
 });
 
 describe("Ghidra platform support", () => {
+  it("keeps Windows annotation mutation unavailable independently of native controls", () => {
+    const ghidra = provider({ ...installationHost(), platform: "win32" });
+    expect(
+      ghidra
+        .capabilities()
+        .find(({ operation }) => operation === "annotate_native_function"),
+    ).toMatchObject({
+      available: false,
+      reason: "Windows Ghidra P0 does not admit database mutation.",
+      availabilityCode: "unsupported_host",
+    });
+  });
+
   it("keeps Windows P0 unavailable until native isolation authority exists", () => {
     const ghidra = provider({ ...installationHost(), platform: "win32" });
     const nativeApplication = peTarget("x86_64");
@@ -343,7 +356,8 @@ describe("Ghidra client projection", () => {
     expect(resolved.value.profile).toMatchObject({
       provider: { id: "ghidra", name: "Ghidra", version: "12.1.4" },
       parameters: {
-        import_mode: "ephemeral-read-only",
+        import_mode: "ephemeral-source-immutable",
+        annotation_policy: "atomic-function-entry-metadata-v1",
         analyzer_preset: "ghidra-default",
       },
     });
@@ -451,6 +465,46 @@ describe("Ghidra result projection", () => {
       ).resolves.toMatchObject({ ok: false, error: { _tag: tag } });
     },
   );
+
+  it("preserves the rejected name constraint and function address", async () => {
+    const message =
+      "Invalid function name at 0x10100: Symbol name contains invalid characters";
+    const ghidra = provider(installationHost(), () => ({
+      start: () => Promise.resolve(ok(sessionInfo())),
+      callTool: () =>
+        Promise.resolve(
+          err(
+            new GhidraSessionError(
+              "remote",
+              message,
+              {},
+              { remoteCode: "invalid_function_name" },
+            ),
+          ),
+        ),
+      close: () => Promise.resolve(),
+    }));
+    const resolved = await ghidra.resolveAnalysisProfile(
+      executableTarget("elf", "x86_64"),
+    );
+    if (!resolved.ok) throw resolved.error;
+    if (resolved.value.profile === null)
+      throw new Error("Expected a bound profile");
+    await expect(
+      ghidra
+        .createClient(executableTarget("elf", "x86_64"), resolved.value.profile)
+        .execute("annotate_native_function", {
+          procedure: "0x10100",
+          name: "bad name",
+        }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        _tag: "AnalysisInputError",
+        issues: [{ path: ["name"], reason: "invalid_value", message }],
+      },
+    });
+  });
 
   it("projects remote decompile cancellation as a provider-neutral interruption", async () => {
     const code = "decompile_cancelled";
@@ -566,7 +620,7 @@ const sessionInfo = () => ({
   run_id: "11111111-1111-4111-8111-111111111111",
   profile_digest: "a".repeat(64),
   provider: { id: "ghidra" as const, version: "12.1.4" },
-  read_only: true as const,
+  read_only: false as const,
   analysis_complete: true,
   analysis_timed_out: false,
   capabilities: [...GHIDRA_SESSION_CAPABILITIES],

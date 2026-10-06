@@ -257,7 +257,10 @@ try {
         pathToFileURL(join(packageRoot, "dist/ghidra/GhidraSessionValues.js"))
       )
     ).GHIDRA_SESSION_CAPABILITIES.filter(
-      (name) => name !== "ping" && name !== "shutdown",
+      (name) =>
+        name !== "ping" &&
+        name !== "shutdown" &&
+        name !== "annotate_native_function",
     );
     assert.ok(
       expected.every((name) => report.mcpOperations.includes(name)),

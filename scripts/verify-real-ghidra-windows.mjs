@@ -22,16 +22,26 @@ import {
 } from "../dist/ghidra/GhidraInstallation.js";
 import { GhidraHeadlessLauncher } from "../dist/ghidra/GhidraLauncher.js";
 import { GHIDRA_PROVIDER_IDENTITY } from "../dist/ghidra/GhidraProvider.js";
-import { GHIDRA_SESSION_CAPABILITIES as SESSION_CAPABILITIES } from "../dist/ghidra/GhidraSessionValues.js";
+import { windowsP0Capabilities } from "../dist/ghidra/GhidraProviderCapabilities.js";
+import { GHIDRA_SESSION_CAPABILITIES } from "../dist/ghidra/GhidraSessionValues.js";
 import { parseBinaryTarget } from "../dist/application/BinaryTargetResolver.js";
 import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
 
 const verifierRun = createVerifierRun();
+const SESSION_CAPABILITIES = GHIDRA_SESSION_CAPABILITIES.filter(
+  (name) => name !== "annotate_native_function",
+);
 
 if (process.platform !== "win32" || process.arch !== "x64")
   throw new Error(
     "The real Windows Ghidra verifier requires a Windows x64 host",
   );
+if (
+  windowsP0Capabilities().some(
+    ({ available, effects }) => available && effects.mutatesArtifact,
+  )
+)
+  throw new Error("Windows Ghidra must not advertise database mutation");
 const installDir = process.env.GHIDRA_INSTALL_DIR;
 if (installDir === undefined || !isAbsolute(installDir))
   throw new Error(
@@ -185,7 +195,9 @@ try {
 
   const expected = [
     ...GHIDRA_INVENTORY_OPERATIONS,
-    ...GHIDRA_FUNCTION_OPERATIONS,
+    ...GHIDRA_FUNCTION_OPERATIONS.filter(
+      (name) => name !== "annotate_native_function",
+    ),
   ];
   if (
     observed.size !== expected.length ||

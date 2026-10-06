@@ -81,7 +81,7 @@ export type GhidraProviderClientFactory = (
 ) => Pick<GhidraClient, "start" | "callTool" | "close"> &
   Partial<Pick<GhidraClient, "runtimeLineage" | "readTargetSnapshot">>;
 
-/** Ghidra candidate backed by an isolated read-only headless import. */
+/** Ghidra candidate backed by an isolated ephemeral headless import. */
 export class GhidraProvider implements AnalysisProviderCandidate {
   #installation: GhidraInstallationInspection | undefined;
 
@@ -475,6 +475,14 @@ const projectSessionError = (
   operation: AnalysisOperation,
   failure: GhidraSessionError,
 ): AnalysisError => {
+  if (
+    operation === "annotate_native_function" &&
+    failure.kind === "remote" &&
+    failure.remoteCode === "invalid_function_name"
+  )
+    return new AnalysisInputError(operation, { cause: failure }, [
+      { path: ["name"], reason: "invalid_value", message: failure.message },
+    ]);
   if (failure.kind === "cancelled")
     return new AnalysisCancelledError(operation);
   if (failure.kind === "timeout" || failure.kind === "analysis_timeout")

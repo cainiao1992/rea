@@ -48,7 +48,9 @@ GitHub Copilot CLI, Command Code, and VS Code using each client's configuration 
 Ghidra analysis supports Linux x64 and macOS x64/arm64 with Ghidra 12.1.4 and a
 64-bit full JDK 21. macOS also requires the matching native decompiler. The
 adapter exposes thirteen inventory operations and twelve function-analysis
-operations, for 25 read-only operations total. Approved setup saves verified
+operations, for 25 read-only operations total. Linux and macOS additionally support
+atomic function-name and entry-comment edits with refreshed analysis; metadata
+is discarded on close and executable bytes stay unchanged. Approved setup saves verified
 installation paths in agent configurations without installing or changing
 Ghidra or Java.
 

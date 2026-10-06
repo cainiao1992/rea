@@ -249,7 +249,12 @@ const diffPair = (
 ): JavaScriptExportShapeComparisonChange[] => {
   const leftFields = new Map(left.fields.map((field) => [field.path, field]));
   const rightFields = new Map(right.fields.map((field) => [field.path, field]));
-  const paths = uniqueSorted([...leftFields.keys(), ...rightFields.keys()]);
+  const paths = uniqueSorted([
+    ...leftFields.keys(),
+    ...rightFields.keys(),
+    ...left.property_coverage.map(({ path }) => path),
+    ...right.property_coverage.map(({ path }) => path),
+  ]);
   return paths.flatMap((path) => {
     const leftField = fieldAtPath(left, leftFields, path);
     const rightField = fieldAtPath(right, rightFields, path);

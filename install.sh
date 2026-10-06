@@ -55,17 +55,15 @@ fi
 platform="$(uname -s)"
 [[ "$platform" == "Darwin" || "$platform" == "Linux" ]] || fail "REA supports macOS and selected 64-bit Linux distributions."
 command -v curl >/dev/null 2>&1 || fail "curl is required. Install curl, then rerun this installer."
-command -v node >/dev/null 2>&1 || fail "Node.js 22.19+ or 24.11+ is required; install it from https://nodejs.org and retry."
+command -v node >/dev/null 2>&1 || fail "Node.js 22.x (>=22.19), 24.x (>=24.11), or 26+ is required; install it from https://nodejs.org and retry."
 command -v npm >/dev/null 2>&1 || fail "npm is required; install it with Node.js and retry."
 
 node_version="$(node -p 'process.versions.node' 2>/dev/null || true)"
 IFS=. read -r node_major node_minor _node_patch <<<"$node_version"
 [[ "$node_major" =~ ^[0-9]+$ && "$node_minor" =~ ^[0-9]+$ ]] || fail "the active Node.js version could not be read. Check that node works and is on PATH, then retry."
-if ! ((node_major == 22 && node_minor >= 19 || node_major >= 24)); then
-  fail "Node.js $node_version is unsupported; use Node.js 22.19+ or 24.11+."
-fi
-if ((node_major == 24 && node_minor < 11)); then
-  fail "Node.js $node_version is unsupported; use Node.js 24.11 or newer."
+if ! [[ "$_node_patch" =~ ^[0-9]+(\+[0-9A-Za-z.-]+)?$ ]] ||
+  ! ((node_major == 22 && node_minor >= 19 || node_major == 24 && node_minor >= 11 || node_major >= 26)); then
+  fail "Node.js $node_version is unsupported; use Node.js 22.x (>=22.19), 24.x (>=24.11), or 26+."
 fi
 
 if [[ -n "$version" ]]; then

@@ -1,10 +1,8 @@
+import { satisfies } from "semver";
+
+/** Supported runtime range, kept in sync with the published package engines. */
+export const SUPPORTED_NODE_VERSION_RANGE = "^22.19.0 || ^24.11.0 || >=26.0.0";
+
 /** Return whether a Node.js version satisfies REA's tested runtime families. */
-export const supportsNodeVersion = (version: string): boolean => {
-  const [majorText = "", minorText = ""] = version.split(".");
-  const major = Number.parseInt(majorText, 10);
-  const minor = Number.parseInt(minorText, 10);
-  return (
-    (major === 22 && minor >= 19) ||
-    (major >= 24 && (major !== 24 || minor >= 11))
-  );
-};
+export const supportsNodeVersion = (version: string): boolean =>
+  satisfies(version, SUPPORTED_NODE_VERSION_RANGE);

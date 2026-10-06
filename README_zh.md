@@ -126,7 +126,7 @@ rea setup
 
 - macOS 12 或更高版本
 - Ubuntu 24.04+、Fedora 41+ 或 64 位 Arch Linux
-- Node.js 22.19+ 或 24.11+，以及 npm
+- Node.js 22.x (>=22.19)、24.x (>=24.11) 或 26+，以及 npm
 
 原生二进制分析需要 Hopper 或 Ghidra。Hopper 是独立软件；演示模式有厂商规定的限制，不要求购买许可证。
 

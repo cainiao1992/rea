@@ -16,7 +16,7 @@ import type { ClientRegistrationStatus } from "./ClientRegistrationStatus.js";
 /** Recording setup host for service-level planning and recovery tests. */
 export class FakeSetupHost implements SetupHost {
   readonly platform: NodeJS.Platform;
-  nodeVersion = "25.1.0";
+  nodeVersion = "24.18.0";
   version: string | undefined = "14.5";
   distribution: LinuxDistribution | undefined;
   hopper: string | undefined;

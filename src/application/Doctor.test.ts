@@ -19,11 +19,25 @@ describe("doctor", () => {
         result.checks.map(({ name, remediation }) => [name, remediation]),
       ),
     ).toEqual({
-      node: "Install Node.js 22.19+ or 24.11+.",
+      node: "Install Node.js 22.x (>=22.19), 24.x (>=24.11), or 26+.",
       host: "REA supports macOS 12+, Ubuntu 24.04+, Fedora 41+, 64-bit Arch Linux, and the experimental Windows x64 Ghidra P0 boundary.",
       hopper: "Run rea setup to install Hopper, or set HOPPER_LAUNCHER_PATH.",
       target: "Supply a readable local app or program path.",
     });
+  });
+
+  it("reports Node 25 as unsupported", async () => {
+    const result = await runDoctor(undefined, host({ nodeVersion: "25.1.0" }));
+
+    expect(result.healthy).toBe(false);
+    expect(result.checks).toContainEqual(
+      expect.objectContaining({
+        name: "node",
+        ok: false,
+        detail: "25.1.0",
+        classification: "missing_dependency",
+      }),
+    );
   });
 
   it.each(["11.7", undefined])(

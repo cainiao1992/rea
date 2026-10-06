@@ -63,7 +63,7 @@ export const hostRemediation = async (
   installHopper: boolean,
 ): Promise<string | undefined> => {
   if (!supportsNodeVersion(host.nodeVersion))
-    return "Install Node.js 22.19+ or 24.11+ and rerun setup.";
+    return "Install Node.js 22.x (>=22.19), 24.x (>=24.11), or 26+ and rerun setup.";
   if (!installHopper) return undefined;
   if (host.platform !== "darwin" && host.platform !== "linux")
     return "REA supports Hopper on macOS and selected 64-bit Linux distributions.";

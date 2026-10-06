@@ -15,7 +15,7 @@ mutable targets require separate acceptance.
 Once the required native controls are implemented, the intended P0 is limited to:
 
 - a Windows x64 host;
-- Node.js 22.19+ or 24.11+;
+- Node.js 22.x (>=22.19), 24.x (>=24.11), or 26+;
 - an operator-installed official Ghidra 12.1.4 distribution;
 - a 64-bit full JDK 21;
 - an explicit native, non-managed, non-DLL x86-64 PE application; and

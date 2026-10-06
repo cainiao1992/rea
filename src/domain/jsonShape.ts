@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { compareCodePoints } from "./canonicalOrdering.js";
+
 const jsonValueTypeSchema = z.enum([
   "object",
   "array",
@@ -88,7 +90,11 @@ export const inferJsonShape = (text: string): JsonShape | null => {
         types: [...value.types].sort(),
         observations: value.observations,
       }))
-      .sort((left, right) => left.path.localeCompare(right.path)),
+      .sort(
+        (left, right) =>
+          left.path.localeCompare(right.path) ||
+          compareCodePoints(left.path, right.path),
+      ),
   });
 };
 

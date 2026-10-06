@@ -271,17 +271,27 @@ const addEndpoint = (context: FindingContext, input: EndpointInput): void =>
 
 export const addSourceMapDirectives = (
   source: string,
+  comments: readonly t.Comment[],
   accumulator: AnalysisAccumulator,
 ): void => {
-  // Minifiers emit either `//# sourceMappingURL=` or the block form
-  // `/*# sourceMappingURL=app.js.map */`. Matching only the line form silently
-  // dropped the block form, so a real footer produced no mapping at all.
-  for (const match of source.matchAll(
-    /(?:\/\/|\/\*)[#@]\s*sourceMappingURL\s*=\s*([^\s*]+)/gu,
-  )) {
+  // Read real comment tokens only; quoted text can contain identical markers.
+  // Keep both current/legacy line annotations and minifier block annotations.
+  for (const comment of comments) {
+    const start = comment.start;
+    const end = comment.end;
+    if (
+      start === undefined ||
+      start === null ||
+      end === undefined ||
+      end === null
+    )
+      continue;
+    const match = /^(?:\/\/|\/\*)[#@]\s*sourceMappingURL\s*=\s*([^\s*]+)/u.exec(
+      source.slice(start, end),
+    );
+    if (match === null) continue;
     const declared = match[1];
     if (declared === undefined || declared.length === 0) continue;
-    const start = match.index;
     const location = rangeForOffsets(source, start, start + match[0].length);
     addFindingOnce(accumulator, `source-map\0${declared}`, () =>
       accumulator.sourceMaps.push({ declared_url: declared, location }),

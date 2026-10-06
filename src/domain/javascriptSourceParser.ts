@@ -3,7 +3,7 @@ import { parse } from "@babel/parser";
 /** Babel AST produced by REA's inert JavaScript parser boundary. */
 export type ParsedJavaScriptSource = ReturnType<typeof parse>;
 
-/** Parse JavaScript or TypeScript once without retaining unused comment nodes. */
+/** Parse JavaScript or TypeScript once without attaching comments to AST nodes. */
 export const parseJavaScriptSource = (
   source: string,
 ): ParsedJavaScriptSource | null => {

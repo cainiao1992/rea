@@ -47,7 +47,7 @@ export const analyzeParsedJavaScriptStaticSource = (
 ): JavaScriptStaticAnalysis => {
   const accumulator = createJavaScriptAnalysisAccumulator();
   traverseStaticSource(source, file, accumulator);
-  addSourceMapDirectives(source, accumulator);
+  addSourceMapDirectives(source, file.comments ?? [], accumulator);
   return finalizeStaticAnalysis(source, file, accumulator);
 };
 

@@ -92,7 +92,7 @@ export const doctorHealthy = (
 
 const nodeCheck = (host: DoctorHost): DoctorCheck =>
   check("node", supportsNodeVersion(host.nodeVersion), host.nodeVersion, {
-    remediation: "Install Node.js 22.19+ or 24.11+.",
+    remediation: "Install Node.js 22.x (>=22.19), 24.x (>=24.11), or 26+.",
     classification: "missing_dependency",
   });
 

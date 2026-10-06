@@ -127,7 +127,7 @@ rea setup
 
 - macOS 12 이상
 - Ubuntu 24.04+, Fedora 41+ 또는 64비트 Arch Linux
-- Node.js 22.19+ 또는 24.11+와 npm
+- Node.js 22.x (>=22.19), 24.x (>=24.11) 또는 26+와 npm
 
 네이티브 바이너리 분석에는 Hopper 또는 Ghidra가 필요합니다. Hopper는 별도 소프트웨어입니다. 데모에는 공급업체의 제한이 있지만 유료 라이선스가 필수는 아닙니다.
 

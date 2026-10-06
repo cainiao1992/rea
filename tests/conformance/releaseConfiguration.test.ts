@@ -2,6 +2,8 @@ import { readFile } from "node:fs/promises";
 
 import { describe, expect, it } from "vitest";
 
+import { SUPPORTED_NODE_VERSION_RANGE } from "../../src/domain/runtimeVersion.js";
+
 const readJson = async (path: string): Promise<unknown> =>
   JSON.parse(await readFile(path, "utf8")) as unknown;
 
@@ -14,6 +16,12 @@ const readmes = [
 ] as const;
 
 describe("release configuration", () => {
+  it("keeps doctor and setup runtime support aligned with package engines", async () => {
+    expect(await readJson("package.json")).toMatchObject({
+      engines: { node: SUPPORTED_NODE_VERSION_RANGE },
+    });
+  });
+
   it("updates every package-version artifact in release PRs", async () => {
     const configuration = await readJson("release-please-config.json");
 

@@ -144,7 +144,7 @@ Update either installation with `rea update`.
 
 - macOS 12 or newer
 - Ubuntu 24.04+, Fedora 41+, or 64-bit Arch Linux
-- Node.js 22.19+ or 24.11+ (including newer releases)
+- Node.js 22.x (>=22.19), 24.x (>=24.11), or 26+
 - npm; REA does not require or install a particular npm version
 
 Native binary analysis requires [Hopper](https://www.hopperapp.com/) or [Ghidra](#ghidra-read-only-analysis-provider). Hopper is separate software with its own license; its demo supports analysis with vendor-defined limits. REA can use Ghidra that you have already installed.

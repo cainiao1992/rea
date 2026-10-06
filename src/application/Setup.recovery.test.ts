@@ -4,6 +4,23 @@ import { FakeSetupHost, options } from "./Setup.fixture.js";
 import { runSetup } from "./Setup.js";
 
 describe("setup workflow", () => {
+  it("rejects Node 25 before applying setup actions", async () => {
+    const host = new FakeSetupHost();
+    host.nodeVersion = "25.1.0";
+    host.clients = [{ name: "codex", configPath: "/codex.toml" }];
+
+    const result = await runSetup(
+      { ...options(true, true), installSkill: true, clientIds: ["codex"] },
+      host,
+    );
+
+    expect(result.status).toBe("needs_human");
+    expect(result.appliedActions).toEqual([]);
+    expect(host.hopperInstalls).toBe(0);
+    expect(host.configurations).toBe(0);
+    expect(host.skillInstalls).toBe(0);
+  });
+
   it("records every detected client outcome after an earlier failure", async () => {
     const host = new FakeSetupHost();
     host.hopper = "/Applications/Hopper";
@@ -105,7 +122,7 @@ describe("setup scoped readiness", () => {
     const nodeHost = new FakeSetupHost();
     nodeHost.nodeVersion = "20.0.0";
     expect((await runSetup(options(true), nodeHost)).remediation).toBe(
-      "Install Node.js 22.19+ or 24.11+ and rerun setup.",
+      "Install Node.js 22.x (>=22.19), 24.x (>=24.11), or 26+ and rerun setup.",
     );
 
     const macHost = new FakeSetupHost();

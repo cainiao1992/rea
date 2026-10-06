@@ -188,7 +188,8 @@ const isRequireCallee = (callee: Node | null | undefined): boolean => {
     isMemberExpression(callee) &&
     isIdentifier(callee.object) &&
     callee.object.name === "require" &&
-    (isIdentifier(callee.property) || isStringLiteral(callee.property))
+    ((!callee.computed && isIdentifier(callee.property)) ||
+      isStringLiteral(callee.property))
   ) {
     const propertyName = isIdentifier(callee.property)
       ? callee.property.name

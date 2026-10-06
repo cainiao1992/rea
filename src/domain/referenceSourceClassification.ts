@@ -108,7 +108,7 @@ const MANIFEST_FILENAMES = new Set([
   "pipfile.lock",
   "setup.cfg",
   "manifest.in",
-  "CMakeLists.txt",
+  "cmakelists.txt",
   "meson.build",
   "configure",
   "configure.ac",

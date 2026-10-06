@@ -136,6 +136,41 @@ describe("reference source symlink import", () => {
   });
 });
 
+describe("reference source manifest inventory", () => {
+  it("retains CMake build manifests in the imported inventory", async () => {
+    const root = await createTestTempDirectory("rea-reference-cmake-");
+    await mkdir(join(root, "src"));
+    await Promise.all([
+      writeFile(join(root, "CMakeLists.txt"), "project(example)\n"),
+      writeFile(
+        join(root, "src", "CMakeLists.txt"),
+        "add_library(example main.cpp)\n",
+      ),
+      writeFile(join(root, "notes.txt"), "Build notes.\n"),
+    ]);
+
+    const result = await importTree(root);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.manifests).toEqual([
+      "CMakeLists.txt",
+      "src/CMakeLists.txt",
+    ]);
+    expect(result.value.entries).toContainEqual(
+      expect.objectContaining({
+        path: "CMakeLists.txt",
+        classifications: ["documentation", "manifest"],
+      }),
+    );
+    expect(result.value.entries).toContainEqual(
+      expect.objectContaining({
+        path: "src/CMakeLists.txt",
+        classifications: ["documentation", "manifest", "source"],
+      }),
+    );
+  });
+});
+
 describe("reference source import behavior", () => {
   // The importer declares no byte ceiling and no entry-count ceiling. Scale
   // independence cannot be asserted as a relationship over a bounded fixture,

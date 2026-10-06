@@ -51,49 +51,6 @@ REA connects your agent to tools for inspecting native binaries, JavaScript and 
 
 Setup registers REA with your agent and installs matching workflow instructions. Native analysis can use an existing Hopper or Ghidra installation; setup can optionally install Hopper with approval. Static JavaScript analysis needs neither engine.
 
-## Just ask your agent
-
-After [setup](#quick-start), restart your agent and ask:
-
-```text
-Understand how search works in the Notes app, show me the evidence, and build a
-similar feature for my project.
-```
-
-Replace Notes with the app you want to understand, or ask for an overview first.
-
-## The investigation model
-
-<table>
-<tr>
-<td width="33%" valign="top">
-<strong>Decompile</strong><br /><br />
-Open an app and recover readable code, strings, names, and other clues about how it works.
-</td>
-<td width="33%" valign="top">
-<strong>Understand</strong><br /><br />
-Follow the code from one part of the app to another until the agent can explain how a feature actually works.
-</td>
-<td width="33%" valign="top">
-<strong>Recreate</strong><br /><br />
-Turn what the agent learned into a feature for your own product, adapted to your stack, interface, and requirements.
-</td>
-</tr>
-</table>
-
-REA shows how it reached its conclusions. It does not claim to recover original source code or automatically clone an application.
-
-## Why REA
-
-|                          |                                                                                                       |
-| ------------------------ | ----------------------------------------------------------------------------------------------------- |
-| **Built for agents**     | Ask what an app does and let your agent inspect it instead of guessing.                               |
-| **CLI and MCP**          | Run the same reverse-engineering capabilities from your terminal or agent.                            |
-| **Guided setup**         | Configure your agent, connect an existing analysis tool, or install Hopper with your approval.        |
-| **From insight to code** | Understand a feature, then build your own version in the same coding session.                         |
-| **Local by design**      | Analysis runs on your supported local host. REA does not upload the app to a hosted analysis service. |
-| **Keeps context**        | Investigate several apps without starting over for every question.                                    |
-
 ## Quick start
 
 ### Run setup (recommended)
@@ -108,25 +65,21 @@ Choose which supported agents should use REA, then review the exact paths and ch
 
 Setup shows its changes before applying them and backs up existing configuration. See [Installation and setup](docs/installation.md) for requirements and setup options.
 
-### With an agent (recommended)
+### AI Coding Assistants (optional)
 
-After setup, restart your agent and [describe the app or feature](#just-ask-your-agent) you want to understand. Hopper can run in demo mode; if it shows a first-run prompt, choose the demo or enter an existing license.
-
-REA supports Claude Code, Claude Desktop, Codex, Cursor, Gemini CLI, Windsurf, Devin, OpenCode, Antigravity, GitHub Copilot CLI, Command Code, and VS Code. Existing REA registrations are selected by default during setup; other detected agents remain unselected until chosen. Other agents can use the [manual MCP configuration](#manual-mcp-configuration).
-
-### Install the skill separately
+Add the skill to your AI coding assistant for richer context:
 
 ```bash
 npx skills add morluto/rea --skill reverse-engineer-anything
 ```
 
-This installs agent instructions, not MCP registration or analysis engines.
-Follow the skill's [conditional connection guide](skills/reverse-engineer-anything/SKILL.md#connect-only-when-needed):
-prepare a scoped `npx rea-agents setup` plan if registration is missing, review
-and approve its actual changes, then restart/reconnect and verify the tools.
-Guided setup above installs a version-matched skill by default. The skills.sh
-route uses repository instructions, which can be ahead of the released server;
-see [released package and main](docs/installation.md#released-package-and-main).
+The skill provides REA's investigation workflow. Run setup above to connect REA to your agent and configure analysis tools. Setup already installs a version-matched skill by default; this command installs the repository version.
+
+### With an agent (recommended)
+
+After setup, restart your agent and [describe the app or feature](#just-ask-your-agent) you want to understand. Hopper can run in demo mode; if it shows a first-run prompt, choose the demo or enter an existing license.
+
+REA supports Claude Code, Claude Desktop, Codex, Cursor, Gemini CLI, Windsurf, Devin, OpenCode, Antigravity, GitHub Copilot CLI, Command Code, and VS Code. Existing REA registrations are selected by default during setup; other detected agents remain unselected until chosen. Other agents can use the [manual MCP configuration](#manual-mcp-configuration).
 
 ### First result from the terminal
 
@@ -313,6 +266,49 @@ opening its matching target; MCP providers may still start before a cached call
 result is returned. Pass `snapshot_path` and, when required, `overwrite: true` to
 `close_binary` to save atomically before Hopper resources are released. If the
 save fails, REA deliberately leaves the session open.
+
+## Just ask your agent
+
+After [setup](#quick-start), restart your agent and ask:
+
+```text
+Understand how search works in the Notes app, show me the evidence, and build a
+similar feature for my project.
+```
+
+Replace Notes with the app you want to understand, or ask for an overview first.
+
+## The investigation model
+
+<table>
+<tr>
+<td width="33%" valign="top">
+<strong>Decompile</strong><br /><br />
+Open an app and recover readable code, strings, names, and other clues about how it works.
+</td>
+<td width="33%" valign="top">
+<strong>Understand</strong><br /><br />
+Follow the code from one part of the app to another until the agent can explain how a feature actually works.
+</td>
+<td width="33%" valign="top">
+<strong>Recreate</strong><br /><br />
+Turn what the agent learned into a feature for your own product, adapted to your stack, interface, and requirements.
+</td>
+</tr>
+</table>
+
+REA shows how it reached its conclusions. It does not claim to recover original source code or automatically clone an application.
+
+## Why REA
+
+|                          |                                                                                                       |
+| ------------------------ | ----------------------------------------------------------------------------------------------------- |
+| **Built for agents**     | Ask what an app does and let your agent inspect it instead of guessing.                               |
+| **CLI and MCP**          | Run the same reverse-engineering capabilities from your terminal or agent.                            |
+| **Guided setup**         | Configure your agent, connect an existing analysis tool, or install Hopper with your approval.        |
+| **From insight to code** | Understand a feature, then build your own version in the same coding session.                         |
+| **Local by design**      | Analysis runs on your supported local host. REA does not upload the app to a hosted analysis service. |
+| **Keeps context**        | Investigate several apps without starting over for every question.                                    |
 
 ## One prompt, a full investigation
 

@@ -1,8 +1,8 @@
 # Windows Ghidra P0
 
-This guide describes repository main. npm 4.0.1 does not include the Windows
+This guide describes repository main. npm 4.1.0 includes the Windows
 native bundle; check the [release boundary](installation.md#released-package-and-main)
-before applying these instructions to a published package.
+before applying these instructions to an older published package.
 
 Status: experimental Windows x64 support for the read-only P0 boundary. Windows
 package builds bundle native process, filesystem, and DACL controls. REA

@@ -150,7 +150,7 @@ rea setup
 
 يستطيع Setup التحقق من التثبيت وحفظ المسارات؛ ولا يثبت أو يحدّث Ghidra أو Java أو Node.js أو npm أو Homebrew.
 
-Repository main includes experimental Windows x64 Ghidra P0 for native, non-managed, non-DLL x86-64 PE applications on fixed local NTFS. The native controls are implemented; npm 4.0.1 does not contain them. See the [release boundary](docs/installation.md#released-package-and-main) and [Windows Ghidra P0](docs/windows-ghidra-p0.md).
+Repository main includes experimental Windows x64 Ghidra P0 for native, non-managed, non-DLL x86-64 PE applications on fixed local NTFS. The native controls are bundled in npm 4.1.0; older releases do not contain them. See the [release boundary](docs/installation.md#released-package-and-main) and [Windows Ghidra P0](docs/windows-ghidra-p0.md).
 
 ### تشخيص المشكلات
 

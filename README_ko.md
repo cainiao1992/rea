@@ -151,7 +151,7 @@ Ghidra는 Linux x64와 macOS x64/arm64를 지원합니다. Ghidra 12.1.4와 완�
 
 Setup은 설치를 확인하고 경로를 저장할 수 있습니다. Ghidra, Java, Node.js, npm, Homebrew를 설치하거나 업데이트하지 않습니다.
 
-Repository main includes experimental Windows x64 Ghidra P0 for native, non-managed, non-DLL x86-64 PE applications on fixed local NTFS. The native controls are implemented; npm 4.0.1 does not contain them. See the [release boundary](docs/installation.md#released-package-and-main) and [Windows Ghidra P0](docs/windows-ghidra-p0.md).
+Repository main includes experimental Windows x64 Ghidra P0 for native, non-managed, non-DLL x86-64 PE applications on fixed local NTFS. The native controls are bundled in npm 4.1.0; older releases do not contain them. See the [release boundary](docs/installation.md#released-package-and-main) and [Windows Ghidra P0](docs/windows-ghidra-p0.md).
 
 ### 문제 해결
 

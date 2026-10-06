@@ -62,7 +62,7 @@ export type GhidraOperation =
 /** Owns one authenticated, private, read-only Ghidra headless session. */
 export class GhidraClient {
   readonly #options: Required<
-    Pick<GhidraClientOptions, "startupTimeoutMs" | "transport">
+    Pick<GhidraClientOptions, "startupTimeoutMs" | "transport" | "platform">
   > &
     GhidraClientOptions;
   readonly #logger: Logger;
@@ -76,6 +76,7 @@ export class GhidraClient {
   #process: ProviderProcessSupervisor | undefined;
   #runtimeRoot: PrivateRuntimeRoot | undefined;
   #snapshotPath: string | undefined;
+  #targetAdmission: JsonValue | undefined;
   #token: string | undefined;
   // Retain authentication identities for diagnostics from late request settlement.
   readonly #authenticationTokens = new Set<string>();
@@ -120,6 +121,7 @@ export class GhidraClient {
     this.#options = {
       ...options,
       startupTimeoutMs: options.startupTimeoutMs ?? GHIDRA_STARTUP_TIMEOUT_MS,
+      platform: options.platform ?? process.platform,
       transport: options.transport ?? "unix-socket",
     };
     this.#logger = options.logger ?? silentLogger;
@@ -281,6 +283,7 @@ export class GhidraClient {
       this.#runtimeRoot = await PrivateRuntimeRoot.create({
         parent: SESSION_ROOT,
         prefix: "rea-ghidra-",
+        platform: this.#options.platform,
       });
     } catch (cause: unknown) {
       return err(
@@ -302,9 +305,12 @@ export class GhidraClient {
         this.#options.targetPath,
         this.#runtimeRoot.path,
         this.#options.targetSha256,
+        { signal: deadline.signal, platform: this.#options.platform },
       );
       this.#snapshotPath = snapshot.path;
+      this.#targetAdmission = snapshot.admission;
     } catch (cause: unknown) {
+      if (deadline.signal.aborted) return this.#startupInterrupted(deadline);
       const failure = this.#failure(
         "start",
         "Ghidra target snapshot failed admission",
@@ -403,6 +409,9 @@ export class GhidraClient {
       providerVersion: this.#options.providerVersion,
       profileDigest: this.#options.profileDigest,
       targetSha256: this.#options.targetSha256,
+      ...(this.#targetAdmission === undefined
+        ? {}
+        : { targetAdmission: this.#targetAdmission }),
       ...(this.#options.expectedLanguageId === undefined
         ? {}
         : { expectedLanguageId: this.#options.expectedLanguageId }),
@@ -583,6 +592,9 @@ export class GhidraClient {
     return createGhidraDiagnostics({
       targetPath: this.#options.targetPath,
       targetSha256: this.#options.targetSha256,
+      ...(this.#targetAdmission === undefined
+        ? {}
+        : { targetAdmission: this.#targetAdmission }),
       transport: this.#options.transport,
       providerVersion: this.#options.providerVersion,
       profileDigest: this.#options.profileDigest,

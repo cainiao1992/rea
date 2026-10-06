@@ -142,3 +142,51 @@ describe("safe CDP response metadata", () => {
     );
   });
 });
+
+describe("safe CDP response metadata CSP sources", () => {
+  it("classifies scheme-less CSP host sources by their own host, not the page origin", () => {
+    const captured = safeResponseMetadata(
+      "request-csp",
+      `${origin}/api`,
+      {
+        headers: {
+          "Content-Security-Policy":
+            "script-src cdn.example.test *.trusted.test * 'self' https://api.other.test",
+        },
+      },
+      new Set([origin]),
+    );
+
+    expect(captured.response.csp.directives).toEqual([
+      {
+        name: "script-src",
+        sources: [
+          { kind: "external_origin", value: null },
+          { kind: "external_origin", value: null },
+          { kind: "external_origin", value: null },
+          { kind: "keyword", value: "'self'" },
+          { kind: "external_origin", value: null },
+        ],
+      },
+    ]);
+  });
+
+  it("inherits the protected resource scheme for a scheme-less host source", () => {
+    const captured = safeResponseMetadata(
+      "request-csp-scheme",
+      `${origin}/api`,
+      {
+        headers: {
+          "Content-Security-Policy":
+            "script-src cdn.example.test app.example.test",
+        },
+      },
+      new Set([origin, "https://cdn.example.test"]),
+    );
+
+    expect(captured.response.csp.directives[0]?.sources).toEqual([
+      { kind: "approved_origin", value: "https://cdn.example.test" },
+      { kind: "approved_origin", value: origin },
+    ]);
+  });
+});

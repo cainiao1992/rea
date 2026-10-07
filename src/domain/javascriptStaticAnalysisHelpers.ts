@@ -483,7 +483,11 @@ export const endpointArgument = (
 ): string | undefined => {
   if (name === "fetch" || name.endsWith(".fetch") || name === "WebSocket")
     return stringValue(args[0]);
-  if (name.endsWith(".open")) return xhrOpenUrl(name, args[0], args[1]);
+  // IndexedDB and Cache Storage `open` take a name and a version, not a URL.
+  if (name.endsWith(".open"))
+    return storageKind(name) === undefined
+      ? xhrOpenUrl(name, args[0], args[1])
+      : undefined;
   const method = ["get", "post", "put", "patch", "delete", "request"].find(
     (candidate) => name === candidate || name.endsWith(`.${candidate}`),
   );

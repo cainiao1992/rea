@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { webPageInspectionSchema } from "./browserObservation.js";
+import { analyzeJavaScriptStaticSource } from "./javascriptStaticAnalysis.js";
 import { analyzeCapturedWebBundle } from "./webBundleAnalyzer.js";
 import { webBundleAnalysisSchema } from "./webBundleAnalysis.js";
 import { createWebTextArtifact } from "./webContentArtifact.js";
@@ -205,6 +206,22 @@ describe("web bundle static-analysis parity", () => {
       "/xhr-get",
       "api/relative",
       "https://xhr.example.test/submit",
+    ]);
+  });
+
+  it("reads storage open versions as storage rather than endpoints in both analyzers", () => {
+    const source = `
+      indexedDB.open(databaseName, "2");
+      window.indexedDB.open(databaseName, "/v3");
+    `;
+    expect(
+      analyzeCapturedWebBundle(inspection(source)).observations.endpoints,
+    ).toEqual([]);
+    const analysis = analyzeJavaScriptStaticSource(source);
+    expect(analysis.endpoints).toEqual([]);
+    expect(analysis.storage.map(({ kind }) => kind)).toEqual([
+      "indexed-db",
+      "indexed-db",
     ]);
   });
 

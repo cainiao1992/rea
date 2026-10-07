@@ -411,7 +411,7 @@ See [native investigation](docs/native-investigation.md) for keyed archives, ins
 | Browser observation       |     9 | page structure, network metadata, scripts, source maps, WebMCP discovery, screenshots, and capture comparisons                                                                                           |
 | Electron analysis         |     5 | renderer observation, static app mapping, and static/runtime reconciliation                                                                                                                              |
 | JavaScript runtime        |     2 | Node/Electron Inspector target discovery, script locations, and execution-context events                                                                                                                 |
-| Application workflows     |    11 | captured website script export; Android/Apple inventory projections; cross-layer feature traces, build comparisons, historical source mapping, static return-shape comparison, and reconstruction checks |
+| Application workflows     |    12 | captured website script export; Android/Apple inventory projections; cross-layer feature traces, build comparisons, historical source mapping, static return-shape comparison, and reconstruction checks |
 | Workspace and observation |    21 | sessions, evidence bundles, navigation context, process/artifact/function comparisons, and open-question tracking                                                                                        |
 
 The public interface describes what the agent is trying to learn. Providers decide how to answer. macOS utilities handle common semantic inspection without launching Hopper; Hopper handles deeper native analysis; the process harness records direct behavioral captures.
@@ -432,6 +432,10 @@ Static Android APK inspection is verified on Linux with headless JADX; see [Andr
   and tracing tools. Source URLs, frame or transaction references, competing
   versions, and missing-source states remain inline. See
   [captured website scripts](docs/website-script-export.md).
+  Trace one exported script's native imports with `trace_web_module_imports` /
+  `rea trace-web-module-imports`, preserving query/fragment identity and optional
+  import-map context. Requires caller-supplied Chromium via
+  `REA_BROWSER_EXECUTABLE`; see [module relationships](docs/website-module-trace.md).
   Recover readable modules from selected local bundles with
   `recover_javascript_sources` / `rea recover-javascript-sources`, then pass
   the returned `analysis_input` to static analysis. This optional Linux x64

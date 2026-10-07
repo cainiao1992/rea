@@ -423,12 +423,15 @@ export const endpointArgument = (
   // `XMLHttpRequest.open(method, url)`.
   if (name.endsWith(".open") && isXhrMethodArgument(args[0]))
     return stringValue(args[1]);
-  if (
-    ["get", "post", "put", "patch", "delete", "request"].some(
-      (method) => name === method || name.endsWith(`.${method}`),
-    )
-  )
-    return isKeyedCollectionReceiver(callee) ? undefined : stringValue(args[0]);
+  const method = ["get", "post", "put", "patch", "delete", "request"].find(
+    (candidate) => name === candidate || name.endsWith(`.${candidate}`),
+  );
+  if (method !== undefined)
+    // Only get and delete also belong to the keyed-collection APIs.
+    return (method === "get" || method === "delete") &&
+      isKeyedCollectionReceiver(callee)
+      ? undefined
+      : stringValue(args[0]);
   if (name.endsWith("loadURL")) return stringValue(args[0]);
   return undefined;
 };

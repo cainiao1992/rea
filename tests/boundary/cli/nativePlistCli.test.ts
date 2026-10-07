@@ -130,3 +130,51 @@ describe.skipIf(process.platform !== "darwin")(
     );
   },
 );
+
+describe.skipIf(process.platform !== "darwin")(
+  "native plist CLI integers",
+  () => {
+    cliTest(
+      "reports exact plist integers beyond the JSON number range",
+      async ({ cli }) => {
+        const directory = await createTestTempDirectory("rea-plist-integers-");
+        const app = join(directory, "Example.app");
+        const contents = join(app, "Contents");
+        await mkdir(join(contents, "MacOS"), { recursive: true });
+        await writeFile(
+          join(contents, "MacOS/App"),
+          thinMach(0xfeedfacf, 0x0100000c),
+        );
+        await writeFile(
+          join(contents, "Info.plist"),
+          [
+            "<plist><dict>",
+            "<key>CFBundleExecutable</key><string>App</string>",
+            "<key>Max</key><integer>18446744073709551615</integer>",
+            "<key>Min</key><integer>-9223372036854775808</integer>",
+            "<key>Count</key><integer>42</integer>",
+            "</dict></plist>",
+          ].join(""),
+        );
+        const result = await cli.run({
+          arguments: ["inspect-plist", app, "--json"],
+          environment: {
+            REA_LOG_LEVEL: "silent",
+            REA_ANALYSIS_PROVIDER: "auto",
+          },
+        });
+        expect(result.exitCode).toBe(0);
+        expect(result.json).toMatchObject({
+          normalized_result: {
+            value: {
+              Max: { $plist_type: "integer", decimal: "18446744073709551615" },
+              Min: { $plist_type: "integer", decimal: "-9223372036854775808" },
+              Count: 42,
+            },
+            limitations: [expect.stringContaining("2 integer value(s)")],
+          },
+        });
+      },
+    );
+  },
+);

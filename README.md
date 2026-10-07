@@ -369,6 +369,21 @@ REA gives the agent a clear path from that request to working code:
 
 REA handles the app analysis in steps 1 through 5. The agent performs step 6 with its normal file-editing and test tools, using what it learned about the app.
 
+## Showcase
+
+### DX-Ball: game reconstruction (in progress)
+
+[DX-Ball](https://github.com/N0zoM1z0/dx-ball) follows the journey from a classic
+Windows game's executable to maintainable C. Using REA's Ghidra provider, the
+project traces functions, game state and dependencies, then checks reconstructed
+behavior with original-x86 differential tests and pinned-compiler replay.
+
+A [sound-pan investigation](https://github.com/N0zoM1z0/dx-ball/blob/main/docs/GAMEPLAY_OWNER.md)
+turns incomplete pseudocode into a C implementation that passes 3,205 original-x86
+cases and reproduces all 63 compiled function bytes. Follow its
+[REA workflow](https://github.com/N0zoM1z0/dx-ball/blob/main/docs/REA.md)
+from binary evidence to reconstruction.
+
 ## What agents can do
 
 - Investigate a feature you like and build a version tailored to your own product.

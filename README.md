@@ -122,9 +122,11 @@ one: opening the target fails with `code: "capability_unavailable"`,
 `details.candidate_ids`. Choose one once: pass `--provider` on
 the CLI or `provider_id` on `open_binary`, or set `REA_ANALYSIS_PROVIDER` as a
 standing preference. An explicit selector overrides the environment variable.
-The session keeps that choice and never falls back to another engine. An
-ambiguity or unavailable-provider diagnostic asks you to choose an engine; it
-does not mean you have to install every engine. See
+The session keeps that choice and never falls back to another engine.
+Recovery depends on `details.selection_reason`. For `ambiguous`, choose one of
+the candidates. For `provider_unavailable`, the engine you selected needs repair,
+so run `rea doctor --provider <id> --json` and follow its remediation. Neither
+reason means you have to install every engine. See
 [Choosing a deep-analysis provider](#choosing-a-deep-analysis-provider).
 
 ### Install the rea command

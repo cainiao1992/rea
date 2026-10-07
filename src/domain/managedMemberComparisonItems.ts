@@ -266,6 +266,20 @@ const fieldOnlyItem = (
   };
 };
 
+/**
+ * Name the identity key an ambiguous group shares. The exact-signature key
+ * already includes the declared type and name, so names cannot separate it.
+ */
+const ambiguityLimitation = (
+  members: "methods" | "fields",
+  basis: MethodItem["match"]["basis"],
+): string =>
+  basis === "exact-signature"
+    ? `Multiple managed ${members} share the same declared type, name, and raw signature; REA did not guess a token remap.`
+    : members === "methods"
+      ? "Multiple managed methods share the same non-name identity key; REA did not guess a token remap."
+      : "Multiple managed fields share the same signature; REA did not guess a token remap from names.";
+
 export const buildMethodItems = (
   matches: ManagedMethodMatches,
   context: ComparisonItemContext,
@@ -328,9 +342,7 @@ export const buildMethodItems = (
       },
       dimensions: ["availability"],
       evidence_links: [context.leftEvidenceId, context.rightEvidenceId],
-      limitations: [
-        "Multiple managed methods share the same non-name identity key; REA did not guess a token remap.",
-      ],
+      limitations: [ambiguityLimitation("methods", ambiguous.basis)],
     });
   }
   const undecoded = undecodedOneSidedNames(matches);
@@ -387,9 +399,7 @@ export const buildFieldItems = (
         candidate_right_tokens: ambiguous.right.map(({ item }) => item.token),
       },
       evidence_links: [context.leftEvidenceId, context.rightEvidenceId],
-      limitations: [
-        "Multiple managed fields share the same signature; REA did not guess a token remap from names.",
-      ],
+      limitations: [ambiguityLimitation("fields", ambiguous.basis)],
     });
   const undecoded = undecodedOneSidedNames(matches);
   for (const item of matches.leftOnly)

@@ -374,7 +374,13 @@ describe("managed member comparison of ambiguous undecoded signatures", () => {
       expect.arrayContaining([
         expect.objectContaining({
           status: "unknown",
-          match: expect.objectContaining({ status: "ambiguous" }),
+          match: expect.objectContaining({
+            status: "ambiguous",
+            basis: "exact-signature",
+          }),
+          limitations: [
+            "Multiple managed methods share the same declared type, name, and raw signature; REA did not guess a token remap.",
+          ],
         }),
         expect.objectContaining({
           status: "unknown",

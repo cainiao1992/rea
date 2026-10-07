@@ -810,3 +810,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and contribution ch
     <img alt="REA GitHub star history" src="https://api.star-history.com/chart?repos=morluto/rea&amp;type=date" />
   </picture>
 </a>
+
+## Disclaimer
+
+REA provides tools for lawful reverse-engineering research, analysis, and reconstruction. You are responsible for obtaining any required authorization and complying with applicable laws. The project does not endorse illegal or unauthorized use.

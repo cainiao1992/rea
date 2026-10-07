@@ -17,36 +17,34 @@ export const featureSeedMatchMode = (seed: {
 }): "exact" | "contains" =>
   seed.match ?? (seed.kind === "string" ? "contains" : "exact");
 
+const literalSeedKinds = [
+  "route",
+  "string",
+  "api",
+  "channel",
+  "module",
+  "native-export",
+] as const;
+
 /**
- * Literal starting point for one application feature trace. An exact literal
- * seed may be empty, such as the channel in `ipcMain.handle("")`; an empty
- * containment seed would select every node, so it is rejected.
+ * Literal starting point for one application feature trace. An empty value,
+ * such as the channel in `ipcMain.handle("")`, must be an explicit exact
+ * literal seed: empty containment would select every node.
  */
-const applicationFeatureSeedSchema = z
-  .strictObject({
-    kind: z.enum([
-      "node-id",
-      "route",
-      "string",
-      "api",
-      "channel",
-      "module",
-      "native-export",
-    ]),
-    value: z.string(),
+const applicationFeatureSeedSchema = z.union([
+  z.strictObject({
+    kind: z.enum(["node-id", ...literalSeedKinds]),
+    value: boundedTextSchema,
     match: z.enum(["exact", "contains"]).nullable().default(null),
     case_sensitive: z.boolean().default(false),
-  })
-  .superRefine((seed, context) => {
-    if (seed.value !== "") return;
-    if (seed.kind === "node-id" || featureSeedMatchMode(seed) === "contains")
-      context.addIssue({
-        code: "custom",
-        path: ["value"],
-        message:
-          'An empty seed value requires an exact literal match: use match "exact" with a non-node-id kind',
-      });
-  });
+  }),
+  z.strictObject({
+    kind: z.enum(literalSeedKinds),
+    value: z.literal(""),
+    match: z.literal("exact"),
+    case_sensitive: z.boolean().default(false),
+  }),
+]);
 
 /** Evidence-backed application graph and feature seed. */
 export const traceApplicationFeatureInputSchema = z

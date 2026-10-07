@@ -132,7 +132,7 @@ const memberFieldSuffixes = new Set([
 
 const relevantFields = {
   route: [".label", ".value", ".path"],
-  api: [".label", ".api_name", ".key", ".methods", ".members"],
+  api: [".label", ".api_name", ".api_key", ".key", ".methods", ".members"],
   channel: [".label", ".channel", ".key"],
   module: [
     ".label",

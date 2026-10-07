@@ -1,7 +1,9 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { Ajv2020 } from "ajv/dist/2020.js";
 import { expect, it } from "vitest";
+import { z } from "zod";
 
 import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory.js";
 import { javascriptApplicationAnalysisResultSchema } from "../domain/javascriptApplicationAnalysis.js";
@@ -181,23 +183,27 @@ it("selects an empty IPC channel with an exact empty seed", async () => {
   ]);
 });
 
-it.each([
-  { kind: "channel", value: "" },
-  { kind: "string", value: "", match: "exact" },
-])("accepts an exact empty seed: %j", (seed) => {
-  expect(
-    traceApplicationFeatureInputSchema.shape.seed.safeParse(seed).success,
-  ).toBe(true);
-});
+const seedSchema = traceApplicationFeatureInputSchema.shape.seed;
+const validateAdvertisedSeed = new Ajv2020({
+  strict: false,
+  validateFormats: false,
+}).compile(z.toJSONSchema(seedSchema, { io: "input" }));
 
 it.each([
-  { kind: "string", value: "" },
-  { kind: "channel", value: "", match: "contains" },
-  { kind: "node-id", value: "", match: "exact" },
-])("rejects an empty seed that is not an exact literal: %j", (seed) => {
-  const parsed = traceApplicationFeatureInputSchema.shape.seed.safeParse(seed);
-  expect(parsed.success).toBe(false);
-});
+  [{ kind: "channel", value: "", match: "exact" }, true],
+  [{ kind: "string", value: "", match: "exact" }, true],
+  [{ kind: "channel", value: "/x" }, true],
+  [{ kind: "string", value: "" }, false],
+  [{ kind: "channel", value: "" }, false],
+  [{ kind: "channel", value: "", match: "contains" }, false],
+  [{ kind: "node-id", value: "", match: "exact" }, false],
+] as const)(
+  "validates empty seed %j at runtime and in the advertised schema",
+  (seed, accepted) => {
+    expect(seedSchema.safeParse(seed).success).toBe(accepted);
+    expect(validateAdvertisedSeed(seed)).toBe(accepted);
+  },
+);
 
 it("pairs the same empty IPC channel across application versions", async () => {
   const left = await analyzeSource(IPC_SOURCE);
@@ -224,4 +230,22 @@ it("pairs the same empty IPC channel across application versions", async () => {
   expect(matching.unmatchedLeft.map(({ kind }) => kind)).not.toContain(
     "ipc-channel",
   );
+});
+
+it("selects an empty context-bridge API with an exact empty seed", async () => {
+  const output = await analyzeSource(
+    "const { contextBridge } = require('electron'); contextBridge.exposeInMainWorld('', {}); contextBridge.exposeInMainWorld('\"\"', {});",
+  );
+  const apis = new Map(
+    output.graph.nodes
+      .filter(({ kind }) => kind === "context-bridge-api")
+      .map((node) => [node.node_id, node.observations[0]?.properties.api_key]),
+  );
+  const matches = findApplicationFeatureSeeds(output.graph.nodes, {
+    kind: "api",
+    value: "",
+    match: "exact",
+    case_sensitive: true,
+  });
+  expect(matches.map(({ node_id: nodeId }) => apis.get(nodeId))).toEqual([""]);
 });

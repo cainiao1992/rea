@@ -48,6 +48,16 @@ const native = <Name extends string, Schema extends z.ZodObject>(
   } satisfies ToolContract<Name, Schema, typeof outputSchema>;
 };
 
+/** Ordered single-line symbols; `swift-demangle` ends each result with LF. */
+export const swiftSymbolsSchema = z
+  .array(
+    z
+      .string()
+      .min(1)
+      .regex(/^[^\n]*$/u, "Each Swift symbol must be one line."),
+  )
+  .min(1);
+
 /** Provider-neutral semantic operations backed initially by macOS utilities. */
 export const NATIVE_TOOL_CONTRACTS = [
   native(
@@ -84,9 +94,9 @@ export const NATIVE_TOOL_CONTRACTS = [
   ),
   native(
     "demangle_swift",
-    "Demangle an ordered list of Swift symbols without requiring Hopper. Each input returns demangled, unchanged, or invalid status.",
+    "Demangle an ordered list of single-line Swift symbols without requiring Hopper. Each input returns demangled, unchanged, or invalid status.",
     z.object({
-      symbols: z.array(z.string().min(1)).min(1),
+      symbols: swiftSymbolsSchema,
     }),
   ),
 ] as const satisfies readonly ToolContract[];

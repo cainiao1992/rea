@@ -270,7 +270,8 @@ class NativeMacOSClient implements AnalysisClient {
     const capture = await this.#run(
       "demangle_swift",
       "swift-demangle",
-      ["--compact", ...symbols.data],
+      // `--` keeps symbols that begin with `-` from selecting demangler options.
+      ["--compact", "--", ...symbols.data],
       { signal },
     );
     if (!capture.ok) return capture;

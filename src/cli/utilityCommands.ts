@@ -13,6 +13,7 @@ import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { PRODUCT_IDENTITY } from "../identity.js";
 import { logCliCommand } from "../cliLogging.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
+import { swiftSymbolsSchema } from "../contracts/nativeToolContracts.js";
 import type { Logger } from "../logger.js";
 import { isReferenceSourceImportCliFailure } from "./referenceSourceImportStatus.js";
 import type { CliInstance } from "./types.js";
@@ -152,10 +153,7 @@ const registerNativeCommands = (cli: CliInstance, logger: Logger): void => {
     description: "Demangle Swift symbols without Hopper",
     args: z.object({
       path: z.string().describe("Artifact path used for evidence identity"),
-      symbols: z
-        .array(z.string().min(1))
-        .min(1)
-        .describe("Swift mangled symbols to demangle"),
+      symbols: swiftSymbolsSchema.describe("Swift mangled symbols to demangle"),
     }),
     run: ({ args }) =>
       logCliCommand(logger, "demangle-swift", () =>

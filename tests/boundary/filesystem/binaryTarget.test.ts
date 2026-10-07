@@ -243,6 +243,26 @@ describe("app executable filename fidelity", () => {
     });
   });
 
+  it.each([
+    "<key>__proto__</key><dict><key>CFBundleExecutable</key><string>Forged</string></dict>",
+    "<key>&#95;_proto__</key><string>x</string>",
+  ])("opens an app whose XML plist also holds %s", async (entry) => {
+    const directory = await createTestTempDirectory("rea-app-xml-proto-");
+    const app = join(directory, "Proto.app");
+    const contents = join(app, "Contents");
+    const executable = join(contents, "MacOS", "App");
+    await mkdir(join(contents, "MacOS"), { recursive: true });
+    await writeFile(
+      join(contents, "Info.plist"),
+      `<plist><dict>${entry}<key>CFBundleExecutable</key><string>App</string></dict></plist>`,
+    );
+    await writeFile(executable, thinMach(0xfeedfacf, 0x0100000c));
+    const result = await parseBinaryTarget(app, directory, "arm64");
+    expect(result.ok && result.value).toMatchObject({
+      path: await realpath(executable),
+    });
+  });
+
   it.skipIf(process.platform !== "darwin")(
     "preserves executable filename whitespace from native binary plists",
     async () => {

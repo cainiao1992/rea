@@ -12,9 +12,10 @@ import { execFile } from "node:child_process";
 import { extname, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
-import { parse as parsePlist } from "plist";
+import { z } from "zod";
 
 import { isPathWithinRoot } from "../domain/localPath.js";
+import { parseXmlPropertyList } from "../domain/propertyListKeys.js";
 import { BinaryTargetError } from "../domain/configurationErrors.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { err, ok, type Result } from "../domain/result.js";
@@ -268,20 +269,14 @@ const resolveAppBundle = async (
 
 /** Decode the top-level executable name with an XML parser, not a pattern. */
 const parseXmlPlistExecutable = (plist: string): string => {
-  const value = parsePlist(plist);
-  const executable =
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    !(value instanceof Date) &&
-    !(value instanceof Uint8Array) &&
-    Object.hasOwn(value, "CFBundleExecutable")
-      ? value.CFBundleExecutable
-      : undefined;
-  if (typeof executable !== "string")
-    throw new Error("CFBundleExecutable is missing");
-  return executable;
+  // An unrelated `__proto__` entry must not make the bundle unreadable.
+  const { value } = parseXmlPropertyList(plist);
+  const executable = executableEntrySchema.safeParse(value);
+  if (!executable.success) throw new Error("CFBundleExecutable is missing");
+  return executable.data.CFBundleExecutable;
 };
+
+const executableEntrySchema = z.looseObject({ CFBundleExecutable: z.string() });
 
 const readBinaryPlistExecutable = async (plistPath: string): Promise<string> =>
   // `-n` strips only the newline plutil appends; it requires macOS 12+.

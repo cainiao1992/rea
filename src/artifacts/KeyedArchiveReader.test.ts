@@ -86,6 +86,20 @@ describe("inert keyed archive decoding", () => {
       ]);
     },
   );
+  it("reports an XML archive dictionary keyed __proto__ as omitted", () => {
+    const xml = build({ ...archive, $objects: ["$null", "value"] }).replace(
+      "<key>$top</key>",
+      "<key>__proto__</key><string>x</string><key>$top</key>",
+    );
+    const graph = decodeKeyedArchiveBytes(Buffer.from(xml), {
+      offset: 0,
+      limit: 2,
+    });
+    expect(graph.objects.map(({ value }) => value)).toEqual(["$null", "value"]);
+    expect(graph.limitations).toContain(
+      "1 dictionary entry keyed __proto__ was omitted because REA results cannot represent that key.",
+    );
+  });
   it("rejects missing roots, malformed plist, and non-keyed archives", () => {
     expect(() =>
       decodeKeyedArchiveBytes(Buffer.from("bplist00bad"), {

@@ -1,9 +1,13 @@
 import { createHash } from "node:crypto";
 import { TextDecoder } from "node:util";
-import { parse, parseBinary } from "plist";
+import { parseBinary } from "plist";
 import { z } from "zod";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { projectPlistValue } from "../domain/plistValue.js";
+import {
+  omittedPrototypeKeysLimitation,
+  parseXmlPropertyList,
+} from "../domain/propertyListKeys.js";
 import {
   keyedArchiveInputSchema,
   keyedArchiveResultSchema,
@@ -22,12 +26,19 @@ export const decodeKeyedArchiveBytes = (
   if (bytes.length > MAX_BYTES)
     throw new RangeError("Keyed archive exceeds 64 MiB");
   const binary = bytes.subarray(0, 8).toString("ascii") === "bplist00";
-  const parsed: unknown = binary
-    ? parseBinary(bytes)
-    : parse(decodeXmlPlistText(bytes));
+  const parsed = binary
+    ? { value: parseBinary(bytes), omittedPrototypeKeys: 0 }
+    : parseXmlPropertyList(decodeXmlPlistText(bytes));
+  const graph = projectKeyedArchive(normalizePlist(parsed.value), selection);
   return {
     archive_format: binary ? ("binary-plist" as const) : ("xml-plist" as const),
-    ...projectKeyedArchive(normalizePlist(parsed), selection),
+    ...graph,
+    limitations: [
+      ...graph.limitations,
+      ...(parsed.omittedPrototypeKeys === 0
+        ? []
+        : [omittedPrototypeKeysLimitation(parsed.omittedPrototypeKeys)]),
+    ],
   };
 };
 

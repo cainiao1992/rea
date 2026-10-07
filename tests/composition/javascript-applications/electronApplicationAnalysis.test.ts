@@ -1,3 +1,6 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
@@ -62,6 +65,28 @@ describe("static Electron application analysis", () => {
         summary: { browser_windows: 3 },
       },
     });
+  });
+
+  it("keeps computed identifier member keys unknown", async () => {
+    const root = await computedMemberFixtureDirectory();
+
+    const result = await reconstructJavaScriptArtifact({ input_path: root });
+    const graph = parseJavaScriptApplicationGraph(result.graph);
+    const requestedMembers = graph.nodes.flatMap((node) =>
+      node.kind === "native-export"
+        ? node.observations.flatMap(({ properties }) => {
+            const members = properties.requested_members;
+            return Array.isArray(members) ? members : [];
+          })
+        : [],
+    );
+
+    expect(result.electron_summary).toMatchObject({
+      sender_validation_observations: 0,
+      native_addon_bindings: 1,
+      resolved_native_addon_bindings: 1,
+    });
+    expect(requestedMembers).toEqual(["*"]);
   });
 
   it("returns a tagged cancellation without executing application code", async () => {
@@ -271,5 +296,26 @@ const expectElectronBoundaries = (graph: ApplicationGraph): void => {
 const fixtureDirectory = async (): Promise<string> => {
   const root = await createTestTempDirectory("rea-electron-boundaries-");
   await writeElectronBoundaryFixture(root);
+  return root;
+};
+
+const computedMemberFixtureDirectory = async (): Promise<string> => {
+  const root = await createTestTempDirectory("rea-electron-computed-members-");
+  await mkdir(join(root, "native"));
+  await Promise.all([
+    writeFile(
+      join(root, "main.js"),
+      String.raw`
+const member = "read";
+const selected = require("./native/addon.node")[member];
+const startsWith = "includes";
+function validate(event) {
+  return event.senderFrame.url[startsWith]("file://");
+}
+module.exports = { selected, validate };
+`,
+    ),
+    writeFile(join(root, "native", "addon.node"), Buffer.from([0, 1, 2, 3])),
+  ]);
   return root;
 };

@@ -101,4 +101,32 @@ describe("managed native boundaries", () => {
       expect.objectContaining({ code: "invalid-metadata-root" }),
     ]);
   });
+
+  it("reports unavailable boundaries for native and malformed PE files", () => {
+    const nativeBytes = buildNativePeFixture();
+    const native = inspectManagedNativeBoundariesBytes(
+      nativeBytes,
+      managedPeFixtureTarget(nativeBytes),
+    );
+    expect(native).toMatchObject({
+      metadata: { status: "absent" },
+      pinvoke_imports: [],
+      coverage: { state: "unavailable", issues: [] },
+    });
+
+    const malformedBytes = buildManagedPeFixture({
+      corruptMetadataSignature: true,
+    });
+    const malformed = inspectManagedNativeBoundariesBytes(
+      malformedBytes,
+      managedPeFixtureTarget(malformedBytes),
+    );
+    expect(malformed).toMatchObject({
+      metadata: { status: "malformed" },
+      coverage: {
+        state: "unavailable",
+        issues: [expect.objectContaining({ code: "invalid-metadata-root" })],
+      },
+    });
+  });
 });

@@ -29,10 +29,11 @@ import {
 
 type Inventory = ReturnType<typeof readManagedMetadataInventory>;
 
+/** Report a PE whose CLI data is absent or cannot be admitted. */
 const emptyInspection = (
   target: BinaryTarget,
   bytes: Buffer,
-  classification: "not-managed" | "malformed" | "not-available" | "managed",
+  classification: "not-managed" | "malformed",
   issues: readonly ManagedParseIssue[] = [],
 ): ManagedNativeBoundaryInspection =>
   managedNativeBoundaryInspectionSchema.parse({
@@ -44,10 +45,7 @@ const emptyInspection = (
     },
     module: null,
     metadata: {
-      status:
-        classification === "malformed" || classification === "not-available"
-          ? "malformed"
-          : "absent",
+      status: classification === "malformed" ? "malformed" : "absent",
       version: null,
       table_row_counts: {},
     },
@@ -75,7 +73,7 @@ const emptyInspection = (
       ready_to_run: false,
       mixed_mode_or_native_header: false,
     },
-    coverage: { state: classification, issues },
+    coverage: { state: "unavailable", issues },
     limitations: [
       "No CLI data was admitted; native boundary declarations are unavailable.",
       "Static inspection does not load or execute target code, so native export resolution is not performed.",

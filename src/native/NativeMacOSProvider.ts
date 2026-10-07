@@ -6,7 +6,7 @@ export { NATIVE_MACOS_PROVIDER_IDENTITY } from "./NativeMacOSProviderMetadata.js
 import { inspectAppleDispatchMetadata } from "./AppleDispatchMetadata.js";
 import { observeNativeUi } from "./NativeUiObservation.js";
 import { dirname, isAbsolute, resolve } from "node:path";
-import { realpath, stat } from "node:fs/promises";
+import { open, realpath, stat } from "node:fs/promises";
 
 import { parse as parseXmlPlist } from "plist";
 import { z } from "zod";
@@ -31,6 +31,7 @@ import {
   AnalysisInputError,
   AnalysisOutputError,
 } from "../domain/analysisErrorCore.js";
+import { BinaryTargetError } from "../domain/configurationErrors.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
@@ -679,20 +680,33 @@ const plutilDiagnostic = (stderr: string, path: string): string => {
   return text.startsWith(`${path}: `) ? text.slice(path.length + 2) : text;
 };
 
+/**
+ * Admit a readable regular file before plutil runs, so a later plutil failure
+ * reflects the bytes rather than a missing path or a host permission denial.
+ */
 const requireRegularPlist = async (
   path: string,
   requested: string | undefined,
 ): Promise<Result<null, AnalysisError>> => {
   try {
-    if ((await stat(path)).isFile()) return ok(null);
-    return err(unreadablePlist(path, requested, "it is not a regular file"));
+    if (!(await stat(path)).isFile())
+      return err(unreadablePlist(path, requested, "it is not a regular file"));
+    // Opening also observes ACL and macOS privacy denials that stat permits.
+    await (await open(path, "r")).close();
+    return ok(null);
   } catch (cause: unknown) {
-    if (
-      cause instanceof Error &&
-      "code" in cause &&
-      (cause.code === "ENOENT" || cause.code === "ENOTDIR")
-    )
+    const code =
+      cause instanceof Error && "code" in cause ? cause.code : undefined;
+    if (code === "ENOENT" || code === "ENOTDIR")
       return err(unreadablePlist(path, requested, "no file exists there"));
+    if (code === "EACCES" || code === "EPERM")
+      return err(
+        new BinaryTargetError(
+          path,
+          `permission denied while reading plist (${code})`,
+          { cause },
+        ),
+      );
     return err(
       new ProviderAdapterError(IDENTITY.id, "inspect_plist", { cause }),
     );

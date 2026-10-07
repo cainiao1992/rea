@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect } from "vitest";
@@ -62,6 +62,38 @@ describe.skipIf(process.platform !== "darwin")(
                 ),
               },
             ],
+          },
+        });
+      },
+    );
+
+    // Root bypasses file modes, so the denial is only observable otherwise.
+    cliTest.skipIf(process.getuid?.() === 0)(
+      "reports a permission denial instead of a malformed plist",
+      async ({ cli, onTestFinished }) => {
+        const app = await fixtureApp();
+        const locked = join(app, "Contents/Locked.plist");
+        await writeFile(locked, "<plist><dict/></plist>");
+        await chmod(locked, 0o000);
+        onTestFinished(async () => {
+          await chmod(locked, 0o600);
+        });
+        const result = await cli.run({
+          arguments: [
+            "inspect-plist",
+            app,
+            "--relative-path",
+            "Contents/Locked.plist",
+            "--json",
+          ],
+          environment,
+        });
+        expect(result.exitCode).toBe(1);
+        expect(result.json).toMatchObject({
+          code: "target_unavailable",
+          details: {
+            path: locked,
+            reason: "permission denied while reading plist (EACCES)",
           },
         });
       },

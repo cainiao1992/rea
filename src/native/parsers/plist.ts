@@ -93,13 +93,38 @@ export const parsePlistXml = (
       ),
     );
   }
-  let unknownIntegerCount = 0;
-  // The XML decoder parses integers into numbers before REA sees their text,
-  // so a value outside the exact range is already rounded and stays unknown.
+  // The XML decoder turns <integer> and <real> into numbers before REA sees
+  // them, rounding integers beyond the exact range. plutil escapes "<" in keys
+  // and strings, so the element literals can be read from the XML text.
+  const unsafeIntegers = new Map<number, Set<string>>();
+  for (const [, decimal = ""] of output.matchAll(
+    /<integer>\s*([+-]?\d+)\s*<\/integer>/gu,
+  )) {
+    const rounded = Number(decimal);
+    if (Number.isSafeInteger(rounded)) continue;
+    const exact = BigInt(decimal).toString();
+    unsafeIntegers.set(
+      rounded,
+      (unsafeIntegers.get(rounded) ?? new Set()).add(exact),
+    );
+  }
+  const reals = new Set(
+    [...output.matchAll(/<real>([^<]*)<\/real>/gu)].map(([, text = ""]) =>
+      Number.parseFloat(text),
+    ),
+  );
+  let exactIntegerCount = 0;
+  let ambiguousNumberCount = 0;
   const value = mapJsonNumbers(projected.value, (item) => {
-    if (!Number.isInteger(item) || Number.isSafeInteger(item)) return item;
-    unknownIntegerCount += 1;
-    return { $plist_type: "integer", decimal: null };
+    const decimals = unsafeIntegers.get(item);
+    if (decimals === undefined) return item;
+    const [decimal] = decimals;
+    if (decimals.size !== 1 || decimal === undefined || reals.has(item)) {
+      ambiguousNumberCount += 1;
+      return item;
+    }
+    exactIntegerCount += 1;
+    return { $plist_type: "integer", decimal };
   });
   return ok({
     value,
@@ -111,10 +136,13 @@ export const parsePlistXml = (
         : [
             `${String(projected.unknownRealCount)} non-finite real value(s) are reported as { "$plist_type": "real", "value": null } because the XML decoder does not distinguish NaN from infinity.`,
           ]),
-      ...(unknownIntegerCount === 0
+      ...(exactIntegerCount === 0
+        ? []
+        : [largeIntegerLimitation(exactIntegerCount)]),
+      ...(ambiguousNumberCount === 0
         ? []
         : [
-            `${String(unknownIntegerCount)} integer value(s) exceed the exact range of a JSON number and are reported as { "$plist_type": "integer", "decimal": null } because the XML decoder rounds them.`,
+            `${String(ambiguousNumberCount)} number(s) beyond the exact range of a JSON number are reported as decoded because the XML literal they came from, a rounded <integer> or a <real>, cannot be identified.`,
           ]),
     ],
   });

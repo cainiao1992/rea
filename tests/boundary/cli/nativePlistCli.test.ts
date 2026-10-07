@@ -134,9 +134,9 @@ describe.skipIf(process.platform !== "darwin")(
 describe.skipIf(process.platform !== "darwin")(
   "native plist CLI integers",
   () => {
-    cliTest(
-      "reports exact plist integers beyond the JSON number range",
-      async ({ cli }) => {
+    cliTest.for([false, true])(
+      "reports exact plist integers beyond the JSON number range (data: %s)",
+      async (withData, { cli }) => {
         const directory = await createTestTempDirectory("rea-plist-integers-");
         const app = join(directory, "Example.app");
         const contents = join(app, "Contents");
@@ -153,6 +153,7 @@ describe.skipIf(process.platform !== "darwin")(
             "<key>Max</key><integer>18446744073709551615</integer>",
             "<key>Min</key><integer>-9223372036854775808</integer>",
             "<key>Count</key><integer>42</integer>",
+            ...(withData ? ["<key>Blob</key><data>AAEC</data>"] : []),
             "</dict></plist>",
           ].join(""),
         );
@@ -171,7 +172,10 @@ describe.skipIf(process.platform !== "darwin")(
               Min: { $plist_type: "integer", decimal: "-9223372036854775808" },
               Count: 42,
             },
-            limitations: [expect.stringContaining("2 integer value(s)")],
+            limitations: [
+              ...(withData ? [expect.stringContaining("XML conversion")] : []),
+              expect.stringContaining("2 integer value(s)"),
+            ],
           },
         });
       },

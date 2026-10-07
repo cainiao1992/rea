@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { describe, expect } from "vitest";
@@ -192,3 +192,45 @@ describe("trace-dylib-resolution CLI", () => {
     },
   );
 });
+
+describe.skipIf(process.getuid?.() === 0)(
+  "trace-dylib-resolution permissions",
+  () => {
+    cliTest(
+      "reports an unreadable dependency as a permission failure",
+      async ({ cli }) => {
+        const directory = await createTestTempDirectory("rea-dylib-denied-");
+        await writeFiles(directory, {
+          tool: machoImage({
+            commands: [
+              dylibCommand(LC.LOAD_DYLIB, "@loader_path/libsecret.dylib"),
+            ],
+          }),
+          "libsecret.dylib": machoImage({ fileType: FILE_TYPE.dylib }),
+        });
+        await chmod(join(directory, "libsecret.dylib"), 0o000);
+        try {
+          const result = await cli.run({
+            arguments: [
+              "trace-dylib-resolution",
+              join(directory, "tool"),
+              "--json",
+            ],
+            environment: ENVIRONMENT,
+          });
+          expect(result.exitCode).toBe(1);
+          expect(result.json).toMatchObject({
+            details: {
+              reason: "unavailable",
+              detail: expect.stringContaining(
+                "Permission denied (EACCES) reading libsecret.dylib",
+              ),
+            },
+          });
+        } finally {
+          await chmod(join(directory, "libsecret.dylib"), 0o644);
+        }
+      },
+    );
+  },
+);

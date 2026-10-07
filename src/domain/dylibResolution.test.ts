@@ -518,3 +518,32 @@ describe("dyld slice compatibility and coverage", () => {
     );
   });
 });
+
+describe("lazily loaded dependencies", () => {
+  it("resolves lazy loads without traversing them or reporting launch failure", async () => {
+    const trace = await traceDylibLoading(
+      memoryView({
+        [MAIN]: executable({
+          rpaths: ["@executable_path/../Frameworks"],
+          dependencies: [
+            dependency("@rpath/liblazy.dylib", {
+              command: "LC_LAZY_LOAD_DYLIB",
+            }),
+            dependency("@rpath/libmissing.dylib", {
+              command: "LC_LAZY_LOAD_DYLIB",
+            }),
+          ],
+        }),
+        "Contents/Frameworks/liblazy.dylib": parsed(
+          slice({ dependencies: [dependency("@rpath/libdeep.dylib")] }),
+        ),
+      }),
+      { roots: [MAIN] },
+    );
+    expect(trace.edges.map(({ loader }) => loader)).toEqual([MAIN, MAIN]);
+    expect(trace.edges[0]?.resolution.status).toBe("resolved");
+    expect(trace.findings.map(({ kind }) => kind)).toEqual([
+      "lazy-load-unresolved",
+    ]);
+  });
+});

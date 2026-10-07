@@ -167,7 +167,9 @@ cache rather than on disk, so REA does not check them against the host.
 
 `findings` are derived, not observed:
 
-- `required-load-unresolved` and `weak-load-unresolved`.
+- `required-load-unresolved`, `weak-load-unresolved`, and `lazy-load-unresolved`.
+  `LC_LAZY_LOAD_DYLIB` dependencies are resolved but not traversed, because dyld
+  loads them on first use; an unresolved one is not a launch failure.
 - `earlier-rpath-candidate-absent`: a Mach-O placed at an earlier search path
   would load first. Whether code-signing library validation would reject it is
   not evaluated; use `inspect_signature`.

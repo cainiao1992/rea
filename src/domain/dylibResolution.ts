@@ -9,6 +9,10 @@ import {
   type Expansion,
 } from "./dyldPaths.js";
 import { digestSchema } from "./digests.js";
+import {
+  DYLIB_RESOLUTION_LIMITATIONS,
+  deriveFindings,
+} from "./dylibResolutionFindings.js";
 
 /** Normalized path below the analyzed root: no `.`/`..` or empty segments. */
 const ROOT_RELATIVE_PATH =
@@ -118,6 +122,7 @@ const findingSchema = z.strictObject({
   kind: z.enum([
     "required-load-unresolved",
     "weak-load-unresolved",
+    "lazy-load-unresolved",
     "earlier-rpath-candidate-absent",
     "dyld-environment-present",
   ]),
@@ -155,8 +160,9 @@ export const dylibResolutionResultSchema = z.strictObject({
 
 export type DylibResolutionResult = z.infer<typeof dylibResolutionResultSchema>;
 type Candidate = z.infer<typeof candidateSchema>;
-type Edge = z.infer<typeof edgeSchema>;
-type Finding = z.infer<typeof findingSchema>;
+export type DylibEdge = z.infer<typeof edgeSchema>;
+export type DylibFinding = z.infer<typeof findingSchema>;
+type Edge = DylibEdge;
 
 /** Result before the adapter adds file digests and the analyzed root. */
 export type DylibTrace = Omit<
@@ -365,6 +371,8 @@ const traceProcess = async (
     for (const dependency of current.slice.dependencies) {
       const edge = await resolveDependency(dependency, loader, context);
       edges.push(edge);
+      // dyld loads LC_LAZY_LOAD_DYLIB images on first use, not at launch.
+      if (dependency.command === "LC_LAZY_LOAD_DYLIB") continue;
       const image = edge.resolution.image;
       if (image === null || context.loaded.has(image)) continue;
       const facts = context.images.get(image);
@@ -475,69 +483,6 @@ const withoutDependencies = (
   dyld_environment: slice.dyld_environment,
   code_signature_present: slice.code_signature_present,
 });
-
-const deriveFindings = (
-  edges: readonly Edge[],
-  roots: DylibTrace["roots"],
-  images: ReadonlyMap<string, MachoImageFacts>,
-): Finding[] => {
-  const findings: Finding[] = [];
-  edges.forEach((edge, index) => {
-    if (edge.resolution.status === "unresolved")
-      findings.push({
-        kind: edge.weak ? "weak-load-unresolved" : "required-load-unresolved",
-        edge_index: index,
-        image: edge.loader,
-        basis: "derived",
-        explanation: edge.weak
-          ? `No candidate for weak dependency ${edge.install_name} exists in the analyzed root; dyld continues without it.`
-          : `No candidate for ${edge.install_name} exists in the analyzed root; dyld would fail to launch ${edge.root} (${edge.architecture}) unless the image is supplied elsewhere.`,
-      });
-    const resolvedAt = edge.candidates.findIndex(
-      ({ outcome }) => outcome === "resolved",
-    );
-    const earlier = edge.candidates
-      .slice(0, Math.max(resolvedAt, 0))
-      .filter(
-        ({ source, outcome }) => source === "rpath" && outcome === "absent",
-      )
-      .map(({ path }) => path);
-    if (resolvedAt > 0 && earlier.length > 0)
-      findings.push({
-        kind: "earlier-rpath-candidate-absent",
-        edge_index: index,
-        image: edge.loader,
-        basis: "derived",
-        explanation: `dyld searches ${earlier.join(", ")} before ${edge.resolution.image ?? edge.install_name}. A Mach-O placed at an earlier path would load first unless code-signing library validation rejects it; library validation is not evaluated here (see inspect_signature).`,
-      });
-  });
-  for (const { image, architecture } of roots) {
-    const facts = images.get(image);
-    const environment =
-      facts?.status === "parsed"
-        ? (facts.slices.find((slice) => slice.architecture === architecture)
-            ?.dyld_environment ?? [])
-        : [];
-    if (environment.length > 0)
-      findings.push({
-        kind: "dyld-environment-present",
-        edge_index: null,
-        image,
-        basis: "derived",
-        explanation: `${image} (${architecture}) sets dyld environment variables through LC_DYLD_ENVIRONMENT (${environment.join(", ")}); search paths they add are not modeled.`,
-      });
-  }
-  return findings;
-};
-
-const DYLIB_RESOLUTION_LIMITATIONS = [
-  "Slices are matched by dyld's graded architectures (an x86_64h process also loads x86_64). arm64e processes that disable pointer authentication can also load arm64 slices; that fallback is not modeled.",
-  "Absolute install names and rpaths are outside the analyzed root and are not evaluated, including /System and /usr/lib libraries that the dyld shared cache usually provides.",
-  "Leaf and relative install names depend on dyld fallback paths, DYLD_* variables, and the working directory; they are undetermined.",
-  "Load order follows dyld's dependents-first traversal in load-command order. An image reached through several chains is resolved once per process, with the rpath stack of the first chain; a later request whose install name matches an already loaded image reuses it.",
-  "@loader_path uses each image's symlink-resolved path within the analyzed root.",
-  "Code-signing checks that can reject a found image, such as library validation and the hardened runtime, are not evaluated.",
-];
 
 const compare = (left: string, right: string): number =>
   left < right ? -1 : left > right ? 1 : 0;

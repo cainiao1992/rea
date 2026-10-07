@@ -9,8 +9,12 @@ export type ReadAt = (offset: number, length: number) => Promise<Uint8Array>;
 
 /** Load commands larger than this are refused instead of buffered. */
 export const MAX_LOAD_COMMAND_BYTES = 16 * 1024 * 1024;
-/** Real universal binaries carry a handful of slices; Java class files share the FAT magic. */
-const MAX_FAT_ARCHITECTURES = 20;
+/** Target opening accepts up to 128 FAT records; Java class files share the FAT magic. */
+const MAX_FAT_ARCHITECTURES = 128;
+/** CPU types of real Mach-O slices (x86, x86_64, arm, arm64, arm64_32, ppc, ppc64). */
+const KNOWN_CPU_TYPES: readonly number[] = [
+  7, 0x01000007, 12, 0x0100000c, 0x0200000c, 18, 0x01000012,
+];
 
 const MH_MAGIC = 0xfeedface;
 const MH_MAGIC_64 = 0xfeedfacf;
@@ -91,12 +95,26 @@ export const readMachoImage = async (
       // FAT headers are big-endian; the swapped magics store them little-endian.
       const littleEndian = magic === FAT_CIGAM || magic === FAT_CIGAM_64;
       const count = view.getUint32(4, littleEndian);
-      if (count === 0 || count >= MAX_FAT_ARCHITECTURES)
+      const wide = magic === FAT_MAGIC_64 || magic === FAT_CIGAM_64;
+      if (
+        count === 0 ||
+        count > MAX_FAT_ARCHITECTURES ||
+        8 + count * (wide ? 32 : 20) > size
+      )
+        return { status: "not-mach-o" };
+      const table = viewOf(
+        await readExact(readAt, 8, count * (wide ? 32 : 20), "FAT table"),
+      );
+      // A Java class file's version fields read as a FAT count; its "table" names no CPU.
+      const cpuTypes = Array.from({ length: count }, (_, index) =>
+        table.getUint32(index * (wide ? 32 : 20), littleEndian),
+      );
+      if (!cpuTypes.some((type) => KNOWN_CPU_TYPES.includes(type)))
         return { status: "not-mach-o" };
       return {
         status: "parsed",
         slices: await readFatSlices(readAt, size, {
-          wide: magic === FAT_MAGIC_64 || magic === FAT_CIGAM_64,
+          wide,
           littleEndian,
           count,
         }),
@@ -179,6 +197,7 @@ const readSlice = async (
       "load commands",
     );
     return decodeCommands(commands, {
+      wide,
       cpuType: header.getUint32(4, true),
       cpuSubtype: header.getUint32(8, true),
       fileType: header.getUint32(12, true),
@@ -198,12 +217,15 @@ const readSlice = async (
 const decodeCommands = (
   bytes: Uint8Array,
   header: {
+    readonly wide: boolean;
     readonly cpuType: number;
     readonly cpuSubtype: number;
     readonly fileType: number;
     readonly commandCount: number;
   },
 ): MachoSlice => {
+  // loader.h: load commands are 8-byte aligned in 64-bit images, 4 in 32-bit.
+  const alignment = header.wide ? 8 : 4;
   const view = viewOf(bytes);
   const slice: MachoSlice = {
     architecture: architectureName(header.cpuType, header.cpuSubtype),
@@ -223,7 +245,7 @@ const decodeCommands = (
       );
     const command = view.getUint32(offset, true);
     const size = view.getUint32(offset + 4, true);
-    if (size < 8 || size % 4 !== 0 || offset + size > bytes.byteLength)
+    if (size < 8 || size % alignment !== 0 || offset + size > bytes.byteLength)
       throw new MachoFormatIssue(
         "malformed",
         `load command ${index} at offset ${offset} has invalid cmdsize ${size}`,

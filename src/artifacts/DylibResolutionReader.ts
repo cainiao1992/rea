@@ -123,6 +123,13 @@ export const traceDylibResolution = async (options: {
         "Dylib resolution was cancelled",
         { cause },
       );
+    const denied = permissionDenied(cause);
+    if (denied !== undefined)
+      throw new ArtifactReaderFailure(
+        "unavailable",
+        `Permission denied (${denied.code}) reading ${denied.path === undefined ? "a file in the analyzed root" : relative(root, denied.path) || denied.path}`,
+        { cause },
+      );
     throw cause;
   }
 };
@@ -240,6 +247,21 @@ const cancelled = (signal?: AbortSignal): void => {
       "cancelled",
       "Dylib resolution was cancelled",
     );
+};
+
+/** Host permission denials, kept distinct from malformed or missing files. */
+const permissionDenied = (
+  cause: unknown,
+): { readonly code: string; readonly path: string | undefined } | undefined => {
+  if (!(cause instanceof Error) || !("code" in cause)) return undefined;
+  if (cause.code !== "EACCES" && cause.code !== "EPERM") return undefined;
+  return {
+    code: cause.code,
+    path:
+      "path" in cause && typeof cause.path === "string"
+        ? cause.path
+        : undefined,
+  };
 };
 
 const missing = (cause: unknown): boolean =>

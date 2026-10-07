@@ -210,6 +210,35 @@ describe("Mach-O load command reader failures", () => {
     });
   });
 
+  it("requires 8-byte command alignment in 64-bit images", async () => {
+    const command = new Uint8Array(12);
+    const view = new DataView(command.buffer);
+    view.setUint32(0, LC.CODE_SIGNATURE, true);
+    view.setUint32(4, 12, true);
+    expect(await read(machoImage({ commands: [command] }))).toMatchObject({
+      status: "malformed",
+      reason: expect.stringContaining("invalid cmdsize 12"),
+    });
+    expect(
+      await read(
+        machoImage({
+          cpu: { type: 7, subtype: 3 },
+          wide: false,
+          commands: [command],
+        }),
+      ),
+    ).toMatchObject({ status: "parsed" });
+  });
+
+  it("accepts FAT tables up to 128 records that name a Mach-O CPU", async () => {
+    const slices = Array.from({ length: 24 }, () => ({
+      cpu: CPU.arm64,
+      bytes: machoImage({}),
+    }));
+    const facts = await read(fatImage(slices));
+    expect(facts.status === "parsed" && facts.slices).toHaveLength(24);
+  });
+
   it("rejects string commands too short to hold their string offset", async () => {
     const short = new Uint8Array(8);
     const view = new DataView(short.buffer);

@@ -28,6 +28,12 @@ interface ComparisonItemContext {
   readonly rightComplete: boolean;
 }
 
+/** Declared type and name of each unmatched member, per side, whose signature was not decoded. */
+interface UndecodedOneSidedNames {
+  readonly left: ReadonlySet<string>;
+  readonly right: ReadonlySet<string>;
+}
+
 const methodDimensions = (
   left: Method,
   right: Method,
@@ -113,13 +119,15 @@ const unmatchedComparison = (): UnmatchedComparison => ({
 const methodOnlyItem = (
   member: OneSided<Method>,
   context: ComparisonItemContext,
+  undecoded: UndecodedOneSidedNames,
 ): MethodItem => {
   if (member.left !== undefined) {
-    const limitations = absenceLimitations(
-      member.left,
-      context.rightComplete,
-      "The right method inventory is incomplete, so absence was not observed.",
-    );
+    const limitations = absenceLimitations(member.left, {
+      oppositeComplete: context.rightComplete,
+      oppositeUndecodedNames: undecoded.right,
+      opposite: "right",
+      inventory: "method",
+    });
     return {
       item_id: `mmc_method_${sha256({ token: member.left.token, side: "left" })}`,
       status: limitations.length === 0 ? "removed" : "unknown",
@@ -132,11 +140,12 @@ const methodOnlyItem = (
     };
   }
 
-  const limitations = absenceLimitations(
-    member.right,
-    context.leftComplete,
-    "The left method inventory is incomplete, so absence was not observed.",
-  );
+  const limitations = absenceLimitations(member.right, {
+    oppositeComplete: context.leftComplete,
+    oppositeUndecodedNames: undecoded.left,
+    opposite: "left",
+    inventory: "method",
+  });
   return {
     item_id: `mmc_method_${sha256({ token: member.right.token, side: "right" })}`,
     status: limitations.length === 0 ? "added" : "unknown",
@@ -151,34 +160,66 @@ const methodOnlyItem = (
 
 /**
  * Why a one-sided member's absence from the other inventory was not
- * observed: that inventory is incomplete, or the member's own signature was
- * not decoded, so no shape round could seek a renamed counterpart.
+ * observed: that inventory is incomplete, the member's own signature was not
+ * decoded, so no shape round could seek a changed counterpart, or the other
+ * inventory has an unmatched same-named member whose signature was not
+ * decoded, which may be this member with a changed signature.
  */
 const absenceLimitations = (
   member: Method | Field,
-  oppositeComplete: boolean,
-  incomplete: string,
+  opposite: {
+    readonly oppositeComplete: boolean;
+    readonly oppositeUndecodedNames: ReadonlySet<string>;
+    readonly opposite: "left" | "right";
+    readonly inventory: "method" | "field";
+  },
 ): string[] => [
-  ...(oppositeComplete
+  ...(opposite.oppositeComplete
     ? []
-    : [`unknown-within-incomplete-metadata: ${incomplete}`]),
+    : [
+        `unknown-within-incomplete-metadata: The ${opposite.opposite} ${opposite.inventory} inventory is incomplete, so absence was not observed.`,
+      ]),
   ...(member.signature.parse_status === "decoded"
     ? []
     : [
         `signature-not-decoded: The member's ${member.signature.parse_status} signature was compared only by exact declared type, name, and raw bytes, so a changed or renamed counterpart could not be sought.`,
       ]),
+  ...(member.signature.parse_status === "decoded" &&
+  opposite.oppositeUndecodedNames.has(declaredName(member))
+    ? [
+        `counterpart-signature-not-decoded: The ${opposite.opposite} ${opposite.inventory} inventory has an unmatched member with the same declared type and name whose signature was not decoded, so it may be this member with a changed signature.`,
+      ]
+    : []),
 ];
+
+const declaredName = (member: Method | Field): string =>
+  JSON.stringify([member.declaring_type, member.name]);
+
+const undecodedOneSidedNames = (members: {
+  readonly leftOnly: readonly { readonly item: Method | Field }[];
+  readonly rightOnly: readonly { readonly item: Method | Field }[];
+}): UndecodedOneSidedNames => {
+  const names = (side: readonly { readonly item: Method | Field }[]) =>
+    new Set(
+      side
+        .filter(({ item }) => item.signature.parse_status !== "decoded")
+        .map(({ item }) => declaredName(item)),
+    );
+  return { left: names(members.leftOnly), right: names(members.rightOnly) };
+};
 
 const fieldOnlyItem = (
   member: OneSided<Field>,
   context: ComparisonItemContext,
+  undecoded: UndecodedOneSidedNames,
 ): FieldItem => {
   if (member.left !== undefined) {
-    const limitations = absenceLimitations(
-      member.left,
-      context.rightComplete,
-      "The right field inventory is incomplete, so absence was not observed.",
-    );
+    const limitations = absenceLimitations(member.left, {
+      oppositeComplete: context.rightComplete,
+      oppositeUndecodedNames: undecoded.right,
+      opposite: "right",
+      inventory: "field",
+    });
     return {
       item_id: `mmc_field_${sha256({ token: member.left.token, side: "left" })}`,
       status: limitations.length === 0 ? "removed" : "unknown",
@@ -190,11 +231,12 @@ const fieldOnlyItem = (
     };
   }
 
-  const limitations = absenceLimitations(
-    member.right,
-    context.leftComplete,
-    "The left field inventory is incomplete, so absence was not observed.",
-  );
+  const limitations = absenceLimitations(member.right, {
+    oppositeComplete: context.leftComplete,
+    oppositeUndecodedNames: undecoded.left,
+    opposite: "left",
+    inventory: "field",
+  });
   return {
     item_id: `mmc_field_${sha256({ token: member.right.token, side: "right" })}`,
     status: limitations.length === 0 ? "added" : "unknown",
@@ -273,10 +315,11 @@ export const buildMethodItems = (
       ],
     });
   }
+  const undecoded = undecodedOneSidedNames(matches);
   for (const item of matches.leftOnly)
-    items.push(methodOnlyItem({ left: item.item }, context));
+    items.push(methodOnlyItem({ left: item.item }, context, undecoded));
   for (const item of matches.rightOnly)
-    items.push(methodOnlyItem({ right: item.item }, context));
+    items.push(methodOnlyItem({ right: item.item }, context, undecoded));
   return items;
 };
 
@@ -330,9 +373,10 @@ export const buildFieldItems = (
         "Multiple managed fields share the same signature; REA did not guess a token remap from names.",
       ],
     });
+  const undecoded = undecodedOneSidedNames(matches);
   for (const item of matches.leftOnly)
-    items.push(fieldOnlyItem({ left: item.item }, context));
+    items.push(fieldOnlyItem({ left: item.item }, context, undecoded));
   for (const item of matches.rightOnly)
-    items.push(fieldOnlyItem({ right: item.item }, context));
+    items.push(fieldOnlyItem({ right: item.item }, context, undecoded));
   return items;
 };

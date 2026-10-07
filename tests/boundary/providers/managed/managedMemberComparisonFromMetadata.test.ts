@@ -307,6 +307,34 @@ describe("managed member comparison of undecoded signatures", () => {
         limitations: [expect.stringContaining("signature-not-decoded")],
       });
   });
+
+  it("keeps a decoded member unknown beside a same-named undecoded counterpart", () => {
+    const left = inspect(buildManagedPeFixture(), "/tmp/decoded-before.dll");
+    const right = inspect(
+      buildManagedPeFixture({
+        methodSignature: Buffer.from([0x00, 0x00, 0x7f]),
+        fieldSignature: Buffer.from([0x06, 0x15]),
+      }),
+      "/tmp/undecoded-after.dll",
+    );
+    expect(left.result.methods[0]?.signature.parse_status).toBe("decoded");
+    expect(left.result.fields[0]?.signature.parse_status).toBe("decoded");
+    expect(right.result.coverage.state).toBe("complete");
+    const result = compareManagedMembers(left, right);
+    expect(result.summary).toMatchObject({ added: 0, removed: 0, unknown: 4 });
+    for (const item of [...result.methods, ...result.fields])
+      expect(item).toMatchObject({
+        status: "unknown",
+        match: { status: "unmatched" },
+        limitations: [
+          expect.stringMatching(
+            item.left === null
+              ? /^signature-not-decoded:/
+              : /^counterpart-signature-not-decoded: The right (method|field) inventory/,
+          ),
+        ],
+      });
+  });
 });
 
 const inspect = (bytes: Buffer, path: string) => {

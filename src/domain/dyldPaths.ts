@@ -1,4 +1,8 @@
-import type { DylibTreeEntry, DylibTreeView } from "./dylibResolution.js";
+import type {
+  DylibTreeEntry,
+  DylibTreeView,
+  MachoSlice,
+} from "./dylibResolution.js";
 
 const MAX_SYMLINK_HOPS = 32;
 
@@ -84,4 +88,23 @@ export const expandPrefix = (
   }
   if (raw.startsWith("/")) return { scope: "outside", path: raw };
   return { scope: "undetermined", path: raw };
+};
+
+/**
+ * Slices a process may load, best first, following dyld's graded
+ * architectures: an x86_64h process also accepts generic x86_64.
+ */
+const COMPATIBLE_ARCHITECTURES: Readonly<Record<string, readonly string[]>> = {
+  x86_64h: ["x86_64h", "x86_64"],
+};
+
+export const compatibleSlice = (
+  slices: readonly MachoSlice[],
+  process: string,
+): MachoSlice | undefined => {
+  for (const architecture of COMPATIBLE_ARCHITECTURES[process] ?? [process]) {
+    const slice = slices.find((item) => item.architecture === architecture);
+    if (slice !== undefined) return slice;
+  }
+  return undefined;
 };

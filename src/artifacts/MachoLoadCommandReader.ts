@@ -18,6 +18,8 @@ const MH_CIGAM = 0xcefaedfe;
 const MH_CIGAM_64 = 0xcffaedfe;
 const FAT_MAGIC = 0xcafebabe;
 const FAT_MAGIC_64 = 0xcafebabf;
+const FAT_CIGAM = 0xbebafeca;
+const FAT_CIGAM_64 = 0xbfbafeca;
 
 const LC_ID_DYLIB = 0xd;
 const LC_LOAD_DYLIB = 0xc;
@@ -70,6 +72,8 @@ export const hasMachoMagic = (head: Uint8Array): boolean => {
     MH_CIGAM_64,
     FAT_MAGIC,
     FAT_MAGIC_64,
+    FAT_CIGAM,
+    FAT_CIGAM_64,
   ].includes(magic);
 };
 
@@ -83,18 +87,19 @@ export const readMachoImage = async (
     if (head.byteLength < 8) return { status: "not-mach-o" };
     const view = viewOf(head);
     const magic = view.getUint32(0, false);
-    if (magic === FAT_MAGIC || magic === FAT_MAGIC_64) {
-      const count = view.getUint32(4, false);
+    if ([FAT_MAGIC, FAT_MAGIC_64, FAT_CIGAM, FAT_CIGAM_64].includes(magic)) {
+      // FAT headers are big-endian; the swapped magics store them little-endian.
+      const littleEndian = magic === FAT_CIGAM || magic === FAT_CIGAM_64;
+      const count = view.getUint32(4, littleEndian);
       if (count === 0 || count >= MAX_FAT_ARCHITECTURES)
         return { status: "not-mach-o" };
       return {
         status: "parsed",
-        slices: await readFatSlices(
-          readAt,
-          size,
-          magic === FAT_MAGIC_64,
+        slices: await readFatSlices(readAt, size, {
+          wide: magic === FAT_MAGIC_64 || magic === FAT_CIGAM_64,
+          littleEndian,
           count,
-        ),
+        }),
       };
     }
     if (magic === MH_CIGAM || magic === MH_CIGAM_64)
@@ -115,21 +120,26 @@ export const readMachoImage = async (
 const readFatSlices = async (
   readAt: ReadAt,
   size: number,
-  wide: boolean,
-  count: number,
+  table: {
+    readonly wide: boolean;
+    readonly littleEndian: boolean;
+    readonly count: number;
+  },
 ): Promise<MachoSlice[]> => {
+  const { wide, littleEndian, count } = table;
   const entrySize = wide ? 32 : 20;
-  const table = await readExact(readAt, 8, count * entrySize, "FAT table");
-  const view = viewOf(table);
+  const view = viewOf(
+    await readExact(readAt, 8, count * entrySize, "FAT table"),
+  );
   const slices: MachoSlice[] = [];
   for (let index = 0; index < count; index++) {
     const base = index * entrySize;
     const offset = wide
-      ? safeNumber(view.getBigUint64(base + 8, false))
-      : view.getUint32(base + 8, false);
+      ? safeNumber(view.getBigUint64(base + 8, littleEndian))
+      : view.getUint32(base + 8, littleEndian);
     const length = wide
-      ? safeNumber(view.getBigUint64(base + 16, false))
-      : view.getUint32(base + 12, false);
+      ? safeNumber(view.getBigUint64(base + 16, littleEndian))
+      : view.getUint32(base + 12, littleEndian);
     if (offset + length > size)
       throw new MachoFormatIssue(
         "malformed",
@@ -291,6 +301,11 @@ const commandString = (
   minimumOffset: number,
   index: number,
 ): string => {
+  if (body.byteLength < 12)
+    throw new MachoFormatIssue(
+      "malformed",
+      `load command ${index} is too short to hold a string offset`,
+    );
   const offset = viewOf(body).getUint32(8, true);
   if (offset < minimumOffset || offset >= body.byteLength)
     throw new MachoFormatIssue(

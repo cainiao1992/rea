@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  compatibleSlice,
   directoryOf,
   expandPrefix,
   joinPath,
@@ -90,6 +91,7 @@ const candidateSchema = z.strictObject({
     "absent",
     "not-mach-o",
     "malformed",
+    "unsupported",
     "architecture-missing",
     "outside-target",
     "escapes-target",
@@ -255,15 +257,11 @@ const evaluateCandidate = async (
     return { ...base, outcome: "absent", resolved_path: null };
   const facts = await imageFacts(context, lookup.path);
   const outcome: Candidate["outcome"] =
-    facts.status === "not-mach-o"
-      ? "not-mach-o"
-      : facts.status !== "parsed"
-        ? "malformed"
-        : facts.slices.some(
-              ({ architecture }) => architecture === context.architecture,
-            )
-          ? "resolved"
-          : "architecture-missing";
+    facts.status !== "parsed"
+      ? facts.status
+      : compatibleSlice(facts.slices, context.architecture) === undefined
+        ? "architecture-missing"
+        : "resolved";
   return { ...base, outcome, resolved_path: lookup.path };
 };
 
@@ -286,9 +284,11 @@ const resolution = (candidates: readonly Candidate[]): Edge["resolution"] => {
         status: external ? "conditional" : "resolved",
         image: candidate.resolved_path,
       };
+    // dyld might load these; REA cannot decide them from the analyzed root.
     if (
       candidate.outcome === "outside-target" ||
       candidate.outcome === "escapes-target" ||
+      candidate.outcome === "unsupported" ||
       candidate.outcome === "undetermined"
     )
       external = true;
@@ -325,9 +325,7 @@ const resolveDependency = async (
     resolved.image === null ? undefined : context.images.get(resolved.image);
   const slice =
     image?.status === "parsed"
-      ? image.slices.find(
-          ({ architecture }) => architecture === context.architecture,
-        )
+      ? compatibleSlice(image.slices, context.architecture)
       : undefined;
   return {
     root: context.root,
@@ -372,9 +370,7 @@ const traceProcess = async (
       const facts = context.images.get(image);
       const slice =
         facts?.status === "parsed"
-          ? facts.slices.find(
-              ({ architecture }) => architecture === context.architecture,
-            )
+          ? compatibleSlice(facts.slices, context.architecture)
           : undefined;
       if (slice === undefined) continue;
       context.loaded.set(image, { slice, chain: [...current.chain, image] });
@@ -395,11 +391,15 @@ export const traceDylibLoading = async (
   view: DylibTreeView,
   request: {
     readonly roots: readonly string[];
+    /** Mach-O files whose root role could not be classified because they did not parse. */
+    readonly unclassified?: readonly string[];
     readonly architecture?: string;
     readonly signal?: AbortSignal;
   },
 ): Promise<DylibTrace> => {
   const images = new Map<string, MachoImageFacts>();
+  for (const path of request.unclassified ?? [])
+    images.set(path, await view.image(path));
   const roots: DylibTrace["roots"][number][] = [];
   const edges: Edge[] = [];
   const withoutArchitecture: string[] = [];
@@ -531,6 +531,7 @@ const deriveFindings = (
 };
 
 const DYLIB_RESOLUTION_LIMITATIONS = [
+  "Slices are matched by dyld's graded architectures (an x86_64h process also loads x86_64). arm64e processes that disable pointer authentication can also load arm64 slices; that fallback is not modeled.",
   "Absolute install names and rpaths are outside the analyzed root and are not evaluated, including /System and /usr/lib libraries that the dyld shared cache usually provides.",
   "Leaf and relative install names depend on dyld fallback paths, DYLD_* variables, and the working directory; they are undetermined.",
   "Load order follows dyld's dependents-first traversal in load-command order. An image reached through several chains is resolved once per process, with the rpath stack of the first chain; a later request whose install name matches an already loaded image reuses it.",

@@ -438,3 +438,83 @@ describe("dyld load order", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("dyld slice compatibility and coverage", () => {
+  it("lets an x86_64h process load generic x86_64 but not arm64e load arm64", async () => {
+    const files = {
+      [MAIN]: parsed(
+        slice({
+          architecture: "x86_64h",
+          file_type: "execute",
+          dependencies: [dependency("@executable_path/libgeneric.dylib")],
+        }),
+        slice({
+          architecture: "arm64e",
+          file_type: "execute",
+          dependencies: [dependency("@executable_path/libgeneric.dylib")],
+        }),
+      ),
+      "Contents/MacOS/libgeneric.dylib": parsed(
+        slice({ architecture: "x86_64" }),
+        slice({ architecture: "arm64" }),
+      ),
+    };
+    const trace = await traceDylibLoading(memoryView(files), { roots: [MAIN] });
+    expect(
+      trace.edges.map(({ architecture, candidates, resolution }) => [
+        architecture,
+        candidates[0]?.outcome,
+        resolution.status,
+      ]),
+    ).toEqual([
+      ["x86_64h", "resolved", "resolved"],
+      ["arm64e", "architecture-missing", "unresolved"],
+    ]);
+  });
+
+  it("keeps unsupported candidates undeterminable rather than malformed", async () => {
+    const trace = await traceDylibLoading(
+      memoryView({
+        [MAIN]: executable({
+          dependencies: [dependency("@executable_path/libbig.dylib")],
+        }),
+        "Contents/MacOS/libbig.dylib": {
+          status: "unsupported",
+          reason: "big-endian Mach-O images are not supported",
+        },
+      }),
+      { roots: [MAIN] },
+    );
+    expect(trace.edges[0]).toMatchObject({
+      candidates: [{ outcome: "unsupported" }],
+      resolution: { status: "undetermined", image: null },
+    });
+    expect(
+      trace.images.find(({ path }) => path.endsWith("libbig.dylib")),
+    ).toMatchObject({
+      parse_status: "unsupported",
+    });
+  });
+
+  it("reports unclassified Mach-O files as partial coverage", async () => {
+    const broken = "Contents/Helpers/broken";
+    const trace = await traceDylibLoading(
+      memoryView({
+        [MAIN]: executable(),
+        [broken]: {
+          status: "malformed",
+          reason: "load command 0 has invalid cmdsize 0",
+        },
+      }),
+      { roots: [MAIN], unclassified: [broken] },
+    );
+    expect(trace.coverage).toEqual({
+      status: "partial",
+      unparsed_images: [broken],
+      roots_without_architecture: [],
+    });
+    expect(trace.images.find(({ path }) => path === broken)?.reason).toBe(
+      "load command 0 has invalid cmdsize 0",
+    );
+  });
+});

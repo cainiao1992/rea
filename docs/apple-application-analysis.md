@@ -149,8 +149,10 @@ Resolution follows dyld:
   An escape through `..` or an absolute link is `escapes-target`.
 
 Each edge lists every candidate path tried, with its outcome: `resolved`,
-`absent`, `not-mach-o`, `malformed`, `architecture-missing`, `outside-target`,
-`escapes-target`, or `undetermined`. The edge's `resolution` is one of:
+`absent`, `not-mach-o`, `malformed`, `unsupported` (recognized Mach-O outside
+parser coverage, such as big-endian images), `architecture-missing`,
+`outside-target`, `escapes-target`, or `undetermined`. Slices follow dyld's
+graded architectures, so an `x86_64h` process also loads `x86_64`. The edge's `resolution` is one of:
 
 | Status         | Meaning                                                                                                                                                   |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |

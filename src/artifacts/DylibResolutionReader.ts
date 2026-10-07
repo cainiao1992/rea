@@ -81,14 +81,16 @@ export const traceDylibResolution = async (options: {
     .join("/");
   const view = new FilesystemTreeView(root, options.signal);
   try {
-    const roots =
-      parsed.data.roots ??
-      (options.enumerateRoots
-        ? await executableRoots(root, view, options.signal)
-        : [target]);
+    const { roots, unclassified } =
+      parsed.data.roots !== undefined
+        ? { roots: parsed.data.roots, unclassified: [] }
+        : options.enumerateRoots
+          ? await executableRoots(root, view, options.signal)
+          : { roots: [target], unclassified: [] };
     await requireMachoRoots(view, roots);
     const trace = await traceDylibLoading(view, {
       roots,
+      unclassified,
       ...(parsed.data.architecture === undefined
         ? {}
         : { architecture: parsed.data.architecture }),
@@ -125,13 +127,18 @@ export const traceDylibResolution = async (options: {
   }
 };
 
-/** Every Mach-O in the bundle with an executable slice is its own process root. */
+/**
+ * Every Mach-O in the bundle with an executable slice is its own process root.
+ * Mach-O files that do not parse are returned separately: whether they are
+ * executables is unknown, so they make coverage partial instead of vanishing.
+ */
 const executableRoots = async (
   root: string,
   view: FilesystemTreeView,
   signal?: AbortSignal,
-): Promise<string[]> => {
+): Promise<{ readonly roots: string[]; readonly unclassified: string[] }> => {
   const roots: string[] = [];
+  const unclassified: string[] = [];
   for await (const entry of new DirectoryArtifactReader(root).entries(signal)) {
     if (
       entry.kind !== "file" ||
@@ -139,16 +146,22 @@ const executableRoots = async (
     )
       continue;
     const facts = await view.image(entry.path);
-    if (
+    if (facts.status === "malformed" || facts.status === "unsupported")
+      unclassified.push(entry.path);
+    else if (
       facts.status === "parsed" &&
       facts.slices.some(({ file_type: type }) => type === "execute")
     )
       roots.push(entry.path);
   }
-  return roots.sort((left, right) =>
-    left < right ? -1 : left > right ? 1 : 0,
-  );
+  return {
+    roots: roots.sort(compare),
+    unclassified: unclassified.sort(compare),
+  };
 };
+
+const compare = (left: string, right: string): number =>
+  left < right ? -1 : left > right ? 1 : 0;
 
 const requireMachoRoots = async (
   view: FilesystemTreeView,

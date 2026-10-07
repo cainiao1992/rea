@@ -125,8 +125,13 @@ describe("Mach-O load command reader", () => {
     ]);
   });
 
-  it("reads every slice of FAT and FAT_64 containers", async () => {
-    for (const wide of [false, true]) {
+  it("reads every slice of FAT and FAT_64 containers in either byte order", async () => {
+    for (const [wide, littleEndian] of [
+      [false, false],
+      [true, false],
+      [false, true],
+      [true, true],
+    ] as const) {
       const facts = await read(
         fatImage(
           [
@@ -146,6 +151,7 @@ describe("Mach-O load command reader", () => {
             },
           ],
           wide,
+          littleEndian,
         ),
       );
       if (facts.status !== "parsed") throw new Error(facts.status);
@@ -201,6 +207,17 @@ describe("Mach-O load command reader failures", () => {
     expect(await read(extraCommand)).toMatchObject({
       status: "malformed",
       reason: "load command 1 starts beyond sizeofcmds",
+    });
+  });
+
+  it("rejects string commands too short to hold their string offset", async () => {
+    const short = new Uint8Array(8);
+    const view = new DataView(short.buffer);
+    view.setUint32(0, LC.RPATH, true);
+    view.setUint32(4, 8, true);
+    expect(await read(machoImage({ commands: [short] }))).toMatchObject({
+      status: "malformed",
+      reason: "load command 0 is too short to hold a string offset",
     });
   });
 

@@ -52,6 +52,13 @@ const fixtureApp = async (): Promise<string> => {
   return app;
 };
 
+const withBrokenHelper = async (app: string): Promise<void> => {
+  const broken = machoImage({ commands: [rpathCommand("x")] });
+  // cmdsize 0 makes the command table unreadable.
+  new DataView(broken.buffer).setUint32(32 + 4, 0, true);
+  await writeFiles(app, { "Contents/Helpers/broken": broken });
+};
+
 describe("trace-dylib-resolution CLI", () => {
   cliTest("traces every executable root of an app bundle", async ({ cli }) => {
     const app = await fixtureApp();
@@ -162,6 +169,26 @@ describe("trace-dylib-resolution CLI", () => {
         { status: "resolved", image: "lib/libhelper.dylib" },
         { status: "undetermined", image: null },
       ]);
+    },
+  );
+
+  cliTest(
+    "reports unparsed Mach-O files found while enumerating roots",
+    async ({ cli }) => {
+      const app = await fixtureApp();
+      await withBrokenHelper(app);
+      const result = await cli.run({
+        arguments: ["trace-dylib-resolution", app, "--json"],
+        environment: ENVIRONMENT,
+      });
+      expect(result.exitCode, JSON.stringify(result.json)).toBe(0);
+      const trace = dylibResolutionResultSchema.parse(
+        (result.json as { normalized_result: unknown }).normalized_result,
+      );
+      expect(trace.coverage).toMatchObject({
+        status: "partial",
+        unparsed_images: ["Contents/Helpers/broken"],
+      });
     },
   );
 });

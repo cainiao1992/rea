@@ -103,13 +103,17 @@ export const machoImage = (options: {
   return bytes;
 };
 
-/** A big-endian FAT container whose slices start on 4 KiB boundaries. */
+/**
+ * A FAT container whose slices start on 4 KiB boundaries. Headers are
+ * big-endian unless `littleEndian` selects the swapped FAT_CIGAM magics.
+ */
 export const fatImage = (
   slices: readonly {
     readonly cpu: { readonly type: number; readonly subtype: number };
     readonly bytes: Uint8Array;
   }[],
   wide = false,
+  littleEndian = false,
 ): Uint8Array => {
   const entrySize = wide ? 32 : 20;
   const offsets: number[] = [];
@@ -120,21 +124,21 @@ export const fatImage = (
   }
   const bytes = new Uint8Array(end);
   const view = new DataView(bytes.buffer);
-  view.setUint32(0, wide ? 0xcafebabf : 0xcafebabe, false);
-  view.setUint32(4, slices.length, false);
+  view.setUint32(0, wide ? 0xcafebabf : 0xcafebabe, littleEndian);
+  view.setUint32(4, slices.length, littleEndian);
   slices.forEach((slice, index) => {
     const base = 8 + index * entrySize;
     const offset = offsets[index] ?? 0;
-    view.setUint32(base, slice.cpu.type, false);
-    view.setUint32(base + 4, slice.cpu.subtype, false);
+    view.setUint32(base, slice.cpu.type, littleEndian);
+    view.setUint32(base + 4, slice.cpu.subtype, littleEndian);
     if (wide) {
-      view.setBigUint64(base + 8, BigInt(offset), false);
-      view.setBigUint64(base + 16, BigInt(slice.bytes.length), false);
-      view.setUint32(base + 24, 12, false);
+      view.setBigUint64(base + 8, BigInt(offset), littleEndian);
+      view.setBigUint64(base + 16, BigInt(slice.bytes.length), littleEndian);
+      view.setUint32(base + 24, 12, littleEndian);
     } else {
-      view.setUint32(base + 8, offset, false);
-      view.setUint32(base + 12, slice.bytes.length, false);
-      view.setUint32(base + 16, 12, false);
+      view.setUint32(base + 8, offset, littleEndian);
+      view.setUint32(base + 12, slice.bytes.length, littleEndian);
+      view.setUint32(base + 16, 12, littleEndian);
     }
     bytes.set(slice.bytes, offset);
   });

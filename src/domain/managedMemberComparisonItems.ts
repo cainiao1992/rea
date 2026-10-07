@@ -115,74 +115,94 @@ const methodOnlyItem = (
   context: ComparisonItemContext,
 ): MethodItem => {
   if (member.left !== undefined) {
-    const absenceObserved = context.rightComplete;
+    const limitations = absenceLimitations(
+      member.left,
+      context.rightComplete,
+      "The right method inventory is incomplete, so absence was not observed.",
+    );
     return {
       item_id: `mmc_method_${sha256({ token: member.left.token, side: "left" })}`,
-      status: absenceObserved ? "removed" : "unknown",
+      status: limitations.length === 0 ? "removed" : "unknown",
       left: methodIdentity(member.left),
       right: null,
       match: unmatchedComparison(),
       dimensions: ["availability"],
       evidence_links: [context.leftEvidenceId, context.rightEvidenceId],
-      limitations: absenceObserved
-        ? []
-        : [
-            "unknown-within-incomplete-metadata: The right method inventory is incomplete, so absence was not observed.",
-          ],
+      limitations,
     };
   }
 
-  const absenceObserved = context.leftComplete;
+  const limitations = absenceLimitations(
+    member.right,
+    context.leftComplete,
+    "The left method inventory is incomplete, so absence was not observed.",
+  );
   return {
     item_id: `mmc_method_${sha256({ token: member.right.token, side: "right" })}`,
-    status: absenceObserved ? "added" : "unknown",
+    status: limitations.length === 0 ? "added" : "unknown",
     left: null,
     right: methodIdentity(member.right),
     match: unmatchedComparison(),
     dimensions: ["availability"],
     evidence_links: [context.leftEvidenceId, context.rightEvidenceId],
-    limitations: absenceObserved
-      ? []
-      : [
-          "unknown-within-incomplete-metadata: The left method inventory is incomplete, so absence was not observed.",
-        ],
+    limitations,
   };
 };
+
+/**
+ * Why a one-sided member's absence from the other inventory was not
+ * observed: that inventory is incomplete, or the member's own signature was
+ * not decoded, so no shape round could seek a renamed counterpart.
+ */
+const absenceLimitations = (
+  member: Method | Field,
+  oppositeComplete: boolean,
+  incomplete: string,
+): string[] => [
+  ...(oppositeComplete
+    ? []
+    : [`unknown-within-incomplete-metadata: ${incomplete}`]),
+  ...(member.signature.parse_status === "decoded"
+    ? []
+    : [
+        `signature-not-decoded: The member's ${member.signature.parse_status} signature was compared only by exact declared type, name, and raw bytes, so a changed or renamed counterpart could not be sought.`,
+      ]),
+];
 
 const fieldOnlyItem = (
   member: OneSided<Field>,
   context: ComparisonItemContext,
 ): FieldItem => {
   if (member.left !== undefined) {
-    const absenceObserved = context.rightComplete;
+    const limitations = absenceLimitations(
+      member.left,
+      context.rightComplete,
+      "The right field inventory is incomplete, so absence was not observed.",
+    );
     return {
       item_id: `mmc_field_${sha256({ token: member.left.token, side: "left" })}`,
-      status: absenceObserved ? "removed" : "unknown",
+      status: limitations.length === 0 ? "removed" : "unknown",
       left: fieldIdentity(member.left),
       right: null,
       match: unmatchedComparison(),
       evidence_links: [context.leftEvidenceId, context.rightEvidenceId],
-      limitations: absenceObserved
-        ? []
-        : [
-            "unknown-within-incomplete-metadata: The right field inventory is incomplete, so absence was not observed.",
-          ],
+      limitations,
     };
   }
 
-  const absenceObserved = context.leftComplete;
+  const limitations = absenceLimitations(
+    member.right,
+    context.leftComplete,
+    "The left field inventory is incomplete, so absence was not observed.",
+  );
   return {
     item_id: `mmc_field_${sha256({ token: member.right.token, side: "right" })}`,
-    status: absenceObserved ? "added" : "unknown",
+    status: limitations.length === 0 ? "added" : "unknown",
     left: null,
     right: fieldIdentity(member.right),
     match: unmatchedComparison(),
     evidence_links: [context.leftEvidenceId, context.rightEvidenceId],
-    limitations: absenceObserved
-      ? []
-      : [
-          "unknown-within-incomplete-metadata: The left field inventory is incomplete, so absence was not observed.",
-        ],
+    limitations,
   };
 };
 

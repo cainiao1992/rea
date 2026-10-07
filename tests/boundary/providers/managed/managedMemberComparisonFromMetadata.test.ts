@@ -251,6 +251,64 @@ describe("managed member comparison uncertainty", () => {
   });
 });
 
+describe("managed member comparison of undecoded signatures", () => {
+  it("pairs undecoded signatures by exact declared type, name, and raw bytes", () => {
+    const undecoded = {
+      methodSignature: Buffer.from([0x00, 0x00, 0x7f]),
+      fieldSignature: Buffer.from([0x06, 0x15]),
+    };
+    const left = inspect(
+      buildManagedPeFixture(undecoded),
+      "/tmp/undecoded-left.dll",
+    );
+    const right = inspect(
+      buildManagedPeFixture(undecoded),
+      "/tmp/undecoded-right.dll",
+    );
+    expect(left.result.coverage.state).toBe("complete");
+    expect(left.result.methods[0]?.signature.parse_status).toBe("unsupported");
+    expect(left.result.fields[0]?.signature.parse_status).toBe("unsupported");
+    const result = compareManagedMembers(left, right);
+    expect(result.summary).toMatchObject({
+      unchanged: 2,
+      added: 0,
+      removed: 0,
+      unknown: 0,
+    });
+    for (const item of [...result.methods, ...result.fields])
+      expect(item.match).toMatchObject({
+        status: "matched",
+        basis: "exact-signature",
+      });
+  });
+
+  it("keeps unmatched undecoded members unknown in complete inventories", () => {
+    const left = inspect(
+      buildManagedPeFixture({
+        methodSignature: Buffer.from([0x00, 0x00, 0x7f]),
+        fieldSignature: Buffer.from([0x06, 0x15]),
+      }),
+      "/tmp/undecoded-before.dll",
+    );
+    const right = inspect(
+      buildManagedPeFixture({
+        methodSignature: Buffer.from([0x00, 0x00, 0x7e]),
+        fieldSignature: Buffer.from([0x06, 0x7e]),
+      }),
+      "/tmp/undecoded-after.dll",
+    );
+    expect(right.result.coverage.state).toBe("complete");
+    const result = compareManagedMembers(left, right);
+    expect(result.summary).toMatchObject({ added: 0, removed: 0, unknown: 4 });
+    for (const item of [...result.methods, ...result.fields])
+      expect(item).toMatchObject({
+        status: "unknown",
+        match: { status: "unmatched" },
+        limitations: [expect.stringContaining("signature-not-decoded")],
+      });
+  });
+});
+
 const inspect = (bytes: Buffer, path: string) => {
   const target = managedPeFixtureTarget(bytes, path);
   const result = inspectManagedMembersBytes(bytes, target);

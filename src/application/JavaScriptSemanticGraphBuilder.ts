@@ -167,6 +167,8 @@ const projectFile = (
             location: callable.location,
             label: callable.name,
             functionNodeId: null,
+            // The label is display text; keep the exact name, which may be "".
+            properties: { name: callable.name },
           },
           state,
         ),

@@ -10,21 +10,41 @@ const nodeIdSchema = prefixedDigestSchema("jag_node");
 const edgeIdSchema = prefixedDigestSchema("jag_edge");
 const boundedTextSchema = z.string().min(1);
 
-/** Literal starting point for one application feature trace. */
-const applicationFeatureSeedSchema = z.strictObject({
-  kind: z.enum([
-    "node-id",
-    "route",
-    "string",
-    "api",
-    "channel",
-    "module",
-    "native-export",
-  ]),
-  value: boundedTextSchema,
-  match: z.enum(["exact", "contains"]).nullable().default(null),
-  case_sensitive: z.boolean().default(false),
-});
+/** Matching mode for a literal seed: string seeds default to containment. */
+export const featureSeedMatchMode = (seed: {
+  readonly kind: string;
+  readonly match: "exact" | "contains" | null;
+}): "exact" | "contains" =>
+  seed.match ?? (seed.kind === "string" ? "contains" : "exact");
+
+const literalSeedKinds = [
+  "route",
+  "string",
+  "api",
+  "channel",
+  "module",
+  "native-export",
+] as const;
+
+/**
+ * Literal starting point for one application feature trace. An empty value,
+ * such as the channel in `ipcMain.handle("")`, must be an explicit exact
+ * literal seed: empty containment would select every node.
+ */
+const applicationFeatureSeedSchema = z.union([
+  z.strictObject({
+    kind: z.enum(["node-id", ...literalSeedKinds]),
+    value: boundedTextSchema,
+    match: z.enum(["exact", "contains"]).nullable().default(null),
+    case_sensitive: z.boolean().default(false),
+  }),
+  z.strictObject({
+    kind: z.enum(literalSeedKinds),
+    value: z.literal(""),
+    match: z.literal("exact"),
+    case_sensitive: z.boolean().default(false),
+  }),
+]);
 
 /** Evidence-backed application graph and feature seed. */
 export const traceApplicationFeatureInputSchema = z

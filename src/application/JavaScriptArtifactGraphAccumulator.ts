@@ -4,7 +4,6 @@ import {
   type ApplicationEdge,
   type ApplicationNode,
 } from "../domain/javascriptApplicationGraph.js";
-import { javascriptDisplayText } from "../domain/javascriptAstValues.js";
 
 /** Deduplicate graph entities while retaining distinct evidence observations. */
 export class JavaScriptArtifactGraphAccumulator {
@@ -68,46 +67,22 @@ const observationInput = (
 
 /** Node fields whose display form is normalized before validation. */
 interface DisplayableNodeInput {
-  readonly identity: {
-    readonly strategy: string;
-    readonly key?: string;
-    readonly original_source?: string;
-  };
   readonly observations: readonly { readonly label: string | null }[];
 }
 
 /**
  * Static findings can carry legal empty strings, such as `fetch("")`,
- * `require("")`, or a source map's `sources: [""]`. Labels, artifact-local
- * keys, and original source names must be nonempty, so display the empty value
- * as `""`; each observation keeps the exact value in its properties.
+ * `require("")`, or a source map's `sources: [""]`. Labels must be nonempty,
+ * so an empty value has no label rather than synthetic text that a real value
+ * could share; literal feature seeds match labels. Identities and observation
+ * properties keep the exact value.
  */
 const displayableNode = (
   input: DisplayableNodeInput,
 ): DisplayableNodeInput => ({
   ...input,
-  identity: displayableIdentity(input.identity),
   observations: input.observations.map((observation) => ({
     ...observation,
-    label:
-      observation.label === null
-        ? null
-        : javascriptDisplayText(observation.label),
+    label: observation.label === "" ? null : observation.label,
   })),
 });
-
-const displayableIdentity = (
-  identity: DisplayableNodeInput["identity"],
-): DisplayableNodeInput["identity"] => {
-  if (identity.strategy === "artifact-local-key" && identity.key !== undefined)
-    return { ...identity, key: javascriptDisplayText(identity.key) };
-  if (
-    identity.strategy === "source-map-original" &&
-    identity.original_source !== undefined
-  )
-    return {
-      ...identity,
-      original_source: javascriptDisplayText(identity.original_source),
-    };
-  return identity;
-};

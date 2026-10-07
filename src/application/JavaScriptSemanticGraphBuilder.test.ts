@@ -370,14 +370,24 @@ it("keeps exact empty environment keys distinct from dynamic keys", () => {
 
 it("labels exact empty method names without inventing computed names", () => {
   const graph = graphFor(`
-      const target = { ['']() { return 42; }, [key]() { return 1; } };
+      const target = {
+        ['']() { return 42; },
+        ['""']() { return 2; },
+        [key]() { return 1; },
+      };
     `);
-  const labels = graph.nodes
+  const functions = graph.nodes
     .filter(({ kind }) => kind === "function")
-    .map(({ label }) => label);
-  expect(labels).toContain('""');
+    .map(({ label, properties }) => ({ label, name: properties.name }));
+  // Both exact names display as `""`; only `properties.name` tells them apart.
+  expect(functions).toEqual(
+    expect.arrayContaining([
+      { label: '""', name: "" },
+      { label: '""', name: '""' },
+    ]),
+  );
   expect(
-    labels.filter((label) => label?.startsWith("[computed@")),
+    functions.filter(({ label }) => label?.startsWith("[computed@")),
   ).toHaveLength(1);
 });
 

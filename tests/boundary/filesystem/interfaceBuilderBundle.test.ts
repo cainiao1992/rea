@@ -268,3 +268,92 @@ describe("bounded Interface Builder archive decoding", () => {
     },
   );
 });
+
+describe("compiled UIKit NIB connections", () => {
+  it("projects UIKit runtime outlet and event connections", async () => {
+    const root = await createTestTempDirectory("rea-ib-test-");
+    const bundle = join(root, "Example.app");
+    await mkdir(bundle, { recursive: true });
+    await writeFile(
+      join(bundle, "Cell.nib"),
+      encodeNibArchiveFixture({
+        classes: [
+          "UIProxyObject",
+          "UIClassSwapper",
+          "UIButton",
+          "UIRuntimeEventConnection",
+          "UIRuntimeOutletConnection",
+          "NSString",
+        ],
+        objects: [
+          { classIndex: 0, values: { UIProxiedObjectIdentifier: { ref: 5 } } },
+          { classIndex: 1, values: { UIClassName: { ref: 6 } } },
+          { classIndex: 2, values: {} },
+          {
+            classIndex: 3,
+            values: {
+              UISource: { ref: 2 },
+              UIDestination: { ref: 1 },
+              UILabel: { ref: 7 },
+              UIEventMask: 64,
+            },
+          },
+          {
+            classIndex: 4,
+            values: {
+              UISource: { ref: 1 },
+              UIDestination: { ref: 2 },
+              UILabel: { ref: 8 },
+            },
+          },
+          { classIndex: 5, values: { "NS.bytes": "IBFilesOwner" } },
+          { classIndex: 5, values: { "NS.bytes": "BuildCell" } },
+          { classIndex: 5, values: { "NS.bytes": "buildTapped:" } },
+          { classIndex: 5, values: { "NS.bytes": "buildButton" } },
+        ],
+      }),
+    );
+
+    const analysis = await analyzeInterfaceBuilderBundle({
+      bundlePath: bundle,
+      targetSha256: "e".repeat(64),
+    });
+    const byId = new Map(analysis.graph.nodes.map((node) => [node.id, node]));
+    const named = (id: string | null) =>
+      id === null ? null : (byId.get(id)?.name ?? null);
+    const action = analysis.graph.nodes.find(({ kind }) => kind === "action");
+    expect(action).toMatchObject({
+      name: "buildTapped:",
+      attributes: { ui_event_mask: 64 },
+    });
+    const actionEdges = analysis.graph.edges.filter(
+      ({ relation }) => relation === "target_action",
+    );
+    expect(
+      actionEdges
+        .filter(({ to }) => to === action?.id)
+        .map(({ from }) => named(from)),
+    ).toEqual(["UIButton"]);
+    expect(
+      actionEdges
+        .filter(({ from }) => from === action?.id)
+        .map(({ to }) => named(to)),
+    ).toEqual(expect.arrayContaining(["BuildCell"]));
+    const outlet = analysis.graph.nodes.find(({ kind }) => kind === "outlet");
+    expect(outlet?.name).toBe("buildButton");
+    expect(
+      analysis.graph.edges
+        .filter(
+          ({ relation, from }) =>
+            relation === "outlet_to" && from === outlet?.id,
+        )
+        .map(({ to }) => named(to)),
+    ).toEqual(["UIButton"]);
+    expect(
+      analysis.graph.nodes.find(({ name }) => name === "IBFilesOwner")?.kind,
+    ).toBe("placeholder");
+    expect(analysis.graph.nodes.map(({ name }) => name)).not.toContain(
+      "UIRuntimeEventConnection",
+    );
+  });
+});

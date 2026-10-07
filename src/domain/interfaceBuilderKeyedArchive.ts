@@ -308,7 +308,11 @@ const classifyObject = (
   const value = className?.toLowerCase() ?? "";
   if (value.includes("constraint")) return "constraint";
   if (value.includes("layoutguide")) return "layout_guide";
-  if (value.includes("placeholder") || value.includes("firstresponder"))
+  if (
+    value.includes("placeholder") ||
+    value.includes("firstresponder") ||
+    value === "uiproxyobject"
+  )
     return "placeholder";
   if (
     value.includes("image") ||

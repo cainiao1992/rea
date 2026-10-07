@@ -370,6 +370,43 @@ const isXhrMethodArgument = (node: t.Node | null | undefined): boolean => {
   );
 };
 
+const KEYED_COLLECTION_CONSTRUCTORS = new Set([
+  "FormData",
+  "Headers",
+  "Map",
+  "Set",
+  "URLSearchParams",
+  "WeakMap",
+  "WeakSet",
+]);
+
+/**
+ * Whether a get/delete receiver is provably a keyed collection rather than an
+ * HTTP client: a constructed Map, Set, Headers, FormData, or URLSearchParams,
+ * or the platform `headers`/`searchParams` properties of a request, response,
+ * or URL. Other receivers stay possible clients.
+ */
+const isKeyedCollectionReceiver = (callee: t.Node): boolean => {
+  if (!t.isMemberExpression(callee) && !t.isOptionalMemberExpression(callee))
+    return false;
+  const receiver = callee.object;
+  if (t.isNewExpression(receiver))
+    return (
+      t.isIdentifier(receiver.callee) &&
+      KEYED_COLLECTION_CONSTRUCTORS.has(receiver.callee.name)
+    );
+  if (
+    !t.isMemberExpression(receiver) &&
+    !t.isOptionalMemberExpression(receiver)
+  )
+    return false;
+  const property = semanticStaticPropertyName(
+    receiver.property,
+    receiver.computed,
+  );
+  return property === "headers" || property === "searchParams";
+};
+
 /** Select the literal URL argument for recognized network callees. */
 export const endpointArgument = (
   name: string,
@@ -379,18 +416,22 @@ export const endpointArgument = (
     | t.JSXNamespacedName
     | t.ArgumentPlaceholder
   )[],
+  callee: t.Node,
 ): string | undefined => {
   if (name === "fetch" || name.endsWith(".fetch") || name === "WebSocket")
     return stringValue(args[0]);
   // `XMLHttpRequest.open(method, url)`.
   if (name.endsWith(".open") && isXhrMethodArgument(args[0]))
     return stringValue(args[1]);
-  if (
-    ["get", "post", "put", "patch", "delete", "request"].some(
-      (method) => name === method || name.endsWith(`.${method}`),
-    )
-  )
-    return stringValue(args[0]);
+  const method = ["get", "post", "put", "patch", "delete", "request"].find(
+    (candidate) => name === candidate || name.endsWith(`.${candidate}`),
+  );
+  if (method !== undefined)
+    // Only get and delete also belong to the keyed-collection APIs.
+    return (method === "get" || method === "delete") &&
+      isKeyedCollectionReceiver(callee)
+      ? undefined
+      : stringValue(args[0]);
   if (name.endsWith("loadURL")) return stringValue(args[0]);
   return undefined;
 };

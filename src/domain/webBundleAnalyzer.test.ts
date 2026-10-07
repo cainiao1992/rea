@@ -190,6 +190,34 @@ describe("web bundle static-analysis parity", () => {
     ).toEqual(["/dav/", "/xhr-get", "https://xhr.example.test/submit"]);
   });
 
+  it("keeps HTTP-method-named reads of provable keyed collections out of endpoints", () => {
+    const result = analyzeCapturedWebBundle(
+      inspection(`
+        axios.get("https://api.example.test/users");
+        api.get("users");
+        client.delete("cache-key");
+        new Map().get("map-key");
+        new URLSearchParams(location.search).get("q");
+        new Headers(init).delete("x-trace");
+        new FormData(form).get("file");
+        response.headers.get("content-type");
+        request?.headers.delete("cookie");
+        new URL(location.href).searchParams.get("page");
+        api.headers.post("/v1/headers");
+        api.searchParams.request("/search");
+      `),
+    );
+    expect(
+      result.observations.endpoints.map(({ value }) => value).sort(),
+    ).toEqual([
+      "/search",
+      "/v1/headers",
+      "cache-key",
+      "https://api.example.test/users",
+      "users",
+    ]);
+  });
+
   it("recognizes loadURL endpoints like static analysis", () => {
     const result = analyzeCapturedWebBundle(
       inspection('window.win.loadURL("https://embedded.test/app");'),

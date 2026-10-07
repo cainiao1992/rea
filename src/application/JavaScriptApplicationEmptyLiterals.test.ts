@@ -7,9 +7,14 @@ import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory
 import { javascriptApplicationAnalysisResultSchema } from "../domain/javascriptApplicationAnalysis.js";
 import { analyzeJavaScriptApplication } from "./JavaScriptApplicationService.js";
 
-const analyzeSource = async (source: string) => {
+const analyzeSource = async (
+  source: string,
+  extraFiles: Readonly<Record<string, string>> = {},
+) => {
   const inputPath = await createTestTempDirectory("rea-js-empty-literal-");
   await writeFile(join(inputPath, "app.js"), `${source}\n`);
+  for (const [path, text] of Object.entries(extraFiles))
+    await writeFile(join(inputPath, path), text);
   const result = await analyzeJavaScriptApplication({
     input_path: inputPath,
     format: "directory",
@@ -70,4 +75,31 @@ it("displays empty literals as nonempty text while retaining exact values", asyn
         eventName: properties.event_name,
       })),
   ).toEqual([{ label: '""', eventName: "" }]);
+});
+
+it.each([
+  { version: 3, sources: [""], names: [], mappings: "AAAA" },
+  {
+    version: 3,
+    sections: [
+      {
+        offset: { line: 0, column: 0 },
+        map: { version: 3, sources: [""], names: [], mappings: "AAAA" },
+      },
+    ],
+  },
+])("projects an empty source-map source name: %j", async (map) => {
+  const output = await analyzeSource("//# sourceMappingURL=app.js.map", {
+    "app.js.map": JSON.stringify(map),
+  });
+  const originals = output.graph.nodes
+    .filter(({ kind }) => kind === "source-module")
+    .map(({ identity, observations }) => ({
+      originalSource:
+        identity.strategy === "source-map-original"
+          ? identity.original_source
+          : null,
+      sources: observations.map(({ properties }) => properties.source),
+    }));
+  expect(originals).toEqual([{ originalSource: '""', sources: [""] }]);
 });

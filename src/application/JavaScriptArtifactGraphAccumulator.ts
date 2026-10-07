@@ -68,25 +68,25 @@ const observationInput = (
 
 /** Node fields whose display form is normalized before validation. */
 interface DisplayableNodeInput {
-  readonly identity: { readonly strategy: string; readonly key?: string };
+  readonly identity: {
+    readonly strategy: string;
+    readonly key?: string;
+    readonly original_source?: string;
+  };
   readonly observations: readonly { readonly label: string | null }[];
 }
 
 /**
- * Static findings can carry legal empty strings, such as `fetch("")` or
- * `require("")`. Labels and artifact-local keys must be nonempty, so display
- * the empty value as `""`; each observation keeps the exact value in its
- * properties.
+ * Static findings can carry legal empty strings, such as `fetch("")`,
+ * `require("")`, or a source map's `sources: [""]`. Labels, artifact-local
+ * keys, and original source names must be nonempty, so display the empty value
+ * as `""`; each observation keeps the exact value in its properties.
  */
 const displayableNode = (
   input: DisplayableNodeInput,
 ): DisplayableNodeInput => ({
   ...input,
-  identity:
-    input.identity.strategy === "artifact-local-key" &&
-    input.identity.key !== undefined
-      ? { ...input.identity, key: javascriptDisplayText(input.identity.key) }
-      : input.identity,
+  identity: displayableIdentity(input.identity),
   observations: input.observations.map((observation) => ({
     ...observation,
     label:
@@ -95,3 +95,19 @@ const displayableNode = (
         : javascriptDisplayText(observation.label),
   })),
 });
+
+const displayableIdentity = (
+  identity: DisplayableNodeInput["identity"],
+): DisplayableNodeInput["identity"] => {
+  if (identity.strategy === "artifact-local-key" && identity.key !== undefined)
+    return { ...identity, key: javascriptDisplayText(identity.key) };
+  if (
+    identity.strategy === "source-map-original" &&
+    identity.original_source !== undefined
+  )
+    return {
+      ...identity,
+      original_source: javascriptDisplayText(identity.original_source),
+    };
+  return identity;
+};

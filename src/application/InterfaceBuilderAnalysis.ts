@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { parse, parseBinary } from "plist";
+import { parseBinary } from "plist";
 
 import { DirectoryArtifactReader } from "../artifacts/DirectoryArtifactReader.js";
+import { parseXmlPropertyList } from "../domain/propertyListKeys.js";
 import {
   decodeNibArchive,
   type NibArchiveDocument,
@@ -373,6 +374,6 @@ const decodePlist = (bytes: Buffer): JsonValue => {
   const parsed =
     bytes.subarray(0, 8).toString("ascii") === "bplist00"
       ? parseBinary(bytes)
-      : parse(bytes.toString("utf8"));
+      : parseXmlPropertyList(bytes.toString("utf8")).value;
   return jsonValueSchema.parse(parsed);
 };

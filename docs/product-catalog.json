@@ -10,7 +10,7 @@
     "skill_version": "26"
   },
   "tools": {
-    "total": 130,
+    "total": 131,
     "families": [
       {
         "id": "direct",
@@ -179,7 +179,7 @@
       {
         "id": "application",
         "surface": "application-workflow",
-        "count": 12,
+        "count": 13,
         "tools": [
           "build_reconstruction_obligation_ledger",
           "compare_application_versions",
@@ -192,7 +192,8 @@
           "recover_javascript_sources",
           "trace_application_feature",
           "trace_javascript_semantics",
-          "trace_web_module_imports"
+          "trace_web_module_imports",
+          "trace_web_source_location"
         ]
       },
       {
@@ -471,7 +472,11 @@
       "id": "rea-web-script-export",
       "name": "REA captured script export",
       "version": "1",
-      "capabilities": ["export_web_scripts", "trace_web_module_imports"]
+      "capabilities": [
+        "export_web_scripts",
+        "trace_web_module_imports",
+        "trace_web_source_location"
+      ]
     },
     {
       "id": "unblob",
@@ -561,7 +566,7 @@
     }
   ],
   "cli": {
-    "primary_count": 85,
+    "primary_count": 86,
     "commands": [
       "address-to-file-offset",
       "analyze",
@@ -644,6 +649,7 @@
       "trace-native-ui-action",
       "trace-native-values",
       "trace-web-module-imports",
+      "trace-web-source-location",
       "uninstall",
       "update",
       "verify-managed-native-boundaries",
@@ -658,15 +664,15 @@
   },
   "runtime_catalog": {
     "counts": {
-      "cli_commands": 85,
-      "mcp_tools": 130,
+      "cli_commands": 86,
+      "mcp_tools": 131,
       "mcp_prompts": 6
     },
     "digests": {
-      "tools_sha256": "4d67b3d567f690604e29dae3c76d4bdfc7d9a332745302dd27af328642118c66",
+      "tools_sha256": "f31ac36f25f54a9a5fbc157855849fac5361c67373d8b4bb070cf8171bf833c1",
       "prompts_sha256": "ef2de8814390b340623c32001610aa2709d90bed51537b6e562ab3abf144ab4d",
-      "combined_sha256": "ca2f454e044d0095736974fa078383989ab848e420fcebb6127d2c6869c47f1c",
-      "providers_sha256": "67251a90abf28e1cd9020cf68f579bf2460922d90dc113798a391039279db009"
+      "combined_sha256": "f07ae6f3910102f58197c86e34e1f06b3cc1f3bf341faa140b4fa2ff65182764",
+      "providers_sha256": "a7d885531ee25d42c51385444faec544d34cd7eba6250a7dc75c4faedd4454a3"
     }
   }
 }

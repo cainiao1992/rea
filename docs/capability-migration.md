@@ -225,6 +225,49 @@ explicit downloader and fixed manifest belong to `scripts/fixtures/android/`.
 JADX CLI/MCP parity requires the fixed APK and existing audited JAR; synthetic
 protocol/cancellation success does not establish that engine or an unverified host.
 
+## Deep-provider source declarations
+
+Hopper, Ghidra and IDA declare their implemented analyst operations in their
+own `*ProviderCapabilities.ts` modules. Hopper's inventory is typed against the
+existing direct-operation contracts; Ghidra reuses its inventory/function adapter
+operations; IDA retains its read-only operation family. Frozen operation arrays
+feed the existing capability builders without importing generated catalog data.
+
+The catalog generator reads these source declarations and joins operation names
+to canonical `TOOL_CONTRACTS`. A missing contract identifies the declaring provider
+and operation. Public schemas and descriptions remain owned by contracts; the
+declarations describe implementation coverage. Provider adapters must not consume
+the generated MCP catalog that is derived from them. The resolved module guard
+checks this edge while admitting canonical source contracts, generated package
+metadata and the existing application snapshot-cache consumer.
+
+Exact provider effects and lifecycle differences remain in their adapters:
+Hopper's GUI and mutation effects, Ghidra's experimental Windows authority and
+mutation restrictions, and IDA's attached/headless effects and live observations.
+This source increment introduces no common provider lifecycle or new interface.
+
+## JavaScript application ownership
+
+`src/application/javascript/` owns JavaScript/Electron artifact analysis and
+graph projection, feature/version/export/source comparisons, runtime Evidence
+and reconciliation, observation ports, and source recovery workflows. Pure
+analysis and public schemas keep their existing domain/contract ownership;
+shared artifact inventory, investigation records and execution types remain
+shared. CLI, MCP and production factories import the owning workflow directly.
+
+`scripts/verify/javascript/` groups application-workflow, runtime-reconciliation,
+large-digest and real-recovery entrypoints. Their existing npm commands retain
+their invocation semantics. Recovery fixture compilation lives beside its
+unchanged sources under `scripts/fixtures/javascript-recovery/`. Its default
+REA entrypoint still resolves to `scripts/rea.mjs`. Managed conformance imports
+the relocated compiled workflow; owning CI source filters follow the new paths.
+
+This application move preserves the current directory/ASAR reader boundary,
+including root/nested byte checks, UTF-8 diagnostics, cancellation and owned
+close. Reader selection requires a separately traced increment. Runtime ports
+retain their distinct Inspector, passive Electron and active Electron effects;
+shipped Electron hooks remain at their existing provider boundary.
+
 ## Binary application ownership
 
 `src/application/binary/` owns the active session, deep-provider registry and

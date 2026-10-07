@@ -183,11 +183,29 @@ describe("web bundle static-analysis parity", () => {
         fs.open("/tmp/data.txt", "r", done);
         window.open("https://help.example.test/", "_blank");
         xhr.open(method, "/dynamic-method");
+        fs.open(path, "r", done);
+        window.open(url, "_blank");
+        window.open(url, "/preview");
+        globalThis.open(url, "./frame");
+        document.open("text/html", "/replace");
+        parent.open("GET", "/parent-xhr");
+        self.open("post", "/self-xhr");
+        xhr.open(method, "api/relative");
+        fs.open(path, "w+", done);
+        popup.open(url, "_TOP");
       `),
     );
     expect(
       result.observations.endpoints.map(({ value }) => value).sort(),
-    ).toEqual(["/dav/", "/xhr-get", "https://xhr.example.test/submit"]);
+    ).toEqual([
+      "/dav/",
+      "/dynamic-method",
+      "/parent-xhr",
+      "/self-xhr",
+      "/xhr-get",
+      "api/relative",
+      "https://xhr.example.test/submit",
+    ]);
   });
 
   it("keeps HTTP-method-named reads of provable keyed collections out of endpoints", () => {
@@ -205,14 +223,20 @@ describe("web bundle static-analysis parity", () => {
         new URL(location.href).searchParams.get("page");
         api.headers.post("/v1/headers");
         api.searchParams.request("/search");
+        new Headers().get("/users");
+        api.headers.get("https://api.example.test/headers");
+        api.searchParams.delete("../search");
       `),
     );
     expect(
       result.observations.endpoints.map(({ value }) => value).sort(),
     ).toEqual([
+      "../search",
       "/search",
+      "/users",
       "/v1/headers",
       "cache-key",
+      "https://api.example.test/headers",
       "https://api.example.test/users",
       "users",
     ]);

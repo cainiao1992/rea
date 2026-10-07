@@ -5,9 +5,9 @@ import type { AnalysisOperationPort } from "../application/AnalysisProvider.js";
 import type { BinarySessionPort } from "../application/binary/BinarySession.js";
 import type { BrowserObservationPort } from "../application/BrowserObservationPort.js";
 import type { BrowserScenarioCapturePort } from "../application/BrowserScenarioCapturePort.js";
-import type { ElectronActiveObservationPort } from "../application/ElectronActiveObservationPort.js";
-import type { ElectronObservationPort } from "../application/ElectronObservationPort.js";
-import type { JavaScriptRuntimeObservationPort } from "../application/JavaScriptRuntimeObservationPort.js";
+import type { ElectronActiveObservationPort } from "../application/javascript/ElectronActiveObservationPort.js";
+import type { ElectronObservationPort } from "../application/javascript/ElectronObservationPort.js";
+import type { JavaScriptRuntimeObservationPort } from "../application/javascript/JavaScriptRuntimeObservationPort.js";
 import type { OptionalProviderLoadFailures } from "../application/OptionalObservationProviders.js";
 import { PRODUCT_IDENTITY } from "../identity.js";
 import { silentLogger, type Logger } from "../logger.js";
@@ -19,9 +19,12 @@ import { registerWebScriptTool } from "./registerWebScriptTool.js";
 import { registerWebModuleTool } from "./registerWebModuleTool.js";
 import type { WebModuleTraceService } from "../application/WebModuleTraceService.js";
 import { createWebModuleTraceService } from "../composition/webModules.js";
+import { createWebSourceLocationService } from "../composition/webSourceLocations.js";
+import { registerWebSourceLocationTool } from "./registerWebSourceLocationTool.js";
+import type { WebSourceLocationService } from "../application/WebSourceLocationService.js";
 import { registerJavaScriptRecoveryTool } from "./registerJavaScriptRecoveryTool.js";
-import { JavaScriptRecoveryService } from "../application/JavaScriptRecoveryService.js";
-import type { JavaScriptRecoveryPort } from "../application/JavaScriptRecoveryPort.js";
+import { JavaScriptRecoveryService } from "../application/javascript/JavaScriptRecoveryService.js";
+import type { JavaScriptRecoveryPort } from "../application/javascript/JavaScriptRecoveryPort.js";
 import { createJavaScriptRecoveryProvider } from "../composition/javascriptRecovery.js";
 import { registerElectronTools } from "./registerElectronTools.js";
 import { registerEnhancedTools } from "./registerEnhancedTools.js";
@@ -54,6 +57,7 @@ export interface CreateServerOptions {
   readonly firmwareAnalysis?: FirmwareAnalysisPort;
   readonly javascriptRecovery?: JavaScriptRecoveryPort;
   readonly webModuleTrace?: WebModuleTraceService;
+  readonly webSourceLocation?: WebSourceLocationService;
   readonly androidAnalysis?: AndroidAnalysisPort;
   readonly browserObservation?: BrowserObservationPort;
   readonly browserScenarioCapture?: BrowserScenarioCapturePort;
@@ -175,6 +179,12 @@ export const createServer = (
   registerWebModuleTool(
     server,
     options.webModuleTrace ?? createWebModuleTraceService(),
+    toolLogger,
+    recordEvidence,
+  );
+  registerWebSourceLocationTool(
+    server,
+    options.webSourceLocation ?? createWebSourceLocationService(),
     toolLogger,
     recordEvidence,
   );

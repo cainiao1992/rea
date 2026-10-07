@@ -147,7 +147,7 @@ const inspectCall = (
       accumulator,
     });
   }
-  const endpoint = endpointArgument(name, node.arguments);
+  const endpoint = endpointArgument(name, node.arguments, node.callee);
   if (endpoint !== undefined)
     addFinding({
       collection: accumulator.endpoints,

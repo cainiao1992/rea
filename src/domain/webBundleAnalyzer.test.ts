@@ -190,6 +190,9 @@ describe("web bundle static-analysis parity", () => {
         document.open("text/html", "/replace");
         parent.open("GET", "/parent-xhr");
         self.open("post", "/self-xhr");
+        xhr.open(method, "api/relative");
+        fs.open(path, "w+", done);
+        popup.open(url, "_TOP");
       `),
     );
     expect(
@@ -200,6 +203,7 @@ describe("web bundle static-analysis parity", () => {
       "/parent-xhr",
       "/self-xhr",
       "/xhr-get",
+      "api/relative",
       "https://xhr.example.test/submit",
     ]);
   });

@@ -371,12 +371,47 @@ const isRequestUrlLiteral = (value: string): boolean =>
 const WINDOW_OPEN_CALL =
   /(?:^|\.)(?:window|self|globalThis|top|parent|opener|frames|document)\.open$/u;
 
+/** Node `fs.open` flag strings, which are never request URLs. */
+const FS_OPEN_FLAGS = new Set([
+  "a",
+  "a+",
+  "as",
+  "as+",
+  "ax",
+  "ax+",
+  "r",
+  "r+",
+  "rs",
+  "rs+",
+  "sa",
+  "sa+",
+  "sr",
+  "sr+",
+  "w",
+  "w+",
+  "wx",
+  "wx+",
+  "xa",
+  "xa+",
+  "xw",
+  "xw+",
+]);
+
+/** Reserved browsing-context names (ASCII case-insensitive). */
+const BROWSING_CONTEXT_KEYWORDS = new Set([
+  "_blank",
+  "_parent",
+  "_self",
+  "_top",
+]);
+
 /**
  * Read `XMLHttpRequest.open(method, url)`. `fs.open(path, "r")` and
- * `window.open(url, "_blank")` share the callee name, so a literal method
- * must be an HTTP method, and a computed method needs a request URL literal
- * on a receiver not spelled as a browsing context. XHR normalizes the
- * standard methods' case; extension methods such as WebDAV `PROPFIND` are
+ * `window.open(url, "_blank")` share the callee name. A literal method must
+ * be an HTTP method; with a computed method, the second literal is a URL
+ * unless it is provably an fs flag or a browsing-context keyword, or the
+ * receiver is spelled as a browsing context. XHR normalizes the standard
+ * methods' case; extension methods such as WebDAV `PROPFIND` are
  * conventionally uppercase tokens.
  */
 const xhrOpenUrl = (
@@ -388,9 +423,11 @@ const xhrOpenUrl = (
   if (url === undefined) return undefined;
   const method = stringValue(methodNode);
   if (method === undefined)
-    return !WINDOW_OPEN_CALL.test(name) && isRequestUrlLiteral(url)
-      ? url
-      : undefined;
+    return WINDOW_OPEN_CALL.test(name) ||
+      FS_OPEN_FLAGS.has(url) ||
+      BROWSING_CONTEXT_KEYWORDS.has(url.toLowerCase())
+      ? undefined
+      : url;
   return XHR_METHODS.has(method.toUpperCase()) || /^[A-Z][A-Z-]*$/u.test(method)
     ? url
     : undefined;

@@ -4,10 +4,10 @@ import {
   resolveArtifactPathByContext,
   type ResolveArtifactPathInput,
 } from "./JavaScriptArtifactPathResolution.js";
-import type { JavaScriptArtifactFile } from "./JavaScriptArtifactFiles.js";
+import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptArtifactFiles.js";
 import { artifactLocalIdentity } from "./JavaScriptArtifactGraphContext.js";
-import { applicationNodeIdentitySchema } from "../../domain/javascriptApplicationEvidenceSchemas.js";
-import { analyzeJavaScriptStaticSource } from "../../domain/javascriptStaticAnalysis.js";
+import { applicationNodeIdentitySchema } from "../../domain/javascript/javascriptApplicationEvidenceSchemas.js";
+import { analyzeJavaScriptStaticSource } from "../../domain/javascript/javascriptStaticAnalysis.js";
 
 describe("artifact-local graph identity", () => {
   it("preserves complete long namespace and key values", () => {

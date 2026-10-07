@@ -1,10 +1,10 @@
-import type { ApplicationNode } from "../../domain/javascriptApplicationGraph.js";
+import type { ApplicationNode } from "../../domain/javascript/javascriptApplicationGraph.js";
 import type {
   ElectronBrowserWindowFinding,
   ElectronContextBridgeFinding,
   ElectronUtilityProcessFinding,
-} from "../../domain/electronStaticAnalysisTypes.js";
-import type { JavaScriptArtifactFile } from "./JavaScriptArtifactFiles.js";
+} from "../../domain/javascript/electronStaticAnalysisTypes.js";
+import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptArtifactFiles.js";
 import {
   artifactLocalIdentity,
   createElectronRoleNode,

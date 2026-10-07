@@ -1,17 +1,17 @@
 import { posix } from "node:path";
 
 import { compareCodePoints } from "../../domain/canonicalOrdering.js";
-import type { ApplicationNode } from "../../domain/javascriptApplicationGraph.js";
+import type { ApplicationNode } from "../../domain/javascript/javascriptApplicationGraph.js";
 import {
   completeApplicationCoverage,
   partialApplicationCoverage,
-} from "../../domain/javascriptApplicationEvidenceSchemas.js";
+} from "../../domain/javascript/javascriptApplicationEvidenceSchemas.js";
 import type {
   JavaScriptModuleOrigin,
   JavaScriptSemanticIr,
   JavaScriptSemanticModuleLink,
-} from "../../domain/javascriptSemanticIr.js";
-import type { JavaScriptArtifactFile } from "./JavaScriptArtifactFiles.js";
+} from "../../domain/javascript/javascriptSemanticIr.js";
+import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptArtifactFiles.js";
 import {
   addAstContainsEdge,
   artifactLocalIdentity,

@@ -46,6 +46,7 @@
     "bridge/ghidra/ReaGhidraBridge.java",
     "bridge/ghidra/ReaGhidraExtensions.java",
     "bridge/ghidra/ReaGhidraPrepareCom.java",
+    "bridge/android/ReaJadxBridge.java",
     "scripts/rea.mjs",
     "scripts/electron-active-hook.cjs",
     "scripts/electron-active-hook-boundaries.cjs",
@@ -158,6 +159,9 @@
     "config:print": "node scripts/print-mcp-config.mjs",
     "evidence:generate": "npm run build:cached && node scripts/generate-completion-ledger.mjs",
     "evidence:check": "npm run build:cached && node scripts/generate-completion-ledger.mjs --check",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
     "docs:generate": "node scripts/run-exclusive.mjs docs npm run docs:generate:unlocked",
     "docs:generate:unlocked": "npm run metadata:generate && npm run build:cached && node scripts/generate-mcp-tool-catalog.mjs && node scripts/generate-skill-metadata.mjs && node scripts/generate-product-catalog.mjs && node scripts/generate-completion-ledger.mjs && node scripts/generate-error-schema.mjs",
     "docs:check": "node scripts/run-exclusive.mjs docs turbo run docs:check:built",
@@ -218,6 +222,11 @@
     "ws": "8.21.0",
     "zod": "4.4.3"
   },
+  "overrides": {
+    "vitepress": {
+      "vite": "6.4.4"
+    }
+  },
   "devDependencies": {
     "@fast-check/vitest": "0.5.0",
     "@types/cross-spawn": "6.0.6",
@@ -235,6 +244,7 @@
     "oxlint": "1.87.0",
     "turbo": "2.11.7",
     "typescript": "7.0.2",
+    "vitepress": "1.6.4",
     "vitest": "5.0.3",
     "yaml": "2.9.0"
   }

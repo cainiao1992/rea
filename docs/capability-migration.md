@@ -255,6 +255,21 @@ analysis and public schemas keep their existing domain/contract ownership;
 shared artifact inventory, investigation records and execution types remain
 shared. CLI, MCP and production factories import the owning workflow directly.
 
+`src/domain/javascript/` owns static parsing and semantic IR, application and
+semantic graphs, Electron facts, runtime reconciliation, recovery result
+semantics, and source-to-bundle comparisons. Shared Evidence, digests, ordering,
+comparison semantics and historical-source graphs stay at their existing owners.
+Native handoffs link exact-subject Evidence without selecting or executing a
+provider.
+
+`src/contracts/javascript/` owns the JavaScript/Electron observation and recovery
+contracts, JavaScript-specific workflow requests, and their examples. The shared
+`applicationToolContracts.ts` aggregate stays at the contract root because it also
+owns reconstruction and Android/Apple projection operations. Canonical tool
+aggregation, named handler binding and SDK schema presentation remain unchanged.
+Catalog source paths, compiled verifier/SDK fixtures and recovery CI filters
+follow the domain/contract owners.
+
 `scripts/verify/javascript/` groups application-workflow, runtime-reconciliation,
 large-digest and real-recovery entrypoints. Their existing npm commands retain
 their invocation semantics. Recovery fixture compilation lives beside its
@@ -262,11 +277,23 @@ unchanged sources under `scripts/fixtures/javascript-recovery/`. Its default
 REA entrypoint still resolves to `scripts/rea.mjs`. Managed conformance imports
 the relocated compiled workflow; owning CI source filters follow the new paths.
 
-This application move preserves the current directory/ASAR reader boundary,
-including root/nested byte checks, UTF-8 diagnostics, cancellation and owned
-close. Reader selection requires a separately traced increment. Runtime ports
-retain their distinct Inspector, passive Electron and active Electron effects;
-shipped Electron hooks remain at their existing provider boundary.
+`src/artifacts/javascript/` owns directory/ASAR reader construction and relevant
+file acquisition, including root/nested byte verification, UTF-8 diagnostics and
+nested reader cleanup. Its narrow factory returns the existing `ArtifactReader`;
+the application retains input admission, inventory, graph construction and its
+original root-reader `finally` close. Pure file facts live in
+`src/domain/javascript/javascriptArtifactFiles.ts`, and the shared immutable
+inventory snapshot lives in `src/domain/artifactInventorySnapshot.ts`. Inventory
+options and integrity policy remain application-owned. Shared stream hashing
+lives in `src/artifacts/ArtifactHash.ts`, preserving complete byte counts and the
+bounded classification prefix. Acquisition/hash guards reject imports from
+application, composition or caller adapters; JavaScript workflows use the factory
+instead of importing concrete ASAR/directory reader classes.
+
+ZIP, native-DMG and Mach-O inventory reader selection keep their existing
+lifecycles. Runtime ports retain their distinct Inspector, passive Electron and
+active Electron effects; shipped Electron hooks remain at their existing
+provider boundary.
 
 ## Binary application ownership
 

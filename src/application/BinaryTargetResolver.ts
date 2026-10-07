@@ -12,7 +12,10 @@ import { extname, isAbsolute, resolve } from "node:path";
 import { BinaryTargetError } from "../domain/configurationErrors.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { err, ok, type Result } from "../domain/result.js";
-import { resolveAppBundleExecutable } from "./AppBundleExecutable.js";
+import {
+  resolveAppBundleExecutable,
+  type ResolvedAppBundle,
+} from "./AppBundleExecutable.js";
 import {
   validateDosComLength,
   type ExecutableFormatHint,
@@ -47,7 +50,9 @@ export const parseBinaryTarget = async (
     const canonical = await realpath(candidate);
     const resolved = await resolveAppBundle(canonical);
     if (!resolved.ok) return err(resolved.error);
-    const path = resolved.value;
+    const { executable: path, infoPlist } = resolved.value;
+    const bundle =
+      infoPlist === undefined ? {} : { bundleInfoPlist: infoPlist };
     const handle = await open(path, "r");
     try {
       if (!(await handle.stat()).isFile())
@@ -99,6 +104,7 @@ export const parseBinaryTarget = async (
       return ok({
         path,
         sourcePath: process.platform === "win32" ? candidate : canonical,
+        ...bundle,
         sha256: await sha256Handle(handle),
         kind: "executable",
         ...detected.value,
@@ -208,9 +214,9 @@ const sha256Handle = async (handle: FileHandle): Promise<string> => {
 
 const resolveAppBundle = async (
   path: string,
-): Promise<Result<string, BinaryTargetError>> => {
+): Promise<Result<ResolvedAppBundle, BinaryTargetError>> => {
   const metadata = await stat(path);
-  if (!metadata.isDirectory()) return ok(path);
+  if (!metadata.isDirectory()) return ok({ executable: path });
   if (extname(path).toLowerCase() !== ".app")
     return err(
       new BinaryTargetError(

@@ -713,14 +713,6 @@ const requireRegularPlist = async (
   }
 };
 
-const isFile = async (path: string): Promise<boolean> => {
-  try {
-    return (await stat(path)).isFile();
-  } catch {
-    return false;
-  }
-};
-
 const resolvePlistPath = async (
   target: BinaryTarget,
   requested: string | undefined,
@@ -732,17 +724,9 @@ const resolvePlistPath = async (
     const sourceMetadata = await stat(source);
     const root = sourceMetadata.isDirectory() ? source : dirname(target.path);
     if (requested !== undefined) return ok(resolve(root, requested));
-    const macOS = resolve(root, "Contents/Info.plist");
-    // iOS-style bundles, including the one inside an iOS-on-Mac wrapper, keep
-    // Info.plist beside the program file the target resolved to.
-    const beside = resolve(dirname(target.path), "Info.plist");
-    return ok(
-      sourceMetadata.isDirectory() &&
-        !(await isFile(macOS)) &&
-        (await isFile(beside))
-        ? beside
-        : macOS,
-    );
+    // A bundle target records the Info.plist its program file was declared
+    // in: Contents/Info.plist, or the root plist of an iOS-style bundle.
+    return ok(target.bundleInfoPlist ?? resolve(root, "Contents/Info.plist"));
   } catch (cause: unknown) {
     return err(
       new ProviderAdapterError(IDENTITY.id, "inspect_plist", { cause }),

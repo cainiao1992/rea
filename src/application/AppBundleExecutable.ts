@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { lstat, readdir, readFile, realpath } from "node:fs/promises";
+import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -30,6 +30,12 @@ const BUNDLE_LAYOUTS: readonly BundleLayout[] = [
   { plist: ["Info.plist"], programs: [], programsLabel: "the bundle root" },
 ];
 
+/** A resolved bundle program file and the Info.plist that declared it. */
+export interface ResolvedAppBundle {
+  readonly executable: string;
+  readonly infoPlist?: string;
+}
+
 /**
  * Resolve an app bundle directory to its declared program file. macOS and
  * flat iOS-style layouts are read directly. An iOS app installed on a Mac is
@@ -38,7 +44,7 @@ const BUNDLE_LAYOUTS: readonly BundleLayout[] = [
  */
 export const resolveAppBundleExecutable = async (
   path: string,
-): Promise<Result<string, BinaryTargetError>> => {
+): Promise<Result<ResolvedAppBundle, BinaryTargetError>> => {
   const layout = await presentLayout(path);
   if (layout !== undefined) return resolveLayoutExecutable(path, layout);
   const wrapped = await wrappedBundle(path);
@@ -60,16 +66,28 @@ const presentLayout = async (
   bundle: string,
 ): Promise<BundleLayout | undefined> => {
   for (const layout of BUNDLE_LAYOUTS)
-    if (await isRegularFile(join(bundle, ...layout.plist))) return layout;
+    if (await layoutPlistPresent(join(bundle, ...layout.plist))) return layout;
   return undefined;
 };
 
-const isRegularFile = async (path: string): Promise<boolean> => {
+/**
+ * Whether a layout's Info.plist exists. Readable symlinks count, as they did
+ * when the plist was read directly; any failure other than absence, such as
+ * a permission denial, is left for the caller to report.
+ */
+const layoutPlistPresent = async (path: string): Promise<boolean> => {
   try {
-    return (await lstat(path)).isFile();
-  } catch {
-    return false;
+    return (await stat(path)).isFile();
+  } catch (cause: unknown) {
+    if (isAbsence(cause)) return false;
+    throw cause;
   }
+};
+
+const isAbsence = (cause: unknown): boolean => {
+  const code: unknown =
+    cause instanceof Error ? Reflect.get(cause, "code") : undefined;
+  return code === "ENOENT" || code === "ENOTDIR";
 };
 
 /** The single real `.app` directory inside an iOS-on-Mac `Wrapper`. */
@@ -77,23 +95,23 @@ const wrappedBundle = async (bundle: string): Promise<string | undefined> => {
   const wrapper = join(bundle, "Wrapper");
   try {
     if (!(await lstat(wrapper)).isDirectory()) return undefined;
-    const apps = (await readdir(wrapper, { withFileTypes: true })).filter(
-      (entry) =>
-        entry.isDirectory() && entry.name.toLowerCase().endsWith(".app"),
-    );
-    const [app] = apps;
-    return apps.length === 1 && app !== undefined
-      ? join(wrapper, app.name)
-      : undefined;
-  } catch {
-    return undefined;
+  } catch (cause: unknown) {
+    if (isAbsence(cause)) return undefined;
+    throw cause;
   }
+  const apps = (await readdir(wrapper, { withFileTypes: true })).filter(
+    (entry) => entry.isDirectory() && entry.name.toLowerCase().endsWith(".app"),
+  );
+  const [app] = apps;
+  return apps.length === 1 && app !== undefined
+    ? join(wrapper, app.name)
+    : undefined;
 };
 
 const resolveLayoutExecutable = async (
   bundle: string,
   layout: BundleLayout,
-): Promise<Result<string, BinaryTargetError>> => {
+): Promise<Result<ResolvedAppBundle, BinaryTargetError>> => {
   const plistPath = join(bundle, ...layout.plist);
   let name: string;
   try {
@@ -127,7 +145,7 @@ const resolveLayoutExecutable = async (
           `app program file leaves ${layout.programsLabel}`,
         ),
       );
-    return ok(canonicalExecutable);
+    return ok({ executable: canonicalExecutable, infoPlist: plistPath });
   } catch (cause: unknown) {
     return err(
       new BinaryTargetError(bundle, "app program file is missing", { cause }),

@@ -279,7 +279,7 @@ describe("native macOS provider inspection", () => {
 });
 
 describe("native plist defaults for iOS-style bundles", () => {
-  it("defaults to the Info.plist beside a flat bundle's program file", async () => {
+  it("defaults to the Info.plist the bundle program was resolved from", async () => {
     directory = await createTestTempDirectory("rea-native-flat-");
     const app = join(directory, "Flat.app");
     const executable = join(app, "Flat");
@@ -289,7 +289,10 @@ describe("native plist defaults for iOS-style bundles", () => {
     const client = new NativeMacOSProvider(
       new FixtureRunner(),
       "darwin",
-    ).createClient(machoTarget(executable, app));
+    ).createClient({
+      ...machoTarget(executable, app),
+      bundleInfoPlist: join(app, "Info.plist"),
+    });
 
     const plist = await client.execute("inspect_plist", {});
     expect(plist.ok && plist.value.result).toMatchObject({

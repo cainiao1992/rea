@@ -25,10 +25,7 @@ import {
   range,
   stringValue,
 } from "./javascriptStaticAnalysisHelpers.js";
-import {
-  semanticStaticPropertyKey,
-  semanticStaticPropertyName,
-} from "./javascriptAstValues.js";
+import { semanticStaticPropertyKey } from "./javascriptAstValues.js";
 
 interface CollectCallableInput {
   readonly node: t.Node;
@@ -181,8 +178,8 @@ const semanticModuleOrigin = (
     const nested = t.isNode(node.object)
       ? semanticModuleOrigin(node.object, projection, state)
       : undefined;
-    const member = semanticStaticPropertyName(node.property, node.computed);
-    return nested === undefined || member === ""
+    const member = semanticStaticPropertyKey(node.property, node.computed);
+    return nested === undefined || member === null
       ? undefined
       : { ...nested, importedPath: [...nested.importedPath, member] };
   }
@@ -240,9 +237,10 @@ const callableName = (node: t.Node, parent: t.Node | null): string | null => {
   ) {
     if (t.isPrivateName(node.key)) return `#${node.key.id.name}`;
     // `{[key]() {}}` names nothing statically; reading `key` off the key node
-    // would report the variable name as the method name.
+    // would report the variable name as the method name. `{[""]() {}}` names
+    // the exact empty key, which is retained rather than replaced.
     return (
-      semanticStaticPropertyName(node.key, node.computed) ||
+      semanticStaticPropertyKey(node.key, node.computed) ??
       `[computed@${String(node.start ?? -1)}]`
     );
   }
@@ -340,8 +338,8 @@ const requirePatternBindings = (
   if (t.isObjectPattern(pattern))
     return pattern.properties.flatMap((property) => {
       if (t.isRestElement(property)) return [];
-      const name = semanticStaticPropertyName(property.key, property.computed);
-      return name === ""
+      const name = semanticStaticPropertyKey(property.key, property.computed);
+      return name === null
         ? []
         : requirePatternBindings(property.value, [...path, name]);
     });

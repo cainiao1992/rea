@@ -48,6 +48,7 @@ import {
   addSemanticGraphRelation as addRelation,
   constructSemanticGraphNode as semanticNode,
   createSemanticGraphProjectionState as emptyState,
+  semanticNameLabel,
   type SemanticGraphProjectionState as BuilderState,
 } from "./JavaScriptSemanticGraphConstruction.js";
 
@@ -165,7 +166,8 @@ const projectFile = (
             kind: "function",
             roleKey: `callable:${callable.callableId}`,
             location: callable.location,
-            label: callable.name,
+            label:
+              callable.name === null ? null : semanticNameLabel(callable.name),
             functionNodeId: null,
           },
           state,

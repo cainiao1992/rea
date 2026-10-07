@@ -9,7 +9,10 @@ import type {
   JavaScriptSemanticRequestOperation,
 } from "./javascriptSemanticIr.js";
 import { compareCodePoints } from "./canonicalOrdering.js";
-import { semanticStaticPropertyName } from "./javascriptSemanticProjection.js";
+import {
+  semanticStaticPropertyKey,
+  semanticStaticPropertyName,
+} from "./javascriptSemanticProjection.js";
 import {
   resolveSemanticBindingState,
   semanticResolutionBlocked,
@@ -145,7 +148,8 @@ const processConfigurationMember = (
   if (!isProcessObject(object.object, state)) return null;
   const family = semanticStaticPropertyName(object.property, object.computed);
   if (family !== "env" && family !== "argv") return null;
-  const key = semanticStaticPropertyName(node.property, node.computed) || null;
+  // `process.env[""]` names an exact (empty) key; only a dynamic key is unknown.
+  const key = semanticStaticPropertyKey(node.property, node.computed);
   return {
     kind: family === "env" ? "environment" : "argv",
     key,
@@ -401,8 +405,8 @@ const requestFields = (
     if (!t.isObjectProperty(property)) return [];
     // `{[key]: 1}` sends no knowable field name; reporting `key` would invent
     // a request field that may not exist.
-    const name = semanticStaticPropertyName(property.key, property.computed);
-    if (name.length === 0) return [];
+    const name = semanticStaticPropertyKey(property.key, property.computed);
+    if (name === null) return [];
     return [
       {
         name,

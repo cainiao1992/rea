@@ -12,6 +12,8 @@ import { execFile } from "node:child_process";
 import { extname, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
+import { parse as parsePlist } from "plist";
+
 import { isPathWithinRoot } from "../domain/localPath.js";
 import { BinaryTargetError } from "../domain/configurationErrors.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
@@ -264,14 +266,21 @@ const resolveAppBundle = async (
   }
 };
 
+/** Decode the top-level executable name with an XML parser, not a pattern. */
 const parseXmlPlistExecutable = (plist: string): string => {
-  const match =
-    /<key>\s*CFBundleExecutable\s*<\/key>\s*<string>([^<]+)<\/string>/u.exec(
-      plist,
-    );
-  if (match?.[1] === undefined)
+  const value = parsePlist(plist);
+  const executable =
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    !(value instanceof Date) &&
+    !(value instanceof Uint8Array) &&
+    Object.hasOwn(value, "CFBundleExecutable")
+      ? value.CFBundleExecutable
+      : undefined;
+  if (typeof executable !== "string")
     throw new Error("CFBundleExecutable is missing");
-  return decodeXml(match[1]);
+  return executable;
 };
 
 const readBinaryPlistExecutable = async (plistPath: string): Promise<string> =>
@@ -294,14 +303,6 @@ const isSafeExecutableName = (name: string): boolean =>
   name !== ".." &&
   !name.includes("\0") &&
   !/[/\\]/u.test(name);
-
-const decodeXml = (value: string): string =>
-  value
-    .replaceAll("&amp;", "&")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&apos;", "'");
 
 const readExecutableMetadata = async (
   handle: FileHandle,

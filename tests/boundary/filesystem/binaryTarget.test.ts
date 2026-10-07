@@ -187,6 +187,62 @@ describe("app executable filename fidelity", () => {
     },
   );
 
+  it.each([
+    ["an escaped entity reference", "a&amp;lt;b", "a&lt;b"],
+    ["a numeric character reference", "a&#32;b", "a b"],
+    ["a CDATA section", "<![CDATA[a&b]]>", "a&b"],
+  ])(
+    "decodes an XML plist executable name containing %s",
+    async (_case, encoded, name) => {
+      const directory = await createTestTempDirectory("rea-app-xml-name-");
+      const app = join(directory, "Encoded.app");
+      const contents = join(app, "Contents");
+      const executable = join(contents, "MacOS", name);
+      await mkdir(join(contents, "MacOS"), { recursive: true });
+      await writeFile(
+        join(contents, "Info.plist"),
+        `<plist><dict><key>CFBundleExecutable</key><string>${encoded}</string></dict></plist>`,
+      );
+      await writeFile(executable, thinMach(0xfeedfacf, 0x0100000c));
+      const result = await parseBinaryTarget(app, directory, "arm64");
+      expect(result.ok && result.value).toMatchObject({
+        path: await realpath(executable),
+        format: "mach-o",
+      });
+    },
+  );
+
+  it("reads the top-level executable key rather than commented or nested text", async () => {
+    const directory = await createTestTempDirectory("rea-app-xml-key-");
+    const app = join(directory, "Nested.app");
+    const contents = join(app, "Contents");
+    const executable = join(contents, "MacOS", "App");
+    await mkdir(join(contents, "MacOS"), { recursive: true });
+    await writeFile(
+      join(contents, "Info.plist"),
+      [
+        "<plist><dict>",
+        "<!-- <key>CFBundleExecutable</key><string>Old</string> -->",
+        "<key>NSExtension</key><dict><key>CFBundleExecutable</key><string>Inner</string></dict>",
+        "<key>CFBundleExecutable</key><string>App</string>",
+        "</dict></plist>",
+      ].join(""),
+    );
+    await writeFile(executable, thinMach(0xfeedfacf, 0x0100000c));
+    await writeFile(
+      join(contents, "MacOS", "Old"),
+      thinMach(0xfeedfacf, 0x0100000c),
+    );
+    await writeFile(
+      join(contents, "MacOS", "Inner"),
+      thinMach(0xfeedfacf, 0x0100000c),
+    );
+    const result = await parseBinaryTarget(app, directory, "arm64");
+    expect(result.ok && result.value).toMatchObject({
+      path: await realpath(executable),
+    });
+  });
+
   it.skipIf(process.platform !== "darwin")(
     "preserves executable filename whitespace from native binary plists",
     async () => {

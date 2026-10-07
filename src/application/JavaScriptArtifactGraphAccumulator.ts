@@ -4,6 +4,7 @@ import {
   type ApplicationEdge,
   type ApplicationNode,
 } from "../domain/javascriptApplicationGraph.js";
+import { javascriptDisplayText } from "../domain/javascriptAstValues.js";
 
 /** Deduplicate graph entities while retaining distinct evidence observations. */
 export class JavaScriptArtifactGraphAccumulator {
@@ -11,8 +12,8 @@ export class JavaScriptArtifactGraphAccumulator {
   readonly #edges = new Map<string, ApplicationEdge>();
 
   /** Create or merge one canonical node. */
-  addNode(input: unknown): ApplicationNode {
-    const created = createJavaScriptApplicationNode(input);
+  addNode<Input extends DisplayableNodeInput>(input: Input): ApplicationNode {
+    const created = createJavaScriptApplicationNode(displayableNode(input));
     const existing = this.#nodes.get(created.node_id);
     if (existing === undefined) {
       this.#nodes.set(created.node_id, created);
@@ -64,3 +65,33 @@ const observationInput = (
   } = observation;
   return input;
 };
+
+/** Node fields whose display form is normalized before validation. */
+interface DisplayableNodeInput {
+  readonly identity: { readonly strategy: string; readonly key?: string };
+  readonly observations: readonly { readonly label: string | null }[];
+}
+
+/**
+ * Static findings can carry legal empty strings, such as `fetch("")` or
+ * `require("")`. Labels and artifact-local keys must be nonempty, so display
+ * the empty value as `""`; each observation keeps the exact value in its
+ * properties.
+ */
+const displayableNode = (
+  input: DisplayableNodeInput,
+): DisplayableNodeInput => ({
+  ...input,
+  identity:
+    input.identity.strategy === "artifact-local-key" &&
+    input.identity.key !== undefined
+      ? { ...input.identity, key: javascriptDisplayText(input.identity.key) }
+      : input.identity,
+  observations: input.observations.map((observation) => ({
+    ...observation,
+    label:
+      observation.label === null
+        ? null
+        : javascriptDisplayText(observation.label),
+  })),
+});

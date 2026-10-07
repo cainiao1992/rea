@@ -364,31 +364,74 @@ const isRequestUrlLiteral = (value: string): boolean =>
   value.startsWith("../");
 
 /**
+ * Browsing-context and document `open` take a URL or type first and a target
+ * name second. The name is only a spelling, since `parent` or `self` may be a
+ * local XHR binding, so it never overrides a literal HTTP method.
+ */
+const WINDOW_OPEN_CALL =
+  /(?:^|\.)(?:window|self|globalThis|top|parent|opener|frames|document)\.open$/u;
+
+/**
  * Read `XMLHttpRequest.open(method, url)`. `fs.open(path, "r")` and
  * `window.open(url, "_blank")` share the callee name, so a literal method
- * must be an HTTP method, and a computed method needs a request URL literal.
- * XHR normalizes the standard methods' case; extension methods such as
- * WebDAV `PROPFIND` are conventionally uppercase tokens.
+ * must be an HTTP method, and a computed method needs a request URL literal
+ * on a receiver not spelled as a browsing context. XHR normalizes the
+ * standard methods' case; extension methods such as WebDAV `PROPFIND` are
+ * conventionally uppercase tokens.
  */
 const xhrOpenUrl = (
+  name: string,
   methodNode: t.Node | null | undefined,
   urlNode: t.Node | null | undefined,
 ): string | undefined => {
   const url = stringValue(urlNode);
   if (url === undefined) return undefined;
   const method = stringValue(methodNode);
-  if (method === undefined) return isRequestUrlLiteral(url) ? url : undefined;
+  if (method === undefined)
+    return !WINDOW_OPEN_CALL.test(name) && isRequestUrlLiteral(url)
+      ? url
+      : undefined;
   return XHR_METHODS.has(method.toUpperCase()) || /^[A-Z][A-Z-]*$/u.test(method)
     ? url
     : undefined;
 };
 
+const KEYED_COLLECTION_CONSTRUCTORS = new Set([
+  "FormData",
+  "Headers",
+  "Map",
+  "Set",
+  "URLSearchParams",
+  "WeakMap",
+  "WeakSet",
+]);
+
 /**
- * Browsing-context and document `open` take a URL or type first and a target
- * name second, never an XHR method and request URL.
+ * Whether a get/delete receiver is spelled as a keyed collection: a
+ * constructed Map, Set, Headers, FormData, or URLSearchParams, or a
+ * `headers`/`searchParams` property. Spelling alone does not prove the
+ * binding, so callers keep URL and path literals as requests.
  */
-const WINDOW_OPEN_CALL =
-  /(?:^|\.)(?:window|self|globalThis|top|parent|opener|frames|document)\.open$/u;
+const isKeyedCollectionReceiver = (callee: t.Node): boolean => {
+  if (!t.isMemberExpression(callee) && !t.isOptionalMemberExpression(callee))
+    return false;
+  const receiver = callee.object;
+  if (t.isNewExpression(receiver))
+    return (
+      t.isIdentifier(receiver.callee) &&
+      KEYED_COLLECTION_CONSTRUCTORS.has(receiver.callee.name)
+    );
+  if (
+    !t.isMemberExpression(receiver) &&
+    !t.isOptionalMemberExpression(receiver)
+  )
+    return false;
+  const property = semanticStaticPropertyName(
+    receiver.property,
+    receiver.computed,
+  );
+  return property === "headers" || property === "searchParams";
+};
 
 /** Select the literal URL argument for recognized network callees. */
 export const endpointArgument = (
@@ -399,17 +442,25 @@ export const endpointArgument = (
     | t.JSXNamespacedName
     | t.ArgumentPlaceholder
   )[],
+  callee: t.Node,
 ): string | undefined => {
   if (name === "fetch" || name.endsWith(".fetch") || name === "WebSocket")
     return stringValue(args[0]);
-  if (name.endsWith(".open") && !WINDOW_OPEN_CALL.test(name))
-    return xhrOpenUrl(args[0], args[1]);
-  if (
-    ["get", "post", "put", "patch", "delete", "request"].some(
-      (method) => name === method || name.endsWith(`.${method}`),
-    )
-  )
-    return stringValue(args[0]);
+  if (name.endsWith(".open")) return xhrOpenUrl(name, args[0], args[1]);
+  const method = ["get", "post", "put", "patch", "delete", "request"].find(
+    (candidate) => name === candidate || name.endsWith(`.${candidate}`),
+  );
+  if (method !== undefined) {
+    const value = stringValue(args[0]);
+    // Only get and delete also belong to the keyed-collection APIs, whose
+    // keys are header, field, and parameter names rather than URLs or paths.
+    return value !== undefined &&
+      (method === "get" || method === "delete") &&
+      !isRequestUrlLiteral(value) &&
+      isKeyedCollectionReceiver(callee)
+      ? undefined
+      : value;
+  }
   if (name.endsWith("loadURL")) return stringValue(args[0]);
   return undefined;
 };

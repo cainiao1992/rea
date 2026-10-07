@@ -162,7 +162,7 @@ const inspectEndpointCall = (
       value: first,
       mechanism: `call:${name}`,
     });
-  const endpoint = endpointArgumentHelper(name, node.arguments);
+  const endpoint = endpointArgumentHelper(name, node.arguments, node.callee);
   if (endpoint !== undefined)
     addEndpoint(context, {
       node,

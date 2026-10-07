@@ -188,6 +188,8 @@ describe("web bundle static-analysis parity", () => {
         window.open(url, "/preview");
         globalThis.open(url, "./frame");
         document.open("text/html", "/replace");
+        parent.open("GET", "/parent-xhr");
+        self.open("post", "/self-xhr");
       `),
     );
     expect(
@@ -195,8 +197,44 @@ describe("web bundle static-analysis parity", () => {
     ).toEqual([
       "/dav/",
       "/dynamic-method",
+      "/parent-xhr",
+      "/self-xhr",
       "/xhr-get",
       "https://xhr.example.test/submit",
+    ]);
+  });
+
+  it("keeps HTTP-method-named reads of provable keyed collections out of endpoints", () => {
+    const result = analyzeCapturedWebBundle(
+      inspection(`
+        axios.get("https://api.example.test/users");
+        api.get("users");
+        client.delete("cache-key");
+        new Map().get("map-key");
+        new URLSearchParams(location.search).get("q");
+        new Headers(init).delete("x-trace");
+        new FormData(form).get("file");
+        response.headers.get("content-type");
+        request?.headers.delete("cookie");
+        new URL(location.href).searchParams.get("page");
+        api.headers.post("/v1/headers");
+        api.searchParams.request("/search");
+        new Headers().get("/users");
+        api.headers.get("https://api.example.test/headers");
+        api.searchParams.delete("../search");
+      `),
+    );
+    expect(
+      result.observations.endpoints.map(({ value }) => value).sort(),
+    ).toEqual([
+      "../search",
+      "/search",
+      "/users",
+      "/v1/headers",
+      "cache-key",
+      "https://api.example.test/headers",
+      "https://api.example.test/users",
+      "users",
     ]);
   });
 

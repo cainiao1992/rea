@@ -356,18 +356,81 @@ const XHR_METHODS = new Set([
   "TRACE",
 ]);
 
+/** An absolute HTTP(S)/WebSocket URL, or an absolute or relative path. */
+const isRequestUrlLiteral = (value: string): boolean =>
+  /^(?:https?|wss?):\/\//iu.test(value) ||
+  value.startsWith("/") ||
+  value.startsWith("./") ||
+  value.startsWith("../");
+
 /**
- * Require a literal HTTP method: `fs.open(path, "r")` and
- * `window.open(url, "_blank")` share the callee name but take no URL second.
- * XHR normalizes the standard methods' case; extension methods such as
- * WebDAV `PROPFIND` are conventionally uppercase tokens.
+ * Browsing-context and document `open` take a URL or type first and a target
+ * name second. The name is only a spelling, since `parent` or `self` may be a
+ * local XHR binding, so it never overrides a literal HTTP method.
  */
-const isXhrMethodArgument = (node: t.Node | null | undefined): boolean => {
-  const value = stringValue(node);
-  return (
-    value !== undefined &&
-    (XHR_METHODS.has(value.toUpperCase()) || /^[A-Z][A-Z-]*$/u.test(value))
-  );
+const WINDOW_OPEN_CALL =
+  /(?:^|\.)(?:window|self|globalThis|top|parent|opener|frames|document)\.open$/u;
+
+/** Node `fs.open` flag strings, which are never request URLs. */
+const FS_OPEN_FLAGS = new Set([
+  "a",
+  "a+",
+  "as",
+  "as+",
+  "ax",
+  "ax+",
+  "r",
+  "r+",
+  "rs",
+  "rs+",
+  "sa",
+  "sa+",
+  "sr",
+  "sr+",
+  "w",
+  "w+",
+  "wx",
+  "wx+",
+  "xa",
+  "xa+",
+  "xw",
+  "xw+",
+]);
+
+/** Reserved browsing-context names (ASCII case-insensitive). */
+const BROWSING_CONTEXT_KEYWORDS = new Set([
+  "_blank",
+  "_parent",
+  "_self",
+  "_top",
+]);
+
+/**
+ * Read `XMLHttpRequest.open(method, url)`. `fs.open(path, "r")` and
+ * `window.open(url, "_blank")` share the callee name. A literal method must
+ * be an HTTP method; with a computed method, the second literal is a URL
+ * unless it is provably an fs flag or a browsing-context keyword, or the
+ * receiver is spelled as a browsing context. XHR normalizes the standard
+ * methods' case; extension methods such as WebDAV `PROPFIND` are
+ * conventionally uppercase tokens.
+ */
+const xhrOpenUrl = (
+  name: string,
+  methodNode: t.Node | null | undefined,
+  urlNode: t.Node | null | undefined,
+): string | undefined => {
+  const url = stringValue(urlNode);
+  if (url === undefined) return undefined;
+  const method = stringValue(methodNode);
+  if (method === undefined)
+    return WINDOW_OPEN_CALL.test(name) ||
+      FS_OPEN_FLAGS.has(url) ||
+      BROWSING_CONTEXT_KEYWORDS.has(url.toLowerCase())
+      ? undefined
+      : url;
+  return XHR_METHODS.has(method.toUpperCase()) || /^[A-Z][A-Z-]*$/u.test(method)
+    ? url
+    : undefined;
 };
 
 const KEYED_COLLECTION_CONSTRUCTORS = new Set([
@@ -381,10 +444,10 @@ const KEYED_COLLECTION_CONSTRUCTORS = new Set([
 ]);
 
 /**
- * Whether a get/delete receiver is provably a keyed collection rather than an
- * HTTP client: a constructed Map, Set, Headers, FormData, or URLSearchParams,
- * or the platform `headers`/`searchParams` properties of a request, response,
- * or URL. Other receivers stay possible clients.
+ * Whether a get/delete receiver is spelled as a keyed collection: a
+ * constructed Map, Set, Headers, FormData, or URLSearchParams, or a
+ * `headers`/`searchParams` property. Spelling alone does not prove the
+ * binding, so callers keep URL and path literals as requests.
  */
 const isKeyedCollectionReceiver = (callee: t.Node): boolean => {
   if (!t.isMemberExpression(callee) && !t.isOptionalMemberExpression(callee))
@@ -420,18 +483,21 @@ export const endpointArgument = (
 ): string | undefined => {
   if (name === "fetch" || name.endsWith(".fetch") || name === "WebSocket")
     return stringValue(args[0]);
-  // `XMLHttpRequest.open(method, url)`.
-  if (name.endsWith(".open") && isXhrMethodArgument(args[0]))
-    return stringValue(args[1]);
+  if (name.endsWith(".open")) return xhrOpenUrl(name, args[0], args[1]);
   const method = ["get", "post", "put", "patch", "delete", "request"].find(
     (candidate) => name === candidate || name.endsWith(`.${candidate}`),
   );
-  if (method !== undefined)
-    // Only get and delete also belong to the keyed-collection APIs.
-    return (method === "get" || method === "delete") &&
+  if (method !== undefined) {
+    const value = stringValue(args[0]);
+    // Only get and delete also belong to the keyed-collection APIs, whose
+    // keys are header, field, and parameter names rather than URLs or paths.
+    return value !== undefined &&
+      (method === "get" || method === "delete") &&
+      !isRequestUrlLiteral(value) &&
       isKeyedCollectionReceiver(callee)
       ? undefined
-      : stringValue(args[0]);
+      : value;
+  }
   if (name.endsWith("loadURL")) return stringValue(args[0]);
   return undefined;
 };

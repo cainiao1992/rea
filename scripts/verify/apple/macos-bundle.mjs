@@ -9,12 +9,12 @@ import {
   artifactCliEvidence,
   artifactMcpResult,
   withArtifactMcp,
-} from "./lib/artifact-e2e.mjs";
+} from "../../lib/artifact-e2e.mjs";
 import {
   buildMacosBundleFixture,
   preflightMacosBundleFixture,
-} from "./lib/macos-bundle-fixture.mjs";
-import { verifyDylibResolution } from "./lib/macos-dylib-e2e.mjs";
+} from "../../fixtures/apple/macos-bundle.mjs";
+import { verifyDylibResolution } from "./macos-dylib-e2e.mjs";
 
 const exec = promisify(execFile);
 

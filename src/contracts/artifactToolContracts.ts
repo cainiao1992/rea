@@ -5,9 +5,9 @@ import { artifactOutputSchemas } from "./toolOutputSchemas.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { toolContractMetadata } from "./toolEffects.js";
 import { requireOutputSchema } from "./toolOutputSchemaPrimitives.js";
-import { appleAssetCatalogInputSchema } from "../domain/appleAssetCatalog.js";
-import { dylibResolutionInputSchema } from "../domain/dylibResolution.js";
-import { keyedArchiveInputSchema } from "../domain/keyedArchive.js";
+import { appleAssetCatalogInputSchema } from "../domain/apple/appleAssetCatalog.js";
+import { dylibResolutionInputSchema } from "../domain/apple/dylibResolution.js";
+import { keyedArchiveInputSchema } from "../domain/apple/keyedArchive.js";
 /** Exact caller boundary for deterministic artifact inventory. */
 export const artifactInventoryInputSchema = z.strictObject({
   integrity_policy: z.enum(["fail", "record-and-continue"]).default("fail"),

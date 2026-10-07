@@ -2,7 +2,7 @@ import type {
   MachoDependency,
   MachoImageFacts,
   MachoSlice,
-} from "../domain/dylibResolution.js";
+} from "../../domain/apple/dylibResolution.js";
 
 /** Read `length` bytes at `offset`; shorter results mean end of file. */
 export type ReadAt = (offset: number, length: number) => Promise<Uint8Array>;

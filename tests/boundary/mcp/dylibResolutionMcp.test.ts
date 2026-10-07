@@ -12,8 +12,8 @@ import {
   dylibCommand,
   machoImage,
   rpathCommand,
-} from "../../../src/artifacts/MachoImage.fixture.js";
-import { dylibResolutionResultSchema } from "../../../src/domain/dylibResolution.js";
+} from "../../../src/artifacts/apple/MachoImage.fixture.js";
+import { dylibResolutionResultSchema } from "../../../src/domain/apple/dylibResolution.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";

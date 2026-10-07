@@ -8,7 +8,7 @@ import {
   artifactCliEvidence,
   artifactMcpResult,
   withArtifactMcp,
-} from "./artifact-e2e.mjs";
+} from "../../lib/artifact-e2e.mjs";
 
 const exec = promisify(execFile);
 

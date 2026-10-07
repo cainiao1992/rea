@@ -3,7 +3,7 @@ import { constants } from "node:fs";
 import { lstat, open, readlink, realpath } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 
-import { resolveTreePath } from "../domain/dyldPaths.js";
+import { resolveTreePath } from "../../domain/apple/dyldPaths.js";
 import {
   dylibResolutionInputSchema,
   dylibResolutionResultSchema,
@@ -12,9 +12,9 @@ import {
   type DylibTreeEntry,
   type DylibTreeView,
   type MachoImageFacts,
-} from "../domain/dylibResolution.js";
-import { ArtifactReaderFailure } from "./ArtifactReader.js";
-import { DirectoryArtifactReader } from "./DirectoryArtifactReader.js";
+} from "../../domain/apple/dylibResolution.js";
+import { ArtifactReaderFailure } from "../ArtifactReader.js";
+import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
 import { hasMachoMagic, readMachoImage } from "./MachoLoadCommandReader.js";
 
 const HASH_CHUNK_BYTES = 1024 * 1024;

@@ -8,7 +8,7 @@ import {
   resolveTreePath,
   type Expansion,
 } from "./dyldPaths.js";
-import { digestSchema } from "./digests.js";
+import { digestSchema } from "../digests.js";
 import {
   DYLIB_RESOLUTION_LIMITATIONS,
   deriveFindings,

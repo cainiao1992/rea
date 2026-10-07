@@ -1,5 +1,7 @@
 import * as t from "@babel/types";
 
+import { semanticBuiltinNamespacePath } from "./javascriptSemanticProvenance.js";
+
 import { semanticCallableIdForNode } from "./javascriptSemanticProjection.js";
 import {
   resolveSemanticBindingState,
@@ -157,7 +159,8 @@ export const builtinDataEffectMethod = (
   );
   const namespace = binding?.directOrigins.some(
     ({ specifier, importedPath }) =>
-      specifiers.includes(specifier) && importedPath.length === 0,
+      specifiers.includes(specifier) &&
+      semanticBuiltinNamespacePath(importedPath),
   );
   return namespace
     ? semanticStaticPropertyName(callee.property, callee.computed)

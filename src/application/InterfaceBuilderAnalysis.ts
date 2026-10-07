@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { parseBinary } from "plist";
 
 import { DirectoryArtifactReader } from "../artifacts/DirectoryArtifactReader.js";
+import { projectPlistValue } from "../domain/plistValue.js";
 import { parseXmlPropertyList } from "../domain/propertyListKeys.js";
 import {
   decodeNibArchive,
@@ -370,10 +371,14 @@ const readEntry = async (
   return Buffer.concat(chunks, length);
 };
 
-const decodePlist = (bytes: Buffer): JsonValue => {
-  const parsed =
+/**
+ * Decode a keyed-archive plist. Data and dates, such as an archived color's
+ * `NSWhite` bytes, become explicit `$plist_type` values rather than failing
+ * JSON validation.
+ */
+const decodePlist = (bytes: Buffer): JsonValue =>
+  projectPlistValue(
     bytes.subarray(0, 8).toString("ascii") === "bplist00"
       ? parseBinary(bytes)
-      : parseXmlPropertyList(bytes.toString("utf8")).value;
-  return jsonValueSchema.parse(parsed);
-};
+      : parseXmlPropertyList(bytes.toString("utf8")).value,
+  ).value;

@@ -35,14 +35,18 @@ gh workflow run release.yml --ref main \
 ```
 
 Release Please targets that branch and prepares its version, changelog, and
-registry metadata. Preparation requires the `RELEASE_PLEASE_TOKEN` repository
-secret. That credential opens the release pull request and pushes the catalog
-normalization commit, so both start CI on the exact normalized head. The
-default `GITHUB_TOKEN` cannot do that: events it authors do not start
-workflow runs, and there is then no blocked run to approve. The existing
-generation step normalizes the product catalog. Preparation cannot create a
-GitHub release or publish a package. Record the final bot PR head after
-normalization and wait for that head's CI.
+registry metadata. The workflow uses an optional `RELEASE_PLEASE_TOKEN`
+repository secret and otherwise uses the built-in `GITHUB_TOKEN`. A dedicated
+GitHub App or personal access token can start PR CI automatically. With the
+built-in token, `opened`, `synchronize`, and `reopened` PR events create runs
+that require a maintainer with write access to approve them. See
+[GitHub's workflow trigger documentation](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
+
+The generation step normalizes the product catalog. Preparation cannot create
+a GitHub release or publish a package. Record the final bot PR head after
+normalization, then approve that head's blocked runs from the PR page. Updates
+to the bot branch can create new approval-required runs; approval of an older
+head does not verify the normalized candidate. Wait for the final head's CI.
 
 Review the candidate's version, notes, generated metadata, and package
 contents. Wait for the candidate's CI and relevant real-provider checks.

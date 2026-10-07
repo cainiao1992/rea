@@ -1,9 +1,12 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
+import { delimiter, join } from "node:path";
 import { promisify } from "node:util";
 import { expect, it } from "vitest";
 import { parse } from "yaml";
 import { z } from "zod";
+
+import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 const execFileAsync = promisify(execFile);
 const stepSchema = z.object({
@@ -58,7 +61,7 @@ it("requires explicit release preparation or publication instead of main pushes"
     step.uses?.startsWith("googleapis/release-please-action@"),
   );
   expect(release?.with).toMatchObject({
-    token: "${{ secrets.RELEASE_PLEASE_TOKEN }}",
+    token: "${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}",
     "target-branch": "${{ inputs.release_branch }}",
     "skip-github-release": "${{ inputs.phase == 'prepare' }}",
     "skip-github-pull-request": "${{ inputs.phase == 'publish' }}",
@@ -67,28 +70,68 @@ it("requires explicit release preparation or publication instead of main pushes"
     (step) => step.name === "Commit canonical release catalog",
   );
   expect(catalogCommit?.env?.GH_TOKEN).toBe(
-    "${{ secrets.RELEASE_PLEASE_TOKEN }}",
+    "${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}",
   );
 });
 
-it("stops preparation when the CI-capable release token is missing", async () => {
-  const workflow = await readReleaseWorkflow();
-  const command = z
-    .string()
-    .parse(
-      workflow.jobs["release-please"].steps.find(
-        (step) => step.name === "Require a CI-capable release token",
-      )?.run,
+it.skipIf(process.platform === "win32").each([
+  { phase: "prepare", customToken: "" },
+  { phase: "publish", customToken: "" },
+  { phase: "prepare", customToken: "fixture-custom-token" },
+  { phase: "publish", customToken: "fixture-custom-token" },
+])(
+  "accepts $phase with optional custom credentials: $customToken",
+  async ({ phase, customToken }) => {
+    const workflow = await readReleaseWorkflow();
+    const steps = workflow.jobs["release-please"].steps;
+    const actionIndex = steps.findIndex((step) =>
+      step.uses?.startsWith("googleapis/release-please-action@"),
     );
-  await expect(
-    execFileAsync("bash", ["-e", "-o", "pipefail", "-c", command], {
-      env: { ...process.env, RELEASE_PLEASE_TOKEN: "" },
-    }),
-  ).rejects.toMatchObject({
-    code: 1,
-    stderr: expect.stringMatching(/RELEASE_PLEASE_TOKEN/u),
-  });
-});
+    expect(actionIndex).toBeGreaterThanOrEqual(0);
+    const commands = steps
+      .slice(0, actionIndex)
+      .filter(
+        (step) =>
+          step.if === undefined ||
+          (phase === "publish" && step.if === "inputs.phase == 'publish'"),
+      )
+      .map((step) => z.string().parse(step.run));
+    const directory = await createTestTempDirectory("rea-release-credential-");
+    const output = join(directory, "github-output");
+    await writeFile(
+      join(directory, "gh"),
+      '#!/bin/sh\nprintf "%s\\n" "$GITHUB_SHA"\n',
+      { mode: 0o755 },
+    );
+    await expect(
+      execFileAsync(
+        "bash",
+        ["-e", "-o", "pipefail", "-c", commands.join("\n")],
+        {
+          env: {
+            ...process.env,
+            PATH: `${directory}${delimiter}${process.env.PATH ?? ""}`,
+            RELEASE_PLEASE_TOKEN: customToken,
+            GH_TOKEN: customToken || "fixture-built-in-token",
+            RELEASE_PHASE: phase,
+            RELEASE_BRANCH: "release/5.0.0",
+            GITHUB_REF:
+              phase === "prepare"
+                ? "refs/heads/main"
+                : "refs/heads/release/5.0.0",
+            GITHUB_REPOSITORY: "fixture/fixture",
+            GITHUB_SHA: "1111111111111111111111111111111111111111",
+            BRANCH_SHA: "1111111111111111111111111111111111111111",
+            GITHUB_OUTPUT: output,
+          },
+        },
+      ),
+    ).resolves.toMatchObject({ stderr: "" });
+    expect(await readFile(output, "utf8")).toBe(
+      "sha=1111111111111111111111111111111111111111\n",
+    );
+  },
+);
 
 it("binds npm and MCP publication to the same immutable release SHA", async () => {
   const workflow = await readReleaseWorkflow();

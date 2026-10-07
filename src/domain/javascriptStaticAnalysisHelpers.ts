@@ -344,6 +344,32 @@ const isFileIdentity = (node: t.Node | undefined): boolean => {
   );
 };
 
+const XHR_METHODS = new Set([
+  "CONNECT",
+  "DELETE",
+  "GET",
+  "HEAD",
+  "OPTIONS",
+  "PATCH",
+  "POST",
+  "PUT",
+  "TRACE",
+]);
+
+/**
+ * Require a literal HTTP method: `fs.open(path, "r")` and
+ * `window.open(url, "_blank")` share the callee name but take no URL second.
+ * XHR normalizes the standard methods' case; extension methods such as
+ * WebDAV `PROPFIND` are conventionally uppercase tokens.
+ */
+const isXhrMethodArgument = (node: t.Node | null | undefined): boolean => {
+  const value = stringValue(node);
+  return (
+    value !== undefined &&
+    (XHR_METHODS.has(value.toUpperCase()) || /^[A-Z][A-Z-]*$/u.test(value))
+  );
+};
+
 /** Select the literal URL argument for recognized network callees. */
 export const endpointArgument = (
   name: string,
@@ -356,7 +382,8 @@ export const endpointArgument = (
 ): string | undefined => {
   if (name === "fetch" || name.endsWith(".fetch") || name === "WebSocket")
     return stringValue(args[0]);
-  if (name.endsWith(".open") && stringValue(args[1]) !== undefined)
+  // `XMLHttpRequest.open(method, url)`.
+  if (name.endsWith(".open") && isXhrMethodArgument(args[0]))
     return stringValue(args[1]);
   if (
     ["get", "post", "put", "patch", "delete", "request"].some(

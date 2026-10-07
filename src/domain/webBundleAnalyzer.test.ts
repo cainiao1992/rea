@@ -174,6 +174,22 @@ describe("web bundle static-analysis parity", () => {
     );
   });
 
+  it("reads open endpoints only from XMLHttpRequest method and URL pairs", () => {
+    const result = analyzeCapturedWebBundle(
+      inspection(`
+        xhr.open("GET", "/xhr-get");
+        xhr.open("post", "https://xhr.example.test/submit");
+        dav.open("PROPFIND", "/dav/");
+        fs.open("/tmp/data.txt", "r", done);
+        window.open("https://help.example.test/", "_blank");
+        xhr.open(method, "/dynamic-method");
+      `),
+    );
+    expect(
+      result.observations.endpoints.map(({ value }) => value).sort(),
+    ).toEqual(["/dav/", "/xhr-get", "https://xhr.example.test/submit"]);
+  });
+
   it("recognizes loadURL endpoints like static analysis", () => {
     const result = analyzeCapturedWebBundle(
       inspection('window.win.loadURL("https://embedded.test/app");'),

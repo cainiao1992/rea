@@ -20,7 +20,8 @@ import time
 # Keep this digest aligned with LinuxHopper.ts and rerun real-Hopper verification
 # before accepting another vendor build.
 SUPPORTED_HOPPER_SHA256 = {
-    "0294ced141cc373468ee22d8343e7dac41980cb05a937994ca81c9f09afe7ded"
+    "0294ced141cc373468ee22d8343e7dac41980cb05a937994ca81c9f09afe7ded",
+    "1339f9e58377442b0c6fcb0dfc3cec20d593cc557408521fad9a00dbc6b8da13",
 }
 EXPECTED_SCREEN = (1280, 1024)
 EXPECTED_DIALOG = (189, 370, 901, 284)

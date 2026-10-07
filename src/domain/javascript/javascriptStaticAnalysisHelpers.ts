@@ -73,19 +73,38 @@ export const chunkRuntime = (call: t.CallExpression): string | undefined => {
 };
 
 const findChunkRuntime = (node: t.Node): string | undefined => {
-  if (t.isIdentifier(node) && /(?:webpack|rspack)Chunk/iu.test(node.name))
-    return node.name;
-  if (t.isMemberExpression(node) || t.isOptionalMemberExpression(node)) {
-    const property = semanticStaticPropertyName(node.property, node.computed);
-    if (/(?:webpack|rspack)Chunk/iu.test(property)) return property;
-    return t.isNode(node.object) ? findChunkRuntime(node.object) : undefined;
+  const pending: t.Node[] = [node];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (current === undefined) continue;
+    if (
+      t.isIdentifier(current) &&
+      /(?:webpack|rspack)Chunk/iu.test(current.name)
+    )
+      return current.name;
+    if (
+      t.isMemberExpression(current) ||
+      t.isOptionalMemberExpression(current)
+    ) {
+      const property = semanticStaticPropertyName(
+        current.property,
+        current.computed,
+      );
+      if (/(?:webpack|rspack)Chunk/iu.test(property)) return property;
+      if (t.isNode(current.object)) pending.push(current.object);
+      continue;
+    }
+    if (t.isAssignmentExpression(current)) {
+      pending.push(current.right, current.left);
+      continue;
+    }
+    if (t.isLogicalExpression(current) || t.isBinaryExpression(current)) {
+      pending.push(current.right, current.left);
+      continue;
+    }
+    if (t.isParenthesizedExpression(current) || t.isTSAsExpression(current))
+      pending.push(current.expression);
   }
-  if (t.isAssignmentExpression(node))
-    return findChunkRuntime(node.left) ?? findChunkRuntime(node.right);
-  if (t.isLogicalExpression(node) || t.isBinaryExpression(node))
-    return findChunkRuntime(node.left) ?? findChunkRuntime(node.right);
-  if (t.isParenthesizedExpression(node) || t.isTSAsExpression(node))
-    return findChunkRuntime(node.expression);
   return undefined;
 };
 
@@ -520,19 +539,23 @@ export const storageKind = (
 };
 
 /** Produce a dotted callee name from member syntax. */
-export const calleeName = (node: t.Node): string => calleeNameAt(node);
-
-const calleeNameAt = (node: t.Node): string => {
-  if (t.isIdentifier(node)) return node.name;
-  if (t.isImport(node)) return "import";
-  if (t.isMemberExpression(node) || t.isOptionalMemberExpression(node)) {
-    const object = t.isNode(node.object) ? calleeNameAt(node.object) : "";
-    // A dynamic key commits no name: `target[method]()` must not be reported as
-    // `target.method`, which would fabricate a runtime call shape.
-    const property = memberPropertyName(node);
-    return object === "" ? property : `${object}.${property}`;
+export const calleeName = (node: t.Node): string => {
+  const segments: string[] = [];
+  while (t.isMemberExpression(node) || t.isOptionalMemberExpression(node)) {
+    // Dynamic keys retain their syntax identity instead of inventing a name.
+    segments.push(memberPropertyName(node));
+    if (!t.isNode(node.object)) break;
+    node = node.object;
   }
-  return "";
+  const base = t.isIdentifier(node)
+    ? node.name
+    : t.isImport(node)
+      ? "import"
+      : "";
+  segments.push(base);
+  segments.reverse();
+  const first = segments.findIndex((segment) => segment !== "");
+  return first === -1 ? "" : segments.slice(first).join(".");
 };
 
 /** Read a member property only when its syntax commits an exact name. */

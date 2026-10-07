@@ -15,6 +15,23 @@ const root = await mkdtemp(join(tmpdir(), "rea-ui-fixture-"));
 let child;
 let fixturePid;
 try {
+  const childRetrievalTest = join(root, "child-retrieval-test");
+  await promisify(execFile)("/usr/bin/xcrun", [
+    "swiftc",
+    fileURLToPath(
+      new URL("../bridge/native/NativeUIChildren.swift", import.meta.url),
+    ),
+    fileURLToPath(
+      new URL(
+        "../tests/conformance/native/native-ui-children/main.swift",
+        import.meta.url,
+      ),
+    ),
+    "-o",
+    childRetrievalTest,
+  ]);
+  await promisify(execFile)(childRetrievalTest, []);
+
   const contents = join(root, "Fixture.app", "Contents");
   await mkdir(join(contents, "MacOS"), { recursive: true });
   await writeFile(
@@ -82,7 +99,6 @@ try {
       "capture_native_ui_scenario",
       {
         ...scope,
-        restore: "leave-as-is",
         screenshot: false,
         steps: [
           { kind: "click", path: button.path },
@@ -111,8 +127,6 @@ try {
         String(scope.pid),
         "--window-id",
         String(scope.window_id),
-        "--restore",
-        "leave-as-is",
         "--steps",
         JSON.stringify([
           { kind: "click", path: button.path },

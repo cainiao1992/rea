@@ -5,6 +5,7 @@ import { expect, it } from "vitest";
 
 import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory.js";
 import { javascriptApplicationAnalysisResultSchema } from "../domain/javascriptApplicationAnalysis.js";
+import { findApplicationFeatureSeeds } from "../domain/javascriptFeatureSeed.js";
 import { analyzeJavaScriptApplication } from "./JavaScriptApplicationService.js";
 
 const analyzeSource = async (
@@ -50,7 +51,7 @@ it.each([
   await expect(analyzeSource(source)).resolves.toBeDefined();
 });
 
-it("displays empty literals as nonempty text while retaining exact values", async () => {
+it("keeps exact values for empty literals without synthetic application labels", async () => {
   const output = await analyzeSource(
     "fetch(''); fetch('\"\"'); fetch('/api'); process.on('', () => 1);",
   );
@@ -61,11 +62,11 @@ it("displays empty literals as nonempty text while retaining exact values", asyn
       labels: observations.map(({ label }) => label),
       values: observations.map(({ properties }) => properties.value),
     }));
-  // The empty endpoint and a literal two-quote endpoint share display text
-  // but remain distinct nodes with exact identities.
+  // The empty endpoint has no display label, so it cannot be confused with
+  // a literal two-quote endpoint; both keep exact identities.
   expect(endpoints).toEqual(
     expect.arrayContaining([
-      { key: "", labels: ['""'], values: [""] },
+      { key: "", labels: [null], values: [""] },
       { key: '""', labels: ['""'], values: ['""'] },
       { key: "/api", labels: ["/api"], values: ["/api"] },
     ]),
@@ -127,4 +128,27 @@ it("keeps empty and two-quote source-map names distinct", async () => {
       )
       .sort(),
   ).toEqual(["", '""']);
+});
+
+it("does not match an empty endpoint with a literal two-quote seed", async () => {
+  const output = await analyzeSource("fetch(''); fetch('\"\"');");
+  const endpoints = new Map(
+    output.graph.nodes
+      .filter(({ kind }) => kind === "endpoint")
+      .map((node) => [
+        node.node_id,
+        node.identity.strategy === "artifact-local-key"
+          ? node.identity.key
+          : null,
+      ]),
+  );
+  const matches = findApplicationFeatureSeeds(output.graph.nodes, {
+    kind: "string",
+    value: '""',
+    match: "exact",
+    case_sensitive: true,
+  }).filter(({ node_id: nodeId }) => endpoints.has(nodeId));
+  expect(matches.map(({ node_id: nodeId }) => endpoints.get(nodeId))).toEqual([
+    '""',
+  ]);
 });

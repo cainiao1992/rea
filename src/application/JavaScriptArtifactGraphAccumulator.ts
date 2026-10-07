@@ -4,7 +4,6 @@ import {
   type ApplicationEdge,
   type ApplicationNode,
 } from "../domain/javascriptApplicationGraph.js";
-import { javascriptDisplayText } from "../domain/javascriptAstValues.js";
 
 /** Deduplicate graph entities while retaining distinct evidence observations. */
 export class JavaScriptArtifactGraphAccumulator {
@@ -73,9 +72,10 @@ interface DisplayableNodeInput {
 
 /**
  * Static findings can carry legal empty strings, such as `fetch("")`,
- * `require("")`, or a source map's `sources: [""]`. Labels are nonempty display
- * text, so the empty value is shown as `""`. Identities and observation
- * properties keep the exact value, so distinct values never merge.
+ * `require("")`, or a source map's `sources: [""]`. Labels must be nonempty,
+ * so an empty value has no label rather than synthetic text that a real value
+ * could share; literal feature seeds match labels. Identities and observation
+ * properties keep the exact value.
  */
 const displayableNode = (
   input: DisplayableNodeInput,
@@ -83,9 +83,6 @@ const displayableNode = (
   ...input,
   observations: input.observations.map((observation) => ({
     ...observation,
-    label:
-      observation.label === null
-        ? null
-        : javascriptDisplayText(observation.label),
+    label: observation.label === "" ? null : observation.label,
   })),
 });

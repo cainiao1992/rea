@@ -90,7 +90,7 @@ npx skills add morluto/rea --skill reverse-engineer-anything
 
 This installs agent instructions and bundled references, not REA MCP
 registration or analysis engines. Follow the skill's
-[conditional connection guide](../skills/reverse-engineer-anything/SKILL.md#connect-only-when-needed).
+[conditional connection guide](https://github.com/morluto/rea/blob/main/skills/reverse-engineer-anything/SKILL.md#connect-only-when-needed).
 Working tools can be used immediately. If tools are missing, inspect the current
 client's registration with `doctor --client codex --json` (substitute its client
 ID), then plan repairs with `setup --client codex --dry-run --json`. Show and
@@ -110,7 +110,7 @@ npx -y rea-agents@latest analyze-javascript-application /absolute/path/to/app --
 It returns the complete Evidence record directly and requires no native engine.
 Provider failures in doctor do not prevent unrelated target-free tools. To check
 readiness for one task instead of auditing every integration, see
-[Check readiness for the task at hand](../README.md#check-readiness-for-the-task-at-hand).
+[Check readiness for the task at hand](https://github.com/morluto/rea/blob/main/README.md#check-readiness-for-the-task-at-hand).
 
 ## Supported agents
 

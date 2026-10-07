@@ -1,3 +1,8 @@
+import {
+  NATIVE_MACOS_PROVIDER_IDENTITY as IDENTITY,
+  nativeMacOSCapabilities,
+} from "./NativeMacOSProviderMetadata.js";
+export { NATIVE_MACOS_PROVIDER_IDENTITY } from "./NativeMacOSProviderMetadata.js";
 import { inspectAppleDispatchMetadata } from "./AppleDispatchMetadata.js";
 import { observeNativeUi } from "./NativeUiObservation.js";
 import { dirname, isAbsolute, resolve } from "node:path";
@@ -45,19 +50,11 @@ import {
 import { parseCodeSignature } from "./parsers/codesign.js";
 import { parseDemangledSymbols } from "./parsers/demangle.js";
 import { parseLipoArchitectures } from "./parsers/lipo.js";
-import { parsePlistJson } from "./parsers/plist.js";
+import { parsePlistJson, parsePlistXml } from "./parsers/plist.js";
 import {
   architectureLocations,
   inspectNativeMacho,
 } from "./NativeMachoInspection.js";
-
-/** Public identity committed by macOS-native inspection observations. */
-export const NATIVE_MACOS_PROVIDER_IDENTITY: ProviderIdentity = Object.freeze({
-  id: "native-macos",
-  name: "macOS native inspection utilities",
-  version: null,
-});
-const IDENTITY = NATIVE_MACOS_PROVIDER_IDENTITY;
 
 /** Read-only semantic provider composed from Xcode command-line utilities. */
 export class NativeMacOSProvider implements AnalysisProvider {
@@ -67,41 +64,7 @@ export class NativeMacOSProvider implements AnalysisProvider {
     private readonly runner: NativeCommandRunner = new XcrunCommandRunner(),
     platform: NodeJS.Platform = process.platform,
   ) {
-    const available = platform === "darwin";
-    this.#capabilities = Object.freeze(
-      [
-        ...NATIVE_TOOL_CONTRACTS,
-        { name: "inspect_native_dispatch_metadata" as const },
-      ].map((contract): CapabilityDescriptor => {
-        const availability = available
-          ? ({ available: true, reason: null } as const)
-          : ({
-              available: false,
-              availabilityCode: "unsupported_host",
-              reason: "Native macOS utilities require macOS.",
-            } as const);
-        return Object.freeze({
-          provider: IDENTITY,
-          operation: contract.name,
-          ...availability,
-          effects: Object.freeze({
-            mutatesArtifact: false,
-            launchesProcess:
-              contract.name !== "inspect_native_dispatch_metadata",
-            mayShowUi: contract.name === "capture_native_ui_scenario",
-            mayAccessNetwork: contract.name === "capture_native_ui_scenario",
-            mayWriteFilesystem:
-              contract.name === "capture_native_ui_scenario" ||
-              contract.name === "observe_native_ui",
-            changesPermissions: false,
-            requiresRoot: false,
-          }),
-          limitations: Object.freeze([
-            "Availability and textual formats depend on the installed macOS/Xcode toolchain.",
-          ]),
-        });
-      }),
-    );
+    this.#capabilities = nativeMacOSCapabilities(platform);
   }
 
   identity(): ProviderIdentity {
@@ -460,33 +423,51 @@ class NativeMacOSClient implements AnalysisClient {
       { signal },
     );
     if (!classified.ok) return classified;
-    const capture = await this.#run(
+    const json = await this.#run(
       "inspect_plist",
       "plutil",
       ["-convert", "json", "-o", "-", "--", plist.value],
-      { signal },
+      { signal, acceptNonZero: true },
     );
-    if (!capture.ok) return capture;
-    const parsed = parsePlistJson(capture.value.stdout);
+    if (!json.ok) return json;
+    // JSON cannot express data, dates, or non-finite reals; plutil rejects
+    // such plists, so decode its lossless XML conversion instead.
+    const xml =
+      json.value.exitCode === 0
+        ? undefined
+        : await this.#run(
+            "inspect_plist",
+            "plutil",
+            ["-convert", "xml1", "-o", "-", "--", plist.value],
+            { signal },
+          );
+    if (xml !== undefined && !xml.ok) return xml;
+    const parsed =
+      xml === undefined
+        ? parsePlistJson(json.value.stdout)
+        : parsePlistXml(xml.value.stdout);
     if (!parsed.ok) return parsed;
-    const provenance = [classified.value, capture.value].map((item) =>
-      invocation(item, plist.value, "$PLIST"),
-    );
+    const provenance = [
+      classified.value,
+      json.value,
+      ...(xml === undefined ? [] : [xml.value]),
+    ].map((item) => invocation(item, plist.value, "$PLIST"));
     const result = inspectPlistSchema.parse({
       format: /binary property list/iu.test(classified.value.stdout)
         ? "binary"
         : /XML|text/iu.test(classified.value.stdout)
           ? "xml"
           : "unknown",
-      ...parsed.value,
+      value: parsed.value.value,
+      bundle: parsed.value.bundle,
       source_path: plist.value,
       provenance,
-      limitations: [],
+      limitations: parsed.value.limitations,
     });
     return ok({
       result: jsonValueSchema.parse(result),
       provenance,
-      limitations: [],
+      limitations: parsed.value.limitations,
       locations: [{ kind: "artifact-path", path: plist.value }],
     });
   }

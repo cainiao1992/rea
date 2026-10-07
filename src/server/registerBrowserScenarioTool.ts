@@ -1,3 +1,4 @@
+import type { EvidenceWriter } from "../application/investigation/InvestigationRecordPort.js";
 import {
   optionalProviderUnavailable,
   type OptionalProviderLoadFailure,
@@ -5,10 +6,9 @@ import {
 import { err } from "../domain/result.js";
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import type { BinarySessionPort } from "../application/BinarySession.js";
 import type { BrowserScenarioCapturePort } from "../application/BrowserScenarioCapturePort.js";
 import { captureBrowserScenario } from "../application/BrowserScenarioCaptureService.js";
-import { BROWSER_SCENARIO_TOOL_CONTRACTS } from "../contracts/browserScenarioToolContracts.js";
+import { toolContract } from "../contracts/toolContracts.js";
 import { browserScenarioSchema } from "../domain/browserScenario.js";
 import type { Logger } from "../logger.js";
 import { logToolExecution } from "./toolLogging.js";
@@ -19,7 +19,7 @@ interface BrowserScenarioToolRegistration {
   readonly logger: Logger;
   readonly loadFailure?: OptionalProviderLoadFailure | undefined;
   readonly provider: BrowserScenarioCapturePort | undefined;
-  readonly recordEvidence: BinarySessionPort["recordEvidence"] | undefined;
+  readonly recordEvidence: EvidenceWriter["recordEvidence"] | undefined;
 }
 
 /** Register the browser scenario tool with execution-time provider diagnostics. */
@@ -27,7 +27,7 @@ export const registerBrowserScenarioTool = (
   server: McpServer,
   options: BrowserScenarioToolRegistration,
 ): void => {
-  const [contract] = BROWSER_SCENARIO_TOOL_CONTRACTS;
+  const contract = toolContract("capture_browser_scenario");
   server.registerTool(
     contract.name,
     toolRegistrationOptions(contract),

@@ -1,3 +1,4 @@
+import type { EvidenceWriter } from "../application/investigation/InvestigationRecordPort.js";
 import {
   optionalProviderUnavailable,
   type OptionalProviderLoadFailure,
@@ -5,7 +6,6 @@ import {
 import { err } from "../domain/result.js";
 import type { McpServer, ServerContext } from "@modelcontextprotocol/server";
 
-import type { BinarySessionPort } from "../application/BinarySession.js";
 import type { BrowserObservationPort } from "../application/BrowserObservationPort.js";
 import {
   analyzeWebBundle,
@@ -18,8 +18,7 @@ import {
   observeWebSession,
 } from "../application/BrowserObservationService.js";
 import type { ProgressReporter } from "../application/ProgressReporter.js";
-import { BROWSER_TOOL_CONTRACTS } from "../contracts/browserToolContracts.js";
-import type { ToolContract } from "../contracts/toolContracts.js";
+import { toolContract, type ToolContract } from "../contracts/toolContracts.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import type { Evidence } from "../domain/evidence.js";
 import { analyzeWebBundleInputSchema } from "../domain/webBundleAnalysis.js";
@@ -35,7 +34,7 @@ interface BrowserToolRegistration {
   readonly logger: Logger;
   readonly loadFailure?: OptionalProviderLoadFailure | undefined;
   readonly browser: BrowserObservationPort | undefined;
-  readonly recordEvidence: BinarySessionPort["recordEvidence"] | undefined;
+  readonly recordEvidence: EvidenceWriter["recordEvidence"] | undefined;
 }
 
 interface BrowserToolContext {
@@ -49,16 +48,14 @@ export const registerBrowserTools = (
   server: McpServer,
   options: BrowserToolRegistration,
 ): void => {
-  const [
-    listContract,
-    inspectContract,
-    analyzeContract,
-    sessionContract,
-    webMcpContract,
-    captureDiffContract,
-    screenshotContract,
-    screenshotDiffContract,
-  ] = BROWSER_TOOL_CONTRACTS;
+  const listContract = toolContract("list_browser_targets");
+  const inspectContract = toolContract("inspect_web_page");
+  const analyzeContract = toolContract("analyze_web_bundle");
+  const sessionContract = toolContract("observe_web_session");
+  const webMcpContract = toolContract("discover_webmcp_tools");
+  const captureDiffContract = toolContract("compare_web_captures");
+  const screenshotContract = toolContract("capture_web_screenshot");
+  const screenshotDiffContract = toolContract("compare_web_screenshots");
 
   server.registerTool(
     listContract.name,

@@ -106,9 +106,6 @@ It uses an installed browser and accepts an optional installed REA entrypoint.
 The complete `verify:browser` lane also exercises passive script export through
 both public adapters. See [website script export](website-script-export.md).
 
-The [test suite audit](test-suite-audit.md) records the pruning decisions,
-replacement evidence and remaining priorities.
-
 ## Real-toolchain verification lanes
 
 Each real-toolchain command must require only the host tools needed to prove
@@ -117,6 +114,11 @@ place optional cross-target formats or platform-specific runners in separate
 commands. Check prerequisites before starting expensive work and name the
 missing command, target, and lane in any failure message. A lane must not imply
 that a host or target is covered when it was skipped.
+
+Provider admission accepts Ghidra 12.1.x and the JDK range declared by that
+installation (`application.java.min` through `application.java.max`). Current
+12.1 releases require JDK 21 or newer and set no maximum. The lanes below still
+prove behavior on the verified Ghidra 12.1.4 and JDK 21 build.
 
 | Ghidra lane                                | Supported runner/target                                                            | Additional local tools                                              |
 | ------------------------------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
@@ -399,7 +401,9 @@ for the exact ABI, authority, graph and observation boundaries.
 `npm run fixtures:firmware` uses existing Python 3 and a host C compiler to make
 an ignored gzip/USTAR firmware fixture and independent offset/hash oracle.
 `npm run verify:firmware` requires caller-supplied Binwalk 3.1.0, Unblob 26.6.4
-and util-linux prlimit on Linux. It verifies CLI/MCP parity, selected ranges,
+and util-linux prlimit on Linux. The provider also accepts other 3.1.x and
+26.6.x builds and reports them as unverified; this lane proves the audited
+releases. It verifies CLI/MCP parity, selected ranges,
 unknown chunks, depth limits and extracted child digests. The optional
 `REA_FIRMWARE_VERIFY_EXT4=1` lane requires existing mke2fs/debugfs; the separate
 `REA_FIRMWARE_VERIFY_GHIDRA=1` lane checks a selected host ELF through real Ghidra.

@@ -14,7 +14,7 @@ import {
 } from "../contracts/toolOutputSchemaPrimitives.js";
 import type { ToolKind } from "../contracts/toolContractTypes.js";
 import type { JsonValue } from "../domain/jsonValue.js";
-import { GENERATED_MCP_TOOL_CATALOG } from "../generatedMcpToolCatalog.js";
+import { TOOL_CONTRACTS } from "../contracts/toolContracts.js";
 import {
   clientRequirementsFor,
   NO_CLIENT_FEATURES,
@@ -131,7 +131,7 @@ export const buildCapabilityInventory = (
   const descriptors = new Map<string, ProviderDescriptor>(
     status.capabilities.map((descriptor) => [descriptor.operation, descriptor]),
   );
-  return GENERATED_MCP_TOOL_CATALOG.map((contract): ToolAvailability => {
+  return TOOL_CONTRACTS.map((contract): ToolAvailability => {
     const availability = availabilityFor({
       name: contract.name,
       kind: contract.kind,
@@ -246,7 +246,7 @@ const workflowAvailabilityFor = ({
       : {
           reason: "provider_missing",
           remediation:
-            "On Linux, provide an absolute REA_BINWALK_COMMAND (Binwalk 3.1.0) or REA_UNBLOB_COMMAND (Unblob 26.6.4) path and util-linux prlimit. Extraction also requires the selected format’s external extractor.",
+            "On Linux, provide an absolute REA_BINWALK_COMMAND (Binwalk 3.1.x, verified with 3.1.0) or REA_UNBLOB_COMMAND (Unblob 26.6.x, verified with 26.6.4) path and util-linux prlimit. Extraction also requires the selected format’s external extractor.",
         };
   }
   if (kind === "android-provider")

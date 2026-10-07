@@ -3,6 +3,7 @@ import { TextDecoder } from "node:util";
 import { parse, parseBinary } from "plist";
 import { z } from "zod";
 import type { JsonValue } from "../domain/jsonValue.js";
+import { projectPlistValue } from "../domain/plistValue.js";
 import {
   keyedArchiveInputSchema,
   keyedArchiveResultSchema,
@@ -50,27 +51,11 @@ const decodeXmlPlistText = (bytes: Buffer): string => {
   return text;
 };
 
-const normalizePlist = (value: unknown, depth = 0): JsonValue => {
-  if (depth > 128) throw new RangeError("Plist exceeds 128 nesting levels");
-  if (value instanceof Uint8Array)
-    return {
-      $plist_type: "data",
-      base64: Buffer.from(value).toString("base64"),
-    };
-  if (value instanceof Date)
-    return { $plist_type: "date", iso8601: value.toISOString() };
-  if (Array.isArray(value))
-    return value.map((item: unknown) => normalizePlist(item, depth + 1));
-  if (value !== null && typeof value === "object")
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [
-        key,
-        normalizePlist(item, depth + 1),
-      ]),
-    );
-  return z
-    .union([z.string(), z.number().finite(), z.boolean(), z.null()])
-    .parse(value);
+const normalizePlist = (value: unknown): JsonValue => {
+  const projected = projectPlistValue(value);
+  if (projected.unknownRealCount > 0)
+    throw new RangeError("Keyed archive contains a non-finite real");
+  return projected.value;
 };
 
 /** Read exactly one regular, contained bundle entry without following symlinks. */

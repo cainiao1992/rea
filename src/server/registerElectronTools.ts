@@ -1,3 +1,4 @@
+import type { EvidenceWriter } from "../application/investigation/InvestigationRecordPort.js";
 import {
   optionalProviderUnavailable,
   type OptionalProviderLoadFailure,
@@ -5,7 +6,6 @@ import {
 import { err } from "../domain/result.js";
 import type { McpServer, ServerContext } from "@modelcontextprotocol/server";
 
-import type { BinarySessionPort } from "../application/BinarySession.js";
 import type { ElectronActiveObservationPort } from "../application/ElectronActiveObservationPort.js";
 import { captureElectronScenario } from "../application/ElectronActiveObservationService.js";
 import type { ElectronObservationPort } from "../application/ElectronObservationPort.js";
@@ -16,8 +16,7 @@ import {
 import { analyzeJavaScriptApplicationValidated } from "../application/JavaScriptApplicationService.js";
 import { reconcileJavaScriptRuntimeEvidenceValidated } from "../application/JavaScriptRuntimeReconciliationService.js";
 import type { ProgressReporter } from "../application/ProgressReporter.js";
-import { ELECTRON_TOOL_CONTRACTS } from "../contracts/electronToolContracts.js";
-import type { ToolContract } from "../contracts/toolContracts.js";
+import { toolContract, type ToolContract } from "../contracts/toolContracts.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import type { Evidence } from "../domain/evidence.js";
 import type { Result } from "../domain/result.js";
@@ -34,7 +33,7 @@ interface ElectronToolRegistration {
   readonly activeLoadFailure?: OptionalProviderLoadFailure | undefined;
   readonly electron: ElectronObservationPort | undefined;
   readonly electronActive: ElectronActiveObservationPort | undefined;
-  readonly recordEvidence: BinarySessionPort["recordEvidence"] | undefined;
+  readonly recordEvidence: EvidenceWriter["recordEvidence"] | undefined;
 }
 
 interface ElectronToolContext {
@@ -48,13 +47,11 @@ export const registerElectronTools = (
   server: McpServer,
   options: ElectronToolRegistration,
 ): void => {
-  const [
-    listContract,
-    inspectContract,
-    analyzeContract,
-    reconcileContract,
-    activeContract,
-  ] = ELECTRON_TOOL_CONTRACTS;
+  const listContract = toolContract("list_electron_targets");
+  const inspectContract = toolContract("inspect_electron_page");
+  const analyzeContract = toolContract("analyze_javascript_application");
+  const reconcileContract = toolContract("reconcile_javascript_runtime");
+  const activeContract = toolContract("capture_electron_scenario");
 
   server.registerTool(
     listContract.name,

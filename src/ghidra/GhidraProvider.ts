@@ -59,6 +59,7 @@ import {
   type GhidraInstallationHost,
   type GhidraInstallationInspection,
 } from "./GhidraInstallation.js";
+import { unverifiedGhidraBuildLimitation } from "./GhidraInstallationPolicy.js";
 import { GhidraHeadlessLauncher } from "./GhidraLauncher.js";
 import { resolveGhidraAnalysisProfile } from "./GhidraAnalysisProfile.js";
 import type { GhidraSessionError } from "./GhidraSessionError.js";
@@ -332,6 +333,15 @@ export class GhidraProvider implements AnalysisProviderCandidate {
       await client.close();
       return extensionFailure;
     };
+    const releaseLimitation = unverifiedGhidraBuildLimitation(
+      prerequisites.value.providerVersion,
+    );
+    const sessionLimitations = [
+      ...providerLimitations,
+      ...targetLimitations,
+      ...ghidraExtensionLimitations(extensions),
+      ...(releaseLimitation === undefined ? [] : [releaseLimitation]),
+    ];
     return {
       execute: async (operation, parameters, options) => {
         if (extensionFailure !== undefined) return err(extensionFailure);
@@ -356,12 +366,7 @@ export class GhidraProvider implements AnalysisProviderCandidate {
           return ok(
             createAnalysisExecution(started.value, committedProfile.provider, {
               analysisProfile: committedProfile,
-              limitations: [
-                ...healthLimitations,
-                ...providerLimitations,
-                ...targetLimitations,
-                ...ghidraExtensionLimitations(extensions),
-              ],
+              limitations: [...healthLimitations, ...sessionLimitations],
             }),
           );
         }
@@ -435,12 +440,7 @@ export class GhidraProvider implements AnalysisProviderCandidate {
           createAnalysisExecution(normalized, committedProfile.provider, {
             rawResult: called.value,
             analysisProfile: committedProfile,
-            limitations: [
-              ...limitationsFor(operation),
-              ...providerLimitations,
-              ...targetLimitations,
-              ...ghidraExtensionLimitations(extensions),
-            ],
+            limitations: [...limitationsFor(operation), ...sessionLimitations],
           }),
         );
       },

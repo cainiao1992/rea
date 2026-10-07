@@ -18,12 +18,14 @@ import type {
   ProviderIdentity,
 } from "./AnalysisProvider.js";
 import type { AnalysisOperation } from "./AnalysisProvider.js";
-import { GENERATED_MCP_TOOL_CATALOG } from "../generatedMcpToolCatalog.js";
+import { OFFICIAL_TOOL_CONTRACTS } from "../contracts/officialToolContracts.js";
+import { ENHANCED_TOOL_CONTRACTS } from "../contracts/enhancedToolContracts.js";
 import type { BinarySessionPort } from "./BinarySessionPort.js";
 import {
   SessionProviderRouter,
   type SessionProviderRoute,
 } from "./SessionProviderRouter.js";
+import { InvestigationRecords } from "./investigation/InvestigationRecords.js";
 import { BinarySessionRecords } from "./BinarySessionRecords.js";
 import { binarySessionStatus } from "./BinarySessionStatus.js";
 import {
@@ -38,14 +40,10 @@ import {
 import { closeAnalysisClient } from "./AnalysisClientCleanup.js";
 export type { BinarySessionPort } from "./BinarySessionPort.js";
 const OFFICIAL_OPERATIONS: ReadonlySet<string> = new Set(
-  GENERATED_MCP_TOOL_CATALOG.filter(
-    ({ kind }) => kind === "official-proxy",
-  ).map(({ name }) => name),
+  OFFICIAL_TOOL_CONTRACTS.map(({ name }) => name),
 );
 const ENHANCED_OPERATIONS: ReadonlySet<string> = new Set(
-  GENERATED_MCP_TOOL_CATALOG.filter(({ kind }) => kind === "enhanced").map(
-    ({ name }) => name,
-  ),
+  ENHANCED_TOOL_CONTRACTS.map(({ name }) => name),
 );
 
 /**
@@ -78,8 +76,11 @@ export class BinarySession
   >();
   readonly #availabilityListeners = new Set<() => void | Promise<void>>();
 
-  constructor(providerRouter: SessionProviderRouter) {
-    super();
+  constructor(
+    providerRouter: SessionProviderRouter,
+    records: InvestigationRecords = new InvestigationRecords(),
+  ) {
+    super(records);
     this.#providerRouter = providerRouter;
   }
 

@@ -1,50 +1,185 @@
+import { parse as parseXmlPlist } from "plist";
 import { z } from "zod";
 
 import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
+import type { JsonValue } from "../../domain/jsonValue.js";
+import {
+  projectPlistValue,
+  type ProjectedPlistValue,
+} from "../../domain/plistValue.js";
 import { err, ok, type Result } from "../../domain/result.js";
-import { safeParseJson } from "../../domain/safeJson.js";
 
 const plistObject = z.record(z.string(), z.unknown());
+
+/** Stable bundle metadata projected from one plist value. */
+export interface PlistBundleMetadata {
+  readonly identifier: string | null;
+  readonly executable: string | null;
+  readonly name: string | null;
+  readonly version: string | null;
+  readonly short_version: string | null;
+}
+
+/** One decoded plist with bundle metadata and decoding limitations. */
+export interface ParsedPlist {
+  readonly value: unknown;
+  readonly bundle: PlistBundleMetadata;
+  readonly limitations: readonly string[];
+}
 
 /** Parse plutil JSON output and project stable bundle metadata. */
 export const parsePlistJson = (
   output: string,
-): Result<
-  {
-    readonly value: unknown;
-    readonly bundle: {
-      readonly identifier: string | null;
-      readonly executable: string | null;
-      readonly name: string | null;
-      readonly version: string | null;
-      readonly short_version: string | null;
-    };
-  },
-  AnalysisOutputError
-> => {
+): Result<ParsedPlist, AnalysisOutputError> => {
   // plutil output can carry a UTF-8 BOM, which JSON.parse rejects outright.
-  const parsed = safeParseJson(output.replace(/^\uFEFF/u, ""));
-  if (!parsed.ok)
+  const text = output.replace(/^\uFEFF/u, "");
+  let exactIntegerCount = 0;
+  // A plist integer can exceed the exact range of a JavaScript number; keep
+  // its decimal text from the JSON source instead of a rounded value.
+  const keepExactIntegers = (
+    _key: string,
+    item: unknown,
+    context?: { readonly source?: string },
+  ): unknown => {
+    const source = context?.source;
+    if (
+      typeof item !== "number" ||
+      Number.isSafeInteger(item) ||
+      source === undefined ||
+      !/^-?\d+$/u.test(source)
+    )
+      return item;
+    exactIntegerCount += 1;
+    return { $plist_type: "integer", decimal: source };
+  };
+  let value: unknown;
+  try {
+    value = JSON.parse(text, keepExactIntegers);
+  } catch (cause: unknown) {
     return err(
-      new AnalysisOutputError("inspect_plist", parsed.error, {
-        cause: parsed.cause,
-      }),
+      new AnalysisOutputError(
+        "inspect_plist",
+        cause instanceof Error ? cause.message : String(cause),
+        { cause },
+      ),
     );
-  const value: unknown = parsed.value;
+  }
+  return ok({
+    value,
+    bundle: projectPlistBundle(value),
+    limitations:
+      exactIntegerCount === 0
+        ? []
+        : [largeIntegerLimitation(exactIntegerCount)],
+  });
+};
+
+/**
+ * Parse plutil XML output for a plist that JSON cannot express, such as one
+ * containing data, dates, or non-finite reals.
+ */
+export const parsePlistXml = (
+  output: string,
+): Result<ParsedPlist, AnalysisOutputError> => {
+  let projected: ProjectedPlistValue;
+  try {
+    projected = projectPlistValue(parseXmlPlist(output));
+  } catch (cause: unknown) {
+    return err(
+      new AnalysisOutputError(
+        "inspect_plist",
+        "plutil XML conversion was not a readable plist",
+        { cause },
+      ),
+    );
+  }
+  // The XML decoder turns <integer> and <real> into numbers before REA sees
+  // them, rounding integers beyond the exact range. plutil escapes "<" in keys
+  // and strings, so the element literals can be read from the XML text.
+  const unsafeIntegers = new Map<number, Set<string>>();
+  for (const [, decimal = ""] of output.matchAll(
+    /<integer>\s*([+-]?\d+)\s*<\/integer>/gu,
+  )) {
+    const rounded = Number(decimal);
+    if (Number.isSafeInteger(rounded)) continue;
+    const exact = BigInt(decimal).toString();
+    unsafeIntegers.set(
+      rounded,
+      (unsafeIntegers.get(rounded) ?? new Set()).add(exact),
+    );
+  }
+  const reals = new Set(
+    [...output.matchAll(/<real>([^<]*)<\/real>/gu)].map(([, text = ""]) =>
+      Number.parseFloat(text),
+    ),
+  );
+  let exactIntegerCount = 0;
+  let ambiguousNumberCount = 0;
+  const value = mapJsonNumbers(projected.value, (item) => {
+    const decimals = unsafeIntegers.get(item);
+    if (decimals === undefined) return item;
+    const [decimal] = decimals;
+    if (decimals.size !== 1 || decimal === undefined || reals.has(item)) {
+      ambiguousNumberCount += 1;
+      return item;
+    }
+    exactIntegerCount += 1;
+    return { $plist_type: "integer", decimal };
+  });
+  return ok({
+    value,
+    bundle: projectPlistBundle(value),
+    limitations: [
+      'plutil cannot express this plist as JSON, so it was decoded from plutil\'s XML conversion; data and date values are typed objects such as { "$plist_type": "data", "base64": ... }.',
+      ...(projected.unknownRealCount === 0
+        ? []
+        : [
+            `${String(projected.unknownRealCount)} non-finite real value(s) are reported as { "$plist_type": "real", "value": null } because the XML decoder does not distinguish NaN from infinity.`,
+          ]),
+      ...(exactIntegerCount === 0
+        ? []
+        : [largeIntegerLimitation(exactIntegerCount)]),
+      ...(ambiguousNumberCount === 0
+        ? []
+        : [
+            `${String(ambiguousNumberCount)} number(s) beyond the exact range of a JSON number are reported as decoded because the XML literal they came from, a rounded <integer> or a <real>, cannot be identified.`,
+          ]),
+    ],
+  });
+};
+
+const largeIntegerLimitation = (count: number): string =>
+  `${String(count)} integer value(s) exceed the exact range of a JSON number and are reported as { "$plist_type": "integer", "decimal": "<exact digits>" }.`;
+
+const mapJsonNumbers = (
+  value: JsonValue,
+  map: (item: number) => JsonValue,
+): JsonValue => {
+  if (typeof value === "number") return map(value);
+  if (Array.isArray(value))
+    return value.map((item) => mapJsonNumbers(item, map));
+  if (value !== null && typeof value === "object")
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        mapJsonNumbers(item, map),
+      ]),
+    );
+  return value;
+};
+
+const projectPlistBundle = (value: unknown): PlistBundleMetadata => {
   const object = plistObject.safeParse(value);
   const field = (name: string): string | null => {
     if (!object.success) return null;
     const candidate = object.data[name];
     return typeof candidate === "string" ? candidate : null;
   };
-  return ok({
-    value,
-    bundle: {
-      identifier: field("CFBundleIdentifier"),
-      executable: field("CFBundleExecutable"),
-      name: field("CFBundleName"),
-      version: field("CFBundleVersion"),
-      short_version: field("CFBundleShortVersionString"),
-    },
-  });
+  return {
+    identifier: field("CFBundleIdentifier"),
+    executable: field("CFBundleExecutable"),
+    name: field("CFBundleName"),
+    version: field("CFBundleVersion"),
+    short_version: field("CFBundleShortVersionString"),
+  };
 };

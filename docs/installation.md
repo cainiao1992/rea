@@ -108,7 +108,9 @@ npx -y rea-agents@latest analyze-javascript-application /absolute/path/to/app --
 ```
 
 It returns the complete Evidence record directly and requires no native engine.
-Provider failures in doctor do not prevent unrelated target-free tools.
+Provider failures in doctor do not prevent unrelated target-free tools. To check
+readiness for one task instead of auditing every integration, see
+[Check readiness for the task at hand](../README.md#check-readiness-for-the-task-at-hand).
 
 ## Supported agents
 

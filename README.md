@@ -95,6 +95,40 @@ MCP setup, Hopper, Ghidra, or executing the application. For a native app, confi
 its engine first, then use `analyze` with that app's path. Run `doctor` when you
 need diagnosis; it is not a prerequisite for each analysis.
 
+### Check readiness for the task at hand
+
+`rea doctor` without options is an audit of the whole integration. It checks
+every detected agent registration, the installed skill, and every optional
+analysis engine, so it can report `healthy: false` while your current task works.
+Choose a readiness scope for the work you are doing:
+
+| Task                                | Readiness check                                                                              |
+| ----------------------------------- | -------------------------------------------------------------------------------------------- |
+| Static JavaScript/Electron analysis | None. Run `analyze-javascript-application` directly.                                         |
+| Troubleshoot one analysis engine    | `rea doctor --provider ghidra --json` (or `hopper`, `ida`)                                   |
+| Check one agent's MCP registration  | `rea doctor --client codex --json` (see [client IDs](docs/installation.md#supported-agents)) |
+| Check the installed skill           | `rea doctor --skill --json`                                                                  |
+
+A scoped report has `scope.mode: "explicit"`. Only `scope_checks` determine
+`healthy` and the exit status. Everything else is listed in
+`informational_checks`; you don't need to fix it for this task. For example, a
+missing engine you are not using needs no repair. `environment_healthy` still
+summarizes the full audit. `--target` adds a target check, but without a scope
+option the report remains audit-wide.
+
+When more than one installed engine supports a native target, REA does not pick
+one: opening the target fails with `code: "capability_unavailable"`,
+`details.selection_reason: "ambiguous"`, and the providers in
+`details.candidate_ids`. Choose one once: pass `--provider` on
+the CLI or `provider_id` on `open_binary`, or set `REA_ANALYSIS_PROVIDER` as a
+standing preference. An explicit selector overrides the environment variable.
+The session keeps that choice and never falls back to another engine.
+Recovery depends on `details.selection_reason`. For `ambiguous`, choose one of
+the candidates. For `provider_unavailable`, the engine you selected needs repair,
+so run `rea doctor --provider <id> --json` and follow its remediation. Neither
+reason means you have to install every engine. See
+[Choosing a deep-analysis provider](#choosing-a-deep-analysis-provider).
+
 ### Install the rea command
 
 Install the command-line interface:

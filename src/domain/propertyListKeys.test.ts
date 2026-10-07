@@ -39,6 +39,16 @@ it("keeps __proto__ text in strings, comments, and similar keys", () => {
   });
 });
 
+it("keeps an entity-encoded key that decodes to the placeholder", () => {
+  const text = plist(
+    "<dict><key>&#95;&#95;rea_prototype_key__</key><string>kept</string><key>__proto__</key><string>x</string></dict>",
+  );
+  expect(parseXmlPropertyList(text)).toEqual({
+    value: { __rea_prototype_key__: "kept" },
+    omittedPrototypeKeys: 1,
+  });
+});
+
 it("omits own __proto__ entries that JSON decoding creates", () => {
   const decoded: unknown = JSON.parse(
     '{"__proto__":{"x":1},"a":[{"__proto__":2,"b":3}]}',

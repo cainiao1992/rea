@@ -75,8 +75,11 @@ const decodeXmlText = (text: string): string =>
 export const parseXmlPropertyList = (
   text: string,
 ): PropertyListWithoutPrototypeKeys => {
+  // The decoded text holds every key the decoder can produce, including
+  // entity-encoded spellings of the placeholder, so no source key aliases it.
+  const decoded = decodeXmlText(text);
   let placeholder = "__rea_prototype_key__";
-  while (text.includes(placeholder)) placeholder = `_${placeholder}`;
+  while (decoded.includes(placeholder)) placeholder = `_${placeholder}`;
   const substituted = text.replace(
     KEY_TOKEN,
     (token, plain?: string, cdata?: string) =>

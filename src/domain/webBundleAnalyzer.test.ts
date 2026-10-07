@@ -183,11 +183,18 @@ describe("web bundle static-analysis parity", () => {
         fs.open("/tmp/data.txt", "r", done);
         window.open("https://help.example.test/", "_blank");
         xhr.open(method, "/dynamic-method");
+        fs.open(path, "r", done);
+        window.open(url, "_blank");
       `),
     );
     expect(
       result.observations.endpoints.map(({ value }) => value).sort(),
-    ).toEqual(["/dav/", "/xhr-get", "https://xhr.example.test/submit"]);
+    ).toEqual([
+      "/dav/",
+      "/dynamic-method",
+      "/xhr-get",
+      "https://xhr.example.test/submit",
+    ]);
   });
 
   it("recognizes loadURL endpoints like static analysis", () => {

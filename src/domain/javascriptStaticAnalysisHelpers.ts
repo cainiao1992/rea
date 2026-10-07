@@ -356,18 +356,31 @@ const XHR_METHODS = new Set([
   "TRACE",
 ]);
 
+/** An absolute HTTP(S)/WebSocket URL, or an absolute or relative path. */
+const isRequestUrlLiteral = (value: string): boolean =>
+  /^(?:https?|wss?):\/\//iu.test(value) ||
+  value.startsWith("/") ||
+  value.startsWith("./") ||
+  value.startsWith("../");
+
 /**
- * Require a literal HTTP method: `fs.open(path, "r")` and
- * `window.open(url, "_blank")` share the callee name but take no URL second.
+ * Read `XMLHttpRequest.open(method, url)`. `fs.open(path, "r")` and
+ * `window.open(url, "_blank")` share the callee name, so a literal method
+ * must be an HTTP method, and a computed method needs a request URL literal.
  * XHR normalizes the standard methods' case; extension methods such as
  * WebDAV `PROPFIND` are conventionally uppercase tokens.
  */
-const isXhrMethodArgument = (node: t.Node | null | undefined): boolean => {
-  const value = stringValue(node);
-  return (
-    value !== undefined &&
-    (XHR_METHODS.has(value.toUpperCase()) || /^[A-Z][A-Z-]*$/u.test(value))
-  );
+const xhrOpenUrl = (
+  methodNode: t.Node | null | undefined,
+  urlNode: t.Node | null | undefined,
+): string | undefined => {
+  const url = stringValue(urlNode);
+  if (url === undefined) return undefined;
+  const method = stringValue(methodNode);
+  if (method === undefined) return isRequestUrlLiteral(url) ? url : undefined;
+  return XHR_METHODS.has(method.toUpperCase()) || /^[A-Z][A-Z-]*$/u.test(method)
+    ? url
+    : undefined;
 };
 
 /** Select the literal URL argument for recognized network callees. */
@@ -382,9 +395,7 @@ export const endpointArgument = (
 ): string | undefined => {
   if (name === "fetch" || name.endsWith(".fetch") || name === "WebSocket")
     return stringValue(args[0]);
-  // `XMLHttpRequest.open(method, url)`.
-  if (name.endsWith(".open") && isXhrMethodArgument(args[0]))
-    return stringValue(args[1]);
+  if (name.endsWith(".open")) return xhrOpenUrl(args[0], args[1]);
   if (
     ["get", "post", "put", "patch", "delete", "request"].some(
       (method) => name === method || name.endsWith(`.${method}`),

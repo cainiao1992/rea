@@ -289,8 +289,8 @@ same exact tiers. The raw signature is exact whether or not REA decoded it, so
 undecoded signatures pair by that tuple too, but they never enter structural
 rounds. An unmatched member is therefore reported as `unknown`, not added or
 removed, when its own signature was not decoded or when the other side has an
-unmatched member with the same declared type and name whose signature was not
-decoded.
+unpaired member, one-sided or ambiguous, with the same declared type and name
+whose signature was not decoded.
 
 For a matched method, an unavailable or partial body makes body-shape facets
 unknown while preserving observed signature differences. Structural identity

@@ -337,6 +337,60 @@ describe("managed member comparison of undecoded signatures", () => {
   });
 });
 
+describe("managed member comparison of ambiguous undecoded signatures", () => {
+  it("keeps a decoded member unknown beside an ambiguous same-named undecoded group", () => {
+    const undecoded = { methodSignature: Buffer.from([0x00, 0x00, 0x7f]) };
+    const decoded = inspect(buildManagedPeFixture(), "/tmp/decoded.dll");
+    const left = inspect(buildManagedPeFixture(undecoded), "/tmp/left.dll");
+    const right = inspect(buildManagedPeFixture(undecoded), "/tmp/right.dll");
+    const [undecodedMethod] = left.result.methods;
+    const [decodedMethod] = decoded.result.methods;
+    if (undecodedMethod === undefined || decodedMethod === undefined)
+      throw new Error("Expected fixture methods");
+    expect(decodedMethod.name).toBe(undecodedMethod.name);
+    // One undecoded T.M on the left meets two identical undecoded T.M on the
+    // right, so that group stays ambiguous; the left also has a decoded T.M.
+    const result = compareManagedMembers(
+      {
+        ...left,
+        result: {
+          ...left.result,
+          methods: [undecodedMethod, { ...decodedMethod, token: "0x06000002" }],
+        },
+      },
+      {
+        ...right,
+        result: {
+          ...right.result,
+          methods: [
+            undecodedMethod,
+            { ...undecodedMethod, token: "0x06000002" },
+          ],
+        },
+      },
+    );
+
+    expect(result.methods).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          status: "unknown",
+          match: expect.objectContaining({ status: "ambiguous" }),
+        }),
+        expect.objectContaining({
+          status: "unknown",
+          left: expect.objectContaining({ token: "0x06000002" }),
+          limitations: [
+            expect.stringMatching(
+              /^counterpart-signature-not-decoded: The right method inventory has an unpaired member/u,
+            ),
+          ],
+        }),
+      ]),
+    );
+    expect(result.summary).toMatchObject({ removed: 0, added: 0 });
+  });
+});
+
 const inspect = (bytes: Buffer, path: string) => {
   const target = managedPeFixtureTarget(bytes, path);
   const result = inspectManagedMembersBytes(bytes, target);

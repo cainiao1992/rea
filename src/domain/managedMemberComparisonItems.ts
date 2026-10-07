@@ -28,7 +28,7 @@ interface ComparisonItemContext {
   readonly rightComplete: boolean;
 }
 
-/** Declared type and name of each unmatched member, per side, whose signature was not decoded. */
+/** Declared type and name of each unpaired member, per side, whose signature was not decoded. */
 interface UndecodedOneSidedNames {
   readonly left: ReadonlySet<string>;
   readonly right: ReadonlySet<string>;
@@ -162,8 +162,9 @@ const methodOnlyItem = (
  * Why a one-sided member's absence from the other inventory was not
  * observed: that inventory is incomplete, the member's own signature was not
  * decoded, so no shape round could seek a changed counterpart, or the other
- * inventory has an unmatched same-named member whose signature was not
- * decoded, which may be this member with a changed signature.
+ * inventory has an unpaired (one-sided or ambiguous) same-named member whose
+ * signature was not decoded, which may be this member with a changed
+ * signature.
  */
 const absenceLimitations = (
   member: Method | Field,
@@ -187,7 +188,7 @@ const absenceLimitations = (
   ...(member.signature.parse_status === "decoded" &&
   opposite.oppositeUndecodedNames.has(declaredName(member))
     ? [
-        `counterpart-signature-not-decoded: The ${opposite.opposite} ${opposite.inventory} inventory has an unmatched member with the same declared type and name whose signature was not decoded, so it may be this member with a changed signature.`,
+        `counterpart-signature-not-decoded: The ${opposite.opposite} ${opposite.inventory} inventory has an unpaired member with the same declared type and name whose signature was not decoded, so it may be this member with a changed signature.`,
       ]
     : []),
 ];
@@ -195,9 +196,17 @@ const absenceLimitations = (
 const declaredName = (member: Method | Field): string =>
   JSON.stringify([member.declaring_type, member.name]);
 
+/**
+ * Declared names of unpaired members whose signature was not decoded: one-sided
+ * members and candidates of ambiguous groups, which also remain unpaired.
+ */
 const undecodedOneSidedNames = (members: {
   readonly leftOnly: readonly { readonly item: Method | Field }[];
   readonly rightOnly: readonly { readonly item: Method | Field }[];
+  readonly ambiguous: readonly {
+    readonly left: readonly { readonly item: Method | Field }[];
+    readonly right: readonly { readonly item: Method | Field }[];
+  }[];
 }): UndecodedOneSidedNames => {
   const names = (side: readonly { readonly item: Method | Field }[]) =>
     new Set(
@@ -205,7 +214,16 @@ const undecodedOneSidedNames = (members: {
         .filter(({ item }) => item.signature.parse_status !== "decoded")
         .map(({ item }) => declaredName(item)),
     );
-  return { left: names(members.leftOnly), right: names(members.rightOnly) };
+  return {
+    left: names([
+      ...members.leftOnly,
+      ...members.ambiguous.flatMap(({ left }) => left),
+    ]),
+    right: names([
+      ...members.rightOnly,
+      ...members.ambiguous.flatMap(({ right }) => right),
+    ]),
+  };
 };
 
 const fieldOnlyItem = (

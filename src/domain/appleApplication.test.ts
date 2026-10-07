@@ -309,6 +309,18 @@ describe("Apple bundle layouts and containers", () => {
     expect(
       result.bundles.find(({ path }) => path === framework)?.info_plist_path,
     ).toBeNull();
+    // Files beside the only real version are not versions.
+    const withFiles = project(
+      inventoryEvidence("zip", "Fixture.zip", [
+        macho("Fixture.app/Contents/MacOS/Fixture"),
+        { path: `${framework}/Versions/A/Resources/Info.plist` },
+        { path: `${framework}/Versions/.DS_Store` },
+        { path: `${framework}/Versions/Current`, kind: "symlink" },
+      ]),
+    );
+    expect(
+      withFiles.bundles.find(({ path }) => path === framework)?.info_plist_path,
+    ).toBe(`${framework}/Versions/A/Resources/Info.plist`);
     // Only A has a plist, but Versions/Current may select B.
     const onlyA = project(
       inventoryEvidence("zip", "Fixture.zip", [

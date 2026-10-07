@@ -143,14 +143,29 @@ const asarFailure = (
   path: string,
   operation: string,
   cause: unknown,
-): ArtifactReaderFailure =>
-  cause instanceof ArtifactReaderFailure
-    ? cause
-    : new ArtifactReaderFailure(
-        "format",
-        `Malformed or unreadable ASAR during ${operation}: ${path}`,
-        { cause },
-      );
+): ArtifactReaderFailure => {
+  if (cause instanceof ArtifactReaderFailure) return cause;
+  if (isFilesystemFailure(cause))
+    return new ArtifactReaderFailure(
+      "io",
+      `Could not ${operation} ASAR at ${path}: ${cause.message}`,
+      { cause },
+    );
+  return new ArtifactReaderFailure(
+    "format",
+    `Malformed ASAR during ${operation}: ${path}`,
+    { cause },
+  );
+};
+
+const isFilesystemFailure = (
+  cause: unknown,
+): cause is NodeJS.ErrnoException & Error =>
+  cause instanceof Error &&
+  "errno" in cause &&
+  typeof cause.errno === "number" &&
+  "syscall" in cause &&
+  typeof cause.syscall === "string";
 
 const isMissingFile = (cause: unknown): boolean =>
   typeof cause === "object" &&

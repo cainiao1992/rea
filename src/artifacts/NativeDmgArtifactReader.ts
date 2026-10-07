@@ -141,14 +141,17 @@ export class NativeDmgArtifactReader implements ArtifactReader {
       );
   }
 
-  /** Report whether hdiutil still lists a device; unknown state counts as attached. */
+  /**
+   * Report whether hdiutil still lists a device; unknown state counts as
+   * attached. Like detach, this cleanup query runs after the inventory
+   * snapshot has captured provenance, so it is not recorded there.
+   */
   async #isAttached(device: string): Promise<boolean> {
     try {
       const info = await runChecked(this.host, ["info", "-plist"], undefined, {
         timeoutMs: DETACH_TIMEOUT_MS,
       });
       const parsed = infoOutputSchema.parse(parse(info.stdout));
-      this.#provenance.push(command(["info", "-plist"], ["read"]));
       return parsed.images.some((image) =>
         image["system-entities"].some(
           (entity) => entity["dev-entry"] === device,

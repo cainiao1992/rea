@@ -406,19 +406,24 @@ const memberPropertyName = (
     ? `[computed@${String(node.property.start ?? -1)}]`
     : semanticStaticPropertyName(node.property, node.computed);
 
-/** Return a string literal value without evaluating an expression. */
+/**
+ * Return a string literal value without evaluating an expression. A template
+ * literal without substitutions denotes the same exact string.
+ */
 export const stringValue = (
   node: t.Node | null | undefined,
-): string | undefined => (t.isStringLiteral(node) ? node.value : undefined);
+): string | undefined => {
+  if (t.isStringLiteral(node)) return node.value;
+  if (t.isTemplateLiteral(node) && node.expressions.length === 0)
+    return node.quasis[0]?.value.cooked ?? undefined;
+  return undefined;
+};
 
 /** Return a string or numeric argument literal. */
 export const argumentValue = (
   node: t.Node | null | undefined,
-): string | undefined => {
-  if (t.isStringLiteral(node) || t.isNumericLiteral(node))
-    return String(node.value);
-  return undefined;
-};
+): string | undefined =>
+  t.isNumericLiteral(node) ? String(node.value) : stringValue(node);
 
 /** Prefix a static argument value when one is available. */
 export const prefixedArgument = (

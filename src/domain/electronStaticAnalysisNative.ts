@@ -9,6 +9,7 @@ import {
   calleeName,
   propertyName,
   range,
+  semanticStaticPropertyName,
   stringValue,
 } from "./javascriptStaticAnalysisHelpers.js";
 import type { JavaScriptFindingContext } from "./javascriptStaticAnalysisState.js";
@@ -161,7 +162,7 @@ const nativeRequire = (
       ? nativeRequire(node.object)
       : undefined;
     if (nested === undefined) return undefined;
-    const member = propertyName(node.property);
+    const member = semanticStaticPropertyName(node.property, node.computed);
     return { ...nested, member: member === "" ? nested.member : member };
   }
   if (!t.isCallExpression(node)) return undefined;

@@ -14,8 +14,8 @@ import { addLocatedFinding } from "./javascriptStaticAnalysisFindings.js";
 import {
   argumentNode,
   calleeName,
-  propertyName,
   range,
+  semanticStaticPropertyName,
 } from "./javascriptStaticAnalysisHelpers.js";
 import type { JavaScriptFindingContext } from "./javascriptStaticAnalysisState.js";
 
@@ -124,7 +124,10 @@ const inspectValidationCall = (
     !t.isOptionalMemberExpression(node.callee)
   )
     return;
-  const method = propertyName(node.callee.property);
+  const method = semanticStaticPropertyName(
+    node.callee.property,
+    node.callee.computed,
+  );
   if (!["startsWith", "endsWith", "includes"].includes(method)) return;
   const subject = t.isNode(node.callee.object)
     ? senderSubject(node.callee.object)

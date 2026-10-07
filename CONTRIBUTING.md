@@ -28,19 +28,21 @@ Keep dependencies flowing inward through the existing domain, contracts, provide
 
 ## Documentation website
 
-The VitePress site uses the Markdown files in `docs/` and deploys to
-<https://morluto.github.io/rea/>. Run `npm run docs:dev` for live editing,
-`npm run docs:build` to check the production build and links, and
-`npm run docs:preview` to preview that build at `/rea/`.
+The VitePress site uses the Markdown files in `docs/`. Run `npm run docs:dev`
+for live editing, `npm run docs:build` to check the production build and
+links, and `npm run docs:preview` to preview that build at `/rea/`.
 
 Site navigation lives in `docs/.vitepress/config.ts`. Keep links to guides
 relative so they work on GitHub and the website; link to repository files
 outside `docs/` using their full GitHub URLs. Generated reference documents
 still use `npm run docs:generate`; `docs:build` only builds the website.
 
-The documentation workflow builds pull requests and deploys changes on `main`.
-The repository's **Settings → Pages → Build and deployment → Source** must be
-set to **GitHub Actions** before the first deployment.
+Pull requests run `npm run docs:check`. `.github/workflows/pages.yml` is a
+manual VitePress build and does not publish. The public site at
+<https://morluto.github.io/rea/> is published only by the manual website
+workflow on `main`. The repository's **Settings → Pages → Build and
+deployment → Source** must be set to **GitHub Actions** before the first
+deployment.
 
 ## Development feedback and PR verification
 
@@ -121,9 +123,9 @@ Describe the behavior change and verification performed in the pull request. Nev
 ## Maintainer release checklist
 
 Use the [checkpoint release guide](docs/releasing.md). Releases start from an
-explicit `release/VERSION` branch cut at a recorded commit. Pushing the branch prepares
-the bot PR. Wait for its exact-head CI and review; merging into that frozen
-branch triggers publication through the official Release workflow. Main
+explicit `release/VERSION` branch cut at a recorded commit. Manually prepare
+the bot PR, wait for its exact-head CI and review, merge into that frozen
+branch, and manually publish through the official Release workflow. Main
 pushes do not update release PRs or publish packages. Both publishers build
 the exact SHA tagged by Release Please.
 

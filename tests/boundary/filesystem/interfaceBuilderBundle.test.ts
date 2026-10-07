@@ -234,7 +234,18 @@ describe("bounded Interface Builder archive decoding", () => {
           analysis.graph.nodes.find(({ id }) => id === from)?.kind ===
             "control",
       );
-      expect(actionSource).toBeDefined();
+      const describeNode = (id: string | null) => {
+        const node = analysis.graph.nodes.find((item) => item.id === id);
+        return node === undefined ? String(id) : `${node.kind}:${node.name}`;
+      };
+      const actionRoutes = analysis.graph.edges
+        .filter(
+          ({ relation, from, to }) =>
+            relation === "target_action" &&
+            (from === action?.id || to === action?.id),
+        )
+        .map(({ from, to }) => `${describeNode(from)} -> ${describeNode(to)}`);
+      expect(actionSource, actionRoutes.join("; ")).toBeDefined();
       expect(
         analysis.graph.edges.some(
           ({ from, relation, to }) =>

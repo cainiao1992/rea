@@ -45,7 +45,7 @@ import {
 import { parseCodeSignature } from "./parsers/codesign.js";
 import { parseDemangledSymbols } from "./parsers/demangle.js";
 import { parseLipoArchitectures } from "./parsers/lipo.js";
-import { parsePlistJson } from "./parsers/plist.js";
+import { parsePlistJson, parsePlistXml } from "./parsers/plist.js";
 import {
   architectureLocations,
   inspectNativeMacho,
@@ -460,33 +460,51 @@ class NativeMacOSClient implements AnalysisClient {
       { signal },
     );
     if (!classified.ok) return classified;
-    const capture = await this.#run(
+    const json = await this.#run(
       "inspect_plist",
       "plutil",
       ["-convert", "json", "-o", "-", "--", plist.value],
-      { signal },
+      { signal, acceptNonZero: true },
     );
-    if (!capture.ok) return capture;
-    const parsed = parsePlistJson(capture.value.stdout);
+    if (!json.ok) return json;
+    // JSON cannot express data, dates, or non-finite reals; plutil rejects
+    // such plists, so decode its lossless XML conversion instead.
+    const xml =
+      json.value.exitCode === 0
+        ? undefined
+        : await this.#run(
+            "inspect_plist",
+            "plutil",
+            ["-convert", "xml1", "-o", "-", "--", plist.value],
+            { signal },
+          );
+    if (xml !== undefined && !xml.ok) return xml;
+    const parsed =
+      xml === undefined
+        ? parsePlistJson(json.value.stdout)
+        : parsePlistXml(xml.value.stdout);
     if (!parsed.ok) return parsed;
-    const provenance = [classified.value, capture.value].map((item) =>
-      invocation(item, plist.value, "$PLIST"),
-    );
+    const provenance = [
+      classified.value,
+      json.value,
+      ...(xml === undefined ? [] : [xml.value]),
+    ].map((item) => invocation(item, plist.value, "$PLIST"));
     const result = inspectPlistSchema.parse({
       format: /binary property list/iu.test(classified.value.stdout)
         ? "binary"
         : /XML|text/iu.test(classified.value.stdout)
           ? "xml"
           : "unknown",
-      ...parsed.value,
+      value: parsed.value.value,
+      bundle: parsed.value.bundle,
       source_path: plist.value,
       provenance,
-      limitations: [],
+      limitations: parsed.value.limitations,
     });
     return ok({
       result: jsonValueSchema.parse(result),
       provenance,
-      limitations: [],
+      limitations: parsed.value.limitations,
       locations: [{ kind: "artifact-path", path: plist.value }],
     });
   }

@@ -1,5 +1,7 @@
+import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
 import { describe, expect } from "vitest";
 
@@ -58,6 +60,72 @@ describe.skipIf(process.platform !== "darwin")(
             },
           });
         }
+      },
+    );
+
+    cliTest.for(["xml", "binary"] as const)(
+      "decodes $0 plists that plutil cannot express as JSON",
+      async (format, { cli }) => {
+        const directory = await createTestTempDirectory("rea-plist-types-");
+        const app = join(directory, "Example.app");
+        const contents = join(app, "Contents");
+        await mkdir(join(contents, "MacOS"), { recursive: true });
+        await writeFile(
+          join(contents, "MacOS/App"),
+          thinMach(0xfeedfacf, 0x0100000c),
+        );
+        const plist = join(contents, "Info.plist");
+        await writeFile(
+          plist,
+          [
+            "<plist><dict>",
+            "<key>CFBundleExecutable</key><string>App</string>",
+            "<key>CFBundleIdentifier</key><string>com.example.types</string>",
+            "<key>Blob</key><data>AAEC</data>",
+            "<key>Built</key><date>2020-01-01T00:00:00Z</date>",
+            "<key>Ratio</key><real>nan</real>",
+            "</dict></plist>",
+          ].join(""),
+        );
+        if (format === "binary")
+          await promisify(execFile)("/usr/bin/plutil", [
+            "-convert",
+            "binary1",
+            "--",
+            plist,
+          ]);
+        const result = await cli.run({
+          arguments: ["inspect-plist", app, "--json"],
+          environment: {
+            REA_LOG_LEVEL: "silent",
+            REA_ANALYSIS_PROVIDER: "auto",
+          },
+        });
+        expect(result.exitCode).toBe(0);
+        expect(result.json).toMatchObject({
+          normalized_result: {
+            format,
+            value: {
+              CFBundleIdentifier: "com.example.types",
+              Blob: { $plist_type: "data", base64: "AAEC" },
+              Built: {
+                $plist_type: "date",
+                iso8601: "2020-01-01T00:00:00.000Z",
+              },
+              Ratio: { $plist_type: "real", value: null },
+            },
+            bundle: { identifier: "com.example.types", executable: "App" },
+            provenance: [
+              { tool: "file" },
+              { command: expect.arrayContaining(["json"]), exit: { code: 1 } },
+              { command: expect.arrayContaining(["xml1"]), exit: { code: 0 } },
+            ],
+            limitations: [
+              expect.stringContaining("XML conversion"),
+              expect.stringContaining("1 non-finite real"),
+            ],
+          },
+        });
       },
     );
   },

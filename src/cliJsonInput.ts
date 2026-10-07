@@ -72,7 +72,9 @@ const cannotBeAnExistingFile = (cause: unknown): boolean =>
   typeof cause === "object" &&
   cause !== null &&
   "code" in cause &&
-  (cause.code === "ENOENT" || cause.code === "ENAMETOOLONG");
+  (cause.code === "ENOENT" ||
+    cause.code === "ENAMETOOLONG" ||
+    cause.code === "ENOTDIR");
 
 const hasExplicitJsonFileExtension = (value: string): boolean =>
   value.toLowerCase().endsWith(".json");

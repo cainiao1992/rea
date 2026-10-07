@@ -91,6 +91,12 @@ Name tests `*.test.ts`. Use Vitest and production seams (`tests/fixtures/`) rath
 
 Keep tool catalogs complete and self-describing; prefer capability- and session-scoped availability over schema truncation. Serialized bytes alone do not measure agent usability or model context cost.
 
+## Cursor Cloud specific instructions
+
+Development requires Node.js 24.18.0 and npm 11.16.0 (`.nvmrc` and `packageManager`). The Cloud Agent image places an older `node` on `PATH` ahead of a normal install. Environment setup installs the pinned toolchain under `/usr/local` and prepends `/usr/local/bin` for login shells. Confirm `node -v` is `v24.18.0` before installing dependencies.
+
+`npm ci` installs locked dependencies. `npm run build:cached` produces the CLI and MCP server. `npm run check:fast` is the pre-push typecheck and lint. Hopper, Ghidra, and IDA are optional bring-your-own providers. JavaScript analysis and the deterministic Vitest suites do not need them. `rea doctor` reports those engines as missing until they are configured.
+
 ## Commit & Pull Request Guidelines
 
 Use Conventional Commit subjects because Release Please derives versions and changelogs from them. Examples: `feat: add historical source import`, `fix(process): stop timers after exit`, and `docs: update architecture`. Use `!` or a `BREAKING CHANGE:` footer for breaking changes. Pull request titles must follow the same format because squash merges use the title as the release commit. Pull requests should describe contract or behavior changes, list verification commands, link issues, and include sanitized MCP examples when schemas change. State whether real Hopper/Ghidra verification was performed. Never commit binaries, Hopper or Ghidra project documents, credentials, `dist/`, `node_modules/`, or local planning artifacts (e.g. `.codex/`).

@@ -8,7 +8,6 @@ import { observeNativeUi } from "./NativeUiObservation.js";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { open, realpath, stat } from "node:fs/promises";
 
-import { parse as parseXmlPlist } from "plist";
 import { z } from "zod";
 
 import {
@@ -35,6 +34,7 @@ import { BinaryTargetError } from "../domain/configurationErrors.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
+import { parseXmlPropertyList } from "../domain/propertyListKeys.js";
 import {
   demangleSwiftSchema,
   inspectPlistSchema,
@@ -645,7 +645,7 @@ const parseEntitlements = (output: string): JsonValue | null => {
   const end = output.lastIndexOf("</plist>");
   if (start < 0 || end < start) return null;
   return jsonValueSchema.parse(
-    parseXmlPlist(output.slice(start, end + "</plist>".length)),
+    parseXmlPropertyList(output.slice(start, end + "</plist>".length)).value,
   );
 };
 

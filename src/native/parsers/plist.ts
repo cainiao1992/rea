@@ -1,4 +1,3 @@
-import { parse as parseXmlPlist } from "plist";
 import { z } from "zod";
 
 import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
@@ -7,6 +6,11 @@ import {
   projectPlistValue,
   type ProjectedPlistValue,
 } from "../../domain/plistValue.js";
+import {
+  omitPrototypeKeys,
+  omittedPrototypeKeysLimitation,
+  parseXmlPropertyList,
+} from "../../domain/propertyListKeys.js";
 import { err, ok, type Result } from "../../domain/result.js";
 
 const plistObject = z.record(z.string(), z.unknown());
@@ -99,9 +103,9 @@ export const parsePlistJson = (
     ambiguousNumberCount += 1;
     return item;
   };
-  let value: unknown;
+  let decoded: ReturnType<typeof omitPrototypeKeys>;
   try {
-    value = decodePlistJson(output, classify);
+    decoded = omitPrototypeKeys(decodePlistJson(output, classify));
   } catch (cause: unknown) {
     return err(
       new AnalysisOutputError(
@@ -111,10 +115,14 @@ export const parsePlistJson = (
       ),
     );
   }
+  const { value } = decoded;
   return ok({
     value,
     bundle: projectPlistBundle(value),
-    limitations: numberLimitations(exactIntegerCount, ambiguousNumberCount),
+    limitations: [
+      ...numberLimitations(exactIntegerCount, ambiguousNumberCount),
+      ...prototypeKeyLimitations(decoded.omittedPrototypeKeys),
+    ],
   });
 };
 
@@ -126,8 +134,11 @@ export const parsePlistXml = (
   output: string,
 ): Result<ParsedPlist, AnalysisOutputError> => {
   let projected: ProjectedPlistValue;
+  let omittedPrototypeKeys: number;
   try {
-    projected = projectPlistValue(parseXmlPlist(output));
+    const decoded = parseXmlPropertyList(output);
+    omittedPrototypeKeys = decoded.omittedPrototypeKeys;
+    projected = projectPlistValue(decoded.value);
   } catch (cause: unknown) {
     return err(
       new AnalysisOutputError(
@@ -168,6 +179,7 @@ export const parsePlistXml = (
             `${String(projected.unknownRealCount)} non-finite real value(s) are reported as { "$plist_type": "real", "value": null } because the XML decoder does not distinguish NaN from infinity.`,
           ]),
       ...numberLimitations(exactIntegerCount, ambiguousNumberCount),
+      ...prototypeKeyLimitations(omittedPrototypeKeys),
     ],
   });
 };
@@ -200,6 +212,9 @@ const xmlNumberLiterals = (xml: string): XmlNumberLiterals => {
   );
   return { integers, reals };
 };
+
+const prototypeKeyLimitations = (count: number): string[] =>
+  count === 0 ? [] : [omittedPrototypeKeysLimitation(count)];
 
 const numberLimitations = (
   exactIntegerCount: number,

@@ -125,6 +125,7 @@ const referencedValues = (
   if (
     t.isTSAsExpression(node) ||
     t.isTSTypeAssertion(node) ||
+    t.isTSSatisfiesExpression(node) ||
     t.isTSNonNullExpression(node)
   )
     return [{ node: node.expression, path }];

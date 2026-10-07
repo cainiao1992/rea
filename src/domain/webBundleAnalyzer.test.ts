@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { webPageInspectionSchema } from "./browserObservation.js";
+import { analyzeJavaScriptStaticSource } from "./javascript/javascriptStaticAnalysis.js";
 import { analyzeCapturedWebBundle } from "./webBundleAnalyzer.js";
 import { webBundleAnalysisSchema } from "./webBundleAnalysis.js";
 import { createWebTextArtifact } from "./webContentArtifact.js";
@@ -208,6 +209,30 @@ describe("web bundle static-analysis parity", () => {
     ]);
   });
 
+  it("reads storage open versions as storage rather than endpoints in both analyzers", () => {
+    const source = `
+      indexedDB.open(databaseName, "2");
+      window.indexedDB.open(databaseName, "/v3");
+      indexedDB.open("APP", "4");
+      indexedDB.open("GET", "/storage-named-xhr");
+    `;
+    expect(
+      analyzeCapturedWebBundle(inspection(source)).observations.endpoints.map(
+        ({ value }) => value,
+      ),
+    ).toEqual(["/storage-named-xhr"]);
+    const analysis = analyzeJavaScriptStaticSource(source);
+    expect(analysis.endpoints.map(({ value }) => value)).toEqual([
+      "/storage-named-xhr",
+    ]);
+    expect(analysis.storage.map(({ kind }) => kind)).toEqual([
+      "indexed-db",
+      "indexed-db",
+      "indexed-db",
+      "indexed-db",
+    ]);
+  });
+
   it("keeps HTTP-method-named reads of provable keyed collections out of endpoints", () => {
     const result = analyzeCapturedWebBundle(
       inspection(`
@@ -273,6 +298,32 @@ describe("web bundle artifact metadata", () => {
         },
       }).capture.source_artifacts[0]?.media_type,
     ).toBe(mediaType);
+  });
+});
+
+describe("deep captured web bundle syntax", () => {
+  it("retains evidence after a parser-admitted deep property chain", () => {
+    const source = `const value = root${".next".repeat(12_000)};\nimport "./last.js";\nfetch("/after");`;
+    const result = analyzeCapturedWebBundle(inspection(source));
+    expect(result.completeness).toMatchObject({
+      status: "complete",
+      parsed_scripts: 1,
+      parse_failures: 0,
+    });
+    expect(result.observations.chunks.edges).toContainEqual(
+      expect.objectContaining({
+        kind: "static_import",
+        specifier: "./last.js",
+        resolved_url: `${origin}/assets/last.js`,
+        location: expect.objectContaining({ line: 2, column: 0 }),
+      }),
+    );
+    expect(result.observations.endpoints).toContainEqual(
+      expect.objectContaining({
+        value: "/after",
+        location: expect.objectContaining({ line: 3, column: 0 }),
+      }),
+    );
   });
 });
 

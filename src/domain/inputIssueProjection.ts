@@ -15,9 +15,17 @@ const projectIssue = (
   const path = issue.path.flatMap((part) =>
     typeof part === "string" || typeof part === "number" ? [part] : [],
   );
+  // Branch issue paths are relative to the union; branches often agree.
   if (issue.code === "invalid_union")
-    return issue.errors.flatMap((branch) =>
-      branch.flatMap((branchIssue) => projectIssue(branchIssue, input)),
+    return uniqueIssues(
+      issue.errors.flatMap((branch) =>
+        branch.flatMap((branchIssue) =>
+          projectIssue(
+            { ...branchIssue, path: [...issue.path, ...branchIssue.path] },
+            input,
+          ),
+        ),
+      ),
     );
   if (issue.code === "unrecognized_keys")
     return issue.keys.map((key) => ({
@@ -57,6 +65,12 @@ const projectIssue = (
     },
   ];
 };
+
+const uniqueIssues = (
+  issues: readonly AnalysisInputIssue[],
+): AnalysisInputIssue[] => [
+  ...new Map(issues.map((issue) => [JSON.stringify(issue), issue])).values(),
+];
 
 const valueAtPath = (
   input: unknown,

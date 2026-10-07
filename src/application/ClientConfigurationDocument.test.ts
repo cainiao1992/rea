@@ -92,14 +92,11 @@ describe.each([
 });
 
 describe("TOML client configuration BOM handling", () => {
-  it("retains the TOML parser's existing leading-BOM rejection", () => {
+  it.each(["", "\uFEFF"])("parses a document with prefix %j", (bom) => {
     const text = '[mcp_servers.rea]\ncommand = "rea"\n';
 
-    expect(parseClientConfiguration(text, "toml").servers).toEqual({
+    expect(parseClientConfiguration(`${bom}${text}`, "toml").servers).toEqual({
       rea: { command: "rea" },
     });
-    expect(() => parseClientConfiguration(`\uFEFF${text}`, "toml")).toThrow(
-      "Invalid TOML document",
-    );
   });
 });

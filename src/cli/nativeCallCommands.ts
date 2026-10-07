@@ -1,6 +1,6 @@
 import { z } from "incur";
 
-import { runProviderAnalysis } from "../application/DirectAnalysis.js";
+import { runProviderAnalysis } from "../composition/directAnalysis.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
 import { parseCliJsonInput } from "../cliJsonInput.js";
 import { logCliCommand } from "../cliLogging.js";

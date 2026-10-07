@@ -10,7 +10,7 @@
     "skill_version": "28"
   },
   "tools": {
-    "total": 132,
+    "total": 134,
     "families": [
       {
         "id": "direct",
@@ -143,7 +143,7 @@
       {
         "id": "browser",
         "surface": "browser-provider",
-        "count": 9,
+        "count": 11,
         "tools": [
           "analyze_web_bundle",
           "capture_browser_scenario",
@@ -151,8 +151,10 @@
           "compare_web_captures",
           "compare_web_screenshots",
           "discover_webmcp_tools",
+          "inspect_web_event_listeners",
           "inspect_web_page",
           "list_browser_targets",
+          "observe_web_execution",
           "observe_web_session"
         ]
       },
@@ -391,8 +393,10 @@
         "compare_web_captures",
         "compare_web_screenshots",
         "discover_webmcp_tools",
+        "inspect_web_event_listeners",
         "inspect_web_page",
         "list_browser_targets",
+        "observe_web_execution",
         "observe_web_session"
       ]
     },
@@ -568,7 +572,7 @@
     }
   ],
   "cli": {
-    "primary_count": 87,
+    "primary_count": 89,
     "commands": [
       "address-to-file-offset",
       "analyze",
@@ -624,6 +628,7 @@
       "inspect-native-load-image",
       "inspect-plist",
       "inspect-signature",
+      "inspect-web-event-listeners",
       "inspect-web-page",
       "instructions",
       "list-architectures",
@@ -633,6 +638,7 @@
       "observe-javascript-runtime",
       "observe-native-calls",
       "observe-native-ui",
+      "observe-web-execution",
       "observe-web-session",
       "project-android-application-graph",
       "project-apple-application-graph",
@@ -667,15 +673,15 @@
   },
   "runtime_catalog": {
     "counts": {
-      "cli_commands": 87,
-      "mcp_tools": 132,
+      "cli_commands": 89,
+      "mcp_tools": 134,
       "mcp_prompts": 6
     },
     "digests": {
-      "tools_sha256": "92ae53640dfc900a7f68d68ebe7c73df3598216bdc5ec9223ddf273646faf428",
+      "tools_sha256": "9ba18b85d37d4883392982eebeb463e2bfa5096fee55a35cf7b7dde30eae5c03",
       "prompts_sha256": "ef2de8814390b340623c32001610aa2709d90bed51537b6e562ab3abf144ab4d",
-      "combined_sha256": "620f3dfef357568e29b9a77dd771cf2556a88b54186e1eb871b0f00e33430520",
-      "providers_sha256": "486202b495c0dedb5ae8e2cf859415b98126d94b7220cb350f854275e80538c3"
+      "combined_sha256": "a9f3428463b46fece17dc43ad1aa913296e0b11cf3d57ce477e3b06e93b99d17",
+      "providers_sha256": "78627c8dd3657e15cd4a819dad747555e7aa76111ecce2393441d173aa5b3b88"
     }
   }
 }

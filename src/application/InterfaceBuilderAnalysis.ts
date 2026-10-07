@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { parseBinary } from "plist";
 
 import { DirectoryArtifactReader } from "../artifacts/DirectoryArtifactReader.js";
+import { projectPlistValue } from "../domain/plistValue.js";
 import {
   omittedPrototypeKeysLimitation,
   parseXmlPropertyList,
@@ -390,6 +391,7 @@ const readEntry = async (
   return Buffer.concat(chunks, length);
 };
 
+/** Project decoded plist data and dates while retaining omitted-key coverage. */
 const decodePlist = (
   bytes: Buffer,
 ): { readonly value: JsonValue; readonly omittedPrototypeKeys: number } => {
@@ -397,5 +399,5 @@ const decodePlist = (
     bytes.subarray(0, 8).toString("ascii") === "bplist00"
       ? { value: parseBinary(bytes), omittedPrototypeKeys: 0 }
       : parseXmlPropertyList(bytes.toString("utf8"));
-  return { value: jsonValueSchema.parse(value), omittedPrototypeKeys };
+  return { value: projectPlistValue(value).value, omittedPrototypeKeys };
 };

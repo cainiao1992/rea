@@ -164,6 +164,50 @@ describe("compiled Interface Builder bundle reader", () => {
   });
 });
 
+describe("flat Interface Builder plist values", () => {
+  it("decodes flat nib archives that hold data and date values", async () => {
+    const root = await createTestTempDirectory("rea-ib-test-");
+    const bundle = join(root, "Example.app");
+    const resources = join(bundle, "Contents", "Resources", "English.lproj");
+    await mkdir(resources, { recursive: true });
+    await writeFile(
+      join(resources, "Binary.nib"),
+      buildBinary({
+        $archiver: "NSKeyedArchiver",
+        $version: 100000,
+        $objects: [
+          "$null",
+          { $class: { UID: 2 }, title: "Build", NSColor: { UID: 3 } },
+          { $classname: "NSButton", $classes: ["NSButton", "NSObject"] },
+          { $class: { UID: 4 }, NSWhite: Buffer.from("0.5\0", "ascii") },
+          { $classname: "NSColor", $classes: ["NSColor", "NSObject"] },
+        ],
+        $top: { root: { UID: 1 } },
+      }),
+    );
+    await writeFile(
+      join(resources, "Xml.nib"),
+      '<?xml version="1.0"?><plist version="1.0"><dict><key>$archiver</key><string>NSKeyedArchiver</string><key>$objects</key><array><string>$null</string><dict><key>NSWhite</key><data>MC41AA==</data><key>NSDate</key><date>2026-10-07T00:00:00Z</date></dict></array><key>$top</key><dict/></dict></plist>',
+    );
+
+    const analysis = await analyzeInterfaceBuilderBundle({
+      bundlePath: bundle,
+      targetSha256: "d".repeat(64),
+    });
+
+    expect(
+      analysis.documents.map(({ relative_path }) => relative_path).sort(),
+    ).toEqual([
+      "Contents/Resources/English.lproj/Binary.nib",
+      "Contents/Resources/English.lproj/Xml.nib",
+    ]);
+    expect(analysis.graph.coverage).toContainEqual(
+      expect.objectContaining({ facet: "archive_decode", status: "complete" }),
+    );
+    expect(analysis.graph.nodes.map(({ name }) => name)).toContain("Build");
+  });
+});
+
 describe("bounded Interface Builder archive decoding", () => {
   it("counts malformed archives against the document limit", async () => {
     const root = await createTestTempDirectory("rea-ib-test-");

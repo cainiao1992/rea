@@ -84,4 +84,5 @@ export const DYLIB_RESOLUTION_LIMITATIONS = [
   "Load order follows dyld's dependents-first traversal in load-command order. An image reached through several chains is resolved once per process, with the rpath stack of the first chain; a later request whose install name matches an already loaded image reuses it.",
   "@loader_path uses each image's symlink-resolved path within the analyzed root.",
   "Code-signing checks that can reject a found image, such as library validation and the hardened runtime, are not evaluated.",
+  "Dylib compatibility versions are not compared. Apple's linker documentation describes a load-time rejection when an image's compatibility version is older than the loader requires, but dyld on macOS 26 was observed to load such an image.",
 ];

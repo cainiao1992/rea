@@ -123,3 +123,39 @@ it("rejects targets that are not Mach-O", async () => {
     expect(JSON.stringify(called.structuredContent)).toContain("unavailable");
   });
 });
+
+it("traces a standalone Mach-O file whose name ends in .app", async () => {
+  const directory = await createTestTempDirectory("rea-dylib-mcp-file-");
+  await writeFile(
+    join(directory, "Tool.app"),
+    machoImage({
+      commands: [dylibCommand(LC.LOAD_DYLIB, "@loader_path/libcore.dylib")],
+    }),
+  );
+  await writeFile(
+    join(directory, "libcore.dylib"),
+    machoImage({ fileType: FILE_TYPE.dylib }),
+  );
+  await withClient(async (client) => {
+    const opened = await client.callTool({
+      name: "open_binary",
+      arguments: { path: join(directory, "Tool.app") },
+    });
+    expect(opened.isError, JSON.stringify(opened)).not.toBe(true);
+    const called = await client.callTool({
+      name: "trace_dylib_resolution",
+      arguments: {},
+    });
+    expect(called.isError, JSON.stringify(called.structuredContent)).not.toBe(
+      true,
+    );
+    const trace = dylibResolutionResultSchema.parse(
+      structuredResult(called.structuredContent),
+    );
+    expect(trace.edges).toEqual([
+      expect.objectContaining({
+        resolution: { status: "resolved", image: "libcore.dylib" },
+      }),
+    ]);
+  });
+});

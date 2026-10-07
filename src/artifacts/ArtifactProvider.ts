@@ -246,9 +246,12 @@ class ArtifactClient implements AnalysisClient {
         "unavailable",
         "trace_dylib_resolution requires an active Mach-O or .app bundle target",
       );
-    const bundle = this.target.sourcePath?.toLowerCase().endsWith(".app")
-      ? this.target.sourcePath
-      : undefined;
+    // Only a target opened from an app bundle directory carries its Info.plist;
+    // a regular file whose name ends in .app is a standalone image.
+    const bundle =
+      this.target.bundleInfoPlist === undefined
+        ? undefined
+        : this.target.sourcePath;
     const result = await traceDylibResolution({
       rootPath: bundle ?? dirname(this.target.path),
       targetPath: this.target.path,

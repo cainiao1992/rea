@@ -96,11 +96,14 @@ export const readMachoImage = async (
       const littleEndian = magic === FAT_CIGAM || magic === FAT_CIGAM_64;
       const count = view.getUint32(4, littleEndian);
       const wide = magic === FAT_MAGIC_64 || magic === FAT_CIGAM_64;
-      if (
-        count === 0 ||
-        count > MAX_FAT_ARCHITECTURES ||
-        8 + count * (wide ? 32 : 20) > size
-      )
+      // A Java class file's nonzero major version reads as the count, so an
+      // empty architecture table can only be a malformed universal header.
+      if (count === 0)
+        return {
+          status: "malformed",
+          reason: "FAT header declares no architectures",
+        };
+      if (count > MAX_FAT_ARCHITECTURES || 8 + count * (wide ? 32 : 20) > size)
         return { status: "not-mach-o" };
       const table = viewOf(
         await readExact(readAt, 8, count * (wide ? 32 : 20), "FAT table"),

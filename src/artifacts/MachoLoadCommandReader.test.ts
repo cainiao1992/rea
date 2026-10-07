@@ -237,6 +237,15 @@ describe("Mach-O load command reader failures", () => {
     }));
     const facts = await read(fatImage(slices));
     expect(facts.status === "parsed" && facts.slices).toHaveLength(24);
+    // An empty table is not a Java class file, whose major version is nonzero.
+    for (const magic of [
+      [0xca, 0xfe, 0xba, 0xbe],
+      [0xbf, 0xba, 0xfe, 0xca],
+    ])
+      expect(await read(Uint8Array.from([...magic, 0, 0, 0, 0]))).toEqual({
+        status: "malformed",
+        reason: "FAT header declares no architectures",
+      });
   });
 
   it("rejects string commands too short to hold their string offset", async () => {

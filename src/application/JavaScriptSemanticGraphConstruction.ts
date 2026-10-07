@@ -1,5 +1,6 @@
 import type { JavaScriptApplicationGraph } from "../domain/javascriptApplicationGraph.js";
 import type { JsonValue } from "../domain/jsonValue.js";
+import { javascriptDisplayText } from "../domain/javascriptAstValues.js";
 import {
   createJavaScriptSemanticGraphNode,
   createJavaScriptSemanticGraphRelation,
@@ -17,14 +18,6 @@ import {
   observedSemanticEvidence,
   unavailableSemanticRootEvidence,
 } from "./JavaScriptSemanticGraphEvidence.js";
-
-/**
- * Display an exact JavaScript key or name as a nonempty graph label. The legal
- * empty key is shown as `""`; callers keep the exact value where the node
- * carries it.
- */
-export const semanticNameLabel = (name: string): string =>
-  name === "" ? '""' : name;
 
 /** Mutable local projection state hidden from graph callers. */
 export interface SemanticGraphProjectionState {
@@ -85,7 +78,7 @@ export const constructSemanticGraphNode = (
     },
     function_node_id: input.functionNodeId,
     application_node_ids: matchingApplicationNodeIds(file, input, state),
-    label: input.label,
+    label: input.label === null ? null : javascriptDisplayText(input.label),
     properties: input.properties ?? {},
     evidence: observedSemanticEvidence(file, input.location),
   });

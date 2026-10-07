@@ -23,3 +23,11 @@ export const semanticStaticPropertyKey = (
     return String(property.value);
   return !computed && t.isIdentifier(property) ? property.name : null;
 };
+
+/**
+ * Display an exact JavaScript string as nonempty label text. Graph labels and
+ * artifact-local keys are nonempty, so the legal empty value is shown as `""`;
+ * producers keep the exact value in their properties.
+ */
+export const javascriptDisplayText = (value: string): string =>
+  value === "" ? '""' : value;

@@ -7,7 +7,6 @@ import {
   addSemanticGraphNode,
   addSemanticGraphRelation,
   constructSemanticGraphNode,
-  semanticNameLabel,
 } from "./JavaScriptSemanticGraphConstruction.js";
 import type { SemanticFlowProjectionContext } from "./JavaScriptSemanticGraphFlowProjection.js";
 
@@ -117,7 +116,7 @@ export const semanticPropertySlot = (
         kind: "property-slot",
         roleKey: `property:${objectBindingId}:${name}`,
         location: null,
-        label: semanticNameLabel(name),
+        label: name,
         functionNodeId:
           context.bindingNodes.get(objectBindingId)?.function_node_id ?? null,
         properties: {

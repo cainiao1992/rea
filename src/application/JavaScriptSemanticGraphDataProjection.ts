@@ -10,7 +10,6 @@ import {
   addSemanticGraphRelation,
   addSemanticGraphUnknown,
   constructSemanticGraphNode,
-  semanticNameLabel,
 } from "./JavaScriptSemanticGraphConstruction.js";
 import { unknownSemanticEvidence } from "./JavaScriptSemanticGraphEvidence.js";
 import {
@@ -79,10 +78,7 @@ const addConfigurationNode = (
         kind: "config-source",
         roleKey: operation.configId,
         location: operation.location,
-        label:
-          operation.key === null
-            ? operation.kind
-            : semanticNameLabel(operation.key),
+        label: operation.key ?? operation.kind,
         functionNodeId:
           operation.ownerCallableId === null
             ? null

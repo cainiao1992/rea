@@ -26,6 +26,22 @@ worktrees. After a package, lockfile, or managed-skill version change, run
 
 Keep dependencies flowing inward through the existing domain, contracts, provider, application, server, and adapter layers. Parse unknown values at process and protocol boundaries, model expected failures with `Result`, and preserve the canonical tool inventory defined by `TOOL_CONTRACTS` unless a deliberate contract change updates every verifier, generated catalog artifact, and snapshot. Keep tool discovery complete and report capability- and session-scoped availability through `binary_session`.
 
+## Documentation website
+
+The VitePress site uses the Markdown files in `docs/` and deploys to
+<https://morluto.github.io/rea/>. Run `npm run docs:dev` for live editing,
+`npm run docs:build` to check the production build and links, and
+`npm run docs:preview` to preview that build at `/rea/`.
+
+Site navigation lives in `docs/.vitepress/config.ts`. Keep links to guides
+relative so they work on GitHub and the website; link to repository files
+outside `docs/` using their full GitHub URLs. Generated reference documents
+still use `npm run docs:generate`; `docs:build` only builds the website.
+
+The documentation workflow builds pull requests and deploys changes on `main`.
+The repository's **Settings → Pages → Build and deployment → Source** must be
+set to **GitHub Actions** before the first deployment.
+
 ## Development feedback and PR verification
 
 For an ordinary edit, run the relevant regression and cached static checks:

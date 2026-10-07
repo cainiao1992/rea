@@ -3,6 +3,7 @@ import { constants } from "node:fs";
 import { lstat, open, readlink, realpath } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 
+import { resolveTreePath } from "../domain/dyldPaths.js";
 import {
   dylibResolutionInputSchema,
   dylibResolutionResultSchema,
@@ -18,10 +19,14 @@ import { hasMachoMagic, readMachoImage } from "./MachoLoadCommandReader.js";
 
 const HASH_CHUNK_BYTES = 1024 * 1024;
 
+/** Device, inode, size and change times of the file whose bytes were parsed. */
+type FileIdentity = string;
+
 /** Lazily probed, symlink-preserving view of one analyzed directory. */
 class FilesystemTreeView implements DylibTreeView {
   readonly #entries = new Map<string, Promise<DylibTreeEntry | undefined>>();
   readonly #images = new Map<string, Promise<MachoImageFacts>>();
+  readonly #identities = new Map<string, FileIdentity>();
 
   constructor(
     private readonly root: string,
@@ -39,9 +44,19 @@ class FilesystemTreeView implements DylibTreeView {
   image(path: string): Promise<MachoImageFacts> {
     const cached = this.#images.get(path);
     if (cached !== undefined) return cached;
-    const pending = readImage(join(this.root, path), this.signal);
+    const pending = readImage(join(this.root, path), this.signal).then(
+      ({ facts, identity }) => {
+        this.#identities.set(path, identity);
+        return facts;
+      },
+    );
     this.#images.set(path, pending);
     return pending;
+  }
+
+  /** Identity of the file whose header bytes `image()` parsed. */
+  identity(path: string): FileIdentity | undefined {
+    return this.#identities.get(path);
   }
 
   async #readEntry(path: string): Promise<DylibTreeEntry | undefined> {
@@ -81,13 +96,13 @@ export const traceDylibResolution = async (options: {
     .join("/");
   const view = new FilesystemTreeView(root, options.signal);
   try {
-    const { roots, unclassified } =
+    const { roots: requested, unclassified } =
       parsed.data.roots !== undefined
         ? { roots: parsed.data.roots, unclassified: [] }
         : options.enumerateRoots
           ? await executableRoots(root, view, options.signal)
           : { roots: [target], unclassified: [] };
-    await requireMachoRoots(view, roots);
+    const roots = await requireMachoRoots(view, requested);
     const trace = await traceDylibLoading(view, {
       roots,
       unclassified,
@@ -96,12 +111,24 @@ export const traceDylibResolution = async (options: {
         : { architecture: parsed.data.architecture }),
       ...(options.signal === undefined ? {} : { signal: options.signal }),
     });
+    // Each digest must describe the same file whose headers were parsed.
     const digests = new Map<string, string>();
     for (const { path } of trace.images)
-      digests.set(path, await fileSha256(join(root, path), options.signal));
+      digests.set(
+        path,
+        await fileSha256(join(root, path), {
+          path,
+          expected: view.identity(path),
+          ...(options.signal === undefined ? {} : { signal: options.signal }),
+        }),
+      );
     const targetDigest =
       digests.get(target) ??
-      (await fileSha256(join(root, target), options.signal));
+      (await fileSha256(join(root, target), {
+        path: target,
+        expected: undefined,
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
+      }));
     if (targetDigest !== options.targetSha256)
       throw new ArtifactReaderFailure(
         "integrity",
@@ -170,23 +197,35 @@ const executableRoots = async (
 const compare = (left: string, right: string): number =>
   left < right ? -1 : left > right ? 1 : 0;
 
+/**
+ * Resolve each root segment by segment, as dependency candidates are, so a
+ * symlink in an intermediate directory cannot lead outside the analyzed root.
+ */
 const requireMachoRoots = async (
   view: FilesystemTreeView,
   roots: readonly string[],
-): Promise<void> => {
+): Promise<string[]> => {
+  const resolved: string[] = [];
   for (const path of roots) {
-    const entry = await view.entry(path);
-    if (entry?.kind !== "file")
+    const lookup = await resolveTreePath(view, path);
+    if (lookup.kind === "escapes")
+      throw new ArtifactReaderFailure(
+        "path",
+        `Root ${path} resolves outside the analyzed root`,
+      );
+    if (lookup.kind !== "file")
       throw new ArtifactReaderFailure(
         "path",
         `Root ${path} is not a regular file in the analyzed root`,
       );
-    if ((await view.image(path)).status === "not-mach-o")
+    if ((await view.image(lookup.path)).status === "not-mach-o")
       throw new ArtifactReaderFailure(
         "format",
         `Root ${path} is not a Mach-O image`,
       );
+    if (!resolved.includes(lookup.path)) resolved.push(lookup.path);
   }
+  return resolved;
 };
 
 const startsWithMachoMagic = async (path: string): Promise<boolean> => {
@@ -200,15 +239,34 @@ const startsWithMachoMagic = async (path: string): Promise<boolean> => {
   }
 };
 
+const identityOf = (metadata: {
+  readonly dev: bigint;
+  readonly ino: bigint;
+  readonly size: bigint;
+  readonly mtimeNs: bigint;
+  readonly ctimeNs: bigint;
+}): FileIdentity =>
+  [
+    metadata.dev,
+    metadata.ino,
+    metadata.size,
+    metadata.mtimeNs,
+    metadata.ctimeNs,
+  ].join(":");
+
 const readImage = async (
   path: string,
   signal?: AbortSignal,
-): Promise<MachoImageFacts> => {
+): Promise<{
+  readonly facts: MachoImageFacts;
+  readonly identity: FileIdentity;
+}> => {
   cancelled(signal);
   const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
-    const { size } = await handle.stat();
-    return await readMachoImage(async (offset, length) => {
+    const metadata = await handle.stat({ bigint: true });
+    const size = Number(metadata.size);
+    const facts = await readMachoImage(async (offset, length) => {
       cancelled(signal);
       const buffer = new Uint8Array(
         Math.max(0, Math.min(length, size - offset)),
@@ -216,17 +274,38 @@ const readImage = async (
       const { bytesRead } = await handle.read(buffer, 0, buffer.length, offset);
       return buffer.subarray(0, bytesRead);
     }, size);
+    return { facts, identity: identityOf(metadata) };
   } finally {
     await handle.close();
   }
 };
 
+/** Hash a file, failing if it is not the file (or the version) that was parsed. */
 const fileSha256 = async (
-  path: string,
-  signal?: AbortSignal,
+  absolute: string,
+  options: {
+    readonly path: string;
+    readonly expected: FileIdentity | undefined;
+    readonly signal?: AbortSignal;
+  },
 ): Promise<string> => {
-  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  const { signal } = options;
+  const handle = await open(
+    absolute,
+    constants.O_RDONLY | constants.O_NOFOLLOW,
+  );
+  const unchanged = async (): Promise<void> => {
+    if (
+      options.expected !== undefined &&
+      identityOf(await handle.stat({ bigint: true })) !== options.expected
+    )
+      throw new ArtifactReaderFailure(
+        "integrity",
+        `${options.path} changed while its dyld load commands were traced`,
+      );
+  };
   try {
+    await unchanged();
     const hash = createHash("sha256");
     const buffer = new Uint8Array(HASH_CHUNK_BYTES);
     for (;;) {
@@ -235,6 +314,7 @@ const fileSha256 = async (
       if (bytesRead === 0) break;
       hash.update(buffer.subarray(0, bytesRead));
     }
+    await unchanged();
     return hash.digest("hex");
   } finally {
     await handle.close();

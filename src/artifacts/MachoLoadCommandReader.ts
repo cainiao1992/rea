@@ -279,6 +279,12 @@ const decodeCommand = (
     return;
   }
   if (command === LC_CODE_SIGNATURE) {
+    // linkedit_data_command: cmd, cmdsize, dataoff, datasize.
+    if (body.byteLength < 16)
+      throw new MachoFormatIssue(
+        "malformed",
+        `load command ${index} is too short for LC_CODE_SIGNATURE`,
+      );
     slice.code_signature_present = true;
     return;
   }

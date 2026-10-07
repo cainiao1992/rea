@@ -547,3 +547,48 @@ describe("lazily loaded dependencies", () => {
     ]);
   });
 });
+
+describe("conditional loads", () => {
+  it("carries a conditional fallback's uncertainty to its dependents and reuses", async () => {
+    const VENDOR = "Contents/Frameworks/libvendor.dylib";
+    const OTHER = "Contents/Frameworks/libother.dylib";
+    const trace = await traceDylibLoading(
+      memoryView({
+        [MAIN]: executable({
+          rpaths: ["/opt/vendor/lib", "@executable_path/../Frameworks"],
+          dependencies: [
+            dependency("@rpath/libvendor.dylib"),
+            dependency("@executable_path/../Frameworks/libother.dylib"),
+          ],
+        }),
+        [VENDOR]: parsed(
+          slice({
+            install_name: "@rpath/libvendor.dylib",
+            dependencies: [dependency("@loader_path/libgone.dylib")],
+          }),
+        ),
+        [OTHER]: parsed(
+          slice({ dependencies: [dependency("@rpath/libvendor.dylib")] }),
+        ),
+      }),
+      { roots: [MAIN] },
+    );
+    expect(edgeFor(trace, MAIN, "@rpath/libvendor.dylib")).toMatchObject({
+      resolution: { status: "conditional", image: VENDOR },
+      loader_conditional: false,
+    });
+    expect(edgeFor(trace, VENDOR, "@loader_path/libgone.dylib")).toMatchObject({
+      resolution: { status: "unresolved" },
+      loader_conditional: true,
+    });
+    expect(edgeFor(trace, OTHER, "@rpath/libvendor.dylib")).toMatchObject({
+      candidates: [{ source: "already-loaded" }],
+      resolution: { status: "conditional", image: VENDOR },
+      loader_conditional: false,
+    });
+    expect(
+      trace.findings.find(({ kind }) => kind === "required-load-unresolved")
+        ?.explanation,
+    ).toContain(`${VENDOR} loads only conditionally`);
+  });
+});

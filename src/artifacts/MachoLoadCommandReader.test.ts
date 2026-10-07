@@ -211,9 +211,10 @@ describe("Mach-O load command reader failures", () => {
   });
 
   it("requires 8-byte command alignment in 64-bit images", async () => {
+    // A command the reader does not decode; only its size is checked.
     const command = new Uint8Array(12);
     const view = new DataView(command.buffer);
-    view.setUint32(0, LC.CODE_SIGNATURE, true);
+    view.setUint32(0, 0x7f000001, true);
     view.setUint32(4, 12, true);
     expect(await read(machoImage({ commands: [command] }))).toMatchObject({
       status: "malformed",
@@ -256,6 +257,11 @@ describe("Mach-O load command reader failures", () => {
     expect(await read(machoImage({ commands: [short] }))).toMatchObject({
       status: "malformed",
       reason: "load command 0 is too short to hold a string offset",
+    });
+    view.setUint32(0, LC.CODE_SIGNATURE, true);
+    expect(await read(machoImage({ commands: [short] }))).toMatchObject({
+      status: "malformed",
+      reason: "load command 0 is too short for LC_CODE_SIGNATURE",
     });
   });
 

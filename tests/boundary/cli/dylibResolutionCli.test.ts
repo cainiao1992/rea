@@ -1,4 +1,4 @@
-import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { describe, expect } from "vitest";
@@ -127,7 +127,15 @@ describe("trace-dylib-resolution CLI", () => {
         (narrowed.json as { normalized_result: { roots: unknown } })
           .normalized_result.roots,
       ).toEqual([{ image: "Contents/MacOS/App", architecture: "arm64" }]);
-      for (const root of ["../outside", "Contents/Info.plist"]) {
+      // A root below a symlinked directory that points outside the bundle.
+      const outside = await createTestTempDirectory("rea-dylib-outside-");
+      await writeFiles(outside, { Tool: machoImage({}) });
+      await symlink(outside, join(app, "Contents/Linked"));
+      for (const root of [
+        "../outside",
+        "Contents/Info.plist",
+        "Contents/Linked/Tool",
+      ]) {
         const rejected = await cli.run({
           arguments: ["trace-dylib-resolution", app, "--root", root, "--json"],
           environment: ENVIRONMENT,

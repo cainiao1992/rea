@@ -163,6 +163,11 @@ graded architectures, so an `x86_64h` process also loads `x86_64`. The edge's `r
 | `unresolved`   | Every candidate is definitively absent or unusable inside the root.                                                                                       |
 | `undetermined` | No candidate resolves inside the root, and some candidate lies outside it or depends on the environment.                                                  |
 
+A `conditional` image is still traced, because it is the image the analyzed
+root supplies. Every edge below it has `loader_conditional: true`, and a
+request that reuses it by install name is `conditional` too. Findings on those
+edges say that they apply only if the conditional image loads.
+
 Absolute install names such as `/usr/lib/libSystem.B.dylib` are
 `outside-target`. On macOS 11 and later most of them live in the dyld shared
 cache rather than on disk, so REA does not check them against the host.

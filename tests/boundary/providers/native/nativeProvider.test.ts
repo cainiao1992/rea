@@ -278,6 +278,26 @@ describe("native macOS provider inspection", () => {
   });
 });
 
+describe("native plist defaults for iOS-style bundles", () => {
+  it("defaults to the Info.plist beside a flat bundle's program file", async () => {
+    directory = await createTestTempDirectory("rea-native-flat-");
+    const app = join(directory, "Flat.app");
+    const executable = join(app, "Flat");
+    await mkdir(app, { recursive: true });
+    await writeFile(executable, "fixture");
+    await writeFile(join(app, "Info.plist"), "fixture");
+    const client = new NativeMacOSProvider(
+      new FixtureRunner(),
+      "darwin",
+    ).createClient(machoTarget(executable, app));
+
+    const plist = await client.execute("inspect_plist", {});
+    expect(plist.ok && plist.value.result).toMatchObject({
+      source_path: join(app, "Info.plist"),
+    });
+  });
+});
+
 describe("native dispatch metadata error results", () => {
   it("preserves tagged cancellation and integrity failures", async () => {
     directory = await createTestTempDirectory("rea-dispatch-errors-");

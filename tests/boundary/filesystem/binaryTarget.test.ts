@@ -293,6 +293,62 @@ describe("app executable filename fidelity", () => {
   );
 });
 
+describe("iOS-style app bundle targets", () => {
+  const plist = (name: string) =>
+    `<plist><dict><key>CFBundleExecutable</key><string>${name}</string></dict></plist>`;
+
+  it("resolves a flat bundle's program file beside its Info.plist", async () => {
+    const directory = await createTestTempDirectory("rea-target-");
+    const app = join(directory, "Flat.app");
+    await mkdir(app);
+    await writeFile(join(app, "Info.plist"), plist("Flat"));
+    await writeFile(join(app, "Flat"), thinMach(0xfeedfacf, 0x0100000c));
+    const result = await parseBinaryTarget(app, directory, "arm64");
+    expect(result.ok && result.value).toMatchObject({
+      path: await realpath(join(app, "Flat")),
+      format: "mach-o",
+    });
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "resolves an iOS-on-Mac wrapper through its single Wrapper bundle",
+    async () => {
+      const directory = await createTestTempDirectory("rea-target-");
+      const app = join(directory, "Phone.app");
+      const wrapped = join(app, "Wrapper", "Phone.app");
+      await mkdir(wrapped, { recursive: true });
+      await writeFile(join(wrapped, "Info.plist"), plist("Phone"));
+      await writeFile(join(wrapped, "Phone"), thinMach(0xfeedfacf, 0x0100000c));
+      await symlink("Wrapper/Phone.app", join(app, "WrappedBundle"));
+      const result = await parseBinaryTarget(app, directory, "arm64");
+      expect(result.ok && result.value).toMatchObject({
+        path: await realpath(join(wrapped, "Phone")),
+        format: "mach-o",
+      });
+
+      await mkdir(join(app, "Wrapper", "Second.app"));
+      expect((await parseBinaryTarget(app, directory, "arm64")).ok).toBe(false);
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "rejects a flat bundle program symlink that leaves the bundle",
+    async () => {
+      const directory = await createTestTempDirectory("rea-target-");
+      const app = join(directory, "Escaping.app");
+      const outside = join(directory, "outside");
+      await mkdir(app);
+      await writeFile(outside, thinMach(0xfeedfacf, 0x0100000c));
+      await writeFile(join(app, "Info.plist"), plist("Escaping"));
+      await symlink(outside, join(app, "Escaping"));
+      const result = await parseBinaryTarget(app, directory, "arm64");
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("Expected an escaping program file");
+      expect(result.error.message).toContain("leaves the bundle root");
+    },
+  );
+});
+
 describe("DOS binary target I/O", () => {
   it("validates a complete DOS file beyond the initial metadata probe", async () => {
     const directory = await createTestTempDirectory("rea-dos-target-");

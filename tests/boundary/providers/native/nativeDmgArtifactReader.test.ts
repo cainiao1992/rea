@@ -201,7 +201,6 @@ describe("APFS disk image detach", () => {
       "verify",
       "attach",
       "detach",
-      "info",
     ]);
   });
 

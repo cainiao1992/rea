@@ -6,13 +6,13 @@ import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { afterEach, describe, expect, test } from "vitest";
 
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
-import { observeJavaScriptRuntime } from "../../../src/application/JavaScriptRuntimeObservationService.js";
+import { observeJavaScriptRuntime } from "../../../src/application/javascript/JavaScriptRuntimeObservationService.js";
 import { V8InspectorProvider } from "../../../src/inspector/V8InspectorProvider.js";
 import {
   javascriptRuntimeObservationSchema,
   javascriptRuntimeTargetListSchema,
   observeJavaScriptRuntimeInputSchema,
-} from "../../../src/domain/javascriptRuntimeObservation.js";
+} from "../../../src/domain/javascript/javascriptRuntimeObservation.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { observed } from "../../fixtures/analysisExecution.js";
 import { startFakeV8Inspector } from "../../fixtures/inspector/fakeV8Inspector.js";

@@ -6,16 +6,16 @@ import {
 import { err } from "../domain/result.js";
 import type { McpServer, ServerContext } from "@modelcontextprotocol/server";
 
-import type { JavaScriptRuntimeObservationPort } from "../application/JavaScriptRuntimeObservationPort.js";
+import type { JavaScriptRuntimeObservationPort } from "../application/javascript/JavaScriptRuntimeObservationPort.js";
 import {
   listJavaScriptRuntimeTargets,
   observeJavaScriptRuntime,
-} from "../application/JavaScriptRuntimeObservationService.js";
+} from "../application/javascript/JavaScriptRuntimeObservationService.js";
 import { toolContract, type ToolContract } from "../contracts/toolContracts.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import type { Evidence } from "../domain/evidence.js";
 import type { Result } from "../domain/result.js";
-import { observeJavaScriptRuntimeInputSchema } from "../domain/javascriptRuntimeObservation.js";
+import { observeJavaScriptRuntimeInputSchema } from "../domain/javascript/javascriptRuntimeObservation.js";
 import type { Logger } from "../logger.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";

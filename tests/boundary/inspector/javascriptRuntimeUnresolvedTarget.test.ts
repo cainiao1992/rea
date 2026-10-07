@@ -4,10 +4,10 @@ import { pathToFileURL } from "node:url";
 
 import { expect, test } from "vitest";
 
-import { analyzeJavaScriptApplication } from "../../../src/application/JavaScriptApplicationService.js";
-import { createJavaScriptRuntimeObservationEvidence } from "../../../src/application/JavaScriptRuntimeObservationEvidence.js";
+import { analyzeJavaScriptApplication } from "../../../src/application/javascript/JavaScriptApplicationService.js";
+import { createJavaScriptRuntimeObservationEvidence } from "../../../src/application/javascript/JavaScriptRuntimeObservationEvidence.js";
 import { V8InspectorProvider } from "../../../src/inspector/V8InspectorProvider.js";
-import { reconcileJavaScriptRuntime } from "../../../src/domain/javascriptRuntimeReconciliation.js";
+import { reconcileJavaScriptRuntime } from "../../../src/domain/javascript/javascriptRuntimeReconciliation.js";
 import { startFakeV8Inspector } from "../../fixtures/inspector/fakeV8Inspector.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 

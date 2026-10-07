@@ -52,7 +52,7 @@ it.each([
 
 it("displays empty literals as nonempty text while retaining exact values", async () => {
   const output = await analyzeSource(
-    "fetch(''); fetch('/api'); process.on('', () => 1);",
+    "fetch(''); fetch('\"\"'); fetch('/api'); process.on('', () => 1);",
   );
   const endpoints = output.graph.nodes
     .filter(({ kind }) => kind === "endpoint")
@@ -61,12 +61,16 @@ it("displays empty literals as nonempty text while retaining exact values", asyn
       labels: observations.map(({ label }) => label),
       values: observations.map(({ properties }) => properties.value),
     }));
+  // The empty endpoint and a literal two-quote endpoint share display text
+  // but remain distinct nodes with exact identities.
   expect(endpoints).toEqual(
     expect.arrayContaining([
-      { key: '""', labels: ['""'], values: [""] },
+      { key: "", labels: ['""'], values: [""] },
+      { key: '""', labels: ['""'], values: ['""'] },
       { key: "/api", labels: ["/api"], values: ["/api"] },
     ]),
   );
+  expect(endpoints).toHaveLength(3);
   expect(
     output.semantic_graph?.nodes
       .filter(({ kind }) => kind === "event")
@@ -101,5 +105,26 @@ it.each([
           : null,
       sources: observations.map(({ properties }) => properties.source),
     }));
-  expect(originals).toEqual([{ originalSource: '""', sources: [""] }]);
+  expect(originals).toEqual([{ originalSource: "", sources: [""] }]);
+});
+
+it("keeps empty and two-quote source-map names distinct", async () => {
+  const output = await analyzeSource("//# sourceMappingURL=app.js.map", {
+    "app.js.map": JSON.stringify({
+      version: 3,
+      sources: ["", '""'],
+      names: [],
+      mappings: "AAAA,CCAA",
+    }),
+  });
+  expect(
+    output.graph.nodes
+      .filter(({ kind }) => kind === "source-module")
+      .map(({ identity }) =>
+        identity.strategy === "source-map-original"
+          ? identity.original_source
+          : null,
+      )
+      .sort(),
+  ).toEqual(["", '""']);
 });

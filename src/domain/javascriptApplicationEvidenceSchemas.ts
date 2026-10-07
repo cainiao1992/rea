@@ -419,7 +419,8 @@ export const applicationNodeIdentitySchema = z.discriminatedUnion("strategy", [
     strategy: z.literal("source-map-original"),
     stability: z.literal("source-map-exact"),
     source_map_sha256: digestSchema,
-    original_source: boundedTextSchema,
+    // The exact `sources` entry; `""` is a legal relative reference.
+    original_source: z.string(),
     source_sha256: digestSchema.nullable(),
   }),
   z.strictObject({
@@ -451,7 +452,8 @@ export const applicationNodeIdentitySchema = z.discriminatedUnion("strategy", [
     stability: z.literal("artifact-version"),
     artifact_sha256: digestSchema,
     namespace: boundedKeySchema,
-    key: boundedTextSchema,
+    // The exact artifact-local value, such as `""` from `fetch("")`.
+    key: z.string(),
   }),
   z.strictObject({
     strategy: z.literal("runtime-instance"),

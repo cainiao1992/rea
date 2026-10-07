@@ -26,6 +26,7 @@ import {
   semanticVariableScope,
 } from "./javascriptSemanticState.js";
 import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
+import { collectSemanticMemberMutations } from "./javascriptSemanticMemberMutations.js";
 import {
   collectSemanticReturns,
   resolveSemanticModuleCallables,
@@ -76,6 +77,7 @@ export const analyzeParsedJavaScriptSemantics = (
 ): JavaScriptSemanticIr => {
   const state = createState(file.program);
   collectDefinitions(file.program, state);
+  collectSemanticMemberMutations(file.program, state);
   traverseJavaScriptAst(file.program, {
     enter: (node) => collectSemanticModuleLink(node, state),
   });
@@ -537,6 +539,7 @@ const createBinding = (
   name,
   kind,
   mutable,
+  mutatedPaths: [],
   definitions: [],
   initializers: [],
   directOrigins: [],

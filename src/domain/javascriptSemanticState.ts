@@ -21,6 +21,7 @@ export interface JavaScriptSemanticBindingState {
   readonly name: string;
   kind: JavaScriptSemanticDefinition["kind"];
   mutable: boolean;
+  readonly mutatedPaths: (readonly (string | number | null)[])[];
   readonly definitions: JavaScriptSemanticDefinition[];
   readonly initializers: JavaScriptSemanticInitializer[];
   readonly directOrigins: JavaScriptModuleOrigin[];

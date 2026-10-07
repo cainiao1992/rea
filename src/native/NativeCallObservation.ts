@@ -15,7 +15,7 @@ import {
   nativeCallObservationResultSchema,
   type NativeCallObservationInput,
   type NativeCallObservationResult,
-} from "../domain/nativeCallObservation.js";
+} from "../domain/native/nativeCallObservation.js";
 import { err, ok, type Result } from "../domain/result.js";
 import type { NativeCallTrace, NativeCallTracer } from "./LldbCallTracer.js";
 

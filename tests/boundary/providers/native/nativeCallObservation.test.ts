@@ -11,7 +11,7 @@ import {
 } from "../../../../src/domain/analysisErrorCore.js";
 import type { AnalysisError } from "../../../../src/domain/analysisErrorBase.js";
 import { EvidenceIntegrityError } from "../../../../src/domain/evidenceErrors.js";
-import { nativeCallObservationResultSchema } from "../../../../src/domain/nativeCallObservation.js";
+import { nativeCallObservationResultSchema } from "../../../../src/domain/native/nativeCallObservation.js";
 import { err, ok, type Result } from "../../../../src/domain/result.js";
 import type {
   NativeCallTrace,

@@ -5,7 +5,7 @@ import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { expect, it } from "vitest";
 import { z } from "zod";
 
-import { nativeCallObservationResultSchema } from "../../../src/domain/nativeCallObservation.js";
+import { nativeCallObservationResultSchema } from "../../../src/domain/native/nativeCallObservation.js";
 import { ok } from "../../../src/domain/result.js";
 import type { NativeCallTracer } from "../../../src/native/LldbCallTracer.js";
 import { NativeMacOSProvider } from "../../../src/native/NativeMacOSProvider.js";

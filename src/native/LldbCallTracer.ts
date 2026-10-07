@@ -15,7 +15,7 @@ import {
   nativeCallEventSchema,
   nativeCodeLocationSchema,
   type NativeCallObservationInput,
-} from "../domain/nativeCallObservation.js";
+} from "../domain/native/nativeCallObservation.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { safeParseJson } from "../domain/safeJson.js";

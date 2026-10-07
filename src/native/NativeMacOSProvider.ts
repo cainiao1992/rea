@@ -23,7 +23,7 @@ import {
 import {
   NATIVE_TOOL_CONTRACTS,
   type NativeToolName,
-} from "../contracts/nativeToolContracts.js";
+} from "../contracts/native/nativeToolContracts.js";
 import type { BinaryTarget } from "../domain/binaryTarget.js";
 import type { EvidenceLocation } from "../domain/evidence.js";
 import {
@@ -46,7 +46,7 @@ import {
   inspectSignatureSchema,
   listArchitecturesSchema,
   type NativeCommandInvocation,
-} from "../domain/nativeInspection.js";
+} from "../domain/native/nativeInspection.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
   NativeCommandFailure,

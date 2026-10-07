@@ -8,7 +8,7 @@ import { AnalysisInputError } from "../domain/analysisErrorCore.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { projectInputIssues } from "../domain/inputIssueProjection.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
-import { nativeCallObservationInputSchema } from "../domain/nativeCallObservation.js";
+import { nativeCallObservationInputSchema } from "../domain/native/nativeCallObservation.js";
 import type { Logger } from "../logger.js";
 import type { CliInstance } from "./types.js";
 

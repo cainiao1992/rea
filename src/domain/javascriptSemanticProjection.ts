@@ -240,9 +240,10 @@ const callableName = (node: t.Node, parent: t.Node | null): string | null => {
   ) {
     if (t.isPrivateName(node.key)) return `#${node.key.id.name}`;
     // `{[key]() {}}` names nothing statically; reading `key` off the key node
-    // would report the variable name as the method name.
+    // would report the variable name as the method name. `{[""]() {}}` names
+    // the exact empty key, which is retained rather than replaced.
     return (
-      semanticStaticPropertyName(node.key, node.computed) ||
+      semanticStaticPropertyKey(node.key, node.computed) ??
       `[computed@${String(node.start ?? -1)}]`
     );
   }

@@ -31,3 +31,27 @@ it("keeps a computed identifier key unresolved", () => {
     ]),
   );
 });
+
+it("retains exact empty method names and environment keys", () => {
+  const ir = analyzeJavaScriptSemantics(`
+    const target = { ['']() { return 42; } };
+    class Holder { ""() { return 2; } }
+    const empty = process.env[''];
+    const dynamic = process.env[key];
+  `);
+  expect(
+    ir.callables
+      .filter(({ kind }) => kind === "method")
+      .map(({ name }) => name),
+  ).toEqual(["", ""]);
+  expect(
+    ir.configurationOperations.map(({ kind, key, resolution }) => ({
+      kind,
+      key,
+      resolution,
+    })),
+  ).toEqual([
+    { kind: "environment", key: "", resolution: "complete" },
+    { kind: "environment", key: null, resolution: "partial" },
+  ]);
+});

@@ -18,6 +18,14 @@ import {
   unavailableSemanticRootEvidence,
 } from "./JavaScriptSemanticGraphEvidence.js";
 
+/**
+ * Display an exact JavaScript key or name as a nonempty graph label. The legal
+ * empty key is shown as `""`; callers keep the exact value where the node
+ * carries it.
+ */
+export const semanticNameLabel = (name: string): string =>
+  name === "" ? '""' : name;
+
 /** Mutable local projection state hidden from graph callers. */
 export interface SemanticGraphProjectionState {
   readonly nodes: Map<string, JavaScriptSemanticGraphNode>;

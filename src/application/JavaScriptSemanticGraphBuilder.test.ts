@@ -349,6 +349,38 @@ it.each([
     );
   },
 );
+it("keeps exact empty environment keys distinct from dynamic keys", () => {
+  const graph = graphFor(`
+      const empty = process.env[''];
+      const named = process.env.HOME;
+      const dynamic = process.env[name];
+    `);
+  const sources = graph.nodes
+    .filter(({ kind }) => kind === "config-source")
+    .map(({ label, properties }) => ({ label, key: properties.key }));
+  expect(sources).toEqual(
+    expect.arrayContaining([
+      { label: '""', key: "" },
+      { label: "HOME", key: "HOME" },
+      { label: "environment", key: null },
+    ]),
+  );
+  expect(sources).toHaveLength(3);
+});
+
+it("labels exact empty method names without inventing computed names", () => {
+  const graph = graphFor(`
+      const target = { ['']() { return 42; }, [key]() { return 1; } };
+    `);
+  const labels = graph.nodes
+    .filter(({ kind }) => kind === "function")
+    .map(({ label }) => label);
+  expect(labels).toContain('""');
+  expect(
+    labels.filter((label) => label?.startsWith("[computed@")),
+  ).toHaveLength(1);
+});
+
 it.each([
   "Promise.resolve(1)",
   "(Promise.resolve(1) as Promise<number>)",

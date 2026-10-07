@@ -22,7 +22,13 @@ describe.each([
 
     expect(
       parseClientConfiguration(`${bom}${JSON.stringify(document)}`, format),
-    ).toEqual({ document, servers: document[serversKey], serversKey });
+    ).toEqual({
+      document,
+      servers: document[serversKey],
+      serversPath: [serversKey],
+      dialect: format,
+      legacyServers: {},
+    });
   });
 
   it.each(["", "\uFEFF"])(
@@ -70,12 +76,16 @@ describe.each([
         else servers.rea = registration;
         const document = { ...parsed.document, [serversKey]: servers };
 
-        text = serializeClientConfiguration(document, format, text, "rea");
+        text = serializeClientConfiguration(document, format, text, [
+          [serversKey, "rea"],
+        ]);
 
         expect(parseClientConfiguration(text, format)).toEqual({
           document,
           servers,
-          serversKey,
+          serversPath: [serversKey],
+          dialect: format,
+          legacyServers: {},
         });
         expect(Buffer.from(text.slice(0, prefix.length))).toEqual(
           Buffer.from(prefix),

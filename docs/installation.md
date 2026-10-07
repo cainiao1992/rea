@@ -131,6 +131,11 @@ Setup can configure these clients for REA's local MCP server:
 | Command Code       | `commandcode`    |
 | VS Code            | `vscode`         |
 
+For OpenCode, setup writes the V1 `mcp.rea` entry, which OpenCode V1 and V2
+both load. If the configuration already uses OpenCode V2's native
+`mcp.servers` table, setup registers REA there instead and replaces any earlier
+`mcp.rea` entry from REA.
+
 ## Review setup changes
 
 `rea setup` first offers the supported agents in a multi-select. Existing REA

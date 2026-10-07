@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   installLinuxHopper,
+  linuxHopperLauncherDigestSupported,
   linuxHopperInstallDisclosure,
   linuxPackageManagerCommands,
   linuxSharedLibrariesAvailable,
@@ -93,6 +94,20 @@ describe("Linux Hopper host classification", () => {
 });
 
 describe("Linux Hopper installation", () => {
+  it.each([
+    [
+      "Debian and Arch",
+      "0294ced141cc373468ee22d8343e7dac41980cb05a937994ca81c9f09afe7ded",
+    ],
+    ["RPM", "1339f9e58377442b0c6fcb0dfc3cec20d593cc557408521fad9a00dbc6b8da13"],
+  ])("accepts the pinned %s launcher build", (_, digest) => {
+    expect(linuxHopperLauncherDigestSupported(digest)).toBe(true);
+  });
+
+  it("rejects an unverified launcher build", () => {
+    expect(linuxHopperLauncherDigestSupported("0".repeat(64))).toBe(false);
+  });
+
   it("discloses the exact download, integrity evidence, and privileged command", () => {
     expect(linuxHopperInstallDisclosure("deb", false)).toEqual({
       downloadUrl:

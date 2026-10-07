@@ -184,14 +184,7 @@ const server = createServer((socket) => {
         request.method === "shutdown_document"
       ) {
         send({ id: request.id, result: shutdownResult() });
-        if (shutdownMode !== "cleanup-required")
-          setTimeout(
-            () =>
-              server.close(() => {
-                if (process.connected) process.disconnect();
-              }),
-            2,
-          );
+        if (shutdownMode !== "cleanup-required") setTimeout(closeServer, 2);
       } else if (request.method === "hang") {
         // Deliberately leave the request pending.
       } else if (request.method === "exit") {
@@ -234,5 +227,10 @@ const server = createServer((socket) => {
   });
 });
 
+const closeServer = () =>
+  server.close(() => {
+    if (process.connected) process.disconnect();
+  });
+
 server.listen(socketPath);
-process.on("SIGTERM", () => server.close());
+process.on("SIGTERM", closeServer);

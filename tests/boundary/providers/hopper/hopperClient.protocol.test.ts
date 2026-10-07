@@ -113,6 +113,17 @@ describe("HopperClient protocol", () => {
           requestId: (await launcher.waitForRequest(method)).id,
         });
     }
+    if (expectedTag === "HopperProtocolError") {
+      await client.close();
+      const child = launcher.processes.at(-1);
+      expect({
+        exitCode: child?.exitCode,
+        signalCode: child?.signalCode,
+      }).toEqual({
+        exitCode: 0,
+        signalCode: null,
+      });
+    }
   });
 
   it("preserves a sanitized bridge exception diagnostic", async () => {

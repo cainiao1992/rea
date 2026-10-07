@@ -127,6 +127,34 @@ describe("HopperClient cleanup", () => {
     await first;
   });
 
+  it("exits an IPC-backed fixture cleanly after cancelling active work", async () => {
+    const launcher = new FixtureLauncher();
+    const client = await startClient(launcher);
+    const controller = new AbortController();
+    const pending = client.callTool(
+      "echo",
+      { gate: "cancel-and-close" },
+      {
+        signal: controller.signal,
+      },
+    );
+    await launcher.waitForRequest("echo", "cancel-and-close");
+    controller.abort();
+    await expect(pending).resolves.toMatchObject({
+      ok: false,
+      error: { _tag: "HopperCancelledError" },
+    });
+    await client.close();
+    const child = launcher.processes.at(-1);
+    expect({
+      exitCode: child?.exitCode,
+      signalCode: child?.signalCode,
+    }).toEqual({
+      exitCode: 0,
+      signalCode: null,
+    });
+  });
+
   it("reports unconfirmed unowned document cleanup as a typed close failure", async () => {
     const client = new HopperClient({
       launcher: new UnconfirmedFixtureLauncher(),

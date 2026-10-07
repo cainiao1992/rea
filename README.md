@@ -410,7 +410,7 @@ See [native investigation](docs/native-investigation.md) for keyed archives, ins
 | Managed PE/CLI            |     7 | .NET identity, metadata, CIL instructions, native dependencies, reconstruction imports, and build comparisons                                                                                            |
 | Firmware                  |     2 | Linux firmware region inspection and explicit extraction                                                                                                                                                 |
 | Android APK               |     5 | package and manifest declarations, class search, member inventories, method decompilation, and incoming static references                                                                                |
-| Browser observation       |    11 | page structure, network metadata, scripts, source maps, WebMCP discovery, screenshots, and capture comparisons                                                                                           |
+| Browser observation       |    12 | page structure, network metadata, scripts, source maps, WebMCP discovery, screenshots, and capture comparisons                                                                                           |
 | Electron analysis         |     5 | renderer observation, static app mapping, and static/runtime reconciliation                                                                                                                              |
 | JavaScript runtime        |     2 | Node/Electron Inspector target discovery, script locations, and execution-context events                                                                                                                 |
 | Application workflows     |    13 | captured website script export; Android/Apple inventory projections; cross-layer feature traces, build comparisons, historical source mapping, static return-shape comparison, and reconstruction checks |
@@ -472,6 +472,14 @@ rea inspect-web-page http://127.0.0.1:9222 TARGET_ID --json
 ```
 
 The eight passive browser tools work through both CLI and MCP. They inspect the selected page without navigating, clicking, or evaluating its JavaScript. Credentials, cookies, authorization headers, and raw payload values are not retained. A request selects whether to include script sources, accessibility text, screenshots, or console and payload summaries. REA cannot observe activity that happened before it attached. See [browser observation](docs/browser-observation.md) for browser startup, capture options, and limits.
+
+### Historical web network captures
+
+For retained HAR or native mitmproxy evidence, use `inspect_web_network_capture`
+or `inspect-web-network-capture`. It runs offline, preserves producer identities
+and exposed bytes, and does not invent live attribution. See
+[historical web network captures](docs/web-network-captures.md) for upstream
+profiles, caller-selected records and credential exclusions.
 
 ### Controlled browser scenarios
 

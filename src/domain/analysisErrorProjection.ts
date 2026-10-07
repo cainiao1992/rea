@@ -7,6 +7,8 @@ import {
   assertKnownAnalysisErrorTag,
 } from "./analysisErrorPresentation.js";
 import {
+  AnalysisAccessDeniedError,
+  AnalysisArtifactChangedError,
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
   AnalysisInputError,
@@ -130,6 +132,8 @@ const STATIC_ERROR_CODES = {
   AnalysisOutputError: "unreadable_output",
   HopperProtocolError: "unreadable_output",
   AnalysisInputError: "invalid_request",
+  AnalysisAccessDeniedError: "access_denied",
+  AnalysisArtifactChangedError: "artifact_changed",
   AnalysisCapabilityUnavailableError: "capability_unavailable",
   AnalysisCancelledError: "cancelled",
   HopperCancelledError: "cancelled",
@@ -177,6 +181,20 @@ const errorDetails = (
 const requestErrorDetails = (
   error: AnalysisError,
 ): Readonly<Record<string, JsonValue>> | undefined => {
+  if (error instanceof AnalysisArtifactChangedError)
+    return {
+      operation: error.operation,
+      path: error.path,
+      reason: error.reason,
+      boundary: "stable-artifact-read",
+    };
+  if (error instanceof AnalysisAccessDeniedError)
+    return {
+      operation: error.operation,
+      path: error.path,
+      system_code: error.systemCode,
+      boundary: "filesystem-read",
+    };
   if (error instanceof AnalysisOutputError)
     return { operation: error.operation, reason: error.reason };
   if (error instanceof AnalysisInputError && error.issues.length > 0)
@@ -372,6 +390,7 @@ const lifecycleErrorDetails = (
 };
 
 const RETRYABLE_CODES: ReadonlySet<AnalysisErrorProjection["code"]> = new Set([
+  "artifact_changed",
   "invalid_request",
   "provider_timeout",
   "cancelled",
@@ -384,6 +403,8 @@ export interface AnalysisErrorProjection extends Readonly<
 > {
   readonly code:
     | "invalid_request"
+    | "access_denied"
+    | "artifact_changed"
     | "unreadable_output"
     | "capability_unavailable"
     | "provider_unavailable"

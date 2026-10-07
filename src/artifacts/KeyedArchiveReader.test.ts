@@ -51,6 +51,41 @@ describe("inert keyed archive decoding", () => {
       expect.objectContaining({ source: 1, target: 2, status: "resolved" }),
     );
   });
+  it.each([
+    ["binary", { UID: 1 }],
+    ["XML", { CF$UID: 1 }],
+  ] as const)(
+    "resolves a %s root encoded under a UID-named key",
+    (format, reference) => {
+      const named = {
+        ...archive,
+        $objects: ["$null", "payload"],
+        $top: { UID: reference, CF$UID: reference },
+      };
+      const graph = decodeKeyedArchiveBytes(
+        Buffer.from(format === "binary" ? buildBinary(named) : build(named)),
+        { offset: 0, limit: 2 },
+      );
+      expect(
+        graph.references.map(({ source, path, target, status }) => ({
+          source,
+          path,
+          target,
+          status,
+        })),
+      ).toEqual([
+        { source: null, path: ["CF$UID"], target: 1, status: "resolved" },
+        { source: null, path: ["UID"], target: 1, status: "resolved" },
+      ]);
+      const selected = decodeKeyedArchiveBytes(
+        Buffer.from(format === "binary" ? buildBinary(named) : build(named)),
+        { root: "UID", offset: 0, limit: 2 },
+      );
+      expect(selected.references).toEqual([
+        expect.objectContaining({ path: ["UID"], target: 1 }),
+      ]);
+    },
+  );
   it("rejects missing roots, malformed plist, and non-keyed archives", () => {
     expect(() =>
       decodeKeyedArchiveBytes(Buffer.from("bplist00bad"), {

@@ -117,8 +117,41 @@ try {
     ).length < 2
   )
     throw new Error("Real shared object identity was not preserved");
+  const uidRoot = join(root, "uid-root.plist");
+  await promisify(execFile)("/usr/bin/xcrun", [
+    "swift",
+    "-module-cache-path",
+    join(root, "modules"),
+    fileURLToPath(
+      new URL(
+        "../tests/conformance/native/keyed-archive-uid-root.swift",
+        import.meta.url,
+      ),
+    ),
+    uidRoot,
+  ]);
+  const uidRootXml = join(root, "uid-root.xml.plist");
+  await promisify(execFile)("/usr/bin/plutil", [
+    "-convert",
+    "xml1",
+    "-o",
+    uidRootXml,
+    uidRoot,
+  ]);
+  for (const path of [uidRoot, uidRootXml]) {
+    const uidGraph = await artifactCli("inspect-keyed-archive", path);
+    assert.deepEqual(
+      uidGraph.references.map(({ source, path, target, status }) => ({
+        source,
+        path,
+        target,
+        status,
+      })),
+      [{ source: null, path: ["UID"], target: 1, status: "resolved" }],
+    );
+  }
   process.stdout.write(
-    `${JSON.stringify({ ok: true, mocked: false, cli: true, stdio_mcp: true, xml_golden: true, format: graph.archive_format, objects: graph.total_objects, references: graph.total_references, shared_identity: true, cyclic_identity: true, target_classes_instantiated_by_reader: false })}\n`,
+    `${JSON.stringify({ ok: true, mocked: false, cli: true, stdio_mcp: true, xml_golden: true, uid_named_root: true, format: graph.archive_format, objects: graph.total_objects, references: graph.total_references, shared_identity: true, cyclic_identity: true, target_classes_instantiated_by_reader: false })}\n`,
   );
 } finally {
   await rm(root, { recursive: true, force: true });

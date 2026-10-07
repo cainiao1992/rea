@@ -54,11 +54,17 @@ const record = (
   value !== null && typeof value === "object" && !Array.isArray(value)
     ? value
     : undefined;
-const uid = (value: JsonValue | undefined): JsonValue | undefined => {
+/**
+ * A UID decodes as a one-key `UID` (binary) or `CF$UID` (XML) dictionary with
+ * a numeric value. Any other value means an ordinary dictionary, such as a
+ * `$top` that holds a root encoded under the key `UID`.
+ */
+const uid = (value: JsonValue | undefined): number | undefined => {
   const object = record(value);
   if (object === undefined || Object.keys(object).length !== 1)
     return undefined;
-  return Object.hasOwn(object, "UID") ? object.UID : object["CF$UID"];
+  const marker = Object.hasOwn(object, "UID") ? object.UID : object["CF$UID"];
+  return typeof marker === "number" ? marker : undefined;
 };
 
 /** Interpret serialized Foundation references without instantiating archive classes. */
@@ -99,11 +105,8 @@ export const projectKeyedArchive = (
         );
       const target = uid(item.value);
       if (target !== undefined) {
-        const valid =
-          typeof target === "number" &&
-          Number.isSafeInteger(target) &&
-          target >= 0;
-        const index = valid ? target : null;
+        const index =
+          Number.isSafeInteger(target) && target >= 0 ? target : null;
         references.push({
           source,
           path: item.path,
@@ -143,9 +146,7 @@ export const projectKeyedArchive = (
     const fields = record(value);
     const classUid = uid(fields?.$class);
     const classId =
-      typeof classUid === "number" &&
-      Number.isSafeInteger(classUid) &&
-      classUid >= 0
+      classUid !== undefined && Number.isSafeInteger(classUid) && classUid >= 0
         ? classUid
         : null;
     const descriptor = classId === null ? undefined : record(table[classId]);

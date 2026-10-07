@@ -564,7 +564,13 @@ describe("conditional loads", () => {
         [VENDOR]: parsed(
           slice({
             install_name: "@rpath/libvendor.dylib",
-            dependencies: [dependency("@loader_path/libgone.dylib")],
+            dependencies: [
+              dependency("@loader_path/libgone.dylib"),
+              dependency("@loader_path/libweak.dylib", { weak: true }),
+              dependency("@loader_path/liblazy.dylib", {
+                command: "LC_LAZY_LOAD_DYLIB",
+              }),
+            ],
           }),
         ),
         [OTHER]: parsed(
@@ -586,9 +592,14 @@ describe("conditional loads", () => {
       resolution: { status: "conditional", image: VENDOR },
       loader_conditional: false,
     });
-    expect(
-      trace.findings.find(({ kind }) => kind === "required-load-unresolved")
-        ?.explanation,
-    ).toContain(`${VENDOR} loads only conditionally`);
+    // Required, weak and lazy findings below the fallback are all qualified.
+    for (const kind of [
+      "required-load-unresolved",
+      "weak-load-unresolved",
+      "lazy-load-unresolved",
+    ])
+      expect(
+        trace.findings.find((finding) => finding.kind === kind)?.explanation,
+      ).toContain(`${VENDOR} loads only conditionally; if it loads,`);
   });
 });

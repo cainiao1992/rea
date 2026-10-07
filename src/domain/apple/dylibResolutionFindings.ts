@@ -57,24 +57,27 @@ const unresolvedFinding = (edge: Edge, index: number): Finding => {
     image: edge.loader,
     basis: "derived",
   } as const;
+  const missing = `No candidate for ${edge.command === "LC_LAZY_LOAD_DYLIB" ? "lazily loaded " : edge.weak ? "weak dependency " : ""}${edge.install_name} exists in the analyzed root`;
+  // Below a conditional fallback, every consequence applies only if it loads.
+  const when = edge.loader_conditional
+    ? `. ${edge.loader} loads only conditionally; if it loads, `
+    : "; ";
   if (edge.command === "LC_LAZY_LOAD_DYLIB")
     return {
       ...base,
       kind: "lazy-load-unresolved",
-      explanation: `No candidate for lazily loaded ${edge.install_name} exists in the analyzed root; dyld loads it on first use, which would fail unless the image is supplied elsewhere.`,
+      explanation: `${missing}${when}dyld loads it on first use, which would fail unless the image is supplied elsewhere.`,
     };
   return edge.weak
     ? {
         ...base,
         kind: "weak-load-unresolved",
-        explanation: `No candidate for weak dependency ${edge.install_name} exists in the analyzed root; dyld continues without it.`,
+        explanation: `${missing}${when}dyld continues without it.`,
       }
     : {
         ...base,
         kind: "required-load-unresolved",
-        explanation: edge.loader_conditional
-          ? `No candidate for ${edge.install_name} exists in the analyzed root. ${edge.loader} loads only conditionally; if it loads, dyld would fail to launch ${edge.root} (${edge.architecture}) unless the image is supplied elsewhere.`
-          : `No candidate for ${edge.install_name} exists in the analyzed root; dyld would fail to launch ${edge.root} (${edge.architecture}) unless the image is supplied elsewhere.`,
+        explanation: `${missing}${when}dyld would fail to launch ${edge.root} (${edge.architecture}) unless the image is supplied elsewhere.`,
       };
 };
 

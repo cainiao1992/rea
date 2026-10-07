@@ -4,21 +4,21 @@ import { pathToFileURL } from "node:url";
 
 import { describe, expect, test } from "vitest";
 
-import { createJavaScriptRuntimeObservationEvidence } from "../../../src/application/JavaScriptRuntimeObservationEvidence.js";
+import { createJavaScriptRuntimeObservationEvidence } from "../../../src/application/javascript/JavaScriptRuntimeObservationEvidence.js";
 import {
   listJavaScriptRuntimeTargets,
   observeJavaScriptRuntime,
-} from "../../../src/application/JavaScriptRuntimeObservationService.js";
-import { reconcileJavaScriptRuntimeEvidence } from "../../../src/application/JavaScriptRuntimeReconciliationService.js";
+} from "../../../src/application/javascript/JavaScriptRuntimeObservationService.js";
+import { reconcileJavaScriptRuntimeEvidence } from "../../../src/application/javascript/JavaScriptRuntimeReconciliationService.js";
 import { V8_INSPECTOR_PROVIDER_IDENTITY } from "../../../src/inspector/V8InspectorProvider.js";
 import { V8InspectorProvider } from "../../../src/inspector/V8InspectorProvider.js";
-import { JAVASCRIPT_RUNTIME_RECONCILIATION_EXAMPLE } from "../../../src/contracts/javascriptRuntimeReconciliationExample.js";
+import { JAVASCRIPT_RUNTIME_RECONCILIATION_EXAMPLE } from "../../../src/contracts/javascript/javascriptRuntimeReconciliationExample.js";
 import type {
   JavaScriptRuntimeObservation,
   ObserveJavaScriptRuntimeInput,
-} from "../../../src/domain/javascriptRuntimeObservation.js";
-import { observeJavaScriptRuntimeInputSchema } from "../../../src/domain/javascriptRuntimeObservation.js";
-import { javascriptRuntimeReconciliationResultSchema } from "../../../src/domain/javascriptRuntimeReconciliationSchemas.js";
+} from "../../../src/domain/javascript/javascriptRuntimeObservation.js";
+import { observeJavaScriptRuntimeInputSchema } from "../../../src/domain/javascript/javascriptRuntimeObservation.js";
+import { javascriptRuntimeReconciliationResultSchema } from "../../../src/domain/javascript/javascriptRuntimeReconciliationSchemas.js";
 import { startFakeV8Inspector } from "../../fixtures/inspector/fakeV8Inspector.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 

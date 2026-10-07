@@ -30,8 +30,8 @@ explicit limitation; architecture inventory locations remain available.
   connections and controller/class names. `verify:interface-builder` compiles
   a source-owned AppKit XIB with `ibtool`. Storyboards require an installed
   iOS platform; unsupported archive forms remain explicit.
-- `inspect_native_dispatch_metadata` / `rea inspect-native-dispatch-metadata
-  <app-or-binary>` prefers a validated macOS Mach-O byte reader. It decodes
+- `inspect_native_dispatch_metadata` /
+  `rea inspect-native-dispatch-metadata <app-or-binary>` prefers a validated macOS Mach-O byte reader. It decodes
   64-bit little-endian Objective-C class/metaclass records, superclass pointers,
   absolute/relative method entries, ivar offsets/sizes/alignment and protocol
   declarations. It also decodes simple Swift conformances, static synchronous

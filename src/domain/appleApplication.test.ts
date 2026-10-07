@@ -350,9 +350,14 @@ describe("Apple bundle layouts and containers", () => {
         macho("Payload/Fixture.app/Fixture"),
         { path: "Payload/Fixture.app/embedded.mobileprovision" },
         macho("Payload/Fixture.app/PlugIns/Share.appex/Share"),
+        macho("SwiftSupport/iphoneos/libswiftCore.dylib"),
       ]),
     );
     expect(result.platforms).toEqual(["ios"]);
+    // IPA projection still lists archive components outside Payload/.
+    expect(result.components.native_libraries.map(({ path }) => path)).toEqual([
+      "SwiftSupport/iphoneos/libswiftCore.dylib",
+    ]);
     expect(
       result.bundles.map(({ path, role, layout }) => [path, role, layout]),
     ).toEqual([
@@ -368,5 +373,68 @@ describe("Apple bundle layouts and containers", () => {
     expect(() => project(inventoryEvidence("asar", "app.asar", []))).toThrow(
       "Apple application projection requires IPA, directory, ZIP, or DMG inventory Evidence (got asar)",
     );
+  });
+});
+
+describe("macOS application scope", () => {
+  it("attributes only components inside the application roots", () => {
+    const result = project(
+      inventoryEvidence("zip", "Distribution.zip", [
+        macho("Fixture.app/Contents/MacOS/Fixture"),
+        macho("Fixture.app/Contents/Frameworks/Core.framework/Versions/A/Core"),
+        {
+          path: "Fixture.app/Contents/Resources/app.js",
+          format: "javascript-bundle",
+        },
+        macho("Extras/Plugin.framework/Versions/A/Plugin"),
+        macho("Extras/libextra.dylib"),
+        { path: "Extras/installer.js", format: "javascript-bundle" },
+        { path: "Extras/Info.plist" },
+      ]),
+    );
+    const paths = (components: readonly { readonly path: string }[]) =>
+      components.map(({ path }) => path);
+    expect(paths(result.components.frameworks)).toEqual([
+      "Fixture.app/Contents/Frameworks/Core.framework/Versions/A/Core",
+    ]);
+    expect(paths(result.components.native_libraries)).toEqual([]);
+    expect(paths(result.components.javascript)).toEqual([
+      "Fixture.app/Contents/Resources/app.js",
+    ]);
+    expect(paths(result.components.bundle_metadata)).toEqual([]);
+    expect(
+      result.bridge_candidates.every(
+        ({ source_path: source, native_path: target }) =>
+          [source, target].every((path) => path.startsWith("Fixture.app/")),
+      ),
+    ).toBe(true);
+    expect(result.limitations).toContain(
+      "4 inventoried entries outside every application root are not attributed to the application.",
+    );
+  });
+
+  it("keeps a selected .app directory as the root when its contents are missing", () => {
+    const empty = project(inventoryEvidence("directory", "Fixture.app", []));
+    expect(empty).toMatchObject({
+      application_roots: ["."],
+      platforms: [],
+      bundles: [
+        {
+          path: ".",
+          role: "application",
+          layout: "shallow",
+          info_plist_path: null,
+        },
+      ],
+    });
+    const partial = project(
+      inventoryEvidence("directory", "Fixture.app", [
+        { path: "Contents/Resources/Localizable.strings" },
+      ]),
+    );
+    expect(partial).toMatchObject({
+      application_roots: ["."],
+      platforms: ["macos"],
+    });
   });
 });

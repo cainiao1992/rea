@@ -73,21 +73,18 @@ export const isWithin = (path: string, root: string): boolean =>
  */
 export const applicationRoots = (
   entries: readonly Entry[],
-  subjectName: string,
+  subject: { readonly name: string; readonly format: string },
 ): string[] => {
+  // A selected `.app` directory is the application, even when its inventory
+  // is partial or lacks Contents/; coverage and limitations describe that.
+  if (subject.format === "directory" && /\.app$/iu.test(subject.name))
+    return ["."];
   const found = new Set<string>();
   for (const { path } of entries) {
     if (isSidecar(path)) continue;
     const ios = /^(Payload\/[^/]+\.app)(?:\/|$)/u.exec(path);
     if (ios?.[1] !== undefined) {
       found.add(ios[1]);
-      continue;
-    }
-    if (
-      /\.app$/iu.test(subjectName) &&
-      /^Contents\/(?:Info\.plist|MacOS\/[^/]+)$/u.test(path)
-    ) {
-      found.add(".");
       continue;
     }
     const segments = path.split("/");
@@ -280,13 +277,15 @@ const signingPaths = (
     .filter((path) => tree.files.has(path))
     .sort(compare);
 
+/** Platforms of application roots whose layout was observed, not assumed. */
 export const platformsOf = (bundles: readonly Bundle[]): ("ios" | "macos")[] =>
   [
     ...new Set(
-      bundles.flatMap(({ role, layout }) => {
+      bundles.flatMap(({ role, layout, info_plist_path: plist }) => {
         if (role !== "application") return [];
         if (layout === "macos-deep") return ["macos" as const];
-        if (layout === "shallow") return ["ios" as const];
+        // An empty or partial root has no Contents/ either; require Info.plist.
+        if (layout === "shallow" && plist !== null) return ["ios" as const];
         return [];
       }),
     ),

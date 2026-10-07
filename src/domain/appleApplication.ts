@@ -128,11 +128,18 @@ export const projectAppleApplication = (
         },
       };
     });
-  const all = entries.flatMap(({ component }) =>
+  const inventoried = entries.flatMap(({ component }) =>
     component === undefined ? [] : [component],
   );
-  const subjectName = evidence[0]?.subject?.name ?? "";
-  const roots = applicationRoots(entries, subjectName);
+  const roots = applicationRoots(entries, {
+    name: evidence[0]?.subject?.name ?? "",
+    format: rootFormat,
+  });
+  const { all, unattributed } = attributeComponents(
+    inventoried,
+    roots,
+    rootFormat,
+  );
   const bundles = detectBundles(entries, roots);
   const classified = classifyComponents(entries, all, roots);
   const runtimeFamilies = identifyRuntimeFamilies(all);
@@ -153,6 +160,7 @@ export const projectAppleApplication = (
     bundles,
     sidecars: entries.some(({ path }) => isSidecar(path)),
     symlinks: entries.some(({ kind }) => kind === "symlink"),
+    unattributed,
   });
   const withoutId = {
     root_sha256: inventory.manifest.root_sha256,
@@ -182,6 +190,24 @@ export const projectAppleApplication = (
     ...withoutId,
     projection_id: `aap_${digest(withoutId)}`,
   });
+};
+
+/**
+ * IPA projection keeps every archive component, as before. Directory, ZIP,
+ * and DMG inventories can hold installers and other siblings, so only
+ * components inside an application root are attributed to it.
+ */
+const attributeComponents = (
+  inventoried: readonly Component[],
+  roots: readonly string[],
+  rootFormat: RootFormat,
+): { readonly all: Component[]; readonly unattributed: number } => {
+  if (rootFormat === "ipa") return { all: [...inventoried], unattributed: 0 };
+  const visible = inventoried.filter(({ path }) => !isSidecar(path));
+  const all = visible.filter(({ path }) =>
+    roots.some((root) => isWithin(path, root)),
+  );
+  return { all, unattributed: visible.length - all.length };
 };
 
 const appleRootFormat = (format: string): RootFormat => {
@@ -314,6 +340,7 @@ const projectionLimitations = (facts: {
   readonly bundles: readonly z.infer<typeof appleBundleSchema>[];
   readonly sidecars: boolean;
   readonly symlinks: boolean;
+  readonly unattributed: number;
 }): string[] => [
   ...(!facts.complete
     ? ["Source inventory pages are incomplete; absence is unknown."]
@@ -339,6 +366,11 @@ const projectionLimitations = (facts: {
   ...(facts.symlinks
     ? [
         "Symlinks are reported by path only; their targets are not inventoried, so bundles are reported at their real paths.",
+      ]
+    : []),
+  ...(facts.unattributed > 0
+    ? [
+        `${facts.unattributed} inventoried entries outside every application root are not attributed to the application.`,
       ]
     : []),
   ...(facts.sidecars

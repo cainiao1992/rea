@@ -45,8 +45,17 @@ macOS mounting adapter. When a DMG has only its root identity, the projection is
 `partial` and says that bundle absence is unknown. Other inventory formats, such
 as APK or ASAR, are rejected as input errors.
 
-`platforms` lists `macos` for deep `Contents/` application roots and `ios` for
-shallow IPA application roots.
+An inventoried directory whose name ends in `.app` is its own root even when its
+inventory is partial or lacks `Contents/`. For directory, ZIP, and DMG
+inventories, components outside every application root are not attributed to
+the application. This covers installers, disk-image extras, and AppleDouble
+sidecars, which therefore stay out of runtime families and bridge candidates. A
+limitation reports how many inventoried entries were left out. IPA projection
+still lists every archive component, including `SwiftSupport/`.
+
+`platforms` lists `macos` for application roots with `Contents/`. It lists `ios`
+for shallow application roots that have an `Info.plist`. An application root
+with neither, such as an empty inventory, has no platform.
 
 ## macOS bundle anatomy
 

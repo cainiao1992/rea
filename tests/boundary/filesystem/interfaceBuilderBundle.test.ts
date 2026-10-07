@@ -245,55 +245,7 @@ describe("bounded Interface Builder archive decoding", () => {
             (from === action?.id || to === action?.id),
         )
         .map(({ from, to }) => `${describeNode(from)} -> ${describeNode(to)}`);
-      // Temporary diagnostic: the compiled connector records.
-      const { decodeNibArchive } =
-        await import("../../../src/artifacts/NibArchive.js");
-      const { readdir, readFile } = await import("node:fs/promises");
-      const compiled = join(resources, "MacFixture.storyboardc");
-      const records: string[] = [];
-      for (const entry of await readdir(compiled, { recursive: true })) {
-        if (!String(entry).endsWith(".nib")) continue;
-        let bytes: Buffer;
-        try {
-          bytes = await readFile(join(compiled, String(entry)));
-        } catch {
-          continue;
-        }
-        if (bytes.subarray(0, 10).toString("ascii") !== "NIBArchive") {
-          records.push(
-            `${String(entry)}: ${bytes.subarray(0, 8).toString("ascii")}`,
-          );
-          continue;
-        }
-        const archive = decodeNibArchive(bytes);
-        const byId = new Map(archive.objects.map((item) => [item.id, item]));
-        const named = (value: unknown) => {
-          const ref =
-            typeof value === "object" &&
-            value !== null &&
-            "$nib_object_ref" in value
-              ? Number(value.$nib_object_ref)
-              : undefined;
-          return ref === undefined
-            ? JSON.stringify(value)
-            : `${byId.get(ref)?.class_name.replace(/\0+$/u, "") ?? "?"}#${String(ref)}`;
-        };
-        for (const item of archive.objects) {
-          const name = item.class_name.replace(/\0+$/u, "");
-          if (!/Connector|Placeholder/u.test(name)) continue;
-          records.push(
-            `${String(entry)}#${String(item.id)} ${name} {${Object.entries(
-              item.values,
-            )
-              .map(([key, value]) => `${key}=${named(value)}`)
-              .join(", ")}}`,
-          );
-        }
-      }
-      expect(
-        actionSource,
-        `${actionRoutes.join("; ")} | ${records.join(" | ")}`,
-      ).toBeDefined();
+      expect(actionSource, actionRoutes.join("; ")).toBeDefined();
       expect(
         analysis.graph.edges.some(
           ({ from, relation, to }) =>

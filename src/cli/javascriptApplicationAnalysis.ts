@@ -1,4 +1,5 @@
 import { analyzeJavaScriptApplication } from "../application/javascript/JavaScriptApplicationService.js";
+import { createProgressReporter } from "../application/ProgressReporter.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 
@@ -6,7 +7,13 @@ import type { JsonValue } from "../domain/jsonValue.js";
 export const runCliJavaScriptApplicationAnalysis = async (
   input: unknown,
 ): Promise<JsonValue> => {
-  const result = await analyzeJavaScriptApplication(input);
+  const progress = createProgressReporter(
+    async (update) => {
+      process.stderr.write(`${JSON.stringify({ rea_progress: update })}\n`);
+    },
+    { minimumIntervalMs: 0 },
+  );
+  const result = await analyzeJavaScriptApplication(input, { progress });
   return result.ok ? result.value : cliError(result.error);
 };
 

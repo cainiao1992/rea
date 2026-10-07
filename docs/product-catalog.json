@@ -10,7 +10,7 @@
     "skill_version": "26"
   },
   "tools": {
-    "total": 127,
+    "total": 129,
     "families": [
       {
         "id": "direct",
@@ -179,7 +179,7 @@
       {
         "id": "application",
         "surface": "application-workflow",
-        "count": 9,
+        "count": 11,
         "tools": [
           "build_reconstruction_obligation_ledger",
           "compare_application_versions",
@@ -187,6 +187,8 @@
           "compare_source_to_bundle",
           "evaluate_reconstruction_coverage",
           "export_web_scripts",
+          "project_android_application_graph",
+          "project_apple_application_graph",
           "recover_javascript_sources",
           "trace_application_feature",
           "trace_javascript_semantics"
@@ -350,6 +352,18 @@
         "list_architectures",
         "observe_native_ui"
       ]
+    },
+    {
+      "id": "rea-android-application",
+      "name": "REA Android application workflows",
+      "version": "1",
+      "capabilities": ["project_android_application_graph"]
+    },
+    {
+      "id": "rea-apple-application",
+      "name": "REA Apple application workflows",
+      "version": "1",
+      "capabilities": ["project_apple_application_graph"]
     },
     {
       "id": "rea-artifact-graph",
@@ -546,7 +560,7 @@
     }
   ],
   "cli": {
-    "primary_count": 82,
+    "primary_count": 84,
     "commands": [
       "address-to-file-offset",
       "analyze",
@@ -611,6 +625,8 @@
       "observe-javascript-runtime",
       "observe-native-ui",
       "observe-web-session",
+      "project-android-application-graph",
+      "project-apple-application-graph",
       "project-managed-application-graph",
       "providers",
       "read-bytes",
@@ -640,15 +656,15 @@
   },
   "runtime_catalog": {
     "counts": {
-      "cli_commands": 82,
-      "mcp_tools": 127,
+      "cli_commands": 84,
+      "mcp_tools": 129,
       "mcp_prompts": 6
     },
     "digests": {
-      "tools_sha256": "83e7791a5c733162c76b2d5654863b9ef686feed51ec23b8400035552e8a2b6d",
+      "tools_sha256": "31c4f5129fe81c0a84f5a374621cd7edc2e995b91b3f40a5ce4921a34088ac33",
       "prompts_sha256": "ef2de8814390b340623c32001610aa2709d90bed51537b6e562ab3abf144ab4d",
-      "combined_sha256": "4a56d8682120ad808f3843f09e31fbe13d2a80b5b911c7b60343b28cb3c298e1",
-      "providers_sha256": "0bccfa9588376a90350d18abded999db7e1d0e4424a61a21d03d392a1c5418fe"
+      "combined_sha256": "43e6ac2812f72123ce1d115c5e1be9fc963007987930b21892ee0e90b211dc68",
+      "providers_sha256": "6e1de7ee30b9b1ff633abfa4fd2b3848bb58e6e76a2ed196aa01836a202e1941"
     }
   }
 }

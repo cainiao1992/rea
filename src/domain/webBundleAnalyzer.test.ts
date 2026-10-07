@@ -213,13 +213,21 @@ describe("web bundle static-analysis parity", () => {
     const source = `
       indexedDB.open(databaseName, "2");
       window.indexedDB.open(databaseName, "/v3");
+      indexedDB.open("APP", "4");
+      indexedDB.open("GET", "/storage-named-xhr");
     `;
     expect(
-      analyzeCapturedWebBundle(inspection(source)).observations.endpoints,
-    ).toEqual([]);
+      analyzeCapturedWebBundle(inspection(source)).observations.endpoints.map(
+        ({ value }) => value,
+      ),
+    ).toEqual(["/storage-named-xhr"]);
     const analysis = analyzeJavaScriptStaticSource(source);
-    expect(analysis.endpoints).toEqual([]);
+    expect(analysis.endpoints.map(({ value }) => value)).toEqual([
+      "/storage-named-xhr",
+    ]);
     expect(analysis.storage.map(({ kind }) => kind)).toEqual([
+      "indexed-db",
+      "indexed-db",
       "indexed-db",
       "indexed-db",
     ]);

@@ -410,7 +410,7 @@ const BROWSING_CONTEXT_KEYWORDS = new Set([
  * `window.open(url, "_blank")` share the callee name. A literal method must
  * be an HTTP method; with a computed method, the second literal is a URL
  * unless it is provably an fs flag or a browsing-context keyword, or the
- * receiver is spelled as a browsing context. XHR normalizes the standard
+ * receiver is spelled as a browsing context or storage. XHR normalizes the standard
  * methods' case; extension methods such as WebDAV `PROPFIND` are
  * conventionally uppercase tokens.
  */
@@ -422,13 +422,18 @@ const xhrOpenUrl = (
   const url = stringValue(urlNode);
   if (url === undefined) return undefined;
   const method = stringValue(methodNode);
+  // IndexedDB and Cache Storage `open` take a name and a version, so a
+  // receiver spelled as storage needs a standard HTTP method literal.
+  const storage = storageKind(name) !== undefined;
   if (method === undefined)
-    return WINDOW_OPEN_CALL.test(name) ||
+    return storage ||
+      WINDOW_OPEN_CALL.test(name) ||
       FS_OPEN_FLAGS.has(url) ||
       BROWSING_CONTEXT_KEYWORDS.has(url.toLowerCase())
       ? undefined
       : url;
-  return XHR_METHODS.has(method.toUpperCase()) || /^[A-Z][A-Z-]*$/u.test(method)
+  return XHR_METHODS.has(method.toUpperCase()) ||
+    (!storage && /^[A-Z][A-Z-]*$/u.test(method))
     ? url
     : undefined;
 };
@@ -483,11 +488,7 @@ export const endpointArgument = (
 ): string | undefined => {
   if (name === "fetch" || name.endsWith(".fetch") || name === "WebSocket")
     return stringValue(args[0]);
-  // IndexedDB and Cache Storage `open` take a name and a version, not a URL.
-  if (name.endsWith(".open"))
-    return storageKind(name) === undefined
-      ? xhrOpenUrl(name, args[0], args[1])
-      : undefined;
+  if (name.endsWith(".open")) return xhrOpenUrl(name, args[0], args[1]);
   const method = ["get", "post", "put", "patch", "delete", "request"].find(
     (candidate) => name === candidate || name.endsWith(`.${candidate}`),
   );

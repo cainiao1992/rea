@@ -25,10 +25,7 @@ import {
   range,
   stringValue,
 } from "./javascriptStaticAnalysisHelpers.js";
-import {
-  semanticStaticPropertyKey,
-  semanticStaticPropertyName,
-} from "./javascriptAstValues.js";
+import { semanticStaticPropertyKey } from "./javascriptAstValues.js";
 
 interface CollectCallableInput {
   readonly node: t.Node;
@@ -181,8 +178,8 @@ const semanticModuleOrigin = (
     const nested = t.isNode(node.object)
       ? semanticModuleOrigin(node.object, projection, state)
       : undefined;
-    const member = semanticStaticPropertyName(node.property, node.computed);
-    return nested === undefined || member === ""
+    const member = semanticStaticPropertyKey(node.property, node.computed);
+    return nested === undefined || member === null
       ? undefined
       : { ...nested, importedPath: [...nested.importedPath, member] };
   }
@@ -341,8 +338,8 @@ const requirePatternBindings = (
   if (t.isObjectPattern(pattern))
     return pattern.properties.flatMap((property) => {
       if (t.isRestElement(property)) return [];
-      const name = semanticStaticPropertyName(property.key, property.computed);
-      return name === ""
+      const name = semanticStaticPropertyKey(property.key, property.computed);
+      return name === null
         ? []
         : requirePatternBindings(property.value, [...path, name]);
     });

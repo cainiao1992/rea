@@ -17,6 +17,7 @@ import { swiftSymbolsSchema } from "../contracts/nativeToolContracts.js";
 import type { Logger } from "../logger.js";
 import { isReferenceSourceImportCliFailure } from "./referenceSourceImportStatus.js";
 import type { CliInstance } from "./types.js";
+import { registerNativeCallCommands } from "./nativeCallCommands.js";
 
 export const registerUtilityCommands = (
   cli: CliInstance,
@@ -25,6 +26,7 @@ export const registerUtilityCommands = (
 ): void => {
   registerCapabilityCommands(cli, logger);
   registerNativeCommands(cli, logger);
+  registerNativeCallCommands(cli, logger);
   for (const [command, operation] of [
     [CLI_COMMANDS.observeNativeUi, "observe_native_ui"],
     [CLI_COMMANDS.captureNativeUiScenario, "capture_native_ui_scenario"],

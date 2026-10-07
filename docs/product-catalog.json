@@ -7,10 +7,10 @@
       "client": "2.3.1",
       "core": "2.3.1"
     },
-    "skill_version": "27"
+    "skill_version": "28"
   },
   "tools": {
-    "total": 131,
+    "total": 132,
     "families": [
       {
         "id": "direct",
@@ -84,7 +84,7 @@
       {
         "id": "native",
         "surface": "native-provider",
-        "count": 7,
+        "count": 8,
         "tools": [
           "capture_native_ui_scenario",
           "demangle_swift",
@@ -92,6 +92,7 @@
           "inspect_plist",
           "inspect_signature",
           "list_architectures",
+          "observe_native_calls",
           "observe_native_ui"
         ]
       },
@@ -352,6 +353,7 @@
         "inspect_plist",
         "inspect_signature",
         "list_architectures",
+        "observe_native_calls",
         "observe_native_ui"
       ]
     },
@@ -566,7 +568,7 @@
     }
   ],
   "cli": {
-    "primary_count": 86,
+    "primary_count": 87,
     "commands": [
       "address-to-file-offset",
       "analyze",
@@ -629,6 +631,7 @@
       "list-electron-targets",
       "list-javascript-runtime-targets",
       "observe-javascript-runtime",
+      "observe-native-calls",
       "observe-native-ui",
       "observe-web-session",
       "project-android-application-graph",
@@ -664,15 +667,15 @@
   },
   "runtime_catalog": {
     "counts": {
-      "cli_commands": 86,
-      "mcp_tools": 131,
+      "cli_commands": 87,
+      "mcp_tools": 132,
       "mcp_prompts": 6
     },
     "digests": {
-      "tools_sha256": "f49e05c52c6fd9955edcede27fbaaa248fdb917caa7b27edb8d97f7a30ad250e",
+      "tools_sha256": "92ae53640dfc900a7f68d68ebe7c73df3598216bdc5ec9223ddf273646faf428",
       "prompts_sha256": "ef2de8814390b340623c32001610aa2709d90bed51537b6e562ab3abf144ab4d",
-      "combined_sha256": "54ac160db3b96580a9a0203a07fe3db01ffc05224db621f48b4abdf979e4f50b",
-      "providers_sha256": "a7d885531ee25d42c51385444faec544d34cd7eba6250a7dc75c4faedd4454a3"
+      "combined_sha256": "620f3dfef357568e29b9a77dd771cf2556a88b54186e1eb871b0f00e33430520",
+      "providers_sha256": "486202b495c0dedb5ae8e2cf859415b98126d94b7220cb350f854275e80538c3"
     }
   }
 }

@@ -90,12 +90,15 @@ export const traceDylibResolution = async (options: {
       "path",
       "roots must be normalized paths relative to the analyzed root",
     );
-  const root = await realpath(options.rootPath);
-  const target = relative(root, await realpath(options.targetPath))
-    .split(sep)
-    .join("/");
-  const view = new FilesystemTreeView(root, options.signal);
+  // Canonicalization is inside the translated region: a revoked permission
+  // keeps its reason and path.
+  let root = options.rootPath;
   try {
+    root = await realpath(options.rootPath);
+    const target = relative(root, await realpath(options.targetPath))
+      .split(sep)
+      .join("/");
+    const view = new FilesystemTreeView(root, options.signal);
     const { roots: requested, unclassified } =
       parsed.data.roots !== undefined
         ? { roots: parsed.data.roots, unclassified: [] }
@@ -154,7 +157,7 @@ export const traceDylibResolution = async (options: {
     if (denied !== undefined)
       throw new ArtifactReaderFailure(
         "unavailable",
-        `Permission denied (${denied.code}) reading ${denied.path === undefined ? "a file in the analyzed root" : relative(root, denied.path) || denied.path}`,
+        `Permission denied (${denied.code}) reading ${deniedPath(root, denied.path)}`,
         { cause },
       );
     throw cause;
@@ -327,6 +330,13 @@ const cancelled = (signal?: AbortSignal): void => {
       "cancelled",
       "Dylib resolution was cancelled",
     );
+};
+
+/** A denied path relative to the analyzed root, or absolute when outside it. */
+const deniedPath = (root: string, path: string | undefined): string => {
+  if (path === undefined) return "a file in the analyzed root";
+  const inside = relative(root, path);
+  return inside === "" || inside.startsWith("..") ? path : inside;
 };
 
 /** Host permission denials, kept distinct from malformed or missing files. */

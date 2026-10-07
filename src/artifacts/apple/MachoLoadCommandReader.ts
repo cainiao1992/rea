@@ -88,7 +88,11 @@ export const readMachoImage = async (
 ): Promise<MachoImageFacts> => {
   try {
     const head = await readAt(0, Math.min(size, 8));
-    if (head.byteLength < 8) return { status: "not-mach-o" };
+    if (head.byteLength < 8)
+      // A recognized magic with no room for a header is a truncated image.
+      return hasMachoMagic(head)
+        ? { status: "malformed", reason: "Mach-O header is truncated" }
+        : { status: "not-mach-o" };
     const view = viewOf(head);
     const magic = view.getUint32(0, false);
     if ([FAT_MAGIC, FAT_MAGIC_64, FAT_CIGAM, FAT_CIGAM_64].includes(magic)) {

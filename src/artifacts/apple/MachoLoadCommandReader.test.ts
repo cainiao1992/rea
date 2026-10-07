@@ -183,6 +183,10 @@ describe("Mach-O load command reader inputs", () => {
     expect(await read(Uint8Array.from([0xcf, 0xfa]))).toEqual({
       status: "not-mach-o",
     });
+    // A recognized magic without room for a header is a truncated image.
+    expect(
+      await read(Uint8Array.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0x00])),
+    ).toEqual({ status: "malformed", reason: "Mach-O header is truncated" });
   });
 });
 

@@ -8,6 +8,7 @@ import type {
   OwnedProcessGroup,
   ProcessCleanupResult,
 } from "./ProcessOwnership.js";
+import { prepareProcessOwnershipInspection } from "./ProcessOwnershipObservation.js";
 
 const DEFAULT_TERMINATION_GRACE_MS = 250;
 const DEFAULT_KILL_GRACE_MS = 1_000;
@@ -29,6 +30,8 @@ export interface OwnedProviderProcessSpawnOptions {
   readonly hostEnvironment?: NodeJS.ProcessEnv;
   /** Opt into a writable protocol stream; other providers retain ignored stdin. */
   readonly stdin?: "pipe";
+  /** Cancels native ownership preparation before provider process creation. */
+  readonly signal?: AbortSignal;
 }
 
 /** Spawned process paired with the identity proof required for group cleanup. */
@@ -132,6 +135,9 @@ export type ProviderProcessStopResult =
 export const spawnOwnedProviderProcess = async (
   options: OwnedProviderProcessSpawnOptions,
 ): Promise<SpawnedOwnedProviderProcess> => {
+  options.signal?.throwIfAborted();
+  await prepareProcessOwnershipInspection(options.signal);
+  options.signal?.throwIfAborted();
   const platform = options.platform ?? process.platform;
   const hostEnvironment = options.hostEnvironment ?? process.env;
   const environment = {

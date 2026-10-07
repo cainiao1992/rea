@@ -185,6 +185,9 @@ describe("web bundle static-analysis parity", () => {
         xhr.open(method, "/dynamic-method");
         fs.open(path, "r", done);
         window.open(url, "_blank");
+        window.open(url, "/preview");
+        globalThis.open(url, "./frame");
+        document.open("text/html", "/replace");
       `),
     );
     expect(

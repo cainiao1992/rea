@@ -383,6 +383,13 @@ const xhrOpenUrl = (
     : undefined;
 };
 
+/**
+ * Browsing-context and document `open` take a URL or type first and a target
+ * name second, never an XHR method and request URL.
+ */
+const WINDOW_OPEN_CALL =
+  /(?:^|\.)(?:window|self|globalThis|top|parent|opener|frames|document)\.open$/u;
+
 /** Select the literal URL argument for recognized network callees. */
 export const endpointArgument = (
   name: string,
@@ -395,7 +402,8 @@ export const endpointArgument = (
 ): string | undefined => {
   if (name === "fetch" || name.endsWith(".fetch") || name === "WebSocket")
     return stringValue(args[0]);
-  if (name.endsWith(".open")) return xhrOpenUrl(args[0], args[1]);
+  if (name.endsWith(".open") && !WINDOW_OPEN_CALL.test(name))
+    return xhrOpenUrl(args[0], args[1]);
   if (
     ["get", "post", "put", "patch", "delete", "request"].some(
       (method) => name === method || name.endsWith(`.${method}`),

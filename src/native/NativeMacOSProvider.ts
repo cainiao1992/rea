@@ -6,7 +6,7 @@ export { NATIVE_MACOS_PROVIDER_IDENTITY } from "./NativeMacOSProviderMetadata.js
 import { inspectAppleDispatchMetadata } from "./AppleDispatchMetadata.js";
 import { observeNativeUi } from "./NativeUiObservation.js";
 import { dirname, isAbsolute, resolve } from "node:path";
-import { realpath, stat } from "node:fs/promises";
+import { open, realpath, stat } from "node:fs/promises";
 
 import { parse as parseXmlPlist } from "plist";
 import { z } from "zod";
@@ -28,8 +28,10 @@ import type { EvidenceLocation } from "../domain/evidence.js";
 import {
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
+  AnalysisInputError,
   AnalysisOutputError,
 } from "../domain/analysisErrorCore.js";
+import { BinaryTargetError } from "../domain/configurationErrors.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
@@ -419,6 +421,8 @@ class NativeMacOSClient implements AnalysisClient {
       );
     const plist = await resolvePlistPath(this.target, requested);
     if (!plist.ok) return plist;
+    const selected = await requireRegularPlist(plist.value, requested);
+    if (!selected.ok) return selected;
     const classified = await this.#run(
       "inspect_plist",
       "file",
@@ -445,9 +449,17 @@ class NativeMacOSClient implements AnalysisClient {
             "inspect_plist",
             "plutil",
             ["-convert", "xml1", "-o", "-", "--", plist.value],
-            { signal },
+            { signal, acceptNonZero: !jsonDecoded },
           );
     if (xml !== undefined && !xml.ok) return xml;
+    if (xml !== undefined && xml.value.exitCode !== 0)
+      return err(
+        unreadablePlist(
+          plist.value,
+          requested,
+          `plutil could not decode it as a property list (${plutilDiagnostic(xml.value.stderr, plist.value)})`,
+        ),
+      );
     const parsed =
       xml === undefined
         ? parsePlistJson(json.value.stdout)
@@ -635,6 +647,70 @@ const parseEntitlements = (output: string): JsonValue | null => {
   return jsonValueSchema.parse(
     parseXmlPlist(output.slice(start, end + "</plist>".length)),
   );
+};
+
+/**
+ * Report a plist that cannot be decoded as the caller's selection, or as the
+ * target's missing default, rather than as a failed tool run.
+ */
+const unreadablePlist = (
+  path: string,
+  requested: string | undefined,
+  reason: string,
+): AnalysisError => {
+  const sentence = reason.endsWith(".") ? reason : `${reason}.`;
+  return requested === undefined
+    ? new AnalysisCapabilityUnavailableError(
+        IDENTITY.id,
+        "inspect_plist",
+        `The target has no readable Contents/Info.plist at ${path}: ${sentence} Pass path to inspect another plist.`,
+      )
+    : new AnalysisInputError("inspect_plist", undefined, [
+        {
+          path: ["path"],
+          reason: "invalid_value",
+          message: `Cannot inspect ${path}: ${sentence}`,
+        },
+      ]);
+};
+
+/** plutil prefixes its diagnostic with the path the message already names. */
+const plutilDiagnostic = (stderr: string, path: string): string => {
+  const text = stderr.trim();
+  return text.startsWith(`${path}: `) ? text.slice(path.length + 2) : text;
+};
+
+/**
+ * Admit a readable regular file before plutil runs, so a later plutil failure
+ * reflects the bytes rather than a missing path or a host permission denial.
+ */
+const requireRegularPlist = async (
+  path: string,
+  requested: string | undefined,
+): Promise<Result<null, AnalysisError>> => {
+  try {
+    if (!(await stat(path)).isFile())
+      return err(unreadablePlist(path, requested, "it is not a regular file"));
+    // Opening also observes ACL and macOS privacy denials that stat permits.
+    await (await open(path, "r")).close();
+    return ok(null);
+  } catch (cause: unknown) {
+    const code =
+      cause instanceof Error && "code" in cause ? cause.code : undefined;
+    if (code === "ENOENT" || code === "ENOTDIR")
+      return err(unreadablePlist(path, requested, "no file exists there"));
+    if (code === "EACCES" || code === "EPERM")
+      return err(
+        new BinaryTargetError(
+          path,
+          `permission denied while reading plist (${code})`,
+          { cause },
+        ),
+      );
+    return err(
+      new ProviderAdapterError(IDENTITY.id, "inspect_plist", { cause }),
+    );
+  }
 };
 
 const resolvePlistPath = async (

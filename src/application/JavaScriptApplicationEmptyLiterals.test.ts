@@ -5,7 +5,9 @@ import { expect, it } from "vitest";
 
 import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory.js";
 import { javascriptApplicationAnalysisResultSchema } from "../domain/javascriptApplicationAnalysis.js";
+import { matchJavaScriptApplicationVersions } from "../domain/javascriptApplicationVersionKeys.js";
 import { findApplicationFeatureSeeds } from "../domain/javascriptFeatureSeed.js";
+import { traceApplicationFeatureInputSchema } from "../domain/javascriptFeatureTraceSchemas.js";
 import { analyzeJavaScriptApplication } from "./JavaScriptApplicationService.js";
 
 const analyzeSource = async (
@@ -151,4 +153,75 @@ it("does not match an empty endpoint with a literal two-quote seed", async () =>
   expect(matches.map(({ node_id: nodeId }) => endpoints.get(nodeId))).toEqual([
     '""',
   ]);
+});
+
+const IPC_SOURCE =
+  "const { ipcMain } = require('electron'); ipcMain.handle('', () => 1); ipcMain.handle('\"\"', () => 2);";
+
+const ipcChannels = (
+  nodes: Awaited<ReturnType<typeof analyzeSource>>["graph"]["nodes"],
+) =>
+  new Map(
+    nodes
+      .filter(({ kind }) => kind === "ipc-channel")
+      .map((node) => [node.node_id, node.observations[0]?.properties.channel]),
+  );
+
+it("selects an empty IPC channel with an exact empty seed", async () => {
+  const output = await analyzeSource(IPC_SOURCE);
+  const channels = ipcChannels(output.graph.nodes);
+  const matches = findApplicationFeatureSeeds(output.graph.nodes, {
+    kind: "channel",
+    value: "",
+    match: "exact",
+    case_sensitive: true,
+  });
+  expect(matches.map(({ node_id: nodeId }) => channels.get(nodeId))).toEqual([
+    "",
+  ]);
+});
+
+it.each([
+  { kind: "channel", value: "" },
+  { kind: "string", value: "", match: "exact" },
+])("accepts an exact empty seed: %j", (seed) => {
+  expect(
+    traceApplicationFeatureInputSchema.shape.seed.safeParse(seed).success,
+  ).toBe(true);
+});
+
+it.each([
+  { kind: "string", value: "" },
+  { kind: "channel", value: "", match: "contains" },
+  { kind: "node-id", value: "", match: "exact" },
+])("rejects an empty seed that is not an exact literal: %j", (seed) => {
+  const parsed = traceApplicationFeatureInputSchema.shape.seed.safeParse(seed);
+  expect(parsed.success).toBe(false);
+});
+
+it("pairs the same empty IPC channel across application versions", async () => {
+  const left = await analyzeSource(IPC_SOURCE);
+  const right = await analyzeSource(`${IPC_SOURCE} // v2`);
+  const leftChannels = ipcChannels(left.graph.nodes);
+  const rightChannels = ipcChannels(right.graph.nodes);
+  const matching = matchJavaScriptApplicationVersions(
+    left.graph.nodes,
+    right.graph.nodes,
+  );
+  expect(
+    matching.pairs
+      .filter(({ left: node }) => node.kind === "ipc-channel")
+      .map(({ left: leftNode, right: rightNode }) => [
+        leftChannels.get(leftNode.node_id),
+        rightChannels.get(rightNode.node_id),
+      ]),
+  ).toEqual(
+    expect.arrayContaining([
+      ["", ""],
+      ['""', '""'],
+    ]),
+  );
+  expect(matching.unmatchedLeft.map(({ kind }) => kind)).not.toContain(
+    "ipc-channel",
+  );
 });

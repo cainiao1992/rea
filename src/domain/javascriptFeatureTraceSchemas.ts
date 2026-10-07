@@ -10,21 +10,43 @@ const nodeIdSchema = prefixedDigestSchema("jag_node");
 const edgeIdSchema = prefixedDigestSchema("jag_edge");
 const boundedTextSchema = z.string().min(1);
 
-/** Literal starting point for one application feature trace. */
-const applicationFeatureSeedSchema = z.strictObject({
-  kind: z.enum([
-    "node-id",
-    "route",
-    "string",
-    "api",
-    "channel",
-    "module",
-    "native-export",
-  ]),
-  value: boundedTextSchema,
-  match: z.enum(["exact", "contains"]).nullable().default(null),
-  case_sensitive: z.boolean().default(false),
-});
+/** Matching mode for a literal seed: string seeds default to containment. */
+export const featureSeedMatchMode = (seed: {
+  readonly kind: string;
+  readonly match: "exact" | "contains" | null;
+}): "exact" | "contains" =>
+  seed.match ?? (seed.kind === "string" ? "contains" : "exact");
+
+/**
+ * Literal starting point for one application feature trace. An exact literal
+ * seed may be empty, such as the channel in `ipcMain.handle("")`; an empty
+ * containment seed would select every node, so it is rejected.
+ */
+const applicationFeatureSeedSchema = z
+  .strictObject({
+    kind: z.enum([
+      "node-id",
+      "route",
+      "string",
+      "api",
+      "channel",
+      "module",
+      "native-export",
+    ]),
+    value: z.string(),
+    match: z.enum(["exact", "contains"]).nullable().default(null),
+    case_sensitive: z.boolean().default(false),
+  })
+  .superRefine((seed, context) => {
+    if (seed.value !== "") return;
+    if (seed.kind === "node-id" || featureSeedMatchMode(seed) === "contains")
+      context.addIssue({
+        code: "custom",
+        path: ["value"],
+        message:
+          'An empty seed value requires an exact literal match: use match "exact" with a non-node-id kind',
+      });
+  });
 
 /** Evidence-backed application graph and feature seed. */
 export const traceApplicationFeatureInputSchema = z

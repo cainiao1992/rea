@@ -1,6 +1,9 @@
 import { compareCodePoints } from "./canonicalOrdering.js";
 import type { ApplicationNode } from "./javascriptApplicationGraph.js";
-import type { ApplicationFeatureSeed } from "./javascriptFeatureTraceSchemas.js";
+import {
+  featureSeedMatchMode,
+  type ApplicationFeatureSeed,
+} from "./javascriptFeatureTraceSchemas.js";
 import type { JsonValue } from "./jsonValue.js";
 
 /** One explicit field that matched a feature seed. */
@@ -49,7 +52,7 @@ const seedMatch = (
         ]
       : [];
   if (!kindMatches(node, seed.kind)) return [];
-  const mode = seed.match ?? (seed.kind === "string" ? "contains" : "exact");
+  const mode = featureSeedMatchMode(seed);
   const query = normalized(seed.value, seed.case_sensitive);
   const match = candidateFields(node, seed.kind).find((candidate) => {
     const value = normalized(candidate.value, seed.case_sensitive);

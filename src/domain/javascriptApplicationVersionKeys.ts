@@ -229,8 +229,11 @@ const semanticValue = (
   node: ApplicationNode,
   properties: Readonly<Record<string, JsonValue>>,
 ): string | null => {
-  if (node.kind === "endpoint")
-    return joined(properties.endpoint_kind, properties.value);
+  if (node.kind === "endpoint") {
+    const kind = nonEmptyString(properties.endpoint_kind);
+    const value = exactString(properties.value);
+    return kind === null || value === null ? null : `${kind}\0${value}`;
+  }
   if (node.kind === "storage")
     return joined(
       properties.storage_kind,
@@ -239,9 +242,13 @@ const semanticValue = (
   if (node.kind === "ipc-channel")
     return properties.resolution === "dynamic"
       ? null
-      : (nonEmptyString(properties.channel) ?? firstLabel(node));
+      : (exactString(properties.channel) ?? firstLabel(node));
   if (node.kind === "context-bridge-api")
-    return firstLabel(node) ?? nonEmptyString(properties.api_name);
+    return (
+      firstLabel(node) ??
+      exactString(properties.api_key) ??
+      nonEmptyString(properties.api_name)
+    );
   if (node.kind === "native-export")
     return (
       joined(
@@ -292,6 +299,10 @@ const joined = (...values: readonly unknown[]): string | null => {
 
 const nonEmptyString = (value: unknown): string | null =>
   typeof value === "string" && value !== "" ? value : null;
+
+/** A literal value such as `ipcMain.handle("")` keeps its exact empty text. */
+const exactString = (value: unknown): string | null =>
+  typeof value === "string" ? value : null;
 
 const stringList = (value: unknown): string[] =>
   Array.isArray(value)

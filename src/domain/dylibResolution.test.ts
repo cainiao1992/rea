@@ -1,0 +1,440 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  traceDylibLoading,
+  type DylibTreeEntry,
+  type DylibTreeView,
+  type MachoDependency,
+  type MachoImageFacts,
+  type MachoSlice,
+} from "./dylibResolution.js";
+
+const slice = (overrides: Partial<MachoSlice> = {}): MachoSlice => ({
+  architecture: "arm64",
+  file_type: "dylib",
+  install_name: null,
+  dependencies: [],
+  rpaths: [],
+  dyld_environment: [],
+  code_signature_present: true,
+  ...overrides,
+});
+
+const dependency = (
+  installName: string,
+  overrides: Partial<MachoDependency> = {},
+): MachoDependency => ({
+  command: "LC_LOAD_DYLIB",
+  encoding: "dylib_command",
+  install_name: installName,
+  weak: false,
+  upward: false,
+  reexport: false,
+  delayed_init: false,
+  current_version: "1.0.0",
+  compatibility_version: "1.0.0",
+  ...overrides,
+});
+
+const parsed = (...slices: MachoSlice[]): MachoImageFacts => ({
+  status: "parsed",
+  slices,
+});
+
+const executable = (overrides: Partial<MachoSlice> = {}): MachoImageFacts =>
+  parsed(slice({ file_type: "execute", ...overrides }));
+
+/** In-memory tree: files are images (or "data"), symlinks map to targets. */
+const memoryView = (
+  files: Readonly<Record<string, MachoImageFacts | "data">>,
+  symlinks: Readonly<Record<string, string>> = {},
+): DylibTreeView => {
+  const entries = new Map<string, DylibTreeEntry>();
+  const addParents = (path: string): void => {
+    const segments = path.split("/");
+    for (let length = 1; length < segments.length; length++)
+      entries.set(segments.slice(0, length).join("/"), { kind: "directory" });
+  };
+  for (const path of Object.keys(files)) {
+    addParents(path);
+    entries.set(path, { kind: "file" });
+  }
+  for (const [path, target] of Object.entries(symlinks)) {
+    addParents(path);
+    entries.set(path, { kind: "symlink", target });
+  }
+  return {
+    entry: (path) => Promise.resolve(entries.get(path)),
+    image: (path) => {
+      const facts = files[path];
+      return Promise.resolve(
+        facts === undefined || facts === "data"
+          ? { status: "not-mach-o" as const }
+          : facts,
+      );
+    },
+  };
+};
+
+const MAIN = "Contents/MacOS/App";
+
+const edgeFor = (
+  trace: Awaited<ReturnType<typeof traceDylibLoading>>,
+  loader: string,
+  installName: string,
+) => {
+  const edge = trace.edges.find(
+    (candidate) =>
+      candidate.loader === loader && candidate.install_name === installName,
+  );
+  if (edge === undefined)
+    throw new Error(`missing ${loader} -> ${installName}`);
+  return edge;
+};
+
+describe("dyld path expansion", () => {
+  it("searches the loading image's rpaths before its loaders'", async () => {
+    const core = "Contents/Frameworks/Core.framework/Versions/A/Core";
+    const trace = await traceDylibLoading(
+      memoryView({
+        [MAIN]: executable({
+          rpaths: ["@executable_path/../Frameworks"],
+          dependencies: [dependency("@rpath/Core.framework/Versions/A/Core")],
+        }),
+        [core]: parsed(
+          slice({
+            rpaths: ["@loader_path/Libraries"],
+            dependencies: [dependency("@rpath/libchain.dylib")],
+          }),
+        ),
+        "Contents/Frameworks/libchain.dylib": parsed(slice()),
+        "Contents/Frameworks/Core.framework/Versions/A/Libraries/libchain.dylib":
+          parsed(slice()),
+      }),
+      { roots: [MAIN] },
+    );
+    const chain = edgeFor(trace, core, "@rpath/libchain.dylib");
+    expect(chain.via).toEqual([MAIN, core]);
+    expect(chain.candidates).toEqual([
+      expect.objectContaining({
+        source: "rpath",
+        rpath: "@loader_path/Libraries",
+        rpath_owner: core,
+        outcome: "resolved",
+      }),
+    ]);
+    expect(chain.resolution).toEqual({
+      status: "resolved",
+      image:
+        "Contents/Frameworks/Core.framework/Versions/A/Libraries/libchain.dylib",
+    });
+  });
+
+  it("expands @loader_path in an rpath relative to the image that owns it", async () => {
+    const plugin = "Contents/PlugIns/Tool.bundle/Contents/MacOS/Tool";
+    const trace = await traceDylibLoading(
+      memoryView({
+        [MAIN]: executable({
+          rpaths: ["@loader_path/../Shared"],
+          dependencies: [
+            dependency(
+              `@executable_path/../PlugIns/Tool.bundle/Contents/MacOS/Tool`,
+            ),
+          ],
+        }),
+        [plugin]: parsed(
+          slice({
+            file_type: "bundle",
+            dependencies: [dependency("@rpath/libshared.dylib")],
+          }),
+        ),
+        "Contents/Shared/libshared.dylib": parsed(slice()),
+      }),
+      { roots: [MAIN] },
+    );
+    expect(edgeFor(trace, plugin, "@rpath/libshared.dylib").candidates).toEqual(
+      [
+        expect.objectContaining({
+          path: "Contents/MacOS/../Shared/libshared.dylib",
+          rpath_owner: MAIN,
+          outcome: "resolved",
+          resolved_path: "Contents/Shared/libshared.dylib",
+        }),
+      ],
+    );
+  });
+
+  it("gives each executable root its own @executable_path", async () => {
+    const service = "Contents/XPCServices/Fetch.xpc/Contents/MacOS/Fetch";
+    const trace = await traceDylibLoading(
+      memoryView({
+        [MAIN]: executable({
+          dependencies: [dependency("@executable_path/libhere.dylib")],
+        }),
+        [service]: executable({
+          dependencies: [dependency("@executable_path/libhere.dylib")],
+        }),
+        "Contents/MacOS/libhere.dylib": parsed(slice()),
+      }),
+      { roots: [MAIN, service] },
+    );
+    expect(
+      edgeFor(trace, MAIN, "@executable_path/libhere.dylib").resolution.status,
+    ).toBe("resolved");
+    expect(
+      edgeFor(trace, service, "@executable_path/libhere.dylib"),
+    ).toMatchObject({
+      candidates: [
+        {
+          path: "Contents/XPCServices/Fetch.xpc/Contents/MacOS/libhere.dylib",
+          outcome: "absent",
+        },
+      ],
+      resolution: { status: "unresolved", image: null },
+    });
+  });
+
+  it("follows Versions/Current inside the root and stops at escaping links", async () => {
+    const trace = await traceDylibLoading(
+      memoryView(
+        {
+          [MAIN]: executable({
+            rpaths: ["@executable_path/../Frameworks"],
+            dependencies: [
+              dependency("@rpath/Core.framework/Core"),
+              dependency("@rpath/Escape.framework/Escape"),
+              dependency("@executable_path/../../../outside.dylib"),
+            ],
+          }),
+          "Contents/Frameworks/Core.framework/Versions/A/Core": parsed(slice()),
+        },
+        {
+          "Contents/Frameworks/Core.framework/Versions/Current": "A",
+          "Contents/Frameworks/Core.framework/Core": "Versions/Current/Core",
+          "Contents/Frameworks/Escape.framework":
+            "/Library/Frameworks/Escape.framework",
+        },
+      ),
+      { roots: [MAIN] },
+    );
+    expect(
+      edgeFor(trace, MAIN, "@rpath/Core.framework/Core").resolution,
+    ).toEqual({
+      status: "resolved",
+      image: "Contents/Frameworks/Core.framework/Versions/A/Core",
+    });
+    for (const name of [
+      "@rpath/Escape.framework/Escape",
+      "@executable_path/../../../outside.dylib",
+    ])
+      expect(edgeFor(trace, MAIN, name)).toMatchObject({
+        candidates: [{ outcome: "escapes-target" }],
+        resolution: { status: "undetermined", image: null },
+      });
+  });
+});
+
+describe("dyld resolution outcomes", () => {
+  it("keeps paths outside the root undetermined and in-root fallbacks conditional", async () => {
+    const trace = await traceDylibLoading(
+      memoryView({
+        [MAIN]: executable({
+          rpaths: ["/usr/lib/swift", "@executable_path/../Frameworks"],
+          dependencies: [
+            dependency("/usr/lib/libSystem.B.dylib"),
+            dependency("@rpath/libswiftCore.dylib"),
+            dependency("libleaf.dylib"),
+          ],
+        }),
+        "Contents/Frameworks/libswiftCore.dylib": parsed(slice()),
+      }),
+      { roots: [MAIN] },
+    );
+    expect(edgeFor(trace, MAIN, "/usr/lib/libSystem.B.dylib")).toMatchObject({
+      candidates: [
+        { outcome: "outside-target", path: "/usr/lib/libSystem.B.dylib" },
+      ],
+      resolution: { status: "undetermined", image: null },
+    });
+    expect(edgeFor(trace, MAIN, "@rpath/libswiftCore.dylib")).toMatchObject({
+      candidates: [
+        {
+          outcome: "outside-target",
+          path: "/usr/lib/swift/libswiftCore.dylib",
+        },
+        { outcome: "resolved" },
+      ],
+      resolution: {
+        status: "conditional",
+        image: "Contents/Frameworks/libswiftCore.dylib",
+      },
+    });
+    expect(edgeFor(trace, MAIN, "libleaf.dylib").resolution.status).toBe(
+      "undetermined",
+    );
+  });
+
+  it("derives unresolved and earlier-candidate findings separately for weak loads", async () => {
+    const trace = await traceDylibLoading(
+      memoryView({
+        [MAIN]: executable({
+          rpaths: [
+            "@executable_path/../Overrides",
+            "@executable_path/../Frameworks",
+          ],
+          dependencies: [
+            dependency("@rpath/libfound.dylib"),
+            dependency("@rpath/libgone.dylib", {
+              command: "LC_LOAD_WEAK_DYLIB",
+              weak: true,
+            }),
+            dependency("@rpath/libmissing.dylib"),
+          ],
+          dyld_environment: ["DYLD_LIBRARY_PATH=/tmp"],
+        }),
+        "Contents/Frameworks/libfound.dylib": parsed(slice()),
+      }),
+      { roots: [MAIN] },
+    );
+    expect(
+      trace.findings.map(({ kind, edge_index: index }) => [kind, index]),
+    ).toEqual([
+      ["earlier-rpath-candidate-absent", 0],
+      ["weak-load-unresolved", 1],
+      ["required-load-unresolved", 2],
+      ["dyld-environment-present", null],
+    ]);
+    expect(trace.findings[0]?.explanation).toContain(
+      "Contents/MacOS/../Overrides/libfound.dylib",
+    );
+  });
+
+  it("reports non-Mach-O, malformed and wrong-architecture candidates", async () => {
+    const trace = await traceDylibLoading(
+      memoryView({
+        [MAIN]: executable({
+          rpaths: [
+            "@executable_path/a",
+            "@executable_path/b",
+            "@executable_path/c",
+          ],
+          dependencies: [dependency("@rpath/lib.dylib")],
+        }),
+        "Contents/MacOS/a/lib.dylib": "data",
+        "Contents/MacOS/b/lib.dylib": {
+          status: "malformed",
+          reason: "load command 0 has invalid cmdsize 0",
+        },
+        "Contents/MacOS/c/lib.dylib": parsed(slice({ architecture: "x86_64" })),
+      }),
+      { roots: [MAIN] },
+    );
+    expect(
+      edgeFor(trace, MAIN, "@rpath/lib.dylib").candidates.map(
+        ({ outcome }) => outcome,
+      ),
+    ).toEqual(["not-mach-o", "malformed", "architecture-missing"]);
+    expect(trace.coverage).toEqual({
+      status: "partial",
+      unparsed_images: ["Contents/MacOS/b/lib.dylib"],
+      roots_without_architecture: [],
+    });
+    expect(trace.images.map(({ path }) => path)).toEqual([
+      MAIN,
+      "Contents/MacOS/b/lib.dylib",
+      "Contents/MacOS/c/lib.dylib",
+    ]);
+  });
+});
+
+describe("dyld load order", () => {
+  it("loads each image once per process and reuses matching install names", async () => {
+    const a = "Contents/Frameworks/libA.dylib";
+    const b = "Contents/Frameworks/libB.dylib";
+    const trace = await traceDylibLoading(
+      memoryView({
+        [MAIN]: executable({
+          rpaths: ["@executable_path/../Frameworks"],
+          dependencies: [
+            dependency("@rpath/libA.dylib"),
+            dependency("@rpath/libB.dylib"),
+          ],
+        }),
+        [a]: parsed(
+          slice({
+            install_name: "@rpath/libA.dylib",
+            dependencies: [
+              dependency("@rpath/libB.dylib"),
+              dependency("@rpath/libA.dylib"),
+            ],
+          }),
+        ),
+        [b]: parsed(
+          slice({
+            install_name: "@rpath/libB.dylib",
+            dependencies: [dependency("@rpath/libA.dylib")],
+          }),
+        ),
+      }),
+      { roots: [MAIN] },
+    );
+    expect(
+      trace.edges.map(
+        ({ loader, install_name: name }) =>
+          `${loader.split("/").at(-1)}>${name}`,
+      ),
+    ).toEqual([
+      "App>@rpath/libA.dylib",
+      "App>@rpath/libB.dylib",
+      "libA.dylib>@rpath/libB.dylib",
+      "libA.dylib>@rpath/libA.dylib",
+      "libB.dylib>@rpath/libA.dylib",
+    ]);
+    expect(edgeFor(trace, b, "@rpath/libA.dylib").candidates).toEqual([
+      expect.objectContaining({ source: "already-loaded", resolved_path: a }),
+    ]);
+    expect(edgeFor(trace, a, "@rpath/libA.dylib").install_name_matches).toBe(
+      true,
+    );
+  });
+
+  it("leaves @executable_path undetermined for a library root and filters architectures", async () => {
+    const library = "Contents/Frameworks/libroot.dylib";
+    const trace = await traceDylibLoading(
+      memoryView({
+        [library]: parsed(
+          slice({ dependencies: [dependency("@executable_path/x.dylib")] }),
+        ),
+        [MAIN]: executable(),
+      }),
+      { roots: [library, MAIN], architecture: "x86_64" },
+    );
+    expect(trace.roots).toEqual([]);
+    expect(trace.coverage.roots_without_architecture).toEqual([library, MAIN]);
+    const arm = await traceDylibLoading(
+      memoryView({
+        [library]: parsed(
+          slice({ dependencies: [dependency("@executable_path/x.dylib")] }),
+        ),
+      }),
+      { roots: [library] },
+    );
+    expect(arm.edges[0]?.candidates).toEqual([
+      expect.objectContaining({
+        source: "executable_path",
+        outcome: "undetermined",
+      }),
+    ]);
+  });
+
+  it("stops when cancelled", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      traceDylibLoading(memoryView({ [MAIN]: executable() }), {
+        roots: [MAIN],
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow();
+  });
+});

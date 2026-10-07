@@ -7,10 +7,10 @@
       "client": "2.3.1",
       "core": "2.3.1"
     },
-    "skill_version": "27"
+    "skill_version": "28"
   },
   "tools": {
-    "total": 131,
+    "total": 132,
     "families": [
       {
         "id": "direct",
@@ -98,13 +98,14 @@
       {
         "id": "artifact",
         "surface": "artifact-provider",
-        "count": 5,
+        "count": 6,
         "tools": [
           "decode_interface_builder",
           "extract_artifact",
           "inspect_artifact",
           "inspect_asset_catalog",
-          "inspect_keyed_archive"
+          "inspect_keyed_archive",
+          "trace_dylib_resolution"
         ]
       },
       {
@@ -376,7 +377,8 @@
         "extract_artifact",
         "inspect_artifact",
         "inspect_asset_catalog",
-        "inspect_keyed_archive"
+        "inspect_keyed_archive",
+        "trace_dylib_resolution"
       ]
     },
     {
@@ -566,7 +568,7 @@
     }
   ],
   "cli": {
-    "primary_count": 86,
+    "primary_count": 87,
     "commands": [
       "address-to-file-offset",
       "analyze",
@@ -645,6 +647,7 @@
       "trace",
       "trace-android-references",
       "trace-application-feature",
+      "trace-dylib-resolution",
       "trace-javascript-semantics",
       "trace-native-ui-action",
       "trace-native-values",
@@ -664,15 +667,15 @@
   },
   "runtime_catalog": {
     "counts": {
-      "cli_commands": 86,
-      "mcp_tools": 131,
+      "cli_commands": 87,
+      "mcp_tools": 132,
       "mcp_prompts": 6
     },
     "digests": {
-      "tools_sha256": "db85863d0b0947f21a14fcffe1e0e293842c68a209beb4125900d797f1242ccd",
+      "tools_sha256": "de9574754aec25583ad8afd7707decd98cf44be2045116df58382d543e0a531c",
       "prompts_sha256": "ef2de8814390b340623c32001610aa2709d90bed51537b6e562ab3abf144ab4d",
-      "combined_sha256": "7521c178e76e19b8fd552c2ca7e1ed4930dd86d2bf01d035951d974e4f6edab9",
-      "providers_sha256": "a7d885531ee25d42c51385444faec544d34cd7eba6250a7dc75c4faedd4454a3"
+      "combined_sha256": "bc890fb6dd3df37c65925265dba308cf9dcfdd479a71b55ac73e268e5bbfdc5f",
+      "providers_sha256": "56e95f15d7ee4cc262e9f758dc74db0eabf670fdfea0be878079f0286114e65b"
     }
   }
 }

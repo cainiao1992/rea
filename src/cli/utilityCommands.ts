@@ -135,8 +135,10 @@ const registerNativeCommands = (cli: CliInstance, logger: Logger): void => {
     options: z.object({
       relativePath: z
         .string()
-        .default("Contents/Info.plist")
-        .describe("Plist path relative to the app root"),
+        .optional()
+        .describe(
+          "Plist path relative to the app root (default: Contents/Info.plist)",
+        ),
     }),
     alias: { relativePath: "relative-path" },
     run: ({ args, options }) =>
@@ -144,7 +146,9 @@ const registerNativeCommands = (cli: CliInstance, logger: Logger): void => {
         runProviderAnalysis(
           args.path,
           "inspect_plist",
-          { path: options.relativePath },
+          options.relativePath === undefined
+            ? {}
+            : { path: options.relativePath },
           logger,
         ),
       ),

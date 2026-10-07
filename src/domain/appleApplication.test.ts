@@ -309,6 +309,17 @@ describe("Apple bundle layouts and containers", () => {
     expect(
       result.bundles.find(({ path }) => path === framework)?.info_plist_path,
     ).toBeNull();
+    // Only A has a plist, but Versions/Current may select B.
+    const onlyA = project(
+      inventoryEvidence("zip", "Fixture.zip", [
+        macho("Fixture.app/Contents/MacOS/Fixture"),
+        { path: `${framework}/Versions/A/Resources/Info.plist` },
+        macho(`${framework}/Versions/B/Core`),
+      ]),
+    );
+    expect(
+      onlyA.bundles.find(({ path }) => path === framework)?.info_plist_path,
+    ).toBeNull();
     expect(result.limitations).toContainEqual(
       expect.stringContaining("Versions/Current selects is unknown"),
     );
@@ -436,5 +447,39 @@ describe("macOS application scope", () => {
       application_roots: ["."],
       platforms: ["macos"],
     });
+  });
+});
+
+describe("Apple application bridge candidates", () => {
+  it("pairs scripts and native code only within one application root", () => {
+    const result = project(
+      inventoryEvidence("zip", "Suite.zip", [
+        macho("First.app/Contents/MacOS/First"),
+        {
+          path: "First.app/Contents/Resources/first.js",
+          format: "javascript-bundle",
+        },
+        macho("Second.app/Contents/MacOS/Second"),
+        {
+          path: "Second.app/Contents/Resources/second.js",
+          format: "javascript-bundle",
+        },
+      ]),
+    );
+    expect(result.application_roots).toEqual(["First.app", "Second.app"]);
+    expect(
+      result.bridge_candidates.map(
+        ({ source_path: source, native_path: target }) => [source, target],
+      ),
+    ).toEqual([
+      [
+        "First.app/Contents/Resources/first.js",
+        "First.app/Contents/MacOS/First",
+      ],
+      [
+        "Second.app/Contents/Resources/second.js",
+        "Second.app/Contents/MacOS/Second",
+      ],
+    ]);
   });
 });

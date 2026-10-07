@@ -234,7 +234,11 @@ const infoPlistPath = (
   layout: Bundle["layout"],
   tree: Tree,
 ): string | null => {
-  const candidates = contentDirectories(bundle, layout, tree)
+  const directories = contentDirectories(bundle, layout, tree);
+  // With several real versions, Versions/Current (a symlink outside the
+  // inventory) decides which plist applies, so the plist stays unknown.
+  if (directories.length !== 1) return null;
+  const candidates = directories
     .map((directory) =>
       joinPath(
         directory,

@@ -25,7 +25,9 @@ interface PendingCommand {
 export class CdpConnection {
   readonly #pending = new Map<number, PendingCommand>();
   readonly #listeners = new Set<(event: CdpEvent) => void>();
-  readonly #disconnectListeners = new Set<() => void>();
+  readonly #disconnectListeners = new Set<
+    (error: BrowserObservationError) => void
+  >();
   readonly #protocolFailureListeners = new Set<
     (error: BrowserObservationError) => void
   >();
@@ -74,9 +76,9 @@ export class CdpConnection {
   }
 
   /** Subscribe to an unexpected transport loss while an operation is active. */
-  onDisconnect(listener: () => void): () => void {
+  onDisconnect(listener: (error: BrowserObservationError) => void): () => void {
     if (this.#closed) {
-      listener();
+      listener(this.#transportError(this.#transportFailure));
       return () => undefined;
     }
     this.#disconnectListeners.add(listener);
@@ -281,7 +283,8 @@ export class CdpConnection {
     if (!wasClosed) this.#transportFailure = reason;
     this.#failPending(reason);
     if (wasClosed) return;
-    for (const listener of this.#disconnectListeners) listener();
+    const error = this.#transportError(reason);
+    for (const listener of this.#disconnectListeners) listener(error);
     this.#disconnectListeners.clear();
   }
 

@@ -175,9 +175,10 @@ describe("complete Inspector script hashes", () => {
       scriptHashes,
     });
     try {
-      const result = await new V8InspectorProvider().observe(
-        observeInput(fake.endpoint, fake.targetId, "node"),
-      );
+      const result = await new V8InspectorProvider().observe({
+        ...observeInput(fake.endpoint, fake.targetId, "node"),
+        observation_ms: 1_000,
+      });
       if (!result.ok) throw result.error;
       expect(result.value.scripts.items).toHaveLength(scriptHashes.length);
       expect(
@@ -212,7 +213,7 @@ describe("undeclared V8 runtime role", () => {
   });
 });
 
-describe("passive V8 Inspector evidence", () => {
+describe("V8 Inspector script retention", () => {
   test("retains authorized script locations longer than the former byte ceiling", async () => {
     const longUrl = `https://example.test/${"a".repeat(20_000)}`;
     const fake = await startFakeV8Inspector({
@@ -261,7 +262,69 @@ describe("passive V8 Inspector evidence", () => {
       await fake.close();
     }
   });
+});
 
+describe("bounded V8 Inspector capture", () => {
+  test("bounds aggregate script and context metadata while retaining a useful partial capture", async () => {
+    const fixture = await runtimeFixture();
+    const url = pathToFileURL(fixture.entry).href;
+    const scriptHashes = Array.from(
+      { length: 2_300 },
+      (_, index) => `${"h".repeat(4_096)}${String(index)}`,
+    );
+    const fake = await startFakeV8Inspector({
+      targetUrl: url,
+      scriptUrls: scriptHashes.map(() => url),
+      scriptHashes,
+      contextTransitionCount: 2_000,
+    });
+    try {
+      const result = await new V8InspectorProvider().observe({
+        ...observeInput(fake.endpoint, fake.targetId, "node"),
+        observation_ms: 1_000,
+      });
+      if (!result.ok) throw result.error;
+      expect(result.value.capture.truncated).toBe(true);
+      expect(result.value.capture.truncation_reasons).toEqual([
+        "retained_metadata_budget_exceeded",
+      ]);
+      expect(result.value.capture.events_dropped).toBeGreaterThan(0);
+      expect(result.value.capture.metadata_bytes_retained).toBeLessThanOrEqual(
+        8 * 1024 * 1024,
+      );
+      expect(result.value.capture.events_observed).toBeGreaterThan(
+        result.value.capture.events_retained,
+      );
+      expect(result.value.execution_contexts).toHaveLength(1);
+    } finally {
+      await fake.close();
+    }
+  });
+
+  test("rejects a CDP event larger than the configured transport payload budget", async () => {
+    const fixture = await runtimeFixture();
+    const fake = await startFakeV8Inspector({
+      targetUrl: pathToFileURL(fixture.entry).href,
+      oversizedEventBytes: 16 * 1024 * 1024,
+    });
+    try {
+      const result = await new V8InspectorProvider().observe(
+        observeInput(fake.endpoint, fake.targetId, "node"),
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toMatchObject({
+        _tag: "BrowserObservationError",
+        reason: "payload_limit",
+      });
+      expect(result.error.userMessage).toContain("protocol budget");
+    } finally {
+      await fake.close();
+    }
+  });
+});
+
+describe("passive V8 Inspector evidence", () => {
   test("produces deterministic Evidence through the service without grants", async () => {
     const fixture = await runtimeFixture();
     const fake = await startFakeV8Inspector({

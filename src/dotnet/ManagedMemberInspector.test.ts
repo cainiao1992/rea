@@ -7,6 +7,28 @@ import {
 } from "./ManagedPe.fixture.js";
 
 describe("managed member inspection", () => {
+  it("keeps metadata handles distinct from calls and field accesses", () => {
+    const il = Buffer.from([
+      0xd0, 0x01, 0, 0, 0x06, 0x26, 0xd0, 0x01, 0, 0, 0x04, 0x26, 0x28, 0x01, 0,
+      0, 0x0a, 0x7b, 0x01, 0, 0, 0x04, 0x26, 0x2a,
+    ]);
+    const bytes = buildManagedPeFixture({
+      ilBody: Buffer.concat([Buffer.from([(il.length << 2) | 2]), il]),
+    });
+    const result = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.methods[0]?.body.anchors.map(({ opcode }) => opcode)).toEqual(
+      ["ldtoken", "ldtoken", "call", "ldfld"],
+    );
+    expect(result.call_edges.map(({ opcode }) => opcode)).toEqual(["call"]);
+    expect(result.field_accesses.map(({ opcode }) => opcode)).toEqual([
+      "ldfld",
+    ]);
+  });
+
   it("inspects metadata members, signatures, CIL hashes, call edges, and field anchors", () => {
     const bytes = buildManagedPeFixture();
     const result = inspectManagedMembersBytes(
@@ -107,6 +129,115 @@ describe("managed member inspection", () => {
         field_name: "counter",
       },
     ]);
+    expect(result.coverage).toMatchObject({ state: "complete", issues: [] });
+  });
+});
+
+describe("managed member reference bounds", () => {
+  it("retains members and reports an out-of-range TypeDef coded index as partial", () => {
+    const bytes = buildManagedPeFixture({ extendsRaw: 12 });
+    const result = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.types[0]).toMatchObject({
+      token: "0x02000001",
+      extends_token: null,
+    });
+    expect(result.fields).toHaveLength(1);
+    expect(result.methods).toHaveLength(1);
+    expect(result.metadata.status).toBe("partial");
+    expect(result.coverage).toMatchObject({
+      state: "partial",
+      issues: [
+        {
+          code: "invalid-row",
+          scope: "metadata.TypeDef:0x02000001",
+          detail: expect.stringContaining(
+            "TypeDef Extends coded index 0xc is invalid: coded index selects row 3 in table 2, which has 1 rows",
+          ),
+        },
+      ],
+    });
+    expect(result.coverage.issues[0]?.offset).toBe(
+      (result.types[0]?.row_offset ?? 0) + 8,
+    );
+  });
+
+  it("retains a MemberRef with an out-of-range parent as an unknown partial reference", () => {
+    const bytes = buildManagedPeFixture({ memberRefParentRaw: 40 });
+    const result = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.member_refs[0]).toMatchObject({
+      token: "0x0a000001",
+      parent_token: null,
+      name: ".ctor",
+    });
+    expect(result.coverage).toMatchObject({
+      state: "partial",
+      issues: [
+        {
+          code: "invalid-row",
+          scope: "metadata.MemberRef:0x0a000001",
+          detail: expect.stringContaining(
+            "MemberRef parent coded index 0x28 is invalid: coded index selects row 5 in table 2, which has 1 rows",
+          ),
+        },
+      ],
+    });
+    expect(result.coverage.issues[0]?.offset).toBe(
+      result.member_refs[0]?.row_offset,
+    );
+  });
+
+  it("reports a null required MemberRef parent without dropping the reference", () => {
+    const bytes = buildManagedPeFixture({ memberRefParentRaw: 0 });
+    const result = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.member_refs[0]).toMatchObject({
+      token: "0x0a000001",
+      parent_token: null,
+    });
+    expect(result.coverage).toMatchObject({
+      state: "partial",
+      issues: [
+        expect.objectContaining({
+          code: "invalid-row",
+          detail:
+            "MemberRef parent coded index 0x0 is null, but the Class column must reference a row",
+        }),
+      ],
+    });
+  });
+
+  it("decodes deeply nested supported pointer signatures without recursion", () => {
+    const depth = 8_000;
+    const bytes = buildManagedPeFixture({
+      fieldSignature: Buffer.concat([
+        Buffer.from([0x06]),
+        Buffer.alloc(depth, 0x0f),
+        Buffer.from([0x08]),
+      ]),
+    });
+    const result = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.fields[0]?.signature).toMatchObject({
+      kind: "field",
+      parse_status: "decoded",
+      field_type: `${"i4"}${"*".repeat(depth)}`,
+      issue: null,
+    });
+    expect(result.methods[0]?.body.status).toBe("present");
     expect(result.coverage).toMatchObject({ state: "complete", issues: [] });
   });
 });

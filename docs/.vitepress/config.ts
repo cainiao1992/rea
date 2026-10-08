@@ -17,6 +17,7 @@ export default defineConfig({
         text: "Getting started",
         items: [
           { text: "Installation and setup", link: "/installation" },
+          { text: "CLI and Evidence", link: "/cli" },
           { text: "Agent prompts", link: "/mcp-prompts" },
           { text: "Roadmap", link: "/roadmap" },
         ],
@@ -64,6 +65,7 @@ export default defineConfig({
           { text: "MCP contracts", link: "/mcp-contracts" },
           { text: "Tool design", link: "/tool-design" },
           { text: "Testing", link: "/testing" },
+          { text: "Releasing", link: "/releasing" },
           { text: "Architecture decisions", link: "/adr/README" },
         ],
       },

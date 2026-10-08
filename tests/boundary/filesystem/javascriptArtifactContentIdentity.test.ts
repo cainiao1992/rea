@@ -1,10 +1,10 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { createPackage } from "@electron/asar";
 import { describe, expect, it } from "vitest";
 
-import { scanArtifactInventory } from "../../../src/application/ArtifactInventory.js";
+import { scanArtifactInventory } from "../../../src/artifacts/inventory/ArtifactInventory.js";
 import { readJavaScriptArtifactFiles } from "../../../src/artifacts/javascript/JavaScriptArtifactFiles.js";
 import { AsarArtifactReader } from "../../../src/artifacts/AsarArtifactReader.js";
 import { DirectoryArtifactReader } from "../../../src/artifacts/DirectoryArtifactReader.js";
@@ -81,6 +81,24 @@ describe("JavaScript artifact ingestion content identities", () => {
         container_sha256: snapshot.manifest.root_sha256,
         text: { included: true, value: "module.exports = 42;\n" },
       });
+    } finally {
+      await reader.close();
+    }
+  });
+
+  it("rejects a same-size ASAR replacement against the inventoried root digest", async () => {
+    const { source, archive } = await fixture();
+    const snapshot = await scanArtifactInventory(archive);
+    const original = await lstat(archive);
+    await writeFile(join(source, "main.js"), "module.exports = 43;\n");
+    await createPackage(source, archive);
+    expect((await lstat(archive)).size).toBe(original.size);
+
+    const reader = new AsarArtifactReader(archive);
+    try {
+      await expect(
+        readJavaScriptArtifactFiles(reader, snapshot),
+      ).rejects.toMatchObject({ reason: "integrity" });
     } finally {
       await reader.close();
     }

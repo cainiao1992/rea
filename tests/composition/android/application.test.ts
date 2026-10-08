@@ -163,8 +163,7 @@ describe("Android application projection", () => {
       inventory_evidence: [inventory],
     });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
+    if (!result.ok) throw result.error;
     const projection = androidApplicationProjectionResultSchema.parse(
       result.value.normalized_result,
     );

@@ -127,8 +127,7 @@ describe("native macOS provider inspection", () => {
       machoTarget("/private/fixture"),
     );
     const execution = await client.execute("inspect_macho", {});
-    expect(execution.ok).toBe(true);
-    if (!execution.ok) return;
+    if (!execution.ok) throw execution.error;
     expect(execution.value.provider.id).toBe("native-macos");
     expect(execution.value.result).toMatchObject({
       format: "mach-o",
@@ -170,8 +169,7 @@ describe("native macOS provider inspection", () => {
 
     const execution = await client.execute("inspect_macho", {});
 
-    expect(execution.ok).toBe(true);
-    if (!execution.ok) return;
+    if (!execution.ok) throw execution.error;
     expect(execution.value.result).toMatchObject({
       segments: {
         items: [
@@ -204,8 +202,7 @@ describe("native macOS provider inspection", () => {
 
     const execution = await client.execute("inspect_macho", {});
 
-    expect(execution.ok).toBe(true);
-    if (!execution.ok) return;
+    if (!execution.ok) throw execution.error;
     expect(execution.value.limitations).toEqual(
       expect.arrayContaining([expect.stringMatching(/vtool.*unavailable/iu)]),
     );
@@ -329,8 +326,7 @@ describe("native signature entitlements", () => {
 
     const signature = await client.execute("inspect_signature", {});
 
-    expect(signature.ok).toBe(true);
-    if (!signature.ok) return;
+    if (!signature.ok) throw signature.error;
     expect(signature.value.result).toMatchObject({
       entitlements: { "com.apple.security.app-sandbox": true },
     });

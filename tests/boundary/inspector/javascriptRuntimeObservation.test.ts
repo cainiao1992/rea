@@ -43,8 +43,7 @@ describe("passive V8 Inspector provider", () => {
       const listed = await new V8InspectorProvider().listTargets({
         inspector_endpoint: fake.endpoint,
       });
-      expect(listed.ok).toBe(true);
-      if (!listed.ok) return;
+      if (!listed.ok) throw listed.error;
       expect(listed.value.targets).toHaveLength(206);
       expect(listed.value.targets[0]?.target_id).toBe(fake.targetId);
     } finally {
@@ -63,8 +62,7 @@ describe("passive V8 Inspector provider", () => {
       const result = await new V8InspectorProvider().listTargets({
         inspector_endpoint: fake.endpoint,
       });
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
+      if (!result.ok) throw result.error;
       expect(result.value.targets).toHaveLength(2);
       expect(
         result.value.targets.map(({ location }) => location),
@@ -89,8 +87,7 @@ describe("passive V8 Inspector provider", () => {
       const result = await new V8InspectorProvider().observe(
         observeInput(fake.endpoint, fake.targetId, "node"),
       );
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
+      if (!result.ok) throw result.error;
       expect(result.value.scripts.items).toHaveLength(3);
       expect(result.value.scripts.excluded.unsupported_location).toBe(0);
       expect(result.value.execution_contexts).toEqual([
@@ -124,8 +121,7 @@ describe("passive V8 Inspector provider", () => {
       const listed = await provider.listTargets({
         inspector_endpoint: fake.endpoint,
       });
-      expect(listed.ok).toBe(true);
-      if (!listed.ok) return;
+      if (!listed.ok) throw listed.error;
       expect(listed.value.targets).toEqual([]);
 
       const observed = await provider.observe(
@@ -182,8 +178,7 @@ describe("complete Inspector script hashes", () => {
       const result = await new V8InspectorProvider().observe(
         observeInput(fake.endpoint, fake.targetId, "node"),
       );
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
+      if (!result.ok) throw result.error;
       expect(result.value.scripts.items).toHaveLength(scriptHashes.length);
       expect(
         new Set(result.value.scripts.items.map(({ cdp_hash }) => cdp_hash)),
@@ -205,8 +200,7 @@ describe("undeclared V8 runtime role", () => {
       const input = observeInput(fake.endpoint, fake.targetId, "node");
       delete input.runtime_kind;
       const result = await new V8InspectorProvider().observe(input);
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
+      if (!result.ok) throw result.error;
       expect(result.value.target).toMatchObject({
         protocol_type: "page",
         runtime_kind: "unknown",
@@ -230,8 +224,7 @@ describe("passive V8 Inspector evidence", () => {
         ...observeInput(fake.endpoint, fake.targetId, "node"),
       };
       const result = await new V8InspectorProvider().observe(input);
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
+      if (!result.ok) throw result.error;
       expect(result.value.scripts.items).toHaveLength(1);
       expect(result.value.scripts.items[0]?.location).toMatchObject({
         kind: "url",
@@ -259,8 +252,7 @@ describe("passive V8 Inspector evidence", () => {
         observation_ms: 1_000,
       };
       const result = await new V8InspectorProvider().observe(input);
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
+      if (!result.ok) throw result.error;
       expect(result.value.capture.truncated).toBe(false);
       expect(result.value.capture.truncation_reasons).toEqual([]);
       expect(result.value.capture.events_dropped).toBe(0);
@@ -323,8 +315,7 @@ describe("passive V8 Inspector evidence", () => {
       static_layers: JAVASCRIPT_RUNTIME_RECONCILIATION_EXAMPLE.static_layers,
       runtime_observations: [runtimeEvidence],
     });
-    expect(reconciled.ok).toBe(true);
-    if (!reconciled.ok) return;
+    if (!reconciled.ok) throw reconciled.error;
     const result = javascriptRuntimeReconciliationResultSchema.parse(
       reconciled.value.normalized_result,
     );

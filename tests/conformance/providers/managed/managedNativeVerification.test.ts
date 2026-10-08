@@ -205,8 +205,7 @@ describe("managed/native boundary verification", () => {
   it("wraps verification in derived workflow Evidence", () => {
     const evidence = verifyManagedNativeBoundariesEvidence(exampleInput());
 
-    expect(evidence.ok).toBe(true);
-    if (!evidence.ok) return;
+    if (!evidence.ok) throw evidence.error;
     expect(evidence.value).toMatchObject({
       operation: "verify_managed_native_boundaries",
       provider: { id: "rea-dotnet-workflows" },

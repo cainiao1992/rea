@@ -552,8 +552,7 @@ describe("replay of exact immutable calls", () => {
       ).ok,
     ).toBe(true);
     const snapshot = initial.exportAnalysisSnapshot();
-    expect(snapshot.ok).toBe(true);
-    if (!snapshot.ok) return;
+    if (!snapshot.ok) throw snapshot.error;
     expect(snapshot.value.entries).toHaveLength(1);
     await initial.close();
 

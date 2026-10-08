@@ -40,8 +40,7 @@ it.each([
     await writeFile(leftPath, left);
     await writeFile(rightPath, right);
     const result = await compareManagedMemberPaths({ leftPath, rightPath });
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
+    if (!result.ok) throw result.error;
     const comparison = managedMemberComparisonResultSchema.parse(
       result.value.normalized_result,
     );
@@ -83,8 +82,7 @@ describe("managed member comparison path workflow", () => {
       right: observe(0xfe, "/tmp/partial-right.dll"),
     });
     const result = compareManagedMembersEvidenceValidated(input);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
+    if (!result.ok) throw result.error;
     const comparison = managedMemberComparisonResultSchema.parse(
       result.value.normalized_result,
     );
@@ -114,8 +112,7 @@ describe("managed member comparison path workflow", () => {
       rightPath,
     });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
+    if (!result.ok) throw result.error;
     expect(result.value).toMatchObject({
       operation: "compare_managed_members",
       confidence: "inferred",

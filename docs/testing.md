@@ -282,6 +282,9 @@ profile; CLI and MCP must reject that binding with a mismatch reason and
 recovery advice. The rejected open must preserve the active live session.
 Exact external entries must resolve while retaining an empty body; unknown
 external addresses remain unresolved and external annotations are rejected.
+An adversarial regex over a full 12 KB literal must report stack exhaustion as
+a resource constraint, preserve live annotations, and allow complete literal
+searches afterward; CLI and MCP must agree on both results and recovery advice.
 Malformed annotation readback, memory completeness, and inventory data remain separate
 SDK/provider integration cases; success from a real
 provider cannot establish rejection of a contradictory provider response.

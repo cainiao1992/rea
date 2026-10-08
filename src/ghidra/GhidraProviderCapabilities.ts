@@ -26,6 +26,7 @@ export const GHIDRA_OPERATIONS = Object.freeze([
 export const healthLimitations = Object.freeze([
   "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
   "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+  "Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.",
 ]);
 
 /** Additional limitations applied to the experimental Windows x64 P0 boundary. */
@@ -97,7 +98,10 @@ export const limitationsFor = (operation: string): readonly string[] => {
       ];
     case "search_procedures":
     case "search_strings":
-      return common;
+      return [
+        ...common,
+        "Regex mode uses Java Pattern semantics. Matcher or compiler stack exhaustion returns a resource constraint without closing the session; literal mode avoids regex recursion and returns complete matching values.",
+      ];
     case "procedure_pseudo_code":
       return [
         ...common,

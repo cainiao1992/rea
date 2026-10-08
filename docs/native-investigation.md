@@ -93,6 +93,14 @@ body are excluded. `procedure_references` returns internal and external edges;
 The reference collector's semantics participate in the analysis profile, so
 older snapshots cannot replay the former incomplete results under this profile.
 
+Ghidra regex searches use Java Pattern semantics. If compiling or matching a
+pattern exhausts the engine's stack, REA returns a resource constraint and
+preserves the active database and annotations. Retry in literal mode or simplify
+the regex; successful literal searches retain complete matching strings.
+Cancelling an active request terminates the ephemeral database and discards its
+annotations. REA retains the selected target and imports the original artifact
+again on the next Ghidra query.
+
 ```bash
 rea inspect-native-instruction <binary> <address> --provider ghidra
 rea resolve-native-call-targets <binary> <call-site> --provider ghidra

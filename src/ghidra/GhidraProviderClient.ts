@@ -13,6 +13,7 @@ import {
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
   AnalysisInputError,
+  AnalysisResourceConstraintError,
   AnalysisTimeoutError,
 } from "../domain/analysisErrorCore.js";
 import { type AnalysisError } from "../domain/analysisErrorBase.js";
@@ -335,6 +336,21 @@ const projectSessionError = (
     );
   if (failure.kind === "remote" && failure.remoteCode === "decompile_cancelled")
     return new AnalysisCancelledError(operation);
+  if (
+    failure.kind === "remote" &&
+    failure.remoteCode === "regex_stack_exhausted"
+  )
+    return new AnalysisResourceConstraintError(
+      operation,
+      "memory",
+      failure.message,
+      null,
+      {
+        cause: failure,
+        remediationAction:
+          "Retry this search in literal mode or simplify the regex. The active analysis session and annotations remain available.",
+      },
+    );
   if (
     failure.kind === "remote" &&
     ["invalid_request", "not_found", "ambiguous"].includes(

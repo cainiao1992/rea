@@ -2,6 +2,16 @@
 
 volatile int rea_ghidra_inventory_global = 7;
 
+// This literal reproduces stack exhaustion in Java's recursive regex matcher.
+#define REA_REPEAT_4(value) value value value value
+#define REA_REPEAT_16(value) REA_REPEAT_4(REA_REPEAT_4(value))
+#define REA_REGEX_RUN REA_REPEAT_16(REA_REPEAT_16(REA_REPEAT_16("a")))
+__attribute__((used)) const char *volatile rea_ghidra_regex_subject =
+    REA_REGEX_RUN REA_REGEX_RUN REA_REGEX_RUN "!";
+#undef REA_REGEX_RUN
+#undef REA_REPEAT_16
+#undef REA_REPEAT_4
+
 enum ReaFixtureState { REA_FIXTURE_IDLE = 0, REA_FIXTURE_READY = 3 };
 union ReaFixturePayload { unsigned int word; unsigned char bytes[4]; };
 struct ReaFixtureLayout {

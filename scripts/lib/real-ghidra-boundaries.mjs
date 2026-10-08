@@ -414,6 +414,79 @@ export async function verifyGhidraBoundaries(
     comment: changes.comment,
     inline_comment: changes.inline_comment,
   });
+  const regexPattern = "^(a|aa)*b$";
+  const regexFailure = await client.callTool(
+    {
+      name: "search_strings",
+      arguments: { pattern: regexPattern, mode: "regex" },
+    },
+    options,
+  );
+  assert.equal(regexFailure.isError, true);
+  const regexError = regexFailure.structuredContent.error;
+  assert.equal(regexError.code, "resource_constraint");
+  assert.equal(regexError.details.operation, "search_strings");
+  assert.equal(regexError.details.resource, "memory");
+  assert.match(
+    regexError.remediation.action,
+    /literal mode or simplify the regex/u,
+  );
+  assert.match(
+    regexError.details.reason,
+    /exhausted its stack.*Use literal mode/u,
+  );
+  rejectedCalls++;
+  const nestedPattern = "(".repeat(12000) + "a" + ")".repeat(12000);
+  const compileFailure = await client.callTool(
+    {
+      name: "search_procedures",
+      arguments: { pattern: nestedPattern, mode: "regex" },
+    },
+    options,
+  );
+  assert.equal(compileFailure.isError, true);
+  const compileError = compileFailure.structuredContent.error;
+  assert.equal(compileError.code, "resource_constraint");
+  assert.equal(compileError.details.operation, "search_procedures");
+  assert.match(compileError.details.reason, /stack while compiling pattern/u);
+  assert.equal(compileError.remediation.action, regexError.remediation.action);
+  rejectedCalls++;
+  assert.deepEqual(
+    await call("analyze_function", { procedure: address }),
+    updated.dossier,
+    "Regex stack exhaustion must preserve the live annotation database",
+  );
+  assert.equal(
+    (await call("binary_session")).capabilities.find(
+      (item) => item.operation === "search_strings",
+    ).available,
+    true,
+  );
+  assert.ok(
+    (await call("search_procedures", { pattern: changes.name })).some(
+      (item) => item.address === address,
+    ),
+    "Regex compiler exhaustion must preserve edited names and search availability",
+  );
+  const longLiteral = "a".repeat(3 * 16 ** 3) + "!";
+  const longString = strings.find((item) => item.value === longLiteral);
+  assert.ok(longString, "The provider must retain the full regression literal");
+  const literalMatches = await call("search_strings", { pattern: longLiteral });
+  assert.deepEqual(literalMatches, [
+    { address: longString.address, value: longLiteral },
+  ]);
+  assert.deepEqual(await cli("search", longLiteral), literalMatches);
+  await assert.rejects(
+    cli("search", regexPattern, ["--mode", "regex"]),
+    (error) => {
+      assert.equal(error.code, 1);
+      const rejected = JSON.parse(error.stdout);
+      assert.equal(rejected.code, regexError.code);
+      assert.equal(rejected.details.reason, regexError.details.reason);
+      assert.equal(rejected.remediation.action, regexError.remediation.action);
+      return true;
+    },
+  );
   assert.deepEqual(updated.effects, {
     scope: "session-analysis-database",
     source_bytes_modified: false,
@@ -597,6 +670,7 @@ export async function verifyGhidraBoundaries(
     annotation_native_text_validation: true,
     lossless_unicode_transport: true,
     exact_external_entry_resolution: true,
+    recoverable_regex_stack_exhaustion: true,
     complete_function_body_references: true,
     ambiguity_candidates_inline: true,
     legacy_reference_snapshot_rejected: true,

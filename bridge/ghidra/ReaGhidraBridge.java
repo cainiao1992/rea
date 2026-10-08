@@ -1490,6 +1490,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
             : regexMatcher(expression, caseSensitive);
         JsonArray items = new JsonArray();
         for (InventoryItem item : inventory) {
+            monitor.checkCancelled();
             if (!matcher.matches(item.value)) {
                 continue;
             }
@@ -3098,9 +3099,29 @@ public final class ReaGhidraBridge extends HeadlessScript {
             );
         }
         catch (PatternSyntaxException exception) {
+            // Java wraps compiler stack exhaustion in PatternSyntaxException
+            // without retaining its cause. This producer reason is not bad syntax.
+            if (exception.getDescription().equals("Stack overflow during pattern compilation"))
+                throw regexStackExhausted(expression, "compiling");
             throw new RequestFailure("invalid_request", "Invalid regex pattern " + expression + ": " + exception.getDescription() + " at index " + exception.getIndex());
         }
-        return value -> pattern.matcher(value).find();
+        catch (StackOverflowError exhausted) {
+            throw regexStackExhausted(expression, "compiling");
+        }
+        return value -> {
+            try {
+                return pattern.matcher(value).find();
+            }
+            catch (StackOverflowError exhausted) {
+                throw regexStackExhausted(expression, "matching");
+            }
+        };
+    }
+
+    private static RequestFailure regexStackExhausted(String expression, String stage) {
+        return new RequestFailure("regex_stack_exhausted",
+            "Ghidra's Java regex engine exhausted its stack while " + stage +
+            " pattern " + expression + ". Use literal mode or simplify the regex; the session remains usable.");
     }
 
     private static SessionDescriptor readDescriptor(Path path) throws IOException {

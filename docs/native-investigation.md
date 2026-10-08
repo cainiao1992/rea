@@ -79,6 +79,16 @@ an explicit `0x` or address-space prefix selects an address; otherwise an exact
 database symbol name takes precedence over a bare hexadecimal address. Thus a
 function renamed to `dead` remains selectable by name. Use the names returned
 by the inventory, including their namespaces and any platform symbol prefix.
+Overloads can share a fully qualified name; ambiguity errors return every
+matching entry address so the caller can select the intended function directly.
+
+Ghidra function references cover the complete function-body AddressSet and its
+exact entry, including references into instruction interiors and references
+from embedded data. Addresses inside an enclosing span but outside the owned
+body are excluded. `procedure_references` returns internal and external edges;
+`analyze_function` omits incoming edges whose sources belong to the same function.
+The reference collector's semantics participate in the analysis profile, so
+older snapshots cannot replay the former incomplete results under this profile.
 
 ```bash
 rea inspect-native-instruction <binary> <address> --provider ghidra

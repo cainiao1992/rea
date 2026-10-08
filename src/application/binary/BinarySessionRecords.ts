@@ -5,7 +5,10 @@ import type { Evidence } from "../../domain/evidence.js";
 import type { EvidenceBundle } from "../../domain/evidenceBundle.js";
 import type { JsonValue } from "../../domain/jsonValue.js";
 import { evidenceBundleForTarget } from "../../domain/evidenceBundle.js";
-import { EvidenceIntegrityError } from "../../domain/evidenceErrors.js";
+import {
+  EvidenceIntegrityError,
+  AnalysisSnapshotMismatchError,
+} from "../../domain/evidenceErrors.js";
 import { type AnalysisError } from "../../domain/analysisErrorBase.js";
 import { type UnknownRegistryError } from "../../domain/unknownRegistryError.js";
 import type {
@@ -129,7 +132,7 @@ export abstract class BinarySessionRecords {
     const active = this.activeAnalysisBinding();
     if (active?.profile === null)
       return err(
-        new EvidenceIntegrityError(
+        new AnalysisSnapshotMismatchError(
           "Analysis snapshot profile_mismatch: the active target has no concrete analysis profile",
         ),
       );

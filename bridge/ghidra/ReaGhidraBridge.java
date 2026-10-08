@@ -52,6 +52,8 @@ import ghidra.app.decompiler.ClangCaseToken;
 import ghidra.app.decompiler.ClangNode;
 import ghidra.framework.Application;
 import ghidra.program.model.address.Address;
+import ghidra.program.model.address.AddressIterator;
+import ghidra.program.model.address.AddressSet;
 import ghidra.program.model.address.AddressSpace;
 import ghidra.program.model.address.AddressRange;
 import ghidra.program.model.address.AddressRangeIterator;
@@ -723,8 +725,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         if (!direction.equals("incoming") && !direction.equals("outgoing")) {
             throw new RequestFailure("invalid_request", "direction must be incoming or outgoing");
         }
-        InstructionScan scan = scanInstructions(function, Integer.MAX_VALUE);
-        List<Reference> references = collectReferences(scan.instructions, direction);
+        List<Reference> references = collectReferences(function, direction);
         JsonArray edges = new JsonArray();
         for (Reference reference : references) {
             edges.add(referenceEdge(reference));
@@ -735,7 +736,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         result.add("references", edges);
         result.addProperty("reference_kinds_available", true);
         JsonArray unresolvedCalls = new JsonArray();
-        if (direction.equals("outgoing")) for (Instruction instruction : scan.instructions) {
+        if (direction.equals("outgoing")) for (Instruction instruction : scanInstructions(function, Integer.MAX_VALUE).instructions) {
             if (!instruction.getFlowType().isCall()) continue;
             boolean resolved = false;
             for (Reference reference : instruction.getReferencesFrom()) if (reference.getReferenceType().isCall()) resolved = true;
@@ -1092,11 +1093,11 @@ public final class ReaGhidraBridge extends HeadlessScript {
         if (pseudocode == null) {
             pseudocode = "";
         }
-        List<Reference> incomingReferences = collectReferences(scan.instructions, "incoming")
+        List<Reference> incomingReferences = collectReferences(function, "incoming")
             .stream()
             .filter(reference -> !function.getBody().contains(reference.getFromAddress()))
             .toList();
-        List<Reference> outgoingReferences = collectReferences(scan.instructions, "outgoing");
+        List<Reference> outgoingReferences = collectReferences(function, "outgoing");
         JsonArray incoming = referenceEdges(incomingReferences);
         JsonArray outgoing = referenceEdges(outgoingReferences);
         JsonArray comments = comments(scan.instructions);
@@ -1615,7 +1616,9 @@ public final class ReaGhidraBridge extends HeadlessScript {
                 }
             }
             if (matches.size() > 1)
-                throw new RequestFailure("ambiguous", "Ghidra procedure name is ambiguous: " + value);
+                throw new RequestFailure("ambiguous", "Ghidra procedure name is ambiguous: " + value +
+                    "; select an exact entry address from " + matches.stream()
+                        .map(function -> canonicalAddress(function.getEntryPoint())).toList());
             if (matches.size() == 1) return matches.get(0);
         }
         // Retain legacy bare-hex address input only when no symbol matches.
@@ -2550,21 +2553,32 @@ public final class ReaGhidraBridge extends HeadlessScript {
     }
 
     private List<Reference> collectReferences(
-            List<Instruction> instructions,
+            Function function,
             String direction) throws Exception {
+        // References can target instruction interiors or originate in embedded
+        // data. Use actual body ownership, including an external's exact entry.
+        AddressSet scope = new AddressSet(function.getBody());
+        scope.add(function.getEntryPoint());
+        boolean outgoing = direction.equals("outgoing");
+        AddressIterator addresses = outgoing
+            ? currentProgram.getReferenceManager().getReferenceSourceIterator(scope, true)
+            : currentProgram.getReferenceManager().getReferenceDestinationIterator(scope, true);
         TreeMap<String, Reference> observed = new TreeMap<>();
-        for (Instruction instruction : instructions) {
+        while (addresses.hasNext()) {
             monitor.checkCancelled();
-            if (direction.equals("outgoing")) {
+            Address address = addresses.next();
+            if (outgoing) {
                 for (Reference reference : currentProgram.getReferenceManager()
-                        .getReferencesFrom(instruction.getAddress())) {
+                        .getReferencesFrom(address)) {
+                    monitor.checkCancelled();
                     addReference(observed, reference);
                 }
             }
             else {
                 ReferenceIterator iterator = currentProgram.getReferenceManager()
-                    .getReferencesTo(instruction.getAddress());
+                    .getReferencesTo(address);
                 while (iterator.hasNext()) {
+                    monitor.checkCancelled();
                     addReference(observed, iterator.next());
                 }
             }

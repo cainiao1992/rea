@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import Ajv from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { mcpTextValue, requireMcpResult } from "./mcp-verifier-results.mjs";
+import { verifyLegacyGhidraReferenceSnapshot } from "./ghidra-reference-snapshot-e2e.mjs";
 
 /** Probe real Ghidra location, annotation and error contracts through public adapters. */
 export async function verifyGhidraBoundaries(
@@ -56,6 +57,7 @@ export async function verifyGhidraBoundaries(
       assert.match(JSON.stringify(error.details.issues), diagnostic);
     }
     rejectedCalls++;
+    return reply.structuredContent?.error;
   };
   const cli = async (command, value, flags = []) => {
     const { stdout } = await promisify(execFile)(
@@ -93,6 +95,61 @@ export async function verifyGhidraBoundaries(
   assert.equal((await stat(socketRoot)).mode & 0o777, 0o700);
   const address = original.procedure.address;
   const name = original.procedure.name;
+  const names = await call("list_names");
+  const leaf = names.find((item) =>
+    item.value.endsWith("rea_ghidra_inventory_leaf"),
+  );
+  const pointer = names.find((item) =>
+    item.value.endsWith("rea_ghidra_interior_pointer"),
+  );
+  assert.ok(
+    leaf && pointer,
+    "Source fixture lacks the interior function pointer",
+  );
+  const interiorTarget = `0x${(BigInt(leaf.address) + 1n).toString(16)}`;
+  assert.ok(
+    (await call("xrefs", { address: interiorTarget })).includes(
+      pointer.address,
+    ),
+  );
+  const incoming = await call("procedure_references", {
+    procedure: leaf.address,
+    direction: "incoming",
+  });
+  const interiorEdge = incoming.references.find(
+    (edge) =>
+      edge.source_address === pointer.address &&
+      edge.target_address === interiorTarget,
+  );
+  assert.ok(
+    interiorEdge,
+    "Procedure references omitted an observed interior-body edge",
+  );
+  assert.equal(interiorEdge.target_procedure?.address, leaf.address);
+  assert.equal(interiorEdge.source_procedure, null);
+  assert.equal(interiorEdge.kind.data, true);
+  const leafDossier = await call("analyze_function", {
+    procedure: leaf.address,
+  });
+  assert.ok(
+    leafDossier.incoming_references.some(
+      (edge) =>
+        edge.source_address === pointer.address &&
+        edge.target_address === interiorTarget,
+    ),
+  );
+  assert.deepEqual(
+    (await cli("function", leaf.value)).incoming_references,
+    leafDossier.incoming_references,
+    "CLI and MCP must retain the same interior-body references",
+  );
+  await verifyLegacyGhidraReferenceSnapshot(client, {
+    target,
+    procedure: leaf.address,
+    omittedEdge: interiorEdge,
+    entrypoint,
+    env,
+  });
   const baseline = await call("inspect_native_instruction", { address });
   assert.equal(baseline.status, "decoded");
   const bytes = await call("read_bytes", { address, length: baseline.length });
@@ -442,12 +499,37 @@ export async function verifyGhidraBoundaries(
     );
     assert.equal(await call("address_name", { address }), renamed);
   }
+  for (const selected of [address, indirectProcedure.address]) {
+    await call("annotate_native_function", {
+      procedure: selected,
+      name: "rea_ambiguous",
+    });
+  }
+  const ambiguous = await invalid(
+    "procedure_address",
+    { procedure: "rea_ambiguous" },
+    /ambiguous.*select an exact entry address/u,
+  );
+  for (const selected of [address, indirectProcedure.address]) {
+    assert.ok(
+      JSON.stringify(ambiguous.details.issues).includes(selected),
+      "Ambiguity diagnostics must retain every matching entry address",
+    );
+    assert.equal(
+      await call("procedure_address", { procedure: selected }),
+      selected,
+    );
+  }
   await call("close_binary");
   await assert.rejects(access(socketRoot), { code: "ENOENT" });
   await assert.rejects(access(runtimeRoot), { code: "ENOENT" });
   await call("open_binary", { path: target.path, provider_id: "ghidra" });
   assert.equal(await call("procedure_address", { procedure: name }), address);
   assert.equal(await call("address_name", { address }), name);
+  assert.equal(
+    await call("procedure_address", { procedure: indirectProcedure.value }),
+    indirectProcedure.address,
+  );
   assert.deepEqual(
     (await call("analyze_function", { procedure: address })).comments,
     original.comments,
@@ -468,6 +550,9 @@ export async function verifyGhidraBoundaries(
     mutation_rollback: true,
     annotation_native_text_validation: true,
     lossless_unicode_transport: true,
+    complete_function_body_references: true,
+    ambiguity_candidates_inline: true,
+    legacy_reference_snapshot_rejected: true,
     source_immutable: true,
     reopen_discards_edits: true,
     long_tmpdir_private_socket_cleanup: true,

@@ -20,7 +20,11 @@ import {
 import { ArtifactOperationError } from "./artifactOperationError.js";
 import { BinaryTargetError } from "./configurationErrors.js";
 import { BrowserObservationError } from "./browserObservationError.js";
-import { EvidenceFileError, EvidenceReferenceError } from "./evidenceErrors.js";
+import {
+  EvidenceFileError,
+  EvidenceIntegrityError,
+  EvidenceReferenceError,
+} from "./evidenceErrors.js";
 import {
   HopperCancelledError,
   HopperProcessError,
@@ -264,6 +268,7 @@ const requestErrorDetails = (
       expected: error.expected,
       actual: error.actual,
     };
+  if (error instanceof EvidenceIntegrityError) return { reason: error.message };
   return undefined;
 };
 

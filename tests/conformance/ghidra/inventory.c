@@ -17,6 +17,10 @@ __attribute__((noinline, used)) int rea_ghidra_inventory_leaf(int value) {
   return value + rea_ghidra_inventory_global;
 }
 
+// A reference into the function body can land inside an instruction.
+__attribute__((used)) const unsigned char *volatile rea_ghidra_interior_pointer =
+    (const unsigned char *)(void *)rea_ghidra_inventory_leaf + 1;
+
 __attribute__((noinline, used)) int rea_ghidra_inventory_branch(int value) {
   if (value > 10) {
     return rea_ghidra_inventory_leaf(value);

@@ -274,8 +274,13 @@ path exercises private Unix socket allocation and cleanup, including cancellatio
 after a real headless process launches. Native annotation probes reject NUL and
 unpaired Unicode surrogates without partial edits or a broken bridge, preserve
 supported Unicode and control text, and check lossless malformed-text diagnostics.
-Memory-to-file mapping is checked against original artifact bytes. Malformed
-annotation readback, memory completeness, and inventory data remain separate
+Memory-to-file mapping is checked against original artifact bytes.
+The fixture also stores a pointer one byte past a function entry; exact
+xrefs, raw procedure references, and CLI/MCP dossiers must retain that data edge.
+A valid legacy snapshot reconstructs the former omitted edge under its older
+profile; CLI and MCP must reject that binding with a mismatch reason and
+recovery advice. The rejected open must preserve the active live session.
+Malformed annotation readback, memory completeness, and inventory data remain separate
 SDK/provider integration cases; success from a real
 provider cannot establish rejection of a contradictory provider response.
 

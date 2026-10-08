@@ -1,9 +1,10 @@
 import { expect, it } from "vitest";
 import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
 import { ok } from "../../../src/domain/result.js";
+import { ghidraFunctionIdentity } from "../../../src/domain/ghidraValues.fixture.js";
 import { connectGhidraMcp } from "./ghidraMcpHarness.js";
 
-it("rejects contradictory provider memory and inventory data before emitting MCP Evidence", async () => {
+it("rejects contradictory provider output before emitting MCP Evidence", async () => {
   const bytes = {
     address: "0x401000",
     requested_bytes: 4,
@@ -56,6 +57,15 @@ it("rejects contradictory provider memory and inventory data before emitting MCP
         name: "search_strings",
         arguments: { pattern: "needle" },
         output: [{ address: "0x401000" }],
+      },
+      {
+        name: "read_function_instructions",
+        arguments: { procedure: "fixture_main" },
+        output: {
+          procedure: { ...ghidraFunctionIdentity(), address: "0X401000" },
+          instructions: ["0x401000: push rbp"],
+          limitations: ["Ghidra-specific instruction text."],
+        },
       },
     ];
     for (const probe of cases) {

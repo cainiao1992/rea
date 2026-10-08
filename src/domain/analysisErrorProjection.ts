@@ -445,6 +445,9 @@ const lifecycleErrorDetails = (
     return {
       stage: error.operation === undefined ? "startup" : error.stage,
       timeout_ms: error.timeoutMs,
+      ...(error.launcherOutcome === undefined
+        ? {}
+        : { launcher: error.launcherOutcome }),
       provider_state: error.providerState,
       retry_action: error.providerState === "busy" ? "wait" : "retry",
       ...(error.operation === undefined ? {} : { operation: error.operation }),

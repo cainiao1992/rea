@@ -52,9 +52,11 @@ export const analysisErrorRemediationAction = (
             : "Review the reported worker memory limits and available host memory. Retry with sufficient memory or a smaller artifact; REA retains tighter inherited limits.")
     );
   if (error instanceof HopperTimeoutError)
-    return error.providerState === "busy"
-      ? "Check binary_session.analysis_activity, wait for the active Hopper request to finish, then retry."
-      : "Check binary_session for Hopper health, then retry the operation.";
+    return error.operation === undefined
+      ? "Inspect Hopper for a loader or license dialog and review details.launcher. Correct the loader configuration or complete Hopper setup, then open the target again."
+      : error.providerState === "busy"
+        ? "Check binary_session.analysis_activity, wait for the active Hopper request to finish, then retry."
+        : "Check binary_session for Hopper health, then retry the operation.";
   if (error instanceof HopperProcessError)
     return hopperProcessRemediation(error);
   if (error instanceof HopperStartError)
@@ -201,7 +203,9 @@ export const analysisErrorUserMessage = (error: AnalysisError): string => {
 
 const hopperErrorUserMessage = (error: AnalysisError): string | undefined => {
   if (error instanceof HopperTimeoutError) {
-    const request = error.operation ?? "startup";
+    if (error.operation === undefined)
+      return "REA timed out waiting for Hopper bridge readiness. Hopper may be waiting for a loader or license dialog; inspect its window and the captured launcher outcome before retrying.";
+    const request = error.operation;
     return error.providerState === "busy"
       ? `Hopper timed out during ${request} while the provider remained busy. Check binary_session.analysis_activity, wait for the active request to finish, then retry.`
       : `Hopper timed out during ${request} before it started. Check binary_session for provider health, then retry.`;

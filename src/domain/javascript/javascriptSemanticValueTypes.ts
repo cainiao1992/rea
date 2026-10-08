@@ -4,6 +4,7 @@ export type JavaScriptSemanticPrimitive = string | number | boolean | null;
 /** Resource bound that prevented an exact semantic value. */
 export type JavaScriptSemanticResourceLimit =
   | "primitive-candidates"
+  | "primitive-bytes"
   | "expression-depth";
 
 type JavaScriptSemanticObjectValue = {

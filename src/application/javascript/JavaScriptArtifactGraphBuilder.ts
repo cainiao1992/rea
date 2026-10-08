@@ -25,6 +25,7 @@ import { semanticCoverageResourceLimits } from "../../domain/javascript/javascri
 import {
   SEMANTIC_EXPRESSION_DEPTH_LIMIT,
   SEMANTIC_PRIMITIVE_CANDIDATE_LIMIT,
+  SEMANTIC_PRIMITIVE_JSON_BYTES_LIMIT,
   semanticResourceLimitReason,
 } from "../../domain/javascript/javascriptSemanticResourceLimits.js";
 import {
@@ -136,11 +137,15 @@ const applicationGraphResourceLimit = (
   value:
     resourceLimit === "primitive-candidates"
       ? SEMANTIC_PRIMITIVE_CANDIDATE_LIMIT
-      : SEMANTIC_EXPRESSION_DEPTH_LIMIT,
+      : resourceLimit === "primitive-bytes"
+        ? SEMANTIC_PRIMITIVE_JSON_BYTES_LIMIT
+        : SEMANTIC_EXPRESSION_DEPTH_LIMIT,
   unit:
     resourceLimit === "expression-depth"
       ? ("depth" as const)
-      : ("items" as const),
+      : resourceLimit === "primitive-bytes"
+        ? ("bytes" as const)
+        : ("items" as const),
 });
 
 const graphLimitations = (

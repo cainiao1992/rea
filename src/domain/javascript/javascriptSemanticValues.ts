@@ -32,6 +32,8 @@ import {
 import {
   SEMANTIC_EXPRESSION_DEPTH_LIMIT,
   SEMANTIC_PRIMITIVE_CANDIDATE_LIMIT,
+  exceedsSemanticPrimitiveAdditionByteBudget,
+  exceedsSemanticTemplateByteBudget,
   semanticResourceLimitUnknown,
   semanticResourceLimitReason,
 } from "./javascriptSemanticResourceLimits.js";
@@ -40,7 +42,23 @@ interface EvaluationContext {
   readonly state: JavaScriptSemanticAnalysisState;
   readonly bindings: ReadonlySet<string>;
   readonly expressionDepth: number;
+  readonly primitiveBindingValues: Map<string, JavaScriptSemanticValue>;
 }
+
+const primitiveBindingValuesByState = new WeakMap<
+  JavaScriptSemanticAnalysisState,
+  Map<string, JavaScriptSemanticValue>
+>();
+
+const primitiveBindingValuesFor = (
+  state: JavaScriptSemanticAnalysisState,
+): Map<string, JavaScriptSemanticValue> => {
+  const existing = primitiveBindingValuesByState.get(state);
+  if (existing !== undefined) return existing;
+  const values = new Map<string, JavaScriptSemanticValue>();
+  primitiveBindingValuesByState.set(state, values);
+  return values;
+};
 
 // Cap expression recursion independently from graph nodes and primitive unions.
 const isSemanticResourceLimit = (
@@ -56,14 +74,24 @@ export const evaluateSemanticBinding = (
   binding: JavaScriptSemanticBindingState,
   state: JavaScriptSemanticAnalysisState,
 ): JavaScriptSemanticValue =>
-  evaluateBinding(binding, { state, bindings: new Set(), expressionDepth: 0 });
+  evaluateBinding(binding, {
+    state,
+    bindings: new Set(),
+    expressionDepth: 0,
+    primitiveBindingValues: primitiveBindingValuesFor(state),
+  });
 
 /** Evaluate one arbitrary inert expression in the established lexical state. */
 export const evaluateSemanticExpression = (
   node: t.Node,
   state: JavaScriptSemanticAnalysisState,
 ): JavaScriptSemanticValue =>
-  evaluateExpression(node, { state, bindings: new Set(), expressionDepth: 0 });
+  evaluateExpression(node, {
+    state,
+    bindings: new Set(),
+    expressionDepth: 0,
+    primitiveBindingValues: primitiveBindingValuesFor(state),
+  });
 
 /** Follow module provenance through destructuring, members, and aliases. */
 export const evaluateSemanticProvenance = (
@@ -74,6 +102,7 @@ export const evaluateSemanticProvenance = (
     state,
     bindings: new Set(),
     expressionDepth: 0,
+    primitiveBindingValues: primitiveBindingValuesFor(state),
   });
 
 const evaluateBinding = (
@@ -82,6 +111,8 @@ const evaluateBinding = (
 ): JavaScriptSemanticValue => {
   if (context.bindings.has(binding.bindingId))
     return { status: "cycle", reason: `Alias cycle at ${binding.name}.` };
+  const cached = context.primitiveBindingValues.get(binding.bindingId);
+  if (cached !== undefined) return cached;
   if (binding.initializers.length === 0)
     return {
       status: "unknown",
@@ -100,7 +131,19 @@ const evaluateBinding = (
     evaluateExpression(initializer.node, nested),
     initializer.projection,
   );
-  return binding.mutatedPaths.reduce(invalidateSemanticMutationPath, value);
+  const projected = binding.mutatedPaths.reduce(
+    invalidateSemanticMutationPath,
+    value,
+  );
+  if (
+    projected.status === "literal" ||
+    projected.status === "union" ||
+    (isSemanticResourceLimit(projected) &&
+      (projected.resourceLimit === "primitive-bytes" ||
+        projected.resourceLimit === "primitive-candidates"))
+  )
+    context.primitiveBindingValues.set(binding.bindingId, projected);
+  return projected;
 };
 
 const evaluateExpression = (
@@ -155,6 +198,8 @@ const evaluateTemplate = (
     // Semantic template evaluation retains its established raw fallback for
     // synthetic AST inputs; exact atom readers remain cooked-only.
     const text = quasi?.value.cooked ?? quasi?.value.raw ?? "";
+    if (exceedsSemanticTemplateByteBudget(candidates, [text]))
+      return semanticResourceLimitUnknown("primitive-bytes");
     candidates = candidates.map((prefix) => `${prefix}${text}`);
     const expression = node.expressions[index];
     if (expression === undefined) continue;
@@ -169,8 +214,11 @@ const evaluateTemplate = (
     }
     if (candidates.length > SEMANTIC_PRIMITIVE_CANDIDATE_LIMIT / values.length)
       return semanticResourceLimitUnknown("primitive-candidates");
+    const suffixes = values.map((value) => String(value));
+    if (exceedsSemanticTemplateByteBudget(candidates, suffixes))
+      return semanticResourceLimitUnknown("primitive-bytes");
     candidates = candidates.flatMap((prefix) =>
-      values.map((value) => `${prefix}${String(value)}`),
+      suffixes.map((suffix) => `${prefix}${suffix}`),
     );
   }
   return primitiveSet(candidates);
@@ -347,6 +395,8 @@ const addPrimitiveValues = (
   }
   if (left.length > MAX_SEMANTIC_PRIMITIVE_CANDIDATES / right.length)
     return semanticResourceLimitUnknown("primitive-candidates");
+  if (exceedsSemanticPrimitiveAdditionByteBudget(left, right))
+    return semanticResourceLimitUnknown("primitive-bytes");
   const values = left.flatMap((leftValue) =>
     right.map((rightValue) =>
       typeof leftValue === "string" || typeof rightValue === "string"
@@ -563,6 +613,7 @@ const nestedContext = (
   bindingId?: string,
 ): EvaluationContext => ({
   state: context.state,
+  primitiveBindingValues: context.primitiveBindingValues,
   expressionDepth: context.expressionDepth + 1,
   bindings:
     bindingId === undefined

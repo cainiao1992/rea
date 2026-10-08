@@ -219,7 +219,7 @@ describe("logical primitive unions", () => {
   });
 });
 
-describe("semantic expression resource bounds", () => {
+describe("semantic primitive allocation and binding reuse", () => {
   it("returns an explicit unknown before expanding a large addition product", () => {
     const term = '(choice ? "a" : "b")';
     const expression = Array.from({ length: 20 }, () => term).join(" + ");
@@ -238,6 +238,102 @@ describe("semantic expression resource bounds", () => {
     });
   });
 
+  it("bounds derived single-string growth before concatenation or key serialization", () => {
+    const declarations = ['const value0 = "x";'];
+    for (let index = 1; index <= 100; index += 1) {
+      const previous = `value${String(index - 1)}`;
+      declarations.push(
+        `const value${String(index)} = ${previous} + ${previous};`,
+      );
+    }
+    declarations.push("const answer = value100;");
+    const ir = analyzeJavaScriptSemantics(declarations.join("\n"));
+    expect(topLevelBinding(ir, "answer").value).toMatchObject({
+      status: "unknown",
+      resourceLimit: "primitive-bytes",
+      reason: expect.stringMatching(/primitive string-byte budget exceeded/i),
+    });
+    expect(ir.coverage).toMatchObject({
+      status: "partial",
+      omittedCount: null,
+      resourceLimits: ["primitive-bytes"],
+    });
+  });
+
+  it("memoizes by resolved binding without crossing shadowing or mutation", () => {
+    const ir = analyzeJavaScriptSemantics(`
+      const shared = "outer";
+      function readsOuter() { return shared; }
+      function readsShadow() { const shared = "inner"; return shared; }
+      function readsMutation() {
+        let shared = "before";
+        shared = "after";
+        return shared;
+      }
+    `);
+    expect(topLevelBinding(ir, "shared").value).toEqual({
+      status: "literal",
+      value: "outer",
+    });
+    expect(
+      ir.callables.find(({ name }) => name === "readsOuter")?.returnSites[0]
+        ?.value,
+    ).toEqual({
+      status: "literal",
+      value: "outer",
+    });
+    expect(
+      ir.callables.find(({ name }) => name === "readsShadow")?.returnSites[0]
+        ?.value,
+    ).toEqual({
+      status: "literal",
+      value: "inner",
+    });
+    expect(
+      ir.callables.find(({ name }) => name === "readsMutation")?.returnSites[0]
+        ?.value.status,
+    ).toBe("ambiguous");
+  });
+
+  it("retains a large derived string while its aggregate JSON estimate fits", () => {
+    const part = "x".repeat(32_768);
+    const ir = analyzeJavaScriptSemantics(
+      `const left = ${JSON.stringify(part)}; const right = ${JSON.stringify(part)}; const answer = left + right;`,
+    );
+    expect(topLevelBinding(ir, "answer").value).toMatchObject({
+      status: "literal",
+      value: expect.stringMatching(/^x+$/u),
+    });
+    const value = topLevelBinding(ir, "answer").value;
+    if (value.status !== "literal" || typeof value.value !== "string")
+      throw new Error("Expected exact derived string");
+    expect(value.value.length).toBe(65_536);
+    expect(ir.coverage.status).toBe("complete");
+  });
+
+  it("retains exact candidates for a near-budget Cartesian workload", () => {
+    const left = "l".repeat(85);
+    const right = "r".repeat(85);
+    const expression = Array.from(
+      { length: 7 },
+      () =>
+        `(${JSON.stringify(left)} + (${`choice ? ${JSON.stringify(left)} : ${JSON.stringify(right)}`}))`,
+    ).join(" + ");
+    const value = valueOf(expression);
+    expect(value.status).toBe("union");
+    if (value.status !== "union")
+      throw new Error("Expected exact primitive union");
+    expect(value.values).toHaveLength(128);
+    expect(
+      value.values.every(
+        (candidate) =>
+          typeof candidate === "string" && candidate.length === 1_190,
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("semantic expression depth bounds", () => {
   it("returns an explicit unknown for a deeply nested unary AST without throwing", () => {
     const parsed = parseJavaScriptSource("const answer = true;");
     const declaration = parsed?.program.body[0];

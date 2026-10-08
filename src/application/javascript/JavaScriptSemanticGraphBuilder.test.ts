@@ -111,6 +111,30 @@ it("preserves primitive candidate budget unknowns in semantic graph coverage", (
   );
 });
 
+it("preserves derived string-byte limit reasons in semantic graph unknowns", () => {
+  const declarations = ['const value0 = "x";'];
+  for (let index = 1; index <= 30; index += 1) {
+    const previous = `value${String(index - 1)}`;
+    declarations.push(
+      `const value${String(index)} = ${previous} + ${previous};`,
+    );
+  }
+  declarations.push("const answer = value30;");
+  const source = declarations.join("\n");
+  const ir = analyzeJavaScriptSemantics(source);
+  const graph = graphFor(source, ir);
+
+  expect(semanticCoverageResourceLimits(ir.coverage)).toContain(
+    "primitive-bytes",
+  );
+  expect(graph.unknowns).toContainEqual(
+    expect.objectContaining({
+      reason: "resource-limit",
+      detail: expect.stringMatching(/primitive string-byte budget exceeded/i),
+    }),
+  );
+});
+
 it("retains resource-limit reasons at nested object property slots", () => {
   const term = '(true ? "a" : "b")';
   const source = `const answer = { nested: { value: ${Array.from({ length: 20 }, () => term).join(" + ")} } };`;

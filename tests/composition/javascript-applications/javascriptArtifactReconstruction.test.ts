@@ -114,6 +114,15 @@ it("reports semantic value resource limits in application graph coverage", async
     join(root, "app.js"),
     `const answer = { nested: ${expression} };`,
   );
+  const declarations = ['const value0 = "x";'];
+  for (let index = 1; index <= 30; index += 1) {
+    const previous = `value${String(index - 1)}`;
+    declarations.push(
+      `const value${String(index)} = ${previous} + ${previous};`,
+    );
+  }
+  declarations.push("const answer = value30;");
+  await writeFile(join(root, "growth.js"), declarations.join("\n"));
   const snapshot = await scanCanonicalArtifactInventory(root, {});
   const reader = createJavaScriptArtifactReader(root, "directory");
   try {
@@ -124,16 +133,24 @@ it("reports semantic value resource limits in application graph coverage", async
     expect(graph.coverage).toMatchObject({
       status: "partial",
       omitted_count: null,
-      limits: [
-        {
+      limits: expect.arrayContaining([
+        expect.objectContaining({
           name: "javascript_semantic_primitive_candidates",
-          value: 256,
           unit: "items",
-        },
-      ],
+        }),
+        expect.objectContaining({
+          name: "javascript_semantic_primitive_bytes",
+          unit: "bytes",
+        }),
+      ]),
     });
     expect(graph.limitations).toContain(
       "Primitive candidate budget exceeded (maximum 256 alternatives).",
+    );
+    expect(graph.limitations).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/primitive string-byte budget exceeded/i),
+      ]),
     );
   } finally {
     await reader.close();

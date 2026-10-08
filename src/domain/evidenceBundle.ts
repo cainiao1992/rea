@@ -190,15 +190,9 @@ export const describeEvidenceBundleFailure = (
   input: unknown,
   cause: unknown,
 ): string => {
-  if (
-    typeof input === "object" &&
-    input !== null &&
-    !Array.isArray(input) &&
-    "evidence_id" in input &&
-    typeof input.evidence_id === "string" &&
-    !("records" in input)
-  )
-    return `Expected an Evidence bundle with records and manifest arrays, but this JSON is one Evidence record (${input.evidence_id}). Export a session bundle with the MCP export_evidence_bundle tool and supply that file.`;
+  const record = evidenceRecordSchema.safeParse(input);
+  if (record.success)
+    return `Expected an Evidence bundle with records and manifest arrays, but this JSON is one Evidence record (${record.data.evidence_id}). Export a session bundle with the MCP export_evidence_bundle tool and supply that file.`;
   return cause instanceof z.ZodError
     ? `Evidence bundle does not match the bundle schema ${describeValidationFailure(cause)}. Supply an unmodified bundle written by export_evidence_bundle or rea evidence-export.`
     : `Evidence bundle validation failed: ${describeValidationFailure(cause)}. Recreate or re-export the bundle, then try again.`;

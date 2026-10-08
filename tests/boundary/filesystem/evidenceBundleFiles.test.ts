@@ -160,6 +160,21 @@ describe("evidence bundle filesystem adapter", () => {
       },
     });
 
+    const partial = join(directory, "partial.json");
+    await writeFile(partial, JSON.stringify({ evidence_id: "typo" }));
+    const rejected = await readEvidenceBundle(partial);
+    expect(rejected).toMatchObject({
+      ok: false,
+      error: {
+        userMessage: expect.stringContaining(
+          "does not match the bundle schema",
+        ),
+      },
+    });
+    expect(rejected).not.toMatchObject({
+      error: { userMessage: expect.stringContaining("one Evidence record") },
+    });
+
     const mismatched = join(directory, "mismatched.json");
     await writeFile(mismatched, JSON.stringify({ ...bundle(), records: {} }));
     expect(await readEvidenceBundle(mismatched)).toMatchObject({

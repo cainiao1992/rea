@@ -80,12 +80,22 @@ export const clientConfigurationServersKey = (
   }
 };
 
+/**
+ * Whether raw configuration text holds no settings to preserve. Some clients
+ * create a zero-byte config file before any server is added.
+ */
+const isEmptyClientConfigurationText = (text: string): boolean =>
+  text.replace(/^\uFEFF/, "").trim() === "";
+
 const parseDocument = (
   text: string,
   format: ClientConfigurationFormat,
 ): Record<string, unknown> => {
   if (format === "toml" || format === "grok")
     return objectSchema.parse(parseToml(text));
+  // An empty file, which some clients create before any server is added,
+  // holds no settings to preserve.
+  if (isEmptyClientConfigurationText(text)) return {};
   const errors: ParseError[] = [];
   // Accept a UTF-8 BOM without shifting diagnostics or editing the original text.
   const jsonText = text.startsWith("\uFEFF") ? ` ${text.slice(1)}` : text;
@@ -1148,7 +1158,13 @@ export const serializeClientConfiguration = (
   if (format === "toml") return stringifyToml(document);
   if (format === "grok")
     return serializeGrokConfiguration(document, originalText);
-  if (originalText !== undefined && editedPaths !== undefined)
+  // An empty original holds no comments or settings to preserve. Writing a
+  // fresh document also keeps a lone BOM from shifting past the closing brace.
+  if (
+    originalText !== undefined &&
+    !isEmptyClientConfigurationText(originalText) &&
+    editedPaths !== undefined
+  )
     return editedPaths.reduce((text, path) => {
       const value = valueAt(document, path);
       if (value === undefined) {

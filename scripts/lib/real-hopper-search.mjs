@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { mcpTextValue } from "./mcp-verifier-results.mjs";
 
 /** Exercise literal/regex search, Unicode identities and cache invalidation in Hopper. */
 export async function verifyHopperSearch(call, invalid, procedure) {
@@ -226,5 +227,61 @@ export async function verifyHopperStringObjects(call, expectations) {
     sourceBytesVerified: true,
     inferredEncodingReported: true,
     displayEscapesExcludedFromMatching: true,
+  };
+}
+
+/** A failed or cancelled pathological regex must leave the real Hopper API usable. */
+export async function verifyHopperRegexIsolation(
+  client,
+  options,
+  call,
+  address,
+) {
+  const original = await call("address_name", { address });
+  const pathological = "a".repeat(40) + "!";
+  try {
+    await call("set_address_name", { address, name: pathological });
+    const reply = await client.callTool(
+      {
+        name: "search_procedures",
+        arguments: { pattern: "(a+)+$", mode: "regex", case_sensitive: true },
+      },
+      options,
+    );
+    assert.equal(reply.isError, true);
+    const { error } = JSON.parse(mcpTextValue(reply));
+    assert.equal(error.code, "resource_constraint");
+    assert.equal(error.details.operation, "search_procedures");
+    assert.equal(error.details.resource, "cpu");
+    assert.equal(await call("address_name", { address }), pathological);
+    const controller = new AbortController();
+    const pending = client.callTool(
+      {
+        name: "search_procedures",
+        arguments: { pattern: "(a+)+$", mode: "regex", case_sensitive: true },
+      },
+      { ...options, signal: controller.signal },
+    );
+    const cancelled = pending.catch((cause) => cause);
+    // The same small inventory has already completed once; leave the pathological
+    // matching worker running before cancelling the second caller.
+    await new Promise((resolve) => setTimeout(resolve, 750));
+    controller.abort();
+    await cancelled;
+    assert.equal(await call("address_name", { address }), pathological);
+    assert.deepEqual(
+      await call("search_procedures", {
+        pattern: pathological,
+        mode: "literal",
+        case_sensitive: true,
+      }),
+      [{ address, value: pathological }],
+    );
+  } finally {
+    await call("set_address_name", { address, name: original });
+  }
+  return {
+    regexDeadlinePreservesSession: true,
+    regexCancellationPreservesSession: true,
   };
 }

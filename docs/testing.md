@@ -208,7 +208,8 @@ modes, annotation cache invalidation, complete native fragments of long literals
 checked against byte reads, escaped UTF-8/control text, byte-preserving Latin-1
 decoding, and Hopper's UTF-16 symbol-name truncation boundary. It verifies native
 CallReference classifications across reference and dossier results, retains long
-string fragment metadata in dossiers. When the macOS
+string fragment metadata in dossiers, and exercises pathological regex deadline
+and cancellation followed by successful requests in the same native session. When the macOS
 Objective-C fixture is present, the lane also verifies native UTF-16 string objects
 and their inferred encodings against their actual bytes.
 Unmapped annotation destinations and

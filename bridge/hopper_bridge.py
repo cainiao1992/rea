@@ -8,7 +8,6 @@ API access on this thread: moving dispatch to a worker can deadlock Hopper.
 import json
 import hmac
 import os
-import re
 import socket
 import struct
 from typing import Any, Optional, Protocol, Sequence
@@ -585,11 +584,7 @@ def _search_results(document, kind, params):
         needle = pattern if case_sensitive else pattern.casefold()
         matches = lambda value: needle in (value if case_sensitive else value.casefold())
     else:
-        try:
-            expression = re.compile(pattern, 0 if case_sensitive else re.IGNORECASE)
-        except (re.error, OverflowError) as error:
-            raise InvalidRequestError("Invalid regex pattern") from error
-        matches = lambda value: expression.search(value) is not None
+        raise CapabilityUnavailableError("Regex matching requires REA's supervised worker; the native bridge only executes literal searches")
 
     selected = []
     for item in _search_inventory(document, kind):

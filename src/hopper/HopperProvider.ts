@@ -23,6 +23,7 @@ import {
   hopperLoaderArgsForTarget,
   resolveHopperAnalysisProfile,
 } from "./HopperAnalysisProfile.js";
+import { HopperRegexSearch } from "./HopperRegexSearch.js";
 import { HopperClient } from "./HopperClient.js";
 import { hopperMachOImageSchema } from "./HopperMachOImage.js";
 
@@ -229,9 +230,15 @@ export class HopperProvider implements AnalysisProviderCandidate {
       onDiagnostic: (diagnostic) =>
         this.logger.info(diagnostic, "Hopper bridge reported a diagnostic"),
     });
+    const regexSearch = new HopperRegexSearch(client);
     return {
       execute: async (operation, parameters, options) => {
-        const result = await client.callTool(operation, parameters, options);
+        const result =
+          (operation === "search_strings" ||
+            operation === "search_procedures") &&
+          parameters.mode === "regex"
+            ? await regexSearch.execute(operation, parameters, options)
+            : await client.callTool(operation, parameters, options);
         return result.ok
           ? {
               ok: true,
@@ -286,8 +293,14 @@ export class HopperProvider implements AnalysisProviderCandidate {
         ];
       },
       operationHealthSnapshot: () => client.operationHealth(),
-      closeWithOutcome: (options) => client.closeWithOutcome(options),
-      close: () => client.close(),
+      closeWithOutcome: async (options) => {
+        await regexSearch.close();
+        return client.closeWithOutcome(options);
+      },
+      close: async () => {
+        await regexSearch.close();
+        await client.close();
+      },
     };
   }
 }

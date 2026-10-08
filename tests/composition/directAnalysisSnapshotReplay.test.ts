@@ -77,6 +77,35 @@ const functionDossier = {
   limitations: [],
 };
 
+const expectWorkflowQuestionsRetained = (
+  snapshot: AnalysisSnapshot,
+  operation: string,
+): void => {
+  const evidence = snapshot.evidence_bundle.records.find(
+    (record) => record.operation === operation,
+  );
+  const result = evidence?.normalized_result;
+  if (
+    evidence === undefined ||
+    typeof result !== "object" ||
+    result === null ||
+    Array.isArray(result) ||
+    !Array.isArray(result.residual_unknowns)
+  )
+    throw new Error("Fixture workflow did not return residual questions");
+  expect(result.residual_unknowns.length).toBeGreaterThan(0);
+  expect(snapshot.evidence_bundle.unknowns).toEqual(
+    expect.arrayContaining(
+      result.residual_unknowns.map((question) =>
+        expect.objectContaining({
+          question,
+          supporting_evidence_ids: [evidence.evidence_id],
+        }),
+      ),
+    ),
+  );
+};
+
 const makeProvider = (
   starts: string[],
   calls: string[],
@@ -348,6 +377,8 @@ describe("direct analysis composed snapshot replay", () => {
       expect(
         loaded.value.workflow_entries?.map(({ operation }) => operation),
       ).toContain(scenario.tool);
+      if (scenario.tool === "inspect_native_api")
+        expectWorkflowQuestionsRetained(loaded.value, scenario.tool);
 
       const second = await runDirectAnalysis(
         dependencies,

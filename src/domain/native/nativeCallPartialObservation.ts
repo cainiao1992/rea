@@ -1,13 +1,8 @@
 import { z } from "zod";
-import { nativeCallEventSchema } from "./nativeCallObservation.js";
-
-const capturedOutputSchema = z.strictObject({
-  text: z.string(),
-  /** Bytes observed so far; the final stream size may be unknown. */
-  bytes: z.number().int().nonnegative(),
-  truncated: z.boolean(),
-  complete: z.boolean(),
-});
+import {
+  nativeCallEventSchema,
+  nativeCapturedOutputSchema,
+} from "./nativeCallObservation.js";
 
 /** Native call evidence retained when observation fails before a full result. */
 export const nativeCallPartialObservationSchema = z.strictObject({
@@ -22,8 +17,8 @@ export const nativeCallPartialObservationSchema = z.strictObject({
   }),
   process: z.strictObject({
     pid: z.number().int().positive().nullable(),
-    stdout: capturedOutputSchema.nullable(),
-    stderr: capturedOutputSchema.nullable(),
+    stdout: nativeCapturedOutputSchema.nullable(),
+    stderr: nativeCapturedOutputSchema.nullable(),
     other_stops: z.array(z.string()),
   }),
   debugger: z.strictObject({ version: z.string().nullable() }),

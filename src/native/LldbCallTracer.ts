@@ -163,11 +163,16 @@ const ATTACH_REMEDIATION =
 
 /** Production tracer: `lldb --batch` running the REA LLDB bridge. */
 export class LldbCallTracer implements NativeCallTracer {
+  constructor(
+    private readonly launch: typeof runLldb = runLldb,
+    private readonly resolveTool: typeof resolveXcrunTool = resolveXcrunTool,
+  ) {}
+
   async trace(
     request: Parameters<NativeCallTracer["trace"]>[0],
     signal?: AbortSignal,
   ): Promise<Result<NativeCallTrace, AnalysisError>> {
-    const lldb = await resolveXcrunTool("lldb", signal);
+    const lldb = await this.resolveTool("lldb", signal);
     if (!lldb.ok)
       return err(
         lldb.error.reason === "cancelled"
@@ -235,7 +240,7 @@ export class LldbCallTracer implements NativeCallTracer {
       { mode: 0o600 },
     );
     await prepareProcessOwnershipInspection(signal);
-    const exited = await runLldb(
+    const exited = await this.launch(
       lldb.path,
       [
         "--batch",
@@ -333,6 +338,10 @@ export class LldbCallTracer implements NativeCallTracer {
           },
         ),
       );
+    if (output !== undefined && output.status !== "traced")
+      return err(
+        tracerFailure(output, lifecycleCleanup, await getPartialObservation()),
+      );
     if (exited.cleanupFailure !== undefined)
       return err(
         new ProviderAdapterError(PROVIDER, OPERATION, {
@@ -367,11 +376,6 @@ export class LldbCallTracer implements NativeCallTracer {
             : { cleanup: lifecycleCleanup }),
         }),
       );
-    if (output.status !== "traced") {
-      return err(
-        tracerFailure(output, lifecycleCleanup, await getPartialObservation()),
-      );
-    }
     const stdout = await capturedOutput(
       paths.stdoutCapture,
       output.target_output.stdout_bytes,
@@ -417,6 +421,7 @@ export class LldbCallTracer implements NativeCallTracer {
 const quote = (value: string): string =>
   `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 
+/** Preserve a decoded bridge failure's type independently of cleanup outcome. */
 const tracerFailure = (
   output: {
     readonly status:

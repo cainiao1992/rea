@@ -26,7 +26,7 @@ import {
 } from "./NibViewHierarchy.js";
 import { jsonValueSchema, type JsonValue } from "../../domain/jsonValue.js";
 
-import { decodeXmlPlistText } from "./XmlPropertyListText.js";
+import { decodeXmlPlistText } from "../../domain/propertyListXmlText.js";
 
 const MAX_AGGREGATE_INPUT_BYTES = 32 * 1024 * 1024;
 const MAX_AGGREGATE_DECODE_BYTES = 256 * 1024 * 1024;

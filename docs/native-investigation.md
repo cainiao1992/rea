@@ -59,11 +59,14 @@ complete observation.
   a source-owned AppKit XIB with `ibtool`. Storyboards require an installed
   iOS platform; unsupported archive forms remain explicit.
   XML plist archives accept UTF-8 and BOM-marked UTF-16 in either byte order.
-  The shared keyed-archive and Interface Builder decoder consumes an initial
+  App bundle `Info.plist` executable resolution uses the same decoder as keyed
+  archives and Interface Builder. The decoder consumes an initial
   BOM and rejects malformed byte sequences, unsupported encoding declarations,
   and declarations that disagree with the detected encoding. It never substitutes
   UTF-8 for a declared encoding it cannot process. Archive and evidence digests
-  still identify the original serialized bytes. Interface Builder decoding
+  still identify the original serialized bytes. Bundle resolution reports
+  malformed bytes and unsupported encodings against the original plist path
+  before looking up the executable. Interface Builder decoding
   limits aggregate input archives to 32 MiB.
   Before decoding, it also bounds the serialized structure: expanded binary
   plist references, NIB table records, XML elements and text, plus their

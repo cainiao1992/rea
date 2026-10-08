@@ -1,4 +1,4 @@
-import { decodeXmlPlistText } from "./XmlPropertyListText.js";
+import { decodeXmlPlistText } from "../../domain/propertyListXmlText.js";
 
 /** Reason reported when an archive would exceed the shared decoding budget. */
 export type InterfaceBuilderBudgetReason = "aggregate_decode_budget_exhausted";

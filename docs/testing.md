@@ -469,7 +469,9 @@ provider evidence.
 Each Vitest project uses up to two workers, bounded by available host parallelism.
 Default-group projects can run together. Only `process-boundary` runs in the
 later sequence group and serializes its files because process-tree observations
-share host sampling resources. Acceptance and process-global files retain isolated
+share host sampling resources. Tests that launch the real process harness belong
+in `tests/boundary/process/`, including CLI command and environment tests.
+Acceptance and process-global files retain isolated
 forks but are not serialized; isolation does not imply serial scheduling. CI uses
 the same per-project worker bound.
 The pure domain/contracts and recording-port service projects share one worker

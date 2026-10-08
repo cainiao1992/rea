@@ -6,6 +6,31 @@ import {
   type FakeCdpBrowser,
 } from "../../fixtures/fakeCdpBrowser.js";
 
+const INVALID_REPLIES = [
+  ["missing result and error", (id: number) => ({ id })],
+  [
+    "both result and error",
+    (id: number) => ({
+      id,
+      result: {},
+      error: { code: -32_602, message: "Invalid params" },
+    }),
+  ],
+  [
+    "malformed error",
+    (id: number) => ({
+      id,
+      error: { code: "bad", message: "Invalid params" },
+    }),
+  ],
+  ["invalid result", (id: number) => ({ id, result: [] })],
+  ["invalid session id", (id: number) => ({ id, result: {}, sessionId: 7 })],
+  [
+    "foreign session id",
+    (id: number) => ({ id, result: {}, sessionId: "foreign-session" }),
+  ],
+] as const;
+
 describe("CDP connection", () => {
   const browsers: FakeCdpBrowser[] = [];
 
@@ -86,26 +111,7 @@ describe("CDP connection", () => {
     }
   });
 
-  it.each([
-    ["missing result and error", (id: number) => ({ id })],
-    [
-      "both result and error",
-      (id: number) => ({
-        id,
-        result: {},
-        error: { code: -32_602, message: "Invalid params" },
-      }),
-    ],
-    [
-      "malformed error",
-      (id: number) => ({
-        id,
-        error: { code: "bad", message: "Invalid params" },
-      }),
-    ],
-    ["invalid result", (id: number) => ({ id, result: [] })],
-    ["invalid session id", (id: number) => ({ id, result: {}, sessionId: 7 })],
-  ])(
+  it.each(INVALID_REPLIES)(
     "fails the connection for a correlated reply with %s",
     async (_case, reply) => {
       const browser = await startFakeCdpBrowser({
@@ -117,7 +123,7 @@ describe("CDP connection", () => {
         "observe_web_session",
       );
       try {
-        const pending = connection.send("Page.enable");
+        const pending = connection.send("Page.enable", {}, "selected-session");
         const rejection = expect(pending).rejects.toMatchObject({
           _tag: "BrowserObservationError",
           reason: "protocol_error",

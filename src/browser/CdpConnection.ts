@@ -15,6 +15,7 @@ export interface CdpEvent {
 
 interface PendingCommand {
   readonly method: string;
+  readonly sessionId?: string;
   readonly resolve: (value: unknown) => void;
   readonly reject: (error: AnalysisError) => void;
   readonly removeAbort: () => void;
@@ -120,6 +121,7 @@ export class CdpConnection {
       signal?.addEventListener("abort", onAbort, { once: true });
       this.#pending.set(id, {
         method,
+        ...(sessionId === undefined ? {} : { sessionId }),
         resolve,
         reject,
         removeAbort: () => signal?.removeEventListener("abort", onAbort),
@@ -214,7 +216,9 @@ export class CdpConnection {
     const hasResult = "result" in message;
     const hasError = "error" in message;
     if (
-      ("sessionId" in message && typeof message.sessionId !== "string") ||
+      ("sessionId" in message &&
+        (typeof message.sessionId !== "string" ||
+          message.sessionId !== pending.sessionId)) ||
       hasResult === hasError
     ) {
       this.#failPending("protocol_error");

@@ -20,7 +20,6 @@ import {
 } from "./javascriptSemanticState.js";
 import {
   builtinDataEffectMethod as builtinMethod,
-  containsSemanticNode as containsNode,
   dataEffectArgumentBindingId as argumentBindingId,
   dataEffectLiteralString as literalString,
   dataEffectMemberCallee as memberCallee,
@@ -150,11 +149,18 @@ const processConfigurationMember = (
   if (family !== "env" && family !== "argv") return null;
   // `process.env[""]` names an exact (empty) key; only a dynamic key is unknown.
   const key = semanticStaticPropertyKey(node.property, node.computed);
+  if (family === "argv" && key !== null && !isArrayIndexKey(key)) return null;
   return {
     kind: family === "env" ? "environment" : "argv",
     key,
     resolution: key === null ? "partial" : "complete",
   };
+};
+
+const isArrayIndexKey = (key: string): boolean => {
+  if (!/^(?:0|[1-9][0-9]*)$/u.test(key)) return false;
+  const index = Number(key);
+  return Number.isSafeInteger(index) && index < 2 ** 32 - 1;
 };
 
 const collectDefaults = (
@@ -163,71 +169,40 @@ const collectDefaults = (
   configurations: readonly ConfigurationCandidate[],
 ): JavaScriptSemanticConfigurationOperation[] => {
   const output: JavaScriptSemanticConfigurationOperation[] = [];
-  const configurationsByStart = configurations
-    .filter(
-      ({ node }) =>
-        node.start !== null &&
-        node.start !== undefined &&
-        node.end !== null &&
-        node.end !== undefined,
-    )
-    .toSorted(
-      (left, right) => (left.node.start ?? 0) - (right.node.start ?? 0),
-    );
+  const configurationsByNode = new Map(
+    configurations.map((candidate) => [candidate.node, candidate]),
+  );
   traverseWithContext(program, context, (node) => {
     if (
       !t.isLogicalExpression(node) ||
       (node.operator !== "??" && node.operator !== "||")
     )
       return;
-    const sources = configurationsIn(node.left, configurationsByStart);
-    if (sources.length !== 1 || sources[0] === undefined) return;
+    let source = node.left;
+    while (
+      t.isParenthesizedExpression(source) ||
+      t.isTSAsExpression(source) ||
+      t.isTSTypeAssertion(source) ||
+      t.isTypeCastExpression(source) ||
+      t.isTSSatisfiesExpression(source) ||
+      t.isTSNonNullExpression(source)
+    )
+      source = source.expression;
+    const candidate = configurationsByNode.get(source);
+    if (candidate === undefined) return;
     output.push({
       configId: `config:default:${String(node.start ?? -1)}:${String(node.end ?? -1)}`,
       kind: "default",
       location: range(node.right),
       ownerCallableId: context.callableStack.at(-1) ?? null,
       resultBindingId: outerAssignedBinding(node, context),
-      key: sources[0].operation.key,
-      sourceConfigId: sources[0].operation.configId,
+      key: candidate.operation.key,
+      sourceConfigId: candidate.operation.configId,
       value: primitiveValue(node.right),
       resolution: primitiveValue(node.right) === null ? "partial" : "complete",
     });
   });
   return output;
-};
-
-/** Find only configuration candidates whose source offsets can fit this left operand. */
-const configurationsIn = (
-  expression: t.Node,
-  candidates: readonly ConfigurationCandidate[],
-): readonly ConfigurationCandidate[] => {
-  if (
-    expression.start === null ||
-    expression.start === undefined ||
-    expression.end === null ||
-    expression.end === undefined
-  )
-    return [];
-  let low = 0;
-  let high = candidates.length;
-  while (low < high) {
-    const middle = low + Math.floor((high - low) / 2);
-    const start = candidates[middle]?.node.start;
-    if (start !== null && start !== undefined && start < expression.start)
-      low = middle + 1;
-    else high = middle;
-  }
-  const sources: ConfigurationCandidate[] = [];
-  for (let index = low; index < candidates.length; index += 1) {
-    const candidate = candidates[index];
-    if (candidate === undefined) continue;
-    const start = candidate.node.start;
-    if (start === null || start === undefined || start > expression.end) break;
-    if (containsNode(expression, candidate.node)) sources.push(candidate);
-    if (sources.length > 1) break;
-  }
-  return sources;
 };
 
 const collectRequests = (

@@ -10,6 +10,7 @@ const temporary: string[] = [];
 
 const electronModuleSource = `const { EventEmitter } = require("node:events");
 const app = new EventEmitter();
+app.isReady = () => true;
 app.relaunch = () => undefined;
 app.setAsDefaultProtocolClient = () => true;
 app.setLoginItemSettings = () => undefined;
@@ -40,6 +41,8 @@ class BrowserWindow extends EventEmitter {
     this.id = 3;
     this.webContents = new WebContents();
     this.options = options;
+    this.webContents.getLastWebPreferences = () => options.webPreferences;
+    app.emit("browser-window-created", {}, this);
   }
 }
 const utilityProcess = {
@@ -66,7 +69,7 @@ const contextBridge = {
 };
 module.exports = {
   app,
-  BrowserWindow,
+  get BrowserWindow() { return BrowserWindow; },
   contextBridge,
   ipcMain,
   ipcRenderer,

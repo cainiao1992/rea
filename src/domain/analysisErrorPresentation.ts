@@ -96,7 +96,7 @@ export const analysisErrorCategory = (
   if (error._tag === "ProcessCaptureError")
     return error.userCategory ?? "execution_failure";
   if (error instanceof BrowserObservationError)
-    return browserErrorCategory(error.reason);
+    return error.userCategory ?? browserErrorCategory(error.reason);
   if (
     error instanceof HopperRemoteError &&
     error.diagnosticType === "invalid_request"
@@ -117,6 +117,8 @@ export const analysisErrorCategory = (
 const browserErrorCategory = (
   reason: BrowserObservationError["reason"],
 ): AnalysisErrorProjection["category"] => {
+  if (reason === "cancelled") return "cancelled";
+  if (reason === "timeout") return "timeout";
   if (reason === "payload_limit") return "truncated";
   if (
     reason === "target_not_found" ||

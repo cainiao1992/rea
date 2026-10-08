@@ -58,7 +58,10 @@ const eventFamily = (
   kind: ElectronHookEvent["kind"],
   processType: string | null,
 ): string => {
-  if (kind === "preload" && processType === "main")
+  if (
+    kind === "preload" &&
+    (processType === "main" || processType === "browser")
+  )
     return "preload-configuration";
   if (kind.startsWith("ipc-renderer"))
     return processType === "renderer" ? "renderer-ipc" : "ipc";
@@ -163,6 +166,11 @@ export const projectElectronActiveCapture = (
       "IPC direction and sender/receiver identifiers are observed only where Electron exposes them at the hooked boundary.",
       "The runtime timeline records lifecycle, navigation, shell, permission, popup, download, protocol, preload, native-addon, process, and IPC events; activity before hook installation is unavailable.",
       "The preload and renderer process contexts are not instrumented by the main-process -r hook; preload configuration and contextBridge API-shape events are main-boundary observations, not proof of renderer-side execution.",
+      ...(!hookSnapshot.events.some(({ kind }) => kind === "preload")
+        ? [
+            "Preload configuration was not exposed by the observed Electron window metadata. Preload paths and execution remain unavailable.",
+          ]
+        : []),
       "Process metrics are an Electron API snapshot and do not prove hostile-local-user isolation.",
       ...(hookSnapshot.dropped > 0
         ? [

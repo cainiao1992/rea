@@ -195,9 +195,11 @@ const createElectronActiveBoundaryPatches = ({
     };
   };
 
-  const patchSessionManager = (sessionModule) => {
+  const patchSessionManager = (sessionModule, app) => {
     if (sessionModule === null || sessionModule === undefined) return;
-    patchSession(sessionModule.defaultSession);
+    if (app === undefined || app.isReady())
+      patchSession(sessionModule.defaultSession);
+    else app.once("ready", () => patchSession(sessionModule.defaultSession));
     for (const method of ["fromPartition", "fromPath"]) {
       const original = sessionModule[method];
       if (typeof original !== "function") continue;

@@ -543,31 +543,44 @@ const patchWebContents = (webContents, windowId) => {
   boundaries.patchWindowOpenHandler(webContents, contentsId);
 };
 
-const patchBrowserWindow = (electron) => {
-  const original = electron.BrowserWindow;
-  if (typeof original !== "function") return;
-  electron.BrowserWindow = new Proxy(original, {
-    construct(target, args, newTarget) {
-      const window = Reflect.construct(target, args, newTarget);
-      const targetId = identity(window, "window");
-      recordRuntime("window-lifecycle", "created", "completed", {
-        target: targetId,
-        argument_shape_values: args,
-      });
-      const preload = args[0]?.webPreferences?.preload;
+const patchWindows = (app) => {
+  if (app === null || app === undefined) return;
+  app.on("browser-window-created", (_event, window) => {
+    const targetId = identity(window, "window");
+    recordRuntime("window-lifecycle", "created", "completed", {
+      target: targetId,
+      capture_method: "event-emitter",
+    });
+    try {
+      // Electron 44 separates the preload descriptor from WebPreferences.
+      // Read the engine's descriptor, never infer a path from application code.
+      const preferences = window.webContents.getLastWebPreferences?.();
+      const preload =
+        typeof preferences?.preload === "string"
+          ? preferences.preload
+          : window.webContents._getPreloadScript?.()?.filePath;
       if (typeof preload === "string")
         recordRuntime("preload", "configured", "completed", {
           target: targetId,
           artifact_path: preload,
         });
-      patchEmitter(window, (event) =>
-        recordRuntime("window-lifecycle", event, "observed", {
+    } catch (cause) {
+      recordRuntime(
+        "error",
+        cause instanceof Error ? cause.message : String(cause),
+        "failed",
+        {
           target: targetId,
-        }),
+          error: true,
+        },
       );
-      patchWebContents(window.webContents, targetId);
-      return window;
-    },
+    }
+    patchEmitter(window, (event) =>
+      recordRuntime("window-lifecycle", event, "observed", {
+        target: targetId,
+      }),
+    );
+    patchWebContents(window.webContents, targetId);
   });
 };
 
@@ -599,10 +612,10 @@ try {
   patchIpcMain(electron.ipcMain);
   boundaries.patchIpcRenderer(electron.ipcRenderer);
   boundaries.patchContextBridge(electron.contextBridge);
-  patchBrowserWindow(electron);
+  patchWindows(electron.app);
   boundaries.patchUtilityProcess(electron.utilityProcess);
   boundaries.patchShell(electron.shell);
-  boundaries.patchSessionManager(electron.session);
+  boundaries.patchSessionManager(electron.session, electron.app);
   boundaries.patchApplicationEffects(electron.app);
   boundaries.patchNativeAddonLoading();
   boundaries.patchChildProcess();
@@ -620,8 +633,17 @@ try {
     });
     throw reason;
   });
-} catch {
+} catch (cause) {
   globalThis.__reaElectronActiveHookError = true;
+  recordRuntime(
+    "error",
+    cause instanceof Error ? cause.message : String(cause),
+    "failed",
+    {
+      target: "active-hook-installation",
+      error: true,
+    },
+  );
 }
 
 globalThis.__reaElectronActiveSnapshot = () => ({

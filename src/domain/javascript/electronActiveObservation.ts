@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-import { isAbsoluteLocalPath } from "../localPath.js";
+import { isAbsoluteLocalPath, localPathStringSchema } from "../localPath.js";
 
-const pathInputSchema = z.string().trim().min(1).refine(isAbsoluteLocalPath, {
+const pathInputSchema = localPathStringSchema.refine(isAbsoluteLocalPath, {
   message:
     "Electron executable, application, and root paths must be absolute local filesystem paths (for example /Applications/Electron.app/Contents/MacOS/Electron)",
 });
@@ -76,7 +76,11 @@ export const electronActiveObservationInputSchema = z.strictObject({
     .describe(
       "Absolute local filesystem root for application-relative paths; omit to derive it from the application path. Relative paths are rejected.",
     ),
-  args: z.array(z.string()).default([]),
+  args: z
+    .array(
+      z.string().regex(/^[^\0]*$/u, "Electron arguments must not contain NUL"),
+    )
+    .default([]),
   actions: z.array(actionSchema).default([]),
 });
 export type ElectronActiveObservationInput = z.infer<
@@ -309,3 +313,16 @@ export const electronActiveObservationResultSchema = z.strictObject({
 export type ElectronActiveObservationResult = z.infer<
   typeof electronActiveObservationResultSchema
 >;
+
+/** Observations collected before an Electron capture failed its cleanup boundary. */
+export interface ElectronActivePartialObservation {
+  readonly kind: "electron-active-observation";
+  readonly capture: Omit<ElectronActiveObservationResult, "application"> & {
+    readonly application: Omit<
+      ElectronActiveObservationResult["application"],
+      "cleanup"
+    > & {
+      readonly cleanup: "unverified" | "terminated-owned-process";
+    };
+  };
+}

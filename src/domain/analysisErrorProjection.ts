@@ -96,7 +96,9 @@ const underlyingErrorCode = (
       ? "provider_unavailable"
       : "capability_unavailable";
   if (error instanceof BrowserObservationError)
-    return browserErrorCode(error.reason);
+    return error.userCategory === "cancelled"
+      ? "cancelled"
+      : browserErrorCode(error.reason);
   if (error instanceof ArtifactOperationError)
     return artifactOperationCode(error);
   if (error instanceof EvidenceFileError) return evidenceFileCode(error.reason);
@@ -109,6 +111,8 @@ const underlyingErrorCode = (
 const browserErrorCode = (
   reason: BrowserObservationError["reason"],
 ): AnalysisErrorProjection["code"] => {
+  if (reason === "cancelled") return "cancelled";
+  if (reason === "timeout") return "provider_timeout";
   if (reason === "payload_limit") return "truncated";
   if (
     reason === "target_not_found" ||

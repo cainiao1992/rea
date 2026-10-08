@@ -98,7 +98,6 @@ describe("enhanced MCP tools", () => {
     );
 
     expect(calls).toBe(1);
-    expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected cancellation");
     expect(result.error._tag).toBe("AnalysisCancelledError");
   });

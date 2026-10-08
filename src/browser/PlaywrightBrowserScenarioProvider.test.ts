@@ -198,7 +198,6 @@ describe("PlaywrightBrowserScenarioProvider", () => {
     const result = await provider.captureScenario(
       scenario({ events: ["frames"] }),
     );
-    expect(result.ok).toBe(true);
     if (!result.ok) throw result.error;
     expect(result.value.completeness).toMatchObject({
       status: "incomplete",

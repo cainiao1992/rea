@@ -337,7 +337,6 @@ describe("reference source import behavior", () => {
         message: "fixture",
       });
       const result = await importTree(root);
-      expect(result.ok).toBe(true);
       if (!result.ok) throw result.error;
       expect(result.value.vcs).toEqual({ kind: "git", head: oid, dirty: null });
     } finally {

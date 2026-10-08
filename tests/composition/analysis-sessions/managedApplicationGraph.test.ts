@@ -200,7 +200,6 @@ describe("managed application graph coverage", () => {
       managed_members: parserPartialEvidence,
     });
 
-    expect(parserPartialProjection.ok).toBe(true);
     if (!parserPartialProjection.ok)
       throw new Error("partial projection failed");
     const parserPartialResult = managedApplicationGraphResultSchema.parse(

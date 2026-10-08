@@ -185,7 +185,6 @@ describe("Ghidra jump-table mapping contract", () => {
         ],
       },
     });
-    expect(parsed.ok).toBe(true);
     if (!parsed.ok) throw parsed.error;
     const output = functionDossierSchema.parse(parsed.value).native_api;
     if (output?.available !== true)
@@ -218,7 +217,6 @@ describe("Ghidra jump-table mapping contract", () => {
         ],
       },
     });
-    expect(parsed.ok).toBe(true);
     if (!parsed.ok) throw parsed.error;
     expect(functionDossierSchema.parse(parsed.value).native_api).toMatchObject({
       jump_tables: [{ default_targets: [], mappings: [{ case_value: null }] }],

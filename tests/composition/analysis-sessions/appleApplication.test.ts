@@ -61,7 +61,6 @@ async function createCompleteAppleProjection() {
     inventory_evidence: fragments,
   });
 
-  expect(result.ok).toBe(true);
   if (!result.ok) throw new TypeError("Could not project fixture inventory");
   const projection = appleApplicationProjectionResultSchema.parse(
     result.value.normalized_result,

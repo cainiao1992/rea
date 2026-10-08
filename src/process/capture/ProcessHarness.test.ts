@@ -500,7 +500,6 @@ it("fails closed on Windows before resolving or launching scenario paths", async
     working_directory: "Z:/missing/working-directory",
   });
   const result = await captureProcessScenario(scenario, undefined, "win32");
-  expect(result.ok).toBe(false);
   if (result.ok) throw new Error("expected Windows ownership refusal");
   if (!(result.error instanceof AnalysisCapabilityUnavailableError))
     throw new Error("expected a capability-unavailable outcome");

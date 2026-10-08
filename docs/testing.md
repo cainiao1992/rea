@@ -211,7 +211,9 @@ CallReference classifications across reference and dossier results, retains long
 string fragment metadata in dossiers, and exercises pathological regex deadline
 and cancellation followed by successful requests in the same native session. When the macOS
 Objective-C fixture is present, the lane also verifies native UTF-16 string objects
-and their inferred encodings against their actual bytes.
+and their inferred encodings against their actual bytes. Native terminal calls
+are checked across reference, instruction, assembly, block-range and procedure-length
+projections; block endpoints are normalized using actual native membership.
 Unmapped annotation destinations and
 oversized later batch names fail before any earlier edit is applied.
 The Linux demo lane remains a separate `verify:hopper:linux` command.

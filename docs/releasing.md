@@ -1,8 +1,12 @@
 # Releasing from a checkpoint
 
-REA releases use an explicit source checkpoint. Main can continue accepting
-changes while a release is tested and published. The Release workflow runs
-only when a maintainer dispatches it; main pushes do not refresh release PRs.
+Pushes to main automatically open or refresh a Release Please proposal with
+the next version and changelog. This proposal cannot create a GitHub release
+or publish packages. It previews the next release as main continues changing.
+
+Publication uses an explicit source checkpoint. A maintainer selects a frozen
+release branch and dispatches preparation and publication, so main can keep
+accepting changes without changing the candidate being tested.
 
 ## 1. Select the source
 
@@ -10,6 +14,12 @@ Choose the next version from the unreleased Conventional Commits, including
 breaking changes. Record the full source SHA and create `release/VERSION` at
 that commit. The version is a maintainer choice; Release Please's proposed
 version must agree before publication.
+
+Use the automatic main proposal to review the suggested version and notes.
+Keep that proposal unmerged: select the application commit from main, create
+the frozen branch, and prepare its own release PR using the steps below.
+Merging the proposal into main would advance the release baseline before
+publication. The reviewed frozen-branch PR is the publication candidate.
 
 `release/VERSION` also sets the expected version for the workflow. Use an exact
 SemVer such as `release/6.1.0` or `release/6.1.0-rc.1`, without build metadata.
@@ -163,8 +173,10 @@ git fetch origin main --tags
 git merge-base --is-ancestor rea-agents-5.0.0 origin/main
 ```
 
-Close any superseded rolling release PR. Future releases repeat the checkpoint
-procedure from main; never resume automatic release-PR refreshes on main pushes.
+Close the superseded main proposal before merging the synchronization PR.
+That merge's main push opens a proposal for the following release using the
+updated baseline. Future publication repeats the checkpoint procedure;
+automatic proposals do not move frozen branches.
 Preparation generates and validates the catalog, portable conformance
 projections, and packaged skill from the candidate checkout without committing
 them. The checkpoint validator binds tracked version authority to the source

@@ -366,10 +366,6 @@ REA にホスト型の解析サービスはありません。現在のプロバ�
 
 開発環境、アーキテクチャ、テスト、リリース手順は [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
 
-## ライセンス
-
-[MIT](LICENSE)
-
 ## スター履歴
 
 🎉 **GitHub スターが 20,000 を突破しました。ありがとうございます！**
@@ -383,3 +379,7 @@ REA を使い、問題を報告し、ビルドをテストし、修正を届け�
     <img alt="REA の GitHub スター履歴" src="https://api.star-history.com/chart?repos=morluto/rea&amp;type=date" />
   </picture>
 </a>
+
+## ライセンス
+
+[MIT](LICENSE)

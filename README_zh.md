@@ -316,10 +316,6 @@ REA 不提供托管分析服务，而是通过本地 Unix 套接字把操作交�
 
 开发环境、架构、测试和发布说明请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-## 许可证
-
-[MIT](LICENSE)
-
 ## Star 历史
 
 🎉 **GitHub Star 突破 20,000，感谢大家！**
@@ -333,3 +329,7 @@ REA 不提供托管分析服务，而是通过本地 Unix 套接字把操作交�
     <img alt="REA GitHub Star 历史" src="https://api.star-history.com/chart?repos=morluto/rea&amp;type=date" />
   </picture>
 </a>
+
+## 许可证
+
+[MIT](LICENSE)

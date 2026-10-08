@@ -315,10 +315,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and checks,
 
 [Website](https://morluto.github.io/rea/) · [npm](https://www.npmjs.com/package/rea-agents) · [skills.sh](https://skills.sh/morluto/rea/reverse-engineer-anything) · [Issues](https://github.com/morluto/rea/issues) · [Security](SECURITY.md)
 
-## License
-
-[MIT](LICENSE)
-
 ## Star history
 
 🎉 **20,000 GitHub stars — thank you!**
@@ -336,3 +332,7 @@ Thanks to everyone using REA, reporting bugs, testing builds, and contributing f
 ## Disclaimer
 
 REA provides tools for lawful reverse-engineering research, analysis, and reconstruction. You are responsible for obtaining any required authorization and complying with applicable laws. The project does not endorse illegal or unauthorized use.
+
+## License
+
+[MIT](LICENSE)

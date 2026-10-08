@@ -315,10 +315,6 @@ REA에는 호스팅 분석 서비스가 없습니다. 로컬 Unix 소켓을 통�
 
 개발 환경, 아키텍처, 테스트, 릴리스 지침은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
 
-## 라이선스
-
-[MIT](LICENSE)
-
 ## 스타 기록
 
 🎉 **GitHub 스타 20,000개, 감사합니다!**
@@ -332,3 +328,7 @@ REA를 사용하고, 버그를 제보하고, 빌드를 테스트하고, 수정�
     <img alt="REA GitHub 스타 기록" src="https://api.star-history.com/chart?repos=morluto/rea&amp;type=date" />
   </picture>
 </a>
+
+## 라이선스
+
+[MIT](LICENSE)

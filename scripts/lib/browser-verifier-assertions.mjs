@@ -217,6 +217,19 @@ export function assertSensitiveShapes(result) {
   );
   if (request === undefined)
     throw new Error("Real Chrome JSON request/response shapes were missing");
+  if (
+    !result.network.requests.some(
+      (item) =>
+        item.url.endsWith("/slow-json") &&
+        item.body_shapes.status === "partial" &&
+        item.body_shapes.request !== null &&
+        item.body_shapes.response === null,
+    ) ||
+    !result.completeness.unavailable_sections.includes("json_body_shapes")
+  )
+    throw new Error(
+      "Real Chrome unfinished JSON bodies were not reported as unavailable",
+    );
   const consoleText = result.console.events.flatMap(
     (event) => event.text_capture.values,
   );

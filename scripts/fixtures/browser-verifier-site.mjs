@@ -7,6 +7,13 @@ export async function startBrowserVerifierSite() {
   let port = 0;
   let sessionGeneration = 0;
   const server = createServer((request, response) => {
+    if (request.url === "/slow-json") {
+      response.setHeader("content-type", "application/json");
+      response.write('{"pending":');
+      const timer = setTimeout(() => response.end("true}"), 350);
+      response.once("close", () => clearTimeout(timer));
+      return;
+    }
     if (request.url === "/screenshot-noise") {
       response.setHeader("content-type", "text/html");
       response.end(`<!doctype html><html><body style="margin:0"><canvas width="2048" height="1536"></canvas><script>
@@ -173,6 +180,11 @@ const browserScript = (port) => `
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ token: "request-body-secret-value", active: true })
+    });
+    fetch("/slow-json", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pending: true })
     });
     const socket = new WebSocket("ws://127.0.0.1:${String(port)}/live?token=websocket-url-secret");
     socket.addEventListener("open", () => socket.send(JSON.stringify({ token: "websocket-secret-value" })));

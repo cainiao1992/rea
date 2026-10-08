@@ -12,6 +12,7 @@ import { CdpCaptureEvents } from "./CdpCaptureEvents.js";
 import { authorizedMainFrame } from "./CdpAuthorizedMainFrame.js";
 import { captureStorage } from "./CdpCaptureStorage.js";
 import { optionalCdpCommand } from "./CdpOptionalCommand.js";
+import { CdpCommandRejection } from "./CdpCommandRejection.js";
 import {
   captureAccessibility,
   captureDom,
@@ -185,12 +186,34 @@ const captureJsonResponseBodies = async (
   for (let index = 0; index < requestIds.length; index += 1) {
     const requestId = requestIds[index];
     if (requestId === undefined) continue;
-    const result = await optionalCdpCommand(
-      state.context,
-      "Network.getResponseBody",
-      { requestId },
-      state.limitations,
-    );
+    const request = state.events.network.get(requestId);
+    if (request === undefined) continue;
+    if (request.encoded_data_length === null) {
+      state.events.responseBodyUnavailable(requestId);
+      continue;
+    }
+    let result: unknown;
+    try {
+      result = await optionalCdpCommand(
+        state.context,
+        "Network.getResponseBody",
+        { requestId },
+        state.limitations,
+      );
+    } catch (cause: unknown) {
+      if (
+        !(cause instanceof CdpCommandRejection) ||
+        cause.command !== "Network.getResponseBody" ||
+        cause.code !== -32_000 ||
+        cause.reportedMessage === null
+      )
+        throw cause;
+      state.events.responseBodyUnavailable(requestId);
+      state.limitations.push(
+        `Response body unavailable for request ${requestId}: ${cause.userMessage}`,
+      );
+      continue;
+    }
     if (result !== undefined) {
       state.events.ingestResponseBody(requestId, result);
       continue;

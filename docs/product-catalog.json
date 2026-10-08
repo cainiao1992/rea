@@ -7,10 +7,10 @@
       "client": "2.3.1",
       "core": "2.3.1"
     },
-    "skill_version": "29"
+    "skill_version": "30"
   },
   "tools": {
-    "total": 135,
+    "total": 136,
     "families": [
       {
         "id": "direct",
@@ -84,7 +84,7 @@
       {
         "id": "native",
         "surface": "native-provider",
-        "count": 7,
+        "count": 8,
         "tools": [
           "capture_native_ui_scenario",
           "demangle_swift",
@@ -92,6 +92,7 @@
           "inspect_plist",
           "inspect_signature",
           "list_architectures",
+          "observe_native_calls",
           "observe_native_ui"
         ]
       },
@@ -368,6 +369,7 @@
         "inspect_plist",
         "inspect_signature",
         "list_architectures",
+        "observe_native_calls",
         "observe_native_ui"
       ]
     },
@@ -585,7 +587,7 @@
     }
   ],
   "cli": {
-    "primary_count": 90,
+    "primary_count": 91,
     "commands": [
       "address-to-file-offset",
       "analyze",
@@ -650,6 +652,7 @@
       "list-electron-targets",
       "list-javascript-runtime-targets",
       "observe-javascript-runtime",
+      "observe-native-calls",
       "observe-native-ui",
       "observe-web-execution",
       "observe-web-session",
@@ -687,15 +690,15 @@
   },
   "runtime_catalog": {
     "counts": {
-      "cli_commands": 90,
-      "mcp_tools": 135,
+      "cli_commands": 91,
+      "mcp_tools": 136,
       "mcp_prompts": 6
     },
     "digests": {
-      "tools_sha256": "6bf6a68f630e8664f83735264f3e687aaaaf0237a7c2f928b2e9a40ef2b4830e",
+      "tools_sha256": "6d195c42333ecfa46e9b253f15174876b34ed1fb226047d1327e3be960680f26",
       "prompts_sha256": "ef2de8814390b340623c32001610aa2709d90bed51537b6e562ab3abf144ab4d",
-      "combined_sha256": "e6fc5093be3b5c7f9dd0903c197beede8fc9e0295a3cf78211f619367e838910",
-      "providers_sha256": "f30e396bb97eb22e7872b718aef0dd03e0df931db11c03e799d85b0aa9d237fb"
+      "combined_sha256": "047ba77689d22d3b3dac6f51fae06a1a306aaab24fa3be7c2007b396a5fd26f7",
+      "providers_sha256": "96cfc3247384603286780f35bc403870bbca53a648959cbe36bc28dbb43700e5"
     }
   }
 }

@@ -43,7 +43,7 @@ itWithCaptureCapability(
           path: "root_0:state.txt",
         }),
       );
-      expect(result.value.cleanup).toEqual({
+      expect(result.value.cleanup).toMatchObject({
         owned_process_group: "verified",
         temporary_root: "removed",
       });

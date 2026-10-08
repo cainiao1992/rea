@@ -174,6 +174,12 @@ case. Real capture tests preserve actual descendant and cleanup checks.
 The existing Apple job also exercises the relocated filesystem snapshot identity,
 cancellation and descriptor cleanup regressions on macOS.
 
+Prepare the native inspector before cases that measure producer output or exit
+behavior; keep startup deadlines and cancellation in distinct cases. Run real
+process-capture verification separately from package or build checks. On macOS,
+new npm processes can become token-unreadable after changing their display
+title and prevent verified cleanup during a capture's ownership sweep.
+
 MCP SDK transport tests with recording providers remain integration tests.
 They are useful for schema drift and failure projection but do not prove that
 Hopper, Ghidra or another substituted engine works. `verify:package` proves

@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
-import { expect, it } from "vitest";
+import { beforeAll, expect, it } from "vitest";
 import {
   OwnedCommandFailure,
   runOwnedCommand,
 } from "../../../src/process/OwnedCommand.js";
 import { spawnOwnedProviderProcess } from "../../../src/process/ProviderProcess.js";
 import { cleanupOwnedProcessGroup } from "../../../src/process/ProcessOwnership.js";
+import { prepareProcessOwnershipInspection } from "../../../src/process/ProcessOwnershipObservation.js";
 import { waitForProviderProcessReady } from "../../fixtures/providerProcess.js";
 
 const command = (script: string) => ({
@@ -14,6 +15,10 @@ const command = (script: string) => ({
   arguments: ["-e", script],
   runId: `rea-owned-command-test-${randomUUID()}`,
 });
+
+// Output/exit cases start with a prepared inspector; startup deadline cases
+// below inject their own preparation so they remain independent of compiler speed.
+beforeAll(() => prepareProcessOwnershipInspection());
 
 it("includes ownership preparation in the command deadline before provider creation", async () => {
   let prepared = false;

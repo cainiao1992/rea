@@ -27,7 +27,7 @@ export const toCallToolResult = (
 ): CallToolResult =>
   result.ok
     ? successResult(result.value, contract, context)
-    : errorResult(result.error);
+    : toErrorToolResult(result.error);
 
 /** Deliver Evidence using the producer's explicit recording acknowledgment. */
 export const toEvidenceToolResult = (
@@ -36,7 +36,7 @@ export const toEvidenceToolResult = (
   recorded: Result<unknown, AnalysisError> | undefined,
 ): CallToolResult =>
   recorded !== undefined && !recorded.ok
-    ? errorResult(recorded.error)
+    ? toErrorToolResult(recorded.error)
     : toCallToolResult(
         { ok: true, value: evidence },
         contract,
@@ -45,16 +45,23 @@ export const toEvidenceToolResult = (
           : { retainedEvidenceId: evidence.evidence_id },
       );
 
-const errorResult = (error: AnalysisError): CallToolResult => {
+/** Project an error without allocating oversized repeated MCP text. */
+export const toErrorToolResult = (error: AnalysisError): CallToolResult => {
   const projected = projectAnalysisError(error);
   const structuredContent = { error: projected };
+  const configured = parseMcpResponseBudget(
+    process.env.REA_MCP_MAX_RESPONSE_BYTES,
+  );
+  const budget =
+    configured.ok && configured.value !== undefined
+      ? configured.value - 1024
+      : MCP_RESULT_BUDGET_BYTES;
+  const encoded = encodeToolResult(structuredContent, budget);
+  // The session-bound transport retains an oversized projected error before
+  // replacing it with a recoverable delivery constraint. Avoid allocating its
+  // repeated text representation before that boundary has acknowledged it.
   return {
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(structuredContent),
-      },
-    ],
+    content: encoded.ok ? [{ type: "text", text: encoded.text }] : [],
     structuredContent,
     isError: true,
   };
@@ -71,14 +78,14 @@ const successResult = (
   const configured = parseMcpResponseBudget(
     process.env.REA_MCP_MAX_RESPONSE_BYTES,
   );
-  if (!configured.ok) return errorResult(configured.error);
+  if (!configured.ok) return toErrorToolResult(configured.error);
   const budget =
     configured.value === undefined
       ? MCP_RESULT_BUDGET_BYTES
       : configured.value - 1024;
   const encoded = encodeToolResult(candidate, budget);
   if (!encoded.ok)
-    return errorResult(
+    return toErrorToolResult(
       new AnalysisResourceConstraintError(
         contract.name,
         "transport",

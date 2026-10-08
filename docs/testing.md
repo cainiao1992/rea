@@ -366,10 +366,16 @@ behavior, and independent CLI/MCP database ownership.
 Large-result probes compile initialized host-native data sized from the pinned
 MCP SDK receive budget. Real byte reads, annotation edits and function dossiers
 exceed that budget while preserving the connection and active analysis run.
-Each delivery error must identify its successfully retained Evidence record;
-export must recover every source byte and complete annotation, with CLI parity
+Successful-result and oversized-error delivery constraints must identify their
+successfully retained Evidence records;
+export must recover every source byte, complete annotation and original error
+diagnostic, with CLI parity
 and an unchanged executable. The focused formatter check retains only the
 separate case where recording was not acknowledged.
+Long ordinary procedure names and encoded address-space selectors must produce
+normal validation errors without exhausting Java's regex stack or losing the
+private bridge connection. Each rejection is followed by a real provider lookup;
+address-like literal names still resolve exactly after annotation.
 Malformed annotation readback, memory completeness, and inventory data remain separate
 SDK/provider integration cases; success from a real
 provider cannot establish rejection of a contradictory provider response.

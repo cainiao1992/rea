@@ -64,6 +64,24 @@ export async function verifyGhidraLargeResults({
     assert.equal(expected[0], 0x5a);
     assert.equal(expected.at(-1), 0xa5);
     const before = await call("binary_session");
+    // This request fits the SDK receive limit, but repeating the producer's
+    // diagnostic in text and structured content cannot fit the response.
+    const missingSelector =
+      "REA_MISSING_" +
+      "x".repeat(Math.ceil(STDIO_DEFAULT_MAX_BUFFER_SIZE / 2) + 64 * 1024);
+    const lookupError = await reject("procedure_address", {
+      procedure: missingSelector,
+    });
+    const lookupId = retainedReference(lookupError, "procedure_address");
+    assert.equal(
+      lookupError.details.reported_limits.original_error_code,
+      "invalid_request",
+    );
+    assert.equal(
+      await call("procedure_address", { procedure: entry.address }),
+      entry.address,
+    );
+
     const readError = await reject("read_bytes", {
       address: payload.address,
       length,
@@ -116,6 +134,28 @@ export async function verifyGhidraLargeResults({
       assert.equal(record.subject.digest.sha256, sha256);
       return record;
     };
+    const originalError = bundle.records.find(
+      ({ evidence_id }) => evidence_id === lookupId,
+    );
+    assert.ok(originalError);
+    assert.equal(originalError.operation, "mcp_tool_error");
+    assert.equal(originalError.provider.id, "rea-mcp");
+    assert.equal(originalError.subject, null);
+    assert.equal(originalError.parameters.tool_name, "procedure_address");
+    assert.equal(originalError.normalized_result.error.code, "invalid_request");
+    assert.equal(originalError.raw_result.isError, true);
+    assert.deepEqual(
+      originalError.raw_result.structuredContent,
+      originalError.normalized_result,
+    );
+    assert.equal(
+      originalError.normalized_result.error.details.operation,
+      "procedure_address",
+    );
+    assert.equal(
+      originalError.normalized_result.error.details.issues[0].message,
+      `Unknown Ghidra procedure name or address: ${missingSelector}`,
+    );
     const readRecord = retained(readId);
     const read = readRecord.normalized_result;
     assert.equal(read.requested_bytes, length);

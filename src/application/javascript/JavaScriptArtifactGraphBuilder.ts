@@ -15,6 +15,7 @@ import {
 import { addJavaScriptStaticFindings } from "./JavaScriptArtifactGraphFindings.js";
 import {
   addJavaScriptModuleRelationships,
+  type JavaScriptModuleRelationshipOmissions,
   addJavaScriptSourceModules,
 } from "./JavaScriptModuleRelationships.js";
 import {
@@ -88,7 +89,7 @@ const buildJavaScriptArtifactGraphInput = (
   const packageRoots = addJavaScriptPackageNodes(context);
   addJavaScriptSourceModules(context);
   addJavaScriptBundlerNodes(context);
-  addJavaScriptModuleRelationships(context);
+  const relationshipOmissions = addJavaScriptModuleRelationships(context);
   addJavaScriptStaticFindings(context);
   addElectronBoundaries(context);
   addJavaScriptHtmlRoles(context);
@@ -103,7 +104,11 @@ const buildJavaScriptArtifactGraphInput = (
     nodes: accumulator.nodes(),
     edges: accumulator.edges(),
     coverage,
-    limitations: graphLimitations(context, coverage.status),
+    limitations: graphLimitations(
+      context,
+      coverage.status,
+      relationshipOmissions,
+    ),
   };
 };
 
@@ -171,6 +176,7 @@ const applicationGraphResourceLimit = (
 const graphLimitations = (
   context: JavaScriptArtifactGraphContext,
   coverage: "complete" | "partial" | "unknown" | "unavailable",
+  relationshipOmissions: JavaScriptModuleRelationshipOmissions,
 ): string[] => {
   const ipc = collectElectronIpcRecords(context.analysis);
   const pairings = classifyElectronIpcPairings(ipc);
@@ -189,6 +195,11 @@ const graphLimitations = (
   );
   return [
     ...context.analysis.limitations,
+    ...(relationshipOmissions.selfImports > 0
+      ? [
+          `${String(relationshipOmissions.selfImports)} import ${relationshipOmissions.selfImports === 1 ? "specifier" : "specifiers"} resolved back to the importing module itself and ${relationshipOmissions.selfImports === 1 ? "was" : "were"} omitted; application graph edges cannot be self-referential.`,
+        ]
+      : []),
     "CommonJS and ESM binding relationships were recovered from inert syntax and resolved only within the inventoried artifact container.",
     "Webpack/Rspack factories were recovered from AST literals; REA did not invoke push handlers or bundle bootstrap code.",
     "Static imports, entrypoints, workers, endpoints, and storage relationships do not prove runtime execution.",

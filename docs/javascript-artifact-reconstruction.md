@@ -166,6 +166,12 @@ Selected bounded text is then parsed as inert data to recover:
 - utility-process entrypoints and native `.node` binding requests without
   parsing or executing the add-on.
 
+Overloaded `.open` calls use lexical receiver facts: ambient browser window and
+document receivers are treated as browsing-context or document operations,
+while locally shadowed receivers can still contribute network endpoint
+candidates. A template recovered with a parser error and no cooked value stays
+dynamic; its raw spelling is not treated as a valid JavaScript string.
+
 Each recovered bundle module retains the exact factory-source digest. A complete
 bounded AST also receives a `babel-ast-v1` structural fingerprint that ignores
 ordinary identifier names while retaining syntax, literals, operators, object

@@ -10,6 +10,7 @@ import {
   writeEvidenceBundle,
 } from "../../../src/application/EvidenceBundleFiles.js";
 import { compareEvidenceBundlesCommand } from "../../../src/application/EvidenceBundleCommands.js";
+import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
 import { createEvidence } from "../../../src/domain/evidence.js";
 import {
   createEvidenceBundle,
@@ -114,6 +115,32 @@ describe("evidence bundle filesystem adapter", () => {
       ok: false,
       error: { _tag: "EvidenceFileError", reason: "not-file" },
     });
+  });
+
+  it("reports a missing file or output directory with the selected path", async () => {
+    const directory = await createTestTempDirectory("rea-evidence-");
+    const absent = join(directory, "absent.json");
+    const read = await readEvidenceBundle(absent);
+    expect(read).toMatchObject({
+      ok: false,
+      error: { _tag: "EvidenceFileError", reason: "missing", path: absent },
+    });
+    if (read.ok) throw new Error("Expected a missing-file failure");
+    expect(projectAnalysisError(read.error)).toMatchObject({
+      message: expect.stringContaining("does not exist at the selected path"),
+      details: { operation: "read", reason: "missing", path: absent },
+    });
+
+    const orphan = join(directory, "absent", "bundle.json");
+    const written = await writeEvidenceBundle(bundle(), orphan, false);
+    expect(written).toMatchObject({
+      ok: false,
+      error: { _tag: "EvidenceFileError", reason: "missing", path: orphan },
+    });
+    if (written.ok) throw new Error("Expected a missing-directory failure");
+    expect(projectAnalysisError(written.error).message).toContain(
+      "output directory does not exist",
+    );
   });
 
   it("rejects malformed and tampered input", async () => {

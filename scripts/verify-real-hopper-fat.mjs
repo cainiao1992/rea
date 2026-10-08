@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { access, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import {
+  access,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
@@ -10,7 +18,7 @@ import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import Ajv from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
-import { requireMcpResult } from "./lib/mcp-verifier-results.mjs";
+import { mcpTextValue, requireMcpResult } from "./lib/mcp-verifier-results.mjs";
 import { snapshotHopperRuntime } from "./lib/real-hopper-cleanup.mjs";
 import { HOPPER_TARGET_LEASE_DIRECTORY } from "../dist/hopper/HopperTargetLease.js";
 import { parseConfig } from "../dist/config.js";
@@ -56,6 +64,9 @@ const fat = join(directory, "c-fat");
 const fat64 = join(directory, "c-fat64");
 const singleFat = join(directory, "c-single-fat");
 const owned = new Set();
+const extraFat64 = [];
+const invalidFat64 = [];
+let preparedImagePath;
 const before = await snapshotHopperRuntime(
   "/tmp",
   HOPPER_TARGET_LEASE_DIRECTORY,
@@ -114,6 +125,86 @@ try {
     "-output",
     singleFat,
   ]);
+  if (verifyFat64) {
+    const original = await readFile(fat64);
+    const swapped = Buffer.from(original);
+    swapped.writeUInt32BE(0xbfbafeca, 0);
+    swapped.writeUInt32LE(original.readUInt32BE(4), 4);
+    for (let index = 0; index < original.readUInt32BE(4); index++) {
+      const offset = 8 + index * 32;
+      for (const field of [0, 4, 24, 28])
+        swapped.writeUInt32LE(
+          original.readUInt32BE(offset + field),
+          offset + field,
+        );
+      for (const field of [8, 16])
+        swapped.writeBigUInt64LE(
+          original.readBigUInt64BE(offset + field),
+          offset + field,
+        );
+    }
+    const little = join(directory, "c-fat64-little-endian");
+    await writeFile(little, swapped);
+    extraFat64.push(little);
+    const single = join(directory, "c-single-fat64");
+    await run(toolPaths.lipo, [
+      "-create",
+      process.arch === "arm64" ? arm : intel,
+      "-fat64",
+      "-output",
+      single,
+    ]);
+    extraFat64.push(single);
+    for (const [name, reason, mutate] of [
+      [
+        "reserved",
+        /nonzero reserved field/u,
+        (bytes) => bytes.writeUInt32BE(1, 36),
+      ],
+      [
+        "range",
+        /extends beyond the file/u,
+        (bytes) => bytes.writeBigUInt64BE(BigInt(bytes.length), 24),
+      ],
+      [
+        "identity",
+        /disagrees with its Mach-O header/u,
+        (bytes) => bytes.writeUInt32BE(bytes.readUInt32BE(12) + 1, 12),
+      ],
+      [
+        "overlap",
+        /slices overlap/u,
+        (bytes) => {
+          const cpu = process.arch === "arm64" ? 0x100000c : 0x1000007;
+          const base = bytes.readUInt32BE(8) === cpu ? 8 : 40;
+          bytes.copy(bytes, base === 8 ? 40 : 8, base, base + 32);
+        },
+      ],
+    ]) {
+      const bytes = Buffer.from(original);
+      mutate(bytes);
+      const path = join(directory, `c-fat64-invalid-${name}`);
+      await writeFile(path, bytes);
+      invalidFat64.push({ path, reason });
+    }
+    const hostBytes = await readFile(process.arch === "arm64" ? arm : intel);
+    const secondOffset = Math.ceil((16384 + hostBytes.length) / 16384) * 16384;
+    const ambiguous = Buffer.alloc(secondOffset + hostBytes.length);
+    ambiguous.writeUInt32BE(0xcafebabf, 0);
+    ambiguous.writeUInt32BE(2, 4);
+    for (const [index, offset] of [16384, secondOffset].entries()) {
+      const base = 8 + index * 32;
+      ambiguous.writeUInt32BE(hostBytes.readUInt32LE(4), base);
+      ambiguous.writeUInt32BE(hostBytes.readUInt32LE(8), base + 4);
+      ambiguous.writeBigUInt64BE(BigInt(offset), base + 8);
+      ambiguous.writeBigUInt64BE(BigInt(hostBytes.length), base + 16);
+      ambiguous.writeUInt32BE(14, base + 24);
+      hostBytes.copy(ambiguous, offset);
+    }
+    const path = join(directory, "c-fat64-ambiguous");
+    await writeFile(path, ambiguous);
+    invalidFat64.push({ path, reason: /selection.*ambiguous/u });
+  }
   await client.connect(transport);
   assert.ok(transport.pid !== null);
   owned.add(transport.pid);
@@ -135,18 +226,18 @@ try {
     );
     return result;
   };
-  let fatExpected;
-  let fatAddress;
+  const cliMappings = new Map();
   for (const path of [
     arm,
     intel,
     fat,
     singleFat,
-    ...(verifyFat64 ? [fat64] : []),
+    ...(verifyFat64 ? [fat64, ...extraFat64] : []),
   ]) {
     console.error(`Verifying Hopper source-file mappings for ${path}`);
-    await call("open_binary", { path });
     const file = await readFile(path);
+    const sourceHash = createHash("sha256").update(file).digest("hex");
+    await call("open_binary", { path });
     const procedures = await call("list_procedures");
     const entry = procedures.find((item) => item.value.endsWith("rea_entry"));
     assert.ok(entry, "compiler fixture omitted rea_entry");
@@ -168,7 +259,12 @@ try {
           .toString("hex"),
         bytes.bytes_hex,
       );
-      if (path === fat || path === singleFat || path === fat64) {
+      if (
+        path === fat ||
+        path === singleFat ||
+        path === fat64 ||
+        extraFat64.includes(path)
+      ) {
         assert.ok(
           mapping.image_base_file_offset > 0,
           "FAT mapping omitted its physical slice offset",
@@ -184,35 +280,109 @@ try {
           "fixture did not distinguish image-relative and original-file coordinates",
         );
       } else assert.equal(mapping.image_base_file_offset, 0);
-      if (path === fat) {
-        fatExpected = mapping;
-        fatAddress = address;
+      if (path === fat || path === fat64) {
+        cliMappings.set(path, { mapping, address });
       }
       observations.push({ path, address, ...mapping, matched_bytes: 16 });
     }
+    if (path === fat64 || extraFat64.includes(path)) {
+      const session = await call("binary_session");
+      assert.equal(session.path, path);
+      assert.equal(session.sha256, sourceHash);
+      const profile = session.analysis_provider_binding.analysis_profile;
+      assert.equal(
+        profile.parameters.prepared_image.method,
+        "fat64_thin_slice",
+      );
+      assert.equal(
+        profile.parameters.prepared_image.source_offset,
+        observations.at(-1).image_base_file_offset,
+      );
+      const document = await call("current_document");
+      await call("set_comment", {
+        address: entry.address,
+        comment: "source-bound FAT64 preparation",
+      });
+      await call("open_binary", { path });
+      assert.deepEqual(
+        (await call("binary_session")).analysis_provider_binding
+          .analysis_profile,
+        profile,
+      );
+      assert.equal(await call("current_document"), document);
+      assert.equal(
+        await call("comment", { address: entry.address }),
+        "source-bound FAT64 preparation",
+      );
+    }
+    assert.equal(
+      createHash("sha256")
+        .update(await readFile(path))
+        .digest("hex"),
+      sourceHash,
+      "native analysis modified source executable bytes",
+    );
     await call("close_binary");
   }
-  const pending = run(
-    process.execPath,
-    [
-      "scripts/rea.mjs",
-      "address-to-file-offset",
-      fat,
-      fatAddress,
-      "--provider",
-      "hopper",
-      "--format",
-      "json",
-    ],
-    {
-      timeout: 180_000,
-      env: { ...process.env, HOPPER_LOADER_ARGS_JSON: "[]" },
-    },
-  );
-  assert.ok(pending.child.pid !== undefined);
-  owned.add(pending.child.pid);
-  const cli = JSON.parse((await pending).stdout);
-  assert.deepEqual(cli.normalized_result, fatExpected);
+  for (const { path, reason } of invalidFat64) {
+    const reply = await client.callTool({
+      name: "open_binary",
+      arguments: { path },
+    });
+    assert.equal(reply.isError, true, "malformed FAT64 unexpectedly launched");
+    assert.match(mcpTextValue(reply), reason);
+  }
+  if (verifyFat64) {
+    await call("open_binary", { path: fat64 });
+    await call("list_procedures");
+    const resources = [
+      ...(await snapshotHopperRuntime(
+        "/tmp",
+        HOPPER_TARGET_LEASE_DIRECTORY,
+        owned,
+      )),
+    ].filter((path) => !before.has(path));
+    for (const root of resources) {
+      const image = join(root, "image.macho");
+      if (
+        await access(image).then(
+          () => true,
+          () => false,
+        )
+      )
+        preparedImagePath = image;
+    }
+    assert.ok(
+      preparedImagePath,
+      "prepared native image was not owned by this session",
+    );
+    await client.close();
+    await transport.close();
+    await assert.rejects(access(preparedImagePath), { code: "ENOENT" });
+  }
+  for (const [path, expected] of cliMappings) {
+    const pending = run(
+      process.execPath,
+      [
+        "scripts/rea.mjs",
+        "address-to-file-offset",
+        path,
+        expected.address,
+        "--provider",
+        "hopper",
+        "--format",
+        "json",
+      ],
+      {
+        timeout: 180_000,
+        env: { ...process.env, HOPPER_LOADER_ARGS_JSON: "[]" },
+      },
+    );
+    assert.ok(pending.child.pid !== undefined);
+    owned.add(pending.child.pid);
+    const cli = JSON.parse((await pending).stdout);
+    assert.deepEqual(cli.normalized_result, expected.mapping);
+  }
 } finally {
   await client.close();
   await transport.close();
@@ -236,6 +406,8 @@ console.log(
       observations,
       cliMcpParity: true,
       fat64: verifyFat64 ? "verified" : "not_run",
+      malformedFat64Rejected: invalidFat64.length,
+      preparedImageRemovedOnMcpShutdown: preparedImagePath !== undefined,
       cleanShutdown: true,
     },
     null,

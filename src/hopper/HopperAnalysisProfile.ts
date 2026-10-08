@@ -19,6 +19,11 @@ import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { type AnalysisError } from "../domain/analysisErrorBase.js";
 import { err, ok, type Result } from "../domain/result.js";
 
+import {
+  resolveHopperMachOImage,
+  type HopperMachOImage,
+} from "./HopperMachOImage.js";
+
 interface HopperProfileOptions {
   readonly launcherPath: string;
   readonly loaderArgsOverride: readonly string[];
@@ -43,7 +48,20 @@ export const resolveHopperAnalysisProfile = async (
         ? "fat32"
         : "thin";
   }
-  const derived = hopperLoaderArgsForTarget(target, machoContainer);
+  let preparedImage: HopperMachOImage | undefined;
+  if (
+    target.kind === "executable" &&
+    machoContainer === "fat64" &&
+    options.loaderArgsOverride.length === 0
+  ) {
+    const resolved = await resolveHopperMachOImage(target, options.signal);
+    if (!resolved.ok) return resolved;
+    preparedImage = resolved.value;
+  }
+  const derived = hopperLoaderArgsForTarget(
+    target,
+    preparedImage === undefined ? machoContainer : "thin",
+  );
   if (!derived.ok) return derived;
   const loaderArgs =
     options.loaderArgsOverride.length === 0
@@ -70,6 +88,9 @@ export const resolveHopperAnalysisProfile = async (
       ...(machoContainer === undefined
         ? {}
         : { macho_container: machoContainer }),
+      ...(preparedImage === undefined
+        ? {}
+        : { prepared_image: { ...preparedImage } }),
       loader: {
         source:
           options.loaderArgsOverride.length === 0

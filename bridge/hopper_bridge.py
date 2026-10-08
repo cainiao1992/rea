@@ -282,7 +282,7 @@ def _original_file_offset(document, offset):
     """Translate Hopper's image-relative mapping using the observed loaded header."""
     if offset > 9007199254740991:
         raise CapabilityUnavailableError("Provider file offset exceeds the exact JSON integer range")
-    path = document.getExecutableFilePath()
+    path = globals().get("REA_ORIGINAL_EXECUTABLE_PATH") or document.getExecutableFilePath()
     if not path:
         raise CapabilityUnavailableError("Hopper did not identify the original executable for file-offset verification")
     try:

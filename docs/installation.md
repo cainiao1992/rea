@@ -323,14 +323,21 @@ memory has no original file offset. For FAT Mach-O, offsets refer to the origina
 container file. Results retain Hopper's image-relative offset, the observed slice
 base, and the source executable path.
 Loader selection reads the Mach-O container header, including FAT files with a
-single architecture. FAT64 uses the same derived FAT/Mach-O loader chain;
-loading depends on the installed Hopper build. Hopper 6.1.0-demo timed out on
-a FAT64 fixture while FAT32 controls and its extracted thin image loaded.
-This does not establish that other builds reject FAT64. If loading fails, use
-`lipo -archs <source-file>` to read the exact architecture names, then
-`lipo -thin <architecture> <source-file> -output <thin-file>` and open the
-resulting image. FAT64 is distinct from the CPU architecture: FAT32 containers
-can contain 64-bit executable images.
+single architecture. For FAT64, REA validates the architecture table and selected
+Mach-O header, prepares a private thin image, and loads it with Hopper's native
+Mach-O loader. It checks the entire source's SHA-256 while copying the slice;
+source identity and reported offsets still refer to the original container.
+An ambiguous architecture subtype requires an explicitly extracted thin image;
+REA does not guess. Configured loader arguments remain explicit overrides.
+FAT64 is distinct from the CPU architecture: FAT32 containers can contain 64-bit
+executable images. This preparation avoids the Raw Binary loader dialog observed
+with native FAT64 loading on Hopper 6.1.0-demo.
+The prepared image and its owned document close together, including on MCP exit;
+if document closure is unconfirmed, REA retains the backing image and reports
+`cleanup_incomplete` with its path. Ordinary documents retain their existing
+MCP-exit behavior.
+Startup deadlines report missing bridge readiness and preserve the launcher
+outcome; a successful helper exit does not prove that a loader dialog completed.
 Cursor navigation returns the observed object start when Hopper snaps an interior
 address; adjacent-object navigation rejects unmapped inputs and document ends.
 Native API text rejects NUL characters and unpaired Unicode surrogates before

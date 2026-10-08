@@ -363,8 +363,11 @@ try {
     verified: true,
   };
 } finally {
+  process.stderr.write("Browser verifier cleanup: closing page proxy\n");
   if (pageProxy !== undefined) await pageProxy.close();
+  process.stderr.write("Browser verifier cleanup: stopping owned Chrome\n");
   if (browser !== undefined) await stopProcess(browser);
+  process.stderr.write("Browser verifier cleanup: closing fixture site\n");
   await site.close();
   await rm(profile, {
     recursive: true,

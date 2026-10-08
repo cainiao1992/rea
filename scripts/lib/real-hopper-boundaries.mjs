@@ -9,6 +9,7 @@ import addFormats from "ajv-formats";
 import { mcpTextValue, requireMcpResult } from "./mcp-verifier-results.mjs";
 import { verifyHopperNavigationAndText } from "./real-hopper-navigation.mjs";
 import { verifyHopperWorkflows } from "./real-hopper-workflows.mjs";
+import { verifyHopperSearch } from "./real-hopper-search.mjs";
 
 /** Exercise real Hopper annotation and malformed-input boundaries over MCP. */
 export async function verifyHopperBoundaryContracts(
@@ -74,6 +75,7 @@ export async function verifyHopperBoundaryContracts(
     address,
   );
   const workflows = await verifyHopperWorkflows(call, invalid, procedure);
+  const search = await verifyHopperSearch(call, invalid, procedure);
   try {
     if (foreignDocument !== undefined) {
       await invalid(
@@ -278,6 +280,7 @@ export async function verifyHopperBoundaryContracts(
     foreignDocumentVerified: foreignDocument !== undefined,
     navigationAndText,
     workflows,
+    search,
   };
 }
 

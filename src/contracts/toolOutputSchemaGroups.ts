@@ -97,9 +97,21 @@ const bookmarkFacetSchema = z.discriminatedUnion("state", [
 const addressedString = z.object({
   address: z.string(),
   value: z.string(),
+  provider_value: z
+    .string()
+    .exactOptional()
+    .describe(
+      "Original provider display text, which may shorten the typed object.",
+    ),
   string: z
     .object({
       encoding: z.string().min(1),
+      encoding_status: z
+        .enum(["observed", "inferred"])
+        .exactOptional()
+        .describe(
+          "Whether the provider declares the encoding or REA infers it from the typed bytes and native display. This does not establish the original source's intended encoding.",
+        ),
       termination: z.enum(["missing", "present_or_not_required"]),
       byte_length: z.number().int().min(0),
     })
@@ -197,9 +209,7 @@ export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   search_procedures: resultOf(
     z.array(z.object({ address: z.string(), value: z.string() })),
   ),
-  search_strings: resultOf(
-    z.array(z.object({ address: z.string(), value: z.string() })),
-  ),
+  search_strings: resultOf(z.array(addressedString)),
   set_address_name: resultOf(z.boolean()),
   set_addresses_names: resultOf(z.record(z.string(), z.boolean())),
   set_bookmark: resultOf(z.boolean()),

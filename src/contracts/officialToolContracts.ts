@@ -126,7 +126,7 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "list_strings",
-    "List every provider-defined string, or filter to one address, as address/value pairs. Ghidra also reports encoding, terminator status, and byte length.",
+    "List every provider-defined string object, or filter to one address, as address/value pairs with encoding, terminator status, and byte length when available. Hopper reads complete typed objects and retains its original display text as provider_value; long literals may span adjacent unterminated objects.",
     z.object({ document, address: optionalAddress }),
   ),
   official(
@@ -198,7 +198,7 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "search_strings",
-    "Search every analyzed string using literal matching by default or regex when requested. Results are deterministic and complete.",
+    "Search every analyzed string object using literal matching by default or regex when requested. Results are deterministic and complete over the native inventory. Hopper searches complete typed bytes rather than shortened displays; adjacent fragments of a long literal are matched independently, with their termination and original display retained.",
     z.object(analysisSearchInput),
   ),
   official(

@@ -203,6 +203,14 @@ and whitespace. Disposable binary copies prove that switching and closing
 actually removes the native document, and that CLI byte, function-dossier,
 literal-trace results and invalid-address diagnostics agree with MCP.
 No provider is mocked in this lane.
+Real search probes cover Unicode names, literal metacharacters, case and regex
+modes, annotation cache invalidation, complete native fragments of long literals
+checked against byte reads, escaped UTF-8/control text, byte-preserving Latin-1
+decoding, and Hopper's UTF-16 symbol-name truncation boundary. When the macOS
+Objective-C fixture is present, the lane also verifies native UTF-16 string objects
+and their inferred encodings against their actual bytes.
+Unmapped annotation destinations and
+oversized later batch names fail before any earlier edit is applied.
 The Linux demo lane remains a separate `verify:hopper:linux` command.
 
 `verify:hopper:fat` is a separate macOS lane requiring installed Hopper and the

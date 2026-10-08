@@ -454,11 +454,51 @@ def _procedure_map(document):
 
 
 def _strings(document):
-    result = {}
-    for segment in document.getSegmentsList():
-        for value, address in segment.getStringsList():
-            result[_hex(address)] = value
-    return result
+    return {address: record["value"] for address, record in _string_inventory(document).items()}
+
+
+def _string_record(segment, address, display):
+    """Read one native typed object, retaining its shortened display separately."""
+    length = segment.getObjectLength(address)
+    end = segment.getStartingAddress() + segment.getLength()
+    if isinstance(length, bool) or not isinstance(length, int) or length <= 0 or length > end - address:
+        raise CapabilityUnavailableError("Hopper reported an invalid string object extent at %s" % _hex(address))
+    raw = segment.readBytes(address, length)
+    if not isinstance(raw, (bytes, bytearray)) or len(raw) != length:
+        raise CapabilityUnavailableError("Hopper could not read the complete string object at %s" % _hex(address))
+    kind = segment.getTypeAtAddress(address)
+    encodings = ("utf-8", "latin-1") if kind == segment.TYPE_ASCII else ("utf-16-le", "utf-16-be") if kind == segment.TYPE_UNICODE else ()
+    # Native display escaping is not invertible (a literal backslash-n and a
+    # newline can render alike). Decode byte strings directly; for UTF-16,
+    # compare rendered candidates to establish an unambiguous byte order.
+    candidates = []
+    for encoding in encodings:
+        terminator = b"\x00\x00" if encoding.startswith("utf-16") else b"\x00"
+        terminated = raw.endswith(terminator)
+        payload = raw[:-len(terminator)] if terminated else raw
+        try:
+            value = payload.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+        record = {"value": value, "provider_value": display, "string": {"encoding": encoding, "encoding_status": "inferred", "termination": "present_or_not_required" if terminated else "missing", "byte_length": length}}
+        if kind == segment.TYPE_ASCII:
+            return record
+        rendered = value.replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+        if rendered == display or (display.endswith("\u2026") and display[:-1] and rendered.startswith(display[:-1])):
+            candidates.append(record)
+    if candidates and len({candidate["value"] for candidate in candidates}) == 1:
+        return candidates[0]
+    raise CapabilityUnavailableError("Hopper's string display cannot be reconciled with its typed bytes at %s; inspect the bytes and encoding explicitly" % _hex(address))
+
+
+def _string_inventory(document):
+    key = (id(document), "string_records")
+    inventory = _search_inventory_cache.get(key)
+    if inventory is None:
+        records = {_hex(address): _string_record(segment, address, display) for segment in document.getSegmentsList() for display, address in segment.getStringsList()}
+        inventory = dict(sorted(records.items(), key=lambda item: int(item[0], 16)))
+        _search_inventory_cache[key] = inventory
+    return inventory
 
 
 def _invalidate_search_inventory(document):
@@ -529,7 +569,7 @@ def _search_results(document, kind, params):
         if not matches(item[1]):
             continue
         selected.append(item)
-    return [
+    return [{"address": address, **_string_inventory(document)[address]} for address, _ in selected] if kind == "string" else [
             {
                 "address": address,
                 "value": value,
@@ -894,12 +934,12 @@ def _dispatch(method, params):
     if method == "list_procedures":
         return [{"address": address, "value": value} for address, value in _search_inventory(document, "procedure")]
     if method == "list_strings":
-        values = dict(_search_inventory(document, "string"))
+        values = _string_inventory(document)
         requested = params.get("address")
         if requested is not None:
             key = _hex(_address(document, requested))
             values = {key: values[key]} if key in values else {}
-        return [{"address": address, "value": value} for address, value in values.items()]
+        return [{"address": address, **record} for address, record in values.items()]
     if method == "list_names":
         result = dict(_search_inventory(document, "name"))
         requested = params.get("address")

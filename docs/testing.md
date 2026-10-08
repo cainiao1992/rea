@@ -246,6 +246,8 @@ Do not call handcrafted utility output or synthetic binary builders real-data
 goldens. Keep unsupported binary layouts and malformed boundaries as targeted
 regressions until a real fixture establishes equivalent coverage.
 
+`verify:browser` exercises source-map failure isolation and expanded-output limits through the compiled CLI and stdio MCP with real Chrome. It also submits five 2 MiB source-map annotations, checks retained script identities and explicit map omissions, and closes its owned fixture target. These public workflows replace redundant metadata-admission assertions; replacement and document-reset boundaries remain focused producer regressions.
+
 `verify:browser` also captures a source-owned noise canvas as a real PNG above
 8 MiB through the CLI and stdio MCP, with complete byte/digest parity and real PNG
 decoding. Its SDK client explicitly permits the larger inline JSON response;

@@ -41,6 +41,7 @@ import { verifyBrowserNetworkEvidence } from "./lib/browser-network-e2e.mjs";
 import { verifyBrowserScriptExport } from "./lib/browser-script-export-e2e.mjs";
 import { verifyBrowserModules } from "./lib/browser-module-e2e.mjs";
 import { verifyBrowserDomDestinations } from "./lib/browser-dom-destinations-e2e.mjs";
+import { verifyBrowserCaptureMetadataBudget } from "./lib/browser-capture-metadata-budget-e2e.mjs";
 import { artifactCliEvidence, artifactMcpResult } from "./lib/artifact-e2e.mjs";
 
 const REAL_BROWSER_STARTUP_TIMEOUT_MS = 60_000;
@@ -332,6 +333,7 @@ try {
     target_id: target,
   });
   const moduleTrace = await verifyBrowserModules(executable);
+  const captureMetadata = await verifyBrowserCaptureMetadataBudget(endpoint);
   report = {
     browser: observed.value.browser.product,
     endpoint,
@@ -353,6 +355,7 @@ try {
     networkEvidence,
     scriptExport,
     moduleTrace,
+    captureMetadata,
     domDestinations,
     browserScenarioCli: true,
     browserScenarioAttachCleanup: "disconnected-external",

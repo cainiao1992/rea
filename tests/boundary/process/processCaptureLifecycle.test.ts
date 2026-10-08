@@ -9,6 +9,7 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { itWithCaptureCapability } from "./processCaptureCapability.js";
 
 import { captureProcessScenario } from "../../../src/process/capture/ProcessHarness.js";
+import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
 import { snapshotRoots } from "../../../src/process/capture/FilesystemSnapshot.js";
 import { ProcessCaptureError } from "../../../src/process/capture/ProcessCaptureError.js";
 import {
@@ -264,6 +265,13 @@ itWithCaptureCapability(
     expect(result.error.executionFailure).toBe(
       "fixture final snapshot failure",
     );
+    const projected = projectAnalysisError(result.error);
+    expect(projected).toMatchObject({
+      code: "cleanup_incomplete",
+      details: { cleanup: "incomplete", resources: ["owned_process_group"] },
+    });
+    expect(projected).not.toHaveProperty("stack");
+    expect(projected).not.toHaveProperty("cause");
     expect(partial).toBeDefined();
     if (partial === undefined || !("observations" in partial))
       throw new Error("expected incomplete process observations");
@@ -489,6 +497,11 @@ itWithCaptureCapability(
     );
 
     if (result.ok) throw new Error("expected initial snapshot cancellation");
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "cancelled",
+      category: "cancelled",
+      details: { operation: "process_capture", cleanup: "complete" },
+    });
     expect(result.error).toMatchObject({
       reason: "cancelled",
       userCategory: "cancelled",

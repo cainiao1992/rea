@@ -182,14 +182,19 @@ const comparisonUnknownInput = (
     .filter(([, status]) => status !== "unchanged")
     .map(([scope]) => scope)
     .join(", ");
+  const contradictory =
+    comparison.status === "changed" &&
+    parsed.left_evidence_id !== parsed.right_evidence_id;
   // Unknown identity uses the question, not its supporting records. Bind the
   // question to this comparison so distinct capture pairs and policies coexist.
   return {
-    question: `Process captures disagree across: ${differingScopes} (comparison ${parsed.comparison_evidence_id})`,
+    question: `${contradictory ? "Process captures disagree" : `Process comparison is ${comparison.status}`} across: ${differingScopes} (comparison ${parsed.comparison_evidence_id})`,
     severity: "high",
     domain: "process-comparison",
-    supporting_evidence_ids: [parsed.left_evidence_id],
-    contradicting_evidence_ids: [parsed.right_evidence_id],
+    supporting_evidence_ids: contradictory
+      ? [parsed.left_evidence_id]
+      : [...new Set([parsed.left_evidence_id, parsed.right_evidence_id])],
+    contradicting_evidence_ids: contradictory ? [parsed.right_evidence_id] : [],
     required_authority: "controlled-replay",
     required_confidence: "observed",
     required_environment: null,

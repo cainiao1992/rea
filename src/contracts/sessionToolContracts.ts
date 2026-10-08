@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { isAbsoluteLocalPath } from "../domain/localPath.js";
+import {
+  isAbsoluteLocalPath,
+  localPathStringSchema,
+} from "../domain/localPath.js";
 import {
   sessionOutputSchemas,
   requireOutputSchema,
@@ -31,7 +34,10 @@ import { examplesFor } from "./toolContractHelpers.js";
 import type { ToolContract } from "./toolContractTypes.js";
 import { toolContractMetadata } from "./toolEffects.js";
 
-const session = <Name extends string, Schema extends z.ZodObject>(
+const session = <
+  Name extends keyof typeof sessionOutputSchemas,
+  Schema extends z.ZodObject,
+>(
   name: Name,
   description: string,
   inputSchema: Schema,
@@ -48,9 +54,7 @@ const session = <Name extends string, Schema extends z.ZodObject>(
 
 /** Session-owned Evidence bundle export options. */
 export const exportEvidenceBundleInputSchema = z.strictObject({
-  path: z
-    .string()
-    .min(1)
+  path: localPathStringSchema
     .refine(isAbsoluteLocalPath, {
       message:
         "path must be an absolute local filesystem path (for example /tmp/rea/evidence.json or C:\\rea\\evidence.json)",

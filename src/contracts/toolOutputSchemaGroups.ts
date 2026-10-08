@@ -373,7 +373,7 @@ export const managedWorkflowOutputSchemas: Readonly<
 };
 
 /** Exact structured-content schemas for target lifecycle operations. */
-export const sessionOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
+export const sessionOutputSchemas = {
   open_binary: lifecycleResultOf(
     z.object({
       path: z.string(),
@@ -469,4 +469,4 @@ export const sessionOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
       unknown: residualUnknownSchema,
     }),
   ),
-};
+} satisfies Readonly<Record<string, z.ZodObject>>;

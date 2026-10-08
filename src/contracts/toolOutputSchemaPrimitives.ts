@@ -25,7 +25,8 @@ import { prefixedDigestSchema } from "./../domain/digests.js";
 /** Inline result with its complete Evidence record. */
 export const inlineEvidenceRecordSchema = evidenceEnvelopeSchema;
 
-export const evidenceResultOf = (schema: z.ZodType) =>
+/** Wrap a result and its Evidence while preserving the result schema type. */
+export const evidenceResultOf = <Schema extends z.ZodType>(schema: Schema) =>
   z.strictObject({
     result: schema,
     evidence_id: prefixedDigestSchema("ev"),
@@ -33,14 +34,18 @@ export const evidenceResultOf = (schema: z.ZodType) =>
   });
 
 const resultOf = evidenceResultOf;
-export const lifecycleResultOf = (schema: z.ZodType) =>
+/** Wrap a lifecycle result while preserving its exact schema type. */
+export const lifecycleResultOf = <Schema extends z.ZodType>(schema: Schema) =>
   z.object({ result: schema });
 
 /** Resolve a required named output schema or reject contract drift. */
-export const requireOutputSchema = (
-  schemas: Readonly<Record<string, z.ZodObject>>,
-  name: string,
-): z.ZodObject => {
+export const requireOutputSchema = <
+  Schemas extends Readonly<Record<string, z.ZodObject>>,
+  Name extends keyof Schemas & string,
+>(
+  schemas: Schemas,
+  name: Name,
+): Schemas[Name] => {
   const schema = schemas[name];
   if (schema === undefined)
     throw new Error(`Missing output schema for ${name}`);

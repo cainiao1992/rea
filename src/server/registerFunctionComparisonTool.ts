@@ -87,6 +87,7 @@ export const registerFunctionComparisonTool = (
           status: comparison.status,
           leftIds,
           rightIds,
+          comparisonEvidenceId: evidence.evidence_id,
         }),
       );
       return toEvidenceToolResult(evidence, contract, recorded);
@@ -98,18 +99,23 @@ const functionUnknownInput = ({
   status,
   leftIds,
   rightIds,
+  comparisonEvidenceId,
 }: {
   status: ReturnType<typeof compareFunctions>["status"];
   leftIds: readonly string[];
   rightIds: readonly string[];
+  comparisonEvidenceId: string;
 }): RecordUnknownInput | undefined => {
   if (status === "unchanged") return undefined;
+  const supportingIds = [...new Set([...leftIds, ...rightIds])];
+  const contradictingIds = rightIds.filter((id) => !leftIds.includes(id));
+  const contradictory = status === "changed";
   return {
-    question: `Function comparison is ${status}`,
+    question: `Function comparison is ${status} (comparison ${comparisonEvidenceId})`,
     severity: status === "changed" ? "medium" : "high",
     domain: "function-comparison",
-    supporting_evidence_ids: [...leftIds],
-    contradicting_evidence_ids: [...rightIds],
+    supporting_evidence_ids: contradictory ? [...leftIds] : supportingIds,
+    contradicting_evidence_ids: contradictory ? contradictingIds : [],
     required_authority: "shipped-artifact",
     required_confidence: "observed",
     required_environment: null,

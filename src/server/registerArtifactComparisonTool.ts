@@ -56,7 +56,12 @@ export const registerArtifactComparisonTool = (
         recordDerivedEvidence(
           session,
           evidence,
-          artifactUnknownInput(left, right, comparison.status),
+          artifactUnknownInput(
+            left,
+            right,
+            comparison.status,
+            evidence.evidence_id,
+          ),
         ),
       );
     },
@@ -67,16 +72,21 @@ const artifactUnknownInput = (
   left: { readonly evidence_id: string },
   right: { readonly evidence_id: string },
   status: ReturnType<typeof compareArtifacts>["status"],
+  comparisonEvidenceId: string,
 ): RecordUnknownInput | undefined => {
-  if (status === "unchanged" || left.evidence_id === right.evidence_id)
-    return undefined;
+  if (status === "unchanged") return undefined;
+  const contradictory =
+    (status === "changed" || status === "contradiction") &&
+    left.evidence_id !== right.evidence_id;
   return {
-    question: `Artifact comparison is ${status}`,
+    question: `Artifact comparison is ${status} (comparison ${comparisonEvidenceId})`,
     severity:
       status === "unknown" || status === "truncated" ? "high" : "medium",
     domain: "artifact-comparison",
-    supporting_evidence_ids: [left.evidence_id],
-    contradicting_evidence_ids: [right.evidence_id],
+    supporting_evidence_ids: contradictory
+      ? [left.evidence_id]
+      : [...new Set([left.evidence_id, right.evidence_id])],
+    contradicting_evidence_ids: contradictory ? [right.evidence_id] : [],
     required_authority: "shipped-artifact",
     required_confidence: "observed",
     required_environment: null,

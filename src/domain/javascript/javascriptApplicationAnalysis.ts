@@ -12,12 +12,13 @@ import {
 } from "./javascriptSemanticGraph.js";
 import { digestSchema } from "../digests.js";
 import { prefixedDigestSchema } from "../digests.js";
+import { localPathStringSchema } from "../localPath.js";
 
 const countSchema = z.number().int().min(0);
 
 /** Public target-free request for static JavaScript application analysis. */
 export const analyzeJavaScriptApplicationInputSchema = z.strictObject({
-  input_path: z.string().min(1),
+  input_path: localPathStringSchema,
   format: z.enum(["auto", "asar", "directory"]).default("auto"),
 });
 

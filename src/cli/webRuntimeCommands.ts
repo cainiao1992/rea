@@ -37,9 +37,9 @@ export const registerWebRuntimeCommands = (
       observationMs: observationDuration(10_000, 1),
     }),
     run: ({ args, options }) =>
-      logCliCommand(logger, "observe-web-execution", async () => {
-        const result = await withCommandCancellation((signal) =>
-          createWebRuntimeService().observe(
+      withCommandCancellation((signal) =>
+        logCliCommand(logger, "observe-web-execution", async () => {
+          const result = await createWebRuntimeService().observe(
             {
               cdp_endpoint: args.endpoint,
               target_id: args.targetId,
@@ -47,10 +47,10 @@ export const registerWebRuntimeCommands = (
               observation_ms: options.observationMs,
             },
             { progress: runtimeProgress, signal },
-          ),
-        );
-        return result.ok ? result.value : browserCliError(result.error);
-      }),
+          );
+          return result.ok ? result.value : browserCliError(result.error);
+        }),
+      ),
   });
   cli.command(CLI_COMMANDS.inspectWebEventListeners, {
     description:
@@ -66,9 +66,9 @@ export const registerWebRuntimeCommands = (
     }),
     options: z.object({ ...browserScopeOptions }),
     run: ({ args, options }) =>
-      logCliCommand(logger, "inspect-web-event-listeners", async () => {
-        const result = await withCommandCancellation((signal) =>
-          createWebRuntimeService().inspect(
+      withCommandCancellation((signal) =>
+        logCliCommand(logger, "inspect-web-event-listeners", async () => {
+          const result = await createWebRuntimeService().inspect(
             {
               cdp_endpoint: args.endpoint,
               target_id: args.targetId,
@@ -76,9 +76,9 @@ export const registerWebRuntimeCommands = (
               allowed_origins: options.allowedOrigins,
             },
             { signal },
-          ),
-        );
-        return result.ok ? result.value : browserCliError(result.error);
-      }),
+          );
+          return result.ok ? result.value : browserCliError(result.error);
+        }),
+      ),
   });
 };

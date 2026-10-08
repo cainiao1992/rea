@@ -1,5 +1,7 @@
 import { execFile, spawn } from "node:child_process";
 import { once } from "node:events";
+import { createServer } from "node:http";
+import type { Socket } from "node:net";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { expect, it, onTestFinished } from "vitest";
@@ -104,3 +106,77 @@ it("translates SIGINT after real CLI arming into awaited instrumentation cleanup
     clearTimeout(timer);
   }
 });
+
+it.each([
+  ["observe-web-execution", "SIGINT", 130],
+  ["observe-web-execution", "SIGTERM", 143],
+  ["inspect-web-event-listeners", "SIGINT", 130],
+  ["inspect-web-event-listeners", "SIGTERM", 143],
+] as const)(
+  "%s preserves %s status when cancellation interrupts CDP discovery",
+  async (command, signal, expectedExitCode) => {
+    const sockets = new Set<Socket>();
+    const server = createServer(() => undefined);
+    server.on("connection", (socket) => {
+      sockets.add(socket);
+      socket.once("close", () => sockets.delete(socket));
+    });
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    if (address === null || typeof address === "string")
+      throw new Error("Expected a TCP loopback listener");
+    const endpoint = `http://127.0.0.1:${String(address.port)}`;
+    let contactedResolve!: () => void;
+    const contacted = new Promise<void>((resolve) => {
+      contactedResolve = resolve;
+    });
+    server.on("request", contactedResolve);
+
+    const args =
+      command === "observe-web-execution"
+        ? [command, endpoint, "page-fixture", "--observation-ms", "30000", "--json"]
+        : [command, endpoint, "page-fixture", "body", "--json"];
+    const child = spawn(process.execPath, [entrypoint, ...args], {
+      env: environment(),
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    const timeout = setTimeout(() => child.kill("SIGKILL"), 10_000);
+    try {
+      let contactTimeout: NodeJS.Timeout | undefined;
+      try {
+        await Promise.race([
+          contacted,
+          new Promise<never>((_resolve, reject) => {
+            contactTimeout = setTimeout(
+              () => reject(new Error("CLI did not contact the CDP fixture")),
+              5_000,
+            );
+          }),
+        ]);
+      } finally {
+        if (contactTimeout !== undefined) clearTimeout(contactTimeout);
+      }
+      const closed = once(child, "close");
+      child.kill(signal);
+      const [exitCode, terminationSignal] = await closed;
+      expect(terminationSignal).toBeNull();
+      expect(exitCode).toBe(expectedExitCode);
+      expect(JSON.parse(stdout)).toMatchObject({
+        code: "cancelled",
+        category: "cancelled",
+      });
+    } finally {
+      clearTimeout(timeout);
+      if (child.exitCode === null && child.signalCode === null)
+        child.kill("SIGKILL");
+      for (const socket of sockets) socket.destroy();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  },
+);

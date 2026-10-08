@@ -83,8 +83,6 @@ export type NativeToolResolver = (
 
 /** Run allowlisted Xcode tools directly without a shell. */
 export class XcrunCommandRunner implements NativeCommandRunner {
-  readonly #resolved = new Map<string, ResolvedTool>();
-
   constructor(
     private readonly resolveTool: NativeToolResolver = (tool, signal) =>
       resolveXcrunTool(tool, signal),
@@ -99,7 +97,7 @@ export class XcrunCommandRunner implements NativeCommandRunner {
       return Promise.resolve(
         err(new NativeCommandFailure(tool, "unavailable")),
       );
-    return this.#resolve(tool, options.signal).then(async (resolved) => {
+    return this.resolveTool(tool, options.signal).then(async (resolved) => {
       if (!resolved.ok) return resolved;
       const captured = await captureProcess(
         resolved.value.path,
@@ -115,26 +113,15 @@ export class XcrunCommandRunner implements NativeCommandRunner {
             executableSha256: resolved.value.sha256,
             toolVersion: null,
             versionReason:
-              "Tool exposes no uniform stable version flag; executable digest identifies it.",
+              "Tool exposes no uniform stable version flag; executable SHA-256 is a prelaunch file sample and does not prove atomic OS image binding.",
             arguments: [...arguments_],
           })
         : captured;
     });
   }
-
-  async #resolve(
-    tool: string,
-    signal?: AbortSignal,
-  ): Promise<Result<ResolvedTool, NativeCommandFailure>> {
-    const existing = this.#resolved.get(tool);
-    if (existing !== undefined) return ok(existing);
-    const resolved = await this.resolveTool(tool, signal);
-    if (resolved.ok) this.#resolved.set(tool, resolved.value);
-    return resolved;
-  }
 }
 
-/** Immutable executable identity returned by native tool discovery. */
+/** Executable path and SHA-256 sampled during one tool resolution. */
 export interface ResolvedTool {
   readonly path: string;
   readonly sha256: string;
@@ -154,7 +141,7 @@ const ALLOWED_TOOLS = new Set([
   "vtool",
 ]);
 
-/** Locate an Xcode tool through `xcrun --find` and pin its executable digest. */
+/** Locate an Xcode tool through `xcrun --find` and sample its executable digest. */
 export const resolveXcrunTool = async (
   tool: string,
   signal?: AbortSignal,

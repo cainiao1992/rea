@@ -1,4 +1,5 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -74,24 +75,6 @@ describe("native macOS provider discovery", () => {
     });
   });
 
-  it("retries a failed native tool resolution and caches only success", async () => {
-    let resolutions = 0;
-    const runner = new XcrunCommandRunner((tool) => {
-      resolutions += 1;
-      return Promise.resolve(
-        resolutions === 1
-          ? err(new NativeCommandFailure(tool, "unavailable"))
-          : ok({ path: "/usr/bin/true", sha256: "a".repeat(64) }),
-      );
-    });
-    const options = {};
-
-    expect((await runner.run("file", [], options)).ok).toBe(false);
-    expect((await runner.run("file", [], options)).ok).toBe(true);
-    expect((await runner.run("file", [], options)).ok).toBe(true);
-    expect(resolutions).toBe(2);
-  });
-
   it.each(["timeout", "output-limit"] as const)(
     "preserves %s resolution failures with their captured output and cleanup status",
     async (reason) => {
@@ -134,6 +117,50 @@ describe("native macOS provider discovery", () => {
 });
 
 describe("native command output collection", () => {
+  it("retries discovery and resamples the executable after its tool path is replaced", async () => {
+    directory = await createTestTempDirectory("rea-native-tool-identity-");
+    const executable = join(directory, "fixture-tool");
+    const source = (value: string): string =>
+      `#!/bin/sh\nprintf '%s\\n' '${value}'\n`;
+    const install = async (value: string): Promise<string> => {
+      const contents = source(value);
+      await writeFile(executable, contents, { mode: 0o700 });
+      await chmod(executable, 0o700);
+      return createHash("sha256").update(contents).digest("hex");
+    };
+    let unavailable = true;
+    const runner = new XcrunCommandRunner(async (tool) => {
+      if (unavailable) {
+        unavailable = false;
+        return err(new NativeCommandFailure(tool, "unavailable"));
+      }
+      const digest = createHash("sha256")
+        .update(await readFile(executable))
+        .digest("hex");
+      return ok({ path: executable, sha256: digest });
+    });
+
+    const originalDigest = await install("original-tool-output");
+    expect(await runner.run("file", [], {})).toMatchObject({
+      ok: false,
+      error: { reason: "unavailable" },
+    });
+    const original = await runner.run("file", [], {});
+    if (!original.ok) throw original.error;
+    expect(original.value.stdout).toBe("original-tool-output\n");
+    expect(original.value.executableSha256).toBe(originalDigest);
+
+    const replacementDigest = await install("replacement-tool-output");
+    const replacement = await runner.run("file", [], {});
+    if (!replacement.ok) throw replacement.error;
+    expect(replacement.value.stdout).toBe("replacement-tool-output\n");
+    expect(replacement.value.executableSha256).toBe(replacementDigest);
+    expect(replacement.value.versionReason).toContain("prelaunch file sample");
+    expect(replacement.value.versionReason).toContain(
+      "does not prove atomic OS image binding",
+    );
+  });
+
   it("retains the complete native command output", async () => {
     const runner = new XcrunCommandRunner(() =>
       Promise.resolve(ok({ path: process.execPath, sha256: "a".repeat(64) })),

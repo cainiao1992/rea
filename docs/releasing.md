@@ -75,7 +75,9 @@ to the bot branch can create new approval-required runs; approval of an older
 head does not verify the normalized candidate. Wait for the final head's CI.
 
 The validator reads the actual ancestry range from the published baseline tag
-to the selected checkpoint, including visible first-parent Conventional Commits.
+to the selected checkpoint, including visible first-parent Conventional Commits
+and the PR titles in GitHub's default merge messages. The report preserves the
+original merge subject alongside the extracted Conventional Commit title.
 This matters after merging a side-branch release back into a newer main:
 Release Please's chronological history cutoff can omit unreleased mainline
 commits. Unreleased breaking markers require a major increment and references

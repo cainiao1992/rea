@@ -75,6 +75,7 @@ async function metadata(directory: string, version: string, notes: string) {
 async function fixture(
   subject = "fix(contracts)!: require absolute paths (#948)",
   footer = "",
+  options: { mergePullRequest?: boolean } = {},
 ) {
   const directory = await createTestTempDirectory("rea-release-ancestry-");
   await git(directory, ["init", "--initial-branch=main"]);
@@ -92,6 +93,9 @@ async function fixture(
   const releasedSha = await git(directory, ["rev-parse", "HEAD"]);
   await git(directory, ["tag", "rea-agents-5.0.0"]);
   await git(directory, ["switch", "main"]);
+  if (options.mergePullRequest) {
+    await git(directory, ["switch", "-c", "change/contracts"]);
+  }
   await writeFile(
     join(directory, "behavior.txt"),
     "Unreleased mainline behavior\n",
@@ -102,6 +106,22 @@ async function fixture(
     ["commit", "-m", subject, "-m", footer],
     "2026-01-02T00:00:00Z",
   );
+  if (options.mergePullRequest) {
+    await git(directory, ["switch", "main"]);
+    await git(
+      directory,
+      [
+        "merge",
+        "--no-ff",
+        "change/contracts",
+        "-m",
+        "Merge pull request #948 from fixture/absolute-paths",
+        "-m",
+        subject,
+      ],
+      "2026-01-02T00:00:00Z",
+    );
+  }
   const changedSha = await git(directory, ["rev-parse", "HEAD"]);
   await git(directory, [
     "merge",
@@ -159,12 +179,18 @@ const reportSchema = z.object({
   baselineVersion: z.string(),
   applicationSha: z.string(),
   commits: z.array(
-    z.object({ sha: z.string(), subject: z.string(), breaking: z.boolean() }),
+    z.object({
+      sha: z.string(),
+      subject: z.string(),
+      conventionalTitle: z.string().optional(),
+      breaking: z.boolean(),
+    }),
   ),
   missingNotes: z.array(
     z.object({
       sha: z.string(),
       subject: z.string(),
+      conventionalTitle: z.string().optional(),
       type: z.string().optional(),
       breaking: z.boolean(),
     }),
@@ -211,6 +237,54 @@ it("rejects a requested minor that omits the breaking ancestry", async () => {
     code: 1,
     stderr: expect.stringContaining("contains unreleased breaking markers"),
   });
+});
+
+it("rejects a minor when a GitHub merge commit carries its bang marker in the PR title", async () => {
+  const f = await fixture("fix(contracts)!: require absolute paths", "", {
+    mergePullRequest: true,
+  });
+  await expect(verify(f, "5.1.0", "prepare", "source")).rejects.toMatchObject({
+    code: 1,
+    stderr: expect.stringContaining("contains unreleased breaking markers"),
+  });
+});
+
+it.each([
+  {
+    subject: "fix(contracts)!: require absolute paths",
+    version: "6.0.0",
+    breaking: true,
+  },
+  { subject: "fix: improve diagnostics", version: "5.0.1", breaking: false },
+])(
+  "recognizes GitHub merge titles and PR note references for $version",
+  async ({ subject, version, breaking }) => {
+    const f = await fixture(subject, "", { mergePullRequest: true });
+    await candidate(
+      f,
+      version,
+      `${breaking ? "### ⚠ BREAKING CHANGES" : "### Bug Fixes"}\n\nSee #948 for the change and migration.`,
+    );
+    const report = reportSchema.parse(
+      JSON.parse((await verify(f, version)).stdout),
+    );
+    expect(report.missingNotes).toEqual([]);
+    expect(report.commits).toContainEqual({
+      sha: f.changedSha,
+      subject: "Merge pull request #948 from fixture/absolute-paths",
+      conventionalTitle: subject,
+      breaking,
+    });
+  },
+);
+
+it("does not treat an ordinary body example as a merge title or breaking declaration", async () => {
+  const f = await fixture(
+    "fix: improve diagnostics",
+    "Example subject:\n\nfix(contracts)!: example only",
+  );
+  await candidate(f, "5.0.1", `### Bug Fixes\n\n${f.changedSha}`);
+  await expect(verify(f, "5.0.1")).resolves.toMatchObject({ stderr: "" });
 });
 
 it("cannot satisfy migration references with notes retained from an older release", async () => {

@@ -9,6 +9,20 @@ const sectionsSchema = z.object({
     z.object({ type: z.string(), hidden: z.boolean().optional() }),
   ),
 });
+const GITHUB_MERGE_SUBJECT = /^Merge pull request #(\d+) from \S+/u;
+
+function conventionalTitle(subject, body) {
+  if (!GITHUB_MERGE_SUBJECT.test(subject)) return subject;
+  // GitHub's default merge message puts the PR title after its subject.
+  // Inspect that first nonempty line, not arbitrary examples in commit prose.
+  return (
+    body
+      .split(/\r?\n/u)
+      .slice(1)
+      .find((line) => line.trim() !== "")
+      ?.trim() ?? subject
+  );
+}
 
 function releaseVersion(value, location) {
   if (valid(value) !== value || value.includes("+")) {
@@ -48,13 +62,15 @@ function readCommits(text) {
     const sha = shaSchema.parse(fields[index]);
     const subject = z.string().parse(fields[index + 1]);
     const body = z.string().parse(fields[index + 2]);
-    const type = /^([a-z]+)(?:\([^)]*\))?!?: /u.exec(subject)?.[1];
+    const title = conventionalTitle(subject, body);
+    const type = /^([a-z]+)(?:\([^)]*\))?!?: /u.exec(title)?.[1];
     commits.push({
       sha,
       subject,
+      ...(title !== subject ? { conventionalTitle: title } : {}),
       type,
       breaking:
-        /^[a-z]+(?:\([^)]*\))?!: /u.test(subject) ||
+        /^[a-z]+(?:\([^)]*\))?!: /u.test(title) ||
         /^BREAKING(?: CHANGE|-CHANGE):\s*\S/mu.test(body),
     });
   }
@@ -63,7 +79,9 @@ function readCommits(text) {
 
 function referencesCommit(text, commit) {
   if (text.includes(commit.sha.slice(0, 7))) return true;
-  const pullRequest = /\(#(\d+)\)$/u.exec(commit.subject)?.[1];
+  const pullRequest =
+    GITHUB_MERGE_SUBJECT.exec(commit.subject)?.[1] ??
+    /\(#(\d+)\)$/u.exec(commit.subject)?.[1];
   return (
     pullRequest !== undefined &&
     new RegExp(`#${pullRequest}(?!\\d)`, "u").test(text)

@@ -257,7 +257,10 @@ protected runtime DACLs, and handle-based path admission. See [Windows Ghidra P0
 [issue #527](https://github.com/morluto/rea/issues/527).
 On Linux and macOS, `annotate_native_function` atomically edits a function name
 and entry comments in the ephemeral database, returning refreshed analysis
-without changing executable bytes. Windows P0 remains read-only. Ghidra has no
+without changing executable bytes. Annotation text must contain no NUL or
+unpaired Unicode surrogate; a rejection identifies the field and UTF-16 index
+and leaves every annotation unchanged. CRLF, supplementary Unicode characters,
+and combining characters are preserved. Windows P0 remains read-only. Ghidra has no
 GUI authority, and REA never falls back automatically to Hopper.
 
 - `npm run verify:ghidra`: host-native debug/stripped targets, native type layout,

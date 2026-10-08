@@ -1007,6 +1007,9 @@ public final class ReaGhidraBridge extends HeadlessScript {
         Address entry = function.getEntryPoint();
         if (function.isExternal() || !currentProgram.getMemory().contains(entry))
             throw new RequestFailure("invalid_request", "Annotations require a local function entry: " + canonicalAddress(entry));
+        for (String field : List.of("name", "comment", "inline_comment")) {
+            if (params.has(field)) validateAnnotationText(requireText(params, field), field);
+        }
         int transaction = currentProgram.startTransaction("REA function annotations");
         boolean commit = false;
         try {
@@ -1063,6 +1066,21 @@ public final class ReaGhidraBridge extends HeadlessScript {
         if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString())
             throw new RequestFailure("invalid_request", "Annotation " + field + " must be text");
         return value.getAsString();
+    }
+
+    private static void validateAnnotationText(String text, String field) {
+        for (int index = 0; index < text.length(); index++) {
+            char character = text.charAt(index);
+            if (character == 0)
+                throw new RequestFailure("invalid_request", "Annotation " + field + " contains NUL at UTF-16 index " + index + "; Ghidra's decompiler cannot marshal NUL text");
+            if (Character.isHighSurrogate(character) && index + 1 < text.length() &&
+                Character.isLowSurrogate(text.charAt(index + 1))) {
+                index++;
+                continue;
+            }
+            if (Character.isSurrogate(character))
+                throw new RequestFailure("invalid_request", "Annotation " + field + " contains an unpaired Unicode surrogate at UTF-16 index " + index + "; Ghidra cannot preserve it as annotation text");
+        }
     }
 
     private JsonObject analyzeFunction(JsonObject params) throws Exception {
@@ -3228,7 +3246,16 @@ public final class ReaGhidraBridge extends HeadlessScript {
 
     private static void writeResponse(BufferedWriter writer, JsonObject response) throws IOException {
         String encoded = GSON.toJson(response);
-        writer.write(encoded);
+        // Gson leaves UTF-16 surrogates literal. Escape them in JSON so even
+        // diagnostics quoting ill-formed caller text remain lossless UTF-8.
+        int start = 0;
+        for (int index = 0; index < encoded.length(); index++) {
+            if (!Character.isSurrogate(encoded.charAt(index))) continue;
+            writer.write(encoded, start, index - start);
+            writer.write("\\u" + Integer.toHexString(encoded.charAt(index)));
+            start = index + 1;
+        }
+        writer.write(encoded, start, encoded.length() - start);
         writer.newLine();
         writer.flush();
     }

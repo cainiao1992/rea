@@ -249,8 +249,12 @@ direct versus targetless calls, byte-read completeness, invalid input diagnostic
 CLI/MCP parity, atomic annotation rollback, refreshed inventories, unchanged
 executable bytes, and discarded edits after reopen. A deliberately long temporary
 path exercises private Unix socket allocation and cleanup, including cancellation
-after a real headless process launches. Malformed annotation
-readback remains a separate SDK/provider integration case; success from a real
+after a real headless process launches. Native annotation probes reject NUL and
+unpaired Unicode surrogates without partial edits or a broken bridge, preserve
+supported Unicode and control text, and check lossless malformed-text diagnostics.
+Memory-to-file mapping is checked against original artifact bytes. Malformed
+annotation readback, memory completeness, and inventory data remain separate
+SDK/provider integration cases; success from a real
 provider cannot establish rejection of a contradictory provider response.
 
 The Linux switch lane checks dense, sparse-with-holes, shared-body, nonzero,

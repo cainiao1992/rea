@@ -97,6 +97,16 @@ export async function verifyGhidraBoundaries(
   assert.equal(baseline.status, "decoded");
   const bytes = await call("read_bytes", { address, length: baseline.length });
   assert.equal(bytes.bytes_hex, baseline.bytes);
+  assert.equal((await call("read_bytes", { address })).requested_bytes, 256);
+  const mapped = await call("address_to_file_offset", { address });
+  assert.equal(mapped.address, address);
+  assert.equal(
+    (await readFile(target.path))
+      .subarray(mapped.file_offset, mapped.file_offset + baseline.length)
+      .toString("hex"),
+    bytes.bytes_hex,
+    "Memory-to-file mapping must identify the bytes in the caller's artifact",
+  );
   const largeRead = await call("read_bytes", {
     address,
     length: Number.MAX_SAFE_INTEGER,
@@ -182,6 +192,28 @@ export async function verifyGhidraBoundaries(
   }
   const strings = await call("list_strings");
   assert.ok(strings.length > 0);
+  assert.deepEqual(
+    await call("list_strings", { address: strings[0].address }),
+    [strings[0]],
+  );
+  const marker = strings.find(
+    (item) => item.value === "REA_GHIDRA_INVENTORY_ENTRY",
+  );
+  assert.ok(marker);
+  assert.ok(
+    (
+      await call("search_strings", { pattern: marker.value.toLowerCase() })
+    ).some((item) => item.address === marker.address),
+  );
+  assert.equal(
+    (
+      await call("search_strings", {
+        pattern: marker.value.toLowerCase(),
+        case_sensitive: true,
+      })
+    ).some((item) => item.address === marker.address),
+    false,
+  );
   assert.equal(
     (await call("inspect_native_instruction", { address: strings[0].address }))
       .status,
@@ -218,6 +250,26 @@ export async function verifyGhidraBoundaries(
     { document: "rea_missing_program" },
     /rea_missing_program.*active program/u,
   );
+  // JSON permits escaped lone surrogates. Error replies must preserve them
+  // without letting the Java UTF-8 writer terminate the provider session.
+  await invalid(
+    "procedure_address",
+    { procedure: "missing_\ud800" },
+    /missing_\\ud800/u,
+  );
+  await invalid(
+    "list_procedures",
+    { document: "missing_\udfff" },
+    /missing_\\udfff/u,
+  );
+  for (const [operation, args] of [
+    ["read_bytes", { address, length: 0 }],
+    ["list_procedures", { limit: 100 }],
+    ["list_documents", { extra: true }],
+    ["xrefs", {}],
+    ["procedure_info", { procedure: address, extra: true }],
+  ])
+    await invalid(operation, args);
   for (const changes of [
     {},
     { name: "" },
@@ -296,6 +348,46 @@ export async function verifyGhidraBoundaries(
     ).some((item) => item.address === address),
   );
 
+  for (const field of ["name", "comment", "inline_comment"]) {
+    for (const text of ["bad\0text", "bad\ud800text", "bad\udffftext"]) {
+      await invalid(
+        "annotate_native_function",
+        {
+          procedure: address,
+          name: "MUST_ROLL_BACK",
+          comment: "MUST ROLL BACK",
+          inline_comment: "MUST ROLL BACK",
+          [field]: text,
+        },
+        new RegExp(
+          `Annotation ${field}.*(?:NUL|unpaired Unicode surrogate).*index`,
+          "u",
+        ),
+      );
+      assert.deepEqual(
+        (
+          await call("annotate_native_function", {
+            procedure: address,
+            name: changes.name,
+          })
+        ).annotations,
+        updated.annotations,
+        "Invalid native text must leave every annotation unchanged",
+      );
+    }
+  }
+  const unicodeText =
+    "CRLF\r\nastral 🧪 decomposed e\u0301 control \u0001\b\v\f\u001f noncharacter \ufffe\uffff";
+  const unicode = await call("annotate_native_function", {
+    procedure: address,
+    comment: unicodeText,
+    inline_comment: unicodeText,
+  });
+  assert.equal(unicode.annotations.comment, unicodeText);
+  assert.equal(unicode.annotations.inline_comment, unicodeText);
+  assert.ok(unicode.dossier.comments.some((item) => item.text === unicodeText));
+  await call("annotate_native_function", changes);
+
   await invalid(
     "annotate_native_function",
     {
@@ -339,15 +431,17 @@ export async function verifyGhidraBoundaries(
   ]);
   assert.deepEqual(cliUpdated.annotations, updated.annotations);
   assert.deepEqual(cliUpdated.effects, updated.effects);
-  await call("annotate_native_function", {
-    procedure: address,
-    name: "0xordinary",
-  });
-  assert.equal(
-    await call("procedure_address", { procedure: "0xordinary" }),
-    address,
-  );
-  assert.equal(await call("address_name", { address }), "0xordinary");
+  for (const renamed of ["0xordinary", "probe::qualified", "🧪probe"]) {
+    await call("annotate_native_function", {
+      procedure: address,
+      name: renamed,
+    });
+    assert.equal(
+      await call("procedure_address", { procedure: renamed }),
+      address,
+    );
+    assert.equal(await call("address_name", { address }), renamed);
+  }
   await call("close_binary");
   await assert.rejects(access(socketRoot), { code: "ENOENT" });
   await assert.rejects(access(runtimeRoot), { code: "ENOENT" });
@@ -372,6 +466,8 @@ export async function verifyGhidraBoundaries(
     rejected_calls: rejectedCalls,
     cli_mcp_parity: true,
     mutation_rollback: true,
+    annotation_native_text_validation: true,
+    lossless_unicode_transport: true,
     source_immutable: true,
     reopen_discards_edits: true,
     long_tmpdir_private_socket_cleanup: true,

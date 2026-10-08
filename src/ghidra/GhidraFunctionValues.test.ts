@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { functionDossierSchema } from "../domain/hopperValues.js";
 import {
-  parseGhidraFunctionInput,
   parseGhidraFunctionResult,
   type GhidraFunctionOperation,
 } from "./GhidraFunctionValues.js";
@@ -15,51 +14,6 @@ import {
   ghidraNativeApiBoundary,
   ghidraReferenceEdge,
 } from "../domain/ghidraValues.fixture.js";
-
-describe("Ghidra function-analysis boundary values", () => {
-  it("defaults inputs and rejects undeclared or implicit addresses", () => {
-    expect(
-      parseGhidraFunctionInput("procedure_info", { procedure: "main" }),
-    ).toEqual({
-      ok: true,
-      value: { document: null, procedure: "main" },
-    });
-    expect(
-      parseGhidraFunctionInput("procedure_references", { procedure: "main" }),
-    ).toEqual({
-      ok: true,
-      value: {
-        document: null,
-        procedure: "main",
-        direction: "outgoing",
-      },
-    });
-    expect(
-      parseGhidraFunctionInput("analyze_function", { procedure: "main" }),
-    ).toMatchObject({
-      ok: true,
-      value: { procedure: "main" },
-    });
-    expect(
-      parseGhidraFunctionInput("read_function_instructions", {
-        procedure: "main",
-      }),
-    ).toEqual({
-      ok: true,
-      value: { document: null, procedure: "main" },
-    });
-    expect(parseGhidraFunctionInput("xrefs", {})).toMatchObject({
-      ok: false,
-      error: { _tag: "AnalysisInputError" },
-    });
-    expect(
-      parseGhidraFunctionInput("procedure_info", {
-        procedure: "main",
-        extra: true,
-      }),
-    ).toMatchObject({ ok: false, error: { _tag: "AnalysisInputError" } });
-  });
-});
 
 describe("Ghidra function-analysis result values", () => {
   it("parses provider-classified function facts and reference kinds", () => {

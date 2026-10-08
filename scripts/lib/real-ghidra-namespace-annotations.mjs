@@ -82,7 +82,13 @@ export async function verifyGhidraNamespaceAnnotations({
         }),
         address,
       );
-      for (const name of ["other::literal", `${namespace}::child::literal`]) {
+      for (const name of [
+        "other::literal",
+        `${namespace}::child::literal`,
+        "0xnothex",
+        "address%GG:0x1",
+        "address:0xnothex",
+      ]) {
         const literal = await call("annotate_native_function", {
           procedure: address,
           name,

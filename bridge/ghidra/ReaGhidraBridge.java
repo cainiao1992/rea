@@ -1621,8 +1621,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
     private Function resolveProcedure(String value) throws Exception {
         // Explicit address syntax wins; an unprefixed identifier is first an
         // exact symbol name, even when every character is a hexadecimal digit.
-        boolean explicitAddress = value.matches("(?i)^0x[0-9a-f]+$") ||
-            value.matches("(?i)^(?:[a-z0-9._~-]|%[0-9a-f]{2})+:0x[0-9a-f]+$");
+        boolean explicitAddress = isExplicitReaAddress(value);
         if (!explicitAddress) {
             List<Function> matches = new ArrayList<>();
             for (FunctionEntry entry : procedures()) {
@@ -2997,6 +2996,42 @@ public final class ReaGhidraBridge extends HeadlessScript {
         return parseReaAddress(requireString(params, name));
     }
 
+    private static boolean isExplicitReaAddress(String value) {
+        if (value.regionMatches(true, 0, "0x", 0, 2) &&
+            isHexadecimal(value, 2, value.length()))
+            return true;
+        int separator = value.toLowerCase(Locale.ROOT).lastIndexOf(":0x");
+        if (separator <= 0 || !isHexadecimal(value, separator + 3, value.length()))
+            return false;
+        // Classify the encoded space iteratively. A repeated regex alternation
+        // can exhaust Java's stack on a long ordinary symbol name.
+        for (int index = 0; index < separator; index++) {
+            char item = value.charAt(index);
+            if ((item >= 'A' && item <= 'Z') ||
+                (item >= 'a' && item <= 'z') ||
+                (item >= '0' && item <= '9') ||
+                item == '.' || item == '_' || item == '~' || item == '-')
+                continue;
+            if (item != '%' || index + 2 >= separator ||
+                !isHexadecimal(value, index + 1, index + 3))
+                return false;
+            index += 2;
+        }
+        return true;
+    }
+
+    private static boolean isHexadecimal(String value, int start, int end) {
+        if (start >= end) return false;
+        for (int index = start; index < end; index++) {
+            char item = value.charAt(index);
+            if (!((item >= '0' && item <= '9') ||
+                  (item >= 'a' && item <= 'f') ||
+                  (item >= 'A' && item <= 'F')))
+                return false;
+        }
+        return true;
+    }
+
     private Address parseReaAddress(String value) {
         Address address = tryParseAddress(value);
         if (address == null) {
@@ -3017,7 +3052,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
             else if (value.startsWith("0x") || value.startsWith("0X")) {
                 offset = value.substring(2);
             }
-            if (!offset.matches("[0-9A-Fa-f]+")) {
+            if (!isHexadecimal(offset, 0, offset.length())) {
                 return null;
             }
             AddressSpace space = spaceName == null

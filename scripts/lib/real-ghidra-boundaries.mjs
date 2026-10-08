@@ -210,6 +210,24 @@ export async function verifyGhidraBoundaries(
     entrypoint,
     env,
   });
+  const longSelector = "REA_MISSING_" + "x".repeat(32768);
+  for (const selected of [
+    longSelector,
+    `${longSelector}:0x1`,
+    `${"%78".repeat(12000)}:0x1`,
+    `${longSelector}%GG:0x1`,
+  ]) {
+    await invalid(
+      "procedure_address",
+      { procedure: selected },
+      /Unknown|invalid/u,
+    );
+    assert.equal(
+      await call("procedure_address", { procedure: address }),
+      address,
+      "Invalid selectors must preserve the live provider connection",
+    );
+  }
   const baseline = await call("inspect_native_instruction", { address });
   assert.equal(baseline.status, "decoded");
   const bytes = await call("read_bytes", { address, length: baseline.length });
@@ -724,6 +742,7 @@ export async function verifyGhidraBoundaries(
     equivalent_instruction_address_spellings: true,
     qualified_annotation_name_roundtrip: true,
     oversized_result_retention_and_complete_export: true,
+    long_selector_rejection_and_provider_recovery: true,
     source_immutable: true,
     reopen_discards_edits: true,
     long_tmpdir_private_socket_cleanup: true,

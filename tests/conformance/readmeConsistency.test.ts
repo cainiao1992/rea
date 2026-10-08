@@ -21,6 +21,7 @@ const readmeLanguages = [
   { path: "README_pl.md", label: "Polski" },
   { path: "README_pt-BR.md", label: "Português (Brasil)" },
   { path: "README_ar.md", label: "العربية" },
+  { path: "README_fa.md", label: "فارسی" },
 ] as const;
 
 const translatedReadmes = readmeLanguages

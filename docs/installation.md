@@ -353,6 +353,11 @@ provider display in `provider_value`, and report its encoding, byte length, and
 termination. `encoding_status: inferred` distinguishes REA's decoding from an
 observed source encoding. Hopper can split long literals into adjacent
 unterminated objects; search matches each object's decoded bytes independently.
+Undecodable objects retain native display text with `decoding.available: false`
+and a reason, so one uncertain object does not block unrelated inspections.
+Function dossiers retain this same string evidence. Native call edges retain
+Hopper's partial `CallReference` classification and exact endpoints; detailed
+reference flags remain unavailable rather than being invented.
 
 Closing or switching a target closes its bound Hopper document, shuts down REA's
 bridge and removes its temporary socket directory while preserving the Hopper

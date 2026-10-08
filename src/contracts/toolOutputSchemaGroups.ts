@@ -20,7 +20,9 @@ import {
 import {
   analysisBookmarkSchema,
   functionInstructionWindowSchema,
-  referenceKindSchema,
+  referenceEdgeSchema,
+  unresolvedCallSchema,
+  analysisStringSchema,
 } from "../domain/hopperValues.js";
 import { nativeApiInspectionResultSchema } from "../domain/native/nativeApiBoundary.js";
 import {
@@ -94,30 +96,6 @@ const bookmarkFacetSchema = z.discriminatedUnion("state", [
   }),
 ]);
 
-const addressedString = z.object({
-  address: z.string(),
-  value: z.string(),
-  provider_value: z
-    .string()
-    .exactOptional()
-    .describe(
-      "Original provider display text, which may shorten the typed object.",
-    ),
-  string: z
-    .object({
-      encoding: z.string().min(1),
-      encoding_status: z
-        .enum(["observed", "inferred"])
-        .exactOptional()
-        .describe(
-          "Whether the provider declares the encoding or REA infers it from the typed bytes and native display. This does not establish the original source's intended encoding.",
-        ),
-      termination: z.enum(["missing", "present_or_not_required"]),
-      byte_length: z.number().int().min(0),
-    })
-    .optional(),
-});
-
 /** Exact structured-content schemas shared by direct analysis providers. */
 export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   annotate_native_function: resultOf(nativeFunctionAnnotationsSchema),
@@ -137,7 +115,7 @@ export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   list_names: resultOf(z.array(addressedValue)),
   list_procedures: resultOf(z.array(addressedValue)),
   list_segments: segmentOutput,
-  list_strings: resultOf(z.array(addressedString)),
+  list_strings: resultOf(z.array(analysisStringSchema)),
   next_address: resultOf(z.string()),
   prev_address: resultOf(z.string()),
   procedure_address: resultOf(z.string()),
@@ -190,18 +168,8 @@ export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
       procedure: procedureIdentity,
       direction: z.enum(["incoming", "outgoing"]),
       reference_kinds_available: z.boolean().optional(),
-      unresolved_calls: z
-        .array(z.object({ address: z.string(), reason: z.string() }))
-        .default([]),
-      references: z.array(
-        z.object({
-          source_address: z.string(),
-          target_address: z.string(),
-          source_procedure: procedureIdentity.nullable(),
-          target_procedure: procedureIdentity.nullable(),
-          kind: referenceKindSchema,
-        }),
-      ),
+      unresolved_calls: z.array(unresolvedCallSchema).default([]),
+      references: z.array(referenceEdgeSchema),
     }),
   ),
   procedure_pseudo_code: resultOf(nullableText),
@@ -209,7 +177,7 @@ export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   search_procedures: resultOf(
     z.array(z.object({ address: z.string(), value: z.string() })),
   ),
-  search_strings: resultOf(z.array(addressedString)),
+  search_strings: resultOf(z.array(analysisStringSchema)),
   set_address_name: resultOf(z.boolean()),
   set_addresses_names: resultOf(z.record(z.string(), z.boolean())),
   set_bookmark: resultOf(z.boolean()),

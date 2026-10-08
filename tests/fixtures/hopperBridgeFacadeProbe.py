@@ -80,6 +80,9 @@ class FakeProcedure:
     def getLocalVariableList(self):
         return []
 
+    def getAllCallees(self):
+        return []
+
 
 class FakeBlock:
     def getStartingAddress(self):

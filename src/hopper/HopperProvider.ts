@@ -253,7 +253,7 @@ export class HopperProvider implements AnalysisProviderCandidate {
                     : []),
                   ...(operation === "procedure_references"
                     ? [
-                        "Hopper's public Python API does not expose flow classification for calls without resolved targets; unresolved_calls is empty and its coverage is unknown.",
+                        "Native CallReference classifications and unresolved targets are preserved. Detailed reference flags and coverage beyond reported CallReference objects remain unknown.",
                       ]
                     : []),
                 ],

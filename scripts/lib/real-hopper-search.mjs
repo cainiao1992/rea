@@ -110,6 +110,31 @@ async function verifySearchModes(call, address) {
   assert.ok(long.startsWith(longItem.value));
   assert.ok(longItem.provider_value.endsWith("…"));
   assert.equal(longItem.string.termination, "missing");
+  const literalProcedure = (await call("list_procedures")).find((item) =>
+    item.value.endsWith("rea_long_literal_procedure"),
+  );
+  assert.ok(literalProcedure);
+  const dossier = await call("analyze_function", {
+    procedure: literalProcedure.address,
+  });
+  const referenced = dossier.referenced_strings.find(
+    (item) => item.address === longItem.address,
+  );
+  assert.ok(referenced, "function dossier omitted its long literal reference");
+  const { source_address, ...stringRecord } = referenced;
+  assert.ok(
+    dossier.outgoing_references.some(
+      (edge) =>
+        edge.source_address === source_address &&
+        edge.target_address === longItem.address,
+    ),
+  );
+  assert.deepEqual(
+    stringRecord,
+    longItem,
+    "function dossier discarded typed string provenance",
+  );
+
   const fragments = strings.filter((item) => {
     const offset = BigInt(item.address) - BigInt(longItem.address);
     return offset >= 0n && offset < BigInt(Buffer.byteLength(long));

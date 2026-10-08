@@ -79,9 +79,12 @@ export const CAPABILITIES: readonly CapabilityDescriptor[] = Object.freeze(
       }),
       limitations: Object.freeze([
         "Results depend on Hopper's completed static analysis.",
-        ...(operation === "list_strings" || operation === "search_strings"
+        ...(operation === "list_strings" ||
+        operation === "search_strings" ||
+        operation === "analyze_function"
           ? [
               "String values cover native typed objects. Hopper may split long literals into adjacent unterminated fragments; string searches match each object independently.",
+              "Undecodable typed objects retain native display text with an explicit decoding unknown; these values do not establish decoded source literals.",
               "Reported string encodings are inferred from typed bytes and native display; the original source's intended encoding is unknown.",
             ]
           : []),

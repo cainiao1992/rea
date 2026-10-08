@@ -408,6 +408,22 @@ def _instruction_addresses(procedure):
     return result
 
 
+def _native_calls(procedure, direction):
+    references = procedure.getAllCallees() if direction == "outgoing" else procedure.getAllCallers()
+    kinds = {0: "none", 1: "unknown", 2: "direct", 3: "objective_c"}
+    calls = {}
+    unresolved = []
+    for reference in references:
+        source, target, kind = reference.fromAddress(), reference.toAddress(), reference.type()
+        if source in BAD_ADDRESSES:
+            continue
+        if target in BAD_ADDRESSES:
+            unresolved.append({"address": _hex(source), "reason": "Native CallReference has no resolved target (type %s)" % kind})
+            continue
+        calls[(source, target)] = {"classification": kinds.get(kind, "unknown"), "provider_type": kind, "provenance": "hopper-public-python-api:CallReference"}
+    return calls, sorted(unresolved, key=lambda item: int(item["address"], 16))
+
+
 def _procedure_references(document, params):
     procedure = _procedure(document, params.get("procedure"))
     direction = params.get("direction", "outgoing")
@@ -420,6 +436,8 @@ def _procedure_references(document, params):
         references = segment.getReferencesFromAddress(address) if direction == "outgoing" else segment.getReferencesOfAddress(address)
         for reference in references:
             edges.add((address, reference) if direction == "outgoing" else (reference, address))
+    calls, unresolved = _native_calls(procedure, direction)
+    edges.update(calls)
     ordered = sorted(edges)
     items = []
     for source, target in ordered:
@@ -430,16 +448,15 @@ def _procedure_references(document, params):
             "target_address": _hex(target),
             "source_procedure": _procedure_identity(source_procedure) if source_procedure is not None else None,
             "target_procedure": _procedure_identity(target_procedure) if target_procedure is not None else None,
-            "kind": _unavailable("Hopper's public Python API does not classify reference kinds"),
+            "kind": _unavailable("Hopper exposes partial CallReference classification, but not detailed reference flags"),
+            **({"call": calls[(source, target)]} if (source, target) in calls else {}),
         })
     return {
         "procedure": _procedure_identity(procedure), "direction": direction,
         "reference_kinds_available": False,
-        # The public Hopper API returns observed references but does not expose
-        # enough flow metadata to enumerate calls with no resolved target.
-        # Keep the required list field explicit; the provider records this as
-        # unknown coverage rather than claiming the list is exhaustive.
-        "unresolved_calls": [],
+        # These are native CallReference objects, not proof that every unresolved
+        # dispatch site has been enumerated by Hopper.
+        "unresolved_calls": unresolved,
         "references": items,
     }
 
@@ -491,14 +508,24 @@ def _string_record(segment, address, display):
     raise CapabilityUnavailableError("Hopper's string display cannot be reconciled with its typed bytes at %s; inspect the bytes and encoding explicitly" % _hex(address))
 
 
-def _string_inventory(document):
+def _string_inventory(document, addresses=None):
+    key = (id(document), "string_objects")
+    objects = _search_inventory_cache.get(key)
+    if objects is None:
+        objects = {address: (segment, display) for segment in document.getSegmentsList() for display, address in segment.getStringsList()}
+        _search_inventory_cache[key] = objects
     key = (id(document), "string_records")
-    inventory = _search_inventory_cache.get(key)
-    if inventory is None:
-        records = {_hex(address): _string_record(segment, address, display) for segment in document.getSegmentsList() for display, address in segment.getStringsList()}
-        inventory = dict(sorted(records.items(), key=lambda item: int(item[0], 16)))
-        _search_inventory_cache[key] = inventory
-    return inventory
+    records = _search_inventory_cache.setdefault(key, {})
+    selected = sorted(objects if addresses is None else objects.keys() & addresses)
+    for address in selected:
+        name = _hex(address)
+        if name not in records:
+            segment, display = objects[address]
+            try:
+                records[name] = _string_record(segment, address, display)
+            except CapabilityUnavailableError as error:
+                records[name] = {"value": display, "provider_value": display, "decoding": _unavailable(str(error))}
+    return {_hex(address): records[_hex(address)] for address in selected}
 
 
 def _invalidate_search_inventory(document):
@@ -690,6 +717,10 @@ def _analyze_function(document, params):
     incoming = []
     outgoing = []
     procedure_addresses = set(addresses)
+    outgoing_calls, unresolved_calls = _native_calls(procedure, "outgoing")
+    incoming_calls, _ = _native_calls(procedure, "incoming")
+    calls = {**incoming_calls, **outgoing_calls}
+    edges.update(calls)
     for source, target in sorted(edges):
         source_procedure, _ = _containing_procedure(document, source)
         target_procedure, _ = _containing_procedure(document, target)
@@ -698,16 +729,14 @@ def _analyze_function(document, params):
             "target_address": _hex(target),
             "source_procedure": _procedure_identity(source_procedure) if source_procedure is not None else None,
             "target_procedure": _procedure_identity(target_procedure) if target_procedure is not None else None,
-            "kind": _unavailable("Hopper's public Python API does not classify reference kinds"),
+            "kind": _unavailable("Hopper exposes partial CallReference classification, but not detailed reference flags"),
+            **({"call": calls[(source, target)]} if (source, target) in calls else {}),
         }
         if target in procedure_addresses and source not in procedure_addresses:
             incoming.append(item)
         if source in procedure_addresses:
             outgoing.append(item)
-    string_map = {
-        int(address, 16): value
-        for address, value in _search_inventory(document, "string")
-    }
+    string_map = {int(address, 16): record for address, record in _string_inventory(document, {int(edge["target_address"], 16) for edge in outgoing}).items()}
     name_map = {
         int(address, 16): value
         for address, value in _search_inventory(document, "name")
@@ -717,7 +746,7 @@ def _analyze_function(document, params):
     for edge in outgoing:
         target = int(edge["target_address"], 16)
         if target in string_map:
-            referenced_strings.append({"address": edge["target_address"], "value": string_map[target], "source_address": edge["source_address"]})
+            referenced_strings.append({"address": edge["target_address"], **string_map[target], "source_address": edge["source_address"]})
         if target in name_map:
             referenced_names.append({"address": edge["target_address"], "value": name_map[target], "source_address": edge["source_address"]})
     comments.sort(key=lambda item: (int(item["address"], 16), item["kind"]))
@@ -735,13 +764,14 @@ def _analyze_function(document, params):
         "callers": callers, "callees": callees,
         "incoming_references": incoming,
         "outgoing_references": outgoing,
+        "unresolved_calls": unresolved_calls,
         "referenced_strings": referenced_strings,
         "referenced_names": referenced_names,
         "basic_blocks": blocks,
         "limitations": [
-            "Hopper's public Python API does not classify reference kinds.",
+            "Native CallReference classifications are observed where available; detailed reference flags remain unknown.",
             "Hopper's public Python API does not expose equivalent external or thunk classification in this dossier.",
-            "Unresolved indirect calls without reported target addresses are not represented as call edges.",
+            "Native calls without resolved target addresses are not represented as edges; enumeration beyond reported CallReference objects is unknown.",
             "Pseudocode and assembly are provider-specific representations, not original source.",
         ],
     }
@@ -934,11 +964,8 @@ def _dispatch(method, params):
     if method == "list_procedures":
         return [{"address": address, "value": value} for address, value in _search_inventory(document, "procedure")]
     if method == "list_strings":
-        values = _string_inventory(document)
         requested = params.get("address")
-        if requested is not None:
-            key = _hex(_address(document, requested))
-            values = {key: values[key]} if key in values else {}
+        values = _string_inventory(document, None if requested is None else {_address(document, requested)})
         return [{"address": address, **record} for address, record in values.items()]
     if method == "list_names":
         result = dict(_search_inventory(document, "name"))

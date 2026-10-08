@@ -136,7 +136,40 @@ describe("evidence bundle filesystem adapter", () => {
     );
     expect(await readEvidenceBundle(tamperedPath)).toMatchObject({
       ok: false,
-      error: { _tag: "EvidenceIntegrityError" },
+      error: {
+        _tag: "EvidenceIntegrityError",
+        userMessage: expect.stringContaining(
+          "Evidence semantic identifier does not match its record",
+        ),
+      },
+    });
+  });
+
+  it("names the failed bundle constraint for a single record or schema mismatch", async () => {
+    const directory = await createTestTempDirectory("rea-evidence-");
+    const record = bundle().records[0];
+    const single = join(directory, "record.json");
+    await writeFile(single, JSON.stringify(record));
+    expect(await readEvidenceBundle(single)).toMatchObject({
+      ok: false,
+      error: {
+        _tag: "EvidenceIntegrityError",
+        userMessage: expect.stringContaining(
+          `this JSON is one Evidence record (${String(record?.evidence_id)})`,
+        ),
+      },
+    });
+
+    const mismatched = join(directory, "mismatched.json");
+    await writeFile(mismatched, JSON.stringify({ ...bundle(), records: {} }));
+    expect(await readEvidenceBundle(mismatched)).toMatchObject({
+      ok: false,
+      error: {
+        _tag: "EvidenceIntegrityError",
+        userMessage: expect.stringContaining(
+          "does not match the bundle schema at records:",
+        ),
+      },
     });
   });
 });

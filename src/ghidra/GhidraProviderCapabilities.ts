@@ -85,6 +85,11 @@ export const limitationsFor = (operation: string): readonly string[] => {
         ...common,
         "Only Ghidra-defined string Data is observed; charset is reported, while a non-missing terminator cannot distinguish a present terminator from a fixed or Pascal layout.",
       ];
+    case "resolve_containing_procedure":
+      return [
+        ...common,
+        "An exact external entry resolves to its observed function identity even when its body is empty. This does not establish mapped executable bytes or containment of nearby external addresses.",
+      ];
     case "list_segments":
       return [
         ...common,

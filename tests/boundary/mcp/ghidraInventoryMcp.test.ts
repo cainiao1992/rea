@@ -67,6 +67,29 @@ it("rejects contradictory provider output before emitting MCP Evidence", async (
           limitations: ["Ghidra-specific instruction text."],
         },
       },
+      {
+        name: "resolve_containing_procedure",
+        arguments: { address: "EXTERNAL:0x2" },
+        output: {
+          query_address: "EXTERNAL:0x2",
+          found: true,
+          procedure: {
+            ...ghidraFunctionIdentity(),
+            address: "EXTERNAL:0x1",
+            classification: {
+              ...ghidraFunctionIdentity().classification,
+              external: true,
+            },
+            body: {
+              ...ghidraFunctionIdentity().body,
+              ranges: [],
+              total_bytes: 0,
+              span_bytes: 0,
+              contains_entry: false,
+            },
+          },
+        },
+      },
     ];
     for (const probe of cases) {
       output = jsonValueSchema.parse(probe.output);

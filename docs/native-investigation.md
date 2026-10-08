@@ -82,6 +82,9 @@ by the inventory, including their namespaces and any platform symbol prefix.
 Overloads can share a fully qualified name; ambiguity errors return every
 matching entry address so the caller can select the intended function directly.
 
+`resolve_containing_procedure` also resolves an exact external entry. Its empty
+body remains explicit; nearby external addresses do not inherit that identity.
+
 Ghidra function references cover the complete function-body AddressSet and its
 exact entry, including references into instruction interiors and references
 from embedded data. Addresses inside an enclosing span but outside the owned

@@ -280,6 +280,8 @@ xrefs, raw procedure references, and CLI/MCP dossiers must retain that data edge
 A valid legacy snapshot reconstructs the former omitted edge under its older
 profile; CLI and MCP must reject that binding with a mismatch reason and
 recovery advice. The rejected open must preserve the active live session.
+Exact external entries must resolve while retaining an empty body; unknown
+external addresses remain unresolved and external annotations are rejected.
 Malformed annotation readback, memory completeness, and inventory data remain separate
 SDK/provider integration cases; success from a real
 provider cannot establish rejection of a contradictory provider response.

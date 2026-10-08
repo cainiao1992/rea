@@ -95,6 +95,52 @@ export async function verifyGhidraBoundaries(
   assert.equal((await stat(socketRoot)).mode & 0o777, 0o700);
   const address = original.procedure.address;
   const name = original.procedure.name;
+  const procedures = await call("list_procedures");
+  const external = procedures.find((item) => item.procedure.external);
+  assert.ok(external, "Source fixture lacks an external function");
+  const externalDossier = await call("analyze_function", {
+    procedure: external.address,
+  });
+  const externalEntry = await call("resolve_containing_procedure", {
+    address: external.address,
+  });
+  assert.equal(externalEntry.found, true);
+  assert.equal(externalEntry.procedure.address, external.address);
+  assert.equal(externalEntry.procedure.classification.external, true);
+  assert.deepEqual(
+    externalEntry.procedure.body,
+    externalDossier.procedure.body,
+  );
+  assert.equal(externalEntry.procedure.body.contains_entry, false);
+  assert.deepEqual(externalEntry.procedure.body.ranges, []);
+  const externalSpace = external.address.slice(
+    0,
+    external.address.indexOf(":"),
+  );
+  const lastExternalOffset = procedures
+    .filter((item) => item.procedure.external)
+    .map((item) => BigInt(item.address.slice(item.address.indexOf(":") + 1)))
+    .reduce((maximum, offset) => (offset > maximum ? offset : maximum), 0n);
+  const unknownExternal = `${externalSpace}:0x${(lastExternalOffset + 1n).toString(16)}`;
+  assert.deepEqual(
+    await call("resolve_containing_procedure", { address: unknownExternal }),
+    {
+      query_address: unknownExternal,
+      found: false,
+      procedure: null,
+      reason: "outside_segments",
+    },
+  );
+  assert.deepEqual(
+    (await cli("function", external.address)).procedure,
+    externalDossier.procedure,
+    "CLI and MCP must preserve external identity without inventing body bytes",
+  );
+  await invalid(
+    "annotate_native_function",
+    { procedure: external.address, name: "rea_external_edit" },
+    /Annotations require a local function entry/u,
+  );
   const names = await call("list_names");
   const leaf = names.find((item) =>
     item.value.endsWith("rea_ghidra_inventory_leaf"),
@@ -550,6 +596,7 @@ export async function verifyGhidraBoundaries(
     mutation_rollback: true,
     annotation_native_text_validation: true,
     lossless_unicode_transport: true,
+    exact_external_entry_resolution: true,
     complete_function_body_references: true,
     ambiguity_candidates_inline: true,
     legacy_reference_snapshot_rejected: true,

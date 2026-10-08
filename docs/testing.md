@@ -46,6 +46,11 @@ claim, even if a directory name calls it acceptance.
 Emit a verifier's final success report only after awaited cleanup. Observe final
 process lineage after closing its owned resources.
 
+The Vitest runner releases cached native process inspectors during awaited
+worker teardown. Fork termination does not run Node's normal exit hooks; a
+per-file teardown would instead retire shared inspectors before later files
+can use them.
+
 Measure slow files before removing capacity regressions. Optimize repeated
 process startup, fixture construction, and production algorithms when they
 dominate runtime. Keep at least one input beyond each formerly failing size or
@@ -356,7 +361,7 @@ are separate proof levels.
 Synthetic producer regressions run independently:
 
 ```sh
-npm run test:focused -- tests/boundary/android/jadxIntegration.test.ts tests/boundary/mcp/androidAnalysisMcp.test.ts
+npm run test:focused -- tests/boundary/process/jadxIntegration.test.ts tests/boundary/process/androidAnalysisMcp.test.ts
 ```
 
 ## Optional NativeAOT Ghidra analysis

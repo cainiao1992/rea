@@ -1,6 +1,11 @@
 /** Primitive values admitted into the constant lattice. */
 export type JavaScriptSemanticPrimitive = string | number | boolean | null;
 
+/** Resource bound that prevented an exact semantic value. */
+export type JavaScriptSemanticResourceLimit =
+  | "primitive-candidates"
+  | "expression-depth";
+
 type JavaScriptSemanticObjectValue = {
   readonly status: "object";
   readonly properties: readonly JavaScriptSemanticProperty[];
@@ -44,6 +49,7 @@ export type JavaScriptSemanticValue =
   | {
       readonly status: "unknown" | "ambiguous" | "cycle";
       readonly reason: string;
+      readonly resourceLimit?: JavaScriptSemanticResourceLimit;
     };
 
 /** One statically named object-literal property. */

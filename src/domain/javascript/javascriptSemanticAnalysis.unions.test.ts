@@ -1,7 +1,13 @@
+import * as t from "@babel/types";
 import { describe, expect, it } from "vitest";
 
-import { analyzeJavaScriptSemantics } from "./javascriptSemanticAnalysis.js";
+import {
+  analyzeJavaScriptSemantics,
+  analyzeParsedJavaScriptSemantics,
+} from "./javascriptSemanticAnalysis.js";
 import { topLevelBinding } from "./javascriptSemanticAnalysis.fixture.js";
+import { parseJavaScriptSource } from "./javascriptSourceParser.js";
+import { readExactJavaScriptLiteral } from "./javascriptAstValues.js";
 
 const conditionalCandidates = [
   '"one"',
@@ -18,6 +24,42 @@ const valueOf = (expression: string) =>
     analyzeJavaScriptSemantics(`const answer = ${expression};`),
     "answer",
   ).value;
+
+describe("exact JavaScript literal reader", () => {
+  it("reads cooked atoms and rejects raw-only or interpolated templates", () => {
+    const cookedElement = t.templateElement(
+      { raw: "raw", cooked: "raw" },
+      true,
+    );
+    cookedElement.value.cooked = "cooked";
+    const rawOnlyElement = t.templateElement(
+      { raw: "raw", cooked: "raw" },
+      true,
+    );
+    rawOnlyElement.value.cooked = null;
+    expect(readExactJavaScriptLiteral(t.stringLiteral(""))).toEqual({
+      found: true,
+      value: "",
+    });
+    expect(
+      readExactJavaScriptLiteral(t.templateLiteral([cookedElement], [])),
+    ).toEqual({ found: true, value: "cooked" });
+    expect(
+      readExactJavaScriptLiteral(t.templateLiteral([rawOnlyElement], [])),
+    ).toEqual({ found: false });
+    expect(
+      readExactJavaScriptLiteral(
+        t.templateLiteral(
+          [
+            t.templateElement({ raw: "", cooked: "" }, false),
+            t.templateElement({ raw: "", cooked: "" }, true),
+          ],
+          [t.identifier("value")],
+        ),
+      ),
+    ).toEqual({ found: false });
+  });
+});
 const valuesOf = (expressions: readonly string[]) => {
   const ir = analyzeJavaScriptSemantics(
     expressions
@@ -174,5 +216,88 @@ describe("logical primitive unions", () => {
     expect(valuesOf(unevaluatedCases)).toEqual(
       unevaluatedCases.map(() => incompatibleValue),
     );
+  });
+});
+
+describe("semantic expression resource bounds", () => {
+  it("returns an explicit unknown before expanding a large addition product", () => {
+    const term = '(choice ? "a" : "b")';
+    const expression = Array.from({ length: 20 }, () => term).join(" + ");
+    const value = valueOf(expression);
+    expect(value).toMatchObject({
+      status: "unknown",
+      resourceLimit: "primitive-candidates",
+      reason: expect.stringMatching(/primitive candidate budget exceeded/i),
+    });
+    expect(
+      analyzeJavaScriptSemantics(`const answer = ${expression};`).coverage,
+    ).toMatchObject({
+      status: "partial",
+      omittedCount: null,
+      resourceLimits: ["primitive-candidates"],
+    });
+  });
+
+  it("returns an explicit unknown for a deeply nested unary AST without throwing", () => {
+    const parsed = parseJavaScriptSource("const answer = true;");
+    const declaration = parsed?.program.body[0];
+    const declarator = t.isVariableDeclaration(declaration)
+      ? declaration.declarations[0]
+      : undefined;
+    if (parsed === null || !t.isVariableDeclarator(declarator))
+      throw new Error("Expected parsed binding initializer");
+    let expression: t.Expression = t.booleanLiteral(true);
+    for (let index = 0; index < 5_000; index += 1)
+      expression = t.unaryExpression("!", expression, true);
+    declarator.init = expression;
+
+    const ir = analyzeParsedJavaScriptSemantics(parsed);
+    expect(ir.coverage).toMatchObject({
+      status: "partial",
+      omittedCount: null,
+      resourceLimits: ["expression-depth"],
+    });
+    expect(topLevelBinding(ir, "answer").value).toEqual({
+      status: "unknown",
+      resourceLimit: "expression-depth",
+      reason: expect.stringMatching(
+        /semantic expression depth budget exceeded/i,
+      ),
+    });
+  });
+
+  it("bounds nested conditional evaluation and provenance walks", () => {
+    const parsed = parseJavaScriptSource("const answer = true;");
+    const declaration = parsed?.program.body[0];
+    const declarator = t.isVariableDeclaration(declaration)
+      ? declaration.declarations[0]
+      : undefined;
+    if (parsed === null || !t.isVariableDeclarator(declarator))
+      throw new Error("Expected parsed binding initializer");
+    let expression: t.Expression = t.booleanLiteral(true);
+    for (let index = 0; index < 5_000; index += 1)
+      expression = t.conditionalExpression(
+        t.identifier("condition"),
+        expression,
+        t.booleanLiteral(false),
+      );
+    declarator.init = expression;
+
+    const ir = analyzeParsedJavaScriptSemantics(parsed);
+    const value = topLevelBinding(ir, "answer").value;
+    expect(value).toMatchObject({
+      status: "unknown",
+      resourceLimit: "expression-depth",
+      reason: expect.stringMatching(
+        /semantic expression depth budget exceeded/i,
+      ),
+    });
+  });
+
+  it("preserves exact shallow addition alternatives", () => {
+    expect(valueOf('(choice ? "a" : "b") + (other ? "1" : "2")')).toEqual({
+      status: "union",
+      values: ["a1", "a2", "b1", "b2"],
+    });
   });
 });

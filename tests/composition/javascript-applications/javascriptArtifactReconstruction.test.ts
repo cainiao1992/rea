@@ -104,6 +104,42 @@ it("preserves graph commitments and export shapes when consuming file-local IR",
   }
 });
 
+it("reports semantic value resource limits in application graph coverage", async () => {
+  const root = await createTestTempDirectory("rea-javascript-semantic-limit-");
+  const expression = Array.from(
+    { length: 20 },
+    () => '(true ? "a" : "b")',
+  ).join(" + ");
+  await writeFile(
+    join(root, "app.js"),
+    `const answer = { nested: ${expression} };`,
+  );
+  const snapshot = await scanCanonicalArtifactInventory(root, {});
+  const reader = createJavaScriptArtifactReader(root, "directory");
+  try {
+    const files = await readJavaScriptArtifactFiles(reader, snapshot);
+    const analysis = analyzeJavaScriptArtifactFiles(files);
+    const graph = buildJavaScriptArtifactGraph(snapshot, files, analysis);
+
+    expect(graph.coverage).toMatchObject({
+      status: "partial",
+      omitted_count: null,
+      limits: [
+        {
+          name: "javascript_semantic_primitive_candidates",
+          value: 256,
+          unit: "items",
+        },
+      ],
+    });
+    expect(graph.limitations).toContain(
+      "Primitive candidate budget exceeded (maximum 256 alternatives).",
+    );
+  } finally {
+    await reader.close();
+  }
+});
+
 it("reconstructs package, Electron roles, Webpack/Rspack modules, and cross-layer facts without execution", async () => {
   const root = await fixtureDirectory();
   Reflect.deleteProperty(globalThis, "__rea_bundle_executed");

@@ -224,6 +224,13 @@ These safeguards are not caller-selectable output budgets. Source-map parsing
 reports truncation when its format or parser safety boundary is reached. The
 application graph has no aggregate node, edge, root, or observation prefix cap.
 
+Semantic evaluation retains at most 256 distinct primitive candidates per
+expression and traverses at most 256 expression levels. It checks union products
+before allocating combinations. When either boundary is reached, the value stays
+unknown, semantic coverage becomes partial, and graph evidence retains the
+expression location and limiting reason. The number of unresolved alternatives
+is unknown; it is not reported as an exact omission count.
+
 Byte, entry, path, and graph-shape bounds are hard limits. The parse deadline is
 checked before and between bounded parsing and traversal phases; the synchronous
 Babel and JSON parser calls cannot be preempted mid-call, so their input byte

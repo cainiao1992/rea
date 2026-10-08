@@ -1,9 +1,10 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
+import { ArtifactReaderFailure } from "../ArtifactReader.js";
 import {
   analyzeAppleAssetCatalogs,
   collectInterfaceBuilderResourceKeys,
@@ -68,7 +69,49 @@ describe("Apple asset catalog application workflow", () => {
       truncated: false,
     });
     expect(result.limitations).toContain(
-      "No compiled Assets.car catalog was found in the app bundle; any resource keys are reported as unmatched.",
+      "No compiled Assets.car catalog was found among the app bundle's regular files (symlinks are not followed); any resource keys are reported as unmatched.",
+    );
+  });
+
+  it("does not report absence when the only catalog entry is a symlink", async () => {
+    const bundle = await createTestTempDirectory("rea-asset-catalog-link-");
+    const resources = join(bundle, "Contents", "Resources");
+    await mkdir(resources, { recursive: true });
+    await writeFile(join(bundle, "outside.car"), "catalog");
+    await symlink("../../outside.car", join(resources, "Assets.car"));
+    const rejected = await analyzeAppleAssetCatalogs({
+      bundlePath: bundle,
+      targetSha256: "a".repeat(64),
+      runAssetUtil: () => Promise.resolve("[]"),
+    }).catch((cause: unknown) => cause);
+    expect(rejected).toBeInstanceOf(ArtifactReaderFailure);
+    expect(rejected).toMatchObject({
+      reason: "path",
+      message: expect.stringContaining(
+        "Contents/Resources/Assets.car (symlink)",
+      ),
+    });
+  });
+
+  it("discloses skipped catalog entries beside inspected catalogs", async () => {
+    const bundle = await createTestTempDirectory("rea-asset-catalog-mixed-");
+    const resources = join(bundle, "Contents", "Resources");
+    await mkdir(join(resources, "Nested"), { recursive: true });
+    await writeFile(join(resources, "Assets.car"), "catalog");
+    await symlink("../Assets.car", join(resources, "Nested", "Assets.car"));
+    const result = await analyzeAppleAssetCatalogs({
+      bundlePath: bundle,
+      targetSha256: "a".repeat(64),
+      runAssetUtil: () => Promise.resolve("[]"),
+    });
+    expect(result.catalogs.map(({ path }) => path)).toEqual([
+      "Contents/Resources/Assets.car",
+    ]);
+    expect(result.limitations).toContainEqual(
+      expect.stringContaining("Contents/Resources/Nested/Assets.car (symlink)"),
+    );
+    expect(result.limitations).not.toContainEqual(
+      expect.stringContaining("No compiled Assets.car catalog"),
     );
   });
 });

@@ -17,3 +17,13 @@ __attribute__((noinline, used)) int rea_entry(void) {
 }
 
 int main(void) { return rea_entry() == 12 ? 0 : 1; }
+
+__attribute__((noinline, used)) int rea_cycle_b(int value);
+
+__attribute__((noinline, used)) int rea_cycle_a(int value) {
+  return value > 0 ? rea_cycle_b(value - 1) : value;
+}
+
+__attribute__((noinline, used)) int rea_cycle_b(int value) {
+  return value > 0 ? rea_cycle_a(value - 1) : value;
+}

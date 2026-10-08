@@ -250,7 +250,7 @@ let stderrBytes = 0;
 const stderrChunks = [];
 transport.stderr?.on("data", (chunk) => {
   stderrBytes += chunk.length;
-  if (stderrBytes <= 16_384) stderrChunks.push(chunk.toString("utf8"));
+  stderrChunks.push(chunk.toString("utf8"));
 });
 const client = new Client({ name: "real-hopper-verifier", version: "1.0.0" });
 const unrelatedHopper = await startUnrelatedHopperSentinel();

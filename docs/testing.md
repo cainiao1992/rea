@@ -157,9 +157,16 @@ complete large inventories, then probes unnamed bookmarks, annotation clearing,
 batch validation before mutation, malformed addresses and regexes, segment-end
 partial reads, and synthetic file-offset rejection. Advertised schemas are
 validated in their JSON Schema dialect and successful replies are checked against
-their advertised output schemas. Disposable binary copies prove that switching
-and closing actually removes the native document, and that CLI byte results and
-invalid-address diagnostics agree with MCP. No provider is mocked in this lane.
+their advertised output schemas. Navigation checks cover interior-object cursor
+readback and mapped-memory boundaries. Annotation probes verify invalid native
+text and duplicate destinations/names before mutation, preserve unselected label
+owners, and exercise explicit batch label swaps. Function locals retain observed
+names and stack displacements. Graph probes check symbol/interior-address parity
+and a source-owned recursive cycle; literal tracing preserves complete queries
+and whitespace. Disposable binary copies prove that switching and closing
+actually removes the native document, and that CLI byte, function-dossier,
+literal-trace results and invalid-address diagnostics agree with MCP.
+No provider is mocked in this lane.
 The Linux demo lane remains a separate `verify:hopper:linux` command.
 
 Golden tests use immutable captured text inputs with producer/source provenance

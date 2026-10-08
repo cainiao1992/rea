@@ -7,6 +7,8 @@ import { promisify } from "node:util";
 import Ajv from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { mcpTextValue, requireMcpResult } from "./mcp-verifier-results.mjs";
+import { verifyHopperNavigationAndText } from "./real-hopper-navigation.mjs";
+import { verifyHopperWorkflows } from "./real-hopper-workflows.mjs";
 
 /** Exercise real Hopper annotation and malformed-input boundaries over MCP. */
 export async function verifyHopperBoundaryContracts(
@@ -47,13 +49,13 @@ export async function verifyHopperBoundaryContracts(
     successfulCalls += 1;
     return result;
   };
-  const invalid = async (name, args, reason) => {
+  const invalid = async (name, args, reason, failedOperation = name) => {
     const reply = await client.callTool({ name, arguments: args }, options);
     assert.equal(reply.isError, true, `${name} accepted invalid input`);
     const { error } = JSON.parse(mcpTextValue(reply));
     assert.equal(error.code, "invalid_request");
     assert.equal(error.category, "invalid_input");
-    assert.equal(error.details.operation, name);
+    assert.equal(error.details.operation, failedOperation);
     assert.match(error.message, reason);
     rejectedCalls += 1;
     rejectedOperations.add(name);
@@ -66,6 +68,12 @@ export async function verifyHopperBoundaryContracts(
   const foreignDocument = (await call("list_documents")).find(
     (name) => name !== activeDocument,
   );
+  const navigationAndText = await verifyHopperNavigationAndText(
+    call,
+    invalid,
+    address,
+  );
+  const workflows = await verifyHopperWorkflows(call, invalid, procedure);
   try {
     if (foreignDocument !== undefined) {
       await invalid(
@@ -268,6 +276,8 @@ export async function verifyHopperBoundaryContracts(
     rejectedCalls,
     rejectedOperations: [...rejectedOperations],
     foreignDocumentVerified: foreignDocument !== undefined,
+    navigationAndText,
+    workflows,
   };
 }
 
@@ -298,6 +308,14 @@ export async function verifyHopperLifecycleAndCli(client, options, targets) {
     await copyFile(targets.primary, primary);
     await copyFile(targets.secondary, secondary);
     await call("open_binary", { path: primary });
+    const primaryProcedures = await call("list_procedures");
+    const entry = primaryProcedures.find((item) =>
+      item.value.endsWith("rea_entry"),
+    );
+    assert.ok(entry, "primary fixture omitted its entry procedure");
+    const expectedFunction = await call("analyze_function", {
+      procedure: entry.value,
+    });
     const firstDocument = await call("current_document");
     await call("open_binary", { path: secondary });
     const secondDocument = await call("current_document");
@@ -314,6 +332,10 @@ export async function verifyHopperLifecycleAndCli(client, options, targets) {
       length: 8,
       document: secondDocument,
     });
+    await call("open_binary", { path: primary });
+    const query = "REA_C_LEAF __rea_missing_phrase__";
+    const expectedTrace = await call("trace_feature", { query });
+    assert.deepEqual(expectedTrace.matches, []);
     await call("close_binary");
 
     const dispatcher = new URL("../rea.mjs", import.meta.url).pathname;
@@ -336,6 +358,33 @@ export async function verifyHopperLifecycleAndCli(client, options, targets) {
     assert.equal(evidence.provider.id, "hopper");
     assert.equal(evidence.subject.local_path, secondary);
     assert.deepEqual(evidence.normalized_result, expected);
+    const traced = await runCli([
+      dispatcher,
+      "trace",
+      primary,
+      query,
+      "--provider",
+      "hopper",
+      "--format",
+      "json",
+    ]);
+    const traceEvidence = JSON.parse(traced.stdout);
+    assert.equal(traceEvidence.subject.local_path, primary);
+    assert.deepEqual(traceEvidence.normalized_result, expectedTrace);
+    const analyzed = await runCli([
+      dispatcher,
+      "function",
+      primary,
+      entry.value,
+      "--provider",
+      "hopper",
+      "--format",
+      "json",
+    ]);
+    assert.deepEqual(
+      JSON.parse(analyzed.stdout).normalized_result,
+      expectedFunction,
+    );
     let failure;
     try {
       await runCli([
@@ -364,6 +413,8 @@ export async function verifyHopperLifecycleAndCli(client, options, targets) {
       targetSwitchDisposedDocument: true,
       cliByteParity: true,
       cliInvalidAddress: true,
+      cliLiteralTraceParity: true,
+      cliFunctionDossierParity: true,
       callerCancellationRecovered: true,
       closedDocumentAbsent: true,
     };

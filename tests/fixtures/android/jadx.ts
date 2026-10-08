@@ -1,4 +1,4 @@
-import { access, rm, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, onTestFinished } from "vitest";
@@ -20,6 +20,15 @@ export const createJadxProtocolFixture = async (mode = "normal") => {
   const root = await createTestTempDirectory("rea-android-boundary-");
   const apk = join(root, "fixture.apk");
   const jar = join(root, "fixture.jar");
+  const javaHome = join(root, "jdk");
+  const javaBin = join(javaHome, "bin");
+  const java = join(javaBin, "java");
+  await mkdir(javaBin, { recursive: true });
+  await writeFile(
+    java,
+    `#!/usr/bin/env node\nif (process.argv[2] === "--list-modules") console.log("java.base@21.0.0\\njdk.compiler@21.0.0");\n`,
+  );
+  await chmod(java, 0o755);
   await writeOrderedZip(apk, ["AndroidManifest.xml", "classes.dex"]);
   await writeFile(jar, "synthetic engine bytes; not a Java archive");
   const launches: {
@@ -32,6 +41,7 @@ export const createJadxProtocolFixture = async (mode = "normal") => {
   }[] = [];
   const environment: NodeJS.ProcessEnv = {
     ...process.env,
+    JAVA_HOME: javaHome,
     REA_JADX_MCP_JAR: jar,
   };
   const provider = createAndroidAnalysisProvider(

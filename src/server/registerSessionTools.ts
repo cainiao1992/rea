@@ -17,6 +17,7 @@ import type { Evidence } from "../domain/evidence.js";
 import type { ProcessCapture } from "../domain/process/processCapture.js";
 import { ok, type Result } from "../domain/result.js";
 import type { Logger } from "../logger.js";
+import type { ProviderAvailability } from "../application/AnalysisProvider.js";
 import { mcpProgressReporter } from "./mcpProgress.js";
 import { registerArtifactComparisonTool } from "./registerArtifactComparisonTool.js";
 import { registerBundleComparisonTool } from "./registerBundleComparisonTool.js";
@@ -136,13 +137,22 @@ export interface LifecycleToolRegistration {
   readonly statusContract: ReturnType<typeof toolContract<"binary_session">>;
   readonly startedAt: string;
   readonly availabilityPolicy: () => SessionAvailability;
+  readonly androidAnalysisAvailability: (
+    signal: AbortSignal,
+  ) => Promise<ProviderAvailability>;
 }
 
 const registerLifecycleTools = (
   registration: LifecycleToolRegistration,
 ): void => {
-  const { server, session, statusContract, startedAt, availabilityPolicy } =
-    registration;
+  const {
+    server,
+    session,
+    statusContract,
+    startedAt,
+    availabilityPolicy,
+    androidAnalysisAvailability,
+  } = registration;
   registerOpenLifecycleTool(registration);
   registerCloseLifecycleTool(registration);
   registerSessionStatusTool({
@@ -151,6 +161,7 @@ const registerLifecycleTools = (
     contract: statusContract,
     startedAt,
     availabilityPolicy,
+    androidAnalysisAvailability,
   });
 };
 
@@ -206,6 +217,9 @@ const registerOpenLifecycleTool = ({
 export interface SessionToolOptions {
   readonly startedAt?: string;
   readonly availabilityPolicy?: () => SessionAvailability;
+  readonly androidAnalysisAvailability?: (
+    signal: AbortSignal,
+  ) => Promise<ProviderAvailability>;
 }
 
 const registerContextTools = (
@@ -265,6 +279,8 @@ export const registerSessionTools = (
       options.availabilityPolicy,
       {},
     ),
+    androidAnalysisAvailability:
+      options.androidAnalysisAvailability ?? missingAndroidAvailability,
   });
   registerEvidenceTools({
     server,
@@ -287,3 +303,11 @@ export const registerSessionTools = (
   registerUnknownTools({ server, session });
   registerContextTools(server, session);
 };
+
+const missingAndroidAvailability = async (): Promise<ProviderAvailability> => ({
+  status: "unavailable",
+  code: "not_configured",
+  reason:
+    "Set REA_JADX_MCP_JAR to a caller-supplied jadx-headless-mcp 0.7.1 JAR and provide a full JDK on Linux or macOS.",
+  diagnostics: { configured: false },
+});

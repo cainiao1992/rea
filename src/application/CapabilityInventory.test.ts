@@ -40,6 +40,10 @@ const enabledPolicy: Parameters<typeof buildCapabilityInventory>[1] = {
   v8InspectorObservationEnabled: true,
 };
 
+const availableAndroidAvailability: NonNullable<
+  Parameters<typeof buildCapabilityInventory>[1]["androidAnalysisAvailability"]
+> = { status: "available", code: null, reason: null, diagnostics: {} };
+
 const status = (
   options: {
     readonly open?: boolean;
@@ -110,7 +114,7 @@ describe("capability inventory: provider status", () => {
     expect(
       entry("inspect_android_package", status(), {
         processCaptureEnabled: true,
-        androidAnalysisEnabled: true,
+        androidAnalysisAvailability: availableAndroidAvailability,
       }),
     ).toMatchObject({
       available: true,

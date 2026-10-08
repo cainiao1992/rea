@@ -15,7 +15,9 @@ import type {
   AnalysisClient,
   AnalysisProvider,
   CapabilityDescriptor,
+  ProviderAvailability,
 } from "../../../src/application/AnalysisProvider.js";
+import type { AndroidAnalysisPort } from "../../../src/application/android/AndroidAnalysisPort.js";
 import { observed as ok } from "../../fixtures/analysisExecution.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { silentLogger } from "../../../src/logger.js";
@@ -149,6 +151,49 @@ describe("MCP snapshot lifecycle ordering", () => {
 });
 
 describe("target-free MCP lifecycle", () => {
+  it("takes the session snapshot after Android readiness inspection completes", async () => {
+    directory = await createTestTempDirectory("rea-mcp-status-readiness-");
+    const targetPath = join(directory, "target.hop");
+    await writeFile(targetPath, "fixture target");
+    const entered = createDeferred<void>();
+    const availability = createDeferred<ProviderAvailability>();
+    const closed: string[] = [];
+    const session = createTestBinarySession(provider(closed));
+    const androidAnalysis: AndroidAnalysisPort = {
+      inspectAvailability: () => {
+        entered.resolve();
+        return availability.promise;
+      },
+      close: () => Promise.resolve(),
+      execute: () => Promise.resolve(ok(null)),
+    };
+    const server = createServer(session, session, {
+      androidAnalysis,
+      logger: silentLogger,
+    });
+    const mcp = new Client({ name: "status-readiness", version: "1.0.0" });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    resources.push(mcp, server);
+    await server.connect(serverTransport);
+    await mcp.connect(clientTransport);
+
+    const status = mcp.callTool({ name: "binary_session", arguments: {} });
+    await entered.promise;
+    expect((await session.open(targetPath)).ok).toBe(true);
+    availability.resolve({
+      status: "available",
+      code: null,
+      reason: null,
+      diagnostics: { configured: true },
+    });
+
+    expect(structured(await status).result).toMatchObject({
+      open: true,
+      path: targetPath,
+    });
+  });
+
   it("reopens replaced content at one canonical path through MCP", async () => {
     directory = await createTestTempDirectory("rea-mcp-replaced-target-");
     const targetPath = join(directory, "mutable.hop");

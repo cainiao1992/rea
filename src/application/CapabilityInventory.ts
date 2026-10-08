@@ -14,6 +14,7 @@ import {
 } from "../contracts/toolOutputSchemaPrimitives.js";
 import type { ToolKind } from "../contracts/toolContractTypes.js";
 import type { JsonValue } from "../domain/jsonValue.js";
+import type { ProviderAvailability } from "./AnalysisProvider.js";
 import { TOOL_CONTRACTS } from "../contracts/toolContracts.js";
 import {
   clientRequirementsFor,
@@ -38,7 +39,7 @@ export type AvailabilityPolicy = {
   readonly recordedCrashEnabled?: boolean;
   readonly firmwareInspectionEnabled?: boolean;
   readonly firmwareExtractionEnabled?: boolean;
-  readonly androidAnalysisEnabled?: boolean;
+  readonly androidAnalysisAvailability?: ProviderAvailability;
   readonly javascriptRecoveryEnabled?: boolean;
   readonly webModuleResolutionEnabled?: boolean;
   readonly browserObservationEnabled?: boolean;
@@ -321,12 +322,16 @@ const workflowAvailabilityFor = ({
         };
   }
   if (kind === "android-provider")
-    return policy.androidAnalysisEnabled === true
+    return policy.androidAnalysisAvailability?.status === "available"
       ? { reason: "available", remediation: null }
       : {
-          reason: "provider_missing",
+          reason:
+            policy.androidAnalysisAvailability?.code === "unsupported_host"
+              ? "unsupported_host"
+              : "provider_missing",
           remediation:
-            "Set REA_JADX_MCP_JAR to a caller-supplied jadx-headless-mcp 0.7.1 JAR and provide Java on Linux or macOS. Only Linux has real-provider verification.",
+            policy.androidAnalysisAvailability?.reason ??
+            "Set REA_JADX_MCP_JAR to a caller-supplied jadx-headless-mcp 0.7.1 JAR and provide a full JDK on Linux or macOS.",
         };
   const browser = browserProviderAvailability(name, kind, policy);
   if (browser !== null) return browser;

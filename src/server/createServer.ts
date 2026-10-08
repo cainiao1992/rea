@@ -122,10 +122,6 @@ const installSessionToolAvailability = (
         options.firmwareAnalysis !== undefined ||
         (process.platform === "linux" &&
           isAbsolute(process.env.REA_UNBLOB_COMMAND ?? "")),
-      androidAnalysisEnabled:
-        options.androidAnalysis !== undefined ||
-        ((process.platform === "linux" || process.platform === "darwin") &&
-          isAbsolute(process.env.REA_JADX_MCP_JAR ?? "")),
       browserObservationEnabled: options.browserObservation !== undefined,
       javascriptRecoveryEnabled:
         options.javascriptRecovery !== undefined ||
@@ -176,6 +172,7 @@ export const createServer = (
   const startedAt = new Date().toISOString();
   const logger = options.logger ?? silentLogger;
   const server = createMcpServer(session);
+  const android = options.androidAnalysis ?? createAndroidAnalysisProvider();
   const availability = installSessionToolAvailability(server, session, options);
   const toolLogger = logger.child({ layer: "server" });
   const {
@@ -196,7 +193,6 @@ export const createServer = (
     recordEvidenceWithUnknown,
   };
   registerBinaryAnalysisTools(toolContext);
-  const android = options.androidAnalysis ?? createAndroidAnalysisProvider();
   const previousOnclose = server.server.onclose;
   server.server.onclose = () => {
     previousOnclose?.();
@@ -285,6 +281,8 @@ export const createServer = (
       ...(availability === undefined
         ? {}
         : { availabilityPolicy: availability.policy }),
+      androidAnalysisAvailability: (signal) =>
+        android.inspectAvailability(signal),
       startedAt,
     });
   }

@@ -23,7 +23,10 @@ import {
   hashAndroidFile,
   snapshotAndroidTarget,
 } from "./AndroidTargetSnapshot.js";
-import { resolveJadxConfiguration } from "./JadxConfiguration.js";
+import {
+  inspectJadxAvailability,
+  resolveJadxConfiguration,
+} from "./JadxConfiguration.js";
 import type { JadxLauncher } from "./JadxMcpTransport.js";
 
 import { JadxSession } from "./JadxSession.js";
@@ -175,6 +178,11 @@ export class JadxProvider implements AndroidAnalysisPort {
     readonly launcher?: JadxLauncher,
   ) {}
 
+  /** Report actual local prerequisites without starting JADX or opening a target. */
+  inspectAvailability(signal?: AbortSignal) {
+    return inspectJadxAvailability(this.environment, signal);
+  }
+
   /** Serialize expensive work and bind both raw and normalized results to the APK. */
   async execute(
     target: BinaryTarget,
@@ -267,6 +275,7 @@ export class JadxProvider implements AndroidAnalysisPort {
       const configuration = await resolveJadxConfiguration(
         this.environment,
         request.operation,
+        signal,
       );
       signal.throwIfAborted();
       const jarHash = await hashAndroidFile(configuration.jar);

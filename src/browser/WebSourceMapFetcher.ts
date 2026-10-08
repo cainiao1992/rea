@@ -12,7 +12,6 @@ import { isUrlLikeModuleSpecifier } from "../domain/webBundleAnalyzerAst.js";
 import { analyzeParsedJavaScriptReferences } from "../domain/javascript/javascriptSemanticAnalysis.js";
 import { traverseJavaScriptAst } from "../domain/javascript/javascriptSemanticTraversal.js";
 import { parseJavaScriptSource } from "../domain/javascript/javascriptSourceParser.js";
-import { hasValidSourceMapContents } from "../domain/sourceMapContents.js";
 import type {
   AnalyzeWebBundleInput,
   WebSourceMapItem,
@@ -22,9 +21,9 @@ import { webSourceMapsSchema } from "../domain/webBundleAnalysis.js";
 import { createWebTextArtifact } from "../domain/webContentArtifact.js";
 import { safeParseJson } from "../domain/safeJson.js";
 import {
-  flattenSourceMapLeaves,
-  isVersion3Map,
-} from "../domain/sourceMapEnvelope.js";
+  SourceMapFormatFailure,
+  validateSourceMapStructure,
+} from "../javascript/sourceMaps/SourceMapFormat.js";
 
 export interface WebSourceMapRequest {
   readonly scriptKey: string;
@@ -53,6 +52,11 @@ type ParsedSourceMapItem = Extract<
   SourceMapItem,
   { status: "included" | "partial" }
 >;
+interface SourceMapDecodeContext {
+  readonly signal: AbortSignal | undefined;
+  readonly deadlineAt: number;
+  readonly budget: { records: number };
+}
 
 /** Fetch and validate approved source maps without browser credentials. */
 export const fetchWebSourceMaps = async (
@@ -70,11 +74,17 @@ export const fetchWebSourceMaps = async (
   const abortFromCaller = (): void => operationController.abort(signal?.reason);
   signal?.addEventListener("abort", abortFromCaller, { once: true });
   const operationSignal = operationController.signal;
-  const budget = { retainedBytes: 0 };
+  const deadlineAt =
+    Date.now() + (host.timeoutMs ?? SOURCE_MAP_FETCH_TIMEOUT_MS);
+  const budget = {
+    retainedBytes: 0,
+    deadlineAt,
+    decodedRecords: { records: 0 },
+  };
   try {
     for (const request of requests) {
       if (signal?.aborted === true) throw signal.reason;
-      if (operationSignal.aborted) {
+      if (operationSignal.aborted || Date.now() >= deadlineAt) {
         items.push(
           emptySourceMapItem(
             request,
@@ -90,23 +100,26 @@ export const fetchWebSourceMaps = async (
     clearTimeout(timeout);
     signal?.removeEventListener("abort", abortFromCaller);
   }
-  const retained = items.filter(
-    ({ status }) => status === "included" || status === "partial",
-  ).length;
+  if (signal?.aborted === true) throw signal.reason;
   return webSourceMapsSchema.parse({
-    status:
-      items.length === 0
-        ? "unavailable"
-        : retained === items.length &&
-            !items.some(({ status }) => status === "partial")
-          ? "included"
-          : retained > 0
-            ? "partial"
-            : "unavailable",
+    status: sourceMapsStatus(items),
     requested: requests.length,
     processed: items.length,
     items,
   });
+};
+
+const sourceMapsStatus = (
+  items: readonly SourceMapItem[],
+): SourceMaps["status"] => {
+  const retained = items.filter(
+    ({ status }) => status === "included" || status === "partial",
+  ).length;
+  if (items.length === 0 || retained === 0) return "unavailable";
+  return retained === items.length &&
+    !items.some(({ status }) => status === "partial")
+    ? "included"
+    : "partial";
 };
 
 class SourceMapDeadlineError extends Error {
@@ -123,12 +136,23 @@ class SourceMapSizeLimitError extends Error {
   }
 }
 
+class SourceMapEncodingError extends Error {
+  constructor() {
+    super("Source-map response is not valid UTF-8.");
+    this.name = "SourceMapEncodingError";
+  }
+}
+
 const fetchOne = async (
   request: WebSourceMapRequest,
   input: AnalyzeWebBundleInput,
   signal: AbortSignal | undefined,
   host: SourceMapFetchHost,
-  budget: { retainedBytes: number },
+  budget: {
+    retainedBytes: number;
+    deadlineAt: number;
+    decodedRecords: { records: number };
+  },
 ): Promise<SourceMapItem> => {
   if (!approvedUrl(request.fetchUrl, input.allowed_origins))
     return emptySourceMapItem(
@@ -158,6 +182,7 @@ const fetchOne = async (
         `Source-map server returned HTTP ${String(response.status)}.`,
       );
     }
+    checkOperation(undefined, signal, budget.deadlineAt);
     return normalizeSourceMap(
       request,
       await readBoundedText(
@@ -167,6 +192,11 @@ const fetchOne = async (
         signal,
       ),
       fetchedUrl,
+      {
+        signal,
+        deadlineAt: budget.deadlineAt,
+        budget: budget.decodedRecords,
+      },
     );
   } catch (cause: unknown) {
     if (
@@ -174,6 +204,8 @@ const fetchOne = async (
       !(signal.reason instanceof SourceMapDeadlineError)
     )
       throw cause;
+    if (cause instanceof SourceMapEncodingError)
+      return emptySourceMapItem(request, "invalid", cause.message);
     return emptySourceMapItem(
       request,
       "fetch_failed",
@@ -260,7 +292,11 @@ const readBoundedText = async (
     joined.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return new TextDecoder().decode(joined);
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(joined);
+  } catch {
+    throw new SourceMapEncodingError();
+  }
 };
 
 const readWithAbort = <T>(
@@ -346,13 +382,15 @@ type EncodedBrowserSourceMap = EncodedSourceMap | SectionedSourceMap;
 
 /** Compose indexed offsets before upstream flattening, retaining parent clipping. */
 const sourceMapWithAbsoluteSections = (
-  text: string,
+  value: unknown,
+  check: () => void,
 ): EncodedBrowserSourceMap => {
-  const root = JSON.parse(text) as EncodedBrowserSourceMap;
+  const root = value as EncodedBrowserSourceMap;
   if (!("sections" in root)) return root;
   const sections: Section[] = [];
   const pending: Section[] = [{ map: root, offset: { line: 0, column: 0 } }];
   while (pending.length > 0) {
+    check();
     const node = pending.pop();
     if (node === undefined) break;
     if (!("sections" in node.map)) {
@@ -387,17 +425,31 @@ const normalizeSourceMap = (
   request: WebSourceMapRequest,
   text: string,
   fetchedUrl: string,
+  context: SourceMapDecodeContext,
 ): SourceMapItem => {
-  if (!validSourceMapEnvelope(text))
+  const parsedJson = safeParseJson(text);
+  if (!parsedJson.ok)
     return emptySourceMapItem(
       request,
       "invalid",
       "Source-map JSON is not a version 3 map.",
     );
   try {
-    const map = new AnyMap(sourceMapWithAbsoluteSections(text), fetchedUrl);
+    const check = (): void =>
+      checkOperation(undefined, context.signal, context.deadlineAt);
+    validateSourceMapStructure(parsedJson.value, {
+      profile: "browser-collection",
+      budget: context.budget,
+      check,
+    });
+    check();
+    const map = new AnyMap(
+      sourceMapWithAbsoluteSections(parsedJson.value, check),
+      fetchedUrl,
+    );
     const resolvedBySource = new Map<string, string>();
     const originalSources = map.sources.map((source, index) => {
+      if ((index & 255) === 0) check();
       const content = map.sourcesContent?.[index];
       const resolved =
         map.resolvedSources[index] ?? source ?? "[unknown-source]";
@@ -412,6 +464,7 @@ const normalizeSourceMap = (
     });
     const mappings: ParsedSourceMapItem["mappings"] = [];
     eachMapping(map, (mapping) => {
+      if ((mappings.length & 0x3fff) === 0) check();
       if (
         mapping.source === null ||
         mapping.originalLine === null ||
@@ -429,7 +482,8 @@ const normalizeSourceMap = (
         name: mapping.name ?? null,
       });
     });
-    const modules = originalModuleEdges(originalSources);
+    const modules = originalModuleEdges(originalSources, check);
+    check();
     const parsed = {
       ...sourceMapContext(request),
       artifact: createWebTextArtifact(text, "application/source-map+json"),
@@ -437,6 +491,7 @@ const normalizeSourceMap = (
       original_module_edges: modules.edges,
       mappings,
     };
+    check();
     return modules.incomplete.length === 0
       ? { ...parsed, status: "included", limitation: null }
       : {
@@ -445,11 +500,17 @@ const normalizeSourceMap = (
           limitation: `Module edges are incomplete: ${modules.incomplete.length} of ${originalSources.filter(({ artifact }) => artifact !== null).length} original sources could not be parsed in full (${modules.incomplete.join(", ")}).`,
         };
   } catch (cause: unknown) {
-    void cause;
+    if (cause instanceof SourceMapFormatFailure && cause.reason === "limit")
+      return emptySourceMapItem(request, "fetch_failed", cause.message);
+    if (
+      context.signal?.aborted === true ||
+      cause instanceof SourceMapDeadlineError
+    )
+      throw cause;
     return emptySourceMapItem(
       request,
       "invalid",
-      "Source-map mappings could not be decoded safely.",
+      "Source-map JSON mappings could not be decoded safely.",
     );
   }
 };
@@ -462,13 +523,16 @@ interface OriginalModuleEdges {
 
 const originalModuleEdges = (
   sources: ParsedSourceMapItem["original_sources"],
+  check: () => void,
 ): OriginalModuleEdges => {
   const edges: ParsedSourceMapItem["original_module_edges"] = [];
   const seen = new Set<string>();
   const incomplete: string[] = [];
   for (const source of sources) {
+    check();
     if (source.artifact === null) continue;
     const parsed = parseJavaScriptSource(source.artifact.text);
+    check();
     if (parsed === null) {
       incomplete.push(source.source);
       continue;
@@ -479,6 +543,7 @@ const originalModuleEdges = (
     let unboundRequires: ReadonlySet<string> | undefined;
     traverseJavaScriptAst(parsed, {
       enter: (node) => {
+        check();
         const dependency = originalDependency(node);
         if (dependency === null) return;
         const { kind, specifier } = dependency;
@@ -518,22 +583,15 @@ const originalModuleEdges = (
   return { edges, incomplete };
 };
 
-const validSourceMapEnvelope = (text: string): boolean => {
-  const parsedResult = safeParseJson(text);
-  if (!parsedResult.ok) return false;
-  const parsed: unknown = parsedResult.value;
-  if (isVersion3Map(parsed) && typeof parsed.mappings === "string")
-    return validSourceMapLeaf(parsed);
-  const leaves = flattenSourceMapLeaves(parsed, { validateOffsets: true });
-  if (leaves === undefined) return false;
-  return leaves.every(validSourceMapLeaf);
+const checkOperation = (
+  callerSignal: AbortSignal | undefined,
+  operationSignal: AbortSignal | undefined,
+  deadlineAt: number,
+): void => {
+  if (callerSignal?.aborted === true) throw callerSignal.reason;
+  if (operationSignal?.aborted === true) throw operationSignal.reason;
+  if (Date.now() >= deadlineAt) throw new SourceMapDeadlineError();
 };
-
-const validSourceMapLeaf = (map: Readonly<Record<string, unknown>>): boolean =>
-  typeof map.mappings === "string" &&
-  Array.isArray(map.sources) &&
-  Array.isArray(map.names) &&
-  hasValidSourceMapContents(map.sources.length, map.sourcesContent);
 
 const approvedUrl = (
   value: string,

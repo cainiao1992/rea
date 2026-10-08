@@ -44,13 +44,27 @@ it("snapshots caller-owned payloads before deriving their identity", () => {
 });
 
 describe("analysis evidence identity", () => {
-  it("normalizes prototype-named parameter keys", () => {
+  it("preserves prototype-named parameter keys and their semantic identity", () => {
     const evidence = createEvidence(TARGET, PROVIDER, {
       operation: "health",
       parameters: Object.fromEntries([["__proto__", false]]),
       result: true,
     });
+    expect(evidence.parameters).toEqual({ ["__proto__"]: false });
+    expect(Object.hasOwn(evidence.parameters, "__proto__")).toBe(true);
     expect(parseEvidence(evidence)).toEqual(evidence);
+    const stripped = createEvidence(TARGET, PROVIDER, {
+      operation: "health",
+      parameters: {},
+      result: true,
+    });
+    expect(stripped.evidence_id).not.toBe(evidence.evidence_id);
+    expect(() =>
+      parseEvidence({
+        ...evidence,
+        parameters: { ["__proto__"]: true },
+      }),
+    ).toThrow(/semantic identifier/u);
   });
 
   it.prop([
@@ -279,4 +293,28 @@ describe("evidence parameter depth bound", () => {
       ),
     ).toBe(true);
   });
+});
+
+it("preserves prototype-named raw and normalized results with aligned identity", () => {
+  const result = { ["__proto__"]: { preserved: 7 }, constructor: "ordinary" };
+  const evidence = createEvidence(TARGET, PROVIDER, {
+    operation: "health",
+    parameters: {},
+    result,
+    rawResult: result,
+  });
+  const parsed = parseEvidence(evidence);
+  expect(parsed.normalized_result).toEqual(result);
+  expect(parsed.raw_result).toEqual(result);
+  expect(Object.getPrototypeOf(parsed.normalized_result)).toBe(
+    Object.prototype,
+  );
+  expect(Reflect.get(Object.prototype, "preserved")).toBeUndefined();
+  const stripped = createEvidence(TARGET, PROVIDER, {
+    operation: "health",
+    parameters: {},
+    result: { constructor: "ordinary" },
+    rawResult: { constructor: "ordinary" },
+  });
+  expect(stripped.evidence_id).not.toBe(evidence.evidence_id);
 });

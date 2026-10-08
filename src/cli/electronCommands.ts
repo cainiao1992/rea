@@ -25,6 +25,7 @@ import {
 } from "../cliObservationOptions.js";
 import { runCliJavaScriptApplicationAnalysis } from "./javascriptApplicationAnalysis.js";
 import type { CliResultOutput } from "./streamedJsonOutput.js";
+import { withCommandCancellation } from "./commandCancellation.js";
 
 /** Register CLI equivalents of the Electron MCP tools. */
 export const registerElectronCommands = (
@@ -184,16 +185,19 @@ const registerJavaScriptApplicationCommand = (
     }),
     options: javascriptApplicationOptions,
     run: ({ args, options, format }) =>
-      logCliCommand(logger, CLI_COMMANDS.analyzeJavaScriptApplication, () =>
-        runCliJavaScriptApplicationAnalysis(
-          { input_path: args.path, format: options.artifactFormat },
-          resultOutput === undefined
-            ? undefined
-            : {
-                output: resultOutput,
-                command: CLI_COMMANDS.analyzeJavaScriptApplication,
-                format,
-              },
+      withCommandCancellation((signal) =>
+        logCliCommand(logger, CLI_COMMANDS.analyzeJavaScriptApplication, () =>
+          runCliJavaScriptApplicationAnalysis(
+            { input_path: args.path, format: options.artifactFormat },
+            resultOutput === undefined
+              ? undefined
+              : {
+                  output: resultOutput,
+                  command: CLI_COMMANDS.analyzeJavaScriptApplication,
+                  format,
+                },
+            signal,
+          ),
         ),
       ),
   });

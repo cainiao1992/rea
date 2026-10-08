@@ -16,6 +16,7 @@ import { scanCanonicalArtifactInventory } from "../../artifacts/inventory/Artifa
 import { summarizeElectronBoundaries } from "./ElectronBoundaryAnalysis.js";
 import { createJavaScriptSemanticGraphProjection } from "./JavaScriptSemanticGraphBuilder.js";
 import type { ProgressReporter } from "../ProgressReporter.js";
+import { checkpointJavaScriptAnalysis } from "./JavaScriptAnalysisControl.js";
 
 /** Application-layer result retaining local diagnostics outside the canonical graph. */
 export interface JavaScriptArtifactReconstructionResult {
@@ -50,6 +51,7 @@ export const reconstructJavaScriptArtifact = async (
 ): Promise<JavaScriptArtifactReconstructionResult> => {
   const reportPhase = async (phase: string, message: string): Promise<void> => {
     await progress?.report({ phase, completed: 0, total: 1, message });
+    await checkpointJavaScriptAnalysis(signal);
   };
   const input = javascriptArtifactReconstructionInputSchema.parse(rawInput);
   abortIfNeeded(signal);
@@ -87,6 +89,7 @@ export const reconstructJavaScriptArtifact = async (
         abortIfNeeded(signal);
       },
     );
+    await checkpointJavaScriptAnalysis(signal);
     abortIfNeeded(signal);
     await reportPhase(
       "build_javascript_application_graph",
@@ -102,6 +105,7 @@ export const reconstructJavaScriptArtifact = async (
       graph,
       analysis,
     );
+    await checkpointJavaScriptAnalysis(signal);
     return {
       input_path: path,
       format,

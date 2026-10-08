@@ -81,6 +81,15 @@ uses `cleanup_incomplete` and lists only the owned resource kinds that remain.
 Derived comparisons and reconstruction verification yield before computation
 and before publication, so cancellation cannot race with successful Evidence.
 
+`analyze_javascript_application` also yields between reconstruction phases and
+during complete-result sealing, Evidence JSON validation, and canonical hashing.
+Cancellation observed before completion returns `cancelled` and prevents the
+provisional result from entering the session ledger; prior Evidence stays usable.
+Single-file parsing, graph completion, and full application-result schema
+validation still run synchronously, so control messages can wait for those
+phases to release the event loop. A rejected client promise alone does not
+establish that the server has stopped its work.
+
 CLI calls work without a progress token and translate SIGINT into the same
 AbortSignal used by providers. Existing controlled-process cleanup and provider
 shutdown rules still apply; REA never kills a process it cannot prove it owns.

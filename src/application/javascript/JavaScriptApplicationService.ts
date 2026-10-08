@@ -13,7 +13,11 @@ import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.
 import { err, ok, type Result } from "../../domain/result.js";
 import { ProviderAdapterError } from "../../domain/providerAdapterError.js";
 import type { ExecutionOptions } from "../AnalysisProvider.js";
-import { createOwnedJavaScriptApplicationEvidence } from "./JavaScriptApplicationEvidence.js";
+import { createOwnedJavaScriptApplicationEvidenceCooperatively } from "./JavaScriptApplicationEvidence.js";
+import {
+  assertJavaScriptAnalysisActive,
+  checkpointJavaScriptAnalysis,
+} from "./JavaScriptAnalysisControl.js";
 import { reconstructJavaScriptArtifact } from "./JavaScriptArtifactReconstruction.js";
 import { JAVASCRIPT_APPLICATION_PROVIDER } from "../InvestigationProviders.js";
 
@@ -37,13 +41,15 @@ export const analyzeJavaScriptApplicationValidated = async (
   input: z.output<typeof analyzeJavaScriptApplicationInputSchema>,
   options: ExecutionOptions = {},
 ): Promise<Result<Evidence, AnalysisError>> => {
-  await options.progress?.report({
-    phase: "analyze_javascript_application",
-    completed: 0,
-    total: 1,
-    message: "Inventorying and parsing application artifacts",
-  });
   try {
+    assertJavaScriptAnalysisActive(options.signal);
+    await options.progress?.report({
+      phase: "analyze_javascript_application",
+      completed: 0,
+      total: 1,
+      message: "Inventorying and parsing application artifacts",
+    });
+    await checkpointJavaScriptAnalysis(options.signal);
     const reconstructed = await reconstructJavaScriptArtifact(
       {
         input_path: input.input_path,
@@ -59,6 +65,7 @@ export const analyzeJavaScriptApplicationValidated = async (
       total: 1,
       message: "Validating the application analysis result",
     });
+    await checkpointJavaScriptAnalysis(options.signal);
     const result = javascriptApplicationAnalysisResultSchema.parse({
       ...application,
       summary,
@@ -70,7 +77,15 @@ export const analyzeJavaScriptApplicationValidated = async (
       total: 1,
       message: "Creating and hashing application analysis Evidence",
     });
-    const evidence = createOwnedJavaScriptApplicationEvidence(input, result);
+    await checkpointJavaScriptAnalysis(options.signal);
+    const evidence =
+      await createOwnedJavaScriptApplicationEvidenceCooperatively(
+        input,
+        result,
+        options.signal,
+        options.progress,
+      );
+    await checkpointJavaScriptAnalysis(options.signal);
     await options.progress?.report({
       phase: "analyze_javascript_application",
       completed: 1,
@@ -78,6 +93,7 @@ export const analyzeJavaScriptApplicationValidated = async (
       message: "Application graph and Electron boundaries reconstructed",
       terminal: true,
     });
+    assertJavaScriptAnalysisActive(options.signal);
     return ok(evidence);
   } catch (cause: unknown) {
     if (cause instanceof ArtifactReaderFailure)

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { digestCanonicalValue } from "./canonicalDigest.js";
+import { canonicalJsonDigestSteps } from "./canonicalJsonDigestSteps.js";
 
 import {
   analysisProfileSchema,
@@ -11,6 +12,7 @@ import {
   jsonObjectSchema,
   jsonValueSchema,
   jsonValueValidationIssue,
+  jsonValueValidationSteps,
   type JsonValue,
 } from "./jsonValue.js";
 import {
@@ -223,7 +225,7 @@ const semanticProjection = (evidence: EvidenceWithoutId): JsonValue => ({
   evidence_links: evidence.evidence_links,
 });
 
-/** Recompute the semantic identifier, excluding paths and raw payload bytes. */
+/** Hash semantic content, including raw results and excluding display-subject fields. */
 const computeEvidenceId = (evidence: EvidenceWithoutId): string =>
   `ev_${digestCanonicalValue(semanticProjection(evidence), "Evidence")}`;
 
@@ -270,6 +272,50 @@ export const createEvidence = (
   provider: EvidenceProvider,
   observation: EvidenceObservation,
 ): Evidence => {
+  const { normalized, sharedResult } = normalizeEvidenceObservation(
+    target,
+    provider,
+    observation,
+  );
+  const evidence = {
+    ...normalized,
+    evidence_id: computeEvidenceId(normalized),
+  };
+  return sharedResult ? rememberImmutableEvidence(evidence) : evidence;
+};
+
+/** Create Evidence from owned immutable JSON while exposing cooperative computation steps. */
+export function* createImmutableEvidenceSteps(
+  target: EvidenceSubjectTarget | BinaryTarget | undefined,
+  provider: EvidenceProvider,
+  observation: EvidenceObservation,
+): Generator<void, Evidence> {
+  if (!isImmutableJsonSnapshot(observation.result))
+    throw new TypeError(
+      "Cooperative Evidence requires an authenticated immutable result",
+    );
+  // The envelope parser below retains its usual diagnostics, using the completed
+  // immutable validation rather than traversing the payload synchronously again.
+  yield* jsonValueValidationSteps(observation.result);
+  const { normalized } = normalizeEvidenceObservation(
+    target,
+    provider,
+    observation,
+  );
+  const digest = yield* canonicalJsonDigestSteps(
+    semanticProjection(normalized),
+  );
+  return rememberImmutableEvidence({
+    ...normalized,
+    evidence_id: `ev_${digest}`,
+  });
+}
+
+const normalizeEvidenceObservation = (
+  target: EvidenceSubjectTarget | BinaryTarget | undefined,
+  provider: EvidenceProvider,
+  observation: EvidenceObservation,
+) => {
   const subject =
     target === undefined
       ? null
@@ -339,9 +385,5 @@ export const createEvidence = (
   // The envelope has already been parsed into an independent snapshot. Only
   // its derived identifier changes here; parsing again clones the full payload
   // and recomputes the same digest while the previous snapshot is still live.
-  const evidence = {
-    ...normalized,
-    evidence_id: computeEvidenceId(normalized),
-  };
-  return sharedResult ? rememberImmutableEvidence(evidence) : evidence;
+  return { normalized, sharedResult };
 };

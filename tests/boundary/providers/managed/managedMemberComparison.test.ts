@@ -10,7 +10,10 @@ import {
   compareManagedMemberPaths,
 } from "../../../../src/application/managed/ManagedMemberComparisonService.js";
 import { parseBinaryTarget } from "../../../../src/application/BinaryTargetResolver.js";
-import { managedMemberComparisonResultSchema } from "../../../../src/domain/managed/managedMemberComparison.js";
+import {
+  managedMemberComparisonResultSchema,
+  parseManagedMemberEvidence,
+} from "../../../../src/domain/managed/managedMemberComparison.js";
 import { createEvidence } from "../../../../src/domain/evidence.js";
 import { projectAnalysisError } from "../../../../src/domain/analysisErrorProjection.js";
 import { jsonValueSchema } from "../../../../src/domain/jsonValue.js";
@@ -53,6 +56,71 @@ it.each([
     );
   },
 );
+
+describe("managed member comparison subject identity", () => {
+  it("rejects authenticated member Evidence whose subject digest differs from its artifact", () => {
+    const bytes = buildManagedPeFixture();
+    const target = managedPeFixtureTarget(bytes, "/fixture/mismatch.dll");
+    const inspection = inspectManagedMembersBytes(bytes, target);
+    const otherDigest = "b".repeat(64);
+    const mismatched = createEvidence(
+      target,
+      {
+        id: "partial-fixture",
+        name: "Partial fixture",
+        version: "1",
+      },
+      {
+        operation: "inspect_managed_members",
+        parameters: {},
+        result: jsonValueSchema.parse({
+          ...inspection,
+          artifact: { ...inspection.artifact, sha256: otherDigest },
+          identity_scope: {
+            ...inspection.identity_scope,
+            requires_artifact_sha256: otherDigest,
+          },
+        }),
+      },
+    );
+    const aligned = createEvidence(
+      target,
+      {
+        id: "partial-fixture",
+        name: "Partial fixture",
+        version: "1",
+      },
+      {
+        operation: "inspect_managed_members",
+        parameters: {},
+        result: inspection,
+      },
+    );
+    const unavailableSubject = createEvidence(
+      undefined,
+      {
+        id: "partial-fixture",
+        name: "Partial fixture",
+        version: "1",
+      },
+      {
+        operation: "inspect_managed_members",
+        parameters: {},
+        result: inspection,
+      },
+    );
+
+    expect(() => parseManagedMemberEvidence(mismatched)).toThrow(
+      `Managed Evidence inspect_managed_members (${mismatched.evidence_id}) subject SHA-256 ${target.sha256} does not match normalized artifact SHA-256 ${otherDigest}`,
+    );
+    expect(parseManagedMemberEvidence(aligned).result.artifact.sha256).toBe(
+      target.sha256,
+    );
+    expect(
+      parseManagedMemberEvidence(unavailableSubject).result.artifact.sha256,
+    ).toBe(target.sha256);
+  });
+});
 
 describe("managed member comparison path workflow", () => {
   it("preserves undecoded signatures as unknown through content-addressed partial Evidence", () => {

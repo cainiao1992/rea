@@ -308,6 +308,18 @@ snapshot is written by an independent real CLI session.
 They also start a real annotation and snapshot close concurrently: the edit
 must succeed, the snapshot must be rejected without creating a file, and the
 edited session must remain usable until explicitly closed.
+Source-admission probes change a caller-owned fixture after `open_binary` but
+before the first Ghidra query. They require an actionable `artifact_changed`
+error preserving both digests and the selected path, unchanged provider
+availability, failed-copy cleanup, and successful recovery after reopening.
+After import, deleting that source must preserve the captured database identity.
+Instruction inspection and containing-function lookup also agree across
+hexadecimal case, leading zeros, and encoded default address-space spellings.
+The same source-acquisition workflow exercises missing and directory-replaced
+inputs, plus real read-permission denial on a non-root host. Root runs report
+that permission-denial check as unverified. A focused filesystem integration
+check retains selected-platform routing and exclusive creation; two copy/digest
+checks duplicated by the real workflow have been removed.
 Malformed annotation readback, memory completeness, and inventory data remain separate
 SDK/provider integration cases; success from a real
 provider cannot establish rejection of a contradictory provider response.

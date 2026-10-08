@@ -110,6 +110,16 @@ After metadata edits, snapshot saves and imports remain unavailable in that
 session. Use `export_evidence_bundle` to retain the observations, close without
 `snapshot_path`, and reopen the target before importing or saving a snapshot.
 
+Ghidra checks its private import copy against the artifact digest selected by
+`open_binary`. If the source changes before that copy is acquired, the query
+reports `artifact_changed` with the selected path and both digests. Reopen the
+stable target to acquire its current identity. An already imported database
+continues to describe its captured bytes even if the original path is changed
+or removed; this identity failure does not mark the Ghidra installation unavailable.
+On Linux and macOS, an unreadable source reports `access_denied`; a removed or
+nonregular replacement reports `artifact_changed`. Source copying is cancellable
+and never replaces an existing private snapshot.
+
 ```bash
 rea inspect-native-instruction <binary> <address> --provider ghidra
 rea resolve-native-call-targets <binary> <call-site> --provider ghidra

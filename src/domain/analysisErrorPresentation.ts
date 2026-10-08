@@ -75,7 +75,7 @@ export const analysisErrorRemediationAction = (
   if (error instanceof AnalysisAccessDeniedError)
     return "Check the current process's read access to the selected path. Retry with a readable local file.";
   if (error instanceof AnalysisArtifactChangedError)
-    return "Wait until the selected file is stable, then retry this operation.";
+    return "Wait until the selected file is stable. For an active binary session, reopen the target with open_binary before retrying so REA acquires its current identity; for a CLI command or target-free tool, rerun the operation.";
   if (error instanceof AnalysisInputError)
     return "Correct the listed arguments and retry.";
   if (error instanceof UnknownRegistryError && error.reason === "not-found")

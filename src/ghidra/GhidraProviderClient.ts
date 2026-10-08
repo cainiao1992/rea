@@ -11,6 +11,8 @@ import type { AnalysisProfileCommitment } from "../domain/analysisProfile.js";
 import type { BinaryTarget } from "../domain/binaryTarget.js";
 import {
   AnalysisCancelledError,
+  AnalysisArtifactChangedError,
+  AnalysisAccessDeniedError,
   AnalysisCapabilityUnavailableError,
   AnalysisInputError,
   AnalysisResourceConstraintError,
@@ -319,6 +321,20 @@ const projectSessionError = (
   operation: AnalysisOperation,
   failure: GhidraSessionError,
 ): AnalysisError => {
+  if (failure.cause instanceof AnalysisAccessDeniedError)
+    return new AnalysisAccessDeniedError(
+      operation,
+      failure.cause.path,
+      failure.cause.systemCode,
+      { cause: failure },
+    );
+  if (failure.cause instanceof AnalysisArtifactChangedError)
+    return new AnalysisArtifactChangedError(
+      operation,
+      failure.cause.path,
+      failure.cause.reason,
+      { cause: failure },
+    );
   if (
     operation === "annotate_native_function" &&
     failure.kind === "remote" &&

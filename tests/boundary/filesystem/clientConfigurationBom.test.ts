@@ -14,10 +14,7 @@ import {
   configureClientConfiguration,
   inspectClientConfiguration,
 } from "../../../src/application/SetupClientConfiguration.js";
-import {
-  runUninstall,
-  systemUninstallHost,
-} from "../../../src/application/Uninstall.js";
+import { systemUninstallHost } from "../../../src/application/Uninstall.js";
 import { supportedClients } from "../../../src/application/SupportedClients.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
@@ -146,10 +143,9 @@ it("restores original BOM-prefixed JSONC bytes after update and removal", async 
     rea: clientRegistrationEntry(client.format, updatedCommand, {}),
   });
 
-  const result = await runUninstall(false, systemUninstallHost(home));
-  expect(result.status).toBe("complete");
-  expect(result.items).toContainEqual(
-    expect.objectContaining({ name: "cursor", status: "removed" }),
-  );
+  expect(await systemUninstallHost(home).removeClient(client)).toMatchObject({
+    name: "cursor",
+    status: "removed",
+  });
   expect(await readFile(client.configPath, "utf8")).toBe(original);
 });

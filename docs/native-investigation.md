@@ -12,6 +12,12 @@ input file and include the observed lipo slice offset for universal binaries.
 If that offset is unavailable, segment evidence locations are omitted with an
 explicit limitation; architecture inventory locations remain available.
 
+Native Xcode command execution uses shared process supervision with a 60-second
+deadline and a 64 MiB aggregate stdout/stderr budget. Timeout, cancellation,
+stream failure, and output exhaustion retain the captured output, exit details,
+and cleanup outcome in the error result. Truncated output is never parsed as a
+complete observation.
+
 - `trace_dylib_resolution` / `rea trace-dylib-resolution <app-or-mach-o>`
   parses Mach-O load commands in TypeScript and follows dyld's path expansion
   for every executable in an app bundle, or for one Mach-O within its directory.

@@ -91,7 +91,7 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "goto_address",
-    "Move Hopper's GUI cursor to a hexadecimal address and return the resolved address. This changes navigation state but not analysis data; use explicit-address tools for headless workflows.",
+    "Move Hopper's GUI cursor to a mapped address and return the observed cursor address. Interior coordinates snap to the containing analyzed object's start. Unmapped destinations fail without moving the cursor. This changes navigation state but not analysis data; use explicit-address tools for headless workflows.",
     z.object({ address, document }),
   ),
   official(
@@ -136,7 +136,7 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "prev_address",
-    "Return the previous analyzed instruction start before an explicit address or current cursor. This is a navigation primitive and may fail at document boundaries.",
+    "Return the previous analyzed object start before an explicit address or current cursor. This is a navigation primitive and may fail at document boundaries; data objects and instructions remain distinct from control flow.",
     z.object({ document, address: optionalAddress }),
   ),
   official(
@@ -161,7 +161,7 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "procedure_info",
-    "Return provider metadata for one procedure identified by symbol or address: entrypoint, signature, locals, size, block count, and complete inclusive body ranges when observed. Body byte count and enclosing span remain distinct; unavailable extent is explicit.",
+    "Return provider metadata for one procedure identified by symbol or address: entrypoint, signature, locals, size, block count, and complete inclusive body ranges when observed. Hopper locals preserve observed names and signed stack displacements; source types remain unknown. Body byte count and enclosing span remain distinct; unavailable extent is explicit.",
     z.object({ procedure, document }),
   ),
   official(
@@ -203,12 +203,12 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "set_address_name",
-    "Assign an analyst name to one hexadecimal address and report Hopper's boolean result. This mutates analysis metadata.",
+    "Assign an analyst name to one hexadecimal address and report Hopper's boolean result. Reject names owned by another address; use set_addresses_names to explicitly move or swap labels among selected addresses. This mutates analysis metadata.",
     z.object({ address, name: z.string(), document }),
   ),
   official(
     "set_addresses_names",
-    "Assign analyst names to multiple addresses in one call and return per-address success booleans. Hopper validates every address before applying names. This mutates analysis metadata; verify failures individually.",
+    "Assign analyst names to multiple addresses in one call and return per-address success booleans. Hopper validates addresses, native string representations, and unique destinations/names before applying edits. Existing labels may move or swap only among explicitly selected addresses; unselected label owners remain unchanged. This mutates analysis metadata; verify failures individually.",
     z.object({ names: z.record(z.string(), z.string()), document }),
   ),
   official(

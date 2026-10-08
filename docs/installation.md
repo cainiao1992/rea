@@ -319,6 +319,11 @@ document, even when GUI focus changes or other documents have the same display
 name. Use `open_binary` to change targets. Byte reads stop at a segment boundary
 and return the readable prefix with `complete: false`. File-offset mapping checks
 the reverse lookup; synthetic external-symbol memory has no original file offset.
+Cursor navigation returns the observed object start when Hopper snaps an interior
+address; adjacent-object navigation rejects unmapped inputs and document ends.
+Native API text rejects NUL characters and unpaired Unicode surrogates before
+annotation changes. Renames preserve unselected label owners; use a batch with
+all affected addresses to move or swap existing labels explicitly.
 
 Closing or switching a target closes its bound Hopper document, shuts down REA's
 bridge and removes its temporary socket directory while preserving the Hopper

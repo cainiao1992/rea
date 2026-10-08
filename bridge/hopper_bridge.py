@@ -191,12 +191,41 @@ def _document(name=None):
     return session_document
 
 
+def _api_text(value, field):
+    """Validate text before passing it to Hopper's native UTF-8 string API."""
+    if not isinstance(value, str):
+        raise InvalidRequestError("%s must be a string" % field)
+    if "\0" in value:
+        raise InvalidRequestError("%s contains a NUL character, which Hopper's Python API cannot represent" % field)
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError as error:
+        raise InvalidRequestError("%s contains an unpaired Unicode surrogate, which Hopper's Python API cannot represent" % field) from error
+    return value
+
+
+def _validate_name_targets(document, names):
+    """Keep Hopper's unique-label moves within the explicitly selected addresses."""
+    targets = {address for _, address, _ in names}
+    if len(targets) != len(names):
+        raise InvalidRequestError("Batch rename selects the same address more than once; use one canonical address per target")
+    labels = set()
+    for _, address, name in names:
+        if not name:
+            continue
+        if name in labels:
+            raise InvalidRequestError("Batch rename assigns the same name more than once: %s" % name)
+        labels.add(name)
+        owner = document.getAddressForName(name)
+        if owner not in BAD_ADDRESSES and owner != address and owner not in targets:
+            raise InvalidRequestError("Name %s is already assigned to %s; include that address in the batch with a replacement name" % (name, _hex(owner)))
+
+
 def _address(document, value=None):
     """Keep explicit hexadecimal coordinates distinct from symbol names."""
     if value is None:
         return document.getCurrentAddress()
-    if not isinstance(value, str):
-        raise InvalidRequestError("Address must be a string")
+    _api_text(value, "Address")
     if value.lower().startswith("0x"):
         try:
             address = int(value, 16)
@@ -250,14 +279,18 @@ def _procedure_identity(procedure):
 
 
 def _procedure_locals(procedure):
-    """Project opaque Hopper local-variable objects into an exact public shape."""
-    return [
-        {
-            "description": str(local),
+    """Preserve public local-variable names and observed stack displacements."""
+    result = []
+    for local in procedure.getLocalVariableList():
+        name = local.name()
+        displacement = local.displacement()
+        result.append({
+            "description": "%s (stack displacement %s)" % (name if name is not None else "Unnamed local", displacement),
+            "name": name,
+            "stack_displacement": str(displacement) if displacement is not None else None,
             "provenance": "hopper-public-python-api",
-        }
-        for local in procedure.getLocalVariableList()
-    ]
+        })
+    return result
 
 
 def _containing_procedure(document, address):
@@ -705,8 +738,13 @@ def _dispatch(method, params):
         return _procedure_name(_procedure(document))
     if method == "goto_address":
         address = _address(document, params.get("address"))
+        segment = _segment(document, address)
+        expected = segment.getInstructionStart(address)
         document.moveCursorAtAddress(address)
-        return _hex(address)
+        observed = document.getCurrentAddress()
+        if observed != (address if expected in BAD_ADDRESSES else expected):
+            raise InvalidRequestError("Hopper cursor did not reach the requested object at %s; observed %s" % (_hex(address), _hex(observed)))
+        return _hex(observed)
     if method in ("address_name", "comment", "inline_comment", "xrefs"):
         target = _address(document, params.get("address"))
         segment = _segment(document, target)
@@ -719,12 +757,22 @@ def _dispatch(method, params):
         return [_hex(value) for value in segment.getReferencesOfAddress(target)]
     if method in ("next_address", "prev_address"):
         target = _address(document, params.get("address"))
+        segment = _segment(document, target)
         if method == "next_address":
-            result = target + max(1, document.getObjectLength(target))
+            start = segment.getInstructionStart(target)
+            if start in BAD_ADDRESSES:
+                raise InvalidRequestError("No analyzed object exists at the requested address")
+            length = segment.getObjectLength(start)
+            if length in BAD_ADDRESSES or length <= 0:
+                raise InvalidRequestError("No next analyzed object exists at the requested address")
+            result = start + length
         else:
-            result = document.getInstructionStart(max(0, target - 1))
-        if result in BAD_ADDRESSES:
-            raise InvalidRequestError("No adjacent address")
+            previous_segment = document.getSegmentAtAddress(target - 1) if target > 0 else None
+            if previous_segment is None:
+                raise InvalidRequestError("No previous address exists in mapped memory")
+            result = previous_segment.getInstructionStart(target - 1)
+        if result in BAD_ADDRESSES or document.getSegmentAtAddress(result) is None:
+            raise InvalidRequestError("No adjacent analyzed object exists in mapped memory")
         return _hex(result)
     if method == "list_segments":
         result = []
@@ -801,8 +849,10 @@ def _dispatch(method, params):
             }
     if method == "set_address_name":
         address = _address(document, params.get("address"))
+        name = _api_text(params["name"], "Name")
+        _validate_name_targets(document, [(params.get("address"), address, name)])
         try:
-            result = document.setNameAtAddress(address, params["name"])
+            result = document.setNameAtAddress(address, name)
         finally:
             _invalidate_search_inventory(document)
             _invalidate_pseudocode(document)
@@ -810,7 +860,8 @@ def _dispatch(method, params):
     if method == "set_addresses_names":
         # Validate all destinations before applying any annotation. A malformed
         # later address must not discard the result of an earlier mutation.
-        names = [(key, _address(document, key), value) for key, value in params["names"].items()]
+        names = [(key, _address(document, key), _api_text(value, "Name for %s" % key)) for key, value in params["names"].items()]
+        _validate_name_targets(document, names)
         try:
             result = {key: document.setNameAtAddress(address, value) for key, address, value in names}
         finally:
@@ -819,18 +870,22 @@ def _dispatch(method, params):
         return result
     if method in ("set_comment", "set_inline_comment"):
         address = _address(document, params.get("address"))
+        comment = _api_text(params["comment"], "Comment")
         segment = _segment(document, address)
         setter = segment.setCommentAtAddress if method == "set_comment" else segment.setInlineCommentAtAddress
         getter = segment.getCommentAtAddress if method == "set_comment" else segment.getInlineCommentAtAddress
-        setter(address, params["comment"])
+        setter(address, comment)
         _invalidate_pseudocode(document)
         observed = getter(address)
-        return observed == params["comment"] or (params["comment"] == "" and observed is None)
+        return observed == comment or (comment == "" and observed is None)
     if method == "list_bookmarks":
         return [{"address": _hex(item), "name": document.getBookmarkName(item)} for item in document.getBookmarks()]
     if method == "set_bookmark":
         address = _address(document, params.get("address"))
-        document.setBookmarkAtAddress(address, params.get("name"))
+        name = params.get("name")
+        if name is not None:
+            _api_text(name, "Bookmark name")
+        document.setBookmarkAtAddress(address, name)
         return document.hasBookmarkAtAddress(address)
     if method == "unset_bookmark":
         address = _address(document, params.get("address"))

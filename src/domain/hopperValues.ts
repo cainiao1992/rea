@@ -212,6 +212,15 @@ export const localVariableSchema = z
   .object({
     description: z.string(),
     provenance: z.string().min(1),
+    name: z.string().nullable().exactOptional(),
+    stack_displacement: z
+      .string()
+      .regex(/^-?\d+$/u)
+      .nullable()
+      .exactOptional()
+      .describe(
+        "Observed signed stack byte displacement, encoded as decimal to preserve precision.",
+      ),
   })
   .strict();
 /** Provider-neutral complete raw-instruction list for one analyzed function. */

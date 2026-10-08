@@ -455,7 +455,8 @@ const analysisProfileForRoute = (
 ): AnalysisProfileCommitment | undefined => {
   const profile = route.profile;
   if (profile === null || profile === undefined) return undefined;
-  if (isWorkflowEvidenceTool(tool)) return workflowAnalysisProfile(profile);
+  if (isWorkflowEvidenceTool(tool))
+    return workflowAnalysisProfile(profile, tool);
   const provider = providerIdentityForRoute(route, tool);
   return provider.id === profile.provider.id ? profile : undefined;
 };

@@ -29,7 +29,12 @@ export const createWorkflowEvidence = (input: {
     result: input.result,
     ...(input.upstreamProfile === undefined
       ? {}
-      : { analysisProfile: workflowAnalysisProfile(input.upstreamProfile) }),
+      : {
+          analysisProfile: workflowAnalysisProfile(
+            input.upstreamProfile,
+            input.operation,
+          ),
+        }),
     confidence: "derived",
     limitations: ["Derived by an REA composed workflow."],
   });

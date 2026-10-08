@@ -62,6 +62,28 @@ describe("CDP connection", () => {
       await connection.close();
     }
   });
+
+  it("surfaces an unmodeled fake command as a CDP method rejection", async () => {
+    const browser = await startFakeCdpBrowser();
+    browsers.push(browser);
+    const connection = await CdpConnection.connect(
+      browser.browserWebSocketUrl,
+      "observe_web_session",
+    );
+    try {
+      await expect(
+        connection.send("Fixture.unmodeledMethod"),
+      ).rejects.toMatchObject({
+        _tag: "BrowserObservationError",
+        command: "Fixture.unmodeledMethod",
+        code: -32_601,
+        reportedMessage: "Method not found: Fixture.unmodeledMethod",
+      });
+    } finally {
+      await connection.close();
+    }
+  });
+
   it("preserves the selected payload limit reason for pending and subsequent commands", async () => {
     const browser = await startFakeCdpBrowser({
       commandResult: () => ({ oversized: "x".repeat(2_048) }),

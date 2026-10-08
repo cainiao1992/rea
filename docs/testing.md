@@ -30,6 +30,10 @@ one golden malformed-input case and a real filesystem lifecycle that proves
 configure, update, readback, and removal; an add-only journey does not cover the
 whole lifecycle.
 
+Protocol fixtures must model the commands they support and their producer reply
+shapes. Reject unmodeled commands instead of returning a generic success; an
+empty result is appropriate only for a supported command with no result fields.
+
 Keep transport-only in-memory MCP sessions in the MCP boundary lane and direct
 filesystem workflows in the filesystem boundary lane. Real process-tree capture
 belongs in the serial process boundary lane, including captures invoked through

@@ -73,10 +73,8 @@ const expectIsolatedEnvironment = (
     JAVA_HOME: javaHome,
     REA_PROCESS_RUN_ID: "d6fcbb66-e829-4ff6-a535-0035aec63139",
   });
-  expect(environment.PATH).toMatch(
-    process.platform === "win32"
-      ? /^C:\\Java\\jdk-21\\bin;/u
-      : /^\/opt\/jdk-21\/bin:/u,
+  expect(environment.PATH).toBe(
+    `${join(javaHome, "bin")}${process.platform === "win32" ? ";" : ":"}${process.env.PATH ?? ""}`,
   );
 };
 
@@ -200,7 +198,9 @@ describe("Ghidra headless launcher", () => {
     ).toThrow(/metacharacters/u);
   });
 
-  it("keeps authority in a private descriptor and isolates Ghidra state", async () => {
+  it.skipIf(process.platform !== "win32")(
+    "keeps authority in a private descriptor and isolates Ghidra state through the batch launcher",
+    async () => {
     vi.stubEnv("GHIDRA_JAVA_OPTIONS", "-javaagent:/unapproved/agent.jar");
     vi.stubEnv("JAVA_TOOL_OPTIONS", "-Duser.home=/unapproved/home");
     vi.stubEnv("JDK_JAVA_OPTIONS", "-XX:MaxRAMPercentage=99");
@@ -210,13 +210,12 @@ describe("Ghidra headless launcher", () => {
     runtimes.push(runtime);
     const runtimeRoot = runtime.path;
     const token = "secret-token-that-must-not-leak";
-    const javaHome =
-      process.platform === "win32" ? "C:\\Java\\jdk-21" : "/opt/jdk-21";
+    const javaHome = "C:\\Java\\jdk-21";
     const launcher = new GhidraHeadlessLauncher({
       analyzeHeadlessPath: fixturePath,
-      // This fixture exercises the official script route. Native macOS JVM
-      // launching is covered by the real Ghidra acceptance lane.
-      platform: process.platform === "win32" ? "win32" : "linux",
+      // POSIX follows the real inspected-JVM route; Windows uses the official
+      // batch script because its launcher contract differs.
+      platform: "win32",
       javaHome,
       bridgeScriptPath: "/package/bridge/ReaGhidraBridge.java",
     });
@@ -247,9 +246,7 @@ describe("Ghidra headless launcher", () => {
     });
     expectIsolatedEnvironment(capture.environment, runtimeRoot, javaHome);
     expect(capture.environment.GHIDRA_HEADLESS_JAVA_OPTIONS).toBe(
-      process.platform === "win32"
-        ? ""
-        : `-Duser.home=${join(runtimeRoot, "home")} -Djava.io.tmpdir=${join(runtimeRoot, "tmp")}`,
+      "",
     );
     if (process.platform !== "win32")
       expect(
@@ -259,5 +256,6 @@ describe("Ghidra headless launcher", () => {
     const cleaned = await launched.value.cleanup?.();
     expect(cleaned).toMatchObject({ cleaned: true });
     await expect(access(join(runtimeRoot, "project"))).resolves.toBeUndefined();
-  });
+    },
+  );
 });

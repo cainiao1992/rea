@@ -18,14 +18,13 @@ describe("Ghidra headless JVM environment", () => {
   });
 
   it.each(["linux", "darwin"] as const)(
-    "keeps the %s headless-script option list and clears inherited JDK options",
+    "passes %s isolated JVM paths through direct argv instead of script options",
     (platform) => {
       expect(
         ghidraHeadlessJavaOptions("/tmp/rea/home", "/tmp/rea/tmp", platform),
       ).toEqual({
         JDK_JAVA_OPTIONS: "",
-        GHIDRA_HEADLESS_JAVA_OPTIONS:
-          "-Duser.home=/tmp/rea/home -Djava.io.tmpdir=/tmp/rea/tmp",
+        GHIDRA_HEADLESS_JAVA_OPTIONS: "",
       });
     },
   );

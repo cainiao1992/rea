@@ -45,9 +45,9 @@ export const resolveGhidraAnalysisProfile = (
         function_references: "complete-body-and-entry-reference-manager-v2",
         location_resolution: "explicit-address-exact-name-first-v2",
         process_launch:
-          installation.platform === "darwin"
-            ? "inspected-jvm-launch-support-v1"
-            : "official-headless-script-v1",
+          installation.platform === "win32"
+            ? "official-headless-script-v1"
+            : "inspected-jvm-launch-support-v1",
         ...(dos
           ? {
               load_image_evidence: dosCom

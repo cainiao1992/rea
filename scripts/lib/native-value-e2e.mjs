@@ -80,7 +80,7 @@ export async function verifyNativeValueE2e(
   const workspace = await mkdtemp(join(tmpdir(), "rea-native-values-e2e-"));
   const runtime = join(
     workspace,
-    `runtime${process.platform === "darwin" ? " with spaces" : ""}-${"x".repeat(100)}`,
+    `runtime${process.platform === "win32" ? "" : " with spaces"}-${"x".repeat(100)}`,
   );
   await mkdir(runtime);
   const env = { ...environment(), TMPDIR: runtime };

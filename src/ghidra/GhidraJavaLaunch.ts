@@ -3,6 +3,7 @@ import { execFileOutput } from "../process/ExecFileOutput.js";
 
 /** Launch coordinates obtained from Ghidra's own release configuration helper. */
 export const ghidraJavaLaunch = async (options: {
+  readonly platform: NodeJS.Platform;
   readonly analyzeHeadlessPath: string;
   readonly javaHome: string;
   readonly homeRoot: string;
@@ -71,7 +72,7 @@ export const ghidraJavaLaunch = async (options: {
     environment,
     arguments: [
       ...vmArguments,
-      "-Xdock:name=Ghidra-Headless",
+      ...(options.platform === "darwin" ? ["-Xdock:name=Ghidra-Headless"] : []),
       `-Xmx${environment.GHIDRA_HEADLESS_MAXMEM || environment.GHIDRA_MAXMEM || "2G"}`,
       "-XX:ParallelGCThreads=2",
       "-XX:CICompilerCount=2",

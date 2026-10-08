@@ -139,13 +139,14 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
         platform,
         scriptCommand.command,
       );
-      if (platform === "darwin" && this.options.javaHome === undefined)
+      if (platform !== "win32" && this.options.javaHome === undefined)
         throw new GhidraLaunchError(
-          "macOS Ghidra requires its inspected JDK home",
+          "POSIX Ghidra requires its inspected JDK home",
         );
       const command =
-        platform === "darwin" && this.options.javaHome !== undefined
+        platform !== "win32" && this.options.javaHome !== undefined
           ? await ghidraJavaLaunch({
+              platform,
               analyzeHeadlessPath: this.options.analyzeHeadlessPath,
               javaHome: this.options.javaHome,
               homeRoot: paths.homeRoot,
@@ -161,9 +162,9 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
         command: command.command,
         arguments: command.arguments,
         runId: session.runId,
-        // macOS launches the inspected JVM directly: platform shell wrappers
-        // with withheld environments cannot establish run-token ownership.
-        expectedCommand: platform === "darwin" ? command.command : null,
+        // POSIX launches the inspected JVM directly; script wrappers cannot
+        // preserve JVM property paths containing spaces as single arguments.
+        expectedCommand: platform !== "win32" ? command.command : null,
         windowsVerbatimArguments: platform === "win32",
         platform,
         env: command.environment,
@@ -441,7 +442,7 @@ const ghidraLaunchEnvironment = (
   };
 };
 
-/** Encode provider-owned JVM paths for the parser that actually consumes them. */
+/** Encode provider-owned JVM paths for the platform launcher that consumes them. */
 export const ghidraHeadlessJavaOptions = (
   homeRoot: string,
   tempRoot: string,
@@ -451,20 +452,16 @@ export const ghidraHeadlessJavaOptions = (
   "JDK_JAVA_OPTIONS" | "GHIDRA_HEADLESS_JAVA_OPTIONS"
 > => {
   const options = [`-Duser.home=${homeRoot}`, `-Djava.io.tmpdir=${tempRoot}`];
-  // analyzeHeadless.bat quotes VMARG_LIST, then launch.bat expands it again.
-  // Inner quotes fail in cmd.exe; unquoted paths with spaces split at the JVM.
-  // JDK_JAVA_OPTIONS is parsed by Java itself, outside that batch expansion.
-  return platform === "win32"
-    ? {
-        JDK_JAVA_OPTIONS: [...options, "-XX:-UsePerfData"]
-          .map(quoteWindowsBatchToken)
-          .join(" "),
-        GHIDRA_HEADLESS_JAVA_OPTIONS: "",
-      }
-    : {
-        JDK_JAVA_OPTIONS: "",
-        GHIDRA_HEADLESS_JAVA_OPTIONS: options.join(" "),
-      };
+  if (platform === "win32")
+    return {
+      JDK_JAVA_OPTIONS: [...options, "-XX:-UsePerfData"]
+        .map(quoteWindowsBatchToken)
+        .join(" "),
+      GHIDRA_HEADLESS_JAVA_OPTIONS: "",
+    };
+  // POSIX launches the JVM directly, so these properties travel as separate
+  // argv items instead of the shell-split analyzeHeadless option list.
+  return { JDK_JAVA_OPTIONS: "", GHIDRA_HEADLESS_JAVA_OPTIONS: "" };
 };
 
 const isAborted = (signal?: AbortSignal): boolean => signal?.aborted === true;

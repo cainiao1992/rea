@@ -470,35 +470,24 @@ const normalizeSourceMap = (
     const sourceJsonBytes = new Map<string, number>();
     const nameJsonBytes = new Map<string, number>();
     const originalSources: ParsedSourceMapItem["original_sources"] = [];
-    let sourceBytes = 0;
     for (const { leaf, resolvedSources } of decoded) {
       for (const [index, rawSource] of leaf.map.sources.entries()) {
         if ((index & 255) === 0) check();
         const resolved =
           resolvedSources[index] ?? rawSource ?? "[unknown-source]";
         const sanitized = cachedSanitized(sourcesByRaw, resolved);
-        sourceBytes +=
+        const content = leaf.map.sourcesContent?.[index] ?? null;
+        consumeExpandedBytes(
+          context.budget,
           cachedJsonBytes(sourceJsonBytes, sanitized) +
-          sourceEntryOverheadBytes();
-        const content = leaf.map.sourcesContent?.[index] ?? null;
-        if (content !== null)
-          sourceBytes +=
-            jsonBytes(content) +
-            artifactMetadataBytes(sourceMediaType(rawSource), content) -
-            4;
-      }
-    }
-    consumeExpandedBytes(
-      context.budget,
-      sourceBytes + originalSourcesCount(decoded),
-    );
-    for (const { leaf, resolvedSources } of decoded) {
-      for (const [index, rawSource] of leaf.map.sources.entries()) {
-        if ((index & 255) === 0) check();
-        const resolved =
-          resolvedSources[index] ?? rawSource ?? "[unknown-source]";
-        const sanitized = cachedSanitized(sourcesByRaw, resolved);
-        const content = leaf.map.sourcesContent?.[index] ?? null;
+            sourceEntryOverheadBytes() +
+            (originalSources.length === 0 ? 0 : 1) +
+            (content === null
+              ? 0
+              : jsonBytes(content) +
+                artifactMetadataBytes(sourceMediaType(rawSource), content) -
+                4),
+        );
         originalSources.push({
           source: sanitized,
           artifact:
@@ -508,39 +497,6 @@ const normalizeSourceMap = (
         });
       }
     }
-    let mappingBytes = 0;
-    let mappingCount = 0;
-    for (const { leaf, rows, resolvedSources } of decoded)
-      for (const [line, row] of rows.entries()) {
-        if ((line & 255) === 0) check();
-        for (const segment of row) {
-          if (!isBeforeSourceMapLeafStop(leaf, line, segment[0])) continue;
-          if (segment.length === 1) continue;
-          const rawSource = leaf.map.sources[segment[1]];
-          const source = cachedSanitized(
-            sourcesByRaw,
-            resolvedSources[segment[1]] ?? rawSource ?? "[unknown-source]",
-          );
-          const name =
-            segment.length === 5 ? (leaf.map.names[segment[4]] ?? null) : null;
-          mappingBytes +=
-            cachedJsonBytes(sourceJsonBytes, source) +
-            (name === null ? 4 : cachedJsonBytes(nameJsonBytes, name)) +
-            mappingRowBytes(
-              leaf.offset.line + line + 1,
-              segment[0] + (line === 0 ? leaf.offset.column : 0),
-              segment[2] + 1,
-              segment[3],
-            );
-          mappingCount += 1;
-          if (
-            mappingBytes >
-            WEB_SOURCE_MAP_LIMITS.outputBytes - context.budget.expandedBytes
-          )
-            throw expandedOutputFailure();
-        }
-      }
-    consumeExpandedBytes(context.budget, mappingBytes + mappingCount);
     const mappings: ParsedSourceMapItem["mappings"] = [];
     for (const { leaf, rows, resolvedSources } of decoded)
       for (const [line, row] of rows.entries()) {
@@ -554,10 +510,24 @@ const normalizeSourceMap = (
           const source = cachedSanitized(sourcesByRaw, resolved);
           const name =
             segment.length === 5 ? (leaf.map.names[segment[4]] ?? null) : null;
+          const generatedLine = leaf.offset.line + line + 1;
+          const generatedColumn =
+            segment[0] + (line === 0 ? leaf.offset.column : 0);
+          consumeExpandedBytes(
+            context.budget,
+            cachedJsonBytes(sourceJsonBytes, source) +
+              (name === null ? 4 : cachedJsonBytes(nameJsonBytes, name)) +
+              mappingRowBytes(
+                generatedLine,
+                generatedColumn,
+                segment[2] + 1,
+                segment[3],
+              ) +
+              (mappings.length === 0 ? 0 : 1),
+          );
           mappings.push({
-            generated_line: leaf.offset.line + line + 1,
-            generated_column:
-              segment[0] + (line === 0 ? leaf.offset.column : 0),
+            generated_line: generatedLine,
+            generated_column: generatedColumn,
             source,
             original_line: segment[2] + 1,
             original_column: segment[3],
@@ -857,11 +827,6 @@ const sourceMapSuccessReservation = (request: WebSourceMapRequest): number => {
 
 const sourceEntryOverheadBytes = (): number =>
   Buffer.byteLength('{"source":,"artifact":null}');
-
-const originalSourcesCount = (
-  decoded: ReturnType<typeof decodeValidatedSourceMapLeaves>,
-): number =>
-  decoded.reduce((count, { leaf }) => count + leaf.map.sources.length, 0);
 
 const cachedJsonBytes = (cache: Map<string, number>, value: string): number => {
   const cached = cache.get(value);

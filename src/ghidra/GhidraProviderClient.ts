@@ -132,9 +132,7 @@ export const createGhidraProviderClient = (input: {
     platform: installation.platform,
     launcher: new GhidraHeadlessLauncher({
       analyzeHeadlessPath: prerequisites.value.analyzeHeadlessPath,
-      ...(config.ghidraJavaHome === undefined
-        ? {}
-        : { javaHome: config.ghidraJavaHome }),
+      javaHome: prerequisites.value.javaHome,
       bridgeScriptPath: fileURLToPath(
         new URL("../../bridge/ghidra/ReaGhidraBridge.java", import.meta.url),
       ),
@@ -266,6 +264,7 @@ export const createGhidraProviderClient = (input: {
 
 interface GhidraClientCoordinates {
   readonly analyzeHeadlessPath: string;
+  readonly javaHome: string;
   readonly providerVersion: string;
   readonly profile: AnalysisProfileCommitment;
 }
@@ -304,6 +303,7 @@ const ghidraClientPrerequisites = (
     return err(new ProviderAdapterError("ghidra", "health"));
   return ok({
     analyzeHeadlessPath: installation.analyzeHeadlessPath,
+    javaHome: installation.javaHome,
     providerVersion: installation.providerVersion,
     profile,
   });
@@ -341,7 +341,9 @@ const projectSessionError = (
       failure.remoteCode ?? "",
     )
   )
-    return new AnalysisInputError(operation, { cause: failure });
+    return new AnalysisInputError(operation, { cause: failure }, [
+      { path: [], reason: "invalid_value", message: failure.message },
+    ]);
   if (failure.kind === "remote" && failure.remoteCode === "method_unavailable")
     return new AnalysisCapabilityUnavailableError(
       "ghidra",

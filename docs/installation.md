@@ -411,7 +411,17 @@ home/cache/config/temp paths. REA passes `-readOnly`, `-deleteProject`, uses
 Ghidra's default analysis and resource settings, and loads its packaged Java
 bridge via `-scriptPath`; it never opens an existing user project. Linux and
 macOS use a current-user-only local bridge socket and descriptor. The
-experimental Windows transport uses authenticated IPv4 loopback with a
+project remains under the selected temporary directory. If its Unix socket
+pathname would exceed the host's byte limit, REA allocates a separate mode-0700
+socket directory under `/tmp` and removes it on close, cancellation, or failure.
+Diagnostics retain the actual endpoint and both owned directories.
+On macOS, REA starts the inspected JVM directly using Ghidra's own LaunchSupport
+configuration. Apple platform shell wrappers hide their environments from
+ownership inspection, so retaining those wrappers would prevent verified
+process-group cancellation during startup.
+If ownership remains unverifiable, it reports the reason and retains the process
+supervisor and private runtime instead of removing files beneath a live provider.
+The experimental Windows transport uses authenticated IPv4 loopback with a
 private native-owned bearer descriptor and Job Object process ownership.
 
 Operations begin only after default auto-analysis completes. `open_binary`

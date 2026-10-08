@@ -72,6 +72,14 @@ explicit limitation; architecture inventory locations remain available.
 
 Ghidra supplies three exact-object operations:
 
+Ghidra accepts hexadecimal addresses with or without a `0x` prefix, in either
+letter case, and explicit address-space coordinates such as `EXTERNAL:0x1`.
+Results use canonical lowercase hexadecimal offsets. For a procedure identifier,
+an explicit `0x` or address-space prefix selects an address; otherwise an exact
+database symbol name takes precedence over a bare hexadecimal address. Thus a
+function renamed to `dead` remains selectable by name. Use the names returned
+by the inventory, including their namespaces and any platform symbol prefix.
+
 ```bash
 rea inspect-native-instruction <binary> <address> --provider ghidra
 rea resolve-native-call-targets <binary> <call-site> --provider ghidra

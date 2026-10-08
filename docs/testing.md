@@ -236,6 +236,15 @@ The host-native Ghidra lane also verifies native value tracing through the
 production CLI and a separate stdio MCP process. It compares complete dependency
 graphs, validates Evidence and upstream/workflow profiles, checks capability
 discovery, and closes the MCP session. No provider or transport is mocked.
+It also validates every advertised input/output JSON Schema and the exercised
+MCP outputs, probes address spelling and name/address ambiguity, and checks
+direct versus targetless calls, byte-read completeness, invalid input diagnostics,
+CLI/MCP parity, atomic annotation rollback, refreshed inventories, unchanged
+executable bytes, and discarded edits after reopen. A deliberately long temporary
+path exercises private Unix socket allocation and cleanup, including cancellation
+after a real headless process launches. Malformed annotation
+readback remains a separate SDK/provider integration case; success from a real
+provider cannot establish rejection of a contradictory provider response.
 
 The Linux switch lane checks dense, sparse-with-holes, shared-body, nonzero,
 negative, and nonexact JSON integer labels plus a comparison-only control.

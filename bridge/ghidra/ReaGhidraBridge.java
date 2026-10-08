@@ -1581,33 +1581,35 @@ public final class ReaGhidraBridge extends HeadlessScript {
     }
 
     private Function resolveProcedure(String value) throws Exception {
-        Address address = tryParseAddress(value);
-        if (address != null) {
-            Function function = currentProgram.getFunctionManager().getFunctionAt(address);
-            if (function == null && address.isMemoryAddress()) {
-                function = currentProgram.getFunctionManager().getFunctionContaining(address);
+        // Explicit address syntax wins; an unprefixed identifier is first an
+        // exact symbol name, even when every character is a hexadecimal digit.
+        boolean explicitAddress = value.matches("(?i)^0x[0-9a-f]+$") ||
+            value.matches("(?i)^(?:[a-z0-9._~-]|%[0-9a-f]{2})+:0x[0-9a-f]+$");
+        if (!explicitAddress) {
+            List<Function> matches = new ArrayList<>();
+            for (FunctionEntry entry : procedures()) {
+                monitor.checkCancelled();
+                Function function = entry.function;
+                Symbol symbol = function.getSymbol();
+                String qualified = symbol == null ? function.getName() : symbol.getName(true);
+                if (function.getName().equals(value) || qualified.equals(value)) {
+                    matches.add(function);
+                }
             }
-            if (function == null) {
-                throw new RequestFailure("not_found", "No procedure exists at the requested address");
-            }
-            return function;
+            if (matches.size() > 1)
+                throw new RequestFailure("ambiguous", "Ghidra procedure name is ambiguous: " + value);
+            if (matches.size() == 1) return matches.get(0);
         }
-        List<Function> matches = new ArrayList<>();
-        for (FunctionEntry entry : procedures()) {
-            Function function = entry.function;
-            Symbol symbol = function.getSymbol();
-            String qualified = symbol == null ? function.getName() : symbol.getName(true);
-            if (function.getName().equals(value) || qualified.equals(value)) {
-                matches.add(function);
-            }
-        }
-        if (matches.isEmpty()) {
-            throw new RequestFailure("not_found", "Unknown Ghidra procedure name");
-        }
-        if (matches.size() != 1) {
-            throw new RequestFailure("ambiguous", "Ghidra procedure name is ambiguous");
-        }
-        return matches.get(0);
+        // Retain legacy bare-hex address input only when no symbol matches.
+        Address address = explicitAddress ? parseReaAddress(value) : tryParseAddress(value);
+        if (address == null)
+            throw new RequestFailure("not_found", "Unknown Ghidra procedure name or address: " + value);
+        Function function = currentProgram.getFunctionManager().getFunctionAt(address);
+        if (function == null && address.isMemoryAddress())
+            function = currentProgram.getFunctionManager().getFunctionContaining(address);
+        if (function == null)
+            throw new RequestFailure("not_found", "No procedure exists at the requested address: " + value);
+        return function;
     }
 
     private JsonObject nativeApiBoundary(
@@ -2947,7 +2949,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
     private Address parseReaAddress(String value) {
         Address address = tryParseAddress(value);
         if (address == null) {
-            throw new RequestFailure("invalid_request", "Unknown or invalid Ghidra address");
+            throw new RequestFailure("invalid_request", "Unknown or invalid Ghidra address: " + value);
         }
         return address;
     }
@@ -2956,12 +2958,12 @@ public final class ReaGhidraBridge extends HeadlessScript {
         try {
             String spaceName = null;
             String offset = value;
-            int separator = value.lastIndexOf(":0x");
+            int separator = value.toLowerCase(Locale.ROOT).lastIndexOf(":0x");
             if (separator >= 0) {
                 spaceName = decodeAddressSpace(value.substring(0, separator));
                 offset = value.substring(separator + 3);
             }
-            else if (value.startsWith("0x")) {
+            else if (value.startsWith("0x") || value.startsWith("0X")) {
                 offset = value.substring(2);
             }
             if (!offset.matches("[0-9A-Fa-f]+")) {
@@ -3055,7 +3057,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
             );
         }
         catch (PatternSyntaxException exception) {
-            throw new RequestFailure("invalid_request", "Invalid regex pattern");
+            throw new RequestFailure("invalid_request", "Invalid regex pattern " + expression + ": " + exception.getDescription() + " at index " + exception.getIndex());
         }
         return value -> pattern.matcher(value).find();
     }
@@ -3114,7 +3116,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
     private void requireDocument(JsonObject params) {
         String document = optionalString(params, "document");
         if (document != null && !document.equals(currentProgram.getName())) {
-            throw new RequestFailure("not_found", "Unknown Ghidra Program identity");
+            throw new RequestFailure("not_found", "Unknown Ghidra Program identity: " + document + "; active program: " + currentProgram.getName());
         }
     }
 

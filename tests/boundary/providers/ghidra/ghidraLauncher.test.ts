@@ -214,6 +214,9 @@ describe("Ghidra headless launcher", () => {
       process.platform === "win32" ? "C:\\Java\\jdk-21" : "/opt/jdk-21";
     const launcher = new GhidraHeadlessLauncher({
       analyzeHeadlessPath: fixturePath,
+      // This fixture exercises the official script route. Native macOS JVM
+      // launching is covered by the real Ghidra acceptance lane.
+      platform: process.platform === "win32" ? "win32" : "linux",
       javaHome,
       bridgeScriptPath: "/package/bridge/ReaGhidraBridge.java",
     });

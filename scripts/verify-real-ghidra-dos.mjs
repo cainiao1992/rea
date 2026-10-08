@@ -99,7 +99,7 @@ try {
   });
   const target = await call("open_binary", {
     path: targetPath,
-    provider: "ghidra",
+    provider_id: "ghidra",
   });
   opened = true;
   assert.equal(target.format, "dos-mz");
@@ -562,9 +562,8 @@ async function evidenceCall(name, arguments_) {
     normalized_result: result.structuredContent?.result,
   });
   assert.equal(evidence.subject.digest.sha256, sha256);
-  assert.equal(evidence.provider.id, "rea-workflow");
-  assert.equal(evidence.analysis_profile.provider.id, "rea-workflow");
-  assertProfile(evidence.analysis_profile.parameters.upstream_analysis_profile);
+  assert.equal(evidence.provider.id, "ghidra");
+  assertProfile(evidence.analysis_profile);
   return evidence;
 }
 async function cliEvidence(command, procedure, options = []) {

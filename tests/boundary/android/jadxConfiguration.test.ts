@@ -195,11 +195,16 @@ it("distinguishes an unreported Java version from an unsupported old version", a
   );
   await chmod(join(unresolvedHome, "bin", "java"), 0o700);
   await expect(
-    inspectJadxAvailability({ REA_JADX_MCP_JAR: jar, JAVA_HOME: unresolvedHome }),
+    inspectJadxAvailability({
+      REA_JADX_MCP_JAR: jar,
+      JAVA_HOME: unresolvedHome,
+    }),
   ).resolves.toMatchObject({
     status: "unavailable",
     code: "version_unresolved",
-    reason: expect.stringContaining("did not report a parseable java.base version"),
+    reason: expect.stringContaining(
+      "did not report a parseable java.base version",
+    ),
     diagnostics: { stdout: "jdk.compiler@21\n", java_major: null },
   });
 

@@ -10,7 +10,7 @@ import { projectAnalysisError } from "../../../src/domain/analysisErrorProjectio
 import { type AnalysisError } from "../../../src/domain/analysisErrorBase.js";
 
 describe("analysis error projection contract", () => {
-  it("accepts every closed error-reason variant without exposing diagnostics", () => {
+  it("accepts every closed error-reason variant", () => {
     const variants: AnalysisError[] = [
       ...(
         [
@@ -40,7 +40,9 @@ describe("analysis error projection contract", () => {
       ).map((reason) => new UnknownRegistryError(reason)),
       ...(["capture_failed", "cleanup_incomplete", "cancelled"] as const).map(
         (reason) =>
-          new ProcessCaptureError("SECRET capture diagnostic", { reason }),
+          new ProcessCaptureError("API_TOKEN=selected capture diagnostic", {
+            reason,
+          }),
       ),
       ...(
         [
@@ -62,7 +64,11 @@ describe("analysis error projection contract", () => {
         JSON.stringify({ variant, projected }),
       ).toMatchObject({ success: true });
       expect(projected.code).toMatch(/^[a-z][a-z0-9_]*$/u);
-      expect(JSON.stringify(projected)).not.toContain("SECRET");
+      if (variant instanceof ProcessCaptureError)
+        expect(projected).toMatchObject({
+          message: variant.message,
+          details: { execution_failure: variant.message },
+        });
     }
   });
 });

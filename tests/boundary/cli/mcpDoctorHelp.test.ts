@@ -7,11 +7,15 @@ const execute = promisify(execFile);
 
 const runCli = async (arguments_: readonly string[]) => {
   try {
-    const result = await execute(process.execPath, ["scripts/rea.mjs", ...arguments_], {
-      cwd: process.cwd(),
-      env: { ...process.env, REA_LOG_LEVEL: "silent" },
-      timeout: 15_000,
-    });
+    const result = await execute(
+      process.execPath,
+      ["scripts/rea.mjs", ...arguments_],
+      {
+        cwd: process.cwd(),
+        env: { ...process.env, REA_LOG_LEVEL: "silent" },
+        timeout: 15_000,
+      },
+    );
     return { exitCode: 0, ...result };
   } catch (cause: unknown) {
     if (
@@ -46,5 +50,7 @@ it("shows MCP doctor help without starting a server and keeps option errors acti
 
   const invalid = await runCli(["mcp", "doctor", "--not-an-option"]);
   expect(invalid.exitCode).toBe(1);
-  expect(invalid.stdout).toContain("Unknown mcp doctor option: --not-an-option");
+  expect(invalid.stdout).toContain(
+    "Unknown mcp doctor option: --not-an-option",
+  );
 });

@@ -34,33 +34,43 @@ const connect = async (environment: NodeJS.ProcessEnv) => {
   return client;
 };
 
-cliTest.skipIf(process.platform === "win32")(
-  "preserves the selected APK configuration through the compiled CLI and MCP factories",
-  async ({ cli }) => {
-    const root = await createTestTempDirectory("rea-android-composition-");
-    const apk = join(root, "fixture.apk");
-    await writeOrderedZip(apk, ["AndroidManifest.xml", "classes.dex"]);
-    const environment = {
-      REA_LOG_LEVEL: "silent",
-      JAVA_HOME: "relative-fixture-jdk",
-    };
-    const cliResult = await cli.run({
-      arguments: ["inspect-android-package", apk, "--json"],
-      environment,
-      timeoutMs: 10_000,
-    });
-    expect(cliResult.exitCode).toBe(1);
-    expect(cliResult.json).toMatchObject({ code: "capability_unavailable" });
-    const client = await connect(environment);
-    const response = await client.callTool({
-      name: "inspect_android_package",
-      arguments: { path: apk },
-    });
-    expect(response.isError).toBe(true);
-    expect(response.structuredContent).toEqual({ error: cliResult.json });
-    expect(JSON.stringify(response.structuredContent)).toContain("JAVA_HOME");
-  },
-);
+for (const { jarConfigured, setting } of [
+  { jarConfigured: false, setting: "REA_JADX_MCP_JAR" },
+  { jarConfigured: true, setting: "JAVA_HOME" },
+])
+  cliTest.skipIf(process.platform === "win32")(
+    `preserves the APK ${setting} failure through the compiled CLI and MCP factories`,
+    async ({ cli }) => {
+      const root = await createTestTempDirectory("rea-android-composition-");
+      const apk = join(root, "fixture.apk");
+      await writeOrderedZip(apk, ["AndroidManifest.xml", "classes.dex"]);
+      const jar = join(root, "jadx-headless-mcp.jar");
+      await writeFile(
+        jar,
+        "fixture jar; validation must fail before execution",
+      );
+      const environment = {
+        REA_LOG_LEVEL: "silent",
+        JAVA_HOME: "relative-fixture-jdk",
+        ...(jarConfigured ? { REA_JADX_MCP_JAR: jar } : {}),
+      };
+      const cliResult = await cli.run({
+        arguments: ["inspect-android-package", apk, "--json"],
+        environment,
+        timeoutMs: 10_000,
+      });
+      expect(cliResult.exitCode).toBe(1);
+      expect(cliResult.json).toMatchObject({ code: "capability_unavailable" });
+      const client = await connect(environment);
+      const response = await client.callTool({
+        name: "inspect_android_package",
+        arguments: { path: apk },
+      });
+      expect(response.isError).toBe(true);
+      expect(response.structuredContent).toEqual({ error: cliResult.json });
+      expect(JSON.stringify(response.structuredContent)).toContain(setting);
+    },
+  );
 
 cliTest.skipIf(process.platform !== "linux")(
   "preserves the missing firmware command reason through both caller paths",

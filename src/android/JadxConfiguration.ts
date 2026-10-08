@@ -247,8 +247,7 @@ const inspectJavaRuntime = async (
       java_executable: java,
       phase: "module-inspection",
       exit_code: typeof output.code === "number" ? output.code : null,
-      process_error_code:
-        typeof output.code === "string" ? output.code : null,
+      process_error_code: typeof output.code === "string" ? output.code : null,
       signal: output.signal,
       killed: output.killed,
       stdout: output.stdout,

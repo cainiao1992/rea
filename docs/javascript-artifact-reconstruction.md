@@ -230,3 +230,9 @@ such as `./web3:app.js` still names a local artifact.
 Package `exports` fallback arrays are supported both at the top level and under
 the root `"."` entry. The resolver selects targets in declared order using the
 same conditional and invalid-entry handling as nested exports arrays.
+
+HTML script references resolve to exact inventoried files after applying the
+document base and query/fragment rules. CommonJS module lookups retain extension
+and directory resolution.
+Unresolved HTML references retain their declaration, source range, and resolution
+reason in the renderer observations.

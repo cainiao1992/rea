@@ -93,6 +93,17 @@ const resolvePackagePath = (
   if (typeof candidate !== "string") return candidate;
   const confined = confineCandidate(input, candidate);
   if (typeof confined !== "string") return confined;
+  if (input.context === "html-reference")
+    return outcome(
+      input,
+      resolveFileCandidates(input, [confined]) ?? {
+        resolvedPath: null,
+        status: "not-found",
+        limitations: [
+          `The exact HTML resource ${confined} was not found among the selected application files.`,
+        ],
+      },
+    );
   const resolved =
     mode === "files-and-index"
       ? (resolveFileCandidates(input, [

@@ -420,14 +420,18 @@ a DOS emulator or compiler, then checks real 16-bit decoding, segment
 relocation, near/far calls, decompilation, disjoint function body ranges,
 stable CLI/MCP observations, unchanged source bytes, and owned process/project
 cleanup. Raw p-code address-space selector tokens are reported separately from
-the stable observation comparison. Linux x64 is verified; macOS DOS remains
-unverified. This lane is separate from host-native and optional cross-format
+the stable observation comparison. Linux x64 and macOS arm64 are verified;
+macOS x64 remains unverified. This lane is separate from host-native and optional cross-format
 verification. See [DOS analysis](ghidra-dos.md).
 
 `npm run verify:ghidra:com` uses a generated headerless fixture with no compiler,
 DOS emulator or game data. It exercises explicit admission, BinaryLoader entry
 preparation, measured register context, whole-file byte readback, source offsets,
 unmapped PSP/partial reads, actual decompilation, CLI/MCP parity and owned cleanup.
+Both segmented-address lanes reject oversized default, explicit-space and encoded-space
+coordinates through real reads, function queries and annotation attempts. Rejected
+annotations must preserve the live function dossier; CLI and MCP must report the
+truncation constraint, while leading-zero coordinates still resolve correctly.
 It has the same Ghidra/JDK prerequisites as the MZ lane. Neither lane claims DOS
 runtime or PC-98 device execution.
 

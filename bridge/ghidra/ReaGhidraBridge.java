@@ -3004,8 +3004,17 @@ public final class ReaGhidraBridge extends HeadlessScript {
             AddressSpace space = spaceName == null
                 ? currentProgram.getAddressFactory().getDefaultAddressSpace()
                 : currentProgram.getAddressFactory().getAddressSpace(spaceName);
-            return space == null ? null : space.getAddress(offset);
+            if (space == null) return null;
+            Address address = space.getAddress(offset);
+            BigInteger requestedOffset = new BigInteger(offset, 16);
+            BigInteger parsedOffset = new BigInteger(Long.toUnsignedString(address.getOffset()));
+            if (!requestedOffset.equals(parsedOffset))
+                throw new RequestFailure("invalid_request",
+                    "Ghidra address offset cannot be represented without truncation in space " +
+                    space.getName() + ": requested " + value + ", parsed " + canonicalAddress(address));
+            return address;
         }
+        catch (RequestFailure failure) { throw failure; }
         catch (Exception exception) {
             return null;
         }

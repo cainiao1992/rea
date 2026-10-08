@@ -107,12 +107,19 @@ it("translates SIGINT after real CLI arming into awaited instrumentation cleanup
   }
 });
 
-it.each([
-  ["observe-web-execution", "SIGINT", 130],
-  ["observe-web-execution", "SIGTERM", 143],
-  ["inspect-web-event-listeners", "SIGINT", 130],
-  ["inspect-web-event-listeners", "SIGTERM", 143],
-] as const)(
+const cancellationSignals =
+  process.platform === "win32"
+    ? (["SIGINT"] as const)
+    : (["SIGINT", "SIGTERM"] as const);
+const webRuntimeCancellationCases = (
+  ["observe-web-execution", "inspect-web-event-listeners"] as const
+).flatMap((command) =>
+  cancellationSignals.map(
+    (signal) => [command, signal, signal === "SIGINT" ? 130 : 143] as const,
+  ),
+);
+
+it.each(webRuntimeCancellationCases)(
   "%s preserves %s status when cancellation interrupts CDP discovery",
   async (command, signal, expectedExitCode) => {
     const sockets = new Set<Socket>();
@@ -127,20 +134,24 @@ it.each([
     if (address === null || typeof address === "string")
       throw new Error("Expected a TCP loopback listener");
     const endpoint = `http://127.0.0.1:${String(address.port)}`;
-    let contactedResolve!: () => void;
-    const contacted = new Promise<void>((resolve) => {
-      contactedResolve = resolve;
-    });
-    server.on("request", contactedResolve);
+    const contacted = once(server, "request");
 
     const args =
       command === "observe-web-execution"
-        ? [command, endpoint, "page-fixture", "--observation-ms", "30000", "--json"]
+        ? [
+            command,
+            endpoint,
+            "page-fixture",
+            "--observation-ms",
+            "30000",
+            "--json",
+          ]
         : [command, endpoint, "page-fixture", "body", "--json"];
     const child = spawn(process.execPath, [entrypoint, ...args], {
       env: environment(),
       stdio: ["ignore", "pipe", "pipe"],
     });
+    const closed = once(child, "close");
     let stdout = "";
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
@@ -162,7 +173,6 @@ it.each([
       } finally {
         if (contactTimeout !== undefined) clearTimeout(contactTimeout);
       }
-      const closed = once(child, "close");
       child.kill(signal);
       const [exitCode, terminationSignal] = await closed;
       expect(terminationSignal).toBeNull();
@@ -170,13 +180,18 @@ it.each([
       expect(JSON.parse(stdout)).toMatchObject({
         code: "cancelled",
         category: "cancelled",
+        details: { cleanup: "complete" },
       });
     } finally {
       clearTimeout(timeout);
-      if (child.exitCode === null && child.signalCode === null)
-        child.kill("SIGKILL");
-      for (const socket of sockets) socket.destroy();
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+      try {
+        if (child.exitCode === null && child.signalCode === null)
+          child.kill("SIGKILL");
+        await closed;
+      } finally {
+        for (const socket of sockets) socket.destroy();
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
     }
   },
 );

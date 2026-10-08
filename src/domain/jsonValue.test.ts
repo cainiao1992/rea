@@ -1,8 +1,12 @@
 import { Ajv2020 } from "ajv/dist/2020.js";
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { jsonObjectSchema, jsonValueSchema } from "./jsonValue.js";
+import {
+  jsonObjectSchema,
+  jsonValueSchema,
+  MAX_JSON_DEPTH,
+} from "./jsonValue.js";
 
 const values = [
   "text",
@@ -34,4 +38,64 @@ it("still parses only JSON values at runtime", () => {
     expect(jsonValueSchema.safeParse(value).success).toBe(true);
   for (const value of [undefined, Number.NaN, Infinity, () => 0, [undefined]])
     expect(jsonValueSchema.safeParse(value).success).toBe(false);
+});
+
+const deepObject = (depth: number): unknown => {
+  let value: unknown = 1;
+  for (let index = 0; index < depth; index += 1) value = { nested: value };
+  return value;
+};
+
+describe("jsonValueSchema depth bound", () => {
+  it("accepts values nested to the maximum depth", () => {
+    expect(jsonValueSchema.safeParse(deepObject(MAX_JSON_DEPTH)).success).toBe(
+      true,
+    );
+  });
+
+  it("rejects values nested past the maximum depth without throwing", () => {
+    const result = jsonValueSchema.safeParse(deepObject(MAX_JSON_DEPTH + 1));
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues[0]?.message).toContain("maximum nesting depth");
+  });
+
+  it.each(["object", "array"])(
+    "rejects the original 10000-level %s crash without throwing",
+    (kind) => {
+      let value: unknown = 1;
+      for (let index = 0; index < 10_000; index += 1)
+        value = kind === "object" ? { nested: value } : [value];
+      const result = jsonValueSchema.safeParse(value);
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.issues[0]?.message).toContain(
+        "maximum nesting depth",
+      );
+    },
+  );
+
+  it("rejects cyclic values instead of recursing forever", () => {
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+    const result = jsonValueSchema.safeParse(cyclic);
+    expect(result.success).toBe(false);
+  });
+
+  it("keeps json semantics for non-JSON values", () => {
+    expect(jsonValueSchema.safeParse(undefined).success).toBe(false);
+    expect(jsonValueSchema.safeParse({ a: Number.NaN }).success).toBe(false);
+    expect(
+      jsonValueSchema.safeParse({ a: Number.POSITIVE_INFINITY }).success,
+    ).toBe(false);
+    expect(jsonValueSchema.safeParse({ a: 1n }).success).toBe(false);
+  });
+
+  it("accepts ordinary nested JSON", () => {
+    expect(
+      jsonValueSchema.safeParse({
+        list: [1, "two", null, true, { deep: { further: [{}] } }],
+      }).success,
+    ).toBe(true);
+  });
 });

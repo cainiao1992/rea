@@ -4,6 +4,7 @@ import { describe, expect } from "vitest";
 import { createAnalysisProfile } from "./analysisProfile.js";
 import type { BinaryTarget } from "./binaryTarget.js";
 import { createEvidence, evidenceSchema, parseEvidence } from "./evidence.js";
+import { MAX_JSON_DEPTH } from "./jsonValue.js";
 import { createEvidenceBundle } from "./evidenceBundle.js";
 
 const TARGET: BinaryTarget = {
@@ -253,5 +254,29 @@ describe("DOS analysis evidence identity", () => {
       createEvidence({ ...target, format: "pe" }, PROVIDER, observation)
         .evidence_id,
     );
+  });
+});
+
+describe("evidence parameter depth bound", () => {
+  it("rejects evidence whose parameters nest past the JSON depth limit", () => {
+    const evidence = createEvidence(TARGET, PROVIDER, {
+      operation: "health",
+      parameters: {},
+      result: true,
+    });
+    let value: unknown = 1;
+    for (let index = 0; index <= MAX_JSON_DEPTH; index += 1)
+      value = { nested: value };
+    const result = evidenceSchema.safeParse({
+      ...evidence,
+      parameters: { attack: value },
+    });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(
+      result.error.issues.some((issue) =>
+        issue.message.includes("maximum nesting depth"),
+      ),
+    ).toBe(true);
   });
 });

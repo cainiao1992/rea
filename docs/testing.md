@@ -342,6 +342,13 @@ inputs, plus real read-permission denial on a non-root host. Root runs report
 that permission-denial check as unverified. A focused filesystem integration
 check retains selected-platform routing and exclusive creation; two copy/digest
 checks duplicated by the real workflow have been removed.
+Namespace annotation probes compile a separate host C fixture with C++ ABI
+symbols, avoiding a C++ runtime prerequisite. Real Ghidra demangling supplies
+duplicate leaf names in two top-level namespaces and a nested namespace. The
+workflow verifies leaf and qualified renames, repeated reuse of fully qualified
+readback, lookup by the returned name, literal namespace-like leaf names,
+rejection of empty qualified leaf names without changing comments, CLI
+behavior, and independent CLI/MCP database ownership.
 Malformed annotation readback, memory completeness, and inventory data remain separate
 SDK/provider integration cases; success from a real
 provider cannot establish rejection of a contradictory provider response.

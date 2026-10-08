@@ -318,7 +318,19 @@ Analysis and annotation calls stay bound to the active target's native Hopper
 document, even when GUI focus changes or other documents have the same display
 name. Use `open_binary` to change targets. Byte reads stop at a segment boundary
 and return the readable prefix with `complete: false`. File-offset mapping checks
-the reverse lookup; synthetic external-symbol memory has no original file offset.
+the reverse lookup and original executable bounds; synthetic external-symbol
+memory has no original file offset. For FAT Mach-O, offsets refer to the original
+container file. Results retain Hopper's image-relative offset, the observed slice
+base, and the source executable path.
+Loader selection reads the Mach-O container header, including FAT files with a
+single architecture. FAT64 uses the same derived FAT/Mach-O loader chain;
+loading depends on the installed Hopper build. Hopper 6.1.0-demo timed out on
+a FAT64 fixture while FAT32 controls and its extracted thin image loaded.
+This does not establish that other builds reject FAT64. If loading fails, use
+`lipo -archs <source-file>` to read the exact architecture names, then
+`lipo -thin <architecture> <source-file> -output <thin-file>` and open the
+resulting image. FAT64 is distinct from the CPU architecture: FAT32 containers
+can contain 64-bit executable images.
 Cursor navigation returns the observed object start when Hopper snaps an interior
 address; adjacent-object navigation rejects unmapped inputs and document ends.
 Native API text rejects NUL characters and unpaired Unicode surrogates before

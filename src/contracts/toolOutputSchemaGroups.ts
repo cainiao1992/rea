@@ -147,6 +147,30 @@ export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
     z.object({
       address: z.string(),
       file_offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+      provider_file_offset: z
+        .number()
+        .int()
+        .min(0)
+        .max(Number.MAX_SAFE_INTEGER)
+        .exactOptional()
+        .describe(
+          "Original coordinate returned by the provider's mapping API.",
+        ),
+      image_base_file_offset: z
+        .number()
+        .int()
+        .min(0)
+        .max(Number.MAX_SAFE_INTEGER)
+        .exactOptional()
+        .describe(
+          "File offset of the loaded image within its source container; zero for a thin executable.",
+        ),
+      source_path: z
+        .string()
+        .exactOptional()
+        .describe(
+          "Observed original executable path used to verify the file mapping.",
+        ),
     }),
   ),
   procedure_references: resultOf(

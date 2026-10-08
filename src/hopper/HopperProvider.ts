@@ -158,7 +158,13 @@ export class HopperProvider implements AnalysisProviderCandidate {
           ),
         close: () => Promise.resolve(),
       };
-    const derivedLoaderArgs = hopperLoaderArgsForTarget(target);
+    const container = profile?.parameters.macho_container;
+    const derivedLoaderArgs = hopperLoaderArgsForTarget(
+      target,
+      container === "thin" || container === "fat32" || container === "fat64"
+        ? container
+        : undefined,
+    );
     if (!derivedLoaderArgs.ok)
       return {
         execute: () => Promise.resolve(err(derivedLoaderArgs.error)),
@@ -200,7 +206,9 @@ export class HopperProvider implements AnalysisProviderCandidate {
               value: createAnalysisExecution(result.value, executionProvider, {
                 ...(profile === undefined ? {} : { analysisProfile: profile }),
                 limitations: [
-                  "Results depend on Hopper's completed static analysis.",
+                  ...(CAPABILITIES.find(
+                    (descriptor) => descriptor.operation === operation,
+                  )?.limitations ?? []),
                   ...(operation === "read_bytes"
                     ? [
                         "Hopper byte reads stop at the containing segment's exclusive end; a readable prefix is returned with complete=false when the requested range crosses it.",

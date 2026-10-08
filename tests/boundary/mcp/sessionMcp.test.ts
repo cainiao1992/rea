@@ -1,9 +1,7 @@
 import { readFile, realpath, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import type { CallToolResult } from "@modelcontextprotocol/server";
-import { Ajv2020 } from "ajv/dist/2020.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
@@ -15,10 +13,8 @@ import type {
   AnalysisProvider,
   CapabilityDescriptor,
 } from "../../../src/application/AnalysisProvider.js";
-import { probeProcessCaptureCapability } from "../../../src/process/capture/ProcessHarness.js";
 import { observed as ok } from "../../fixtures/analysisExecution.js";
 import { createServer } from "../../../src/server/createServer.js";
-import { toolContract } from "../../../src/contracts/toolContracts.js";
 import { silentLogger } from "../../../src/logger.js";
 import { createAnalysisProfile } from "../../../src/domain/analysisProfile.js";
 import { MAX_JSON_DEPTH } from "../../../src/domain/jsonValue.js";
@@ -35,9 +31,6 @@ const SNAPSHOT_PROFILE = createAnalysisProfile(
 );
 
 const resources: Array<{ close(): Promise<unknown> }> = [];
-const processFixture = fileURLToPath(
-  new URL("../../fixtures/processFidelity.mjs", import.meta.url),
-);
 let directory: string | undefined;
 afterEach(async () => {
   await Promise.all(resources.splice(0).map((resource) => resource.close()));
@@ -294,69 +287,6 @@ describe("json depth bounds over MCP", () => {
     expect(text).toContain("Input validation");
     expect(text).toContain("maximum nesting depth");
   }, 10_000);
-});
-
-describe("process residuals over MCP", () => {
-  it("records process residuals linked to capture Evidence", async () => {
-    if (!(await probeProcessCaptureCapability()).available) return;
-    const session = createTestBinarySession(() => client("fixture", []));
-    const server = createServer(session, session, {
-      logger: silentLogger,
-    });
-    const mcp = new Client({ name: "process-unknown", version: "1.0.0" });
-    const [clientTransport, serverTransport] =
-      InMemoryTransport.createLinkedPair();
-    resources.push(mcp, server);
-    await server.connect(serverTransport);
-    await mcp.connect(clientTransport);
-
-    const captured = await mcp.callTool({
-      name: "capture_process_scenario",
-      arguments: {
-        executable: process.execPath,
-        arguments: [processFixture, "partial"],
-      },
-    });
-    expect(captured.isError, text(captured)).not.toBe(true);
-    const contract = toolContract("capture_process_scenario");
-    const wire = (await mcp.listTools()).tools.find(
-      ({ name }) => name === contract.name,
-    );
-    if (wire?.outputSchema === undefined)
-      throw new Error("Missing process capture output schema");
-    expect(
-      new Ajv2020({ strict: false, validateFormats: false }).validate(
-        z.record(z.string(), z.unknown()).parse(wire.outputSchema),
-        captured.structuredContent,
-      ),
-    ).toBe(true);
-    expect(
-      contract.outputSchema.safeParse(captured.structuredContent).success,
-    ).toBe(true);
-    const listedUnknowns = await mcp.callTool({
-      name: "list_unknowns",
-      arguments: {},
-    });
-    expect(listedUnknowns.isError, text(listedUnknowns)).not.toBe(true);
-    const listed = z
-      .object({
-        result: z.object({
-          items: z.array(
-            z.object({
-              question: z.string(),
-              domain: z.string(),
-            }),
-          ),
-        }),
-      })
-      .parse(structured(listedUnknowns)).result.items;
-    expect(listed).toContainEqual(
-      expect.objectContaining({
-        question: "Was network behavior fully observed during capture?",
-        domain: "process-network",
-      }),
-    );
-  });
 });
 
 const client = (path: string, closed: string[]): AnalysisClient => ({

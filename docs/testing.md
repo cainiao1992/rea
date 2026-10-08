@@ -30,8 +30,11 @@ one golden malformed-input case and a real filesystem lifecycle that proves
 configure, update, readback, and removal; an add-only journey does not cover the
 whole lifecycle.
 
-Keep in-memory MCP sessions in the MCP boundary lane and direct filesystem
-workflows in the filesystem boundary lane. Reserve acceptance paths for journeys
+Keep transport-only in-memory MCP sessions in the MCP boundary lane and direct
+filesystem workflows in the filesystem boundary lane. Real process-tree capture
+belongs in the serial process boundary lane, including captures invoked through
+MCP. Report unavailable capture authority as a named skip rather than returning
+from the test without assertions. Reserve acceptance paths for journeys
 through the compiled public CLI or MCP runtime. Calling a compiled private
 workflow or injecting a provider still establishes its narrower integration
 claim, even if a directory name calls it acceptance.

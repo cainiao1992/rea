@@ -43,6 +43,9 @@ through the compiled public CLI or MCP runtime. Calling a compiled private
 workflow or injecting a provider still establishes its narrower integration
 claim, even if a directory name calls it acceptance.
 
+Emit a verifier's final success report only after awaited cleanup. Observe final
+process lineage after closing its owned resources.
+
 Measure slow files before removing capacity regressions. Optimize repeated
 process startup, fixture construction, and production algorithms when they
 dominate runtime. Keep at least one input beyond each formerly failing size or

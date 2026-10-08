@@ -7,7 +7,6 @@ import { PRODUCT_IDENTITY } from "../../src/identity.js";
 
 const readmeLanguages = [
   { path: "README.md", label: "English" },
-  { path: "README_pt-BR.md", label: "Português (Brasil)" },
   { path: "README_zh.md", label: "简体中文" },
   { path: "README_zh-TW.md", label: "繁體中文" },
   { path: "README_ja.md", label: "日本語" },
@@ -20,6 +19,7 @@ const readmeLanguages = [
   { path: "README_es.md", label: "Español" },
   { path: "README_uk.md", label: "Українська" },
   { path: "README_pl.md", label: "Polski" },
+  { path: "README_pt-BR.md", label: "Português (Brasil)" },
   { path: "README_ar.md", label: "العربية" },
 ] as const;
 

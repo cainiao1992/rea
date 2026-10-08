@@ -70,6 +70,7 @@ limits, security/privacy/containment implications, and meaningful proof gaps. --
 
 ## Review checklist
 
+- [ ] This PR addresses a concrete problem or an agreed enhancement.
 - [ ] The PR has one focused outcome and the title follows `type(scope): outcome`.
 - [ ] Related issue is linked, or the reason for not linking one is stated above.
 - [ ] Tests cover changed observable behavior and meaningful failure paths.

@@ -2,6 +2,29 @@
 
 REA welcomes focused bug fixes, documentation improvements, tests, and reverse-engineering workflow enhancements. Open an issue before a large contract or architecture change so its scope can be agreed before implementation.
 
+## Choosing a contribution
+
+Small contributions are welcome when they solve a concrete problem, including
+broken commands, misleading documentation, and missing regression coverage.
+Explain the problem, keep the diff focused, and share how you checked the change.
+
+Please avoid standalone cosmetic changes without a clear benefit, such as fixing
+a typo in an internal comment, changing capitalization or punctuation in
+already-clear prose, or reformatting unchanged code. Include related polish in a
+useful fix when practical. For cosmetic-only suggestions, please open an issue
+instead of a standalone PR so they can be collected and addressed together.
+Corrections to confusing explanations or incorrect instructions are welcome.
+
+Avoid speculative cleanup without a concrete problem to solve. Keep related
+corrections in one PR.
+
+Before requesting review, read the final diff and run the relevant checks. Be clear
+about anything you couldn't test. You should be able to explain the changes you
+submit.
+
+We may decline changes when the benefit doesn't justify the review or maintenance
+work.
+
 For capability organization and provider composition, follow the incremental
 [migration guide](docs/capability-migration.md). Run `npm run verify:test-discovery`
 after adding or moving tests.

@@ -69,11 +69,6 @@ export const analyzeAppleAssetCatalogs = async (input: {
   } finally {
     await reader.close();
   }
-  if (catalogs.length === 0)
-    throw new ArtifactReaderFailure(
-      "unavailable",
-      "No compiled Assets.car catalogs were found in the app bundle",
-    );
   const interfaceBuilder = await analyzeInterfaceBuilderBundle({
     bundlePath: input.bundlePath,
     targetSha256: input.targetSha256,
@@ -93,6 +88,13 @@ export const analyzeAppleAssetCatalogs = async (input: {
     ...result,
     limitations: [
       ...result.limitations,
+      // An app without a compiled catalog is an observed empty inventory, not
+      // a missing host tool.
+      ...(catalogs.length === 0
+        ? [
+            "No compiled Assets.car catalog was found in the app bundle; any resource keys are reported as unmatched.",
+          ]
+        : []),
       "Exact resource-key joins use only recognized image or asset key fields on decoded Interface Builder resource objects; other archive resource references are not inferred.",
       ...(interfaceBuilder.graph.truncated
         ? [

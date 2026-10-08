@@ -1,6 +1,13 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
-import { collectInterfaceBuilderResourceKeys } from "./AppleAssetCatalogAnalysis.js";
+import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
+import {
+  analyzeAppleAssetCatalogs,
+  collectInterfaceBuilderResourceKeys,
+} from "./AppleAssetCatalogAnalysis.js";
 
 describe("Apple asset catalog application workflow", () => {
   it("joins only explicit resource-key fields with archive provenance", () => {
@@ -39,5 +46,29 @@ describe("Apple asset catalog application workflow", () => {
         key: "Toolbar",
       },
     ]);
+  });
+
+  it("reports an app without compiled catalogs as an empty observed inventory", async () => {
+    const bundle = await createTestTempDirectory("rea-asset-catalog-absent-");
+    await mkdir(join(bundle, "Contents", "Resources"), { recursive: true });
+    await writeFile(join(bundle, "Contents", "Resources", "icon.icns"), "");
+    const result = await analyzeAppleAssetCatalogs({
+      bundlePath: bundle,
+      targetSha256: "a".repeat(64),
+      runAssetUtil: () => {
+        throw new Error("assetutil must not run without a catalog");
+      },
+    });
+    expect(result).toMatchObject({
+      catalogs: [],
+      total_records: 0,
+      records: [],
+      resource_key_matches: [],
+      next_offset: null,
+      truncated: false,
+    });
+    expect(result.limitations).toContain(
+      "No compiled Assets.car catalog was found in the app bundle; any resource keys are reported as unmatched.",
+    );
   });
 });

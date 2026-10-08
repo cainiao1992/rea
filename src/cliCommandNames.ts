@@ -51,6 +51,7 @@ export const CLI_COMMANDS = Object.freeze({
   importManagedReconstruction: "import-managed-reconstruction",
   projectManagedApplicationGraph: "project-managed-application-graph",
   observeNativeUi: "observe-native-ui",
+  observeNativeCalls: "observe-native-calls",
   captureNativeUiScenario: "capture-native-ui-scenario",
   inspectMacho: "inspect-macho",
   inspectSignature: "inspect-signature",

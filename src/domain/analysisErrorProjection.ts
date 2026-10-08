@@ -14,6 +14,7 @@ import {
   AnalysisInputError,
   AnalysisOutputError,
   AnalysisTimeoutError,
+  AnalysisResourceConstraintError,
 } from "./analysisErrorCore.js";
 import { ArtifactOperationError } from "./artifactOperationError.js";
 import { BinaryTargetError } from "./configurationErrors.js";
@@ -39,7 +40,11 @@ export const projectAnalysisError = (
 ): AnalysisErrorProjection => {
   assertKnownAnalysisErrorTag(error._tag);
   const code = errorCode(error);
-  const details = errorDetails(error);
+  const primaryDetails = errorDetails(error);
+  const details =
+    error.capturedOutput === undefined
+      ? primaryDetails
+      : { ...primaryDetails, captured_output: { ...error.capturedOutput } };
   return {
     code,
     category: analysisErrorCategory(error),
@@ -138,6 +143,7 @@ const STATIC_ERROR_CODES = {
   AnalysisCancelledError: "cancelled",
   HopperCancelledError: "cancelled",
   AnalysisTimeoutError: "provider_timeout",
+  AnalysisResourceConstraintError: "resource_constraint",
   HopperTimeoutError: "provider_timeout",
   HopperProcessError: "provider_unavailable",
   HopperStartError: "provider_unavailable",
@@ -181,6 +187,13 @@ const errorDetails = (
 const requestErrorDetails = (
   error: AnalysisError,
 ): Readonly<Record<string, JsonValue>> | undefined => {
+  if (error instanceof AnalysisResourceConstraintError)
+    return {
+      operation: error.operation,
+      resource: error.resource,
+      reason: error.reason,
+      reported_limits: error.reportedLimits,
+    };
   if (error instanceof AnalysisArtifactChangedError)
     return {
       operation: error.operation,
@@ -409,6 +422,7 @@ export interface AnalysisErrorProjection extends Readonly<
     | "capability_unavailable"
     | "provider_unavailable"
     | "provider_timeout"
+    | "resource_constraint"
     | "cancelled"
     | "artifact_integrity_mismatch"
     | "artifact_operation_failed"
@@ -427,6 +441,7 @@ export interface AnalysisErrorProjection extends Readonly<
     | "truncated"
     | "cancelled"
     | "timeout"
+    | "resource_constraint"
     | "unavailable"
     | "execution_failure";
   readonly message: string;

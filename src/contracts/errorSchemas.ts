@@ -9,6 +9,7 @@ const categorySchema = z.enum([
   "truncated",
   "cancelled",
   "timeout",
+  "resource_constraint",
   "unavailable",
   "execution_failure",
 ]);
@@ -38,6 +39,7 @@ export const analysisErrorProjectionSchema = z.discriminatedUnion("code", [
   generic("capability_unavailable"),
   generic("provider_unavailable"),
   generic("provider_timeout"),
+  generic("resource_constraint"),
   generic("cancelled"),
   z
     .object({

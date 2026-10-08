@@ -617,6 +617,23 @@ compiler. Ordinary unit/static gates acquire no browser. See
 [website runtime attribution](web-runtime.md) for effects, resource bounds and
 coverage limits.
 
+### Offline binary layout
+
+`npm run verify:binary:layout` requires Linux x64, GCC/binutils, absolute
+`REA_PWNTOOLS_PYTHON` with pwntools 4.15.0/pyelftools 0.33/Unicorn 2.1.2 and
+absolute `REA_VERIFY_STRACE_COMMAND`. It compiles ephemeral source-owned ELF
+fixtures and checks public CLI/MCP, lossless addresses/names, file ranges,
+mitigation inferences, malformed/unsupported input, original file hashes and
+released process ownership. Exec syscall tracing must identify only the declared
+Node/Python launchers; no target binary is executed. Core/debugger claims need
+separate verification lanes. Pass an installed package entrypoint as the script's
+first argument to verify packaging independently of the checkout.
+The valid SHN_XINDEX fixture has 65,281 full section rows; CLI is checked in
+the ordinary lane. Its large MCP transfer is opt-in with
+`REA_VERIFY_LARGE_ELF_MCP=1` (or the workflow dispatch `large_mcp` input), an
+explicit 256 MiB SDK receive buffer and five-minute request timeout. Ordinary
+MCP fixtures retain the pinned SDK defaults.
+
 ## Agent evaluation and conformance records
 
 Evaluate native, JavaScript, managed and browser investigation tasks through a

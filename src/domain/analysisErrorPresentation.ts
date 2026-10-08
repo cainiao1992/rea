@@ -2,6 +2,7 @@ import {
   AnalysisAccessDeniedError,
   AnalysisArtifactChangedError,
   AnalysisInputError,
+  AnalysisResourceConstraintError,
 } from "./analysisErrorCore.js";
 import { ArtifactOperationError } from "./artifactOperationError.js";
 import {
@@ -32,6 +33,12 @@ import { type AnalysisErrorProjection } from "./analysisErrorProjection.js";
 export const analysisErrorRemediationAction = (
   error: AnalysisError,
 ): string => {
+  if (error instanceof AnalysisResourceConstraintError)
+    return error.resource === "cpu"
+      ? "Review the reported worker CPU limits and observed signal. Retry with sufficient CPU time or a smaller artifact; REA retains tighter inherited limits."
+      : error.resource === "file-size"
+        ? "Review the reported worker file-size limits and write failure. Retry with a sufficient file-size allowance for the evidence reply; REA retains tighter inherited limits."
+        : "Review the reported worker memory limits and available host memory. Retry with sufficient memory or a smaller artifact; REA retains tighter inherited limits.";
   if (error instanceof HopperTimeoutError)
     return error.providerState === "busy"
       ? "Check binary_session.analysis_activity, wait for the active Hopper request to finish, then retry."
@@ -123,12 +130,14 @@ const STATIC_ERROR_CATEGORIES: Readonly<
   AnalysisCancelledError: "cancelled",
   HopperCancelledError: "cancelled",
   AnalysisTimeoutError: "timeout",
+  AnalysisResourceConstraintError: "resource_constraint",
   HopperTimeoutError: "timeout",
   NoBinaryOpenError: "unavailable",
   BinaryTargetError: "unavailable",
 };
 
 export const analysisErrorUserMessage = (error: AnalysisError): string => {
+  if (error instanceof AnalysisResourceConstraintError) return error.reason;
   if (error instanceof AnalysisAccessDeniedError)
     return "Host filesystem permissions denied read access to the selected path.";
   if (error instanceof AnalysisArtifactChangedError)
@@ -263,6 +272,7 @@ const KNOWN_ERROR_TAGS = {
   AnalysisCapabilityUnavailableError: true,
   AnalysisCancelledError: true,
   AnalysisTimeoutError: true,
+  AnalysisResourceConstraintError: true,
   ProviderSelectionError: true,
   ProviderAdapterError: true,
   BrowserObservationError: true,

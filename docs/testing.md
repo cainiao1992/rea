@@ -227,8 +227,13 @@ The Linux demo lane remains a separate `verify:hopper:linux` command.
 existing Xcode clang/lipo toolchain. It compiles arm64/x86-64 thin executables and
 one- and two-slice FAT32 containers, verifies exact/interior address mappings
 against bytes in the original files, checks CLI/MCP parity, and checks owned
-runtime cleanup. `verify:hopper:fat64` additionally checks FAT64 preparation through
-Hopper's native Mach-O loader, source-container mappings, profile identity,
+runtime cleanup. Source byte changes, removal, permission denial (for non-root
+callers), and nonregular replacement must retain native partial mapping facts,
+reject unverified original-file coordinates,
+and recover after restoration. Single-slice FAT cases also relocate the slice
+without changing its loaded bytes. `verify:hopper:fat64` additionally checks
+FAT64 preparation through Hopper's native Mach-O loader, source-container
+mappings, profile identity,
 malformed and ambiguous slice rejection, and temporary-image lifetime. Both
 lanes have been verified on Hopper 6.1.0-demo; this establishes REA's prepared
 FAT64 workflow, not native FAT64-loader support.

@@ -299,11 +299,14 @@ export class ProviderProcessSupervisor {
     );
   }
 
-  /** Stop an owned process once; concurrent callers share the same escalation. */
+  /** Share each stop attempt; incomplete cleanup retains ownership and permits retry. */
   stop(
     options: ProviderProcessStopOptions = {},
   ): Promise<ProviderProcessStopResult> {
-    this.#stopPromise ??= this.#stop(options);
+    this.#stopPromise ??= this.#stop(options).then((result) => {
+      if (result.status === "incomplete") this.#stopPromise = undefined;
+      return result;
+    });
     return this.#stopPromise;
   }
 
@@ -319,6 +322,19 @@ export class ProviderProcessSupervisor {
   }
 
   async #stop(
+    options: ProviderProcessStopOptions,
+  ): Promise<ProviderProcessStopResult> {
+    let completed = false;
+    try {
+      const result = await this.#stopWithin(options);
+      completed = result.status !== "incomplete";
+      return result;
+    } finally {
+      if (completed) this.dispose();
+    }
+  }
+
+  async #stopWithin(
     options: ProviderProcessStopOptions,
   ): Promise<ProviderProcessStopResult> {
     try {
@@ -366,8 +382,6 @@ export class ProviderProcessSupervisor {
             ? cause.message
             : "owned provider process cleanup failed",
       };
-    } finally {
-      this.dispose();
     }
   }
 

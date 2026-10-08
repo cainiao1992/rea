@@ -323,7 +323,12 @@ Cursor navigation returns the observed object start when Hopper snaps an interio
 address; adjacent-object navigation rejects unmapped inputs and document ends.
 Native API text rejects NUL characters and unpaired Unicode surrogates before
 annotation changes. Renames preserve unselected label owners; use a batch with
-all affected addresses to move or swap existing labels explicitly.
+all affected addresses to move or swap existing labels explicitly. Every rename
+destination must be mapped, and native symbol names must fit Hopper's 1024 UTF-16
+code-unit limit. Oversized names fail before any batch edits; bookmarks and
+literal string results are not subject to that symbol-name limit. Rename success
+requires exact final readback. New bookmarks must point into mapped memory;
+existing legacy bookmarks outside it can still be removed.
 
 Closing or switching a target closes its bound Hopper document, shuts down REA's
 bridge and removes its temporary socket directory while preserving the Hopper

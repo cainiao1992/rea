@@ -13,6 +13,8 @@ import socket
 from typing import Any, Optional, Protocol, Sequence
 
 BAD_ADDRESSES = (-1, 0xFFFFFFFFFFFFFFFF, None)
+# The native label setter truncates NSString names at this UTF-16 extent.
+HOPPER_SYMBOL_NAME_UTF16_UNITS = 1024
 _rea_session_document = None
 _search_inventory_cache = {}
 _pseudocode_cache = {}
@@ -211,6 +213,7 @@ def _validate_name_targets(document, names):
         raise InvalidRequestError("Batch rename selects the same address more than once; use one canonical address per target")
     labels = set()
     for _, address, name in names:
+        _segment(document, address)
         if not name:
             continue
         if name in labels:
@@ -219,6 +222,19 @@ def _validate_name_targets(document, names):
         owner = document.getAddressForName(name)
         if owner not in BAD_ADDRESSES and owner != address and owner not in targets:
             raise InvalidRequestError("Name %s is already assigned to %s; include that address in the batch with a replacement name" % (name, _hex(owner)))
+
+
+def _symbol_name(value, field):
+    """Reject native label truncation without altering the caller's name."""
+    value = _api_text(value, field)
+    if len(value.encode("utf-16-le")) // 2 > HOPPER_SYMBOL_NAME_UTF16_UNITS:
+        raise InvalidRequestError("%s exceeds Hopper's %s UTF-16 code-unit symbol-name limit" % (field, HOPPER_SYMBOL_NAME_UTF16_UNITS))
+    return value
+
+
+def _name_matches(document, address, name):
+    observed = _segment(document, address).getNameAtAddress(address)
+    return observed == name or (not name and observed is None)
 
 
 def _address(document, value=None):
@@ -849,25 +865,25 @@ def _dispatch(method, params):
             }
     if method == "set_address_name":
         address = _address(document, params.get("address"))
-        name = _api_text(params["name"], "Name")
+        name = _symbol_name(params["name"], "Name")
         _validate_name_targets(document, [(params.get("address"), address, name)])
         try:
             result = document.setNameAtAddress(address, name)
         finally:
             _invalidate_search_inventory(document)
             _invalidate_pseudocode(document)
-        return result
+        return bool(result) and _name_matches(document, address, name)
     if method == "set_addresses_names":
         # Validate all destinations before applying any annotation. A malformed
         # later address must not discard the result of an earlier mutation.
-        names = [(key, _address(document, key), _api_text(value, "Name for %s" % key)) for key, value in params["names"].items()]
+        names = [(key, _address(document, key), _symbol_name(value, "Name for %s" % key)) for key, value in params["names"].items()]
         _validate_name_targets(document, names)
         try:
             result = {key: document.setNameAtAddress(address, value) for key, address, value in names}
         finally:
             _invalidate_search_inventory(document)
             _invalidate_pseudocode(document)
-        return result
+        return {key: bool(result[key]) and _name_matches(document, address, value) for key, address, value in names}
     if method in ("set_comment", "set_inline_comment"):
         address = _address(document, params.get("address"))
         comment = _api_text(params["comment"], "Comment")
@@ -882,6 +898,7 @@ def _dispatch(method, params):
         return [{"address": _hex(item), "name": document.getBookmarkName(item)} for item in document.getBookmarks()]
     if method == "set_bookmark":
         address = _address(document, params.get("address"))
+        _segment(document, address)
         name = params.get("name")
         if name is not None:
             _api_text(name, "Bookmark name")
@@ -889,6 +906,10 @@ def _dispatch(method, params):
         return document.hasBookmarkAtAddress(address)
     if method == "unset_bookmark":
         address = _address(document, params.get("address"))
+        # Permit removing a legacy orphan bookmark, but do not report success
+        # for an unmapped address with no bookmark to remove.
+        if not document.hasBookmarkAtAddress(address):
+            _segment(document, address)
         document.removeBookmarkAtAddress(address)
         return not document.hasBookmarkAtAddress(address)
     raise InvalidRequestError("Unknown bridge method")

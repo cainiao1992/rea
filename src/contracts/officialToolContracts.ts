@@ -203,17 +203,17 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "set_address_name",
-    "Assign an analyst name to one hexadecimal address and report Hopper's boolean result. Reject names owned by another address; use set_addresses_names to explicitly move or swap labels among selected addresses. This mutates analysis metadata.",
+    "Assign an analyst name to one mapped hexadecimal address and report whether the native edit succeeded and exact readback matched. Hopper rejects symbol names exceeding 1024 UTF-16 code units before mutation, and rejects names owned by another address; use set_addresses_names to explicitly move or swap labels among selected addresses. This mutates analysis metadata.",
     z.object({ address, name: z.string(), document }),
   ),
   official(
     "set_addresses_names",
-    "Assign analyst names to multiple addresses in one call and return per-address success booleans. Hopper validates addresses, native string representations, and unique destinations/names before applying edits. Existing labels may move or swap only among explicitly selected addresses; unselected label owners remain unchanged. This mutates analysis metadata; verify failures individually.",
+    "Assign analyst names to multiple mapped addresses in one call and return per-address edit/readback success booleans. Hopper validates mapped destinations, native string representations, its 1024 UTF-16 code-unit symbol-name limit, and unique destinations/names before applying edits. Existing labels may move or swap only among explicitly selected addresses; unselected label owners remain unchanged. This mutates analysis metadata; verify failures individually.",
     z.object({ names: z.record(z.string(), z.string()), document }),
   ),
   official(
     "set_bookmark",
-    "Create or replace a bookmark at a hexadecimal address and report success. This mutates navigation metadata; bookmarks are analyst-authored navigation aids, not binary evidence.",
+    "Create or replace a bookmark at a mapped hexadecimal address and report success. This mutates navigation metadata; bookmarks are analyst-authored navigation aids, not binary evidence.",
     z.object({ address, name: z.string().optional(), document }),
   ),
   official(
@@ -228,7 +228,7 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "unset_bookmark",
-    "Remove the bookmark at a hexadecimal address and return whether it is absent. This mutates navigation metadata and does not alter binary bytes.",
+    "Remove the bookmark at a mapped hexadecimal address and return whether it is absent. Hopper also permits removing an existing legacy bookmark outside mapped memory. This mutates navigation metadata and does not alter binary bytes.",
     z.object({ address, document }),
   ),
   official(

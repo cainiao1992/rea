@@ -68,7 +68,8 @@ export abstract class BinarySessionRecords {
   ): Result<number, EvidenceIntegrityError> {
     const imported = this.#records.mergeEvidenceBundle(bundle);
     if (!imported.ok) return imported;
-    if (imported.value.changed) this.#emitSnapshotChanged();
+    if (imported.value.metadataChanged) this.invalidateSnapshot();
+    else if (imported.value.changed) this.#emitSnapshotChanged();
     return ok(imported.value.recordsAdded);
   }
 
@@ -157,6 +158,43 @@ export abstract class BinarySessionRecords {
   ): void {
     this.#snapshot.record(input);
     this.#emitSnapshotChanged();
+  }
+
+  /** Retain one derived workflow result alongside its provider cache entries. */
+  recordWorkflowSnapshot(input: {
+    readonly operation: string;
+    readonly parameters: Readonly<
+      Record<string, import("../../domain/jsonValue.js").JsonValue>
+    >;
+    readonly execution: Parameters<
+      AnalysisSnapshotCache["recordWorkflow"]
+    >[0]["execution"];
+  }): Result<null, EvidenceIntegrityError> {
+    const active = this.activeAnalysisBinding();
+    if (active === undefined || active.profile === null)
+      return err(
+        new EvidenceIntegrityError(
+          "Workflow snapshot entries require an active concrete provider profile",
+        ),
+      );
+    try {
+      this.#snapshot.recordWorkflow({
+        target: active.target,
+        profile: active.profile,
+        ...input,
+      });
+      this.#emitSnapshotChanged();
+      return ok(null);
+    } catch (cause: unknown) {
+      return err(
+        new EvidenceIntegrityError(
+          cause instanceof Error
+            ? cause.message
+            : "Workflow snapshot entry validation failed",
+          { cause },
+        ),
+      );
+    }
   }
 
   protected invalidateSnapshot(): void {

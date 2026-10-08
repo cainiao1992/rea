@@ -44,12 +44,13 @@ const native = <Name extends string, Schema extends z.ZodObject>(
   inputSchema: Schema,
 ) => {
   const outputSchema = requireOutputSchema(nativeOutputSchemas, name);
+  const strictInputSchema = inputSchema.strict();
   return {
     name,
     ...toolContractMetadata(name),
     description,
     kind: "native-provider",
-    inputSchema,
+    inputSchema: strictInputSchema,
     outputSchema,
     examples: [
       {
@@ -59,7 +60,7 @@ const native = <Name extends string, Schema extends z.ZodObject>(
           .parse(examples[name] ?? {}),
       },
     ],
-  } satisfies ToolContract<Name, Schema, typeof outputSchema>;
+  } satisfies ToolContract<Name, typeof strictInputSchema, typeof outputSchema>;
 };
 
 /** Ordered single-line symbols; `swift-demangle` ends each result with LF. */

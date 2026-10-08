@@ -31,6 +31,11 @@ command and the generic route return their complete results inline. Native
 targets, single JavaScript files, `.app` bundles, and explicit deep-provider or
 snapshot requests retain the native deep-analysis route.
 
+Both CLI routes emit `rea_progress` JSON lines on stderr as inventory, source
+parsing, graph construction, validation, and Evidence hashing begin. Stdout
+remains the selected result document. Completion is reported after Evidence
+creation; a failed analysis retains its typed diagnostic result.
+
 Configure an MCP client with the ordinary REA setup command:
 
 ```bash
@@ -52,6 +57,21 @@ manifest and graph commitments, JavaScript Application Graph, static
 Electron summary, reconstruction statistics, and explicit limitations. It does
 not require a live Hopper, Ghidra, browser, or Electron process.
 
+## ASAR integrity
+
+ASAR inventory checks Electron integrity metadata for embedded archive entries
+and supplied `.asar.unpacked` companion files. An integrity failure identifies
+the logical path, declared and calculated SHA-256 values, and whether the entry
+was unpacked. By default, a mismatch is returned as a failure with its artifact
+context. Requests that support `integrity_policy` can explicitly select
+`record-and-continue` to inspect verified siblings while retaining the mismatch.
+
+An unpacked entry whose companion bytes were not supplied remains
+`unavailable`. REA continues analyzing embedded JavaScript and records the
+missing native/resource bytes as unknown. See [what is reconstructed](#what-is-reconstructed)
+for the inventory fields and [MCP integrity handling](mcp-contracts.md#integrity-record-and-continue)
+for the tool-result contract.
+
 ## Large results
 
 Graph and Evidence identifiers hash canonical JSON incrementally, without
@@ -60,11 +80,19 @@ identifiers remain unchanged. The opt-in regression check is
 `npm run verify:javascript:digests`;
 it hashes a value larger than the running Node engine's single-string limit.
 
-Output formatters and MCP transport serialization still assemble whole strings.
-For a large CLI result, select the needed fields
-before formatting, for example `--format json --filter-output
-evidence_id,normalized_result.statistics`. Complete serialization of a result
-beyond the engine's string limit is not established by this digest check.
+Both application CLI routes stream complete JSON and JSONL output in bounded
+chunks, including field filters and `--full-output`. They wait for each stdout
+write instead of constructing or reparsing a document-sized string. The opt-in
+`npm run verify:javascript:output` checks the actual CLI formatting boundary with
+a temporary output file larger than the running engine's string limit, verifies
+its bytes and digest, and removes it. Use `-- jsonl` for the compact JSONL check.
+Each check needs space for one output file plus a 1 GiB free-space reserve.
+
+Other CLI formats, `--token-count`, and MCP transport serialization still
+assemble whole strings. Field selection remains useful when the caller needs a
+smaller view, for example `--format json --filter-output
+evidence_id,normalized_result.statistics`. Streaming output does not bound the
+memory needed to construct the analysis graph itself.
 Client framing limits also apply: the pinned Node MCP SDK's stdio transport
 defaults to a 10 MiB buffer. Its caller-selected `maxBufferSize` must accommodate
 the complete response, including text and structured Evidence projections.
@@ -193,3 +221,8 @@ paired, ambiguous, and unpaired IPC, validation candidates, utility processes,
 and native binding requests. These fixtures establish parser and artifact-reader
 claims; they do not replace the later operator-supplied real-application
 benchmark.
+
+URI schemes are classified independently of local file names: a reference such
+as `web3:app.js` remains external even when an artifact has that literal name.
+Scheme characters may include digits after the initial letter; a relative path
+such as `./web3:app.js` still names a local artifact.

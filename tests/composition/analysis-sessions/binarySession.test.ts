@@ -3,6 +3,7 @@ import type {
   AnalysisProvider,
 } from "../../../src/application/AnalysisProvider.js";
 import type { BinarySession } from "../../../src/application/binary/BinarySession.js";
+import { parseBinaryTarget } from "../../../src/application/BinaryTargetResolver.js";
 import type { JsonValue } from "../../../src/domain/jsonValue.js";
 import type { RecordUnknownInput } from "../../../src/domain/residualUnknown.js";
 import { createAnalysisProfile } from "../../../src/domain/analysisProfile.js";
@@ -10,6 +11,8 @@ import { HopperStartError } from "../../../src/domain/hopperErrors.js";
 import { ProviderAdapterError } from "../../../src/domain/providerAdapterError.js";
 import { ProviderCleanupError } from "../../../src/domain/providerCleanupError.js";
 import { err, ok as resultOk } from "../../../src/domain/result.js";
+import { createEvidenceBundle } from "../../../src/domain/evidenceBundle.js";
+import { createEvidence } from "../../../src/domain/evidence.js";
 import { observed as ok } from "../../fixtures/analysisExecution.js";
 import {
   ControllableAnalysisClient,
@@ -157,6 +160,65 @@ describe("detached provider and target metadata", () => {
   });
 });
 
+describe("opening previewed targets", () => {
+  it("rechecks the active target after another serialized transition", async () => {
+    const [first, second] = await createBinarySessionTargets();
+    const calls: string[] = [];
+    const session = createTestBinarySession(createCacheProvider(calls));
+    try {
+      expect((await session.open(first)).ok).toBe(true);
+      const target = session.activeTarget();
+      if (target === undefined) throw new Error("Expected an active target");
+      const preview = await session.previewTarget(target);
+      if (!preview.ok) throw preview.error;
+      expect(preview.value.sameTarget).toBe(true);
+      expect((await session.open(second)).ok).toBe(true);
+      expect((await session.openResolvedTarget(preview.value)).ok).toBe(true);
+      expect(session.activeTarget()?.path).toBe(first);
+      expect(calls).toEqual(["health", "health", "health"]);
+    } finally {
+      await session.close();
+    }
+  });
+
+  it("rejects cancellation and a staged snapshot changed after preview without startup", async () => {
+    const [first, second] = await createBinarySessionTargets();
+    const calls: string[] = [];
+    const session = createTestBinarySession(createCacheProvider(calls));
+    const other = createTestBinarySession(createCacheProvider([]));
+    try {
+      const parsed = await parseBinaryTarget(first);
+      if (!parsed.ok) throw parsed.error;
+      const preview = await session.previewTarget(parsed.value);
+      if (!preview.ok) throw preview.error;
+      const controller = new AbortController();
+      controller.abort();
+      const cancelled = await session.openResolvedTarget(preview.value, {
+        signal: controller.signal,
+      });
+      expect(cancelled).toMatchObject({
+        ok: false,
+        error: { _tag: "AnalysisCancelledError" },
+      });
+
+      expect((await other.open(second)).ok).toBe(true);
+      const snapshot = other.exportAnalysisSnapshot();
+      if (!snapshot.ok) throw snapshot.error;
+      expect(session.importAnalysisSnapshot(snapshot.value).ok).toBe(true);
+      const rejected = await session.openResolvedTarget(preview.value);
+      expect(rejected).toMatchObject({
+        ok: false,
+        error: { _tag: "EvidenceIntegrityError" },
+      });
+      expect(calls).toEqual([]);
+      expect(session.activeTarget()).toBeUndefined();
+    } finally {
+      await session.close();
+      await other.close();
+    }
+  });
+});
+
 describe("non-hopper provider dispatch", () => {
   it("runs through a non-Hopper analysis provider", async () => {
     const [first] = await createBinarySessionTargets();
@@ -263,6 +325,144 @@ describe("fresh run identity", () => {
 
     expect(runIds).toHaveLength(2);
     expect(new Set(runIds).size).toBe(2);
+    await session.close();
+  });
+});
+
+describe("evidence metadata imports and snapshot cache", () => {
+  it("retains cached queries and exports after additive evidence imports", async () => {
+    const [target] = await createBinarySessionTargets();
+    const calls: string[] = [];
+    const session = createTestBinarySession(createCacheProvider(calls));
+    expect((await session.open(target)).ok).toBe(true);
+    expect(
+      (
+        await session.execute("address_name", {
+          address: "0x1000",
+          document: "first",
+        })
+      ).ok,
+    ).toBe(true);
+    const before = session.exportAnalysisSnapshot();
+    expect(before.ok).toBe(true);
+    if (!before.ok) {
+      await session.close();
+      return;
+    }
+    const existing = session.exportEvidenceBundle().records[0];
+    expect(existing?.subject).not.toBeNull();
+    if (existing?.subject === null || existing === undefined) {
+      await session.close();
+      return;
+    }
+    const addition = createEvidence(
+      {
+        path: existing.subject.local_path,
+        sha256: existing.subject.digest.sha256,
+        format: existing.subject.format,
+        ...(existing.subject.architecture === null
+          ? {}
+          : { architecture: existing.subject.architecture }),
+      },
+      { id: "fixture", name: "Fixture", version: "1" },
+      {
+        predicateType: "rea.analysis",
+        operation: "health",
+        parameters: { source: "additive-import" },
+        result: true,
+      },
+    );
+    expect(
+      session.importEvidenceBundle(createEvidenceBundle([addition])),
+    ).toEqual({ ok: true, value: 1 });
+    expect(session.exportAnalysisSnapshot()).toMatchObject({
+      ok: true,
+      value: {
+        entries: before.value.entries,
+        evidence_bundle: { records: expect.arrayContaining([addition]) },
+      },
+    });
+    const callsAfterInitialRead = [...calls];
+    expect(
+      (
+        await session.execute("address_name", {
+          address: "0x1000",
+          document: "first",
+        })
+      ).ok,
+    ).toBe(true);
+    expect(calls).toEqual(callsAfterInitialRead);
+    expect(session.exportAnalysisSnapshot().ok).toBe(true);
+    await session.close();
+  });
+
+  it("invalidates cached analysis when an import changes evidence path metadata", async () => {
+    const [target] = await createBinarySessionTargets();
+    const calls: string[] = [];
+    const session = createTestBinarySession(createCacheProvider(calls));
+    expect((await session.open(target)).ok).toBe(true);
+    expect(
+      (
+        await session.execute("address_name", {
+          address: "0x1000",
+          document: "first",
+        })
+      ).ok,
+    ).toBe(true);
+    expect(session.exportAnalysisSnapshot().ok).toBe(true);
+
+    const evidence = session
+      .exportEvidenceBundle()
+      .records.find(({ operation }) => operation === "address_name");
+    expect(evidence?.subject).not.toBeNull();
+    if (evidence?.subject === null || evidence === undefined) {
+      await session.close();
+      return;
+    }
+    expect(
+      session.importEvidenceBundle(createEvidenceBundle([evidence])),
+    ).toEqual({ ok: true, value: 0 });
+    expect(session.exportAnalysisSnapshot().ok).toBe(true);
+    const callsAfterInitialRead = [...calls];
+    expect(
+      (
+        await session.execute("address_name", {
+          address: "0x1000",
+          document: "first",
+        })
+      ).ok,
+    ).toBe(true);
+    expect(calls).toEqual(callsAfterInitialRead);
+
+    const relocated = {
+      ...evidence,
+      subject: {
+        ...evidence.subject,
+        local_path: `${evidence.subject.local_path}.moved`,
+        name: `${evidence.subject.name}.moved`,
+      },
+    };
+    expect(
+      session.importEvidenceBundle(createEvidenceBundle([relocated])),
+    ).toEqual({ ok: true, value: 0 });
+    expect(session.exportEvidenceBundle().records).toContainEqual(relocated);
+    expect(
+      (
+        await session.execute("address_name", {
+          address: "0x1000",
+          document: "first",
+        })
+      ).ok,
+    ).toBe(true);
+    expect(calls).toHaveLength(callsAfterInitialRead.length + 1);
+    expect(session.exportAnalysisSnapshot()).toMatchObject({
+      ok: false,
+      error: {
+        message: expect.stringContaining(
+          "Analysis snapshots are unavailable after analysis metadata mutations",
+        ),
+      },
+    });
     await session.close();
   });
 });

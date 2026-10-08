@@ -263,6 +263,80 @@ try {
     ]);
     native.call("runtime_snapshot_cancel", [runtime.handle]);
     await assert.rejects(cancelled, /cancelled/u);
+    assert.equal(await exists(join(runtime.path, "cancelled.bin")), false);
+    const readbackRuntime = WindowsPrivateRuntime.create(
+      workspace.replaceAll("\\", "/"),
+      "readback-",
+    );
+    try {
+      readbackRuntime.writeFile("written.txt", "runtime-write-readback");
+      assert.equal(
+        readbackRuntime.readFile("written.txt"),
+        "runtime-write-readback",
+      );
+      const readbackSnapshot = await readbackRuntime.snapshot(
+        source,
+        "snapshot.bin",
+      );
+      assert.equal(
+        readbackSnapshot.sha256,
+        createHash("sha256")
+          .update(await readFile(source))
+          .digest("hex"),
+      );
+      assert.equal(
+        readbackRuntime.readFile("snapshot.bin"),
+        await readFile(source, "utf8"),
+      );
+      const writtenPath = join(readbackRuntime.observation.path, "written.txt");
+      await assert.rejects(writeFile(writtenPath, "replace"));
+      await assert.rejects(rename(writtenPath, `${writtenPath}.renamed`));
+      await assert.rejects(rm(writtenPath));
+      assert.equal(
+        readbackRuntime.readFile("written.txt"),
+        "runtime-write-readback",
+      );
+      const snapshotPath = join(
+        readbackRuntime.observation.path,
+        "snapshot.bin",
+      );
+      // Java RandomAccessFile uses read/write sharing without delete sharing.
+      // Exercise that independent Win32 reader contract without requiring Java.
+      const readerDigest = execFileSync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "$ErrorActionPreference = 'Stop'; " +
+            "$stream = [IO.File]::Open($env:REA_SNAPSHOT_READER_PATH, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite); " +
+            "$hash = [Security.Cryptography.SHA256]::Create(); " +
+            "try { [BitConverter]::ToString($hash.ComputeHash($stream)).Replace('-', '').ToLowerInvariant() } " +
+            "finally { $hash.Dispose(); $stream.Dispose() }",
+        ],
+        {
+          encoding: "utf8",
+          timeout: 15_000,
+          env: { ...process.env, REA_SNAPSHOT_READER_PATH: snapshotPath },
+        },
+      ).trim();
+      assert.equal(readerDigest, readbackSnapshot.sha256);
+      await assert.rejects(writeFile(snapshotPath, "replace"));
+      await assert.rejects(rename(snapshotPath, `${snapshotPath}.renamed`));
+      await assert.rejects(rm(snapshotPath));
+      assert.equal(
+        readbackRuntime.readFile("snapshot.bin"),
+        await readFile(source, "utf8"),
+      );
+      report.controls = {
+        ...report.controls,
+        completedRuntimeFileReadback: true,
+        completedRuntimeFileMutationDenied: true,
+        snapshotReadWriteSharingReader: true,
+      };
+    } finally {
+      await readbackRuntime.close();
+    }
     report.controls = {
       ...report.controls,
       protectedDaclReadback: true,

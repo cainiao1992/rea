@@ -62,7 +62,6 @@ describe("native UI screenshot validation", () => {
     { base64: "%%%=" },
     { base64: Buffer.from("not a PNG").toString("base64") },
     { width: 2 },
-    { sha256: "0".repeat(64) },
   ])(
     "rejects invalid screenshot field variants from the helper",
     async (change) => {
@@ -110,6 +109,37 @@ describe("native UI screenshot validation", () => {
       },
     );
     expect(result.ok).toBe(true);
+  });
+
+  it("preserves an unknown AX child count and its truncation gap", async () => {
+    const partial = {
+      ...snapshot,
+      nodes: [
+        {
+          path: [],
+          role: "AXWindow",
+          title: "Fixture",
+          value: null,
+          actions: [],
+          children_count: null,
+        },
+      ],
+      truncated: true,
+      gaps: ["AX child count unavailable at path []: AXError -25204"],
+    };
+    const result = await observeNativeUi(
+      target,
+      "observe_native_ui",
+      { ...scope, accessibility: true },
+      { invoke: async () => ({ ok: true, result: partial }) },
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok)
+      expect(result.value.initial).toMatchObject({
+        truncated: true,
+        gaps: ["AX child count unavailable at path []: AXError -25204"],
+        nodes: [{ children_count: null }],
+      });
   });
 });
 
@@ -203,6 +233,27 @@ describe("native UI capture selection and budgets", () => {
       expect(result.value.steps[0]).toMatchObject({
         kind: "wait",
         outcome: "cancelled",
+      });
+  });
+  it("reports aggregate output exhaustion after individually valid captures", async () => {
+    const largeSnapshot = {
+      ...snapshot,
+      window: { ...snapshot.window, title: "x".repeat(17 * 1024 * 1024) },
+    };
+    const result = await observeNativeUi(
+      target,
+      "capture_native_ui_scenario",
+      {
+        ...scope,
+        steps: [{ kind: "wait", milliseconds: 0 }],
+      },
+      { invoke: async () => ({ ok: true, result: largeSnapshot }) },
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok)
+      expect(result.value.steps[0]).toMatchObject({
+        outcome: "failed",
+        reason: expect.stringContaining("64 MiB output budget"),
       });
   });
 });

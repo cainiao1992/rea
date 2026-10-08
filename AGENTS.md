@@ -2,7 +2,7 @@
 
 ## Product Direction
 
-REA exposes reverse-engineering tools through a CLI and MCP server. Hopper, the bring-your-own Ghidra adapter, and the bring-your-own IDA MCP adapter are operation-capable deep binary-analysis providers. Ghidra is supported on Linux x64 and macOS x64/arm64 with matching native decompiler tools, and has an experimental Windows x64 P0 boundary for approved native x86-64 PE applications; on Linux and macOS it supplies inventory, function analysis, and atomic function annotation edits in an ephemeral database, without modifying executable bytes or controlling a GUI. Windows P0 has no mutation authority. IDA adapts upstream legacy attached GUI and modern headless database-supervisor profiles for live read-only analysis; initial real verification covers Windows, and an attached GUI database is never saved or closed. Keep provider-specific code out of the domain and application layers.
+REA exposes reverse-engineering tools through a CLI and MCP server. Hopper, the bring-your-own Ghidra adapter, and the bring-your-own IDA MCP adapter are operation-capable deep binary-analysis providers. Ghidra is supported on Linux x64 and macOS x64/arm64 with matching native decompiler tools, and has an experimental Windows x64 P0 boundary for approved native x86 and x86-64 PE applications; on Linux and macOS it supplies inventory, function analysis, and atomic function annotation edits in an ephemeral database, without modifying executable bytes or controlling a GUI. Windows P0 has no mutation authority. IDA adapts upstream legacy attached GUI and modern headless database-supervisor profiles for live read-only analysis; initial real verification covers Windows, and an attached GUI database is never saved or closed. Keep provider-specific code out of the domain and application layers.
 
 Prioritize:
 
@@ -25,6 +25,7 @@ REA is a layered ESM TypeScript application. Dependencies flow inward from pure 
 - `src/process/` owns shared process lifecycle primitives, not provider wire protocols. `bridge/` contains provider-side adapters.
 - `tests/` contains unit, composition, boundary, acceptance, and conformance tests. `scripts/verify-*` and capability directories under `scripts/verify/` contain real-toolchain checks.
 - `docs/product-catalog.json` is generated. Update its source contracts and regenerate it; do not edit it directly.
+- `src/generatedMcpToolCatalog.ts` is build-generated and gitignored. Never commit it; resolve any trace of it in merges by deleting it and running `npm run build:cached`.
 
 ## Build, Test, and Development Commands
 

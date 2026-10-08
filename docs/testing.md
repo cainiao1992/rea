@@ -7,8 +7,10 @@ semantic cases that these workflows cannot reliably reproduce. A test's path
 or suite name does not establish its behavioral depth.
 
 Avoid tests that mirror getters, enum mappings, fixture helpers, or prescribed
-call sequences. Prefer one representative workflow over a Cartesian matrix
-when every row crosses the same boundary. Keep distinct command handlers,
+call sequences, or assert cache object identity without a caller-visible contract.
+Prefer representative workflows over a Cartesian matrix when rows cross the
+same boundary. Retain combinations that exercise a distinct interaction, such as
+filtering within a full-output envelope. Keep distinct command handlers,
 producer representations, failure reasons, and lifecycle states covered.
 Consolidate their shared setup without hiding the inputs or expected evidence.
 
@@ -20,6 +22,19 @@ cleanup coverage. Trivial helper checks do not need a replacement. If only
 tests consume a production module, trace CLI/MCP and verifier imports,
 including imports of compiled files, and remove abandoned scaffolding with its
 tests when it has no runtime consumer.
+
+When a test expects a `Result` to succeed, throw its error before asserting the
+returned value. An `.ok` assertion immediately before the same throwing guard
+adds no coverage and hides the typed failure. A removed parser matrix can leave
+one golden malformed-input case and a real filesystem lifecycle that proves
+configure, update, readback, and removal; an add-only journey does not cover the
+whole lifecycle.
+
+Keep in-memory MCP sessions in the MCP boundary lane and direct filesystem
+workflows in the filesystem boundary lane. Reserve acceptance paths for journeys
+through the compiled public CLI or MCP runtime. Calling a compiled private
+workflow or injecting a provider still establishes its narrower integration
+claim, even if a directory name calls it acceptance.
 
 Measure slow files before removing capacity regressions. Optimize repeated
 process startup, fixture construction, and production algorithms when they

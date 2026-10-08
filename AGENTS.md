@@ -90,6 +90,8 @@ See [docs/tool-design.md](docs/tool-design.md) for the design checklist. When us
 
 ## Testing Guidelines
 
+Prioritize real end-to-end workflows, boundary integration, and golden producer data. Keep a focused module test when it covers a distinct failure or semantic case absent from those workflows; test paths do not establish depth. See [docs/testing.md](docs/testing.md) for pruning and classification rules.
+
 Name tests `*.test.ts`. Use Vitest and production seams (`tests/fixtures/`) rather than module mocks. Domain tests assert pure behavior; adapter tests use fake launcher/socket seams; MCP tests connect with the client SDK version pinned in `package.json`. Preserve the canonical tool inventory defined by `TOOL_CONTRACTS` and verified through `CATALOG_IDENTITY` and generated product metadata. Cover malformed input, cancellation, lifecycle cleanup, and actual format, protocol, host-permission, and target-identity boundaries. Do not add tests that merely freeze arbitrary caps or prescribed call sequences. Real Hopper, Ghidra, browser, managed conformance, and any real managed-tool claims cannot be replaced by mocks; use the corresponding `verify:*` command.
 
 Keep tool catalogs complete and self-describing; prefer capability- and session-scoped availability over schema truncation. Serialized bytes alone do not measure agent usability or model context cost.

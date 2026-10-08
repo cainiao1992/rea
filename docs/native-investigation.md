@@ -339,7 +339,7 @@ the tool fails with a `debugger-attach-denied` reason.
 ## Provider and verification boundaries
 
 Install a Ghidra 12.1.x release and the 64-bit full JDK it declares, then configure REA to
-use them. Ghidra analysis supports Linux x64 and macOS x64/arm64; macOS requires
+use them. Ghidra analysis supports Linux x64/arm64 and macOS x64/arm64; each installation requires
 the matching native decompiler. Experimental Windows x64 P0 admits native
 x86-64 PE applications on local NTFS using bundled Job Object ownership,
 protected runtime DACLs, and handle-based path admission. See [Windows Ghidra P0](windows-ghidra-p0.md) and

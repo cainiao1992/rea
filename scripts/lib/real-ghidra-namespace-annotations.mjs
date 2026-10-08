@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { constants } from "node:fs";
+import { access, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { inspectGhidraInstallation } from "../../dist/ghidra/GhidraInstallation.js";
 
 /** Exercise qualified annotation names against real demangled C++ ABI symbols. */
 export async function verifyGhidraNamespaceAnnotations({
@@ -15,6 +17,7 @@ export async function verifyGhidraNamespaceAnnotations({
   entrypoint,
   env,
 }) {
+  await requireNamespaceDemangler(env);
   const exec = promisify(execFile);
   const compiler = process.env.REA_CC ?? "cc";
   try {
@@ -154,4 +157,46 @@ export async function verifyGhidraNamespaceAnnotations({
   } finally {
     await rm(workspace, { recursive: true, force: true });
   }
+}
+
+async function requireNamespaceDemangler(env) {
+  const inspection = inspectGhidraInstallation({
+    installDir: env.GHIDRA_INSTALL_DIR,
+    ...(env.JAVA_HOME === undefined ? {} : { javaHome: env.JAVA_HOME }),
+  });
+  if (
+    inspection.status !== "available" ||
+    inspection.nativeDecompilerPath === null
+  )
+    throw new Error(
+      `Ghidra namespace verification requires an available installation: ${JSON.stringify(inspection)}`,
+    );
+  const nativeDirectory = basename(dirname(inspection.nativeDecompilerPath));
+  const executable =
+    process.platform === "win32"
+      ? "demangler_gnu_v2_41.exe"
+      : "demangler_gnu_v2_41";
+  const failures = [];
+  for (const location of ["os", "build/os"]) {
+    const path = join(
+      inspection.installDir,
+      "GPL",
+      "DemanglerGnu",
+      location,
+      nativeDirectory,
+      executable,
+    );
+    try {
+      await access(path, constants.X_OK);
+      if ((await stat(path)).isFile()) return;
+      failures.push(`${path}: not a regular file`);
+    } catch (cause) {
+      failures.push(
+        `${path}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
+    }
+  }
+  throw new Error(
+    `Ghidra namespace annotation verification requires the matching GNU demangler native component. Provide ${executable} for ${nativeDirectory} in GPL/DemanglerGnu/os or its build/os equivalent; REA does not build it. Checked: ${failures.join("; ")}`,
+  );
 }

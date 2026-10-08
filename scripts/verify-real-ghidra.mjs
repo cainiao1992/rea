@@ -299,11 +299,12 @@ function nativeFixtureTarget(platform, architecture) {
     "darwin-arm64": { format: "mach-o", architecture: "arm64" },
     "darwin-x64": { format: "mach-o", architecture: "x86_64" },
     "linux-x64": { format: "elf", architecture: "x86_64" },
+    "linux-arm64": { format: "elf", architecture: "arm64" },
   };
   const target = supportedTargets[`${platform}-${architecture}`];
   if (target === undefined)
     throw new Error(
-      `The Ghidra verifier does not support a host-native fixture on ${platform}/${architecture}; use a supported Linux x64 or macOS x64/arm64 host.`,
+      `The Ghidra verifier does not support a host-native fixture on ${platform}/${architecture}; use a supported Linux or macOS x64/arm64 host.`,
     );
   return target;
 }

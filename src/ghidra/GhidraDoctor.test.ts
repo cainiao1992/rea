@@ -138,7 +138,7 @@ describe("Ghidra doctor integration", () => {
     ],
     [
       "unsupported architecture",
-      inspection({ installDir: INSTALL, architecture: "arm64" }),
+      inspection({ installDir: INSTALL, architecture: "arm" }),
       "ghidra-architecture",
     ],
   ] as const)("distinguishes %s", async (_label, ghidra, checkName) => {

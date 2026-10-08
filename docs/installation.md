@@ -415,14 +415,17 @@ copying license secrets into logs, or killing unrelated Hopper processes.
 
 ## Ghidra
 
-REA connects to an existing Ghidra installation on Linux x64, macOS x64/arm64,
+REA connects to an existing Ghidra installation on Linux x64/arm64, macOS x64/arm64,
 or experimental Windows x64 P0.
 It accepts Ghidra 12.1.x and the 64-bit full JDK declared by that installation's
 `application.java.min` and `application.java.max`. Current 12.1 releases require
 JDK 21 or newer and set no maximum. The bridge is verified with Ghidra 12.1.4
-and JDK 21. On macOS, the installation
-must include the native decompiler for the host architecture; REA does not
-build it or change Gatekeeper quarantine settings.
+and JDK 21. Each installation must include the native decompiler for the host
+architecture in `Ghidra/Features/Decompiler/os/<platform>/` or the corresponding
+`build/os/<platform>/` directory. Linux ARM64 uses `linux_arm_64`; official
+release archives may require you to build that native component separately.
+REA checks the executable prerequisite and does not build or install native
+tools, or change Gatekeeper quarantine settings.
 
 The adapter exposes 25 read-only operations: thirteen inventory/name/search
 operations and twelve function-analysis operations. These cover metadata,
@@ -525,7 +528,7 @@ continues. These messages redact known bridge authentication tokens and
 preserve local paths and other analysis context.
 
 Run `GHIDRA_INSTALL_DIR=... npm run verify:ghidra` from a source checkout to
-compile and analyze debug and stripped host-native fixtures (ELF on Linux x64
+compile and analyze debug and stripped host-native fixtures (ELF on Linux x64/arm64
 or Mach-O on macOS), plus a native DWARF 4 type-layout object. This lane needs a
 host C compiler in addition to Ghidra and its JDK.
 

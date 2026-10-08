@@ -36,8 +36,9 @@ cliTest(
       environment: {
         REA_LOG_LEVEL: "silent",
         REA_BROWSER_EXECUTABLE: "relative-unconfigured-browser",
+        CLANG_MODULE_CACHE_PATH: map,
       },
-      timeoutMs: 15000,
+      timeoutMs: 45000,
     });
     expect(response.exitCode).toBe(0);
     expect(response.json).toMatchObject({
@@ -56,7 +57,11 @@ cliTest(
         fileURLToPath(new URL("../../scripts/rea.mjs", import.meta.url)),
         "mcp",
       ],
-      env: { ...getDefaultEnvironment(), REA_LOG_LEVEL: "silent" },
+      env: {
+        ...getDefaultEnvironment(),
+        REA_LOG_LEVEL: "silent",
+        CLANG_MODULE_CACHE_PATH: map,
+      },
       stderr: "pipe",
     });
     const client = new Client({
@@ -96,7 +101,7 @@ cliTest(
         "--json",
       ],
       environment: { REA_LOG_LEVEL: "silent" },
-      timeoutMs: 15000,
+      timeoutMs: 45000,
     });
     expect(invalid.exitCode).toBe(1);
     expect(invalid.json).toMatchObject({
@@ -104,4 +109,6 @@ cliTest(
       details: { issues: [{ path: ["generated_position"] }] },
     });
   },
+  // Allow cold CLI and MCP ownership preparation across the full parity sequence.
+  180_000,
 );

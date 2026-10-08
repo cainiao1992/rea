@@ -2,6 +2,7 @@ import { execFile, spawn, type ChildProcess } from "node:child_process";
 import {
   access,
   chmod,
+  mkdir,
   mkdtemp,
   readFile,
   rm,
@@ -14,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron as electron } from "playwright-core";
 import { expect, it, vi } from "vitest";
+import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import {
   createSystemProcessOwnershipHost,
@@ -41,10 +43,10 @@ const state = fs.existsSync(statePath)
   ? JSON.parse(fs.readFileSync(statePath, "utf8"))
   : { calls: 0 };
 state.calls += 1;
-const moduleIndex = process.argv.indexOf("-module-cache-path");
-state.root = path.dirname(process.argv[moduleIndex + 1]);
 const outputIndex = process.argv.indexOf("-o");
 state.output = process.argv[outputIndex + 1];
+state.root = path.dirname(state.output);
+state.arguments = process.argv.slice(2);
 state.releasePath = releasePath;
 fs.writeFileSync(statePath, JSON.stringify(state));
 if (state.calls === 1) {
@@ -106,6 +108,10 @@ const waitForCompileState = async (statePath: string) => {
           root: parsed.root,
           output: parsed.output,
           releasePath: parsed.releasePath,
+          arguments:
+            "arguments" in parsed && Array.isArray(parsed.arguments)
+              ? parsed.arguments
+              : [],
         };
     } catch {
       await new Promise((resolve) => setTimeout(resolve, 10));
@@ -160,6 +166,87 @@ it("reports an actionable missing Swift compiler without installing it", async (
     await reader.close();
   }
 });
+
+it.skipIf(process.platform === "win32")(
+  "preserves compiler diagnostics when Swift preparation fails",
+  async () => {
+    const directory = await createTestTempDirectory(
+      "rea-process-token-compiler-failure-test-",
+    );
+    const executable = join(directory, "failing-xcrun");
+    await writeFile(
+      executable,
+      '#!/usr/bin/env node\nprocess.stderr.write("module cache is not writable\\n"); process.exitCode = 1;\n',
+    );
+    await chmod(executable, 0o755);
+    const reader = createDarwinProcessRunTokenReader({ xcrun: executable });
+    try {
+      await expect(reader.prepare()).rejects.toThrow(
+        /compilation failed.*module cache is not writable/su,
+      );
+    } finally {
+      await reader.close();
+    }
+  },
+);
+
+it
+  .skipIf(!onDarwin || process.getuid?.() === 0)
+  .each(["file", "read-only directory"])(
+  "ignores unusable inherited Swift module cache: %s",
+  async (kind) => {
+    const directory = await createTestTempDirectory(
+      "rea-process-token-inherited-cache-test-",
+    );
+    const cacheParent = join(directory, "cache-parent");
+    if (kind === "file") await writeFile(cacheParent, "not a directory");
+    else {
+      await mkdir(cacheParent);
+      await chmod(cacheParent, 0o500);
+    }
+    const cachePath = join(cacheParent, "modules");
+    vi.stubEnv("CLANG_MODULE_CACHE_PATH", cachePath);
+    const reader = createDarwinProcessRunTokenReader();
+    try {
+      const executable = await reader.prepare();
+      const { stdout } = await execFileOutput(
+        executable,
+        ["--identities", String(process.pid)],
+        { timeout: 15_000 },
+      );
+      expect(JSON.parse(stdout)).toMatchObject({
+        results: [{ pid: process.pid, state: "readable" }],
+      });
+      expect(process.env.CLANG_MODULE_CACHE_PATH).toBe(cachePath);
+    } finally {
+      vi.unstubAllEnvs();
+      if (kind === "read-only directory") await chmod(cacheParent, 0o700);
+      await reader.close();
+    }
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "uses the compiler-managed module cache instead of rebuilding system modules per REA process",
+  async () => {
+    const directory = await createTestTempDirectory(
+      "rea-process-token-module-cache-test-",
+    );
+    const fakeCompiler = await writeBlockingCompiler(directory);
+    const reader = createDarwinProcessRunTokenReader({
+      xcrun: fakeCompiler.executable,
+    });
+    const preparation = reader.prepare();
+    try {
+      const state = await waitForCompileState(fakeCompiler.statePath);
+      expect(state.arguments).not.toContain("-module-cache-path");
+      await writeFile(fakeCompiler.releasePath, "release");
+      await preparation;
+    } finally {
+      await Promise.all([reader.close(), Promise.allSettled([preparation])]);
+    }
+  },
+);
 
 it.skipIf(process.platform === "win32")(
   "rethrows compile cancellation, removes its temporary root, and permits retry",

@@ -211,24 +211,43 @@ export class CdpConnection {
   #receiveResponse(message: Record<string, unknown>, id: number): void {
     const pending = this.#pending.get(id);
     if (pending === undefined) return;
-    this.#complete(id, pending);
-    if ("error" in message) {
-      const reported = message.error;
-      pending.reject(
-        new CdpCommandRejection(
-          this.operation,
-          pending.method,
-          isRecord(reported) && typeof reported.code === "number"
-            ? reported.code
-            : null,
-          isRecord(reported) && typeof reported.message === "string"
-            ? reported.message
-            : null,
-        ),
-      );
+    const hasResult = "result" in message;
+    const hasError = "error" in message;
+    if (
+      ("sessionId" in message && typeof message.sessionId !== "string") ||
+      hasResult === hasError
+    ) {
+      this.#failPending("protocol_error");
       return;
     }
-    pending.resolve("result" in message ? message.result : {});
+    if (hasResult) {
+      if (!isRecord(message.result)) {
+        this.#failPending("protocol_error");
+        return;
+      }
+      this.#complete(id, pending);
+      pending.resolve(message.result);
+      return;
+    }
+    const reported = message.error;
+    if (
+      !isRecord(reported) ||
+      typeof reported.code !== "number" ||
+      !Number.isSafeInteger(reported.code) ||
+      typeof reported.message !== "string"
+    ) {
+      this.#failPending("protocol_error");
+      return;
+    }
+    this.#complete(id, pending);
+    pending.reject(
+      new CdpCommandRejection(
+        this.operation,
+        pending.method,
+        reported.code,
+        reported.message,
+      ),
+    );
   }
 
   #complete(id: number, pending: PendingCommand): void {

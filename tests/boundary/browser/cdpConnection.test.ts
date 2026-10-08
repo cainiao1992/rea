@@ -32,6 +32,8 @@ describe("CDP connection", () => {
       expect(frames).toMatchObject({
         frameTree: { frame: { id: "frame-main" } },
       });
+      browser.emitRawMessage(JSON.stringify({ id: 999 }));
+      await expect(connection.send("Runtime.enable")).resolves.toEqual({});
     } finally {
       await connection.close();
     }
@@ -83,6 +85,57 @@ describe("CDP connection", () => {
       await connection.close();
     }
   });
+
+  it.each([
+    ["missing result and error", (id: number) => ({ id })],
+    [
+      "both result and error",
+      (id: number) => ({
+        id,
+        result: {},
+        error: { code: -32_602, message: "Invalid params" },
+      }),
+    ],
+    [
+      "malformed error",
+      (id: number) => ({
+        id,
+        error: { code: "bad", message: "Invalid params" },
+      }),
+    ],
+    ["invalid result", (id: number) => ({ id, result: [] })],
+    ["invalid session id", (id: number) => ({ id, result: {}, sessionId: 7 })],
+  ])(
+    "fails the connection for a correlated reply with %s",
+    async (_case, reply) => {
+      const browser = await startFakeCdpBrowser({
+        hangOnMethod: "Page.enable",
+      });
+      browsers.push(browser);
+      const connection = await CdpConnection.connect(
+        browser.browserWebSocketUrl,
+        "observe_web_session",
+      );
+      try {
+        const pending = connection.send("Page.enable");
+        const rejection = expect(pending).rejects.toMatchObject({
+          _tag: "BrowserObservationError",
+          reason: "protocol_error",
+        });
+        await vi.waitFor(() => expect(browser.commands).toHaveLength(1));
+        const command = browser.commands[0];
+        if (command === undefined)
+          throw new Error("Fake browser received no command");
+        browser.emitRawMessage(JSON.stringify(reply(command.id)));
+        await rejection;
+        await expect(connection.send("Runtime.enable")).rejects.toMatchObject({
+          reason: "protocol_error",
+        });
+      } finally {
+        await connection.close();
+      }
+    },
+  );
 
   it("preserves the selected payload limit reason for pending and subsequent commands", async () => {
     const browser = await startFakeCdpBrowser({

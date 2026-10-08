@@ -48,6 +48,33 @@ export class InterfaceBuilderDecodeBudget {
     this.#remainingBytes -= bytes;
   }
 
+  /** Reserve an upper bound for one JSON-serialized string occurrence. */
+  reserveJsonStringOccurrence(value: string): void {
+    // JSON escaping uses at most six ASCII bytes per UTF-16 code unit, plus
+    // quotes. Count occurrences even when the source string is shared.
+    this.reserve(
+      value.length * 6 + 2,
+      "projected JSON strings exceed the aggregate Interface Builder decode budget",
+    );
+  }
+
+  /** Reserve the exact JSON string length for a base64 value from Buffer. */
+  reserveBase64JsonStringOccurrence(value: string): void {
+    // Buffer's base64 alphabet contains no JSON-escaped characters.
+    this.reserve(
+      value.length + 2,
+      "projected NIB base64 values exceed the aggregate Interface Builder decode budget",
+    );
+  }
+
+  /** Reserve an upper bound for one JSON object property name occurrence. */
+  reserveJsonPropertyNameOccurrence(value: string): void {
+    this.reserve(
+      value.length * 6 + 3,
+      "projected JSON property names exceed the aggregate Interface Builder decode budget",
+    );
+  }
+
   /** Reserve bytes for an optional projection without throwing on exhaustion. */
   tryReserve(bytes: number): boolean {
     if (
@@ -214,7 +241,7 @@ const estimateBinaryPlistExpansion = (
       const byteLength = type === 6 ? size * 2 : size;
       if (cursor + byteLength > offsetTable)
         throw new TypeError("binary plist scalar object is truncated");
-      estimate += type === 4 ? Math.ceil((size * 4) / 3) : byteLength * 2;
+      estimate += type === 4 ? size + 4 * Math.ceil(size / 3) : byteLength * 2;
       if (estimate > maxBytes)
         throw new InterfaceBuilderDecodeBudgetExceeded(
           "aggregate_decode_budget_exhausted",

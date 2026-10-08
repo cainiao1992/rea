@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import { analyzeInterfaceBuilderBundle } from "../../../src/artifacts/apple/InterfaceBuilderAnalysis.js";
 import { encodeNibArchiveFixture } from "../../../src/artifacts/apple/NibArchive.fixture.js";
+import { thinMach } from "../../../src/domain/binaryTarget.fixture.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import { interfaceBuilderAnalysisSchema } from "../../../src/domain/apple/interfaceBuilderGraph.js";
@@ -94,6 +95,96 @@ const binaryPlistWithRepeatedReferences = (depth: number): Buffer => {
   trailer.writeBigUInt64BE(BigInt(depth), 16);
   trailer.writeBigUInt64BE(BigInt(offset), 24);
   return Buffer.concat([header, ...encodedObjects, offsetTable, trailer]);
+};
+
+const binaryPlistWithRepeatedData = (
+  referenceCount: number,
+  dataLength: number,
+): Buffer => {
+  const header = Buffer.from("bplist00", "ascii");
+  const array = Buffer.concat([
+    Buffer.from([0xaf, 0x10, referenceCount]),
+    Buffer.alloc(referenceCount, 1),
+  ]);
+  const data = Buffer.concat([
+    Buffer.from([0x4f, 0x12]),
+    Buffer.from(
+      new Uint8Array([
+        (dataLength >>> 24) & 0xff,
+        (dataLength >>> 16) & 0xff,
+        (dataLength >>> 8) & 0xff,
+        dataLength & 0xff,
+      ]),
+    ),
+    Buffer.alloc(dataLength, 7),
+  ]);
+  const offsets = Buffer.alloc(8);
+  offsets.writeUInt32BE(header.length, 0);
+  offsets.writeUInt32BE(header.length + array.length, 4);
+  const offsetTable = header.length + array.length + data.length;
+  const trailer = Buffer.alloc(32);
+  trailer[6] = 4;
+  trailer[7] = 1;
+  trailer.writeBigUInt64BE(2n, 8);
+  trailer.writeBigUInt64BE(0n, 16);
+  trailer.writeBigUInt64BE(BigInt(offsetTable), 24);
+  return Buffer.concat([header, array, data, offsets, trailer]);
+};
+
+const encodeNibArchiveWithSharedDataValue = (input: {
+  readonly className: string;
+  readonly fieldName: string;
+  readonly payload: string;
+  readonly objectCount: number;
+}): Buffer => {
+  const varint = (value: number): Buffer => {
+    const bytes: number[] = [];
+    let remaining = value;
+    do {
+      let byte = remaining & 0x7f;
+      remaining >>>= 7;
+      if (remaining === 0) byte |= 0x80;
+      bytes.push(byte);
+    } while (remaining > 0);
+    return Buffer.from(bytes);
+  };
+  const objects = Buffer.concat(
+    Array.from({ length: input.objectCount }, () =>
+      Buffer.concat([varint(0), varint(0), varint(1)]),
+    ),
+  );
+  const fieldBytes = Buffer.from(input.fieldName);
+  const keys = Buffer.concat([varint(fieldBytes.length), fieldBytes]);
+  const payloadBytes = Buffer.from(input.payload);
+  const values = Buffer.concat([
+    varint(0),
+    Buffer.from([8]),
+    varint(payloadBytes.length),
+    payloadBytes,
+  ]);
+  const classBytes = Buffer.from(input.className);
+  const classes = Buffer.concat([
+    varint(classBytes.length),
+    varint(0),
+    classBytes,
+  ]);
+  const objectsOffset = 50;
+  const keysOffset = objectsOffset + objects.length;
+  const valuesOffset = keysOffset + keys.length;
+  const classesOffset = valuesOffset + values.length;
+  const header = Buffer.alloc(50);
+  header.write("NIBArchive", 0, "ascii");
+  header.writeUInt32LE(1, 10);
+  header.writeUInt32LE(10, 14);
+  header.writeUInt32LE(input.objectCount, 18);
+  header.writeUInt32LE(objectsOffset, 22);
+  header.writeUInt32LE(1, 26);
+  header.writeUInt32LE(keysOffset, 30);
+  header.writeUInt32LE(1, 34);
+  header.writeUInt32LE(valuesOffset, 38);
+  header.writeUInt32LE(1, 42);
+  header.writeUInt32LE(classesOffset, 46);
+  return Buffer.concat([header, objects, keys, values, classes]);
 };
 
 describe("compiled Interface Builder bundle reader", () => {
@@ -483,24 +574,16 @@ describe("bounded Interface Builder archive decoding", () => {
       "RepeatedReferences.nib: omitted because aggregate decode budget exhausted.",
     );
   });
+});
 
-  it("budgets repeated large NSString projections before retaining each field", async () => {
-    const root = await createTestTempDirectory("rea-ib-repeated-string-test-");
+describe("binary plist data expansion budget", () => {
+  it("reserves copied binary plist data for every expanded reference", async () => {
+    const root = await createTestTempDirectory("rea-ib-binary-data-budget-");
     const bundle = join(root, "Example.app");
     await mkdir(bundle, { recursive: true });
-    const largeString = "x".repeat(1024 * 1024);
-    const references = Object.fromEntries(
-      Array.from({ length: 50 }, (_, index) => [`title${index}`, { ref: 1 }]),
-    );
     await writeFile(
-      join(bundle, "RepeatedString.nib"),
-      encodeNibArchiveFixture({
-        classes: ["UIView", "NSString"],
-        objects: [
-          { classIndex: 0, values: references },
-          { classIndex: 1, values: { "NS.bytes": largeString } },
-        ],
-      }),
+      join(bundle, "RepeatedData.nib"),
+      binaryPlistWithRepeatedData(200, 700 * 1024),
     );
 
     const result = await analyzeInterfaceBuilderBundle({
@@ -519,10 +602,177 @@ describe("bounded Interface Builder archive decoding", () => {
       }),
     );
     expect(result.limitations).toContain(
-      "RepeatedString.nib: omitted because aggregate decode budget exhausted.",
+      "RepeatedData.nib: omitted because aggregate decode budget exhausted.",
     );
   });
 });
+
+describe("NIB projection byte amplification", () => {
+  it("omits NIB projections whose shared strings or class names amplify beyond budget", async () => {
+    const repeatedString = "x".repeat(1024 * 1024);
+    const stringReferences = Object.fromEntries(
+      Array.from({ length: 50 }, (_, index) => [`title${index}`, { ref: 1 }]),
+    );
+    const longName = "n".repeat(512 * 1024);
+    const longNameObjects = Array.from({ length: 700 }, () => ({
+      classIndex: 0,
+      values: { field: true },
+    }));
+    const cases = [
+      {
+        name: "RepeatedString",
+        archive: encodeNibArchiveFixture({
+          classes: ["UIView", "NSString"],
+          objects: [
+            { classIndex: 0, values: stringReferences },
+            { classIndex: 1, values: { "NS.bytes": repeatedString } },
+          ],
+        }),
+      },
+      {
+        name: "RepeatedClass",
+        archive: encodeNibArchiveFixture({
+          classes: [longName],
+          objects: longNameObjects,
+        }),
+      },
+    ];
+
+    for (const { name, archive } of cases) {
+      const root = await createTestTempDirectory(`rea-ib-${name}-budget-`);
+      const bundle = join(root, "Example.app");
+      await mkdir(bundle, { recursive: true });
+      await writeFile(join(bundle, `${name}.nib`), archive);
+      const result = await analyzeInterfaceBuilderBundle({
+        bundlePath: bundle,
+        targetSha256: "f".repeat(64),
+      });
+
+      expect(result.documents, name).toEqual([]);
+      expect(result.graph.coverage, name).toContainEqual(
+        expect.objectContaining({
+          facet: "archive_decode",
+          status: "partial",
+          reason: "aggregate_decode_budget_exhausted",
+          examined: 1,
+          omitted: 1,
+        }),
+      );
+      expect(result.limitations, name).toContain(
+        `${name}.nib: omitted because aggregate decode budget exhausted.`,
+      );
+    }
+  });
+
+  it("retains a single large base64 data field within the representation budget", async () => {
+    const root = await createTestTempDirectory("rea-ib-large-data-positive-");
+    const bundle = join(root, "Example.app");
+    await mkdir(bundle, { recursive: true });
+    const archive = encodeNibArchiveFixture({
+      classes: ["UIView"],
+      objects: [
+        {
+          classIndex: 0,
+          values: { payload: "x".repeat(29 * 1024 * 1024) },
+        },
+      ],
+    });
+    await writeFile(join(bundle, "LargePayload.nib"), archive);
+
+    const result = await analyzeInterfaceBuilderBundle({
+      bundlePath: bundle,
+      targetSha256: "f".repeat(64),
+    });
+
+    expect(result.documents.map(({ relative_path }) => relative_path)).toEqual([
+      "LargePayload.nib",
+    ]);
+    expect(result.graph.coverage).toContainEqual(
+      expect.objectContaining({ facet: "archive_decode", status: "complete" }),
+    );
+    const serialized = JSON.stringify(result);
+    expect(serialized).toContain("$nib_data_base64");
+    expect(Buffer.byteLength(serialized)).toBeLessThan(256 * 1024 * 1024);
+  });
+});
+
+cliTest(
+  "compiled CLI preserves a good archive and reports repeated key and data omissions",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-ib-cli-amplification-");
+    const bundle = join(root, "Example.app");
+    const contents = join(bundle, "Contents");
+    const resources = join(bundle, "Contents", "Resources");
+    await mkdir(resources, { recursive: true });
+    await mkdir(join(contents, "MacOS"), { recursive: true });
+    await writeFile(
+      join(contents, "MacOS", "App"),
+      thinMach(0xfeedfacf, 0x0100000c),
+    );
+    await writeFile(
+      join(contents, "Info.plist"),
+      "<plist><dict><key>CFBundleExecutable</key><string>App</string></dict></plist>",
+    );
+    await writeFile(
+      join(resources, "A-Good.nib"),
+      encodeNibArchiveFixture({
+        classes: ["UIView"],
+        objects: [{ classIndex: 0, values: { title: "Good" } }],
+      }),
+    );
+    const longKey = "k".repeat(512 * 1024);
+    await writeFile(
+      join(resources, "B-RepeatedKey.nib"),
+      encodeNibArchiveFixture({
+        classes: ["UIView"],
+        objects: Array.from({ length: 700 }, () => ({
+          classIndex: 0,
+          values: { [longKey]: true },
+        })),
+      }),
+    );
+    await writeFile(
+      join(resources, "C-RepeatedData.nib"),
+      encodeNibArchiveWithSharedDataValue({
+        className: "UIView",
+        fieldName: "payload",
+        payload: "d".repeat(384 * 1024),
+        objectCount: 700,
+      }),
+    );
+
+    const output = await cli.run({
+      arguments: ["decode-interface-builder", bundle, "--json"],
+      environment: {
+        REA_LOG_LEVEL: "silent",
+        REA_ANALYSIS_PROVIDER: "auto",
+      },
+    });
+
+    expect(output.exitCode, `${output.stderr}\n${output.stdout}`).toBe(0);
+    const result = interfaceBuilderAnalysisSchema.parse(
+      parseEvidence(output.json).normalized_result,
+    );
+    expect(result.documents.map(({ relative_path }) => relative_path)).toEqual([
+      "Contents/Resources/A-Good.nib",
+    ]);
+    expect(result.graph.coverage).toContainEqual(
+      expect.objectContaining({
+        facet: "archive_decode",
+        status: "partial",
+        reason: "aggregate_decode_budget_exhausted",
+        examined: 3,
+        omitted: 2,
+      }),
+    );
+    expect(result.limitations).toContain(
+      "Contents/Resources/B-RepeatedKey.nib: omitted because aggregate decode budget exhausted.",
+    );
+    expect(result.limitations).toContain(
+      "Contents/Resources/C-RepeatedData.nib: omitted because aggregate decode budget exhausted.",
+    );
+  },
+);
 
 describe("aggregate Interface Builder archive retention budget", () => {
   it("keeps earlier documents when the aggregate decode reservation is exhausted", async () => {

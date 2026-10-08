@@ -395,7 +395,7 @@ const readValue = (
         `value ${index} data`,
       );
       budget.reserve(
-        32 + Math.ceil((length * 4) / 3),
+        32 + 4 * Math.ceil(length / 3),
         `NIBArchive data value ${index} exceeds the aggregate Interface Builder decode budget`,
       );
       const encoded = bytes.subarray(cursor.offset, next).toString("base64");

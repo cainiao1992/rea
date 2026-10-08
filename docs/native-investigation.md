@@ -71,8 +71,12 @@ complete observation.
   Before decoding, it also bounds the serialized structure: expanded binary
   plist references, NIB table records, XML elements and text, plus their
   projected representations must fit the 256 MiB aggregate decode budget.
-  This is a format-derived representation estimate, not a process-wide heap
-  ceiling.
+  NIB string values, data, property names and class names are charged at each
+  projected JSON occurrence, including when the archive reuses one source
+  value. Binary plist data projection also accounts for the temporary byte
+  copy made by the pinned decoder projection. These are format-derived
+  representation reservations, not exact heap measurements or a process-wide
+  heap ceiling.
   Archives beyond either aggregate budget are omitted with their paths and an
   explicitly partial `archive_decode` facet; previously decoded documents and
   their identities remain available.

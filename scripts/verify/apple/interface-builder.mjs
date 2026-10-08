@@ -8,8 +8,11 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { parseBinaryTarget } from "../../../dist/application/BinaryTargetResolver.js";
-import { ArtifactProvider } from "../../../dist/artifacts/ArtifactProvider.js";
+import {
+  artifactCliEvidence,
+  artifactMcpResult,
+  withArtifactMcp,
+} from "../../lib/artifact-e2e.mjs";
 
 const exec = promisify(execFile);
 const fixtureRoot = await mkdtemp(join(tmpdir(), "rea-interface-builder-"));
@@ -41,14 +44,19 @@ try {
   ]);
   await exec("cc", [join(sourceRoot, "fixture.c"), "-o", executablePath]);
 
-  const target = await parseBinaryTarget(appPath);
-  if (!target.ok) throw target.error;
-  const execution = await new ArtifactProvider()
-    .createClient(target.value)
-    .execute("decode_interface_builder", {}, {});
-  if (!execution.ok) throw execution.error;
-
-  const decoded = execution.value.result;
+  const evidence = await artifactCliEvidence(
+    "decode-interface-builder",
+    appPath,
+  );
+  const decoded = evidence.normalized_result;
+  await withArtifactMcp(appPath, async (client) => {
+    const mcp = await artifactMcpResult(client, "decode_interface_builder");
+    assert.deepEqual(
+      mcp,
+      decoded,
+      "CLI and MCP compiled archive results differ",
+    );
+  });
   assert.equal(decoded.documents.length, 1);
   assert.equal(
     decoded.documents[0]?.relative_path,
@@ -87,7 +95,9 @@ try {
   report = {
     ok: true,
     fixture: "compiled-appkit-nib",
-    provider: execution.value.provider,
+    provider: evidence.provider,
+    public_cli: true,
+    public_stdio_mcp: true,
     target_sha256: decoded.target_sha256,
     archive_sha256: decoded.documents[0].archive_sha256,
     objects: decoded.documents[0].object_count,

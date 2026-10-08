@@ -526,8 +526,9 @@ runtime or PC-98 device execution.
 ## Apple Interface Builder archives
 
 `npm run verify:interface-builder` compiles the source-owned AppKit XIB into a
-real `.nib` with Xcode `ibtool`, wraps it in a temporary app bundle, and checks
-the decoded view hierarchy, outlet, action, evidence coverage, and truncation
+real `.nib` with Xcode `ibtool`, wraps it in a temporary app bundle, and runs
+the compiled CLI and stdio MCP server with production providers. It compares
+their decoded results and checks the view hierarchy, outlet, action, evidence coverage, and truncation
 status. Storyboard compilation additionally requires an installed iOS platform.
 
 Keep the provider-specific acceptance path independent from optional

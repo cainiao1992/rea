@@ -152,7 +152,14 @@ private func readRunToken(pid: Int32, pointerSize: Int) -> RunTokenObservation {
   }
   bytes = Array(bytes.prefix(size))
   do {
-    return RunTokenObservation(pid: pid, state: "readable", run_id: try token(in: bytes, pointerSize: pointerSize), reason: nil)
+    let runId = try token(in: bytes, pointerSize: pointerSize)
+    // A complete empty environment is readable for an ordinary image. Apple
+    // platform images can expose the same layout after the kernel withholds
+    // their environment, so they remain explicitly unverified without a token.
+    if runId == nil && isPlatformBinary(pid: pid) {
+      return unavailable(pid: pid, reason: "platform_binary_environment_withheld")
+    }
+    return RunTokenObservation(pid: pid, state: "readable", run_id: runId, reason: nil)
   } catch RunTokenReadError.duplicateToken {
     return unavailable(pid: pid, reason: "duplicate_run_token")
   } catch RunTokenReadError.invalidTokenEncoding {
@@ -259,9 +266,6 @@ func token(in bytes: [UInt8], pointerSize: Int = MemoryLayout<UnsafeRawPointer>.
     throw RunTokenReadError.ambiguousEnvironmentBoundary
   }
   let environmentEntries = trailingEntries[..<appleVectorStart]
-  guard !environmentEntries.isEmpty else {
-    throw RunTokenReadError.environmentUnavailable
-  }
   var found: String?
   for entry in environmentEntries {
     if entry.starts(with: Array("REA_PROCESS_RUN_ID=".utf8)) {

@@ -323,31 +323,46 @@ def _wanted(spec, symbol):
     return symbol.startswith("-[" if method_type == "instance" else "+[")
 
 
-def _record(context, thread, index, sequence, location, remaining_bytes):
+def _read_register(frame, name):
+    error = lldb.SBError()
+    value = frame.FindRegister(name)
+    if not value.IsValid():
+        raise RuntimeError("LLDB breakpoint register %s is unavailable" % name)
+    number = value.GetValueAsUnsigned(error)
+    if error.Fail():
+        raise RuntimeError(
+            "LLDB breakpoint register %s could not be read: %s" % (name, error)
+        )
+    return number
+
+
+def _record(context, thread, frame, index, sequence, location, remaining_bytes):
     target, process, config = context["target"], context["process"], context["config"]
-    frame = thread.GetFrameAtIndex(0)
     symbol = location["symbol"] or ""
     if not _wanted(config["breakpoints"][index], symbol):
         return None
     names = ARGUMENT_REGISTERS.get(config["architecture"], [])
+    objc_method = symbol.startswith("-[") or symbol.startswith("+[")
+    values = {
+        name: _read_register(frame, name)
+        for name in names[: max(config["argument_registers"], 2 if objc_method else 0)]
+    }
     registers = [
-        {"name": name, "value": _hex(frame.FindRegister(name).GetValueAsUnsigned())}
+        {"name": name, "value": _hex(values[name])}
         for name in names[: config["argument_registers"]]
     ]
     receiver_class = None
     selector = None
-    if symbol.startswith("-[") or symbol.startswith("+["):
+    if objc_method:
         error = lldb.SBError()
         text = process.ReadCStringFromMemory(
-            frame.FindRegister(names[1]).GetValueAsUnsigned(),
+            values[names[1]],
             MAX_SELECTOR_BYTES,
             error,
         )
         selector = text if error.Success() and text else None
         if symbol.startswith("-["):
-            receiver_class = _dynamic_class(
-                target, frame.FindRegister(names[0]).GetValueAsUnsigned()
-            )
+            receiver_class = _dynamic_class(target, values[names[0]])
     estimated_base = (
         _estimated_json_size(location)
         + _estimated_json_size(receiver_class)
@@ -370,79 +385,100 @@ def _record(context, thread, index, sequence, location, remaining_bytes):
     return record
 
 
-def _handle_stop(context, events, other_stops):
-    """Record breakpoint hits of one stop; return an outcome when tracing must end."""
-    process = context["process"]
-    for thread in process:
-        reason = thread.GetStopReason()
-        if reason == lldb.eStopReasonBreakpoint:
-            index = context["breakpoint_index"].get(thread.GetStopReasonDataAtIndex(0))
-            if index is None:
-                continue
-            frame = thread.GetFrameAtIndex(0)
-            location = _location(frame.GetPCAddress(), context["target"])
-            symbol = location["symbol"] or ""
-            if not _wanted(context["config"]["breakpoints"][index], symbol):
-                continue
-            frame_count = max(
-                0,
-                min(thread.GetNumFrames() - 1, context["config"]["backtrace_frames"]),
-            )
-            event_frame_count = 1 + frame_count
-            if not _can_retain_trace(
-                context["retained_trace_bytes"],
-                context["retained_frames"],
-                0,
-                event_frame_count,
-            ):
-                return "resource-limit"
+# One trace runs in each owned LLDB subprocess. Its callbacks execute at the
+# breakpoint before LLDB resumes, unlike snapshots of later public stop events.
+_TRACE_CONTEXT = None
+
+
+def _handle_breakpoint(context, frame, index):
+    """Read one hit while LLDB's breakpoint callback owns the stopped frame."""
+    if not frame.IsValid() or frame.GetPC() == lldb.LLDB_INVALID_ADDRESS:
+        raise RuntimeError("LLDB breakpoint callback did not supply a readable frame")
+    thread = frame.GetThread()
+    events = context["events"]
+    location = _location(frame.GetPCAddress(), context["target"])
+    symbol = location["symbol"] or ""
+    if not _wanted(context["config"]["breakpoints"][index], symbol):
+        return None
+    frame_count = max(
+        0,
+        min(thread.GetNumFrames() - 1, context["config"]["backtrace_frames"]),
+    )
+    event_frame_count = 1 + frame_count
+    if not _can_retain_trace(
+        context["retained_trace_bytes"],
+        context["retained_frames"],
+        0,
+        event_frame_count,
+    ):
+        return "resource-limit"
+    try:
+        remaining_bytes = MAX_TRACE_BYTES - context["retained_trace_bytes"]
+        record = _record(
+            context, thread, frame, index, len(events), location, remaining_bytes
+        )
+    except ValueError:
+        return "resource-limit"
+    if record is not None:
+        if not _fits_trace_budget(record, remaining_bytes):
+            return "resource-limit"
+        record_bytes = len(json.dumps(record).encode("utf-8"))
+        if context["retained_trace_bytes"] + record_bytes > MAX_TRACE_BYTES:
+            return "resource-limit"
+        for depth in range(1, frame_count + 1):
             try:
-                remaining_bytes = MAX_TRACE_BYTES - context["retained_trace_bytes"]
-                record = _record(
-                    context, thread, index, len(events), location, remaining_bytes
+                location = _location(
+                    thread.GetFrameAtIndex(depth).GetPCAddress(), context["target"]
                 )
             except ValueError:
                 return "resource-limit"
-            if record is not None:
-                if not _fits_trace_budget(record, remaining_bytes):
-                    return "resource-limit"
-                record_bytes = len(json.dumps(record).encode("utf-8"))
-                if context["retained_trace_bytes"] + record_bytes > MAX_TRACE_BYTES:
-                    return "resource-limit"
-                for depth in range(1, frame_count + 1):
-                    try:
-                        location = _location(
-                            thread.GetFrameAtIndex(depth).GetPCAddress(), context["target"]
-                        )
-                    except ValueError:
-                        return "resource-limit"
-                    if (
-                        _estimated_json_size(location) + record_bytes + 1
-                        > MAX_TRACE_BYTES - context["retained_trace_bytes"]
-                    ):
-                        return "resource-limit"
-                    location_bytes = len(json.dumps(location).encode("utf-8"))
-                    addition = location_bytes + (1 if record["backtrace"] else 0)
-                    if (
-                        context["retained_trace_bytes"]
-                        + record_bytes
-                        + addition
-                        > MAX_TRACE_BYTES
-                    ):
-                        return "resource-limit"
-                    record["backtrace"].append(location)
-                    record_bytes += addition
-                journal = context.get("observation_journal")
-                if journal is not None and not journal.append(
-                    {"kind": "event", "event": record}
-                ):
-                    return "resource-limit"
-                events.append(record)
-                context["retained_frames"] += event_frame_count
-                context["retained_trace_bytes"] += record_bytes
-            if len(events) >= context["config"]["max_events"]:
-                return "event-limit"
-        elif reason in (lldb.eStopReasonSignal, lldb.eStopReasonException):
+            if (
+                _estimated_json_size(location) + record_bytes + 1
+                > MAX_TRACE_BYTES - context["retained_trace_bytes"]
+            ):
+                return "resource-limit"
+            location_bytes = len(json.dumps(location).encode("utf-8"))
+            addition = location_bytes + (1 if record["backtrace"] else 0)
+            if (
+                context["retained_trace_bytes"]
+                + record_bytes
+                + addition
+                > MAX_TRACE_BYTES
+            ):
+                return "resource-limit"
+            record["backtrace"].append(location)
+            record_bytes += addition
+        journal = context.get("observation_journal")
+        if journal is not None and not journal.append(
+            {"kind": "event", "event": record}
+        ):
+            return "resource-limit"
+        events.append(record)
+        context["retained_frames"] += event_frame_count
+        context["retained_trace_bytes"] += record_bytes
+    if len(events) >= context["config"]["max_events"]:
+        return "event-limit"
+    return None
+
+
+def breakpoint_hit(frame, location, internal_dict):
+    """LLDB callback: capture before resuming, and stop on a limit or failure."""
+    context = _TRACE_CONTEXT
+    if context is None or context["outcome"] is not None or context["failure"] is not None:
+        return True
+    try:
+        index = context["breakpoint_index"][location.GetBreakpoint().GetID()]
+        context["outcome"] = _handle_breakpoint(context, frame, index)
+    except Exception as error:
+        context["failure"] = "%s: %s" % (type(error).__name__, error)
+        return True
+    return context["outcome"] is not None
+
+
+def _handle_stop(context, other_stops):
+    """Retain non-breakpoint stop observations; callbacks already capture hits."""
+    for thread in context["process"]:
+        if thread.GetStopReason() in (lldb.eStopReasonSignal, lldb.eStopReasonException):
             stop_description = thread.GetStopDescription(256)
             journal = context.get("observation_journal")
             if journal is not None and not journal.append(
@@ -510,7 +546,17 @@ def _wait_for_exit(listener, process, seconds):
         listener.WaitForEvent(1, event)
 
 
+def _failed_launch_description(process):
+    if process.GetState() != lldb.eStateExited or process.GetExitStatus() != -1:
+        return None
+    description = process.GetExitDescription()
+    if isinstance(description, str) and description.lower().startswith(("attach failed", "launch failed")):
+        return description
+    return None
+
+
 def trace(debugger, config):
+    global _TRACE_CONTEXT
     debugger.SetAsync(True)
     # Stop at the symbol itself, where argument registers still hold the ABI
     # arguments, even when line tables would let LLDB skip the prologue.
@@ -577,6 +623,11 @@ def trace(debugger, config):
             stdout.close()
             stderr.close()
             return {"status": "launch-error", "error": error.GetCString()}
+        launch_failure = _failed_launch_description(process)
+        if launch_failure is not None:
+            stdout.close(expected_exit=True)
+            stderr.close(expected_exit=True)
+            return {"status": "launch-error", "error": launch_failure}
         stdout.mark_launched()
         stderr.mark_launched()
         # Publish the PID before any post-launch file or module inspection. The
@@ -650,6 +701,11 @@ def trace(debugger, config):
             "observation_journal": observation_journal,
         }
         events = []
+        context.update({"events": events, "outcome": None, "failure": None})
+        _TRACE_CONTEXT = context
+        for breakpoints in created:
+            for breakpoint in breakpoints:
+                breakpoint.SetScriptCallbackFunction("rea_lldb_tracer.breakpoint_hit")
         other_stops = []
         outcome = None
         deadline = started + config["duration_ms"] / 1000
@@ -670,7 +726,9 @@ def trace(debugger, config):
             if state == lldb.eStateExited:
                 outcome = "exited"
             elif state == lldb.eStateStopped and not lldb.SBProcess.GetRestartedFromEvent(event):
-                outcome = _handle_stop(context, events, other_stops)
+                if context["failure"] is not None:
+                    raise RuntimeError(context["failure"])
+                outcome = context["outcome"] or _handle_stop(context, other_stops)
                 if outcome is None:
                     process.Continue()
         pid = process.GetProcessID()
@@ -685,6 +743,12 @@ def trace(debugger, config):
         process_exited = process.GetState() == lldb.eStateExited
         stdout.close(expected_exit=process_exited)
         stderr.close(expected_exit=process_exited)
+        # SBTarget.Launch may succeed before debugserver reports an asynchronous
+        # attach failure as an exited SBProcess. Its -1 status is not a target
+        # exit code; preserve the debugger's concrete launch denial.
+        launch_failure = _failed_launch_description(process)
+        if launch_failure is not None:
+            return {"status": "launch-error", "error": launch_failure}
         launch_identity_stable = (
             module_path_before is not None
             and module_path_after == module_path_before
@@ -733,6 +797,7 @@ def trace(debugger, config):
         }
 
     finally:
+        _TRACE_CONTEXT = None
         if observation_journal is not None:
             try:
                 observation_journal.handle.close()

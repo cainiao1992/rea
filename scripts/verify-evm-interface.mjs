@@ -160,6 +160,24 @@ try {
     if (mode === "mcp") assert.deepEqual(value.result, report);
     return report;
   };
+  const ownershipProbe = join(root.path, "ownership-prerequisite.hex");
+  await writeFile(ownershipProbe, "0x00");
+  const missingInspection = await inspect(
+    "cli",
+    ownershipProbe,
+    "hex",
+    "unsupported_provider",
+    {
+      command: process.execPath,
+      prefix: [],
+      client,
+      environment: { ...environment, PATH: root.path },
+    },
+  );
+  assert.equal(missingInspection.code, "capability_unavailable");
+  assert.match(missingInspection.message, /procps-compatible ps/u);
+  assert.equal(missingInspection.details.operation, "prepare_owned_process");
+  cases++;
   for (const [name, optimizer, viaIR] of [
     ["plain", false, false],
     ["optimized", true, false],

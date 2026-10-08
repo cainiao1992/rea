@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { AnalysisCapabilityUnavailableError } from "../domain/analysisErrorCore.js";
 
 import { launcherIdentityFailure } from "./ProcessOwnershipIdentity.js";
 import { descendantsOf, liveProcesses } from "./ProcessOwnershipProcessTree.js";
@@ -300,6 +301,22 @@ export const createSystemProcessOwnershipHost = (
     platform,
     prepare: async (signal) => {
       await darwinTokens?.prepare(signal);
+      if (platform === "linux") {
+        try {
+          const processes = await listProcesses(signal);
+          if (!processes.some(({ pid }) => pid === process.pid))
+            throw new Error("ps did not report REA's current process");
+        } catch (cause: unknown) {
+          if (isExpectedAbort(cause, signal)) throw cause;
+          const reason = `Linux process ownership inspection requires a procps-compatible ps on REA's PATH before launching a child: ${errorMessage(cause)}`;
+          throw new AnalysisCapabilityUnavailableError(
+            "process-ownership",
+            "prepare_owned_process",
+            reason,
+            { cause, userMessage: reason },
+          );
+        }
+      }
     },
     listProcesses,
     async environment(pid) {

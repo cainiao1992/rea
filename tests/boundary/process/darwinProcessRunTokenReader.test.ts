@@ -548,7 +548,6 @@ it.skipIf(!onDarwin)(
         clearedAppleVectorTokenFailsClosed: true,
         callerPfzBeforeTokenRead: true,
         emptyLaterArgumentRead: true,
-        emptyEnvironmentFailsClosed: true,
         emptyArgv0Read: true,
         emptyEnvironmentRecordsBeforeTokenFailClosed: true,
         duplicateTokenFailsClosed: true,
@@ -677,7 +676,7 @@ it.skipIf(!onDarwin)(
 );
 
 it.skipIf(!onDarwin)(
-  "reads owned tokens with empty later arguments across executable path padding",
+  "reads owned tokens across executable padding and distinguishes a real empty environment",
   async () => {
     const root = await mkdtemp(join(tmpdir(), "rea-process-token-padding-"));
     const host = createSystemProcessOwnershipHost("darwin");
@@ -699,6 +698,7 @@ it.skipIf(!onDarwin)(
           ),
         );
       }
+      children.push(await startNodeChild({}));
       const processes = await host.listProcesses();
       const entries = children.map(({ pid }) => {
         const entry = processes.find((process) => process.pid === pid);
@@ -710,6 +710,7 @@ it.skipIf(!onDarwin)(
       expect(children.map(({ pid }) => observations?.get(pid))).toEqual([
         { state: "readable", runId: "synthetic-padding-0" },
         { state: "readable", runId: "synthetic-padding-1" },
+        { state: "readable" },
       ]);
     } finally {
       for (const { child } of children) await stopNodeChild(child);

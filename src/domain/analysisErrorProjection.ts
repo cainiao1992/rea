@@ -61,6 +61,11 @@ export const projectAnalysisError = (
     ...(error.capturedOutput === undefined
       ? {}
       : { captured_output: { ...error.capturedOutput } }),
+    ...(error.partialObservation === undefined
+      ? {}
+      : {
+          partial_observation: jsonValueSchema.parse(error.partialObservation),
+        }),
   };
   return {
     code,
@@ -445,13 +450,6 @@ const lifecycleErrorDetails = (
       ...(error.executionFailure === undefined
         ? {}
         : { execution_failure: error.executionFailure }),
-      ...(error.partialObservation === undefined
-        ? {}
-        : {
-            partial_observation: jsonValueSchema.parse(
-              error.partialObservation,
-            ),
-          }),
     };
   if (error._tag === "ProcessCaptureError") {
     const details = {
@@ -464,13 +462,6 @@ const lifecycleErrorDetails = (
       ...(error.executionFailure === undefined
         ? {}
         : { execution_failure: error.executionFailure }),
-      ...(error.partialObservation === undefined
-        ? {}
-        : {
-            partial_observation: jsonValueSchema.parse(
-              error.partialObservation,
-            ),
-          }),
     };
     return Object.keys(details).length === 0 ? undefined : details;
   }

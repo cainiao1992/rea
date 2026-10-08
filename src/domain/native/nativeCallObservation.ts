@@ -205,6 +205,8 @@ export const nativeCallObservationResultSchema = z.strictObject({
     status: z.enum(["complete", "partial"]),
     event_limit_reached: z.boolean(),
     resource_limit_reached: z.boolean(),
+    /** Aggregate breakpoint-location metadata exhausted its retained-byte budget. */
+    breakpoint_locations_truncated: z.boolean().optional(),
     /** Requests that matched no code in any image loaded while observing. */
     unresolved_breakpoints: z.array(z.number().int().nonnegative()),
   }),

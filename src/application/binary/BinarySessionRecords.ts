@@ -25,6 +25,9 @@ import type {
 import { AnalysisSnapshotCache } from "./AnalysisSnapshotCache.js";
 import { InvestigationRecords } from "../investigation/InvestigationRecords.js";
 
+const SNAPSHOT_MUTATION_RECOVERY =
+  "Export session observations through export_evidence_bundle if needed. Close the active target without saving a snapshot, then reopen it before importing or saving a snapshot.";
+
 export interface ActiveAnalysisBinding {
   readonly target: BinaryTarget;
   readonly profile: AnalysisProfileCommitment | null;
@@ -104,6 +107,9 @@ export abstract class BinarySessionRecords {
       return err(
         new EvidenceIntegrityError(
           "Analysis snapshots are unavailable after analysis metadata mutations",
+          {
+            userMessage: `Analysis snapshots are unavailable after analysis metadata mutations. ${SNAPSHOT_MUTATION_RECOVERY}`,
+          },
         ),
       );
     const target = active?.target;
@@ -130,6 +136,15 @@ export abstract class BinarySessionRecords {
     snapshot: AnalysisSnapshot,
   ): Result<number, AnalysisError> {
     const active = this.activeAnalysisBinding();
+    if (active !== undefined && this.#snapshotInvalidated)
+      return err(
+        new EvidenceIntegrityError(
+          "Analysis snapshots cannot be imported after analysis metadata mutations",
+          {
+            userMessage: `Analysis snapshots cannot be imported after analysis metadata mutations. ${SNAPSHOT_MUTATION_RECOVERY}`,
+          },
+        ),
+      );
     if (active?.profile === null)
       return err(
         new AnalysisSnapshotMismatchError(
@@ -173,12 +188,14 @@ export abstract class BinarySessionRecords {
       Record<string, import("../../domain/jsonValue.js").JsonValue>
     >,
   ): AnalysisExecution | undefined {
+    if (this.#snapshotInvalidated) return undefined;
     return this.#snapshot.lookup(target, profile, operation, parameters);
   }
 
   protected recordSnapshot(
     input: Parameters<AnalysisSnapshotCache["record"]>[0],
   ): void {
+    if (this.#snapshotInvalidated) return;
     this.#snapshot.record(input);
     this.#emitSnapshotChanged();
   }
@@ -194,6 +211,7 @@ export abstract class BinarySessionRecords {
           "Workflow snapshot entries require an active concrete provider profile",
         ),
       );
+    if (this.#snapshotInvalidated) return ok(null);
     try {
       this.#snapshot.recordWorkflow({
         target: active.target,
@@ -222,6 +240,7 @@ export abstract class BinarySessionRecords {
 
   protected resetSnapshotInvalidation(): void {
     if (!this.#snapshotInvalidated) return;
+    this.#snapshot.clear();
     this.#snapshotInvalidated = false;
     this.#emitSnapshotChanged();
   }

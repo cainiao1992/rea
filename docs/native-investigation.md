@@ -101,6 +101,15 @@ Cancelling an active request terminates the ephemeral database and discards its
 annotations. REA retains the selected target and imports the original artifact
 again on the next Ghidra query.
 
+Opening the same target and profile again retains the live database, including
+annotations. It does not make those edits eligible for an immutable snapshot.
+Snapshot closes drain earlier provider requests before saving and keep later
+requests waiting until the save and close finish. A concurrent successful edit
+therefore rejects the snapshot save and leaves the edited session open.
+After metadata edits, snapshot saves and imports remain unavailable in that
+session. Use `export_evidence_bundle` to retain the observations, close without
+`snapshot_path`, and reopen the target before importing or saving a snapshot.
+
 ```bash
 rea inspect-native-instruction <binary> <address> --provider ghidra
 rea resolve-native-call-targets <binary> <call-site> --provider ghidra

@@ -9,6 +9,7 @@ import Ajv from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { mcpTextValue, requireMcpResult } from "./mcp-verifier-results.mjs";
 import { verifyLegacyGhidraReferenceSnapshot } from "./ghidra-reference-snapshot-e2e.mjs";
+import { verifyGhidraSnapshotLifecycle } from "./real-ghidra-snapshot-lifecycle.mjs";
 
 /** Probe real Ghidra location, annotation and error contracts through public adapters. */
 export async function verifyGhidraBoundaries(
@@ -639,10 +640,16 @@ export async function verifyGhidraBoundaries(
       selected,
     );
   }
-  await call("close_binary");
+  const snapshotLifecycle = await verifyGhidraSnapshotLifecycle(
+    client,
+    target,
+    await call("analyze_function", { procedure: address }),
+    cli,
+  );
+  successfulCalls += snapshotLifecycle.successfulCalls;
+  rejectedCalls += snapshotLifecycle.rejectedCalls;
   await assert.rejects(access(socketRoot), { code: "ENOENT" });
   await assert.rejects(access(runtimeRoot), { code: "ENOENT" });
-  await call("open_binary", { path: target.path, provider_id: "ghidra" });
   assert.equal(await call("procedure_address", { procedure: name }), address);
   assert.equal(await call("address_name", { address }), name);
   assert.equal(
@@ -674,6 +681,8 @@ export async function verifyGhidraBoundaries(
     complete_function_body_references: true,
     ambiguity_candidates_inline: true,
     legacy_reference_snapshot_rejected: true,
+    mutation_snapshot_lifecycle: true,
+    concurrent_annotation_snapshot_close: true,
     source_immutable: true,
     reopen_discards_edits: true,
     long_tmpdir_private_socket_cleanup: true,

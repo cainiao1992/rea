@@ -299,6 +299,15 @@ external addresses remain unresolved and external annotations are rejected.
 An adversarial regex over a full 12 KB literal must report stack exhaustion as
 a resource constraint, preserve live annotations, and allow complete literal
 searches afterward; CLI and MCP must agree on both results and recovery advice.
+Real snapshot lifecycle checks retain edited API results as Evidence while
+rejecting immutable snapshot saves and imports before and after a repeated
+open of the same target. They verify unchanged live annotations and run identity,
+absent rejected output files, an unchanged source snapshot, and successful
+snapshot import/save after closing and recreating the database. The pristine
+snapshot is written by an independent real CLI session.
+They also start a real annotation and snapshot close concurrently: the edit
+must succeed, the snapshot must be rejected without creating a file, and the
+edited session must remain usable until explicitly closed.
 Malformed annotation readback, memory completeness, and inventory data remain separate
 SDK/provider integration cases; success from a real
 provider cannot establish rejection of a contradictory provider response.

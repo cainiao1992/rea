@@ -113,6 +113,7 @@ const buildUnknowns = (input: UnknownsInput): WebBundleAnalysis["unknowns"] => [
         {
           dimension: "source_maps" as const,
           reason:
+            input.sourceMaps.limitation ??
             "One or more requested source maps were unavailable or incomplete",
           affected_script_keys: input.sourceMaps.items
             .filter(({ status }) => status !== "included")

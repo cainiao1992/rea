@@ -1,11 +1,9 @@
 import * as t from "@babel/types";
 import {
-  AnyMap,
-  eachMapping,
-  type EncodedSourceMap,
-  type Section,
-  type SectionedSourceMap,
-} from "@jridgewell/trace-mapping";
+  decodeValidatedSourceMapLeaves,
+  isBeforeSourceMapLeafStop,
+  resolveSourceMapSource,
+} from "../javascript/sourceMaps/DecodedSourceMap.js";
 
 import { sanitizeBrowserUrl } from "../domain/browserObservation.js";
 import { isUrlLikeModuleSpecifier } from "../domain/webBundleAnalyzerAst.js";
@@ -20,10 +18,13 @@ import type {
 import { webSourceMapsSchema } from "../domain/webBundleAnalysis.js";
 import { createWebTextArtifact } from "../domain/webContentArtifact.js";
 import { safeParseJson } from "../domain/safeJson.js";
+import { jsonParts } from "../domain/jsonSerialization.js";
 import {
+  inspectSourceMapValue,
   SourceMapFormatFailure,
-  validateSourceMapStructure,
+  type SourceMapLeaf,
 } from "../javascript/sourceMaps/SourceMapFormat.js";
+import { WEB_SOURCE_MAP_LIMITS } from "../domain/webSourceLocation.js";
 
 export interface WebSourceMapRequest {
   readonly scriptKey: string;
@@ -45,6 +46,9 @@ interface SourceMapFetchHost {
 // hitting either produces an explicit fetch_failed item, never truncated data.
 const SOURCE_MAP_FETCH_TIMEOUT_MS = 30_000;
 const SOURCE_MAP_RESPONSE_BYTES = 64 * 1024 * 1024;
+const SOURCE_MAP_OUTPUT_BYTES = WEB_SOURCE_MAP_LIMITS.outputBytes;
+const SOURCE_MAP_FAILURE_LIMITATION_RESERVE = 512;
+const SOURCE_MAP_COLLECTION_ENVELOPE_RESERVE = 1_024;
 
 type SourceMaps = WebSourceMaps;
 type SourceMapItem = WebSourceMapItem;
@@ -55,7 +59,11 @@ type ParsedSourceMapItem = Extract<
 interface SourceMapDecodeContext {
   readonly signal: AbortSignal | undefined;
   readonly deadlineAt: number;
-  readonly budget: { records: number };
+  readonly budget: {
+    records: number;
+    expandedBytes: number;
+    resolvedSourceBytes: number;
+  };
 }
 
 /** Fetch and validate approved source maps without browser credentials. */
@@ -79,11 +87,27 @@ export const fetchWebSourceMaps = async (
   const budget = {
     retainedBytes: 0,
     deadlineAt,
-    decodedRecords: { records: 0 },
+    decodedRecords: {
+      records: 0,
+      expandedBytes: SOURCE_MAP_COLLECTION_ENVELOPE_RESERVE,
+      resolvedSourceBytes: 0,
+    },
   };
+  let limitation: string | undefined;
   try {
     for (const request of requests) {
       if (signal?.aborted === true) throw signal.reason;
+      const reservation = sourceMapFailureReservation(request) + 1;
+      if (
+        reservation >
+        SOURCE_MAP_OUTPUT_BYTES - budget.decodedRecords.expandedBytes
+      ) {
+        const unprocessed = requests.length - items.length;
+        limitation = `Source-map output budget was exhausted before processing ${String(unprocessed)} requested map${unprocessed === 1 ? "" : "s"}. Their results are unknown.`;
+        break;
+      }
+      const expandedBytesBeforeItem = budget.decodedRecords.expandedBytes;
+      budget.decodedRecords.expandedBytes += reservation;
       if (operationSignal.aborted || Date.now() >= deadlineAt) {
         items.push(
           emptySourceMapItem(
@@ -94,7 +118,17 @@ export const fetchWebSourceMaps = async (
         );
         continue;
       }
-      items.push(await fetchOne(request, input, operationSignal, host, budget));
+      const item = await fetchOne(
+        request,
+        input,
+        operationSignal,
+        host,
+        budget,
+      );
+      if (item.artifact === null)
+        budget.decodedRecords.expandedBytes =
+          expandedBytesBeforeItem + reservation;
+      items.push(item);
     }
   } finally {
     clearTimeout(timeout);
@@ -102,20 +136,23 @@ export const fetchWebSourceMaps = async (
   }
   if (signal?.aborted === true) throw signal.reason;
   return webSourceMapsSchema.parse({
-    status: sourceMapsStatus(items),
+    status: sourceMapsStatus(items, limitation !== undefined),
     requested: requests.length,
     processed: items.length,
     items,
+    ...(limitation === undefined ? {} : { limitation }),
   });
 };
 
 const sourceMapsStatus = (
   items: readonly SourceMapItem[],
+  omitted: boolean,
 ): SourceMaps["status"] => {
   const retained = items.filter(
     ({ status }) => status === "included" || status === "partial",
   ).length;
   if (items.length === 0 || retained === 0) return "unavailable";
+  if (omitted) return "partial";
   return retained === items.length &&
     !items.some(({ status }) => status === "partial")
     ? "included"
@@ -151,7 +188,11 @@ const fetchOne = async (
   budget: {
     retainedBytes: number;
     deadlineAt: number;
-    decodedRecords: { records: number };
+    decodedRecords: {
+      records: number;
+      expandedBytes: number;
+      resolvedSourceBytes: number;
+    };
   },
 ): Promise<SourceMapItem> => {
   if (!approvedUrl(request.fetchUrl, input.allowed_origins))
@@ -378,49 +419,6 @@ const promiseWithAbort = (
   });
 };
 
-type EncodedBrowserSourceMap = EncodedSourceMap | SectionedSourceMap;
-
-/** Compose indexed offsets before upstream flattening, retaining parent clipping. */
-const sourceMapWithAbsoluteSections = (
-  value: unknown,
-  check: () => void,
-): EncodedBrowserSourceMap => {
-  const root = value as EncodedBrowserSourceMap;
-  if (!("sections" in root)) return root;
-  const sections: Section[] = [];
-  const pending: Section[] = [{ map: root, offset: { line: 0, column: 0 } }];
-  while (pending.length > 0) {
-    check();
-    const node = pending.pop();
-    if (node === undefined) break;
-    if (!("sections" in node.map)) {
-      sections.push(node);
-      continue;
-    }
-    // A parent's boundary clips the preceding leaf even when its first child
-    // starts later or it has no children. Empty maps retain that boundary
-    // without adding source/name identities or point mappings.
-    sections.push({
-      offset: node.offset,
-      map: { version: 3, sources: [], names: [], mappings: "" },
-    });
-    for (let index = node.map.sections.length - 1; index >= 0; index -= 1) {
-      const child = node.map.sections[index];
-      if (child === undefined) continue;
-      pending.push({
-        map: child.map,
-        offset: {
-          line: node.offset.line + child.offset.line,
-          column:
-            child.offset.column +
-            (child.offset.line === 0 ? node.offset.column : 0),
-        },
-      });
-    }
-  }
-  return { ...root, sections };
-};
-
 const normalizeSourceMap = (
   request: WebSourceMapRequest,
   text: string,
@@ -434,56 +432,153 @@ const normalizeSourceMap = (
       "invalid",
       "Source-map JSON is not a version 3 map.",
     );
+  const retainedBytesBeforeMap = context.budget.expandedBytes;
   try {
     const check = (): void =>
       checkOperation(undefined, context.signal, context.deadlineAt);
-    validateSourceMapStructure(parsedJson.value, {
+    const inspected = inspectSourceMapValue(parsedJson.value, {
       profile: "browser-collection",
       budget: context.budget,
       check,
     });
-    check();
-    const map = new AnyMap(
-      sourceMapWithAbsoluteSections(parsedJson.value, check),
-      fetchedUrl,
+    context.budget.expandedBytes =
+      retainedBytesBeforeMap -
+      sourceMapFailureReservation(request) +
+      sourceMapSuccessReservation(request);
+    consumeExpandedBytes(
+      context.budget,
+      jsonBytes(text) +
+        artifactMetadataBytes("application/source-map+json", text) -
+        4,
     );
-    const resolvedBySource = new Map<string, string>();
-    const originalSources = map.sources.map((source, index) => {
-      if ((index & 255) === 0) check();
-      const content = map.sourcesContent?.[index];
-      const resolved =
-        map.resolvedSources[index] ?? source ?? "[unknown-source]";
-      if (source !== null) resolvedBySource.set(source, resolved);
-      return {
-        source: sanitizeSource(resolved),
-        artifact:
-          typeof content === "string"
-            ? createWebTextArtifact(content, sourceMediaType(source))
-            : null,
-      };
-    });
-    const mappings: ParsedSourceMapItem["mappings"] = [];
-    eachMapping(map, (mapping) => {
-      if ((mappings.length & 0x3fff) === 0) check();
-      if (
-        mapping.source === null ||
-        mapping.originalLine === null ||
-        mapping.originalColumn === null
-      )
-        return;
-      mappings.push({
-        generated_line: mapping.generatedLine,
-        generated_column: mapping.generatedColumn,
-        source: sanitizeSource(
-          resolvedBySource.get(mapping.source) ?? mapping.source,
-        ),
-        original_line: mapping.originalLine,
-        original_column: mapping.originalColumn,
-        name: mapping.name ?? null,
-      });
-    });
-    const modules = originalModuleEdges(originalSources, check);
+    const sourcesByRaw = new Map<string, string>();
+    const resolvedByRoot = new Map<string | null, Map<string, string>>();
+    preflightResolvedSourceBytes(
+      inspected.leaves,
+      fetchedUrl,
+      context.budget,
+      resolvedByRoot,
+      sourcesByRaw,
+      check,
+    );
     check();
+    const decoded = decodeValidatedSourceMapLeaves(
+      inspected.leaves,
+      fetchedUrl,
+      check,
+    );
+    const sourceJsonBytes = new Map<string, number>();
+    const nameJsonBytes = new Map<string, number>();
+    const originalSources: ParsedSourceMapItem["original_sources"] = [];
+    let sourceBytes = 0;
+    for (const { leaf, resolvedSources } of decoded) {
+      for (const [index, rawSource] of leaf.map.sources.entries()) {
+        if ((index & 255) === 0) check();
+        const resolved =
+          resolvedSources[index] ?? rawSource ?? "[unknown-source]";
+        const sanitized = cachedSanitized(sourcesByRaw, resolved);
+        sourceBytes +=
+          cachedJsonBytes(sourceJsonBytes, sanitized) +
+          sourceEntryOverheadBytes();
+        const content = leaf.map.sourcesContent?.[index] ?? null;
+        if (content !== null)
+          sourceBytes +=
+            jsonBytes(content) +
+            artifactMetadataBytes(sourceMediaType(rawSource), content) -
+            4;
+      }
+    }
+    consumeExpandedBytes(
+      context.budget,
+      sourceBytes + originalSourcesCount(decoded),
+    );
+    for (const { leaf, resolvedSources } of decoded) {
+      for (const [index, rawSource] of leaf.map.sources.entries()) {
+        if ((index & 255) === 0) check();
+        const resolved =
+          resolvedSources[index] ?? rawSource ?? "[unknown-source]";
+        const sanitized = cachedSanitized(sourcesByRaw, resolved);
+        const content = leaf.map.sourcesContent?.[index] ?? null;
+        originalSources.push({
+          source: sanitized,
+          artifact:
+            content === null
+              ? null
+              : createWebTextArtifact(content, sourceMediaType(rawSource)),
+        });
+      }
+    }
+    let mappingBytes = 0;
+    let mappingCount = 0;
+    for (const { leaf, rows, resolvedSources } of decoded)
+      for (const [line, row] of rows.entries()) {
+        if ((line & 255) === 0) check();
+        for (const segment of row) {
+          if (!isBeforeSourceMapLeafStop(leaf, line, segment[0])) continue;
+          if (segment.length === 1) continue;
+          const rawSource = leaf.map.sources[segment[1]];
+          const source = cachedSanitized(
+            sourcesByRaw,
+            resolvedSources[segment[1]] ?? rawSource ?? "[unknown-source]",
+          );
+          const name =
+            segment.length === 5 ? (leaf.map.names[segment[4]] ?? null) : null;
+          mappingBytes +=
+            cachedJsonBytes(sourceJsonBytes, source) +
+            (name === null ? 4 : cachedJsonBytes(nameJsonBytes, name)) +
+            mappingRowBytes(
+              leaf.offset.line + line + 1,
+              segment[0] + (line === 0 ? leaf.offset.column : 0),
+              segment[2] + 1,
+              segment[3],
+            );
+          mappingCount += 1;
+          if (
+            mappingBytes >
+            WEB_SOURCE_MAP_LIMITS.outputBytes - context.budget.expandedBytes
+          )
+            throw expandedOutputFailure();
+        }
+      }
+    consumeExpandedBytes(context.budget, mappingBytes + mappingCount);
+    const mappings: ParsedSourceMapItem["mappings"] = [];
+    for (const { leaf, rows, resolvedSources } of decoded)
+      for (const [line, row] of rows.entries()) {
+        if ((line & 255) === 0) check();
+        for (const segment of row) {
+          if (!isBeforeSourceMapLeafStop(leaf, line, segment[0])) continue;
+          if (segment.length === 1) continue;
+          const rawSource = leaf.map.sources[segment[1]];
+          const resolved =
+            resolvedSources[segment[1]] ?? rawSource ?? "[unknown-source]";
+          const source = cachedSanitized(sourcesByRaw, resolved);
+          const name =
+            segment.length === 5 ? (leaf.map.names[segment[4]] ?? null) : null;
+          mappings.push({
+            generated_line: leaf.offset.line + line + 1,
+            generated_column:
+              segment[0] + (line === 0 ? leaf.offset.column : 0),
+            source,
+            original_line: segment[2] + 1,
+            original_column: segment[3],
+            name,
+          });
+        }
+      }
+    const modules = originalModuleEdges(originalSources, check, (edge) =>
+      consumeExpandedBytes(
+        context.budget,
+        Buffer.byteLength(JSON.stringify(edge)) + 1,
+      ),
+    );
+    check();
+    if (modules.incomplete.length > 0)
+      consumeExpandedBytes(
+        context.budget,
+        jsonBytes(
+          `Module edges are incomplete: ${modules.incomplete.length} of ${originalSources.filter(({ artifact }) => artifact !== null).length} original sources could not be parsed in full (${modules.incomplete.join(", ")}).`,
+        ) - 4,
+      );
     const parsed = {
       ...sourceMapContext(request),
       artifact: createWebTextArtifact(text, "application/source-map+json"),
@@ -500,6 +595,9 @@ const normalizeSourceMap = (
           limitation: `Module edges are incomplete: ${modules.incomplete.length} of ${originalSources.filter(({ artifact }) => artifact !== null).length} original sources could not be parsed in full (${modules.incomplete.join(", ")}).`,
         };
   } catch (cause: unknown) {
+    // Failed maps publish no artifact or mapping rows. Release their output
+    // reservation while keeping cumulative fetch and decoder-work accounting.
+    context.budget.expandedBytes = retainedBytesBeforeMap;
     if (cause instanceof SourceMapFormatFailure && cause.reason === "limit")
       return emptySourceMapItem(request, "fetch_failed", cause.message);
     if (
@@ -524,6 +622,9 @@ interface OriginalModuleEdges {
 const originalModuleEdges = (
   sources: ParsedSourceMapItem["original_sources"],
   check: () => void,
+  beforeEdge: (
+    edge: ParsedSourceMapItem["original_module_edges"][number],
+  ) => void,
 ): OriginalModuleEdges => {
   const edges: ParsedSourceMapItem["original_module_edges"] = [];
   const seen = new Set<string>();
@@ -571,12 +672,14 @@ const originalModuleEdges = (
         const key = `${source.source}\0${kind}\0${specifier}`;
         if (seen.has(key)) return;
         seen.add(key);
-        edges.push({
+        const edge = {
           from_source: source.source,
           kind,
           specifier,
           resolved_source: resolveOriginalSource(specifier, source.source),
-        });
+        };
+        beforeEdge(edge);
+        edges.push(edge);
       },
     });
   }
@@ -640,6 +743,151 @@ const sanitizeSource = (value: string): string => {
     return value;
   }
 };
+
+const preflightResolvedSourceBytes = (
+  leaves: readonly SourceMapLeaf[],
+  mapUrl: string,
+  budget: { readonly expandedBytes: number; resolvedSourceBytes: number },
+  resolvedByRoot: Map<string | null, Map<string, string>>,
+  sanitizedByResolved: Map<string, string>,
+  check: () => void,
+): void => {
+  let estimate = budget.expandedBytes;
+  let resolvedBytes = budget.resolvedSourceBytes;
+  for (const { map } of leaves) {
+    let sourcesForRoot = resolvedByRoot.get(map.sourceRoot ?? null);
+    if (sourcesForRoot === undefined) {
+      sourcesForRoot = new Map();
+      resolvedByRoot.set(map.sourceRoot ?? null, sourcesForRoot);
+    }
+    for (const source of map.sources) {
+      check();
+      const sourceKey = source ?? "";
+      let resolved = sourcesForRoot.get(sourceKey);
+      if (resolved === undefined)
+        resolved = resolveSourceMapSource(source, map.sourceRoot, mapUrl);
+      const bytes = Buffer.byteLength(resolved, "utf8");
+      if (bytes > SOURCE_MAP_RESPONSE_BYTES - resolvedBytes)
+        throw resolvedSourceLimitFailure();
+      resolvedBytes += bytes;
+      sourcesForRoot.set(sourceKey, resolved);
+      const sanitized = cachedSanitized(sanitizedByResolved, resolved);
+      estimate += jsonBytes(sanitized);
+      if (estimate > WEB_SOURCE_MAP_LIMITS.outputBytes)
+        throw expandedOutputFailure();
+    }
+  }
+  budget.resolvedSourceBytes = resolvedBytes;
+};
+
+const consumeExpandedBytes = (
+  budget: { expandedBytes: number },
+  bytes: number,
+): void => {
+  if (bytes > WEB_SOURCE_MAP_LIMITS.outputBytes - budget.expandedBytes)
+    throw expandedOutputFailure();
+  budget.expandedBytes += bytes;
+};
+
+const expandedOutputFailure = (): SourceMapFormatFailure =>
+  new SourceMapFormatFailure(
+    "limit",
+    `Expanded source-map evidence exceeds the ${WEB_SOURCE_MAP_LIMITS.outputBytes / (1024 * 1024)} MiB public representation budget.`,
+  );
+
+const resolvedSourceLimitFailure = (): SourceMapFormatFailure =>
+  new SourceMapFormatFailure(
+    "limit",
+    `Resolved source-map identities exceed the ${SOURCE_MAP_RESPONSE_BYTES / (1024 * 1024)} MiB decoder representation budget.`,
+  );
+
+const jsonBytes = (value: string): number => {
+  let bytes = 0;
+  for (const part of jsonParts(value)) bytes += Buffer.byteLength(part, "utf8");
+  return bytes;
+};
+
+const artifactMetadataBytes = (mediaType: string, text: string): number =>
+  Buffer.byteLength(
+    JSON.stringify({
+      sha256: "0".repeat(64),
+      bytes: Buffer.byteLength(text),
+      media_type: mediaType,
+      charset: "utf-8",
+      text: "",
+    }),
+  ) - 2;
+
+const sourceMapFailureReservation = (request: WebSourceMapRequest): number => {
+  const envelope = emptySourceMapItem(
+    { ...request, declaredUrl: "", scriptKey: "" },
+    "fetch_failed",
+    "x".repeat(SOURCE_MAP_FAILURE_LIMITATION_RESERVE),
+  );
+  return (
+    Buffer.byteLength(JSON.stringify(envelope)) -
+    4 +
+    jsonBytes(request.declaredUrl) +
+    jsonBytes(request.scriptKey)
+  );
+};
+
+const sourceMapSuccessReservation = (request: WebSourceMapRequest): number => {
+  const context = sourceMapContext({
+    ...request,
+    declaredUrl: "",
+    scriptKey: "",
+  });
+  const envelope = {
+    ...context,
+    status: "included",
+    artifact: null,
+    original_sources: [],
+    original_module_edges: [],
+    mappings: [],
+    limitation: null,
+  };
+  return (
+    Buffer.byteLength(JSON.stringify(envelope)) -
+    4 +
+    jsonBytes(request.declaredUrl) +
+    jsonBytes(request.scriptKey)
+  );
+};
+
+const sourceEntryOverheadBytes = (): number =>
+  Buffer.byteLength('{"source":,"artifact":null}');
+
+const originalSourcesCount = (
+  decoded: ReturnType<typeof decodeValidatedSourceMapLeaves>,
+): number =>
+  decoded.reduce((count, { leaf }) => count + leaf.map.sources.length, 0);
+
+const cachedJsonBytes = (cache: Map<string, number>, value: string): number => {
+  const cached = cache.get(value);
+  if (cached !== undefined) return cached;
+  const bytes = jsonBytes(value);
+  cache.set(value, bytes);
+  return bytes;
+};
+
+const cachedSanitized = (cache: Map<string, string>, value: string): string => {
+  const cached = cache.get(value);
+  if (cached !== undefined) return cached;
+  const sanitized = sanitizeSource(value);
+  cache.set(value, sanitized);
+  return sanitized;
+};
+
+const mappingRowBytes = (
+  generatedLine: number,
+  generatedColumn: number,
+  originalLine: number,
+  originalColumn: number,
+): number =>
+  Buffer.byteLength(
+    `{"generated_line":${String(generatedLine)},"generated_column":${String(generatedColumn)},"source":,"original_line":${String(originalLine)},"original_column":${String(originalColumn)},"name":}`,
+  );
 
 const resolveOriginalSource = (
   specifier: string,

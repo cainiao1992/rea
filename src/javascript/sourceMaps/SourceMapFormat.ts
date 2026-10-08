@@ -311,18 +311,10 @@ export const inspectSourceMap = (
   };
 };
 
-/** Validate shared source-map structure before a consumer decodes mappings. */
-export const validateSourceMapStructure = (
+/** Return validated leaves when a consumer needs decoded rows after preflight. */
+export const inspectSourceMapValue = (
   value: unknown,
   options: SourceMapStructureOptions = {},
-): void => {
-  inspectSourceMapValue(value, options, false);
-};
-
-const inspectSourceMapValue = (
-  value: unknown,
-  options: SourceMapStructureOptions = {},
-  collect = true,
 ): {
   readonly format: "regular" | "indexed";
   readonly reportedFile: string | null;
@@ -351,10 +343,9 @@ const inspectSourceMapValue = (
       continue;
     }
     const leaf = inspectLeaf(node, budget, options);
-    if (collect)
-      leaves.push({ map: leaf, offset: node.offset, stop: node.stop });
-    for (const [sourceIndex, source] of leaf.sources.entries())
-      if (collect)
+    leaves.push({ map: leaf, offset: node.offset, stop: node.stop });
+    if (options.profile !== "browser-collection")
+      for (const [sourceIndex, source] of leaf.sources.entries())
         declarations.push({
           sectionPath: node.path,
           sourceIndex,

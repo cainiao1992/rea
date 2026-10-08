@@ -96,7 +96,18 @@ preflights indexed sections, sources, names, generated rows and mapping segments
 against a 262144-record decode budget before upstream flattening. Indexed maps
 are limited to 64 nested levels. These structural limits bound decoded object
 growth while preserving large embedded `sourcesContent` strings within the
-response-byte budget; exceeding a decoder limit returns a `fetch_failed` item.
+response-byte budget. It also bounds the expanded inline evidence to 32 MiB
+across the inspection, checking resolved source identities and mapping rows
+before publishing them, and bounds raw resolved-source identities to 64 MiB
+before upstream materializes their arrays. Exceeding either decoder budget
+returns a `fetch_failed` item while retaining other maps. Decoded coordinates
+and source/name indexes are validated per map; a malformed map is reported as
+`invalid` without discarding earlier or later maps.
+Collection reserves each requested map's failure context before fetching it.
+When the aggregate inline-result budget cannot reserve another item, remaining
+requests are left unprocessed and reported as unknown through the top-level
+`limitation`; `requested` retains the full count and `processed` counts returned
+items.
 Malformed UTF-8 map responses are reported as invalid rather than repaired with
 replacement characters.
 

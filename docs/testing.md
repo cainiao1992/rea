@@ -184,7 +184,9 @@ MCP SDK transport tests with recording providers remain integration tests.
 They are useful for schema drift and failure projection but do not prove that
 Hopper, Ghidra or another substituted engine works. `verify:package` proves
 packaging/install behavior and fake-provider integration; use the corresponding
-real-provider lanes for engine claims. Real Apple dispatch and Interface
+real-provider lanes for engine claims. Packed-bridge checks verify shipped files
+and Python syntax without deleted mock fixtures or source-spelling assertions.
+Real Apple dispatch and Interface
 Builder verifiers currently prove format integration through production readers.
 
 `verify:hopper` exercises an installed Hopper through the production stdio MCP
@@ -354,6 +356,13 @@ workflow verifies leaf and qualified renames, repeated reuse of fully qualified
 readback, lookup by the returned name, literal namespace-like leaf names,
 rejection of empty qualified leaf names without changing comments, CLI
 behavior, and independent CLI/MCP database ownership.
+Large-result probes compile initialized host-native data sized from the pinned
+MCP SDK receive budget. Real byte reads, annotation edits and function dossiers
+exceed that budget while preserving the connection and active analysis run.
+Each delivery error must identify its successfully retained Evidence record;
+export must recover every source byte and complete annotation, with CLI parity
+and an unchanged executable. The focused formatter check retains only the
+separate case where recording was not acknowledged.
 Malformed annotation readback, memory completeness, and inventory data remain separate
 SDK/provider integration cases; success from a real
 provider cannot establish rejection of a contradictory provider response.

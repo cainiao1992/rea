@@ -214,6 +214,9 @@ Objective-C fixture is present, the lane also verifies native UTF-16 string obje
 and their inferred encodings against their actual bytes. Native terminal calls
 are checked across reference, instruction, assembly, block-range and procedure-length
 projections; block endpoints are normalized using actual native membership.
+Exact Objective-C names also exercise named CLI selectors for function, instruction,
+decompilation, reference and search operations. A literal `--help` trace query proves
+that selector data is preserved independently of global CLI flags.
 Unmapped annotation destinations and
 oversized later batch names fail before any earlier edit is applied.
 The Linux demo lane remains a separate `verify:hopper:linux` command.

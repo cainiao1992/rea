@@ -25,11 +25,15 @@ export class EvidenceReferenceError extends EvidenceIntegrityError {
 export class EvidenceFileError extends AnalysisError {
   readonly _tag = "EvidenceFileError";
 
+  /** Caller-selected path that failed, resolved against the working directory. */
+  readonly path: string | undefined;
+
   constructor(
     readonly operation: "read" | "write",
-    readonly reason: "not-file" | "exists" | "invalid-json" | "io",
-    options?: ErrorOptions,
+    readonly reason: "not-file" | "exists" | "invalid-json" | "missing" | "io",
+    options?: ErrorOptions & { readonly path?: string },
   ) {
     super(`Evidence bundle ${operation} failed: ${reason}`, options);
+    this.path = options?.path;
   }
 }

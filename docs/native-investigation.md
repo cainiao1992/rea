@@ -48,7 +48,16 @@ complete observation.
   BOM and rejects malformed byte sequences, unsupported encoding declarations,
   and declarations that disagree with the detected encoding. It never substitutes
   UTF-8 for a declared encoding it cannot process. Archive and evidence digests
-  still identify the original serialized bytes.
+  still identify the original serialized bytes. Interface Builder decoding
+  limits aggregate input archives to 32 MiB.
+  Before decoding, it also bounds the serialized structure: expanded binary
+  plist references, NIB table records, XML elements and text, plus their
+  projected representations must fit the 256 MiB aggregate decode budget.
+  This is a format-derived representation estimate, not a process-wide heap
+  ceiling.
+  Archives beyond either aggregate budget are omitted with their paths and an
+  explicitly partial `archive_decode` facet; previously decoded documents and
+  their identities remain available.
 - `inspect_native_dispatch_metadata` /
   `rea inspect-native-dispatch-metadata <app-or-binary>` prefers a validated macOS Mach-O byte reader. It decodes
   64-bit little-endian Objective-C class/metaclass records, superclass pointers,

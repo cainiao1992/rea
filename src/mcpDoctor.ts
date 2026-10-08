@@ -11,6 +11,17 @@ import { MCP_STARTUP_POLICY } from "./mcpStartupPolicy.js";
 
 const OUTPUT_FORMATS = ["toon", "json", "yaml", "md", "jsonl"] as const;
 type OutputFormat = (typeof OUTPUT_FORMATS)[number];
+const MCP_DOCTOR_HELP = `Usage: rea mcp doctor [options]
+
+Validate MCP server startup, tool and prompt inventories, identity, and request flow.
+
+Options:
+  --json                   Output JSON
+  --format <format>        Output format: ${OUTPUT_FORMATS.join(", ")}
+  --format=<format>        Set the output format
+  --full-output            Include complete diagnostic details
+  -h, --help               Show this help
+`;
 
 interface McpDoctorOptions {
   readonly command: string;
@@ -172,6 +183,8 @@ export const runProductionMcpDoctorCli = async (
   arguments_: readonly string[],
   input: { readonly dispatcherPath: string; readonly packageRoot: string },
 ): Promise<{ readonly output: string; readonly exitCode: number }> => {
+  if (arguments_.includes("--help") || arguments_.includes("-h"))
+    return { output: MCP_DOCTOR_HELP, exitCode: 0 };
   const parsed = parseOutputArguments(arguments_);
   if (!parsed.ok)
     return {

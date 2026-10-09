@@ -201,6 +201,7 @@ const runAnalysis = async (
       const prepared = await prepareSnapshot({
         path,
         snapshotPath,
+        signal,
         ...(options.formatHint === undefined
           ? {}
           : { formatHint: options.formatHint }),
@@ -434,6 +435,7 @@ const prepareSnapshot = async (options: {
   readonly path: string;
   readonly formatHint?: ExecutableFormatHint;
   readonly snapshotPath: string | undefined;
+  readonly signal: AbortSignal;
 }): Promise<
   Result<
     { readonly snapshot?: AnalysisSnapshot; readonly target?: BinaryTarget },
@@ -445,13 +447,12 @@ const prepareSnapshot = async (options: {
     return ok({});
   const loaded = await readAnalysisSnapshot(snapshotPath);
   if (!loaded.ok) return loaded;
-  const target = await parseBinaryTarget(
-    path,
-    process.cwd(),
-    process.arch,
-    undefined,
-    options.formatHint,
-  );
+  const target = await parseBinaryTarget(path, {
+    signal: options.signal,
+    ...(options.formatHint === undefined
+      ? {}
+      : { formatHint: options.formatHint }),
+  });
   if (!target.ok) return target;
   if (!snapshotMatchesTarget(loaded.value.target, target.value))
     return err(

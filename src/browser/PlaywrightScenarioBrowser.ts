@@ -173,22 +173,20 @@ const configureAttachedEnvironment = async (
     reducedMotion: scenario.environment.reduced_motion,
   });
   const session = await context.newCDPSession(page);
-  try {
-    await session.send("Emulation.setDeviceMetricsOverride", {
-      width: scenario.environment.viewport.width,
-      height: scenario.environment.viewport.height,
-      deviceScaleFactor: scenario.environment.viewport.device_scale_factor,
-      mobile: false,
-    });
-    await session.send("Emulation.setLocaleOverride", {
-      locale: scenario.environment.locale,
-    });
-    await session.send("Emulation.setTimezoneOverride", {
-      timezoneId: scenario.environment.timezone,
-    });
-  } finally {
-    await session.detach();
-  }
+  // Chromium resets these overrides when the CDP session detaches. Keep it on
+  // the scenario transport until cleanup disconnects the attached browser.
+  await session.send("Emulation.setDeviceMetricsOverride", {
+    width: scenario.environment.viewport.width,
+    height: scenario.environment.viewport.height,
+    deviceScaleFactor: scenario.environment.viewport.device_scale_factor,
+    mobile: false,
+  });
+  await session.send("Emulation.setLocaleOverride", {
+    locale: scenario.environment.locale,
+  });
+  await session.send("Emulation.setTimezoneOverride", {
+    timezoneId: scenario.environment.timezone,
+  });
 };
 
 /** Preserve an operation failure while reporting any incomplete cleanup. */

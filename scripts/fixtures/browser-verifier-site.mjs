@@ -11,6 +11,20 @@ export async function startBrowserVerifierSite() {
       response.destroy();
       return;
     }
+    if (request.url === "/scenario-environment") {
+      response.setHeader("content-type", "text/html");
+      response.end(`<!doctype html><html><body><pre id="environment"></pre>
+        <button id="refresh-environment">Refresh environment</button><script>
+        const refresh = () => document.querySelector('#environment').textContent = JSON.stringify({
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          locale: Intl.DateTimeFormat().resolvedOptions().locale,
+          dpr: devicePixelRatio, width: innerWidth, height: innerHeight
+        });
+        document.querySelector('#refresh-environment').onclick = refresh;
+        refresh();
+      </script></body></html>`);
+      return;
+    }
     if (request.url === "/slow-json") {
       response.setHeader("content-type", "application/json");
       response.write('{"pending":');

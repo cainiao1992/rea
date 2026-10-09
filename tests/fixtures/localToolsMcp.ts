@@ -47,11 +47,7 @@ export async function connectLocalToolsMcp() {
   const call = async (name: string, arguments_: Record<string, unknown>) => {
     const response = await client.callTool({ name, arguments: arguments_ });
     const validate = validators.get(name);
-    if (
-      response.isError !== true &&
-      response.structuredContent !== undefined &&
-      validate !== undefined
-    )
+    if (response.structuredContent !== undefined && validate !== undefined)
       expect(
         validate(response.structuredContent),
         JSON.stringify(validate.errors),

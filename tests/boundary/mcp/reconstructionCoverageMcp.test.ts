@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { ok as resultOk } from "../../../src/domain/result.js";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { describe, expect, it } from "vitest";
@@ -43,7 +44,7 @@ describe("reconstruction coverage MCP", () => {
         },
       });
       expect(unknown.isError).toBe(true);
-      expect(unknown.structuredContent).toMatchObject({
+      expect(parseMcpToolError(unknown)).toMatchObject({
         error: {
           code: "invalid_request",
           details: {

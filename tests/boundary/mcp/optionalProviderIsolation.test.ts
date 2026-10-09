@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { McpServer } from "@modelcontextprotocol/server";
@@ -138,7 +139,7 @@ mcpTest.for(failedAdapters)(
       arguments: example.input,
     });
     expect(unavailable.isError).toBe(true);
-    expect(unavailable.structuredContent).toMatchObject({
+    expect(parseMcpToolError(unavailable)).toMatchObject({
       error: {
         details: {
           provider_id: providerId,

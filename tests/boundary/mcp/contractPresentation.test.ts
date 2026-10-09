@@ -1,10 +1,12 @@
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { isCallToolResult } from "@modelcontextprotocol/server";
 import { expect, it } from "vitest";
 import { z } from "zod";
 
 import { GENERATED_MCP_TOOL_CATALOG } from "../../fixtures/mcpToolCatalog.js";
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 
 const execute = promisify(execFile);
 const fixture = fileURLToPath(
@@ -41,6 +43,8 @@ it("preserves advertised schemas and handler meaning when presentation order cha
     expect(advertised.outputSchema).toEqual(canonical?.outputSchema);
   }
   for (const { name, response } of result.responses) {
+    if (!isCallToolResult(response))
+      throw new Error(`Invalid tools/call fixture result for ${name}`);
     if (name === "reconcile_javascript_runtime") {
       expect(response.isError).not.toBe(true);
       expect(response.structuredContent).toMatchObject({
@@ -48,7 +52,7 @@ it("preserves advertised schemas and handler meaning when presentation order cha
       });
     } else {
       expect(response.isError, name).toBe(true);
-      expect(response.structuredContent, name).toMatchObject({
+      expect(parseMcpToolError(response), name).toMatchObject({
         error: { details: { operation: name } },
       });
     }

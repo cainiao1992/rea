@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { expect, it } from "vitest";
 
 import { logCliCommand } from "../../../src/cliLogging.js";
@@ -64,7 +65,7 @@ it("preserves queue failure diagnostics through the provider, CLI adapter and SD
       arguments: {},
     });
     expect(mcp.isError).toBe(true);
-    expect(mcp.structuredContent).toMatchObject({ error: parsed });
+    expect(parseMcpToolError(mcp)).toMatchObject({ error: parsed });
     expect(mcp.content).toContainEqual(
       expect.objectContaining({
         type: "text",

@@ -1,3 +1,4 @@
+import { analysisErrorProjectionSchema } from "../../dist/contracts/errorSchemas.js";
 import { toolContract } from "../../dist/contracts/toolContracts.js";
 
 /** Read the textual JSON projection from one MCP tool call. */
@@ -8,6 +9,12 @@ export const mcpTextValue = (result) => {
 };
 
 const jsonValue = (result) => JSON.parse(mcpTextValue(result));
+
+/** Read the complete canonical diagnostic from an MCP tool failure. */
+export const requireMcpToolError = (result) => {
+  if (result.isError !== true) throw new Error("Expected an MCP tool failure");
+  return analysisErrorProjectionSchema.parse(jsonValue(result).error);
+};
 
 const requireOutput = (result, operation, contract) => {
   if (result.isError === true)

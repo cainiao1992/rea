@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { parseEvidence } from "../../../src/domain/evidence.js";
 import { ok as resultOk } from "../../../src/domain/result.js";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -64,7 +65,7 @@ it.each([
         arguments: {},
       });
       expect(result.isError).toBe(true);
-      expect(result.structuredContent).toEqual({
+      expect(parseMcpToolError(result)).toEqual({
         error: {
           code: "artifact_integrity_mismatch",
           category: "integrity_mismatch",

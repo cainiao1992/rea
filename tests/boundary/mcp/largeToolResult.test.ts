@@ -25,6 +25,7 @@ import { registerOfficialTools } from "../../../src/server/registerOfficialTools
 import { ToolResultDelivery } from "../../../src/server/toolResult.js";
 import { EvidenceMcpServer } from "../../../src/server/EvidenceMcpServer.js";
 import { encodeToolResult } from "../../../src/server/toolResultEncoding.js";
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 
 const delivery = new ToolResultDelivery(STDIO_DEFAULT_MAX_BUFFER_SIZE);
 
@@ -188,7 +189,7 @@ describe("large complete Evidence MCP delivery", () => {
           }),
         }),
       })
-      .parse(result.structuredContent).error.details.reported_limits;
+      .parse(parseMcpToolError(result)).error.details.reported_limits;
     const retained = parseEvidence(
       records.get(limits.evidence_reference.evidence_id),
     );

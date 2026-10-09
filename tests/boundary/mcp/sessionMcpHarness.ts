@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -151,6 +152,7 @@ export const snapshotAndRecordUnknown = async (
 };
 
 const structured = (result: CallToolResult): Record<string, unknown> => {
+  if (result.isError === true) return parseMcpToolError(result);
   if (
     typeof result.structuredContent !== "object" ||
     result.structuredContent === null

@@ -77,6 +77,15 @@ inventories, and do not claim that no short-lived descendant existed.
 
 ## Progress and cancellation
 
+Tool execution failures return `isError: true` and the complete canonical
+`{ "error": ... }` diagnostic as JSON in text `content`. Read that diagnostic
+for the error code, target details, partial observations, and remediation.
+Failures omit `structuredContent`, since each advertised `outputSchema`
+describes successful results. Successful replies retain their schema-validated
+structured data and matching text projection. Oversized errors are retained
+as Evidence before delivery of a bounded diagnostic with an export reference;
+if retention is unavailable or fails, the diagnostic reports that reason.
+
 REA accepts ordinary `tools/call` progress tokens. Updates are monotonic,
 rate-bounded to at most one intermediate update per 100 ms, and always allow a
 terminal update. Unknown totals are omitted; REA does not fabricate percentages.

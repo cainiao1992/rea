@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import {
   STDIO_DEFAULT_MAX_BUFFER_SIZE,
@@ -9,7 +10,8 @@ import { z } from "zod";
 import { AnalysisInputError } from "../../../src/domain/analysisErrorCore.js";
 import type { EvidenceWriter } from "../../../src/application/investigation/InvestigationRecordPort.js";
 import { EvidenceIntegrityError } from "../../../src/domain/evidenceErrors.js";
-import { err } from "../../../src/domain/result.js";
+import type { Evidence } from "../../../src/domain/evidence.js";
+import { err, ok } from "../../../src/domain/result.js";
 import { EvidenceMcpServer } from "../../../src/server/EvidenceMcpServer.js";
 import { ToolResultDelivery } from "../../../src/server/toolResult.js";
 
@@ -28,6 +30,7 @@ const oversizedFailure = () =>
 
 const exerciseDeliveryFailure = async (
   recordEvidence: EvidenceWriter["recordEvidence"] | undefined,
+  retention: "retained" | "unavailable" | "failed",
 ) => {
   const server = new EvidenceMcpServer(
     { name: "oversized-error-test", version: "1" },
@@ -57,7 +60,8 @@ const exerciseDeliveryFailure = async (
       arguments: {},
     });
     expect(failure.isError).toBe(true);
-    expect(failure.structuredContent).toMatchObject({
+    expect(failure.structuredContent).toBeUndefined();
+    expect(parseMcpToolError(failure)).toMatchObject({
       error: {
         code: "resource_constraint",
         details: {
@@ -76,8 +80,8 @@ const exerciseDeliveryFailure = async (
           }),
         }),
       })
-      .parse(failure.structuredContent).error.details.reported_limits;
-    expect(failure.structuredContent).toMatchObject({
+      .parse(parseMcpToolError(failure)).error.details.reported_limits;
+    expect(parseMcpToolError(failure)).toMatchObject({
       error: {
         details: {
           reported_limits: {
@@ -86,11 +90,17 @@ const exerciseDeliveryFailure = async (
         },
       },
     });
-    expect(reportedLimits).not.toHaveProperty("evidence_reference");
-    expect(reportedLimits.retention).toBe(
-      recordEvidence === undefined ? "unavailable" : "failed",
-    );
-    if (recordEvidence !== undefined)
+    if (retention === "retained") {
+      expect(reportedLimits.evidence_reference).toMatchObject({
+        kind: "retained-evidence",
+        evidence_id: expect.any(String),
+      });
+      expect(reportedLimits).not.toHaveProperty("retention");
+    } else {
+      expect(reportedLimits).not.toHaveProperty("evidence_reference");
+      expect(reportedLimits.retention).toBe(retention);
+    }
+    if (retention === "failed")
       expect(reportedLimits.retention_error).toMatchObject({
         code: "evidence_integrity_mismatch",
       });
@@ -109,10 +119,27 @@ const exerciseDeliveryFailure = async (
 };
 
 it("keeps the SDK connection usable when oversized-error retention is unavailable or fails", async () => {
-  await exerciseDeliveryFailure(undefined);
-  await exerciseDeliveryFailure(() =>
-    err(
-      new EvidenceIntegrityError("fixture ledger rejected the Evidence record"),
-    ),
+  await exerciseDeliveryFailure(undefined, "unavailable");
+  await exerciseDeliveryFailure(
+    () =>
+      err(
+        new EvidenceIntegrityError(
+          "fixture ledger rejected the Evidence record",
+        ),
+      ),
+    "failed",
   );
+});
+
+it("retains the complete oversized diagnostic before removing its private structured carrier", async () => {
+  const retained: Evidence[] = [];
+  await exerciseDeliveryFailure((evidence) => {
+    retained.push(evidence);
+    return ok("added");
+  }, "retained");
+  expect(retained).toHaveLength(1);
+  expect(retained[0]?.normalized_result).toEqual(
+    oversizedFailure().structuredContent,
+  );
+  expect(retained[0]?.raw_result).toEqual(oversizedFailure());
 });

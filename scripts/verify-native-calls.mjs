@@ -1,3 +1,4 @@
+import { requireMcpToolError } from "./lib/mcp-verifier-results.mjs";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -232,12 +233,12 @@ const checkHardenedRuntime = async (directory, binary) => {
       { timeout: CLI_TIMEOUT_MS },
     );
     assert.equal(deniedMcp.isError, true, JSON.stringify(deniedMcp));
-    assert.equal(deniedMcp.structuredContent.error.code, denied.code);
+    assert.equal(requireMcpToolError(deniedMcp).code, denied.code);
     assert.match(
-      deniedMcp.structuredContent.error.details.reason,
+      requireMcpToolError(deniedMcp).details.reason,
       /^debugger-attach-denied: /u,
     );
-    assert.ok(deniedMcp.structuredContent.error.details.partial_observation);
+    assert.ok(requireMcpToolError(deniedMcp).details.partial_observation);
   });
   const allowed = join(directory, "debuggable");
   const entitlements = join(directory, "get-task-allow.plist");

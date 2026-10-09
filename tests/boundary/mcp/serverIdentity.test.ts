@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { ok as resultOk } from "../../../src/domain/result.js";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -275,7 +276,7 @@ describe("active-target availability over MCP", () => {
         name: "inspect_macho",
         arguments: {},
       });
-      expect(call.structuredContent).toMatchObject({
+      expect(parseMcpToolError(call)).toMatchObject({
         error: { code: "target_unavailable" },
       });
       await openTarget(client, plist);

@@ -1,3 +1,4 @@
+import { requireMcpToolError } from "./mcp-verifier-results.mjs";
 import assert from "node:assert/strict";
 
 /** Exercise segmented-address truncation through real CLI/MCP reads and edits. */
@@ -40,13 +41,14 @@ export async function verifyGhidraAddressBoundaries(client, entry, cli) {
         { timeout: 240000 },
       );
       assert.equal(reply.isError, true, `${name} accepted ${address}`);
-      const error = reply.structuredContent?.error;
+      const error = requireMcpToolError(reply);
       assert.equal(error?.code, "invalid_request", JSON.stringify(reply));
       assert.equal(error.details.operation, name);
       const issues = JSON.stringify(error.details.issues);
       assert.match(issues, /cannot be represented without truncation/u);
       assert.ok(issues.includes(address), issues);
-      assert.equal(reply.structuredContent.evidence, undefined);
+      // A rejected request produces no Evidence; errors carry text only.
+      assert.equal(reply.structuredContent, undefined);
     }
   }
   assert.deepEqual(

@@ -1,3 +1,4 @@
+import { requireMcpToolError } from "../../lib/mcp-verifier-results.mjs";
 import assert from "node:assert/strict";
 import {
   access,
@@ -208,13 +209,12 @@ export async function verifyAndroidFailureRecovery({
           { timeout: 150_000 },
         );
         assert.equal(response.isError, true);
-        assert.equal(response.structuredContent.error.code, "invalid_request");
-        assert.deepEqual(
-          response.structuredContent.error.details.issues[0].path,
-          ["class_name"],
-        );
+        assert.equal(requireMcpToolError(response).code, "invalid_request");
+        assert.deepEqual(requireMcpToolError(response).details.issues[0].path, [
+          "class_name",
+        ]);
         assert.match(
-          response.structuredContent.error.details.issues[0].message,
+          requireMcpToolError(response).details.issues[0].message,
           /search_android_classes/u,
         );
         assert.doesNotMatch(JSON.stringify(response), /rea doctor/u);
@@ -231,8 +231,8 @@ export async function verifyAndroidFailureRecovery({
         },
         { timeout: 150_000 },
       );
-      assert.equal(method.structuredContent.error.code, "invalid_request");
-      assert.deepEqual(method.structuredContent.error.details.issues[0].path, [
+      assert.equal(requireMcpToolError(method).code, "invalid_request");
+      assert.deepEqual(requireMcpToolError(method).details.issues[0].path, [
         "method_name",
       ]);
       await client.ping();

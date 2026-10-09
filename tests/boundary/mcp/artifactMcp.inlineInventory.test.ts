@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -64,7 +65,7 @@ it("inspects a standalone keyed archive through MCP with original object identit
       arguments: { path: "other.plist" },
     });
     expect(rejected.isError).toBe(true);
-    expect(rejected.structuredContent).toMatchObject({
+    expect(parseMcpToolError(rejected)).toMatchObject({
       error: {
         code: "invalid_request",
         details: {
@@ -83,7 +84,7 @@ it("inspects a standalone keyed archive through MCP with original object identit
       arguments: { root: "missing" },
     });
     expect(missingRoot.isError).toBe(true);
-    expect(missingRoot.structuredContent).toMatchObject({
+    expect(parseMcpToolError(missingRoot)).toMatchObject({
       error: {
         code: "invalid_request",
         details: {

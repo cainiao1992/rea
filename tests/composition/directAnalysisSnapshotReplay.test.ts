@@ -118,14 +118,26 @@ const expectWorkflowQuestionsRetained = (
   );
 };
 
+interface SnapshotProviderTrace {
+  readonly starts: string[];
+  readonly calls: string[];
+  readonly resolutions: string[];
+}
+
+interface SnapshotProviderOptions {
+  readonly profile?: ReturnType<typeof createAnalysisProfile>;
+  readonly identity?: ProviderIdentity;
+  readonly supportedOperations?: readonly CapabilityDescriptor["operation"][];
+}
+
 const makeProvider = (
-  starts: string[],
-  calls: string[],
-  profile = createAnalysisProfile(IDENTITY, { fixture: true }),
-  identity: ProviderIdentity = profile.provider,
-  supportedOperations: readonly CapabilityDescriptor["operation"][] = operations,
-  resolutions: string[] = [],
+  trace: SnapshotProviderTrace,
+  options: SnapshotProviderOptions = {},
 ): AnalysisProvider => {
+  const profile =
+    options.profile ?? createAnalysisProfile(IDENTITY, { fixture: true });
+  const identity = options.identity ?? profile.provider;
+  const supportedOperations = options.supportedOperations ?? operations;
   const capabilities: CapabilityDescriptor[] = supportedOperations.map(
     (operation) => ({
       operation,
@@ -149,14 +161,14 @@ const makeProvider = (
     identity: () => identity,
     capabilities: () => capabilities,
     resolveAnalysisProfile: async () => {
-      resolutions.push(profile.digest);
+      trace.resolutions.push(profile.digest);
       return ok({ profile });
     },
     createClient: () => {
-      starts.push("start");
+      trace.starts.push("start");
       return {
         execute: async (operation) => {
-          calls.push(operation);
+          trace.calls.push(operation);
           const results: Readonly<Record<string, unknown>> = {
             health: null,
             list_segments: [{ name: "__TEXT", start: "0x1000", end: "0x2000" }],
@@ -184,6 +196,37 @@ const makeProvider = (
           );
         },
         close: async () => ok(null),
+      };
+    },
+  };
+};
+
+const createSnapshotReplayFixture = async (
+  directoryPrefix: string,
+  snapshotRelativePath = "snapshot.json",
+) => {
+  const directory = await createTestTempDirectory(directoryPrefix);
+  const path = join(directory, "fixture.hop");
+  const snapshotPath = join(directory, snapshotRelativePath);
+  await writeFile(path, "fixture");
+  const starts: string[] = [];
+  const calls: string[] = [];
+  const resolutions: string[] = [];
+
+  return {
+    path,
+    snapshotPath,
+    starts,
+    calls,
+    resolutions,
+    createProvider(options: SnapshotProviderOptions = {}): AnalysisProvider {
+      return makeProvider({ starts, calls, resolutions }, options);
+    },
+    dependencies(provider: AnalysisProvider): DirectAnalysisDependencies {
+      return {
+        readConfiguration: () => parseConfig({}),
+        createBinarySession: () => createTestBinarySession(provider),
+        createManagedBinarySession: () => createTestBinarySession(provider),
       };
     },
   };
@@ -295,61 +338,48 @@ describe("direct analysis composed snapshot replay", () => {
   ] as const)(
     "reuses the previewed profile on a $tool snapshot miss",
     async (scenario) => {
-      const directory = await createTestTempDirectory(
+      const fixture = await createSnapshotReplayFixture(
         "rea-snapshot-miss-route-",
       );
-      const path = join(directory, "fixture.hop");
-      const snapshotPath = join(directory, "snapshot.json");
-      await writeFile(path, "fixture");
-      const starts: string[] = [];
-      const calls: string[] = [];
-      const resolutions: string[] = [];
       const profile = createAnalysisProfile(IDENTITY, { fixture: true });
-      const provider = makeProvider(
-        starts,
-        calls,
+      const provider = fixture.createProvider({
         profile,
-        IDENTITY,
-        workflowProviderOperations,
-        resolutions,
-      );
-      const dependencies: DirectAnalysisDependencies = {
-        readConfiguration: () => parseConfig({}),
-        createBinarySession: () => createTestBinarySession(provider),
-        createManagedBinarySession: () => createTestBinarySession(provider),
-      };
+        identity: IDENTITY,
+        supportedOperations: workflowProviderOperations,
+      });
+      const dependencies = fixture.dependencies(provider);
       await runDirectAnalysis(
         dependencies,
-        path,
+        fixture.path,
         "binary_overview",
         {},
-        { snapshotPath },
+        { snapshotPath: fixture.snapshotPath },
       );
-      expect(resolutions).toHaveLength(1);
+      expect(fixture.resolutions).toHaveLength(1);
 
       const first = await runDirectAnalysis(
         dependencies,
-        path,
+        fixture.path,
         scenario.tool,
         scenario.arguments,
-        { snapshotPath },
+        { snapshotPath: fixture.snapshotPath },
       );
       expect(first).toMatchObject({ operation: scenario.tool });
-      expect(resolutions).toHaveLength(2);
-      expect(starts).toHaveLength(2);
-      const callsAfterMiss = [...calls];
+      expect(fixture.resolutions).toHaveLength(2);
+      expect(fixture.starts).toHaveLength(2);
+      const callsAfterMiss = [...fixture.calls];
 
       const replay = await runDirectAnalysis(
         dependencies,
-        path,
+        fixture.path,
         scenario.tool,
         scenario.arguments,
-        { snapshotPath },
+        { snapshotPath: fixture.snapshotPath },
       );
       expect(replay).toEqual(first);
-      expect(resolutions).toHaveLength(3);
-      expect(starts).toHaveLength(2);
-      expect(calls).toEqual(callsAfterMiss);
+      expect(fixture.resolutions).toHaveLength(3);
+      expect(fixture.starts).toHaveLength(2);
+      expect(fixture.calls).toEqual(callsAfterMiss);
     },
   );
 
@@ -372,34 +402,24 @@ describe("direct analysis composed snapshot replay", () => {
     },
   ] as const) {
     it(`persists and replays ${scenario.tool} without provider startup`, async () => {
-      const directory = await createTestTempDirectory("rea-workflow-command-");
-      const path = join(directory, "fixture.hop");
-      const snapshotPath = join(directory, "snapshot.json");
-      await writeFile(path, "fixture");
-      const starts: string[] = [];
-      const calls: string[] = [];
-      const provider = makeProvider(
-        starts,
-        calls,
-        createAnalysisProfile(IDENTITY, { fixture: true }),
-        IDENTITY,
-        workflowProviderOperations,
+      const fixture = await createSnapshotReplayFixture(
+        "rea-workflow-command-",
       );
-      const dependencies: DirectAnalysisDependencies = {
-        readConfiguration: () => parseConfig({}),
-        createBinarySession: () => createTestBinarySession(provider),
-        createManagedBinarySession: () => createTestBinarySession(provider),
-      };
+      const provider = fixture.createProvider({
+        identity: IDENTITY,
+        supportedOperations: workflowProviderOperations,
+      });
+      const dependencies = fixture.dependencies(provider);
       const first = await runDirectAnalysis(
         dependencies,
-        path,
+        fixture.path,
         scenario.tool,
         scenario.arguments,
-        { snapshotPath },
+        { snapshotPath: fixture.snapshotPath },
       );
-      const callsAfterFirst = [...calls];
-      const startsAfterFirst = [...starts];
-      const loaded = await readAnalysisSnapshot(snapshotPath);
+      const callsAfterFirst = [...fixture.calls];
+      const startsAfterFirst = [...fixture.starts];
+      const loaded = await readAnalysisSnapshot(fixture.snapshotPath);
       if (!loaded.ok) throw loaded.error;
       expect(
         loaded.value.workflow_entries.map(({ operation }) => operation),
@@ -409,15 +429,15 @@ describe("direct analysis composed snapshot replay", () => {
 
       const second = await runDirectAnalysis(
         dependencies,
-        path,
+        fixture.path,
         scenario.tool,
         scenario.arguments,
-        { snapshotPath },
+        { snapshotPath: fixture.snapshotPath },
       );
 
       expect(second).toEqual(first);
-      expect(calls).toEqual(callsAfterFirst);
-      expect(starts).toEqual(startsAfterFirst);
+      expect(fixture.calls).toEqual(callsAfterFirst);
+      expect(fixture.starts).toEqual(startsAfterFirst);
     });
   }
 });
@@ -430,80 +450,65 @@ describe("Ghidra composed workflow snapshot replay", () => {
   ] as const)(
     "persists and replays $tool with production Ghidra capability policies",
     async ({ tool, arguments: parameters }) => {
-      const directory = await createTestTempDirectory("rea-ghidra-workflow-");
-      const path = join(directory, "fixture.hop");
-      const snapshotPath = join(directory, "snapshot.json");
-      await writeFile(path, "fixture");
-      const starts: string[] = [];
-      const calls: string[] = [];
+      const fixture = await createSnapshotReplayFixture("rea-ghidra-workflow-");
       const profile = createAnalysisProfile(
         { ...GHIDRA_PROVIDER_IDENTITY, version: "12.1.4" },
         { fixture: true },
       );
       const provider: AnalysisProvider = {
-        ...makeProvider(starts, calls, profile, GHIDRA_PROVIDER_IDENTITY),
+        ...fixture.createProvider({
+          profile,
+          identity: GHIDRA_PROVIDER_IDENTITY,
+        }),
         capabilities: () => GHIDRA_CAPABILITIES,
       };
-      const dependencies: DirectAnalysisDependencies = {
-        readConfiguration: () => parseConfig({}),
-        createBinarySession: () => createTestBinarySession(provider),
-        createManagedBinarySession: () => createTestBinarySession(provider),
-      };
+      const dependencies = fixture.dependencies(provider);
       const first = await runDirectAnalysis(
         dependencies,
-        path,
+        fixture.path,
         tool,
         parameters,
-        { snapshotPath },
+        { snapshotPath: fixture.snapshotPath },
       );
       expect(first).toMatchObject({ operation: tool });
-      const snapshot = await readAnalysisSnapshot(snapshotPath);
+      const snapshot = await readAnalysisSnapshot(fixture.snapshotPath);
       if (!snapshot.ok) throw snapshot.error;
       expect(snapshot.value.workflow_entries).toEqual([
         expect.objectContaining({ operation: tool }),
       ]);
-      const initialCalls = [...calls];
+      const initialCalls = [...fixture.calls];
 
       const replay = await runDirectAnalysis(
         dependencies,
-        path,
+        fixture.path,
         tool,
         parameters,
-        { snapshotPath },
+        { snapshotPath: fixture.snapshotPath },
       );
       expect(replay).toEqual(first);
-      expect(starts).toHaveLength(1);
-      expect(calls).toEqual(initialCalls);
+      expect(fixture.starts).toHaveLength(1);
+      expect(fixture.calls).toEqual(initialCalls);
     },
   );
 });
 
 describe("binary overview snapshot replay", () => {
   it("replays the identical binary overview without provider startup or calls", async () => {
-    const directory = await createTestTempDirectory("rea-workflow-snapshot-");
-    const path = join(directory, "fixture.hop");
-    const snapshotPath = join(directory, "snapshot.json");
-    await writeFile(path, "fixture");
-    const starts: string[] = [];
-    const calls: string[] = [];
-    const provider = makeProvider(starts, calls);
-    const dependencies: DirectAnalysisDependencies = {
-      readConfiguration: () => parseConfig({}),
-      createBinarySession: () => createTestBinarySession(provider),
-      createManagedBinarySession: () => createTestBinarySession(provider),
-    };
+    const fixture = await createSnapshotReplayFixture("rea-workflow-snapshot-");
+    const provider = fixture.createProvider();
+    const dependencies = fixture.dependencies(provider);
 
     const first = await runDirectAnalysis(
       dependencies,
-      path,
+      fixture.path,
       "binary_overview",
       {},
-      { snapshotPath },
+      { snapshotPath: fixture.snapshotPath },
     );
-    expect(calls.toSorted()).toEqual(operations.toSorted());
-    expect(starts).toHaveLength(1);
+    expect(fixture.calls.toSorted()).toEqual(operations.toSorted());
+    expect(fixture.starts).toHaveLength(1);
 
-    const loaded = await readAnalysisSnapshot(snapshotPath);
+    const loaded = await readAnalysisSnapshot(fixture.snapshotPath);
     if (!loaded.ok) throw loaded.error;
     expect(loaded.value.workflow_entries).toHaveLength(1);
     const current = loaded.value.evidence_bundle.records.find(
@@ -514,8 +519,8 @@ describe("binary overview snapshot replay", () => {
     expect(
       (
         await writeAnalysisSnapshot(
-          withEarlierHistoricalEvidence(loaded.value, path, current),
-          snapshotPath,
+          withEarlierHistoricalEvidence(loaded.value, fixture.path, current),
+          fixture.snapshotPath,
           true,
         )
       ).ok,
@@ -523,52 +528,41 @@ describe("binary overview snapshot replay", () => {
 
     const second = await runDirectAnalysis(
       dependencies,
-      path,
+      fixture.path,
       "binary_overview",
       {},
-      { snapshotPath },
+      { snapshotPath: fixture.snapshotPath },
     );
     expect(second).toEqual(first);
-    expect(calls.toSorted()).toEqual(operations.toSorted());
-    expect(starts).toHaveLength(1);
+    expect(fixture.calls.toSorted()).toEqual(operations.toSorted());
+    expect(fixture.starts).toHaveLength(1);
   });
 });
 
 describe("snapshot replay provider identity", () => {
   it("uses the resolved provider version when capability metadata omits it", async () => {
-    const directory = await createTestTempDirectory("rea-profile-version-");
-    const path = join(directory, "fixture.hop");
-    const snapshotPath = join(directory, "snapshot.json");
-    await writeFile(path, "fixture");
-    const starts: string[] = [];
-    const calls: string[] = [];
+    const fixture = await createSnapshotReplayFixture("rea-profile-version-");
     const unresolvedIdentity = { ...IDENTITY, version: null };
     const resolvedProfile = createAnalysisProfile(
       { ...IDENTITY, version: "launcher-sha256:fixture" },
       { fixture: true },
     );
-    const provider = makeProvider(
-      starts,
-      calls,
-      resolvedProfile,
-      unresolvedIdentity,
-      ["search_strings"],
-    );
-    const dependencies: DirectAnalysisDependencies = {
-      readConfiguration: () => parseConfig({}),
-      createBinarySession: () => createTestBinarySession(provider),
-      createManagedBinarySession: () => createTestBinarySession(provider),
-    };
+    const provider = fixture.createProvider({
+      profile: resolvedProfile,
+      identity: unresolvedIdentity,
+      supportedOperations: ["search_strings"],
+    });
+    const dependencies = fixture.dependencies(provider);
     const first = await runDirectAnalysis(
       dependencies,
-      path,
+      fixture.path,
       "search_strings",
       { pattern: "fixture", document: "fixture" },
-      { snapshotPath },
+      { snapshotPath: fixture.snapshotPath },
     );
-    const callsAfterFirst = [...calls];
-    const startsAfterFirst = [...starts];
-    const firstSnapshot = await readAnalysisSnapshot(snapshotPath);
+    const callsAfterFirst = [...fixture.calls];
+    const startsAfterFirst = [...fixture.starts];
+    const firstSnapshot = await readAnalysisSnapshot(fixture.snapshotPath);
     if (!firstSnapshot.ok) throw firstSnapshot.error;
     expect(firstSnapshot.value.entries[0]?.execution.provider.version).toBe(
       "launcher-sha256:fixture",
@@ -576,101 +570,80 @@ describe("snapshot replay provider identity", () => {
 
     const second = await runDirectAnalysis(
       dependencies,
-      path,
+      fixture.path,
       "search_strings",
       { pattern: "fixture", document: "fixture" },
-      { snapshotPath },
+      { snapshotPath: fixture.snapshotPath },
     );
-    expect(calls).toEqual(callsAfterFirst);
-    expect(starts).toEqual(startsAfterFirst);
+    expect(fixture.calls).toEqual(callsAfterFirst);
+    expect(fixture.starts).toEqual(startsAfterFirst);
     expect(second).toEqual(first);
 
-    const changedProfileProvider = makeProvider(
-      starts,
-      calls,
-      createAnalysisProfile(
+    const changedProfileProvider = fixture.createProvider({
+      profile: createAnalysisProfile(
         { ...IDENTITY, version: "launcher-sha256:changed" },
         { fixture: true },
       ),
-      unresolvedIdentity,
-      ["search_strings"],
-    );
+      identity: unresolvedIdentity,
+      supportedOperations: ["search_strings"],
+    });
     const changedProfileResult = await runDirectAnalysis(
-      {
-        readConfiguration: () => parseConfig({}),
-        createBinarySession: () =>
-          createTestBinarySession(changedProfileProvider),
-        createManagedBinarySession: () =>
-          createTestBinarySession(changedProfileProvider),
-      },
-      path,
+      fixture.dependencies(changedProfileProvider),
+      fixture.path,
       "search_strings",
       { pattern: "fixture", document: "fixture" },
-      { snapshotPath },
+      { snapshotPath: fixture.snapshotPath },
     );
     expect(changedProfileResult).not.toEqual(first);
     expect(changedProfileResult).toMatchObject({
       code: "evidence_integrity_mismatch",
     });
-    expect(starts).toEqual(startsAfterFirst);
-    expect(calls).toEqual(callsAfterFirst);
+    expect(fixture.starts).toEqual(startsAfterFirst);
+    expect(fixture.calls).toEqual(callsAfterFirst);
 
     const changedProviderIdentity = {
       id: "other-provider",
       name: "Other Provider",
       version: null,
     };
-    const changedProvider = makeProvider(
-      starts,
-      calls,
-      createAnalysisProfile(
+    const changedProvider = fixture.createProvider({
+      profile: createAnalysisProfile(
         { ...changedProviderIdentity, version: "other-version" },
         { fixture: true },
       ),
-      changedProviderIdentity,
-      ["search_strings"],
-    );
+      identity: changedProviderIdentity,
+      supportedOperations: ["search_strings"],
+    });
     const changedProviderResult = await runDirectAnalysis(
-      {
-        readConfiguration: () => parseConfig({}),
-        createBinarySession: () => createTestBinarySession(changedProvider),
-        createManagedBinarySession: () =>
-          createTestBinarySession(changedProvider),
-      },
-      path,
+      fixture.dependencies(changedProvider),
+      fixture.path,
       "search_strings",
       { pattern: "fixture", document: "fixture" },
-      { snapshotPath },
+      { snapshotPath: fixture.snapshotPath },
     );
     expect(changedProviderResult).not.toEqual(first);
     expect(changedProviderResult).toMatchObject({
       code: "evidence_integrity_mismatch",
     });
-    expect(starts).toEqual(startsAfterFirst);
-    expect(calls).toEqual(callsAfterFirst);
+    expect(fixture.starts).toEqual(startsAfterFirst);
+    expect(fixture.calls).toEqual(callsAfterFirst);
   });
 });
 
 const assertEvidenceSurvivesSnapshotSaveFailure = async (): Promise<void> => {
-  const directory = await createTestTempDirectory("rea-workflow-save-error-");
-  const path = join(directory, "fixture.hop");
-  const snapshotPath = join(directory, "missing", "snapshot.json");
-  await writeFile(path, "fixture");
-  const starts: string[] = [];
-  const calls: string[] = [];
-  const provider = makeProvider(starts, calls);
-  const dependencies: DirectAnalysisDependencies = {
-    readConfiguration: () => parseConfig({}),
-    createBinarySession: () => createTestBinarySession(provider),
-    createManagedBinarySession: () => createTestBinarySession(provider),
-  };
+  const fixture = await createSnapshotReplayFixture(
+    "rea-workflow-save-error-",
+    join("missing", "snapshot.json"),
+  );
+  const provider = fixture.createProvider();
+  const dependencies = fixture.dependencies(provider);
 
   const result = await runDirectAnalysis(
     dependencies,
-    path,
+    fixture.path,
     "binary_overview",
     {},
-    { snapshotPath },
+    { snapshotPath: fixture.snapshotPath },
   );
 
   expect(result).toMatchObject({
@@ -678,7 +651,7 @@ const assertEvidenceSurvivesSnapshotSaveFailure = async (): Promise<void> => {
     details: {
       partial_observation: {
         operation: "binary_overview",
-        subject: { local_path: path },
+        subject: { local_path: fixture.path },
       },
     },
   });
@@ -688,7 +661,7 @@ const assertEvidenceSurvivesSnapshotSaveFailure = async (): Promise<void> => {
     })
     .parse(result).details.partial_observation;
   expect(parseEvidence(partial).operation).toBe("binary_overview");
-  expect(calls.toSorted()).toEqual(operations.toSorted());
+  expect(fixture.calls.toSorted()).toEqual(operations.toSorted());
 };
 
 describe("workflow snapshot profile and cancellation binding", () => {
@@ -697,26 +670,17 @@ describe("workflow snapshot profile and cancellation binding", () => {
     assertEvidenceSurvivesSnapshotSaveFailure,
   );
   it("does not replay a valid entry from a different workflow profile", async () => {
-    const directory = await createTestTempDirectory("rea-workflow-profile-");
-    const path = join(directory, "fixture.hop");
-    const snapshotPath = join(directory, "snapshot.json");
-    await writeFile(path, "fixture");
-    const starts: string[] = [];
-    const calls: string[] = [];
-    const provider = makeProvider(starts, calls);
-    const dependencies: DirectAnalysisDependencies = {
-      readConfiguration: () => parseConfig({}),
-      createBinarySession: () => createTestBinarySession(provider),
-      createManagedBinarySession: () => createTestBinarySession(provider),
-    };
+    const fixture = await createSnapshotReplayFixture("rea-workflow-profile-");
+    const provider = fixture.createProvider();
+    const dependencies = fixture.dependencies(provider);
     await runDirectAnalysis(
       dependencies,
-      path,
+      fixture.path,
       "binary_overview",
       {},
-      { snapshotPath },
+      { snapshotPath: fixture.snapshotPath },
     );
-    const loaded = await readAnalysisSnapshot(snapshotPath);
+    const loaded = await readAnalysisSnapshot(fixture.snapshotPath);
     if (!loaded.ok) throw loaded.error;
     const current = loaded.value.evidence_bundle.records.find(
       (record) => record.operation === "binary_overview",
@@ -726,8 +690,8 @@ describe("workflow snapshot profile and cancellation binding", () => {
     expect(
       (
         await writeAnalysisSnapshot(
-          withAlternateWorkflowProfile(loaded.value, path, current),
-          snapshotPath,
+          withAlternateWorkflowProfile(loaded.value, fixture.path, current),
+          fixture.snapshotPath,
           true,
         )
       ).ok,
@@ -735,38 +699,30 @@ describe("workflow snapshot profile and cancellation binding", () => {
 
     const refreshed = await runDirectAnalysis(
       dependencies,
-      path,
+      fixture.path,
       "binary_overview",
       {},
-      { snapshotPath },
+      { snapshotPath: fixture.snapshotPath },
     );
     expect(refreshed).toMatchObject({
       normalized_result: { document: "fixture" },
     });
-    expect(calls.toSorted()).toEqual([...operations, ...operations].toSorted());
-    expect(starts).toHaveLength(2);
+    expect(fixture.calls.toSorted()).toEqual(
+      [...operations, ...operations].toSorted(),
+    );
+    expect(fixture.starts).toHaveLength(2);
   });
 
   it("does not return a cached result when cancelled during route resolution", async () => {
-    const directory = await createTestTempDirectory("rea-workflow-cancel-");
-    const path = join(directory, "fixture.hop");
-    const snapshotPath = join(directory, "snapshot.json");
-    await writeFile(path, "fixture");
-    const starts: string[] = [];
-    const calls: string[] = [];
-    const profile = createAnalysisProfile(IDENTITY, { fixture: true });
-    const provider = makeProvider(starts, calls, profile);
-    const initialDependencies: DirectAnalysisDependencies = {
-      readConfiguration: () => parseConfig({}),
-      createBinarySession: () => createTestBinarySession(provider),
-      createManagedBinarySession: () => createTestBinarySession(provider),
-    };
+    const fixture = await createSnapshotReplayFixture("rea-workflow-cancel-");
+    const provider = fixture.createProvider();
+    const initialDependencies = fixture.dependencies(provider);
     await runDirectAnalysis(
       initialDependencies,
-      path,
+      fixture.path,
       "binary_overview",
       {},
-      { snapshotPath },
+      { snapshotPath: fixture.snapshotPath },
     );
 
     const controller = new AbortController();
@@ -785,17 +741,17 @@ describe("workflow snapshot profile and cancellation binding", () => {
     };
     const result = await runDirectAnalysis(
       dependencies,
-      path,
+      fixture.path,
       "binary_overview",
       {},
-      { snapshotPath, signal: controller.signal },
+      { snapshotPath: fixture.snapshotPath, signal: controller.signal },
     );
 
     expect(result).toMatchObject({
       error: "Analysis failed",
       code: "cancelled",
     });
-    expect(calls.toSorted()).toEqual(operations.toSorted());
-    expect(starts).toHaveLength(1);
+    expect(fixture.calls.toSorted()).toEqual(operations.toSorted());
+    expect(fixture.starts).toHaveLength(1);
   });
 });

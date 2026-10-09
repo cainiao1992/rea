@@ -233,72 +233,37 @@ describe("managed application graph coverage", () => {
 });
 
 describe("managed application graph identity facts", () => {
-  it("uses member Evidence for its module and reports only emitted identity nodes", () => {
-    const bytes = buildManagedPeFixture();
-    const binary = managedPeFixtureTarget(bytes, "/fixture/MembersOnly.dll");
-    const members = inspectManagedMembersBytes(bytes, binary);
-    const aligned = createEvidence(binary, MANAGED_STATIC_PROVIDER, {
-      operation: "inspect_managed_members",
-      parameters: {},
-      result: members,
-    });
-    const projected = projectManagedApplicationGraphEvidence({
-      managed_members: aligned,
-    });
-    if (!projected.ok) throw projected.error;
-    const result = managedApplicationGraphResultSchema.parse(
-      parseEvidence(projected.value).normalized_result,
-    );
-    const graph = parseJavaScriptApplicationGraph(result.graph);
-    expect(result.summary).toMatchObject({ assemblies: 0, modules: 1 });
-    expect(
-      graph.nodes.find(({ kind }) => kind === "managed-module")
-        ?.observations[0],
-    ).toMatchObject({
-      evidence: {
-        extractor: { operation: "inspect_managed_members" },
-        evidence_ids: [aligned.evidence_id],
-      },
-    });
-    expect(result.evidence_links).toEqual([aligned.evidence_id]);
-    expect(result.limitations).toContain(
-      "Managed artifact Evidence was not supplied; assembly identity observations are absent.",
-    );
-  });
-
-  it("binds a boundaries-only module node to the boundary Evidence that supplied it", () => {
-    const bytes = buildManagedPeFixture();
-    const binary = managedPeFixtureTarget(bytes, "/fixture/BoundariesOnly.dll");
-    const boundaries = inspectManagedNativeBoundariesBytes(bytes, binary);
-    const boundaryEvidence = createEvidence(binary, MANAGED_STATIC_PROVIDER, {
-      operation: "inspect_managed_native_boundaries",
-      parameters: {},
-      result: boundaries,
-      rawResult: null,
-      limitations: boundaries.limitations,
-      locations: [{ kind: "artifact-path", path: binary.path }],
-    });
-
-    const projected = projectManagedApplicationGraphEvidence({
-      managed_native_boundaries: boundaryEvidence,
-    });
-    if (!projected.ok) throw projected.error;
-    const result = managedApplicationGraphResultSchema.parse(
-      parseEvidence(projected.value).normalized_result,
-    );
-    const graph = parseJavaScriptApplicationGraph(result.graph);
-    expect(result.summary).toMatchObject({ assemblies: 0, modules: 1 });
-    expect(
-      graph.nodes.find(({ kind }) => kind === "managed-module")
-        ?.observations[0],
-    ).toMatchObject({
-      evidence: {
-        extractor: { operation: "inspect_managed_native_boundaries" },
-        evidence_ids: [boundaryEvidence.evidence_id],
-      },
-    });
-    expect(result.evidence_links).toEqual([boundaryEvidence.evidence_id]);
-  });
+  it.each([
+    ["managed_members", "memberEvidence"],
+    ["managed_native_boundaries", "boundaryEvidence"],
+  ] as const)(
+    "binds a module from %s to its supplying Evidence",
+    (inputKey, evidenceKey) => {
+      const source = createManagedInteropEvidence()[evidenceKey];
+      const projected = projectManagedApplicationGraphEvidence({
+        [inputKey]: source,
+      });
+      if (!projected.ok) throw projected.error;
+      const result = managedApplicationGraphResultSchema.parse(
+        parseEvidence(projected.value).normalized_result,
+      );
+      const graph = parseJavaScriptApplicationGraph(result.graph);
+      expect(result.summary).toMatchObject({ assemblies: 0, modules: 1 });
+      expect(
+        graph.nodes.find(({ kind }) => kind === "managed-module")
+          ?.observations[0],
+      ).toMatchObject({
+        evidence: {
+          extractor: { operation: source.operation },
+          evidence_ids: [source.evidence_id],
+        },
+      });
+      expect(result.evidence_links).toEqual([source.evidence_id]);
+      expect(result.limitations).toContain(
+        "Managed artifact Evidence was not supplied; assembly identity observations are absent.",
+      );
+    },
+  );
 
   it("reports no assembly or module when the inspector observes no identity rows", () => {
     const bytes = buildManagedPeFixture({

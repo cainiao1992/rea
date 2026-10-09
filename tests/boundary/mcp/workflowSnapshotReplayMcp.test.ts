@@ -42,46 +42,27 @@ afterEach(async () => {
 
 describe("MCP composed workflow target admission", () => {
   it("keeps a composed result and snapshot on its admitted target across queued close and open", async () => {
-    const directory = await createTestTempDirectory(
+    const { targetPaths, snapshotPath } = await createWorkflowFiles(
       "rea-mcp-admitted-workflow-",
+      ["first.hop", "second.hop"],
     );
-    const firstPath = join(directory, "first.hop");
-    const secondPath = join(directory, "second.hop");
-    const snapshotPath = join(directory, "first-analysis.json");
-    await Promise.all([
-      writeFile(firstPath, "first target"),
-      writeFile(secondPath, "second target"),
-    ]);
+    const firstPath = targetPaths[0];
+    const secondPath = targetPaths[1];
+    if (firstPath === undefined || secondPath === undefined)
+      throw new Error("Expected two workflow targets");
     const starts: string[] = [];
     const calls: string[] = [];
     const entered = createDeferred<void>();
     const release = createDeferred<void>();
-    const session = createTestBinarySession(
+    const session = createWorkflowSession(
       makeProvider(starts, calls, undefined, { entered, release }),
-      { resolveAnalysisProfile: () => Promise.resolve(ok({ profile })) },
     );
-    const server = createServer(
-      { kind: "session", session },
-      { logger: silentLogger },
-    );
-    const mcp = new Client({ name: "admitted-workflow", version: "1" });
+    const { mcp } = await connectWorkflowMcp(session, "admitted-workflow");
     const closeStarted = createDeferred<void>();
     mcp.setNotificationHandler("notifications/progress", () => {
       closeStarted.resolve();
     });
-    const [clientTransport, serverTransport] =
-      InMemoryTransport.createLinkedPair();
-    resources.push(mcp, server);
-    await server.connect(serverTransport);
-    await mcp.connect(clientTransport);
-    expect(
-      (
-        await mcp.callTool({
-          name: "open_binary",
-          arguments: { path: firstPath },
-        })
-      ).isError,
-    ).not.toBe(true);
+    await openWorkflowTarget(mcp, firstPath);
 
     const analysisRequest = mcp.callTool({
       name: "binary_overview",
@@ -126,34 +107,19 @@ describe("MCP composed workflow target admission", () => {
 
 describe("MCP composed workflow snapshot replay", () => {
   it("exports an MCP workflow binding and replays its Evidence without provider startup or calls", async () => {
-    const directory = await createTestTempDirectory(
+    const { targetPaths, snapshotPath } = await createWorkflowFiles(
       "rea-mcp-workflow-snapshot-",
+      ["fixture.hop"],
     );
-    const targetPath = join(directory, "fixture.hop");
-    const snapshotPath = join(directory, "analysis.json");
-    await writeFile(targetPath, "fixture binary");
+    const targetPath = targetPaths[0];
+    if (targetPath === undefined) throw new Error("Expected a workflow target");
     const starts: string[] = [];
     const calls: string[] = [];
     const provider = makeProvider(starts, calls);
-    const session = createTestBinarySession(provider, {
-      resolveAnalysisProfile: () => Promise.resolve(ok({ profile })),
-    });
-    const server = createServer(
-      { kind: "session", session },
-      { logger: silentLogger },
-    );
-    const mcp = new Client({ name: "workflow-snapshot", version: "1.0.0" });
-    const [clientTransport, serverTransport] =
-      InMemoryTransport.createLinkedPair();
-    resources.push(mcp, server);
-    await server.connect(serverTransport);
-    await mcp.connect(clientTransport);
+    const session = createWorkflowSession(provider);
+    const { mcp } = await connectWorkflowMcp(session, "workflow-snapshot");
 
-    const opened = await mcp.callTool({
-      name: "open_binary",
-      arguments: { path: targetPath },
-    });
-    expect(opened.isError).not.toBe(true);
+    await openWorkflowTarget(mcp, targetPath);
     const analyzed = await mcp.callTool({
       name: "binary_overview",
       arguments: {},
@@ -198,14 +164,8 @@ describe("MCP composed workflow snapshot replay", () => {
 
     const dependencies: DirectAnalysisDependencies = {
       readConfiguration: () => parseConfig({}),
-      createBinarySession: () =>
-        createTestBinarySession(provider, {
-          resolveAnalysisProfile: () => Promise.resolve(ok({ profile })),
-        }),
-      createManagedBinarySession: () =>
-        createTestBinarySession(provider, {
-          resolveAnalysisProfile: () => Promise.resolve(ok({ profile })),
-        }),
+      createBinarySession: () => createWorkflowSession(provider),
+      createManagedBinarySession: () => createWorkflowSession(provider),
     };
     const replay = await runDirectAnalysis(
       dependencies,
@@ -221,42 +181,20 @@ describe("MCP composed workflow snapshot replay", () => {
   });
 
   it("does not bind a workflow when an upstream operation is live", async () => {
-    const directory = await createTestTempDirectory(
+    const { targetPaths, snapshotPath } = await createWorkflowFiles(
       "rea-mcp-live-workflow-snapshot-",
+      ["fixture.hop"],
     );
-    const targetPath = join(directory, "fixture.hop");
-    const snapshotPath = join(directory, "analysis.json");
-    await writeFile(targetPath, "fixture binary");
+    const targetPath = targetPaths[0];
+    if (targetPath === undefined) throw new Error("Expected a workflow target");
     const starts: string[] = [];
     const calls: string[] = [];
-    const session = createTestBinarySession(
+    const session = createWorkflowSession(
       makeProvider(starts, calls, "list_strings"),
-      {
-        resolveAnalysisProfile: () => Promise.resolve(ok({ profile })),
-      },
     );
-    const server = createServer(
-      { kind: "session", session },
-      { logger: silentLogger },
-    );
-    const mcp = new Client({
-      name: "live-workflow-snapshot",
-      version: "1.0.0",
-    });
-    const [clientTransport, serverTransport] =
-      InMemoryTransport.createLinkedPair();
-    resources.push(mcp, server);
-    await server.connect(serverTransport);
-    await mcp.connect(clientTransport);
+    const { mcp } = await connectWorkflowMcp(session, "live-workflow-snapshot");
 
-    expect(
-      (
-        await mcp.callTool({
-          name: "open_binary",
-          arguments: { path: targetPath },
-        })
-      ).isError,
-    ).not.toBe(true);
+    await openWorkflowTarget(mcp, targetPath);
     const analyzed = await mcp.callTool({
       name: "binary_overview",
       arguments: {},
@@ -278,6 +216,54 @@ describe("MCP composed workflow snapshot replay", () => {
     expect(snapshot.value.workflow_entries).toEqual([]);
   });
 });
+
+const createWorkflowFiles = async (
+  prefix: string,
+  filenames: readonly string[],
+): Promise<{
+  readonly targetPaths: readonly string[];
+  readonly snapshotPath: string;
+}> => {
+  const directory = await createTestTempDirectory(prefix);
+  const targetPaths = await Promise.all(
+    filenames.map(async (filename) => {
+      const path = join(directory, filename);
+      await writeFile(path, filename);
+      return path;
+    }),
+  );
+  return { targetPaths, snapshotPath: join(directory, "analysis.json") };
+};
+
+const createWorkflowSession = (provider: AnalysisProvider) =>
+  createTestBinarySession(provider, {
+    resolveAnalysisProfile: () => Promise.resolve(ok({ profile })),
+  });
+
+const connectWorkflowMcp = async (
+  session: ReturnType<typeof createWorkflowSession>,
+  clientName: string,
+): Promise<{ readonly mcp: Client }> => {
+  const server = createServer(
+    { kind: "session", session },
+    { logger: silentLogger },
+  );
+  const mcp = new Client({ name: clientName, version: "1.0.0" });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  resources.push(mcp, server);
+  await server.connect(serverTransport);
+  await mcp.connect(clientTransport);
+  return { mcp };
+};
+
+const openWorkflowTarget = async (mcp: Client, path: string): Promise<void> => {
+  const opened = await mcp.callTool({
+    name: "open_binary",
+    arguments: { path },
+  });
+  expect(opened.isError, JSON.stringify(opened.content)).not.toBe(true);
+};
 
 const makeProvider = (
   starts: string[],

@@ -1,4 +1,11 @@
-import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { parseProcessScenario } from "../../domain/process/processScenario.js";
@@ -123,6 +130,161 @@ it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
       await chmod(unreadable, 0o600);
       await rm(root, { recursive: true, force: true });
     }
+  },
+);
+
+it.each([
+  { name: "both", beforeOmitted: true, afterOmitted: true, contents: "after!" },
+  {
+    name: "before",
+    beforeOmitted: true,
+    afterOmitted: false,
+    contents: "after!",
+  },
+  {
+    name: "after",
+    beforeOmitted: false,
+    afterOmitted: true,
+    contents: "after!",
+  },
+  {
+    name: "both for an untouched file",
+    beforeOmitted: true,
+    afterOmitted: true,
+    contents: "before",
+  },
+])(
+  "keeps content equality unknown when $name snapshots omit its digest",
+  async ({ beforeOmitted, afterOmitted, contents }) => {
+    const root = await createTestTempDirectory("rea-fs-content-unknown-");
+    const budgetFile = join(root, "a.txt");
+    const file = join(root, "b.txt");
+    await writeFile(file, "before");
+    if (beforeOmitted) await writeFile(budgetFile, "budget");
+    const scenario = parseProcessScenario({
+      executable: process.execPath,
+      working_directory: root,
+      filesystem_observation_paths: [root],
+      limits: { file_bytes: 6 },
+    });
+    const before = await snapshotRoots(scenario);
+    if (beforeOmitted && !afterOmitted) await rm(budgetFile);
+    if (!beforeOmitted && afterOmitted) await writeFile(budgetFile, "budget");
+    if (contents !== "before") await writeFile(file, contents);
+    const after = await snapshotRoots(scenario);
+    expect(await readFile(file, "utf8")).toBe(contents);
+    const effect = classifyFilesystemEffects(before, after).find(
+      ({ path }) => path === "root_0:b.txt",
+    );
+    expect(effect).toMatchObject({
+      status: "unknown",
+      before: {
+        type: "file",
+        size: 6,
+        sha256: beforeOmitted ? null : expect.any(String),
+      },
+      after: {
+        type: "file",
+        size: 6,
+        sha256: afterOmitted ? null : expect.any(String),
+      },
+      reason: expect.stringMatching(/content.*hash|hash.*content/iu),
+    });
+  },
+);
+
+it("preserves observed content and metadata changes without treating missing hashes as equality", async () => {
+  const root = await createTestTempDirectory("rea-fs-observed-changes-");
+  for (const name of ["changed", "stable", "unhashed", "retyped"])
+    await writeFile(join(root, name), "before");
+  const scenario = parseProcessScenario({
+    executable: process.execPath,
+    working_directory: root,
+    filesystem_observation_paths: [root],
+  });
+  const before = await snapshotRoots(scenario);
+  await writeFile(join(root, "changed"), "after!");
+  await writeFile(join(root, "unhashed"), "different size");
+  await rm(join(root, "retyped"));
+  await mkdir(join(root, "retyped"));
+  const after = await snapshotRoots(scenario);
+  const effects = classifyFilesystemEffects(before, after);
+  expect(effects.find(({ path }) => path === "root_0:changed")?.status).toBe(
+    "modified",
+  );
+  expect(effects.find(({ path }) => path === "root_0:stable")?.status).toBe(
+    "unchanged",
+  );
+  expect(effects.find(({ path }) => path === "root_0:retyped")?.status).toBe(
+    "modified",
+  );
+  const noHashes = parseProcessScenario({
+    ...scenario,
+    limits: { file_bytes: 1 },
+  });
+  const unhashedBefore = await snapshotRoots(noHashes);
+  await writeFile(join(root, "unhashed"), "size changed again");
+  const unhashedAfter = await snapshotRoots(noHashes);
+  expect(
+    classifyFilesystemEffects(unhashedBefore, unhashedAfter).find(
+      ({ path }) => path === "root_0:unhashed",
+    ),
+  ).toMatchObject({
+    status: "modified",
+    before: { sha256: null },
+    after: { sha256: null },
+  });
+});
+
+it.skipIf(process.platform === "win32")(
+  "preserves an observed permission change when file digests are omitted",
+  async () => {
+    const root = await createTestTempDirectory("rea-fs-mode-change-");
+    const file = join(root, "file");
+    await writeFile(file, "before", { mode: 0o600 });
+    const scenario = parseProcessScenario({
+      executable: process.execPath,
+      working_directory: root,
+      filesystem_observation_paths: [file],
+      limits: { file_bytes: 1 },
+    });
+    const before = await snapshotRoots(scenario);
+    await chmod(file, 0o644);
+    const after = await snapshotRoots(scenario);
+    expect(classifyFilesystemEffects(before, after)).toMatchObject([
+      { status: "modified", before: { sha256: null }, after: { sha256: null } },
+    ]);
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "compares directories and symlink targets without requiring file content hashes",
+  async () => {
+    const root = await createTestTempDirectory("rea-fs-nonfile-effects-");
+    await mkdir(join(root, "empty"));
+    await writeFile(join(root, "a.txt"), "before");
+    await writeFile(join(root, "b.txt"), "unused");
+    await symlink("a.txt", join(root, "stable-link"));
+    await symlink("a.txt", join(root, "moved-link"));
+    const scenario = parseProcessScenario({
+      executable: process.execPath,
+      working_directory: root,
+      filesystem_observation_paths: [root],
+      limits: { file_bytes: 1 },
+    });
+    const before = await snapshotRoots(scenario);
+    await writeFile(join(root, "a.txt"), "after!");
+    await rm(join(root, "moved-link"));
+    await symlink("b.txt", join(root, "moved-link"));
+    const after = await snapshotRoots(scenario);
+    const effects = classifyFilesystemEffects(before, after);
+    for (const name of ["empty", "stable-link"])
+      expect(
+        effects.find(({ path }) => path === `root_0:${name}`)?.status,
+      ).toBe("unchanged");
+    expect(
+      effects.find(({ path }) => path === "root_0:moved-link")?.status,
+    ).toBe("modified");
   },
 );
 

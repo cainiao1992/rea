@@ -150,6 +150,12 @@ describe("HTML reference URL text", () => {
       });
     },
   );
+  it("rejects a base href whose URL whitespace splits an encoded separator", () => {
+    expect(resolve("app.js", "a%2\nf/")).toMatchObject({
+      resolution_status: "rejected",
+      resolved_path: null,
+    });
+  });
   it("rejects a base href that decodes to NUL", () => {
     expect(resolve("app.js", "/a%00/")).toMatchObject({
       resolution_status: "rejected",
@@ -164,7 +170,7 @@ describe("HTML reference URL text", () => {
       });
     },
   );
-  it.each(["%2e%2e/app.js", "a%2fapp.js"])(
+  it.each(["%2e%2e/app.js", "a%2fapp.js", "%2\nfapp.js", "%2\ne%2\te/app.js"])(
     "still rejects encoded dot and separator bytes in %j",
     (declared) => {
       expect(resolve(declared, "")).toMatchObject({

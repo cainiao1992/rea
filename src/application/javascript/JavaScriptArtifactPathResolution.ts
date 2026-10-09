@@ -264,6 +264,12 @@ const htmlCandidate = (
     return unresolvedOutcome(input, "external", [
       "The document base href is external, so its script reference is not a local artifact path.",
     ]);
+  // Removing URL tabs and newlines can join an encoded dot or separator that
+  // the raw declaration split, so admit the parsed URL text again.
+  if (!admitsCanonicalPathSyntax(declared))
+    return unresolvedOutcome(input, "rejected", [
+      "Encoded dot or separator bytes are rejected before artifact path resolution.",
+    ]);
   const declaredPath = percentDecodeUrlPath(declared);
   if (declaredPath === null)
     return unresolvedOutcome(input, "rejected", [

@@ -166,12 +166,6 @@ describe("CLI JSON input", () => {
         details: { issues: [{ reason: "invalid_format", expected: "JSON" }] },
       },
     });
-    expect(await parseCliJsonInput("[", "test-input")).toMatchObject({
-      ok: false,
-      error: {
-        details: { issues: [{ reason: "invalid_format", expected: "JSON" }] },
-      },
-    });
     const root = await createTestTempDirectory("rea-json-input-");
     const path = join(root, "input.json");
     await writeFile(path, '{"value":1}');

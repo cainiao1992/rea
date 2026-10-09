@@ -176,7 +176,6 @@ describe("doctor installation identity", () => {
           Promise.resolve({
             version: "10",
             toolCount: null,
-            catalogDigest: null,
             canonical: false,
           }),
       }),

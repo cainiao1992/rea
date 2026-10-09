@@ -120,7 +120,7 @@ jobs:
           PAGES_URL: ${{ steps.deployment.outputs.page_url }}
           PUBLISH_TARGET: ${{ inputs.target }}
         run: |
-          python3 - <<'PY'
+          python3 -u - <<'PY'
           import json
           import os
           import sys
@@ -144,7 +144,10 @@ jobs:
               for name, base in list(pending.items()):
                   url = urljoin(base, "deployment.json") + "?commit=" + expected
                   try:
-                      request = Request(url, headers={"Cache-Control": "no-cache"})
+                      request = Request(url, headers={
+                          "Cache-Control": "no-cache",
+                          "User-Agent": "REA-Website-Verifier/1.0 (+https://github.com/morluto/rea)",
+                      })
                       with urlopen(request, timeout=10) as response:
                           actual = json.load(response).get("commit")
                       if actual == expected:
@@ -159,7 +162,7 @@ jobs:
               if attempt < 23:
                   time.sleep(5)
           if pending:
-              sys.exit("Published revision did not match on: " + ", ".join(pending))
+              sys.exit("Could not verify published revision on: " + ", ".join(pending))
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
               links = " and ".join(f"[{name}]({url})" for name, url in hosts.items())
               summary.write(f"Published commit `{expected}` to {links}.\n")

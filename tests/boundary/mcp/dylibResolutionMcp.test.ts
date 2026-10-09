@@ -1,4 +1,4 @@
-import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
@@ -375,3 +375,53 @@ it.each([
     });
   },
 );
+
+it("reports caller-selected roots that cannot be traced as invalid input", async () => {
+  const app = join(
+    await createTestTempDirectory("rea-dylib-roots-"),
+    "Fixture.app",
+  );
+  await mkdir(join(app, "Contents/MacOS"), { recursive: true });
+  await writeFile(
+    join(app, "Contents/Info.plist"),
+    "<plist><dict><key>CFBundleExecutable</key><string>App</string></dict></plist>",
+  );
+  await writeFile(
+    join(app, "Contents/MacOS/App"),
+    machoImage({ commands: [buildVersionCommand(1)] }),
+  );
+  await symlink("/bin/ls", join(app, "Contents/MacOS/outside"));
+  await withClient(async (client) => {
+    const opened = await client.callTool({
+      name: "open_binary",
+      arguments: { path: app },
+    });
+    expect(opened.isError, JSON.stringify(opened)).not.toBe(true);
+    for (const [root, message] of [
+      ["Contents/MacOS/Missing", "is not a regular file"],
+      ["Contents/MacOS", "is not a regular file"],
+      ["Contents/Info.plist", "is not a Mach-O image"],
+      ["Contents/MacOS/outside", "resolves outside the analyzed root"],
+    ] as const) {
+      const called = await client.callTool({
+        name: "trace_dylib_resolution",
+        arguments: { roots: ["Contents/MacOS/App", root] },
+      });
+      expect(called.isError, root).toBe(true);
+      expect(called.structuredContent, root).toMatchObject({
+        error: {
+          code: "invalid_request",
+          details: {
+            issues: [
+              {
+                path: ["roots", 1],
+                reason: "invalid_value",
+                message: expect.stringContaining(`Root ${root} ${message}`),
+              },
+            ],
+          },
+        },
+      });
+    }
+  });
+});

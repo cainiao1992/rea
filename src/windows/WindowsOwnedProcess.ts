@@ -45,7 +45,6 @@ export class WindowsOwnedProcess extends EventEmitter {
   readonly #settled: Promise<void>;
   #settle: (() => void) | undefined;
   #closed = false;
-  #verifiedSettlement = false;
   #failure: string | undefined;
   #timer: NodeJS.Timeout | undefined;
   #cleanup: Promise<ProcessCleanupResult> | undefined;
@@ -163,29 +162,26 @@ export class WindowsOwnedProcess extends EventEmitter {
 
   /** Terminate and verify that the entire job has settled before releasing it. */
   cleanup(): Promise<ProcessCleanupResult> {
-    this.#cleanup ??= this.#stop();
+    this.#cleanup ??= this.#stop().then((result) => {
+      if (!result.cleaned) this.#cleanup = undefined;
+      return result;
+    });
     return this.#cleanup;
   }
 
   async #stop(): Promise<ProcessCleanupResult> {
-    if (this.#closed)
-      return this.#verifiedSettlement
-        ? { cleaned: true, signaled: false }
-        : {
-            cleaned: false,
-            reason:
-              this.#failure ?? "Windows Job Object settlement was not verified",
-          };
+    if (this.#closed) return { cleaned: true, signaled: false };
     let timer: NodeJS.Timeout | undefined;
     try {
       const signaled = this.kill();
+      this.#schedule();
       const settled = await Promise.race([
         this.#settled.then(() => true),
         new Promise<boolean>((resolve) => {
           timer = setTimeout(() => resolve(false), 5_000);
         }),
       ]);
-      return settled && this.#verifiedSettlement
+      return settled
         ? { cleaned: true, signaled }
         : {
             cleaned: false,
@@ -200,20 +196,22 @@ export class WindowsOwnedProcess extends EventEmitter {
       };
     } finally {
       if (timer !== undefined) clearTimeout(timer);
-      if (!this.#closed) this.#release();
     }
   }
 
   #schedule(): void {
+    if (this.#closed || this.#timer !== undefined) return;
     this.#timer = setTimeout(() => this.#poll(), 25);
   }
 
   #poll(): void {
+    this.#timer = undefined;
     if (this.#closed) return;
     try {
       const state = pollSchema.parse(
         this.#authority.call("process_poll", [this.#handle]),
       );
+      this.#failure = undefined;
       if (state.stdout.length > 0) this.stdout.write(state.stdout);
       if (state.stderr.length > 0) this.stderr.write(state.stderr);
       if (state.exitCode !== null && this.exitCode === null) {
@@ -226,7 +224,6 @@ export class WindowsOwnedProcess extends EventEmitter {
         state.stderrEnded &&
         state.activeProcesses === 0
       ) {
-        this.#verifiedSettlement = true;
         this.#release();
       } else this.#schedule();
     } catch (cause: unknown) {
@@ -235,7 +232,7 @@ export class WindowsOwnedProcess extends EventEmitter {
       // Native lifecycle failures belong to the error/cleanup channels, never
       // the captured stderr observation produced by the child itself.
       if (this.listenerCount("error") > 0) this.emit("error", failure);
-      this.#release();
+      // Retain the original job so explicit cleanup can retry its observation.
     }
   }
 

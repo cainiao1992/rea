@@ -8,9 +8,14 @@ export const parseJavaScriptSource = (
   source: string,
   sourcePath?: string,
 ): ParsedJavaScriptSource | null => {
+  const path = sourcePath ?? "";
+  const isMts = /\.mts$/iu.test(path);
   const typescript: ParserPlugin = [
     "typescript",
-    { dts: /\.d\.(?:ts|mts|cts)$/iu.test(sourcePath ?? "") },
+    {
+      dts: /\.d\.(?:ts|mts|cts)$/iu.test(path),
+      ...(isMts ? { disallowAmbiguousJSXLike: true } : {}),
+    },
   ];
   try {
     return parse(source, {
@@ -21,9 +26,10 @@ export const parseJavaScriptSource = (
       // forms, including parameter decorators. Without it a decorated
       // TypeScript source fails to parse at all rather than reporting
       // recovered syntax, which loses every fact derived from that source.
+      // TypeScript's .mts mode disables JSX and rejects ambiguous angle syntax.
       // Plain .ts and .cts artifacts admit angle-bracket type assertions instead of JSX.
       // Unknown paths retain the existing JSX-capable parser contract.
-      plugins: /\.(?:ts|cts)$/iu.test(sourcePath ?? "")
+      plugins: /\.(?:ts|cts|mts)$/iu.test(path)
         ? ["decorators-legacy", typescript]
         : ["decorators-legacy", "jsx", typescript],
     });

@@ -13,6 +13,7 @@ The published diagrams are SVG source assets:
 - `public/assets/figures/rea-investigation-flow.svg` — 1774 × 887 viewBox.
 - `public/assets/figures/dx-ball-sound-pan-investigation.svg` — 1774 × 887 viewBox.
 - `public/assets/figures/th04-bullet-ring.svg` — 1000 × 520 viewBox.
+- `public/assets/figures/analyst-thinking.svg` — 160 × 120 viewBox.
 
 Two original layout references were generated with the built-in image generation
 tool and reviewed visually. Their prompts are retained below. The final SVGs
@@ -41,6 +42,36 @@ Check spelling, arithmetic order, arrow directions and the separate verification
 branches when changing these figures. Match progress claims to the pinned
 reconstruction checkpoint. Validate the SVG as XML and inspect its browser
 rendering at desktop and mobile widths.
+
+## Beginner homepage and dinosaur reconstruction
+
+The manual/agent comparison and Calculator percentage controls are semantic
+HTML. Calculator’s assembly comes from a real installed model DLL; the named
+calculation is a readable summary crosschecked against Microsoft’s public source. See
+[evidence/calculator-and-dino.md](evidence/calculator-and-dino.md).
+
+The introduction pairs selected Calculator instructions with three selectable
+analyst thoughts: decode operator branches, trace arithmetic calls, then name
+the percentage rule. The small analyst illustration is authored SVG; the
+thought bubbles, findings and labels are selectable HTML. The thoughts
+illustrate the analysis rather than reproduce a recorded conversation. The
+agent side asks the same question and separates REA’s evidence from the
+agent’s explanation. Keep those roles and the instruction highlights aligned
+when changing a step.
+
+The homepage explains reverse engineering before the worked examples. Each
+example opens with its goal and reason for inspecting the program. A selected
+highlight marks the intended result; the “REA returned” block identifies the
+evidence. The flows label REA’s inspection and the agent’s interpretation or
+reconstruction explicitly. Preserve this context when moving a demo.
+
+The dinosaur sequence uses an HTML flow: inspect the loaded script, rebuild the
+speed rule, then change and play. Its canvas mini-game and static SVG fallback
+are authored code, without generated images or copied game sprites. The game
+imports the recovered rule from `public/assets/dino-speed.js`; other mechanics
+are new teaching code. Check that the fallback is visible with JavaScript
+disabled and hidden when the playable canvas loads. Keep the speed settings,
+source excerpt, reconstruction and original-result table consistent.
 
 ## Original image generation prompts
 

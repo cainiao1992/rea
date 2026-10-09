@@ -57,6 +57,40 @@ followed by several qualifications.
 
 ## Build a page around one question
 
+### Introductions and first exercises
+
+Explain reverse engineering with a familiar behavior. Pair a short, authentic
+code excerpt with readable logic and a figure that explains the result without
+requiring the reader to understand either language. Show a simple agent prompt
+and the specific facts REA supplies to answer it.
+
+Put compact setup at the beginning of the homepage: a copyable installation
+prompt and the ordinary setup command. Then explain what reverse engineering
+means and what it lets someone do, before the worked examples.
+Begin each example with its goal and the reason to inspect that program.
+Name the actual evidence REA returned and what the agent did with it.
+Use short labels, selective bold text and the shared blue highlight to make
+those facts visible when scanning. Keep source, interpretation and new code
+attributed to their respective roles. On mobile, the demo can precede its
+supporting code once its purpose is clear.
+Show how the reader's task changes using the same question on both sides of a
+manual/agent comparison. Let returned evidence make REA's contribution visible.
+When showing manual analysis, use authentic instructions and specific analyst
+questions: what a command ID means, which call performs arithmetic, or which
+operand enters a calculation. Numbered selections can connect the code to
+illustrative thought bubbles. Keep the agent side brief: one visible prompt,
+a concrete answer, and the evidence used to reach it.
+
+When a small reconstruction makes the finding tangible, let readers change an
+input or setting and try the result. Connect inspection, recovered logic,
+reconstruction and the new experiment. Keep the recovered rule distinct from
+new teaching mechanics, and check it against the inspected program.
+
+Offer a supplied target for the next step. A first exercise should take the reader through
+setup, a question, an answer with source references, one prediction they can
+check, and a follow-up. Introduce specialized prerequisites when the chosen
+target requires them.
+
 ### Guides
 
 1. Name the task and introduce a small example.
@@ -101,13 +135,14 @@ purposes, and immutable commit links for checkpoint-dependent facts.
 Each figure should answer a question that a reader can name. Choose the visual
 form that fits it:
 
-| Relationship                              | Existing example                         | Useful form                                        |
-| ----------------------------------------- | ---------------------------------------- | -------------------------------------------------- |
-| Analysis and verification steps           | DX-Ball sound pan                        | Flow with separate verification branches           |
-| Code across process boundaries            | Electron CSV export and Notion clipboard | HTML flow with APIs and channel names              |
-| A mathematical transformation             | TH04's fixed and aimed rings             | SVG drawn from the angle formula                   |
-| Original instructions and readable source | DX-Ball and TH04                         | Selectable HTML code with matching step highlights |
-| A request caused by an action             | Notes browser export                     | Flow, observed result table and script excerpt     |
+| Relationship                              | Existing example                         | Useful form                                             |
+| ----------------------------------------- | ---------------------------------------- | ------------------------------------------------------- |
+| Analysis and verification steps           | DX-Ball sound pan                        | Flow with separate verification branches                |
+| Code across process boundaries            | Electron CSV export and Notion clipboard | HTML flow with APIs and channel names                   |
+| A mathematical transformation             | TH04's fixed and aimed rings             | SVG drawn from the angle formula                        |
+| Original instructions and readable source | DX-Ball and TH04                         | Selectable HTML code with matching step highlights      |
+| A request caused by an action             | Notes browser export                     | Flow, observed result table and script excerpt          |
+| Recovered behavior and a new experiment   | Dinosaur speed reconstruction            | Inspected code, playable demo and original-result check |
 
 Use SVG or semantic HTML for diagrams with exact text, numbers and arrows.
 Generated illustrations can help explore a layout, but the published labels,
@@ -198,6 +233,8 @@ New analysis or behavior claims need the real evidence that supports them; a moc
 or a page-loading check cannot establish those claims.
 
 Follow the PR review and CI process, then publish using the existing manual
-`website-pages.yml` workflow on `main`. Ordinary commits should not publish the
-site. After deployment, check the live page and confirm it matches the reviewed
-version. The legacy VitePress build remains separate from the Pages publisher.
+`website-pages.yml` workflow on `main`. It publishes the same verified artifact
+to Cloudflare and GitHub Pages and checks both published commit markers.
+Ordinary commits should not publish the site. After deployment, check both live
+pages and confirm they match the reviewed version. The legacy VitePress build
+remains separate from the Pages publisher.

@@ -6,7 +6,8 @@
 
 An English static website with explanatory figures, worked guides and DX-Ball, Notion, TH04 and CTF investigations.
 The public files are in `website/public/`. The site uses HTML, CSS and a small
-script for copying code and following the assembly-to-C comparison. Python
+scripts for copying code, following code comparisons and playing the dinosaur
+speed reconstruction. Python
 packages the downloadable example; there is no frontend bundler or npm dependency.
 
 [style-guide.md](style-guide.md) explains the writing, page structure, figures,
@@ -25,7 +26,9 @@ Open <http://127.0.0.1:4173/>. Refresh the browser after editing a file.
 
 ## Pages
 
-- `public/index.html`: product introduction and case-study overviews.
+- `public/index.html`: compact setup, reverse-engineering definition and purpose, manual/agent comparison, dinosaur and Calculator examples, and case-study overviews.
+- `public/examples/dino-lab/index.html`: adjustable-speed mini-game, recovered rule, original-game check and browser analysis steps.
+- `public/first-investigation/index.html`: a guided Notes export investigation, from setup to a checked CSV prediction.
 - `public/showcase/index.html`: the case-study index.
 - `public/showcase/dx-ball/index.html`: sound-pan investigation and project status.
 - `public/showcase/notion/index.html`: Notion's Electron clipboard bridge and rich clipboard format.
@@ -60,6 +63,12 @@ by Git; website checks and each manual publication regenerate it before checking
 and uploading the public directory. The verifier checks that its entries match
 the current source and contain no extra files.
 
+The first-investigation page uses this same ZIP. Its prompt lets the agent
+download and unpack the target; the download button provides a manual path.
+The reader follows the static export trace, then runs the CSV formatter with
+one changed input. This formatter check needs only Node.js. The separate
+browser Notes example has a different implementation.
+
 Agent terminals show example prompts, not transcripts of previous
 investigations. All cursors blink continuously with the same CSS animation,
 respecting reduced-motion preferences. Both the prompt and animation work
@@ -88,7 +97,42 @@ Evidence. [evidence/dx-ball-sound-pan.md](evidence/dx-ball-sound-pan.md) records
 their provenance and the scope of the validation claims. The original executable
 and complete private Evidence records are not website assets.
 
-The homepage and DX-Ball overview diagrams are maintained as SVG source. Initial layout references were
+The homepage starts with a short installation prompt and the ordinary setup
+command, then explains what reverse engineering is and why someone would use
+it. The manual/agent comparison introduces REA’s role before the examples.
+The comparison uses the same Calculator question on both sides: three
+selectable manual steps pair original instructions with an analyst illustration
+and thought bubbles; the agent side begins with “One prompt.” and a copyable
+question. Thoughts illustrate the reasoning behind the findings. The shared
+code-step script selects the initial note on load, so all three notes remain
+readable when JavaScript is disabled.
+The original-instruction panel starts expanded on desktop. On narrow screens,
+the homepage script collapses it; a native disclosure keeps the code available
+while the thought bubble and agent prompt remain close together.
+Dinosaur is the first example; Calculator follows as the native example.
+Both name the goal and the reason to inspect the program before showing the
+demo. A labeled finding explains what REA returned, and the flow distinguishes
+REA’s inspection from the agent’s interpretation and implementation.
+Its game precedes the prompt and code on small screens. Calculator’s excerpt
+comes from an installed model DLL; Microsoft’s public implementation supplies
+names and a crosscheck. Its controls apply the percentage rule to generic inputs.
+
+The dinosaur example connects an inspected running script to a new playable
+mini-game. `public/assets/dino-speed.js` owns the recovered speed rule and replay;
+`dino-demo.js` imports it for automatic acceleration. The slider chooses a fixed
+speed instead. Drawing, jumping and collision code are newly authored for this
+teaching game. It starts on input, pauses when hidden or outside the viewport,
+and retains a static SVG when JavaScript is disabled. The lab links the speed
+module and complete game source, and replays the rule against recorded
+original-game values.
+
+[evidence/calculator-and-dino.md](evidence/calculator-and-dino.md) records both
+targets, selected findings, attribution and verification scope. Update the
+speed rule, game, check table and evidence together. The original script excerpt
+and its BSD license are credited on the pages. Prompt responses are example
+explanations based on findings.
+
+The general investigation and DX-Ball overview diagrams are maintained as SVG source. Initial layout references were
 created with the built-in image generation tool; [figures.md](figures.md) retains
 their prompts and the current asset notes. Figures provide an overview;
 REA requests, assembly and C remain selectable HTML text. On narrow
@@ -141,7 +185,7 @@ Wrangler version without adding it to REA's package dependencies.
 Cloudflare documents static-asset requests as free and unlimited, with no
 additional storage cost. See [billing and limitations](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/).
 
-### Preview and deploy
+### Local and hosted previews
 
 Run these commands from the repository root. `--cwd website` makes the build
 paths consistent with the website configuration. Preview locally first:
@@ -186,13 +230,7 @@ See Cloudflare's [nameserver setup procedure](https://developers.cloudflare.com/
 for the complete migration steps. A CNAME to the preview's `workers.dev` hostname
 at the current DNS provider does not configure a Workers Custom Domain.
 
-Publish to the production Worker:
-
-```sh
-npx wrangler@4.149.0 deploy --cwd website --env production
-```
-
-This creates or updates `rea-website`, attaches `rea.tools`, and lets Cloudflare
+The production environment creates or updates `rea-website`, attaches `rea.tools`, and lets Cloudflare
 manage its DNS record and HTTPS certificate. Deployment can succeed while the
 zone is pending; verify public HTTPS after activation and certificate issuance.
 An existing CNAME at `rea.tools`
@@ -206,14 +244,33 @@ Verify <https://rea.tools/>, <https://rea.tools/guides/javascript/>,
 resolve correctly. The root README and browser guide use `https://rea.tools/`
 as the public website URL.
 
-Deployments are manual. The existing GitHub Pages publisher remains available
-as a separate host; it does not publish to Cloudflare.
+Production publication uses the synchronized GitHub Actions workflow below.
+Local Wrangler commands above publish only the separate preview Worker.
 
-## GitHub Pages
+## Synchronized production publishing
 
-`.github/workflows/website-pages.yml` prepares and deploys only `website/public`.
-It is the sole Pages publisher, manually triggered and restricted to `main`;
+`.github/workflows/website-pages.yml` prepares `website/public` once and deploys
+the same artifact to Cloudflare (`rea.tools`) and GitHub Pages. It is the sole
+production publisher, manually triggered and restricted to `main`;
 ordinary pushes and pull requests do not publish the site.
+
+Configure these repository **Actions secrets** before publishing:
+
+- `CLOUDFLARE_API_TOKEN`: a Cloudflare token using the **Edit Cloudflare Workers**
+  template, scoped to the website's account and zone.
+- `CLOUDFLARE_ACCOUNT_ID`: that Cloudflare account's ID.
+
+See Cloudflare's [GitHub Actions authentication instructions](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/).
+The workflow checks that both secrets are present before preparing a release.
+Cloudflare deploys first; GitHub Pages deploys after that step succeeds.
+
+Preparation adds `deployment.json` with the workflow's commit SHA. Cloudflare
+receives the extracted Pages artifact through Wrangler's explicit assets path;
+the local custom-build output is not the uploaded directory. The workflow then
+checks both public version markers and reports success only when they match
+that commit. A failed publication remains failed; fix its cause and rerun the
+workflow to complete both deployments. The two hosts can update at different
+times while a run is in progress.
 
 Website checks run only for pull requests that change `website/`, the verification
 script or workflow definitions. They check local links, HTML fragments, SVG XML
@@ -233,8 +290,9 @@ the old site.
 
 After the site is approved and merged, select **GitHub Actions** under the
 repository's **Settings → Pages → Build and deployment**. Then run **Publish REA
-website** from the Actions tab on `main`. The workflow uses the `github-pages`
-environment and the official Pages actions.
+website** from the Actions tab on `main`. This publishes both production hosts.
+The workflow uses the `github-pages` environment, the official Pages actions and
+Cloudflare's Wrangler action.
 
 The equivalent CLI command is:
 

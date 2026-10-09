@@ -140,17 +140,39 @@ const validateCoverage = (
     hasCaptureTruncation(
       details,
     ), "truncation_details", "aggregate truncation must match producer coverage");
-  for (const [name, retention, count] of [
-    ["raw_terminal", details.raw_terminal, capture.frames.length],
+  for (const [name, retention, count, bytes] of [
+    [
+      "raw_terminal",
+      details.raw_terminal,
+      capture.frames.length,
+      capture.frames.reduce(
+        (total, frame) =>
+          total + Buffer.byteLength(frame.raw_data ?? frame.data),
+        0,
+      ),
+    ],
     [
       "rendered_terminal",
       details.rendered_terminal,
       capture.rendered_frames.length,
+      capture.rendered_frames.reduce(
+        (total, frame) =>
+          frame.lines.reduce(
+            (sum, line) => sum + Buffer.byteLength(line),
+            total + Buffer.byteLength(frame.serialized_state),
+          ),
+        0,
+      ),
     ],
   ] as const) {
+    // Whole frames are retained or omitted, so retained bytes are exactly the
+    // retained frames' bytes, and nothing is unretained when no frame was omitted.
     require(retention.retained_frames === count &&
       retention.observed_frames >= count &&
+      retention.retained_bytes === bytes &&
       retention.observed_bytes >= retention.retained_bytes &&
+      (retention.observed_frames > count ||
+        retention.observed_bytes === retention.retained_bytes) &&
       retention.retained_bytes <=
         retention.budget_bytes, `truncation_details.${name}`, "retained observations and budget accounting do not agree");
   }

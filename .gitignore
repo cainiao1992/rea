@@ -49,6 +49,7 @@ Thumbs.db
 
 # Generated website download
 /website/public/examples/notes-example.zip
+/website/public/deployment.json
 
 # Local Cloudflare development state
 /website/.wrangler/

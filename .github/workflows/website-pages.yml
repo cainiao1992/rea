@@ -19,12 +19,33 @@ jobs:
       contents: read
       pages: read
     steps:
+      - name: Require Cloudflare publishing credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_ACCOUNT_ID" ]]; then
+            echo "::error::Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in repository Actions secrets before publishing."
+            exit 1
+          fi
       - name: Check out the repository
         uses: actions/checkout@v4
       - name: Prepare the example download
         run: python3 scripts/prepare-website.py
       - name: Check website links and publishing configuration
         run: python3 scripts/verify-website.py
+      - name: Record the published commit
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          Path("website/public/deployment.json").write_text(
+              json.dumps({"commit": os.environ["GITHUB_SHA"]}) + "\n",
+              encoding="utf-8",
+          )
+          PY
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload the website
@@ -35,14 +56,81 @@ jobs:
   deploy:
     needs: prepare
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     permissions:
+      contents: read
+      actions: read
       pages: write
       id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Check out publishing configuration
+        uses: actions/checkout@v4
+      - name: Set up Node.js for Wrangler
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Download the verified website
+        uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+          path: ${{ runner.temp }}/website-archive
+      - name: Extract the shared publishing artifact
+        run: |
+          mkdir -p "$RUNNER_TEMP/rea-website-public"
+          tar -xf "$RUNNER_TEMP/website-archive/artifact.tar" -C "$RUNNER_TEMP/rea-website-public"
+      - name: Publish the website to Cloudflare
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.149.0"
+          packageManager: npm
+          command: deploy --cwd website --env production --assets "${{ runner.temp }}/rea-website-public"
       - name: Publish to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify both published revisions
+        env:
+          PAGES_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+          import time
+          from urllib.error import URLError
+          from urllib.parse import urljoin
+          from urllib.request import Request, urlopen
+
+          expected = os.environ["GITHUB_SHA"]
+          pages_url = os.environ["PAGES_URL"]
+          if not pages_url:
+              sys.exit("GitHub Pages returned no published URL.")
+          pending = {"Cloudflare": "https://rea.tools/", "GitHub Pages": pages_url}
+          for attempt in range(24):
+              for name, base in list(pending.items()):
+                  url = urljoin(base, "deployment.json") + "?commit=" + expected
+                  try:
+                      request = Request(url, headers={"Cache-Control": "no-cache"})
+                      with urlopen(request, timeout=10) as response:
+                          actual = json.load(response).get("commit")
+                      if actual == expected:
+                          print(f"{name} serves {expected}: {base}")
+                          del pending[name]
+                      else:
+                          print(f"Waiting for {name}: observed revision {actual}")
+                  except (URLError, TimeoutError, ValueError) as error:
+                      print(f"Waiting for {name}: {error}")
+              if not pending:
+                  break
+              if attempt < 23:
+                  time.sleep(5)
+          if pending:
+              sys.exit("Published revision did not match on: " + ", ".join(pending))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write(f"Published commit `{expected}` to [rea.tools](https://rea.tools/) "
+                            f"and [GitHub Pages]({pages_url}).\n")
+          PY

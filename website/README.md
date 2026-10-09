@@ -185,7 +185,7 @@ Wrangler version without adding it to REA's package dependencies.
 Cloudflare documents static-asset requests as free and unlimited, with no
 additional storage cost. See [billing and limitations](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/).
 
-### Preview and deploy
+### Local and hosted previews
 
 Run these commands from the repository root. `--cwd website` makes the build
 paths consistent with the website configuration. Preview locally first:
@@ -230,13 +230,7 @@ See Cloudflare's [nameserver setup procedure](https://developers.cloudflare.com/
 for the complete migration steps. A CNAME to the preview's `workers.dev` hostname
 at the current DNS provider does not configure a Workers Custom Domain.
 
-Publish to the production Worker:
-
-```sh
-npx wrangler@4.149.0 deploy --cwd website --env production
-```
-
-This creates or updates `rea-website`, attaches `rea.tools`, and lets Cloudflare
+The production environment creates or updates `rea-website`, attaches `rea.tools`, and lets Cloudflare
 manage its DNS record and HTTPS certificate. Deployment can succeed while the
 zone is pending; verify public HTTPS after activation and certificate issuance.
 An existing CNAME at `rea.tools`
@@ -250,14 +244,33 @@ Verify <https://rea.tools/>, <https://rea.tools/guides/javascript/>,
 resolve correctly. The root README and browser guide use `https://rea.tools/`
 as the public website URL.
 
-Deployments are manual. The existing GitHub Pages publisher remains available
-as a separate host; it does not publish to Cloudflare.
+Production publication uses the synchronized GitHub Actions workflow below.
+Local Wrangler commands above publish only the separate preview Worker.
 
-## GitHub Pages
+## Synchronized production publishing
 
-`.github/workflows/website-pages.yml` prepares and deploys only `website/public`.
-It is the sole Pages publisher, manually triggered and restricted to `main`;
+`.github/workflows/website-pages.yml` prepares `website/public` once and deploys
+the same artifact to Cloudflare (`rea.tools`) and GitHub Pages. It is the sole
+production publisher, manually triggered and restricted to `main`;
 ordinary pushes and pull requests do not publish the site.
+
+Configure these repository **Actions secrets** before publishing:
+
+- `CLOUDFLARE_API_TOKEN`: a Cloudflare token using the **Edit Cloudflare Workers**
+  template, scoped to the website's account and zone.
+- `CLOUDFLARE_ACCOUNT_ID`: that Cloudflare account's ID.
+
+See Cloudflare's [GitHub Actions authentication instructions](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/).
+The workflow checks that both secrets are present before preparing a release.
+Cloudflare deploys first; GitHub Pages deploys after that step succeeds.
+
+Preparation adds `deployment.json` with the workflow's commit SHA. Cloudflare
+receives the extracted Pages artifact through Wrangler's explicit assets path;
+the local custom-build output is not the uploaded directory. The workflow then
+checks both public version markers and reports success only when they match
+that commit. A failed publication remains failed; fix its cause and rerun the
+workflow to complete both deployments. The two hosts can update at different
+times while a run is in progress.
 
 Website checks run only for pull requests that change `website/`, the verification
 script or workflow definitions. They check local links, HTML fragments, SVG XML
@@ -277,8 +290,9 @@ the old site.
 
 After the site is approved and merged, select **GitHub Actions** under the
 repository's **Settings → Pages → Build and deployment**. Then run **Publish REA
-website** from the Actions tab on `main`. The workflow uses the `github-pages`
-environment and the official Pages actions.
+website** from the Actions tab on `main`. This publishes both production hosts.
+The workflow uses the `github-pages` environment, the official Pages actions and
+Cloudflare's Wrangler action.
 
 The equivalent CLI command is:
 

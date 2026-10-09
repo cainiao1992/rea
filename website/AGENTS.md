@@ -19,5 +19,6 @@ for asset notes and the source of case-study claims.
 - Check both local root and `/rea/` paths, mobile layouts, expanded details,
   copying and downloads. Run `scripts/prepare-website.py` followed by
   `scripts/verify-website.py`.
-- Keep `website-pages.yml` as the sole, manual Pages publisher. Follow the
-  publication procedure in the website README.
+- Keep `website-pages.yml` as the sole, manual production publisher for
+  Cloudflare and Pages. Both hosts must receive the same verified artifact and
+  pass the published-commit check. Follow the website README.

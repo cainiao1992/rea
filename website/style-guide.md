@@ -233,6 +233,8 @@ New analysis or behavior claims need the real evidence that supports them; a moc
 or a page-loading check cannot establish those claims.
 
 Follow the PR review and CI process, then publish using the existing manual
-`website-pages.yml` workflow on `main`. Ordinary commits should not publish the
-site. After deployment, check the live page and confirm it matches the reviewed
-version. The legacy VitePress build remains separate from the Pages publisher.
+`website-pages.yml` workflow on `main`. It publishes the same verified artifact
+to Cloudflare and GitHub Pages and checks both published commit markers.
+Ordinary commits should not publish the site. After deployment, check both live
+pages and confirm they match the reviewed version. The legacy VitePress build
+remains separate from the Pages publisher.

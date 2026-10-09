@@ -57,6 +57,9 @@ export const extractArtifact = async (
   const selectedIds = new Set(
     selectedOccurrences.map(({ occurrence_id: id }) => id),
   );
+  const regularPaths = new Set(
+    selectedOccurrences.map(({ logical_path: path }) => path),
+  );
   const occurrences = new Map<string, ArtifactOccurrence>();
   const neededNodes = new Set<string>();
   collectOccurrences(
@@ -98,11 +101,25 @@ export const extractArtifact = async (
       );
     return { occurrence, node };
   });
+  const activeSelected = selected.filter(({ occurrence }) => {
+    // Nested members remain represented by their containing regular file;
+    // only entries exposed by the active reader are materialized.
+    let path = occurrence.logical_path;
+    for (
+      let slash = path.lastIndexOf("/");
+      slash >= 0;
+      slash = path.lastIndexOf("/")
+    ) {
+      path = path.slice(0, slash);
+      if (regularPaths.has(path)) return false;
+    }
+    return true;
+  });
   return materializeSelection({
     input,
     sourcePath,
     inventory,
-    selected,
+    selected: activeSelected,
     signal,
   });
 };
@@ -143,7 +160,6 @@ const materializeSelection = async ({
   const extracted: ExtractedOccurrence[] = [];
   try {
     output = await SafeOutputTree.create(input.outputRoot);
-    const materialized: SelectedOccurrence[] = [];
     const registry = new ArtifactPathRegistry();
     for await (const entry of reader.entries(signal)) {
       const path = normalizeArtifactPath(entry.path);
@@ -172,8 +188,13 @@ const materializeSelection = async ({
         bytes_written: written.bytesWritten,
         created: true,
       });
-      materialized.push(selectedItem);
+      byPath.delete(path);
     }
+    if (byPath.size > 0)
+      throw new ArtifactReaderFailure(
+        "integrity",
+        `Inventoried regular artifact entries were not materialized: ${[...byPath.keys()].sort(compareUnicodeCodePoints).join(", ")}`,
+      );
     readerCloseAttempted = true;
     await reader.close();
     readerClosed = true;
@@ -183,7 +204,7 @@ const materializeSelection = async ({
     const result = createExtractionResult(
       input,
       inventory,
-      materialized,
+      selected,
       extracted,
     );
     await output.commit();

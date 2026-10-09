@@ -141,7 +141,13 @@ it("reports target kinds that artifact operations cannot inspect as unsupported"
   await withClient(async (client) => {
     for (const [path, operation, requirement] of [
       [plist, "decode_interface_builder", "requires an active .app bundle"],
-      [plist, "inspect_asset_catalog", "requires an active .app bundle"],
+      // Elsewhere the session reports asset catalogs as unavailable on the
+      // host before the provider checks the target kind.
+      ...(process.platform === "darwin"
+        ? ([
+            [plist, "inspect_asset_catalog", "requires an active .app bundle"],
+          ] as const)
+        : []),
       [tool, "inspect_keyed_archive", "requires an active plist or .app"],
     ] as const) {
       const open = { name: "open_binary", arguments: { path } };

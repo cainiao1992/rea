@@ -87,7 +87,7 @@ and exact commands.
 
 Experimental Windows x64 P0 now supplies bundled Job Object ownership,
 protected runtime DACLs, and handle-based admission for native x86 and x86-64 PE
-applications on local NTFS. Real ordinary-user CLI/MCP verification covers
+applications and DLLs on local NTFS. Real ordinary-user CLI/MCP verification covers
 all 25 read-only operations and cleanup. The [Windows P0 guide](windows-ghidra-p0.md)
 describes this boundary and unverified broader coverage.
 

@@ -18,7 +18,7 @@ comments atomically, verifies readback, and returns refreshed function analysis.
 Changes live only in the session database and leave executable bytes unchanged.
 Ghidra does not expose GUI controls; Windows P0 remains read-only.
 
-Windows x64 P0 supports native x86 and x86-64 PE applications on local NTFS with
+Windows x64 P0 supports native x86 and x86-64 PE applications and DLLs on local NTFS with
 bundled Job Object ownership, protected runtime DACLs, and handle-based path
 admission. Real ordinary-user verification covers all 25 read-only operations
 through the packaged CLI and MCP, target integrity, and cleanup. This remains
@@ -62,7 +62,7 @@ maximum, when the release leaves those at the 12.1 defaults). Otherwise doctor
 probes `java`/`javac` or `java.exe`/`javac.exe` from `PATH`. Supported Linux and macOS
 hosts accept compatible ELF, PE, and Mach-O executable targets. Host admission
 and target compatibility are separate checks. Windows x64 P0 admits only native,
-non-managed, non-DLL x86 and x86-64 PE applications on fixed local NTFS, with the packaged
+non-managed x86 and x86-64 PE applications and DLLs on fixed local NTFS, with the packaged
 native authority available before launch.
 
 The launcher creates one ephemeral runtime root with project,
@@ -136,8 +136,9 @@ Mach-O target coverage. It requires `clang`, LLD, and `lld-link`; set
 these tools before compilation. Keeping this matrix separate lets Linux
 host/provider acceptance run with only the host compiler.
 
-`npm run verify:ghidra:windows` and its `-- --x86` variant check the source-owned native x86 and x86-64 PE
-fixture, all 25 read-only operations, target/snapshot/import SHA-256 linkage,
+`npm run verify:ghidra:windows` and its `-- --x86` variant check source-owned native x86 and x86-64 PE
+applications. Adding `-- --dll` or `-- --x86 --dll` selects entry-point-free DLLs
+with exported caller/callee functions. These lanes check all 25 read-only operations, target/snapshot/import SHA-256 linkage,
 and project, endpoint, process, and runtime cleanup. The independent native
 lane checks DACLs, handle admission, cancellation, and Job Object lifecycle.
 `npm run verify:ghidra:windows:package` packs and installs REA into an isolated

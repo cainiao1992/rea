@@ -144,10 +144,12 @@ const artifactOperationCode = (
 
 const evidenceFileCode = (
   reason: EvidenceFileError["reason"],
-): AnalysisErrorProjection["code"] =>
-  reason === "invalid-json"
-    ? "evidence_integrity_mismatch"
-    : "execution_failure";
+): AnalysisErrorProjection["code"] => {
+  if (reason === "invalid-json") return "evidence_integrity_mismatch";
+  // A missing, non-file or already-existing path is the caller's selection.
+  if (reason === "io") return "execution_failure";
+  return "invalid_request";
+};
 
 const unknownRegistryCode = (
   reason: UnknownRegistryError["reason"],

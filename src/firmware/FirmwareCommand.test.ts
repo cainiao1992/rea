@@ -4,9 +4,31 @@ import { join } from "node:path";
 import { expect, it as test } from "vitest";
 
 import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory.js";
+import { AnalysisCapabilityUnavailableError } from "../domain/analysisErrorCore.js";
+import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { resolveFirmwareCommand } from "./FirmwareCommand.js";
 
 const it = test.skipIf(process.platform !== "linux");
+
+test("names the host and tool requirement of an unconfigured engine", async () => {
+  const refusal: unknown = await resolveFirmwareCommand(
+    {},
+    "binwalk",
+    "inspect_firmware_regions",
+  ).catch((cause: unknown) => cause);
+
+  expect(refusal).toMatchObject({
+    _tag: "AnalysisCapabilityUnavailableError",
+  });
+  if (!(refusal instanceof AnalysisCapabilityUnavailableError))
+    throw new Error("Expected a capability refusal");
+  expect(projectAnalysisError(refusal)).toMatchObject({
+    code: "capability_unavailable",
+    message: refusal.reason,
+    remediation: { action: refusal.reason },
+  });
+  expect(refusal.reason).toContain("REA_BINWALK_COMMAND");
+});
 
 it("rejects a directory configured as the firmware engine executable", async () => {
   const root = await createTestTempDirectory("rea-firmware-command-");

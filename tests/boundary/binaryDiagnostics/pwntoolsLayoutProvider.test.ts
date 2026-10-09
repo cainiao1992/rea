@@ -591,12 +591,18 @@ it.runIf(!unsupportedHost)(
 it.runIf(unsupportedHost)(
   "reports unverified host coverage before acquiring a provider",
   async () => {
-    expect(
-      await new PwntoolsLayoutProvider({}).inspect({ path: "/selected.elf" }),
-    ).toMatchObject({
+    const result = await new PwntoolsLayoutProvider({}).inspect({
+      path: "/selected.elf",
+    });
+    expect(result).toMatchObject({
       ok: false,
       error: { _tag: "AnalysisCapabilityUnavailableError" },
     });
+    // Another target cannot satisfy a host requirement, so name it.
+    if (result.ok) throw new Error("Expected a host refusal");
+    const projected = projectAnalysisError(result.error);
+    expect(projected.message).toContain("Linux x64");
+    expect(projected.remediation.action).toContain("Linux x64");
   },
 );
 

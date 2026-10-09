@@ -38,6 +38,9 @@ import {
   PWNTOOLS_LIMITS,
 } from "./PwntoolsRelease.js";
 
+const HOST_REQUIREMENT =
+  "The initial real-verified pwntools artifact profile supports Linux x64 only.";
+
 /** Owned launcher seam shared by the offline pwntools artifact adapters. */
 export type PwntoolsLauncher = NonNullable<
   Parameters<typeof runOwnedCommand>[2]
@@ -122,7 +125,8 @@ export class PwntoolsDecoder<
         throw new AnalysisCapabilityUnavailableError(
           this.identity.id,
           OPERATION,
-          "The initial real-verified pwntools artifact profile supports Linux x64 only.",
+          HOST_REQUIREMENT,
+          { userMessage: HOST_REQUIREMENT },
         );
       if (!isAbsolute(selectedPath))
         throw pwntoolsUnavailable(

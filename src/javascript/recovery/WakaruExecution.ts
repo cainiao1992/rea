@@ -69,12 +69,16 @@ const executeWakaruRecovery = async (context: RecoveryWorkspace) => {
   if (
     version.exit_code !== 0 ||
     version.stdout.trim() !== `wakaru ${WAKARU_RELEASE.version}`
-  )
+  ) {
+    // The message names the mismatch; the reason also keeps the tool's stderr.
+    const mismatch = `This adapter requires Wakaru ${WAKARU_RELEASE.version}; reported version: ${version.stdout.trim()}; exit: ${String(version.exit_code)}`;
     throw new AnalysisCapabilityUnavailableError(
       "wakaru",
       OPERATION,
-      `This adapter requires Wakaru ${WAKARU_RELEASE.version}; reported version: ${version.stdout.trim()}; exit: ${String(version.exit_code)}; stderr: ${version.stderr}`,
+      `${mismatch}; stderr: ${version.stderr}`,
+      { userMessage: `${mismatch}.` },
     );
+  }
   const run = await runWakaruCommand({
     ...commandContext,
     staging,

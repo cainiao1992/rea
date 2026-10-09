@@ -79,6 +79,7 @@ it("keeps malformed JSON separate from absent external mitmproxy capability", as
   expect(missing.ok).toBe(false);
   expect(JSON.parse(missing.stdout)).toMatchObject({
     category: "unsupported_provider",
+    message: expect.stringContaining("REA_MITMDUMP_COMMAND"),
   });
 });
 

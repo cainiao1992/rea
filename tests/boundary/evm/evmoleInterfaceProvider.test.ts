@@ -29,6 +29,21 @@ const fixture = async () => {
   return { path, root: workspace.root };
 };
 
+it.runIf(unsupportedHost)(
+  "names the host requirement instead of asking for another target",
+  async () => {
+    const result = await new EvmoleInterfaceProvider({}).inspect({
+      path: "/selected.hex",
+      encoding: "hex",
+    });
+    if (result.ok) throw new Error("Expected a host refusal");
+    const projected = projectAnalysisError(result.error);
+    expect(projected).toMatchObject({ code: "capability_unavailable" });
+    expect(projected.message).toContain("Linux x64");
+    expect(projected.remediation.action).toContain("Linux x64");
+  },
+);
+
 it.runIf(!unsupportedHost).each(["SIGXCPU", "SIGXFSZ", "EFBIG"])(
   "preserves %s with configured limits distinct from unknown effective limits",
   async (failure) => {

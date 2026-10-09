@@ -50,6 +50,8 @@ import {
 
 const OPERATION = "observe_native_calls";
 const PROVIDER = "native-macos";
+const LLDB_REQUIREMENT =
+  "LLDB from Xcode or the Command Line Tools is not available";
 /** Captured target output kept per stream; the rest is counted, not stored. */
 const MAX_OUTPUT_BYTES = 1024 * 1024;
 /** LLDB startup, symbol loading and teardown beyond the observation window. */
@@ -180,7 +182,8 @@ export class LldbCallTracer implements NativeCallTracer {
           : new AnalysisCapabilityUnavailableError(
               PROVIDER,
               OPERATION,
-              "LLDB from Xcode or the Command Line Tools is not available",
+              LLDB_REQUIREMENT,
+              { userMessage: LLDB_REQUIREMENT },
             ),
       );
     const root = await PrivateRuntimeRoot.create({ prefix: "rea-lldb-" });

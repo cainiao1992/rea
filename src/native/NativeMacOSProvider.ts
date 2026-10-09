@@ -668,13 +668,15 @@ const translateCommandFailure = (
     ...(capturedOutput === undefined ? {} : { capturedOutput }),
     ...(cleanup === undefined ? {} : { cleanup }),
   };
-  if (failure.reason === "unavailable")
+  if (failure.reason === "unavailable") {
+    const reason = `${failure.tool} is unavailable through xcrun.`;
     return new AnalysisCapabilityUnavailableError(
       IDENTITY.id,
       operation,
-      `${failure.tool} is unavailable through xcrun.`,
-      errorOptions,
+      reason,
+      { ...errorOptions, userMessage: reason },
     );
+  }
   if (failure.reason === "cancelled")
     return new AnalysisCancelledError(operation, errorOptions);
   if (failure.reason === "timeout")

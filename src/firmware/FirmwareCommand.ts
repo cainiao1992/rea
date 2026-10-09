@@ -29,6 +29,16 @@ export type FirmwareLauncher = (
   options: OwnedProviderProcessSpawnOptions,
 ) => Promise<SpawnedOwnedProviderProcess>;
 
+/** Refuse an unmet host or tool requirement, which another target cannot satisfy. */
+export const firmwareToolUnavailable = (
+  engine: string,
+  operation: string,
+  reason: string,
+): AnalysisCapabilityUnavailableError =>
+  new AnalysisCapabilityUnavailableError(engine, operation, reason, {
+    userMessage: reason,
+  });
+
 /** Resolve explicitly supplied executable paths; never install or search for engines. */
 export const resolveFirmwareCommand = async (
   environment: Readonly<Record<string, string | undefined>>,
@@ -43,13 +53,13 @@ export const resolveFirmwareCommand = async (
     configured === undefined ||
     !isAbsolute(configured)
   )
-    throw new AnalysisCapabilityUnavailableError(
+    throw firmwareToolUnavailable(
       engine,
       operation,
       `This integration requires Linux and an absolute ${variable} path to the caller-supplied tool`,
     );
   const command = await realpath(configured).catch((cause: unknown) => {
-    throw new AnalysisCapabilityUnavailableError(
+    throw firmwareToolUnavailable(
       engine,
       operation,
       `${variable} is unavailable: ${cause instanceof Error ? cause.message : String(cause)}`,
@@ -62,7 +72,7 @@ export const resolveFirmwareCommand = async (
       throw new TypeError("Configured path is not a regular file");
     sha256 = await hashFirmwareFile(command);
   } catch (cause: unknown) {
-    throw new AnalysisCapabilityUnavailableError(
+    throw firmwareToolUnavailable(
       engine,
       operation,
       `${variable} is not a readable executable regular file: ${command}: ${cause instanceof Error ? cause.message : String(cause)}`,
@@ -71,7 +81,7 @@ export const resolveFirmwareCommand = async (
   const limiter =
     environment.REA_FIRMWARE_PRLIMIT_COMMAND ?? "/usr/bin/prlimit";
   if (!isAbsolute(limiter))
-    throw new AnalysisCapabilityUnavailableError(
+    throw firmwareToolUnavailable(
       engine,
       operation,
       "REA_FIRMWARE_PRLIMIT_COMMAND must be absolute",
@@ -81,7 +91,7 @@ export const resolveFirmwareCommand = async (
     if (!(await stat(limiter)).isFile())
       throw new TypeError("Configured path is not a regular file");
   } catch (cause: unknown) {
-    throw new AnalysisCapabilityUnavailableError(
+    throw firmwareToolUnavailable(
       engine,
       operation,
       `Resource limiter is not an executable regular file: ${limiter}: ${cause instanceof Error ? cause.message : String(cause)}; provide util-linux prlimit`,

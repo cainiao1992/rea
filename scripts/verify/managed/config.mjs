@@ -62,6 +62,10 @@ export function functionDossier(name) {
         thunk_target: null,
         provenance: "synthetic-provider",
       },
+      body: {
+        available: false,
+        reason: "Synthetic provider does not supply function body ranges.",
+      },
       signature: null,
       locals: [],
     },
@@ -75,6 +79,8 @@ export function functionDossier(name) {
     referenced_strings: [],
     referenced_names: [],
     basic_blocks: [],
+    native_api: null,
+    native_value_flow: null,
     limitations: [],
   };
 }

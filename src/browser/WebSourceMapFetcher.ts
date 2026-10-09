@@ -180,6 +180,15 @@ class SourceMapEncodingError extends Error {
   }
 }
 
+class SourceMapRedirectLocationError extends Error {
+  constructor(url: string, location: string) {
+    super(
+      `Source-map redirect from ${JSON.stringify(url)} supplied an invalid Location URL: ${JSON.stringify(location)}.`,
+    );
+    this.name = "SourceMapRedirectLocationError";
+  }
+}
+
 const fetchOne = async (
   request: WebSourceMapRequest,
   input: AnalyzeWebBundleInput,
@@ -250,11 +259,11 @@ const fetchOne = async (
     return emptySourceMapItem(
       request,
       "fetch_failed",
-      cause instanceof SourceMapSizeLimitError
+      cause instanceof SourceMapRedirectLocationError ||
+        cause instanceof SourceMapSizeLimitError ||
+        cause instanceof SourceMapDeadlineError
         ? cause.message
-        : cause instanceof SourceMapDeadlineError
-          ? cause.message
-          : "Source-map fetch or validation failed.",
+        : "Source-map fetch or validation failed.",
     );
   }
 };
@@ -296,7 +305,11 @@ const fetchFollowingApprovedRedirects = async (
     const location = response.headers.get("location");
     if (location === null) return { response, fetchedUrl: current };
     await response.body?.cancel();
-    current = new URL(location, current).href;
+    try {
+      current = new URL(location, current).href;
+    } catch {
+      throw new SourceMapRedirectLocationError(current, location);
+    }
   }
 };
 

@@ -143,6 +143,7 @@ describe("CdpBrowserProvider: approved accessibility and source capture", () => 
       items: [
         {
           status: "included",
+          declared_url: `${browser.allowedOrigin}/app.js.map?token=map-secret`,
           original_sources: [
             expect.objectContaining({
               source: `${browser.allowedOrigin}/src/main.ts`,

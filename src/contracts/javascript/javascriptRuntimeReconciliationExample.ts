@@ -128,6 +128,7 @@ export const JAVASCRIPT_APPLICATION_EVIDENCE_EXAMPLE = createEvidence(
       root_artifact_sha256: applicationSha256,
       inventory_manifest_id: `agm_${"2".repeat(64)}`,
       inventory_graph_sha256: "3".repeat(64),
+      integrity_contradictions: [],
       graph,
       semantic_graph: semanticGraph,
       summary: {

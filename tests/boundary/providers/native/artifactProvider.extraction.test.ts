@@ -1,4 +1,11 @@
-import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  readFile,
+  readdir,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -137,20 +144,32 @@ describe("artifact extraction", () => {
     const root = await createTestTempDirectory("rea-extract-dmg-");
     const image = join(root, "Image.dmg");
     await writeFile(image, "not mounted");
+    // A caller-specific alias must be the path the refusal reports.
+    const alias = join(root, "Alias.dmg");
+    await symlink(image, alias);
     const output = join(root, "output");
-    const result = await new ArtifactProvider()
-      .createClient(target(image, "dmg"))
-      .execute(
-        "extract_artifact",
-        artifactExtractionExecutionSchema.parse({ output_root: output }),
-      );
-    expect(result).toMatchObject({
+    const extract = (signal?: AbortSignal) =>
+      new ArtifactProvider()
+        .createClient(target(alias, "dmg"))
+        .execute(
+          "extract_artifact",
+          artifactExtractionExecutionSchema.parse({ output_root: output }),
+          signal === undefined ? undefined : { signal },
+        );
+    expect(await extract()).toMatchObject({
       ok: false,
       error: {
         _tag: "AnalysisUnsupportedTargetError",
         operation: "extract_artifact",
+        path: alias,
         reason: "Artifact format has no extraction reader: dmg",
       },
+    });
+    const controller = new AbortController();
+    controller.abort();
+    expect(await extract(controller.signal)).toMatchObject({
+      ok: false,
+      error: { _tag: "ArtifactOperationError", reason: "cancelled" },
     });
     await expect(access(output)).rejects.toThrow();
   });

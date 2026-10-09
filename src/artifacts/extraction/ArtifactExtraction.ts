@@ -67,15 +67,22 @@ export const extractArtifact = async (
     nodes,
   };
   const selected = selectedOccurrences.map((occurrence) => {
+    // REA never decrypts archive entries, so an encrypted entry makes the
+    // complete extraction unsupported rather than the archive invalid.
+    if (occurrence.encrypted)
+      throw new AnalysisUnsupportedTargetError(
+        "extract_artifact",
+        sourcePath,
+        `Archive entry ${occurrence.logical_path} is encrypted; REA does not decrypt archive entries, so the archive cannot be extracted completely`,
+      );
     if (
       (occurrence.entry_kind !== "file" && occurrence.entry_kind !== "slice") ||
       occurrence.artifact_id === null ||
-      occurrence.encrypted ||
       occurrence.logical_path === "."
     )
       throw new ArtifactReaderFailure(
         "format",
-        `Selected occurrence is not an extractable regular child file: ${occurrence.occurrence_id}`,
+        `Selected occurrence is not an extractable regular child file: ${occurrence.logical_path} (${occurrence.occurrence_id})`,
       );
     const node = inventory.nodes.get(occurrence.artifact_id);
     if (node === undefined)

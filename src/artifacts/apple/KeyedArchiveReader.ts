@@ -1,7 +1,11 @@
 import { createHash } from "node:crypto";
+import { join } from "node:path";
 import { parseBinary } from "plist";
 import { z } from "zod";
-import { AnalysisInputError } from "../../domain/analysisErrorCore.js";
+import {
+  AnalysisInputError,
+  AnalysisUnsupportedTargetError,
+} from "../../domain/analysisErrorCore.js";
 import type { JsonValue } from "../../domain/jsonValue.js";
 import { projectPlistValue } from "../../domain/apple/plistValue.js";
 import { createPlistNumberProjection } from "../../domain/apple/plistNumbers.js";
@@ -14,6 +18,7 @@ import {
   parseXmlPropertyList,
 } from "../../domain/propertyListKeys.js";
 import {
+  KeyedArchiveKindError,
   keyedArchiveInputSchema,
   keyedArchiveResultSchema,
   projectKeyedArchive,
@@ -33,8 +38,9 @@ export const decodeKeyedArchiveBytes = (
   if (bytes.length > MAX_BYTES)
     throw new RangeError("Keyed archive exceeds 64 MiB");
   if (bytes.subarray(0, 10).toString("ascii") === "NIBArchive")
-    throw new TypeError(
+    throw new KeyedArchiveKindError(
       "Selected file is a compiled NIBArchive, not a Foundation plist archive; decode it with decode_interface_builder",
+      "Decode compiled NIBArchive files with decode_interface_builder on the app bundle.",
     );
   const binary = bytes.subarray(0, 8).toString("ascii") === "bplist00";
   const xmlText = binary ? undefined : decodeXmlPlistText(bytes);
@@ -147,6 +153,14 @@ export const inspectBundleKeyedArchive = async (input: {
         });
       } catch (cause) {
         if (cause instanceof AnalysisInputError) throw cause;
+        // An intact file of another kind is not a damaged archive.
+        if (cause instanceof KeyedArchiveKindError)
+          throw new AnalysisUnsupportedTargetError(
+            "inspect_keyed_archive",
+            join(input.bundlePath, entry.path),
+            cause.message,
+            { cause, remediationAction: cause.remediationAction },
+          );
         throw new ArtifactReaderFailure(
           cause instanceof RangeError ? "limit" : "format",
           `Cannot decode selected Foundation keyed archive: ${cause instanceof Error ? cause.message : String(cause)}`,

@@ -33,8 +33,8 @@ when the example files change.
 The guide's `examples/notes-example.zip` is generated from exactly these six
 source files, under the `notes-example/` folder. Packaging changes no file
 contents. Website verification compares every ZIP entry to its source file and
-rejects extra entries. Existing source digests and static findings remain valid
-for the unzipped example.
+rejects extra entries. The recorded digests below identify the original analysis
+checkpoint; subsequent metadata changes and checks are recorded separately.
 
 ## First-investigation formatter check
 
@@ -81,6 +81,23 @@ The guide's follow-up CLI commands were also exercised against the real page:
 `inspect-web-page --include-script-sources` returned the loaded `export.js`
 source. Discovery Evidence: `ev_31abb33e7707d47625ac909ab9256c705d03a31ee6bcd643fa96730e72469162`. Script capture
 Evidence: `ev_aeb777df405c09dc1bbdd4c185a5af2452abaa3cb493683c296c5afa97efbc11`.
+
+## SEO metadata check — 9 October 2026
+
+Both Notes HTML heads gained descriptions and `noindex` directives. The Electron
+fixture was analyzed again with `rea-agents` 4.1.0 and Node.js 24.18.0 on Linux
+x64. REA still reports four parsed JavaScript files, zero parse failures, one
+exposed API member, one literal IPC channel, one renderer transmission, one main
+handler and one paired transmission, with zero ambiguous transmissions.
+
+- Evidence ID: `ev_3958d870ecd27c202e5decc97161f2ea19db8cc88f9f39ed0449bf1581df2f2a`.
+- Root artifact SHA-256: `0ee325d4eaf7f94b62b2962044995fe1efe9f1d31411eb035118b19b1f56f7bb`.
+- Current Electron HTML SHA-256: `457b22543aa956fe2cd005fc6bda42d2798eb05040b75c4cb4957e3b66d0ea09`.
+- Current browser HTML SHA-256: `3b24b3307ded48055ce5a48f907544195bfde3285f82df919c54a6415ac11070`.
+
+The JavaScript and data files retain their original digests. The generated ZIP
+contains the updated HTML and the same JavaScript. Local browser checks exercise
+the Notes CSV download at both root and `/rea/` paths.
 
 Full local outputs and the browser verification harness are under
 `/tmp/rea-website-guides/` in the development environment, not website assets.

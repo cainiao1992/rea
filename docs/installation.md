@@ -199,6 +199,12 @@ use the shared `~/.agents/skills` directory. A mixed selection plans both
 paths. Selecting the skill without a client uses the shared directory. Setup
 leaves existing skill copies in other locations untouched.
 
+`doctor --skill --json` verifies the selected copies against the bundled
+instructions and references. Consumers should use `identity.skill.state`,
+`installed_version`, and `installed_tool_count` for skill readiness. The
+obsolete `installed_catalog_digest` field has been removed; current catalog
+identity remains available at `identity.catalog`.
+
 After selection, review the plan's exact paths and changes and approve before
 REA writes files or installs Hopper. You can cancel at any prompt.
 

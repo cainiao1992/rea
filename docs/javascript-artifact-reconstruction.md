@@ -112,6 +112,13 @@ Field selection remains useful when the caller needs a
 smaller view, for example `--format json --filter-output
 evidence_id,normalized_result.statistics`. Streaming output does not bound the
 memory needed to construct the analysis graph itself.
+
+CLI workflows still parse each JSON input as one value. A valid input exceeding
+the Node runtime's maximum string length returns `resource_constraint` with
+`input_reason: "too-large"` and the runtime limit. Produce smaller independent
+analysis inputs before retrying; streaming output does not imply streaming
+input parsing.
+
 MCP prepares the complete repeated response incrementally against the pinned
 SDK's 10 MiB stdio receive-buffer budget. Oversized results return an actionable
 transport constraint and the exact same-session Evidence reference. Use

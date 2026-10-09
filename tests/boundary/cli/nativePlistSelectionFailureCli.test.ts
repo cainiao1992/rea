@@ -113,6 +113,12 @@ describe.skipIf(process.platform !== "darwin")(
         expect(result.exitCode).toBe(1);
         expect(result.json).toMatchObject({
           code: "capability_unavailable",
+          message: expect.stringContaining("(CLI: --relative-path)"),
+          remediation: {
+            action: expect.stringContaining(
+              "Select another plist in the target with the path input (CLI: --relative-path).",
+            ),
+          },
           details: {
             operation: "inspect_plist",
             reason: expect.stringContaining(

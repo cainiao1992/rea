@@ -819,11 +819,14 @@ const unreadablePlist = (
   reason: string,
 ): AnalysisError => {
   const sentence = reason.endsWith(".") ? reason : `${reason}.`;
+  // Name the default that is missing and the selection that still works.
+  const missingDefault = `The target has no readable Contents/Info.plist at ${path}: ${sentence} Select another plist in the target with the path input (CLI: --relative-path).`;
   return requested === undefined
     ? new AnalysisCapabilityUnavailableError(
         IDENTITY.id,
         "inspect_plist",
-        `The target has no readable Contents/Info.plist at ${path}: ${sentence} Pass path to inspect another plist.`,
+        missingDefault,
+        { userMessage: missingDefault },
       )
     : new AnalysisInputError("inspect_plist", undefined, [
         {

@@ -42,6 +42,21 @@ branches when changing these figures. Match progress claims to the pinned
 reconstruction checkpoint. Validate the SVG as XML and inspect its browser
 rendering at desktop and mobile widths.
 
+## Beginner homepage and dinosaur reconstruction
+
+The Calculator role comparison and its percentage controls are semantic HTML.
+The assembly comes from a real installed model DLL; the named calculation is
+a readable summary crosschecked against Microsoft’s public source. See
+[evidence/calculator-and-dino.md](evidence/calculator-and-dino.md).
+
+The dinosaur sequence uses an HTML flow: inspect the loaded script, rebuild the
+speed rule, then change and play. Its canvas mini-game and static SVG fallback
+are authored code, without generated images or copied game sprites. The game
+imports the recovered rule from `public/assets/dino-speed.js`; other mechanics
+are new teaching code. Check that the fallback is visible with JavaScript
+disabled and hidden when the playable canvas loads. Keep the speed settings,
+source excerpt, reconstruction and original-result table consistent.
+
 ## Original image generation prompts
 
 ## Prompt 1

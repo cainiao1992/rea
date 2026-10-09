@@ -12,6 +12,8 @@
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="assets/styles.css" />
     <script src="assets/main.js" defer></script>
+    <script src="assets/home.js" defer></script>
+    <script type="module" src="assets/dino-demo.js"></script>
   </head>
   <body id="top">
     <a class="skip-link" href="#main">Skip to content</a>
@@ -51,207 +53,22 @@
     </header>
     <main id="main">
       <section class="container hero home-hero">
-        <p class="eyebrow">Reverse engineering, with your coding agent</p>
-        <h1>Find out how<br />software works.</h1>
-        <p class="lede">
-          REA gives your agent the tools to inspect a program and explain what
-          it does.
-        </p>
-        <div class="actions">
-          <a class="button" href="#what-is-re">See how it works</a>
-          <a class="text-link" href="first-investigation/">Try an example</a>
-        </div>
-      </section>
-
-      <section class="section" id="what-is-re">
-        <div class="container">
-          <div class="home-definition">
-            <h2>What is reverse engineering?</h2>
-            <p class="lede">
-              Finding out how software works by examining the program.
-            </p>
-          </div>
-          <figure class="home-calculation">
-            <p class="figure-title">
-              DX-Ball: how does the game place a sound on the left or right?
-            </p>
-            <div class="code-comparison home-code-comparison">
-              <div class="code-block">
-                <div class="code-header">
-                  <span>Original instructions · selected excerpt</span>
-                </div>
-                <pre><code>MOV EAX, dword ptr [EBP + 0x8]
-MOV dword ptr [EBP + -0xc], EAX
-FILD dword ptr [EBP + -0xc]
-<span class="code-key">FMUL double ptr [0x00420068]</span>
-<span class="code-key">FSUB double ptr [0x00420070]</span>
-FMUL double ptr [0x004210a0]
-CALL 0x0041678c</code></pre>
-              </div>
-              <div class="code-block">
-                <div class="code-header"><span>Readable summary · C</span></div>
-                <pre><code>// x is the horizontal position
-double pan = (double)x;
-<span class="code-key">pan *= 1.5625;</span>
-<span class="code-key">pan -= 500.0;</span>
-pan *= pan_scale;
-return (int)pan;</code></pre>
-              </div>
-            </div>
-            <div
-              class="pan-examples"
-              aria-label="Examples of the sound calculation"
-            >
-              <div class="pan-example">
-                <span class="pan-label">Left side</span>
-                <div class="pan-position" aria-hidden="true">
-                  <i style="--position: 0"></i>
-                </div>
-                <span class="pan-value"><code>x = 0 → pan = −500</code></span>
-                <span class="pan-meaning">Sound to the left</span>
-              </div>
-              <div class="pan-example">
-                <span class="pan-label">Center</span>
-                <div class="pan-position" aria-hidden="true">
-                  <i style="--position: 0.5"></i>
-                </div>
-                <span class="pan-value"><code>x = 320 → pan = 0</code></span>
-                <span class="pan-meaning">Centered sound</span>
-              </div>
-              <div class="pan-example">
-                <span class="pan-label">Right side</span>
-                <div class="pan-position" aria-hidden="true">
-                  <i style="--position: 1"></i>
-                </div>
-                <span class="pan-value"><code>x = 640 → pan = +500</code></span>
-                <span class="pan-meaning">Sound to the right</span>
-              </div>
-            </div>
-            <figcaption>
-              Examples of the calculation with the recorded initial scale of 1.
-              The code is a readable summary of the inspected function.
-            </figcaption>
-          </figure>
-          <p class="home-analysis-work">
-            To explain this, an analyst identifies the input, follows the caller
-            and reads the values at those addresses.
-          </p>
-        </div>
-      </section>
-
-      <section class="section" id="ask-your-agent">
-        <div class="container">
-          <div class="home-agent-grid">
-            <div class="home-reassurance">
-              <h2>Do I need to read assembly to get started?</h2>
-              <p class="home-no">No.</p>
-              <p>Ask your agent about the behavior you want to understand.</p>
-            </div>
-            <div>
-              <div class="agent-terminal home-analysis-terminal">
-                <div class="terminal-header">
-                  <span class="terminal-title"
-                    ><span class="terminal-dots" aria-hidden="true"
-                      ><i></i><i></i><i></i></span
-                    >Example analysis · DX-Ball</span
-                  >
-                  <button
-                    class="copy-button"
-                    type="button"
-                    data-copy="home-analysis-prompt"
-                    aria-label="Copy DX-Ball analysis prompt"
-                  >
-                    Copy
-                  </button>
-                </div>
-                <p class="terminal-target">Target · DXBALL.EXE</p>
-                <p class="terminal-prompt">
-                  <span class="prompt-symbol" aria-hidden="true">›</span
-                  ><span id="home-analysis-prompt"
-                    >Use REA to inspect this DX-Ball executable. How does it
-                    calculate left/right sound panning? Show the relevant
-                    code.</span
-                  ><span class="terminal-cursor" aria-hidden="true"></span>
-                </p>
-                <div class="agent-reply">
-                  <p class="reply-label">
-                    Agent · explanation from the findings
-                  </p>
-                  <p>
-                    This function converts a brick’s horizontal position into a
-                    left/right sound value.
-                  </p>
-                  <p>
-                    At the initial scale of 1, the screen center produces zero.
-                    Positions to the left produce negative values; positions to
-                    the right produce positive values.
-                  </p>
-                </div>
-              </div>
-              <p class="caption">
-                Example prompt and explanation based on the recorded
-                investigation. Supply the executable to your agent.
-              </p>
-            </div>
-          </div>
-          <figure class="workflow-figure home-evidence">
-            <p class="figure-title">What REA found for the agent</p>
-            <ol class="flow-steps">
-              <li>
-                <span class="flow-label">01 · Inspect the function</span>
-                <span class="flow-node">An integer input</span>
-                <span class="flow-note"
-                  >The instructions read <code>[EBP + 0x8]</code>. The initial
-                  pseudocode had missed this input.</span
-                >
-              </li>
-              <li>
-                <span class="flow-label">02 · Follow the caller</span>
-                <span class="flow-node">A brick’s screen position</span>
-                <span class="flow-note"
-                  >The caller passes <code>20 + 30 × tile_x</code>, giving the
-                  input its meaning.</span
-                >
-              </li>
-              <li>
-                <span class="flow-label">03 · Read the stored data</span>
-                <span class="flow-node">The calculation’s constants</span>
-                <span class="flow-note"
-                  >Byte reads supply <code>1.5625</code>, <code>500.0</code> and
-                  the initial scale <code>1.0</code>.</span
-                >
-              </li>
-            </ol>
-            <figcaption>
-              The agent uses these findings to explain the behavior and write
-              readable C.
-            </figcaption>
-          </figure>
-          <p class="home-check">
-            The reconstruction project checked its maintained C function against
-            3,205 original-x86 input cases and all 63 compiled bytes.
-            <a href="showcase/dx-ball/#sound-pan">See the code and checks</a>.
-          </p>
-        </div>
-      </section>
-
-      <section class="section" id="try-rea">
-        <div class="container home-try-grid">
+        <div class="home-start-grid">
           <div>
-            <p class="eyebrow">Your first investigation</p>
-            <h2>Try REA on a small app.</h2>
-            <p>
-              Find out where an app exports its notes, then check how it formats
-              a title containing commas and quotes.
+            <p class="eyebrow">Reverse engineering, with your coding agent</p>
+            <h1>Find out how<br />software works.</h1>
+            <p class="lede">
+              REA gives your agent the tools to inspect a program and explain
+              what it does.
             </p>
-            <p>We provide the example files, a prompt and a result to check.</p>
             <div class="actions">
-              <a class="button" href="first-investigation/">Try the example</a>
+              <a class="text-link" href="#what-is-re">See an example ↓</a>
               <a class="text-link" href="get-started/">Setup guide</a>
             </div>
           </div>
           <div class="home-setup">
-            <h3>Set up REA with your agent</h3>
+            <h2>Set up REA</h2>
+            <p>Copy this into your coding agent:</p>
             <div class="agent-terminal">
               <div class="terminal-header">
                 <span class="terminal-title"
@@ -277,7 +94,7 @@ return (int)pan;</code></pre>
                 ><span class="terminal-cursor" aria-hidden="true"></span>
               </p>
             </div>
-            <p class="caption">Or run this command in your terminal:</p>
+            <p class="caption">Or run this in your terminal:</p>
             <div class="code-block code-inline">
               <code id="setup-command">npx rea-agents@latest setup</code>
               <button
@@ -290,9 +107,511 @@ return (int)pan;</code></pre>
               </button>
             </div>
             <p class="caption">
-              Setup shows a plan for approval. Restart your agent after setup.
+              Approve the setup plan, then restart your agent.
             </p>
           </div>
+        </div>
+      </section>
+
+      <section class="section" id="what-is-re">
+        <div class="container">
+          <div class="home-definition">
+            <h2>What is reverse engineering?</h2>
+            <p class="lede">
+              Finding out how software works by examining the program.
+            </p>
+          </div>
+          <p class="home-question">
+            For example:
+            <strong
+              >why does Calculator turn <code>200 + 10%</code> into
+              <code>220</code>?</strong
+            >
+          </p>
+          <figure class="home-role-comparison">
+            <div class="manual-investigation">
+              <p class="comparison-label">Before REA · You investigate</p>
+              <ol class="manual-steps">
+                <li>
+                  <span>01</span>
+                  <div>
+                    <strong>Find the code behind the button.</strong
+                    ><small>Which executable or library handles %?</small>
+                  </div>
+                </li>
+                <li>
+                  <span>02</span>
+                  <div>
+                    <strong>Read the instructions.</strong
+                    ><small>What do these branches and calls mean?</small>
+                  </div>
+                </li>
+                <li>
+                  <span>03</span>
+                  <div>
+                    <strong>Recover the calculation.</strong
+                    ><small>Follow the inputs, operators and constants.</small>
+                  </div>
+                </li>
+                <li>
+                  <span>04</span>
+                  <div>
+                    <strong>Check your explanation.</strong
+                    ><small>Does it agree with the program?</small>
+                  </div>
+                </li>
+              </ol>
+              <div class="manual-code">
+                <code
+                  >CMP EAX, 0x5c<br />JZ 0x180124aba<br />CMP EAX, 0x5b<br />JZ
+                  0x180124aba<br />MOV EDX, 0x64</code
+                >
+              </div>
+            </div>
+            <div class="agent-investigation" id="ask-your-agent">
+              <p class="comparison-label">With REA · You ask your agent</p>
+              <div class="agent-terminal home-analysis-terminal">
+                <div class="terminal-header">
+                  <span class="terminal-title"
+                    ><span class="terminal-dots" aria-hidden="true"
+                      ><i></i><i></i><i></i></span
+                    >Example prompt · Calculator</span
+                  >
+                  <button
+                    class="copy-button"
+                    type="button"
+                    data-copy="home-analysis-prompt"
+                    aria-label="Copy Calculator analysis prompt"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p class="terminal-prompt">
+                  <span class="prompt-symbol" aria-hidden="true">›</span
+                  ><span id="home-analysis-prompt"
+                    >Use REA to inspect Windows Calculator. Why does 200 + 10%
+                    give 220? Show the code behind the % button.</span
+                  ><span class="terminal-cursor" aria-hidden="true"></span>
+                </p>
+                <div class="agent-reply">
+                  <p class="reply-label">
+                    Example explanation from the findings
+                  </p>
+                  <p>
+                    With addition, % calculates a percentage of the first
+                    number.
+                  </p>
+                  <p>
+                    <strong>10% of 200 is 20.<br />Then 200 + 20 = 220.</strong>
+                  </p>
+                </div>
+              </div>
+              <p class="agent-investigation-note">
+                Your agent uses REA to locate and read the code, then connects
+                the findings to your question.
+              </p>
+            </div>
+            <figcaption>
+              You describe the behavior. The agent carries out the investigation
+              with REA.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="section" id="calculator">
+        <div class="container">
+          <div class="section-heading">
+            <p class="eyebrow">Example 01 · Windows Calculator</p>
+            <h2>What does the % button actually do?</h2>
+            <p>
+              The answer depends on the operator. Compare addition and
+              multiplication.
+            </p>
+          </div>
+          <div class="home-example-grid">
+            <figure class="percent-figure" data-percent-demo>
+              <p class="figure-title">Try the calculation</p>
+              <div
+                class="percent-operation"
+                role="group"
+                aria-label="Choose the calculation"
+                hidden
+              >
+                <button
+                  type="button"
+                  data-percent-operation="add"
+                  aria-pressed="true"
+                >
+                  200 + 10%
+                </button>
+                <button
+                  type="button"
+                  data-percent-operation="multiply"
+                  aria-pressed="false"
+                >
+                  200 × 10%
+                </button>
+              </div>
+              <div class="percent-display">
+                <span class="percent-expression" data-percent-expression
+                  >200 +</span
+                >
+                <strong data-percent-display>20</strong>
+              </div>
+              <div class="percent-controls" hidden>
+                <button
+                  type="button"
+                  class="percent-key"
+                  data-percent-key="percent"
+                >
+                  %
+                </button>
+                <button
+                  type="button"
+                  class="percent-key"
+                  data-percent-key="equals"
+                  disabled
+                >
+                  =
+                </button>
+                <button
+                  type="button"
+                  class="percent-reset"
+                  data-percent-key="reset"
+                >
+                  Reset
+                </button>
+              </div>
+              <p class="percent-status" data-percent-status role="status">
+                10% of 200 = 20. Then 200 + 20 = 220.
+              </p>
+              <figcaption>
+                Interactive illustration of the inspected percentage rule.
+              </figcaption>
+            </figure>
+            <div class="percent-explanation">
+              <h3>REA finds the branch. The agent explains it.</h3>
+              <p>
+                The installed app’s calculation code checks for multiplication
+                or division before computing the percentage.
+              </p>
+              <div class="code-block">
+                <div class="code-header">
+                  <span>Readable summary of the % handler</span>
+                </div>
+                <pre><code>if (operation == multiply || operation == divide) {
+  percent = current / 100;
+} else {
+  <span class="code-key">percent = current * previous / 100;</span>
+}</code></pre>
+              </div>
+              <dl class="percent-rules">
+                <div>
+                  <dt>Addition</dt>
+                  <dd><code>200 + 10% → 200 + 20 → 220</code></dd>
+                </div>
+                <div>
+                  <dt>Multiplication</dt>
+                  <dd><code>200 × 10% → 200 × 0.1 → 20</code></dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+          <details class="home-evidence-details">
+            <summary>See the real code and how the answer was checked</summary>
+            <ol class="flow-steps calculator-trace">
+              <li>
+                <span class="flow-label">01 · Inspect calc.exe</span
+                ><span class="flow-node">A launcher</span
+                ><span class="flow-note"
+                  >REA finds <code>ShellExecuteW</code> opening
+                  <code>ms-calculator:</code>.</span
+                >
+              </li>
+              <li>
+                <span class="flow-label">02 · Inspect the app</span
+                ><span class="flow-node">CalcViewModel.dll</span
+                ><span class="flow-note"
+                  >Its % handler checks two operator IDs and uses the constant
+                  <code>100</code>.</span
+                >
+              </li>
+              <li>
+                <span class="flow-label">03 · Interpret and check</span
+                ><span class="flow-node">Two percentage rules</span
+                ><span class="flow-note"
+                  >Microsoft’s public implementation and unit tests explain the
+                  same distinction.</span
+                >
+              </li>
+            </ol>
+            <div class="code-comparison">
+              <div class="code-block">
+                <div class="code-header">
+                  <span>REA · selected original instructions</span>
+                </div>
+                <pre><code>0x180124945: MOV EAX, dword ptr [R13 + 0x18]
+0x180124949: <span class="code-key">CMP EAX, 0x5c</span>
+0x18012494c: JZ 0x180124aba
+0x180124952: <span class="code-key">CMP EAX, 0x5b</span>
+0x180124955: JZ 0x180124aba
+0x18012495b: <span class="code-key">MOV EDX, 0x64</span></code></pre>
+              </div>
+              <div class="code-block">
+                <div class="code-header">
+                  <span>Operator IDs · Microsoft’s source</span>
+                </div>
+                <pre><code>#define IDC_MUL 92      // 0x5c
+#define IDC_DIV 91      // 0x5b
+#define IDC_PERCENT 118 // 0x76
+
+0x64 = 100</code></pre>
+              </div>
+            </div>
+            <p class="caption">
+              Inspected with REA 4.1.0: Windows Calculator 11.2508.4.0, x64. The
+              readable summary uses names from Microsoft’s public source to
+              explain the recovered branch.
+            </p>
+            <p class="caption">
+              <a
+                href="https://github.com/microsoft/calculator/blob/d125246a4e19842ce1332e6c7839cf0e110027d8/src/CalcManager/CEngine/scifunc.cpp#L98-L111"
+                >Percentage implementation</a
+              >
+              ·
+              <a
+                href="https://github.com/microsoft/calculator/blob/d125246a4e19842ce1332e6c7839cf0e110027d8/src/CalculatorUnitTests/CalculatorManagerTest.cpp#L350-L370"
+                >Microsoft’s test cases</a
+              >
+              · <a href="guides/native/">Native setup guide</a>
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="section" id="dinosaur">
+        <div class="container">
+          <div class="section-heading">
+            <p class="eyebrow">Example 02 · Chrome’s dinosaur game</p>
+            <h2>Find the speed rule. Rebuild it. Change it.</h2>
+            <p>
+              Why does the dinosaur game get faster? Use REA to read the running
+              page’s script, then turn the answer into a game you can adjust.
+            </p>
+          </div>
+          <div class="home-example-grid dino-example-grid">
+            <div>
+              <div class="agent-terminal home-analysis-terminal">
+                <div class="terminal-header">
+                  <span class="terminal-title"
+                    ><span class="terminal-dots" aria-hidden="true"
+                      ><i></i><i></i><i></i></span
+                    >Example prompt · Dinosaur game</span
+                  >
+                  <button
+                    class="copy-button"
+                    type="button"
+                    data-copy="dino-analysis-prompt"
+                    aria-label="Copy dinosaur analysis prompt"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p class="terminal-prompt">
+                  <span class="prompt-symbol" aria-hidden="true">›</span
+                  ><span id="dino-analysis-prompt"
+                    >Use REA to inspect this dinosaur game. Why does it get
+                    faster? Show the speed rule, then build a small version with
+                    an adjustable speed.</span
+                  ><span class="terminal-cursor" aria-hidden="true"></span>
+                </p>
+              </div>
+              <p class="caption">
+                Inspected target:
+                <a href="https://wayou.github.io/t-rex-runner/"
+                  >wayou’s Chromium-derived browser edition</a
+                >.
+              </p>
+              <div class="code-block">
+                <div class="code-header">
+                  <span>REA · loaded index.js · selected lines</span>
+                </div>
+                <pre><code>if (this.currentSpeed &lt; this.config.MAX_SPEED) {
+  <span class="code-key">this.currentSpeed += this.config.ACCELERATION;</span>
+}</code></pre>
+              </div>
+              <p class="dino-rule">
+                <strong>Start at 6.</strong> Add <strong>0.001</strong> each
+                update without a collision, while speed is below
+                <strong>13</strong>.
+              </p>
+              <a class="text-link" href="examples/dino-lab/"
+                >Open the speed lab →</a
+              >
+            </div>
+            <figure class="dino-demo" data-dino-demo>
+              <p class="figure-title">Play the reconstruction</p>
+              <div class="dino-stage">
+                <svg
+                  class="dino-fallback"
+                  viewBox="0 0 600 180"
+                  role="img"
+                  aria-label="A small dinosaur running toward a cactus. Recovered speed: starts at 6, increases by 0.001 per update while below 13."
+                >
+                  <path
+                    d="M0 150H600 M55 113v-30h17V65h27v24H85v17H72v16H62v13h-7v-22m-5-8v-8h-8v-9h-6v22h19m14 15v15h8v-7h-4v-8 M420 150v-48h10v48m-10-15h-12v-22h7v15h5m10-4h12v-22h-7v15h-5"
+                    fill="currentColor"
+                  />
+                  <text
+                    x="300"
+                    y="65"
+                    text-anchor="middle"
+                    fill="currentColor"
+                    font-size="18"
+                  >
+                    6 → 10 → 13
+                  </text>
+                </svg>
+                <canvas
+                  width="600"
+                  height="180"
+                  tabindex="0"
+                  aria-label="Dinosaur mini-game. Use the Jump button or press Space while the game is focused."
+                  hidden
+                ></canvas>
+              </div>
+              <div class="dino-controls" hidden>
+                <div class="dino-buttons">
+                  <button class="button" type="button" data-dino-start>
+                    Play
+                  </button>
+                  <button type="button" data-dino-jump>Jump ↑</button>
+                  <button type="button" data-dino-reset>Restart</button>
+                </div>
+                <label class="dino-speed-label"
+                  >Speed <output data-dino-speed>6.0</output
+                  ><input
+                    type="range"
+                    min="2"
+                    max="18"
+                    step="0.1"
+                    value="6"
+                    data-dino-slider
+                /></label>
+                <label class="dino-auto-label"
+                  ><input type="checkbox" data-dino-auto checked /> Use the
+                  recovered acceleration rule</label
+                >
+              </div>
+              <p class="dino-status" data-dino-status role="status">
+                Original rule: start at 6, then increase toward 13.
+              </p>
+              <figcaption>
+                Move the slider to set your own speed. Space or Jump clears a
+                cactus.
+              </figcaption>
+              <noscript
+                ><p class="caption">
+                  Enable JavaScript to play the reconstruction. The code and
+                  explanation above remain readable.
+                </p></noscript
+              >
+            </figure>
+          </div>
+          <figure class="workflow-figure dino-loop">
+            <p class="figure-title">From the running game to a new version</p>
+            <ol class="flow-steps">
+              <li>
+                <span class="flow-label">01 · Inspect</span
+                ><span class="flow-node">REA returns the loaded script</span
+                ><span class="flow-note"
+                  >The agent reads the update function and its speed
+                  settings.</span
+                >
+              </li>
+              <li>
+                <span class="flow-label">02 · Rebuild</span
+                ><span class="flow-node">Use the recovered rule</span
+                ><span class="flow-note"
+                  >Start at 6 and add 0.001 while speed is below 13.</span
+                >
+              </li>
+              <li>
+                <span class="flow-label">03 · Change and play</span
+                ><span class="flow-node">Make speed adjustable</span
+                ><span class="flow-note"
+                  >Keep the original acceleration, or choose your own
+                  pace.</span
+                >
+              </li>
+            </ol>
+          </figure>
+          <details class="home-evidence-details">
+            <summary>
+              See the script, checks and how to try the analysis
+            </summary>
+            <p>
+              REA inspected the HTTP browser edition through a local debugging
+              connection and returned the loaded <code>index.js</code>,
+              including its source and digest.
+            </p>
+            <div class="code-block">
+              <div class="code-header">
+                <span>Selected settings from the inspected script</span>
+              </div>
+              <pre><code>ACCELERATION: 0.001,
+MAX_SPEED: 13,
+SPEED: 6</code></pre>
+            </div>
+            <p>
+              We called the original game’s update function in a controlled
+              browser check, with obstacles and automatic scheduling disabled.
+              After 4,000 updates, speed was 10.0; after 10,000, it was 13.0,
+              rounded to one decimal.
+            </p>
+            <p>
+              The new mini-game keeps that speed rule. Its drawing, jumping and
+              collision code are a small teaching implementation.
+              <a href="examples/dino-lab/">Open the lab</a> to see the new code
+              and run the same speed check.
+            </p>
+            <p>
+              To inspect the target yourself, follow the
+              <a href="guides/browser/#prepare">browser connection steps</a>
+              using
+              <a href="https://wayou.github.io/t-rex-runner/"
+                >the dinosaur page</a
+              >. Give your agent that page URL and your local debugging
+              endpoint, then copy the prompt above.
+            </p>
+            <p class="caption">
+              <a
+                href="https://github.com/wayou/t-rex-runner/blob/5455bfa408ec6b707c7300ff194b7390733a766d/index.js#L565-L571"
+                >Inspected speed code</a
+              >
+              ·
+              <a href="assets/licenses/dinosaur.txt"
+                >Chromium Authors · BSD license</a
+              >
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="section" id="try-rea">
+        <div class="container start-row">
+          <div>
+            <p class="eyebrow">Your first investigation</p>
+            <h2>Try REA on a small app.</h2>
+            <p>
+              Download our Notes example, trace its CSV export, and check one
+              changed input.
+            </p>
+          </div>
+          <a class="button" href="first-investigation/"
+            >Try the guided example</a
+          >
         </div>
       </section>
 

@@ -64,8 +64,17 @@ code excerpt with readable logic and a figure that explains the result without
 requiring the reader to understand either language. Show a simple agent prompt
 and the specific facts REA supplies to answer it.
 
-Offer a supplied target for the next step. Keep the installation prompt and
-normal setup command visible. A first exercise should take the reader through
+Put compact setup at the beginning of the homepage: a copyable installation
+prompt and the ordinary setup command. Follow it with the beginner examples.
+Show how the reader's task changes using the same question on both sides of a
+manual/agent comparison. Let returned evidence make REA's contribution visible.
+
+When a small reconstruction makes the finding tangible, let readers change an
+input or setting and try the result. Connect inspection, recovered logic,
+reconstruction and the new experiment. Keep the recovered rule distinct from
+new teaching mechanics, and check it against the inspected program.
+
+Offer a supplied target for the next step. A first exercise should take the reader through
 setup, a question, an answer with source references, one prediction they can
 check, and a follow-up. Introduce specialized prerequisites when the chosen
 target requires them.
@@ -114,13 +123,14 @@ purposes, and immutable commit links for checkpoint-dependent facts.
 Each figure should answer a question that a reader can name. Choose the visual
 form that fits it:
 
-| Relationship                              | Existing example                         | Useful form                                        |
-| ----------------------------------------- | ---------------------------------------- | -------------------------------------------------- |
-| Analysis and verification steps           | DX-Ball sound pan                        | Flow with separate verification branches           |
-| Code across process boundaries            | Electron CSV export and Notion clipboard | HTML flow with APIs and channel names              |
-| A mathematical transformation             | TH04's fixed and aimed rings             | SVG drawn from the angle formula                   |
-| Original instructions and readable source | DX-Ball and TH04                         | Selectable HTML code with matching step highlights |
-| A request caused by an action             | Notes browser export                     | Flow, observed result table and script excerpt     |
+| Relationship                              | Existing example                         | Useful form                                             |
+| ----------------------------------------- | ---------------------------------------- | ------------------------------------------------------- |
+| Analysis and verification steps           | DX-Ball sound pan                        | Flow with separate verification branches                |
+| Code across process boundaries            | Electron CSV export and Notion clipboard | HTML flow with APIs and channel names                   |
+| A mathematical transformation             | TH04's fixed and aimed rings             | SVG drawn from the angle formula                        |
+| Original instructions and readable source | DX-Ball and TH04                         | Selectable HTML code with matching step highlights      |
+| A request caused by an action             | Notes browser export                     | Flow, observed result table and script excerpt          |
+| Recovered behavior and a new experiment   | Dinosaur speed reconstruction            | Inspected code, playable demo and original-result check |
 
 Use SVG or semantic HTML for diagrams with exact text, numbers and arrows.
 Generated illustrations can help explore a layout, but the published labels,

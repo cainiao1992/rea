@@ -6,7 +6,8 @@
 
 An English static website with explanatory figures, worked guides and DX-Ball, Notion, TH04 and CTF investigations.
 The public files are in `website/public/`. The site uses HTML, CSS and a small
-script for copying code and following the assembly-to-C comparison. Python
+scripts for copying code, following code comparisons and playing the dinosaur
+speed reconstruction. Python
 packages the downloadable example; there is no frontend bundler or npm dependency.
 
 [style-guide.md](style-guide.md) explains the writing, page structure, figures,
@@ -25,7 +26,8 @@ Open <http://127.0.0.1:4173/>. Refresh the browser after editing a file.
 
 ## Pages
 
-- `public/index.html`: DX-Ball introduction, agent example, setup and case-study overviews.
+- `public/index.html`: compact setup, manual/agent comparison, Calculator percentage example, playable dinosaur reconstruction and case-study overviews.
+- `public/examples/dino-lab/index.html`: adjustable-speed mini-game, recovered rule, original-game check and browser analysis steps.
 - `public/first-investigation/index.html`: a guided Notes export investigation, from setup to a checked CSV prediction.
 - `public/showcase/index.html`: the case-study index.
 - `public/showcase/dx-ball/index.html`: sound-pan investigation and project status.
@@ -95,11 +97,26 @@ Evidence. [evidence/dx-ball-sound-pan.md](evidence/dx-ball-sound-pan.md) records
 their provenance and the scope of the validation claims. The original executable
 and complete private Evidence records are not website assets.
 
-The homepage's code comparison, position examples and evidence flow are
-selectable HTML. The pan positions 0, 320 and 640 illustrate the inspected
-calculation at its recorded initial scale of 1; the C panel is a readable
-summary. The linked case study retains the maintained source and its checks.
-The agent response is an example explanation based on those findings.
+The homepage starts with a short installation prompt and the ordinary setup
+command. It compares manual investigation with asking an agent, using the same
+Calculator percentage question. The native excerpt comes from an installed
+model DLL; Microsoft’s public implementation supplies names and a crosscheck.
+The Calculator controls illustrate that rule with generic inputs.
+
+The dinosaur example connects an inspected running script to a new playable
+mini-game. `public/assets/dino-speed.js` owns the recovered speed rule and replay;
+`dino-demo.js` imports it for automatic acceleration. The slider chooses a fixed
+speed instead. Drawing, jumping and collision code are newly authored for this
+teaching game. It starts on input, pauses when hidden or outside the viewport,
+and retains a static SVG when JavaScript is disabled. The lab links the speed
+module and complete game source, and replays the rule against recorded
+original-game values.
+
+[evidence/calculator-and-dino.md](evidence/calculator-and-dino.md) records both
+targets, selected findings, attribution and verification scope. Update the
+speed rule, game, check table and evidence together. The original script excerpt
+and its BSD license are credited on the pages. Prompt responses are example
+explanations based on findings.
 
 The general investigation and DX-Ball overview diagrams are maintained as SVG source. Initial layout references were
 created with the built-in image generation tool; [figures.md](figures.md) retains

@@ -1218,6 +1218,338 @@ pre code {
   border: 0;
 }
 
+.home-start-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 3.5rem;
+  align-items: center;
+}
+.home-start-grid h1 {
+  font-size: clamp(2.8rem, 5vw, 4.2rem);
+}
+.home-start-grid .home-setup h2 {
+  font-size: 1.3rem;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.7rem;
+}
+.home-start-grid .home-setup > p {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.home-question {
+  margin-block: 0 1.8rem;
+  color: var(--muted);
+}
+.home-question strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+.home-role-comparison {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 2.5rem;
+  margin: 0;
+}
+.comparison-label {
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.agent-investigation > .comparison-label {
+  color: var(--accent);
+}
+.manual-steps {
+  display: grid;
+  gap: 1rem;
+  padding: 0;
+  list-style: none;
+}
+.manual-steps li {
+  display: flex;
+  gap: 1rem;
+  margin: 0;
+}
+.manual-steps li > span {
+  padding-top: 0.2rem;
+  color: var(--muted);
+  font:
+    0.75rem "SFMono-Regular",
+    Consolas,
+    "Liberation Mono",
+    monospace;
+}
+.manual-steps strong,
+.manual-steps small {
+  display: block;
+}
+.manual-steps strong {
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+.manual-steps small {
+  margin-top: 0.15rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.manual-code {
+  margin-top: 1.3rem;
+  padding: 1rem 1.25rem;
+  border-left: 2px solid var(--line);
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+.agent-investigation-note {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.home-role-comparison figcaption {
+  grid-column: 1 / -1;
+  margin-top: 1.2rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.home-example-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  align-items: start;
+  gap: 3rem;
+}
+.percent-figure,
+.dino-demo {
+  min-width: 0;
+  margin: 0;
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.percent-operation,
+.percent-controls,
+.dino-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.percent-operation button,
+.percent-controls button,
+.dino-buttons button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.5rem 0.8rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: var(--page);
+  cursor: pointer;
+}
+.percent-operation button[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: #edf2f8;
+}
+.percent-display {
+  padding: 1.2rem;
+  margin-block: 1rem;
+  border-radius: 4px;
+  background: var(--soft);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.percent-expression {
+  display: block;
+  min-height: 1.5rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.percent-display strong {
+  font-size: 3rem;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+}
+.percent-controls .percent-key {
+  min-width: 68px;
+  font-size: 1.25rem;
+  color: var(--accent);
+  border-color: #bbcce0;
+}
+.percent-controls button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.percent-controls .percent-reset {
+  margin-left: auto;
+  border-color: transparent;
+  color: var(--muted);
+}
+.percent-status {
+  min-height: 3rem;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+.percent-figure figcaption,
+.dino-demo figcaption {
+  margin-top: 0.8rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.percent-explanation h3 {
+  font-size: 1.2rem;
+}
+.percent-explanation > p {
+  color: var(--muted);
+}
+.percent-rules {
+  margin-bottom: 0;
+}
+.percent-rules > div {
+  padding-block: 0.55rem;
+}
+.percent-rules dt {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+}
+.percent-rules dd {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.home-evidence-details {
+  margin-top: 2rem;
+  padding-block: 1rem;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.home-evidence-details > summary {
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.home-evidence-details[open] > summary {
+  margin-bottom: 1.5rem;
+}
+.calculator-trace {
+  margin-block: 1.5rem;
+}
+.dino-example-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 2.5rem;
+}
+.dino-stage {
+  overflow: hidden;
+  margin-block: 0.8rem;
+  background: var(--soft);
+  border-radius: 4px;
+  color: var(--muted);
+}
+.dino-stage canvas,
+.dino-fallback {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.dino-stage canvas {
+  touch-action: manipulation;
+}
+.dino-buttons .button {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: white;
+}
+.dino-controls {
+  display: grid;
+  gap: 1.2rem;
+}
+.dino-speed-label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+.dino-speed-label output {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+.dino-speed-label input {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 0;
+  min-height: 30px;
+  accent-color: var(--accent);
+}
+.dino-auto-label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 36px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.dino-auto-label input {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+}
+.dino-status {
+  min-height: 2.6rem;
+  margin: 1rem 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.dino-rule {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+.dino-rule strong {
+  color: var(--ink);
+}
+.dino-loop {
+  margin-top: 2rem;
+}
+.dino-lab-demo {
+  margin-block: 2rem;
+}
+.dino-lab-demo .dino-stage {
+  margin-block: 1.5rem;
+}
+.speed-check-table td:last-child,
+.speed-check-table th:last-child {
+  text-align: right;
+}
+[hidden] {
+  display: none !important;
+}
+@media (max-width: 850px) {
+  .home-start-grid,
+  .home-role-comparison,
+  .home-example-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2rem;
+  }
+  .home-start-grid .home-setup {
+    max-width: 620px;
+  }
+  .home-start-grid h1 {
+    font-size: clamp(2.7rem, 9vw, 4.65rem);
+  }
+  .home-role-comparison figcaption {
+    margin-top: 0;
+  }
+}
+@media (max-width: 640px) {
+  .home-hero {
+    padding-block: 2.8rem;
+  }
+  .percent-figure,
+  .dino-demo {
+    padding: 1.1rem;
+  }
+}
+
 @media (max-width: 850px) {
   .home-agent-grid,
   .home-try-grid {

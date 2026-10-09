@@ -1,5 +1,5 @@
 import type { ApplicationGraphEvidence } from "../../domain/javascript/javascriptApplicationEvidenceSchemas.js";
-import type { JavaScriptSemanticGraphNode } from "../../domain/javascript/javascriptSemanticGraph.js";
+import type { JavaScriptSemanticGraphNode } from "../../domain/javascript/javascriptSemanticGraphSchemas.js";
 import type { JavaScriptSourceRange } from "../../domain/javascript/javascriptStaticAnalysisTypes.js";
 import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptArtifactFiles.js";
 
@@ -101,7 +101,7 @@ export const unavailableSemanticRootEvidence = (
 /** Explicit unknown evidence at one unresolved dynamic syntax location. */
 export const unknownSemanticEvidence = (
   file: JavaScriptArtifactFile,
-  location: JavaScriptSourceRange,
+  location: JavaScriptSourceRange | null,
 ): ApplicationGraphEvidence => ({
   ...observedSemanticEvidence(file, location),
   authority: "unknown",

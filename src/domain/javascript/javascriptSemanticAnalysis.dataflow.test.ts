@@ -209,6 +209,17 @@ describe("JavaScript semantic analysis: read-modify-write", () => {
       "read",
     ]);
   });
+
+  it("does not model a compound binding write as a competing replacement", () => {
+    const ir = analyzeJavaScriptSemantics(`
+      let count = 1;
+      count += 2;
+    `);
+
+    expect(topLevelBinding(ir, "count").value).toMatchObject({
+      status: "unknown",
+    });
+  });
 });
 
 describe("JavaScript semantic analysis: dataflow 2", () => {
@@ -448,21 +459,36 @@ describe("nonfinite static values", () => {
 
 describe("binding write invalidation", () => {
   it.each([
-    "let value = 1; value++; const observed = value;",
-    "let value = 1; --value; const observed = value;",
-    'let value = "old"; [value] = ["new"]; const observed = value;',
-    'let value = "old"; ({key: value} = {key: "new"}); const observed = value;',
-    'let value = "old"; for (value of ["new"]) {} const observed = value;',
-    'let value = "old"; for (value in {new: true}) {} const observed = value;',
-  ])("does not retain an exact initializer across %s", (source) => {
-    const ir = analyzeJavaScriptSemantics(source);
-    expect(topLevelBinding(ir, "observed").value.status).toBe("ambiguous");
-    expect(
-      topLevelBinding(ir, "value").definitions.some(
-        ({ kind }) => kind === "assignment",
-      ),
-    ).toBe(true);
-  });
+    ["let value = 1; value++; const observed = value;", "unknown"],
+    ["let value = 1; --value; const observed = value;", "unknown"],
+    [
+      'let value = "old"; [value] = ["new"]; const observed = value;',
+      "ambiguous",
+    ],
+    [
+      'let value = "old"; ({key: value} = {key: "new"}); const observed = value;',
+      "ambiguous",
+    ],
+    [
+      'let value = "old"; for (value of ["new"]) {} const observed = value;',
+      "ambiguous",
+    ],
+    [
+      'let value = "old"; for (value in {new: true}) {} const observed = value;',
+      "ambiguous",
+    ],
+  ] as const)(
+    "does not retain an exact initializer across %s",
+    (source, status) => {
+      const ir = analyzeJavaScriptSemantics(source);
+      expect(topLevelBinding(ir, "observed").value.status).toBe(status);
+      expect(
+        topLevelBinding(ir, "value").definitions.some(
+          ({ kind }) => kind === "assignment",
+        ),
+      ).toBe(true);
+    },
+  );
 
   it("does not treat destructuring keys or member owners as assigned bindings", () => {
     const ir = analyzeJavaScriptSemantics(`

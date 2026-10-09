@@ -4,12 +4,12 @@ import { semanticSlotAtPath } from "./javascriptSemanticSlots.js";
 
 import { invalidateSemanticMutationPath } from "./javascriptSemanticMutationValues.js";
 
+import type { JavaScriptBindingProvenance } from "./javascriptSemanticIr.js";
 import type {
-  JavaScriptBindingProvenance,
   JavaScriptSemanticProperty,
   JavaScriptSemanticResourceLimit,
   JavaScriptSemanticValue,
-} from "./javascriptSemanticIr.js";
+} from "./javascriptSemanticValueTypes.js";
 import {
   resolveSemanticBindingState,
   type JavaScriptSemanticAnalysisState,
@@ -17,7 +17,10 @@ import {
 } from "./javascriptSemanticState.js";
 import { semanticRequireOrigin } from "./javascriptSemanticRequireOrigin.js";
 import { compareCodePoints } from "../canonicalOrdering.js";
-import { semanticStaticPropertyKey } from "./javascriptAstValues.js";
+import {
+  readExactJavaScriptLiteral,
+  semanticStaticPropertyKey,
+} from "./javascriptAstValues.js";
 import {
   semanticAmbiguousProvenance,
   semanticLocalProvenance,
@@ -26,10 +29,8 @@ import {
   uniqueSemanticOrigins,
 } from "./javascriptSemanticProvenance.js";
 import {
-  MAX_SEMANTIC_PRIMITIVE_CANDIDATES,
   semanticPrimitiveCandidates as primitiveCandidates,
   semanticPrimitiveSet as primitiveSet,
-  semanticPrimitiveValue as primitiveValue,
 } from "./javascriptSemanticPrimitives.js";
 import {
   SEMANTIC_EXPRESSION_DEPTH_LIMIT,
@@ -120,6 +121,21 @@ const evaluateBinding = (
       status: "unknown",
       reason: `Binding ${binding.name} has no constant initializer.`,
     };
+  if (
+    binding.initializers.some(
+      ({ node }) =>
+        t.isUpdateExpression(node) ||
+        (t.isAssignmentExpression(node) &&
+          node.operator !== "=" &&
+          node.operator !== "&&=" &&
+          node.operator !== "||=" &&
+          node.operator !== "??="),
+    )
+  )
+    return {
+      status: "unknown",
+      reason: `Binding ${binding.name} has a compound or update write.`,
+    };
   if (binding.initializers.length > 1)
     return {
       status: "ambiguous",
@@ -154,7 +170,7 @@ const evaluateExpression = (
 ): JavaScriptSemanticValue => {
   if (context.expressionDepth > SEMANTIC_EXPRESSION_DEPTH_LIMIT)
     return semanticResourceLimitUnknown("expression-depth");
-  const literal = primitiveValue(node);
+  const literal = readExactJavaScriptLiteral(node);
   if (literal.found) return { status: "literal", value: literal.value };
   if (t.isIdentifier(node)) {
     const binding = resolveSemanticBindingState(context.state, node, node.name);
@@ -408,7 +424,7 @@ const addPrimitiveValues = (
     if (isSemanticResourceLimit(rightValue)) return rightValue;
     return { status: "unknown", reason: "Non-primitive addition." };
   }
-  if (left.length > MAX_SEMANTIC_PRIMITIVE_CANDIDATES / right.length)
+  if (left.length > SEMANTIC_PRIMITIVE_CANDIDATE_LIMIT / right.length)
     return semanticResourceLimitUnknown("primitive-candidates");
   if (exceedsSemanticPrimitiveAdditionByteBudget(left, right))
     return semanticResourceLimitUnknown("primitive-bytes");

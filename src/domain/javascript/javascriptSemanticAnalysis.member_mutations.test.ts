@@ -76,6 +76,85 @@ describe("JavaScript semantic values after explicit property mutations", () => {
     ).toEqual({ status: "literal", value: "initial" });
   });
 
+  it("does not propagate writes through an alias after an unconditional rebind", () => {
+    expect(
+      resultValue(`
+        const shared = { mode: "initial" };
+        let alias = shared;
+        alias = { mode: "other" };
+        alias.mode = "updated";
+        return shared.mode;
+      `),
+    ).toEqual({ status: "literal", value: "initial" });
+  });
+
+  it.each([
+    'if (flag) alias = { mode: "other" }; alias.mode = "updated";',
+    'flag && (alias = { mode: "other" }); alias.mode = "updated";',
+    'flag ||= (alias = { mode: "other" }); alias.mode = "updated";',
+    'alias ||= { mode: "other" }; alias.mode = "updated";',
+    'alias ??= { mode: "other" }; alias.mode = "updated";',
+  ])(
+    "keeps possible source aliases unknown across conditional rebinds",
+    (body) => {
+      expect(
+        resultValue(`
+        const shared = { mode: "initial" };
+        let alias = shared;
+        ${body}
+        return shared.mode;
+      `)?.status,
+      ).toBe("unknown");
+    },
+  );
+
+  it("keeps mutation under a bare conditional unknown across a rebind", () => {
+    expect(
+      resultValue(`
+        const shared = { mode: "initial" };
+        let alias = shared;
+        alias = { mode: "other" };
+        if (flag) alias.mode = "updated";
+        return shared.mode;
+      `)?.status,
+    ).toBe("unknown");
+  });
+
+  it("does not treat a short-circuit assignment RHS as an unconditional value", () => {
+    expect(
+      resultValue(`
+        let value;
+        value &&= 2;
+        return value;
+      `)?.status,
+    ).toBe("unknown");
+  });
+
+  it("keeps possible alias mutations conservative across short-circuit assignment", () => {
+    expect(
+      resultValue(`
+        const shared = { mode: "initial" };
+        let alias = shared;
+        alias &&= { mode: "other" };
+        alias.mode = "updated";
+        return shared.mode;
+      `)?.status,
+    ).toBe("unknown");
+  });
+
+  it("propagates short-circuit assignment mutations to the RHS alias candidate", () => {
+    expect(
+      resultValue(`
+        const shared = { mode: "initial" };
+        const other = { mode: "other" };
+        let alias = shared;
+        alias &&= other;
+        alias.mode = "updated";
+        return other.mode;
+      `)?.status,
+    ).toBe("unknown");
+  });
+
   it("retains ordinary immutable object and array projection", () => {
     expect(
       resultValue(

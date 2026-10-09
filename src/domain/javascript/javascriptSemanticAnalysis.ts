@@ -13,8 +13,8 @@ import {
   collectSemanticReferences,
   immutableSemanticBindings,
   immutableSemanticScopes,
-  semanticStaticPropertyKey,
 } from "./javascriptSemanticProjection.js";
+import { semanticStaticPropertyKey } from "./javascriptAstValues.js";
 import type {
   JavaScriptSemanticAnalysisState,
   JavaScriptSemanticBindingState,
@@ -35,7 +35,8 @@ import {
   resolveSemanticModuleCallables,
 } from "./javascriptSemanticReturns.js";
 import { collectJavaScriptDerivedSemantics } from "./javascriptSemanticDerivedAnalysis.js";
-import { propertyName, range } from "./javascriptStaticAnalysisHelpers.js";
+import { range } from "./javascriptStaticAnalysisHelpers.js";
+import { propertyName } from "./javascriptAstValues.js";
 import { semanticCoverage } from "./javascriptSemanticCoverage.js";
 import { semanticResourceLimitsIn } from "./javascriptSemanticResourceLimits.js";
 import {
@@ -409,7 +410,16 @@ const bindInnerDeclaration = (
     });
   else if (t.isAssignmentExpression(node)) {
     if (t.isIdentifier(node.left))
-      addAssignment(node.left, node.right, scope, state);
+      addAssignment(
+        node.left,
+        node.operator === "=" ||
+          node.operator === "||=" ||
+          node.operator === "??="
+          ? node.right
+          : node,
+        scope,
+        state,
+      );
     else
       for (const identifier of assignedPatternIdentifiers(node.left))
         addAssignment(identifier, node, scope, state);

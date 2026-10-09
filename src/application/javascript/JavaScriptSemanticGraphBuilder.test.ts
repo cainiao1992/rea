@@ -838,6 +838,85 @@ it("retains array length presence without inventing an exact length", () => {
   ).toBe(false);
 });
 
+it.each([
+  ["object spread", 'const root = { known: "value", ...dynamic };'],
+  ["array spread", 'const root = ["value", ...dynamic];'],
+])(
+  "keeps omitted initializer coverage on the owning binding: %s",
+  (_label, source) => {
+    const graph = graphFor(source);
+    const root = graph.nodes.find(
+      ({ kind, label }) => kind === "binding" && label === "root",
+    );
+    if (root === undefined) throw new Error("Expected root binding");
+    const result = queryJavaScriptSemanticGraph(graph, {
+      seed: { kind: "semantic-node", node_id: root.node_id },
+      direction: "forward-influence",
+    });
+
+    expect(result.coverage.status).toBe("partial");
+    expect(result.unknowns).toContainEqual(
+      expect.objectContaining({
+        node_id: root.node_id,
+        family: "object-flow",
+        reason: "ambiguous-target",
+        detail: expect.stringContaining("Initializer container has unknown"),
+      }),
+    );
+  },
+);
+
+it.each([
+  ["bare if", 'if (flag) alias = { mode: "other" }; alias.mode = "updated";'],
+  [
+    "logical expression",
+    'flag && (alias = { mode: "other" }); alias.mode = "updated";',
+  ],
+  [
+    "logical assignment",
+    'flag ||= (alias = { mode: "other" }); alias.mode = "updated";',
+  ],
+  ["or assignment", 'alias ||= { mode: "other" }; alias.mode = "updated";'],
+  [
+    "nullish assignment",
+    'alias ??= { mode: "other" }; alias.mode = "updated";',
+  ],
+  [
+    "conditional mutation",
+    'alias = { mode: "other" }; if (flag) alias.mode = "updated";',
+  ],
+  [
+    "short-circuit mutation",
+    'alias = { mode: "other" }; flag && (alias.mode = "updated");',
+  ],
+])(
+  "preserves possible alias mutation uncertainty in queries: %s",
+  (_label, body) => {
+    const graph = graphFor(`
+    const shared = { mode: "initial" };
+    let alias = shared;
+    ${body}
+  `);
+    const sharedMode = graph.nodes.find(
+      ({ kind, identity, properties }) =>
+        kind === "property-slot" &&
+        properties.property_pointer === "/mode" &&
+        identity.role_key.includes("binding:shared"),
+    );
+    if (sharedMode === undefined) throw new Error("Expected shared mode slot");
+    const result = queryJavaScriptSemanticGraph(graph, {
+      seed: { kind: "semantic-node", node_id: sharedMode.node_id },
+      direction: "backward-provenance",
+    });
+
+    expect(sharedMode.properties.presence).toBe("unknown-coverage");
+    expect(result.nodes).toContainEqual(
+      expect.objectContaining({ node_id: sharedMode.node_id }),
+    );
+    expect(result.coverage.status).toBe("partial");
+  },
+);
+
 it.each(["{}", "unknownRoot", "{ a: null }"])(
   "preserves the requested deep leaf name after a blocked prefix: %s",
   (initializer) => {

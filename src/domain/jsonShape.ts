@@ -90,11 +90,7 @@ export const inferJsonShape = (text: string): JsonShape | null => {
         types: [...value.types].sort(),
         observations: value.observations,
       }))
-      .sort(
-        (left, right) =>
-          left.path.localeCompare(right.path) ||
-          compareUnicodeCodePoints(left.path, right.path),
-      ),
+      .sort((left, right) => compareUnicodeCodePoints(left.path, right.path)),
   });
 };
 

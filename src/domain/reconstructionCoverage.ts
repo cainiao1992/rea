@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import canonicalize from "canonicalize";
 import { z } from "zod";
 
+import { compareUnicodeCodePoints } from "./unicodeCodePointOrder.js";
+
 import { evidenceBundleSchema, parseEvidenceBundle } from "./evidenceBundle.js";
 import {
   evaluateReconstructionClaims,
@@ -403,9 +405,8 @@ const closureStatus = (
 };
 
 const reasonOrder = (left: ClosureReason, right: ClosureReason): number =>
-  `${left.code}:${left.subject_id}`.localeCompare(
-    `${right.code}:${right.subject_id}`,
-  );
+  compareUnicodeCodePoints(left.code, right.code) ||
+  compareUnicodeCodePoints(left.subject_id, right.subject_id);
 
 const digest = (value: unknown): string => {
   const encoded = canonicalize(value);

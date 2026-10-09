@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { artifactComparisonResultSchema } from "./artifactComparison.js";
 import { uniqueSorted } from "./canonicalOrdering.js";
+import { compareUnicodeCodePoints } from "./unicodeCodePointOrder.js";
 import { comparisonSourceEvidenceIds } from "./comparisonSourceEvidence.js";
 import { evidenceSchema, parseEvidence, type Evidence } from "./evidence.js";
 import { functionComparisonResultSchema } from "./functionComparisonSchemas.js";
@@ -388,12 +389,12 @@ const count = (
     .length;
 
 const compareFindings = (left: Finding, right: Finding): number =>
-  [left.scope, left.dimension, left.source_comparison_id]
-    .join("\0")
-    .localeCompare(
-      [right.scope, right.dimension, right.source_comparison_id].join("\0"),
-      "en",
-    );
+  compareUnicodeCodePoints(left.scope, right.scope) ||
+  compareUnicodeCodePoints(left.dimension, right.dimension) ||
+  compareUnicodeCodePoints(
+    left.source_comparison_id,
+    right.source_comparison_id,
+  );
 
 const assertUnique = (values: readonly string[], label: string): void => {
   if (new Set(values).size !== values.length)

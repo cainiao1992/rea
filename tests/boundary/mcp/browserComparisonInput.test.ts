@@ -59,15 +59,31 @@ describe("browser comparison input boundary", () => {
         inspectWebPageInputSchema.parse({
           cdp_endpoint: browser.endpoint,
           target_id: "allowed-page",
+          allowed_origins: [
+            browser.allowedOrigin,
+            "https://private.example.test",
+          ],
           observation_ms: 0,
           include_json_body_shapes: true,
           include_websocket_shapes: true,
         }),
       );
       if (!produced.ok) throw produced.error;
+      // The same frame URL can occur under different origins. Capture order
+      // must not turn identical frame identities into a DOM change.
+      produced.value.frames = [null, browser.allowedOrigin, ""].map(
+        (origin, index) => ({
+          frame_id: String(index),
+          parent_frame_id: null,
+          url: "about:blank",
+          origin,
+        }),
+      );
+      const reordered = structuredClone(produced.value);
+      reordered.frames.reverse();
       const passive = {
         before: { inspection: produced.value },
-        after: { inspection: produced.value },
+        after: { inspection: reordered },
       };
       const scenario = contract.examples[0]?.input;
       if (scenario === undefined) throw new Error("Missing scenario example");
@@ -131,9 +147,8 @@ describe("browser comparison input boundary", () => {
           });
       }
       const parsedPassive = browserCaptureComparisonInputSchema.parse(passive);
-      expect(parsedPassive).toEqual({
-        before: { inspection: produced.value, webmcp: null },
-        after: { inspection: produced.value, webmcp: null },
+      expect(compareBrowserCaptures(parsedPassive)).toMatchObject({
+        dimensions: { dom_structure: { status: "unchanged" } },
       });
       expect(compareBrowserCaptures(parsedPassive).overall_status).toBe(
         "unknown",

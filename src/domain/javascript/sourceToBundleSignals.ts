@@ -326,11 +326,11 @@ const uniquePaths = (paths: readonly CurrentPath[]): CurrentPath[] =>
         path,
       ]),
     ).values(),
-  ].sort((left, right) =>
-    compareUnicodeCodePoints(
-      `${left.kind}\0${left.value}`,
-      `${right.kind}\0${right.value}`,
-    ),
+  ].sort(
+    (left, right) =>
+      compareUnicodeCodePoints(left.kind, right.kind) ||
+      compareUnicodeCodePoints(left.value, right.value) ||
+      Number(left.allowSuffix) - Number(right.allowSuffix),
   );
 
 const pathSuffixes = (path: string): string[] => {

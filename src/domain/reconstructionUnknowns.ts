@@ -1,4 +1,5 @@
 import { uniqueSorted } from "./canonicalOrdering.js";
+import { compareUnicodeCodePoints } from "./unicodeCodePointOrder.js";
 import type {
   ReconstructionClaim,
   ReconstructionClaimResult,
@@ -63,7 +64,7 @@ export const reconstructionClaimUnknowns = (
       return unknown === undefined ? [] : [unknown];
     })
     .sort((left, right) =>
-      left.unknown_id.localeCompare(right.unknown_id, "en"),
+      compareUnicodeCodePoints(left.unknown_id, right.unknown_id),
     );
 };
 
@@ -103,11 +104,10 @@ export const reconstructionProbes = (
       output.set(key, current);
     }
   }
-  const sorted = [...output.values()].sort((left, right) =>
-    `${left.operation}\0${left.rationale}`.localeCompare(
-      `${right.operation}\0${right.rationale}`,
-      "en",
-    ),
+  const sorted = [...output.values()].sort(
+    (left, right) =>
+      compareUnicodeCodePoints(left.operation, right.operation) ||
+      compareUnicodeCodePoints(left.rationale, right.rationale),
   );
   return sorted;
 };

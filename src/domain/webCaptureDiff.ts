@@ -1,4 +1,5 @@
 import { digestCanonicalValue } from "./canonicalDigest.js";
+import { compareUnicodeCodePoints } from "./unicodeCodePointOrder.js";
 import type { WebPageInspection } from "./browserObservationSchemas.js";
 import {
   webCaptureDiffSchema,
@@ -59,8 +60,8 @@ const compareIdentities = (
     if (!before.has(identity)) changes.push({ identity, change: "added" });
   return changes.sort(
     (left, right) =>
-      left.identity.localeCompare(right.identity) ||
-      left.change.localeCompare(right.change),
+      compareUnicodeCodePoints(left.identity, right.identity) ||
+      compareUnicodeCodePoints(left.change, right.change),
   );
 };
 
@@ -301,7 +302,12 @@ const incompleteSections = (completeness: {
 const domProjection = (inspection: WebPageInspection) => ({
   frames: inspection.frames
     .map(({ url, origin }) => ({ url, origin }))
-    .sort((left, right) => left.url.localeCompare(right.url)),
+    .sort(
+      (left, right) =>
+        compareUnicodeCodePoints(left.url, right.url) ||
+        compareUnicodeCodePoints(left.origin ?? "", right.origin ?? "") ||
+        Number(left.origin !== null) - Number(right.origin !== null),
+    ),
   nodes: inspection.dom.nodes.map(({ index: _index, ...node }) => node),
 });
 

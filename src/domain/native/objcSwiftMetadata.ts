@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { compareUnicodeCodePoints } from "../unicodeCodePointOrder.js";
+
 /** Objective-C method type. */
 export const objcMethodTypeSchema = z.enum([
   "instance",
@@ -395,9 +397,8 @@ export const inspectNativeDispatchMetadata = (
   }));
   const decodedImplementations = [...implementations.values()].sort(
     (left, right) =>
-      `${left.class_name}:${left.selector}`.localeCompare(
-        `${right.class_name}:${right.selector}`,
-      ),
+      compareUnicodeCodePoints(left.class_name, right.class_name) ||
+      compareUnicodeCodePoints(left.selector, right.selector),
   );
   const swift = swiftSymbols.length > 0;
 

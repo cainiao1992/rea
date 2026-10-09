@@ -102,15 +102,11 @@ describe("inferJsonShape", () => {
     },
   );
 
-  it("preserves the existing locale order for paths that do not tie", () => {
+  it("orders paths deterministically by Unicode code point", () => {
     const names = ["z", "é", "A", "_", "a"];
-    const expected = names
-      .map((name) => `/${name}`)
-      .sort((left, right) => left.localeCompare(right));
-    expect(new Set(expected).size).toBe(names.length);
-    for (const [index, left] of expected.entries())
-      for (const right of expected.slice(index + 1))
-        expect(left.localeCompare(right)).not.toBe(0);
+    // Code-point order (locale-independent): A < _ < a < z < é.
+    // `localeCompare` order varies by host ICU and must not leak into evidence.
+    const expected = ["/A", "/_", "/a", "/z", "/é"];
     const shape = inferJsonShape(
       JSON.stringify(Object.fromEntries(names.map((name) => [name, true]))),
     );

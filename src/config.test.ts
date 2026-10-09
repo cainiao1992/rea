@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { parseConfig } from "./config.js";
+import { projectAnalysisError } from "./domain/analysisErrorProjection.js";
 
 describe("runtime configuration", () => {
   it("allows target-free startup and applies runtime defaults", () => {
@@ -154,4 +155,46 @@ describe("runtime collection configuration", () => {
       ).toBe(false);
     },
   );
+});
+
+describe("configuration failure diagnostics", () => {
+  it.each([
+    ["GHIDRA_INSTALL_DIR", "./fixture"],
+    ["JAVA_HOME", "./jdk"],
+    ["REA_GHIDRA_NATIVEAOT_JAR", "./missing.jar"],
+  ])(
+    "names the rejected %s and its absolute-path constraint",
+    (setting, value) => {
+      const result = parseConfig({ [setting]: value });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      const constraint = `${setting} must be absolute`;
+      expect(projectAnalysisError(result.error)).toMatchObject({
+        code: "configuration_invalid",
+        message: `REA configuration is invalid: ${constraint}.`,
+        remediation: { action: expect.stringContaining(`Correct ${setting} `) },
+        details: { settings: [{ setting, constraint }] },
+      });
+      // The rejected value itself is not echoed.
+      expect(JSON.stringify(projectAnalysisError(result.error))).not.toContain(
+        value,
+      );
+    },
+  );
+
+  it("names settings rejected by their own parsers", () => {
+    const result = parseConfig({ HOPPER_LOADER_ARGS_JSON: "not-json" });
+    expect(result.ok).toBe(false);
+    if (!result.ok)
+      expect(projectAnalysisError(result.error)).toMatchObject({
+        details: {
+          settings: [
+            {
+              setting: "HOPPER_LOADER_ARGS_JSON",
+              constraint: "HOPPER_LOADER_ARGS_JSON must be valid JSON",
+            },
+          ],
+        },
+      });
+  });
 });

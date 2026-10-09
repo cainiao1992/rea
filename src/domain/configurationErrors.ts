@@ -3,9 +3,27 @@ import {
   type AnalysisErrorOptions,
 } from "./analysisErrorBase.js";
 
+/** One rejected configuration setting and the constraint it failed. */
+export interface ConfigurationSettingIssue {
+  readonly setting: string;
+  readonly constraint: string;
+}
+
+/** Rejected settings retained for diagnostics; their values are not. */
+export interface ConfigurationErrorOptions extends AnalysisErrorOptions {
+  readonly settings?: readonly ConfigurationSettingIssue[];
+}
+
 /** Runtime configuration could not be parsed safely. */
 export class ConfigurationError extends AnalysisError {
   readonly _tag = "ConfigurationError";
+  readonly settings: readonly ConfigurationSettingIssue[];
+  constructor(message: string, options?: ConfigurationErrorOptions) {
+    super(message, options);
+    this.settings = (options?.settings ?? []).map(
+      ({ setting, constraint }) => ({ setting, constraint }),
+    );
+  }
 }
 
 /** No app or binary session exists for an analysis request. */

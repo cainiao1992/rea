@@ -11,13 +11,14 @@ import type {
   ProviderTargetSupport,
 } from "../application/AnalysisProvider.js";
 import type { AppConfig } from "../config.js";
-import { ConfigurationError } from "../domain/configurationErrors.js";
+import type { ConfigurationError } from "../domain/configurationErrors.js";
 import { createHash } from "node:crypto";
 import canonicalize from "canonicalize";
 import type { Result } from "../domain/result.js";
 import {
   readIdaConfiguration,
   type IdaConfiguration,
+  idaConfigurationError,
 } from "./IdaConfiguration.js";
 import {
   createIdaMcpConnection,
@@ -165,7 +166,7 @@ export class IdaProvider implements AnalysisProviderCandidate {
 
 const readIdaConfigurationNotConfigured = () =>
   err(
-    new ConfigurationError(
+    idaConfigurationError(
       "Set REA_IDA_MCP_CONFIG to an upstream IDA MCP JSON registration; see docs/ida-provider.md.",
     ),
   );

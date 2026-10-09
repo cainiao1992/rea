@@ -14,10 +14,21 @@ export const parseStringArray = (
       : err(
           new ConfigurationError(`${name} must encode an array of strings`, {
             cause: parsed.error,
+            settings: [
+              {
+                setting: name,
+                constraint: `${name} must encode an array of strings`,
+              },
+            ],
           }),
         );
   } catch (cause: unknown) {
-    return err(new ConfigurationError(`${name} must be valid JSON`, { cause }));
+    return err(
+      new ConfigurationError(`${name} must be valid JSON`, {
+        cause,
+        settings: [{ setting: name, constraint: `${name} must be valid JSON` }],
+      }),
+    );
   }
 };
 
@@ -32,6 +43,9 @@ export const parseLoaderArgs = (
     return err(
       new ConfigurationError("HOPPER_LOADER_ARGS_JSON must be valid JSON", {
         cause,
+        settings: [
+          loaderArgsIssue("HOPPER_LOADER_ARGS_JSON must be valid JSON"),
+        ],
       }),
     );
   }
@@ -41,7 +55,19 @@ export const parseLoaderArgs = (
     : err(
         new ConfigurationError(
           "HOPPER_LOADER_ARGS_JSON must encode an array of strings",
-          { cause: parsed.error },
+          {
+            cause: parsed.error,
+            settings: [
+              loaderArgsIssue(
+                "HOPPER_LOADER_ARGS_JSON must encode an array of strings",
+              ),
+            ],
+          },
         ),
       );
 };
+
+const loaderArgsIssue = (constraint: string) => ({
+  setting: "HOPPER_LOADER_ARGS_JSON",
+  constraint,
+});

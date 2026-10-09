@@ -253,8 +253,18 @@ describe("enhanced MCP tools", () => {
     });
     expect(results[2]).toEqual({
       items: [
-        { address: "0x1", status: "ok", pseudocode: "pseudo:0x1" },
-        { address: "0x2", status: "ok", pseudocode: "pseudo:0x2" },
+        {
+          address: "0x1",
+          procedure: { status: "resolved", address: "0x1", name: "0x1" },
+          status: "ok",
+          pseudocode: "pseudo:0x1",
+        },
+        {
+          address: "0x2",
+          procedure: { status: "resolved", address: "0x2", name: "0x2" },
+          status: "ok",
+          pseudocode: "pseudo:0x2",
+        },
       ],
       total: 2,
       succeeded: 2,

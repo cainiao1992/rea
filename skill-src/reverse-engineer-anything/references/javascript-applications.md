@@ -40,7 +40,13 @@ changed, analyze each version once and then call
 `compare_javascript_export_shapes` with explicit module paths and export names.
 Use the returned IDs on the same connection, or complete inline Evidence
 records, from both analysis calls. Accept variant
-pairing only through the tool's unique exact literal discriminant. Cite the
+pairing only through the tool's unique exact literal discriminant. Read
+`property_inventories` and each change's `presence` before treating `unknown` as
+"the name was not observed": inventories list observed property names even when
+values stay unknown, with a `source_range` for each paired or unpaired variant.
+Array holes and mutation-invalidated slots are not observed properties.
+Complete parent coverage reports presence-only
+`added`/`removed` independently of unresolved values. Cite the
 comparison Evidence and report JSON Pointer changes; dynamic values, ambiguous
 variants, and incomplete parent-property coverage stay unknown. This is static
 inference, not runtime behavior. When runtime semantics are needed, run

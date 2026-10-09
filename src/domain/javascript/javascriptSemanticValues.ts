@@ -299,6 +299,7 @@ const evaluateArray = (
   context: EvaluationContext,
 ): JavaScriptSemanticValue => {
   const items: JavaScriptSemanticValue[] = [];
+  const itemPresence: Record<number, "absent"> = {};
   let unknownItems = false;
   let omittedItems: number | null = 0;
   for (const element of node.elements) {
@@ -309,8 +310,7 @@ const evaluateArray = (
       break;
     }
     if (element === null) {
-      unknownItems = true;
-      if (omittedItems !== null) omittedItems += 1;
+      itemPresence[items.length] = "absent";
       items.push({
         status: "unknown",
         reason: "Array hole has no primitive value.",
@@ -320,8 +320,14 @@ const evaluateArray = (
     items.push(evaluateExpression(element, nestedContext(context)));
   }
   return unknownItems
-    ? { status: "array", items, unknownItems: true, omittedItems }
-    : { status: "array", items, unknownItems: false, omittedItems: 0 };
+    ? { status: "array", items, itemPresence, unknownItems: true, omittedItems }
+    : {
+        status: "array",
+        items,
+        itemPresence,
+        unknownItems: false,
+        omittedItems: 0,
+      };
 };
 
 const evaluateMember = (

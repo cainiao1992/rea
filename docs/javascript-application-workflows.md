@@ -141,14 +141,33 @@ Nested callable returns are not assigned to their parent callable. Projected
 graph observations carry source ranges but never source text.
 
 Return variants pair only when a literal discriminant such as `/type` has one
-unique occurrence on each side and pairing is reciprocal. Changes use JSON
-Pointer paths with `added`, `removed`, `changed`, or `unknown` status. A missing
-field is added or removed only when the relevant parent-property coverage is
-complete on both shapes. The output includes exact selector candidates,
-omissions, Evidence links, coverage, and limitations; it does not execute
-JavaScript. When runtime semantics matter, run behavioral probes directly
-against the relevant application versions and capture them through the
-available browser, Electron, or process workflows.
+unique occurrence on each side and pairing is reciprocal. Source order never
+implies correspondence. Each retained variant contributes a property inventory
+of observed JSON Pointer names, including fields whose static values stay
+unknown, plus that variant's parent-property coverage.
+
+Changes use JSON Pointer paths with `added`, `removed`, `changed`, or `unknown`
+status and a separate `presence` object (`present`, `absent`, or
+`unknown-coverage`) on each side. A name is `added` or `removed` when one paired
+shape proves presence and the other proves absence. Complete parent-property
+coverage can establish absence even when field values stay unresolved. Identical literals are
+omitted. Unresolved values that remain on both sides stay `unknown` when the
+projections differ, and are omitted when presence is unchanged and the unknown
+projections match. Incomplete spreads and other partial parent coverage keep
+one-sided names `unknown` with `unknown-coverage` on the incomplete side.
+Unpaired variants remain visible as unknown changes and still list their
+property inventories, each with its own `source_range`. Inventories exclude
+array holes and slots whose presence was invalidated by mutation; an unresolved
+value alone does not make an observed property uncertain. `summary.added` and
+`summary.removed` count
+presence-level add/remove as well as literal value add/remove;
+`summary.unknown` does not absorb complete-coverage presence-only gaps.
+
+The output includes exact selector candidates, omissions, Evidence links,
+coverage, and limitations; it does not execute JavaScript. When runtime
+semantics matter, run behavioral probes directly against the relevant
+application versions and capture them through the available browser, Electron,
+or process workflows.
 
 ## CLI and verification
 

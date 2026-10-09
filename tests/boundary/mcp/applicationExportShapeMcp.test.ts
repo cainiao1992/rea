@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { copyFile, mkdir, rm, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
+import { Ajv2020 } from "ajv/dist/2020.js";
+import { z } from "zod";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
@@ -9,6 +11,110 @@ import { compareJavaScriptExportShapesEvidence } from "../../../src/application/
 import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";
 import { javaScriptExportShapeComparisonResultSchema } from "../../../src/domain/javascript/javascriptExportShapeComparisonSchemas.js";
 import { createApplicationMcpHarness } from "../../fixtures/applicationMcpHarness.js";
+import { APPLICATION_TOOL_CONTRACTS } from "../../../src/contracts/applicationToolContracts.js";
+import { JAVASCRIPT_EXPORT_SHAPE_COMPARISON_EXAMPLE } from "../../../src/contracts/javascript/javascriptExportShapeComparisonExample.js";
+
+it("executes the advertised export presence example with matching analyzed Evidence", async () => {
+  const contract = APPLICATION_TOOL_CONTRACTS.find(
+    ({ name }) => name === "compare_javascript_export_shapes",
+  );
+  const example = contract?.examples.find(
+    ({ title }) =>
+      title ===
+      "Report observed return-property presence when static values stay unknown",
+  );
+  if (example === undefined)
+    throw new Error("Missing advertised presence example");
+  const { client, close } = await createApplicationMcpHarness();
+  onTestFinished(close);
+  const listing = await client.listTools();
+  const advertised = listing.tools.find(
+    ({ name }) => name === "compare_javascript_export_shapes",
+  );
+  const examples = z.array(z.unknown()).parse(advertised?.inputSchema.examples);
+  expect(new Set(examples.map((input) => JSON.stringify(input))).size).toBe(
+    examples.length,
+  );
+  const response = await client.callTool({
+    name: "compare_javascript_export_shapes",
+    arguments: example.input,
+  });
+  expect(response.isError).not.toBe(true);
+  expect(response.structuredContent).toMatchObject({
+    result: {
+      left: { status: "selected" },
+      right: { status: "selected" },
+      summary: { added: 1, removed: 1, changed: 0, unknown: 0 },
+      property_inventories: expect.arrayContaining([
+        expect.objectContaining({
+          side: "left",
+          paired: true,
+          properties: ["/count", "/kind"],
+        }),
+        expect.objectContaining({
+          side: "right",
+          paired: true,
+          properties: ["/kind", "/total"],
+        }),
+      ]),
+      changes: expect.arrayContaining([
+        expect.objectContaining({
+          path: "/count",
+          status: "removed",
+          presence: { left: "present", right: "absent" },
+          left: { availability: "unknown", reason: expect.any(String) },
+        }),
+        expect.objectContaining({
+          path: "/total",
+          status: "added",
+          presence: { left: "absent", right: "present" },
+          right: { availability: "unknown", reason: expect.any(String) },
+        }),
+      ]),
+    },
+  });
+});
+
+it("traces example semantic modules with their parsed artifact digests", async () => {
+  const { client, close } = await createApplicationMcpHarness();
+  onTestFinished(close);
+  for (const application of [
+    JAVASCRIPT_EXPORT_SHAPE_COMPARISON_EXAMPLE.left,
+    JAVASCRIPT_EXPORT_SHAPE_COMPARISON_EXAMPLE.right,
+  ]) {
+    const analysis = javascriptApplicationAnalysisResultSchema.parse(
+      application.normalized_result,
+    );
+    const module = analysis.semantic_graph.nodes.find(
+      ({ kind }) => kind === "module",
+    );
+    if (module === undefined || !module.evidence.artifact.available)
+      throw new Error("Example must retain an artifact-backed semantic module");
+    const response = await client.callTool({
+      name: "trace_javascript_semantics",
+      arguments: {
+        application,
+        query: {
+          seed: { kind: "semantic-node", node_id: module.node_id },
+          direction: "ownership",
+        },
+      },
+    });
+    expect(response.isError).not.toBe(true);
+    expect(response.structuredContent).toMatchObject({
+      result: {
+        nodes: expect.arrayContaining([
+          expect.objectContaining({
+            node_id: module.node_id,
+            identity: expect.objectContaining({
+              artifact_sha256: module.evidence.artifact.sha256,
+            }),
+          }),
+        ]),
+      },
+    });
+  }
+});
 
 describe("application workflow MCP parity", () => {
   it("compares exact parser export shapes with inline Evidence", async () => {
@@ -68,15 +174,35 @@ describe("application workflow MCP parity", () => {
       expect(full.structuredContent).toMatchObject({
         result: {
           summary: { added: 1, removed: 0, changed: 0, unknown: 0 },
+          property_inventories: expect.arrayContaining([
+            expect.objectContaining({
+              side: "right",
+              paired: true,
+              properties: expect.arrayContaining(["/depth"]),
+            }),
+          ]),
           changes: [
             {
               status: "added",
               path: "/depth",
+              presence: { left: "absent", right: "present" },
               right: { availability: "literal", value: 1 },
             },
           ],
         },
       });
+      const advertised = (await client.listTools()).tools.find(
+        ({ name }) => name === "compare_javascript_export_shapes",
+      );
+      if (advertised?.outputSchema === undefined)
+        throw new Error("Missing advertised export-shape output schema");
+      const validate = new Ajv2020({
+        strict: false,
+        validateFormats: false,
+      }).compile(
+        z.record(z.string(), z.unknown()).parse(advertised.outputSchema),
+      );
+      expect(validate(full.structuredContent)).toBe(true);
       expect(session.exportEvidenceBundle().records).toEqual(
         expect.arrayContaining([
           expect.objectContaining({

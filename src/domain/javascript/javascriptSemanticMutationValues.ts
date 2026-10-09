@@ -20,23 +20,16 @@ export const invalidateSemanticMutationPath = (
       property.name === name
         ? {
             ...property,
+            ...(remaining.length === 0
+              ? { presence: "unknown-coverage" as const }
+              : {}),
             value: invalidateSemanticMutationPath(property.value, remaining),
           }
         : property,
     );
-    return value.unknownProperties || !observed
-      ? {
-          status: "object",
-          properties,
-          unknownProperties: true,
-          omittedProperties: observed ? value.omittedProperties : null,
-        }
-      : {
-          status: "object",
-          properties,
-          unknownProperties: false,
-          omittedProperties: 0,
-        };
+    if (!observed)
+      properties.push({ name, value: unknown, presence: "unknown-coverage" });
+    return { ...value, properties };
   }
   if (value.status === "array") {
     const index = typeof key === "number" ? key : Number(key);
@@ -46,20 +39,18 @@ export const invalidateSemanticMutationPath = (
       String(index) !== String(key)
     )
       return unknown;
-    const observed = value.items[index] !== undefined;
     const items = value.items.map((item, position) =>
       position === index
         ? invalidateSemanticMutationPath(item, remaining)
         : item,
     );
-    return value.unknownItems || !observed
-      ? {
-          status: "array",
-          items,
-          unknownItems: true,
-          omittedItems: observed ? value.omittedItems : null,
-        }
-      : { status: "array", items, unknownItems: false, omittedItems: 0 };
+    const itemPresence = {
+      ...value.itemPresence,
+      ...(remaining.length === 0 || value.items[index] === undefined
+        ? { [index]: "unknown-coverage" as const }
+        : {}),
+    };
+    return { ...value, items, itemPresence };
   }
   return unknown;
 };

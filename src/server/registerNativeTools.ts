@@ -3,8 +3,8 @@ import type { EvidenceWriter } from "../application/investigation/InvestigationR
 
 import type { AnalysisOperationPort } from "../application/AnalysisProvider.js";
 import { NATIVE_TOOL_CONTRACTS } from "../contracts/native/nativeToolContracts.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
-import type { Logger } from "../logger.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
+import type { Logger } from "pino";
 import { registerEvidenceTools } from "./registerEvidenceTools.js";
 
 /** Register provider-neutral static inspection operations. */

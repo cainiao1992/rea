@@ -10,7 +10,7 @@ import {
   observeJavaScriptRuntime,
 } from "../../../src/application/javascript/JavaScriptRuntimeObservationService.js";
 import { reconcileJavaScriptRuntimeEvidence } from "../../../src/application/javascript/JavaScriptRuntimeReconciliationService.js";
-import { V8_INSPECTOR_PROVIDER_IDENTITY } from "../../../src/inspector/V8InspectorProvider.js";
+import { V8_INSPECTOR_PROVIDER_IDENTITY } from "../../../src/inspector/providerIdentity.js";
 import { V8InspectorProvider } from "../../../src/inspector/V8InspectorProvider.js";
 import { JAVASCRIPT_RUNTIME_RECONCILIATION_EXAMPLE } from "../../../src/contracts/javascript/javascriptRuntimeReconciliationExample.js";
 import type {

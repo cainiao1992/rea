@@ -28,7 +28,7 @@ import { PRODUCT_IDENTITY } from "../identity.js";
 import { logCliCommand } from "../cliLogging.js";
 import { createSystemDoctorHost } from "../doctorRuntime.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import type { CliInstance } from "./types.js";
 import { SUPPORTED_CLIENT_DEFINITIONS } from "../application/SupportedClients.js";
 

@@ -2,7 +2,7 @@ import type { EvidenceMcpServer } from "../EvidenceMcpServer.js";
 import { recordSessionEvidenceSources } from "../sessionEvidence.js";
 
 import { verifyManagedNativeBoundariesEvidence } from "../../application/managed/ManagedNativeVerificationService.js";
-import { managedNativeVerificationResultSchema } from "../../domain/managed/managedNativeVerification.js";
+import { managedNativeVerificationResultSchema } from "../../domain/managed/managedNativeVerificationSchemas.js";
 import { logToolExecution } from "../toolLogging.js";
 import { toolRegistrationOptions } from "../toolRegistrationOptions.js";
 import { managedWorkflowContract } from "./contract.js";

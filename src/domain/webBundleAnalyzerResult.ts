@@ -1,4 +1,4 @@
-import type { WebPageInspection } from "./browserObservation.js";
+import type { WebPageInspection } from "./browserObservationSchemas.js";
 import {
   webBundleAnalysisSchema,
   type WebBundleAnalysis,

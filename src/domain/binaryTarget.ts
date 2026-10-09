@@ -2,8 +2,6 @@ import type { BinaryArchitecture } from "./binaryTargetTypes.js";
 import { err, ok, type Result } from "./result.js";
 import { mzWindowsHeaderOffset, parseDosMzHeader } from "./dosMz.js";
 
-export type { BinaryArchitecture, BinaryTarget } from "./binaryTargetTypes.js";
-
 /** Format and architecture facts recovered from an executable header. */
 export type ExecutableMetadata =
   | {

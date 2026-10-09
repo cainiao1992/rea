@@ -1,12 +1,5 @@
 import { z } from "zod";
 
-export {
-  browserTargetListSchema,
-  webPageInspectionSchema,
-  type BrowserTargetList,
-  type WebPageInspection,
-} from "./browserObservationSchemas.js";
-
 const parseExactOrigin = (value: string): string | undefined => {
   let url: URL;
   try {

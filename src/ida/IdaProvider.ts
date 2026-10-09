@@ -1,7 +1,7 @@
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
 import { createAnalysisProfile } from "../domain/analysisProfile.js";
 import type { AnalysisProfileCommitment } from "../domain/analysisProfile.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { err, ok } from "../domain/result.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import type {
@@ -11,7 +11,7 @@ import type {
   ProviderAvailability,
   ProviderTargetSupport,
 } from "../application/AnalysisProvider.js";
-import type { AppConfig } from "../config.js";
+import type { AppConfig } from "../config/types.js";
 import type { ConfigurationError } from "../domain/configurationErrors.js";
 import { createHash } from "node:crypto";
 import canonicalize from "canonicalize";
@@ -31,8 +31,6 @@ import {
 } from "./IdaProviderCapabilities.js";
 import { IdaSessionClient } from "./IdaSessionClient.js";
 import { privateRuntimeRootCapability } from "../process/PrivateRuntimeRoot.js";
-
-export { IDA_PROVIDER_IDENTITY } from "./IdaProviderCapabilities.js";
 
 /** Bring-your-own IDA MCP candidate; discovery performs no provider startup. */
 export class IdaProvider implements AnalysisProviderCandidate {

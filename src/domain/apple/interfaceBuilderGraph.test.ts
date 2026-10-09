@@ -4,8 +4,8 @@ import { buildBinary, parseBinary } from "plist";
 import {
   buildInterfaceBuilderAnalysis,
   interfaceBuilderLimitsSchema,
-  parseInterfaceBuilderRecords,
 } from "./interfaceBuilderGraph.js";
+import { parseInterfaceBuilderRecords } from "./interfaceBuilderKeyedArchive.js";
 
 const hash = "a".repeat(64);
 

@@ -10,7 +10,7 @@ import { parseReferenceSourceImports } from "../domain/referenceSourceImportPars
 import type {
   ReferenceSourceEntry,
   ReferenceSourceRead,
-} from "../reference/ReferenceSourceReader.js";
+} from "../reference/ReferenceSourceReaderTypes.js";
 import { PARSEABLE_REFERENCE_SOURCE_LANGUAGES } from "./ReferenceSourceImportTypes.js";
 
 export interface ParsedReferenceSourceEntries {

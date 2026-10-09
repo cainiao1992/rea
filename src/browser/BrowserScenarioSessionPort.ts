@@ -1,11 +1,9 @@
-import type {
-  BrowserScenario,
-  BrowserScenarioAction,
-} from "../domain/browserScenario.js";
+import type { BrowserScenario } from "../domain/browserScenario.js";
+import type { BrowserScenarioAction } from "../domain/browserScenarioValues.js";
 import type {
   BrowserScenarioEvent,
   BrowserStepArtifacts,
-} from "../domain/browserScenarioCapture.js";
+} from "../domain/browserScenarioCaptureValues.js";
 import type { SanitizedBrowserUrl } from "../domain/browserObservation.js";
 
 type SnapshotKind = BrowserScenario["capture"]["after_each_step"][number];

@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "./processCapture.fixture.js";
-import {
-  compareProcessCaptures,
-  parseProcessCapture,
-} from "./processCapture.js";
-import type { ProcessTraceSpecification } from "./processTraceComparison.js";
+import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "./processCaptureExample.js";
+import { compareProcessCaptures } from "./processComparison.js";
+import { parseProcessCapture } from "./processCaptureParsing.js";
+import type { ProcessTraceSpecification } from "./processTraceSpecification.js";
 const beforeCheckpoint = {
   name: "before",
   at_ms: 0,

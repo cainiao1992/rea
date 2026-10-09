@@ -1,5 +1,5 @@
 import { createJavaScriptSemanticGraphUnknown } from "../../domain/javascript/javascriptSemanticGraph.js";
-import type { JavaScriptSemanticGraphNode } from "../../domain/javascript/javascriptSemanticGraph.js";
+import type { JavaScriptSemanticGraphNode } from "../../domain/javascript/javascriptSemanticGraphSchemas.js";
 import type { JavaScriptSemanticResourceOperation } from "../../domain/javascript/javascriptSemanticIr.js";
 import {
   retainSemanticGraphNode,
@@ -7,10 +7,7 @@ import {
   addSemanticGraphUnknown,
 } from "./JavaScriptSemanticGraphConstruction.js";
 import { unknownSemanticEvidence } from "./JavaScriptSemanticGraphEvidence.js";
-import {
-  semanticCallSiteAt,
-  type SemanticFlowProjectionContext,
-} from "./JavaScriptSemanticGraphFlowProjection.js";
+import type { SemanticFlowProjectionContext } from "./JavaScriptSemanticGraphFlowProjection.js";
 
 /** Project built-in resource acquisition and exact local release handles. */
 export const projectSemanticResources = (
@@ -26,7 +23,7 @@ export const projectSemanticResources = (
   for (const operation of context.ir.resourceOperations)
     if (operation.kind === "acquire")
       addSemanticGraphRelation(context.state, {
-        source: semanticCallSiteAt(context, operation.location),
+        source: context.callSiteAt(operation.location),
         target: resourceNodes.get(operation.resourceId),
         relation: "acquires",
         resolution: "resolved",
@@ -56,7 +53,7 @@ const projectRelease = (
   operation: JavaScriptSemanticResourceOperation,
   resourceNodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>,
 ): void => {
-  const callSite = semanticCallSiteAt(context, operation.location);
+  const callSite = context.callSiteAt(operation.location);
   const resources = operation.linkedResourceIds.flatMap((identifier) => {
     const resource = resourceNodes.get(identifier);
     return resource === undefined ? [] : [resource];

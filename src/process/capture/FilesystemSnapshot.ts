@@ -2,13 +2,11 @@ import { createHash } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
 import { lstat, open, readdir, readlink } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
-import type {
-  FileState,
-  ProcessScenario,
-} from "../../domain/process/processCapture.js";
+import type { ProcessScenario } from "../../domain/process/processScenario.js";
 import type { Stats } from "node:fs";
 import type { FilesystemCoverage } from "../../domain/process/processCaptureCoverage.js";
 
+import type { FileState } from "../../domain/process/processCapture.js";
 export interface SnapshotResult {
   readonly files: readonly FileState[];
   readonly truncated: boolean;

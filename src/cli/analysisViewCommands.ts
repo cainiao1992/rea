@@ -4,13 +4,13 @@ import { inspectAnalysisViewValidated } from "../application/analysisView/Analys
 import { CLI_COMMANDS } from "../cliCommandNames.js";
 import { parseCliJsonInput } from "../cliJsonInput.js";
 import { logCliCommand } from "../cliLogging.js";
-import { inspectAnalysisViewInputSchema } from "../domain/analysisView/analysisView.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import type { CliInstance } from "./types.js";
 
+import { inspectAnalysisViewInputSchema } from "../domain/analysisView/analysisView.js";
 /** Project selected views of completed analysis Evidence through the CLI. */
 export const registerAnalysisViewCommands = (
   cli: CliInstance,

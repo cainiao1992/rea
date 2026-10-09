@@ -627,5 +627,3 @@ export const isValidatedImmutableJavaScriptSemanticGraph = (
   typeof value === "object" &&
   value !== null &&
   validatedImmutableSemanticGraphs.has(value);
-
-export type { JavaScriptSemanticGraphNode, JavaScriptSemanticGraphRelation };

@@ -11,13 +11,13 @@ import { CLI_COMMAND_NAMES } from "../../../src/cliCommandNames.js";
 import { createCli } from "../../../src/cli.js";
 import { TOOL_CONTRACTS } from "../../../src/contracts/toolContracts.js";
 import {
-  HOPPER_PROVIDER_IDENTITY,
   HOPPER_OPERATIONS,
-} from "../../../src/hopper/HopperProvider.js";
+  HOPPER_PROVIDER_IDENTITY,
+} from "../../../src/hopper/HopperProviderCapabilities.js";
 import {
   GHIDRA_PROVIDER_IDENTITY,
   GHIDRA_OPERATIONS,
-} from "../../../src/ghidra/GhidraProvider.js";
+} from "../../../src/ghidra/GhidraProviderCapabilities.js";
 import {
   documentationFactIssues,
   skillReferenceIssues,

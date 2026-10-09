@@ -1,19 +1,10 @@
-import type { ProcessCapture } from "./processCapture.js";
+import type { ProcessCapture } from "./processCaptureParsing.js";
 import {
   evaluateProcessTraceSide,
   processTraceComparisonResultSchema,
   type ProcessTraceComparisonResult,
 } from "./processTraceEvaluation.js";
 import {
-  processTraceSpecificationSchema,
-  type ProcessTraceSpecification,
-} from "./processTraceSpecification.js";
-
-export {
-  processTraceComparisonResultSchema,
-  type ProcessTraceComparisonResult,
-} from "./processTraceEvaluation.js";
-export {
   processTraceSpecificationSchema,
   type ProcessTraceSpecification,
 } from "./processTraceSpecification.js";

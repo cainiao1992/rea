@@ -2,10 +2,10 @@ import {
   createJavaScriptApplicationEdge,
   createJavaScriptApplicationGraph,
   createJavaScriptApplicationNode,
-  type ApplicationGraphEvidence,
-  type ApplicationNode,
   type JavaScriptApplicationGraph,
 } from "./javascriptApplicationGraph.js";
+import type { ApplicationNode } from "./javascriptApplicationGraphSchemas.js";
+import type { ApplicationGraphEvidence } from "./javascriptApplicationEvidenceSchemas.js";
 
 export const APPLICATION_GRAPH_DIGESTS = {
   package: "1".repeat(64),

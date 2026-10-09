@@ -1,4 +1,4 @@
-import type { ApplicationNode } from "../../domain/javascript/javascriptApplicationGraph.js";
+import type { ApplicationNode } from "../../domain/javascript/javascriptApplicationGraphSchemas.js";
 import type {
   ElectronBrowserWindowFinding,
   ElectronContextBridgeFinding,

@@ -13,5 +13,3 @@ export interface ArtifactInventoryOptions {
   readonly integrity?: ArtifactIntegrityPolicy | undefined;
   readonly environment?: Readonly<NodeJS.ProcessEnv> | undefined;
 }
-
-export type { ArtifactInventorySnapshot } from "../../domain/artifactInventorySnapshot.js";

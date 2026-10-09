@@ -1,10 +1,8 @@
 import { z } from "zod";
 import { nativeFunctionAnnotationsInputSchema } from "../domain/native/nativeFunctionAnnotations.js";
 
-import {
-  officialOutputSchemas,
-  requireOutputSchema,
-} from "./toolOutputSchemas.js";
+import { officialOutputSchemas } from "./toolOutputSchemaGroups.js";
+import { requireOutputSchema } from "./toolOutputSchemaPrimitives.js";
 import {
   address,
   document,

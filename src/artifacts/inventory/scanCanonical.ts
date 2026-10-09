@@ -1,3 +1,4 @@
+import type { ArtifactInventorySnapshot } from "../../domain/artifactInventorySnapshot.js";
 import { compareCodePoints } from "../../domain/canonicalOrdering.js";
 
 import { createReadStream } from "node:fs";
@@ -39,7 +40,6 @@ import {
 import {
   STRICT_INTEGRITY_POLICY,
   type ArtifactInventoryOptions,
-  type ArtifactInventorySnapshot,
 } from "./types.js";
 
 export const scanCanonicalArtifactInventory = async (

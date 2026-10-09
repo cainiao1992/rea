@@ -13,12 +13,13 @@ import {
   listJavaScriptRuntimeTargets,
   observeJavaScriptRuntime,
 } from "../application/javascript/JavaScriptRuntimeObservationService.js";
-import { toolContract, type ToolContract } from "../contracts/toolContracts.js";
+import { toolContract } from "../contracts/toolContracts.js";
+import type { ToolContract } from "../contracts/toolContractTypes.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import type { Evidence } from "../domain/evidence.js";
 import type { Result } from "../domain/result.js";
 import { observeJavaScriptRuntimeInputSchema } from "../domain/javascript/javascriptRuntimeObservation.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 

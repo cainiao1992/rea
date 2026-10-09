@@ -86,9 +86,6 @@ export const webRuntimeTargetSchema = z.object({
   loader_id: z.string().nullable(),
 });
 
-/** Producer product identity is observed separately from the unknown host platform. */
-export const webRuntimeBrowserSchema = browserVersionSchema;
-
 /** Complete runtime evidence has explicit byte budgets rather than silent item truncation. */
 export const WEB_RUNTIME_LIMITS = {
   protocolBytes: 64 * 1024 * 1024,

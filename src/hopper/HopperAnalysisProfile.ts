@@ -6,10 +6,8 @@ import type {
   ProviderIdentity,
 } from "../application/AnalysisProvider.js";
 import { createAnalysisProfile } from "../domain/analysisProfile.js";
-import type {
-  BinaryArchitecture,
-  BinaryTarget,
-} from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
+import type { BinaryArchitecture } from "../domain/binaryTargetTypes.js";
 import {
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,

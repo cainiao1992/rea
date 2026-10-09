@@ -1,10 +1,12 @@
 import {
   createJavaScriptApplicationGraph,
   createJavaScriptApplicationNode,
-  type ApplicationEdge,
-  type ApplicationNode,
   type JavaScriptApplicationGraph,
 } from "./javascriptApplicationGraph.js";
+import type {
+  ApplicationEdge,
+  ApplicationNode,
+} from "./javascriptApplicationGraphSchemas.js";
 import type {
   ParsedRuntimeCapture,
   ParsedStaticLayer,

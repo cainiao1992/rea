@@ -1,13 +1,11 @@
-import { compareFunctions } from "../domain/functionComparison.js";
 import { createEvidence } from "../domain/evidence.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
-import {
-  compareProcessCaptures,
-  parseProcessCapture,
-} from "../domain/process/processCapture.js";
+import { compareProcessCaptures } from "../domain/process/processComparison.js";
+import { parseProcessCapture } from "../domain/process/processCaptureParsing.js";
 import { FUNCTION_COMPARISON_EXAMPLE } from "./functionComparisonExample.js";
-import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "./process/processCaptureExample.js";
+import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "../domain/process/processCaptureExample.js";
 
+import { compareFunctions } from "../domain/functionComparison.js";
 const comparison = compareFunctions(
   FUNCTION_COMPARISON_EXAMPLE.left,
   FUNCTION_COMPARISON_EXAMPLE.right,

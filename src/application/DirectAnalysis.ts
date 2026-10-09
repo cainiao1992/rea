@@ -6,7 +6,8 @@ import type { DirectAnalysisDependencies } from "./DirectAnalysisDependencies.js
 import type { BinarySession } from "./binary/BinarySession.js";
 import type { SessionProviderRoute } from "./binary/SessionProviderRouter.js";
 import type { ResolvedSessionOpen } from "./binary/BinarySessionOpen.js";
-import { silentLogger, type Logger } from "../logger.js";
+import { silentLogger } from "../logger.js";
+import type { Logger } from "pino";
 import { createEvidence } from "../domain/evidence.js";
 import type { Evidence } from "../domain/evidence.js";
 import type { NativeToolName } from "../contracts/native/nativeToolContracts.js";
@@ -24,7 +25,7 @@ import {
   writeAnalysisSnapshot,
 } from "./binary/AnalysisSnapshotFiles.js";
 import { parseBinaryTarget } from "./BinaryTargetResolver.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import {
   snapshotEvidenceForQuery,
   snapshotMatchesTarget,

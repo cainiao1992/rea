@@ -8,7 +8,7 @@ import {
 } from "../../domain/analysisSnapshot.js";
 import type { AnalysisSnapshot } from "../../domain/analysisSnapshot.js";
 import { parseBinaryTarget } from "../BinaryTargetResolver.js";
-import { type BinaryTarget } from "../../domain/binaryTarget.js";
+import { type BinaryTarget } from "../../domain/binaryTargetTypes.js";
 import {
   EvidenceIntegrityError,
   AnalysisSnapshotMismatchError,

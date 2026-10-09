@@ -1,7 +1,7 @@
-import type { UnverifiedProcessCapture } from "./processCapture.js";
 import { digestProcessCommitment } from "./processScenario.js";
 import { hasCaptureTruncation } from "./processCaptureCoverage.js";
 
+import type { UnverifiedProcessCapture } from "./processCapture.js";
 /** One pure semantic validation failure in a shaped process capture. */
 export interface ProcessCaptureValidationIssue {
   readonly path: string;

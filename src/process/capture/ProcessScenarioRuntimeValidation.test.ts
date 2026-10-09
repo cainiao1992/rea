@@ -7,7 +7,7 @@ import {
   resolveExecutable,
   resolveProcessScenarioRuntimePaths,
 } from "./ProcessScenarioRuntimeValidation.js";
-import { parseProcessScenario } from "../../domain/process/processCapture.js";
+import { parseProcessScenario } from "../../domain/process/processScenario.js";
 
 it("preserves the caller-selected executable symlink for process invocation", async () => {
   const root = await mkdtemp(join(tmpdir(), "rea-process-executable-alias-"));

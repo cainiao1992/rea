@@ -7,7 +7,7 @@ import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js
 
 import { ArtifactProvider } from "../../../../src/artifacts/ArtifactProvider.js";
 import { artifactExtractionExecutionSchema } from "../../../../src/contracts/artifactToolContracts.js";
-import type { BinaryTarget } from "../../../../src/domain/binaryTarget.js";
+import type { BinaryTarget } from "../../../../src/domain/binaryTargetTypes.js";
 
 describe("artifact extraction format support", () => {
   it("refuses unsupported formats before inventory or output", async () => {

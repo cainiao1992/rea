@@ -6,7 +6,7 @@ import { afterEach, expect, it } from "vitest";
 
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { CdpBrowserProvider } from "../../../src/browser/CdpBrowserProvider.js";
-import { webPageInspectionSchema } from "../../../src/domain/browserObservation.js";
+import { webPageInspectionSchema } from "../../../src/domain/browserObservationSchemas.js";
 import { JAVASCRIPT_RUNTIME_RECONCILIATION_EXAMPLE } from "../../../src/contracts/javascript/javascriptRuntimeReconciliationExample.js";
 import { TOOL_CONTRACTS } from "../../../src/contracts/toolContracts.js";
 import { createServer } from "../../../src/server/createServer.js";

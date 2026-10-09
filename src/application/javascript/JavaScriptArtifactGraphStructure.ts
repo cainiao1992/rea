@@ -1,5 +1,5 @@
-import type { ArtifactInventorySnapshot } from "../../artifacts/inventory/ArtifactInventory.js";
-import type { ApplicationNode } from "../../domain/javascript/javascriptApplicationGraph.js";
+import type { ArtifactInventorySnapshot } from "../../domain/artifactInventorySnapshot.js";
+import type { ApplicationNode } from "../../domain/javascript/javascriptApplicationGraphSchemas.js";
 import { completeApplicationCoverage } from "../../domain/javascript/javascriptApplicationEvidenceSchemas.js";
 import type { JavaScriptModuleArtifactAnalysis } from "./JavaScriptArtifactAnalysisTypes.js";
 import type {
@@ -21,7 +21,6 @@ import {
   staticInferenceEvidence,
 } from "./JavaScriptArtifactGraphEvidence.js";
 import { resolveArtifactPathByContext } from "./JavaScriptArtifactPathResolution.js";
-export { addJavaScriptBundlerNodes } from "./JavaScriptArtifactGraphBundlers.js";
 
 interface PackageRoleInput {
   readonly packageNode: ApplicationNode;

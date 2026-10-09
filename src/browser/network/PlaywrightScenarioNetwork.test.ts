@@ -4,7 +4,7 @@ import { browserScenarioSchema } from "../../domain/browserScenario.js";
 import {
   browserScenarioEventSchema,
   type BrowserScenarioEvent,
-} from "../../domain/browserScenarioCapture.js";
+} from "../../domain/browserScenarioCaptureValues.js";
 import type { BrowserNetworkContentSelection } from "../../domain/browserNetworkEvidence.js";
 import { BrowserScenarioSecrets } from "../BrowserScenarioSecrets.js";
 import {

@@ -8,7 +8,7 @@ import {
 } from "../../domain/native/binaryLayout.js";
 import type { ToolContract } from "../toolContractTypes.js";
 import { toolContractMetadata } from "../toolEffects.js";
-import { evidenceResultOf } from "../toolOutputSchemas.js";
+import { evidenceResultOf } from "../toolOutputSchemaPrimitives.js";
 
 /** Offline binary diagnostics are independent of macOS process/UI providers. */
 export const BINARY_DIAGNOSTICS_TOOL_CONTRACTS = [

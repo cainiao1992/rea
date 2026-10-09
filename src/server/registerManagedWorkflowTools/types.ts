@@ -2,8 +2,8 @@ import type {
   EvidenceWriter,
   EvidenceUnknownWriter,
 } from "../../application/investigation/InvestigationRecordPort.js";
-import type { BinarySessionPort } from "../../application/binary/BinarySession.js";
-import type { Logger } from "../../logger.js";
+import type { BinarySessionPort } from "../../application/binary/BinarySessionPort.js";
+import type { Logger } from "pino";
 
 /** Shared services for registering managed-code workflow tools. */
 export interface ManagedWorkflowToolRegistration {

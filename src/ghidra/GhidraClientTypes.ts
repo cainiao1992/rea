@@ -1,4 +1,4 @@
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import type { Result } from "../domain/result.js";
 import type { GhidraLauncher } from "./GhidraLauncher.js";
 import type { GhidraSessionError } from "./GhidraSessionError.js";

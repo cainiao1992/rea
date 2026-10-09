@@ -18,7 +18,7 @@ import {
   javascriptArtifactReconstructionInputSchema,
   type JavaScriptArtifactReconstructionInput,
 } from "./JavaScriptArtifactReconstructionInput.js";
-import { scanCanonicalArtifactInventory } from "../../artifacts/inventory/ArtifactInventory.js";
+import { scanCanonicalArtifactInventory } from "../../artifacts/inventory/scanCanonical.js";
 import { summarizeElectronBoundaries } from "./ElectronBoundaryAnalysis.js";
 import { createJavaScriptSemanticGraphProjection } from "./JavaScriptSemanticGraphBuilder.js";
 import type { ProgressReporter } from "../ProgressReporter.js";

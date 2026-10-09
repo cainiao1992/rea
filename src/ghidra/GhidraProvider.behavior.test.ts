@@ -11,13 +11,11 @@ import { describe, expect, it } from "vitest";
 import { fixtureDosLoadImage } from "./GhidraLoadImage.fixture.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 
-import { parseConfig } from "../config.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import { parseConfig } from "../config/parseConfig.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { parseExecutableHeader } from "../domain/binaryTarget.js";
-import {
-  GhidraProvider,
-  type GhidraProviderClientFactory,
-} from "./GhidraProvider.js";
+import { GhidraProvider } from "./GhidraProvider.js";
+import type { GhidraProviderClientFactory } from "./GhidraProviderClient.js";
 import type { GhidraInstallationHost } from "./GhidraInstallation.js";
 import { GHIDRA_SESSION_CAPABILITIES } from "./GhidraSessionValues.js";
 import { err, ok } from "../domain/result.js";

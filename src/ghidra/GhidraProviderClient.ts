@@ -7,9 +7,9 @@ import {
   type AnalysisClientContext,
   type AnalysisOperation,
 } from "../application/AnalysisProvider.js";
-import type { AppConfig } from "../config.js";
+import type { AppConfig } from "../config/types.js";
 import type { AnalysisProfileCommitment } from "../domain/analysisProfile.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import {
   AnalysisCancelledError,
   AnalysisArtifactChangedError,
@@ -22,7 +22,7 @@ import {
 import { type AnalysisError } from "../domain/analysisErrorBase.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { err, ok, type Result } from "../domain/result.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { GhidraClient } from "./GhidraClient.js";
 import type { GhidraClientOptions } from "./GhidraClientTypes.js";
 import {

@@ -24,7 +24,7 @@ import {
   NATIVE_TOOL_CONTRACTS,
   type NativeToolName,
 } from "../contracts/native/nativeToolContracts.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { toolContract } from "../contracts/toolContracts.js";
 import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
 import type { EvidenceLocation } from "../domain/evidence.js";

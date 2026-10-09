@@ -2,11 +2,13 @@ import {
   createJavaScriptApplicationEdge,
   createJavaScriptApplicationGraph,
   createJavaScriptApplicationNode,
-  type ApplicationEdge,
-  type ApplicationGraphEvidence,
-  type ApplicationNode,
   type JavaScriptApplicationGraph,
 } from "./javascriptApplicationGraph.js";
+import type {
+  ApplicationEdge,
+  ApplicationNode,
+} from "./javascriptApplicationGraphSchemas.js";
+import type { ApplicationGraphEvidence } from "./javascriptApplicationEvidenceSchemas.js";
 import { compareCodePoints, uniqueSorted } from "../canonicalOrdering.js";
 import type { ApplicationVersionComparisonItem } from "./javascriptApplicationVersionComparisonSchemas.js";
 

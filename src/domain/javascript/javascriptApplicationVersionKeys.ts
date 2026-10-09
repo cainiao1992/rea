@@ -1,6 +1,6 @@
 import { canonicalJson } from "../comparisonSemantics.js";
 import { compareCodePoints } from "../canonicalOrdering.js";
-import type { ApplicationNode } from "./javascriptApplicationGraph.js";
+import type { ApplicationNode } from "./javascriptApplicationGraphSchemas.js";
 import type { JsonValue } from "../jsonValue.js";
 
 /** One deterministic one-to-one match between two graph versions. */

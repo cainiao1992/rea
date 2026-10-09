@@ -3,7 +3,7 @@ import type {
   ProviderIdentity,
 } from "../application/AnalysisProvider.js";
 import { createAnalysisProfile } from "../domain/analysisProfile.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { type AnalysisError } from "../domain/analysisErrorBase.js";

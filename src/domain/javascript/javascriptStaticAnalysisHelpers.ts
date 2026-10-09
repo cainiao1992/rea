@@ -17,11 +17,6 @@ import {
 } from "./javascriptAstValues.js";
 import { compareCodePoints } from "../canonicalOrdering.js";
 
-export {
-  propertyName,
-  semanticStaticPropertyName,
-} from "./javascriptAstValues.js";
-
 /** Explicit result for source text that Babel cannot parse. */
 export const failedJavaScriptStaticAnalysis = (): JavaScriptStaticAnalysis => ({
   parse_status: "failed",

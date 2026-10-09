@@ -11,7 +11,6 @@ import {
   calleeName,
   endpointArgument as endpointArgumentHelper,
   prefixedArgument,
-  semanticStaticPropertyName,
   range,
   rangeForOffsets,
   sourceSlice,
@@ -20,6 +19,7 @@ import {
   storageKind,
   stringValue,
 } from "./javascriptStaticAnalysisHelpers.js";
+import { semanticStaticPropertyName } from "./javascriptAstValues.js";
 import type {
   JavaScriptAnalysisAccumulator as AnalysisAccumulator,
   JavaScriptEndpointInput as EndpointInput,

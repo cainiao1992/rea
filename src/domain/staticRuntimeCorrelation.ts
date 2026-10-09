@@ -7,7 +7,7 @@ import { artifactComparisonResultSchema } from "./artifactComparison.js";
 import { uniqueSorted } from "./canonicalOrdering.js";
 import { comparisonSourceEvidenceIds } from "./comparisonSourceEvidence.js";
 import { evidenceSchema, parseEvidence, type Evidence } from "./evidence.js";
-import { functionComparisonResultSchema } from "./functionComparison.js";
+import { functionComparisonResultSchema } from "./functionComparisonSchemas.js";
 import {
   PROCESS_PROVIDER,
   isProcessEvidenceProvider,
@@ -16,7 +16,7 @@ import type { JsonValue } from "./jsonValue.js";
 import {
   comparisonStatusSchema,
   processCaptureComparisonSchema,
-} from "./process/processCapture.js";
+} from "./process/processComparison.js";
 import { PROCESS_COMPARISON_DIMENSIONS } from "./process/processComparison.js";
 import { prefixedDigestSchema } from "./../domain/digests.js";
 

@@ -12,12 +12,12 @@ import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "../../../src/domain/process/proce
 import {
   managedNativeVerificationInputSchema,
   managedNativeVerificationResultSchema,
-  verifyManagedNativeBoundaries,
-} from "../../../src/domain/managed/managedNativeVerification.js";
+} from "../../../src/domain/managed/managedNativeVerificationSchemas.js";
 import { nativeUiResultSchema } from "../../../src/domain/native/nativeUiObservation.js";
-import { processCaptureSchema } from "../../../src/domain/process/processCapture.js";
 import { toolRegistrationOptions } from "../../../src/server/toolRegistrationOptions.js";
 
+import { verifyManagedNativeBoundaries } from "../../../src/domain/managed/managedNativeVerification.js";
+import { processCaptureSchema } from "../../../src/domain/process/processCapture.js";
 const record = (value: unknown): Record<string, unknown> => {
   if (typeof value !== "object" || value === null || Array.isArray(value))
     throw new Error("Expected a schema object");

@@ -11,7 +11,7 @@ import { createDirectAnalysis } from "../../../../src/composition/directAnalysis
 import { ArtifactProvider } from "../../../../src/artifacts/ArtifactProvider.js";
 import { artifactInventoryResultSchema } from "../../../../src/domain/artifactGraph.js";
 import { artifactInspectionResultSchema } from "../../../../src/domain/artifactInspection.js";
-import type { BinaryTarget } from "../../../../src/domain/binaryTarget.js";
+import type { BinaryTarget } from "../../../../src/domain/binaryTargetTypes.js";
 import { parseBinaryTarget } from "../../../../src/application/BinaryTargetResolver.js";
 import { parseEvidence } from "../../../../src/domain/evidence.js";
 

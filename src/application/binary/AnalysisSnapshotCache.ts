@@ -1,4 +1,4 @@
-import type { BinaryTarget } from "../../domain/binaryTarget.js";
+import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
 import type { AnalysisProfileCommitment } from "../../domain/analysisProfile.js";
 import type { JsonValue } from "../../domain/jsonValue.js";
 import type { EvidenceBundle } from "../../domain/evidenceBundle.js";

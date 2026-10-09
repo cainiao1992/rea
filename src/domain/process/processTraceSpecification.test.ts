@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   processTraceSpecificationSchema,
   type ProcessTraceSpecification,
-} from "./processTraceComparison.js";
+} from "./processTraceSpecification.js";
 
 const ready = { sequence: 0, at_ms: 10, data: "ready" };
 const worker = {

@@ -1,5 +1,5 @@
 import type { Result } from "../domain/result.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 
 /** Log one MCP tool's duration and status without recording caller input. */
 export const logToolExecution = async <Value, Failure>(

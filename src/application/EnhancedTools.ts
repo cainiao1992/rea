@@ -42,8 +42,6 @@ import { traceCallPath } from "./CallPathTracing.js";
 import { resolveProcedureAddress } from "./ProcedureAddressResolution.js";
 import { traceLiteralFeature } from "./EnhancedLiteralTracing.js";
 import { projectNativeApiInspection } from "./native/NativeApiInspection.js";
-export type { ValidatedEnhancedCall } from "./EnhancedToolTypes.js";
-
 /**
  * Composes direct provider operations into bounded reverse-engineering tools.
  * Direct callers use `execute`; adapters that own validation use

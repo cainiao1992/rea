@@ -1,10 +1,8 @@
 import { z } from "zod";
 
 import { enhancedInputSchemas } from "./enhancedInputs.js";
-import {
-  enhancedOutputSchemas,
-  requireOutputSchema,
-} from "./toolOutputSchemas.js";
+import { enhancedOutputSchemas } from "./toolOutputSchemaGroups.js";
+import { requireOutputSchema } from "./toolOutputSchemaPrimitives.js";
 import { examplesFor } from "./toolContractHelpers.js";
 import type { ToolContract } from "./toolContractTypes.js";
 import { toolContractMetadata } from "./toolEffects.js";

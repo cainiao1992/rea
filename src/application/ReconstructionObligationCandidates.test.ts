@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createEvidence } from "../domain/evidence.js";
 import { createEvidenceBundle } from "../domain/evidenceBundle.js";
 import { emptyUnverifiedProcessCapture } from "../domain/process/processCapture.fixture.js";
-import { parseProcessCapture } from "../domain/process/processCapture.js";
+import { parseProcessCapture } from "../domain/process/processCaptureParsing.js";
 import {
   digestProcessCommitment,
   parseProcessScenario,

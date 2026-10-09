@@ -3,7 +3,7 @@ import { createWebNetworkCaptureService } from "../composition/webNetworkCapture
 import { CLI_COMMANDS } from "../cliCommandNames.js";
 import { logCliCommand } from "../cliLogging.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import type { CliInstance } from "./types.js";
 import { withCommandCancellation } from "./commandCancellation.js";
 

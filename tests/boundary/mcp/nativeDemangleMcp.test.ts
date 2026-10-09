@@ -6,7 +6,7 @@ import { describe, expect } from "vitest";
 import { z } from "zod";
 
 import { createBinarySession } from "../../../src/composition/binary.js";
-import { parseConfig } from "../../../src/config.js";
+import { parseConfig } from "../../../src/config/parseConfig.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { mcpTest } from "../../support/mcp/mcpFixture.js";

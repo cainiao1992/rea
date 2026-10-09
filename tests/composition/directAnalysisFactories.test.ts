@@ -1,4 +1,4 @@
-import { parseConfig } from "../../src/config.js";
+import { parseConfig } from "../../src/config/parseConfig.js";
 import { ok as resultOk } from "../../src/domain/result.js";
 import { describe, expect, it } from "vitest";
 import {

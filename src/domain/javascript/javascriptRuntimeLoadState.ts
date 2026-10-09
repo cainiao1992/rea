@@ -1,4 +1,4 @@
-import { type ApplicationNode } from "./javascriptApplicationGraph.js";
+import type { ApplicationNode } from "./javascriptApplicationGraphSchemas.js";
 import { uniqueSorted } from "../canonicalOrdering.js";
 import type { ParsedStaticLayer } from "./javascriptRuntimeReconciliationParsing.js";
 import type {

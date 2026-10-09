@@ -1,10 +1,10 @@
-import type { ArtifactInventorySnapshot } from "../../artifacts/inventory/ArtifactInventory.js";
+import type { ArtifactInventorySnapshot } from "../../domain/artifactInventorySnapshot.js";
 import {
   completeApplicationCoverage,
   partialApplicationCoverage,
   type ApplicationGraphEvidence,
 } from "../../domain/javascript/javascriptApplicationEvidenceSchemas.js";
-import type { ApplicationNode } from "../../domain/javascript/javascriptApplicationGraph.js";
+import type { ApplicationNode } from "../../domain/javascript/javascriptApplicationGraphSchemas.js";
 import type { JavaScriptSourceRange } from "../../domain/javascript/javascriptStaticAnalysisTypes.js";
 import type { JavaScriptModuleArtifactAnalysis } from "./JavaScriptArtifactAnalysisTypes.js";
 import type {

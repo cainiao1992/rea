@@ -3,21 +3,21 @@ import { z } from "zod";
 import { processSourceTruncated } from "./processCaptureCoverage.js";
 import type { ProcessObservationSource } from "./processObservation.js";
 
-import type { ProcessCapture } from "./processCapture.js";
+import type { ProcessCapture } from "./processCaptureParsing.js";
 import { comparableTerminalFrame } from "./processObservation.js";
 import { AnalysisInputError } from "../analysisErrorCore.js";
 import { jsonValueSchema } from "../jsonValue.js";
-import {
-  compareProcessTraces,
-  processTraceOutcomesDiffer,
-  processTraceComparisonResultSchema,
-  type ProcessTraceSpecification,
-} from "./processTraceComparison.js";
+import { type ProcessTraceSpecification } from "./processTraceSpecification.js";
+import { processTraceComparisonResultSchema } from "./processTraceEvaluation.js";
 import {
   dimensionsForTraceSources,
   traceCoversObservedDimension,
 } from "./processTraceDimensionProjection.js";
 
+import {
+  compareProcessTraces,
+  processTraceOutcomesDiffer,
+} from "./processTraceComparison.js";
 const OPERATION = "compare_process_captures";
 
 /** Comparison classification that never equates incomplete evidence. */

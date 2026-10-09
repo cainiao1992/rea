@@ -1,6 +1,6 @@
 import type { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 
-import type { BinarySessionPort } from "../application/binary/BinarySession.js";
+import type { BinarySessionPort } from "../application/binary/BinarySessionPort.js";
 import {
   readEvidenceBundle,
   writeEvidenceBundle,
@@ -138,13 +138,10 @@ const registerListUnknownsTool = ({
     listContract.name,
     toolRegistrationOptions(listContract),
     (input) => {
-      const filters = input;
       const all = session.listUnknowns({
-        ...(filters.status === undefined ? {} : { status: filters.status }),
-        ...(filters.severity === undefined
-          ? {}
-          : { severity: filters.severity }),
-        ...(filters.domain === undefined ? {} : { domain: filters.domain }),
+        ...(input.status === undefined ? {} : { status: input.status }),
+        ...(input.severity === undefined ? {} : { severity: input.severity }),
+        ...(input.domain === undefined ? {} : { domain: input.domain }),
       });
       return server.delivery.toCallToolResult(
         ok({

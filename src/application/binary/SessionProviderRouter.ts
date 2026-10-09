@@ -1,6 +1,6 @@
 import type { AnalysisProviderSelector } from "../../contracts/providerSelection.js";
 import type { AnalysisProfileCommitment } from "../../domain/analysisProfile.js";
-import type { BinaryTarget } from "../../domain/binaryTarget.js";
+import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
 import { AnalysisCapabilityUnavailableError } from "../../domain/analysisErrorCore.js";
 import { ProviderSelectionError } from "../../domain/providerSelectionError.js";
 import { type AnalysisError } from "../../domain/analysisErrorBase.js";

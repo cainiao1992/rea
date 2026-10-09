@@ -1,4 +1,4 @@
-import type { WebPageInspection } from "../domain/browserObservation.js";
+import type { WebPageInspection } from "../domain/browserObservationSchemas.js";
 import type { CdpCaptureEvents } from "./CdpCaptureEvents.js";
 import {
   allowedSanitizedUrl,

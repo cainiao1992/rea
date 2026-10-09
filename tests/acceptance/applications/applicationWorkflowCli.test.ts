@@ -14,6 +14,7 @@ import {
   JAVASCRIPT_APPLICATION_VERSION_COMPARISON_EXAMPLE,
   SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE,
 } from "../../../src/contracts/javascript/javascriptApplicationWorkflowExamples.js";
+import { JAVASCRIPT_EXPORT_SHAPE_COMPARISON_EXAMPLE } from "../../../src/contracts/javascript/javascriptExportShapeComparisonExample.js";
 import { analyzeJavaScriptApplication } from "../../../src/application/javascript/JavaScriptApplicationService.js";
 import {
   javascriptApplicationAnalysisResultSchema,

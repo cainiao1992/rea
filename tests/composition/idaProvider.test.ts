@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { IdaProvider } from "../../src/ida/IdaProvider.js";
 import { createIdaTarget, RecordingIdaMcp } from "../fixtures/idaMcp.js";
 import { createTestBinarySession } from "../fixtures/binarySession.js";
-import { parseConfig } from "../../src/config.js";
+import { parseConfig } from "../../src/config/parseConfig.js";
 import {
   createAnalysisSnapshotEntry,
   snapshotBinding,
@@ -13,7 +13,7 @@ import {
 import { createEvidence } from "../../src/domain/evidence.js";
 import { createEvidenceBundle } from "../../src/domain/evidenceBundle.js";
 import { createAnalysisExecution } from "../../src/application/AnalysisProvider.js";
-import { IDA_PROVIDER_IDENTITY } from "../../src/ida/IdaProvider.js";
+import { IDA_PROVIDER_IDENTITY } from "../../src/ida/IdaProviderCapabilities.js";
 
 const roots: string[] = [];
 afterEach(async () => {

@@ -10,7 +10,7 @@ import type { BrowserScenarioCapturePort } from "../application/BrowserScenarioC
 import { captureBrowserScenario } from "../application/BrowserScenarioCaptureService.js";
 import { toolContract } from "../contracts/toolContracts.js";
 import { browserScenarioSchema } from "../domain/browserScenario.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 

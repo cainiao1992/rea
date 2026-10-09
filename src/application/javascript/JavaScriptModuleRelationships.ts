@@ -1,7 +1,7 @@
 import { posix } from "node:path";
 
 import { compareCodePoints } from "../../domain/canonicalOrdering.js";
-import type { ApplicationNode } from "../../domain/javascript/javascriptApplicationGraph.js";
+import type { ApplicationNode } from "../../domain/javascript/javascriptApplicationGraphSchemas.js";
 import {
   completeApplicationCoverage,
   partialApplicationCoverage,

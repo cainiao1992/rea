@@ -2,8 +2,8 @@ import {
   createJavaScriptSemanticGraph,
   createImmutableJavaScriptSemanticGraphSteps,
   type JavaScriptSemanticGraph,
-  type JavaScriptSemanticGraphNode,
 } from "../../domain/javascript/javascriptSemanticGraph.js";
+import type { JavaScriptSemanticGraphNode } from "../../domain/javascript/javascriptSemanticGraphSchemas.js";
 import {
   JAVASCRIPT_SEMANTIC_RELATION_FAMILIES,
   JAVASCRIPT_SEMANTIC_RELATION_FAMILY,

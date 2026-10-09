@@ -1,9 +1,7 @@
 import { expect, it } from "vitest";
 
-import {
-  digestProcessCommitment,
-  parseProcessCapture,
-} from "./processCapture.js";
+import { digestProcessCommitment } from "./processScenario.js";
+import { parseProcessCapture } from "./processCaptureParsing.js";
 import {
   compareUnverifiedProcessCaptures as compareProcessCaptures,
   emptyUnverifiedProcessCapture as emptyCapture,

@@ -1,4 +1,4 @@
-import type { WebPageInspection } from "../domain/browserObservation.js";
+import type { WebPageInspection } from "../domain/browserObservationSchemas.js";
 import { inferJsonShape } from "../domain/jsonShape.js";
 import { safeResponseMetadata } from "./CdpSafeMetadata.js";
 import {

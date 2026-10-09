@@ -12,8 +12,8 @@ import type {
 import {
   semanticCallableIdForNode,
   semanticReferenceRole,
-  semanticStaticPropertyKey,
 } from "./javascriptSemanticProjection.js";
+import { semanticStaticPropertyKey } from "./javascriptAstValues.js";
 import {
   resolveSemanticBindingState,
   isUnshadowedGlobal,

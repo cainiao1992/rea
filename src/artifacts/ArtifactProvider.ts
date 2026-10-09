@@ -21,7 +21,7 @@ import {
   artifactExtractionExecutionSchema,
   type ArtifactAnalysisOperation,
 } from "../contracts/artifactToolContracts.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import {
   AnalysisCapabilityUnavailableError,
   AnalysisInputError,

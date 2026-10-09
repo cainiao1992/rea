@@ -3,7 +3,7 @@ import type { Evidence } from "../evidence.js";
 import {
   type ApplicationEdge,
   type ApplicationNode,
-} from "./javascriptApplicationGraph.js";
+} from "./javascriptApplicationGraphSchemas.js";
 import type { ApplicationFeatureTraceResult } from "./javascriptFeatureTraceSchemas.js";
 
 type NativeHandoff = ApplicationFeatureTraceResult["native_handoffs"][number];

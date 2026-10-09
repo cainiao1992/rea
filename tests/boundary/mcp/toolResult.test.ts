@@ -8,21 +8,19 @@ import {
 
 import { ProcessCaptureError } from "../../../src/process/capture/ProcessCaptureError.js";
 import { resolveProcessResult } from "../../../src/process/capture/ProcessCaptureLifecycle.js";
-import {
-  toolContract,
-  type ToolContract,
-} from "../../../src/contracts/toolContracts.js";
+import { toolContract } from "../../../src/contracts/toolContracts.js";
+import type { ToolContract } from "../../../src/contracts/toolContractTypes.js";
 import { err } from "../../../src/domain/result.js";
 import { HopperProcessError } from "../../../src/domain/hopperErrors.js";
-import type { IncompleteProcessCaptureObservations } from "../../../src/domain/process/processCapture.js";
 import { processScenarioSchema } from "../../../src/domain/process/processScenario.js";
 import { ToolResultDelivery } from "../../../src/server/toolResult.js";
 import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
 import { emptyProcessCapture } from "../../../src/domain/process/processCapture.fixture.js";
 import type { JsonValue } from "../../../src/domain/jsonValue.js";
-import { evidenceResultOf } from "../../../src/contracts/toolOutputSchemas.js";
+import { evidenceResultOf } from "../../../src/contracts/toolOutputSchemaPrimitives.js";
 import { toolRegistrationOptions } from "../../../src/server/toolRegistrationOptions.js";
 
+import type { IncompleteProcessCaptureObservations } from "../../../src/domain/process/processCapture.js";
 const delivery = new ToolResultDelivery(STDIO_DEFAULT_MAX_BUFFER_SIZE);
 
 const contract: ToolContract = {

@@ -7,7 +7,7 @@ import type { BrowserScenario } from "../domain/browserScenario.js";
 import {
   browserStepArtifactsSchema,
   type BrowserStepArtifacts,
-} from "../domain/browserScenarioCapture.js";
+} from "../domain/browserScenarioCaptureValues.js";
 import type { BrowserScenarioSecrets } from "./BrowserScenarioSecrets.js";
 
 const historyValueSchema = z.strictObject({

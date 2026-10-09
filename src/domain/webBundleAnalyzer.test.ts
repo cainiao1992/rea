@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { webPageInspectionSchema } from "./browserObservation.js";
+import { webPageInspectionSchema } from "./browserObservationSchemas.js";
 import { analyzeJavaScriptStaticSource } from "./javascript/javascriptStaticAnalysis.js";
 import { analyzeCapturedWebBundle } from "./webBundleAnalyzer.js";
 import { webBundleAnalysisSchema } from "./webBundleAnalysis.js";

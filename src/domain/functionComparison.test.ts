@@ -2,16 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { FUNCTION_COMPARISON_EXAMPLE } from "../contracts/functionComparisonExample.js";
 import { enhancedInputSchemas } from "../contracts/enhancedInputs.js";
-import {
-  compareFunctions,
-  functionComparisonResultSchema,
-} from "./functionComparison.js";
+import { functionComparisonResultSchema } from "./functionComparisonSchemas.js";
 import { createEvidence, type Evidence } from "./evidence.js";
 import { functionDossierSchema } from "./hopperValues.js";
 import { canonicalDigest, canonicalJson } from "./comparisonSemantics.js";
 import { compareCodePoints } from "./canonicalOrdering.js";
 import { jsonValueSchema } from "./jsonValue.js";
 
+import { compareFunctions } from "./functionComparison.js";
 const dossier = (
   text: string,
   base: "0x1000" | "0x2000",

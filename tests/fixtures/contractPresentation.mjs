@@ -6,7 +6,7 @@ import { BROWSER_SCENARIO_TOOL_CONTRACTS } from "../../dist/contracts/browserSce
 import { ELECTRON_TOOL_CONTRACTS } from "../../dist/contracts/javascript/electronToolContracts.js";
 import { JAVASCRIPT_RUNTIME_OBSERVATION_TOOL_CONTRACTS } from "../../dist/contracts/javascript/javascriptRuntimeObservationToolContracts.js";
 import { TOOL_CONTRACTS } from "../../dist/contracts/toolContracts.js";
-import { parseConfig } from "../../dist/config.js";
+import { parseConfig } from "../../dist/config/parseConfig.js";
 import { createBinarySession } from "../../dist/composition/binary.js";
 
 // Mutate only this child's presentation arrays, before importing registration.

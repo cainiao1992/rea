@@ -2,8 +2,8 @@ import { z } from "zod";
 import { evidenceSchema } from "../../domain/evidence.js";
 
 import { managedReconstructionImportInputSchema } from "../../domain/managed/managedReconstruction.js";
-import type { ToolContract } from "../toolContracts.js";
-import { managedWorkflowOutputSchemas } from "../toolOutputSchemas.js";
+import type { ToolContract } from "../toolContractTypes.js";
+import { managedWorkflowOutputSchemas } from "../toolOutputSchemaGroups.js";
 import {
   MANAGED_MEMBER_COMPARISON_EXAMPLE,
   MANAGED_NATIVE_VERIFICATION_EXAMPLE,

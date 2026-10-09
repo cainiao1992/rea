@@ -5,7 +5,7 @@ import type { FirmwareAnalysisService } from "../application/firmware/FirmwareAn
 import { toolContract } from "../contracts/toolContracts.js";
 import type { ToolContract } from "../contracts/toolContractTypes.js";
 import type { FirmwareOperation } from "../domain/firmware/firmwareAnalysis.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 

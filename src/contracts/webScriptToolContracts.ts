@@ -8,7 +8,7 @@ import {
   webModuleTraceResultSchema,
 } from "../domain/webModuleTrace.js";
 import { toolContractMetadata } from "./toolEffects.js";
-import { evidenceResultOf } from "./toolOutputSchemas.js";
+import { evidenceResultOf } from "./toolOutputSchemaPrimitives.js";
 import {
   webSourceLocationInputSchema,
   webSourceLocationResultSchema,

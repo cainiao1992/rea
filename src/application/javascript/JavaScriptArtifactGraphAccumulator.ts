@@ -1,9 +1,11 @@
 import {
   createJavaScriptApplicationEdge,
   createJavaScriptApplicationNode,
-  type ApplicationEdge,
-  type ApplicationNode,
 } from "../../domain/javascript/javascriptApplicationGraph.js";
+import type {
+  ApplicationEdge,
+  ApplicationNode,
+} from "../../domain/javascript/javascriptApplicationGraphSchemas.js";
 
 /** Deduplicate graph entities while retaining distinct evidence observations. */
 export class JavaScriptArtifactGraphAccumulator {

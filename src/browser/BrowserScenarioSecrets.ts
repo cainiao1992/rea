@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 
+import type { BrowserScenario } from "../domain/browserScenario.js";
 import type {
-  BrowserScenario,
   BrowserScenarioUrl,
   BrowserScenarioValue,
-} from "../domain/browserScenario.js";
+} from "../domain/browserScenarioValues.js";
 import {
   sanitizeBrowserUrl,
   type SanitizedBrowserUrl,

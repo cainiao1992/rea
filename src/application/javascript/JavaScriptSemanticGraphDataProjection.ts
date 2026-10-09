@@ -1,5 +1,5 @@
 import { createJavaScriptSemanticGraphUnknown } from "../../domain/javascript/javascriptSemanticGraph.js";
-import type { JavaScriptSemanticGraphNode } from "../../domain/javascript/javascriptSemanticGraph.js";
+import type { JavaScriptSemanticGraphNode } from "../../domain/javascript/javascriptSemanticGraphSchemas.js";
 import type {
   JavaScriptSemanticBoundaryOperation,
   JavaScriptSemanticConfigurationOperation,
@@ -11,10 +11,7 @@ import {
   addSemanticGraphUnknown,
 } from "./JavaScriptSemanticGraphConstruction.js";
 import { unknownSemanticEvidence } from "./JavaScriptSemanticGraphEvidence.js";
-import {
-  semanticCallSiteAt,
-  type SemanticFlowProjectionContext,
-} from "./JavaScriptSemanticGraphFlowProjection.js";
+import type { SemanticFlowProjectionContext } from "./JavaScriptSemanticGraphFlowProjection.js";
 
 /** Project environment, argv, file, default, and precedence candidates. */
 export const projectSemanticConfiguration = (
@@ -158,7 +155,7 @@ const projectRequestConstruction = (
   operation: JavaScriptSemanticRequestOperation,
   request: JavaScriptSemanticGraphNode,
 ): void => {
-  const callSite = semanticCallSiteAt(context, operation.location);
+  const callSite = context.callSiteAt(operation.location);
   addSemanticGraphRelation(context.state, {
     source: callSite,
     target: request,
@@ -197,7 +194,7 @@ const projectResponseConsumer = (
 ): void => {
   addSemanticGraphRelation(context.state, {
     source: response,
-    target: semanticCallSiteAt(context, operation.location),
+    target: context.callSiteAt(operation.location),
     relation: "consumed-by",
     resolution: operation.resolution === "complete" ? "resolved" : "candidate",
     properties: { method: operation.method },

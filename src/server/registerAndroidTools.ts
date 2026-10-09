@@ -5,7 +5,7 @@ import { AndroidAnalysisService } from "../application/android/AndroidAnalysisSe
 import { toolContract } from "../contracts/toolContracts.js";
 import type { ToolContract } from "../contracts/toolContractTypes.js";
 import type { AndroidOperation } from "../domain/android/androidAnalysis.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 

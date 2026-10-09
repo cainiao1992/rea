@@ -3,7 +3,7 @@ import type { AndroidAnalysisPort } from "../application/android/AndroidAnalysis
 import type { StdioServerHandle } from "@modelcontextprotocol/server/stdio";
 
 import type { BinarySession } from "../application/binary/BinarySession.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { createServer } from "../server/createServer.js";
 import type { ToolResultDelivery } from "../server/toolResult.js";
 import type { RuntimeDependencies } from "./types.js";

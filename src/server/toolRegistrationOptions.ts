@@ -1,4 +1,4 @@
-import type { ToolContract } from "../contracts/toolContracts.js";
+import type { ToolContract } from "../contracts/toolContractTypes.js";
 import {
   toolInputSchemaWithMetadata,
   toolOutputSchemaWithMetadata,

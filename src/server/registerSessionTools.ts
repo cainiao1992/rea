@@ -5,7 +5,7 @@ import {
   inspectAddressContext,
 } from "../application/AnalysisContextQueries.js";
 import { readAnalysisSnapshot } from "../application/binary/AnalysisSnapshotFiles.js";
-import type { BinarySessionPort } from "../application/binary/BinarySession.js";
+import type { BinarySessionPort } from "../application/binary/BinarySessionPort.js";
 import { createProcessCaptureEvidence } from "../application/process/ProcessEvidence.js";
 import { captureProcessScenario } from "../process/capture/ProcessHarness.js";
 import { toolContract } from "../contracts/toolContracts.js";
@@ -13,9 +13,9 @@ import type { AnalysisSnapshot } from "../domain/analysisSnapshot.js";
 import { UnknownRegistryError } from "../domain/unknownRegistryError.js";
 import { type AnalysisError } from "../domain/analysisErrorBase.js";
 import type { Evidence } from "../domain/evidence.js";
-import type { ProcessCapture } from "../domain/process/processCapture.js";
+import type { ProcessCapture } from "../domain/process/processCaptureParsing.js";
 import { ok, type Result } from "../domain/result.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import type { ProviderAvailability } from "../application/AnalysisProvider.js";
 import { mcpProgressReporter } from "./mcpProgress.js";
 import { registerArtifactComparisonTool } from "./registerArtifactComparisonTool.js";
@@ -91,7 +91,6 @@ const registerProcessTools = ({
     captureContract.name,
     toolRegistrationOptions(captureContract),
     async (input, context) => {
-      const scenario = input;
       const progress = mcpProgressReporter(context);
       await progress.report({
         phase: captureContract.name,
@@ -102,7 +101,7 @@ const registerProcessTools = ({
       const captured = await logToolExecution(
         logger,
         captureContract.name,
-        () => captureProcessScenario(scenario, context.mcpReq.signal),
+        () => captureProcessScenario(input, context.mcpReq.signal),
       );
       await progress.report({
         phase: captureContract.name,
@@ -113,7 +112,7 @@ const registerProcessTools = ({
       });
       if (!captured.ok)
         return server.delivery.toCallToolResult(captured, captureContract);
-      const evidence = createProcessCaptureEvidence(scenario, captured.value);
+      const evidence = createProcessCaptureEvidence(input, captured.value);
       const recorded = session.recordEvidence(evidence);
       if (!recorded.ok)
         return server.delivery.toCallToolResult(recorded, captureContract);

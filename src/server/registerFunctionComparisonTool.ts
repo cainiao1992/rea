@@ -1,6 +1,6 @@
 import type { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 
-import type { BinarySessionPort } from "../application/binary/BinarySession.js";
+import type { BinarySessionPort } from "../application/binary/BinarySessionPort.js";
 import { toolContract } from "../contracts/toolContracts.js";
 import {
   createEvidence,
@@ -9,15 +9,15 @@ import {
 } from "../domain/evidence.js";
 import { EvidenceIntegrityError } from "../domain/evidenceErrors.js";
 import { err } from "../domain/result.js";
-import { compareFunctions } from "../domain/functionComparison.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import type { RecordUnknownInput } from "../domain/residualUnknown.js";
 import { recordDerivedEvidence } from "./recordDerivedEvidence.js";
 import { recordSessionEvidenceSources } from "./sessionEvidence.js";
 import { runDerivedOperation } from "./runDerivedOperation.js";
-import { FUNCTION_COMPARISON_PROVIDER } from "./sessionToolPolicies.js";
+import { FUNCTION_COMPARISON_PROVIDER } from "../application/InvestigationProviders.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 
+import { compareFunctions } from "../domain/functionComparison.js";
 /** Register explicit Evidence-backed function comparison. */
 export const registerFunctionComparisonTool = (
   server: EvidenceMcpServer,

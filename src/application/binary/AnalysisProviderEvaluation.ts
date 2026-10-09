@@ -2,7 +2,7 @@ import {
   analysisProfileSchema,
   type AnalysisProfileCommitment,
 } from "../../domain/analysisProfile.js";
-import type { BinaryTarget } from "../../domain/binaryTarget.js";
+import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
 import {
   AnalysisCancelledError,
   AnalysisUnsupportedTargetError,

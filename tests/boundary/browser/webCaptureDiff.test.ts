@@ -2,11 +2,11 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { CdpBrowserProvider } from "../../../src/browser/CdpBrowserProvider.js";
 import { inspectWebPageInputSchema } from "../../../src/domain/browserObservation.js";
+import { compareWebCaptures } from "../../../src/domain/webCaptureDiff.js";
 import {
-  compareWebCaptures,
   compareWebCapturesInputSchema,
   webCaptureDiffSchema,
-} from "../../../src/domain/webCaptureDiff.js";
+} from "../../../src/domain/webCaptureDiffSchemas.js";
 import {
   startFakeCdpBrowser,
   type FakeCdpBrowser,

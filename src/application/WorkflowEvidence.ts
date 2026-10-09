@@ -9,7 +9,7 @@ import {
   analysisProfileSchema,
   committedProviderSchema,
 } from "../domain/analysisProfile.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import {
   createEvidence,
   type Evidence,

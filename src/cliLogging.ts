@@ -7,7 +7,7 @@ import {
   projectAnalysisError,
   type AnalysisErrorProjection,
 } from "./domain/analysisErrorProjection.js";
-import type { Logger } from "./logger.js";
+import type { Logger } from "pino";
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null && !Array.isArray(value);

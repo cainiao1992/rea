@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import type { BinaryTarget } from "../../src/domain/binaryTarget.js";
+import type { BinaryTarget } from "../../src/domain/binaryTargetTypes.js";
 import { ok } from "../../src/domain/result.js";
 import type {
   NativeCommandCapture,

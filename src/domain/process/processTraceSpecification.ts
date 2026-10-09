@@ -12,10 +12,6 @@ import {
 
 const identifierSchema = z.string().regex(IDENTIFIER_PATTERN);
 
-/** Process observation families admitted by a declared trace specification. */
-export const processTraceSourceSchema = processObservationSourceSchema;
-export type ProcessTraceSource = ProcessObservationSource;
-
 const cardinalitySchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("required") }),
   z.strictObject({ kind: z.literal("optional") }),
@@ -37,7 +33,7 @@ const cardinalitySchema = z.discriminatedUnion("kind", [
 
 const eventDeclarationSchema = z.strictObject({
   id: identifierSchema,
-  source: processTraceSourceSchema,
+  source: processObservationSourceSchema,
   exact: jsonValueSchema,
   ignore_fields: z
     .array(

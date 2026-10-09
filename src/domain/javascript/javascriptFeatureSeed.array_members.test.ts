@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   createJavaScriptApplicationGraph,
   createJavaScriptApplicationNode,
-  type ApplicationNode,
 } from "./javascriptApplicationGraph.js";
+import type { ApplicationNode } from "./javascriptApplicationGraphSchemas.js";
 import {
   artifactEvidence,
   completeCoverage,

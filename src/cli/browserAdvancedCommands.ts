@@ -22,7 +22,7 @@ import {
 } from "../domain/webScreenshot.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { safeParseJson } from "../domain/safeJson.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
 
 /** Register WebMCP, capture-diff, and screenshot CLI equivalents. */

@@ -3,7 +3,7 @@ import type {
   EvidenceReader,
   EvidenceUnknownWriter,
 } from "../../application/investigation/InvestigationRecordPort.js";
-import type { Logger } from "../../logger.js";
+import type { Logger } from "pino";
 
 /** Shared services for registering JavaScript application graph workflows. */
 export interface ApplicationToolRegistration {

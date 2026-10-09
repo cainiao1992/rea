@@ -1,6 +1,6 @@
 import type { BinarySession } from "../application/binary/BinarySession.js";
-import type { AppConfig } from "../config.js";
-import type { Logger } from "../logger.js";
+import type { AppConfig } from "../config/types.js";
+import type { Logger } from "pino";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 
 export const openInitialTarget = async (

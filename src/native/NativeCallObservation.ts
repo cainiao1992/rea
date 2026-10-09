@@ -7,7 +7,7 @@ import {
   AnalysisInputError,
 } from "../domain/analysisErrorCore.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { EvidenceIntegrityError } from "../domain/evidenceErrors.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import type { JsonValue } from "../domain/jsonValue.js";

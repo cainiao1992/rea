@@ -14,7 +14,7 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { AnalysisProviderRegistry } from "../../../src/application/binary/AnalysisProviderRegistry.js";
 import { composeBinarySession } from "../../../src/application/binary/BinarySessionComposition.js";
 import type { BinarySession } from "../../../src/application/binary/BinarySession.js";
-import type { BinaryTarget } from "../../../src/domain/binaryTarget.js";
+import type { BinaryTarget } from "../../../src/domain/binaryTargetTypes.js";
 import { MANAGED_NATIVE_VERIFICATION_EXAMPLE } from "../../../src/contracts/managed/managedWorkflowExamples.js";
 import { toolContract } from "../../../src/contracts/toolContracts.js";
 import { ManagedStaticProvider } from "../../../src/dotnet/ManagedStaticProvider.js";

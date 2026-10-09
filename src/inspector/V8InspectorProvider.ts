@@ -40,8 +40,6 @@ import {
   type V8InspectorTarget,
 } from "./V8InspectorEndpoint.js";
 
-/** Public identity committed by passive V8 Inspector observations. */
-export { V8_INSPECTOR_PROVIDER_IDENTITY } from "./providerIdentity.js";
 import { V8_INSPECTOR_PROVIDER_IDENTITY } from "./providerIdentity.js";
 
 /** Maximum decoded CDP message accepted while observing one Inspector target. */

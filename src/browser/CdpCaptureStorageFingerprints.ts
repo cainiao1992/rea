@@ -2,10 +2,8 @@ import { createHash } from "node:crypto";
 
 import canonicalize from "canonicalize";
 
-import type {
-  InspectWebPageInput,
-  WebPageInspection,
-} from "../domain/browserObservation.js";
+import type { InspectWebPageInput } from "../domain/browserObservation.js";
+import type { WebPageInspection } from "../domain/browserObservationSchemas.js";
 import { compareCodePoints } from "../domain/canonicalOrdering.js";
 import { CdpConnection } from "./CdpConnection.js";
 import { optionalCdpCommand } from "./CdpOptionalCommand.js";

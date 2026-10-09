@@ -1,8 +1,6 @@
-import {
-  createJavaScriptApplicationEdge,
-  type ApplicationEdge,
-  type ApplicationGraphEvidence,
-} from "./javascriptApplicationGraph.js";
+import { createJavaScriptApplicationEdge } from "./javascriptApplicationGraph.js";
+import type { ApplicationEdge } from "./javascriptApplicationGraphSchemas.js";
+import type { ApplicationGraphEvidence } from "./javascriptApplicationEvidenceSchemas.js";
 import { canonicalDigest } from "../comparisonSemantics.js";
 import type { ParsedStaticLayer } from "./javascriptRuntimeReconciliationParsing.js";
 import { compareCodePoints } from "../canonicalOrdering.js";

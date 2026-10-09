@@ -1,4 +1,4 @@
-import { parseConfig } from "../../src/config.js";
+import { parseConfig } from "../../src/config/parseConfig.js";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 

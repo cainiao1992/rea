@@ -19,7 +19,7 @@ import {
   REA_WORKFLOW_PROVIDER,
   workflowAnalysisProfile,
 } from "../../../src/application/InvestigationProviders.js";
-import { HOPPER_PROVIDER_IDENTITY } from "../../../src/hopper/HopperProvider.js";
+import { HOPPER_PROVIDER_IDENTITY } from "../../../src/hopper/HopperProviderCapabilities.js";
 import { resolveHopperAnalysisProfile } from "../../../src/hopper/HopperAnalysisProfile.js";
 
 afterEach(async () => {

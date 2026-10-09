@@ -1,5 +1,6 @@
-import type { AppConfig, parseConfig } from "../config.js";
-import type { Logger } from "../logger.js";
+import type { AppConfig } from "../config/types.js";
+import type { parseConfig } from "../config/parseConfig.js";
+import type { Logger } from "pino";
 import type { BinarySession } from "./binary/BinarySession.js";
 
 /** Configuration and one-shot session factories supplied by the production boundary. */

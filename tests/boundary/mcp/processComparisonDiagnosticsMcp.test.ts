@@ -6,11 +6,11 @@ import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { expect, it, onTestFinished } from "vitest";
 
 import { compareProcessEvidenceFiles } from "../../../src/application/process/ProcessCli.js";
-import { PROCESS_PROVIDER } from "../../../src/application/process/ProcessEvidence.js";
-import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "../../../src/contracts/process/processCaptureExample.js";
+import { PROCESS_PROVIDER } from "../../../src/domain/process/processEvidenceProvider.js";
+import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "../../../src/domain/process/processCaptureExample.js";
 import { createEvidence } from "../../../src/domain/evidence.js";
 import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
-import { digestProcessCommitment } from "../../../src/domain/process/processCapture.js";
+import { digestProcessCommitment } from "../../../src/domain/process/processScenario.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";

@@ -1,5 +1,4 @@
 import type { AnalysisViewCoverage } from "./analysisView.js";
-
 /** Coverage for a summary, facet, or single selected object. */
 export const completeWithinViewCoverage = (
   examined: number,

@@ -13,12 +13,6 @@ import {
   type BrowserScenarioValue,
 } from "./browserScenarioValues.js";
 
-export {
-  type BrowserScenarioAction,
-  type BrowserScenarioUrl,
-  type BrowserScenarioValue,
-} from "./browserScenarioValues.js";
-
 export const browserScenarioInputSchema = z.strictObject({
   browser: browserScenarioBrowserSchema.describe(
     "Required launch/connect selection. Launch uses the selected executable and an owned temporary profile; connect uses one loopback CDP endpoint and target.",

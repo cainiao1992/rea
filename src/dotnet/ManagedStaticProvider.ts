@@ -17,13 +17,11 @@ import {
 } from "./ManagedStaticProviderMetadata.js";
 import {
   MANAGED_TOOL_CONTRACTS,
-  managedArtifactInputSchema,
-  managedMemberInputSchema,
-  managedNativeBoundaryInputSchema,
+  managedTargetInputSchema,
   type ManagedToolName,
 } from "../contracts/managed/managedToolContracts.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import {
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
@@ -189,15 +187,13 @@ const inspectManagedOperation = (
   | ManagedArtifactInspection
   | ManagedMemberInspection
   | ManagedNativeBoundaryInspection => {
+  managedTargetInputSchema.parse(parameters);
   if (operation === "inspect_managed_artifact") {
-    managedArtifactInputSchema.parse(parameters);
     return inspectManagedArtifactBytes(bytes, target);
   }
   if (operation === "inspect_managed_native_boundaries") {
-    managedNativeBoundaryInputSchema.parse(parameters);
     return inspectManagedNativeBoundariesBytes(bytes, target);
   }
-  managedMemberInputSchema.parse(parameters);
   return inspectManagedMembersBytes(bytes, target);
 };
 

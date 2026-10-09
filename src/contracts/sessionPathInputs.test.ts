@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { browserScenarioBrowserSchema } from "../domain/browserScenarioValues.js";
 import { firmwareInputSchemas } from "../domain/firmware/firmwareAnalysis.js";
 import { electronActiveObservationInputSchema } from "../domain/javascript/electronActiveObservation.js";
-import { managedArtifactInputSchema } from "./managed/managedToolContracts.js";
+import { managedTargetInputSchema } from "./managed/managedToolContracts.js";
 import { exportEvidenceBundleInputSchema } from "./sessionToolContracts.js";
 import {
   closeBinaryInputSchema,
@@ -48,10 +48,10 @@ const cases: readonly PathCase[] = [
   },
   {
     name: "managed target",
-    accepts: (path) => managedArtifactInputSchema.safeParse({ path }).success,
+    accepts: (path) => managedTargetInputSchema.safeParse({ path }).success,
     relative: ["bin/app.dll"],
     absolute: "/tmp/app.dll",
-    omitted: () => managedArtifactInputSchema.safeParse({}).success,
+    omitted: () => managedTargetInputSchema.safeParse({}).success,
   },
   {
     name: "open binary target",

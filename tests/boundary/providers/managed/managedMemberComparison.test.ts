@@ -10,10 +10,8 @@ import {
   compareManagedMemberPaths,
 } from "../../../../src/application/managed/ManagedMemberComparisonService.js";
 import { parseBinaryTarget } from "../../../../src/application/BinaryTargetResolver.js";
-import {
-  managedMemberComparisonResultSchema,
-  parseManagedMemberEvidence,
-} from "../../../../src/domain/managed/managedMemberComparison.js";
+import { managedMemberComparisonResultSchema } from "../../../../src/domain/managed/managedMemberComparison.js";
+import { parseManagedMemberEvidence } from "../../../../src/domain/managed/managedMemberComparisonMatch.js";
 import { createEvidence } from "../../../../src/domain/evidence.js";
 import { projectAnalysisError } from "../../../../src/domain/analysisErrorProjection.js";
 import { jsonValueSchema } from "../../../../src/domain/jsonValue.js";

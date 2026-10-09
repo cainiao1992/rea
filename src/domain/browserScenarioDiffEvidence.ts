@@ -1,10 +1,10 @@
 import type {
-  BrowserScenarioCapture,
   BrowserScenarioCompleteness,
   BrowserScenarioCompletenessSection,
   BrowserScenarioStep,
   BrowserStepArtifacts,
-} from "./browserScenarioCapture.js";
+} from "./browserScenarioCaptureValues.js";
+import type { BrowserScenarioCapture } from "./browserScenarioCapture.js";
 import type {
   BrowserScenarioArtifactKind,
   BrowserScenarioEvidenceState,

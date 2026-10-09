@@ -1,10 +1,12 @@
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import type {
-  BrowserTargetList,
   InspectWebPageInput,
   ListBrowserTargetsInput,
-  WebPageInspection,
 } from "../domain/browserObservation.js";
+import type {
+  BrowserTargetList,
+  WebPageInspection,
+} from "../domain/browserObservationSchemas.js";
 import type { Result } from "../domain/result.js";
 import type {
   AnalyzeWebBundleInput,

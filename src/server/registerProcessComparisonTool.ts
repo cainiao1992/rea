@@ -1,6 +1,6 @@
 import type { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 
-import type { BinarySessionPort } from "../application/binary/BinarySession.js";
+import type { BinarySessionPort } from "../application/binary/BinarySessionPort.js";
 import { toolContract } from "../contracts/toolContracts.js";
 import { AnalysisInputError } from "../domain/analysisErrorCore.js";
 import { type AnalysisError } from "../domain/analysisErrorBase.js";
@@ -13,17 +13,17 @@ import {
   type EvidenceLocation,
 } from "../domain/evidence.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
+import { compareProcessCaptures } from "../domain/process/processComparison.js";
 import {
-  compareProcessCaptures,
   parseProcessCapture,
   type ProcessCapture,
-} from "../domain/process/processCapture.js";
+} from "../domain/process/processCaptureParsing.js";
 import type { RecordUnknownInput } from "../domain/residualUnknown.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { recordDerivedEvidence } from "./recordDerivedEvidence.js";
 import { recordSessionEvidenceSources } from "./sessionEvidence.js";
 import { runDerivedOperation } from "./runDerivedOperation.js";
-import { PROCESS_PROVIDER } from "./sessionToolPolicies.js";
+import { PROCESS_PROVIDER } from "../domain/process/processEvidenceProvider.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 
 const PROCESS_CAPTURE_EVIDENCE = {

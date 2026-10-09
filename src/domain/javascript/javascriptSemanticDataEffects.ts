@@ -12,7 +12,7 @@ import { compareCodePoints } from "../canonicalOrdering.js";
 import {
   semanticStaticPropertyKey,
   semanticStaticPropertyName,
-} from "./javascriptSemanticProjection.js";
+} from "./javascriptAstValues.js";
 import {
   resolveSemanticBindingState,
   semanticResolutionBlocked,

@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { parseProcessCapture } from "./processCapture.js";
-import {
-  compareProcessTraces,
-  processTraceComparisonResultSchema,
-  type ProcessTraceSpecification,
-} from "./processTraceComparison.js";
+import { parseProcessCapture } from "./processCaptureParsing.js";
+import { type ProcessTraceSpecification } from "./processTraceSpecification.js";
+import { processTraceComparisonResultSchema } from "./processTraceEvaluation.js";
 import {
   capture,
   partialSpecification,
@@ -13,6 +10,7 @@ import {
   values,
 } from "./processTraceComparison.fixture.js";
 
+import { compareProcessTraces } from "./processTraceComparison.js";
 describe("generic capture trace comparison", () => {
   it("requires explicit partial ordering and never infers causality from timestamps", () => {
     const specification = partialSpecification();

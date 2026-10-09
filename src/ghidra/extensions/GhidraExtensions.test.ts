@@ -6,9 +6,9 @@ import { mkdtemp, open, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { parseConfig } from "../../config.js";
+import { parseConfig } from "../../config/parseConfig.js";
 import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
-import type { BinaryTarget } from "../../domain/binaryTarget.js";
+import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
 import {
   ghidraExtensionSchema,
   resolveGhidraExtensions,

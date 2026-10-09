@@ -1,5 +1,5 @@
 import { createAnalysisProfile } from "./analysisProfile.js";
-import type { BinaryTarget } from "./binaryTarget.js";
+import type { BinaryTarget } from "./binaryTargetTypes.js";
 
 /** Immutable target shared by analysis-snapshot contract tests. */
 export const ANALYSIS_SNAPSHOT_TARGET: BinaryTarget = {

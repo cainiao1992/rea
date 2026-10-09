@@ -18,7 +18,7 @@ import { parseMcpResponseBudget } from "../config/mcpResponseBudget.js";
 import { isAbsolute } from "node:path";
 
 import type { AnalysisOperationPort } from "../application/AnalysisProvider.js";
-import type { BinarySessionPort } from "../application/binary/BinarySession.js";
+import type { BinarySessionPort } from "../application/binary/BinarySessionPort.js";
 import type { BrowserObservationPort } from "../application/BrowserObservationPort.js";
 import type { BrowserScenarioCapturePort } from "../application/BrowserScenarioCapturePort.js";
 import type { ElectronActiveObservationPort } from "../application/javascript/ElectronActiveObservationPort.js";
@@ -26,7 +26,8 @@ import type { ElectronObservationPort } from "../application/javascript/Electron
 import type { JavaScriptRuntimeObservationPort } from "../application/javascript/JavaScriptRuntimeObservationPort.js";
 import type { OptionalProviderLoadFailures } from "../application/OptionalObservationProviders.js";
 import { PRODUCT_IDENTITY } from "../identity.js";
-import { silentLogger, type Logger } from "../logger.js";
+import { silentLogger } from "../logger.js";
+import type { Logger } from "pino";
 import { registerApplicationTools } from "./registerApplicationTools.js";
 import { registerArtifactTools } from "./registerArtifactTools.js";
 import { registerBrowserScenarioTool } from "./registerBrowserScenarioTool.js";

@@ -2,9 +2,9 @@ import {
   inspectWebNetworkCaptureInputSchema,
   webNetworkCaptureSchema,
 } from "../domain/webNetworkCapture.js";
-import type { ToolContract } from "./toolContracts.js";
+import type { ToolContract } from "./toolContractTypes.js";
 import { toolContractMetadata } from "./toolEffects.js";
-import { evidenceResultOf } from "./toolOutputSchemas.js";
+import { evidenceResultOf } from "./toolOutputSchemaPrimitives.js";
 
 /** Historical inspection is distinct from live browser capture and runtime authority. */
 export const WEB_NETWORK_CAPTURE_TOOL_CONTRACTS = [

@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { jsonObjectSchema } from "./jsonValue.js";
 import {
-  webRuntimeBrowserSchema,
   webRuntimeLocationSchema,
   webRuntimeScopeSchema,
   webRuntimeSourceSchema,
   webRuntimeTargetSchema,
 } from "./webRuntime.js";
+import { browserVersionSchema } from "./browserObservationSchemas.js";
 
 /** Explicit instrumentation request for one finite, externally driven execution window. */
 export const observeWebExecutionInputSchema = webRuntimeScopeSchema.extend({
@@ -30,7 +30,7 @@ const functionSchema = z.object({
 
 /** Precise V8 ranges retain their nested structure and counts without summing them. */
 export const webExecutionSchema = z.object({
-  browser: webRuntimeBrowserSchema,
+  browser: browserVersionSchema,
   target: webRuntimeTargetSchema,
   window: z.object({
     armed_at: z.iso.datetime(),

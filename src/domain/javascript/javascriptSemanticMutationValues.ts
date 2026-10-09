@@ -1,4 +1,4 @@
-import type { JavaScriptSemanticValue } from "./javascriptSemanticIr.js";
+import type { JavaScriptSemanticValue } from "./javascriptSemanticValueTypes.js";
 
 /** Invalidate only slots that an explicit mutation can affect. */
 export const invalidateSemanticMutationPath = (

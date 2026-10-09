@@ -1,24 +1,14 @@
-import * as t from "@babel/types";
-
 import type {
   JavaScriptSemanticPrimitive,
   JavaScriptSemanticValue,
-} from "./javascriptSemanticIr.js";
+} from "./javascriptSemanticValueTypes.js";
 import { compareCodePoints } from "../canonicalOrdering.js";
 import { semanticPrimitiveKey } from "./javascriptSemanticProvenance.js";
-import { readExactJavaScriptLiteral } from "./javascriptAstValues.js";
 import {
   SEMANTIC_PRIMITIVE_CANDIDATE_LIMIT,
   exceedsSemanticPrimitiveStringByteBudget,
   semanticResourceLimitUnknown,
 } from "./javascriptSemanticResourceLimits.js";
-
-/**
- * Keep eight independent binary choices exact, while bounding the next
- * exponential expansion before it allocates hundreds more alternatives.
- */
-export const MAX_SEMANTIC_PRIMITIVE_CANDIDATES =
-  SEMANTIC_PRIMITIVE_CANDIDATE_LIMIT;
 
 /** Normalize one bounded collection of possible primitive values. */
 export const semanticPrimitiveSet = (
@@ -32,7 +22,7 @@ export const semanticPrimitiveSet = (
         reason: "Nonfinite numbers are outside the JSON primitive lattice.",
       };
     uniqueValues.add(value);
-    if (uniqueValues.size > MAX_SEMANTIC_PRIMITIVE_CANDIDATES)
+    if (uniqueValues.size > SEMANTIC_PRIMITIVE_CANDIDATE_LIMIT)
       return semanticResourceLimitUnknown("primitive-candidates");
   }
   if (
@@ -62,12 +52,3 @@ export const semanticPrimitiveCandidates = (
     : value.status === "union"
       ? value.values
       : null;
-
-/** Parse one Babel primitive literal without evaluating code. */
-export const semanticPrimitiveValue = (
-  node: t.Node,
-):
-  | { readonly found: true; readonly value: JavaScriptSemanticPrimitive }
-  | { readonly found: false } => {
-  return readExactJavaScriptLiteral(node);
-};

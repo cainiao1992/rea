@@ -1,5 +1,5 @@
-import type { ProcessCapture } from "./processCapture.js";
-import type { ProcessTraceSource } from "./processTraceSpecification.js";
+import type { ProcessCapture } from "./processCaptureParsing.js";
+import type { ProcessObservationSource } from "./processObservation.js";
 
 export type ProcessComparisonDimension =
   | "terminal"
@@ -8,9 +8,9 @@ export type ProcessComparisonDimension =
   | "filesystem"
   | "process";
 
-/** Map declared trace sources to legacy process-comparison dimensions. */
+/** Map declared trace sources to process-comparison dimensions. */
 export const dimensionsForTraceSources = (
-  sources: ReadonlySet<ProcessTraceSource>,
+  sources: ReadonlySet<ProcessObservationSource>,
 ): ReadonlySet<ProcessComparisonDimension> => {
   const dimensions = new Set<ProcessComparisonDimension>();
   for (const source of sources) {
@@ -26,7 +26,7 @@ export const dimensionsForTraceSources = (
 /** Whether a trace specification covers every observed source in a dimension. */
 export const traceCoversObservedDimension = (
   dimension: ProcessComparisonDimension,
-  sources: ReadonlySet<ProcessTraceSource>,
+  sources: ReadonlySet<ProcessObservationSource>,
   left: ProcessCapture,
   right: ProcessCapture,
 ): boolean => {

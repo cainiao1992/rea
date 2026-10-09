@@ -1,8 +1,8 @@
 import {
   createJavaScriptSemanticFingerprint,
   type JavaScriptSemanticGraph,
-  type JavaScriptSemanticGraphNode,
 } from "../../domain/javascript/javascriptSemanticGraph.js";
+import type { JavaScriptSemanticGraphNode } from "../../domain/javascript/javascriptSemanticGraphSchemas.js";
 import type { JavaScriptSemanticIr } from "../../domain/javascript/javascriptSemanticIr.js";
 import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptArtifactFiles.js";
 import { observedSemanticEvidence } from "./JavaScriptSemanticGraphEvidence.js";

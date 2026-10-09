@@ -20,13 +20,15 @@ import {
 } from "../javascript/javascriptSemanticGraph.js";
 import {
   completeWithinViewCoverage,
-  inspectAnalysisViewInputSchema,
   pageViewCoverage,
+} from "./analysisViewCoverage.js";
+import { javascriptModulePath } from "./javascriptApplicationView.js";
+
+import {
+  inspectAnalysisViewInputSchema,
   projectAnalysisView,
   type AnalysisViewParent,
 } from "./analysisView.js";
-import { javascriptModulePath } from "./javascriptApplicationView.js";
-
 const layoutParent = (): AnalysisViewParent => {
   const evidence = analysisViewLayoutEvidence();
   return {

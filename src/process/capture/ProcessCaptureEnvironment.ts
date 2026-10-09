@@ -1,4 +1,4 @@
-import type { ProcessScenario } from "../../domain/process/processCapture.js";
+import type { ProcessScenario } from "../../domain/process/processScenario.js";
 
 interface ProcessCaptureEnvironmentOptions {
   readonly scenario: ProcessScenario;

@@ -9,7 +9,7 @@ import { uniqueSorted } from "./canonicalOrdering.js";
 import { comparisonSourceEvidenceSides } from "./comparisonSourceEvidence.js";
 import { parseEvidence, type Evidence } from "./evidence.js";
 import { parseEvidenceBundle } from "./evidenceBundle.js";
-import { functionComparisonResultSchema } from "./functionComparison.js";
+import { functionComparisonResultSchema } from "./functionComparisonSchemas.js";
 import {
   PROCESS_PROVIDER,
   isProcessEvidenceProvider,
@@ -19,8 +19,8 @@ import {
   deriveProcessComparisonStatus,
   PROCESS_COMPARISON_DIMENSIONS,
   processCaptureComparisonSchema,
-  parseProcessCapture,
-} from "./process/processCapture.js";
+} from "./process/processComparison.js";
+import { parseProcessCapture } from "./process/processCaptureParsing.js";
 import {
   reconstructionClaimResultSchema,
   reconstructionSpecificationSchema,
@@ -36,12 +36,6 @@ import {
   reconstructionUnknownHeads,
 } from "./reconstructionUnknowns.js";
 import type { ResidualUnknown } from "./residualUnknown.js";
-
-export {
-  reconstructionVerificationInputSchema,
-  reconstructionVerificationResultSchema,
-} from "./reconstructionVerificationSchemas.js";
-export type { ReconstructionVerificationResult } from "./reconstructionVerificationSchemas.js";
 
 const providers = {
   behavioral: {

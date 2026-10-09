@@ -20,7 +20,7 @@ import { type AnalysisError } from "../domain/analysisErrorBase.js";
 import { androidApplicationProjectionInputSchema } from "../domain/android/androidApplication.js";
 import { appleApplicationProjectionInputSchema } from "../domain/apple/appleApplication.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { traceApplicationFeatureInputSchema } from "../domain/javascript/javascriptFeatureTraceSchemas.js";
 import { traceJavaScriptSemanticsInputSchema } from "../domain/javascript/javascriptSemanticTraceSchemas.js";
 import { compareApplicationVersionsInputSchema } from "../domain/javascript/javascriptApplicationVersionComparisonSchemas.js";

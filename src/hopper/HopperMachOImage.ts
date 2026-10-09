@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { open, type FileHandle } from "node:fs/promises";
 import { z } from "zod";
 
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { BinaryTargetError } from "../domain/configurationErrors.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import {

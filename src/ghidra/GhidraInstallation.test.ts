@@ -4,11 +4,13 @@ import { projectGhidraDoctorInspection } from "./GhidraDoctor.js";
 import {
   ghidraJavaEnvironment,
   inspectGhidraInstallation,
-  SUPPORTED_GHIDRA_JAVA_MAJOR,
-  SUPPORTED_GHIDRA_VERSION,
   type GhidraInstallationHost,
   type GhidraJavaObservation,
 } from "./GhidraInstallation.js";
+import {
+  SUPPORTED_GHIDRA_JAVA_MAJOR,
+  SUPPORTED_GHIDRA_VERSION,
+} from "./GhidraInstallationPolicy.js";
 
 const INSTALL = "/opt/ghidra";
 const PROPERTIES = `${INSTALL}/Ghidra/application.properties`;

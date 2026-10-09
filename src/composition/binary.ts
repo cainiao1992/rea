@@ -1,10 +1,10 @@
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
-import type { AppConfig } from "../config.js";
+import type { AppConfig } from "../config/types.js";
 import type { BinarySession } from "../application/binary/BinarySession.js";
 import { HopperProvider } from "../hopper/HopperProvider.js";
 import { GhidraProvider } from "../ghidra/GhidraProvider.js";
 import { IdaProvider } from "../ida/IdaProvider.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { auxiliaryAnalysisProviderDeclarations } from "./auxiliaryAnalysisProviders.js";
 import { AnalysisProviderRegistry } from "../application/binary/AnalysisProviderRegistry.js";
 import { composeBinarySession } from "../application/binary/BinarySessionComposition.js";

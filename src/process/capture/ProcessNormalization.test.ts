@@ -4,7 +4,7 @@ import {
   normalizeProcessSamples,
   normalizeProcessText,
 } from "./ProcessNormalization.js";
-import { parseProcessScenario } from "../../domain/process/processCapture.js";
+import { parseProcessScenario } from "../../domain/process/processScenario.js";
 
 const rootPid = 41_010;
 const samples = Object.freeze(

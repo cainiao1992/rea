@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { BinaryTarget } from "../../src/domain/binaryTarget.js";
+import type { BinaryTarget } from "../../src/domain/binaryTargetTypes.js";
 import type { JsonValue } from "../../src/domain/jsonValue.js";
 import type { IdaMcpConnection } from "../../src/ida/IdaMcpConnection.js";
 import { elf } from "../../src/domain/binaryTarget.fixture.js";

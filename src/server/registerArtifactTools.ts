@@ -3,8 +3,8 @@ import type { EvidenceWriter } from "../application/investigation/InvestigationR
 
 import type { AnalysisOperationPort } from "../application/AnalysisProvider.js";
 import { ARTIFACT_TOOL_CONTRACTS } from "../contracts/artifactToolContracts.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
-import type { Logger } from "../logger.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
+import type { Logger } from "pino";
 import { registerEvidenceTools } from "./registerEvidenceTools.js";
 import { artifactInspectionResultSchema } from "../domain/artifactInspection.js";
 

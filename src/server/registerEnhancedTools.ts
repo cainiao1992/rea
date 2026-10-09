@@ -11,20 +11,19 @@ import type {
 
 import type { AnalysisOperationPort } from "../application/AnalysisProvider.js";
 import type { BinarySessionPort } from "../application/binary/BinarySessionPort.js";
-import {
-  EnhancedTools,
-  type ValidatedEnhancedCall,
-} from "../application/EnhancedTools.js";
+import { EnhancedTools } from "../application/EnhancedTools.js";
+import type { ValidatedEnhancedCall } from "../application/EnhancedToolTypes.js";
 import {
   createWorkflowEvidence,
   workflowSnapshotRecord,
   recordWorkflowUnknowns,
 } from "../application/WorkflowEvidence.js";
-import { toolContract, type ToolContract } from "../contracts/toolContracts.js";
+import { toolContract } from "../contracts/toolContracts.js";
+import type { ToolContract } from "../contracts/toolContractTypes.js";
 import type { AnalysisProfileCommitment } from "../domain/analysisProfile.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import type { JsonValue } from "../domain/jsonValue.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { mcpProgressReporter } from "./mcpProgress.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";

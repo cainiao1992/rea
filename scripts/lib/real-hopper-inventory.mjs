@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { HOPPER_PROVIDER_IDENTITY } from "../../dist/hopper/HopperProvider.js";
+import { HOPPER_PROVIDER_IDENTITY } from "../../dist/hopper/HopperProviderCapabilities.js";
 import {
   requireMcpEvidenceResult,
   requireEvidenceProvider,

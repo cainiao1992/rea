@@ -2,14 +2,16 @@ import type { BrowserObservationPort } from "../application/BrowserObservationPo
 import type { ProviderIdentity } from "../application/AnalysisProvider.js";
 import type { ExecutionOptions } from "../application/AnalysisProvider.js";
 import {
-  browserTargetListSchema,
   sanitizeBrowserUrl,
-  webPageInspectionSchema,
-  type BrowserTargetList,
   type InspectWebPageInput,
   type ListBrowserTargetsInput,
-  type WebPageInspection,
 } from "../domain/browserObservation.js";
+import {
+  browserTargetListSchema,
+  webPageInspectionSchema,
+  type BrowserTargetList,
+  type WebPageInspection,
+} from "../domain/browserObservationSchemas.js";
 import { analyzeCapturedWebBundle } from "../domain/webBundleAnalyzer.js";
 import {
   webBundleAnalysisSchema,

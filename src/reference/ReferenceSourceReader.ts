@@ -13,12 +13,6 @@ import {
   prepareRoot,
 } from "./ReferenceSourceReaderValidate.js";
 
-export type {
-  ReferenceSourceEntry,
-  ReferenceSourceRead,
-  ReferenceSourceReaderOptions,
-} from "./ReferenceSourceReaderTypes.js";
-
 const PATH_RACE_LIMITATION =
   "Path identity is revalidated around operations; Node lacks portable descriptor-relative openat traversal, so a syscall-boundary pathname race remains.";
 

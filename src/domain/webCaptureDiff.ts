@@ -1,5 +1,5 @@
 import { canonicalDigest } from "./comparisonSemantics.js";
-import type { WebPageInspection } from "./browserObservation.js";
+import type { WebPageInspection } from "./browserObservationSchemas.js";
 import {
   webCaptureDiffSchema,
   type CompareWebCapturesInput,
@@ -8,12 +8,6 @@ import {
   type WebCaptureDimension,
 } from "./webCaptureDiffSchemas.js";
 import type { WebMcpDiscovery } from "./webMcpDiscovery.js";
-
-export {
-  compareWebCapturesInputSchema,
-  webCaptureDiffSchema,
-} from "./webCaptureDiffSchemas.js";
-export type { CompareWebCapturesInput, WebCaptureDiff };
 
 type Dimension = WebCaptureDimension;
 type Change = WebCaptureChange;

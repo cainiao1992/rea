@@ -8,7 +8,7 @@ import { parseCliJsonInput } from "../cliJsonInput.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
 import { logCliCommand } from "../cliLogging.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import type { CliInstance } from "./types.js";
 import { registerProjectManagedApplicationGraph } from "./managedProjectGraphCommand.js";
 

@@ -3,10 +3,10 @@ import { join } from "node:path";
 
 import { expect } from "vitest";
 
-import { analysisViewLayoutEvidence } from "../../fixtures/analysisView.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
 
+import { analysisViewLayoutEvidence } from "../../fixtures/analysisView.js";
 cliTest(
   "projects one section from a JSON file of inline layout Evidence",
   async ({ cli }) => {

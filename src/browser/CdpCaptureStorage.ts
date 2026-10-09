@@ -1,7 +1,5 @@
-import type {
-  InspectWebPageInput,
-  WebPageInspection,
-} from "../domain/browserObservation.js";
+import type { InspectWebPageInput } from "../domain/browserObservation.js";
+import type { WebPageInspection } from "../domain/browserObservationSchemas.js";
 import { CdpConnection } from "./CdpConnection.js";
 import { optionalCdpCommand } from "./CdpOptionalCommand.js";
 import {

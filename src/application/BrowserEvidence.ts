@@ -7,11 +7,13 @@ import {
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { sanitizeBrowserUrl } from "../domain/browserObservation.js";
 import type {
-  BrowserTargetList,
   InspectWebPageInput,
   ListBrowserTargetsInput,
-  WebPageInspection,
 } from "../domain/browserObservation.js";
+import type {
+  BrowserTargetList,
+  WebPageInspection,
+} from "../domain/browserObservationSchemas.js";
 import type {
   AnalyzeWebBundleInput,
   WebBundleAnalysis,

@@ -17,10 +17,8 @@ import {
   observeLaunchedExecutable,
   observeSelectedExecutable,
 } from "../../../src/process/capture/ProcessCaptureLifecycle.js";
-import {
-  parseProcessScenario,
-  type ProcessCapture,
-} from "../../../src/domain/process/processCapture.js";
+import { parseProcessScenario } from "../../../src/domain/process/processScenario.js";
+import { type ProcessCapture } from "../../../src/domain/process/processCaptureParsing.js";
 
 const processFixture = fileURLToPath(
   new URL("../../fixtures/processFidelity.mjs", import.meta.url),

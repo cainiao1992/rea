@@ -1,5 +1,5 @@
 import { compareCodePoints } from "../canonicalOrdering.js";
-import type { ApplicationNode } from "./javascriptApplicationGraph.js";
+import type { ApplicationNode } from "./javascriptApplicationGraphSchemas.js";
 import {
   featureSeedMatchMode,
   type ApplicationFeatureSeed,

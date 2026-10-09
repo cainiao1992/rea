@@ -3,7 +3,7 @@ import { z } from "incur";
 import type { DirectAnalysis } from "../composition/directAnalysis.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
 import { logCliCommand } from "../cliLogging.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import {
   directAnalysisOptions,
   formatSelectionOption,

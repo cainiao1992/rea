@@ -1,5 +1,5 @@
 import type { AnalysisProfileCommitment } from "../../domain/analysisProfile.js";
-import type { BinaryTarget } from "../../domain/binaryTarget.js";
+import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
 import { AnalysisCancelledError } from "../../domain/analysisErrorCore.js";
 import { AnalysisError } from "../../domain/analysisErrorBase.js";
 import { ProviderAdapterError } from "../../domain/providerAdapterError.js";

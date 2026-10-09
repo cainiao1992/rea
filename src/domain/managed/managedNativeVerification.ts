@@ -20,13 +20,6 @@ import {
   verifyPinvoke,
 } from "./managedNativeVerificationMatch.js";
 
-export {
-  managedNativeVerificationInputSchema,
-  type ManagedNativeVerificationInput,
-  type ManagedNativeVerificationResult,
-} from "./managedNativeVerificationSchemas.js";
-export { managedNativeVerificationResultSchema };
-
 const sha256 = (value: JsonValue): string => {
   const serialized = canonicalize(value);
   if (serialized === undefined)

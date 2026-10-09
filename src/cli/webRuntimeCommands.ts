@@ -7,7 +7,7 @@ import {
 } from "../cliObservationOptions.js";
 import { logCliCommand } from "../cliLogging.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import type { ProgressReporter } from "../application/ProgressReporter.js";
 import { withCommandCancellation } from "./commandCancellation.js";
 

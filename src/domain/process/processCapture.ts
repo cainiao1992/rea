@@ -8,8 +8,6 @@ import {
   type ProcessCaptureTruncationDetails,
 } from "./processCaptureCoverage.js";
 
-export * from "./processScenario.js";
-
 /** Normalized raw PTY chunk, preserving transport-level output differences. */
 export interface TerminalFrame {
   readonly sequence: number;
@@ -675,14 +673,3 @@ export const processCaptureSchema = processCaptureShapeSchema
   .describe(
     "The capture must preserve its canonical scenario, comparison, and normalization SHA-256 commitments; ordered capture timestamps and contiguous sequence numbers; before and final filesystem snapshots with truncation propagated; and exit-code consistency with deadline termination. The event journal is required; empty journals are valid. A non-empty journal must reference every captured observation exactly once with unique in-range references. These cross-field invariants are checked by REA after capture.",
   );
-
-export { parseProcessCapture } from "./processCaptureParsing.js";
-export type { ProcessCapture } from "./processCaptureParsing.js";
-
-export {
-  compareProcessCaptures,
-  comparisonStatusSchema,
-  deriveProcessComparisonStatus,
-  PROCESS_COMPARISON_DIMENSIONS,
-  processCaptureComparisonSchema,
-} from "./processComparison.js";

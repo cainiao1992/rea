@@ -2,10 +2,12 @@ import type { JsonValue } from "../jsonValue.js";
 import {
   createJavaScriptApplicationEdge,
   createJavaScriptApplicationNode,
-  type ApplicationEdge,
-  type ApplicationGraphEvidence,
-  type ApplicationNode,
 } from "./javascriptApplicationGraph.js";
+import type {
+  ApplicationEdge,
+  ApplicationNode,
+} from "./javascriptApplicationGraphSchemas.js";
+import type { ApplicationGraphEvidence } from "./javascriptApplicationEvidenceSchemas.js";
 import type { ParsedRuntimeCapture } from "./javascriptRuntimeReconciliationParsing.js";
 
 export interface RuntimeReconciliationEntity {

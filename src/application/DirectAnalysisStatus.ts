@@ -1,7 +1,8 @@
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { jsonObjectSchema, type JsonValue } from "../domain/jsonValue.js";
 import { createServerIdentity } from "../serverIdentity.js";
-import { silentLogger, type Logger } from "../logger.js";
+import { silentLogger } from "../logger.js";
+import type { Logger } from "pino";
 import type { DirectAnalysisDependencies } from "./DirectAnalysisDependencies.js";
 
 const runSessionStatus = async (

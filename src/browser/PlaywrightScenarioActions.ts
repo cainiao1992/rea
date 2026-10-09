@@ -3,7 +3,7 @@ import type { Locator, Page } from "playwright-core";
 import type {
   BrowserScenarioAction,
   BrowserScenarioValue,
-} from "../domain/browserScenario.js";
+} from "../domain/browserScenarioValues.js";
 import type { BrowserScenarioSecrets } from "./BrowserScenarioSecrets.js";
 
 type ScenarioLocator = Extract<

@@ -12,8 +12,6 @@ import {
   nativeInvestigationTraceLimitsSchema,
 } from "../native/nativeInvestigationGraph.js";
 
-export { parseInterfaceBuilderRecords } from "./interfaceBuilderKeyedArchive.js";
-
 /** One compiled Interface Builder document projected from ibtool output. */
 export const interfaceBuilderDocumentSchema = z.strictObject({
   relative_path: z.string().min(1),

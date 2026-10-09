@@ -21,8 +21,6 @@ import {
   type GhidraJavaRequirement,
 } from "./GhidraInstallationPolicy.js";
 
-export { SUPPORTED_GHIDRA_JAVA_MAJOR, SUPPORTED_GHIDRA_VERSION };
-
 const NATIVE_PLATFORMS: Readonly<
   Partial<
     Record<

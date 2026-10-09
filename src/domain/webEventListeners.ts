@@ -1,11 +1,11 @@
 import { z } from "zod";
 import {
-  webRuntimeBrowserSchema,
   webRuntimeLocationSchema,
   webRuntimeScopeSchema,
   webRuntimeSourceSchema,
   webRuntimeTargetSchema,
 } from "./webRuntime.js";
+import { browserVersionSchema } from "./browserObservationSchemas.js";
 
 /** Inspect listeners registered directly on the first main-document CSS match. */
 export const inspectWebEventListenersInputSchema = webRuntimeScopeSchema.extend(
@@ -19,7 +19,7 @@ export type InspectWebEventListenersInput = z.infer<
 
 /** A listener declaration and its source location do not establish that it ran. */
 export const webEventListenersSchema = z.object({
-  browser: webRuntimeBrowserSchema,
+  browser: browserVersionSchema,
   target: webRuntimeTargetSchema,
   inspected_at: z.iso.datetime(),
   selected_node: z.object({

@@ -17,11 +17,6 @@ import {
 } from "./ReferenceSourceImportTypes.js";
 import { prepareReferenceSourceImport } from "./ReferenceSourceImportPolicy.js";
 
-export type {
-  ReferenceSourceImportError,
-  ReferenceSourceImportOptions,
-} from "./ReferenceSourceImportTypes.js";
-
 const failure = (
   code: ReferenceSourceImportError["code"],
   message: string,

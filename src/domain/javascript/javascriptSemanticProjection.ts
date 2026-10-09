@@ -20,12 +20,11 @@ import {
   evaluateSemanticBinding,
   evaluateSemanticProvenance,
 } from "./javascriptSemanticValues.js";
+import { range, stringValue } from "./javascriptStaticAnalysisHelpers.js";
 import {
   propertyName,
-  range,
-  stringValue,
-} from "./javascriptStaticAnalysisHelpers.js";
-import { semanticStaticPropertyKey } from "./javascriptAstValues.js";
+  semanticStaticPropertyKey,
+} from "./javascriptAstValues.js";
 
 interface CollectCallableInput {
   readonly node: t.Node;
@@ -180,11 +179,6 @@ export const immutableSemanticBindings = (
       provenance: evaluateSemanticProvenance(binding, state),
     }))
     .sort((left, right) => compareCodePoints(left.bindingId, right.bindingId));
-
-export {
-  semanticStaticPropertyKey,
-  semanticStaticPropertyName,
-} from "./javascriptAstValues.js";
 
 const callableKind = (
   node: t.Node,

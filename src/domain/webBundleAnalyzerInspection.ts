@@ -2,7 +2,7 @@ import { parse } from "@babel/parser";
 import * as t from "@babel/types";
 
 import { sanitizeEndpointCandidate } from "./browserObservation.js";
-import type { WebPageInspection } from "./browserObservation.js";
+import type { WebPageInspection } from "./browserObservationSchemas.js";
 import type { WebBundleAnalysis } from "./webBundleAnalysis.js";
 import { traverseJavaScriptAst } from "./javascript/javascriptSemanticTraversal.js";
 import { classifyParsedJavaScriptOpenReceivers } from "./javascript/javascriptSemanticAnalysis.js";

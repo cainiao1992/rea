@@ -5,7 +5,7 @@ import {
   runProviderAnalysis,
 } from "../../src/application/DirectAnalysis.js";
 import type { DirectAnalysisDependencies } from "../../src/application/DirectAnalysisDependencies.js";
-import { parseConfig } from "../../src/config.js";
+import { parseConfig } from "../../src/config/parseConfig.js";
 import type { AnalysisError } from "../../src/domain/analysisErrorBase.js";
 import { AnalysisTimeoutError } from "../../src/domain/analysisErrorCore.js";
 import { projectAnalysisError } from "../../src/domain/analysisErrorProjection.js";

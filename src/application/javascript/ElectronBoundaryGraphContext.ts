@@ -1,4 +1,4 @@
-import type { ApplicationNode } from "../../domain/javascript/javascriptApplicationGraph.js";
+import type { ApplicationNode } from "../../domain/javascript/javascriptApplicationGraphSchemas.js";
 import { sha256Text } from "../../domain/javascript/javascriptStaticAnalysisHelpers.js";
 import type { JavaScriptSourceRange } from "../../domain/javascript/javascriptStaticAnalysisTypes.js";
 import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptArtifactFiles.js";

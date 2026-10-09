@@ -4,13 +4,13 @@ import { compareWebCaptureEvidence } from "../../../src/application/BrowserObser
 import { CdpBrowserProvider } from "../../../src/browser/CdpBrowserProvider.js";
 import { CdpCaptureEvents } from "../../../src/browser/CdpCaptureEvents.js";
 import { browserCaptureComparisonInputSchema } from "../../../src/domain/browserCaptureComparison.js";
+import { inspectWebPageInputSchema } from "../../../src/domain/browserObservation.js";
 import {
-  inspectWebPageInputSchema,
   webPageInspectionSchema,
   type WebPageInspection,
-} from "../../../src/domain/browserObservation.js";
+} from "../../../src/domain/browserObservationSchemas.js";
 import { parseEvidence } from "../../../src/domain/evidence.js";
-import { webCaptureDiffSchema } from "../../../src/domain/webCaptureDiff.js";
+import { webCaptureDiffSchema } from "../../../src/domain/webCaptureDiffSchemas.js";
 
 const ORIGIN = "https://example.test";
 const CAPTURE_TIME = "2026-01-01T00:00:00.000Z";

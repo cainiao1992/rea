@@ -15,7 +15,7 @@ import { ArtifactProvider } from "../../../../src/artifacts/ArtifactProvider.js"
 import { ArtifactReaderFailure } from "../../../../src/artifacts/ArtifactReader.js";
 import { artifactExtractionExecutionSchema } from "../../../../src/contracts/artifactToolContracts.js";
 import { artifactInventoryResultSchema } from "../../../../src/domain/artifactGraph.js";
-import type { BinaryTarget } from "../../../../src/domain/binaryTarget.js";
+import type { BinaryTarget } from "../../../../src/domain/binaryTargetTypes.js";
 import { parseBinaryTarget } from "../../../../src/application/BinaryTargetResolver.js";
 import { parseEvidence } from "../../../../src/domain/evidence.js";
 

@@ -4,15 +4,13 @@ import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { composeBinarySession } from "../../../src/application/binary/BinarySessionComposition.js";
 import type { BinarySession } from "../../../src/application/binary/BinarySession.js";
 import { AnalysisProviderRegistry } from "../../../src/application/binary/AnalysisProviderRegistry.js";
-import { parseConfig } from "../../../src/config.js";
+import { parseConfig } from "../../../src/config/parseConfig.js";
 import type { JsonValue } from "../../../src/domain/jsonValue.js";
 import { ok } from "../../../src/domain/result.js";
 import type { GhidraInstallationHost } from "../../../src/ghidra/GhidraInstallation.js";
 import type { GhidraOperation } from "../../../src/ghidra/GhidraClient.js";
-import {
-  GhidraProvider,
-  type GhidraProviderClientFactory,
-} from "../../../src/ghidra/GhidraProvider.js";
+import { GhidraProvider } from "../../../src/ghidra/GhidraProvider.js";
+import type { GhidraProviderClientFactory } from "../../../src/ghidra/GhidraProviderClient.js";
 import { GHIDRA_SESSION_CAPABILITIES } from "../../../src/ghidra/GhidraSessionValues.js";
 import { silentLogger } from "../../../src/logger.js";
 import { createServer } from "../../../src/server/createServer.js";

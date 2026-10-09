@@ -8,7 +8,7 @@ import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js
 import { ArtifactProvider } from "../../../../src/artifacts/ArtifactProvider.js";
 import { artifactExtractionExecutionSchema } from "../../../../src/contracts/artifactToolContracts.js";
 import { artifactExtractionResultSchema } from "../../../../src/domain/artifactGraph.js";
-import type { BinaryTarget } from "../../../../src/domain/binaryTarget.js";
+import type { BinaryTarget } from "../../../../src/domain/binaryTargetTypes.js";
 
 describe("artifact extraction identity", () => {
   it("uses code-point order for path-independent extraction identities", async () => {

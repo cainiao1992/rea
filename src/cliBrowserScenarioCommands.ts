@@ -11,7 +11,7 @@ import { projectAnalysisError } from "./domain/analysisErrorProjection.js";
 import { projectInputIssues } from "./domain/inputIssueProjection.js";
 import { browserScenarioSchema } from "./domain/browserScenario.js";
 import type { JsonValue } from "./domain/jsonValue.js";
-import type { Logger } from "./logger.js";
+import type { Logger } from "pino";
 
 const OPERATION = "capture_browser_scenario";
 

@@ -3,10 +3,12 @@ import { compareCodePoints, uniqueSorted } from "../canonicalOrdering.js";
 import type { Evidence } from "../evidence.js";
 import {
   createJavaScriptApplicationGraph,
-  type ApplicationEdge,
-  type ApplicationNode,
   type JavaScriptApplicationGraph,
 } from "./javascriptApplicationGraph.js";
+import type {
+  ApplicationEdge,
+  ApplicationNode,
+} from "./javascriptApplicationGraphSchemas.js";
 import {
   applicationFeatureTraceResultSchema,
   type ApplicationFeatureTraceResult,

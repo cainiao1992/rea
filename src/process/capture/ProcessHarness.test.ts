@@ -1,21 +1,15 @@
 import { expect, it, vi } from "vitest";
 import { processScenarioSchema } from "../../domain/process/processScenario.js";
 import { AnalysisCapabilityUnavailableError } from "../../domain/analysisErrorCore.js";
-import {
-  captureProcessScenario,
-  ProcessCaptureError,
-} from "./ProcessHarness.js";
+import { captureProcessScenario } from "./ProcessHarness.js";
 import { settleProcessCaptureJournal } from "./ProcessCaptureLifecycle.js";
-import {
-  parseProcessCapture,
-  partialProcessCaptureObservationSchema,
-  processCaptureSchema,
-} from "../../domain/process/processCapture.js";
-import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "../../domain/process/processCapture.fixture.js";
+import { parseProcessCapture } from "../../domain/process/processCaptureParsing.js";
+import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "../../domain/process/processCaptureExample.js";
 import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
 import { emptyProcessCapture } from "../../domain/process/processCapture.fixture.js";
 import { analysisErrorProjectionSchema } from "../../contracts/errorSchemas.js";
 import {
+  ProcessCaptureError,
   normalizeCaptureFailure,
   processCaptureCancelled,
 } from "./ProcessCaptureError.js";
@@ -27,6 +21,10 @@ import {
 } from "./ProcessCaptureLifecycle.js";
 import { DarwinProcessOwnershipInspectionError } from "../DarwinProcessRunTokenReader.js";
 
+import {
+  partialProcessCaptureObservationSchema,
+  processCaptureSchema,
+} from "../../domain/process/processCapture.js";
 it("retains cancellation and cleanup facts when ownership baseline inspection aborts", async () => {
   const controller = new AbortController();
   const scenario = processScenarioSchema.parse({

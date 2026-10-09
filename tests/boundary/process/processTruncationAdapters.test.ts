@@ -5,11 +5,9 @@ import { promisify } from "node:util";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { expect, onTestFinished } from "vitest";
 import { parseEvidence } from "../../../src/domain/evidence.js";
-import {
-  compareProcessCaptures,
-  parseProcessCapture,
-  processCaptureSchema,
-} from "../../../src/domain/process/processCapture.js";
+import { compareProcessCaptures } from "../../../src/domain/process/processComparison.js";
+import { parseProcessCapture } from "../../../src/domain/process/processCaptureParsing.js";
+import { processCaptureSchema } from "../../../src/domain/process/processCapture.js";
 import { processSourceTruncated } from "../../../src/domain/process/processCaptureCoverage.js";
 import { compareProcessTraces } from "../../../src/domain/process/processTraceComparison.js";
 import { createServer } from "../../../src/server/createServer.js";

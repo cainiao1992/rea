@@ -1,5 +1,5 @@
 import { createJavaScriptSemanticGraphUnknown } from "../../domain/javascript/javascriptSemanticGraph.js";
-import type { JavaScriptSemanticGraphNode } from "../../domain/javascript/javascriptSemanticGraph.js";
+import type { JavaScriptSemanticGraphNode } from "../../domain/javascript/javascriptSemanticGraphSchemas.js";
 import type {
   JavaScriptSemanticEventOperation,
   JavaScriptSemanticTimerOperation,
@@ -10,10 +10,7 @@ import {
   addSemanticGraphUnknown,
 } from "./JavaScriptSemanticGraphConstruction.js";
 import { unknownSemanticEvidence } from "./JavaScriptSemanticGraphEvidence.js";
-import {
-  semanticCallSiteAt,
-  type SemanticFlowProjectionContext,
-} from "./JavaScriptSemanticGraphFlowProjection.js";
+import type { SemanticFlowProjectionContext } from "./JavaScriptSemanticGraphFlowProjection.js";
 
 /** Project literal EventEmitter registrations, removals, and dispatches. */
 export const projectSemanticEvents = (
@@ -175,7 +172,7 @@ const projectTimerSchedule = (
   timerNodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>,
 ): void => {
   addSemanticGraphRelation(context.state, {
-    source: semanticCallSiteAt(context, operation.location),
+    source: context.callSiteAt(operation.location),
     target: timerNodes.get(operation.timerId),
     relation: "schedules-timer",
     resolution: "resolved",
@@ -199,7 +196,7 @@ const projectTimerCancellation = (
   operation: JavaScriptSemanticTimerOperation,
   timerNodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>,
 ): void => {
-  const callSite = semanticCallSiteAt(context, operation.location);
+  const callSite = context.callSiteAt(operation.location);
   const target =
     operation.linkedTimerId === null
       ? undefined

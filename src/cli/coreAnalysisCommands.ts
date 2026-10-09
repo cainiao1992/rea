@@ -1,5 +1,5 @@
 import type { DirectAnalysis } from "../composition/directAnalysis.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { registerCoreBinaryCommands } from "./coreBinaryCommands.js";
 import { registerCoreNativeCommands } from "./coreNativeCommands.js";
 import type { CliInstance } from "./types.js";

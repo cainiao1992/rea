@@ -7,19 +7,6 @@ import {
   browserScenarioStepSchema,
 } from "./browserScenarioCaptureValues.js";
 
-export {
-  classifyBrowserScenarioCompleteness,
-  browserScenarioEventSchema,
-  browserScenarioStepSchema,
-  browserStepArtifactsSchema,
-  type BrowserScenarioCompleteness,
-  type BrowserScenarioCompletenessSection,
-  type BrowserScenarioEvent,
-  type BrowserScenarioStep,
-  type BrowserScenarioStepOutcome,
-  type BrowserStepArtifacts,
-} from "./browserScenarioCaptureValues.js";
-
 /** Step-indexed browser scenario observation. */
 export const browserScenarioCaptureSchema = z
   .strictObject({

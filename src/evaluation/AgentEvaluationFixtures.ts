@@ -6,7 +6,7 @@ import { createPackage } from "@electron/asar";
 
 import type { JsonValue } from "../domain/jsonValue.js";
 import { javascriptApplicationAnalysisResultSchema } from "../domain/javascript/javascriptApplicationAnalysis.js";
-import type { ApplicationNode } from "../domain/javascript/javascriptApplicationGraph.js";
+import type { ApplicationNode } from "../domain/javascript/javascriptApplicationGraphSchemas.js";
 import { javaScriptExportShapeComparisonResultSchema } from "../domain/javascript/javascriptExportShapeComparisonSchemas.js";
 import type { FixtureClaimExpectation } from "./KnownAnswerEvaluation.js";
 

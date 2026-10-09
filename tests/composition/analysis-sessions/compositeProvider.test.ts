@@ -11,7 +11,7 @@ import type {
   ProviderIdentity,
 } from "../../../src/application/AnalysisProvider.js";
 import { createAnalysisExecution } from "../../../src/application/AnalysisProvider.js";
-import type { BinaryTarget } from "../../../src/domain/binaryTarget.js";
+import type { BinaryTarget } from "../../../src/domain/binaryTargetTypes.js";
 import { ok } from "../../../src/domain/result.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 

@@ -1,4 +1,4 @@
-import type { WebPageInspection } from "../domain/browserObservation.js";
+import type { WebPageInspection } from "../domain/browserObservationSchemas.js";
 import {
   reconcileCapturedWebScript,
   stableWebScriptKey,

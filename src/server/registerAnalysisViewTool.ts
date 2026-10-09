@@ -4,7 +4,7 @@ import { inspectAnalysisView } from "../application/analysisView/AnalysisViewSer
 import type { EvidenceLookup } from "../application/EvidenceInputResolver.js";
 import type { EvidenceWriter } from "../application/investigation/InvestigationRecordPort.js";
 import { toolContract } from "../contracts/toolContracts.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 

@@ -17,8 +17,8 @@ import {
   createImmutableJavaScriptSemanticGraphSteps,
   isValidatedImmutableJavaScriptSemanticGraph,
   type JavaScriptSemanticGraph,
-  type JavaScriptSemanticGraphNode,
 } from "./javascriptSemanticGraph.js";
+import type { JavaScriptSemanticGraphNode } from "./javascriptSemanticGraphSchemas.js";
 import {
   parseJavaScriptSemanticGraph,
   serializeJavaScriptSemanticGraph,

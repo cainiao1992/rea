@@ -5,7 +5,7 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { itWithCaptureCapability } from "./processCaptureCapability.js";
 
 import { captureProcessScenario } from "../../../src/process/capture/ProcessHarness.js";
-import { parseProcessScenario } from "../../../src/domain/process/processCapture.js";
+import { parseProcessScenario } from "../../../src/domain/process/processScenario.js";
 
 itWithCaptureCapability(
   "captures one command's terminal output, selected files, and owned cleanup",

@@ -2,12 +2,12 @@ import type { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 import type { EvidenceWriter } from "../application/investigation/InvestigationRecordPort.js";
 
 import type { AnalysisOperationPort } from "../application/AnalysisProvider.js";
-import type { BinarySessionPort } from "../application/binary/BinarySession.js";
+import type { BinarySessionPort } from "../application/binary/BinarySessionPort.js";
 import { MANAGED_TOOL_CONTRACTS } from "../contracts/managed/managedToolContracts.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { AnalysisInputError } from "../domain/analysisErrorCore.js";
 import { err } from "../domain/result.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { registerEvidenceTools } from "./registerEvidenceTools.js";
 import { runManagedProviderExecution } from "../composition/directAnalysis.js";
 import { isManagedToolName } from "../contracts/managed/managedToolContracts.js";

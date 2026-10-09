@@ -11,9 +11,6 @@ import {
   type FunctionSnapshot,
 } from "./functionDossierEvidence.js";
 
-export { callPathInputSchema, callPathResultSchema };
-export type { CallPathInput, CallPathResult };
-
 /** Minimal directed caller-to-callee adjacency for call-path search. */
 class CallGraph {
   private readonly successors = new Map<string, Set<string>>();

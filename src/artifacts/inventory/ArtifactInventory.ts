@@ -6,17 +6,8 @@ import {
 } from "../../domain/artifactGraph.js";
 import { abortIfNeeded } from "../ArtifactHash.js";
 import { scanCanonicalArtifactInventory } from "./scanCanonical.js";
-import type {
-  ArtifactInventoryOptions,
-  ArtifactInventorySnapshot,
-} from "./types.js";
-
-export { scanCanonicalArtifactInventory } from "./scanCanonical.js";
-
-export type {
-  ArtifactInventoryOptions,
-  ArtifactInventorySnapshot,
-} from "./types.js";
+import type { ArtifactInventoryOptions } from "./types.js";
+import type { ArtifactInventorySnapshot } from "../../domain/artifactInventorySnapshot.js";
 
 /** Inventory one local artifact and return every graph collection inline. */
 export const inventoryArtifact = async (

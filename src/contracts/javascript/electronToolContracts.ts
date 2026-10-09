@@ -1,6 +1,6 @@
-import type { ToolContract } from "../toolContracts.js";
+import type { ToolContract } from "../toolContractTypes.js";
 import { toolContractMetadata } from "../toolEffects.js";
-import { evidenceResultOf } from "../toolOutputSchemas.js";
+import { evidenceResultOf } from "../toolOutputSchemaPrimitives.js";
 import {
   electronPageInspectionSchema,
   electronTargetListSchema,

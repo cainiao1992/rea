@@ -6,30 +6,14 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { IPty } from "@lydell/node-pty";
 
-import type {
-  FilesystemCheckpoint,
-  InteractionEvent,
-  ProcessCapture,
-  UnverifiedProcessCapture,
-  ProcessSample,
-  ProcessSettlement,
-  ProcessCaptureCleanupReport,
-  PartialProcessCaptureObservation,
-  IncompleteProcessCaptureObservations,
-  PartialFilesystemSnapshot,
-  PartialProcessObservationField,
-  ProcessScenario,
-  ProcessCaptureEventJournalEntry,
-  RecordProcessCaptureEvent,
-  TerminalFrame,
-} from "../../domain/process/processCapture.js";
+import type { ProcessCapture } from "../../domain/process/processCaptureParsing.js";
+import type { ProcessScenario } from "../../domain/process/processScenario.js";
 import {
   digestProcessCommitment,
-  parseProcessCapture,
-  partialProcessCaptureObservationSchema,
   processComparisonContract,
   processScenarioCommitment,
-} from "../../domain/process/processCapture.js";
+} from "../../domain/process/processScenario.js";
+import { parseProcessCapture } from "../../domain/process/processCaptureParsing.js";
 import { PRODUCT_IDENTITY } from "../../identity.js";
 import type { SnapshotResult } from "./FilesystemSnapshot.js";
 import { snapshotRoots } from "./FilesystemSnapshot.js";
@@ -66,6 +50,22 @@ import {
 } from "../../domain/process/processCaptureCoverage.js";
 import { scheduleProcessInterval, type ProcessTimer } from "./ProcessTimer.js";
 
+import type {
+  FilesystemCheckpoint,
+  InteractionEvent,
+  UnverifiedProcessCapture,
+  ProcessSample,
+  ProcessSettlement,
+  ProcessCaptureCleanupReport,
+  PartialProcessCaptureObservation,
+  IncompleteProcessCaptureObservations,
+  PartialFilesystemSnapshot,
+  PartialProcessObservationField,
+  ProcessCaptureEventJournalEntry,
+  RecordProcessCaptureEvent,
+  TerminalFrame,
+} from "../../domain/process/processCapture.js";
+import { partialProcessCaptureObservationSchema } from "../../domain/process/processCapture.js";
 interface TerminalExitOptions {
   readonly terminal: IPty;
   readonly scenario: ProcessScenario;

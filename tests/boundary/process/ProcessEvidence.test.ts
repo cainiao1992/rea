@@ -7,10 +7,8 @@ import {
   observeSelectedExecutable,
 } from "../../../src/process/capture/ProcessCaptureLifecycle.js";
 import { emptyUnverifiedProcessCapture } from "../../../src/domain/process/processCapture.fixture.js";
-import {
-  compareProcessCaptures,
-  parseProcessCapture,
-} from "../../../src/domain/process/processCapture.js";
+import { compareProcessCaptures } from "../../../src/domain/process/processComparison.js";
+import { parseProcessCapture } from "../../../src/domain/process/processCaptureParsing.js";
 import {
   digestProcessCommitment,
   parseProcessScenario,

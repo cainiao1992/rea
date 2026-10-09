@@ -11,7 +11,7 @@ import {
   type ProviderTargetSupport,
 } from "../AnalysisProvider.js";
 import { createAnalysisProfile } from "../../domain/analysisProfile.js";
-import type { BinaryTarget } from "../../domain/binaryTarget.js";
+import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
 import { ProviderAdapterError } from "../../domain/providerAdapterError.js";
 import { ProviderSelectionError } from "../../domain/providerSelectionError.js";
 import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";

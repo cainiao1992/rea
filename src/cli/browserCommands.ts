@@ -15,7 +15,7 @@ import {
 import { analyzeWebBundleInputSchema } from "../domain/webBundleAnalysis.js";
 import { observeWebSessionInputSchema } from "../domain/browserSession.js";
 import { AnalysisInputError } from "../domain/analysisErrorCore.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
 import {
   browserPageInspectionOptions,

@@ -1,10 +1,8 @@
 import { isIP } from "node:net";
 
-import type {
-  ProcessSample,
-  ProcessScenario,
-} from "../../domain/process/processCapture.js";
+import type { ProcessScenario } from "../../domain/process/processScenario.js";
 
+import type { ProcessSample } from "../../domain/process/processCapture.js";
 /** Bucket one elapsed process-capture timestamp under scenario normalization. */
 export const normalizeProcessElapsedTime = (
   elapsedMs: number,

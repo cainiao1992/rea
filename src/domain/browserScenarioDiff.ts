@@ -1,7 +1,5 @@
-import {
-  type BrowserScenarioCapture,
-  type BrowserScenarioStep,
-} from "./browserScenarioCapture.js";
+import type { BrowserScenarioCapture } from "./browserScenarioCapture.js";
+import type { BrowserScenarioStep } from "./browserScenarioCaptureValues.js";
 import {
   actionState,
   artifactEvidenceState,
@@ -26,13 +24,6 @@ import {
   commitBrowserScenarioNormalization,
   digestNormalizedScenarioValue,
 } from "./browserScenarioNormalization.js";
-
-export {
-  browserScenarioDiffSchema,
-  compareBrowserScenariosInputSchema,
-  type BrowserScenarioDiff,
-  type CompareBrowserScenariosInput,
-} from "./browserScenarioDiffValues.js";
 
 type ComparableArtifact = {
   readonly artifact: BrowserScenarioArtifactKind;

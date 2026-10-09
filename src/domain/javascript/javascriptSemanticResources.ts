@@ -6,7 +6,7 @@ import type {
   JavaScriptSemanticCallable,
   JavaScriptSemanticResourceOperation,
 } from "./javascriptSemanticIr.js";
-import { semanticStaticPropertyName } from "./javascriptSemanticProjection.js";
+import { semanticStaticPropertyName } from "./javascriptAstValues.js";
 import {
   resolveSemanticBindingState,
   type JavaScriptSemanticAnalysisState,

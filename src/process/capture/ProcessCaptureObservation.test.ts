@@ -4,10 +4,8 @@ import { snapshotRoots } from "./FilesystemSnapshot.js";
 import { buildCaptureResult } from "./ProcessCaptureLifecycle.js";
 import { isInitializedPtyRoot, readLinuxChildren } from "./ProcessSampling.js";
 import { TerminalRenderer } from "./TerminalRenderer.js";
-import {
-  parseProcessScenario,
-  type ProcessCapture,
-} from "../../domain/process/processCapture.js";
+import { parseProcessScenario } from "../../domain/process/processScenario.js";
+import { type ProcessCapture } from "../../domain/process/processCaptureParsing.js";
 import { emptyProcessCapture as emptyCapture } from "../../domain/process/processCapture.fixture.js";
 
 const base = {

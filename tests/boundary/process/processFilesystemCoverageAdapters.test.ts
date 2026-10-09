@@ -5,10 +5,8 @@ import { promisify } from "node:util";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { expect, it, onTestFinished } from "vitest";
 import { parseEvidence } from "../../../src/domain/evidence.js";
-import {
-  compareProcessCaptures,
-  parseProcessCapture,
-} from "../../../src/domain/process/processCapture.js";
+import { compareProcessCaptures } from "../../../src/domain/process/processComparison.js";
+import { parseProcessCapture } from "../../../src/domain/process/processCaptureParsing.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";

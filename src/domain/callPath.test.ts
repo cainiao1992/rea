@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { enhancedInputSchemas } from "../contracts/enhancedInputs.js";
+import { buildCallPath } from "./callPath.js";
 import {
-  buildCallPath,
   callPathInputSchema,
   callPathResultSchema,
-} from "./callPath.js";
+} from "./callPathSchemas.js";
 import { createEvidence, type Evidence } from "./evidence.js";
 import { functionDossierSchema } from "./hopperValues.js";
 import { jsonValueSchema } from "./jsonValue.js";

@@ -20,13 +20,14 @@ import {
   observeWebSession,
 } from "../application/BrowserObservationService.js";
 import type { ProgressReporter } from "../application/ProgressReporter.js";
-import { toolContract, type ToolContract } from "../contracts/toolContracts.js";
+import { toolContract } from "../contracts/toolContracts.js";
+import type { ToolContract } from "../contracts/toolContractTypes.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import type { Evidence } from "../domain/evidence.js";
 import { analyzeWebBundleInputSchema } from "../domain/webBundleAnalysis.js";
 import { inspectWebPageInputSchema } from "../domain/browserObservation.js";
 import type { Result } from "../domain/result.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { mcpProgressReporter } from "./mcpProgress.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
@@ -199,14 +200,10 @@ const runBrowserTool = async <Input>(
     }),
   );
   if (!result.ok) return options.delivery.toCallToolResult(result, contract);
-  return evidenceResult(options, contract, result.value);
-};
-
-const evidenceResult = (
-  options: BrowserToolRegistration & { readonly delivery: ToolResultDelivery },
-  contract: ToolContract,
-  evidence: Evidence,
-) => {
-  const recorded = options.recordEvidence?.(evidence);
-  return options.delivery.toEvidenceToolResult(evidence, contract, recorded);
+  const recorded = options.recordEvidence?.(result.value);
+  return options.delivery.toEvidenceToolResult(
+    result.value,
+    contract,
+    recorded,
+  );
 };

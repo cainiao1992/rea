@@ -30,7 +30,6 @@ export const evidenceResultOf = <Schema extends z.ZodType>(schema: Schema) =>
     .strictObject({ ...evidenceSchema.shape, normalized_result: schema })
     .superRefine(validateAnalysisProfileProvider);
 
-const resultOf = evidenceResultOf;
 /** Wrap a lifecycle result while preserving its exact schema type. */
 export const lifecycleResultOf = <Schema extends z.ZodType>(schema: Schema) =>
   z.object({ result: schema });
@@ -406,14 +405,11 @@ export const addressedEntry = z.object({
   address: z.string(),
   name: z.string(),
 });
-export const procedureIdentity = procedureIdentitySchema;
-const localVariable = localVariableSchema;
-
 export const containingProcedureResolution = z.discriminatedUnion("found", [
   z.object({
     query_address: z.string(),
     found: z.literal(true),
-    procedure: procedureIdentity,
+    procedure: procedureIdentitySchema,
   }),
   z.object({
     query_address: z.string(),
@@ -476,18 +472,18 @@ const memoryRegionOutput = z.object({
   overlay: z.boolean().optional(),
 });
 
-export const segmentOutput = resultOf(
+export const segmentOutput = evidenceResultOf(
   z.array(memoryRegionOutput.extend({ sections: z.array(memoryRegionOutput) })),
 );
 
-export const procedureInfoOutput = resultOf(
+export const procedureInfoOutput = evidenceResultOf(
   z.object({
     name: z.string(),
     entrypoint: z.string(),
     basicblock_count: z.number().int().min(0),
     length: z.number().min(0),
     signature: nullableText,
-    locals: z.array(localVariable),
+    locals: z.array(localVariableSchema),
     classification: procedureClassificationSchema.nullable().default(null),
     body: functionBodySchema.default({
       available: false,
@@ -497,7 +493,7 @@ export const procedureInfoOutput = resultOf(
 );
 
 export const symbolDiscoveryOutput = (property: "classes" | "protocols") =>
-  resultOf(
+  evidenceResultOf(
     z.object({
       count: z.number().int().min(0),
       [property]: z.array(addressedEntry),
@@ -517,4 +513,4 @@ export const graphNode = z.discriminatedUnion("status", [
   }),
 ]);
 
-export const functionDossierOutput = resultOf(functionDossierSchema);
+export const functionDossierOutput = evidenceResultOf(functionDossierSchema);

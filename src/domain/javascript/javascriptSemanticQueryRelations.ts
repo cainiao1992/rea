@@ -1,4 +1,4 @@
-import type { JavaScriptSemanticGraphRelation } from "./javascriptSemanticGraph.js";
+import type { JavaScriptSemanticGraphRelation } from "./javascriptSemanticGraphSchemas.js";
 
 const OWNERSHIP_RELATIONS = new Set<
   JavaScriptSemanticGraphRelation["relation"]

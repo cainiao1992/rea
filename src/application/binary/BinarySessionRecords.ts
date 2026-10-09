@@ -1,6 +1,6 @@
 import type { AnalysisProfileCommitment } from "../../domain/analysisProfile.js";
 import type { AnalysisSnapshot } from "../../domain/analysisSnapshot.js";
-import type { BinaryTarget } from "../../domain/binaryTarget.js";
+import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
 import type { Evidence } from "../../domain/evidence.js";
 import type { EvidenceBundle } from "../../domain/evidenceBundle.js";
 import type { JsonValue } from "../../domain/jsonValue.js";

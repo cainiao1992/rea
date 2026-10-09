@@ -24,5 +24,3 @@ export const createLogger = (mode: "mcp" | "cli", level: LogLevel): Logger =>
 
 /** Logger used by embedders that have not opted into process output. */
 export const silentLogger = pino({ level: "silent" });
-
-export type { Logger };

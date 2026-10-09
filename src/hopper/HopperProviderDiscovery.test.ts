@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { parseConfig } from "../config.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import { parseConfig } from "../config/parseConfig.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { silentLogger } from "../logger.js";
 import { HopperProvider } from "./HopperProvider.js";
 

@@ -1,6 +1,6 @@
 import type { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 
-import type { BinarySessionPort } from "../application/binary/BinarySession.js";
+import type { BinarySessionPort } from "../application/binary/BinarySessionPort.js";
 import { toolContract } from "../contracts/toolContracts.js";
 import { compareArtifacts } from "../domain/artifactComparison.js";
 import { createEvidence, parseEvidence } from "../domain/evidence.js";
@@ -8,7 +8,7 @@ import { jsonValueSchema } from "../domain/jsonValue.js";
 import type { RecordUnknownInput } from "../domain/residualUnknown.js";
 import { recordDerivedEvidence } from "./recordDerivedEvidence.js";
 import { runDerivedOperation } from "./runDerivedOperation.js";
-import { ARTIFACT_COMPARISON_PROVIDER } from "./sessionToolPolicies.js";
+import { ARTIFACT_COMPARISON_PROVIDER } from "../application/InvestigationProviders.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 
 /** Register Evidence-backed deterministic artifact comparison. */

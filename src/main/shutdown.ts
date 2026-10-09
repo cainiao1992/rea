@@ -1,7 +1,7 @@
 import type { StdioServerHandle } from "@modelcontextprotocol/server/stdio";
 
 import type { BinarySession } from "../application/binary/BinarySession.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import type { JsonValue } from "../domain/jsonValue.js";

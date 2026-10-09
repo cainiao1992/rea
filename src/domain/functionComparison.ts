@@ -8,11 +8,6 @@ import {
 import { overallStatus, summarize } from "./functionComparisonResults.js";
 import { compareDimensions } from "./functionComparisonDimensions.js";
 
-export {
-  functionComparisonInputSchema,
-  functionComparisonResultSchema,
-} from "./functionComparisonSchemas.js";
-
 /** Compare two complete function Evidence records without fuzzy matching. */
 export const compareFunctions = (
   leftInput: unknown,

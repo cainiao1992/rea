@@ -16,7 +16,7 @@ import {
 } from "../../../src/application/process/ProcessCli.js";
 import { createEvidence } from "../../../src/domain/evidence.js";
 import { ProcessCaptureError } from "../../../src/process/capture/ProcessCaptureError.js";
-import { PROCESS_PROVIDER } from "../../../src/application/process/ProcessEvidence.js";
+import { PROCESS_PROVIDER } from "../../../src/domain/process/processEvidenceProvider.js";
 import { INVESTIGATION_EXAMPLES } from "../../../src/contracts/investigationExamples.js";
 
 const roots: string[] = [];

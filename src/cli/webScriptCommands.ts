@@ -4,7 +4,7 @@ import { exportWebScripts } from "../application/WebScriptExportService.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
 import { logCliCommand } from "../cliLogging.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 
 /** Register the local captured-script export CLI workflow. */
 export const registerWebScriptCommands = (

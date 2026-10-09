@@ -21,7 +21,6 @@ import {
   runSourceMapCommand,
   type SourceMapDecoderDependencies,
 } from "./SourceMapCommand.js";
-export type { SourceMapDecoderDependencies } from "./SourceMapCommand.js";
 const OPERATION = "trace_web_source_location";
 
 /** Integrate the pinned upstream codec through an independently bounded owned process. */

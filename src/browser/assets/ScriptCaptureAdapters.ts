@@ -1,4 +1,4 @@
-import { webPageInspectionSchema } from "../../domain/browserObservation.js";
+import { webPageInspectionSchema } from "../../domain/browserObservationSchemas.js";
 import { browserScenarioCaptureSchema } from "../../domain/browserScenarioCapture.js";
 import { parseEvidence } from "../../domain/evidence.js";
 import type {

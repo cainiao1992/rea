@@ -7,10 +7,8 @@ import type {
   JavaScriptSemanticEventOperation,
   JavaScriptSemanticTimerOperation,
 } from "./javascriptSemanticIr.js";
-import {
-  semanticCallableIdForNode,
-  semanticStaticPropertyName,
-} from "./javascriptSemanticProjection.js";
+import { semanticCallableIdForNode } from "./javascriptSemanticProjection.js";
+import { semanticStaticPropertyName } from "./javascriptAstValues.js";
 import {
   resolveSemanticBindingState,
   semanticResolutionBlocked,

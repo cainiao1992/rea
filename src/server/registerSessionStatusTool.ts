@@ -1,6 +1,6 @@
 import type { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 
-import type { BinarySessionPort } from "../application/binary/BinarySession.js";
+import type { BinarySessionPort } from "../application/binary/BinarySessionPort.js";
 import type { ProviderAvailability } from "../application/AnalysisProvider.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import { buildCapabilityInventory } from "../application/CapabilityInventory.js";

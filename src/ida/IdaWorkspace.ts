@@ -3,7 +3,7 @@ import { createReadStream, constants } from "node:fs";
 import { copyFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, normalize } from "node:path";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { AnalysisProtocolError } from "../domain/analysisErrorCore.js";
 import { PrivateRuntimeRoot } from "../process/PrivateRuntimeRoot.js";
 

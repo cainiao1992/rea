@@ -6,9 +6,9 @@ import { z } from "zod";
 import {
   compareManagedMembers,
   managedMemberComparisonResultSchema,
-  parseManagedMemberEvidence,
   type CompareManagedMembersInput,
 } from "../../domain/managed/managedMemberComparison.js";
+import { parseManagedMemberEvidence } from "../../domain/managed/managedMemberComparisonMatch.js";
 import { AnalysisProtocolError } from "../../domain/analysisErrorCore.js";
 import { EvidenceIntegrityError } from "../../domain/evidenceErrors.js";
 import { type AnalysisError } from "../../domain/analysisErrorBase.js";

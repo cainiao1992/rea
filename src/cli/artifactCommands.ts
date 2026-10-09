@@ -4,7 +4,7 @@ import type { DirectAnalysis } from "../composition/directAnalysis.js";
 import { createArtifactExtractionDestination } from "../application/artifacts/ArtifactExtractionDestination.js";
 import { logCliCommand } from "../cliLogging.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import type { CliInstance } from "./types.js";
 
 export const registerArtifactCommands = (

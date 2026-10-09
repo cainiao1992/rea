@@ -4,7 +4,7 @@ import {
 } from "../domain/dosCom.js";
 import { analysisProviderSelectorSchema } from "../contracts/providerSelection.js";
 import type { AnalysisProviderSelector } from "../contracts/providerSelection.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 
 export const providerSelectionOption = analysisProviderSelectorSchema
   .optional()

@@ -25,7 +25,7 @@ import {
   type ArtifactOccurrence,
 } from "../../domain/artifactGraph.js";
 import { AnalysisUnsupportedTargetError } from "../../domain/analysisErrorCore.js";
-import type { BinaryTarget } from "../../domain/binaryTarget.js";
+import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
 import { scanArtifactInventory } from "../inventory/ArtifactInventory.js";
 
 /** Local extraction input with the output root chosen by the adapter. */

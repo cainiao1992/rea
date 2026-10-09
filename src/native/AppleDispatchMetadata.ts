@@ -6,7 +6,7 @@ import {
   nativeDispatchMetadataResultSchema,
   type ObjcSwiftMetadata,
 } from "../domain/native/objcSwiftMetadata.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import { EvidenceIntegrityError } from "../domain/evidenceErrors.js";
 import { pushDispatchCoverage } from "./AppleDispatchCoverage.js";

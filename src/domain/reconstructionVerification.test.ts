@@ -2,16 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { createEvidence, type Evidence } from "./evidence.js";
 import { createEvidenceBundle } from "./evidenceBundle.js";
-import {
-  reconstructionVerificationResultSchema,
-  verifyReconstruction,
-} from "./reconstructionVerification.js";
+import { reconstructionVerificationResultSchema } from "./reconstructionVerificationSchemas.js";
 import type { JsonValue } from "./jsonValue.js";
-import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "./process/processCapture.fixture.js";
+import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "./process/processCaptureExample.js";
 import { reconstructionSpecificationSchema } from "./reconstructionVerificationSchemas.js";
 import { ARTIFACT_COMPARISON_EXAMPLE } from "../contracts/artifactComparisonExample.js";
 import { createResidualUnknown } from "./residualUnknown.js";
 
+import { verifyReconstruction } from "./reconstructionVerification.js";
 const environment = {
   id: "fixture-linux",
   platform: "linux",

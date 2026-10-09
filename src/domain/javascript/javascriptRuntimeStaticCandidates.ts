@@ -1,9 +1,7 @@
 import { posix, relative, win32 } from "node:path";
 
-import {
-  type ApplicationNode,
-  type JavaScriptApplicationGraph,
-} from "./javascriptApplicationGraph.js";
+import type { ApplicationNode } from "./javascriptApplicationGraphSchemas.js";
+import type { JavaScriptApplicationGraph } from "./javascriptApplicationGraph.js";
 import { compareCodePoints, uniqueSorted } from "../canonicalOrdering.js";
 import type { ParsedStaticLayer } from "./javascriptRuntimeReconciliationParsing.js";
 import type { RuntimeReconciliationEntity } from "./javascriptRuntimeReconciliationRuntime.js";

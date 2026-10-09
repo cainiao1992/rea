@@ -15,7 +15,7 @@ import {
 import { AnalysisInputError } from "./domain/analysisErrorCore.js";
 import { projectAnalysisError } from "./domain/analysisErrorProjection.js";
 import type { JsonValue } from "./domain/jsonValue.js";
-import type { Logger } from "./logger.js";
+import type { Logger } from "pino";
 
 const observeOptionsSchema = z.object({
   runtimeKind: javascriptRuntimeKindSchema

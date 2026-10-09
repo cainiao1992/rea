@@ -2,7 +2,7 @@ import type { Socket } from "node:net";
 
 import type { JsonValue } from "../domain/jsonValue.js";
 import { err, type Result } from "../domain/result.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import type { PendingOperations } from "../process/PendingOperations.js";
 import type { GhidraRequestOptions } from "./GhidraClientTypes.js";
 import type {

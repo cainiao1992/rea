@@ -1,4 +1,4 @@
-import type { ArtifactInventorySnapshot } from "../../artifacts/inventory/ArtifactInventory.js";
+import type { ArtifactInventorySnapshot } from "../../domain/artifactInventorySnapshot.js";
 import {
   createJavaScriptApplicationGraph,
   createImmutableJavaScriptApplicationGraphSteps,
@@ -36,10 +36,10 @@ import {
 import {
   addJavaScriptArtifactContainers,
   addJavaScriptArtifactFiles,
-  addJavaScriptBundlerNodes,
   addJavaScriptPackageNodes,
   createJavaScriptArtifactRootNode,
 } from "./JavaScriptArtifactGraphStructure.js";
+import { addJavaScriptBundlerNodes } from "./JavaScriptArtifactGraphBundlers.js";
 import { addElectronBoundaries } from "./ElectronBoundaryGraph.js";
 import {
   classifyElectronIpcPairings,

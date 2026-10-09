@@ -4,7 +4,7 @@ import {
 } from "../domain/analysisView/analysisView.js";
 import type { ToolContract } from "./toolContractTypes.js";
 import { toolContractMetadata } from "./toolEffects.js";
-import { evidenceResultOf } from "./toolOutputSchemas.js";
+import { evidenceResultOf } from "./toolOutputSchemaPrimitives.js";
 
 const RETAINED_EXAMPLE_ID = `ev_${"a".repeat(64)}`;
 

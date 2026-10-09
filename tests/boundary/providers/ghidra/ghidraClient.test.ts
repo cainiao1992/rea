@@ -7,13 +7,11 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import pino from "pino";
-import type { Logger } from "../../../../src/logger.js";
+import type { Logger } from "pino";
 
 import { ok } from "../../../../src/domain/result.js";
-import {
-  GhidraClient,
-  type GhidraDiagnostic,
-} from "../../../../src/ghidra/GhidraClient.js";
+import { GhidraClient } from "../../../../src/ghidra/GhidraClient.js";
+import type { GhidraDiagnostic } from "../../../../src/ghidra/GhidraClientTypes.js";
 import type {
   GhidraLaunchSession,
   GhidraLauncher,

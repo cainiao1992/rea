@@ -1,4 +1,4 @@
-import type { BinaryTarget } from "../../domain/binaryTarget.js";
+import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
 import { createEvidence, type Evidence } from "../../domain/evidence.js";
 import type { EvidenceBundle } from "../../domain/evidenceBundle.js";
 import type { EvidenceIntegrityError } from "../../domain/evidenceErrors.js";

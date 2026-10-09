@@ -6,7 +6,7 @@ import {
   isProcessCliFailure,
 } from "../application/process/ProcessCli.js";
 import { logCliCommand } from "../cliLogging.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
 import { withCommandCancellation } from "./commandCancellation.js";
 

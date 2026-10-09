@@ -1,7 +1,5 @@
-import type {
-  InspectWebPageInput,
-  WebPageInspection,
-} from "../domain/browserObservation.js";
+import type { InspectWebPageInput } from "../domain/browserObservation.js";
+import type { WebPageInspection } from "../domain/browserObservationSchemas.js";
 import type { CdpCaptureCompleteness } from "./CdpCaptureCompleteness.js";
 import type { CapturedScript, NetworkState } from "./CdpCaptureEventTypes.js";
 

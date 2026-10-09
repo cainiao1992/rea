@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 
 interface ManagedPeFixtureOptions {
   readonly cliFlags?: number;

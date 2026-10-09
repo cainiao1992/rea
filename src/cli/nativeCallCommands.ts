@@ -8,7 +8,7 @@ import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { nativeCallObservationInputSchema } from "../domain/native/nativeCallObservation.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import type { CliInstance } from "./types.js";
 
 const OPERATION = "observe_native_calls";

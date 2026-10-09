@@ -1,7 +1,5 @@
-import type {
-  InspectWebPageInput,
-  WebPageInspection,
-} from "../domain/browserObservation.js";
+import type { InspectWebPageInput } from "../domain/browserObservation.js";
+import type { WebPageInspection } from "../domain/browserObservationSchemas.js";
 import type { CdpEvent } from "./CdpConnection.js";
 import { CdpCaptureCompleteness } from "./CdpCaptureCompleteness.js";
 import * as bodyShapes from "./CdpCaptureEventBodyShapes.js";
@@ -10,8 +8,6 @@ import type { CapturedScript, NetworkState } from "./CdpCaptureEventTypes.js";
 import * as handlers from "./CdpCaptureEventHandlers.js";
 import { isJsonMediaType } from "./CdpCaptureEventHelpers.js";
 import { recordValue } from "./CdpCaptureValues.js";
-
-export { type CapturedScript } from "./CdpCaptureEventTypes.js";
 
 /** Event accumulator that validates and normalizes payloads at ingestion. */
 export class CdpCaptureEvents implements CdpCaptureEventsState {

@@ -10,7 +10,7 @@ import {
 } from "../domain/evidenceErrors.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
-import { parseProcessCapture } from "../domain/process/processCapture.js";
+import { parseProcessCapture } from "../domain/process/processCaptureParsing.js";
 import {
   bufferedJsonParts,
   canonicalJsonParts,

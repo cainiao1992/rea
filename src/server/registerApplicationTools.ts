@@ -10,8 +10,6 @@ import { registerReconstructionObligationLedgerTool } from "./registerApplicatio
 import { registerProjectMobileApplicationGraphTools } from "./registerApplicationTools/projectMobileApplicationGraph.js";
 import type { ApplicationToolRegistration } from "./registerApplicationTools/types.js";
 
-export type { ApplicationToolRegistration };
-
 /** Register provider-neutral JavaScript application graph workflows. */
 export const registerApplicationTools = (
   server: EvidenceMcpServer,

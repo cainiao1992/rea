@@ -1,8 +1,8 @@
 import { fileURLToPath } from "node:url";
-import type { SourceMapDecoderDependencies } from "../../../src/javascript/sourceMaps/SourceMapDecoder.js";
 import { access } from "node:fs/promises";
 import { expect, it, vi } from "vitest";
 import { SourceMapDecoder } from "../../../src/javascript/sourceMaps/SourceMapDecoder.js";
+import type { SourceMapDecoderDependencies } from "../../../src/javascript/sourceMaps/SourceMapCommand.js";
 import { PrivateRuntimeRoot } from "../../../src/process/PrivateRuntimeRoot.js";
 import { spawnOwnedProviderProcess } from "../../../src/process/ProviderProcess.js";
 import { waitForProviderProcessReady } from "../../fixtures/providerProcess.js";

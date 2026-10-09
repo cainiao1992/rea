@@ -1,13 +1,11 @@
+import { compareProcessCaptures } from "./processComparison.js";
+import { parseProcessCapture } from "./processCaptureParsing.js";
+import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "./processCaptureExample.js";
+
 import {
-  compareProcessCaptures,
-  parseProcessCapture,
   processCaptureSchema,
   type UnverifiedProcessCapture,
 } from "./processCapture.js";
-import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "./processCaptureExample.js";
-
-export { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "./processCaptureExample.js";
-
 /** Parse a detached valid empty capture for tests that need trusted evidence. */
 export const emptyProcessCapture = () =>
   parseProcessCapture(EMPTY_PROCESS_CAPTURE_EXAMPLE);

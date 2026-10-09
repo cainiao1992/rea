@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { BinaryTarget } from "../../domain/binaryTarget.js";
+import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
 import {
   analysisProfilesEqual,
   type AnalysisProfileCommitment,
@@ -48,7 +48,6 @@ import {
   analysisErrorWithCleanupFailure,
   closeAnalysisClient,
 } from "./AnalysisClientCleanup.js";
-export type { BinarySessionPort } from "./BinarySessionPort.js";
 const OFFICIAL_OPERATIONS: ReadonlySet<string> = new Set(
   OFFICIAL_TOOL_CONTRACTS.map(({ name }) => name),
 );

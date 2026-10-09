@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { emptyArraySchema } from "./emptyArraySchema.js";
-import { webPageInspectionSchema } from "./browserObservation.js";
+import { webPageInspectionSchema } from "./browserObservationSchemas.js";
 import { webMcpDiscoverySchema } from "./webMcpDiscovery.js";
 
 /** One normalized passive page snapshot accepted by capture comparison. */

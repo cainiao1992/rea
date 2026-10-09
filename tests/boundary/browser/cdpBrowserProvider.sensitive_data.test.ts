@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { CdpBrowserProvider } from "../../../src/browser/CdpBrowserProvider.js";
-import {
-  inspectWebPageInputSchema,
-  webPageInspectionSchema,
-} from "../../../src/domain/browserObservation.js";
+import { inspectWebPageInputSchema } from "../../../src/domain/browserObservation.js";
+import { webPageInspectionSchema } from "../../../src/domain/browserObservationSchemas.js";
 import {
   startFakeCdpBrowser,
   type FakeCdpBrowser,

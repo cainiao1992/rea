@@ -2,11 +2,11 @@ import { createHash } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
+import { compareBrowserScenarios } from "./browserScenarioDiff.js";
 import {
-  compareBrowserScenarios,
   compareBrowserScenariosInputSchema,
   browserScenarioDiffSchema,
-} from "./browserScenarioDiff.js";
+} from "./browserScenarioDiffValues.js";
 import {
   browserScenarioCaptureSchema,
   type BrowserScenarioCapture,

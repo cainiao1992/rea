@@ -46,7 +46,6 @@ const TRACE_SEED = {
   match: "exact" as const,
   case_sensitive: false,
 };
-
 /** Natural trace request with the producer's complete Evidence inline. */
 export const JAVASCRIPT_FEATURE_TRACE_EXAMPLE = {
   application: JAVASCRIPT_APPLICATION_EVIDENCE_EXAMPLE,
@@ -101,5 +100,3 @@ export const SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE = {
   }),
   application: JAVASCRIPT_APPLICATION_EVIDENCE_EXAMPLE,
 };
-
-export { JAVASCRIPT_EXPORT_SHAPE_COMPARISON_EXAMPLE } from "./javascriptExportShapeComparisonExample.js";

@@ -16,7 +16,7 @@ import { AnalysisInputError } from "../domain/analysisErrorCore.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { projectInputIssues } from "../domain/inputIssueProjection.js";
 import type { JsonValue } from "../domain/jsonValue.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
 import { parseCliJsonInput, resolveCliJsonPaths } from "../cliJsonInput.js";
 import {

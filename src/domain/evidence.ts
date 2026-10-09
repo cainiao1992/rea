@@ -7,7 +7,7 @@ import {
   analysisProfileSchema,
   type AnalysisProfileCommitment,
 } from "./analysisProfile.js";
-import type { BinaryTarget } from "./binaryTarget.js";
+import type { BinaryTarget } from "./binaryTargetTypes.js";
 import {
   jsonObjectSchema,
   jsonValueSchema,

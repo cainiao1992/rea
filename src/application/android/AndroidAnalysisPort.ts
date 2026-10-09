@@ -3,7 +3,7 @@ import type {
   ExecutionOptions,
 } from "../AnalysisProvider.js";
 import type { AndroidRequest } from "../../domain/android/androidAnalysis.js";
-import type { BinaryTarget } from "../../domain/binaryTarget.js";
+import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import type { Result } from "../../domain/result.js";
 import type { ProviderAvailability } from "../AnalysisProvider.js";

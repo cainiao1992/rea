@@ -24,15 +24,15 @@ import {
   appleApplicationProjectionInputSchema,
   appleApplicationProjectionResultSchema,
 } from "../domain/apple/appleApplication.js";
-import type { ToolContract } from "./toolContracts.js";
+import type { ToolContract } from "./toolContractTypes.js";
 import { toolContractMetadata } from "./toolEffects.js";
-import { evidenceResultOf } from "./toolOutputSchemas.js";
+import { evidenceResultOf } from "./toolOutputSchemaPrimitives.js";
 import {
   JAVASCRIPT_APPLICATION_VERSION_COMPARISON_EXAMPLE,
-  JAVASCRIPT_EXPORT_SHAPE_COMPARISON_EXAMPLE,
   JAVASCRIPT_FEATURE_TRACE_EXAMPLE,
   SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE,
 } from "./javascript/javascriptApplicationWorkflowExamples.js";
+import { JAVASCRIPT_EXPORT_SHAPE_COMPARISON_EXAMPLE } from "./javascript/javascriptExportShapeComparisonExample.js";
 import {
   ANDROID_APPLICATION_GRAPH_EXAMPLE,
   APPLE_APPLICATION_GRAPH_EXAMPLE,

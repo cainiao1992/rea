@@ -4,7 +4,7 @@ import {
 } from "../../domain/evm/evmInterface.js";
 import type { ToolContract } from "../toolContractTypes.js";
 import { toolContractMetadata } from "../toolEffects.js";
-import { evidenceResultOf } from "../toolOutputSchemas.js";
+import { evidenceResultOf } from "../toolOutputSchemaPrimitives.js";
 
 /** Target-free EVM capabilities are independent of archive/Apple artifact providers. */
 export const EVM_TOOL_CONTRACTS = [

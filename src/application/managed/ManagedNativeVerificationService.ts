@@ -6,10 +6,9 @@ import { createEvidence, type Evidence } from "../../domain/evidence.js";
 import { jsonValueSchema } from "../../domain/jsonValue.js";
 import {
   managedNativeVerificationInputSchema,
-  verifyManagedNativeBoundaries,
   type ManagedNativeVerificationInput,
   type ManagedNativeVerificationResult,
-} from "../../domain/managed/managedNativeVerification.js";
+} from "../../domain/managed/managedNativeVerificationSchemas.js";
 import { err, ok, type Result } from "../../domain/result.js";
 import { MANAGED_WORKFLOW_PROVIDER } from "../InvestigationProviders.js";
 import {
@@ -17,6 +16,7 @@ import {
   workflowInputError,
 } from "../workflowInputError.js";
 
+import { verifyManagedNativeBoundaries } from "../../domain/managed/managedNativeVerification.js";
 const OPERATION = "verify_managed_native_boundaries" as const;
 
 /** Verify managed/native boundary declarations against native Evidence. */

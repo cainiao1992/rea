@@ -1,12 +1,11 @@
 import type { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 
-import type { BinarySessionPort } from "../application/binary/BinarySession.js";
+import type { BinarySessionPort } from "../application/binary/BinarySessionPort.js";
 import { toolContract } from "../contracts/toolContracts.js";
 import { buildCallPath } from "../domain/callPath.js";
 import { findChangedBehavior } from "../domain/changedBehavior.js";
 import { createEvidence } from "../domain/evidence.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
-import { verifyReconstruction } from "../domain/reconstructionVerification.js";
 import { correlateStaticAndRuntime } from "../domain/staticRuntimeCorrelation.js";
 import {
   comparisonClosure,
@@ -21,9 +20,10 @@ import {
   CHANGED_BEHAVIOR_PROVIDER,
   RECONSTRUCTION_PROVIDER,
   STATIC_RUNTIME_PROVIDER,
-} from "./sessionToolPolicies.js";
+} from "../application/InvestigationProviders.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 
+import { verifyReconstruction } from "../domain/reconstructionVerification.js";
 /** Register Evidence-composed differential investigation workflows. */
 export const registerInvestigationTools = (
   server: EvidenceMcpServer,

@@ -1,8 +1,8 @@
-import {
-  type ApplicationEdge,
-  type ApplicationNode,
-  type JavaScriptApplicationGraph,
-} from "./javascriptApplicationGraph.js";
+import type {
+  ApplicationEdge,
+  ApplicationNode,
+} from "./javascriptApplicationGraphSchemas.js";
+import type { JavaScriptApplicationGraph } from "./javascriptApplicationGraph.js";
 import { compareCodePoints } from "../canonicalOrdering.js";
 
 interface AdjacencyEntry {

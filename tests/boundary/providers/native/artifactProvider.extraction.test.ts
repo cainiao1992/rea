@@ -11,7 +11,7 @@ import {
   artifactExtractionResultSchema,
   artifactInventoryResultSchema,
 } from "../../../../src/domain/artifactGraph.js";
-import type { BinaryTarget } from "../../../../src/domain/binaryTarget.js";
+import type { BinaryTarget } from "../../../../src/domain/binaryTargetTypes.js";
 
 describe("artifact extraction", () => {
   it("extracts all regular occurrences through an exclusively owned output tree", async () => {

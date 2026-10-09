@@ -2,9 +2,9 @@ import { basename } from "node:path";
 import {
   createJavaScriptApplicationEdge,
   createJavaScriptApplicationNode,
-  type ApplicationGraphEvidence,
-  type ApplicationNode,
 } from "../javascript/javascriptApplicationGraph.js";
+import type { ApplicationGraphEvidence } from "../javascript/javascriptApplicationEvidenceSchemas.js";
+import type { ApplicationNode } from "../javascript/javascriptApplicationGraphSchemas.js";
 import { managedSourceCoverage } from "./managedApplicationGraphCoverage.js";
 import {
   type ManagedMemberInspection,

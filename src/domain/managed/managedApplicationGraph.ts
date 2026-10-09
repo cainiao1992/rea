@@ -7,9 +7,11 @@ import { evidenceSchema, type Evidence } from "../evidence.js";
 import {
   createJavaScriptApplicationGraph,
   javascriptApplicationGraphSchema,
-  type ApplicationEdge,
-  type ApplicationNode,
 } from "../javascript/javascriptApplicationGraph.js";
+import type {
+  ApplicationEdge,
+  ApplicationNode,
+} from "../javascript/javascriptApplicationGraphSchemas.js";
 import {
   managedArtifactInspectionSchema,
   managedMemberInspectionSchema,

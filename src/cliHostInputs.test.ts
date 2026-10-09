@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { HopperProvider } from "./hopper/HopperProvider.js";
 import { silentLogger } from "./logger.js";
-import { parseConfig } from "./config.js";
+import { parseConfig } from "./config/parseConfig.js";
 
 const config = (env: Record<string, string | undefined> = {}) => {
   const parsed = parseConfig(env);

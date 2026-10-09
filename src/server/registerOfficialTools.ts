@@ -8,12 +8,12 @@ import type {
 } from "../application/AnalysisProvider.js";
 import type { ProgressReporter } from "../application/ProgressReporter.js";
 import { OFFICIAL_TOOL_CONTRACTS } from "../contracts/officialToolContracts.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import { createEvidence } from "../domain/evidence.js";
 import { jsonObjectSchema, type JsonValue } from "../domain/jsonValue.js";
 import type { Result } from "../domain/result.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { mcpProgressReporter } from "./mcpProgress.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";

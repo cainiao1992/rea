@@ -1,5 +1,5 @@
 import { createJavaScriptSemanticGraphUnknown } from "../../domain/javascript/javascriptSemanticGraph.js";
-import type { JavaScriptSemanticGraphNode } from "../../domain/javascript/javascriptSemanticGraph.js";
+import type { JavaScriptSemanticGraphNode } from "../../domain/javascript/javascriptSemanticGraphSchemas.js";
 import type { JavaScriptSemanticIr } from "../../domain/javascript/javascriptSemanticIr.js";
 import { sourceRangesEqual } from "../../domain/javascript/javascriptStaticAnalysisHelpers.js";
 import type { JavaScriptSourceRange } from "../../domain/javascript/javascriptStaticAnalysisTypes.js";
@@ -33,14 +33,6 @@ export interface SemanticFlowProjectionContext {
     range: JavaScriptSourceRange,
   ) => JavaScriptSemanticGraphNode | undefined;
 }
-
-/** Find the retained call-site node at one exact semantic source range. */
-export const semanticCallSiteAt = (
-  context: SemanticFlowProjectionContext,
-  location: JavaScriptSourceRange,
-): JavaScriptSemanticGraphNode | undefined => {
-  return context.callSiteAt(location);
-};
 
 /** Project explicit static Promise/task ownership without runtime claims. */
 export const projectSemanticPromises = (
@@ -96,7 +88,7 @@ const projectPromiseCreation = (
 ): void => {
   if (operation.kind === "awaited-expression") return;
   addSemanticGraphRelation(context.state, {
-    source: semanticCallSiteAt(context, operation.location),
+    source: context.callSiteAt(operation.location),
     target: promise,
     relation: "creates-promise",
     resolution:

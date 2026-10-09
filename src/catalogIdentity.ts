@@ -7,8 +7,6 @@ import { PROMPT_CONTRACTS } from "./contracts/promptContracts.js";
 import { TOOL_CONTRACTS } from "./contracts/toolContracts.js";
 import { CLI_COMMAND_NAMES } from "./cliCommandNames.js";
 
-export { CLI_COMMAND_NAMES } from "./cliCommandNames.js";
-
 const sortedToolContracts = [...TOOL_CONTRACTS].sort((left, right) =>
   left.name.localeCompare(right.name),
 );

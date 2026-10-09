@@ -1,13 +1,13 @@
 import type { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 
-import type { BinarySessionPort } from "../application/binary/BinarySession.js";
+import type { BinarySessionPort } from "../application/binary/BinarySessionPort.js";
 import { readEvidenceBundle } from "../application/EvidenceBundleFiles.js";
 import { toolContract } from "../contracts/toolContracts.js";
 import { compareBundles } from "../domain/bundleComparison.js";
 import { createEvidence } from "../domain/evidence.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { runDerivedOperation } from "./runDerivedOperation.js";
-import { BUNDLE_COMPARISON_PROVIDER } from "./sessionToolPolicies.js";
+import { BUNDLE_COMPARISON_PROVIDER } from "../application/InvestigationProviders.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 
 /** Register canonical Evidence bundle comparison. */

@@ -8,9 +8,9 @@ import { captureProcessScenario } from "../../../src/process/capture/ProcessHarn
 import { createProcessCaptureEvidence } from "../../../src/application/process/ProcessEvidence.js";
 import {
   digestProcessCommitment,
-  parseProcessCapture,
   parseProcessScenario,
-} from "../../../src/domain/process/processCapture.js";
+} from "../../../src/domain/process/processScenario.js";
+import { parseProcessCapture } from "../../../src/domain/process/processCaptureParsing.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { itWithCaptureCapability } from "./processCaptureCapability.js";
 

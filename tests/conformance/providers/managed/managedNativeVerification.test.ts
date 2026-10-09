@@ -6,11 +6,11 @@ import { createEvidence } from "../../../../src/domain/evidence.js";
 import {
   managedNativeVerificationInputSchema,
   managedNativeVerificationResultSchema,
-  verifyManagedNativeBoundaries,
-} from "../../../../src/domain/managed/managedNativeVerification.js";
+} from "../../../../src/domain/managed/managedNativeVerificationSchemas.js";
 import { managedNativeBoundaryInspectionSchema } from "../../../../src/domain/managed/managedArtifact.js";
 import { inspectMachoSchema } from "../../../../src/domain/native/nativeInspection.js";
 
+import { verifyManagedNativeBoundaries } from "../../../../src/domain/managed/managedNativeVerification.js";
 const exampleInput = () =>
   managedNativeVerificationInputSchema.parse(
     MANAGED_NATIVE_VERIFICATION_EXAMPLE,

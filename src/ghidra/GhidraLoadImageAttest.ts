@@ -1,5 +1,5 @@
 import type { AnalysisOperation } from "../application/AnalysisProvider.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 import {

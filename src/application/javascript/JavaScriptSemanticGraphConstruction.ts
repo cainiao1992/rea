@@ -5,8 +5,8 @@ import {
   createJavaScriptSemanticGraphNode,
   createJavaScriptSemanticGraphRelation,
   javaScriptSemanticNodeId,
-  type JavaScriptSemanticGraphNode,
 } from "../../domain/javascript/javascriptSemanticGraph.js";
+import type { JavaScriptSemanticGraphNode } from "../../domain/javascript/javascriptSemanticGraphSchemas.js";
 import type { ApplicationGraphEvidence } from "../../domain/javascript/javascriptApplicationEvidenceSchemas.js";
 import type {
   JavaScriptSemanticGraphRelation,

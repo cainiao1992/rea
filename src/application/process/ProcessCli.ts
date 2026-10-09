@@ -11,17 +11,13 @@ import {
   analysisInputErrorFromIssues,
   projectInputIssues,
 } from "../../domain/inputIssueProjection.js";
-import { processTraceSpecificationSchema } from "../../domain/process/processTraceComparison.js";
+import { processTraceSpecificationSchema } from "../../domain/process/processTraceSpecification.js";
 import { processScenarioSchema } from "../../domain/process/processScenario.js";
-import {
-  compareProcessCaptures,
-  parseProcessCapture,
-} from "../../domain/process/processCapture.js";
+import { compareProcessCaptures } from "../../domain/process/processComparison.js";
+import { parseProcessCapture } from "../../domain/process/processCaptureParsing.js";
 import { captureProcessScenario } from "../../process/capture/ProcessHarness.js";
-import {
-  PROCESS_PROVIDER,
-  createProcessCaptureEvidence,
-} from "./ProcessEvidence.js";
+import { PROCESS_PROVIDER } from "../../domain/process/processEvidenceProvider.js";
+import { createProcessCaptureEvidence } from "./ProcessEvidence.js";
 
 /** Safe process-command failure returned to the CLI adapter. */
 export interface ProcessCliErrorOutput {

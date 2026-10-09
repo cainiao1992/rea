@@ -1,4 +1,4 @@
-import type { BinaryTarget } from "../../domain/binaryTarget.js";
+import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
 import { createEvidence, type Evidence } from "../../domain/evidence.js";
 import type {
   RecordUnknownInput,

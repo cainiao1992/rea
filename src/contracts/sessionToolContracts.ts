@@ -4,30 +4,32 @@ import {
   isAbsoluteLocalPath,
   localPathStringSchema,
 } from "../domain/localPath.js";
+import { artifactComparisonInputSchema } from "../domain/artifactComparison.js";
+import { bundleComparisonInputSchema } from "../domain/bundleComparison.js";
+import { callPathInputSchema } from "../domain/callPathSchemas.js";
+import { changedBehaviorInputSchema } from "../domain/changedBehavior.js";
+import { functionComparisonInputSchema } from "../domain/functionComparisonSchemas.js";
+import { processScenarioSchema } from "../domain/process/processScenario.js";
 import {
-  sessionOutputSchemas,
-  requireOutputSchema,
-} from "./toolOutputSchemas.js";
+  recordUnknownInputSchema,
+  updateUnknownInputSchema,
+} from "../domain/residualUnknown.js";
+import { reconstructionVerificationInputSchema } from "../domain/reconstructionVerificationSchemas.js";
+import { staticRuntimeCorrelationInputSchema } from "../domain/staticRuntimeCorrelation.js";
+import { sessionOutputSchemas } from "./toolOutputSchemaGroups.js";
+import { requireOutputSchema } from "./toolOutputSchemaPrimitives.js";
+import {
+  closeBinaryInputSchema,
+  openBinaryInputSchema,
+} from "./sessionLifecycleInputs.js";
+import { binarySessionInputSchema } from "./sessionStatusContract.js";
 import {
   addressContextInputSchema,
-  artifactComparisonInputSchema,
-  binarySessionInputSchema,
-  bundleComparisonInputSchema,
-  callPathInputSchema,
-  changedBehaviorInputSchema,
-  closeBinaryInputSchema,
-  functionComparisonInputSchema,
   importEvidenceBundleInputSchema,
   listUnknownsInputSchema,
   navigationContextInputSchema,
-  openBinaryInputSchema,
   processComparisonInputSchema,
-  processScenarioSchema,
-  reconstructionVerificationInputSchema,
-  recordUnknownInputSchema,
   getEvidenceBundleInputSchema,
-  staticRuntimeCorrelationInputSchema,
-  updateUnknownInputSchema,
   verifyUnknownResolutionInputSchema,
 } from "./sessionToolSchemas.js";
 import { examplesFor } from "./toolContractHelpers.js";

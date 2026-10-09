@@ -5,12 +5,12 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 
-import type { BinaryTarget } from "../../../../src/domain/binaryTarget.js";
+import type { BinaryTarget } from "../../../../src/domain/binaryTargetTypes.js";
 import {
   hopperLoaderArgsForTarget,
   resolveHopperAnalysisProfile,
 } from "../../../../src/hopper/HopperAnalysisProfile.js";
-import { HOPPER_PROVIDER_IDENTITY } from "../../../../src/hopper/HopperProvider.js";
+import { HOPPER_PROVIDER_IDENTITY } from "../../../../src/hopper/HopperProviderCapabilities.js";
 
 let directory: string | undefined;
 

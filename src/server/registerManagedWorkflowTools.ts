@@ -6,8 +6,6 @@ import { registerImportManagedReconstruction } from "./registerManagedWorkflowTo
 import { registerProjectManagedApplicationGraph } from "./registerManagedWorkflowTools/projectManagedApplicationGraph.js";
 import type { ManagedWorkflowToolRegistration } from "./registerManagedWorkflowTools/types.js";
 
-export type { ManagedWorkflowToolRegistration };
-
 /** Register provider-neutral managed-code workflows. */
 export const registerManagedWorkflowTools = (
   server: EvidenceMcpServer,

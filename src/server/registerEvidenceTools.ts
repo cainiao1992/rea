@@ -5,11 +5,11 @@ import type {
   AnalysisOperation,
   AnalysisOperationPort,
 } from "../application/AnalysisProvider.js";
-import type { ToolContract } from "../contracts/toolContracts.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { ToolContract } from "../contracts/toolContractTypes.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { createEvidence, type Evidence } from "../domain/evidence.js";
 import { jsonObjectSchema } from "../domain/jsonValue.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { mcpProgressReporter } from "./mcpProgress.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";

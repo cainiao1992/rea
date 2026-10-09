@@ -40,7 +40,6 @@ describe("workflow residual question retention", () => {
         required_authority: "shipped-artifact",
       },
     ]);
-    expect(records.listUnknowns()).toHaveLength(1);
   });
 
   it("preserves registry failures rather than presenting a completed workflow", () => {

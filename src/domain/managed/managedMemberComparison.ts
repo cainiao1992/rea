@@ -259,5 +259,3 @@ export const compareManagedMembers = (
   } satisfies ManagedMemberComparisonResult;
   return managedMemberComparisonResultSchema.parse(result);
 };
-
-export { parseManagedMemberEvidence } from "./managedMemberComparisonMatch.js";

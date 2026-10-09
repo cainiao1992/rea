@@ -9,8 +9,8 @@ import type {
   JavaScriptSemanticCallable,
   JavaScriptSemanticModuleLink,
   JavaScriptSemanticReturnSite,
-  JavaScriptSemanticValue,
 } from "./javascriptSemanticIr.js";
+import type { JavaScriptSemanticValue } from "./javascriptSemanticValueTypes.js";
 import type {
   ProjectedPropertyCoverage,
   ProjectedReturnField,

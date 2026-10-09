@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { createTestBinarySession } from "../../tests/fixtures/binarySession.js";
-import { parseConfig } from "../config.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import { parseConfig } from "../config/parseConfig.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { functionDossierSchema } from "../domain/hopperValues.js";
 import { ghidraFunctionDossier } from "../domain/ghidraValues.fixture.js";
 import { err, ok } from "../domain/result.js";

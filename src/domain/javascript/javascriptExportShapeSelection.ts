@@ -1,7 +1,5 @@
-import type {
-  ApplicationNode,
-  JavaScriptApplicationGraph,
-} from "./javascriptApplicationGraph.js";
+import type { ApplicationNode } from "./javascriptApplicationGraphSchemas.js";
+import type { JavaScriptApplicationGraph } from "./javascriptApplicationGraph.js";
 import {
   projectedExportReturnShapesSchema,
   type JavaScriptExportShapeComparisonResult,

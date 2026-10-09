@@ -16,12 +16,10 @@ import {
   parseGhidraInventoryInput,
   parseGhidraInventoryResult,
 } from "../dist/ghidra/GhidraInventoryValues.js";
-import {
-  inspectGhidraInstallation,
-  SUPPORTED_GHIDRA_VERSION,
-} from "../dist/ghidra/GhidraInstallation.js";
+import { inspectGhidraInstallation } from "../dist/ghidra/GhidraInstallation.js";
+import { SUPPORTED_GHIDRA_VERSION } from "../dist/ghidra/GhidraInstallationPolicy.js";
 import { GhidraHeadlessLauncher } from "../dist/ghidra/GhidraLauncher.js";
-import { GHIDRA_PROVIDER_IDENTITY } from "../dist/ghidra/GhidraProvider.js";
+import { GHIDRA_PROVIDER_IDENTITY } from "../dist/ghidra/GhidraProviderCapabilities.js";
 import { windowsP0Capabilities } from "../dist/ghidra/GhidraProviderCapabilities.js";
 import { GHIDRA_SESSION_CAPABILITIES } from "../dist/ghidra/GhidraSessionValues.js";
 import { parseBinaryTarget } from "../dist/application/BinaryTargetResolver.js";

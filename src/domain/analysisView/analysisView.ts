@@ -202,11 +202,6 @@ export interface AnalysisViewParent {
   readonly limitations: readonly string[];
 }
 
-export {
-  completeWithinViewCoverage,
-  pageViewCoverage,
-} from "./analysisViewCoverage.js";
-
 /** Construct a typed input failure for one selected-view constraint. */
 export const analysisViewInputError = (
   issues: readonly AnalysisInputIssue[],

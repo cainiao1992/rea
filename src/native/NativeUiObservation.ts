@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import {
   nativeUiObservationInputSchema,
   nativeUiScenarioInputSchema,

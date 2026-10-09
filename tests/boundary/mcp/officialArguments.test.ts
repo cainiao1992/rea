@@ -1,4 +1,4 @@
-import { parseConfig } from "../../../src/config.js";
+import { parseConfig } from "../../../src/config/parseConfig.js";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { describe, expect, it, onTestFinished } from "vitest";
 

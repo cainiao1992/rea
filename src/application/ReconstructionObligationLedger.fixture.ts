@@ -1,13 +1,12 @@
-import { PROCESS_PROVIDER } from "./process/ProcessEvidence.js";
+import { PROCESS_PROVIDER } from "../domain/process/processEvidenceProvider.js";
 import {
   buildReconstructionObligationLedgerEvidenceValidated,
   resolveReconstructionObligationLedgerRequest,
 } from "./ReconstructionObligationLedgerService.js";
-import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "../domain/process/processCapture.fixture.js";
+import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "../domain/process/processCaptureExample.js";
 import { createEvidence, type Evidence } from "../domain/evidence.js";
 import { createEvidenceBundle } from "../domain/evidenceBundle.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
-import { processCaptureSchema } from "../domain/process/processCapture.js";
 import {
   reconstructionObligationLedgerSchema,
   type ReconstructionObligationLedgerInput,
@@ -15,6 +14,7 @@ import {
   type ReviewedReconstructionObligation,
 } from "../domain/reconstructionObligationLedgerSchemas.js";
 
+import { processCaptureSchema } from "../domain/process/processCapture.js";
 /** Build controlled fixture Evidence used by reconstruction-ledger scenarios. */
 export const proofEvidence = (id: string) =>
   createEvidence(

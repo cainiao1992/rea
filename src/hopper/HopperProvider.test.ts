@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseConfig } from "../config.js";
+import { parseConfig } from "../config/parseConfig.js";
 import { silentLogger } from "../logger.js";
 import { HopperProvider } from "./HopperProvider.js";
 

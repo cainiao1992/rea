@@ -2,7 +2,7 @@ import type {
   BrowserNetworkBody,
   BrowserNetworkContentSelection,
 } from "../../domain/browserNetworkEvidence.js";
-import type { BrowserScenarioEvent } from "../../domain/browserScenarioCapture.js";
+import type { BrowserScenarioEvent } from "../../domain/browserScenarioCaptureValues.js";
 import type { BrowserScenarioSecrets } from "../BrowserScenarioSecrets.js";
 import {
   captureNetworkBody,

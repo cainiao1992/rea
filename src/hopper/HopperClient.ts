@@ -31,7 +31,8 @@ import {
 import { err, ok, type Result } from "../domain/result.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import type { ProgressReporter } from "../application/ProgressReporter.js";
-import { silentLogger, type Logger } from "../logger.js";
+import { silentLogger } from "../logger.js";
+import type { Logger } from "pino";
 import { PrivateRuntimeRoot } from "../process/PrivateRuntimeRoot.js";
 import { ProviderStartupDeadline } from "../process/ProviderDeadline.js";
 import { ProviderRunLineage } from "../process/ProviderRunLineage.js";
@@ -62,8 +63,6 @@ import {
   type HopperBridgeMessage,
   responseResult,
 } from "./protocol.js";
-
-export type { HopperServerInfo } from "./HopperSessionValues.js";
 
 const SHUTDOWN_TIMEOUT_MS = 30_000;
 const SESSION_ROOT = process.platform === "darwin" ? "/tmp" : tmpdir();

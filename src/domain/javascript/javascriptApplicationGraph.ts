@@ -528,5 +528,3 @@ export const serializeJavaScriptApplicationGraph = (input: unknown): string =>
     parseJavaScriptApplicationGraph(input),
     "JavaScript Application Graph",
   );
-
-export type { ApplicationEdge, ApplicationGraphEvidence, ApplicationNode };

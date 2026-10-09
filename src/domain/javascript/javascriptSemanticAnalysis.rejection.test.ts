@@ -12,7 +12,7 @@ import {
   collectJavaScriptExports,
   fingerprintJavaScriptAst,
 } from "./javascriptAstFingerprint.js";
-import type { JavaScriptSemanticValue } from "./javascriptSemanticIr.js";
+import type { JavaScriptSemanticValue } from "./javascriptSemanticValueTypes.js";
 import {
   onlyCallable,
   topLevelBinding,

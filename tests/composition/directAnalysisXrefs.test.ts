@@ -1,4 +1,4 @@
-import { parseConfig } from "../../src/config.js";
+import { parseConfig } from "../../src/config/parseConfig.js";
 import { describe, expect, it } from "vitest";
 import { runDirectAnalysis } from "../../src/application/DirectAnalysis.js";
 import type { DirectAnalysisDependencies } from "../../src/application/DirectAnalysisDependencies.js";

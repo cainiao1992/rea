@@ -2,7 +2,7 @@ import { fc, it } from "@fast-check/vitest";
 import { describe, expect } from "vitest";
 
 import { createAnalysisProfile } from "./analysisProfile.js";
-import type { BinaryTarget } from "./binaryTarget.js";
+import type { BinaryTarget } from "./binaryTargetTypes.js";
 import { createEvidence, evidenceSchema, parseEvidence } from "./evidence.js";
 import { MAX_JSON_DEPTH, type JsonValue } from "./jsonValue.js";
 import { createEvidenceBundle } from "./evidenceBundle.js";

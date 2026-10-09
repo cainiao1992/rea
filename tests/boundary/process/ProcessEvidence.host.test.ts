@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 
 import { emptyUnverifiedProcessCapture } from "../../../src/domain/process/processCapture.fixture.js";
-import { parseProcessCapture } from "../../../src/domain/process/processCapture.js";
+import { parseProcessCapture } from "../../../src/domain/process/processCaptureParsing.js";
 import { parseProcessScenario } from "../../../src/domain/process/processScenario.js";
 import { createProcessCaptureEvidence } from "../../../src/application/process/ProcessEvidence.js";
 import { observeSettlement } from "../../../src/process/capture/ProcessCaptureLifecycle.js";

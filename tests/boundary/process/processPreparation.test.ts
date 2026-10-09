@@ -2,7 +2,7 @@ import { expect, it, vi } from "vitest";
 
 import { snapshotRoots } from "../../../src/process/capture/FilesystemSnapshot.js";
 import { prepareProcessCapture } from "../../../src/process/capture/ProcessCaptureLifecycle.js";
-import { parseProcessScenario } from "../../../src/domain/process/processCapture.js";
+import { parseProcessScenario } from "../../../src/domain/process/processScenario.js";
 
 it("prepares ownership inspection before snapshotting or allocating a target run", async () => {
   const failure = new Error("native process identity inspection unavailable");

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import type { ToolContract } from "./toolContracts.js";
-import { artifactOutputSchemas } from "./toolOutputSchemas.js";
+import type { ToolContract } from "./toolContractTypes.js";
+import { artifactOutputSchemas } from "./toolOutputSchemaGroups.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { toolContractMetadata } from "./toolEffects.js";
 import { requireOutputSchema } from "./toolOutputSchemaPrimitives.js";

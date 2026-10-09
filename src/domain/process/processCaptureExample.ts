@@ -1,5 +1,5 @@
 import type { JsonValue } from "../jsonValue.js";
-import { digestProcessCommitment } from "./processCapture.js";
+import { digestProcessCommitment } from "./processScenario.js";
 
 const normalization = {
   paths: true,

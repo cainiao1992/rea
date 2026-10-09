@@ -3,7 +3,7 @@ import { enhancedInputSchemas } from "./enhancedInputs.js";
 import { TOOL_EXAMPLE_OVERRIDES } from "./toolContractExamples.js";
 import type { ToolContract } from "./toolContractTypes.js";
 import { toolContractMetadata } from "./toolEffects.js";
-import { enhancedOutputSchemas } from "./toolOutputSchemas.js";
+import { enhancedOutputSchemas } from "./toolOutputSchemaGroups.js";
 import { requireOutputSchema } from "./toolOutputSchemaPrimitives.js";
 
 type FunctionWorkflowName = "analyze_function" | "inspect_native_api";

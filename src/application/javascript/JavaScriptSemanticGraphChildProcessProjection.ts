@@ -1,5 +1,5 @@
 import { createJavaScriptSemanticGraphUnknown } from "../../domain/javascript/javascriptSemanticGraph.js";
-import type { JavaScriptSemanticGraphNode } from "../../domain/javascript/javascriptSemanticGraph.js";
+import type { JavaScriptSemanticGraphNode } from "../../domain/javascript/javascriptSemanticGraphSchemas.js";
 import type {
   JavaScriptSemanticChildProcessInteraction,
   JavaScriptSemanticChildProcessSpawn,
@@ -10,10 +10,7 @@ import {
   addSemanticGraphUnknown,
 } from "./JavaScriptSemanticGraphConstruction.js";
 import { unknownSemanticEvidence } from "./JavaScriptSemanticGraphEvidence.js";
-import {
-  semanticCallSiteAt,
-  type SemanticFlowProjectionContext,
-} from "./JavaScriptSemanticGraphFlowProjection.js";
+import type { SemanticFlowProjectionContext } from "./JavaScriptSemanticGraphFlowProjection.js";
 
 interface ChildUnknownInput {
   readonly context: SemanticFlowProjectionContext;
@@ -75,7 +72,7 @@ const projectSpawn = (
   spawn: JavaScriptSemanticChildProcessSpawn,
   child: JavaScriptSemanticGraphNode,
 ): void => {
-  const callSite = semanticCallSiteAt(context, spawn.location);
+  const callSite = context.callSiteAt(spawn.location);
   addSemanticGraphRelation(context.state, {
     source: callSite,
     target: child,

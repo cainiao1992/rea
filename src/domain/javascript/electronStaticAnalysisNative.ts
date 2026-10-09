@@ -7,11 +7,13 @@ import { addLocatedFinding } from "./javascriptStaticAnalysisFindings.js";
 import {
   argumentNode,
   calleeName,
-  propertyName,
   range,
-  semanticStaticPropertyName,
   stringValue,
 } from "./javascriptStaticAnalysisHelpers.js";
+import {
+  propertyName,
+  semanticStaticPropertyName,
+} from "./javascriptAstValues.js";
 import type { JavaScriptFindingContext } from "./javascriptStaticAnalysisState.js";
 
 interface NativeBindingInput {

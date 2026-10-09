@@ -1,17 +1,17 @@
 import { z } from "zod";
+import { compareBrowserScenarios } from "./browserScenarioDiff.js";
+import { compareWebCaptures } from "./webCaptureDiff.js";
 
 import {
   browserScenarioDiffSchema,
-  compareBrowserScenarios,
   compareBrowserScenariosInputSchema,
   type BrowserScenarioDiff,
-} from "./browserScenarioDiff.js";
+} from "./browserScenarioDiffValues.js";
 import {
-  compareWebCaptures,
   compareWebCapturesInputSchema,
   webCaptureDiffSchema,
   type WebCaptureDiff,
-} from "./webCaptureDiff.js";
+} from "./webCaptureDiffSchemas.js";
 
 /** Mutually exclusive passive and scenario capture comparison inputs. */
 export const browserCaptureComparisonInputSchema = z.union(

@@ -3,8 +3,8 @@ import { constants } from "node:fs";
 import { open, realpath, writeFile, mkdir } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { z } from "zod";
-import type { AppConfig } from "../../config.js";
-import type { BinaryTarget } from "../../domain/binaryTarget.js";
+import type { AppConfig } from "../../config/types.js";
+import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
 import {
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,

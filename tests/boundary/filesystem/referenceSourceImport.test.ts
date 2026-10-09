@@ -15,7 +15,7 @@ import {
   parseReferenceSourceEntries,
   projectReferenceSourceEntryFailure,
 } from "../../../src/application/ReferenceSourceImportEntries.js";
-import type { ReferenceSourceRead } from "../../../src/reference/ReferenceSourceReader.js";
+import type { ReferenceSourceRead } from "../../../src/reference/ReferenceSourceReaderTypes.js";
 import {
   projectReferenceSourceImportError,
   type ReferenceSourceImportError,

@@ -1,6 +1,6 @@
 import type { InvestigationRecordPort } from "../investigation/InvestigationRecordPort.js";
 import type { ExecutableFormatHint } from "../../domain/dosCom.js";
-import type { BinaryTarget } from "../../domain/binaryTarget.js";
+import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
 import type { JsonValue } from "../../domain/jsonValue.js";
 import type { AnalysisSnapshot } from "../../domain/analysisSnapshot.js";
 import type { AnalysisProfileCommitment } from "../../domain/analysisProfile.js";

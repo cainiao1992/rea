@@ -3,9 +3,11 @@ import { z } from "zod";
 import {
   browserAllowedOriginsSchema,
   browserEndpointSchema,
+} from "../browserObservation.js";
+import {
   webPageInspectionSchema,
   type WebPageInspection,
-} from "../browserObservation.js";
+} from "../browserObservationSchemas.js";
 import {
   classifyBrowserCompleteness,
   type BrowserCompleteness,

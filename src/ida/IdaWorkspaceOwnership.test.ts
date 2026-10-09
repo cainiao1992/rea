@@ -4,7 +4,7 @@ import {
   createIdaTarget,
   RecordingIdaMcp,
 } from "../../tests/fixtures/idaMcp.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { IdaSessionClient } from "./IdaSessionClient.js";
 
 const roots: string[] = [];

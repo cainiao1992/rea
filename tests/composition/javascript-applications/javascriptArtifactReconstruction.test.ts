@@ -19,7 +19,7 @@ import {
 } from "../../../src/application/javascript/JavaScriptSemanticGraphBuilder.js";
 import { createJavaScriptArtifactReader } from "../../../src/artifacts/javascript/JavaScriptArtifactReader.js";
 import { readJavaScriptArtifactFiles } from "../../../src/artifacts/javascript/JavaScriptArtifactFiles.js";
-import { scanCanonicalArtifactInventory } from "../../../src/artifacts/inventory/ArtifactInventory.js";
+import { scanCanonicalArtifactInventory } from "../../../src/artifacts/inventory/scanCanonical.js";
 import { scanArtifactInventory } from "../../../src/artifacts/inventory/ArtifactInventory.js";
 import { parseJavaScriptApplicationGraph } from "../../../src/domain/javascript/javascriptApplicationGraph.js";
 import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";

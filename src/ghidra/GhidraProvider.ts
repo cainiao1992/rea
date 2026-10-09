@@ -9,19 +9,19 @@ import {
   type ProviderIdentity,
   type ProviderTargetSupport,
 } from "../application/AnalysisProvider.js";
-import type { AppConfig } from "../config.js";
+import type { AppConfig } from "../config/types.js";
 import {
   createAnalysisProfile,
   type AnalysisProfileCommitment,
 } from "../domain/analysisProfile.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import {
   jsonObjectSchema,
   jsonValueSchema,
   type JsonValue,
 } from "../domain/jsonValue.js";
 import { ok } from "../domain/result.js";
-import type { Logger } from "../logger.js";
+import type { Logger } from "pino";
 import { GhidraClient } from "./GhidraClient.js";
 import {
   ghidraInstallationDiagnostics,
@@ -46,9 +46,6 @@ import {
   hasWindowsNativeAuthority,
   windowsNativeCapabilities,
 } from "../process/WindowsAuthority.js";
-
-export { GHIDRA_PROVIDER_IDENTITY, GHIDRA_OPERATIONS };
-export type { GhidraProviderClientFactory };
 
 const SUPPORTED_ARCHITECTURES = new Set(["x86", "x86_64", "arm", "arm64"]);
 

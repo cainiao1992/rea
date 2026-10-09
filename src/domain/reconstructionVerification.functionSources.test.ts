@@ -9,16 +9,16 @@ import {
   type EvidenceSubjectTarget,
 } from "./evidence.js";
 import { createEvidenceBundle, parseEvidenceBundle } from "./evidenceBundle.js";
-import { compareFunctions } from "./functionComparison.js";
 import { functionDossierSchema } from "./hopperValues.js";
 import {
   jsonObjectSchema,
   jsonValueSchema,
   type JsonValue,
 } from "./jsonValue.js";
-import { verifyReconstruction } from "./reconstructionVerification.js";
 import { createResidualUnknown } from "./residualUnknown.js";
 
+import { compareFunctions } from "./functionComparison.js";
+import { verifyReconstruction } from "./reconstructionVerification.js";
 const dossier = jsonValueSchema.parse(
   functionDossierSchema.parse({
     procedure: {

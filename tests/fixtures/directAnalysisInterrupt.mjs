@@ -1,4 +1,4 @@
-import { parseConfig } from "../../dist/config.js";
+import { parseConfig } from "../../dist/config/parseConfig.js";
 import { access, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";

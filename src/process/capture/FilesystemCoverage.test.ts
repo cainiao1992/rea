@@ -1,7 +1,7 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
-import { parseProcessScenario } from "../../domain/process/processCapture.js";
+import { parseProcessScenario } from "../../domain/process/processScenario.js";
 import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
 import { snapshotRoots } from "./FilesystemSnapshot.js";
 import { classifyFilesystemEffects } from "./ProcessFilesystemEffects.js";

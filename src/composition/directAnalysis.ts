@@ -1,5 +1,5 @@
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
-import { parseConfig } from "../config.js";
+import { parseConfig } from "../config/parseConfig.js";
 import {
   runDirectAnalysis as executeDirectAnalysis,
   runProviderAnalysis as executeProviderAnalysis,

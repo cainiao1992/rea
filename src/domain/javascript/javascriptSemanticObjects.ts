@@ -7,8 +7,8 @@ import type {
 import {
   semanticCallableIdForNode,
   semanticReadsBeforeWrite,
-  semanticStaticPropertyKey,
 } from "./javascriptSemanticProjection.js";
+import { semanticStaticPropertyKey } from "./javascriptAstValues.js";
 import {
   resolveSemanticBindingState,
   type JavaScriptSemanticAnalysisState,

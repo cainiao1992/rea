@@ -35,6 +35,7 @@ export const assertSameNames = (label, actual, expected) => {
 const SOURCE_PATHS = {
   packageMetadata: "dist/generatedPackageMetadata.js",
   catalogIdentity: "dist/catalogIdentity.js",
+  cliCommandNames: "dist/cliCommandNames.js",
   cli: "dist/cli.js",
   toolContracts: "dist/contracts/toolContracts.js",
   officialContracts: "dist/contracts/officialToolContracts.js",
@@ -76,7 +77,7 @@ const SOURCE_PATHS = {
   nativeProvider: "dist/native/NativeMacOSProviderMetadata.js",
   artifactProviders: "dist/application/InvestigationProviders.js",
   browserIdentities: "dist/browser/providerIdentities.js",
-  v8InspectorProvider: "dist/inspector/V8InspectorProvider.js",
+  v8InspectorProvider: "dist/inspector/providerIdentity.js",
   evidence: "dist/domain/evidence.js",
   evidenceBundle: "dist/domain/evidenceBundle.js",
   evidenceCompletion: "dist/domain/evidenceCompletionLedger.js",

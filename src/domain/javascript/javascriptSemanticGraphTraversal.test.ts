@@ -13,9 +13,11 @@ import {
   createJavaScriptSemanticGraphRelation,
   createJavaScriptSemanticGraphUnknown,
   type JavaScriptSemanticGraph,
-  type JavaScriptSemanticGraphNode,
-  type JavaScriptSemanticGraphRelation,
 } from "./javascriptSemanticGraph.js";
+import type {
+  JavaScriptSemanticGraphNode,
+  JavaScriptSemanticGraphRelation,
+} from "./javascriptSemanticGraphSchemas.js";
 import { queryJavaScriptSemanticGraph } from "./javascriptSemanticQuery.js";
 import type { JsonValue } from "../jsonValue.js";
 

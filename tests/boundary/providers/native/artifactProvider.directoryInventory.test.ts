@@ -7,7 +7,7 @@ import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js
 
 import { ArtifactProvider } from "../../../../src/artifacts/ArtifactProvider.js";
 import { artifactInventoryResultSchema } from "../../../../src/domain/artifactGraph.js";
-import type { BinaryTarget } from "../../../../src/domain/binaryTarget.js";
+import type { BinaryTarget } from "../../../../src/domain/binaryTargetTypes.js";
 
 describe("artifact directory inventory", () => {
   it("inventories app trees deterministically without following symlinks", async () => {

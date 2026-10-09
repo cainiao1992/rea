@@ -5,13 +5,6 @@ import type {
   JavaScriptSemanticReturnCoverage,
 } from "./javascriptSemanticCoverage.js";
 
-export type {
-  JavaScriptSemanticPrimitive,
-  JavaScriptSemanticProperty,
-  JavaScriptSemanticResourceLimit,
-  JavaScriptSemanticValue,
-} from "./javascriptSemanticValueTypes.js";
-
 /** One exact module origin followed through imports, requires, or aliases. */
 export interface JavaScriptModuleOrigin {
   readonly specifier: string;

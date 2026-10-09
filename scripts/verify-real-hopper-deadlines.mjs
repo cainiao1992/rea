@@ -9,7 +9,7 @@ import { parseBinaryTarget } from "../dist/application/BinaryTargetResolver.js";
 import { resolveHopperAnalysisProfile } from "../dist/hopper/HopperAnalysisProfile.js";
 import { HopperApplicationLauncher } from "../dist/hopper/BridgeLauncher.js";
 import { HopperClient } from "../dist/hopper/HopperClient.js";
-import { HOPPER_PROVIDER_IDENTITY } from "../dist/hopper/HopperProvider.js";
+import { HOPPER_PROVIDER_IDENTITY } from "../dist/hopper/HopperProviderCapabilities.js";
 import { loadRealHopperFixtureTargets } from "./lib/real-hopper-fixture.mjs";
 
 // These options belong to the native client, below the CLI/MCP tool surface.

@@ -1,10 +1,12 @@
-import type { ToolContract } from "./toolContracts.js";
+import type { ToolContract } from "./toolContractTypes.js";
 import {
-  browserTargetListSchema,
   inspectWebPageInputSchema,
   listBrowserTargetsInputSchema,
-  webPageInspectionSchema,
 } from "../domain/browserObservation.js";
+import {
+  browserTargetListSchema,
+  webPageInspectionSchema,
+} from "../domain/browserObservationSchemas.js";
 import {
   analyzeWebBundleInputSchema,
   webBundleAnalysisSchema,
@@ -28,19 +30,20 @@ import {
   webScreenshotSchema,
 } from "../domain/webScreenshot.js";
 import { toolContractMetadata } from "./toolEffects.js";
-import { evidenceResultOf } from "./toolOutputSchemas.js";
+import { evidenceResultOf } from "./toolOutputSchemaPrimitives.js";
 
-const evidenceResult = evidenceResultOf;
-const listOutputSchema = evidenceResult(browserTargetListSchema);
-const inspectionOutputSchema = evidenceResult(webPageInspectionSchema);
-const bundleOutputSchema = evidenceResult(webBundleAnalysisSchema);
-const observationSessionOutputSchema = evidenceResult(
+const listOutputSchema = evidenceResultOf(browserTargetListSchema);
+const inspectionOutputSchema = evidenceResultOf(webPageInspectionSchema);
+const bundleOutputSchema = evidenceResultOf(webBundleAnalysisSchema);
+const observationSessionOutputSchema = evidenceResultOf(
   webObservationSessionSchema,
 );
-const webMcpOutputSchema = evidenceResult(webMcpDiscoverySchema);
-const captureDiffOutputSchema = evidenceResult(browserCaptureComparisonSchema);
-const screenshotOutputSchema = evidenceResult(webScreenshotSchema);
-const screenshotDiffOutputSchema = evidenceResult(webScreenshotDiffSchema);
+const webMcpOutputSchema = evidenceResultOf(webMcpDiscoverySchema);
+const captureDiffOutputSchema = evidenceResultOf(
+  browserCaptureComparisonSchema,
+);
+const screenshotOutputSchema = evidenceResultOf(webScreenshotSchema);
+const screenshotDiffOutputSchema = evidenceResultOf(webScreenshotDiffSchema);
 
 const endpoint = "http://127.0.0.1:9222";
 const origin = "https://app.example.test";

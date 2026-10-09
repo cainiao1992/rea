@@ -14,7 +14,7 @@ import type { SanitizedBrowserUrl } from "../domain/browserObservation.js";
 import {
   browserScenarioEventSchema,
   type BrowserScenarioEvent,
-} from "../domain/browserScenarioCapture.js";
+} from "../domain/browserScenarioCaptureValues.js";
 import type { BrowserScenarioSecrets } from "./BrowserScenarioSecrets.js";
 import type { BrowserNetworkContentSelection } from "../domain/browserNetworkEvidence.js";
 import { PlaywrightScenarioNetwork } from "./network/PlaywrightScenarioNetwork.js";

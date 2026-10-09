@@ -24,7 +24,7 @@ import {
 } from "./lib/mcp-verifier-results.mjs";
 import { snapshotHopperRuntime } from "./lib/real-hopper-cleanup.mjs";
 import { HOPPER_TARGET_LEASE_DIRECTORY } from "../dist/hopper/HopperTargetLease.js";
-import { parseConfig } from "../dist/config.js";
+import { parseConfig } from "../dist/config/parseConfig.js";
 import {
   verifyHopperSourceBinding,
   relocateSingleFatSlice,

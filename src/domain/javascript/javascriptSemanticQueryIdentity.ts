@@ -2,10 +2,8 @@ import { createHash } from "node:crypto";
 
 import canonicalize from "canonicalize";
 
-import type {
-  JavaScriptSemanticGraph,
-  JavaScriptSemanticGraphNode,
-} from "./javascriptSemanticGraph.js";
+import type { JavaScriptSemanticGraph } from "./javascriptSemanticGraph.js";
+import type { JavaScriptSemanticGraphNode } from "./javascriptSemanticGraphSchemas.js";
 import { compareCodePoints, uniqueSorted } from "../canonicalOrdering.js";
 import type { JavaScriptSemanticQueryInput } from "./javascriptSemanticQuerySchemas.js";
 

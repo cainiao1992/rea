@@ -15,8 +15,8 @@ import {
   argumentNode,
   calleeName,
   range,
-  semanticStaticPropertyName,
 } from "./javascriptStaticAnalysisHelpers.js";
+import { semanticStaticPropertyName } from "./javascriptAstValues.js";
 import type { JavaScriptFindingContext } from "./javascriptStaticAnalysisState.js";
 
 /** Inspect Electron IPC operations and validation candidates. */

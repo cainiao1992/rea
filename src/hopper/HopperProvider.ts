@@ -14,9 +14,9 @@ import type {
   ProviderTargetSupport,
 } from "../application/AnalysisProvider.js";
 import type { AnalysisProfileCommitment } from "../domain/analysisProfile.js";
-import type { AppConfig } from "../config.js";
-import type { BinaryTarget } from "../domain/binaryTarget.js";
-import type { Logger } from "../logger.js";
+import type { AppConfig } from "../config/types.js";
+import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
+import type { Logger } from "pino";
 import { AnalysisCapabilityUnavailableError } from "../domain/analysisErrorCore.js";
 import { err, ok } from "../domain/result.js";
 import { HopperApplicationLauncher } from "./BridgeLauncher.js";
@@ -33,13 +33,6 @@ import {
   CAPABILITIES,
   HOPPER_PROVIDER_IDENTITY,
 } from "./HopperProviderCapabilities.js";
-
-export {
-  HOPPER_PROVIDER_IDENTITY,
-  HOPPER_OPERATIONS,
-} from "./HopperProviderCapabilities.js";
-
-const IDENTITY = HOPPER_PROVIDER_IDENTITY;
 
 /** Concrete analysis provider backed by REA's private Hopper bridge. */
 export class HopperProvider implements AnalysisProviderCandidate {
@@ -61,7 +54,7 @@ export class HopperProvider implements AnalysisProviderCandidate {
   }
 
   identity(): ProviderIdentity {
-    return IDENTITY;
+    return HOPPER_PROVIDER_IDENTITY;
   }
 
   capabilities(): readonly CapabilityDescriptor[] {
@@ -143,7 +136,7 @@ export class HopperProvider implements AnalysisProviderCandidate {
     return resolveHopperAnalysisProfile(target, {
       launcherPath: this.config.hopperLauncherPath,
       loaderArgsOverride: this.config.hopperLoaderArgs,
-      provider: IDENTITY,
+      provider: HOPPER_PROVIDER_IDENTITY,
       ...(options?.signal === undefined ? {} : { signal: options.signal }),
     });
   }
@@ -159,7 +152,7 @@ export class HopperProvider implements AnalysisProviderCandidate {
           Promise.resolve(
             err(
               new AnalysisCapabilityUnavailableError(
-                IDENTITY.id,
+                HOPPER_PROVIDER_IDENTITY.id,
                 operation,
                 `Hopper cannot open ${target.kind} targets directly. Inventory or extract the artifact first.`,
               ),
@@ -178,7 +171,7 @@ export class HopperProvider implements AnalysisProviderCandidate {
           Promise.resolve(
             err(
               new AnalysisCapabilityUnavailableError(
-                IDENTITY.id,
+                HOPPER_PROVIDER_IDENTITY.id,
                 operation,
                 "Hopper prepared-image profile is malformed; resolve the analysis profile again.",
               ),
@@ -202,7 +195,7 @@ export class HopperProvider implements AnalysisProviderCandidate {
         execute: () => Promise.resolve(err(derivedLoaderArgs.error)),
         close: () => Promise.resolve(ok(null)),
       };
-    const executionProvider = profile?.provider ?? IDENTITY;
+    const executionProvider = profile?.provider ?? HOPPER_PROVIDER_IDENTITY;
     const client = new HopperClient({
       launcher: new HopperApplicationLauncher({
         environment: this.environment,

@@ -1,8 +1,8 @@
 import type {
   JavaScriptBindingProvenance,
   JavaScriptModuleOrigin,
-  JavaScriptSemanticPrimitive,
 } from "./javascriptSemanticIr.js";
+import type { JavaScriptSemanticPrimitive } from "./javascriptSemanticValueTypes.js";
 import { compareCodePoints } from "../canonicalOrdering.js";
 
 /** Construct exact local provenance without inventing module origins. */

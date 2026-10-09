@@ -1,16 +1,8 @@
 import type { IPty } from "@lydell/node-pty";
 import type { TerminalRetention } from "../../domain/process/processCaptureCoverage.js";
-import type {
-  InteractionEvent,
-  ProcessCapture,
-  UnverifiedProcessCapture,
-  ProcessCaptureEventJournalEntry,
-  ProcessSample,
-  ProcessScenario,
-  RecordProcessCaptureEvent,
-  TerminalFrame,
-} from "../../domain/process/processCapture.js";
-import { parseProcessCapture } from "../../domain/process/processCapture.js";
+import type { ProcessCapture } from "../../domain/process/processCaptureParsing.js";
+import type { ProcessScenario } from "../../domain/process/processScenario.js";
+import { parseProcessCapture } from "../../domain/process/processCaptureParsing.js";
 import { err, ok, type Result } from "../../domain/result.js";
 import { AnalysisCapabilityUnavailableError } from "../../domain/analysisErrorCore.js";
 import { type AnalysisError } from "../../domain/analysisErrorBase.js";
@@ -20,7 +12,14 @@ import {
   normalizeCaptureFailure,
   processCaptureCancelled,
 } from "./ProcessCaptureError.js";
-export { ProcessCaptureError } from "./ProcessCaptureError.js";
+import type {
+  InteractionEvent,
+  UnverifiedProcessCapture,
+  ProcessCaptureEventJournalEntry,
+  ProcessSample,
+  RecordProcessCaptureEvent,
+  TerminalFrame,
+} from "../../domain/process/processCapture.js";
 import { startProcessSampler } from "./ProcessSampling.js";
 import { snapshotRoots } from "./FilesystemSnapshot.js";
 import { TerminalRenderer } from "./TerminalRenderer.js";
@@ -57,7 +56,6 @@ import { makeProcessCaptureEnvironment } from "./ProcessCaptureEnvironment.js";
 import { classifyFilesystemEffects } from "./ProcessFilesystemEffects.js";
 import { processCaptureOwnershipUnavailableReason } from "./ProcessCaptureCapability.js";
 import type { ProcessOwnershipBaseline } from "../ProcessOwnership.js";
-export { probeProcessCaptureCapability } from "./ProcessCaptureCapability.js";
 
 interface StartedCaptureRuntime {
   readonly renderer: TerminalRenderer;

@@ -1,4 +1,4 @@
-import type { WebPageInspection } from "../domain/browserObservation.js";
+import type { WebPageInspection } from "../domain/browserObservationSchemas.js";
 
 export interface CapturedScript {
   readonly scriptId: string;

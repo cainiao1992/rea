@@ -36,6 +36,22 @@ contents. Website verification compares every ZIP entry to its source file and
 rejects extra entries. Existing source digests and static findings remain valid
 for the unzipped example.
 
+## First-investigation formatter check
+
+The first-investigation page reuses the unchanged Electron fixture and recorded
+static findings above. On 9 October 2026, its generated ZIP was unpacked and the
+page's formatter command was run with Node.js 24.18.0. The input
+`[{ id: 1, title: 'Hello, "REA"' }]` produced:
+
+```csv
+id,title
+1,"Hello, ""REA"""
+```
+
+That check executes `toCsv` from the unzipped `csv.js`. It checks formatting;
+the export destination remains a conclusion from `main.js`. No Electron app
+launch or new native analysis was needed for this website revision.
+
 ## Notes browser example
 
 The three-file browser app is in `website/public/examples/notes-web/`.

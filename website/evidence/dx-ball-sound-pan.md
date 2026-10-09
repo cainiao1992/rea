@@ -96,6 +96,12 @@ signature, declaration and return.
 
 ## Validation scope
 
+The homepage reuses these observations in a selected seven-instruction excerpt
+and a shortened C summary. Its agent answer is an example explanation, not a
+recorded transcript. Its position figure uses illustrative inputs 0, 320 and
+640 with the recorded initial scale of 1, producing −500, 0 and 500. The checks
+below apply to the maintained project function, not the shortened summary.
+
 The reconstruction project's recorded checks establish:
 
 - 3,205 direct original-x86 differential cases: integer positions 0–640 at

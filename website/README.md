@@ -25,7 +25,8 @@ Open <http://127.0.0.1:4173/>. Refresh the browser after editing a file.
 
 ## Pages
 
-- `public/index.html`: product introduction and case-study overviews.
+- `public/index.html`: DX-Ball introduction, agent example, setup and case-study overviews.
+- `public/first-investigation/index.html`: a guided Notes export investigation, from setup to a checked CSV prediction.
 - `public/showcase/index.html`: the case-study index.
 - `public/showcase/dx-ball/index.html`: sound-pan investigation and project status.
 - `public/showcase/notion/index.html`: Notion's Electron clipboard bridge and rich clipboard format.
@@ -60,6 +61,12 @@ by Git; website checks and each manual publication regenerate it before checking
 and uploading the public directory. The verifier checks that its entries match
 the current source and contain no extra files.
 
+The first-investigation page uses this same ZIP. Its prompt lets the agent
+download and unpack the target; the download button provides a manual path.
+The reader follows the static export trace, then runs the CSV formatter with
+one changed input. This formatter check needs only Node.js. The separate
+browser Notes example has a different implementation.
+
 Agent terminals show example prompts, not transcripts of previous
 investigations. All cursors blink continuously with the same CSS animation,
 respecting reduced-motion preferences. Both the prompt and animation work
@@ -88,7 +95,13 @@ Evidence. [evidence/dx-ball-sound-pan.md](evidence/dx-ball-sound-pan.md) records
 their provenance and the scope of the validation claims. The original executable
 and complete private Evidence records are not website assets.
 
-The homepage and DX-Ball overview diagrams are maintained as SVG source. Initial layout references were
+The homepage's code comparison, position examples and evidence flow are
+selectable HTML. The pan positions 0, 320 and 640 illustrate the inspected
+calculation at its recorded initial scale of 1; the C panel is a readable
+summary. The linked case study retains the maintained source and its checks.
+The agent response is an example explanation based on those findings.
+
+The general investigation and DX-Ball overview diagrams are maintained as SVG source. Initial layout references were
 created with the built-in image generation tool; [figures.md](figures.md) retains
 their prompts and the current asset notes. Figures provide an overview;
 REA requests, assembly and C remain selectable HTML text. On narrow

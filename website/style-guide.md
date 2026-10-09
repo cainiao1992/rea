@@ -57,6 +57,19 @@ followed by several qualifications.
 
 ## Build a page around one question
 
+### Introductions and first exercises
+
+Explain reverse engineering with a familiar behavior. Pair a short, authentic
+code excerpt with readable logic and a figure that explains the result without
+requiring the reader to understand either language. Show a simple agent prompt
+and the specific facts REA supplies to answer it.
+
+Offer a supplied target for the next step. Keep the installation prompt and
+normal setup command visible. A first exercise should take the reader through
+setup, a question, an answer with source references, one prediction they can
+check, and a follow-up. Introduce specialized prerequisites when the chosen
+target requires them.
+
 ### Guides
 
 1. Name the task and introduce a small example.

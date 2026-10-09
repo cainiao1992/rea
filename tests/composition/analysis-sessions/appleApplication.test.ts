@@ -18,6 +18,7 @@ import {
 
 import { projectAppleApplicationEvidence } from "../../../src/application/apple/AppleApplicationService.js";
 import { runProviderAnalysis } from "../../../src/composition/directAnalysis.js";
+import { thinMach } from "../../../src/domain/binaryTarget.fixture.js";
 import { appleApplicationProjectionResultSchema } from "../../../src/domain/apple/appleApplication.js";
 import { parseEvidence } from "../../../src/domain/evidence.js";
 
@@ -188,7 +189,8 @@ describe("macOS application projection", () => {
   it("projects a macOS .app directory inventory with nested bundle roles", async () => {
     const root = await createTestTempDirectory("rea-apple-macos-");
     const app = join(root, "Fixture.app");
-    const machO = Uint8Array.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0, 0, 1]);
+    // A complete thin arm64 header, as target admission requires.
+    const machO = thinMach(0xcffaedfe, 0x0100000c);
     const files: [string, string | Uint8Array][] = [
       [
         "Contents/Info.plist",

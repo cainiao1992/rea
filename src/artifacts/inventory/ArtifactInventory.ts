@@ -14,7 +14,6 @@ import type {
 export { scanCanonicalArtifactInventory } from "./scanCanonical.js";
 
 export type {
-  ArtifactIntegrityPolicy,
   ArtifactInventoryOptions,
   ArtifactInventorySnapshot,
 } from "./types.js";

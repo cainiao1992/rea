@@ -94,7 +94,7 @@ See [docs/tool-design.md](docs/tool-design.md) for the design checklist. When us
 
 ## Testing Guidelines
 
-Prioritize real end-to-end workflows, boundary integration, and golden producer data. Keep a focused module test when it covers a distinct failure or semantic case absent from those workflows; test paths do not establish depth. See [docs/testing.md](docs/testing.md) for pruning and classification rules.
+Prefer full end-to-end workflows through the public CLI or MCP with real providers and no mocked dependencies, then integration across production boundaries, then goldens captured from real producers. Keep a focused module test only for a distinct failure or semantic case that stronger workflows cannot reliably reproduce. Delete redundant getter, serialization, enum, count, and snapshot assertions when a stronger consumer workflow already proves the claim. Test paths, compiled imports, and suites named E2E do not establish end-to-end coverage. See [docs/testing.md](docs/testing.md) for pruning and classification rules.
 
 Treat advertised examples as executable contracts: derive them from representative producer data, exercise them through the advertised CLI or MCP workflow, and assert the behavior they claim to demonstrate. Share production projections where practical and declare omitted coverage explicitly.
 

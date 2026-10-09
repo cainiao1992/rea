@@ -1,13 +1,18 @@
 # Testing REA
 
-Prefer evidence in this order: full end-to-end workflows with real production
-providers, integration tests across data/API boundaries, then golden regressions
-from real captured inputs. Keep focused module tests for distinct failure or
-semantic cases that these workflows cannot reliably reproduce. A test's path
-or suite name does not establish its behavioral depth.
+Prefer evidence in this order: full end-to-end workflows through the public
+CLI or MCP with real production providers and no mocked dependencies,
+integration across production data/API boundaries, then golden regressions
+from real captured inputs. Keep a focused module test only for a distinct
+failure or semantic case that stronger workflows cannot reliably reproduce.
+A test's path, compiled imports, or suite name does not establish its depth.
 
-Avoid tests that mirror getters, enum mappings, fixture helpers, or prescribed
-call sequences, or assert cache object identity without a caller-visible contract.
+Delete tests that only mirror getters, serialization helpers, enum mappings,
+fixture helpers, prescribed call sequences, arbitrary counts or snapshots,
+or cache object identity without a caller-visible contract. Do not retain a
+weaker test merely because it is fast when a stronger workflow already proves
+the same claim. Keep format-specific malformed representations and actual
+capacity, cleanup, permission and target-identity regressions.
 Prefer representative workflows over a Cartesian matrix when rows cross the
 same boundary. Retain combinations that exercise a distinct interaction, such as
 filtering within a full-output envelope. Keep distinct command handlers,

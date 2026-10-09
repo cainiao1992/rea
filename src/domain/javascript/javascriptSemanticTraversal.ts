@@ -50,7 +50,8 @@ interface TraversalFrame {
   nextIndex: number;
 }
 
-const childNodes = (node: t.Node): t.Node[] => {
+/** Return child Babel nodes in visitor-key order. */
+export const childNodes = (node: t.Node): t.Node[] => {
   const keys = t.VISITOR_KEYS[node.type];
   if (keys === undefined) return [];
   const children: t.Node[] = [];

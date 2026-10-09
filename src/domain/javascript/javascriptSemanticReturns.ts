@@ -26,7 +26,10 @@ import {
 import { evaluateSemanticExpression } from "./javascriptSemanticValues.js";
 import { range } from "./javascriptStaticAnalysisHelpers.js";
 import { semanticReturnCoverage } from "./javascriptSemanticCoverage.js";
-import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
+import {
+  childNodes,
+  traverseJavaScriptAst,
+} from "./javascriptSemanticTraversal.js";
 
 interface ReturnExpression {
   readonly node: t.Node | null;
@@ -144,15 +147,6 @@ const directReturnExpressions = (callable: t.Node): ReturnExpression[] => {
   for (const child of childNodes(callable.body)) visit(child);
   return output;
 };
-
-const childNodes = (node: t.Node): t.Node[] =>
-  (t.VISITOR_KEYS[node.type] ?? []).flatMap((key) => {
-    const value: unknown = Reflect.get(node, key);
-    if (t.isNode(value)) return [value];
-    return Array.isArray(value)
-      ? value.filter((item): item is t.Node => t.isNode(item))
-      : [];
-  });
 
 const callableIdsForBinding = (
   binding: JavaScriptSemanticBindingState,

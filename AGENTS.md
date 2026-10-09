@@ -2,74 +2,48 @@
 
 ## Product and Authority
 
-REA is a local-only reverse-engineering tool exposed through a CLI and MCP server. Keep observed, derived, inferred, and unknown results distinct. Shared application workflows must provide equivalent CLI/MCP behavior, including Evidence provenance and session retention. Provider support and setup live in [README.md](README.md#choosing-a-deep-analysis-provider) and the linked provider guides.
+REA is a local-only reverse-engineering tool with shared CLI/MCP workflows. Distinguish observations, derivations, inferences, and unknowns; preserve Evidence provenance and session semantics through both adapters. Provider support and setup live in [README.md](README.md#choosing-a-deep-analysis-provider) and its linked guides.
 
-Preserve provider authority boundaries: Ghidra uses an ephemeral analysis database without modifying executable bytes or controlling a GUI; Windows Ghidra P0 has no mutation authority. IDA analysis is read-only, and an attached GUI database is never saved or closed.
+Ghidra uses ephemeral databases without modifying executable bytes or controlling a GUI; Windows Ghidra P0 has no mutation authority. IDA analysis is read-only; never save or close an attached GUI database.
 
-Configuration changes must be additive and idempotent, with backups. Installers must not install or upgrade Homebrew, Node.js, npm, Java, Ghidra, or other unrelated software. Ghidra and IDA are bring-your-own. `rea setup` must print its planned changes and require approval before writing files or installing Hopper.
+Configuration changes must be additive and idempotent, with backups. Installers must not install or upgrade unrelated software, including Homebrew, Node.js, npm, Java, or Ghidra. Ghidra and IDA are bring-your-own. `rea setup` must show its planned changes and require approval before writing files or installing Hopper.
 
-Preserve caller-selected inputs, captured output, URLs, paths, digests, mismatch locations, and analysis metadata. Redact transport authentication credentials and values the caller explicitly marks sensitive; do not infer secrecy from names or text patterns, or persist the entire ambient environment merely because a child inherits it.
+Preserve caller-selected inputs and local evidence, including output, URLs, paths, digests, and metadata. Redact transport authentication credentials and explicitly marked sensitive values; do not infer secrecy from names or text patterns. Do not persist the ambient environment merely because a child inherits it.
 
-## Architecture and Ownership
+## Architecture and Cleanup
 
-REA is a layered ESM TypeScript application. Dependencies flow inward; see [docs/architecture.mermaid](docs/architecture.mermaid).
+Dependencies flow inward: domain semantics and contracts, provider adapters, shared application workflows, then CLI/MCP adapters. Keep engine protocols and provider-specific code out of domain/application layers. See [docs/architecture.mermaid](docs/architecture.mermaid) when changing composition.
 
-- `src/domain/` owns pure provider-neutral semantics; `src/contracts/` owns caller-visible schemas and the canonical tool inventory.
-- Provider directories own engine protocols and parsing. Keep provider-specific code out of domain and application layers; `bridge/` contains provider-side adapters.
-- `src/application/` owns shared workflows and Evidence/session semantics. `src/server/` translates MCP requests; `src/cli.ts` and `src/main.ts` are the CLI and MCP entry points.
-- `src/process/` owns shared lifecycle primitives. Reuse its supervision and identity checks; a PID and executable pathname alone do not establish ownership after exit or reuse.
-- `src/config/` owns configuration parsing. Keep user-facing setup and environment documentation in [README.md](README.md) and the relevant provider guide.
+Give each interpretation and resource a clear owner. Preserve identity, omission, uncertainty, and source evidence across boundaries. Retain ownership of resources whose cleanup failed. Reuse `src/process/` supervision and identity primitives; a PID and executable path alone do not establish ownership after exit or reuse.
 
-Assess brittleness during implementation, debugging, review, and maintenance. Give each interpretation and resource a clear owner. Preserve identity, omission, uncertainty, and source evidence across boundaries. Retain ownership of resources whose cleanup failed. Fix the producing representation or ownership rule before adding downstream repairs.
+Assess brittleness in touched code during implementation, debugging, review, and maintenance. Fix the producing representation or ownership rule before adding downstream repairs. Normalize once at the owning boundary using format-aware parsers. Remove superseded representations, aliases, wrappers, and redundant tests after verifying affected consumers. Introduce abstractions only when they remove observed complexity.
 
-Simplify duplicated rules, scattered defaults, caller-specific exceptions, and unclear invariants in touched code. Prefer standard format-aware parsers and existing shared helpers; normalize once at the owning boundary. Remove superseded representations, aliases, wrappers, and tests when their replacement is verified through affected consumers. Keep refactors focused on the task and introduce abstractions only when they remove observed complexity.
+Parse unknown boundary values and model expected failures with the tagged error algebra and `Result`. Preserve partial facts and meaningful failure reasons. Keep identity and lookup values separate from display formatting; preserve source values and explicit unknowns when normalization loses information. Absolute paths, file URLs, and HTTP paths have different semantics.
 
-## Development and Generated Files
+Validate advertised JSON Schemas after SDK conversion against their declared dialect and actual clients. Bind handlers to named contracts with exact types; catalog ordering must never select an operation or schema.
 
-Use the Node.js version in [.nvmrc](.nvmrc) and npm version in `package.json#packageManager`. Confirm the active toolchain before installing dependencies. In Cursor Cloud, the image may put an older Node.js first on `PATH`; prepend `/usr/local/bin`, where environment setup installs the pinned toolchain.
+## Development
+
+Use [.nvmrc](.nvmrc) and `package.json#packageManager` for the pinned toolchain. Cursor Cloud may place older Node.js first on `PATH`; environment setup installs the pinned toolchain under `/usr/local/bin`.
 
 - `npm ci`: install locked dependencies.
-- `npm run build:cached`: compile the runtime and bundle its authored skill; test catalogs and documentation artifacts have separate tasks.
-- `npm run test:local -- PATH...`: run source tests without building; explicit paths run regardless of Git status.
-- `npm run test:focused -- PATH...`: run exact test files with their required runtime and generated artifacts.
-- `npm run check:changed`: run static checks and source tests affected since the merge base, defaulting to `origin/main`.
-- `npm run check:fast`: run cached typecheck and lint checks; also runs before push.
-- `npm run check:pr`: complete local deterministic gate and generated-document checks for broad changes. Routine iterations need focused tests and relevant checks; CI owns full coverage.
-- `npm run docs:generate` / `npm run docs:check`: generate / validate documentation artifacts.
+- `npm run build:cached`: build the runtime and packaged skill.
+- `npm run test:local -- PATH...`: source tests without building.
+- `npm run test:focused -- PATH...`: exact tests with their required artifacts.
+- `npm run check:fast`: cached typecheck/lint and the pre-push check.
+- `npm run docs:check`: validate generated documentation.
 
-`docs/public/product-catalog.json`, `docs/verification/managed-conformance-*.json`, and `skills/` are ignored build outputs. Edit source contracts and authored instructions in `skill-src/`; never commit derived catalog digests or portable conformance projections. `.cache/mcp-tool-catalog.json` is test metadata generated by `npm run mcp-catalog:generate`; source checking and runtime builds do not consume it. CI retains generated outputs as artifacts rather than pushing them to feature branches.
+Use relevant checks for the change. The complete local gate, `npm run check:pr`, is optional for broad changes or CI diagnosis. See [CONTRIBUTING.md](CONTRIBUTING.md) for development, generated-file ownership, and release conventions.
 
-See [docs/testing.md](docs/testing.md) for verification lanes and [CONTRIBUTING.md](CONTRIBUTING.md) for contribution checks. Keep each lane's prerequisites limited to its claim; separate host-native acceptance from optional cross-target toolchains and preflight required commands. JavaScript analysis and deterministic tests do not require Hopper, Ghidra, or IDA.
+`docs/public/product-catalog.json`, `docs/verification/managed-conformance-*.json`, and `skills/` are ignored outputs. Edit source contracts and `skill-src/`, then regenerate as needed. `.cache/mcp-tool-catalog.json` is test metadata; runtime builds and source checking do not consume it. Never commit binaries, provider project documents, credentials, `dist/`, `node_modules/`, or local planning artifacts.
 
-## Coding and Boundary Contracts
+## Tool and Test Changes
 
-Use ESM TypeScript, two-space indentation, and committed Oxfmt formatting. Preserve compiler strictness, including `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, and `verbatimModuleSyntax`. Use `camelCase` for values/functions, `PascalCase` for classes/types, and `UPPER_SNAKE_CASE` for constants. Exported APIs require concise JSDoc. Avoid `any`, unchecked casts, non-null assertions, import-time I/O, and floating promises. Model expected failures with the tagged error algebra and `Result`.
+For tool design, follow [docs/tool-design.md](docs/tool-design.md): start from the analyst question, reuse existing contracts, preserve caller choices, and return useful evidence inline. Limits must follow real format, protocol, authority, or resource constraints. Account for representation expansion before allocation; derive completeness from examined coverage.
 
-Parse unknown values at MCP, environment, and subprocess boundaries. Trace the producer's actual representation through parsing, normalization, authorization, serialization, and the consumer result. Establish affected callers from code paths; inspect adjacent representations and failure paths when changing a boundary.
+For test changes or provider claims, use [docs/testing.md](docs/testing.md). Prefer real public CLI/MCP workflows, then production-boundary integration, then producer goldens. Keep module tests for distinct semantics stronger workflows cannot reliably reproduce. Preserve malformed-input, cancellation, cleanup, permission, capacity, and target-identity coverage when pruning. Report unverified coverage explicitly; simulated providers do not establish real-provider behavior.
 
-Keep identity, provenance, matching, and path-resolution values separate from display formatting. Absolute filesystem paths, file URLs, and HTTP paths have different semantics. Interpret provider metadata according to its producer; preserve source values and explicit unknowns when normalization loses information. Display placeholders must not feed lookup or selection.
-
-Preserve partial facts without inventing missing metadata or requiring another provider's full representation. Inspect installed APIs and representative producer objects before claiming a capability is unavailable. Preserve meaningful failure reasons and actionable recovery guidance: malformed input, unsupported targets, unavailable providers, and host permission denial are distinct. Collected observations must survive execution and cleanup failures.
-
-Validate advertised input and output JSON Schemas against their declared dialect after SDK conversion, and verify client compatibility at the consuming boundary. Bind handlers to named contracts with exact input/output types; catalog ordering must never select an operation or schema.
-
-## Tool Design and Verification
-
-Start from the analyst question and inspect existing contracts before adding a tool. Prefer reusable primitives and ordinary commands/scripts for experiments; add composed workflows for observed recurring needs. Leave meaningful target, action, capture, and output choices to the caller. Remove ignored settings and repeated approval declarations; derive built-in lifecycle behavior and default optional metadata.
-
-Return useful evidence inline, complete by default, with identity, source locations, relevant limitations, and truthful authority/lifecycle effects. Limits must follow real format, protocol, authority, or resource constraints; account for representation expansion and products of bounded dimensions before allocation. Derive completeness from what was examined and exhausted. Follow [docs/tool-design.md](docs/tool-design.md) for naming, composition, contract design, and representative CLI/MCP usability evaluation. Update canonical contracts and generated artifacts together.
-
-Prefer full public CLI/MCP end-to-end workflows with real providers, then production-boundary integration tests, then goldens from real producers. Keep focused module tests for distinct failures or semantics that stronger workflows cannot reliably reproduce. Delete redundant assertions when stronger coverage proves the same claim; preserve distinct malformed-input, cancellation, cleanup, permission, capacity, and target-identity cases. Follow [docs/testing.md](docs/testing.md) for pruning criteria, test classification, fixtures, and verification commands.
-
-Use Vitest, `*.test.ts`, production seams rather than module mocks, and the pinned MCP client SDK. Treat advertised examples as executable contracts using representative producer data. Provider/platform and packaged-artifact claims require their real workflows; capability probes and simulated transports prove only their narrower scope. Report unverified coverage explicitly.
-
-Keep tool catalogs complete and self-describing; prefer capability/session-scoped availability over schema truncation. Serialized bytes alone do not establish agent usability or model context cost.
-
-## Commits and Pull Requests
-
-Use Conventional Commit subjects, including PR titles for squash merges. Release Please always bumps minor; mark breaking changes with `!` or a `BREAKING CHANGE:` footer. Describe behavior/contract changes, relevant validation, linked issues, and real-provider verification scope; include sanitized CLI/MCP examples for schema changes.
-
-Never commit binaries, provider project documents, credentials, `dist/`, `node_modules/`, or local planning artifacts such as `.codex/`. Pre-commit formats and lints staged source.
+Use Conventional Commit subjects and PR titles. Mark breaking changes with `!` or a `BREAKING CHANGE:` footer. Describe behavior changes, relevant validation, and real-provider verification scope.
 
 <!-- BEGIN:turborepo-agent-rules -->
 

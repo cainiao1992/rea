@@ -50,7 +50,7 @@ Thumbs.db
 # Generated website download
 /website/public/examples/notes-example.zip
 
-# Local Cloudflare development state and credentials
+# Local Cloudflare development state
 /website/.wrangler/
 /website/.dev.vars*
 /website/.env*

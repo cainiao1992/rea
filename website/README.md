@@ -195,7 +195,8 @@ npx wrangler@4.149.0 deploy --cwd website --env production
 This creates or updates `rea-website`, attaches `rea.tools`, and lets Cloudflare
 manage its DNS record and HTTPS certificate. Deployment can succeed while the
 zone is pending; verify public HTTPS after activation and certificate issuance.
-An existing CNAME at `rea.tools` must be resolved before adding the Custom Domain. The production Worker also
+An existing CNAME at `rea.tools`
+must be resolved before adding the Custom Domain. The production Worker also
 retains its `workers.dev` address for direct checks. Only `rea.tools` is attached;
 `www.rea.tools` is not configured by this file.
 

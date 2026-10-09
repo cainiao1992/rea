@@ -99,8 +99,8 @@ cliTest(
       ],
     });
     expect(output.json).toMatchObject({
-      code: "artifact_operation_failed",
-      details: { reason: "io" },
+      code: "invalid_request",
+      details: { issues: [{ path: ["input_path"], reason: "invalid_value" }] },
     });
   },
 );

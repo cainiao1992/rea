@@ -5,7 +5,12 @@ import {
   analyzeJavaScriptApplicationInputSchema,
   parseOwnedJavaScriptApplicationAnalysisSteps,
 } from "../../domain/javascript/javascriptApplicationAnalysis.js";
-import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
+import {
+  AnalysisAccessDeniedError,
+  AnalysisInputError,
+  AnalysisOutputError,
+  AnalysisUnsupportedTargetError,
+} from "../../domain/analysisErrorCore.js";
 import { ArtifactOperationError } from "../../domain/artifactOperationError.js";
 import { type AnalysisError } from "../../domain/analysisErrorBase.js";
 import type { Evidence } from "../../domain/evidence.js";
@@ -100,6 +105,13 @@ export const analyzeJavaScriptApplicationValidated = async (
     assertJavaScriptAnalysisActive(options.signal);
     return ok(evidence);
   } catch (cause: unknown) {
+    // Input selection failures are already typed by their cause.
+    if (
+      cause instanceof AnalysisInputError ||
+      cause instanceof AnalysisUnsupportedTargetError ||
+      cause instanceof AnalysisAccessDeniedError
+    )
+      return err(cause);
     if (cause instanceof ArtifactReaderFailure)
       return err(
         new ArtifactOperationError(

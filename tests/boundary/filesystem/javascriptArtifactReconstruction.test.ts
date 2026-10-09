@@ -268,8 +268,13 @@ it("preserves cancellation and explicit format diagnostics", async () => {
   await expect(
     reconstructJavaScriptArtifact({ input_path: root, format: "asar" }),
   ).rejects.toMatchObject({
-    reason: "format",
-    message: expect.stringContaining(root),
+    issues: [
+      {
+        path: ["format"],
+        reason: "invalid_value",
+        message: expect.stringContaining(root),
+      },
+    ],
   });
 });
 

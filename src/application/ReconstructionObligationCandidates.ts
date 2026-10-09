@@ -76,7 +76,14 @@ const deriveApplicationCandidates = (
   )
     return;
   try {
-    const source = parseApplicationGraphEvidence(evidence);
+    const parsed = parseApplicationGraphEvidence(evidence);
+    if (!parsed.ok) {
+      limitations.add(
+        `Application Evidence ${evidence.evidence_id} could not generate candidates because it failed graph validation.`,
+      );
+      return;
+    }
+    const source = parsed.value;
     for (const node of source.graph.nodes) {
       const candidatePolicy = applicationObligationPolicy(node.kind);
       if (candidatePolicy === undefined) {

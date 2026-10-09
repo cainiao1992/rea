@@ -85,7 +85,6 @@ const isPortableAbsolutePath = (path: string): boolean =>
   /^(?:\\\\|\/\/)[^\\/]+[\\/][^\\/]+(?:[\\/]|$)/u.test(path);
 
 const SAFE_RECONCILIATION_INPUT_CONSTRAINTS = new Set([
-  "Evidence semantic identifier does not match its record",
   "JavaScript application Evidence subject disagrees with its result",
   "Runtime reconciliation requires inspect_web_page, inspect_electron_page, observe_javascript_runtime, or capture_electron_scenario Evidence",
   "Runtime Evidence target or declared role disagrees with its result",

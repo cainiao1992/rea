@@ -101,6 +101,10 @@ const underlyingErrorCode = (
       : browserErrorCode(error.reason);
   if (error instanceof ArtifactOperationError)
     return artifactOperationCode(error);
+  if (error instanceof BinaryTargetError)
+    return error.systemCode === undefined
+      ? "target_unavailable"
+      : "access_denied";
   if (error instanceof EvidenceFileError) return evidenceFileCode(error.reason);
   if (error instanceof UnknownRegistryError)
     return unknownRegistryCode(error.reason);
@@ -162,6 +166,7 @@ const processCaptureCode = (
 
 type SpecializedErrorTag =
   | "ArtifactOperationError"
+  | "BinaryTargetError"
   | "BrowserObservationError"
   | "EvidenceFileError"
   | "ProcessCaptureError"
@@ -186,7 +191,6 @@ const STATIC_ERROR_CODES = {
   HopperStartError: "provider_unavailable",
   ConfigurationError: "configuration_invalid",
   NoBinaryOpenError: "target_unavailable",
-  BinaryTargetError: "target_unavailable",
   EvidenceIntegrityError: "evidence_integrity_mismatch",
   ProviderAdapterError: "execution_failure",
   HopperRemoteError: "execution_failure",
@@ -202,6 +206,7 @@ const staticErrorCode = (
 ): AnalysisErrorProjection["code"] => {
   switch (tag) {
     case "ArtifactOperationError":
+    case "BinaryTargetError":
     case "BrowserObservationError":
     case "EvidenceFileError":
     case "ProcessCaptureError":
@@ -489,6 +494,9 @@ const lifecycleErrorDetails = (
       ...(error.constraint === undefined
         ? {}
         : { constraint: error.constraint }),
+      ...(error.systemCode === undefined
+        ? {}
+        : { system_code: error.systemCode, boundary: "filesystem-read" }),
     };
   return undefined;
 };

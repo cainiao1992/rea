@@ -22,6 +22,7 @@ import {
   pe,
   thinMach,
 } from "../../../src/domain/binaryTarget.fixture.js";
+import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 describe("binary target I/O: app plist permissions and decoding", () => {
@@ -48,6 +49,7 @@ describe("binary target I/O: app plist permissions and decoding", () => {
         path: join(app, "Contents", "Info.plist"),
         reason: expect.stringContaining(message),
         cause: denied,
+        systemCode: code,
       },
     });
   });
@@ -231,6 +233,28 @@ describe("binary target I/O: filesystem and app bundle target resolution", () =>
     expect((await parseBinaryTarget("text", directory)).ok).toBe(false);
     expect((await parseBinaryTarget("missing", directory)).ok).toBe(false);
   });
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "reports an unreadable target as a host read denial",
+    async () => {
+      const directory = await createTestTempDirectory("rea-target-denied-");
+      const path = join(directory, "unreadable");
+      await writeFile(path, thinMach(0xcffaedfe, 0x0100000c));
+      await chmod(path, 0);
+      try {
+        const result = await parseBinaryTarget(path, directory, "arm64");
+        expect(result.ok).toBe(false);
+        if (result.ok) return;
+        expect(result.error).toMatchObject({ path, systemCode: "EACCES" });
+        expect(projectAnalysisError(result.error)).toMatchObject({
+          code: "access_denied",
+          details: { path, system_code: "EACCES" },
+        });
+      } finally {
+        await chmod(path, 0o600);
+      }
+    },
+  );
 
   it("rejects non-regular targets before reading them", async () => {
     const directory = await createTestTempDirectory("rea-target-");

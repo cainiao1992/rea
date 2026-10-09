@@ -1,6 +1,9 @@
 import { expect, it } from "vitest";
 
-import { normalizeProcessSamples } from "./ProcessNormalization.js";
+import {
+  normalizeProcessSamples,
+  normalizeProcessText,
+} from "./ProcessNormalization.js";
 import { parseProcessScenario } from "../../domain/process/processCapture.js";
 
 const rootPid = 41_010;
@@ -67,6 +70,34 @@ const scenario = (normalization: {
       patterns: [{ pattern: "marker", replacement: "selected" }],
     },
   });
+
+it("preserves compact JSON, counters, line numbers, and ambiguous endpoint spellings", () => {
+  const input = [
+    '{"pid":32,"size":108,"height":480,"width":640,"score":20}',
+    "score=20 size:108 elapsed=3600 file.js:480 server:8080",
+    "port=65536 port:8080ms localhost:70000 999.1.2.3:8080",
+    "https://user:32@example.test/path http://user:20@localhost/path",
+  ].join("\n");
+  expect(normalizeProcessText(input, scenario({}), "/temporary", rootPid)).toBe(
+    input,
+  );
+});
+
+it("normalizes only contextual ports before overlapping PID values and honors disabled rules", () => {
+  const input =
+    'http://example.test:8080/x https://user:password@example.test:443/x 127.0.0.1:9 [::1]:65535 localhost:41010 "port":80 tcp_port=123 udp_port:0 listen:8080';
+  expect(normalizeProcessText(input, scenario({}), "/temporary", rootPid)).toBe(
+    'http://example.test:<port>/x https://user:password@example.test:<port>/x 127.0.0.1:<port> [::1]:<port> localhost:<port> "port":<port> tcp_port=<port> udp_port:<port> listen:<port>',
+  );
+  expect(
+    normalizeProcessText(
+      input,
+      scenario({ ports: false, pids: false }),
+      "/temporary",
+      rootPid,
+    ),
+  ).toBe(input);
+});
 
 it("normalizes representative process identities and preserves null, zero, and unrelated numbers", () => {
   const before = JSON.stringify(samples);

@@ -11,6 +11,8 @@ export interface TerminalFrame {
   readonly sequence: number;
   readonly at_ms: number;
   readonly data: string;
+  /** Original PTY text when normalization changed it; older captures may omit it. */
+  readonly raw_data?: string | undefined;
 }
 
 /** Serialized terminal state after interpreting control and resize sequences. */
@@ -402,6 +404,7 @@ const processCaptureShapeSchema = z.strictObject({
       sequence: z.number().int().nonnegative(),
       at_ms: z.number().int().nonnegative(),
       data: z.string(),
+      raw_data: z.string().optional(),
     }),
   ),
   rendered_frames: z.array(

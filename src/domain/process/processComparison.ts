@@ -2,6 +2,7 @@ import canonicalize from "canonicalize";
 import { z } from "zod";
 
 import type { ProcessCapture } from "./processCapture.js";
+import { comparableTerminalFrame } from "./processObservation.js";
 import { AnalysisInputError } from "../analysisErrorCore.js";
 import { jsonValueSchema } from "../jsonValue.js";
 import {
@@ -100,7 +101,10 @@ export type ProcessCaptureComparison = z.infer<
 
 const terminalObservations = (capture: ProcessCapture): readonly unknown[] =>
   [
-    ...capture.frames.map((frame) => ({ kind: "raw" as const, ...frame })),
+    ...capture.frames.map((frame) => ({
+      kind: "raw" as const,
+      ...comparableTerminalFrame(frame),
+    })),
     ...capture.rendered_frames.map((frame) => ({
       kind: "rendered" as const,
       ...frame,

@@ -5,6 +5,28 @@ import {
   emptyProcessCapture as emptyCapture,
 } from "./processCapture.fixture.js";
 
+it("compares normalized terminal facts while retaining different source text for audit", () => {
+  const capture = emptyCapture();
+  const frame = { sequence: 0, at_ms: 0, data: "listen:<port> score=20" };
+  const left = {
+    ...capture,
+    frames: [{ ...frame, raw_data: "listen:8080 score=20" }],
+  };
+  const right = {
+    ...capture,
+    frames: [{ ...frame, raw_data: "listen:9090 score=20" }],
+  };
+  expect(compareProcessCaptures(left, right)).toMatchObject({
+    terminal: "unchanged",
+  });
+  expect(
+    compareProcessCaptures(left, {
+      ...right,
+      frames: [{ ...frame, data: "listen:<port> score=21" }],
+    }),
+  ).toMatchObject({ terminal: "changed" });
+});
+
 it("distinguishes added evidence from unknown observations", () => {
   const capture = emptyCapture();
   const added = compareProcessCaptures(capture, {

@@ -181,6 +181,8 @@ for features added since the latest npm release.
 
 ## Showcases
 
+[![Illustrations of the DX-Ball sound-pan, Notion clipboard-bridge, and TH04 bullet-ring showcases](docs/assets/rea-showcases.png)](https://rea.tools/showcase/)
+
 ### DX-Ball: reconstruct a sound-pan calculation
 
 Follow a sound call into its position-to-pan helper, inspect the instructions,
@@ -303,20 +305,6 @@ For exact options, prerequisites and result contracts:
 
 Report vulnerabilities through [SECURITY.md](SECURITY.md).
 
-## Contributing
-
-We'd love your help with REA! [Open an issue](https://github.com/morluto/rea/issues) to
-report a bug or suggest a feature, or [send a pull request](https://github.com/morluto/rea/pulls)
-to improve the code or docs.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and checks,
-[testing](docs/testing.md) for verification lanes, and the
-[architecture map](docs/architecture.mermaid) for the project structure.
-
-## Project links
-
-[Website](https://rea.tools/) · [npm](https://www.npmjs.com/package/rea-agents) · [skills.sh](https://skills.sh/morluto/rea/reverse-engineer-anything) · [Issues](https://github.com/morluto/rea/issues) · [Security](SECURITY.md)
-
 ## Star history
 
 🎉 **30,000 GitHub stars — thank you!**
@@ -337,6 +325,18 @@ REA provides tools for lawful reverse-engineering research, analysis, and recons
 
 REA is an open-source software project. We have not issued or endorsed any cryptocurrency or token. Tokens using the REA name are not affiliated with the project.
 
+## Contributing
+
+We'd love your help with REA! [Open an issue](https://github.com/morluto/rea/issues) to
+report a bug or suggest a feature, or [send a pull request](https://github.com/morluto/rea/pulls)
+to improve the code or docs.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and checks,
+[testing](docs/testing.md) for verification lanes, and the
+[architecture map](docs/architecture.mermaid) for the project structure.
+
 ## License
+
+[![Software license document with a check seal](docs/assets/rea-license.png)](LICENSE)
 
 [MIT](LICENSE)

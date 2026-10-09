@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { parseBinaryTarget } from "../../../../src/application/BinaryTargetResolver.js";
 import { ArtifactProvider } from "../../../../src/artifacts/ArtifactProvider.js";
 import { projectAnalysisError } from "../../../../src/domain/analysisErrorProjection.js";
+import { thinMach } from "../../../../src/domain/binaryTarget.fixture.js";
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 
 describe("artifact directory diagnostics", () => {
@@ -22,10 +23,7 @@ describe("artifact directory diagnostics", () => {
         join(contentsPath, "Info.plist"),
         "<plist><dict><key>CFBundleExecutable</key><string>Fixture</string></dict></plist>",
       );
-      const machHeader = Buffer.alloc(8);
-      machHeader.writeUInt32BE(0xfeedfacf, 0);
-      machHeader.writeUInt32BE(0x0100000c, 4);
-      await writeFile(executablePath, machHeader);
+      await writeFile(executablePath, thinMach(0xfeedfacf, 0x0100000c));
       await writeFile(blockedPath, "member contents");
       await chmod(blockedPath, 0);
       try {

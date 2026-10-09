@@ -4,7 +4,7 @@ export const elf = (
   endian: number,
   machine: number,
 ): Buffer => {
-  const bytes = Buffer.alloc(20);
+  const bytes = Buffer.alloc(class_ === 1 ? 52 : 64);
   bytes.set([0x7f, 0x45, 0x4c, 0x46, class_, endian]);
   if (endian === 1) bytes.writeUInt16LE(machine, 18);
   else bytes.writeUInt16BE(machine, 18);
@@ -13,7 +13,9 @@ export const elf = (
 
 /** Build a minimal thin Mach-O header for binary-target parser tests. */
 export const thinMach = (magic: number, cpu: number): Buffer => {
-  const bytes = Buffer.alloc(8);
+  const bytes = Buffer.alloc(
+    magic === 0xfeedfacf || magic === 0xcffaedfe ? 32 : 28,
+  );
   bytes.writeUInt32BE(magic, 0);
   if (magic === 0xcefaedfe || magic === 0xcffaedfe) bytes.writeUInt32LE(cpu, 4);
   else bytes.writeUInt32BE(cpu, 4);

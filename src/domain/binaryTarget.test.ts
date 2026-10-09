@@ -90,3 +90,52 @@ describe("executable header parsing", () => {
     expect(parseExecutableHeader(truncatedDirectories, "x64").ok).toBe(false);
   });
 });
+
+describe("executable header completeness", () => {
+  const reason = (bytes: Buffer, fileSize = bytes.length) => {
+    const result = parseExecutableHeader(bytes, "arm64", fileSize);
+    return result.ok ? null : result.error;
+  };
+
+  it.each([
+    [
+      thinMach(0xcffaedfe, 0x0100000c).subarray(0, 12),
+      "a 64-bit header needs 32 bytes",
+    ],
+    [
+      thinMach(0xcefaedfe, 0x01000007).subarray(0, 27),
+      "a 32-bit header needs 28 bytes",
+    ],
+    [elf(1, 1, 62).subarray(0, 51), "an ELF32 header needs 52 bytes"],
+    [elf(2, 1, 183).subarray(0, 63), "an ELF64 header needs 64 bytes"],
+  ])(
+    "rejects a header shorter than its fixed size (%#)",
+    (bytes, constraint) => {
+      expect(reason(bytes)).toContain(constraint);
+    },
+  );
+
+  it("rejects Mach-O load commands that extend past the file", () => {
+    const header = thinMach(0xcffaedfe, 0x0100000c);
+    header.writeUInt32LE(100, 20);
+
+    expect(reason(header)).toBe(
+      "truncated Mach-O load commands: the header declares 100 bytes after its 32-byte header; the file has 32",
+    );
+    // The resolver probes a prefix; commitments are checked against the file.
+    expect(reason(header, 132)).toBeNull();
+  });
+
+  it("rejects a FAT file whose host slice extends past the file", () => {
+    const bytes = fat([0x01000007, 0x0100000c]);
+    bytes.writeUInt32BE(4096, 8 + 20 + 8);
+    bytes.writeUInt32BE(64, 8 + 20 + 12);
+
+    expect(reason(bytes, 4100)).toBe(
+      "truncated FAT slice: the arm64 slice ends at byte 4160; the file has 4100",
+    );
+    expect(reason(bytes, 4160)).toBeNull();
+    // Only the slice REA would analyze must be present.
+    expect(parseExecutableHeader(bytes, "x64", 4100).ok).toBe(true);
+  });
+});

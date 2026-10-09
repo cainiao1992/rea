@@ -325,6 +325,32 @@ describe("binary target I/O: explicit kinds and executable headers", () => {
       architecture: "x86_64",
     });
   });
+
+  it("refuses a truncated Mach-O header before any provider sees it", async () => {
+    const directory = await createTestTempDirectory("rea-target-");
+    const path = join(directory, "truncated");
+    await writeFile(path, thinMach(0xcffaedfe, 0x0100000c).subarray(0, 12));
+    const result = await parseBinaryTarget(path, directory, "arm64");
+    expect(result.ok).toBe(false);
+    expect(result.ok ? undefined : result.error).toMatchObject({
+      path,
+      reason:
+        "truncated Mach-O header: a 64-bit header needs 32 bytes; the file has 12",
+    });
+  });
+
+  it("checks Mach-O load commands against the whole file beyond the probe", async () => {
+    const directory = await createTestTempDirectory("rea-target-");
+    const path = join(directory, "large-commands");
+    const header = thinMach(0xcffaedfe, 0x0100000c);
+    header.writeUInt32LE(8192, 20);
+    await writeFile(path, Buffer.concat([header, Buffer.alloc(8192)]));
+    const result = await parseBinaryTarget(path, directory, "arm64");
+    expect(result.ok && result.value).toMatchObject({
+      format: "mach-o",
+      architecture: "arm64",
+    });
+  });
 });
 
 describe("app executable filename fidelity", () => {

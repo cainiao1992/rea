@@ -177,7 +177,7 @@ const graphShape = {
     caller: z
       .string()
       .min(1)
-      .regex(/^[\w .:@/+-]+$/u),
+      .regex(/^[\w .:@\x2f+\x2d]+$/u),
   }),
   limitations: z.array(boundedTextSchema),
 };

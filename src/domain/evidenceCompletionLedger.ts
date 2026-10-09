@@ -5,7 +5,7 @@ import { z } from "zod";
 import { prefixedDigestSchema } from "./../domain/digests.js";
 
 const evidenceIdSchema = prefixedDigestSchema("ev");
-const claimIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]*$/u);
+const claimIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._\x2d]*$/u);
 
 /** Terminal outcome recorded for one verifier claim. */
 export const evidenceCompletionStatusSchema = z.enum([

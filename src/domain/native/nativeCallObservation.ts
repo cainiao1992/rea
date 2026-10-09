@@ -11,7 +11,7 @@ const nativeString = z
 /** Objective-C class names and selectors never contain spaces or brackets. */
 const objcName = nativeString
   .min(1)
-  .regex(/^[^\s[\]]+$/u, "Use the bare name without spaces or brackets");
+  .regex(/^[^\s\x5b\x5d]+$/u, "Use the bare name without spaces or brackets");
 
 const functionBreakpoint = {
   kind: z.literal("function"),

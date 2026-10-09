@@ -11,7 +11,7 @@ import {
 import { digestSchema } from "./../domain/digests.js";
 import { prefixedDigestSchema } from "./../domain/digests.js";
 
-const identifierSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]*$/u);
+const identifierSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._\x2d]*$/u);
 const identitySchema = z.strictObject({
   id: identifierSchema,
   version: z.string().min(1),

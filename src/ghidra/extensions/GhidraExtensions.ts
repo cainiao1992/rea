@@ -19,7 +19,7 @@ import { nativeAotAdapter } from "./nativeaot/NativeAotAdapter.js";
 const digest = z.string().regex(/^[a-f0-9]{64}$/u);
 /** Exact executable extension artifact committed before the session starts. */
 export const ghidraExtensionSchema = z.strictObject({
-  id: z.string().regex(/^[a-z][a-z0-9-]*$/u),
+  id: z.string().regex(/^[a-z][a-z0-9\x2d]*$/u),
   path: z.string().refine(isAbsolute, "Extension path must be absolute"),
   configured_path: z
     .string()

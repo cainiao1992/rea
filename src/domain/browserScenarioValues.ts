@@ -10,7 +10,7 @@ import {
 
 export const scenarioIdentifierSchema = z
   .string()
-  .regex(/^[A-Za-z][A-Za-z0-9._-]*$/u);
+  .regex(/^[A-Za-z][A-Za-z0-9._\x2d]*$/u);
 
 const browserExecutablePathSchema = localPathStringSchema.refine(
   isAbsoluteLocalPath,
@@ -108,7 +108,7 @@ export const browserScenarioEnvironmentSchema = z
     timezone: z
       .string()
       .min(1)
-      .regex(/^[A-Za-z0-9_+-]+(?:\/[A-Za-z0-9_+-]+)*$/u)
+      .regex(/^[A-Za-z0-9_+\x2d]+(?:\x2f[A-Za-z0-9_+\x2d]+)*$/u)
       .default("UTC"),
     color_scheme: z.enum(["light", "dark", "no-preference"]).default("light"),
     reduced_motion: z.enum(["reduce", "no-preference"]).default("reduce"),

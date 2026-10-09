@@ -8,7 +8,7 @@ import {
   type ProcessObservationSource,
 } from "./processObservation.js";
 
-const identifierSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]*$/u);
+const identifierSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._\x2d]*$/u);
 
 /** Process observation families admitted by a declared trace specification. */
 export const processTraceSourceSchema = processObservationSourceSchema;

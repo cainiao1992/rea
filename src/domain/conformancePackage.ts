@@ -10,7 +10,7 @@ import { prefixedDigestSchema } from "./../domain/digests.js";
 
 const conformancePackageIdSchema = prefixedDigestSchema("cp");
 
-const scenarioIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]*$/u);
+const scenarioIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._\x2d]*$/u);
 
 const scenarioManifestSchema = z.strictObject({
   scenario_id: scenarioIdSchema,

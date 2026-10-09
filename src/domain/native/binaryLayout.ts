@@ -7,7 +7,7 @@ const range = z.strictObject({ offset: unsignedHex, bytes: unsignedHex });
 const canonicalBase64 = z
   .string()
   .regex(
-    /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/][AQgw]==|[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=)?$/,
+    /^(?:[A-Za-z0-9+\x2f]{4})*(?:[A-Za-z0-9+\x2f][AQgw]==|[A-Za-z0-9+\x2f]{2}[AEIMQUYcgkosw048]=)?$/,
   );
 const name = z.strictObject({
   display: z.string(),

@@ -7,7 +7,7 @@ const signed32 = z.number().int().min(-2147483648).max(2147483647);
 const base64 = z
   .string()
   .regex(
-    /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/][AQgw]==|[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=)?$/,
+    /^(?:[A-Za-z0-9+\x2f]{4})*(?:[A-Za-z0-9+\x2f][AQgw]==|[A-Za-z0-9+\x2f]{2}[AEIMQUYcgkosw048]=)?$/,
   );
 const range = z.strictObject({ offset: hex, bytes: hex });
 const diagnostics = z.strictObject({

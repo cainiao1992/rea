@@ -15,7 +15,7 @@ import {
   type ProcessTraceSpecification,
 } from "./processTraceSpecification.js";
 
-const identifierSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]{0,63}$/u);
+const identifierSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._\x2d]{0,63}$/u);
 
 export type ProcessTraceLocation = ProcessObservationLocation;
 

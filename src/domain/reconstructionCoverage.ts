@@ -14,9 +14,12 @@ import {
 } from "./reconstructionCoverageEvaluation.js";
 import { digestSchema } from "./../domain/digests.js";
 import { prefixedDigestSchema } from "./../domain/digests.js";
+import { offsetDateTimeSchema } from "./offsetDateTime.js";
 
 const evidenceIdSchema = prefixedDigestSchema("ev");
-const stableIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._:/-]{0,199}$/u);
+const stableIdSchema = z
+  .string()
+  .regex(/^[A-Za-z][A-Za-z0-9._:\x2f\x2d]{0,199}$/u);
 const boundedTextSchema = z.string().trim().min(1);
 
 const authoritySchema = z.enum([
@@ -106,7 +109,7 @@ const verifierContractSchema = verifierContractBaseSchema.extend({
 const verifierResultSchema = z.strictObject({
   verifier_id: stableIdSchema,
   contract_sha256: digestSchema,
-  observed_at: z.string().datetime({ offset: true }),
+  observed_at: offsetDateTimeSchema,
   status: z.enum([
     "pass",
     "fail",

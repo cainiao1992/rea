@@ -5,7 +5,7 @@ import { PROCESS_COMPARISON_DIMENSIONS } from "./process/processComparison.js";
 
 const evidenceIdSchema = prefixedDigestSchema("ev");
 const unknownIdSchema = prefixedDigestSchema("unk");
-const claimIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._-]*$/u);
+const claimIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9._\x2d]*$/u);
 const titleSchema = z.string().trim().min(1);
 const verificationStatusSchema = z.enum(["pass", "fail", "unknown"]);
 const commonClaim = {

@@ -92,7 +92,7 @@ const parseCsp = (
   for (const rawDirective of (value ?? "").split(";")) {
     const [rawName, ...tokens] = rawDirective.trim().split(/\s+/u);
     const name = (rawName ?? "").toLowerCase();
-    if (!/^[a-z][a-z0-9-]*$/u.test(name)) continue;
+    if (!/^[a-z][a-z0-9\x2d]*$/u.test(name)) continue;
     const sources: ResponseMetadata["csp"]["directives"][number]["sources"] =
       [];
     for (const token of tokens) {
@@ -249,7 +249,7 @@ const linkParameters = (value: string): ReadonlyMap<string, string> => {
     const name = (separator < 0 ? raw : raw.slice(0, separator))
       .trim()
       .toLowerCase();
-    if (!/^[a-z][a-z0-9-]*$/u.test(name)) continue;
+    if (!/^[a-z][a-z0-9\x2d]*$/u.test(name)) continue;
     const parameter = separator < 0 ? "" : raw.slice(separator + 1).trim();
     parameters.set(name, unquote(parameter));
   }
@@ -285,7 +285,7 @@ const permissionFeatures = (value: string | undefined): string[] =>
       (value ?? "")
         .split(",")
         .map((entry) => entry.split("=", 1)[0]?.trim().toLowerCase() ?? "")
-        .filter((feature) => /^[a-z][a-z0-9-]*$/u.test(feature)),
+        .filter((feature) => /^[a-z][a-z0-9\x2d]*$/u.test(feature)),
     ),
   ].sort();
 

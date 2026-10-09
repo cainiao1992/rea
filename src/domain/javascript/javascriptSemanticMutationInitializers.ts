@@ -1,22 +1,46 @@
 import * as t from "@babel/types";
 
-import { semanticStaticPropertyKey } from "./javascriptAstValues.js";
+import {
+  semanticStaticPropertyKey,
+  unwrapJavaScriptExpression,
+} from "./javascriptAstValues.js";
 import type { JavaScriptSemanticBindingState } from "./javascriptSemanticState.js";
 
 interface StatementPosition {
   readonly body: readonly t.Statement[];
   readonly index: number;
+  readonly declaratorIndex: number;
 }
 
 const statementPosition = (
   statement: t.Statement,
   parents: WeakMap<t.Node, t.Node>,
+  declarator?: t.VariableDeclarator,
 ): StatementPosition | null => {
   const parent = parents.get(statement);
   if (!t.isProgram(parent) && !t.isBlockStatement(parent)) return null;
   const index = parent.body.indexOf(statement);
-  return index < 0 ? null : { body: parent.body, index };
+  return index < 0
+    ? null
+    : {
+        body: parent.body,
+        index,
+        declaratorIndex:
+          t.isVariableDeclaration(statement) && declarator !== undefined
+            ? statement.declarations.indexOf(declarator)
+            : -1,
+      };
 };
+
+const positionPrecedes = (
+  left: StatementPosition,
+  right: StatementPosition,
+): boolean =>
+  left.body === right.body &&
+  (left.index < right.index ||
+    (left.index === right.index &&
+      left.declaratorIndex >= 0 &&
+      left.declaratorIndex < right.declaratorIndex));
 
 const directInitializerPosition = (
   node: t.Node,
@@ -26,7 +50,7 @@ const directInitializerPosition = (
   if (t.isVariableDeclarator(parent) && parent.init === node) {
     const declaration = parents.get(parent);
     return t.isVariableDeclaration(declaration)
-      ? statementPosition(declaration, parents)
+      ? statementPosition(declaration, parents, parent)
       : null;
   }
   if (
@@ -51,7 +75,7 @@ const directMutationPosition = (
   if (t.isVariableDeclarator(node)) {
     const declaration = parents.get(node);
     return t.isVariableDeclaration(declaration)
-      ? statementPosition(declaration, parents)
+      ? statementPosition(declaration, parents, node)
       : null;
   }
   if (t.isSpreadElement(node)) {
@@ -70,10 +94,19 @@ const directMutationPosition = (
     !t.isTaggedTemplateExpression(node)
   )
     return null;
-  const statement = parents.get(node);
-  return t.isExpressionStatement(statement) && statement.expression === node
-    ? statementPosition(statement, parents)
-    : null;
+  let current = parents.get(node);
+  while (current !== undefined) {
+    if (t.isFunction(current)) return null;
+    if (t.isStatement(current)) return statementPosition(current, parents);
+    if (t.isVariableDeclarator(current)) {
+      const declaration = parents.get(current);
+      return t.isVariableDeclaration(declaration)
+        ? statementPosition(declaration, parents, current)
+        : null;
+    }
+    current = parents.get(current);
+  }
+  return null;
 };
 
 const referenceInitializerPosition = (
@@ -91,7 +124,7 @@ const referenceInitializerPosition = (
     if (t.isVariableDeclarator(parent)) {
       const declaration = parents.get(parent);
       return t.isVariableDeclaration(declaration)
-        ? statementPosition(declaration, parents)
+        ? statementPosition(declaration, parents, parent)
         : null;
     }
     current = parent;
@@ -117,7 +150,11 @@ export const semanticMutationInitializers = (
       position:
         initializer.entryBody === undefined
           ? directInitializerPosition(initializer.node, parents)
-          : { body: initializer.entryBody.body, index: -1 },
+          : {
+              body: initializer.entryBody.body,
+              index: -1,
+              declaratorIndex: -1,
+            },
     })),
     ...binding.referenceInitializers.map((initializer) => ({
       initializer,
@@ -127,19 +164,25 @@ export const semanticMutationInitializers = (
   if (
     origins.some(
       ({ position }) =>
-        position === null ||
-        position.body !== mutationPosition.body ||
-        position.index >= mutationPosition.index,
+        position === null || !positionPrecedes(position, mutationPosition),
     )
   )
     return binding;
-  const latestIndex = origins.reduce(
-    (latest, { position }) => Math.max(latest, position?.index ?? -1),
-    -1,
+  const latest = origins.reduce<StatementPosition | null>(
+    (latest, { position }) =>
+      position !== null &&
+      (latest === null || positionPrecedes(latest, position))
+        ? position
+        : latest,
+    null,
   );
   const retained = new Set(
     origins
-      .filter(({ position }) => position?.index === latestIndex)
+      .filter(
+        ({ position }) =>
+          position?.index === latest?.index &&
+          position?.declaratorIndex === latest?.declaratorIndex,
+      )
       .map(({ initializer }) => initializer),
   );
   return {
@@ -188,8 +231,7 @@ export const semanticBindingPrecedesCapture = (
   return (
     sourcePosition !== null &&
     capturePosition !== null &&
-    sourcePosition.body === capturePosition.body &&
-    sourcePosition.index < capturePosition.index
+    positionPrecedes(sourcePosition, capturePosition)
   );
 };
 
@@ -209,12 +251,13 @@ export const semanticEscapeFollowsCapture = (
     return false;
   // A literal allocates here. Aliases are evaluated at the same capture point,
   // so an outer/persistent origin still receives all of its own escape effects.
+  const origin = unwrapJavaScriptExpression(initializer.node).node;
   if (
-    !t.isObjectExpression(initializer.node) &&
-    !t.isArrayExpression(initializer.node) &&
-    !t.isIdentifier(initializer.node) &&
-    !t.isMemberExpression(initializer.node) &&
-    !t.isOptionalMemberExpression(initializer.node)
+    !t.isObjectExpression(origin) &&
+    !t.isArrayExpression(origin) &&
+    !t.isIdentifier(origin) &&
+    !t.isMemberExpression(origin) &&
+    !t.isOptionalMemberExpression(origin)
   )
     return false;
   const capturePosition = semanticCapturePosition(capture, parents);
@@ -222,7 +265,6 @@ export const semanticEscapeFollowsCapture = (
   return (
     capturePosition !== null &&
     escapePosition !== null &&
-    capturePosition.body === escapePosition.body &&
-    capturePosition.index < escapePosition.index
+    positionPrecedes(capturePosition, escapePosition)
   );
 };

@@ -541,6 +541,9 @@ describe("application workflow CLI and MCP capture lifetimes", () => {
       "destructured",
       "objectSnapshot",
       "arraySnapshot",
+      "unusedFallback",
+      "nestedSnapshot",
+      "declaratorSnapshot",
     ];
     const sources = [
       `export default function make() {
@@ -559,11 +562,22 @@ describe("application workflow CLI and MCP capture lifetimes", () => {
         const objectSnapshot = {value: source.value};
         const arraySnapshot = [source.value];
         mutate(source);
+        const fallback = {value: "TOKEN"};
+        const container = {child: {}};
+        const {child: selected = fallback} = container;
+        mutate(selected);
+        const nestedSource = {value: "TOKEN"};
+        const nestedSnapshot = nestedSource.value;
+        const ignored = mutate(nestedSource);
+        const declaratorSource = {value: "TOKEN"},
+          declaratorSnapshot = declaratorSource.value,
+          declaratorIgnored = mutate(declaratorSource);
         return {
           kind: "capture-boundary",
           rebound: original.value, rest: child.value,
           snapshot, destructured,
           objectSnapshot: objectSnapshot.value, arraySnapshot: arraySnapshot[0],
+          unusedFallback: fallback.value, nestedSnapshot, declaratorSnapshot,
         };
       }`,
       `export default function make() { return ${JSON.stringify({
@@ -597,7 +611,7 @@ describe("application workflow CLI and MCP capture lifetimes", () => {
     await writeFile(inputPath, JSON.stringify(input));
     const expected = {
       normalized_result: {
-        summary: { added: 0, removed: 0, changed: 6, unknown: 0 },
+        summary: { added: 0, removed: 0, changed: fields.length, unknown: 0 },
         coverage: { status: "complete-within-inputs" },
         changes: expect.arrayContaining(
           fields.map((field) =>

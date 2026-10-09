@@ -114,17 +114,25 @@ export const evaluateSemanticBinding = (
     primitiveBindingValues: primitiveBindingValuesFor(state),
   });
 
-/** Evaluate one arbitrary inert expression in the established lexical state. */
+/** Evaluate an inert expression, optionally at an earlier reference capture. */
 export const evaluateSemanticExpression = (
   node: t.Node,
   state: JavaScriptSemanticAnalysisState,
-): JavaScriptSemanticValue =>
-  evaluateExpression(node, {
+  capturePoint?: t.Node,
+): JavaScriptSemanticValue => {
+  const context: EvaluationContext = {
     state,
     bindings: new Set(),
     expressionDepth: 0,
     primitiveBindingValues: primitiveBindingValuesFor(state),
-  });
+  };
+  return evaluateExpression(
+    node,
+    capturePoint === undefined
+      ? context
+      : (captureContextAt(capturePoint, context) ?? context),
+  );
+};
 
 /** Follow module provenance through destructuring, members, and aliases. */
 export const evaluateSemanticProvenance = (
@@ -734,10 +742,16 @@ const primitiveCaptureContext = (
   node: t.Node,
   context: EvaluationContext,
 ): EvaluationContext | undefined => {
+  if (t.isObjectExpression(node) || t.isArrayExpression(node)) return undefined;
+  return captureContextAt(node, context);
+};
+
+const captureContextAt = (
+  node: t.Node,
+  context: EvaluationContext,
+): EvaluationContext | undefined => {
   if (
     context.capturePoint !== undefined ||
-    t.isObjectExpression(node) ||
-    t.isArrayExpression(node) ||
     semanticCapturePosition(node, context.state.parentsByNode) === null
   )
     return undefined;

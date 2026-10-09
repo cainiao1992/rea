@@ -439,10 +439,13 @@ const referenceSourcesInactive = (
   state: JavaScriptSemanticAnalysisState,
 ): boolean =>
   reference.requiredSources?.some(
-    (source) => selectedReferenceSlot(source, state)?.presence === "absent",
+    (source) =>
+      selectedReferenceSlot(source, state, source.node)?.presence === "absent",
   ) === true ||
   reference.fallbackSources?.some((source) => {
-    const slot = selectedReferenceSlot(source, state);
+    // Selection precedes effects through the chosen reference. A later escape
+    // cannot make a fallback that was excluded at destructuring reachable.
+    const slot = selectedReferenceSlot(source, state, source.node);
     return (
       slot?.presence === "present" &&
       (slot.value.status === "literal" ||
@@ -558,7 +561,7 @@ const objectReferencedValues = (
         path: [
           typeof selected === "object"
             ? {
-                ...(selected ?? {}),
+                ...selected,
                 excludedKeys: [
                   ...new Set([
                     ...(selected?.excludedKeys ?? []),
@@ -693,6 +696,7 @@ const copiedReferencePath = (
 const selectedReferenceSlot = (
   source: { readonly node: t.Node; readonly projection: PropertyPath },
   state: JavaScriptSemanticAnalysisState,
+  capturePoint?: t.Node,
 ) => {
   const path: string[] = [];
   for (const key of source.projection) {
@@ -700,7 +704,7 @@ const selectedReferenceSlot = (
     path.push(String(key));
   }
   return semanticSlotAtPath(
-    evaluateSemanticExpression(source.node, state),
+    evaluateSemanticExpression(source.node, state, capturePoint),
     path,
   );
 };

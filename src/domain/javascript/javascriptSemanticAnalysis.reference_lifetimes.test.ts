@@ -104,6 +104,98 @@ describe("reference lifetimes across calls and shallow copies", () => {
   );
 });
 
+describe("capture ordering within declarations and expressions", () => {
+  it.each([
+    "const ignored = mutate(source);",
+    "void mutate(source);",
+    "consume(mutate(source));",
+  ])("preserves a primitive before a later nested call: %s", (escape) => {
+    expect(
+      resultValue(
+        `const source={value:1}; const snapshot=source.value; ${escape} return snapshot;`,
+      ),
+    ).toEqual({ status: "literal", value: 1 });
+    expect(
+      resultValue(
+        `const source={value:1}; ${escape} const snapshot=source.value; return snapshot;`,
+      )?.status,
+    ).toBe("unknown");
+  });
+
+  it("preserves a primitive before an awaited escape", () => {
+    const value = onlyCallable(
+      analyzeJavaScriptSemantics(`export async function result() {
+        const source={value:1}; const snapshot=source.value;
+        await mutate(source); return snapshot;
+      }`),
+      "result",
+    ).returnSites[0]?.value;
+    expect(value).toEqual({ status: "literal", value: 1 });
+  });
+
+  it.each([
+    "({value:1} as {value:number})",
+    "({value:1} satisfies {value:number})",
+    "({value:1})!",
+  ])("classifies transparent initializer wrappers: %s", (source) => {
+    expect(
+      resultValue(
+        `const source=${source}; const snapshot=source.value; mutate(source); return snapshot;`,
+      ),
+    ).toEqual({ status: "literal", value: 1 });
+    expect(
+      resultValue(
+        `const source=${source}; mutate(source); const snapshot=source.value; return snapshot;`,
+      )?.status,
+    ).toBe("unknown");
+  });
+
+  it.each(["(source as {value:number})", "(source satisfies {value:number})"])(
+    "captures through a wrapped alias: %s",
+    (alias) => {
+      expect(
+        resultValue(
+          `const source={value:1}; const alias=${alias}; const snapshot=alias.value; mutate(alias); return snapshot;`,
+        ),
+      ).toEqual({ status: "literal", value: 1 });
+    },
+  );
+
+  it.each([
+    ["{child:{}}", "{child:copy=fallback}"],
+    ["[{}]", "[copy=fallback]"],
+  ])("guards fallback selection before escape: %s", (source, pattern) => {
+    expect(
+      resultValue(
+        `const fallback={value:1}; const source=${source}; const ${pattern}=source; mutate(copy); return fallback.value;`,
+      ),
+    ).toEqual({ status: "literal", value: 1 });
+    expect(
+      resultValue(
+        `const fallback={value:1}; const source=${source}; mutate(source); const ${pattern}=source; mutate(copy); return fallback.value;`,
+      )?.status,
+    ).toBe("unknown");
+  });
+
+  it.each([
+    "const source={value:1}, snapshot=source.value; mutate(source);",
+    "const source={value:1}, snapshot=source.value, ignored=mutate(source);",
+  ])("preserves sequential declarator captures: %s", (body) => {
+    expect(resultValue(`${body} return snapshot;`)).toEqual({
+      status: "literal",
+      value: 1,
+    });
+  });
+
+  it("retains an escape in an earlier declarator", () => {
+    expect(
+      resultValue(
+        "const source={value:1}, ignored=mutate(source), snapshot=source.value; return snapshot;",
+      )?.status,
+    ).toBe("unknown");
+  });
+});
+
 describe("primitive snapshots across calls", () => {
   it.each([
     "const [copy] = source;",

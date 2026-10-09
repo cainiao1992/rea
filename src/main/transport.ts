@@ -71,13 +71,16 @@ export const startMcpTransport = async (
           serverContext.environment,
         );
         androidProviders.push(android);
-        return (dependencies.createServer ?? createServer)(session, session, {
-          logger: serverContext.logger,
-          environment: serverContext.environment,
-          delivery: serverContext.delivery,
-          ...optionalProviders,
-          androidAnalysis: android,
-        });
+        return (dependencies.createServer ?? createServer)(
+          { kind: "session", session },
+          {
+            logger: serverContext.logger,
+            environment: serverContext.environment,
+            delivery: serverContext.delivery,
+            ...optionalProviders,
+            androidAnalysis: android,
+          },
+        );
       },
       {
         onerror: () => {

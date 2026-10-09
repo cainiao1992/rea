@@ -40,7 +40,7 @@ const capture = async (
   const session = createTestBinarySession(() => {
     throw new Error("Capture must not launch a binary provider");
   });
-  const server = createServer(session, session);
+  const server = createServer({ kind: "session", session });
   const client = new Client({ name: "truncation-coverage", version: "1" });
   onTestFinished(async () => {
     await client.close();

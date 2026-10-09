@@ -34,11 +34,11 @@ it("keeps a replacement server usable after the SDK discards its discovery probe
       factories.push(factory);
       return { close: async () => undefined };
     },
-    createServer: (analysis, binary, options) => {
+    createServer: (source, options) => {
       if (options?.androidAnalysis === undefined)
         throw new Error("Expected owned Android provider");
       providers.push(options.androidAnalysis);
-      return createServer(analysis, binary, options);
+      return createServer(source, options);
     },
     writeStderr: () => undefined,
     setExitCode: () => undefined,
@@ -83,7 +83,10 @@ it("publishes and executes all APK contracts with inline Evidence and no active 
   const session = createTestBinarySession(() => {
     throw new Error("APK analysis must not acquire a deep binary provider");
   });
-  const server = createServer(session, session, { androidAnalysis: provider });
+  const server = createServer(
+    { kind: "session", session },
+    { androidAnalysis: provider },
+  );
   const client = new Client({
     name: "android-contract-regression",
     version: "1",
@@ -150,7 +153,10 @@ it("cleans an active engine when the MCP client disconnects", async () => {
   const session = createTestBinarySession(() => {
     throw new Error("Unexpected native provider acquisition");
   });
-  const server = createServer(session, session, { androidAnalysis: provider });
+  const server = createServer(
+    { kind: "session", session },
+    { androidAnalysis: provider },
+  );
   const client = new Client({
     name: "android-disconnect-regression",
     version: "1",

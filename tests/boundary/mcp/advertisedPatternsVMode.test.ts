@@ -34,7 +34,7 @@ it("advertises portable NUL escapes and patterns that compile in all JS modes", 
   const session = createTestBinarySession(() => {
     throw new Error("No deep provider may start for a schema projection");
   });
-  const server = createServer(session, session);
+  const server = createServer({ kind: "session", session });
   const client = new Client({ name: "advertised-patterns", version: "1" });
   onTestFinished(async () => {
     await client.close();

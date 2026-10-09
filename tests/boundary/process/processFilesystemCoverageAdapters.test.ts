@@ -21,7 +21,7 @@ const captureViaMcp = async (scenario: Record<string, unknown>) => {
   const session = createTestBinarySession(() => {
     throw new Error("Process capture must not launch a binary provider");
   });
-  const server = createServer(session, session);
+  const server = createServer({ kind: "session", session });
   const client = new Client({ name: "filesystem-coverage", version: "1" });
   onTestFinished(async () => {
     await client.close();

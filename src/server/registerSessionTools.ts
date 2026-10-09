@@ -232,20 +232,36 @@ const registerContextTools = (
     navigationContract.name,
     toolRegistrationOptions(navigationContract),
     async (input, context) => {
-      return server.delivery.toCallToolResult(
-        await getNavigationContext(session, input, context.mcpReq.signal),
-        navigationContract,
+      const admitted = await session.withAdmittedAnalysis(
+        navigationContract.name,
+        context.mcpReq.signal,
+        async (analysis) =>
+          server.delivery.toCallToolResult(
+            await getNavigationContext(analysis, input, context.mcpReq.signal),
+            navigationContract,
+          ),
       );
+      return admitted.ok
+        ? admitted.value
+        : server.delivery.toCallToolResult(admitted, navigationContract);
     },
   );
   server.registerTool(
     addressContract.name,
     toolRegistrationOptions(addressContract),
     async (input, context) => {
-      return server.delivery.toCallToolResult(
-        await inspectAddressContext(session, input, context.mcpReq.signal),
-        addressContract,
+      const admitted = await session.withAdmittedAnalysis(
+        addressContract.name,
+        context.mcpReq.signal,
+        async (analysis) =>
+          server.delivery.toCallToolResult(
+            await inspectAddressContext(analysis, input, context.mcpReq.signal),
+            addressContract,
+          ),
       );
+      return admitted.ok
+        ? admitted.value
+        : server.delivery.toCallToolResult(admitted, addressContract);
     },
   );
 };

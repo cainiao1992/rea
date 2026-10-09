@@ -13,7 +13,10 @@ import {
 } from "../../../src/application/AnalysisProvider.js";
 import type { DirectAnalysisDependencies } from "../../../src/application/DirectAnalysisDependencies.js";
 import { runDirectAnalysis } from "../../../src/application/DirectAnalysis.js";
-import { createTestBinarySession } from "../../fixtures/binarySession.js";
+import {
+  createDeferred,
+  createTestBinarySession,
+} from "../../fixtures/binarySession.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { createAnalysisProfile } from "../../../src/domain/analysisProfile.js";
 import { readAnalysisSnapshot } from "../../../src/application/binary/AnalysisSnapshotFiles.js";
@@ -37,6 +40,90 @@ afterEach(async () => {
   await Promise.all(resources.splice(0).map((resource) => resource.close()));
 });
 
+describe("MCP composed workflow target admission", () => {
+  it("keeps a composed result and snapshot on its admitted target across queued close and open", async () => {
+    const directory = await createTestTempDirectory(
+      "rea-mcp-admitted-workflow-",
+    );
+    const firstPath = join(directory, "first.hop");
+    const secondPath = join(directory, "second.hop");
+    const snapshotPath = join(directory, "first-analysis.json");
+    await Promise.all([
+      writeFile(firstPath, "first target"),
+      writeFile(secondPath, "second target"),
+    ]);
+    const starts: string[] = [];
+    const calls: string[] = [];
+    const entered = createDeferred<void>();
+    const release = createDeferred<void>();
+    const session = createTestBinarySession(
+      makeProvider(starts, calls, undefined, { entered, release }),
+      { resolveAnalysisProfile: () => Promise.resolve(ok({ profile })) },
+    );
+    const server = createServer(
+      { kind: "session", session },
+      { logger: silentLogger },
+    );
+    const mcp = new Client({ name: "admitted-workflow", version: "1" });
+    const closeStarted = createDeferred<void>();
+    mcp.setNotificationHandler("notifications/progress", () => {
+      closeStarted.resolve();
+    });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    resources.push(mcp, server);
+    await server.connect(serverTransport);
+    await mcp.connect(clientTransport);
+    expect(
+      (
+        await mcp.callTool({
+          name: "open_binary",
+          arguments: { path: firstPath },
+        })
+      ).isError,
+    ).not.toBe(true);
+
+    const analysisRequest = mcp.callTool({
+      name: "binary_overview",
+      arguments: {},
+    });
+    await entered.promise;
+    const closeRequest = mcp.callTool({
+      name: "close_binary",
+      arguments: { snapshot_path: snapshotPath },
+      _meta: { progressToken: "close-race" },
+    });
+    await closeStarted.promise;
+    const openRequest = mcp.callTool({
+      name: "open_binary",
+      arguments: { path: secondPath },
+    });
+    release.resolve();
+
+    const analyzed = await analysisRequest;
+    expect(analyzed.isError, JSON.stringify(analyzed.content)).not.toBe(true);
+    const evidence = toolContract("binary_overview").outputSchema.parse(
+      analyzed.structuredContent,
+    );
+    expect(evidence.analysis_profile).not.toBeNull();
+    expect(evidence).toMatchObject({ subject: { local_path: firstPath } });
+    const closed = await closeRequest;
+    expect(closed.isError, JSON.stringify(closed.content)).not.toBe(true);
+    const snapshot = await readAnalysisSnapshot(snapshotPath);
+    if (!snapshot.ok) throw snapshot.error;
+    expect(snapshot.value.workflow_entries).toHaveLength(1);
+    expect(snapshot.value.evidence_bundle.records).toContainEqual(
+      expect.objectContaining({
+        operation: "binary_overview",
+        subject: expect.objectContaining({ local_path: firstPath }),
+      }),
+    );
+    const opened = await openRequest;
+    expect(opened.isError, JSON.stringify(opened.content)).not.toBe(true);
+    expect(session.activeTarget()?.path).toBe(secondPath);
+  });
+});
+
 describe("MCP composed workflow snapshot replay", () => {
   it("exports an MCP workflow binding and replays its Evidence without provider startup or calls", async () => {
     const directory = await createTestTempDirectory(
@@ -51,7 +138,10 @@ describe("MCP composed workflow snapshot replay", () => {
     const session = createTestBinarySession(provider, {
       resolveAnalysisProfile: () => Promise.resolve(ok({ profile })),
     });
-    const server = createServer(session, session, { logger: silentLogger });
+    const server = createServer(
+      { kind: "session", session },
+      { logger: silentLogger },
+    );
     const mcp = new Client({ name: "workflow-snapshot", version: "1.0.0" });
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();
@@ -145,7 +235,10 @@ describe("MCP composed workflow snapshot replay", () => {
         resolveAnalysisProfile: () => Promise.resolve(ok({ profile })),
       },
     );
-    const server = createServer(session, session, { logger: silentLogger });
+    const server = createServer(
+      { kind: "session", session },
+      { logger: silentLogger },
+    );
     const mcp = new Client({
       name: "live-workflow-snapshot",
       version: "1.0.0",
@@ -190,6 +283,10 @@ const makeProvider = (
   starts: string[],
   calls: string[],
   liveOperation?: (typeof operations)[number],
+  pause?: {
+    readonly entered: ReturnType<typeof createDeferred<void>>;
+    readonly release: ReturnType<typeof createDeferred<void>>;
+  },
 ): AnalysisProvider => {
   const capabilities: CapabilityDescriptor[] = operations.map((operation) => ({
     operation,
@@ -217,6 +314,10 @@ const makeProvider = (
       return {
         execute: async (operation) => {
           calls.push(operation);
+          if (operation === "list_documents" && pause !== undefined) {
+            pause.entered.resolve();
+            await pause.release.promise;
+          }
           const result =
             operation === "health"
               ? null

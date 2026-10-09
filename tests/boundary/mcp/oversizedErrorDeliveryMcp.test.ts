@@ -17,16 +17,21 @@ import { ToolResultDelivery } from "../../../src/server/toolResult.js";
 
 const delivery = new ToolResultDelivery(STDIO_DEFAULT_MAX_BUFFER_SIZE);
 
-const oversizedFailure = () =>
+const failureWithName = (nameBytes: number) =>
   delivery.toErrorToolResult(
     new AnalysisInputError("procedure_address", undefined, [
       {
         path: ["procedure"],
         reason: "invalid_value",
-        message: `Unknown Ghidra procedure name or address: REA_MISSING_${"x".repeat(Math.ceil(STDIO_DEFAULT_MAX_BUFFER_SIZE / 2) + 64 * 1024)}`,
+        message: `Unknown Ghidra procedure name or address: REA_MISSING_${"x".repeat(nameBytes)}`,
       },
     ]),
   );
+
+// The delivered error carries its JSON once, as text, so only a diagnostic
+// larger than the whole budget is oversized.
+const oversizedFailure = () =>
+  failureWithName(STDIO_DEFAULT_MAX_BUFFER_SIZE + 64 * 1024);
 
 const exerciseDeliveryFailure = async (
   recordEvidence: EvidenceWriter["recordEvidence"] | undefined,
@@ -142,4 +147,43 @@ it("retains the complete oversized diagnostic before removing its private struct
     oversizedFailure().structuredContent,
   );
   expect(retained[0]?.raw_result).toEqual(oversizedFailure());
+});
+
+it("delivers an error whose text fits although structured and text copies would not", async () => {
+  const nameBytes = Math.ceil(STDIO_DEFAULT_MAX_BUFFER_SIZE / 2) + 64 * 1024;
+  const retained: Evidence[] = [];
+  const server = new EvidenceMcpServer(
+    { name: "mid-sized-error-test", version: "1" },
+    { capabilities: {} },
+    (evidence) => {
+      retained.push(evidence);
+      return ok("added");
+    },
+    delivery,
+  );
+  server.registerTool("mid_failure", { inputSchema: {} }, async () =>
+    failureWithName(nameBytes),
+  );
+  const client = new Client({ name: "mid-sized-error-client", version: "1" });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  try {
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+    const failure = await client.callTool({
+      name: "mid_failure",
+      arguments: {},
+    });
+    expect(failure.isError).toBe(true);
+    expect(failure.structuredContent).toBeUndefined();
+    expect(parseMcpToolError(failure)).toEqual(
+      failureWithName(nameBytes).structuredContent,
+    );
+    expect(retained).toHaveLength(0);
+    expect(Buffer.byteLength(JSON.stringify(failure))).toBeLessThan(
+      STDIO_DEFAULT_MAX_BUFFER_SIZE,
+    );
+  } finally {
+    await Promise.all([client.close(), server.close()]);
+  }
 });

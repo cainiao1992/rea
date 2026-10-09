@@ -5,7 +5,9 @@ import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptA
 import {
   admitsCanonicalPathSyntax,
   hasScheme,
+  htmlUrlText,
   looksExternal,
+  percentDecodeUrlPath,
   stripQueryAndFragment,
 } from "../../domain/artifactPathSyntax.js";
 
@@ -248,7 +250,7 @@ const hasContainerCandidate = (
 const htmlCandidate = (
   input: ResolveArtifactPathInput,
 ): string | ArtifactPathResolution => {
-  const declared = stripQueryAndFragment(input.declaredPath);
+  const declared = stripQueryAndFragment(htmlUrlText(input.declaredPath));
   if (looksExternal(declared))
     return unresolvedOutcome(input, "external", [
       "External HTML references are not mapped to local artifact assets.",
@@ -257,14 +259,19 @@ const htmlCandidate = (
   const base =
     rawBase === undefined || rawBase === null
       ? rawBase
-      : stripQueryAndFragment(rawBase);
+      : stripQueryAndFragment(htmlUrlText(rawBase));
   if (base !== undefined && base !== null && looksExternal(base))
     return unresolvedOutcome(input, "external", [
       "The document base href is external, so its script reference is not a local artifact path.",
     ]);
-  if (declared.startsWith("/")) return declared.slice(1);
+  const declaredPath = percentDecodeUrlPath(declared);
+  if (declaredPath === null)
+    return unresolvedOutcome(input, "rejected", [
+      "The HTML reference path percent-decodes to NUL or to bytes that are not UTF-8.",
+    ]);
+  if (declaredPath.startsWith("/")) return declaredPath.slice(1);
   if (base === undefined || base === null || base === "")
-    return posix.join(posix.dirname(input.sourcePath), declared);
+    return posix.join(posix.dirname(input.sourcePath), declaredPath);
   // A local base href is a second untrusted path input; apply the same
   // admission rules a declared path gets so it cannot smuggle traversal or
   // separator syntax past canonicalization.
@@ -272,10 +279,15 @@ const htmlCandidate = (
     return unresolvedOutcome(input, "rejected", [
       "The document base href uses NUL, backslash, or encoded dot and separator bytes that are not admitted for canonical artifact paths.",
     ]);
-  const basePath = base.startsWith("/")
-    ? base.slice(1)
-    : posix.join(posix.dirname(input.sourcePath), base);
-  return posix.join(htmlBaseDirectory(base, basePath), declared);
+  const decodedBase = percentDecodeUrlPath(base);
+  if (decodedBase === null)
+    return unresolvedOutcome(input, "rejected", [
+      "The document base href path percent-decodes to NUL or to bytes that are not UTF-8.",
+    ]);
+  const basePath = decodedBase.startsWith("/")
+    ? decodedBase.slice(1)
+    : posix.join(posix.dirname(input.sourcePath), decodedBase);
+  return posix.join(htmlBaseDirectory(decodedBase, basePath), declaredPath);
 };
 
 /**

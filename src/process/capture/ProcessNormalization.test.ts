@@ -118,6 +118,13 @@ it("normalizes ports that end a sentence but not decimal or host continuations",
   );
 });
 
+it("keeps a port before a chunk-final period, whose continuation is unknown", () => {
+  for (const chunk of ["port: 80.", "http://localhost:8080.", "[::1]:3000."])
+    expect(
+      normalizeProcessText(chunk, scenario({}), "/temporary", rootPid),
+    ).toBe(chunk);
+});
+
 it("normalizes representative process identities and preserves null, zero, and unrelated numbers", () => {
   const before = JSON.stringify(samples);
   const normalized = normalizeProcessSamples(samples, scenario({}), rootPid);

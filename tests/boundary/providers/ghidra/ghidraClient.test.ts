@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { access, mkdir } from "node:fs/promises";
+import { access, chmod, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -384,6 +384,35 @@ describe("GhidraClient established requests", () => {
       error: { kind: "process" },
     });
   });
+});
+
+describe("GhidraClient runtime removal failures", () => {
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "reports a runtime root it could not remove and removes it on a later close",
+    async () => {
+      const launcher = new FixtureLauncher();
+      const client = clientFor(launcher);
+      await expect(client.start()).resolves.toMatchObject({ ok: true });
+      const runtimeRoot = launcher.runtimeRoots[0] ?? "";
+      // Without write permission its entries cannot be removed.
+      await chmod(runtimeRoot, 0o500);
+      try {
+        await expect(client.close()).rejects.toMatchObject({
+          cleanupIncomplete: true,
+          cleanupResources: [runtimeRoot],
+          diagnostics: { leftover_paths: [runtimeRoot] },
+        });
+        await expect(access(runtimeRoot)).resolves.toBeUndefined();
+      } finally {
+        await chmod(runtimeRoot, 0o700);
+      }
+
+      await expect(client.close()).resolves.toBeUndefined();
+      await expect(access(runtimeRoot)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    },
+  );
 });
 
 describe("GhidraClient cleanup and diagnostics", () => {

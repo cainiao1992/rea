@@ -3,6 +3,7 @@ import type { Socket } from "node:net";
 import { tmpdir } from "node:os";
 
 import type { JsonValue } from "../domain/jsonValue.js";
+import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { silentLogger, type Logger } from "../logger.js";
 import { PendingOperations } from "../process/PendingOperations.js";
@@ -534,17 +535,8 @@ export class GhidraClient {
       this.#lastDiagnostics = this.#diagnostics();
       this.#process = undefined;
       this.#launch = undefined;
-      const runtimeRoot = this.#runtimeRoot;
-      const socketRoot = this.#socketRoot;
-      this.#runtimeRoot = undefined;
-      this.#socketRoot = undefined;
       try {
-        const removed = await Promise.allSettled([
-          runtimeRoot?.close(),
-          socketRoot?.close(),
-        ]);
-        const failed = removed.find((result) => result.status === "rejected");
-        if (failed?.status === "rejected") throw failed.reason;
+        await this.#removeRuntimeRoots();
       } catch (cause: unknown) {
         if (forceStop)
           forcedStopFailure ??= this.#failure(
@@ -563,6 +555,47 @@ export class GhidraClient {
     } finally {
       this.#closing = false;
     }
+  }
+
+  /**
+   * Remove the runtime and socket roots, keeping each one that could not be
+   * removed so a later close retries it rather than reporting success.
+   */
+  async #removeRuntimeRoots(): Promise<void> {
+    const roots = [
+      {
+        root: this.#runtimeRoot,
+        release: () => (this.#runtimeRoot = undefined),
+      },
+      { root: this.#socketRoot, release: () => (this.#socketRoot = undefined) },
+    ];
+    const leftovers: { readonly path: string; readonly reason: string }[] = [];
+    let firstCause: unknown;
+    for (const { root, release } of roots) {
+      if (root === undefined) continue;
+      try {
+        await root.close();
+        release();
+      } catch (cause: unknown) {
+        firstCause ??= cause;
+        leftovers.push({
+          path: root.path,
+          reason: cause instanceof Error ? cause.message : String(cause),
+        });
+      }
+    }
+    if (leftovers.length > 0)
+      throw new ProviderCleanupError(
+        "ghidra",
+        leftovers.map(({ path }) => path),
+        {
+          reason:
+            "Ghidra's private runtime directory could not be removed; it is retained for a later close.",
+          leftover_paths: leftovers.map(({ path }) => path),
+          failures: leftovers.map(({ path, reason }) => `${path}: ${reason}`),
+        },
+        { cause: firstCause },
+      );
   }
 
   #redactAuthentication(value: string): string {

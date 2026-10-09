@@ -1,5 +1,9 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import { expect, it } from "vitest";
 
+import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory.js";
 import { systemDoctorHost } from "./Doctor.js";
 
 it("threads the selected host and environment into system diagnostics", async () => {
@@ -39,5 +43,66 @@ it("threads the selected host and environment into system diagnostics", async ()
   ]);
   expect(
     calls.every(({ environment: observed }) => observed === environment),
+  ).toBe(true);
+});
+
+it.each([
+  [{ default: { appdir: "/Applications" } }, "/Applications"],
+  [
+    {
+      default: { appdir: "/Applications" },
+      env: { appdir: "/Env Apps" },
+      explicit: { appdir: "~/Tools" },
+    },
+    "HOME/Tools",
+  ],
+  [
+    { default: { appdir: "/Applications" }, env: { appdir: "/Env Apps" } },
+    "/Env Apps",
+  ],
+])(
+  "locates the Hopper cask from its Caskroom receipt without a cask command (%j)",
+  async (config, expectedAppdir) => {
+    const root = await createTestTempDirectory("rea-doctor-caskroom-");
+    const caskroom = join(root, "Caskroom");
+    const metadata = join(caskroom, "hopper-disassembler", ".metadata");
+    await mkdir(metadata, { recursive: true });
+    await writeFile(join(metadata, "config.json"), JSON.stringify(config));
+    const calls: (readonly string[])[] = [];
+    const host = systemDoctorHost({
+      platform: "darwin",
+      environment: { HOME: join(root, "home") },
+      execFileOutput: async (_command, arguments_) => {
+        calls.push(arguments_);
+        return { stdout: `${caskroom}\n`, stderr: "" };
+      },
+    });
+
+    expect(await host.brewHopperPath()).toBe(
+      join(
+        expectedAppdir.replace("HOME", join(root, "home")),
+        "Hopper Disassembler.app/Contents/MacOS/hopper",
+      ),
+    );
+    // A cask argument makes Homebrew fetch and cache its API data.
+    expect(calls).toEqual([["--caskroom"]]);
+  },
+);
+
+it("reports no Homebrew Hopper when the cask has no receipt", async () => {
+  const caskroom = await createTestTempDirectory("rea-doctor-caskroom-");
+  const calls: (readonly string[])[] = [];
+  const host = systemDoctorHost({
+    platform: "darwin",
+    environment: { HOME: caskroom },
+    execFileOutput: async (_command, arguments_) => {
+      calls.push(arguments_);
+      return { stdout: `${caskroom}\n`, stderr: "" };
+    },
+  });
+
+  expect(await host.brewHopperPath()).toBeUndefined();
+  expect(
+    calls.every((arguments_) => arguments_.join(" ") === "--caskroom"),
   ).toBe(true);
 });

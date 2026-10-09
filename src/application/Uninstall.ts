@@ -91,7 +91,8 @@ export interface UninstallHost {
 /**
  * Remove only REA-owned registrations and managed files, optionally including
  * local state. A client configuration that cannot be read safely stops the
- * operation before anything is removed.
+ * operation before anything is removed; one that fails during removal stops
+ * the remaining removals.
  */
 export const runUninstall = async (
   purgeData: boolean,
@@ -127,13 +128,29 @@ export const runUninstall = async (
   };
 };
 
+/**
+ * Each client is reread when it is edited, so a concurrent change is never
+ * overwritten. A client that fails then still stops the remaining removals.
+ */
 const removeAll = async (
   clients: readonly SetupClient[],
   purgeData: boolean,
   host: UninstallHost,
 ): Promise<UninstallItem[]> => {
   const items: UninstallItem[] = [];
-  for (const client of clients) items.push(await host.removeClient(client));
+  for (const client of clients) {
+    const removed = await host.removeClient(client);
+    items.push(removed);
+    if (removed.status === "failed")
+      return [
+        ...items,
+        item(
+          "uninstall",
+          "skipped",
+          "Uninstall stopped at this failure; the items above report what changed. Repair the failed configuration, then rerun uninstall.",
+        ),
+      ];
+  }
   items.push(await host.removeSkill());
   if (purgeData) items.push(...(await host.purgeData()));
   return items;

@@ -1467,6 +1467,65 @@ describe("client configuration filesystem removal", () => {
   });
 });
 
+describe("client configuration changed during uninstall", () => {
+  it("stops the remaining removals when a configuration fails after preflight", async () => {
+    const home = await createTestTempDirectory("rea-uninstall-race-");
+    roots.push(home);
+    const codex = join(home, ".codex/config.toml");
+    const cursor = join(home, ".cursor/mcp.json");
+    const skill = join(
+      home,
+      ".agents/skills/reverse-engineer-anything/SKILL.md",
+    );
+    const cursorConfig = JSON.stringify({
+      mcpServers: { rea: { command: "rea", args: ["mcp"] } },
+    });
+    for (const path of [codex, cursor, skill])
+      await mkdir(dirname(path), { recursive: true });
+    await writeFile(
+      codex,
+      '[mcp_servers.rea]\ncommand = "rea"\nargs = ["mcp"]\n',
+    );
+    await writeFile(cursor, cursorConfig);
+    await writeFile(skill, "managed");
+    let codexReads = 0;
+    const fileSystem: UninstallFileSystem = {
+      ...testFileSystem,
+      // The preflight read succeeds; the removal reread finds a broken file.
+      readText: (path) => {
+        if (path !== codex) return readFile(path, "utf8");
+        codexReads += 1;
+        return codexReads === 1
+          ? readFile(path, "utf8")
+          : Promise.resolve("[mcp_servers.rea]\ncommand = [broken\n");
+      },
+    };
+
+    const result = await runUninstall(
+      false,
+      systemUninstallHost(home, fileSystem),
+    );
+
+    expect(result.status).toBe("failed");
+    // Clients ordered before Codex have no configuration in this home.
+    expect(
+      result.items
+        .filter(({ status }) => status !== "skipped")
+        .map(({ name, status }) => [name, status]),
+    ).toEqual([
+      ["codex", "failed"],
+      ["analysis_engine", "retained"],
+    ]);
+    expect(result.items.map(({ name }) => name)).not.toContain("cursor");
+    expect(result.items.at(-2)).toMatchObject({
+      name: "uninstall",
+      status: "skipped",
+    });
+    expect(await readFile(cursor, "utf8")).toBe(cursorConfig);
+    expect(await readFile(skill, "utf8")).toBe("managed");
+  });
+});
+
 describe("client configuration filesystem failure reporting", () => {
   it.each([
     [

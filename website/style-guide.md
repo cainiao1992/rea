@@ -142,14 +142,15 @@ purposes, and immutable commit links for checkpoint-dependent facts.
 Each figure should answer a question that a reader can name. Choose the visual
 form that fits it:
 
-| Relationship                              | Existing example                         | Useful form                                             |
-| ----------------------------------------- | ---------------------------------------- | ------------------------------------------------------- |
-| Analysis and verification steps           | DX-Ball sound pan                        | Flow with separate verification branches                |
-| Code across process boundaries            | Electron CSV export and Notion clipboard | HTML flow with APIs and channel names                   |
-| A mathematical transformation             | TH04's fixed and aimed rings             | SVG drawn from the angle formula                        |
-| Original instructions and readable source | DX-Ball and TH04                         | Selectable HTML code with matching step highlights      |
-| A request caused by an action             | Notes browser export                     | Flow, observed result table and script excerpt          |
-| Recovered behavior and a new experiment   | Dinosaur speed reconstruction            | Inspected code, playable demo and original-result check |
+| Relationship                              | Existing example                         | Useful form                                                      |
+| ----------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------- |
+| Analysis and verification steps           | DX-Ball sound pan                        | Flow with separate verification branches                         |
+| Code across process boundaries            | Electron CSV export and Notion clipboard | HTML flow with APIs and channel names                            |
+| A mathematical transformation             | TH04's fixed and aimed rings             | SVG drawn from the angle formula                                 |
+| Original instructions and readable source | DX-Ball and TH04                         | Selectable HTML code with matching step highlights               |
+| A request caused by an action             | Notes browser export                     | Flow, observed result table and script excerpt                   |
+| Recovered behavior and a new experiment   | Dinosaur speed reconstruction            | Inspected code, playable demo and original-result check          |
+| Time blocks and changing output           | Aegis login-code reconstruction          | Adjustable clock, block number and code beside recovered methods |
 
 Use SVG or semantic HTML for diagrams with exact text, numbers and arrows.
 Generated illustrations can help explore a layout, but the published labels,

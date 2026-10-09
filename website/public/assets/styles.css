@@ -261,6 +261,14 @@ section[id] {
   background: #38424e;
   text-decoration: none;
 }
+.button.secondary {
+  border-color: var(--line);
+  background: var(--page);
+  color: var(--ink);
+}
+.button.secondary:hover {
+  background: var(--soft);
+}
 .text-link {
   font-size: 0.95rem;
   font-weight: 500;
@@ -688,6 +696,59 @@ pre code {
 }
 .case-figure {
   margin-bottom: 3.2rem;
+}
+.aegis-step-selector {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.aegis-step-selector button {
+  min-height: 44px;
+}
+.aegis-calculation .flow-node {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 3.5rem;
+  font-variant-numeric: tabular-nums;
+}
+.aegis-calculation .aegis-code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 1.5rem;
+  letter-spacing: 0.06em;
+}
+.aegis-clock-controls {
+  margin-top: 1.7rem;
+}
+.aegis-clock-controls label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.aegis-clock-controls input {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.aegis-clock-scale {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.aegis-clock-controls .actions {
+  gap: 0.7rem;
+  margin-top: 1.2rem;
+}
+.aegis-clock-controls .caption {
+  margin-bottom: 0;
+}
+.aegis-demo .button:disabled,
+[data-aegis-check]:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 .step-selector {
   display: grid;
@@ -1456,7 +1517,7 @@ pre code {
 .comparison-label {
   padding-bottom: 0.8rem;
   border-bottom: 1px solid var(--line);
-  font-size: 0.875rem;
+  font-size: 1.125rem;
   font-weight: 600;
 }
 .agent-investigation > .comparison-label {

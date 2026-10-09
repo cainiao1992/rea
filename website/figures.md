@@ -73,6 +73,18 @@ are new teaching code. Check that the fallback is visible with JavaScript
 disabled and hidden when the playable canvas loads. Keep the speed settings,
 source excerpt, reconstruction and original-result table consistent.
 
+## Aegis login-code figure
+
+The Aegis overview and adjustable-clock figure are semantic HTML. The clock
+diagram shows seconds, the 30-second block and the resulting six-digit code,
+using the public RFC 6238 test key. It retains a static 59-second example when
+JavaScript is disabled. The three code selections connect each operation to the
+APK's selected Java and an explanatory summary.
+
+[evidence/aegis-login-code.md](evidence/aegis-login-code.md) records the inspected
+APK, methods, source attribution and reconstruction checks. Keep the block
+formula, default settings, slider outputs and reference cases consistent.
+
 ## Original image generation prompts
 
 ## Prompt 1

@@ -1,4 +1,4 @@
-import { join, sep } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { ghidraSessionRoot } from "./GhidraSessionRoot.js";
@@ -7,8 +7,8 @@ const hasDotPrefixElement = (directory: string): boolean =>
   directory.split(sep).some((element) => element.startsWith("."));
 
 const POSIX = process.platform !== "win32";
-const posixFallback = join(sep, "tmp");
-const posixBase = (...segments: string[]) => join(sep, ...segments);
+const posixFallback = join(resolve(sep), "tmp");
+const posixBase = (...segments: string[]) => join(resolve(sep), ...segments);
 
 describe("ghidraSessionRoot", () => {
   it("keeps an inherited base that Ghidra accepts", () => {
@@ -51,6 +51,15 @@ describe("ghidraSessionRoot", () => {
       fallback: posixBase("home", "operator", ".cache"),
     });
     expect(hasDotPrefixElement(directory)).toBe(false);
+  });
+
+  it("uses the nearest safe ancestor when the platform has no fallback", () => {
+    expect(
+      ghidraSessionRoot({
+        base: posixBase("Users", "operator", ".cache", "scratch"),
+        platform: "win32",
+      }),
+    ).toBe(posixBase("Users", "operator"));
   });
 
   it.skipIf(!POSIX)("prefers the platform temp directory by default", () => {

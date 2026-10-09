@@ -72,6 +72,8 @@ describe("reference lifetimes across calls and shallow copies", () => {
     "mutate(alias); alias={};",
     "if(flag) alias={}; mutate(alias);",
     "alias={}; if(flag) mutate(alias);",
+    "alias={}; flag && mutate(alias);",
+    "alias={}; flag ? mutate(alias) : noop();",
     "function invoke(){mutate(alias);} alias={}; invoke();",
     "alias={}; mutate(alias); alias=source;",
   ])("retains uncertain call ordering: %s", (body) => {

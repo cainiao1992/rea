@@ -94,19 +94,25 @@ const directMutationPosition = (
     !t.isTaggedTemplateExpression(node)
   )
     return null;
-  let current = parents.get(node);
-  while (current !== undefined) {
-    if (t.isFunction(current)) return null;
-    if (t.isStatement(current)) return statementPosition(current, parents);
-    if (t.isVariableDeclarator(current)) {
-      const declaration = parents.get(current);
+  let current: t.Node = node;
+  while (true) {
+    const parent = parents.get(current);
+    if (
+      parent === undefined ||
+      t.isFunction(parent) ||
+      (t.isLogicalExpression(parent) && parent.right === current) ||
+      (t.isConditionalExpression(parent) && parent.test !== current)
+    )
+      return null;
+    if (t.isStatement(parent)) return statementPosition(parent, parents);
+    if (t.isVariableDeclarator(parent)) {
+      const declaration = parents.get(parent);
       return t.isVariableDeclaration(declaration)
-        ? statementPosition(declaration, parents, current)
+        ? statementPosition(declaration, parents, parent)
         : null;
     }
-    current = parents.get(current);
+    current = parent;
   }
-  return null;
 };
 
 const referenceInitializerPosition = (

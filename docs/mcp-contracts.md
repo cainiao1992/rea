@@ -103,9 +103,11 @@ still run synchronously, so control messages can wait for those
 phases to release the event loop. A rejected client promise alone does not
 establish that the server has stopped its work.
 
-CLI calls work without a progress token and translate SIGINT into the same
-AbortSignal used by providers. Existing controlled-process cleanup and provider
-shutdown rules still apply; REA never kills a process it cannot prove it owns.
+Direct CLI analysis calls work without a progress token and translate SIGINT or
+SIGTERM into the same AbortSignal used by providers. Signal guards remain active
+through provider cleanup, including repeated delivery by package runners.
+Existing controlled-process cleanup and provider shutdown rules still apply;
+REA never kills a process it cannot prove it owns.
 
 ## Ghidra first-query deadlines and recovery
 

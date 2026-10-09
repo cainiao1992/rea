@@ -68,12 +68,14 @@ describe("one-shot analysis factory boundary", () => {
     const [path] = await createBinarySessionTargets();
     const failure = new Error("fixture execution failed");
     const factories = recordingFactories(failure);
-    const listeners = process.listenerCount("SIGINT");
+    const interruptListeners = process.listenerCount("SIGINT");
+    const terminateListeners = process.listenerCount("SIGTERM");
     await expect(
       runDirectAnalysis(factories.dependencies, path, "read_bytes", {}),
     ).rejects.toBe(failure);
     expect(factories.clientsClosed()).toBe(1);
-    expect(process.listenerCount("SIGINT")).toBe(listeners);
+    expect(process.listenerCount("SIGINT")).toBe(interruptListeners);
+    expect(process.listenerCount("SIGTERM")).toBe(terminateListeners);
     expect(factories.sessions[0]?.activeTarget()).toBeUndefined();
   });
 

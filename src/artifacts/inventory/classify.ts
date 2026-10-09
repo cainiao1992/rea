@@ -28,21 +28,6 @@ const classifyContainerExtension = (
   return undefined;
 };
 
-export const classifyRoot = async (
-  path: string,
-  directory: boolean,
-): Promise<ArtifactOccurrence["artifact_format"]> => {
-  if (directory) return "directory";
-  const extensionFormat = classifyContainerExtension(path);
-  if (extensionFormat !== undefined) return extensionFormat;
-  const handle = await openRootFile(path);
-  try {
-    return await classifyOpenedRoot(path, handle);
-  } finally {
-    await handle.close();
-  }
-};
-
 /** Classify and hash one file root through the same stable open descriptor. */
 export const classifyAndHashRoot = async (
   path: string,

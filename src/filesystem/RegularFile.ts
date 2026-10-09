@@ -2,6 +2,7 @@ import { constants } from "node:fs";
 import type { BigIntStats, Stats } from "node:fs";
 import { open, type FileHandle } from "node:fs/promises";
 
+/** Identifies a selected path that cannot be read as one regular file. */
 export class NonRegularFileReadError extends Error {
   readonly code: "EISDIR" | "ENOTFILE";
 

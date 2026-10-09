@@ -384,7 +384,7 @@
             <figcaption>
               Selected assembly from the installed Calculator DLL. The thoughts
               and reply illustrate the findings.
-              <a href="#calculator">See the calculation and sources ↓</a>
+              <a href="#calculator">Continue with the Calculator example ↓</a>
             </figcaption>
           </figure>
         </div>
@@ -394,8 +394,8 @@
         <div class="container">
           <p class="home-examples-intro">
             <strong>Let's try two examples.</strong>
-            Use REA to change a game's speed, then explain a calculator's
-            percentage rule.
+            Change a game's speed, then return to Calculator and rebuild its %
+            button.
           </p>
           <div class="section-heading">
             <p class="eyebrow">Example 01 · Chrome’s dinosaur game</p>
@@ -629,16 +629,18 @@ SPEED: 6</code></pre>
         <div class="container">
           <div class="section-heading">
             <p class="eyebrow">Example 02 · Windows Calculator</p>
-            <h2>Why does 200 + 10% give 220?</h2>
+            <h2>Rebuild Calculator’s % button.</h2>
+            <p class="lede">
+              We saw why <strong>200 + 10% gives 220.</strong> Now let’s recover
+              the rules for both + and ×, and try them.
+            </p>
           </div>
           <dl class="case-brief">
             <div>
               <dt>Goal</dt>
               <dd>
-                Explain the result and
-                <mark class="prose-highlight"
-                  >recreate Calculator’s % rule.</mark
-                >
+                Build a small calculator that handles
+                <mark class="prose-highlight">both + and × correctly.</mark>
               </dd>
             </div>
             <div>
@@ -716,11 +718,10 @@ SPEED: 6</code></pre>
                 <p class="finding-label">REA returned</p>
                 <p>
                   <strong
-                    >The % handler’s original instructions and decompiled
-                    code.</strong
+                    >One branch divides by 100. The other also multiplies by the
+                    first number.</strong
                   >
-                  The agent reads the two branches and explains which rule each
-                  operator uses.
+                  The agent uses both to recreate the % button.
                 </p>
               </div>
               <p>
@@ -732,7 +733,7 @@ SPEED: 6</code></pre>
                   <span class="terminal-title"
                     ><span class="terminal-dots" aria-hidden="true"
                       ><i></i><i></i><i></i></span
-                    >Example prompt · Calculator</span
+                    >Example prompt · Rebuild the % button</span
                   >
                   <button
                     class="copy-button"
@@ -746,8 +747,9 @@ SPEED: 6</code></pre>
                 <p class="terminal-prompt">
                   <span class="prompt-symbol" aria-hidden="true">›</span
                   ><span id="calculator-analysis-prompt"
-                    >Use REA to inspect Windows Calculator. Why does 200 + 10%
-                    give 220? Show the code behind the % button.</span
+                    >Use REA to inspect Windows Calculator’s % button. Recover
+                    the rules after + and ×, then build a small calculator that
+                    uses both.</span
                   ><span class="terminal-cursor" aria-hidden="true"></span>
                 </p>
               </div>
@@ -780,7 +782,9 @@ SPEED: 6</code></pre>
             </div>
           </div>
           <figure class="workflow-figure calculator-trace">
-            <p class="figure-title">From the installed app to an explanation</p>
+            <p class="figure-title">
+              From the installed app to a working % button
+            </p>
             <ol class="flow-steps">
               <li>
                 <span class="flow-label">01 · REA reads calc.exe</span

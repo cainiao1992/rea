@@ -262,7 +262,8 @@ const assertLiveIdentity = async (client: Client): Promise<void> => {
           server: SDK_IDENTITY.server,
           client_test: PACKAGE_METADATA.clientSdkVersion,
         },
-        client: null,
+        client: { name: "identity-test", version: "9" },
+        negotiated_protocol_version: expect.any(String),
         alignment: { state: "unknown" },
       },
     },
@@ -316,7 +317,7 @@ const assertSessionIdentity = async (client: Client): Promise<void> => {
         }),
       ]),
       client_features: {
-        elicitation_form: false,
+        elicitation_form: true,
         elicitation_url: false,
         roots: false,
         sampling: false,

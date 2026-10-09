@@ -26,7 +26,7 @@ Open <http://127.0.0.1:4173/>. Refresh the browser after editing a file.
 
 ## Pages
 
-- `public/index.html`: compact setup, manual/agent comparison, Calculator percentage example, playable dinosaur reconstruction and case-study overviews.
+- `public/index.html`: compact setup, playable dinosaur reconstruction, manual/agent comparison, Calculator percentage example and case-study overviews.
 - `public/examples/dino-lab/index.html`: adjustable-speed mini-game, recovered rule, original-game check and browser analysis steps.
 - `public/first-investigation/index.html`: a guided Notes export investigation, from setup to a checked CSV prediction.
 - `public/showcase/index.html`: the case-study index.
@@ -98,10 +98,12 @@ their provenance and the scope of the validation claims. The original executable
 and complete private Evidence records are not website assets.
 
 The homepage starts with a short installation prompt and the ordinary setup
-command. It compares manual investigation with asking an agent, using the same
-Calculator percentage question. The native excerpt comes from an installed
-model DLL; Microsoft’s public implementation supplies names and a crosscheck.
-The Calculator controls illustrate that rule with generic inputs.
+command, followed immediately by the playable dinosaur example. Its game
+precedes the prompt and code on small screens. The manual/agent comparison
+then explains the investigation using the same dinosaur speed question.
+Calculator follows as a native example: its excerpt comes from an installed
+model DLL, and Microsoft’s public implementation supplies names and a
+crosscheck. Its controls illustrate the percentage rule with generic inputs.
 
 The dinosaur example connects an inspected running script to a new playable
 mini-game. `public/assets/dino-speed.js` owns the recovered speed rule and replay;

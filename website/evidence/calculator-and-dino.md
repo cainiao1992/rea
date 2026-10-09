@@ -1,8 +1,9 @@
 # Calculator and dinosaur beginner examples
 
 Evidence collected on 9 October 2026 with the published REA 4.1.0 package.
-The homepage offers compact setup first, then a manual/agent comparison and
-two familiar behavior questions. Prompts and replies are examples based on the
+The homepage offers compact setup first, then a playable dinosaur reconstruction,
+a manual/agent comparison of that investigation, and the Calculator example.
+Prompts and replies are examples based on the
 findings below. Selected code and generic inputs are public; raw captures stay
 outside the website.
 

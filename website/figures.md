@@ -44,9 +44,9 @@ rendering at desktop and mobile widths.
 
 ## Beginner homepage and dinosaur reconstruction
 
-The Calculator role comparison and its percentage controls are semantic HTML.
-The assembly comes from a real installed model DLL; the named calculation is
-a readable summary crosschecked against Microsoft’s public source. See
+The dinosaur role comparison and Calculator percentage controls are semantic
+HTML. Calculator’s assembly comes from a real installed model DLL; the named
+calculation is a readable summary crosschecked against Microsoft’s public source. See
 [evidence/calculator-and-dino.md](evidence/calculator-and-dino.md).
 
 The dinosaur sequence uses an HTML flow: inspect the loaded script, rebuild the

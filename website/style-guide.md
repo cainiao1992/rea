@@ -66,6 +66,8 @@ and the specific facts REA supplies to answer it.
 
 Put compact setup at the beginning of the homepage: a copyable installation
 prompt and the ordinary setup command. Follow it with the beginner examples.
+Put the most immediate result first. An interactive example can precede the
+process explanation; on mobile, show the demo before its supporting code.
 Show how the reader's task changes using the same question on both sides of a
 manual/agent comparison. Let returned evidence make REA's contribution visible.
 

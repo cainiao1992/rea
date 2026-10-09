@@ -62,7 +62,7 @@
               what it does.
             </p>
             <div class="actions">
-              <a class="text-link" href="#what-is-re">See an example ↓</a>
+              <a class="button" href="#dinosaur">Play the dinosaur ↓</a>
               <a class="text-link" href="get-started/">Setup guide</a>
             </div>
           </div>
@@ -113,6 +113,215 @@
         </div>
       </section>
 
+      <section class="section" id="dinosaur">
+        <div class="container">
+          <div class="section-heading">
+            <p class="eyebrow">Example 01 · Chrome’s dinosaur game</p>
+            <h2>Change the dinosaur’s speed.</h2>
+            <p>
+              Inspect the speed rule with REA, rebuild a small version, then
+              change the speed and play.
+            </p>
+          </div>
+          <div class="home-example-grid dino-example-grid">
+            <figure class="dino-demo" data-dino-demo>
+              <p class="figure-title">Play the reconstruction</p>
+              <div class="dino-stage">
+                <svg
+                  class="dino-fallback"
+                  viewBox="0 0 600 180"
+                  role="img"
+                  aria-label="A small dinosaur running toward a cactus. Recovered speed: starts at 6, increases by 0.001 per update while below 13."
+                >
+                  <path
+                    d="M0 150H600 M55 113v-30h17V65h27v24H85v17H72v16H62v13h-7v-22m-5-8v-8h-8v-9h-6v22h19m14 15v15h8v-7h-4v-8 M420 150v-48h10v48m-10-15h-12v-22h7v15h5m10-4h12v-22h-7v15h-5"
+                    fill="currentColor"
+                  />
+                  <text
+                    x="300"
+                    y="65"
+                    text-anchor="middle"
+                    fill="currentColor"
+                    font-size="18"
+                  >
+                    6 → 10 → 13
+                  </text>
+                </svg>
+                <canvas
+                  width="600"
+                  height="180"
+                  tabindex="0"
+                  aria-label="Dinosaur mini-game. Use the Jump button or press Space while the game is focused."
+                  hidden
+                ></canvas>
+              </div>
+              <div class="dino-controls" hidden>
+                <div class="dino-buttons">
+                  <button class="button" type="button" data-dino-start>
+                    Play
+                  </button>
+                  <button type="button" data-dino-jump>Jump ↑</button>
+                  <button type="button" data-dino-reset>Restart</button>
+                </div>
+                <label class="dino-speed-label"
+                  >Speed <output data-dino-speed>6.0</output
+                  ><input
+                    type="range"
+                    min="2"
+                    max="18"
+                    step="0.1"
+                    value="6"
+                    data-dino-slider
+                /></label>
+                <label class="dino-auto-label"
+                  ><input type="checkbox" data-dino-auto checked /> Use the
+                  recovered acceleration rule</label
+                >
+              </div>
+              <p class="dino-status" data-dino-status role="status">
+                Original rule: start at 6, then increase toward 13.
+              </p>
+              <figcaption>
+                Move the slider to set your own speed. Space or Jump clears a
+                cactus.
+              </figcaption>
+              <noscript
+                ><p class="caption">
+                  Enable JavaScript to play the reconstruction. The code and
+                  explanation above remain readable.
+                </p></noscript
+              >
+            </figure>
+            <div>
+              <div class="agent-terminal home-analysis-terminal">
+                <div class="terminal-header">
+                  <span class="terminal-title"
+                    ><span class="terminal-dots" aria-hidden="true"
+                      ><i></i><i></i><i></i></span
+                    >Example prompt · Dinosaur game</span
+                  >
+                  <button
+                    class="copy-button"
+                    type="button"
+                    data-copy="dino-analysis-prompt"
+                    aria-label="Copy dinosaur analysis prompt"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p class="terminal-prompt">
+                  <span class="prompt-symbol" aria-hidden="true">›</span
+                  ><span id="dino-analysis-prompt"
+                    >Use REA to inspect this dinosaur game. Why does it get
+                    faster? Show the speed rule, then build a small version with
+                    an adjustable speed.</span
+                  ><span class="terminal-cursor" aria-hidden="true"></span>
+                </p>
+              </div>
+              <p class="caption">
+                Inspected target:
+                <a href="https://wayou.github.io/t-rex-runner/"
+                  >wayou’s Chromium-derived browser edition</a
+                >.
+              </p>
+              <div class="code-block">
+                <div class="code-header">
+                  <span>REA · loaded index.js · selected lines</span>
+                </div>
+                <pre><code>if (this.currentSpeed &lt; this.config.MAX_SPEED) {
+  <span class="code-key">this.currentSpeed += this.config.ACCELERATION;</span>
+}</code></pre>
+              </div>
+              <p class="dino-rule">
+                <strong>Start at 6.</strong> Add <strong>0.001</strong> each
+                update without a collision, while speed is below
+                <strong>13</strong>.
+              </p>
+              <a class="text-link" href="examples/dino-lab/"
+                >Open the speed lab →</a
+              >
+            </div>
+          </div>
+          <figure class="workflow-figure dino-loop">
+            <p class="figure-title">From the running game to a new version</p>
+            <ol class="flow-steps">
+              <li>
+                <span class="flow-label">01 · Inspect</span
+                ><span class="flow-node">REA returns the loaded script</span
+                ><span class="flow-note"
+                  >The agent reads the update function and its speed
+                  settings.</span
+                >
+              </li>
+              <li>
+                <span class="flow-label">02 · Rebuild</span
+                ><span class="flow-node">Use the recovered rule</span
+                ><span class="flow-note"
+                  >Start at 6 and add 0.001 while speed is below 13.</span
+                >
+              </li>
+              <li>
+                <span class="flow-label">03 · Change and play</span
+                ><span class="flow-node">Make speed adjustable</span
+                ><span class="flow-note"
+                  >Keep the original acceleration, or choose your own
+                  pace.</span
+                >
+              </li>
+            </ol>
+          </figure>
+          <details class="home-evidence-details">
+            <summary>
+              See the script, checks and how to try the analysis
+            </summary>
+            <p>
+              REA inspected the HTTP browser edition through a local debugging
+              connection and returned the loaded <code>index.js</code>,
+              including its source and digest.
+            </p>
+            <div class="code-block">
+              <div class="code-header">
+                <span>Selected settings from the inspected script</span>
+              </div>
+              <pre><code>ACCELERATION: 0.001,
+MAX_SPEED: 13,
+SPEED: 6</code></pre>
+            </div>
+            <p>
+              We called the original game’s update function in a controlled
+              browser check, with obstacles and automatic scheduling disabled.
+              After 4,000 updates, speed was 10.0; after 10,000, it was 13.0,
+              rounded to one decimal.
+            </p>
+            <p>
+              The new mini-game keeps that speed rule. Its drawing, jumping and
+              collision code are a small teaching implementation.
+              <a href="examples/dino-lab/">Open the lab</a> to see the new code
+              and run the same speed check.
+            </p>
+            <p>
+              To inspect the target yourself, follow the
+              <a href="guides/browser/#prepare">browser connection steps</a>
+              using
+              <a href="https://wayou.github.io/t-rex-runner/"
+                >the dinosaur page</a
+              >. Give your agent that page URL and your local debugging
+              endpoint, then copy the prompt above.
+            </p>
+            <p class="caption">
+              <a
+                href="https://github.com/wayou/t-rex-runner/blob/5455bfa408ec6b707c7300ff194b7390733a766d/index.js#L565-L571"
+                >Inspected speed code</a
+              >
+              ·
+              <a href="assets/licenses/dinosaur.txt"
+                >Chromium Authors · BSD license</a
+              >
+            </p>
+          </details>
+        </div>
+      </section>
+
       <section class="section" id="what-is-re">
         <div class="container">
           <div class="home-definition">
@@ -122,11 +331,8 @@
             </p>
           </div>
           <p class="home-question">
-            For example:
-            <strong
-              >why does Calculator turn <code>200 + 10%</code> into
-              <code>220</code>?</strong
-            >
+            In the dinosaur example:
+            <strong>which code makes the game get faster?</strong>
           </p>
           <figure class="home-role-comparison">
             <div class="manual-investigation">
@@ -135,36 +341,43 @@
                 <li>
                   <span>01</span>
                   <div>
-                    <strong>Find the code behind the button.</strong
-                    ><small>Which executable or library handles %?</small>
+                    <strong>Find the script behind the game.</strong
+                    ><small>Which loaded file controls the dinosaur?</small>
                   </div>
                 </li>
                 <li>
                   <span>02</span>
                   <div>
-                    <strong>Read the instructions.</strong
-                    ><small>What do these branches and calls mean?</small>
+                    <strong>Find the update function.</strong
+                    ><small>Where does the game change its speed?</small>
                   </div>
                 </li>
                 <li>
                   <span>03</span>
                   <div>
-                    <strong>Recover the calculation.</strong
-                    ><small>Follow the inputs, operators and constants.</small>
+                    <strong>Recover the speed rule.</strong
+                    ><small
+                      >Follow the starting speed, increment and
+                      threshold.</small
+                    >
                   </div>
                 </li>
                 <li>
                   <span>04</span>
                   <div>
-                    <strong>Check your explanation.</strong
-                    ><small>Does it agree with the program?</small>
+                    <strong>Check the result.</strong
+                    ><small
+                      >Replay the rule and compare it with the game.</small
+                    >
                   </div>
                 </li>
               </ol>
               <div class="manual-code">
+                <p class="caption">Find this branch inside a 90 KB script:</p>
                 <code
-                  >CMP EAX, 0x5c<br />JZ 0x180124aba<br />CMP EAX, 0x5b<br />JZ
-                  0x180124aba<br />MOV EDX, 0x64</code
+                  >if (this.currentSpeed &lt; this.config.MAX_SPEED) {<br />
+                  &nbsp; this.currentSpeed += this.config.ACCELERATION;<br />
+                  }</code
                 >
               </div>
             </div>
@@ -175,13 +388,13 @@
                   <span class="terminal-title"
                     ><span class="terminal-dots" aria-hidden="true"
                       ><i></i><i></i><i></i></span
-                    >Example prompt · Calculator</span
+                    >Example prompt · Dinosaur game</span
                   >
                   <button
                     class="copy-button"
                     type="button"
                     data-copy="home-analysis-prompt"
-                    aria-label="Copy Calculator analysis prompt"
+                    aria-label="Copy dinosaur speed question"
                   >
                     Copy
                   </button>
@@ -189,8 +402,8 @@
                 <p class="terminal-prompt">
                   <span class="prompt-symbol" aria-hidden="true">›</span
                   ><span id="home-analysis-prompt"
-                    >Use REA to inspect Windows Calculator. Why does 200 + 10%
-                    give 220? Show the code behind the % button.</span
+                    >Use REA to inspect this dinosaur game. Why does it get
+                    faster? Show the speed rule.</span
                   ><span class="terminal-cursor" aria-hidden="true"></span>
                 </p>
                 <div class="agent-reply">
@@ -198,11 +411,14 @@
                     Example explanation from the findings
                   </p>
                   <p>
-                    With addition, % calculates a percentage of the first
-                    number.
+                    It starts at 6. Each update without a collision adds 0.001
+                    while speed is below 13.
                   </p>
                   <p>
-                    <strong>10% of 200 is 20.<br />Then 200 + 20 = 220.</strong>
+                    <strong
+                      >After 4,000 updates, speed is 10.<br />
+                      You can replay the rule to check it.</strong
+                    >
                   </p>
                 </div>
               </div>
@@ -222,7 +438,7 @@
       <section class="section" id="calculator">
         <div class="container">
           <div class="section-heading">
-            <p class="eyebrow">Example 01 · Windows Calculator</p>
+            <p class="eyebrow">Example 02 · Windows Calculator</p>
             <h2>What does the % button actually do?</h2>
             <p>
               The answer depends on the operator. Compare addition and
@@ -369,6 +585,30 @@
 0x64 = 100</code></pre>
               </div>
             </div>
+            <div class="agent-terminal">
+              <div class="terminal-header">
+                <span class="terminal-title"
+                  ><span class="terminal-dots" aria-hidden="true"
+                    ><i></i><i></i><i></i></span
+                  >Example prompt · Calculator</span
+                >
+                <button
+                  class="copy-button"
+                  type="button"
+                  data-copy="calculator-analysis-prompt"
+                  aria-label="Copy Calculator analysis prompt"
+                >
+                  Copy
+                </button>
+              </div>
+              <p class="terminal-prompt">
+                <span class="prompt-symbol" aria-hidden="true">›</span
+                ><span id="calculator-analysis-prompt"
+                  >Use REA to inspect Windows Calculator. Why does 200 + 10%
+                  give 220? Show the code behind the % button.</span
+                ><span class="terminal-cursor" aria-hidden="true"></span>
+              </p>
+            </div>
             <p class="caption">
               Inspected with REA 4.1.0: Windows Calculator 11.2508.4.0, x64. The
               readable summary uses names from Microsoft’s public source to
@@ -385,215 +625,6 @@
                 >Microsoft’s test cases</a
               >
               · <a href="guides/native/">Native setup guide</a>
-            </p>
-          </details>
-        </div>
-      </section>
-
-      <section class="section" id="dinosaur">
-        <div class="container">
-          <div class="section-heading">
-            <p class="eyebrow">Example 02 · Chrome’s dinosaur game</p>
-            <h2>Find the speed rule. Rebuild it. Change it.</h2>
-            <p>
-              Why does the dinosaur game get faster? Use REA to read the running
-              page’s script, then turn the answer into a game you can adjust.
-            </p>
-          </div>
-          <div class="home-example-grid dino-example-grid">
-            <div>
-              <div class="agent-terminal home-analysis-terminal">
-                <div class="terminal-header">
-                  <span class="terminal-title"
-                    ><span class="terminal-dots" aria-hidden="true"
-                      ><i></i><i></i><i></i></span
-                    >Example prompt · Dinosaur game</span
-                  >
-                  <button
-                    class="copy-button"
-                    type="button"
-                    data-copy="dino-analysis-prompt"
-                    aria-label="Copy dinosaur analysis prompt"
-                  >
-                    Copy
-                  </button>
-                </div>
-                <p class="terminal-prompt">
-                  <span class="prompt-symbol" aria-hidden="true">›</span
-                  ><span id="dino-analysis-prompt"
-                    >Use REA to inspect this dinosaur game. Why does it get
-                    faster? Show the speed rule, then build a small version with
-                    an adjustable speed.</span
-                  ><span class="terminal-cursor" aria-hidden="true"></span>
-                </p>
-              </div>
-              <p class="caption">
-                Inspected target:
-                <a href="https://wayou.github.io/t-rex-runner/"
-                  >wayou’s Chromium-derived browser edition</a
-                >.
-              </p>
-              <div class="code-block">
-                <div class="code-header">
-                  <span>REA · loaded index.js · selected lines</span>
-                </div>
-                <pre><code>if (this.currentSpeed &lt; this.config.MAX_SPEED) {
-  <span class="code-key">this.currentSpeed += this.config.ACCELERATION;</span>
-}</code></pre>
-              </div>
-              <p class="dino-rule">
-                <strong>Start at 6.</strong> Add <strong>0.001</strong> each
-                update without a collision, while speed is below
-                <strong>13</strong>.
-              </p>
-              <a class="text-link" href="examples/dino-lab/"
-                >Open the speed lab →</a
-              >
-            </div>
-            <figure class="dino-demo" data-dino-demo>
-              <p class="figure-title">Play the reconstruction</p>
-              <div class="dino-stage">
-                <svg
-                  class="dino-fallback"
-                  viewBox="0 0 600 180"
-                  role="img"
-                  aria-label="A small dinosaur running toward a cactus. Recovered speed: starts at 6, increases by 0.001 per update while below 13."
-                >
-                  <path
-                    d="M0 150H600 M55 113v-30h17V65h27v24H85v17H72v16H62v13h-7v-22m-5-8v-8h-8v-9h-6v22h19m14 15v15h8v-7h-4v-8 M420 150v-48h10v48m-10-15h-12v-22h7v15h5m10-4h12v-22h-7v15h-5"
-                    fill="currentColor"
-                  />
-                  <text
-                    x="300"
-                    y="65"
-                    text-anchor="middle"
-                    fill="currentColor"
-                    font-size="18"
-                  >
-                    6 → 10 → 13
-                  </text>
-                </svg>
-                <canvas
-                  width="600"
-                  height="180"
-                  tabindex="0"
-                  aria-label="Dinosaur mini-game. Use the Jump button or press Space while the game is focused."
-                  hidden
-                ></canvas>
-              </div>
-              <div class="dino-controls" hidden>
-                <div class="dino-buttons">
-                  <button class="button" type="button" data-dino-start>
-                    Play
-                  </button>
-                  <button type="button" data-dino-jump>Jump ↑</button>
-                  <button type="button" data-dino-reset>Restart</button>
-                </div>
-                <label class="dino-speed-label"
-                  >Speed <output data-dino-speed>6.0</output
-                  ><input
-                    type="range"
-                    min="2"
-                    max="18"
-                    step="0.1"
-                    value="6"
-                    data-dino-slider
-                /></label>
-                <label class="dino-auto-label"
-                  ><input type="checkbox" data-dino-auto checked /> Use the
-                  recovered acceleration rule</label
-                >
-              </div>
-              <p class="dino-status" data-dino-status role="status">
-                Original rule: start at 6, then increase toward 13.
-              </p>
-              <figcaption>
-                Move the slider to set your own speed. Space or Jump clears a
-                cactus.
-              </figcaption>
-              <noscript
-                ><p class="caption">
-                  Enable JavaScript to play the reconstruction. The code and
-                  explanation above remain readable.
-                </p></noscript
-              >
-            </figure>
-          </div>
-          <figure class="workflow-figure dino-loop">
-            <p class="figure-title">From the running game to a new version</p>
-            <ol class="flow-steps">
-              <li>
-                <span class="flow-label">01 · Inspect</span
-                ><span class="flow-node">REA returns the loaded script</span
-                ><span class="flow-note"
-                  >The agent reads the update function and its speed
-                  settings.</span
-                >
-              </li>
-              <li>
-                <span class="flow-label">02 · Rebuild</span
-                ><span class="flow-node">Use the recovered rule</span
-                ><span class="flow-note"
-                  >Start at 6 and add 0.001 while speed is below 13.</span
-                >
-              </li>
-              <li>
-                <span class="flow-label">03 · Change and play</span
-                ><span class="flow-node">Make speed adjustable</span
-                ><span class="flow-note"
-                  >Keep the original acceleration, or choose your own
-                  pace.</span
-                >
-              </li>
-            </ol>
-          </figure>
-          <details class="home-evidence-details">
-            <summary>
-              See the script, checks and how to try the analysis
-            </summary>
-            <p>
-              REA inspected the HTTP browser edition through a local debugging
-              connection and returned the loaded <code>index.js</code>,
-              including its source and digest.
-            </p>
-            <div class="code-block">
-              <div class="code-header">
-                <span>Selected settings from the inspected script</span>
-              </div>
-              <pre><code>ACCELERATION: 0.001,
-MAX_SPEED: 13,
-SPEED: 6</code></pre>
-            </div>
-            <p>
-              We called the original game’s update function in a controlled
-              browser check, with obstacles and automatic scheduling disabled.
-              After 4,000 updates, speed was 10.0; after 10,000, it was 13.0,
-              rounded to one decimal.
-            </p>
-            <p>
-              The new mini-game keeps that speed rule. Its drawing, jumping and
-              collision code are a small teaching implementation.
-              <a href="examples/dino-lab/">Open the lab</a> to see the new code
-              and run the same speed check.
-            </p>
-            <p>
-              To inspect the target yourself, follow the
-              <a href="guides/browser/#prepare">browser connection steps</a>
-              using
-              <a href="https://wayou.github.io/t-rex-runner/"
-                >the dinosaur page</a
-              >. Give your agent that page URL and your local debugging
-              endpoint, then copy the prompt above.
-            </p>
-            <p class="caption">
-              <a
-                href="https://github.com/wayou/t-rex-runner/blob/5455bfa408ec6b707c7300ff194b7390733a766d/index.js#L565-L571"
-                >Inspected speed code</a
-              >
-              ·
-              <a href="assets/licenses/dinosaur.txt"
-                >Chromium Authors · BSD license</a
-              >
             </p>
           </details>
         </div>

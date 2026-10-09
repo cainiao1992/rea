@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { inferJsonShape } from "./jsonShape.js";
 
+const property = (name: string) => ({ kind: "property" as const, name });
+const element = { kind: "array-element" as const };
+
 describe("inferJsonShape", () => {
   it("retains paths and types without retaining JSON values", () => {
     const shape = inferJsonShape(
@@ -18,14 +21,18 @@ describe("inferJsonShape", () => {
     expect(shape).toMatchObject({
       root_type: "object",
       properties: expect.arrayContaining([
-        { path: "/token", types: ["string"], observations: 1 },
         {
-          path: "/users/*/id",
+          path: [property("token")],
+          types: ["string"],
+          observations: 1,
+        },
+        {
+          path: [property("users"), element, property("id")],
           types: ["number", "string"],
           observations: 2,
         },
         {
-          path: "/users/*/active",
+          path: [property("users"), element, property("active")],
           types: ["boolean"],
           observations: 2,
         },
@@ -35,11 +42,36 @@ describe("inferJsonShape", () => {
     expect(JSON.stringify(shape)).not.toContain("second-secret");
   });
 
+  it("distinguishes array elements from literal star properties and counts primitive types", () => {
+    const shape = inferJsonShape('{"items":[{"*":1},[true,"x",null],2]}');
+    expect(shape?.properties).toEqual(
+      expect.arrayContaining([
+        {
+          path: [property("items"), element],
+          types: ["array", "number", "object"],
+          observations: 3,
+        },
+        {
+          path: [property("items"), element, property("*")],
+          types: ["number"],
+          observations: 1,
+        },
+        {
+          path: [property("items"), element, element],
+          types: ["boolean", "null", "string"],
+          observations: 3,
+        },
+      ]),
+    );
+  });
+
   it("rejects malformed JSON", () => {
     expect(inferJsonShape("not-json")).toBeNull();
   });
+});
 
-  it("preserves pointer escaping and code-point ordering independently of key insertion order", () => {
+describe("JSON shape completeness and ordering", () => {
+  it("preserves raw property names and code-point ordering independently of key insertion order", () => {
     for (const reverse of [false, true]) {
       const object = (number: number, value: unknown) => {
         const entries = [
@@ -64,24 +96,66 @@ describe("inferJsonShape", () => {
         node_count: 23,
         max_depth_observed: 4,
         properties: [
-          { path: "/nested", types: ["array"], observations: 1 },
-          { path: "/nested/*/A", types: ["boolean"], observations: 2 },
-          { path: "/nested/*/_", types: ["boolean"], observations: 2 },
-          { path: "/nested/*/a", types: ["boolean"], observations: 2 },
           {
-            path: "/nested/*/e\u0301~1~0",
+            path: [property("nested")],
+            types: ["array"],
+            observations: 1,
+          },
+          {
+            path: [property("nested"), element],
+            types: ["object"],
+            observations: 2,
+          },
+          {
+            path: [property("nested"), element, property("A")],
+            types: ["boolean"],
+            observations: 2,
+          },
+          {
+            path: [property("nested"), element, property("_")],
+            types: ["boolean"],
+            observations: 2,
+          },
+          {
+            path: [property("nested"), element, property("a")],
+            types: ["boolean"],
+            observations: 2,
+          },
+          {
+            path: [property("nested"), element, property("e\u0301/~")],
             types: ["array", "null"],
             observations: 2,
           },
           {
-            path: "/nested/*/e\u0341~1~0",
+            path: [property("nested"), element, property("e\u0301/~"), element],
+            types: ["null"],
+            observations: 1,
+          },
+          {
+            path: [property("nested"), element, property("e\u0341/~")],
             types: ["boolean"],
             observations: 2,
           },
-          { path: "/nested/*/z", types: ["boolean"], observations: 2 },
-          { path: "/nested/*/é~1~0", types: ["number"], observations: 2 },
-          { path: "/nested/*/\uE000", types: ["boolean"], observations: 2 },
-          { path: "/nested/*/\u{10000}", types: ["boolean"], observations: 2 },
+          {
+            path: [property("nested"), element, property("z")],
+            types: ["boolean"],
+            observations: 2,
+          },
+          {
+            path: [property("nested"), element, property("é/~")],
+            types: ["number"],
+            observations: 2,
+          },
+          {
+            path: [property("nested"), element, property("\uE000")],
+            types: ["boolean"],
+            observations: 2,
+          },
+          {
+            path: [property("nested"), element, property("\u{10000}")],
+            types: ["boolean"],
+            observations: 2,
+          },
         ],
       });
     }
@@ -96,7 +170,7 @@ describe("inferJsonShape", () => {
     expect(shape?.properties).toHaveLength(5_001);
     expect(shape?.node_count).toBe(5_002);
     expect(shape?.properties).toContainEqual({
-      path: "/field_5000",
+      path: [property("field_5000")],
       types: ["number"],
       observations: 1,
     });

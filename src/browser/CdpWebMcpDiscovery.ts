@@ -5,7 +5,8 @@ import type {
   DiscoverWebMcpToolsInput,
   WebMcpDiscovery,
 } from "../domain/webMcpDiscovery.js";
-import { inferJsonShape } from "../domain/jsonShape.js";
+import { jsonValueSchema } from "../domain/jsonValue.js";
+import { digestCanonicalValue } from "../domain/canonicalDigest.js";
 import { compositeKey } from "../domain/unicodeCodePointOrder.js";
 import type { CdpEndpointDiscovery, CdpEndpointTarget } from "./CdpEndpoint.js";
 import type { CdpConnection, CdpEvent } from "./CdpConnection.js";
@@ -413,6 +414,10 @@ const normalizeTool = (
   }
   const description = cdpStringValue(value.description) ?? "";
   const annotations = recordValue(value.annotations);
+  const declaration = jsonValueSchema.safeParse(value.inputSchema);
+  if (!declaration.success)
+    completeness.exclude("webmcp_tools", "invalid_protocol_value");
+  const schema = declaration.success ? declaration.data : null;
   return {
     tool_key: toolKey(frame.url, frameId, name),
     name,
@@ -424,7 +429,10 @@ const normalizeTool = (
       numberValue(value.backendNodeId) === undefined
         ? "imperative"
         : "declarative",
-    input_schema_shape: schemaShape(value.inputSchema),
+    input_schema: schema,
+    input_schema_sha256: declaration.success
+      ? digestCanonicalValue(schema)
+      : null,
     annotations: {
       read_only: booleanOrNull(annotations?.readOnly),
       untrusted_content: booleanOrNull(annotations?.untrustedContent),
@@ -436,15 +444,6 @@ const normalizeTool = (
     ),
     trust: "page-declared-untrusted",
   };
-};
-
-const schemaShape = (value: unknown) => {
-  if (recordValue(value) === undefined) return null;
-  const encoded = JSON.stringify(value);
-  const shape = inferJsonShape(encoded);
-  if (shape === null)
-    throw new BrowserObservationError("inspect_web_page", "protocol_error");
-  return shape;
 };
 
 const registrationSource = (

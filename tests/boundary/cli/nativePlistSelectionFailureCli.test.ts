@@ -90,10 +90,11 @@ describe.skipIf(process.platform !== "darwin")(
         });
         expect(result.exitCode).toBe(1);
         expect(result.json).toMatchObject({
-          code: "target_unavailable",
+          code: "access_denied",
           details: {
             path: locked,
             reason: "permission denied while reading plist (EACCES)",
+            system_code: "EACCES",
           },
         });
       },

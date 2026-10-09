@@ -27,6 +27,8 @@ export interface BinaryTargetErrorOptions extends AnalysisErrorOptions {
 export class BinaryTargetError extends AnalysisError {
   readonly _tag = "BinaryTargetError";
   readonly constraint: BinaryTargetErrorOptions["constraint"];
+  /** The OS read-permission code of the cause, when the host denied access. */
+  readonly systemCode: "EACCES" | "EPERM" | undefined;
   constructor(
     readonly path: string,
     readonly reason: string,
@@ -34,5 +36,12 @@ export class BinaryTargetError extends AnalysisError {
   ) {
     super(`Cannot open artifact: ${reason}`, options);
     this.constraint = options?.constraint;
+    this.systemCode = readPermissionCode(options?.cause);
   }
 }
+
+const readPermissionCode = (cause: unknown): "EACCES" | "EPERM" | undefined => {
+  const code: unknown =
+    cause instanceof Error ? Reflect.get(cause, "code") : undefined;
+  return code === "EACCES" || code === "EPERM" ? code : undefined;
+};

@@ -9,6 +9,7 @@ import { toolContract } from "../../../src/contracts/toolContracts.js";
 import { parseEvidence } from "../../../src/domain/evidence.js";
 import { itWithCaptureCapability as captureTest } from "../../boundary/process/processCaptureCapability.js";
 import { connectLocalToolsMcp } from "../../fixtures/localToolsMcp.js";
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 const execute = promisify(execFile);
@@ -180,7 +181,7 @@ captureTest(
     const failed = await call("capture_process_scenario", {
       executable: missing,
     });
-    expect(failed.structuredContent).toMatchObject({
+    expect(parseMcpToolError(failed)).toMatchObject({
       error: {
         code: "process_capture_failed",
         message: expect.stringContaining(missing),

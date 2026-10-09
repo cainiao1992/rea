@@ -12,14 +12,12 @@ import {
 export const MANAGED_STATIC_PROVIDER_IDENTITY: ProviderIdentity = Object.freeze(
   MANAGED_STATIC_PROVIDER,
 );
-const IDENTITY = MANAGED_STATIC_PROVIDER_IDENTITY;
-
 /** Declare managed metadata coverage without opening or loading an assembly. */
 export const managedStaticCapabilities = (): readonly CapabilityDescriptor[] =>
   Object.freeze(
     MANAGED_TOOL_CONTRACTS.map((contract) =>
       Object.freeze({
-        provider: IDENTITY,
+        provider: MANAGED_STATIC_PROVIDER_IDENTITY,
         operation: contract.name,
         available: true as const,
         reason: null,

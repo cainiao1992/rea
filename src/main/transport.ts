@@ -14,15 +14,12 @@ import {
   MCP_CONNECTION_START_FAILED,
 } from "./messages.js";
 
-/** Optional adapters whose absence must not prevent the core MCP server. */
-export type OptionalProviders = OptionalProviderLoadResult;
-
 interface ServerContext {
   readonly environment: Readonly<NodeJS.ProcessEnv>;
   readonly delivery: ToolResultDelivery;
   readonly logger: Logger;
   readonly serverLogger: Logger;
-  readonly loadOptionalProviders: () => Promise<OptionalProviders>;
+  readonly loadOptionalProviders: () => Promise<OptionalProviderLoadResult>;
 }
 
 export const startMcpTransport = async (
@@ -38,7 +35,7 @@ export const startMcpTransport = async (
   | { readonly ok: false }
 > => {
   const { serverLogger } = serverContext;
-  let optionalProviders: OptionalProviders = {};
+  let optionalProviders: OptionalProviderLoadResult = {};
   try {
     optionalProviders = await serverContext.loadOptionalProviders();
   } catch (cause: unknown) {

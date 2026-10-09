@@ -29,10 +29,8 @@ import {
   registerUnknownTools,
 } from "./registerSessionRecordTools.js";
 import { registerSessionStatusTool } from "./registerSessionStatusTool.js";
-import {
-  sessionAvailabilityPolicy,
-  type SessionAvailability,
-} from "./sessionAvailabilityPolicy.js";
+import { sessionAvailabilityPolicy } from "./sessionAvailabilityPolicy.js";
+import type { AvailabilityPolicy } from "../application/CapabilityInventory.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 
@@ -140,7 +138,7 @@ export interface LifecycleToolRegistration {
   readonly closeContract: ReturnType<typeof toolContract<"close_binary">>;
   readonly statusContract: ReturnType<typeof toolContract<"binary_session">>;
   readonly startedAt: string;
-  readonly availabilityPolicy: () => SessionAvailability;
+  readonly availabilityPolicy: () => AvailabilityPolicy;
   readonly androidAnalysisAvailability: (
     signal: AbortSignal,
   ) => Promise<ProviderAvailability>;
@@ -218,7 +216,7 @@ const registerOpenLifecycleTool = ({
 /** Register MCP-only target lifecycle operations on a long-lived session. */
 export interface SessionToolOptions {
   readonly startedAt?: string;
-  readonly availabilityPolicy?: () => SessionAvailability;
+  readonly availabilityPolicy?: () => AvailabilityPolicy;
   readonly androidAnalysisAvailability?: (
     signal: AbortSignal,
   ) => Promise<ProviderAvailability>;

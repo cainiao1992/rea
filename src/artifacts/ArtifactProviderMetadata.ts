@@ -9,8 +9,6 @@ import { ARTIFACT_ANALYSIS_OPERATIONS } from "../contracts/artifactToolContracts
 export const ARTIFACT_PROVIDER_IDENTITY: ProviderIdentity = Object.freeze(
   ARTIFACT_GRAPH_PROVIDER,
 );
-const IDENTITY = ARTIFACT_PROVIDER_IDENTITY;
-
 /** Declare artifact coverage without constructing readers or acquiring resources. */
 export const artifactCapabilities = (
   platform: NodeJS.Platform = process.platform,
@@ -18,7 +16,7 @@ export const artifactCapabilities = (
   Object.freeze(
     ARTIFACT_ANALYSIS_OPERATIONS.map((operation) => {
       const common = {
-        provider: IDENTITY,
+        provider: ARTIFACT_PROVIDER_IDENTITY,
         operation,
         effects: Object.freeze({
           mutatesArtifact: false,

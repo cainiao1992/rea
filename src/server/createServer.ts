@@ -66,7 +66,7 @@ import { registerNativeTools } from "./registerNativeTools.js";
 import { registerOfficialTools } from "./registerOfficialTools.js";
 import { registerGuidedPrompts } from "./registerPrompts.js";
 import { registerSessionTools } from "./registerSessionTools.js";
-import type { SessionAvailability } from "./sessionAvailabilityPolicy.js";
+import type { AvailabilityPolicy } from "../application/CapabilityInventory.js";
 import { sessionAvailabilityPolicy } from "./sessionAvailabilityPolicy.js";
 
 const TARGET_FREE_INSTRUCTIONS =
@@ -94,7 +94,7 @@ export interface CreateServerOptions {
   readonly electronObservation?: ElectronObservationPort;
   readonly electronActiveObservation?: ElectronActiveObservationPort;
   readonly javascriptRuntimeObservation?: JavaScriptRuntimeObservationPort;
-  readonly availabilityPolicy?: () => SessionAvailability;
+  readonly availabilityPolicy?: () => AvailabilityPolicy;
   readonly optionalProviderLoadFailures?: OptionalProviderLoadFailures;
 }
 

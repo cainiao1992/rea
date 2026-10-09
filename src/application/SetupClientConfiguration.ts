@@ -26,13 +26,11 @@ import type {
 } from "./SetupTypes.js";
 import type { SetupClient } from "./SupportedClients.js";
 
-const defaultCommand = (): readonly string[] => npxRegistrationCommand();
-
 /** Configure one supported client's native stdio MCP registration shape. */
 export const configureClientConfiguration = (
   client: SetupClient,
   environment: SetupProviderEnvironment = {},
-  command: readonly string[] = defaultCommand(),
+  command: readonly string[] = npxRegistrationCommand(),
 ): Promise<ClientConfigurationResult> => {
   if (client.format === undefined || client.format === "unsupported")
     return Promise.resolve({ status: "failed", reason: "readback" });

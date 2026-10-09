@@ -233,8 +233,10 @@ New analysis or behavior claims need the real evidence that supports them; a moc
 or a page-loading check cannot establish those claims.
 
 Follow the PR review and CI process, then publish using the existing manual
-`website-pages.yml` workflow on `main`. It publishes the same verified artifact
-to Cloudflare and GitHub Pages and checks both published commit markers.
+`website-pages.yml` workflow on `main`. Its default `both` target publishes the
+same verified artifact to Cloudflare and GitHub Pages and checks both published
+commit markers. Use `pages` only for an explicitly requested publication while
+Cloudflare credentials are being configured.
 Ordinary commits should not publish the site. After deployment, check both live
 pages and confirm they match the reviewed version. The legacy VitePress build
 remains separate from the Pages publisher.

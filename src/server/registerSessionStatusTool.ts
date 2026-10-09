@@ -44,8 +44,10 @@ export const registerSessionStatusTool = (
     contract.name,
     toolRegistrationOptions(contract),
     async (input, context) => {
-      const { client, clientFeatures, protocolVersion } =
-        mcpClientMetadata(context);
+      const { client, clientFeatures, protocolVersion } = mcpClientMetadata(
+        context,
+        server.server,
+      );
       let androidAvailability: ProviderAvailability;
       try {
         androidAvailability = await androidAnalysisAvailability(

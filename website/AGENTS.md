@@ -20,5 +20,7 @@ for asset notes and the source of case-study claims.
   copying and downloads. Run `scripts/prepare-website.py` followed by
   `scripts/verify-website.py`.
 - Keep `website-pages.yml` as the sole, manual production publisher for
-  Cloudflare and Pages. Both hosts must receive the same verified artifact and
-  pass the published-commit check. Follow the website README.
+  Cloudflare and Pages. Default to `both`: both hosts receive the same verified
+  artifact and pass the published-commit check. Use `pages` only when explicitly
+  requested while Cloudflare credentials are being configured. Follow the
+  website README.

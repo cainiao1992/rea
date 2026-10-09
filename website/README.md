@@ -261,14 +261,14 @@ Configure these repository **Actions secrets** before publishing:
 - `CLOUDFLARE_ACCOUNT_ID`: that Cloudflare account's ID.
 
 See Cloudflare's [GitHub Actions authentication instructions](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/).
-The workflow checks that both secrets are present before preparing a release.
-Cloudflare deploys first; GitHub Pages deploys after that step succeeds.
+The default `both` target checks that both secrets are present before preparing
+a release. Cloudflare deploys first; GitHub Pages deploys after that step succeeds.
 
 Preparation adds `deployment.json` with the workflow's commit SHA. Cloudflare
 receives the extracted Pages artifact through Wrangler's explicit assets path;
 the local custom-build output is not the uploaded directory. The workflow then
-checks both public version markers and reports success only when they match
-that commit. A failed publication remains failed; fix its cause and rerun the
+checks the selected public version markers and reports success only when they
+match that commit. A failed publication remains failed; fix its cause and rerun the
 workflow to complete both deployments. The two hosts can update at different
 times while a run is in progress.
 
@@ -294,11 +294,21 @@ website** from the Actions tab on `main`. This publishes both production hosts.
 The workflow uses the `github-pages` environment, the official Pages actions and
 Cloudflare's Wrangler action.
 
-The equivalent CLI command is:
+The equivalent CLI command publishes both hosts:
 
 ```sh
 gh workflow run website-pages.yml --repo morluto/rea --ref main
 ```
+
+While Cloudflare credentials are being configured, an explicitly requested
+Pages-only publication uses the same workflow with `target=pages`:
+
+```sh
+gh workflow run website-pages.yml --repo morluto/rea --ref main -f target=pages
+```
+
+This mode verifies the Pages commit marker. The default remains `both` for
+synchronized production releases.
 
 Local development does not change Pages settings or run the deployment workflow.
 Any environment protection rules are configured separately when publication is

@@ -2,6 +2,15 @@ name: Publish REA website
 
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: Publish both hosts, or Pages while configuring Cloudflare
+        type: choice
+        required: true
+        default: both
+        options:
+          - both
+          - pages
 
 permissions:
   contents: read
@@ -19,7 +28,16 @@ jobs:
       contents: read
       pages: read
     steps:
+      - name: Validate the publication target
+        env:
+          PUBLISH_TARGET: ${{ inputs.target }}
+        run: |
+          case "$PUBLISH_TARGET" in
+            both|pages) ;;
+            *) echo "::error::Unknown publication target: $PUBLISH_TARGET"; exit 1 ;;
+          esac
       - name: Require Cloudflare publishing credentials
+        if: inputs.target == 'both'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -67,21 +85,26 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Check out publishing configuration
+        if: inputs.target == 'both'
         uses: actions/checkout@v4
       - name: Set up Node.js for Wrangler
+        if: inputs.target == 'both'
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
       - name: Download the verified website
+        if: inputs.target == 'both'
         uses: actions/download-artifact@v4
         with:
           name: github-pages
           path: ${{ runner.temp }}/website-archive
       - name: Extract the shared publishing artifact
+        if: inputs.target == 'both'
         run: |
           mkdir -p "$RUNNER_TEMP/rea-website-public"
           tar -xf "$RUNNER_TEMP/website-archive/artifact.tar" -C "$RUNNER_TEMP/rea-website-public"
       - name: Publish the website to Cloudflare
+        if: inputs.target == 'both'
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -92,9 +115,10 @@ jobs:
       - name: Publish to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-      - name: Verify both published revisions
+      - name: Verify the selected published revisions
         env:
           PAGES_URL: ${{ steps.deployment.outputs.page_url }}
+          PUBLISH_TARGET: ${{ inputs.target }}
         run: |
           python3 - <<'PY'
           import json
@@ -109,7 +133,13 @@ jobs:
           pages_url = os.environ["PAGES_URL"]
           if not pages_url:
               sys.exit("GitHub Pages returned no published URL.")
-          pending = {"Cloudflare": "https://rea.tools/", "GitHub Pages": pages_url}
+          target = os.environ["PUBLISH_TARGET"]
+          if target not in ("both", "pages"):
+              sys.exit("Unknown publication target: " + target)
+          hosts = {"GitHub Pages": pages_url}
+          if target == "both":
+              hosts["Cloudflare"] = "https://rea.tools/"
+          pending = dict(hosts)
           for attempt in range(24):
               for name, base in list(pending.items()):
                   url = urljoin(base, "deployment.json") + "?commit=" + expected
@@ -131,6 +161,6 @@ jobs:
           if pending:
               sys.exit("Published revision did not match on: " + ", ".join(pending))
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
-              summary.write(f"Published commit `{expected}` to [rea.tools](https://rea.tools/) "
-                            f"and [GitHub Pages]({pages_url}).\n")
+              links = " and ".join(f"[{name}]({url})" for name, url in hosts.items())
+              summary.write(f"Published commit `{expected}` to {links}.\n")
           PY

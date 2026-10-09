@@ -13,6 +13,7 @@ import { verifyLegacyGhidraReferenceSnapshot } from "./ghidra-reference-snapshot
 import { verifyGhidraSnapshotLifecycle } from "./real-ghidra-snapshot-lifecycle.mjs";
 import { verifyGhidraTargetAdmission } from "./real-ghidra-target-admission.mjs";
 import { verifyGhidraLargeResults } from "./real-ghidra-large-results.mjs";
+import { verifyGhidraEntryAliases } from "./real-ghidra-entry-aliases.mjs";
 import { verifyGhidraNamespaceAnnotations } from "./real-ghidra-namespace-annotations.mjs";
 
 /** Probe real Ghidra location, annotation and error contracts through public adapters. */
@@ -278,7 +279,25 @@ export async function verifyGhidraBoundaries(
     await cli("inspect-native-instruction", address.toUpperCase()),
     baseline,
   );
-  const interior = `0x${(BigInt(address) + 1n).toString(16)}`;
+  // x86 function entries can begin with a one-byte PUSH. Locate an observed
+  // multi-byte instruction instead of assuming entry + 1 is an interior byte.
+  let multiByteInstruction;
+  for (const range of original.procedure.body.ranges) {
+    let cursor = BigInt(range.start);
+    while (cursor <= BigInt(range.end)) {
+      const instruction = await call("inspect_native_instruction", {
+        address: `0x${cursor.toString(16)}`,
+      });
+      if (instruction.status === "decoded" && instruction.length > 1) {
+        multiByteInstruction = instruction;
+        break;
+      }
+      cursor += BigInt(instruction.length ?? 1);
+    }
+    if (multiByteInstruction !== undefined) break;
+  }
+  assert.ok(multiByteInstruction, "Fixture lacks a multi-byte instruction");
+  const interior = `0x${(BigInt(multiByteInstruction.address) + 1n).toString(16)}`;
   assert.equal(
     (await call("inspect_native_instruction", { address: interior })).status,
     "not-instruction-boundary",
@@ -693,6 +712,13 @@ export async function verifyGhidraBoundaries(
     entrypoint,
     env,
   });
+  await verifyGhidraEntryAliases({
+    call,
+    reject: invalid,
+    target,
+    entrypoint,
+    env,
+  });
   await verifyGhidraLargeResults({
     call,
     reject: invalid,
@@ -741,6 +767,7 @@ export async function verifyGhidraBoundaries(
     imported_source_identity_retained: true,
     equivalent_instruction_address_spellings: true,
     qualified_annotation_name_roundtrip: true,
+    imported_entry_alias_selection: true,
     oversized_result_retention_and_complete_export: true,
     long_selector_rejection_and_provider_recovery: true,
     source_immutable: true,

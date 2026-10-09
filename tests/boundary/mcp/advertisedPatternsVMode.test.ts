@@ -77,6 +77,12 @@ it("advertises portable NUL escapes and patterns that compile in all JS modes", 
   );
   expect(uncompilable).toEqual([]);
 
+  // RE2 and Rust validators reject look-around and backreferences, and like
+  // the NUL escape below, one such pattern refuses the complete tools request.
+  expect(
+    patterns.filter(({ pattern }) => /\(\?<?[=!]|\\[1-9]|\\k</u.test(pattern)),
+  ).toEqual([]);
+
   // DeepSeek rejects the short NUL escape even though V8 accepts it in all
   // three modes. Schema compilation must not hide that interchange failure.
   expect(patterns.filter(({ pattern }) => pattern.includes("\\0"))).toEqual([]);

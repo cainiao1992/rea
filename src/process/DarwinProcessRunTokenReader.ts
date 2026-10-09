@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -64,6 +64,13 @@ const sourceFiles = [
     ),
   ),
 ];
+
+/**
+ * swift-driver runs each frontend job in its own process group. On SIGINT it
+ * stops those jobs and deletes their objects before exiting; on SIGTERM it
+ * exits while a job can still write objects under TMPDIR.
+ */
+export const SWIFTC_INTERRUPT = "SIGINT";
 
 /** The native Darwin process-ownership reader could not be prepared. */
 export class DarwinProcessOwnershipInspectionError extends Error {
@@ -149,7 +156,14 @@ export const createDarwinProcessRunTokenReader = (
       exitCleanupInstalled = true;
       if (signal.aborted || closed) throw abortReason(signal);
       const output = join(operationRoot, "reader");
-      const compilerEnvironment = { ...process.env };
+      // swiftc keeps intermediate objects under TMPDIR, so keep them inside
+      // the root that cleanup removes.
+      const compilerTemporary = join(operationRoot, "tmp");
+      await mkdir(compilerTemporary);
+      const compilerEnvironment: NodeJS.ProcessEnv = {
+        ...process.env,
+        TMPDIR: compilerTemporary,
+      };
       // Use Swift's reusable default cache for REA's internal helper compilation.
       delete compilerEnvironment.CLANG_MODULE_CACHE_PATH;
       try {
@@ -160,6 +174,7 @@ export const createDarwinProcessRunTokenReader = (
             timeout: 60_000,
             maxBuffer: 1024 * 1024,
             signal,
+            stopSignal: SWIFTC_INTERRUPT,
             env: compilerEnvironment,
           },
         );

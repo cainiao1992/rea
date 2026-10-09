@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron as electron } from "playwright-core";
 import { expect, it, vi } from "vitest";
+import { z } from "zod";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import {
@@ -290,6 +291,94 @@ it.skipIf(process.platform === "win32")(
       await compilation;
       await reader.close();
       await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
+
+const temporaryStateSchema = z.object({
+  root: z.string(),
+  temporary: z.string(),
+});
+
+/**
+ * A compiler that behaves like swift-driver: a job in its own process group
+ * writes an object under TMPDIR, SIGINT stops the job and deletes the object,
+ * and any other signal leaves the job writing after the driver exits.
+ */
+const writeTemporaryObjectCompiler = async (directory: string) => {
+  const executable = join(directory, "fake-temporary-xcrun");
+  const statePath = join(directory, "temporary-state.json");
+  const source = `#!/usr/bin/env node
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { spawn } = require("node:child_process");
+const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "TemporaryDirectory."));
+const object = path.join(temporary, "ProcessRunTokenReader-1.o");
+const job = spawn(process.execPath, ["-e",
+  "setTimeout(() => { const fs = require('node:fs'); fs.mkdirSync(" + JSON.stringify(temporary) +
+  ", { recursive: true }); fs.writeFileSync(" + JSON.stringify(object) + ", 'object'); }, 300)"],
+  { detached: true, stdio: "ignore" });
+job.unref();
+process.on("SIGINT", () => {
+  job.kill("SIGKILL");
+  fs.rmSync(object, { force: true });
+  process.exit(130);
+});
+const output = process.argv[process.argv.indexOf("-o") + 1];
+fs.writeFileSync(${JSON.stringify(statePath)}, JSON.stringify({ root: path.dirname(output), temporary }));
+setInterval(() => {}, 1000);
+`;
+  await writeFile(executable, source);
+  await chmod(executable, 0o755);
+  return { executable, statePath };
+};
+
+it.skipIf(process.platform === "win32")(
+  "removes cancelled compiler temporaries with the helper root",
+  async () => {
+    const directory = await createTestTempDirectory(
+      "rea-process-token-temporary-test-",
+    );
+    const compiler = await writeTemporaryObjectCompiler(directory);
+    const reader = createDarwinProcessRunTokenReader({
+      xcrun: compiler.executable,
+    });
+    const controller = new AbortController();
+    const preparation = reader.prepare(controller.signal).then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+    let temporary: string | undefined;
+    try {
+      const deadline = Date.now() + 5_000;
+      let state: z.infer<typeof temporaryStateSchema> | undefined;
+      while (state === undefined && Date.now() < deadline) {
+        const parsed = temporaryStateSchema.safeParse(
+          await readFile(compiler.statePath, "utf8").then(
+            (text): unknown => JSON.parse(text),
+            () => undefined,
+          ),
+        );
+        if (parsed.success) state = parsed.data;
+        else await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      if (state === undefined) throw new Error("fake compiler did not start");
+      temporary = state.temporary;
+      expect(state.temporary.startsWith(`${state.root}/`)).toBe(true);
+
+      controller.abort();
+      expect(await preparation).toMatchObject({ name: "AbortError" });
+      await reader.close();
+      // A job that outlived the compiler would recreate the root by now.
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      await expect(access(state.root)).rejects.toThrow();
+    } finally {
+      if (!controller.signal.aborted) controller.abort();
+      await preparation;
+      await reader.close();
+      if (temporary !== undefined)
+        await rm(temporary, { recursive: true, force: true });
     }
   },
 );

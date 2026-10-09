@@ -6,7 +6,29 @@ import {
 type ExecFileOutputOptions = Omit<
   ExecFileOptionsWithStringEncoding,
   "encoding" | "maxBuffer"
-> & { readonly maxBuffer?: number };
+> & {
+  readonly maxBuffer?: number;
+  /**
+   * Signal that stops the process on abort or timeout. The promise then
+   * settles only after the process exits, so the caller can remove files it
+   * writes; a process still running after a grace period is killed. Without
+   * it, Node's execFile sends SIGTERM on abort and rejects before the
+   * process exits.
+   */
+  readonly stopSignal?: NodeJS.Signals;
+};
+
+/** How long a stopped process may take to exit before it is killed. */
+const STOP_GRACE_MS = 5_000;
+
+const abortError = (signal: AbortSignal): Error => {
+  const error = new Error("The operation was aborted", {
+    cause: signal.reason,
+  });
+  error.name = "AbortError";
+  Reflect.set(error, "code", "ABORT_ERR");
+  return error;
+};
 
 /** Captured subprocess output read from an execFileOutput rejection. */
 export interface ExecFileOutputFailure {
@@ -47,22 +69,49 @@ export const execFileOutput = (
   options: ExecFileOutputOptions = {},
 ): Promise<{ readonly stdout: string; readonly stderr: string }> =>
   new Promise((resolve, reject) => {
-    execFile(
+    const { stopSignal, signal, ...execOptions } = options;
+    const stopped =
+      stopSignal === undefined || signal === undefined
+        ? undefined
+        : { signal, stopSignal };
+    if (stopped?.signal.aborted === true) {
+      reject(abortError(stopped.signal));
+      return;
+    }
+    let aborted = false;
+    let grace: NodeJS.Timeout | undefined;
+    const child = execFile(
       command,
       [...arguments_],
       {
-        ...options,
+        ...execOptions,
+        ...(stopped === undefined
+          ? signal === undefined
+            ? {}
+            : { signal }
+          : { killSignal: stopped.stopSignal }),
         encoding: "utf8",
         maxBuffer: options.maxBuffer ?? Number.POSITIVE_INFINITY,
       },
       (error, stdout, stderr) => {
-        if (error !== null) {
-          Reflect.set(error, "stdout", stdout);
-          Reflect.set(error, "stderr", stderr);
-          reject(error);
+        stopped?.signal.removeEventListener("abort", onAbort);
+        clearTimeout(grace);
+        const failure =
+          aborted && stopped !== undefined ? abortError(stopped.signal) : error;
+        if (failure !== null) {
+          Reflect.set(failure, "stdout", stdout);
+          Reflect.set(failure, "stderr", stderr);
+          reject(failure);
           return;
         }
         resolve({ stdout, stderr });
       },
     );
+    const onAbort = (): void => {
+      if (stopped === undefined) return;
+      aborted = true;
+      child.kill(stopped.stopSignal);
+      grace = setTimeout(() => child.kill("SIGKILL"), STOP_GRACE_MS);
+    };
+    stopped?.signal.addEventListener("abort", onAbort, { once: true });
   });

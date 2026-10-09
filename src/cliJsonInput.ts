@@ -1,10 +1,14 @@
+import { constants as bufferConstants } from "node:buffer";
 import { resolve } from "node:path";
 
 import {
   NonRegularFileReadError,
   readRegularFile,
 } from "./application/RegularFileRead.js";
-import { AnalysisInputError } from "./domain/analysisErrorCore.js";
+import {
+  AnalysisInputError,
+  AnalysisResourceConstraintError,
+} from "./domain/analysisErrorCore.js";
 import { projectAnalysisError } from "./domain/analysisErrorProjection.js";
 import type { JsonValue } from "./domain/jsonValue.js";
 import { safeParseJson } from "./domain/safeJson.js";
@@ -18,14 +22,16 @@ export const parseCliJsonInput = async (
   | { readonly ok: false; readonly error: JsonValue }
 > => {
   const inline = parseJson(value);
-  if (inline !== undefined) return { ok: true, value: inline };
+  if (inline.kind === "valid") return { ok: true, value: inline.value };
+  if (inline.kind === "too-large")
+    return jsonTooLargeError(undefined, operation);
   try {
     // Read raw bytes so invalid UTF-8 is rejected by parseJson instead of
     // being silently replaced by lossy "utf8" decoding.
     const parsed = parseJson(await readRegularFile(value));
-    return parsed === undefined
-      ? jsonFileError(value, operation, "invalid-json")
-      : { ok: true, value: parsed };
+    if (parsed.kind === "valid") return { ok: true, value: parsed.value };
+    if (parsed.kind === "too-large") return jsonTooLargeError(value, operation);
+    return jsonFileError(value, operation, "invalid-json");
   } catch (cause: unknown) {
     if (
       ["{", "["].includes(value.trimStart()[0] ?? "") &&
@@ -87,7 +93,12 @@ const cannotBeAnExistingFile = (cause: unknown): boolean =>
 const hasExplicitJsonFileExtension = (value: string): boolean =>
   value.toLowerCase().endsWith(".json");
 
-const parseJson = (value: string | Uint8Array): unknown => {
+type JsonParseResult =
+  | { readonly kind: "valid"; readonly value: unknown }
+  | { readonly kind: "invalid" }
+  | { readonly kind: "too-large" };
+
+const parseJson = (value: string | Uint8Array): JsonParseResult => {
   let text: string;
   if (typeof value === "string") {
     text = value;
@@ -98,14 +109,23 @@ const parseJson = (value: string | Uint8Array): unknown => {
         ignoreBOM: true,
       }).decode(value);
     } catch (cause: unknown) {
-      // Decoding failure means the bytes are not valid UTF-8 JSON input.
-      void cause;
-      return undefined;
+      return isStringLengthLimit(cause)
+        ? { kind: "too-large" }
+        : { kind: "invalid" };
     }
   }
   const parsed = safeParseJson(text);
-  return parsed.ok ? parsed.value : undefined;
+  if (parsed.ok) return { kind: "valid", value: parsed.value };
+  return isStringLengthLimit(parsed.cause)
+    ? { kind: "too-large" }
+    : { kind: "invalid" };
 };
+
+const isStringLengthLimit = (cause: unknown): boolean =>
+  cause instanceof Error &&
+  /cannot create a string longer than|invalid string length/i.test(
+    cause.message,
+  );
 
 const inputError = (operation: string): JsonValue => ({
   error: "Application workflow failed",
@@ -155,5 +175,35 @@ const readFailureIssue = (path: string | undefined, cause: unknown) => {
       cause instanceof NonRegularFileReadError && cause.code === "ENOTFILE"
         ? `The JSON input must be a regular file${code}: ${path ?? ""}`
         : `The JSON input file could not be read${code}: ${path ?? ""}`,
+  };
+};
+
+const jsonTooLargeError = (
+  path: string | undefined,
+  operation: string,
+): { readonly ok: false; readonly error: JsonValue } => {
+  const projection = projectAnalysisError(
+    new AnalysisResourceConstraintError(
+      operation,
+      "memory",
+      `The JSON input exceeds this Node.js runtime's maximum string length (${bufferConstants.MAX_STRING_LENGTH} UTF-16 code units) and cannot be parsed as one value.`,
+      {
+        boundary: "cli-json-input",
+        max_string_code_units: bufferConstants.MAX_STRING_LENGTH,
+      },
+      {
+        remediationAction:
+          "Split the JSON into smaller inputs or rerun its producer on a smaller subset, then retry.",
+      },
+    ),
+  );
+  return {
+    ok: false,
+    error: {
+      error: "Application workflow failed",
+      ...projection,
+      ...(path === undefined ? {} : { input_path: path }),
+      input_reason: "too-large",
+    },
   };
 };

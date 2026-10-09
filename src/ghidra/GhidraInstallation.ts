@@ -306,13 +306,7 @@ const installationChecks = ({
   javaHome,
   host,
 }: GhidraInstallationCheckContext): readonly GhidraInstallationCheck[] => [
-  installationCheck({
-    name: "configuration",
-    passed: coordinates.installDir !== null,
-    code: "not_configured",
-    detail: coordinates.installDir ?? "GHIDRA_INSTALL_DIR is not set",
-    remediation: `Set GHIDRA_INSTALL_DIR to an extracted Ghidra ${ghidraReleaseLine()} release directory.`,
-  }),
+  configurationCheck(coordinates.installDir, javaHome, platform),
   installationCheck({
     name: "platform",
     passed: NATIVE_PLATFORMS[platform] !== undefined,
@@ -365,6 +359,40 @@ const installationChecks = ({
     coordinates.properties,
   ),
 ];
+
+/**
+ * REA's configuration parser, and so the MCP server and analysis, accept only
+ * absolute paths; a relative one that happens to resolve here must not pass.
+ */
+const configurationCheck = (
+  installDir: string | null,
+  javaHome: string | undefined,
+  platform: NodeJS.Platform,
+): GhidraInstallationCheck => {
+  const { isAbsolute } = platform === "win32" ? win32 : posix;
+  const relative = [
+    ...(installDir !== null && !isAbsolute(installDir)
+      ? ["GHIDRA_INSTALL_DIR"]
+      : []),
+    ...(javaHome !== undefined && !isAbsolute(javaHome) ? ["JAVA_HOME"] : []),
+  ];
+  if (installDir === null || relative.length === 0)
+    return installationCheck({
+      name: "configuration",
+      passed: installDir !== null,
+      code: "not_configured",
+      detail: installDir ?? "GHIDRA_INSTALL_DIR is not set",
+      remediation: `Set GHIDRA_INSTALL_DIR to an extracted Ghidra ${ghidraReleaseLine()} release directory.`,
+    });
+  const settings = relative.join(" and ");
+  return installationCheck({
+    name: "configuration",
+    passed: false,
+    code: "not_configured",
+    detail: `${settings} must be absolute`,
+    remediation: `Set ${settings} to ${relative.length === 1 ? "an absolute path" : "absolute paths"}. REA's analysis and MCP server reject relative paths even when they resolve from the current directory.`,
+  });
+};
 
 /** Project an installation probe into caller-visible, secret-free diagnostics. */
 export const ghidraInstallationDiagnostics = (

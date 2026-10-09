@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { projectGhidraDoctorInspection } from "./GhidraDoctor.js";
 import {
   ghidraJavaEnvironment,
   inspectGhidraInstallation,
@@ -376,5 +377,49 @@ describe("Ghidra release line and JDK bounds", () => {
         }),
       ),
     ).toMatchObject({ status: "available", javaVersion: "17.0.20.1" });
+  });
+});
+
+describe("Ghidra configuration paths", () => {
+  it.each([
+    [{ installDir: "./ghidra" }, "GHIDRA_INSTALL_DIR must be absolute"],
+    [{ installDir: INSTALL, javaHome: "./jdk" }, "JAVA_HOME must be absolute"],
+    [
+      { installDir: "ghidra", javaHome: "jdk" },
+      "GHIDRA_INSTALL_DIR and JAVA_HOME must be absolute",
+    ],
+  ])(
+    "rejects relative paths that REA's configuration parser rejects (%o)",
+    (paths, detail) => {
+      const result = inspectGhidraInstallation(
+        { ...paths, platform: "linux", architecture: "x64" },
+        host(),
+      );
+      expect(result).toMatchObject({
+        status: "unavailable",
+        rejection: {
+          code: "not_configured",
+          reason: expect.stringContaining("reject relative paths"),
+        },
+      });
+      expect(result.checks).toContainEqual(
+        expect.objectContaining({ name: "configuration", detail }),
+      );
+      // Setup registers only an available inspection's environment.
+      expect(projectGhidraDoctorInspection(result)).toMatchObject({
+        available: false,
+        registrationEnvironment: {},
+      });
+    },
+  );
+
+  it("judges absolute paths by the inspected platform", () => {
+    const result = inspectGhidraInstallation(
+      { installDir: "C:\\ghidra", platform: "win32", architecture: "x64" },
+      host(),
+    );
+    expect(result.checks).toContainEqual(
+      expect.objectContaining({ name: "configuration", status: "passed" }),
+    );
   });
 });

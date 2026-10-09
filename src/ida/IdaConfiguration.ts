@@ -50,7 +50,7 @@ export const readIdaConfiguration = (
   try {
     if (statSync(path).size > 65_536)
       return err(
-        new ConfigurationError(
+        idaConfigurationError(
           "REA_IDA_MCP_CONFIG exceeds the 64 KiB registration size.",
         ),
       );
@@ -64,17 +64,27 @@ export const readIdaConfiguration = (
     return parsed.success
       ? ok(parsed.data)
       : err(
-          new ConfigurationError(
+          idaConfigurationError(
             "REA_IDA_MCP_CONFIG must contain an IDA MCP command/args or local url registration; see docs/ida-provider.md.",
-            { cause: parsed.error },
+            parsed.error,
           ),
         );
   } catch (cause: unknown) {
     return err(
-      new ConfigurationError(
+      idaConfigurationError(
         `Cannot read IDA MCP registration ${path}; provide a readable JSON configuration.`,
-        { cause },
+        cause,
       ),
     );
   }
 };
+
+/** A REA_IDA_MCP_CONFIG rejection that names the setting it concerns. */
+export const idaConfigurationError = (
+  constraint: string,
+  cause?: unknown,
+): ConfigurationError =>
+  new ConfigurationError(constraint, {
+    ...(cause === undefined ? {} : { cause }),
+    settings: [{ setting: "REA_IDA_MCP_CONFIG", constraint }],
+  });

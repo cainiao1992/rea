@@ -53,9 +53,15 @@ export const parseEnvironment = (
 ): Result<Environment, ConfigurationError> => {
   const parsed = environmentSchema.safeParse(environment);
   if (!parsed.success) {
+    // Zod messages name the constraint, never the rejected value.
+    const settings = parsed.error.issues.map((issue) => ({
+      setting: String(issue.path[0] ?? "environment"),
+      constraint: issue.message,
+    }));
     return err(
       new ConfigurationError("Invalid REA environment configuration", {
         cause: parsed.error,
+        settings,
       }),
     );
   }

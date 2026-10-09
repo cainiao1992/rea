@@ -18,7 +18,10 @@ import {
   AnalysisResourceConstraintError,
 } from "./analysisErrorCore.js";
 import { ArtifactOperationError } from "./artifactOperationError.js";
-import { BinaryTargetError } from "./configurationErrors.js";
+import {
+  BinaryTargetError,
+  ConfigurationError,
+} from "./configurationErrors.js";
 import { BrowserObservationError } from "./browserObservationError.js";
 import {
   EvidenceFileError,
@@ -482,6 +485,13 @@ const lifecycleErrorDetails = (
     };
     return Object.keys(details).length === 0 ? undefined : details;
   }
+  if (error instanceof ConfigurationError && error.settings.length > 0)
+    return {
+      settings: error.settings.map(({ setting, constraint }) => ({
+        setting,
+        constraint,
+      })),
+    };
   if (error instanceof BinaryTargetError)
     return {
       path: error.path,

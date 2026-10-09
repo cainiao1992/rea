@@ -15,6 +15,8 @@ export const mcpResponseBudgetSchema = z
   .transform(Number)
   .pipe(z.number().int().safe().min(MINIMUM_RESPONSE_BYTES));
 
+const budgetConstraint = `REA_MCP_MAX_RESPONSE_BYTES must be a decimal safe integer at least ${String(MINIMUM_RESPONSE_BYTES)} bytes, the default stdio receive-buffer size.`;
+
 /** Parse only the MCP-specific budget without loading unrelated provider settings. */
 export const parseMcpResponseBudget = (
   value: string | undefined,
@@ -24,8 +26,13 @@ export const parseMcpResponseBudget = (
   return parsed.success
     ? ok(parsed.data)
     : err(
-        new ConfigurationError(
-          `REA_MCP_MAX_RESPONSE_BYTES must be a decimal safe integer at least ${String(MINIMUM_RESPONSE_BYTES)} bytes, the default stdio receive-buffer size.`,
-        ),
+        new ConfigurationError(budgetConstraint, {
+          settings: [
+            {
+              setting: "REA_MCP_MAX_RESPONSE_BYTES",
+              constraint: budgetConstraint,
+            },
+          ],
+        }),
       );
 };

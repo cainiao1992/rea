@@ -78,6 +78,8 @@ export const analysisErrorRemediationAction = (
     return "Check the current process's read access to the selected path. Retry with a readable local file.";
   if (error instanceof AnalysisArtifactChangedError)
     return "Wait until the selected file is stable. For an active binary session, reopen the target with open_binary before retrying so REA acquires its current identity; for a CLI command or target-free tool, rerun the operation.";
+  if (error instanceof ConfigurationError && error.settings.length > 0)
+    return `Correct ${[...new Set(error.settings.map(({ setting }) => setting))].join(", ")} in the environment that starts REA (your shell or the MCP client's registration), then rerun.`;
   if (error instanceof AnalysisInputError)
     return "Correct the listed arguments and retry.";
   if (error instanceof UnknownRegistryError && error.reason === "not-found")
@@ -189,7 +191,15 @@ export const analysisErrorUserMessage = (error: AnalysisError): string => {
   if (error instanceof UnknownRegistryError)
     return "Evidence state changed before the update completed. Refresh the current state and try again.";
   if (error instanceof ConfigurationError)
-    return "REA configuration is invalid. Run `rea doctor` and fix the reported setting.";
+    return error.settings.length === 0
+      ? "REA configuration is invalid. Run `rea doctor` and fix the reported setting."
+      : `REA configuration is invalid: ${error.settings
+          .map(({ setting, constraint }) =>
+            constraint.includes(setting)
+              ? constraint.replace(/\.$/u, "")
+              : `${setting}: ${constraint}`,
+          )
+          .join("; ")}.`;
   if (error instanceof NoBinaryOpenError) return error.message;
   if (error instanceof BinaryTargetError)
     return error.constraint === "directory_requires_file"

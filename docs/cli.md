@@ -96,6 +96,12 @@ an exact result when the target bytes, operation, parameters, provider and
 settings match. Mutations and cursor-dependent calls are excluded from the
 cache. Snapshot files are local and use owner-only permissions.
 
+Snapshots retain eligible target-scoped question histories in full, including
+mutation Evidence recorded while another target was active. Observations and
+related questions must still belong to the saved target. If those dependencies
+cannot be retained, the entire history is excluded instead of reverting the
+question to an earlier revision or disposition.
+
 ```bash
 rea analyze /absolute/path/to/program --provider ghidra --snapshot /absolute/path/to/analysis/program.json
 # Repeat the same query to reuse its saved result.

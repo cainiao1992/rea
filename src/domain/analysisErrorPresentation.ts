@@ -39,7 +39,10 @@ export const analysisErrorRemediationAction = (
   if (error instanceof AnalysisSnapshotMismatchError)
     return "Run analysis without this snapshot, then save a fresh snapshot using the intended artifact, provider, and analysis profile.";
   if (error instanceof AnalysisUnsupportedTargetError)
-    return "Select a target supported by this operation or choose an operation supporting the reported target format.";
+    return (
+      error.remediationAction ??
+      "Select a target supported by this operation or choose an operation supporting the reported target format."
+    );
   if (error instanceof AnalysisResourceConstraintError)
     return (
       error.remediationAction ??

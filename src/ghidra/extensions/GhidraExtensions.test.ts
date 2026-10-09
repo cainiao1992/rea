@@ -106,6 +106,9 @@ describe("optional Ghidra extension refusals", () => {
     if (!architecture.ok)
       expect(projectAnalysisError(architecture.error)).toMatchObject({
         code: "unsupported_target",
+        remediation: {
+          action: expect.stringContaining("omit REA_GHIDRA_NATIVEAOT_JAR"),
+        },
         details: {
           operation: "resolve_analysis_profile",
           path: target.path,
@@ -312,9 +315,11 @@ describe("Ghidra extension profile and producer validation", () => {
     );
     expect(resolved.ok).toBe(false);
     if (!resolved.ok)
-      expect(resolved.error).toMatchObject({
-        _tag: "AnalysisUnsupportedTargetError",
-        reason: expect.stringContaining("inspect_managed_artifact"),
+      expect(projectAnalysisError(resolved.error)).toMatchObject({
+        code: "unsupported_target",
+        remediation: {
+          action: expect.stringContaining("inspect_managed_artifact"),
+        },
       });
   });
   it("does not substitute another artifact under an unchanged configured path", async () => {

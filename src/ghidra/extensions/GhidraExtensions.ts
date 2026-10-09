@@ -198,6 +198,8 @@ const extensionRefusalError = (
         "resolve_analysis_profile",
         target.path,
         refusal.reason,
+        // The reason names the workflows that remain available.
+        { remediationAction: refusal.reason },
       );
 
 /** Snapshot committed extension bytes into the private runtime before Java loads them. */

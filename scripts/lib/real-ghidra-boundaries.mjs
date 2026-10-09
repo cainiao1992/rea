@@ -15,6 +15,7 @@ import { verifyGhidraTargetAdmission } from "./real-ghidra-target-admission.mjs"
 import { verifyGhidraLargeResults } from "./real-ghidra-large-results.mjs";
 import { verifyGhidraEntryAliases } from "./real-ghidra-entry-aliases.mjs";
 import { verifyGhidraNamespaceAnnotations } from "./real-ghidra-namespace-annotations.mjs";
+import { verifyGhidraBatchIdentity } from "./real-ghidra-batch-identity.mjs";
 
 /** Probe real Ghidra location, annotation and error contracts through public adapters. */
 export async function verifyGhidraBoundaries(
@@ -157,6 +158,7 @@ export async function verifyGhidraBoundaries(
     /Annotations require a local function entry/u,
   );
   const names = await call("list_names");
+  const batchIdentity = await verifyGhidraBatchIdentity(call, names);
   const leaf = names.find((item) =>
     item.value.endsWith("rea_ghidra_inventory_leaf"),
   );
@@ -766,6 +768,7 @@ export async function verifyGhidraBoundaries(
     missing_and_nonregular_source_rejected: true,
     imported_source_identity_retained: true,
     equivalent_instruction_address_spellings: true,
+    batch_procedure_identity: batchIdentity,
     qualified_annotation_name_roundtrip: true,
     imported_entry_alias_selection: true,
     oversized_result_retention_and_complete_export: true,

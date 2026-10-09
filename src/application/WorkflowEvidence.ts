@@ -10,7 +10,11 @@ import {
   committedProviderSchema,
 } from "../domain/analysisProfile.js";
 import type { BinaryTarget } from "../domain/binaryTarget.js";
-import { createEvidence, type Evidence } from "../domain/evidence.js";
+import {
+  createEvidence,
+  type Evidence,
+  type EvidenceLocation,
+} from "../domain/evidence.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import type { UnknownRegistryPort } from "./investigation/InvestigationRecordPort.js";
 import { UnknownRegistryError } from "../domain/unknownRegistryError.js";
@@ -37,7 +41,35 @@ export const createWorkflowEvidence = (input: {
         }),
     confidence: "derived",
     limitations: ["Derived by an REA composed workflow."],
+    ...(input.operation === "batch_decompile"
+      ? { locations: batchProcedureLocations(input.result) }
+      : {}),
   });
+
+const batchProcedureLocations = (result: JsonValue): EvidenceLocation[] => {
+  if (
+    result === null ||
+    typeof result !== "object" ||
+    Array.isArray(result) ||
+    !Array.isArray(result.items)
+  )
+    return [];
+  const addresses = new Set<string>();
+  for (const item of result.items) {
+    if (item === null || typeof item !== "object" || Array.isArray(item))
+      continue;
+    const procedure = item.procedure;
+    if (
+      procedure !== null &&
+      typeof procedure === "object" &&
+      !Array.isArray(procedure) &&
+      procedure.status === "resolved" &&
+      typeof procedure.address === "string"
+    )
+      addresses.add(procedure.address);
+  }
+  return [...addresses].map((address) => ({ kind: "address", address }));
+};
 
 /** Convert workflow Evidence into its exact replay binding, when it has a profile. */
 export const workflowSnapshotRecord = (

@@ -189,6 +189,18 @@ Call resolution reports direct, resolved indirect, ambiguous, unresolved and
 non-call outcomes from static call references. It does not establish runtime
 execution or classify Objective-C/Swift/vtable/closure mechanisms from names.
 
+`batch_decompile` keeps each caller-selected symbol or address in `items[].address`.
+The separate `procedure` field reports the canonical entry and the provider's
+observed entry label. An interior address therefore remains visible without
+being mistaken for the function entry. Identity failures are reported as
+`procedure.status: "unknown"`; label failures leave a null name and `name_error`.
+Neither failure discards usable pseudocode, and names are not parsed from it.
+Resolved entries also appear in the composed Evidence locations. New batch
+Evidence commits the revised workflow profile; retained historical Evidence
+remains valid. This tool
+has no dedicated CLI command; the existing `decompile` command remains the
+single-procedure CLI operation.
+
 Type inspection selects one exact database pathname or typed data address.
 Struct/union fields, enums, pointers, arrays, typedefs, size, alignment, packing
 and bitfields retain database authority. Child types use exact IDs for further

@@ -1,4 +1,4 @@
-import { builtinModules } from "node:module";
+import { isBuiltin } from "node:module";
 import { posix } from "node:path";
 
 import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptArtifactFiles.js";
@@ -63,9 +63,6 @@ const EXTENSIONS = [
   ".html",
   ".node",
 ];
-const NODE_BUILTINS = new Set(
-  builtinModules.map((name) => name.replace(/^node:/u, "")),
-);
 
 type CandidateResolution =
   | {
@@ -194,11 +191,7 @@ const bareModuleCandidate = (
   declared: string,
 ): string | ArtifactPathResolution => {
   const packageName = barePackageName(declared);
-  if (
-    packageName === null ||
-    NODE_BUILTINS.has(packageName) ||
-    declared.startsWith("#")
-  )
+  if (packageName === null || isBuiltin(declared) || declared.startsWith("#"))
     return unresolvedOutcome(input, "external", [
       "The bare specifier is a Node builtin, package import map, or invalid package name.",
     ]);

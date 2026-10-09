@@ -86,12 +86,19 @@ export class PrivateRuntimeRoot {
     }
   }
 
-  /** Remove the runtime root; concurrent and repeated callers share cleanup. */
+  /**
+   * Remove the runtime root; concurrent callers share one attempt. A failed
+   * attempt is not cached, so a later close retries the removal.
+   */
   close(): Promise<void> {
-    this.#closePromise ??=
+    this.#closePromise ??= (
       this.windowsRuntime === undefined
         ? rm(this.path, { recursive: true, force: true })
-        : Promise.resolve().then(() => this.windowsRuntime?.close());
+        : Promise.resolve().then(() => this.windowsRuntime?.close())
+    ).catch((cause: unknown) => {
+      this.#closePromise = undefined;
+      throw cause;
+    });
     return this.#closePromise;
   }
 }

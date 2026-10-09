@@ -55,4 +55,12 @@ function initializePercentDemo() {
   render();
 }
 
+function initializeExpertAssembly() {
+  const excerpt = document.querySelector("[data-expert-assembly]");
+  if (excerpt && window.matchMedia("(max-width: 640px)").matches) {
+    excerpt.open = false;
+  }
+}
+
+initializeExpertAssembly();
 initializePercentDemo();

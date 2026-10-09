@@ -100,6 +100,15 @@ and complete private Evidence records are not website assets.
 The homepage starts with a short installation prompt and the ordinary setup
 command, then explains what reverse engineering is and why someone would use
 it. The manual/agent comparison introduces REA’s role before the examples.
+The comparison uses the same Calculator question on both sides: three
+selectable manual steps pair original instructions with an analyst illustration
+and thought bubbles; the agent side begins with “One prompt.” and a copyable
+question. Thoughts illustrate the reasoning behind the findings. The shared
+code-step script selects the initial note on load, so all three notes remain
+readable when JavaScript is disabled.
+The original-instruction panel starts expanded on desktop. On narrow screens,
+the homepage script collapses it; a native disclosure keeps the code available
+while the thought bubble and agent prompt remain close together.
 Dinosaur is the first example; Calculator follows as the native example.
 Both name the goal and the reason to inspect the program before showing the
 demo. A labeled finding explains what REA returned, and the flow distinguishes

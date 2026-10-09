@@ -36,6 +36,15 @@ the constant 100 in both paths. One path divides the current value by 100;
 the other combines the current value with the previous value divided by 100.
 The published assembly is selected exactly from the returned instruction list.
 
+The opening manual/agent comparison selects instructions at
+`0x180124945–0x180124992` and `0x180124a14–0x180124a34`, with explicit omissions.
+Its three highlights identify the operator comparisons, construction of 100
+and arithmetic helper calls, and the final multiplication path. The analyst
+thought bubbles illustrate the work of decoding those facts; they are not a
+recorded analyst transcript or a measured comparison of investigation times.
+The same percentage question appears in the agent prompt. Helper meanings and
+operator names are interpretations checked against the public source below.
+
 The binary is stripped. A local instruction scan located candidates using
 operator IDs and the constant 100; REA then produced the complete function
 dossier. Function selection was analyst-assisted. The illustrative agent

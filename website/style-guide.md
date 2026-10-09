@@ -75,6 +75,11 @@ attributed to their respective roles. On mobile, the demo can precede its
 supporting code once its purpose is clear.
 Show how the reader's task changes using the same question on both sides of a
 manual/agent comparison. Let returned evidence make REA's contribution visible.
+When showing manual analysis, use authentic instructions and specific analyst
+questions: what a command ID means, which call performs arithmetic, or which
+operand enters a calculation. Numbered selections can connect the code to
+illustrative thought bubbles. Keep the agent side brief: one visible prompt,
+a concrete answer, and the evidence used to reach it.
 
 When a small reconstruction makes the finding tangible, let readers change an
 input or setting and try the result. Connect inspection, recovered logic,

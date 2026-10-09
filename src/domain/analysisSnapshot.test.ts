@@ -138,6 +138,72 @@ describe("analysis snapshot contract", () => {
   });
 });
 
+describe("analysis snapshot canonical ordering and scope", () => {
+  it("rejects reordered queries and foreign-target records while retaining legacy Evidence", () => {
+    const { snapshot } = snapshotWithHistoricalEvidence();
+    const first = snapshot.entries[0];
+    if (first === undefined) throw new Error("Missing fixture query");
+    const parameters = { procedure: "other" };
+    const second = {
+      ...first,
+      parameters,
+      query_id: analysisQueryId(
+        snapshot.target,
+        snapshot.binding,
+        first.operation,
+        parameters,
+      ),
+    };
+    const entries = [first, second].sort((left, right) =>
+      left.query_id.localeCompare(right.query_id),
+    );
+    const canonical = { ...snapshot, entries };
+    expect(parseAnalysisSnapshot(canonical).entries).toEqual([first]);
+    expect(() =>
+      parseAnalysisSnapshot({ ...canonical, entries: [...entries].reverse() }),
+    ).toThrow(/entries are not canonical/u);
+    const workflows = entries.map((entry) => ({
+      ...entry,
+      execution: {
+        ...entry.execution,
+        analysis_profile: ANALYSIS_SNAPSHOT_PROFILE,
+      },
+    }));
+    expect(
+      parseAnalysisSnapshot({
+        ...snapshot,
+        entries: [],
+        workflow_entries: workflows,
+      }).workflow_entries,
+    ).toEqual([]);
+    expect(() =>
+      parseAnalysisSnapshot({
+        ...snapshot,
+        entries: [],
+        workflow_entries: [...workflows].reverse(),
+      }),
+    ).toThrow(/workflow entries are not canonical/u);
+    const foreign = createEvidence(
+      { ...ANALYSIS_SNAPSHOT_TARGET, sha256: "b".repeat(64) },
+      ANALYSIS_SNAPSHOT_PROVIDER,
+      {
+        operation: "legacy_query",
+        parameters: {},
+        result: null,
+      },
+    );
+    expect(() =>
+      parseAnalysisSnapshot({
+        ...snapshot,
+        evidence_bundle: createEvidenceBundle([
+          ...snapshot.evidence_bundle.records,
+          foreign,
+        ]),
+      }),
+    ).toThrow(/another target/u);
+  });
+});
+
 describe("analysis snapshot Evidence binding", () => {
   it("finds only Evidence committed to the exact binding and profile", () => {
     const { current, snapshot } = snapshotWithHistoricalEvidence();

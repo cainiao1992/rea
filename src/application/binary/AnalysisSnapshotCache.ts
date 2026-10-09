@@ -143,16 +143,21 @@ export class AnalysisSnapshotCache {
     try {
       const snapshotTargetIdentity = snapshotTarget(target);
       const binding = snapshotBinding(profile);
-      const retainedEvidence = structuredClone(evidenceBundle);
+      const entries = [...this.#entries.values()].sort((left, right) =>
+        left.query_id.localeCompare(right.query_id),
+      );
+      const workflows = [...this.#workflowEntries.values()].sort(
+        (left, right) => left.query_id.localeCompare(right.query_id),
+      );
+      // Parsing owns the returned JSON and metadata; pre-cloning the same
+      // payloads here only adds another full materialization.
       return ok(
         parseAnalysisSnapshot({
           target: snapshotTargetIdentity,
           binding,
-          entries: this.entries(),
-          ...(this.workflowEntries().length === 0
-            ? {}
-            : { workflow_entries: this.workflowEntries() }),
-          evidence_bundle: retainedEvidence,
+          entries,
+          ...(workflows.length === 0 ? {} : { workflow_entries: workflows }),
+          evidence_bundle: evidenceBundle,
         }),
       );
     } catch (cause: unknown) {

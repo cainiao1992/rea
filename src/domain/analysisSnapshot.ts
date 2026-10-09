@@ -372,10 +372,15 @@ export const createAnalysisSnapshotEntry = (input: {
 export const parseAnalysisSnapshot = (input: unknown): AnalysisSnapshot => {
   const parsed = analysisSnapshotSchema.parse(input);
   parseEvidenceBundle(parsed.evidence_bundle);
+  const scopedEvidence = evidenceBundleForTarget(
+    parsed.evidence_bundle,
+    parsed.target.sha256,
+  );
+  // The validated canonical bundle is filtered, never extended. Equal counts
+  // establish that no record or unknown was removed without serializing results.
   if (
-    JSON.stringify(
-      evidenceBundleForTarget(parsed.evidence_bundle, parsed.target.sha256),
-    ) !== JSON.stringify(parsed.evidence_bundle)
+    scopedEvidence.records.length !== parsed.evidence_bundle.records.length ||
+    scopedEvidence.unknowns.length !== parsed.evidence_bundle.unknowns.length
   )
     throw new TypeError(
       "Analysis snapshot evidence contains records for another target",
@@ -448,17 +453,11 @@ export const parseAnalysisSnapshot = (input: unknown): AnalysisSnapshot => {
     }
     boundWorkflowEntries.push(entry);
   }
-  const sorted = [...parsed.entries].sort((left, right) =>
-    left.query_id.localeCompare(right.query_id),
-  );
-  if (JSON.stringify(parsed.entries) !== JSON.stringify(sorted))
+  if (!hasCanonicalQueryOrder(parsed.entries))
     throw new TypeError("Analysis snapshot entries are not canonical");
-  const sortedWorkflows = [...(parsed.workflow_entries ?? [])].sort(
-    (left, right) => left.query_id.localeCompare(right.query_id),
-  );
   if (
     parsed.workflow_entries !== undefined &&
-    JSON.stringify(parsed.workflow_entries) !== JSON.stringify(sortedWorkflows)
+    !hasCanonicalQueryOrder(parsed.workflow_entries)
   )
     throw new TypeError("Analysis snapshot workflow entries are not canonical");
   return {
@@ -468,6 +467,18 @@ export const parseAnalysisSnapshot = (input: unknown): AnalysisSnapshot => {
       ? {}
       : { workflow_entries: boundWorkflowEntries }),
   };
+};
+
+const hasCanonicalQueryOrder = (
+  entries: readonly { readonly query_id: string }[],
+): boolean => {
+  let previous: string | undefined;
+  for (const { query_id: queryId } of entries) {
+    if (previous !== undefined && previous.localeCompare(queryId) > 0)
+      return false;
+    previous = queryId;
+  }
+  return true;
 };
 
 /** Check that a cached provider execution is represented by bundled Evidence. */

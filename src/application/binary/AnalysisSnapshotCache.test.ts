@@ -13,6 +13,7 @@ import { createAnalysisExecution } from "../AnalysisProvider.js";
 import {
   createAnalysisSnapshotWorkflowEntry,
   parseAnalysisSnapshot,
+  serializeAnalysisSnapshot,
   snapshotBinding,
   snapshotTarget,
 } from "../../domain/analysisSnapshot.js";
@@ -29,6 +30,89 @@ import {
   SNAPSHOT_CACHE_ENTRY_CEILING,
   isSnapshotCacheable,
 } from "./AnalysisSnapshotCache.js";
+
+it("exports independent nested query, workflow and Evidence payloads", () => {
+  const cache = new AnalysisSnapshotCache();
+  const target = ANALYSIS_SNAPSHOT_TARGET;
+  const profile = ANALYSIS_SNAPSHOT_PROFILE;
+  const result = { nested: [{ text: "ret" }], name: "main" };
+  const parameters = { address: "0x1000", document: "fixture" };
+  const workflowProfile = workflowAnalysisProfile(profile);
+  cache.record({
+    target,
+    profile,
+    operation: "procedure_info",
+    parameters,
+    execution: createAnalysisExecution(result, ANALYSIS_SNAPSHOT_PROVIDER, {
+      subject: target,
+      analysisProfile: profile,
+      rawResult: result,
+    }),
+  });
+  cache.recordWorkflow({
+    target,
+    profile,
+    operation: "analyze_function",
+    parameters,
+    execution: {
+      ...createAnalysisExecution(result, REA_WORKFLOW_PROVIDER, {
+        subject: target,
+        rawResult: result,
+      }),
+      analysisProfile: workflowProfile,
+    },
+  });
+  const bundle = createEvidenceBundle([
+    createEvidence(target, ANALYSIS_SNAPSHOT_PROVIDER, {
+      operation: "procedure_info",
+      parameters,
+      result,
+      rawResult: result,
+      analysisProfile: profile,
+    }),
+    createEvidence(target, REA_WORKFLOW_PROVIDER, {
+      operation: "analyze_function",
+      parameters,
+      result,
+      rawResult: result,
+      analysisProfile: workflowProfile,
+    }),
+  ]);
+  const exported = cache.export(target, profile, bundle);
+  if (!exported.ok) throw exported.error;
+  const expected = serializeAnalysisSnapshot(exported.value);
+  const changed = JSON.stringify(exported.value).replaceAll(
+    '"ret"',
+    '"changed"',
+  );
+  // Mutate the returned graph itself, including every duplicated JSON result.
+  for (const payload of [
+    ...exported.value.entries.flatMap(({ execution }) => [
+      execution.result,
+      execution.raw_result,
+    ]),
+    ...(exported.value.workflow_entries ?? []).flatMap(({ execution }) => [
+      execution.result,
+      execution.raw_result,
+    ]),
+    ...exported.value.evidence_bundle.records.flatMap((record) => [
+      record.normalized_result,
+      record.raw_result,
+    ]),
+  ]) {
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      Array.isArray(payload)
+    )
+      throw new Error("Expected nested fixture result");
+    Reflect.set(payload, "nested", [{ text: "changed" }]);
+  }
+  expect(JSON.stringify(exported.value)).toBe(changed);
+  const fresh = cache.export(target, profile, bundle);
+  if (!fresh.ok) throw fresh.error;
+  expect(serializeAnalysisSnapshot(fresh.value)).toBe(expected);
+});
 
 describe("analysis snapshot cache capacity", () => {
   it("shares capacity across query kinds while allowing replacements and fresh partitions", () => {

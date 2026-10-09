@@ -5,7 +5,7 @@
 > — N0zoM1z0
 
 An English static website with explanatory figures, worked guides and DX-Ball, Notion, TH04 and CTF investigations.
-The public files are in `website/public/`. The site uses HTML, CSS and a small
+The public files are in `website/public/`. The site uses HTML, CSS and small
 scripts for copying code, following code comparisons and playing the dinosaur
 speed reconstruction. Python
 packages the downloadable example; there is no frontend bundler or npm dependency.
@@ -26,7 +26,7 @@ Open <http://127.0.0.1:4173/>. Refresh the browser after editing a file.
 
 ## Pages
 
-- `public/index.html`: compact setup, reverse-engineering definition and purpose, manual/agent comparison, dinosaur and Calculator examples, and case-study overviews.
+- `public/index.html`: compact setup, reverse-engineering definition and purpose, manual/agent comparison, dinosaur and Calculator examples, and analysis-guide links.
 - `public/examples/dino-lab/index.html`: adjustable-speed mini-game, recovered rule, original-game check and browser analysis steps.
 - `public/first-investigation/index.html`: a guided Notes export investigation, from setup to a checked CSV prediction.
 - `public/showcase/index.html`: the case-study index.
@@ -100,6 +100,13 @@ and complete private Evidence records are not website assets.
 The homepage starts with a short installation prompt and the ordinary setup
 command, then explains what reverse engineering is and why someone would use
 it. The manual/agent comparison introduces REA’s role before the examples.
+Its opening links directly to Showcases and lets experienced readers skip to
+the analysis guides. Case-study previews live on the Showcases page.
+A right-side table of contents stays visible at widths of 1440px and above.
+On narrower screens it becomes a sticky, native disclosure; selecting a link
+closes the menu and focuses the destination. The homepage script follows
+the reading position and marks the current link. Without JavaScript, the
+menu stays open and its fragment links remain usable.
 The comparison uses the same Calculator question on both sides: three
 selectable manual steps pair original instructions with an analyst illustration
 and thought bubbles; the agent side begins with “One prompt.” and a copyable

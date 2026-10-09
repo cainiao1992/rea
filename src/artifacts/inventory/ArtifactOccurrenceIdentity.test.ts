@@ -6,8 +6,10 @@ import { describe, expect, it } from "vitest";
 
 import { inventoryArtifact } from "./ArtifactInventory.js";
 import { compareArtifacts } from "../../domain/artifactComparison.js";
+import { projectAppleApplication } from "../../domain/apple/appleApplication.js";
 import { createEvidence } from "../../domain/evidence.js";
 import { jsonValueSchema } from "../../domain/jsonValue.js";
+import { thinMach } from "../../domain/binaryTarget.fixture.js";
 import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
 
 const names = ["main.js", "payload.bin", "addon.node"];
@@ -90,6 +92,55 @@ describe("content identity and occurrence facts", () => {
     ).toEqual(["."]);
   });
 
+  it.each([
+    ["a later", ["a.js", "z.txt"]],
+    ["an earlier", ["0.txt", "a.js"]],
+    ["no", ["a.js"]],
+  ] as const)(
+    "keeps the Apple JavaScript component with %s byte-identical text resource",
+    async (_label, resources) => {
+      const directory = await createTestTempDirectory("rea-apple-identity-");
+      const path = join(directory, "fixture.zip");
+      const writer = new ZipWriter(new Uint8ArrayWriter());
+      await writer.add(
+        "Demo.app/Contents/Info.plist",
+        new TextReader(
+          '<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleName</key><string>Demo</string></dict></plist>',
+        ),
+      );
+      for (const name of resources)
+        await writer.add(
+          `Demo.app/Contents/Resources/${name}`,
+          new TextReader('console.log("hello");\n'),
+        );
+      await writeFile(path, await writer.close());
+      const inventory = await inventoryArtifact(path);
+      const projection = projectAppleApplication({
+        inventory_evidence: [
+          createEvidence(
+            { path, sha256: inventory.manifest.root_sha256, format: "zip" },
+            {
+              id: "rea-artifact-graph",
+              name: "artifact inventory",
+              version: "1",
+            },
+            {
+              operation: "inventory_artifact",
+              parameters: {},
+              result: jsonValueSchema.parse(inventory),
+              confidence: "observed",
+              authority: "shipped-artifact",
+            },
+          ),
+        ],
+      });
+      expect(
+        projection.components.javascript.map((component) => component.path),
+      ).toEqual(["Demo.app/Contents/Resources/a.js"]);
+      expect(projection.runtime_families).toEqual(["javascript"]);
+    },
+  );
+
   it("keeps framework and ordinary directory roles separate for identical trees", async () => {
     const root = await createTestTempDirectory("rea-directory-roles-");
     for (const name of ["Widget.framework", "resources"])
@@ -129,4 +180,57 @@ describe("content identity and occurrence facts", () => {
     expect(oldFile?.executable).toBe(false);
     expect(newFile?.executable).toBe(true);
   });
+});
+
+describe("directly selected executable formats", () => {
+  // A 64-bit little-endian arm64 MH_EXECUTE header.
+  const executable = () => {
+    const bytes = thinMach(0xcffaedfe, 0x0100000c);
+    bytes.writeUInt32LE(2, 12);
+    return bytes;
+  };
+
+  it.each([
+    ["755", 0o755],
+    ["644", 0o644],
+  ] as const)(
+    "keeps a Mach-O executable kind separate from mode %s, directly and in a bundle",
+    async (_label, mode) => {
+      const root = await createTestTempDirectory("rea-direct-macho-");
+      const directory = join(root, "Demo.app", "Contents", "MacOS");
+      await mkdir(directory, { recursive: true });
+      const path = join(directory, "demo");
+      await writeFile(path, executable());
+      await chmod(path, mode);
+      const facts = (
+        inventory: Awaited<ReturnType<typeof inventoryArtifact>>,
+        logicalPath: string,
+      ) => {
+        const occurrence = inventory.occurrences.find(
+          (item) => item.logical_path === logicalPath,
+        );
+        const node = inventory.nodes.find(
+          (item) => item.artifact_id === occurrence?.artifact_id,
+        );
+        return {
+          sha256: node?.sha256,
+          artifact_kind: occurrence?.artifact_kind,
+          artifact_format: occurrence?.artifact_format,
+          executable: occurrence?.executable,
+        };
+      };
+      const direct = facts(await inventoryArtifact(path), ".");
+      const embedded = facts(
+        await inventoryArtifact(join(root, "Demo.app")),
+        "Contents/MacOS/demo",
+      );
+      expect(direct).toEqual({
+        sha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+        artifact_kind: "executable",
+        artifact_format: "mach-o",
+        executable: mode === 0o755,
+      });
+      expect(embedded).toEqual(direct);
+    },
+  );
 });

@@ -130,8 +130,9 @@ teaching material; the demo is not recovered original application source.
 The claim is a static APK investigation and a checked reconstruction of its
 default code calculation. It covers neither Android UI execution nor APK
 signature verification, split APK handling, native libraries or vault storage.
-The shell walkthrough was executed on Linux. The PowerShell recipe uses the
-same CLI/environment inputs but was not executed on a Windows host.
+The Android provider requires a Linux or macOS host and a full JDK 17 or later,
+including `jdk.compiler`. The shell walkthrough was executed on Linux with
+JDK 21.
 
 Raw REA results, provider scratch paths, Java harness classes and the downloaded
 binaries remain outside the public website. The public page uses generic filenames

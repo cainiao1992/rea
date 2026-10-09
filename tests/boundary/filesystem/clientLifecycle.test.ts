@@ -1418,6 +1418,53 @@ describe("client configuration filesystem removal", () => {
     );
     expect(await readFile(config, "utf8")).toBe("not-json");
   });
+
+  it("stops before any removal when one client configuration is malformed", async () => {
+    const home = await createTestTempDirectory("rea-uninstall-stop-");
+    roots.push(home);
+    const codex = join(home, ".codex/config.toml");
+    const cursor = join(home, ".cursor/mcp.json");
+    const managed = [
+      join(home, ".agents/skills/reverse-engineer-anything/marker.txt"),
+      join(home, ".rea/cache/marker.txt"),
+      join(home, ".rea/state/marker.txt"),
+    ];
+    const cursorConfig = JSON.stringify({
+      mcpServers: {
+        rea: { command: "npx", args: ["-y", "rea-agents@6.1.0", "mcp"] },
+        other: { command: "echo", args: ["hello"] },
+      },
+    });
+    for (const path of [codex, cursor, ...managed])
+      await mkdir(dirname(path), { recursive: true });
+    await writeFile(codex, "[mcp_servers.rea]\ncommand = [broken\n");
+    await writeFile(cursor, cursorConfig);
+    for (const path of managed) await writeFile(path, "marker");
+
+    const stopped = await runUninstall(true, systemUninstallHost(home));
+
+    expect(stopped.status).toBe("failed");
+    expect(stopped.items.map(({ name, status }) => [name, status])).toEqual([
+      ["codex", "failed"],
+      ["uninstall", "skipped"],
+      ["analysis_engine", "retained"],
+    ]);
+    expect(await readFile(codex, "utf8")).toBe(
+      "[mcp_servers.rea]\ncommand = [broken\n",
+    );
+    expect(await readFile(cursor, "utf8")).toBe(cursorConfig);
+    for (const path of managed)
+      expect(await readFile(path, "utf8")).toBe("marker");
+
+    await writeFile(codex, "");
+    const repaired = await runUninstall(true, systemUninstallHost(home));
+    expect(repaired.status).toBe("complete");
+    expect(JSON.parse(await readFile(cursor, "utf8"))).toEqual({
+      mcpServers: { other: { command: "echo", args: ["hello"] } },
+    });
+    for (const path of managed)
+      await expect(readFile(path, "utf8")).rejects.toThrow();
+  });
 });
 
 describe("client configuration filesystem failure reporting", () => {

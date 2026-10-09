@@ -573,8 +573,10 @@ rea uninstall --purge-data
 
 Uninstall preserves Hopper, Node.js, Evidence files, captures, unrelated skills
 and other MCP servers. Purging removes only REA's cache and state under
-`~/.rea`; malformed client configuration or purge-path symlinks stop the
-operation. See the [CLI guide](cli.md#output-and-exit-status) for exit statuses.
+`~/.rea`. A client configuration that is malformed, unreadable, or at an unsafe
+path stops the operation before anything is removed; a purge path that is a
+symbolic link is retained and reported rather than followed. See the
+[CLI guide](cli.md#output-and-exit-status) for exit statuses.
 
 ## MCP Registry
 

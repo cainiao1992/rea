@@ -136,8 +136,8 @@ try {
     );
     assert.notEqual(response.isError, true, JSON.stringify(response));
     const structured = response.structuredContent;
-    assert.ok(structured !== undefined && structured.evidence !== undefined);
-    const evidence = parseEvidence(structured.evidence);
+    assert.ok(structured !== undefined);
+    const evidence = parseEvidence(structured);
     assert.deepEqual(
       evidence.normalized_result,
       cliResults.get(task.name).normalized_result,
@@ -156,7 +156,7 @@ try {
       cliResults.get(task.name).limitations,
     );
     assert.equal(evidence.confidence, cliResults.get(task.name).confidence);
-    assert.deepEqual(structured.result, evidence.normalized_result);
+    assert.deepEqual(structured.normalized_result, evidence.normalized_result);
     console.log(`PASS MCP/CLI parity ${task.name}`);
   }
 } catch (cause) {

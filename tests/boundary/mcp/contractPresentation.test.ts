@@ -44,7 +44,7 @@ it("preserves advertised schemas and handler meaning when presentation order cha
     if (name === "reconcile_javascript_runtime") {
       expect(response.isError).not.toBe(true);
       expect(response.structuredContent).toMatchObject({
-        evidence: { operation: name },
+        operation: name,
       });
     } else {
       expect(response.isError, name).toBe(true);

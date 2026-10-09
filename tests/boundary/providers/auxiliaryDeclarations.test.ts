@@ -7,7 +7,7 @@ import { parseBinaryTarget } from "../../../src/application/BinaryTargetResolver
 it("keeps declaration discovery and client creation lazy and independently owned", async () => {
   const target = await parseBinaryTarget(process.execPath);
   if (!target.ok) throw target.error;
-  for (const declaration of auxiliaryAnalysisProviderDeclarations()) {
+  for (const declaration of auxiliaryAnalysisProviderDeclarations({})) {
     let loads = 0;
     const provider = new LazyAnalysisProvider({
       ...declaration,

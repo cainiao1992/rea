@@ -224,7 +224,7 @@ export async function verifyAndroidFailureRecovery({
       );
       assert.notEqual(control.isError, true, JSON.stringify(control));
       assert.equal(
-        control.structuredContent.result.package_name,
+        control.structuredContent.normalized_result.package_name,
         fixture.package,
       );
       console.log("PASS MCP valid package after selector failures");

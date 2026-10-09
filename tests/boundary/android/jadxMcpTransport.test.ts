@@ -125,3 +125,37 @@ it("accepts a complete JSON-RPC frame at the 8 MiB boundary", async () => {
   expect(received).toEqual([maxFrameResponse]);
   await transport.close();
 });
+
+it("retries an incomplete owned stop while joining concurrent close callers", async () => {
+  const process = new FixtureProcess();
+  let cleanupFails = true;
+  const transport = new JadxMcpTransport(
+    { command: "fixture", arguments: [] },
+    async ({ runId }) => ({
+      process,
+      ownership: {
+        runId,
+        leaderPid: process.pid,
+        processGroupId: process.pid,
+        expectedParentPid: process.pid,
+      },
+      cleanup: async () => {
+        if (cleanupFails)
+          return {
+            cleaned: false,
+            reason: "ownership verification unavailable",
+          };
+        process.emit("exit", 0, null);
+        process.emit("close", 0, null);
+        return { cleaned: true, signaled: false };
+      },
+    }),
+  );
+  await transport.start();
+  const firstClose = transport.close();
+  expect(transport.close()).toBe(firstClose);
+  await expect(firstClose).rejects.toMatchObject({ cleanupIncomplete: true });
+  cleanupFails = false;
+  await transport.close();
+  await transport.close();
+});

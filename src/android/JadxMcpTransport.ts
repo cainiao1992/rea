@@ -100,7 +100,10 @@ export class JadxMcpTransport implements Transport {
 
   /** Verifies owned process exit before declaring the transport closed. */
   close(): Promise<void> {
-    this.#closePromise ??= this.#stop();
+    this.#closePromise ??= this.#stop().catch((cause: unknown) => {
+      this.#closePromise = undefined;
+      throw cause;
+    });
     return this.#closePromise;
   }
 

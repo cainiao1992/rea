@@ -102,10 +102,20 @@ const collectWebPreferences = (
 } => {
   const preferences: ElectronWebPreference[] = [];
   let unknown = 0;
-  let preload: ElectronBrowserWindowPreload = {
-    preload_path: null,
-    preload_resolution_context: null,
-  };
+  const effectivePreload = objectProperty(object, "preload");
+  const preloadPath =
+    effectivePreload.status === "explicit"
+      ? staticPath(effectivePreload.property.value)
+      : undefined;
+  const preload: ElectronBrowserWindowPreload =
+    effectivePreload.status === "explicit" && preloadPath !== undefined
+      ? {
+          preload_path: preloadPath,
+          preload_resolution_context: staticPathResolutionContext(
+            effectivePreload.property.value,
+          ),
+        }
+      : { preload_path: null, preload_resolution_context: null };
   for (const property of object.properties) {
     if (t.isSpreadElement(property)) {
       unknown += 1;
@@ -133,11 +143,6 @@ const collectWebPreferences = (
       continue;
     }
     const path = name === "preload" ? staticPath(property.value) : undefined;
-    if (path !== undefined)
-      preload = {
-        preload_path: path,
-        preload_resolution_context: staticPathResolutionContext(property.value),
-      };
     const value: ElectronStaticValue =
       path === undefined
         ? electronStaticValue(source, property.value)

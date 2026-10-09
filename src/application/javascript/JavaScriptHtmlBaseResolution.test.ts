@@ -109,3 +109,67 @@ describe("HTML base href path syntax", () => {
     });
   });
 });
+describe("HTML reference URL text", () => {
+  const urlPath = (declared: string, base: string) =>
+    decodeURIComponent(
+      new URL(declared.trim(), new URL(base.trim(), documentUrl)).pathname,
+    ).replace(/^\/+/, "");
+  it.each([
+    ["%61pp.js", "/assets/", "assets/app.js"],
+    [" app.js ", "/assets/", "assets/app.js"],
+    ["\napp.js\t", "/assets/", "assets/app.js"],
+    ["a\npp.js", "/assets/", "assets/app.js"],
+    ["app.js", "%61/", "renderer/a/app.js"],
+    ["app.js", " /%61ssets/ ", "assets/app.js"],
+    ["/%61ssets/app.js", "", "assets/app.js"],
+  ])(
+    "resolves %j against base %j like the URL parser",
+    (declared, base, expected) => {
+      if (base !== "") expect(urlPath(declared, base)).toBe(expected);
+      expect(resolve(declared, base)).toMatchObject({
+        declared_path: declared,
+        resolution_status: "resolved",
+        resolved_path: expected,
+      });
+    },
+  );
+  it("keeps a literal percent sign that starts no escape", () => {
+    expect(resolve("100%.js", "")).toMatchObject({
+      resolution_status: "not-found",
+      limitations: [
+        "The exact HTML resource renderer/100%.js was not found among the selected application files.",
+      ],
+    });
+  });
+  it.each(["%00app.js", "%ff.js"])(
+    "rejects %j, which decodes to no canonical artifact path",
+    (declared) => {
+      expect(resolve(declared, "")).toMatchObject({
+        resolution_status: "rejected",
+        resolved_path: null,
+      });
+    },
+  );
+  it("rejects a base href that decodes to NUL", () => {
+    expect(resolve("app.js", "/a%00/")).toMatchObject({
+      resolution_status: "rejected",
+      resolved_path: null,
+    });
+  });
+  it.each([" https://external.test/app.js", "\t//external.test/app.js"])(
+    "reports %j as external after removing URL whitespace",
+    (declared) => {
+      expect(resolve(declared, "")).toMatchObject({
+        resolution_status: "external",
+      });
+    },
+  );
+  it.each(["%2e%2e/app.js", "a%2fapp.js"])(
+    "still rejects encoded dot and separator bytes in %j",
+    (declared) => {
+      expect(resolve(declared, "")).toMatchObject({
+        resolution_status: "rejected",
+      });
+    },
+  );
+});

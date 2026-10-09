@@ -39,7 +39,6 @@ import {
 } from "./ArtifactProviderMetadata.js";
 import { createEvidence } from "../domain/evidence.js";
 import { createArtifactInspection } from "../domain/artifactInspection.js";
-import { resolveArtifactIntegrityPolicy } from "./inventory/policy.js";
 
 /** Read-only inventory and exclusively owned extraction provider. */
 export class ArtifactProvider implements AnalysisProvider {
@@ -364,9 +363,7 @@ class ArtifactClient implements AnalysisClient {
     return inventoryArtifact(this.target.sourcePath ?? this.target.path, {
       environment: this.environment,
       ...(options?.signal === undefined ? {} : { signal: options.signal }),
-      integrity: resolveArtifactIntegrityPolicy({
-        mode: parsed.integrity_policy,
-      }),
+      integrity: { mode: parsed.integrity_policy },
     });
   }
 }

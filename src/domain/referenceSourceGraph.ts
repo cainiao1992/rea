@@ -133,8 +133,6 @@ const exclusionSchema = z.strictObject({
   reason: z.enum([
     "configured-secret",
     "symlink-escape",
-    "size-limit",
-    "inventory-limit",
     "unreadable",
     "caller-excluded",
   ]),

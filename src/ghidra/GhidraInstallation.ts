@@ -292,10 +292,15 @@ const installationCoordinates = (
         ? undefined
         : ghidraApplicationProperties(properties),
     javaCommand,
-    java: host.probeJava(
-      javaCommand,
-      ghidraJavaEnvironment(options.javaHome, process.env, platform),
-    ),
+    // The configuration check rejects a relative JAVA_HOME. Probing it would
+    // run whatever `bin/java` the current directory holds.
+    java:
+      options.javaHome === undefined || path.isAbsolute(options.javaHome)
+        ? host.probeJava(
+            javaCommand,
+            ghidraJavaEnvironment(options.javaHome, process.env, platform),
+          )
+        : undefined,
   };
 };
 

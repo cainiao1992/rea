@@ -245,6 +245,23 @@ const callPathTraceOutput = resultOf(
   }),
 );
 
+/** Identity facts attached to one requested batch selector. */
+const batchProcedureIdentity = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("resolved"),
+    address: z.string().min(1).describe("Observed canonical procedure entry."),
+    name: z
+      .string()
+      .nullable()
+      .describe("Provider's entry label, or null when unavailable."),
+    name_error: analysisErrorProjectionSchema.optional(),
+  }),
+  z.object({
+    status: z.literal("unknown"),
+    error: analysisErrorProjectionSchema,
+  }),
+]);
+
 /** Exact structured-content schemas for composed analysis workflows. */
 export const enhancedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   inspect_native_dispatch_metadata: resultOf(
@@ -259,12 +276,18 @@ export const enhancedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
       items: z.array(
         z.discriminatedUnion("status", [
           z.object({
-            address: z.string(),
+            address: z
+              .string()
+              .describe("Original caller-selected symbol or address."),
+            procedure: batchProcedureIdentity,
             status: z.literal("ok"),
             pseudocode: z.string().min(1),
           }),
           z.object({
-            address: z.string(),
+            address: z
+              .string()
+              .describe("Original caller-selected symbol or address."),
+            procedure: batchProcedureIdentity,
             status: z.literal("error"),
             error: analysisErrorProjectionSchema,
           }),

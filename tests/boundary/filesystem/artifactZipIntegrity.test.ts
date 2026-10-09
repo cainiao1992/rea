@@ -89,6 +89,22 @@ it("preserves encrypted-member and corrupt-CRC observations", async () => {
       hash_status: "unavailable",
     }),
   );
+  // REA does not decrypt entries, so complete extraction is unsupported.
+  const extractionRoot = join(root, "encrypted-output");
+  expect(
+    await new ArtifactProvider()
+      .createClient(encryptedTarget.value)
+      .execute("extract_artifact", { output_root: extractionRoot }),
+  ).toMatchObject({
+    ok: false,
+    error: {
+      _tag: "AnalysisUnsupportedTargetError",
+      reason: expect.stringContaining("Archive entry secret.txt is encrypted"),
+    },
+  });
+  await expect(readFile(extractionRoot)).rejects.toMatchObject({
+    code: "ENOENT",
+  });
 
   const corruptPath = join(root, "corrupt-crc.zip");
   const corruptWriter = new ZipWriter(new Uint8ArrayWriter());

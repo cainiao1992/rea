@@ -133,6 +133,27 @@ describe("artifact extraction", () => {
       "source",
     ]);
   });
+  it("refuses a format without an extraction reader before inventory or output", async () => {
+    const root = await createTestTempDirectory("rea-extract-dmg-");
+    const image = join(root, "Image.dmg");
+    await writeFile(image, "not mounted");
+    const output = join(root, "output");
+    const result = await new ArtifactProvider()
+      .createClient(target(image, "dmg"))
+      .execute(
+        "extract_artifact",
+        artifactExtractionExecutionSchema.parse({ output_root: output }),
+      );
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        _tag: "AnalysisUnsupportedTargetError",
+        operation: "extract_artifact",
+        reason: "Artifact format has no extraction reader: dmg",
+      },
+    });
+    await expect(access(output)).rejects.toThrow();
+  });
 });
 const inventory = async (targetValue: BinaryTarget) => {
   const result = await new ArtifactProvider()

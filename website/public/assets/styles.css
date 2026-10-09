@@ -1244,6 +1244,57 @@ pre code {
   color: var(--ink);
   font-weight: 500;
 }
+.home-purpose {
+  max-width: 850px;
+  margin-bottom: 2rem;
+  color: var(--muted);
+}
+.prose-highlight {
+  padding: 0.04em 0.16em;
+  border-radius: 2px;
+  background: #e4ecf5;
+  color: var(--accent);
+  font-weight: 600;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.case-brief {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 2.5rem;
+  margin: 0 0 2rem;
+  padding-block: 1.2rem;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.case-brief dt,
+.finding-label {
+  margin-bottom: 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+.case-brief dd {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+.case-brief dd strong {
+  color: var(--ink);
+}
+.rea-finding {
+  margin-bottom: 1.4rem;
+  padding-left: 1rem;
+  border-left: 2px solid var(--accent);
+}
+.rea-finding > :last-child {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+.rea-finding strong {
+  color: var(--ink);
+}
 .home-role-comparison {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -1416,6 +1467,14 @@ pre code {
   margin: 0;
   font-size: 0.9rem;
 }
+.percent-rules dd strong,
+.percent-rules dd code {
+  display: block;
+}
+.percent-rules dd strong {
+  margin-bottom: 0.25rem;
+  font-weight: 500;
+}
 .home-evidence-details {
   margin-top: 2rem;
   padding-block: 1rem;
@@ -1541,6 +1600,10 @@ pre code {
   }
 }
 @media (max-width: 640px) {
+  .case-brief {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.2rem;
+  }
   .home-hero {
     padding-block: 2.8rem;
   }

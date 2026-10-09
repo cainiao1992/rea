@@ -49,6 +49,12 @@ HTML. Calculator’s assembly comes from a real installed model DLL; the named
 calculation is a readable summary crosschecked against Microsoft’s public source. See
 [evidence/calculator-and-dino.md](evidence/calculator-and-dino.md).
 
+The homepage explains reverse engineering before the worked examples. Each
+example opens with its goal and reason for inspecting the program. A selected
+highlight marks the intended result; the “REA returned” block identifies the
+evidence. The flows label REA’s inspection and the agent’s interpretation or
+reconstruction explicitly. Preserve this context when moving a demo.
+
 The dinosaur sequence uses an HTML flow: inspect the loaded script, rebuild the
 speed rule, then change and play. Its canvas mini-game and static SVG fallback
 are authored code, without generated images or copied game sprites. The game

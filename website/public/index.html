@@ -62,7 +62,7 @@
               what it does.
             </p>
             <div class="actions">
-              <a class="button" href="#dinosaur">Play the dinosaur ↓</a>
+              <a class="button" href="#what-is-re">See how REA works ↓</a>
               <a class="text-link" href="get-started/">Setup guide</a>
             </div>
           </div>
@@ -113,16 +113,125 @@
         </div>
       </section>
 
+      <section class="section" id="what-is-re">
+        <div class="container">
+          <div class="home-definition">
+            <h2>What is reverse engineering?</h2>
+            <p class="lede">
+              Finding out how software works by
+              <strong>examining the program itself.</strong>
+            </p>
+          </div>
+          <p class="home-purpose">
+            The goal: understand a feature well enough to
+            <mark class="prose-highlight">explain it</mark>,
+            <mark class="prose-highlight">change it</mark> or
+            <mark class="prose-highlight">rebuild it.</mark>
+          </p>
+          <figure class="home-role-comparison">
+            <div class="manual-investigation">
+              <p class="comparison-label">Before REA · You investigate</p>
+              <ol class="manual-steps">
+                <li>
+                  <span>01</span>
+                  <div>
+                    <strong>Find the relevant code.</strong
+                    ><small
+                      >Locate the loaded script or the binary function.</small
+                    >
+                  </div>
+                </li>
+                <li>
+                  <span>02</span>
+                  <div>
+                    <strong>Work out its rules.</strong
+                    ><small>Follow the inputs, calls and settings.</small>
+                  </div>
+                </li>
+                <li>
+                  <span>03</span>
+                  <div>
+                    <strong>Use and check the result.</strong
+                    ><small
+                      >Explain the behavior, rebuild it or make a change.</small
+                    >
+                  </div>
+                </li>
+              </ol>
+            </div>
+            <div class="agent-investigation" id="ask-your-agent">
+              <p class="comparison-label">With REA · You ask your agent</p>
+              <div class="agent-terminal home-analysis-terminal">
+                <div class="terminal-header">
+                  <span class="terminal-title"
+                    ><span class="terminal-dots" aria-hidden="true"
+                      ><i></i><i></i><i></i></span
+                    >Example question · Dinosaur game</span
+                  >
+                  <button
+                    class="copy-button"
+                    type="button"
+                    data-copy="home-analysis-prompt"
+                    aria-label="Copy dinosaur speed question"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p class="terminal-prompt">
+                  <span class="prompt-symbol" aria-hidden="true">›</span
+                  ><span id="home-analysis-prompt"
+                    >Use REA to inspect this dinosaur game. Why does it get
+                    faster? Show the speed rule.</span
+                  ><span class="terminal-cursor" aria-hidden="true"></span>
+                </p>
+                <div class="agent-reply">
+                  <p class="reply-label">
+                    Example explanation from the findings
+                  </p>
+                  <p>
+                    The game adds a little speed on each update. Its script sets
+                    <strong
+                      >the starting speed, the increment and the stopping
+                      point.</strong
+                    >
+                  </p>
+                </div>
+              </div>
+            </div>
+            <figcaption>
+              <strong
+                >REA supplies code and observations from the program.</strong
+              >
+              Your agent uses that evidence to explain, rebuild or test a
+              feature.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
       <section class="section" id="dinosaur">
         <div class="container">
           <div class="section-heading">
             <p class="eyebrow">Example 01 · Chrome’s dinosaur game</p>
-            <h2>Change the dinosaur’s speed.</h2>
-            <p>
-              Inspect the speed rule with REA, rebuild a small version, then
-              change the speed and play.
-            </p>
+            <h2>Why does the dinosaur get faster?</h2>
           </div>
+          <dl class="case-brief">
+            <div>
+              <dt>Goal</dt>
+              <dd>
+                Rebuild the game with
+                <mark class="prose-highlight">adjustable speed.</mark>
+              </dd>
+            </div>
+            <div>
+              <dt>Why reverse engineer it?</dt>
+              <dd>
+                To reproduce its acceleration, we need
+                <strong>the rule in the running game</strong>: how fast it
+                starts, how much it increases and when it stops.
+              </dd>
+            </div>
+          </dl>
           <div class="home-example-grid dino-example-grid">
             <figure class="dino-demo" data-dino-demo>
               <p class="figure-title">Play the reconstruction</p>
@@ -193,6 +302,14 @@
               >
             </figure>
             <div>
+              <div class="rea-finding">
+                <p class="finding-label">REA returned</p>
+                <p>
+                  <strong>The script actually running in the page.</strong> The
+                  agent reads its update function and speed settings, then uses
+                  that rule in a new game.
+                </p>
+              </div>
               <div class="agent-terminal home-analysis-terminal">
                 <div class="terminal-header">
                   <span class="terminal-title"
@@ -243,28 +360,28 @@
             </div>
           </div>
           <figure class="workflow-figure dino-loop">
-            <p class="figure-title">From the running game to a new version</p>
+            <p class="figure-title">What each part does</p>
             <ol class="flow-steps">
               <li>
-                <span class="flow-label">01 · Inspect</span
-                ><span class="flow-node">REA returns the loaded script</span
+                <span class="flow-label">01 · REA</span
+                ><span class="flow-node">Read the running game’s script</span
                 ><span class="flow-note"
-                  >The agent reads the update function and its speed
-                  settings.</span
+                  >Return its actual code and settings to the agent.</span
                 >
               </li>
               <li>
-                <span class="flow-label">02 · Rebuild</span
-                ><span class="flow-node">Use the recovered rule</span
+                <span class="flow-label">02 · Your agent</span
+                ><span class="flow-node">Rebuild the rule, add a control</span
                 ><span class="flow-note"
-                  >Start at 6 and add 0.001 while speed is below 13.</span
+                  >Use the recovered acceleration in a small game with a speed
+                  slider.</span
                 >
               </li>
               <li>
-                <span class="flow-label">03 · Change and play</span
-                ><span class="flow-node">Make speed adjustable</span
+                <span class="flow-label">03 · You</span
+                ><span class="flow-node">Change the speed and play</span
                 ><span class="flow-note"
-                  >Keep the original acceleration, or choose your own
+                  >Try the original acceleration, then choose your own
                   pace.</span
                 >
               </li>
@@ -322,129 +439,31 @@ SPEED: 6</code></pre>
         </div>
       </section>
 
-      <section class="section" id="what-is-re">
-        <div class="container">
-          <div class="home-definition">
-            <h2>What is reverse engineering?</h2>
-            <p class="lede">
-              Finding out how software works by examining the program.
-            </p>
-          </div>
-          <p class="home-question">
-            In the dinosaur example:
-            <strong>which code makes the game get faster?</strong>
-          </p>
-          <figure class="home-role-comparison">
-            <div class="manual-investigation">
-              <p class="comparison-label">Before REA · You investigate</p>
-              <ol class="manual-steps">
-                <li>
-                  <span>01</span>
-                  <div>
-                    <strong>Find the script behind the game.</strong
-                    ><small>Which loaded file controls the dinosaur?</small>
-                  </div>
-                </li>
-                <li>
-                  <span>02</span>
-                  <div>
-                    <strong>Find the update function.</strong
-                    ><small>Where does the game change its speed?</small>
-                  </div>
-                </li>
-                <li>
-                  <span>03</span>
-                  <div>
-                    <strong>Recover the speed rule.</strong
-                    ><small
-                      >Follow the starting speed, increment and
-                      threshold.</small
-                    >
-                  </div>
-                </li>
-                <li>
-                  <span>04</span>
-                  <div>
-                    <strong>Check the result.</strong
-                    ><small
-                      >Replay the rule and compare it with the game.</small
-                    >
-                  </div>
-                </li>
-              </ol>
-              <div class="manual-code">
-                <p class="caption">Find this branch inside a 90 KB script:</p>
-                <code
-                  >if (this.currentSpeed &lt; this.config.MAX_SPEED) {<br />
-                  &nbsp; this.currentSpeed += this.config.ACCELERATION;<br />
-                  }</code
-                >
-              </div>
-            </div>
-            <div class="agent-investigation" id="ask-your-agent">
-              <p class="comparison-label">With REA · You ask your agent</p>
-              <div class="agent-terminal home-analysis-terminal">
-                <div class="terminal-header">
-                  <span class="terminal-title"
-                    ><span class="terminal-dots" aria-hidden="true"
-                      ><i></i><i></i><i></i></span
-                    >Example prompt · Dinosaur game</span
-                  >
-                  <button
-                    class="copy-button"
-                    type="button"
-                    data-copy="home-analysis-prompt"
-                    aria-label="Copy dinosaur speed question"
-                  >
-                    Copy
-                  </button>
-                </div>
-                <p class="terminal-prompt">
-                  <span class="prompt-symbol" aria-hidden="true">›</span
-                  ><span id="home-analysis-prompt"
-                    >Use REA to inspect this dinosaur game. Why does it get
-                    faster? Show the speed rule.</span
-                  ><span class="terminal-cursor" aria-hidden="true"></span>
-                </p>
-                <div class="agent-reply">
-                  <p class="reply-label">
-                    Example explanation from the findings
-                  </p>
-                  <p>
-                    It starts at 6. Each update without a collision adds 0.001
-                    while speed is below 13.
-                  </p>
-                  <p>
-                    <strong
-                      >After 4,000 updates, speed is 10.<br />
-                      You can replay the rule to check it.</strong
-                    >
-                  </p>
-                </div>
-              </div>
-              <p class="agent-investigation-note">
-                Your agent uses REA to locate and read the code, then connects
-                the findings to your question.
-              </p>
-            </div>
-            <figcaption>
-              You describe the behavior. The agent carries out the investigation
-              with REA.
-            </figcaption>
-          </figure>
-        </div>
-      </section>
-
       <section class="section" id="calculator">
         <div class="container">
           <div class="section-heading">
             <p class="eyebrow">Example 02 · Windows Calculator</p>
-            <h2>What does the % button actually do?</h2>
-            <p>
-              The answer depends on the operator. Compare addition and
-              multiplication.
-            </p>
+            <h2>Why does 200 + 10% give 220?</h2>
           </div>
+          <dl class="case-brief">
+            <div>
+              <dt>Goal</dt>
+              <dd>
+                Explain the result and
+                <mark class="prose-highlight"
+                  >recreate Calculator’s % rule.</mark
+                >
+              </dd>
+            </div>
+            <div>
+              <dt>Why reverse engineer it?</dt>
+              <dd>
+                The same button uses
+                <strong>different rules after + and ×.</strong> We inspect the
+                installed app to find which number the percentage is applied to.
+              </dd>
+            </div>
+          </dl>
           <div class="home-example-grid">
             <figure class="percent-figure" data-percent-demo>
               <p class="figure-title">Try the calculation</p>
@@ -507,11 +526,45 @@ SPEED: 6</code></pre>
               </figcaption>
             </figure>
             <div class="percent-explanation">
-              <h3>REA finds the branch. The agent explains it.</h3>
+              <div class="rea-finding">
+                <p class="finding-label">REA returned</p>
+                <p>
+                  <strong
+                    >The % handler’s original instructions and decompiled
+                    code.</strong
+                  >
+                  The agent reads the two branches and explains which rule each
+                  operator uses.
+                </p>
+              </div>
               <p>
-                The installed app’s calculation code checks for multiplication
-                or division before computing the percentage.
+                For this example, <code>previous = 200</code> and
+                <code>current = 10</code>.
               </p>
+              <div class="agent-terminal">
+                <div class="terminal-header">
+                  <span class="terminal-title"
+                    ><span class="terminal-dots" aria-hidden="true"
+                      ><i></i><i></i><i></i></span
+                    >Example prompt · Calculator</span
+                  >
+                  <button
+                    class="copy-button"
+                    type="button"
+                    data-copy="calculator-analysis-prompt"
+                    aria-label="Copy Calculator analysis prompt"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p class="terminal-prompt">
+                  <span class="prompt-symbol" aria-hidden="true">›</span
+                  ><span id="calculator-analysis-prompt"
+                    >Use REA to inspect Windows Calculator. Why does 200 + 10%
+                    give 220? Show the code behind the % button.</span
+                  ><span class="terminal-cursor" aria-hidden="true"></span>
+                </p>
+              </div>
               <div class="code-block">
                 <div class="code-header">
                   <span>Readable summary of the % handler</span>
@@ -524,44 +577,54 @@ SPEED: 6</code></pre>
               </div>
               <dl class="percent-rules">
                 <div>
-                  <dt>Addition</dt>
-                  <dd><code>200 + 10% → 200 + 20 → 220</code></dd>
+                  <dt>With +</dt>
+                  <dd>
+                    <strong>Take 10% of the first number.</strong
+                    ><code>10% of 200 = 20 → 200 + 20 = 220</code>
+                  </dd>
                 </div>
                 <div>
-                  <dt>Multiplication</dt>
-                  <dd><code>200 × 10% → 200 × 0.1 → 20</code></dd>
+                  <dt>With ×</dt>
+                  <dd>
+                    <strong>Turn 10% into 0.1.</strong
+                    ><code>200 × 0.1 = 20</code>
+                  </dd>
                 </div>
               </dl>
             </div>
           </div>
-          <details class="home-evidence-details">
-            <summary>See the real code and how the answer was checked</summary>
-            <ol class="flow-steps calculator-trace">
+          <figure class="workflow-figure calculator-trace">
+            <p class="figure-title">From the installed app to an explanation</p>
+            <ol class="flow-steps">
               <li>
-                <span class="flow-label">01 · Inspect calc.exe</span
-                ><span class="flow-node">A launcher</span
+                <span class="flow-label">01 · REA reads calc.exe</span
+                ><span class="flow-node">It launches the Calculator app</span
                 ><span class="flow-note"
-                  >REA finds <code>ShellExecuteW</code> opening
-                  <code>ms-calculator:</code>.</span
+                  >The code opens <code>ms-calculator:</code>. The agent then
+                  selects the installed app’s library.</span
                 >
               </li>
               <li>
-                <span class="flow-label">02 · Inspect the app</span
-                ><span class="flow-node">CalcViewModel.dll</span
+                <span class="flow-label">02 · REA reads the library</span
+                ><span class="flow-node">Return the % handler’s code</span
                 ><span class="flow-note"
-                  >Its % handler checks two operator IDs and uses the constant
+                  >The function checks the operator and uses the constant
                   <code>100</code>.</span
                 >
               </li>
               <li>
-                <span class="flow-label">03 · Interpret and check</span
-                ><span class="flow-node">Two percentage rules</span
+                <span class="flow-label">03 · Your agent interprets it</span
+                ><span class="flow-node">Explain and reproduce the rules</span
                 ><span class="flow-note"
-                  >Microsoft’s public implementation and unit tests explain the
-                  same distinction.</span
+                  >Crosscheck the branch with Microsoft’s source, then try + and
+                  × above.</span
                 >
               </li>
             </ol>
+          </figure>
+          <details class="home-evidence-details">
+            <summary>See the real code and how the answer was checked</summary>
+
             <div class="code-comparison">
               <div class="code-block">
                 <div class="code-header">
@@ -585,30 +648,7 @@ SPEED: 6</code></pre>
 0x64 = 100</code></pre>
               </div>
             </div>
-            <div class="agent-terminal">
-              <div class="terminal-header">
-                <span class="terminal-title"
-                  ><span class="terminal-dots" aria-hidden="true"
-                    ><i></i><i></i><i></i></span
-                  >Example prompt · Calculator</span
-                >
-                <button
-                  class="copy-button"
-                  type="button"
-                  data-copy="calculator-analysis-prompt"
-                  aria-label="Copy Calculator analysis prompt"
-                >
-                  Copy
-                </button>
-              </div>
-              <p class="terminal-prompt">
-                <span class="prompt-symbol" aria-hidden="true">›</span
-                ><span id="calculator-analysis-prompt"
-                  >Use REA to inspect Windows Calculator. Why does 200 + 10%
-                  give 220? Show the code behind the % button.</span
-                ><span class="terminal-cursor" aria-hidden="true"></span>
-              </p>
-            </div>
+
             <p class="caption">
               Inspected with REA 4.1.0: Windows Calculator 11.2508.4.0, x64. The
               readable summary uses names from Microsoft’s public source to

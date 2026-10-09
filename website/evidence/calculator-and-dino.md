@@ -1,8 +1,10 @@
 # Calculator and dinosaur beginner examples
 
 Evidence collected on 9 October 2026 with the published REA 4.1.0 package.
-The homepage offers compact setup first, then a playable dinosaur reconstruction,
-a manual/agent comparison of that investigation, and the Calculator example.
+The homepage offers compact setup first, then a reverse-engineering definition,
+purpose and manual/agent comparison. Dinosaur is the first worked example;
+Calculator is the second. Each states its goal, why the program is inspected,
+what REA returned and how the agent uses it.
 Prompts and replies are examples based on the
 findings below. Selected code and generic inputs are public; raw captures stay
 outside the website.
@@ -54,7 +56,8 @@ in the installed DLL. The public source commit is a crosscheck; it is not an
 identified build commit for that installed package. No PDB symbols were loaded.
 
 The homepage's named C-like rule is an explanatory summary. Its `200 + 10%`
-and `200 × 10%` displays are derived from that rule. Browser checks exercise
+and `200 × 10%` controls compute those cases from that rule using the fixed
+inputs 200 and 10. Browser checks exercise
 both percentage illustrations, their results, operator selection and reset.
 The Microsoft tests were inspected, not executed. A probe-owned Calculator
 window could be inspected, but it was no longer present at the input-check

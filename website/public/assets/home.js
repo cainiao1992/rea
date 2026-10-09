@@ -11,13 +11,15 @@ function initializePercentDemo() {
 
   const render = () => {
     const adding = operation === "add";
-    const percent = adding ? 20 : 0.1;
-    const result = adding ? 220 : 20;
+    const previous = 200;
+    const current = 10;
+    const percent = adding ? (current * previous) / 100 : current / 100;
+    const result = adding ? previous + percent : previous * percent;
     const operator = adding ? "+" : "×";
     expression.textContent =
       stage === "result" ? `200 ${operator} ${percent} =` : `200 ${operator}`;
     display.textContent = String(
-      stage === "input" ? 10 : stage === "percent" ? percent : result,
+      stage === "input" ? current : stage === "percent" ? percent : result,
     );
     equals.disabled = stage !== "percent";
     status.textContent =

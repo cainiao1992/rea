@@ -65,9 +65,14 @@ requiring the reader to understand either language. Show a simple agent prompt
 and the specific facts REA supplies to answer it.
 
 Put compact setup at the beginning of the homepage: a copyable installation
-prompt and the ordinary setup command. Follow it with the beginner examples.
-Put the most immediate result first. An interactive example can precede the
-process explanation; on mobile, show the demo before its supporting code.
+prompt and the ordinary setup command. Then explain what reverse engineering
+means and what it lets someone do, before the worked examples.
+Begin each example with its goal and the reason to inspect that program.
+Name the actual evidence REA returned and what the agent did with it.
+Use short labels, selective bold text and the shared blue highlight to make
+those facts visible when scanning. Keep source, interpretation and new code
+attributed to their respective roles. On mobile, the demo can precede its
+supporting code once its purpose is clear.
 Show how the reader's task changes using the same question on both sides of a
 manual/agent comparison. Let returned evidence make REA's contribution visible.
 

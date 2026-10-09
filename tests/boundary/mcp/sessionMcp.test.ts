@@ -347,7 +347,13 @@ describe("target-free MCP workflow", () => {
           arguments: { snapshot_path: snapshotPath },
         }),
       ).result,
-    ).toMatchObject({ path: snapshotPath, entries: 0 });
+    ).toMatchObject({
+      path: snapshotPath,
+      entries: 0,
+      primitive_entries: 0,
+      workflow_entries: 0,
+      evidence_records: 0,
+    });
     expect(JSON.parse(await readFile(snapshotPath, "utf8"))).toMatchObject({
       evidence_bundle: { records: [], unknowns: [] },
     });

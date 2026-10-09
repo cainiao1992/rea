@@ -109,6 +109,14 @@ cached result. `close_binary` accepts `snapshot_path` and optional
 `overwrite: true` to save before releasing provider resources. A failed save
 leaves the session open so the caller can resolve the output failure.
 
+The MCP save receipt reports `primitive_entries`, `workflow_entries`, and
+`evidence_records` separately; the existing `entries` field remains the
+primitive count. Zero primitive bindings can still accompany retained workflow
+results and Evidence. These are cached observations, not a saved provider
+database: only eligible exact queries can reuse a result, and new or live
+queries can still require provider startup. The CLI uses the same snapshot
+format and preserves these records when loading and updating it.
+
 ## Import, export and compare Evidence
 
 Evidence records retain artifact identity, source locations, observations,

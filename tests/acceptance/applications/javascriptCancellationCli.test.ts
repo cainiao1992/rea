@@ -29,8 +29,8 @@ it("returns a nonzero exit for a streamed JSON analysis failure", async () => {
   );
   expect(result.code).toBe(1);
   expect(JSON.parse(result.stdout)).toMatchObject({
-    code: "artifact_operation_failed",
-    details: { reason: "io" },
+    code: "invalid_request",
+    details: { issues: [{ path: ["input_path"], reason: "invalid_value" }] },
   });
 });
 

@@ -80,7 +80,7 @@ or close. Provider failures are returned with their original reason. For an
 `ambiguous` selection error, choose from `details.candidate_ids`; for
 `provider_unavailable`, run `rea doctor --provider ID --json` to diagnose the
 selected engine. See [task readiness](installation.md#check-readiness-for-your-task)
-and [provider selection](adr/0001-provider-selection-and-analysis-profiles.md).
+and [provider selection](mcp-contracts.md#identity-and-discovery).
 
 The session reports work still in progress through `analysis_activity`.
 A client timeout can end its wait while the provider continues analyzing.

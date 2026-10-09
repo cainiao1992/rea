@@ -10,9 +10,12 @@ and maintenance cost. Keep cosmetic polish with useful fixes; confusing or
 incorrect user instructions warrant standalone corrections. Collect other
 cosmetic-only suggestions in an issue rather than separate PRs.
 
-For capability organization and provider composition, follow the incremental
-[migration guide](docs/capability-migration.md). Run `npm run verify:test-discovery`
-after adding or moving tests.
+For capability organization and provider composition, use the
+[architecture map](docs/architecture.mermaid). Production factories in
+`src/composition/` construct fresh providers without starting engines or acquiring
+targets; optional adapter failures must preserve successful peers. Run
+`npm run verify:test-discovery` after adding or moving tests. Resolved import
+boundaries are checked by `npm run verify:module-boundaries`, included in lint.
 
 When adding or changing an MCP tool, follow the [tool design guide](docs/tool-design.md) and preserve the canonical contracts and generated catalog.
 

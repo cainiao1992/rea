@@ -41,13 +41,14 @@ export const normalizeProcessText = (
   return normalized;
 };
 
-// A port may end a sentence, but a period followed by a word character
-// continues a decimal, version, or host name and is not a port boundary.
+// A port may end a sentence, but a period followed by a letter, digit, or
+// underscore in any script continues a decimal, version, or host name and is
+// not a port boundary.
 // PTY chunks are normalized independently, so a period that ends the chunk
 // stays unnormalized: its continuation may arrive in the next chunk.
 const normalizePortTokens = (value: string): string => {
   const endpointNormalized = value.replaceAll(
-    /(\b[a-z][a-z0-9+.-]*:\/\/[^\s/?#"'<>]+|\blocalhost|\b(?:\d{1,3}\.){3}\d{1,3}|\[[\da-f:.%]+\]):(\d{1,5})(?![\w@:]|\.(?:\w|$))/giu,
+    /(\b[a-z][a-z0-9+.-]*:\/\/[^\s/?#"'<>]+|\blocalhost|\b(?:\d{1,3}\.){3}\d{1,3}|\[[\da-f:.%]+\]):(\d{1,5})(?![\p{L}\p{N}_@:]|\.(?:[\p{L}\p{N}_]|$))/giu,
     (match: string, endpoint: string, port: string) => {
       if (Number(port) > 65_535) return match;
       const isEndpoint = endpoint.includes("://")
@@ -58,7 +59,7 @@ const normalizePortTokens = (value: string): string => {
     },
   );
   return endpointNormalized.replaceAll(
-    /(\b(?:port|tcp_port|udp_port|listen)\b["']?\s*[:=]\s*)(\d{1,5})(?!\w|\.(?:\w|$))/giu,
+    /(\b(?:port|tcp_port|udp_port|listen)\b["']?\s*[:=]\s*)(\d{1,5})(?![\p{L}\p{N}_]|\.(?:[\p{L}\p{N}_]|$))/giu,
     (match: string, prefix: string, port: string) =>
       Number(port) <= 65_535 ? `${prefix}<port>` : match,
   );

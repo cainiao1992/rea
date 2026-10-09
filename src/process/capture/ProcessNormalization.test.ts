@@ -106,6 +106,7 @@ it("normalizes ports that end a sentence but not decimal or host continuations",
     "Bound [::1]:3000.",
     "listen=9000.\n",
     "port: 80.5 localhost:8080.5 localhost:8080.example.test",
+    "port: 8080.β localhost:8080.é port: 8080é",
   ].join("\n");
   expect(normalizeProcessText(input, scenario({}), "/temporary", rootPid)).toBe(
     [
@@ -114,6 +115,7 @@ it("normalizes ports that end a sentence but not decimal or host continuations",
       "Bound [::1]:<port>.",
       "listen=<port>.\n",
       "port: 80.5 localhost:8080.5 localhost:8080.example.test",
+      "port: 8080.β localhost:8080.é port: 8080é",
     ].join("\n"),
   );
 });

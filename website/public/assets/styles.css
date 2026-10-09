@@ -172,7 +172,13 @@ section[id] {
 .navigation .nav-start {
   color: var(--ink);
 }
-.nav-github {
+.header-social {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nav-github,
+.nav-discord {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -185,11 +191,13 @@ section[id] {
   color: var(--muted);
   text-decoration: none;
 }
-.nav-github:hover {
+.nav-github:hover,
+.nav-discord:hover {
   background: var(--soft);
   color: var(--ink);
 }
-.nav-github svg {
+.nav-github svg,
+.nav-discord svg {
   display: block;
   flex-shrink: 0;
 }
@@ -2127,7 +2135,7 @@ pre code {
     gap: 0.5rem 0.25rem;
     font-size: 0.875rem;
   }
-  .nav-github {
+  .header-social {
     grid-row: 1;
     grid-column: 2;
   }

@@ -103,6 +103,10 @@ command, then explains what reverse engineering is and why someone would use
 it. The manual/agent comparison introduces REA’s role before the examples.
 Its opening links directly to Showcases and lets experienced readers skip to
 the analysis guides. Case-study previews live on the Showcases page.
+The closing section offers copyable project prompts, from cloning `rea.tools`
+to reconstructing a game from its executable. The experienced-reader shortcut
+lands directly on the guide links below these prompts.
+The page ends with FAQ, Discord and issue-report links under “Any questions?”.
 A right-side table of contents stays visible at widths of 1440px and above.
 On narrower screens it becomes a sticky, native disclosure; selecting a link
 closes the menu and focuses the destination. The homepage script follows

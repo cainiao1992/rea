@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { build } from "plist";
 import { expect, it } from "vitest";
 
+import { ArtifactProvider } from "../../../src/artifacts/ArtifactProvider.js";
 import { ArtifactReaderFailure } from "../../../src/artifacts/ArtifactReader.js";
 import { inspectBundleKeyedArchive } from "../../../src/artifacts/apple/KeyedArchiveReader.js";
 import { AnalysisError } from "../../../src/domain/analysisErrorBase.js";
@@ -36,6 +37,7 @@ const inspect = (bundlePath: string, parameters: Record<string, unknown>) =>
     bundlePath,
     targetSha256: "a".repeat(64),
     parameters,
+    platform: "darwin",
   });
 
 it.each([
@@ -116,6 +118,35 @@ it.each([
         operation: "inspect_keyed_archive",
         path: join(root, "Contents", "Resources", "Other.nib"),
       },
+    });
+  },
+);
+
+it.each([
+  ["darwin", "Inspect an ordinary property list with inspect_plist"],
+  [
+    "linux",
+    "inspect_plist, which reads ordinary property lists, requires a macOS host",
+  ],
+] as const)(
+  "names the property-list workflow available on a %s host",
+  async (platform, action) => {
+    const root = await createTestTempDirectory("rea-keyed-kind-");
+    const path = join(root, "Defaults.plist");
+    await writeFile(path, Buffer.from(build({ plain: true })));
+    const result = await new ArtifactProvider(platform)
+      .createClient({
+        path,
+        sha256: "0".repeat(64),
+        kind: "artifact",
+        format: "plist",
+      })
+      .execute("inspect_keyed_archive", {});
+    if (result.ok) throw new Error("Expected an unsupported target");
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "unsupported_target",
+      remediation: { action: expect.stringContaining(action) },
+      details: { path },
     });
   },
 );

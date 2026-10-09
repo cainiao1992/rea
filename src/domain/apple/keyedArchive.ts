@@ -11,8 +11,8 @@ export class KeyedArchiveKindError extends TypeError {
 
   constructor(
     message: string,
-    /** The workflow that reads this kind of file. */
-    readonly remediationAction: string,
+    /** What the selected file is instead. */
+    readonly kind: "nib-archive" | "property-list",
   ) {
     super(message);
   }
@@ -103,7 +103,7 @@ export const projectKeyedArchive = (
   if (archive?.$archiver !== "NSKeyedArchiver")
     throw new KeyedArchiveKindError(
       `Selected property list is not an NSKeyedArchiver archive: ${archiverMismatch(archive)}`,
-      "Inspect an ordinary property list with inspect_plist; inspect_keyed_archive decodes NSKeyedArchiver archives only.",
+      "property-list",
     );
   if (!Array.isArray(archive.$objects))
     throw new TypeError("Expected NSKeyedArchiver with an $objects array");

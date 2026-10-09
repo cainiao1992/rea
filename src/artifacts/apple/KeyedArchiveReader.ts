@@ -40,7 +40,7 @@ export const decodeKeyedArchiveBytes = (
   if (bytes.subarray(0, 10).toString("ascii") === "NIBArchive")
     throw new KeyedArchiveKindError(
       "Selected file is a compiled NIBArchive, not a Foundation plist archive; decode it with decode_interface_builder",
-      "Decode compiled NIBArchive files with decode_interface_builder on the app bundle.",
+      "nib-archive",
     );
   const binary = bytes.subarray(0, 8).toString("ascii") === "bplist00";
   const xmlText = binary ? undefined : decodeXmlPlistText(bytes);
@@ -87,12 +87,29 @@ const normalizePlist = (value: unknown): JsonValue => {
   return projected.value;
 };
 
+/**
+ * Point to the workflow that reads the selected kind of file on this host.
+ * decode_interface_builder is portable; inspect_plist requires macOS.
+ */
+const keyedArchiveKindRemediation = (
+  kind: KeyedArchiveKindError["kind"],
+  platform: NodeJS.Platform,
+): string => {
+  if (kind === "nib-archive")
+    return "Decode compiled NIBArchive files with decode_interface_builder on the app bundle.";
+  return platform === "darwin"
+    ? "Inspect an ordinary property list with inspect_plist; inspect_keyed_archive decodes NSKeyedArchiver archives only."
+    : "Select an NSKeyedArchiver archive; inspect_keyed_archive decodes only those. inspect_plist, which reads ordinary property lists, requires a macOS host.";
+};
+
 /** Read exactly one regular, contained bundle entry without following symlinks. */
 export const inspectBundleKeyedArchive = async (input: {
   bundlePath: string;
   targetSha256: string;
   parameters: unknown;
   signal?: AbortSignal;
+  /** Host whose available workflows the remediation names. */
+  platform?: NodeJS.Platform;
 }) => {
   const selected = keyedArchiveInputSchema.parse(input.parameters);
   if (
@@ -159,7 +176,13 @@ export const inspectBundleKeyedArchive = async (input: {
             "inspect_keyed_archive",
             join(input.bundlePath, entry.path),
             cause.message,
-            { cause, remediationAction: cause.remediationAction },
+            {
+              cause,
+              remediationAction: keyedArchiveKindRemediation(
+                cause.kind,
+                input.platform ?? process.platform,
+              ),
+            },
           );
         throw new ArtifactReaderFailure(
           cause instanceof RangeError ? "limit" : "format",

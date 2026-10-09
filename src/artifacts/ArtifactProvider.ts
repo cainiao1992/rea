@@ -43,9 +43,11 @@ import { resolveArtifactIntegrityPolicy } from "./inventory/policy.js";
 /** Read-only inventory and exclusively owned extraction provider. */
 export class ArtifactProvider implements AnalysisProvider {
   readonly #capabilities: readonly CapabilityDescriptor[];
+  readonly #platform: NodeJS.Platform;
 
   constructor(platform: NodeJS.Platform = process.platform) {
     this.#capabilities = artifactCapabilities(platform);
+    this.#platform = platform;
   }
 
   identity(): ProviderIdentity {
@@ -57,12 +59,15 @@ export class ArtifactProvider implements AnalysisProvider {
   }
 
   createClient(target: BinaryTarget): AnalysisClient {
-    return new ArtifactClient(target);
+    return new ArtifactClient(target, this.#platform);
   }
 }
 
 class ArtifactClient implements AnalysisClient {
-  constructor(private readonly target: BinaryTarget) {}
+  constructor(
+    private readonly target: BinaryTarget,
+    private readonly platform: NodeJS.Platform,
+  ) {}
 
   async execute(
     operation: AnalysisOperation,
@@ -146,6 +151,7 @@ class ArtifactClient implements AnalysisClient {
           parameters: standalone
             ? { ...parameters, path: basename(this.target.path) }
             : parameters,
+          platform: this.platform,
           ...(options?.signal === undefined ? {} : { signal: options.signal }),
         });
         if (standalone && result.archive_sha256 !== this.target.sha256)

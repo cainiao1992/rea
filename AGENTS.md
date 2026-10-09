@@ -50,6 +50,8 @@ Configuration is parsed and validated by `src/config.ts` and `src/config/`. Keep
 
 Use ESM TypeScript, two-space indentation, and the committed Oxfmt configuration. Keep compiler strictness intact (`strict`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`). Use `camelCase` for values/functions, `PascalCase` for classes/types, and `UPPER_SNAKE_CASE` for constants. Parse unknown values at every MCP, environment, and subprocess boundary. Avoid `any`, unchecked casts, non-null assertions, import-time I/O, and floating promises. Exported APIs require concise JSDoc. Model expected failures with the tagged error algebra and `Result`, not broad exception wrappers.
 
+Assess brittleness during implementation, debugging, review, and maintenance. Simplify duplicated rules, scattered defaults, caller-specific exceptions, and unclear invariants in touched code. Prefer standard format-aware parsers and existing shared helpers; normalize once at the owning boundary while preserving source evidence. Keep refactors focused on the task, and introduce abstractions only when they remove observed complexity. Verify preserved behavior and corrected edge cases through affected callers.
+
 ## Boundary Contracts
 
 Treat a boundary as a contract between the producer's actual representation and the consumer's required meaning. When implementing or auditing a boundary, trace the value through parsing, normalization, authorization, serialization, and the CLI/MCP result. Establish affected callers from their code paths; similar tool names or workflows do not prove that they share a schema or failure mode.
@@ -93,6 +95,8 @@ See [docs/tool-design.md](docs/tool-design.md) for the design checklist. When us
 ## Testing Guidelines
 
 Prioritize real end-to-end workflows, boundary integration, and golden producer data. Keep a focused module test when it covers a distinct failure or semantic case absent from those workflows; test paths do not establish depth. See [docs/testing.md](docs/testing.md) for pruning and classification rules.
+
+Treat advertised examples as executable contracts: derive them from representative producer data, exercise them through the advertised CLI or MCP workflow, and assert the behavior they claim to demonstrate. Share production projections where practical and declare omitted coverage explicitly.
 
 Name tests `*.test.ts`. Use Vitest and production seams (`tests/fixtures/`) rather than module mocks. Domain tests assert pure behavior; adapter tests use fake launcher/socket seams; MCP tests connect with the client SDK version pinned in `package.json`. Preserve the canonical tool inventory defined by `TOOL_CONTRACTS` and verified through `CATALOG_IDENTITY` and generated product metadata. Cover malformed input, cancellation, lifecycle cleanup, and actual format, protocol, host-permission, and target-identity boundaries. Do not add tests that merely freeze arbitrary caps or prescribed call sequences. Real Hopper, Ghidra, browser, managed conformance, and any real managed-tool claims cannot be replaced by mocks; use the corresponding `verify:*` command.
 

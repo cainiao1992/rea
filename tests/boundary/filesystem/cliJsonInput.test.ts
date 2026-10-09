@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { constants as bufferConstants } from "node:buffer";
 import {
+  appendFile,
   chmod,
   open,
   symlink,
@@ -119,8 +120,7 @@ describe("CLI JSON input", () => {
           },
         },
         remediation: {
-          action:
-            "Split the JSON into smaller inputs or rerun its producer on a smaller subset, then retry.",
+          action: expect.stringContaining("re-analyze a smaller selection"),
         },
       },
     });
@@ -137,6 +137,13 @@ describe("CLI JSON input", () => {
     if (typeof multibyteResult.value !== "string")
       throw new Error("Expected parsed JSON string");
     expect(multibyteResult.value.length).toBe(characterCount);
+
+    // Large-input streaming must flush and reject an incomplete UTF-8 suffix.
+    await appendFile(path, Buffer.from([0xc3]));
+    expect(await parseCliJsonInput(path, "test-input")).toMatchObject({
+      ok: false,
+      error: { input_path: path, input_reason: "invalid-json" },
+    });
   }, 20_000);
 
   it("distinguishes malformed inline text from files and preserves bracket-prefixed paths", async () => {

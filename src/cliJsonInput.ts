@@ -5,6 +5,7 @@ import {
   NonRegularFileReadError,
   readRegularFile,
 } from "./application/RegularFileRead.js";
+import { parseUtf8Json } from "./application/Utf8JsonInput.js";
 import {
   AnalysisInputError,
   AnalysisResourceConstraintError,
@@ -21,18 +22,33 @@ export const parseCliJsonInput = async (
   | { readonly ok: true; readonly value: unknown }
   | { readonly ok: false; readonly error: JsonValue }
 > => {
-  const inline = parseJson(value);
-  if (inline.kind === "valid") return { ok: true, value: inline.value };
-  if (inline.kind === "too-large")
+  const inline = safeParseJson(value);
+  if (inline.ok) return { ok: true, value: inline.value };
+  if (isStringLengthLimit(inline.cause))
     return jsonTooLargeError(undefined, operation);
   try {
-    // Read raw bytes so invalid UTF-8 is rejected by parseJson instead of
+    // Read raw bytes so invalid UTF-8 is rejected instead of
     // being silently replaced by lossy "utf8" decoding.
-    const parsed = parseJson(await readRegularFile(value));
-    if (parsed.kind === "valid") return { ok: true, value: parsed.value };
-    if (parsed.kind === "too-large") return jsonTooLargeError(value, operation);
-    return jsonFileError(value, operation, "invalid-json");
+    const parsed = parseUtf8Json(
+      await readRegularFile(value),
+      operation,
+      value,
+      "cli-json-input",
+    );
+    return parsed.ok
+      ? { ok: true, value: parsed.value }
+      : jsonFileError(value, operation, "invalid-json");
   } catch (cause: unknown) {
+    if (cause instanceof AnalysisResourceConstraintError)
+      return {
+        ok: false,
+        error: {
+          error: "Application workflow failed",
+          ...projectAnalysisError(cause),
+          input_path: value,
+          input_reason: "too-large",
+        },
+      };
     if (
       ["{", "["].includes(value.trimStart()[0] ?? "") &&
       cannotBeAnExistingFile(cause) &&
@@ -93,39 +109,12 @@ const cannotBeAnExistingFile = (cause: unknown): boolean =>
 const hasExplicitJsonFileExtension = (value: string): boolean =>
   value.toLowerCase().endsWith(".json");
 
-type JsonParseResult =
-  | { readonly kind: "valid"; readonly value: unknown }
-  | { readonly kind: "invalid" }
-  | { readonly kind: "too-large" };
-
-const parseJson = (value: string | Uint8Array): JsonParseResult => {
-  let text: string;
-  if (typeof value === "string") {
-    text = value;
-  } else {
-    try {
-      text = new TextDecoder("utf-8", {
-        fatal: true,
-        ignoreBOM: true,
-      }).decode(value);
-    } catch (cause: unknown) {
-      return isStringLengthLimit(cause)
-        ? { kind: "too-large" }
-        : { kind: "invalid" };
-    }
-  }
-  const parsed = safeParseJson(text);
-  if (parsed.ok) return { kind: "valid", value: parsed.value };
-  return isStringLengthLimit(parsed.cause)
-    ? { kind: "too-large" }
-    : { kind: "invalid" };
-};
-
 const isStringLengthLimit = (cause: unknown): boolean =>
   cause instanceof Error &&
-  /cannot create a string longer than|invalid string length/i.test(
-    cause.message,
-  );
+  (("code" in cause && cause.code === "ERR_STRING_TOO_LONG") ||
+    /cannot create a string longer than|invalid string length/i.test(
+      cause.message,
+    ));
 
 const inputError = (operation: string): JsonValue => ({
   error: "Application workflow failed",
@@ -181,29 +170,26 @@ const readFailureIssue = (path: string | undefined, cause: unknown) => {
 const jsonTooLargeError = (
   path: string | undefined,
   operation: string,
-): { readonly ok: false; readonly error: JsonValue } => {
-  const projection = projectAnalysisError(
-    new AnalysisResourceConstraintError(
-      operation,
-      "memory",
-      `The JSON input exceeds this Node.js runtime's maximum string length (${bufferConstants.MAX_STRING_LENGTH} UTF-16 code units) and cannot be parsed as one value.`,
-      {
-        boundary: "cli-json-input",
-        max_string_code_units: bufferConstants.MAX_STRING_LENGTH,
-      },
-      {
-        remediationAction:
-          "Split the JSON into smaller inputs or rerun its producer on a smaller subset, then retry.",
-      },
+): { readonly ok: false; readonly error: JsonValue } => ({
+  ok: false,
+  error: {
+    error: "Application workflow failed",
+    ...projectAnalysisError(
+      new AnalysisResourceConstraintError(
+        operation,
+        "memory",
+        `The JSON input exceeds this Node.js runtime's maximum string length (${bufferConstants.MAX_STRING_LENGTH} UTF-16 code units) and cannot be parsed as one value.`,
+        {
+          boundary: "cli-json-input",
+          max_string_code_units: bufferConstants.MAX_STRING_LENGTH,
+        },
+        {
+          remediationAction:
+            "Provide a smaller JSON document or rerun its producer on a smaller selection. Splitting JSON text alone does not produce a valid workflow input.",
+        },
+      ),
     ),
-  );
-  return {
-    ok: false,
-    error: {
-      error: "Application workflow failed",
-      ...projection,
-      ...(path === undefined ? {} : { input_path: path }),
-      input_reason: "too-large",
-    },
-  };
-};
+    ...(path === undefined ? {} : { input_path: path }),
+    input_reason: "too-large",
+  },
+});

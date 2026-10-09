@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -230,11 +231,8 @@ const verifyManagedCatalogAndNativeWorkflow = async (
       ],
     },
   });
-  expect(wrong).toMatchObject({
-    isError: true,
-    structuredContent: {
-      error: { code: "evidence_integrity_mismatch" },
-    },
+  expect(parseMcpToolError(wrong)).toMatchObject({
+    error: { code: "evidence_integrity_mismatch" },
   });
 };
 
@@ -446,6 +444,7 @@ const verifyImport = async (
 };
 
 const structured = (result: CallToolResult): Record<string, unknown> => {
+  if (result.isError === true) return parseMcpToolError(result);
   if (
     typeof result.structuredContent !== "object" ||
     result.structuredContent === null

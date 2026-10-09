@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { requireMcpToolError } from "./lib/mcp-verifier-results.mjs";
 
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
@@ -172,7 +173,7 @@ const mcp = async (cliDossier) => {
       arguments: { address: "not-an-address" },
     });
     assert.equal(invalid.isError, true);
-    assert.equal(invalid.structuredContent.error.code, "invalid_request");
+    assert.equal(requireMcpToolError(invalid).code, "invalid_request");
     await call("close_binary", {});
     opened = false;
     report.checks.push(

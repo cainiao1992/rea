@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
@@ -40,7 +41,7 @@ it("rejects changed signature targets through MCP and accepts reopening the new 
       arguments: {},
     });
     expect(changed.isError).toBe(true);
-    expect(changed.structuredContent).toMatchObject({
+    expect(parseMcpToolError(changed)).toMatchObject({
       error: { code: "artifact_changed", details: { path } },
     });
     expect((await open()).isError).not.toBe(true);

@@ -124,7 +124,18 @@ class ErrorEvidenceTransport implements Transport {
         : undefined;
     const tool = id === undefined ? undefined : this.pendingTools.get(id);
     try {
-      await this.transport.send(this.recoverError(message, tool), options);
+      const recovered = this.recoverError(message, tool);
+      if (
+        isJSONRPCResultResponse(recovered) &&
+        isCallToolResult(recovered.result) &&
+        recovered.result.isError === true
+      ) {
+        // Keep the complete typed JSON in content. Error projections are not
+        // success outputSchema data; oversized recovery must consume their
+        // private structured carrier before it is removed from the wire.
+        const { structuredContent: _diagnostic, ...result } = recovered.result;
+        await this.transport.send({ ...recovered, result }, options);
+      } else await this.transport.send(recovered, options);
     } finally {
       if (!isJSONRPCRequest(message) && id !== undefined)
         this.pendingTools.delete(id);

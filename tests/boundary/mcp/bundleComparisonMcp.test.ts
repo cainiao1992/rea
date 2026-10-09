@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -130,7 +131,7 @@ describe("bundle comparison MCP integration", () => {
         },
       });
       expect(result.isError).toBe(true);
-      expect(result.structuredContent).toMatchObject({
+      expect(parseMcpToolError(result)).toMatchObject({
         error: {
           code: "evidence_integrity_mismatch",
           message: expect.stringContaining(

@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -233,4 +234,6 @@ const capability = (provider: ProviderIdentity): CapabilityDescriptor => ({
 });
 
 const structured = (result: CallToolResult): Record<string, unknown> =>
-  z.record(z.string(), z.unknown()).parse(result.structuredContent);
+  result.isError === true
+    ? parseMcpToolError(result)
+    : z.record(z.string(), z.unknown()).parse(result.structuredContent);

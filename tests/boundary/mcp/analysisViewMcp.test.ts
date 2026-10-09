@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { expect, it, onTestFinished } from "vitest";
@@ -164,7 +165,7 @@ it("retains an oversized selected observation and keeps subsequent views usable"
         }),
       }),
     })
-    .parse(response.structuredContent).error.details
+    .parse(parseMcpToolError(response)).error.details
     .reported_limits.evidence_reference;
   expect(
     session.evidenceById(reference.evidence_id)?.normalized_result,
@@ -222,11 +223,8 @@ it("returns a JavaScript summary without graph payloads from a retained referenc
       view: { kind: "summary" },
     },
   });
-  expect(stale).toMatchObject({
-    isError: true,
-    structuredContent: {
-      error: { details: { reason: "missing" } },
-    },
+  expect(parseMcpToolError(stale)).toMatchObject({
+    error: { details: { reason: "missing" } },
   });
 });
 

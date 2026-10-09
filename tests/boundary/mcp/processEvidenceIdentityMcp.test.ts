@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -294,7 +295,7 @@ for (const name of providerNames)
       for (const { expected: _expected, ...call } of consumerCalls(invalid)) {
         const response = await client.callTool(call);
         expect(response.isError, call.name).toBe(true);
-        expect(response.structuredContent, call.name).toMatchObject({
+        expect(parseMcpToolError(response), call.name).toMatchObject({
           error: { code: "invalid_request" },
         });
       }
@@ -333,7 +334,7 @@ it("separately rejects a tampered digest before admission to any consumer or ses
   )) {
     const response = await client.callTool(call);
     expect(response.isError, call.name).toBe(true);
-    expect(response.structuredContent).toMatchObject({
+    expect(parseMcpToolError(response)).toMatchObject({
       error: { code: "invalid_request" },
     });
   }

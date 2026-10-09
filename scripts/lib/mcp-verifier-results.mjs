@@ -1,3 +1,5 @@
+import { analysisErrorProjectionSchema } from "../../dist/contracts/errorSchemas.js";
+
 /** Read the textual JSON projection from one MCP tool call. */
 export const mcpTextValue = (result) => {
   const text = result.content?.find((item) => item.type === "text")?.text;
@@ -6,6 +8,12 @@ export const mcpTextValue = (result) => {
 };
 
 const jsonValue = (result) => JSON.parse(mcpTextValue(result));
+
+/** Read the complete canonical diagnostic from an MCP tool failure. */
+export const requireMcpToolError = (result) => {
+  if (result.isError !== true) throw new Error("Expected an MCP tool failure");
+  return analysisErrorProjectionSchema.parse(jsonValue(result).error);
+};
 
 /** Return the compact result projection from one successful MCP tool call. */
 export const requireMcpResult = (result, operation) => {

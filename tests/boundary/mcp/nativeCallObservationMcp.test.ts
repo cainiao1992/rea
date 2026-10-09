@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -258,7 +259,7 @@ it.each([
       });
 
       expect(called.isError).toBe(true);
-      expect(called.structuredContent).toMatchObject({
+      expect(parseMcpToolError(called)).toMatchObject({
         error: {
           code: expectedCode,
           details: {

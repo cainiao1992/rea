@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../fixtures/mcpToolError.js";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -67,8 +68,8 @@ for (const { jarConfigured, setting } of [
         arguments: { path: apk },
       });
       expect(response.isError).toBe(true);
-      expect(response.structuredContent).toEqual({ error: cliResult.json });
-      expect(JSON.stringify(response.structuredContent)).toContain(setting);
+      expect(parseMcpToolError(response)).toEqual({ error: cliResult.json });
+      expect(JSON.stringify(parseMcpToolError(response))).toContain(setting);
     },
   );
 
@@ -92,8 +93,8 @@ cliTest.skipIf(process.platform !== "linux")(
       arguments: { path },
     });
     expect(response.isError).toBe(true);
-    expect(response.structuredContent).toEqual({ error: cliResult.json });
-    expect(JSON.stringify(response.structuredContent)).toContain(
+    expect(parseMcpToolError(response)).toEqual({ error: cliResult.json });
+    expect(JSON.stringify(parseMcpToolError(response))).toContain(
       "REA_BINWALK_COMMAND",
     );
   },
@@ -145,8 +146,8 @@ cliTest(
       arguments: { path, output_directory: join(root, "output") },
     });
     expect(response.isError).toBe(true);
-    expect(response.structuredContent).toEqual({ error: cliResult.json });
-    expect(JSON.stringify(response.structuredContent)).toContain(
+    expect(parseMcpToolError(response)).toEqual({ error: cliResult.json });
+    expect(JSON.stringify(parseMcpToolError(response))).toContain(
       "REA_WAKARU_COMMAND",
     );
   },
@@ -183,7 +184,7 @@ cliTest(
       });
       expect(result.exitCode).toBe(1);
       expect(response.isError).toBe(true);
-      expect(response.structuredContent).toEqual({ error: result.json });
+      expect(parseMcpToolError(response)).toEqual({ error: result.json });
       expect(result.json).toMatchObject({
         code: "invalid_request",
         details: {

@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -70,7 +71,7 @@ it("names differing comparison contract fields through MCP and the CLI", async (
     ),
     expected: ["working_directory"],
   };
-  expect(response.structuredContent).toMatchObject({
+  expect(parseMcpToolError(response)).toMatchObject({
     error: { code: "invalid_request", details: { issues: [issue] } },
   });
 
@@ -97,7 +98,7 @@ it("names the stale capture that exceeds max_capture_age_ms", async () => {
     },
   });
   expect(response.isError).toBe(true);
-  expect(response.structuredContent).toMatchObject({
+  expect(parseMcpToolError(response)).toMatchObject({
     error: {
       code: "invalid_request",
       details: {
@@ -146,7 +147,7 @@ it("names the side and constraint when Evidence is not a usable capture", async 
     name: "compare_process_captures",
     arguments: { left: unrelated, right: capture },
   });
-  expect(wrongKind.structuredContent).toMatchObject({
+  expect(parseMcpToolError(wrongKind)).toMatchObject({
     error: {
       code: "invalid_request",
       details: {
@@ -170,7 +171,7 @@ it("names the side and constraint when Evidence is not a usable capture", async 
       right: { ...capture, parameters: { side: "changed" } },
     },
   });
-  expect(tampered.structuredContent).toMatchObject({
+  expect(parseMcpToolError(tampered)).toMatchObject({
     error: {
       code: "evidence_integrity_mismatch",
       message: expect.stringContaining(
@@ -189,7 +190,7 @@ it("names the side and constraint when Evidence is not a usable capture", async 
     name: "compare_process_captures",
     arguments: { left: capture, right: invalidResult },
   });
-  expect(malformed.structuredContent).toMatchObject({
+  expect(parseMcpToolError(malformed)).toMatchObject({
     error: {
       code: "evidence_integrity_mismatch",
       message: expect.stringContaining(

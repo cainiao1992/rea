@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { afterEach, expect, it } from "vitest";
 import { Ajv2020 } from "ajv/dist/2020.js";
@@ -136,15 +137,12 @@ it("keeps references session-scoped and expires them when close_binary clears th
     },
   };
   const foreign = await second.client.callTool(request);
-  expect(foreign).toMatchObject({
-    isError: true,
-    structuredContent: {
-      error: {
-        details: {
-          evidence_id: application.evidence_id,
-          reason: "missing",
-          actual: null,
-        },
+  expect(parseMcpToolError(foreign)).toMatchObject({
+    error: {
+      details: {
+        evidence_id: application.evidence_id,
+        reason: "missing",
+        actual: null,
       },
     },
   });
@@ -156,10 +154,9 @@ it("keeps references session-scoped and expires them when close_binary clears th
     arguments: {},
   });
   expect(closed.isError).not.toBe(true);
-  expect(await first.client.callTool(request)).toMatchObject({
-    isError: true,
-    structuredContent: { error: { details: { reason: "missing" } } },
-  });
+  expect(parseMcpToolError(await first.client.callTool(request))).toMatchObject(
+    { error: { details: { reason: "missing" } } },
+  );
   for (const harness of [first, second]) {
     const portable = await harness.client.callTool({
       name: "trace_application_feature",
@@ -199,11 +196,8 @@ it("preserves validation for the referenced record's operation, predicate, and s
         application: retained(record.evidence_id),
       },
     });
-    expect(response).toMatchObject({
-      isError: true,
-      structuredContent: {
-        error: { code: "invalid_request", category: "invalid_input" },
-      },
+    expect(parseMcpToolError(response)).toMatchObject({
+      error: { code: "invalid_request", category: "invalid_input" },
     });
   }
   const tampered = {

@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { afterEach, expect, it } from "vitest";
 import { z } from "zod";
@@ -275,7 +276,7 @@ it("does not attach to a target outside the request's allowed origin scope", asy
     },
   });
   expect(result.isError).toBe(true);
-  expect(result.structuredContent).toMatchObject({
+  expect(parseMcpToolError(result)).toMatchObject({
     error: {
       details: {
         operation: "inspect_web_page",

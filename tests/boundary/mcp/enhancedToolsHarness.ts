@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import type { CallToolResult } from "@modelcontextprotocol/server";
 import {
   jsonValueSchema,
@@ -40,6 +41,8 @@ export const closeEnhancedToolResources = async (): Promise<void> => {
 };
 
 export const jsonResult = (result: CallToolResult): JsonValue => {
+  if (result.isError === true)
+    return jsonValueSchema.parse(parseMcpToolError(result));
   if (result.structuredContent === undefined)
     throw new Error("Tool result omitted structured content");
   const structured = jsonValueSchema.safeParse(result.structuredContent);

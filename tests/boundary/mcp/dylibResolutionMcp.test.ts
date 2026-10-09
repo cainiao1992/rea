@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { chmod, mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -107,7 +108,7 @@ it("traces dylib resolution for an opened app bundle and rejects a changed targe
       arguments: {},
     });
     expect(changed.isError).toBe(true);
-    expect(JSON.stringify(changed.structuredContent)).toContain("integrity");
+    expect(JSON.stringify(parseMcpToolError(changed))).toContain("integrity");
   });
 });
 
@@ -126,7 +127,7 @@ it("rejects targets that are not Mach-O", async () => {
       arguments: {},
     });
     expect(called.isError).toBe(true);
-    expect(called.structuredContent).toMatchObject({
+    expect(parseMcpToolError(called)).toMatchObject({
       error: { code: "unsupported_target", category: "unsupported_target" },
     });
   });
@@ -153,7 +154,7 @@ it("reports target kinds that artifact operations cannot inspect as unsupported"
       const open = { name: "open_binary", arguments: { path } };
       expect((await client.callTool(open)).isError, path).not.toBe(true);
       const called = await client.callTool({ name: operation, arguments: {} });
-      expect(called.structuredContent, operation).toMatchObject({
+      expect(parseMcpToolError(called), operation).toMatchObject({
         error: {
           code: "unsupported_target",
           message: expect.stringContaining(`${operation} at ${path}`),
@@ -230,7 +231,7 @@ it.skipIf(process.getuid?.() === 0)(
           arguments: {},
         });
         expect(called.isError).toBe(true);
-        expect(JSON.stringify(called.structuredContent)).toMatch(
+        expect(JSON.stringify(parseMcpToolError(called))).toMatch(
           /Permission denied \(EACCES\)/u,
         );
       } finally {
@@ -442,7 +443,7 @@ it("reports caller-selected roots that cannot be traced as invalid input", async
         arguments: { roots: ["Contents/MacOS/App", root] },
       });
       expect(called.isError, root).toBe(true);
-      expect(called.structuredContent, root).toMatchObject({
+      expect(parseMcpToolError(called), root).toMatchObject({
         error: {
           code: "invalid_request",
           details: {

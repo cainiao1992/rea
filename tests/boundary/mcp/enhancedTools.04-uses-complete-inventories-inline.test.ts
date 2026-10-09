@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -109,7 +110,7 @@ describe("enhanced MCP tools", () => {
     expect(result.isError).toBe(true);
     const text = result.content.find((item) => item.type === "text");
     expect(text?.type === "text" ? text.text : "").toBe(
-      JSON.stringify(result.structuredContent),
+      JSON.stringify(parseMcpToolError(result)),
     );
   });
 });

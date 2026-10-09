@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import type { CallToolResult } from "@modelcontextprotocol/server";
 import { afterEach, expect, it } from "vitest";
@@ -35,6 +36,7 @@ const connect = async (analysis: AnalysisOperationPort) => {
 };
 
 const structured = (result: CallToolResult): Record<string, unknown> => {
+  if (result.isError === true) return parseMcpToolError(result);
   if (
     typeof result.structuredContent !== "object" ||
     result.structuredContent === null

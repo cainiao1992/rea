@@ -126,7 +126,35 @@ it("rejects targets that are not Mach-O", async () => {
       arguments: {},
     });
     expect(called.isError).toBe(true);
-    expect(JSON.stringify(called.structuredContent)).toContain("unavailable");
+    expect(called.structuredContent).toMatchObject({
+      error: { code: "unsupported_target", category: "unsupported_target" },
+    });
+  });
+});
+
+it("reports target kinds that artifact operations cannot inspect as unsupported", async () => {
+  const directory = await createTestTempDirectory("rea-artifact-target-");
+  const plist = join(directory, "Info.plist");
+  await writeFile(plist, "<plist><dict/></plist>");
+  const tool = join(directory, "tool");
+  await writeFile(tool, machoImage({ commands: [buildVersionCommand(1)] }));
+  await withClient(async (client) => {
+    for (const [path, operation, requirement] of [
+      [plist, "decode_interface_builder", "requires an active .app bundle"],
+      [plist, "inspect_asset_catalog", "requires an active .app bundle"],
+      [tool, "inspect_keyed_archive", "requires an active plist or .app"],
+    ] as const) {
+      const open = { name: "open_binary", arguments: { path } };
+      expect((await client.callTool(open)).isError, path).not.toBe(true);
+      const called = await client.callTool({ name: operation, arguments: {} });
+      expect(called.structuredContent, operation).toMatchObject({
+        error: {
+          code: "unsupported_target",
+          message: expect.stringContaining(`${operation} at ${path}`),
+          details: { reason: expect.stringContaining(requirement) },
+        },
+      });
+    }
   });
 });
 

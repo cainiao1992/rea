@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // Architecture guards for the strict-identity / best-effort-inference split.
 // - Evidence ordering must be locale-independent (ICU varies by host), so
@@ -15,7 +16,7 @@ import { join } from "node:path";
 //   Object.values walkers diverge on loc/comment fields and overflow the
 //   stack on deep generated chains.
 
-const root = new URL("../../", import.meta.url).pathname;
+const root = fileURLToPath(new URL("../../", import.meta.url));
 
 const listFiles = async (dir) => {
   const output = [];
@@ -42,7 +43,7 @@ const stripComments = (content) =>
 const sources = await listFiles(join(root, "src"));
 const files = await Promise.all(
   sources.map(async (path) => ({
-    path: path.slice(root.length),
+    path: relative(root, path).split(sep).join("/"),
     content: stripComments(await readFile(path, "utf8")),
   })),
 );

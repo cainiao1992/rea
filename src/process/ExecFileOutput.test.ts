@@ -95,3 +95,50 @@ describe("execFileOutput", () => {
     ).rejects.toMatchObject({ name: "AbortError" });
   });
 });
+
+describe.skipIf(process.platform === "win32")(
+  "execFileOutput stop signal at a timeout",
+  () => {
+    it("stops a timed-out process with the caller's signal and reports the timeout", async () => {
+      const directory = await createTestTempDirectory("rea-exec-timeout-");
+      const stopped = join(directory, "stopped");
+      // The child exits cleanly once it has recorded the signal it received.
+      const script = [
+        'const fs = require("node:fs");',
+        'for (const name of ["SIGINT", "SIGTERM"])',
+        `  process.on(name, () => setTimeout(() => { fs.writeFileSync(${JSON.stringify(stopped)}, name); process.exit(0); }, 200));`,
+        "setInterval(() => {}, 1000);",
+      ].join("\n");
+
+      const failure: unknown = await execFileOutput(
+        process.execPath,
+        ["-e", script],
+        { timeout: 2_000, stopSignal: "SIGINT" },
+      ).then(
+        () => undefined,
+        (cause: unknown) => cause,
+      );
+
+      expect(failure).toMatchObject({ code: "ETIMEDOUT", killed: true });
+      expect(await readFile(stopped, "utf8")).toBe("SIGINT");
+    });
+
+    it("kills a timed-out process that ignores the stop signal", async () => {
+      const script = [
+        'for (const name of ["SIGINT", "SIGTERM"]) process.on(name, () => {});',
+        "setInterval(() => {}, 1000);",
+      ].join("\n");
+
+      await expect(
+        execFileOutput(process.execPath, ["-e", script], {
+          timeout: 1_000,
+          stopSignal: "SIGINT",
+        }),
+      ).rejects.toMatchObject({
+        code: "ETIMEDOUT",
+        killed: true,
+        signal: "SIGKILL",
+      });
+    });
+  },
+);

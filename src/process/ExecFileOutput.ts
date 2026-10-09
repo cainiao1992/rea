@@ -30,6 +30,29 @@ const abortError = (signal: AbortSignal): Error => {
   return error;
 };
 
+/**
+ * A command stopped at its timeout can still exit cleanly, so the timeout is
+ * the failure. Like Node's execFile timeout, it reports `killed: true`.
+ */
+const timeoutError = (
+  command: string,
+  timeout: number,
+  exit: Error | null,
+): Error => {
+  const error = new Error(
+    `Command timed out after ${String(timeout)} ms: ${command}`,
+    exit === null ? undefined : { cause: exit },
+  );
+  Reflect.set(error, "code", "ETIMEDOUT");
+  Reflect.set(error, "killed", true);
+  Reflect.set(
+    error,
+    "signal",
+    exit === null ? null : (Reflect.get(exit, "signal") ?? null),
+  );
+  return error;
+};
+
 /** Captured subprocess output read from an execFileOutput rejection. */
 export interface ExecFileOutputFailure {
   readonly stdout: string;
@@ -69,35 +92,41 @@ export const execFileOutput = (
   options: ExecFileOutputOptions = {},
 ): Promise<{ readonly stdout: string; readonly stderr: string }> =>
   new Promise((resolve, reject) => {
-    const { stopSignal, signal, ...execOptions } = options;
-    const stopped =
-      stopSignal === undefined || signal === undefined
-        ? undefined
-        : { signal, stopSignal };
-    if (stopped?.signal.aborted === true) {
-      reject(abortError(stopped.signal));
+    const { stopSignal, signal, timeout, ...execOptions } = options;
+    if (stopSignal !== undefined && signal?.aborted === true) {
+      reject(abortError(signal));
       return;
     }
-    let aborted = false;
+    let stopped: "abort" | "timeout" | undefined;
+    let deadline: NodeJS.Timeout | undefined;
     let grace: NodeJS.Timeout | undefined;
     const child = execFile(
       command,
       [...arguments_],
       {
         ...execOptions,
-        ...(stopped === undefined
-          ? signal === undefined
-            ? {}
-            : { signal }
-          : { killSignal: stopped.stopSignal }),
+        // A stoppable command's abort and timeout are handled below, because
+        // execFile neither waits for the exit on abort nor kills a process
+        // that ignores its timeout signal.
+        ...(stopSignal === undefined
+          ? {
+              ...(signal === undefined ? {} : { signal }),
+              ...(timeout === undefined ? {} : { timeout }),
+            }
+          : { killSignal: stopSignal }),
         encoding: "utf8",
         maxBuffer: options.maxBuffer ?? Number.POSITIVE_INFINITY,
       },
       (error, stdout, stderr) => {
-        stopped?.signal.removeEventListener("abort", onAbort);
+        signal?.removeEventListener("abort", onAbort);
+        clearTimeout(deadline);
         clearTimeout(grace);
         const failure =
-          aborted && stopped !== undefined ? abortError(stopped.signal) : error;
+          stopped === "abort" && signal !== undefined
+            ? abortError(signal)
+            : stopped === "timeout" && timeout !== undefined
+              ? timeoutError(command, timeout, error)
+              : error;
         if (failure !== null) {
           Reflect.set(failure, "stdout", stdout);
           Reflect.set(failure, "stderr", stderr);
@@ -107,11 +136,20 @@ export const execFileOutput = (
         resolve({ stdout, stderr });
       },
     );
-    const onAbort = (): void => {
-      if (stopped === undefined) return;
-      aborted = true;
-      child.kill(stopped.stopSignal);
+    // The first stop request names the failure; a later one is not resent.
+    const stop = (reason: "abort" | "timeout"): void => {
+      if (stopped !== undefined) return;
+      stopped = reason;
+      child.kill(stopSignal);
       grace = setTimeout(() => child.kill("SIGKILL"), STOP_GRACE_MS);
     };
-    stopped?.signal.addEventListener("abort", onAbort, { once: true });
+    const onAbort = (): void => {
+      stop("abort");
+    };
+    if (stopSignal === undefined) return;
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (timeout !== undefined && timeout > 0)
+      deadline = setTimeout(() => {
+        stop("timeout");
+      }, timeout);
   });

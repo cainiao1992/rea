@@ -496,12 +496,24 @@ const packageExport = (
   value: unknown,
   moduleKind: ResolveArtifactPathInput["moduleKind"],
 ): PackageExportOutcome => {
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    const keys = Object.keys(value);
+    if (
+      keys.some((key) => key.startsWith(".")) &&
+      keys.some((key) => !key.startsWith("."))
+    )
+      return {
+        status: "rejected",
+        limitation:
+          "The package exports configuration mixes subpath keys and condition keys.",
+      };
+  }
   const root =
     typeof value === "object" && value !== null && Object.hasOwn(value, ".")
       ? Reflect.get(value, ".")
       : value;
   const flattened = exportTargets(root, packageExportConditions(moduleKind));
-  if (flattened.kind === "invalid")
+  if (flattened.kind === "invalid" || flattened.kind === "invalid-config")
     return { status: "rejected", limitation: flattened.limitation };
   const first =
     flattened.kind === "unmatched" ? undefined : flattened.values[0];
@@ -517,7 +529,8 @@ const packageExport = (
 type ExportTargets =
   | { readonly kind: "targets"; readonly values: readonly string[] }
   | { readonly kind: "unmatched" }
-  | { readonly kind: "invalid"; readonly limitation: string };
+  | { readonly kind: "invalid"; readonly limitation: string }
+  | { readonly kind: "invalid-config"; readonly limitation: string };
 
 const invalidExportTarget = (
   value: unknown,
@@ -570,6 +583,8 @@ const exportTargets = (
     let invalid: string | null = null;
     for (const entry of value) {
       const nested = exportTargets(entry, conditions);
+      // Node's array fallback catches invalid targets, not invalid configuration.
+      if (nested.kind === "invalid-config") return nested;
       if (nested.kind === "invalid") {
         invalid = nested.limitation;
         continue;
@@ -587,6 +602,14 @@ const exportTargets = (
       value,
       "must be a relative string, object, array, or null",
     );
+  for (const key of Object.keys(value)) {
+    const numeric = Number(key);
+    if (String(numeric) === key && numeric >= 0 && numeric < 0xffff_ffff)
+      return {
+        kind: "invalid-config",
+        limitation: `The package exports configuration contains numeric condition key ${JSON.stringify(key)}.`,
+      };
+  }
   for (const [condition, target] of Object.entries(value)) {
     if (!conditions.has(condition)) continue;
     const nested = exportTargets(target, conditions);

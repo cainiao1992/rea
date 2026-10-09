@@ -2,6 +2,22 @@ import { z } from "zod";
 import { AnalysisInputError } from "../analysisErrorCore.js";
 import { jsonValueSchema, type JsonValue } from "../jsonValue.js";
 
+/**
+ * The selected file is intact but is another kind of file, so another tool
+ * applies. A malformed NSKeyedArchiver archive is not this error.
+ */
+export class KeyedArchiveKindError extends TypeError {
+  override readonly name = "KeyedArchiveKindError";
+
+  constructor(
+    message: string,
+    /** The workflow that reads this kind of file. */
+    readonly remediationAction: string,
+  ) {
+    super(message);
+  }
+}
+
 /** Select one archive within the active bundle and optionally one named root. */
 export const keyedArchiveInputSchema = z.strictObject({
   path: z.string().min(1).default("."),
@@ -68,16 +84,28 @@ const uid = (value: JsonValue | undefined): number | undefined => {
   return typeof marker === "number" ? marker : undefined;
 };
 
+const archiverMismatch = (
+  archive: Record<string, JsonValue> | undefined,
+): string => {
+  if (archive === undefined) return "its root is not a dictionary";
+  if (!Object.hasOwn(archive, "$archiver")) return "it has no $archiver key";
+  return typeof archive.$archiver === "string"
+    ? `its $archiver is ${JSON.stringify(archive.$archiver)}`
+    : "its $archiver is not a string";
+};
+
 /** Interpret serialized Foundation references without instantiating archive classes. */
 export const projectKeyedArchive = (
   value: unknown,
   selection: { root?: string | undefined; offset: number; limit: number },
 ) => {
   const archive = record(jsonValueSchema.parse(value));
-  if (
-    archive?.$archiver !== "NSKeyedArchiver" ||
-    !Array.isArray(archive.$objects)
-  )
+  if (archive?.$archiver !== "NSKeyedArchiver")
+    throw new KeyedArchiveKindError(
+      `Selected property list is not an NSKeyedArchiver archive: ${archiverMismatch(archive)}`,
+      "Inspect an ordinary property list with inspect_plist; inspect_keyed_archive decodes NSKeyedArchiver archives only.",
+    );
+  if (!Array.isArray(archive.$objects))
     throw new TypeError("Expected NSKeyedArchiver with an $objects array");
   const table = archive.$objects;
   if (table.length > 200_000)

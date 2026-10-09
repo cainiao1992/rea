@@ -76,7 +76,7 @@ describe("JavaScript application failure diagnostics", () => {
     expect(JSON.parse(JSON.stringify(projection))).toEqual(projection);
   });
 
-  it("keeps filesystem failures distinct from engine failures", async () => {
+  it("reports a missing selection as invalid input, not an engine failure", async () => {
     const root = await createTestTempDirectory("rea-js-missing-");
     const result = await analyzeJavaScriptApplication({
       input_path: join(root, "missing"),
@@ -84,8 +84,11 @@ describe("JavaScript application failure diagnostics", () => {
     });
     if (result.ok) throw new Error("Expected missing artifact failure");
     expect(projectAnalysisError(result.error)).toMatchObject({
-      code: "artifact_operation_failed",
-      details: { operation: "analyze_javascript_application", reason: "io" },
+      code: "invalid_request",
+      details: {
+        operation: "analyze_javascript_application",
+        issues: [{ path: ["input_path"], reason: "invalid_value" }],
+      },
     });
   });
 

@@ -62,7 +62,7 @@ cliTest(
         "--json",
       ],
     });
-    expect(output.json).toMatchObject({ code: "artifact_operation_failed" });
+    expect(output.json).toMatchObject({ code: "invalid_request" });
     const updates = output.stderr
       .trim()
       .split("\n")

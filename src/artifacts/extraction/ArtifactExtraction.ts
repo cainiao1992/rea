@@ -22,6 +22,7 @@ import {
   type ArtifactNode,
   type ArtifactOccurrence,
 } from "../../domain/artifactGraph.js";
+import { AnalysisUnsupportedTargetError } from "../../domain/analysisErrorCore.js";
 import type { BinaryTarget } from "../../domain/binaryTarget.js";
 import { scanArtifactInventory } from "../inventory/ArtifactInventory.js";
 
@@ -38,6 +39,7 @@ export const extractArtifact = async (
   signal?: AbortSignal,
 ): Promise<ArtifactExtractionResult> => {
   const sourcePath = await realpath(input.inputPath);
+  await requireExtractableFormat(sourcePath, input.inputFormat);
   const snapshot = await scanArtifactInventory(sourcePath, {
     signal,
   });
@@ -240,26 +242,45 @@ const collectNodes = (
     if (selected.has(item.artifact_id)) output.set(item.artifact_id, item);
 };
 
+const ZIP_FORMATS = ["ipa", "apk", "msix", "appx", "zip"] as const;
+
+const isZipFormat = (
+  format: BinaryTarget["format"],
+): format is (typeof ZIP_FORMATS)[number] =>
+  (ZIP_FORMATS as readonly string[]).includes(format);
+
+/**
+ * Refuse a format without an extraction reader before inventory work starts.
+ * The target kind, not the host, is unsupported by extraction.
+ */
+const requireExtractableFormat = async (
+  path: string,
+  format: BinaryTarget["format"],
+): Promise<boolean> => {
+  const directory = (await lstat(path)).isDirectory();
+  if (
+    !directory &&
+    format !== "asar" &&
+    format !== "mach-o" &&
+    !isZipFormat(format)
+  )
+    throw new AnalysisUnsupportedTargetError(
+      "extract_artifact",
+      path,
+      `Artifact format has no extraction reader: ${format}`,
+    );
+  return directory;
+};
+
 const createReader = async (
   path: string,
   format: BinaryTarget["format"],
 ): Promise<ArtifactReader> => {
-  if ((await lstat(path)).isDirectory())
+  if (await requireExtractableFormat(path, format))
     return new DirectoryArtifactReader(path);
   if (format === "asar") return new AsarArtifactReader(path);
-  if (
-    format === "ipa" ||
-    format === "apk" ||
-    format === "msix" ||
-    format === "appx" ||
-    format === "zip"
-  )
-    return new ZipArtifactReader(path, format);
-  if (format === "mach-o") return new MachOSliceArtifactReader(path);
-  throw new ArtifactReaderFailure(
-    "unavailable",
-    `Artifact format has no extraction reader: ${format}`,
-  );
+  if (isZipFormat(format)) return new ZipArtifactReader(path, format);
+  return new MachOSliceArtifactReader(path);
 };
 
 const preflight = (entry: ArtifactEntry): void => {

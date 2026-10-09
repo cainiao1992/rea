@@ -283,5 +283,3 @@ REA에 도움을 보태 주세요! [issue를 등록](https://github.com/morluto/
 ## 라이선스
 
 [MIT](LICENSE)
-
-[![확인 표시가 있는 소프트웨어 라이선스 문서](docs/assets/rea-license.png)](LICENSE)

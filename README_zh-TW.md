@@ -283,5 +283,3 @@ REA 為合法的逆向工程研究、分析和重建提供工具。你有責任�
 ## 授權條款
 
 [MIT](LICENSE)
-
-[![帶有勾選印章的軟體授權文件](docs/assets/rea-license.png)](LICENSE)

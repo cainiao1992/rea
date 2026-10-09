@@ -281,5 +281,3 @@ Die Entwicklungsumgebung und Prüfungen beschreibt [CONTRIBUTING.md](CONTRIBUTIN
 ## Lizenz
 
 [MIT](LICENSE)
-
-[![Softwarelizenzdokument mit Prüfsiegel](docs/assets/rea-license.png)](LICENSE)

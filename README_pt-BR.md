@@ -281,5 +281,3 @@ Consulte [CONTRIBUTING.md](CONTRIBUTING.md) para configurar o ambiente de desenv
 ## Licença
 
 [MIT](LICENSE)
-
-[![Documento de licença de software com selo de verificação](docs/assets/rea-license.png)](LICENSE)

@@ -338,5 +338,3 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and checks,
 ## License
 
 [MIT](LICENSE)
-
-[![Software license document with a check seal](docs/assets/rea-license.png)](LICENSE)

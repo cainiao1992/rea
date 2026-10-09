@@ -281,5 +281,3 @@ Zobacz [CONTRIBUTING.md](CONTRIBUTING.md), aby poznać konfigurację środowiska
 ## Licencja
 
 [MIT](LICENSE)
-
-[![Dokument licencji oprogramowania z pieczęcią potwierdzenia](docs/assets/rea-license.png)](LICENSE)

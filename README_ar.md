@@ -283,5 +283,3 @@ npx rea-agents@latest setup
 ## الترخيص
 
 [MIT](LICENSE)
-
-[![وثيقة ترخيص برمجيات مع ختم علامة صح](docs/assets/rea-license.png)](LICENSE)

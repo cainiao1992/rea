@@ -282,5 +282,3 @@ Consultez [CONTRIBUTING.md](CONTRIBUTING.md) pour l'environnement de développem
 ## Licence
 
 [MIT](LICENSE)
-
-[![Document de licence logicielle avec un sceau de validation](docs/assets/rea-license.png)](LICENSE)

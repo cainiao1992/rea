@@ -261,6 +261,4 @@ REA ابزارهایی برای پژوهش، تحلیل و بازسازی قان
 
 [MIT](LICENSE)
 
-[![سند مجوز نرم‌افزار با مهر تأیید](docs/assets/rea-license.png)](LICENSE)
-
 </div>

@@ -283,5 +283,3 @@ REA への貢献を歓迎します！[issue を作成](https://github.com/morlut
 ## ライセンス
 
 [MIT](LICENSE)
-
-[![チェックマークの印が付いたソフトウェアライセンス文書](docs/assets/rea-license.png)](LICENSE)

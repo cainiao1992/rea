@@ -281,5 +281,3 @@ Consulta [CONTRIBUTING.md](CONTRIBUTING.md) para preparar el entorno de desarrol
 ## Licencia
 
 [MIT](LICENSE)
-
-[![Documento de licencia de software con un sello de verificación](docs/assets/rea-license.png)](LICENSE)

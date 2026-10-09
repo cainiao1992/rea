@@ -281,5 +281,3 @@ Geliştirme ortamı ve kontroller için [CONTRIBUTING.md](CONTRIBUTING.md), doğ
 ## Lisans
 
 [MIT](LICENSE)
-
-[![Onay işaretli yazılım lisansı belgesi](docs/assets/rea-license.png)](LICENSE)

@@ -281,5 +281,3 @@ Xem [CONTRIBUTING.md](CONTRIBUTING.md) về thiết lập môi trường phát t
 ## Giấy phép
 
 [MIT](LICENSE)
-
-[![Tài liệu giấy phép phần mềm có dấu kiểm](docs/assets/rea-license.png)](LICENSE)

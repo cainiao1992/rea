@@ -62,8 +62,9 @@ it("keeps independent server budgets for successful results and oversized errors
   largeEnvironment.REA_MCP_MAX_RESPONSE_BYTES = String(smallBudget);
   vi.stubEnv("REA_MCP_MAX_RESPONSE_BYTES", "invalid-ambient-after-selection");
 
+  // Error text alone exceeds the small budget and fits the large one.
   const diagnostic = "observed failure ".repeat(
-    Math.ceil((smallBudget / 2 + 65536) / 17),
+    Math.ceil((smallBudget + 65536) / 17),
   );
   for (const server of [small, large])
     server.registerTool("selected_failure", { inputSchema: {} }, async () =>

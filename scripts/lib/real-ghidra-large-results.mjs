@@ -64,11 +64,13 @@ export async function verifyGhidraLargeResults({
     assert.equal(expected[0], 0x5a);
     assert.equal(expected.at(-1), 0xa5);
     const before = await call("binary_session");
-    // This request fits the SDK receive limit, but repeating the producer's
-    // diagnostic in text and structured content cannot fit the response.
+    // An error reaches the wire once, as escaped JSON text. Each quote costs
+    // two request bytes but four response bytes once the echoed diagnostic is
+    // escaped again as text, so this request fits the SDK receive limit while
+    // the error response cannot.
     const missingSelector =
       "REA_MISSING_" +
-      "x".repeat(Math.ceil(STDIO_DEFAULT_MAX_BUFFER_SIZE / 2) + 64 * 1024);
+      '"'.repeat(Math.ceil(STDIO_DEFAULT_MAX_BUFFER_SIZE / 4) + 64 * 1024);
     const lookupError = await reject("procedure_address", {
       procedure: missingSelector,
     });

@@ -153,7 +153,8 @@ class ErrorEvidenceTransport implements Transport {
       return message;
     const structured = jsonObjectSchema.parse(message.result.structuredContent);
     const budget = this.delivery.resultBudgetBytes;
-    const encoded = encodeToolResult(structured, budget);
+    // The delivered error omits structuredContent, so only its text counts.
+    const encoded = encodeToolResult(structured, budget, "text");
     if (encoded.ok) return message;
     const operation = tool ?? "mcp_tool_error";
     const originalError = analysisErrorProjectionSchema.safeParse(

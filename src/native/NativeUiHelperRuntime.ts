@@ -1,7 +1,8 @@
-import { mkdtemp, rm, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { SWIFTC_INTERRUPT } from "../process/DarwinProcessRunTokenReader.js";
 import { execFileOutput } from "../process/ExecFileOutput.js";
 import { safeParseJson } from "../domain/safeJson.js";
 import type { NativeUiHelper } from "./NativeUiObservation.js";
@@ -22,6 +23,9 @@ export const createNativeUiHelperRuntime = () => {
         ),
         main,
       );
+      // Keep swiftc's intermediate objects inside the removable root.
+      const compilerTemporary = join(root, "tmp");
+      await mkdir(compilerTemporary);
       await execFileOutput(
         "/usr/bin/xcrun",
         [
@@ -41,6 +45,8 @@ export const createNativeUiHelperRuntime = () => {
         {
           timeout: 60_000,
           maxBuffer: 1024 * 1024,
+          stopSignal: SWIFTC_INTERRUPT,
+          env: { ...process.env, TMPDIR: compilerTemporary },
           ...(signal === undefined ? {} : { signal }),
         },
       );

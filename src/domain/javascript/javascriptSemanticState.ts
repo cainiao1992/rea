@@ -12,6 +12,7 @@ import type {
 interface JavaScriptSemanticInitializer {
   readonly node: t.Node;
   readonly projection: readonly (string | number | null)[];
+  readonly entryBody?: t.BlockStatement;
 }
 
 /** Mutable binding state used only while constructing the immutable IR. */
@@ -46,6 +47,11 @@ export interface JavaScriptSemanticAnalysisState {
   readonly callables: JavaScriptSemanticCallable[];
   readonly callableNodesById: Map<string, t.Node>;
   readonly moduleLinks: JavaScriptSemanticModuleLink[];
+  readonly moduleLinkBindings: WeakMap<
+    JavaScriptSemanticModuleLink,
+    JavaScriptSemanticBindingState
+  >;
+  readonly conditionalInitializers: WeakSet<t.Node>;
 }
 
 /** Return the active scope from a non-empty construction stack. */

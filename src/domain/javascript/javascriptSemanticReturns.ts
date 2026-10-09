@@ -93,19 +93,14 @@ export const resolveSemanticModuleCallables = (
   callables: readonly JavaScriptSemanticCallable[],
 ): JavaScriptSemanticModuleLink[] => {
   const callableIds = new Set(callables.map(({ callableId }) => callableId));
-  const root = state.scopes.find(({ kind }) => kind === "program");
   return state.moduleLinks.map((link) => {
-    if (link.callableId !== null && callableIds.has(link.callableId))
-      return link;
-    if (link.localName === null || root === undefined)
-      return { ...link, callableId: null };
-    const named = callables.filter(
-      ({ name, containerScopeId }) =>
-        name === link.localName && containerScopeId === root.scopeId,
-    );
-    if (named.length === 1)
-      return { ...link, callableId: named[0]?.callableId ?? null };
-    const binding = root.bindings.get(link.localName);
+    // Named exports follow their lexical binding, including every assignment.
+    // A declaration's ID or a callable's display name cannot prove that link.
+    if (link.localName === null)
+      return link.callableId !== null && callableIds.has(link.callableId)
+        ? link
+        : { ...link, callableId: null };
+    const binding = state.moduleLinkBindings.get(link);
     const resolved =
       binding === undefined
         ? []
@@ -154,10 +149,24 @@ const callableIdsForBinding = (
   admitted: ReadonlySet<string>,
   seen: ReadonlySet<string>,
 ): string[] => {
-  if (seen.has(binding.bindingId) || binding.initializers.length !== 1)
+  // A single initializer does not prove an assignment executes or replace
+  // the unknown incoming value of a parameter/catch binding.
+  if (
+    seen.has(binding.bindingId) ||
+    binding.initializers.length !== 1 ||
+    binding.definitions.some(
+      ({ kind }) =>
+        kind === "assignment" || kind === "parameter" || kind === "catch",
+    )
+  )
     return [];
   const initializer = binding.initializers[0];
-  if (initializer === undefined || initializer.projection.length > 0) return [];
+  if (
+    initializer === undefined ||
+    initializer.projection.length > 0 ||
+    state.conditionalInitializers.has(initializer.node)
+  )
+    return [];
   return callableIdsForNode(
     initializer.node,
     state,

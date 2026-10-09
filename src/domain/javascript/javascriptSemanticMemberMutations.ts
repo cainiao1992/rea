@@ -171,8 +171,10 @@ const mutationInitializers = (
   if (binding.initializers.length < 2) return binding.initializers;
   const mutationPosition = directMutationPosition(mutation, parents);
   if (mutationPosition === null) return binding.initializers;
-  const positions = binding.initializers.map(({ node }) =>
-    directInitializerPosition(node, parents),
+  const positions = binding.initializers.map(({ node, entryBody }) =>
+    entryBody === undefined
+      ? directInitializerPosition(node, parents)
+      : { body: entryBody.body, index: -1 },
   );
   if (
     positions.some(

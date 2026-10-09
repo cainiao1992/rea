@@ -128,10 +128,26 @@ const jsonFileError = (
         cause === undefined ? undefined : { cause },
         reason === "invalid-json"
           ? [{ path: [], reason: "invalid_format", expected: "JSON" }]
-          : [],
+          : [readFailureIssue(path, cause)],
       ),
     ),
     ...(path === undefined ? {} : { input_path: path }),
     input_reason: reason,
   },
 });
+
+/** Name the system error so the caller can tell a typo from a permission denial. */
+const readFailureIssue = (path: string | undefined, cause: unknown) => {
+  const code =
+    typeof cause === "object" &&
+    cause !== null &&
+    "code" in cause &&
+    typeof cause.code === "string"
+      ? ` (${cause.code})`
+      : "";
+  return {
+    path: [],
+    reason: "invalid_value" as const,
+    message: `The JSON input file could not be read${code}: ${path ?? ""}`,
+  };
+};

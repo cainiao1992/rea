@@ -6,7 +6,7 @@
     <title>Case studies — REA</title>
     <meta
       name="description"
-      content="Follow REA investigations through code and figures: DX-Ball, Notion, TH04 and a DownUnderCTF flag checker."
+      content="Follow REA investigations through code, figures and demos: an Android authenticator, DX-Ball, Notion, TH04 and a DownUnderCTF flag checker."
     />
     <meta name="theme-color" content="#ffffff" />
     <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml" />
@@ -54,11 +54,29 @@
         <p class="breadcrumb"><a href="../">Home</a> / Showcases</p>
         <h1>REA case studies.</h1>
         <p class="lede">
-          Game reconstruction, Electron analysis and a CTF challenge, with code,
-          figures and checked results.
+          Android, games, Electron and a CTF challenge, with code, figures and
+          checked results.
         </p>
       </div>
       <div class="guide-index">
+        <section class="guide-entry">
+          <p class="eyebrow">Android · APK analysis</p>
+          <div>
+            <h2>How an authenticator generates a login code</h2>
+            <p>
+              Find Aegis's six-digit code calculation in its released APK. Trace
+              the generating methods with REA, then move a demo clock to see why
+              the code changes every 30 seconds.
+            </p>
+            <div class="guide-route">
+              <span>APK</span> <b aria-hidden="true">→</b>
+              <span>Generating code</span> <b aria-hidden="true">→</b>
+              <span>Recovered rule</span> <b aria-hidden="true">→</b>
+              <span>Adjustable clock</span>
+            </div>
+            <a class="text-link" href="aegis/">Read the Android case study</a>
+          </div>
+        </section>
         <section class="guide-entry">
           <p class="eyebrow">CTF · Native analysis</p>
           <div>

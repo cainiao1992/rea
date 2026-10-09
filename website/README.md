@@ -4,7 +4,7 @@
 >
 > — N0zoM1z0
 
-An English static website with explanatory figures, worked guides and DX-Ball, Notion, TH04 and CTF investigations.
+An English static website with explanatory figures, worked guides and Aegis, DX-Ball, Notion, TH04 and CTF investigations.
 The public files are in `website/public/`. The site uses HTML, CSS and small
 scripts for copying code, following code comparisons and playing the dinosaur
 speed reconstruction. Python
@@ -30,6 +30,7 @@ Open <http://127.0.0.1:4173/>. Refresh the browser after editing a file.
 - `public/examples/dino-lab/index.html`: adjustable-speed mini-game, recovered rule, original-game check and browser analysis steps.
 - `public/first-investigation/index.html`: a guided Notes export investigation, from setup to a checked CSV prediction.
 - `public/showcase/index.html`: the case-study index.
+- `public/showcase/aegis/index.html`: Aegis's Android login-code calculation, with an adjustable clock and reference checks.
 - `public/showcase/dx-ball/index.html`: sound-pan investigation and project status.
 - `public/showcase/notion/index.html`: Notion's Electron clipboard bridge and rich clipboard format.
 - `public/showcase/th04/index.html`: TH04's 16-bit DOS bullet-angle calculation and compiler checks.
@@ -102,6 +103,10 @@ command, then explains what reverse engineering is and why someone would use
 it. The manual/agent comparison introduces REA’s role before the examples.
 Its opening links directly to Showcases and lets experienced readers skip to
 the analysis guides. Case-study previews live on the Showcases page.
+The closing section offers copyable project prompts, from cloning `rea.tools`
+to reconstructing a game from its executable. The experienced-reader shortcut
+lands directly on the guide links below these prompts.
+The page ends with FAQ, Discord and issue-report links under “Any questions?”.
 A right-side table of contents stays visible at widths of 1440px and above.
 On narrower screens it becomes a sticky, native disclosure; selecting a link
 closes the menu and focuses the destination. The homepage script follows
@@ -157,6 +162,21 @@ configuration, complete vendor bundles and raw captured results stay outside
 the website.
 [evidence/notion-clipboard.md](evidence/notion-clipboard.md) records the REA
 package version, selected findings, source anchors and module-probe scope.
+
+## Aegis Android case study
+
+The Aegis case inspects the official 3.4.3 APK through REA 6.1.0. It follows
+the default login-code calculation from class search and display references to
+the time block, keyed hash and six-digit output. Selected decompiled Java is
+paired with a readable summary; the original app and excerpts are credited to
+Aegis under its GPL-3.0 license.
+
+`public/assets/aegis-otp.js` is a new teaching reconstruction using the fixed,
+public RFC 6238 test key. `aegis-demo.js` connects it to the clock slider and
+reference-check button. The diagram remains readable and controls stay disabled
+without JavaScript. Keep the demo, selected code and
+[evidence/aegis-login-code.md](evidence/aegis-login-code.md) aligned. The APK and
+analysis-provider JAR remain official external downloads.
 
 ## TH04 case study
 

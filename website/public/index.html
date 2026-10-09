@@ -71,7 +71,8 @@
             <li><a href="#dinosaur">Dinosaur game</a></li>
             <li><a href="#calculator">Calculator</a></li>
             <li><a href="#try-rea">Try REA</a></li>
-            <li><a href="#analyze">Analysis guides</a></li>
+            <li><a href="#analyze">Go deeper</a></li>
+            <li><a href="#questions">Help &amp; feedback</a></li>
           </ul>
         </div>
       </nav>
@@ -93,7 +94,7 @@
             </div>
             <p class="home-expert-shortcut">
               Already know RE?
-              <a href="#analyze">Skip to analysis guides →</a>
+              <a href="#analysis-guides">Skip to analysis guides →</a>
             </p>
           </div>
           <div class="home-setup">
@@ -167,7 +168,10 @@
               class="manual-investigation step-comparison"
               data-step-comparison
             >
-              <p class="comparison-label">Before REA · You investigate</p>
+              <p class="comparison-label">
+                Before REA · You investigate it
+                <strong class="prose-highlight">yourself</strong>
+              </p>
               <div
                 class="step-selector expert-step-selector"
                 role="group"
@@ -316,7 +320,10 @@
               </p>
             </div>
             <div class="agent-investigation" id="ask-your-agent">
-              <p class="comparison-label">With REA · You ask your agent</p>
+              <p class="comparison-label">
+                With REA · You ask
+                <strong class="prose-highlight">your agent</strong>
+              </p>
               <h3 class="agent-one-prompt">One prompt.</h3>
               <p class="agent-intro">
                 Ask your agent <strong>in plain English.</strong>
@@ -385,6 +392,11 @@
 
       <section class="section" id="dinosaur">
         <div class="container">
+          <p class="home-examples-intro">
+            <strong>Let's try two examples.</strong>
+            Use REA to change a game's speed, then explain a calculator's
+            percentage rule.
+          </p>
           <div class="section-heading">
             <p class="eyebrow">Example 01 · Chrome’s dinosaur game</p>
             <h2>Why does the dinosaur get faster?</h2>
@@ -863,12 +875,77 @@ SPEED: 6</code></pre>
       <section class="section" id="analyze">
         <div class="container">
           <div class="section-heading">
-            <h2>Analyze your software</h2>
+            <h2>Want to go deeper?</h2>
             <p>
-              Choose a guide for your binary, JavaScript app or browser session.
+              Tell your agent what you want to understand or build. With REA,
+              you can work together on anything from
+              <strong>cloning this website</strong> to
+              <strong>reconstructing a game from its executable.</strong>
             </p>
           </div>
-          <div class="workflows">
+          <div class="code-comparison home-project-prompts">
+            <div>
+              <div class="agent-terminal">
+                <div class="terminal-header">
+                  <span class="terminal-title">
+                    <span class="terminal-dots" aria-hidden="true"
+                      ><i></i><i></i><i></i></span
+                    >Example prompt · Website
+                  </span>
+                  <button
+                    class="copy-button"
+                    type="button"
+                    data-copy="website-project-prompt"
+                    aria-label="Copy website project prompt"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p class="terminal-prompt">
+                  <span class="prompt-symbol" aria-hidden="true">›</span
+                  ><span id="website-project-prompt"
+                    >Use REA to inspect https://rea.tools/. Clone this website
+                    for me.</span
+                  ><span class="terminal-cursor" aria-hidden="true"></span>
+                </p>
+              </div>
+              <p class="caption">Yes, this one.</p>
+            </div>
+            <div>
+              <div class="agent-terminal">
+                <div class="terminal-header">
+                  <span class="terminal-title">
+                    <span class="terminal-dots" aria-hidden="true"
+                      ><i></i><i></i><i></i></span
+                    >Example prompt · Game reconstruction
+                  </span>
+                  <button
+                    class="copy-button"
+                    type="button"
+                    data-copy="game-project-prompt"
+                    aria-label="Copy game reconstruction prompt"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p class="terminal-prompt">
+                  <span class="prompt-symbol" aria-hidden="true">›</span
+                  ><span id="game-project-prompt"
+                    >Use REA to reconstruct this game from its executable.
+                    Recover the gameplay logic in C and test it against the
+                    original.</span
+                  ><span class="terminal-cursor" aria-hidden="true"></span>
+                </p>
+              </div>
+              <p class="caption">
+                <a href="showcase/dx-ball/">See the DX-Ball case study →</a>
+              </p>
+            </div>
+          </div>
+          <p class="caption">
+            For setup and analysis steps, choose your target:
+          </p>
+          <div class="workflows" id="analysis-guides">
             <div>
               <h3>Native binaries</h3>
               <p>
@@ -894,6 +971,20 @@ SPEED: 6</code></pre>
               <a href="guides/browser/">Browser observation guide</a>
             </div>
           </div>
+        </div>
+      </section>
+      <section class="section" id="questions">
+        <div class="container">
+          <h2>Any questions?</h2>
+          <p>
+            <a href="faq/">Read the FAQ</a>,
+            <a href="https://discord.gg/GkcryMnJDM">chat with us on Discord</a>,
+            or
+            <a href="https://github.com/morluto/rea/issues/new/choose"
+              >open a GitHub issue</a
+            >
+            for bugs and feature requests.
+          </p>
         </div>
       </section>
     </main>

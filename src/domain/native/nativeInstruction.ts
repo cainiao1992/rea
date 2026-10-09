@@ -59,6 +59,17 @@ export const nativeInstructionSchema = z.strictObject({
     conditional: z.boolean(),
     computed: z.boolean(),
     direct_destinations: z.array(z.string()),
+    classification_evidence: z
+      .array(
+        z.strictObject({
+          source: z.string().min(1),
+          value: z.string().min(1),
+        }),
+      )
+      .optional()
+      .describe(
+        "Observed provider facts used to classify flow; older captures or other providers may omit them.",
+      ),
   }),
   references: z.array(reference),
   limitations: z.array(z.string()),

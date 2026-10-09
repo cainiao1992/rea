@@ -44,6 +44,7 @@ export const resolveGhidraAnalysisProfile = (
         function_body_evidence: "complete-inclusive-ranges-v1",
         function_references: "complete-body-and-entry-reference-manager-v2",
         location_resolution: "explicit-address-exact-entry-symbol-first-v3",
+        instruction_flow_evidence: "decoded-return-pcode-v1",
         process_launch:
           installation.platform === "win32"
             ? "official-headless-script-v1"

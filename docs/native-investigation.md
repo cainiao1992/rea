@@ -185,6 +185,19 @@ outside-memory and undecodable addresses have separate outcomes. Effective
 memory base/index/displacement roles and per-instruction context mode remain
 unavailable; `mode` is the program language variant.
 
+Ghidra distinguishes a return using decoded instruction p-code's `RETURN`
+operation. `flow.classification_evidence` preserves the Listing flow type and
+the observed return evidence; mnemonic spelling alone is not the classifier.
+Other terminal or trap flows retain the provider's classification, and this
+inspection does not change function extents or prove a calling convention.
+The analysis profile commits this decoder behavior. Snapshots from the earlier
+profile produce a profile mismatch rather than replaying the former generic
+terminal result. The old snapshot's `evidence_bundle` remains valid retained
+Evidence: copy that object to a separate JSON file and use `rea evidence-import`
+to validate it. Run analysis without the old snapshot and save a fresh one
+under the current profile. Other providers and older captures may omit the
+classification evidence field.
+
 Call resolution reports direct, resolved indirect, ambiguous, unresolved and
 non-call outcomes from static call references. It does not establish runtime
 execution or classify Objective-C/Swift/vtable/closure mechanisms from names.

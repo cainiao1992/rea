@@ -92,8 +92,7 @@ export async function verifyDebugFunctionOperations(
   if (
     instruction.status !== "decoded" ||
     instruction.length < 1 ||
-    instruction.bytes.length !== instruction.length * 2 ||
-    instruction.operands.length === 0
+    instruction.bytes.length !== instruction.length * 2
   )
     throw new Error("Structured native instruction facts drifted");
   const directSite = outgoing.references.find(

@@ -69,6 +69,13 @@ prompt and the ordinary setup command. Then explain what reverse engineering
 means and what it lets someone do, before the worked examples.
 Begin each example with its goal and the reason to inspect that program.
 Name the actual evidence REA returned and what the agent did with it.
+Give long pages a short table of contents with concrete section names. Preserve
+the reading width: the homepage uses the side gutter when it has room,
+and a collapsible sticky menu on smaller screens. Highlight the current
+section, keep fragment links usable without JavaScript, and leave room above
+the destination for the sticky control. Offer experienced readers a direct
+route from setup to the analysis guides. Keep full case-study previews on the
+Showcases page, linked from the opening actions.
 Use short labels, selective bold text and the shared blue highlight to make
 those facts visible when scanning. Keep source, interpretation and new code
 attributed to their respective roles. On mobile, the demo can precede its

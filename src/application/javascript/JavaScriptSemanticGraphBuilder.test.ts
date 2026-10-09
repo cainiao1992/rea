@@ -761,37 +761,42 @@ it.each([
   },
 );
 
-it("retains array length presence without inventing an exact length", () => {
-  const graph = graphFor("const root = [, 1]; const length = root.length;");
-  const slot = graph.nodes.find(
-    ({ kind, properties }) =>
-      kind === "property-slot" && properties.property_pointer === "/length",
-  );
-  expect(slot?.properties).toMatchObject({
-    name: "length",
-    presence: "present",
-    value_status: "unknown",
-  });
-  const trace = queryJavaScriptSemanticGraph(graph, {
-    seed: { kind: "property", name: "length" },
-    direction: "forward-influence",
-    allowed_relations: ["reads-property"],
-  });
-  expect(trace.seed_node_ids).toEqual([slot?.node_id]);
-  expect(trace.relations).toContainEqual(
-    expect.objectContaining({
-      source_node_id: slot?.node_id,
-      relation: "reads-property",
-      resolution: "resolved",
-    }),
-  );
-  expect(
-    graph.relations.some(
-      ({ target_node_id, relation }) =>
-        target_node_id === slot?.node_id && relation === "defines",
-    ),
-  ).toBe(false);
-});
+it.each(["", "root.length = 0;", "root.length = query(); root[0] = 9;"])(
+  "retains array length presence without inventing an exact length after %s",
+  (mutation) => {
+    const graph = graphFor(
+      `const root = [, 1]; ${mutation} const length = root.length;`,
+    );
+    const slot = graph.nodes.find(
+      ({ kind, properties }) =>
+        kind === "property-slot" && properties.property_pointer === "/length",
+    );
+    expect(slot?.properties).toMatchObject({
+      name: "length",
+      presence: "present",
+      value_status: "unknown",
+    });
+    const trace = queryJavaScriptSemanticGraph(graph, {
+      seed: { kind: "property", name: "length" },
+      direction: "forward-influence",
+      allowed_relations: ["reads-property"],
+    });
+    expect(trace.seed_node_ids).toEqual([slot?.node_id]);
+    expect(trace.relations).toContainEqual(
+      expect.objectContaining({
+        source_node_id: slot?.node_id,
+        relation: "reads-property",
+        resolution: "resolved",
+      }),
+    );
+    expect(
+      graph.relations.some(
+        ({ target_node_id, relation }) =>
+          target_node_id === slot?.node_id && relation === "defines",
+      ),
+    ).toBe(false);
+  },
+);
 
 it.each([
   ["object spread", 'const root = { known: "value", ...dynamic };'],

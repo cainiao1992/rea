@@ -35,7 +35,13 @@ export const invalidateSemanticMutationPath = (
     const name = String(key);
     // Array length writes can remove every index; ordinary named properties
     // and sparse indices affect only their own slot.
-    if (name === "length") return unknown;
+    if (name === "length")
+      return {
+        status: "array",
+        items: [],
+        unknownItems: true,
+        omittedItems: null,
+      };
     const observed = value.items.some((item) => item.name === name);
     const items = value.items.map((item) =>
       item.name === name

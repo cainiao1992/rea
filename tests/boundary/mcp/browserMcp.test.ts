@@ -1,7 +1,8 @@
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
+import { parseEvidence } from "../../../src/domain/evidence.js";
+import { ok as resultOk } from "../../../src/domain/result.js";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { afterEach, expect, it } from "vitest";
-import { z } from "zod";
 
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { CdpBrowserProvider } from "../../../src/browser/CdpBrowserProvider.js";
@@ -35,7 +36,7 @@ it(
       sensitiveShapes: true,
     });
     browsers.push(browser);
-    const connected = await connectBrowser(browser);
+    const connected = await connectBrowser();
 
     const tools = await connected.client.listTools();
     expect(tools.tools).toHaveLength(TOOL_CONTRACTS.length);
@@ -73,7 +74,7 @@ it(
     });
     expect(listed.isError).not.toBe(true);
     expect(listed.structuredContent).toMatchObject({
-      result: {
+      normalized_result: {
         targets: expect.arrayContaining([
           expect.objectContaining({ target_id: "allowed-page" }),
         ]),
@@ -93,7 +94,7 @@ it(
     });
     expect(inspected.isError).not.toBe(true);
     expect(inspected.structuredContent).toMatchObject({
-      result: {
+      normalized_result: {
         target: { target_id: "allowed-page" },
         console: { prior_activity_available: false },
         network: {
@@ -115,7 +116,7 @@ it(
     });
     expect(reconciled.isError).not.toBe(true);
     expect(reconciled.structuredContent).toMatchObject({
-      result: { summary: { runtime_scripts: 1 } },
+      normalized_result: { summary: { runtime_scripts: 1 } },
     });
     expect(JSON.stringify(reconciled.structuredContent)).not.toContain(
       "source-secret",
@@ -130,7 +131,7 @@ it(
     });
     expect(analyzed.isError).not.toBe(true);
     expect(analyzed.structuredContent).toMatchObject({
-      result: {
+      normalized_result: {
         capture: { scripts_analyzed: 1 },
         observations: { source_maps: { status: "not_requested" } },
       },
@@ -156,7 +157,7 @@ const verifySessionAndComparisonTools = async (
   });
   expect(observedSession.isError).not.toBe(true);
   expect(observedSession.structuredContent).toMatchObject({
-    result: {
+    normalized_result: {
       window: { end_reason: "window_elapsed" },
       timeline: expect.arrayContaining([
         expect.objectContaining({ type: "same_origin_reload" }),
@@ -174,7 +175,7 @@ const verifySessionAndComparisonTools = async (
   });
   expect(webMcp.isError).not.toBe(true);
   expect(webMcp.structuredContent).toMatchObject({
-    result: {
+    normalized_result: {
       tools: {
         items: [expect.objectContaining({ name: "search_orders" })],
       },
@@ -190,7 +191,7 @@ const verifySessionAndComparisonTools = async (
   });
   expect(compared.isError).not.toBe(true);
   expect(compared.structuredContent).toMatchObject({
-    result: { overall_status: "unknown" },
+    normalized_result: { overall_status: "unknown" },
   });
   const parsedCapture = webPageInspectionSchema.parse(capture);
   const socket = parsedCapture.network.websocket_events.find(
@@ -250,22 +251,20 @@ const verifySessionAndComparisonTools = async (
   });
   expect(visual.isError).not.toBe(true);
   expect(visual.structuredContent).toMatchObject({
-    result: { status: "identical", changed_pixels: 0 },
+    normalized_result: { status: "identical", changed_pixels: 0 },
   });
   expect(inspected.structuredContent).toMatchObject({
-    result: expect.any(Object),
-    evidence: {
-      operation: "inspect_web_page",
-      predicate_type: expect.any(String),
-      parameters: expect.any(Object),
-    },
+    normalized_result: expect.any(Object),
+    operation: "inspect_web_page",
+    predicate_type: expect.any(String),
+    parameters: expect.any(Object),
   });
 };
 
 it("does not attach to a target outside the request's allowed origin scope", async () => {
   const browser = await startFakeCdpBrowser();
   browsers.push(browser);
-  const connected = await connectBrowser(browser);
+  const connected = await connectBrowser();
   const result = await connected.client.callTool({
     name: "inspect_web_page",
     arguments: {
@@ -287,10 +286,10 @@ it("does not attach to a target outside the request's allowed origin scope", asy
   expect(browser.commands).toHaveLength(0);
 });
 
-const connectBrowser = async (browser: FakeCdpBrowser) => {
+const connectBrowser = async () => {
   const session = createTestBinarySession(() => ({
     execute: () => Promise.resolve(observed(null)),
-    close: () => Promise.resolve(),
+    close: () => Promise.resolve(resultOk(null)),
   }));
   const server = createServer(session, session, {
     browserObservation: new CdpBrowserProvider(),
@@ -309,24 +308,17 @@ const connectBrowser = async (browser: FakeCdpBrowser) => {
 };
 
 const normalizedResultOf = (value: unknown): unknown => {
-  if (typeof value !== "object" || value === null || !("result" in value))
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("normalized_result" in value)
+  )
     throw new TypeError("Missing normalized browser result");
-  return value.result;
+  return value.normalized_result;
 };
 
 const evidenceFor = (value: unknown) => {
-  const parsed = z
-    .object({
-      evidence_id: z.string(),
-      result: z.unknown(),
-      evidence: z.object({}).passthrough(),
-    })
-    .parse(value);
-  return {
-    ...parsed.evidence,
-    evidence_id: parsed.evidence_id,
-    normalized_result: parsed.result,
-  };
+  return parseEvidence(value);
 };
 
 const artifactOf = (value: unknown): unknown => {

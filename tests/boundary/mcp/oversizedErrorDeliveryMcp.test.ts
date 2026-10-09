@@ -13,10 +13,12 @@ import { EvidenceIntegrityError } from "../../../src/domain/evidenceErrors.js";
 import type { Evidence } from "../../../src/domain/evidence.js";
 import { err, ok } from "../../../src/domain/result.js";
 import { EvidenceMcpServer } from "../../../src/server/EvidenceMcpServer.js";
-import { toErrorToolResult } from "../../../src/server/toolResult.js";
+import { ToolResultDelivery } from "../../../src/server/toolResult.js";
+
+const delivery = new ToolResultDelivery(STDIO_DEFAULT_MAX_BUFFER_SIZE);
 
 const oversizedFailure = () =>
-  toErrorToolResult(
+  delivery.toErrorToolResult(
     new AnalysisInputError("procedure_address", undefined, [
       {
         path: ["procedure"],
@@ -34,6 +36,7 @@ const exerciseDeliveryFailure = async (
     { name: "oversized-error-test", version: "1" },
     { capabilities: {} },
     recordEvidence,
+    delivery,
   );
   server.registerTool("large_failure", { inputSchema: {} }, async () =>
     oversizedFailure(),

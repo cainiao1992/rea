@@ -1,6 +1,6 @@
 import {
   requireMcpToolError,
-  requireMcpResult,
+  requireMcpOperationResult,
 } from "./mcp-verifier-results.mjs";
 import assert from "node:assert/strict";
 import { access, mkdtemp, readFile, rm } from "node:fs/promises";
@@ -20,7 +20,7 @@ export async function verifyGhidraSnapshotLifecycle(
   let successfulCalls = 0;
   let rejectedCalls = 0;
   const call = async (name, args = {}) => {
-    const result = requireMcpResult(
+    const result = requireMcpOperationResult(
       await client.callTool({ name, arguments: args }, { timeout: 180000 }),
       name,
     );

@@ -17,7 +17,6 @@ import {
 } from "../../../src/application/AnalysisProvider.js";
 import { AnalysisProviderRegistry } from "../../../src/application/binary/AnalysisProviderRegistry.js";
 import { composeBinarySession } from "../../../src/application/binary/BinarySessionComposition.js";
-import { SessionProviderRouter } from "../../../src/application/binary/SessionProviderRouter.js";
 import { createAnalysisProfile } from "../../../src/domain/analysisProfile.js";
 import { ok } from "../../../src/domain/result.js";
 import { silentLogger } from "../../../src/logger.js";
@@ -39,13 +38,10 @@ describe("provider selection over MCP", () => {
     await writeFile(target, "fixture");
     const starts: string[] = [];
     const session = composeBinarySession(
-      SessionProviderRouter.selectable(
-        new AnalysisProviderRegistry([
-          candidate("beta", starts),
-          candidate("alpha", starts),
-        ]),
-        [],
-      ),
+      new AnalysisProviderRegistry([
+        candidate("beta", starts),
+        candidate("alpha", starts),
+      ]),
     );
     const server = createServer(session, session, { logger: silentLogger });
     const mcp = new Client({ name: "provider-selection", version: "1.0.0" });
@@ -117,7 +113,7 @@ describe("provider selection over MCP", () => {
     });
     expect(observed.isError).not.toBe(true);
     expect(structured(observed)).toMatchObject({
-      result: "beta:address_name",
+      normalized_result: "beta:address_name",
       evidence_id: expect.stringMatching(/^ev_/u),
     });
     expect(starts).toEqual(["beta"]);
@@ -195,7 +191,6 @@ const candidate = (id: string, starts: string[]): AnalysisProviderCandidate => {
             { id, name: identity.name, version: "1" },
             { fixture: id },
           ),
-          compatibility: {},
         }),
       ),
     createClient: (_target, profile) => {
@@ -210,7 +205,7 @@ const candidate = (id: string, starts: string[]): AnalysisProviderCandidate => {
               ),
             ),
           ),
-        close: () => Promise.resolve(),
+        close: () => Promise.resolve(ok(null)),
       };
     },
   };

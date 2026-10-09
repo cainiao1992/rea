@@ -1,6 +1,7 @@
 import {
   requireMcpToolError,
-  requireMcpResult,
+  requireMcpLifecycleResult,
+  requireMcpEvidenceResult,
 } from "./mcp-verifier-results.mjs";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
@@ -25,7 +26,7 @@ export async function verifyLegacyGhidraReferenceSnapshot(
   client,
   { target, procedure, omittedEdge, entrypoint, env },
 ) {
-  const bundle = requireMcpResult(
+  const bundle = requireMcpLifecycleResult(
     await client.callTool({
       name: "get_evidence_bundle",
       arguments: {},
@@ -100,6 +101,7 @@ export async function verifyLegacyGhidraReferenceSnapshot(
         },
       }),
     ],
+    workflow_entries: [],
     evidence_bundle: createEvidenceBundle([evidence]),
   });
   assert.equal(
@@ -110,7 +112,7 @@ export async function verifyLegacyGhidraReferenceSnapshot(
   const path = join(env.TMPDIR, `legacy-reference-${randomUUID()}.json`);
   await writeFile(path, serializeAnalysisSnapshot(snapshot), { flag: "wx" });
   try {
-    const session = requireMcpResult(
+    const session = requireMcpLifecycleResult(
       await client.callTool({ name: "binary_session", arguments: {} }),
       "binary_session",
     );
@@ -131,14 +133,14 @@ export async function verifyLegacyGhidraReferenceSnapshot(
       /without this snapshot.*fresh snapshot/u,
     );
     assert.deepEqual(
-      requireMcpResult(
+      requireMcpLifecycleResult(
         await client.callTool({ name: "binary_session", arguments: {} }),
         "binary_session",
       ),
       session,
       "A rejected snapshot must preserve the selected session",
     );
-    const retained = requireMcpResult(
+    const retained = requireMcpEvidenceResult(
       await client.callTool({
         name: "analyze_function",
         arguments: { procedure },

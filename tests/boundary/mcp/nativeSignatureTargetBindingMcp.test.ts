@@ -20,7 +20,7 @@ it("rejects changed signature targets through MCP and accepts reopening the new 
   );
   await writeFile(path, machoImage({}));
   const session = createTestBinarySession(
-    new NativeMacOSProvider(new NativeFixtureRunner(), "darwin"),
+    new NativeMacOSProvider({}, new NativeFixtureRunner(), "darwin"),
   );
   const server = createServer(session, session);
   const client = new Client({ name: "signature-binding-test", version: "1" });
@@ -54,7 +54,7 @@ it("rejects changed signature targets through MCP and accepts reopening the new 
       JSON.stringify(inspected.structuredContent),
     ).not.toBe(true);
     expect(inspected.structuredContent).toMatchObject({
-      result: { signed: true, identifier: "com.example.fixture" },
+      normalized_result: { signed: true, identifier: "com.example.fixture" },
     });
   } finally {
     await client.close();

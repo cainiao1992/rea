@@ -1,4 +1,5 @@
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
+import { ok as resultOk } from "../../../src/domain/result.js";
 import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -37,7 +38,7 @@ const sourceEvidence = (label: string) =>
   );
 
 describe("bundle comparison MCP integration", () => {
-  it("reads caller-selected bundle files and records a compact result", async () => {
+  it("reads caller-selected bundle files and returns complete Evidence", async () => {
     const root = await createTestTempDirectory("rea-bundle-mcp-");
     roots.push(root);
     const leftPath = join(root, "left.json");
@@ -71,7 +72,7 @@ describe("bundle comparison MCP integration", () => {
       });
       expect(result.isError).not.toBe(true);
       expect(result.structuredContent).toMatchObject({
-        result: { status: "changed" },
+        normalized_result: { status: "changed" },
         evidence_id: expect.stringMatching(/^ev_[a-f0-9]{64}$/u),
       });
     } finally {
@@ -101,7 +102,7 @@ describe("bundle comparison MCP integration", () => {
       });
       expect(result.isError).not.toBe(true);
       expect(result.structuredContent).toMatchObject({
-        result: { status: "unchanged" },
+        normalized_result: { status: "unchanged" },
       });
     } finally {
       await connected.close();
@@ -149,7 +150,7 @@ const connect = async () => {
   const session = createTestBinarySession(() => ({
     health: () => Promise.resolve(),
     execute: () => Promise.resolve(observed(null)),
-    close: () => Promise.resolve(),
+    close: () => Promise.resolve(resultOk(null)),
   }));
   const server = createServer(session, session);
   const client = new Client({ name: "bundle-comparison-test", version: "1" });

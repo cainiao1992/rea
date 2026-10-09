@@ -25,7 +25,7 @@ it("inspects a standalone keyed archive through MCP with original object identit
       ),
     ),
   );
-  const session = createTestBinarySession(new ArtifactProvider());
+  const session = createTestBinarySession(new ArtifactProvider(process.env));
   const server = createServer(session, session);
   const client = new Client({ name: "keyed-mcp-test", version: "1" });
   const [clientTransport, serverTransport] =
@@ -46,7 +46,9 @@ it("inspects a standalone keyed archive through MCP with original object identit
       true,
     );
     const graph = keyedArchiveResultSchema.parse(
-      z.object({ result: z.unknown() }).parse(called.structuredContent).result,
+      z
+        .object({ normalized_result: z.unknown() })
+        .parse(called.structuredContent).normalized_result,
     );
     expect(graph.references).toEqual(
       expect.arrayContaining([
@@ -116,7 +118,7 @@ it("returns all 520 ZIP file occurrences in one inspect_artifact MCP result", as
     );
   await writeFile(archive, await writer.close());
 
-  const session = createTestBinarySession(new ArtifactProvider());
+  const session = createTestBinarySession(new ArtifactProvider(process.env));
   const server = createServer(session, session);
   const client = new Client({ name: "artifact-inline-test", version: "1" });
   const [clientTransport, serverTransport] =
@@ -149,8 +151,9 @@ it("returns all 520 ZIP file occurrences in one inspect_artifact MCP result", as
         ),
       })
       .parse(
-        z.object({ result: z.unknown() }).parse(result.structuredContent)
-          .result,
+        z
+          .object({ normalized_result: z.unknown() })
+          .parse(result.structuredContent).normalized_result,
       );
     expect(
       inspection.substeps[0]?.evidence.normalized_result.occurrences,

@@ -1,3 +1,5 @@
+import { isIP } from "node:net";
+
 import type {
   ProcessSample,
   ProcessScenario,
@@ -30,13 +32,32 @@ export const normalizeProcessText = (
         `<filesystem-root-${String(index)}>`,
       );
   }
+  if (scenario.normalization.ports)
+    normalized = normalizePortTokens(normalized);
   if (scenario.normalization.pids)
     normalized = normalizePidTokens(normalized, [pid]);
-  if (scenario.normalization.ports)
-    normalized = normalized.replaceAll(/(?<=[:=])\d{2,5}\b/g, "<port>");
   for (const pattern of scenario.normalization.patterns)
     normalized = normalized.replaceAll(pattern.pattern, pattern.replacement);
   return normalized;
+};
+
+const normalizePortTokens = (value: string): string => {
+  const endpointNormalized = value.replaceAll(
+    /(\b[a-z][a-z0-9+.-]*:\/\/[^\s/?#"'<>]+|\blocalhost|\b(?:\d{1,3}\.){3}\d{1,3}|\[[\da-f:.%]+\]):(\d{1,5})(?![\w.@:])/giu,
+    (match: string, endpoint: string, port: string) => {
+      if (Number(port) > 65_535) return match;
+      const isEndpoint = endpoint.includes("://")
+        ? URL.canParse(`${endpoint}:${port}`)
+        : endpoint.toLowerCase() === "localhost" ||
+          isIP(endpoint.replace(/^\[|\]$/gu, "")) !== 0;
+      return isEndpoint ? `${endpoint}:<port>` : match;
+    },
+  );
+  return endpointNormalized.replaceAll(
+    /(\b(?:port|tcp_port|udp_port|listen)\b["']?\s*[:=]\s*)(\d{1,5})(?![\w.])/giu,
+    (match: string, prefix: string, port: string) =>
+      Number(port) <= 65_535 ? `${prefix}<port>` : match,
+  );
 };
 
 /** Project sampled observations under the caller-selected normalization rules. */

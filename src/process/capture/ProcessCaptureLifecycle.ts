@@ -828,6 +828,7 @@ export const captureTerminalFrames = (options: {
       sequence,
       at_ms: atMs,
       data: normalized,
+      ...(normalized === data ? {} : { raw_data: data }),
     });
     options.renderer.write(data, atMs);
     options.recordEvent("frames", sequence);

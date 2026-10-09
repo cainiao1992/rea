@@ -84,6 +84,9 @@ export const processComparisonContract = (
   settle_ms: scenario.settle_ms,
   limits: scenario.limits,
   normalization: scenario.normalization,
+  ...(scenario.normalization.ports
+    ? { port_normalization_version: "contextual-endpoints-v1" }
+    : {}),
 });
 
 /**

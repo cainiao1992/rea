@@ -27,6 +27,52 @@ const identitySchema = z.object({
 const itWithLinuxCaptureCapability =
   process.platform === "linux" ? itWithCaptureCapability : it.skip;
 
+itWithCaptureCapability(
+  "preserves numeric reports and original normalized PTY text in Evidence",
+  async () => {
+    const root = await createTestTempDirectory("rea-process-numeric-report-");
+    const report = JSON.stringify({
+      pid: 32,
+      size: 108,
+      height: 480,
+      width: 640,
+      score: 20,
+    });
+    const original = `${report}\nlisten:8080\n`;
+    const scenario = parseProcessScenario({
+      executable: process.execPath,
+      working_directory: root,
+      arguments: ["-e", `process.stdout.write(${JSON.stringify(original)})`],
+      settle_ms: 100,
+    });
+    const result = await captureProcessScenario(scenario);
+    if (!result.ok) throw result.error;
+    const capture = parseProcessCapture(
+      createProcessCaptureEvidence(scenario, result.value).normalized_result,
+    );
+    expect(capture.frames.map(({ data }) => data).join("")).toContain(report);
+    expect(capture.frames.map(({ data }) => data).join("")).toContain(
+      "listen:<port>",
+    );
+    expect(
+      capture.frames.map(({ data, raw_data }) => raw_data ?? data).join(""),
+    ).toBe(original.replaceAll("\n", "\r\n"));
+    expect(
+      capture.rendered_frames.some(({ serialized_state }) =>
+        serialized_state.includes(report),
+      ),
+    ).toBe(true);
+    expect(capture.manifest.comparison_contract).toMatchObject({
+      port_normalization_version: "contextual-endpoints-v1",
+    });
+    expect(capture.exit).toMatchObject({ code: 0, reason: "exited" });
+    expect(capture.cleanup).toMatchObject({
+      owned_process_group: "verified",
+      temporary_root: "removed",
+    });
+  },
+);
+
 itWithLinuxCaptureCapability.each([false, true])(
   "honors pids=%s in owned Linux capture samples and committed Evidence",
   async (pids) => {

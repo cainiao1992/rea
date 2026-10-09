@@ -17,43 +17,68 @@ const expected = {
   width: 900,
   height: 600,
 };
+const alternate = {
+  timezone: "UTC",
+  locale: "en-US",
+  dpr: 1,
+  width: 700,
+  height: 500,
+};
 const expression = `JSON.stringify({
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   locale: Intl.DateTimeFormat().resolvedOptions().locale,
   dpr: devicePixelRatio, width: innerWidth, height: innerHeight
 })`;
 
-const environmentScenario = (endpoint, targetId, origin) =>
+const environmentScenario = ({ endpoint, targetId, origin, values, run }) =>
   browserScenarioSchema.parse({
     browser: { mode: "connect", cdp_endpoint: endpoint, target_id: targetId },
-    start_url: { url: `${origin}/scenario-environment` },
+    start_url: {
+      url: `${origin}/scenario-environment${run === undefined ? "" : `?run=${run}`}`,
+    },
     environment: {
-      locale: expected.locale,
-      timezone: expected.timezone,
+      locale: values.locale,
+      timezone: values.timezone,
       viewport: {
-        width: expected.width,
-        height: expected.height,
-        device_scale_factor: expected.dpr,
+        width: values.width,
+        height: values.height,
+        device_scale_factor: values.dpr,
       },
     },
-    actions: [
-      {
-        step_id: "refresh",
-        action: "click",
-        locator: { kind: "css", selector: "#refresh-environment" },
-      },
-    ],
+    actions:
+      run === undefined
+        ? [
+            {
+              step_id: "refresh",
+              action: "click",
+              locator: { kind: "css", selector: "#refresh-environment" },
+            },
+          ]
+        : [
+            {
+              step_id: `gate_${run}`,
+              action: "wait_for",
+              locator: { kind: "css", selector: `#release-${run}` },
+              state: "attached",
+              timeout_ms: 30_000,
+            },
+            {
+              step_id: `refresh_${run}`,
+              action: "click",
+              locator: { kind: "css", selector: "#refresh-environment" },
+            },
+          ],
     capture: { after_each_step: ["dom"], at_end: ["dom"] },
   });
 
-const assertCapture = (capture) => {
+const assertCapture = (capture, values = expected) => {
   assert.equal(capture.browser.cleanup, "disconnected-external");
   for (const step of capture.steps) {
     assert.equal(step.artifacts.dom.state, "captured");
     const text = step.artifacts.dom.value.text;
     const observed = /<pre id="environment">([^<]+)<\/pre>/u.exec(text);
     assert.ok(observed, "DOM omitted the page's actual environment values");
-    assert.deepEqual(JSON.parse(observed[1]), expected);
+    assert.deepEqual(JSON.parse(observed[1]), values);
   }
 };
 
@@ -75,7 +100,12 @@ export async function verifyScenarioEnvironment(endpoint, targetId, origin) {
     return JSON.parse(value.result.value);
   };
   const baseline = await readEnvironment();
-  const scenario = environmentScenario(endpoint, targetId, origin);
+  const scenario = environmentScenario({
+    endpoint,
+    targetId,
+    origin,
+    values: expected,
+  });
   const assertRestored = async () => {
     assert.deepEqual(await readEnvironment(), baseline);
     const remaining = await (await fetch(`${endpoint}/json/list`)).json();
@@ -105,6 +135,15 @@ export async function verifyScenarioEnvironment(endpoint, targetId, origin) {
           "capture_browser_scenario",
         ),
       );
+      await verifyConcurrentMcpCapture({
+        client,
+        connection,
+        endpoint,
+        targetId,
+        origin,
+        readEnvironment,
+        assertRestored,
+      });
     } finally {
       await client.close();
       await transport.close();
@@ -156,6 +195,125 @@ export async function verifyScenarioEnvironment(endpoint, targetId, origin) {
     await connection.close();
   }
 }
+
+const verifyConcurrentMcpCapture = async ({
+  client,
+  connection,
+  endpoint,
+  targetId,
+  origin,
+  readEnvironment,
+  assertRestored,
+}) => {
+  const firstScenario = environmentScenario({
+    endpoint,
+    targetId,
+    origin,
+    values: expected,
+    run: "A",
+  });
+  const secondScenario = environmentScenario({
+    endpoint,
+    targetId,
+    origin,
+    values: alternate,
+    run: "B",
+  });
+  const firstCancellation = new AbortController();
+  const secondCancellation = new AbortController();
+  const cancellation = new AbortController();
+  const pendingCalls = [];
+  const callTool = (arguments_, signal) => {
+    const pending = client.callTool(
+      { name: "capture_browser_scenario", arguments: arguments_ },
+      { signal, timeout: 60_000 },
+    );
+    void pending.catch(() => {});
+    pendingCalls.push(pending);
+    return pending;
+  };
+
+  try {
+    const first = callTool(firstScenario, firstCancellation.signal);
+    await waitForEnvironment(readEnvironment, connection, expected, "A");
+
+    const second = callTool(secondScenario, secondCancellation.signal);
+    await client.ping();
+    assert.deepEqual(await readEnvironment(), expected);
+    assert.equal(await readScenarioRun(connection), "A");
+
+    const cancelled = callTool(
+      environmentScenario({
+        endpoint,
+        targetId,
+        origin,
+        values: alternate,
+        run: "C",
+      }),
+      cancellation.signal,
+    );
+    await client.ping();
+    cancellation.abort(new Error("cancel queued browser scenario"));
+    await assert.rejects(cancelled, /cancel queued browser scenario/u);
+    assert.deepEqual(await readEnvironment(), expected);
+    assert.equal(await readScenarioRun(connection), "A");
+
+    await releaseScenario(connection);
+    assertCapture(
+      requireMcpEvidenceResult(await first, "capture_browser_scenario"),
+      expected,
+    );
+
+    await waitForEnvironment(readEnvironment, connection, alternate, "B");
+    await releaseScenario(connection);
+    assertCapture(
+      requireMcpEvidenceResult(await second, "capture_browser_scenario"),
+      alternate,
+    );
+    await client.ping();
+    await assertRestored();
+  } finally {
+    firstCancellation.abort();
+    secondCancellation.abort();
+    cancellation.abort();
+    await releaseScenario(connection).catch(() => undefined);
+    await Promise.allSettled(pendingCalls);
+  }
+};
+
+const waitForEnvironment = async (
+  readEnvironment,
+  connection,
+  expectedValues,
+  run,
+) => {
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    if (
+      JSON.stringify(await readEnvironment()) ===
+        JSON.stringify(expectedValues) &&
+      (await readScenarioRun(connection)) === run
+    )
+      return;
+    await delay(25);
+  }
+  throw new Error(`Scenario ${run} never reached its page-controlled gate`);
+};
+
+const readScenarioRun = async (connection) => {
+  const value = await connection.send("Runtime.evaluate", {
+    expression: "document.body.dataset.run ?? null",
+    returnByValue: true,
+  });
+  return value.result.value;
+};
+
+const releaseScenario = async (connection) => {
+  await connection.send("Runtime.evaluate", {
+    expression: "window.releaseScenario()",
+    returnByValue: true,
+  });
+};
 
 async function verifyCancelledEnvironment(
   provider,

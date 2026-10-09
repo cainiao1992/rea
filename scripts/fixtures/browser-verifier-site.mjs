@@ -11,9 +11,14 @@ export async function startBrowserVerifierSite() {
       response.destroy();
       return;
     }
-    if (request.url === "/scenario-environment") {
+    const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
+    if (requestUrl.pathname === "/scenario-environment") {
+      const requestedRun = requestUrl.searchParams.get("run");
+      const run = ["A", "B", "C"].includes(requestedRun)
+        ? requestedRun
+        : "default";
       response.setHeader("content-type", "text/html");
-      response.end(`<!doctype html><html><body><pre id="environment"></pre>
+      response.end(`<!doctype html><html><body data-run="${run}"><pre id="environment"></pre>
         <button id="refresh-environment">Refresh environment</button><script>
         const refresh = () => document.querySelector('#environment').textContent = JSON.stringify({
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -21,6 +26,11 @@ export async function startBrowserVerifierSite() {
           dpr: devicePixelRatio, width: innerWidth, height: innerHeight
         });
         document.querySelector('#refresh-environment').onclick = refresh;
+        window.releaseScenario = () => {
+          const release = document.createElement('span');
+          release.id = 'release-' + document.body.dataset.run;
+          document.body.append(release);
+        };
         refresh();
       </script></body></html>`);
       return;

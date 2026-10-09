@@ -334,10 +334,7 @@ export const parseReferenceSourceImports = (
   let source: string;
   try {
     source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-  } catch (cause: unknown) {
-    // The import still records the original bytes; lossy text cannot supply
-    // observed module names or relationships.
-    void cause;
+  } catch {
     return {
       relationships: [],
       parse_failures: [

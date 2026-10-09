@@ -161,21 +161,26 @@ captureTest(
         }),
       ),
     ];
-    for (const options of invalid) {
-      const request = { ...scenario, ...options };
-      expect(
-        (await call("capture_process_scenario", request)).isError,
-        JSON.stringify(options),
-      ).toBe(true);
-      const path = join(root, "scenario.json");
-      await writeFile(path, JSON.stringify(request));
-      await expect(
-        execute(process.execPath, [cli, "capture-process", path, "--json"]),
-      ).rejects.toMatchObject({
-        code: 1,
-        stdout: expect.stringContaining("invalid_request"),
-      });
-    }
+    // Each CLI case is an independent process; running them concurrently keeps
+    // the suite well inside its deadline on slower CI runners.
+    await Promise.all(
+      invalid.map(async (options, index) => {
+        const request = { ...scenario, ...options };
+        expect(
+          (await call("capture_process_scenario", request)).isError,
+          JSON.stringify(options),
+        ).toBe(true);
+        const path = join(root, `scenario-${String(index)}.json`);
+        await writeFile(path, JSON.stringify(request));
+        await expect(
+          execute(process.execPath, [cli, "capture-process", path, "--json"]),
+          JSON.stringify(options),
+        ).rejects.toMatchObject({
+          code: 1,
+          stdout: expect.stringContaining("invalid_request"),
+        });
+      }),
+    );
     await expect(access(marker)).rejects.toMatchObject({ code: "ENOENT" });
     const missing = join(root, "missing-executable");
     const failed = await call("capture_process_scenario", {

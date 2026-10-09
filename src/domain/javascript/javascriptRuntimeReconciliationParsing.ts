@@ -20,7 +20,7 @@ import {
   javascriptRuntimeObservationSchema,
   javascriptRuntimeKindSchema,
   type JavaScriptRuntimeObservation,
-  type JavaScriptRuntimeLocation,
+  type JavaScriptRuntimeTargetLocation,
 } from "./javascriptRuntimeObservation.js";
 import { canonicalDigest } from "../comparisonSemantics.js";
 import { compareCodePoints } from "../canonicalOrdering.js";
@@ -89,7 +89,16 @@ interface NormalizedV8Inspection {
       language: null;
       source: { readonly included: false; readonly reason: string };
     }> &
-      ({ readonly file_path: string } | { readonly url: string }))[];
+      (
+        | { readonly file_path: string }
+        | { readonly url: string }
+        | {
+            readonly unresolved_location: Extract<
+              JavaScriptRuntimeObservation["scripts"]["items"][number]["location"],
+              { kind: "unresolved" }
+            >;
+          }
+      ))[];
   };
   readonly workers: readonly [];
   readonly completeness: BrowserCompleteness;
@@ -367,8 +376,17 @@ const normalizeV8Inspection = (
 });
 
 const runtimeLocation = (
-  location: JavaScriptRuntimeLocation,
-): { readonly file_path: string } | { readonly url: string } => {
+  location: JavaScriptRuntimeTargetLocation,
+):
+  | { readonly file_path: string }
+  | { readonly url: string }
+  | {
+      readonly unresolved_location: Extract<
+        JavaScriptRuntimeTargetLocation,
+        { kind: "unresolved" }
+      >;
+    } => {
+  if (location.kind === "unresolved") return { unresolved_location: location };
   if (location.kind === "file") return { file_path: location.file_path };
   if (location.kind === "url") return { url: location.sanitized_url };
   return { url: location.specifier };

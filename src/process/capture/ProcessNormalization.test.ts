@@ -99,6 +99,25 @@ it("normalizes only contextual ports before overlapping PID values and honors di
   ).toBe(input);
 });
 
+it("normalizes ports that end a sentence but not decimal or host continuations", () => {
+  const input = [
+    "Listening on port: 8080.",
+    "Server at http://localhost:8080. Ready",
+    "Bound [::1]:3000.",
+    "listen=9000.\n",
+    "port: 80.5 localhost:8080.5 localhost:8080.example.test",
+  ].join("\n");
+  expect(normalizeProcessText(input, scenario({}), "/temporary", rootPid)).toBe(
+    [
+      "Listening on port: <port>.",
+      "Server at http://localhost:<port>. Ready",
+      "Bound [::1]:<port>.",
+      "listen=<port>.\n",
+      "port: 80.5 localhost:8080.5 localhost:8080.example.test",
+    ].join("\n"),
+  );
+});
+
 it("normalizes representative process identities and preserves null, zero, and unrelated numbers", () => {
   const before = JSON.stringify(samples);
   const normalized = normalizeProcessSamples(samples, scenario({}), rootPid);

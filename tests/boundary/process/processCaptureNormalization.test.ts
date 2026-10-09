@@ -63,7 +63,7 @@ itWithCaptureCapability(
       ),
     ).toBe(true);
     expect(capture.manifest.comparison_contract).toMatchObject({
-      port_normalization_version: "contextual-endpoints-v1",
+      port_normalization_version: "contextual-endpoints-v2",
     });
     expect(capture.exit).toMatchObject({ code: 0, reason: "exited" });
     expect(capture.cleanup).toMatchObject({

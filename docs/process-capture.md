@@ -112,8 +112,10 @@ same admitted PTY chunks rather than a second unbounded stream.
 
 Port normalization recognizes explicit `port`, `tcp_port`, `udp_port`, and
 `listen` fields, URL authorities, IP endpoints, and `localhost` endpoints, with
-ports from 0 through 65535. It preserves ordinary counters, dimensions, file
-line numbers, and ambiguous bare host labels. Use explicit literal `patterns`
+ports from 0 through 65535. A port may end a sentence, as in `port: 8080.`;
+a period followed by a letter or digit continues a decimal, version, or host
+name instead. It preserves ordinary counters, dimensions, file line numbers,
+and ambiguous bare host labels. Use explicit literal `patterns`
 for a different application-specific spelling. Set `ports: false` to preserve
 all endpoint numbers in comparison text. Captures commit the port-normalization
 version so older broad numeric normalization cannot silently compare as the

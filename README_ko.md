@@ -18,7 +18,7 @@
 
 🎉 **GitHub 스타 30,000개, 감사합니다!**
 
-REA를 사용하고, 버그를 제보하고, 빌드를 테스트하고, 수정에 기여해 주신 모든 분께 감사드립니다.
+REA를 사용하고, 버그를 제보하고, 기능을 요청하고, 빌드를 테스트하고, 수정에 기여해 주신 모든 분께 감사드립니다.
 
 <a href="https://trendshift.io/repositories/82054?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-82054" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/82054" alt="morluto%2Frea | Trendshift" width="250" height="55"/></a>
 

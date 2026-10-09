@@ -18,7 +18,7 @@
 
 🎉 **30.000 sao trên GitHub — cảm ơn các bạn!**
 
-Cảm ơn tất cả những ai sử dụng REA, báo lỗi, thử nghiệm các bản dựng và đóng góp bản sửa lỗi.
+Cảm ơn tất cả những ai sử dụng REA, báo lỗi, đề xuất tính năng, thử nghiệm các bản dựng và đóng góp bản sửa lỗi.
 
 <a href="https://trendshift.io/repositories/82054?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-82054" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/82054" alt="morluto%2Frea | Trendshift" width="250" height="55"/></a>
 

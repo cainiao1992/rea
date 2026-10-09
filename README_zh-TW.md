@@ -18,7 +18,7 @@
 
 🎉 **GitHub Star 突破 30,000，感謝大家！**
 
-感謝每一位使用 REA、回報問題、測試版本和貢獻修正的朋友。
+感謝每一位使用 REA、回報問題、提出功能需求、測試版本和貢獻修正的朋友。
 
 <a href="https://trendshift.io/repositories/82054?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-82054" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/82054" alt="morluto%2Frea | Trendshift" width="250" height="55"/></a>
 

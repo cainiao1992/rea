@@ -18,7 +18,7 @@
 
 🎉 **30 000 gwiazdek na GitHubie — dziękujemy!**
 
-Dziękujemy wszystkim, którzy korzystają z REA, zgłaszają błędy, testują kompilacje i przesyłają poprawki.
+Dziękujemy wszystkim, którzy korzystają z REA, zgłaszają błędy, proponują nowe funkcje, testują kompilacje i przesyłają poprawki.
 
 <a href="https://trendshift.io/repositories/82054?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-82054" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/82054" alt="morluto%2Frea | Trendshift" width="250" height="55"/></a>
 

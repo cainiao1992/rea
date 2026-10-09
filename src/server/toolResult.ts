@@ -1,7 +1,7 @@
 import type { CallToolResult } from "@modelcontextprotocol/server";
 import { STDIO_DEFAULT_MAX_BUFFER_SIZE } from "@modelcontextprotocol/server";
 
-import type { ToolContract } from "../contracts/toolContracts.js";
+import type { ToolContract } from "../contracts/toolContractTypes.js";
 import type { Evidence } from "../domain/evidence.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { type AnalysisError } from "../domain/analysisErrorBase.js";
@@ -87,29 +87,35 @@ export class ToolResultDelivery {
     recovery: Readonly<Record<string, JsonValue>> = {},
   ): CallToolResult {
     const encoded = encodeToolResult(value, this.resultBudgetBytes);
-    if (!encoded.ok)
-      return this.toErrorToolResult(
-        new AnalysisResourceConstraintError(
-          contract.name,
-          "transport",
-          encoded.constraint === "string-length"
-            ? "The operation completed, but its complete MCP response exceeds Node's single-string representation limit. Export retained evidence to consume the complete analysis, or use complete CLI JSON output."
-            : "The operation completed, but its complete MCP response exceeds the stdio response budget. The analysis result was not truncated; export retained evidence to consume it, or use complete CLI JSON output.",
-          {
-            boundary: "mcp-response",
-            default_receive_buffer_bytes: STDIO_DEFAULT_MAX_BUFFER_SIZE,
-            result_budget_bytes: this.resultBudgetBytes,
-            max_string_code_units: MCP_RESULT_STRING_LIMIT,
-            response_bytes_at_least: encoded.bytesAtLeast,
-            response_code_units_at_least: encoded.codeUnitsAtLeast,
-            constraint: encoded.constraint,
-            ...recovery,
-          },
-        ),
-      );
-    return {
-      content: [{ type: "text", text: encoded.text }],
-      structuredContent: value,
-    };
+    if (encoded.ok)
+      return {
+        content: [{ type: "text", text: encoded.text }],
+        structuredContent: value,
+      };
+    const retainedEvidence = recovery.evidence_reference !== undefined;
+    const recoveryAdvice = retainedEvidence
+      ? "Export retained evidence to consume the complete analysis, or use complete CLI JSON output."
+      : encoded.constraint === "string-length"
+        ? "Use complete CLI JSON output to consume the analysis."
+        : "Use a larger MCP response budget with a matching client receive buffer, or use complete CLI JSON output to consume the analysis.";
+    return this.toErrorToolResult(
+      new AnalysisResourceConstraintError(
+        contract.name,
+        "transport",
+        encoded.constraint === "string-length"
+          ? `The operation completed, but its complete MCP response exceeds Node's single-string representation limit. ${recoveryAdvice}`
+          : `The operation completed, but its complete MCP response exceeds the stdio response budget. The analysis result was not truncated. ${recoveryAdvice}`,
+        {
+          boundary: "mcp-response",
+          default_receive_buffer_bytes: STDIO_DEFAULT_MAX_BUFFER_SIZE,
+          result_budget_bytes: this.resultBudgetBytes,
+          max_string_code_units: MCP_RESULT_STRING_LIMIT,
+          response_bytes_at_least: encoded.bytesAtLeast,
+          response_code_units_at_least: encoded.codeUnitsAtLeast,
+          constraint: encoded.constraint,
+          ...recovery,
+        },
+      ),
+    );
   }
 }

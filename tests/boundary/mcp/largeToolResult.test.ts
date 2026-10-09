@@ -218,13 +218,21 @@ describe("large complete Evidence MCP delivery", () => {
     const limits = z
       .object({
         error: z.object({
+          message: z.string(),
           details: z.object({
             reported_limits: z.record(z.string(), z.unknown()),
           }),
         }),
       })
-      .parse(detached.structuredContent).error.details.reported_limits;
-    expect(limits.evidence_id).toBe(evidence.evidence_id);
-    expect(limits).not.toHaveProperty("evidence_reference");
+      .parse(detached.structuredContent).error;
+    expect(limits.message).toContain("larger MCP response budget");
+    expect(limits.message).not.toContain("Export retained evidence");
+    expect(limits.details.reported_limits).not.toHaveProperty(
+      "evidence_reference",
+    );
+    expect(limits.details.reported_limits).toHaveProperty(
+      "evidence_id",
+      evidence.evidence_id,
+    );
   });
 });

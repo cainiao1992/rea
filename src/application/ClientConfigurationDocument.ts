@@ -399,7 +399,7 @@ const looksLikeTomlHeader = (line: string): boolean =>
   line.trimStart().startsWith("[");
 
 /** `mcp_servers.<server>` and tables nested under it, compared by key segment. */
-const isGrokServerTable = (
+const isTomlServerTable = (
   path: readonly string[],
   serverKey: string,
 ): boolean => path[0] === "mcp_servers" && path[1] === serverKey;
@@ -612,7 +612,7 @@ const hasSeparatorComma = (trivia: string): boolean =>
  * Replace or remove `serverKey` inside one `{ ... }` table. A closed inline
  * table cannot later grow a `[mcp_servers.rea]` header.
  */
-const editGrokInlineTable = (
+const editInlineServerTable = (
   table: string,
   serverKey: string,
   entry: unknown,
@@ -831,13 +831,16 @@ const disabledServerListLines = (
 };
 
 /**
- * Replace REA's Grok server tables and assignments. Comments that introduce a
- * following table stay. Text inside strings is not treated as a header.
+ * Replace REA's TOML server tables and assignments. Comments that introduce a
+ * following table stay. Text inside strings is not treated as a header. Only
+ * Grok Build reads the root `disabled_mcp_servers` list that registration
+ * also edits.
  */
-const upsertGrokServerSection = (
+const upsertTomlServerSection = (
   originalText: string,
   serverKey: string,
   entry: unknown,
+  editDisabledList: boolean,
 ): string => {
   // smol-toml accepts a leading BOM. Leave it in place or the first header is missed.
   const bom = originalText.startsWith("\uFEFF");
@@ -887,7 +890,7 @@ const upsertGrokServerSection = (
     const header = parseTomlTableHeader(line);
     if (header !== undefined) {
       tablePath = header.path;
-      if (isGrokServerTable(header.path, serverKey)) {
+      if (isTomlServerTable(header.path, serverKey)) {
         discardPending();
         skipping = true;
         lineIndex += 1;
@@ -914,22 +917,24 @@ const upsertGrokServerSection = (
         mode = "none";
         continue;
       }
-      const disabledLines = disabledServerListLines(
-        disabledServerListEdit({
-          text,
-          lineStart,
-          valueOffset,
-          valueEnd,
-          statementEnd,
-          tablePath,
-          segments: assignment.segments,
-          serverKey,
-          entry,
-        }),
-        lines,
-        lineIndex,
-        endLine,
-      );
+      const disabledLines = editDisabledList
+        ? disabledServerListLines(
+            disabledServerListEdit({
+              text,
+              lineStart,
+              valueOffset,
+              valueEnd,
+              statementEnd,
+              tablePath,
+              segments: assignment.segments,
+              serverKey,
+              entry,
+            }),
+            lines,
+            lineIndex,
+            endLine,
+          )
+        : undefined;
       if (disabledLines !== undefined) {
         flushPending();
         kept.push(...disabledLines);
@@ -943,10 +948,10 @@ const upsertGrokServerSection = (
         absolute.length === 1 &&
         absolute[0] === "mcp_servers" &&
         text[open] === "{";
-      if (closesServerTable || isGrokServerTable(absolute, serverKey)) {
+      if (closesServerTable || isTomlServerTable(absolute, serverKey)) {
         if (closesServerTable) {
           flushPending();
-          const edited = editGrokInlineTable(
+          const edited = editInlineServerTable(
             text.slice(open, valueEnd),
             serverKey,
             entry,
@@ -1010,7 +1015,7 @@ const upsertGrokServerSection = (
   return bom ? `\uFEFF${body}` : body;
 };
 
-const grokServerEntry = (
+const tomlServerEntry = (
   document: Record<string, unknown>,
   serverKey: string,
 ): unknown => {
@@ -1033,13 +1038,69 @@ const serializeGrokConfiguration = (
   document: Record<string, unknown>,
   originalText: string | undefined,
 ): string => {
-  const entry = grokServerEntry(document, PRODUCT_IDENTITY.mcpServerKey);
+  const entry = tomlServerEntry(document, PRODUCT_IDENTITY.mcpServerKey);
   if (originalText === undefined) return stringifyToml(document);
-  return upsertGrokServerSection(
+  return upsertTomlServerSection(
     originalText,
     PRODUCT_IDENTITY.mcpServerKey,
     entry,
+    true,
   );
+};
+
+/** Removing the last server leaves an empty table, which equals an absent one. */
+const withoutEmptyServerTable = (
+  document: Record<string, unknown>,
+): Record<string, unknown> => {
+  const servers = objectSchema.safeParse(document.mcp_servers);
+  if (!servers.success || Object.keys(servers.data).length > 0) return document;
+  const { mcp_servers: empty, ...rest } = document;
+  void empty;
+  return rest;
+};
+
+/**
+ * Keep an existing Codex document intact aside from the REA server tables.
+ * An edit that would change any other parsed value falls back to a full
+ * rewrite, which keeps every value but not comments or spelling.
+ */
+const serializeCodexConfiguration = (
+  document: Record<string, unknown>,
+  originalText: string | undefined,
+): string => {
+  if (
+    originalText === undefined ||
+    isEmptyClientConfigurationText(originalText)
+  )
+    return stringifyToml(document);
+  const upserted = upsertTomlServerSection(
+    originalText,
+    PRODUCT_IDENTITY.mcpServerKey,
+    tomlServerEntry(document, PRODUCT_IDENTITY.mcpServerKey),
+    false,
+  );
+  // Removing a final table also drops the file's last line break.
+  const edited =
+    originalText.endsWith("\n") && !upserted.endsWith("\n")
+      ? `${upserted}${originalText.endsWith("\r\n") ? "\r\n" : "\n"}`
+      : upserted;
+  return tomlTextHolds(edited, document) ? edited : stringifyToml(document);
+};
+
+const tomlTextHolds = (
+  text: string,
+  document: Record<string, unknown>,
+): boolean => {
+  try {
+    return clientConfigurationValuesEqual(
+      withoutEmptyServerTable(objectSchema.parse(parseToml(text))),
+      withoutEmptyServerTable(document),
+    );
+  } catch (cause: unknown) {
+    // An unparsable edit is rejected in favor of the full rewrite.
+    void cause;
+    return false;
+  }
 };
 
 /** Comments in the trivia between two properties. `undefined` when there are none. */
@@ -1146,7 +1207,7 @@ const deleteJsonPropertyPreservingComments = (
   return `${text.slice(0, previous.offset + previous.length)}${suffix}${remainder}`;
 };
 
-/** Serialize a validated client document, retaining JSONC comments. */
+/** Serialize a validated client document, retaining JSONC and TOML comments. */
 export const serializeClientConfiguration = (
   document: Record<string, unknown>,
   format: ClientConfigurationFormat | undefined,
@@ -1155,7 +1216,8 @@ export const serializeClientConfiguration = (
 ): string => {
   if (format === undefined || format === "unsupported")
     throw new TypeError("client does not have a supported MCP config format");
-  if (format === "toml") return stringifyToml(document);
+  if (format === "toml")
+    return serializeCodexConfiguration(document, originalText);
   if (format === "grok")
     return serializeGrokConfiguration(document, originalText);
   // An empty original holds no comments or settings to preserve. Writing a

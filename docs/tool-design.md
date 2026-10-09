@@ -22,6 +22,12 @@ object agents reason about; keep the name distinct from nearby alternatives.
 
 ## Prefer primitives; compose workflows
 
+Let agents compose experiments with ordinary commands, scripts, and local
+fixture servers. A custom orchestration language, replay engine, or separate
+prepare/execute plan needs an observed requirement those primitives cannot
+satisfy. Expose useful inspection directly; a plan-only tool without an executor
+does not establish runtime behavior.
+
 Start with a primitive when one call can report a reusable fact about one
 identified object or relationship, such as an instruction decode, a type
 layout, a reference, a dispatch target, or a resource graph. The same primitive

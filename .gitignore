@@ -50,6 +50,9 @@ Thumbs.db
 # Generated website download
 /website/public/examples/notes-example.zip
 /website/public/deployment.json
+/website/public/sitemap.xml
+/website/public/assets/social-card.png
+/website/.venv/
 
 # Local Cloudflare development state
 /website/.wrangler/

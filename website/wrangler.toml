@@ -20,3 +20,8 @@ name = "rea-website"
 workers_dev = true
 preview_urls = false
 routes = [{ pattern = "rea.tools", custom_domain = true }]
+
+# Production receives the already prepared and verified shared Pages artifact.
+# Override the preview build so deployment does not regenerate local assets.
+[env.production.build]
+command = ""

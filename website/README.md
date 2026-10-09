@@ -7,8 +7,8 @@
 An English static website with explanatory figures, worked guides and Aegis, DX-Ball, Notion, TH04 and CTF investigations.
 The public files are in `website/public/`. The site uses HTML, CSS and small
 scripts for copying code, following code comparisons and playing the dinosaur
-speed reconstruction. Python
-packages the downloadable example; there is no frontend bundler or npm dependency.
+speed reconstruction. Python prepares the example ZIP, sitemap and sharing
+image; there is no frontend bundler or npm dependency.
 
 [style-guide.md](style-guide.md) explains the writing, page structure, figures,
 visual system and review process. Read it before adding or revising a page.
@@ -18,11 +18,23 @@ visual system and review process. Read it before adding or revising a page.
 From the repository root:
 
 ```sh
+python3 -m venv website/.venv
+source website/.venv/bin/activate
+python3 -m pip install -r website/requirements.txt
 python3 scripts/prepare-website.py
 python3 -m http.server 4173 --bind 127.0.0.1 --directory website/public
 ```
 
 Open <http://127.0.0.1:4173/>. Refresh the browser after editing a file.
+Keep the virtual environment active when preparing assets. CairoSVG needs the
+native Cairo library; the sharing card uses DejaVu Sans. On Debian or Ubuntu,
+install them with `sudo apt-get install libcairo2 fonts-dejavu-core`. For other
+systems, see [CairoSVG's installation instructions](https://cairosvg.org/documentation/#installation).
+CI installs both packages explicitly before rendering the card.
+
+After adding, moving or removing a page, or changing its indexing policy, rerun
+`python3 scripts/prepare-website.py`. It regenerates the sitemap from the current
+HTML files. No URL list needs to be maintained.
 
 ## Pages
 
@@ -43,6 +55,69 @@ Open <http://127.0.0.1:4173/>. Refresh the browser after editing a file.
 
 Navigation and assets use relative paths, so the same files work at the local
 root and a GitHub Pages project path such as `/rea/`.
+
+## Search and sharing metadata
+
+`https://rea.tools/` is the preferred public origin. Each content page has one
+absolute canonical URL for its own route, including its trailing slash. The
+same HTML on GitHub Pages points to the corresponding rea.tools page. Ordinary
+navigation and asset references remain relative so both hosts and local previews
+keep working.
+
+Maintain a descriptive `<title>` and a short meta description in each page's
+`<head>`. The title names the page's subject; visible headings keep the wording
+that best explains it to a reader. Open Graph and Twitter titles/descriptions
+match those fields. `og:url` matches the canonical, and sharing images use
+absolute rea.tools URLs. Search results and link previews should follow the same
+clear, concise writing standard as the page.
+
+`scripts/prepare-website.py` scans `public/**/*.html` and generates
+`public/sitemap.xml` with absolute rea.tools URLs. An `index.html` maps to its
+directory route; other HTML filenames retain their extension. Pages with
+`noindex` or `none` in a head `robots` or `googlebot` meta directive are excluded.
+The two Notes example applications use `noindex`; their guides and the dinosaur
+lab remain indexable. Downloads, scripts and other non-HTML files are not listed.
+The sitemap has no guessed modification dates, priority or change frequency.
+It is ignored by Git and regenerated before checks and publication.
+
+`public/robots.txt` allows crawling and names the canonical sitemap. Keep example
+applications crawlable so search engines can read their `noindex` directives.
+Cloudflare may prepend managed rules or comments to the served file; inspect the
+live response after publication. The mirrored `/rea/robots.txt` is not the
+hostname-root robots file for `morluto.github.io`; canonical HTML tags establish
+the mirror's preference.
+
+`public/assets/social-card.svg` is the maintained 1200 × 630 preview source.
+CairoSVG generates `social-card.png` for sharing clients. Commit the SVG, not the
+PNG. Both hosts receive the generated image in the same publishing artifact.
+The preview uses the site's typography, palette and direct headline.
+
+Verification checks route-specific canonicals, unique titles, descriptions,
+sharing fields, image dimensions, indexing policy and complete sitemap coverage.
+`scripts/test-website.py` exercises automatic route changes and rejects incorrect
+canonicals, lost fixture exclusions, stale sitemap entries and missing previews.
+Run it after preparing assets:
+
+```sh
+python3 scripts/verify-website.py
+python3 scripts/test-website.py
+```
+
+### After publishing an SEO change
+
+1. Check the served `robots.txt`, `sitemap.xml`, HTML head and preview PNG at
+   rea.tools. Confirm that both hosts contain the same page-specific canonicals.
+2. In the domain's Google Search Console property, submit
+   `https://rea.tools/sitemap.xml`.
+3. Inspect the homepage, a guide and a case study. Check crawl access, indexing
+   and Google's selected canonical; inspect a GitHub Pages URL as well if that
+   property is available. Track indexing and search performance there afterward.
+
+These Search Console checks require the property owner's access. Local checks
+verify the website inputs; Google's indexing reports show how they were used.
+See Google's [canonical guidance](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls)
+and [sitemap guidance](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap),
+and Cloudflare's [managed robots behavior](https://developers.cloudflare.com/bots/additional-configurations/managed-robots-txt/).
 
 ## Content
 
@@ -293,16 +368,18 @@ a release. Cloudflare deploys first; GitHub Pages deploys after that step succee
 
 Preparation adds `deployment.json` with the workflow's commit SHA. Cloudflare
 receives the extracted Pages artifact through Wrangler's explicit assets path;
-the local custom-build output is not the uploaded directory. The workflow then
+the production environment disables Wrangler's preview custom build, so deployment
+uses the prepared artifact directly. The workflow then
 checks the selected public version markers and reports success only when they
 match that commit. A failed publication remains failed; fix its cause and rerun the
 workflow to complete both deployments. The two hosts can update at different
 times while a run is in progress.
 
-Website checks run only for pull requests that change `website/`, the verification
-script or workflow definitions. They check local links, HTML fragments, SVG XML
-and the single Pages publisher without installing npm dependencies. The same
-checks run before each manual deployment. You can also run them locally:
+Website checks run only for pull requests that change `website/`, the website
+scripts or workflow definitions. They check local links, HTML fragments, SVG XML,
+search/sharing metadata and the single Pages publisher without installing npm
+dependencies. The same asset preparation and verification run before each manual
+deployment. With the preview environment active, run them locally:
 
 ```sh
 python3 scripts/prepare-website.py

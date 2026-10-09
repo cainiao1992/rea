@@ -1,10 +1,8 @@
 import { constants as bufferConstants } from "node:buffer";
 import { resolve } from "node:path";
 
-import {
-  NonRegularFileReadError,
-  readRegularFile,
-} from "./application/RegularFileRead.js";
+import { readRegularFile } from "./application/RegularFileRead.js";
+import { NonRegularFileReadError } from "./filesystem/RegularFile.js";
 import { parseUtf8Json } from "./application/Utf8JsonInput.js";
 import {
   AnalysisAccessDeniedError,

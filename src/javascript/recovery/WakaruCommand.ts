@@ -25,6 +25,8 @@ import {
 import { RECOVERY_LIMITS } from "./WakaruRelease.js";
 
 const OPERATION = "recover_javascript_sources";
+const WAKARU_REQUIREMENT =
+  "Provide an absolute REA_WAKARU_COMMAND pointing to Wakaru 1.13.0 on Linux x64; no tool is installed by REA";
 
 /** Inject the owned process launcher while retaining production protocol parsing. */
 export type WakaruLauncher = (
@@ -45,7 +47,8 @@ export const resolveWakaruCommand = async (
     throw new AnalysisCapabilityUnavailableError(
       "wakaru",
       OPERATION,
-      "Provide an absolute REA_WAKARU_COMMAND pointing to Wakaru 1.13.0 on Linux x64; no tool is installed by REA",
+      WAKARU_REQUIREMENT,
+      { userMessage: WAKARU_REQUIREMENT },
     );
   try {
     const command = await realpath(configured);
@@ -61,12 +64,11 @@ export const resolveWakaruCommand = async (
     await access(limiter, constants.X_OK);
     return { command, limiter, ...fingerprint };
   } catch (cause: unknown) {
-    throw new AnalysisCapabilityUnavailableError(
-      "wakaru",
-      OPERATION,
-      `Configured Wakaru or util-linux prlimit is unavailable: ${recoveryFailureMessage(cause)}`,
-      { cause },
-    );
+    const reason = `Configured Wakaru or util-linux prlimit is unavailable: ${recoveryFailureMessage(cause)}`;
+    throw new AnalysisCapabilityUnavailableError("wakaru", OPERATION, reason, {
+      cause,
+      userMessage: reason,
+    });
   }
 };
 

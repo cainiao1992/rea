@@ -6,6 +6,8 @@ import { AnalysisCapabilityUnavailableError } from "../../domain/analysisErrorCo
 import type { HistoricalCaptureFormatAdapter } from "./HistoricalCaptureFormatAdapter.js";
 import { MITMPROXY_CAPTURE_PROVIDER_IDENTITY } from "./CaptureRelease.js";
 const OPERATION = "inspect_web_network_capture";
+const MITMDUMP_REQUIREMENT =
+  "Native capture decoding requires Linux and an absolute REA_MITMDUMP_COMMAND path to caller-supplied mitmdump 12.2.3; HAR needs no external engine.";
 
 /** Native mitmproxy decoding is offline and uses only an explicitly configured Linux tool. */
 export class MitmproxyCaptureAdapter implements HistoricalCaptureFormatAdapter {
@@ -25,16 +27,18 @@ export class MitmproxyCaptureAdapter implements HistoricalCaptureFormatAdapter {
       throw new AnalysisCapabilityUnavailableError(
         "mitmproxy",
         OPERATION,
-        "Native capture decoding requires Linux and an absolute REA_MITMDUMP_COMMAND path to caller-supplied mitmdump 12.2.3; HAR needs no external engine.",
+        MITMDUMP_REQUIREMENT,
+        { userMessage: MITMDUMP_REQUIREMENT },
       );
     try {
       await access(command, constants.R_OK | constants.X_OK);
     } catch (cause: unknown) {
+      const reason = `Configured mitmdump executable is unavailable: ${command}.`;
       throw new AnalysisCapabilityUnavailableError(
         "mitmproxy",
         OPERATION,
-        `Configured mitmdump executable is unavailable: ${command}.`,
-        { cause },
+        reason,
+        { cause, userMessage: reason },
       );
     }
     return {

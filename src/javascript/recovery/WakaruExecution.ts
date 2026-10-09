@@ -69,12 +69,12 @@ const executeWakaruRecovery = async (context: RecoveryWorkspace) => {
   if (
     version.exit_code !== 0 ||
     version.stdout.trim() !== `wakaru ${WAKARU_RELEASE.version}`
-  )
-    throw new AnalysisCapabilityUnavailableError(
-      "wakaru",
-      OPERATION,
-      `This adapter requires Wakaru ${WAKARU_RELEASE.version}; reported version: ${version.stdout.trim()}; exit: ${String(version.exit_code)}; stderr: ${version.stderr}`,
-    );
+  ) {
+    const reason = `This adapter requires Wakaru ${WAKARU_RELEASE.version}; reported version: ${version.stdout.trim()}; exit: ${String(version.exit_code)}; stderr: ${version.stderr}`;
+    throw new AnalysisCapabilityUnavailableError("wakaru", OPERATION, reason, {
+      userMessage: reason,
+    });
+  }
   const run = await runWakaruCommand({
     ...commandContext,
     staging,

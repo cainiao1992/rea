@@ -52,6 +52,8 @@ import {
 } from "./EvmWorkerLimits.js";
 
 const OPERATION = "inspect_evm_interface";
+const HOST_REQUIREMENT =
+  "Initial real-verified offline EVM interface profile supports Linux x64 only.";
 const replySchema = z.discriminatedUnion("ok", [
   z.strictObject({
     ok: z.literal(true),
@@ -99,7 +101,8 @@ export class EvmoleInterfaceProvider implements EvmInterfacePort {
         throw new AnalysisCapabilityUnavailableError(
           EVMOLE_PROVIDER_IDENTITY.id,
           OPERATION,
-          "Initial real-verified offline EVM interface profile supports Linux x64 only.",
+          HOST_REQUIREMENT,
+          { userMessage: HOST_REQUIREMENT },
         );
       try {
         if (!isAbsolute(limiter))

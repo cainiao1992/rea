@@ -1,8 +1,29 @@
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { expect, it } from "vitest";
-import { runWakaruCommand, type WakaruLauncher } from "./WakaruCommand.js";
+import { AnalysisCapabilityUnavailableError } from "../../domain/analysisErrorCore.js";
+import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
+import {
+  resolveWakaruCommand,
+  runWakaruCommand,
+  type WakaruLauncher,
+} from "./WakaruCommand.js";
 import { RECOVERY_LIMITS } from "./WakaruRelease.js";
+
+it("names the Wakaru configuration requirement when it is not configured", async () => {
+  const refusal: unknown = await resolveWakaruCommand({}).catch(
+    (cause: unknown) => cause,
+  );
+
+  if (!(refusal instanceof AnalysisCapabilityUnavailableError))
+    throw new Error("Expected a capability refusal");
+  expect(refusal.reason).toContain("REA_WAKARU_COMMAND");
+  expect(projectAnalysisError(refusal)).toMatchObject({
+    code: "capability_unavailable",
+    message: refusal.reason,
+    remediation: { action: refusal.reason },
+  });
+});
 
 it("rejects an exhausted shared execution budget before launching the next command", async () => {
   await expect(

@@ -657,6 +657,10 @@ describe("native macOS provider failures and parsing", () => {
     expect(!unavailableResult.ok && unavailableResult.error._tag).toBe(
       "AnalysisCapabilityUnavailableError",
     );
+    if (unavailableResult.ok) throw new Error("Expected an unavailable tool");
+    expect(projectAnalysisError(unavailableResult.error).message).toBe(
+      "lipo is unavailable through xcrun.",
+    );
 
     const malformed = new NativeMacOSProvider(
       new FixtureRunner({ lipo: "malformed" }),

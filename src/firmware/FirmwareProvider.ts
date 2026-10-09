@@ -12,7 +12,6 @@ import {
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import {
   AnalysisCancelledError,
-  AnalysisCapabilityUnavailableError,
   AnalysisInputError,
   AnalysisOutputError,
   AnalysisTimeoutError,
@@ -29,6 +28,7 @@ import {
 } from "./FirmwareRelease.js";
 import { admitFirmwareVersion } from "./FirmwareVersion.js";
 import {
+  firmwareToolUnavailable,
   resolveFirmwareCommand,
   runFirmwareCommand,
   readFirmwareCommandReport,
@@ -144,14 +144,14 @@ export class FirmwareProvider implements FirmwareAnalysisPort {
       const versionRun = await run(["--version"]);
       const version = versionRun.stdout.text.trim();
       if (versionRun.stdout.bytes > 1024)
-        throw new AnalysisCapabilityUnavailableError(
+        throw firmwareToolUnavailable(
           engineName,
           request.operation,
           `Tool version banner is ${String(versionRun.stdout.bytes)} bytes; expected a short ${engineName} version line.`,
         );
       const admitted = admitFirmwareVersion(engineName, version);
       if (admitted.status === "unsupported" || admitted.status === "unresolved")
-        throw new AnalysisCapabilityUnavailableError(
+        throw firmwareToolUnavailable(
           engineName,
           request.operation,
           admitted.message,

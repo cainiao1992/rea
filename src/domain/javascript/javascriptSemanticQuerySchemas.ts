@@ -5,6 +5,7 @@ import {
   JAVASCRIPT_SEMANTIC_RELATIONS,
   javaScriptSemanticNodeSchema,
   javaScriptSemanticRelationSchema,
+  javaScriptSemanticEvidenceContextSchema,
   javaScriptSemanticUnknownSchema,
 } from "./javascriptSemanticGraphSchemas.js";
 import { jsonValueSchema } from "../jsonValue.js";
@@ -93,6 +94,7 @@ export const javaScriptSemanticQueryResultSchema = z.strictObject({
   direction: javaScriptSemanticQueryInputSchema.shape.direction,
   status: z.enum(["found", "no-match", "ambiguous", "partial", "unsupported"]),
   seed_node_ids: z.array(semanticNodeIdSchema),
+  evidence_contexts: z.array(javaScriptSemanticEvidenceContextSchema),
   nodes: z.array(javaScriptSemanticNodeSchema),
   relations: z.array(javaScriptSemanticRelationSchema),
   unknowns: z.array(javaScriptSemanticUnknownSchema),

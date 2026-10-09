@@ -4,6 +4,7 @@ import { buildJavaScriptSemanticGraph } from "./JavaScriptSemanticGraphBuilder.j
 import type { JavaScriptArtifactAnalysis } from "./JavaScriptArtifactAnalysisTypes.js";
 import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptArtifactFiles.js";
 import { queryJavaScriptSemanticGraph } from "../../domain/javascript/javascriptSemanticQuery.js";
+import { resolveJavaScriptSemanticEvidence } from "../../domain/javascript/javascriptSemanticGraph.js";
 import { analyzeJavaScriptSemantics } from "../../domain/javascript/javascriptSemanticAnalysis.js";
 
 const SHA256 = "a".repeat(64);
@@ -335,11 +336,15 @@ it("uses unavailable evidence when no source produced semantic IR", () => {
     applicationGraph: { graph_id: GRAPH_ID, nodes: [] },
     analysis: emptyAnalysis(),
   });
-  expect(graph.nodes[0]?.evidence).toMatchObject({
-    authority: "unknown",
-    state: "unavailable",
-    location: { available: false, reason: "not-observed" },
-  });
+  const root = graph.nodes[0];
+  if (root === undefined) throw new Error("Expected unavailable semantic root");
+  expect(resolveJavaScriptSemanticEvidence(graph, root.evidence)).toMatchObject(
+    {
+      authority: "unknown",
+      state: "unavailable",
+      location: { available: false, reason: "not-observed" },
+    },
+  );
 });
 
 const emptyAnalysis = (): JavaScriptArtifactAnalysis => ({

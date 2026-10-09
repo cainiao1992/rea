@@ -12,6 +12,7 @@ import type {
   ReconstructionObligation,
   ReviewedReconstructionObligation,
 } from "../domain/reconstructionObligationLedgerSchemas.js";
+import { resolveJavaScriptSemanticEvidence } from "../domain/javascript/javascriptSemanticGraph.js";
 import { parseApplicationGraphEvidence } from "./javascript/JavaScriptApplicationEvidenceGraph.js";
 import {
   applicationObligationPolicy,
@@ -111,6 +112,10 @@ const deriveApplicationCandidates = (
       for (const node of source.semanticGraph.nodes) {
         const candidatePolicy = semanticObligationPolicy(node.kind);
         if (candidatePolicy === undefined) continue;
+        const evidenceContext = resolveJavaScriptSemanticEvidence(
+          source.semanticGraph,
+          node.evidence,
+        );
         addCandidate(
           candidates,
           generatedCandidate({
@@ -125,7 +130,7 @@ const deriveApplicationCandidates = (
               graphReference(
                 evidence,
                 records,
-                node.evidence,
+                evidenceContext,
                 `${source.semanticGraph.graph_id}/node/${node.node_id}`,
               ),
             ],

@@ -1,7 +1,7 @@
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { createPackage } from "@electron/asar";
+import { createPackage, createPackageWithOptions } from "@electron/asar";
 import { expect, it, onTestFinished, vi } from "vitest";
 
 import { ArtifactProvider } from "../../../../src/artifacts/ArtifactProvider.js";
@@ -90,6 +90,50 @@ it("preserves every equal-content occurrence and copies a nested ASAR as its con
     expect(await readFile(join(output, path))).toEqual(
       await readFile(join(source, path)),
     );
+});
+
+it("ignores unavailable members of a nested ASAR but refuses them as active entries", async () => {
+  const root = await createTestTempDirectory("rea-extract-nested-unpacked-");
+  const contents = join(root, "contents");
+  await mkdir(join(contents, "native"), { recursive: true });
+  await writeFile(join(contents, "main.js"), "export default 1;\n");
+  await writeFile(join(contents, "native", "addon.node"), "native bytes\n");
+
+  const source = join(root, "bundle");
+  await mkdir(source);
+  const archive = join(source, "app.asar");
+  await createPackageWithOptions(contents, archive, { unpack: "**/*.node" });
+  await rm(join(`${archive}.unpacked`, "native", "addon.node"));
+
+  const nestedOutput = join(root, "nested-output");
+  const nestedResult = await extract(source, nestedOutput);
+  if (!nestedResult.ok) throw nestedResult.error;
+  const nestedExtraction = artifactExtractionResultSchema.parse(
+    nestedResult.value.result,
+  );
+  expect(
+    nestedExtraction.extraction_manifest.selected_occurrence_ids,
+  ).toHaveLength(1);
+  expect(
+    nestedExtraction.artifacts.map(({ relative_path }) => relative_path),
+  ).toEqual(["app.asar"]);
+  expect(await readFile(join(nestedOutput, "app.asar"))).toEqual(
+    await readFile(archive),
+  );
+
+  const activeOutput = join(root, "active-output");
+  const activeResult = await extract(archive, activeOutput);
+  if (activeResult.ok)
+    throw new Error("Unavailable active ASAR member must fail extraction");
+  expect(projectAnalysisError(activeResult.error)).toMatchObject({
+    code: "artifact_operation_failed",
+    details: {
+      operation: "extract_artifact",
+      reason: "format",
+      detail: expect.stringContaining("native/addon.node"),
+    },
+  });
+  await expect(access(activeOutput)).rejects.toThrow();
 });
 
 // Synchronize a real filesystem change after the actual inventory scan. The

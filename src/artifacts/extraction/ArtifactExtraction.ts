@@ -54,11 +54,25 @@ export const extractArtifact = async (
       (occurrence.entry_kind === "file" || occurrence.entry_kind === "slice") &&
       occurrence.logical_path !== ".",
   );
-  const selectedIds = new Set(
-    selectedOccurrences.map(({ occurrence_id: id }) => id),
-  );
   const regularPaths = new Set(
     selectedOccurrences.map(({ logical_path: path }) => path),
+  );
+  const activeOccurrences = selectedOccurrences.filter(({ logical_path }) => {
+    // Nested members remain represented by their containing regular file;
+    // only entries exposed by the active reader are materialized.
+    let path = logical_path;
+    for (
+      let slash = path.lastIndexOf("/");
+      slash >= 0;
+      slash = path.lastIndexOf("/")
+    ) {
+      path = path.slice(0, slash);
+      if (regularPaths.has(path)) return false;
+    }
+    return true;
+  });
+  const selectedIds = new Set(
+    activeOccurrences.map(({ occurrence_id: id }) => id),
   );
   const occurrences = new Map<string, ArtifactOccurrence>();
   const neededNodes = new Set<string>();
@@ -75,7 +89,7 @@ export const extractArtifact = async (
     occurrences,
     nodes,
   };
-  const selected = selectedOccurrences.map((occurrence) => {
+  const selected = activeOccurrences.map((occurrence) => {
     // REA never decrypts archive entries, so an encrypted entry makes the
     // complete extraction unsupported rather than the archive invalid.
     if (occurrence.encrypted)
@@ -101,25 +115,11 @@ export const extractArtifact = async (
       );
     return { occurrence, node };
   });
-  const activeSelected = selected.filter(({ occurrence }) => {
-    // Nested members remain represented by their containing regular file;
-    // only entries exposed by the active reader are materialized.
-    let path = occurrence.logical_path;
-    for (
-      let slash = path.lastIndexOf("/");
-      slash >= 0;
-      slash = path.lastIndexOf("/")
-    ) {
-      path = path.slice(0, slash);
-      if (regularPaths.has(path)) return false;
-    }
-    return true;
-  });
   return materializeSelection({
     input,
     sourcePath,
     inventory,
-    selected: activeSelected,
+    selected,
     signal,
   });
 };

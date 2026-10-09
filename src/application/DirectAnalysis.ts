@@ -269,7 +269,8 @@ const runAnalysis = async (
       });
       if (evidence !== undefined) {
         const recorded = session.recordEvidence(evidence);
-        if (!recorded.ok) return cliError(recorded.error);
+        if (!recorded.ok)
+          return cliError(recorded.error.retainPartialObservation(evidence));
         if (isWorkflowEvidenceTool(tool)) {
           const unknowns = recordWorkflowUnknowns({
             name: tool,
@@ -277,7 +278,8 @@ const runAnalysis = async (
             evidenceId: evidence.evidence_id,
             recordUnknown: (unknown) => session.recordUnknown(unknown),
           });
-          if (!unknowns.ok) return cliError(unknowns.error);
+          if (!unknowns.ok)
+            return cliError(unknowns.error.retainPartialObservation(evidence));
         }
       }
       if (
@@ -290,7 +292,8 @@ const runAnalysis = async (
         const workflowRecord = workflowSnapshotRecord(evidence, tool);
         if (workflowRecord !== undefined) {
           const recorded = session.recordWorkflowSnapshot(workflowRecord);
-          if (!recorded.ok) return cliError(recorded.error);
+          if (!recorded.ok)
+            return cliError(recorded.error.retainPartialObservation(evidence));
         }
       }
       if (
@@ -299,13 +302,15 @@ const runAnalysis = async (
         evidence !== undefined
       ) {
         const snapshot = session.exportAnalysisSnapshot();
-        if (!snapshot.ok) return cliError(snapshot.error);
+        if (!snapshot.ok)
+          return cliError(snapshot.error.retainPartialObservation(evidence));
         const written = await writeAnalysisSnapshot(
           snapshot.value,
           snapshotPath,
           true,
         );
-        if (!written.ok) return cliError(written.error);
+        if (!written.ok)
+          return cliError(written.error.retainPartialObservation(evidence));
       }
       return output;
     },

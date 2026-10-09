@@ -3,6 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import { runDirectAnalysis } from "../../src/application/DirectAnalysis.js";
 import type {
@@ -18,7 +19,11 @@ import {
   readAnalysisSnapshot,
   writeAnalysisSnapshot,
 } from "../../src/application/binary/AnalysisSnapshotFiles.js";
-import { createEvidence, type Evidence } from "../../src/domain/evidence.js";
+import {
+  createEvidence,
+  parseEvidence,
+  type Evidence,
+} from "../../src/domain/evidence.js";
 import { createEvidenceBundle } from "../../src/domain/evidenceBundle.js";
 import {
   REA_WORKFLOW_PROVIDER,
@@ -646,7 +651,51 @@ describe("snapshot replay provider identity", () => {
   });
 });
 
+const assertEvidenceSurvivesSnapshotSaveFailure = async (): Promise<void> => {
+  const directory = await createTestTempDirectory("rea-workflow-save-error-");
+  const path = join(directory, "fixture.hop");
+  const snapshotPath = join(directory, "missing", "snapshot.json");
+  await writeFile(path, "fixture");
+  const starts: string[] = [];
+  const calls: string[] = [];
+  const provider = makeProvider(starts, calls);
+  const dependencies: DirectAnalysisDependencies = {
+    readConfiguration: () => parseConfig({}),
+    createBinarySession: () => createTestBinarySession(provider),
+    createManagedBinarySession: () => createTestBinarySession(provider),
+  };
+
+  const result = await runDirectAnalysis(
+    dependencies,
+    path,
+    "binary_overview",
+    {},
+    { snapshotPath },
+  );
+
+  expect(result).toMatchObject({
+    code: "invalid_request",
+    details: {
+      partial_observation: {
+        operation: "binary_overview",
+        subject: { local_path: path },
+      },
+    },
+  });
+  const partial = z
+    .object({
+      details: z.object({ partial_observation: z.unknown() }),
+    })
+    .parse(result).details.partial_observation;
+  expect(parseEvidence(partial).operation).toBe("binary_overview");
+  expect(calls.toSorted()).toEqual(operations.toSorted());
+};
+
 describe("workflow snapshot profile and cancellation binding", () => {
+  it(
+    "preserves completed Evidence when CLI snapshot persistence fails",
+    assertEvidenceSurvivesSnapshotSaveFailure,
+  );
   it("does not replay a valid entry from a different workflow profile", async () => {
     const directory = await createTestTempDirectory("rea-workflow-profile-");
     const path = join(directory, "fixture.hop");

@@ -12,6 +12,7 @@ describe("symbol analysis", () => {
       { address: "0x1", name: "_OBJC_CLASS_$_App" },
       { address: "0x2", name: "_OBJC_CLASS_$_App" },
       { address: "0x3", name: "_OBJC_PROTOCOL_$_Delegate" },
+      { address: "0x4", name: "__OBJC_PROTOCOL_REFERENCE_$_Delegate" },
       { address: "0x4", name: "_OBJC_PROTOCOL_$_Delegate" },
     ];
     expect(discoverObjcClasses(names, "App")).toMatchObject({ count: 1 });
@@ -33,6 +34,39 @@ describe("symbol analysis", () => {
     expect(result).toMatchObject({
       count: 1,
       classes: [{ address: "0x5", name: "_OBJC_CLASS_$_Fixture" }],
+    });
+  });
+
+  it("recognizes fragile Apple Objective-C class records without alias duplication", () => {
+    // Apple clang -target i386-apple-macosx10.5
+    // -fobjc-runtime=macosx-fragile-10.5 emits these local class records.
+    // The `.objc_class_name_*` absolute symbols alias the same class and are
+    // deliberately not selected.
+    const names = [
+      { address: "0x1ac", name: "l_OBJC_CLASS_ProbeClass" },
+      { address: "0x0", name: ".objc_class_name_ProbeClass" },
+      // A class named `NAME_` produces this exact legacy local symbol.
+      { address: "0x0", name: "l_OBJC_CLASS_NAME_" },
+    ];
+    expect(discoverObjcClasses(names, "")).toEqual({
+      count: 2,
+      classes: [
+        { address: "0x1ac", name: "l_OBJC_CLASS_ProbeClass" },
+        { address: "0x0", name: "l_OBJC_CLASS_NAME_" },
+      ],
+    });
+  });
+
+  it("discovers modern Swift protocol descriptors without treating methods as declarations", () => {
+    // Current swiftc emits `…Mp` descriptors without the nominal `P` marker.
+    const names = [
+      { address: "0xf0", name: "_$s4main7ScoringMp" },
+      { address: "0x100", name: "_$s4main7ScoringTL" },
+      { address: "0x110", name: "_$s4main7ScoringP5scoreSiyFTq" },
+    ];
+    expect(discoverObjcProtocols(names)).toEqual({
+      count: 1,
+      protocols: [{ address: "0xf0", name: "_$s4main7ScoringMp" }],
     });
   });
 

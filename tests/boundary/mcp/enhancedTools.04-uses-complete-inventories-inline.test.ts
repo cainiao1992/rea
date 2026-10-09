@@ -27,8 +27,17 @@ describe("enhanced MCP tools", () => {
         expect(name).toBe("list_names");
         return Promise.resolve(
           ok([
-            { address: "0x1", value: "_OBJC_CLASS_$_First" },
-            { address: "0x2", value: "_OBJC_CLASS_$_Last" },
+            // Apple clang modern Objective-C ABI `nm` output: the first row
+            // is a class definition; the remaining rows are method metadata,
+            // class_ro_t, and a class reference.
+            { address: "0x70", value: "_OBJC_CLASS_$_ProbeClass" },
+            { address: "0x1a8", value: "__OBJC_$_CLASS_METHODS_ProbeClass" },
+            { address: "0x230", value: "__OBJC_CLASS_RO_$_ProbeClass" },
+            { address: "0x450", value: "_OBJC_CLASSLIST_REFERENCES_$_" },
+            {
+              address: "0x298",
+              value: "__OBJC_$_CATEGORY_CLASS_METHODS_ProbeClass_$_Category",
+            },
           ]),
         );
       },
@@ -36,7 +45,10 @@ describe("enhanced MCP tools", () => {
     const result = jsonResult(
       await client.callTool({ name: "get_objc_classes", arguments: {} }),
     );
-    expect(result).toMatchObject({ count: 2 });
+    expect(result).toEqual({
+      count: 1,
+      classes: [{ address: "0x70", name: "_OBJC_CLASS_$_ProbeClass" }],
+    });
   });
 
   it("returns the complete overview inline with exhaustive totals", async () => {

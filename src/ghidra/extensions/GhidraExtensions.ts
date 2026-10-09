@@ -5,7 +5,11 @@ import { isAbsolute, join } from "node:path";
 import { z } from "zod";
 import type { AppConfig } from "../../config.js";
 import type { BinaryTarget } from "../../domain/binaryTarget.js";
-import { AnalysisCancelledError } from "../../domain/analysisErrorCore.js";
+import {
+  AnalysisCancelledError,
+  AnalysisCapabilityUnavailableError,
+  AnalysisUnsupportedTargetError,
+} from "../../domain/analysisErrorCore.js";
 import { ProviderAdapterError } from "../../domain/providerAdapterError.js";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import { jsonObjectSchema } from "../../domain/jsonValue.js";
@@ -42,6 +46,12 @@ export const ghidraExtensionResultSchema = z.strictObject({
 });
 export type GhidraExtensionResult = z.infer<typeof ghidraExtensionResultSchema>;
 
+/** Why an adapter cannot run here: on this host at all, or for this target. */
+export interface GhidraExtensionRefusal {
+  readonly constraint: "host" | "target";
+  readonly reason: string;
+}
+
 /** Provider-local registration contract for independently replaceable analysis adapters. */
 export interface GhidraExtensionAdapter {
   readonly id: string;
@@ -50,7 +60,7 @@ export interface GhidraExtensionAdapter {
   unsupportedReason(
     target: BinaryTarget,
     platform: NodeJS.Platform,
-  ): string | null;
+  ): GhidraExtensionRefusal | null;
   validate(result: GhidraExtensionResult): string | null;
   readonly limitations: readonly string[];
 }
@@ -109,13 +119,8 @@ export const resolveGhidraExtensions = async (
     if (signal?.aborted) return err(new AnalysisCancelledError("open_binary"));
     const configured = adapter.configuredPath(config);
     if (configured === undefined) continue;
-    const reason = adapter.unsupportedReason(target, platform);
-    if (reason !== null)
-      return err(
-        new ProviderAdapterError("ghidra", "resolve_analysis_profile", {
-          diagnostics: { extension: adapter.id, reason, path: configured },
-        }),
-      );
+    const refusal = adapter.unsupportedReason(target, platform);
+    if (refusal !== null) return err(extensionRefusalError(refusal, target));
     try {
       const path = await realpath(configured);
       const bytes = await readJar(path);
@@ -168,11 +173,32 @@ export const validateGhidraExtensionProfile = (
       adapter.configuredPath(config) !== extension.configured_path
     )
       return `Ghidra extension profile lacks matching explicit local configuration: ${extension.id}`;
-    const reason = adapter.unsupportedReason(target, platform);
-    if (reason !== null) return reason;
+    const refusal = adapter.unsupportedReason(target, platform);
+    if (refusal !== null) return refusal.reason;
   }
   return null;
 };
+
+/**
+ * A deliberate host or target refusal is not an execution failure: retrying
+ * cannot change it, and its reason already names the remedy.
+ */
+const extensionRefusalError = (
+  refusal: GhidraExtensionRefusal,
+  target: BinaryTarget,
+): AnalysisError =>
+  refusal.constraint === "host"
+    ? new AnalysisCapabilityUnavailableError(
+        "ghidra",
+        "resolve_analysis_profile",
+        refusal.reason,
+        { userMessage: refusal.reason },
+      )
+    : new AnalysisUnsupportedTargetError(
+        "resolve_analysis_profile",
+        target.path,
+        refusal.reason,
+      );
 
 /** Snapshot committed extension bytes into the private runtime before Java loads them. */
 export const snapshotGhidraExtensions = async (

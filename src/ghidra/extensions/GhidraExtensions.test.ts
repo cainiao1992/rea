@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { parseConfig } from "../../config.js";
+import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
 import type { BinaryTarget } from "../../domain/binaryTarget.js";
 import {
   ghidraExtensionSchema,
@@ -70,6 +71,50 @@ const result = (sha256: string): GhidraExtensionResult => ({
   },
 });
 
+describe("optional Ghidra extension refusals", () => {
+  it("rejects unsupported hosts and target architectures before opening files", async () => {
+    const host = await resolveGhidraExtensions(
+      config("/absent.jar"),
+      target,
+      "darwin",
+    );
+    expect(host.ok).toBe(false);
+    if (!host.ok)
+      // A host restriction is not an execution failure to retry or repair.
+      expect(projectAnalysisError(host.error)).toMatchObject({
+        code: "capability_unavailable",
+        retryable: false,
+        message: expect.stringContaining("verified on Linux only"),
+        remediation: {
+          action: expect.stringContaining("omit REA_GHIDRA_NATIVEAOT_JAR"),
+        },
+        details: {
+          provider_id: "ghidra",
+          operation: "resolve_analysis_profile",
+        },
+      });
+    const architecture = await resolveGhidraExtensions(
+      config("/absent.jar"),
+      {
+        ...target,
+        architecture: "arm64",
+        availableArchitectures: ["arm64"],
+      },
+      "linux",
+    );
+    expect(architecture.ok).toBe(false);
+    if (!architecture.ok)
+      expect(projectAnalysisError(architecture.error)).toMatchObject({
+        code: "unsupported_target",
+        details: {
+          operation: "resolve_analysis_profile",
+          path: target.path,
+          reason: expect.stringContaining("x86-64 ELF or native PE"),
+        },
+      });
+  });
+});
+
 describe("optional Ghidra extension boundary", () => {
   it("keeps ordinary profiles free of unconfigured extensions", async () => {
     expect(await resolveGhidraExtensions(config(), target, "linux")).toEqual({
@@ -131,25 +176,6 @@ describe("optional Ghidra extension boundary", () => {
         await resolveGhidraExtensions(
           config(join(directory, "absent.jar")),
           target,
-          "linux",
-        )
-      ).ok,
-    ).toBe(false);
-  });
-  it("rejects unsupported hosts and target architectures before opening files", async () => {
-    expect(
-      (await resolveGhidraExtensions(config("/absent.jar"), target, "win32"))
-        .ok,
-    ).toBe(false);
-    expect(
-      (
-        await resolveGhidraExtensions(
-          config("/absent.jar"),
-          {
-            ...target,
-            architecture: "arm64",
-            availableArchitectures: ["arm64"],
-          },
           "linux",
         )
       ).ok,
@@ -287,9 +313,8 @@ describe("Ghidra extension profile and producer validation", () => {
     expect(resolved.ok).toBe(false);
     if (!resolved.ok)
       expect(resolved.error).toMatchObject({
-        diagnostics: {
-          reason: expect.stringContaining("inspect_managed_artifact"),
-        },
+        _tag: "AnalysisUnsupportedTargetError",
+        reason: expect.stringContaining("inspect_managed_artifact"),
       });
   });
   it("does not substitute another artifact under an unchanged configured path", async () => {

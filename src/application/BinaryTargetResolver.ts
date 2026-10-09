@@ -237,6 +237,9 @@ const readExecutableMetadata = async (
   const prefix = Buffer.alloc(4096);
   const prefixRead = await handle.read(prefix, 0, prefix.length, 0);
   const bytes = prefix.subarray(0, prefixRead.bytesRead);
+  // Header commitments such as Mach-O load commands and FAT slices are
+  // checked against the whole file, not the probed prefix.
+  const fileSize = (await handle.stat()).size;
   if (bytes.length >= 2 && bytes[0] === 0x4d && bytes[1] === 0x5a) {
     const offset = mzWindowsHeaderOffset(bytes);
     if (offset !== null) {
@@ -251,7 +254,6 @@ const readExecutableMetadata = async (
         ? bytes.readUInt16LE(24) + bytes.readUInt16LE(6) * 4
         : 0;
     const headerBytes = bytes.length >= 28 ? bytes.readUInt16LE(8) * 16 : 0;
-    const fileSize = (await handle.stat()).size;
     if (
       tableEnd > bytes.length &&
       tableEnd <= headerBytes &&
@@ -279,11 +281,12 @@ const readExecutableMetadata = async (
         return parseExecutableHeader(
           header.subarray(0, headerRead.bytesRead),
           hostArchitecture,
+          fileSize,
         );
       }
     }
   }
-  return parseExecutableHeader(bytes, hostArchitecture);
+  return parseExecutableHeader(bytes, hostArchitecture, fileSize);
 };
 
 const readPeMetadata = async (

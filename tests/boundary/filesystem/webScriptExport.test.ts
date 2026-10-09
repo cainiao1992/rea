@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import {
   access,
+  chmod,
+  mkdir,
   readFile,
   readdir,
   symlink,
@@ -8,13 +10,14 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 
 import { analyzeJavaScriptApplication } from "../../../src/application/javascript/JavaScriptApplicationService.js";
 import { exportWebScripts } from "../../../src/application/WebScriptExportService.js";
 import { publishWebScripts } from "../../../src/browser/assets/PublishWebScripts.js";
 import { selectScriptCapture } from "../../../src/browser/assets/ScriptCaptureAdapters.js";
 import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";
+import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
 import { webScriptExportResultSchema } from "../../../src/domain/webScriptExport.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import {
@@ -247,9 +250,18 @@ describe("captured script publication failures and cleanup", () => {
       capture_path: `${input.capture_path}.missing`,
     });
     if (missing.ok) throw new Error("Expected unavailable input");
-    expect(missing.error.userMessage).toContain(
-      `${input.capture_path}.missing`,
-    );
+    expect(projectAnalysisError(missing.error)).toMatchObject({
+      code: "invalid_request",
+      details: {
+        issues: [
+          {
+            path: ["capture_path"],
+            reason: "invalid_value",
+            message: expect.stringContaining(`${input.capture_path}.missing`),
+          },
+        ],
+      },
+    });
     const relative = await exportWebScripts({
       ...input,
       capture_path: "capture.json",
@@ -257,4 +269,49 @@ describe("captured script publication failures and cleanup", () => {
     if (relative.ok) throw new Error("Expected host path error");
     expect(relative.error._tag).toBe("AnalysisInputError");
   });
+});
+
+describe("captured script selection failures", () => {
+  it("reports a directory selected as the capture as invalid input", async () => {
+    const { root, input } = await setup();
+    const directory = join(root, "captures");
+    await mkdir(directory);
+
+    const result = await exportWebScripts({
+      ...input,
+      capture_path: directory,
+    });
+    if (result.ok) throw new Error("Expected invalid input");
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "invalid_request",
+      details: {
+        issues: [
+          {
+            path: ["capture_path"],
+            reason: "invalid_value",
+            message: expect.stringContaining(directory),
+          },
+        ],
+      },
+    });
+    await expect(access(input.output_directory)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "reports an unreadable capture as a host access denial",
+    async () => {
+      const { input } = await setup();
+      await chmod(input.capture_path, 0o000);
+      onTestFinished(() => chmod(input.capture_path, 0o600));
+
+      const result = await exportWebScripts(input);
+      if (result.ok) throw new Error("Expected access denial");
+      expect(projectAnalysisError(result.error)).toMatchObject({
+        code: "access_denied",
+        details: { path: input.capture_path, system_code: "EACCES" },
+      });
+    },
+  );
 });

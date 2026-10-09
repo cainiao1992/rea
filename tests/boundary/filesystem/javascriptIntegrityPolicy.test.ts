@@ -1,3 +1,7 @@
+import {
+  primitiveCandidateExpansionSource,
+  primitiveByteExpansionSource,
+} from "../../fixtures/javascriptPrimitiveExpansion.js";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -102,21 +106,9 @@ it("keeps a contradicted nested ASAR opaque during JavaScript reconstruction", a
 });
 
 it("retains semantic resource limits alongside recorded integrity contradictions", async () => {
-  const expression = Array.from(
-    { length: 20 },
-    () => '(true ? "a" : "b")',
-  ).join(" + ");
-  const declarations = ['const value0 = "x";'];
-  for (let index = 1; index <= 30; index += 1) {
-    const previous = `value${String(index - 1)}`;
-    declarations.push(
-      `const value${String(index)} = ${previous} + ${previous};`,
-    );
-  }
-  declarations.push("const answer = value30;");
   const { archive } = await createStrippedAsarAddon([
-    { path: "app.js", contents: `const answer = { nested: ${expression} };` },
-    { path: "growth.js", contents: declarations.join("\n") },
+    { path: "app.js", contents: primitiveCandidateExpansionSource() },
+    { path: "growth.js", contents: primitiveByteExpansionSource() },
   ]);
   const analyzed = await analyzeJavaScriptApplication({
     input_path: archive,

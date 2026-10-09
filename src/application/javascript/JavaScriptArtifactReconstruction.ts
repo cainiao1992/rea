@@ -49,7 +49,6 @@ export interface JavaScriptArtifactReconstructionResult {
     readonly findings: number;
     readonly modules: number;
     readonly parse_failures: number;
-    readonly truncated_scopes: number;
   };
   readonly limitations: readonly string[];
 }
@@ -129,7 +128,6 @@ export const reconstructJavaScriptArtifact = async (
     const semanticGraphSteps = semanticProjection.finishImmutableSteps(
       snapshot.manifest.root_sha256,
       graph,
-      analysis,
     );
     await reportPhase(
       "seal_javascript_semantic_graph",
@@ -162,7 +160,6 @@ export const reconstructJavaScriptArtifact = async (
         findings: analysis.findings,
         modules: analysis.modules,
         parse_failures: analysis.parse_failures,
-        truncated_scopes: analysis.truncated_scopes,
       },
       limitations: analysis.limitations,
     };

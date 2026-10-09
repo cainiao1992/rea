@@ -74,7 +74,6 @@ const statistics = {
   findings: 1,
   modules: 0,
   parse_failures: 0,
-  truncated_scopes: 0,
 };
 const modulePath = "parser.mjs";
 const limitations = [

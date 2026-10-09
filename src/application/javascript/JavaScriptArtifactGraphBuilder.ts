@@ -132,8 +132,6 @@ const graphCoverage = (context: JavaScriptArtifactGraphContext) => {
     sourceMapPolicyGap ||
     malformedStructuredData ||
     partialJavaScript;
-  if (context.analysis.truncated_scopes > 0)
-    return partialApplicationCoverage([], null);
   if (resourceLimits.length > 0)
     return partialApplicationCoverage(
       semanticResourceLimitCoverage(resourceLimits),

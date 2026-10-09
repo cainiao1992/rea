@@ -70,11 +70,7 @@ it("preserves graph commitments and export shapes when consuming file-local IR",
     expect(buildJavaScriptArtifactGraph(snapshot, files, compact)).toEqual(
       graph,
     );
-    const semantic = projection.finish(
-      snapshot.manifest.root_sha256,
-      graph,
-      compact,
-    );
+    const semantic = projection.finish(snapshot.manifest.root_sha256, graph);
     expect(semantic).toEqual(
       buildJavaScriptSemanticGraph({
         rootArtifactSha256: snapshot.manifest.root_sha256,

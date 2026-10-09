@@ -380,7 +380,6 @@ const graphFor = (source: string, ir = analyzeJavaScriptSemantics(source)) => {
     findings: 0,
     modules: 0,
     parse_failures: 0,
-    truncated_scopes: 0,
     limitations: [],
   };
   return buildJavaScriptSemanticGraph({

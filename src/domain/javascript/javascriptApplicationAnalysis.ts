@@ -59,7 +59,6 @@ const reconstructionStatisticsSchema = z.strictObject({
   findings: countSchema,
   modules: countSchema,
   parse_failures: countSchema,
-  truncated_scopes: countSchema,
 });
 
 const applicationAnalysisResultShape = z.strictObject({

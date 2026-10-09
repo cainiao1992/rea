@@ -45,7 +45,7 @@ it("shows MCP doctor help without starting a server and keeps option errors acti
   const help = await runCli(["mcp", "doctor", "--help"]);
   expect(help.exitCode).toBe(0);
   expect(help.stdout).toContain("Usage: rea mcp doctor [options]");
-  expect(help.stdout).toContain("--format <format>");
+  expect(help.stdout).toContain("--format <toon|json|yaml|md|jsonl>");
   expect(help.stdout).toContain("--full-output");
 
   const invalid = await runCli(["mcp", "doctor", "--not-an-option"]);

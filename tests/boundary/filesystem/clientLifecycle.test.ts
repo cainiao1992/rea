@@ -1310,6 +1310,35 @@ describe("Grok Bot registration", () => {
   });
 });
 
+describe("Codex configuration comments", () => {
+  it("keeps Codex comments and value spelling through setup and uninstall", async () => {
+    const home = await createTestTempDirectory("rea-toml-comments-");
+    roots.push(home);
+    const configPath = join(home, ".codex/config.toml");
+    const original =
+      '# Keep this explanation.\nnotify = ["a", "b"]\nliteral = \'C:\\demo\\path\'\n';
+    await mkdir(dirname(configPath), { recursive: true });
+    await writeFile(configPath, original);
+
+    expect(
+      await configureClientConfiguration(
+        { name: "codex", configPath, format: "toml" },
+        {},
+        ["/isolated prefix/bin/rea", "mcp"],
+      ),
+    ).toMatchObject({ status: "configured" });
+    const configured = await readFile(configPath, "utf8");
+    expect(configured.startsWith(original)).toBe(true);
+    expect(configured).toContain("[mcp_servers.rea]");
+
+    const removed = await runUninstall(false, systemUninstallHost(home));
+    expect(removed.items).toContainEqual(
+      expect.objectContaining({ name: "codex", status: "removed" }),
+    );
+    expect(await readFile(configPath, "utf8")).toBe(original);
+  });
+});
+
 describe("client configuration filesystem removal", () => {
   it("uninstalls only owned entries and refuses purge symlinks", async () => {
     const home = await createTestTempDirectory("rea-uninstall-");

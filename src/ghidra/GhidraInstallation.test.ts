@@ -413,6 +413,36 @@ describe("Ghidra configuration paths", () => {
     },
   );
 
+  it.each([
+    ["linux", "./jdk"],
+    ["linux", ""],
+    ["win32", "jdk"],
+  ] as const)(
+    "does not run Java from a relative JAVA_HOME (%s %o)",
+    (platform, javaHome) => {
+      const probed: string[] = [];
+      const result = inspectGhidraInstallation(
+        {
+          installDir: platform === "win32" ? WINDOWS_INSTALL : INSTALL,
+          javaHome,
+          platform,
+          architecture: "x64",
+        },
+        host({
+          probeJava: (command) => {
+            probed.push(command);
+            return JAVA;
+          },
+        }),
+      );
+      expect(probed).toEqual([]);
+      expect(result).toMatchObject({
+        status: "unavailable",
+        rejection: { code: "not_configured" },
+      });
+    },
+  );
+
   it("judges absolute paths by the inspected platform", () => {
     const result = inspectGhidraInstallation(
       { installDir: "C:\\ghidra", platform: "win32", architecture: "x64" },

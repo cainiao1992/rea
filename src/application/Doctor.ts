@@ -7,7 +7,7 @@ import { analysisErrorRemediationAction } from "../domain/analysisErrorPresentat
 import { parseBinaryTarget } from "./BinaryTargetResolver.js";
 import { execFileOutput } from "../process/ExecFileOutput.js";
 import type { JsonValue } from "../domain/jsonValue.js";
-import { probeHomebrew } from "./homebrew.js";
+import { installedCaskAppdir, probeHomebrew } from "./homebrew.js";
 import {
   linuxHopperBinarySupported,
   linuxSharedLibrariesAvailable,
@@ -380,20 +380,30 @@ export const systemDoctorHost = (
     supportedLinuxHopper: linuxHopperBinarySupported,
     async brewHopperPath() {
       return probeHomebrew(async (command) => {
+        let caskroom: string;
         try {
-          const prefix = (
+          // Without a cask argument, `--caskroom` does not load Homebrew's
+          // cask API, so doctor writes no Homebrew cache files.
+          caskroom = (
             await hostExecFileOutput(
               command,
-              ["--prefix", "--cask", "hopper-disassembler"],
+              ["--caskroom"],
               commandEnvironment,
             )
           ).stdout.trim();
-          return `${prefix}/Hopper Disassembler.app/Contents/MacOS/hopper`;
         } catch (cause: unknown) {
           // best-effort cleanup: optional Homebrew probing; absence means uninstalled.
           void cause;
           return undefined;
         }
+        const appdir = await installedCaskAppdir(
+          caskroom,
+          "hopper-disassembler",
+          homeDirectory,
+        );
+        return appdir === undefined
+          ? undefined
+          : join(appdir, "Hopper Disassembler.app/Contents/MacOS/hopper");
       });
     },
     manualHopperPaths: () => manualHopperPaths(homeDirectory),

@@ -123,6 +123,22 @@ describe.skipIf(process.platform === "win32")(
       expect(await readFile(stopped, "utf8")).toBe("SIGINT");
     });
 
+    it.each([-1, Number.NaN, 1.5, Number.POSITIVE_INFINITY, 2 ** 53])(
+      "refuses a malformed timeout (%s) in both modes before starting the command",
+      async (timeout) => {
+        // Starting this command would fail with ENOENT instead.
+        await expect(
+          execFileOutput("/nonexistent/rea-command", [], {
+            timeout,
+            stopSignal: "SIGINT",
+          }),
+        ).rejects.toMatchObject({ code: "ERR_OUT_OF_RANGE" });
+        await expect(
+          execFileOutput("/nonexistent/rea-command", [], { timeout }),
+        ).rejects.toMatchObject({ code: "ERR_OUT_OF_RANGE" });
+      },
+    );
+
     it("kills a timed-out process that ignores the stop signal", async () => {
       const script = [
         'for (const name of ["SIGINT", "SIGTERM"]) process.on(name, () => {});',

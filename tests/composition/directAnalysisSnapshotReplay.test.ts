@@ -31,6 +31,10 @@ import { createTestBinarySession } from "../fixtures/binarySession.js";
 import { BinarySession } from "../../src/application/binary/BinarySession.js";
 import { SessionProviderRouter } from "../../src/application/binary/SessionProviderRouter.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
+import {
+  CAPABILITIES as GHIDRA_CAPABILITIES,
+  GHIDRA_PROVIDER_IDENTITY,
+} from "../../src/ghidra/GhidraProviderCapabilities.js";
 
 const IDENTITY = {
   id: "snapshot-fixture",
@@ -408,6 +412,61 @@ describe("direct analysis composed snapshot replay", () => {
       expect(starts).toEqual(startsAfterFirst);
     });
   }
+});
+
+describe("Ghidra composed workflow snapshot replay", () => {
+  it.each([
+    { tool: "binary_overview", arguments: {} },
+    { tool: "inspect_native_api", arguments: { procedure: "0x1000" } },
+    { tool: "trace_feature", arguments: { query: "fixture" } },
+  ] as const)(
+    "persists and replays $tool with production Ghidra capability policies",
+    async ({ tool, arguments: parameters }) => {
+      const directory = await createTestTempDirectory("rea-ghidra-workflow-");
+      const path = join(directory, "fixture.hop");
+      const snapshotPath = join(directory, "snapshot.json");
+      await writeFile(path, "fixture");
+      const starts: string[] = [];
+      const calls: string[] = [];
+      const profile = createAnalysisProfile(
+        { ...GHIDRA_PROVIDER_IDENTITY, version: "12.1.4" },
+        { fixture: true },
+      );
+      const provider: AnalysisProvider = {
+        ...makeProvider(starts, calls, profile, GHIDRA_PROVIDER_IDENTITY),
+        capabilities: () => GHIDRA_CAPABILITIES,
+      };
+      const dependencies: DirectAnalysisDependencies = {
+        createBinarySession: () => createTestBinarySession(provider),
+        createManagedBinarySession: () => createTestBinarySession(provider),
+      };
+      const first = await runDirectAnalysis(
+        dependencies,
+        path,
+        tool,
+        parameters,
+        { snapshotPath },
+      );
+      expect(first).toMatchObject({ operation: tool });
+      const snapshot = await readAnalysisSnapshot(snapshotPath);
+      if (!snapshot.ok) throw snapshot.error;
+      expect(snapshot.value.workflow_entries).toEqual([
+        expect.objectContaining({ operation: tool }),
+      ]);
+      const initialCalls = [...calls];
+
+      const replay = await runDirectAnalysis(
+        dependencies,
+        path,
+        tool,
+        parameters,
+        { snapshotPath },
+      );
+      expect(replay).toEqual(first);
+      expect(starts).toHaveLength(1);
+      expect(calls).toEqual(initialCalls);
+    },
+  );
 });
 
 describe("binary overview snapshot replay", () => {

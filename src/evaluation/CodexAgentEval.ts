@@ -1,3 +1,8 @@
+import {
+  evaluateKnownAnswers,
+  type FixtureClaimExpectation,
+  type KnownAnswerAssessment,
+} from "./KnownAnswerEvaluation.js";
 import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
 
 /** One REA MCP invocation observed in a Codex JSONL transcript. */
@@ -11,7 +16,7 @@ interface CodexMcpCall {
   readonly errorCode: string | null;
 }
 
-/** Release-evaluation metrics derived from an actual Codex JSONL transcript. */
+/** Transcript measurements, text heuristics, and optional closed fixture-claim assessment. */
 export interface CodexAgentMetrics {
   readonly naturalUse: boolean;
   readonly correctFirstTool: boolean;
@@ -25,10 +30,17 @@ export interface CodexAgentMetrics {
   readonly outputTokens: number;
   readonly finalMessage: string;
   readonly evidenceIds: readonly string[];
+  /** Whether the answer contains a produced Evidence ID; claim support is not checked. */
   readonly finalCitesEvidence: boolean;
-  readonly contentCriteriaMet: boolean;
-  readonly completionQuality: boolean;
-  readonly authorityHonesty: boolean;
+  /** Case-insensitive substring coverage, including terms in negated claims. */
+  readonly answerTermCoverageMet: boolean;
+  /** Text length, term/cue coverage, and configured transcript checks only. */
+  readonly answerHeuristicsMet: boolean;
+  /** Whether an epistemic keyword occurs; this does not establish honest authority use. */
+  readonly epistemicCuePresent: boolean;
+  /** Limited to configured fixture claims; free-form factual correctness is not assessed. */
+  readonly factualCorrectness: KnownAnswerAssessment["status"];
+  readonly factualAssessment: KnownAnswerAssessment;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -156,7 +168,7 @@ const consumeEvent = (state: EvaluationState, value: unknown): void => {
   );
 };
 
-/** Score agent routing, repetition, model usage, and epistemic completion. */
+/** Measure agent routing, repetition, model usage, and explicitly limited answer heuristics. */
 export const evaluateCodexEvents = (
   events: readonly unknown[],
   expectedFirstTool: string,
@@ -165,6 +177,7 @@ export const evaluateCodexEvents = (
     readonly requiredAnswerTermGroups?: readonly (readonly string[])[];
     readonly requiredToolSubsequence?: readonly string[];
     readonly forbidInputValidationFailures?: boolean;
+    readonly fixtureClaims?: readonly FixtureClaimExpectation[];
   } = {},
 ): CodexAgentMetrics => {
   const state: EvaluationState = {
@@ -204,16 +217,21 @@ export const evaluateCodexEvents = (
     finalMessage.includes(evidenceId),
   );
   const normalizedFinalMessage = finalMessage.toLocaleLowerCase("en-US");
-  const contentCriteriaMet = (options.requiredAnswerTermGroups ?? []).every(
+  const answerTermCoverageMet = (options.requiredAnswerTermGroups ?? []).every(
     (terms) =>
       terms.some((term) =>
         normalizedFinalMessage.includes(term.toLocaleLowerCase("en-US")),
       ),
   );
-  const authorityHonesty =
+  const epistemicCuePresent =
     /\b(evidence|observed|inferred|unknown|unavailable|limitation|authority|not configured|could not|requires approval)\b/iu.test(
       finalMessage,
     );
+  const factualAssessment = evaluateKnownAnswers(
+    events,
+    finalMessage,
+    options.fixtureClaims,
+  );
   return {
     naturalUse: reaCalls.length > 0,
     correctFirstTool: reaCalls[0]?.tool === expectedFirstTool,
@@ -228,16 +246,18 @@ export const evaluateCodexEvents = (
     finalMessage,
     evidenceIds,
     finalCitesEvidence,
-    contentCriteriaMet,
-    completionQuality:
+    answerTermCoverageMet,
+    answerHeuristicsMet:
       finalMessage.trim().length >= 80 &&
-      authorityHonesty &&
-      contentCriteriaMet &&
+      epistemicCuePresent &&
+      answerTermCoverageMet &&
       requiredToolSubsequenceMet &&
       (options.forbidInputValidationFailures !== true ||
         inputValidationFailureCount === 0) &&
       (options.requireEvidence !== true || finalCitesEvidence),
-    authorityHonesty,
+    epistemicCuePresent,
+    factualCorrectness: factualAssessment.status,
+    factualAssessment,
   };
 };
 

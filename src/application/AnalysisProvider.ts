@@ -162,7 +162,12 @@ type CapabilityAvailability =
     };
 
 export type CapabilityDescriptor = CapabilityAvailability & {
-  /** Live external state must be re-observed, including after snapshot import. */
+  /**
+   * Snapshot opts immutable, profile-bound reads into replay despite incidental
+   * private filesystem writes. Live state must always be re-observed. Omitting
+   * this policy retains conservative effect checks; mutation and UI-state
+   * exclusions apply to every policy.
+   */
   readonly cachePolicy?: "snapshot" | "live";
   readonly provider: ProviderIdentity;
   readonly operation: Exclude<AnalysisOperation, "health">;

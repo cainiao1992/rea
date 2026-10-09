@@ -160,6 +160,12 @@ export const CAPABILITIES: readonly CapabilityDescriptor[] = Object.freeze(
       operation,
       available: true,
       reason: null,
+      // Project writes are private import machinery. Analysis reads are bound
+      // to the artifact/profile; session annotations disable snapshot replay.
+      ...(operation === "annotate_native_function" ||
+      operation === "list_documents"
+        ? {}
+        : { cachePolicy: "snapshot" as const }),
       effects: Object.freeze({
         mutatesArtifact: operation === "annotate_native_function",
         launchesProcess: true,

@@ -141,6 +141,74 @@ describe("analysis snapshot cache capacity", () => {
   });
 });
 
+describe("analysis snapshot cache policy", () => {
+  it.each<{
+    policy?: CapabilityDescriptor["cachePolicy"];
+    operation?: CapabilityDescriptor["operation"];
+    effects?: Partial<CapabilityDescriptor["effects"]>;
+    parameters?: Record<string, string>;
+    cacheable: boolean;
+  }>([
+    { cacheable: false },
+    { policy: "snapshot", cacheable: true },
+    { policy: "live", cacheable: false },
+    {
+      policy: "live",
+      effects: { mayWriteFilesystem: false },
+      cacheable: false,
+    },
+    {
+      policy: "snapshot",
+      effects: { mutatesArtifact: true },
+      cacheable: false,
+    },
+    {
+      policy: "snapshot",
+      effects: { changesPermissions: true },
+      cacheable: false,
+    },
+    { policy: "snapshot", operation: "list_documents", cacheable: false },
+    { policy: "snapshot", operation: "list_strings", cacheable: false },
+    {
+      policy: "snapshot",
+      operation: "address_name",
+      parameters: { document: "fixture" },
+      cacheable: false,
+    },
+  ])(
+    "keeps explicit cache policy within immutable and state-independent boundaries: %j",
+    ({
+      policy,
+      operation = "analyze_function",
+      effects,
+      parameters = {},
+      cacheable,
+    }) => {
+      const descriptor: CapabilityDescriptor = {
+        provider: ANALYSIS_SNAPSHOT_PROVIDER,
+        operation,
+        available: true,
+        reason: null,
+        ...(policy === undefined ? {} : { cachePolicy: policy }),
+        effects: {
+          mutatesArtifact: false,
+          launchesProcess: true,
+          mayShowUi: false,
+          mayAccessNetwork: false,
+          mayWriteFilesystem: true,
+          changesPermissions: false,
+          requiresRoot: false,
+          ...effects,
+        },
+        limitations: [],
+      };
+      expect(isSnapshotCacheable(operation, descriptor, parameters)).toBe(
+        cacheable,
+      );
+    },
+  );
+});
+
 describe("analysis snapshot cache partitioning", () => {
   it.each<{
     operation: Exclude<AnalysisOperation, "health">;

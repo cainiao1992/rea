@@ -50,6 +50,11 @@ import type { AnalysisProviderSelector } from "../contracts/providerSelection.js
 import { artifactInspectionResultSchema } from "../domain/artifactInspection.js";
 import { resolveXrefsAddress } from "./XrefsAddressResolution.js";
 import { AnalysisInputError } from "../domain/analysisErrorCore.js";
+import {
+  directAnalysisCleanupFailure,
+  managedAnalysisCleanupFailure,
+  withSessionCleanup,
+} from "./DirectAnalysisCleanup.js";
 
 type DirectAnalysisTool =
   | "annotate_native_function"
@@ -134,13 +139,15 @@ export const runManagedProviderExecution = async (
 ): Promise<Result<AnalysisExecution, AnalysisError>> =>
   withProcessCancellation(signal, async (operationSignal) => {
     const session = dependencies.createManagedBinarySession();
-    try {
-      const opened = await session.open(path, { signal: operationSignal });
-      if (!opened.ok) return opened;
-      return await session.execute(tool, {}, { signal: operationSignal });
-    } finally {
-      await session.close();
-    }
+    return withSessionCleanup(
+      session,
+      async () => {
+        const opened = await session.open(path, { signal: operationSignal });
+        if (!opened.ok) return opened;
+        return await session.execute(tool, {}, { signal: operationSignal });
+      },
+      managedAnalysisCleanupFailure,
+    );
   });
 
 const runManagedProviderAnalysis = async (
@@ -196,119 +203,121 @@ const runAnalysis = async (
   const config = parseConfig(options.environment ?? process.env);
   if (!config.ok) return cliError(config.error);
   const session = dependencies.createBinarySession(config.value, logger);
-  try {
-    const prepared = await prepareSnapshot({
-      path,
-      snapshotPath,
-      ...(options.formatHint === undefined
-        ? {}
-        : { formatHint: options.formatHint }),
-    });
-    if (!prepared.ok) return cliError(prepared.error);
-    const { snapshot } = prepared.value;
-    let resolvedTarget: ResolvedSessionOpen | undefined;
-    if (snapshot !== undefined && prepared.value.target !== undefined) {
-      const preview = await session.previewTarget(prepared.value.target, {
-        signal,
-        snapshot,
+  return withSessionCleanup(
+    session,
+    async () => {
+      const prepared = await prepareSnapshot({
+        path,
+        snapshotPath,
         ...(options.formatHint === undefined
           ? {}
           : { formatHint: options.formatHint }),
+      });
+      if (!prepared.ok) return cliError(prepared.error);
+      const { snapshot } = prepared.value;
+      let resolvedTarget: ResolvedSessionOpen | undefined;
+      if (snapshot !== undefined && prepared.value.target !== undefined) {
+        const preview = await session.previewTarget(prepared.value.target, {
+          signal,
+          snapshot,
+          ...(options.formatHint === undefined
+            ? {}
+            : { formatHint: options.formatHint }),
+          ...(options.providerId === undefined
+            ? {}
+            : { providerId: options.providerId }),
+        });
+        if (!preview.ok) return cliError(preview.error);
+        resolvedTarget = preview.value;
+        const route = preview.value.route;
+        const bindingProfile = route.profile ?? undefined;
+        const evidenceProfile = analysisProfileForRoute(route, tool);
+        if (
+          bindingProfile !== undefined &&
+          evidenceProfile !== undefined &&
+          allowsSnapshotReplay(route, tool)
+        ) {
+          const cached = snapshotEvidenceForQuery(snapshot, {
+            target: preview.value.target,
+            bindingProfile,
+            operation: tool,
+            parameters: arguments_,
+            provider: isWorkflowEvidenceTool(tool)
+              ? REA_WORKFLOW_PROVIDER
+              : providerIdentityForRoute(route, tool),
+            evidenceProfile,
+          });
+          if (cached !== undefined) return cached;
+        }
+      }
+      const openOptions = {
+        signal,
+        ...(options.formatHint === undefined
+          ? {}
+          : { formatHint: options.formatHint }),
+        ...(snapshot === undefined ? {} : { snapshot }),
         ...(options.providerId === undefined
           ? {}
           : { providerId: options.providerId }),
+      };
+      const opened =
+        resolvedTarget === undefined
+          ? await session.open(path, openOptions)
+          : await session.openResolvedTarget(resolvedTarget, openOptions);
+      if (!opened.ok) return cliError(opened.error);
+      const evidenceProfile = analysisProfileForEvidence(session, tool);
+      const { output, evidence } = await executeAnalysisTool({
+        session,
+        openedTarget: opened.value,
+        tool,
+        arguments: arguments_,
+        signal,
+        evidenceProfile,
       });
-      if (!preview.ok) return cliError(preview.error);
-      resolvedTarget = preview.value;
-      const route = preview.value.route;
-      const bindingProfile = route.profile ?? undefined;
-      const evidenceProfile = analysisProfileForRoute(route, tool);
-      if (
-        bindingProfile !== undefined &&
-        evidenceProfile !== undefined &&
-        allowsSnapshotReplay(route, tool)
-      ) {
-        const cached = snapshotEvidenceForQuery(snapshot, {
-          target: preview.value.target,
-          bindingProfile,
-          operation: tool,
-          parameters: arguments_,
-          provider: isWorkflowEvidenceTool(tool)
-            ? REA_WORKFLOW_PROVIDER
-            : providerIdentityForRoute(route, tool),
-          evidenceProfile,
-        });
-        if (cached !== undefined) return cached;
-      }
-    }
-    const openOptions = {
-      signal,
-      ...(options.formatHint === undefined
-        ? {}
-        : { formatHint: options.formatHint }),
-      ...(snapshot === undefined ? {} : { snapshot }),
-      ...(options.providerId === undefined
-        ? {}
-        : { providerId: options.providerId }),
-    };
-    const opened =
-      resolvedTarget === undefined
-        ? await session.open(path, openOptions)
-        : await session.openResolvedTarget(resolvedTarget, openOptions);
-    if (!opened.ok) return cliError(opened.error);
-    const evidenceProfile = analysisProfileForEvidence(session, tool);
-    const { output, evidence } = await executeAnalysisTool({
-      session,
-      openedTarget: opened.value,
-      tool,
-      arguments: arguments_,
-      signal,
-      evidenceProfile,
-    });
-    if (evidence !== undefined) {
-      const recorded = session.recordEvidence(evidence);
-      if (!recorded.ok) return cliError(recorded.error);
-      if (isWorkflowEvidenceTool(tool)) {
-        const unknowns = recordWorkflowUnknowns({
-          name: tool,
-          result: evidence.normalized_result,
-          evidenceId: evidence.evidence_id,
-          recordUnknown: (unknown) => session.recordUnknown(unknown),
-        });
-        if (!unknowns.ok) return cliError(unknowns.error);
-      }
-    }
-    if (
-      isWorkflowEvidenceTool(tool) &&
-      tool !== "trace_native_ui_action" &&
-      snapshotPath !== undefined &&
-      evidence !== undefined &&
-      session.allowsSnapshotReplay(tool)
-    ) {
-      const workflowRecord = workflowSnapshotRecord(evidence, tool);
-      if (workflowRecord !== undefined) {
-        const recorded = session.recordWorkflowSnapshot(workflowRecord);
+      if (evidence !== undefined) {
+        const recorded = session.recordEvidence(evidence);
         if (!recorded.ok) return cliError(recorded.error);
+        if (isWorkflowEvidenceTool(tool)) {
+          const unknowns = recordWorkflowUnknowns({
+            name: tool,
+            result: evidence.normalized_result,
+            evidenceId: evidence.evidence_id,
+            recordUnknown: (unknown) => session.recordUnknown(unknown),
+          });
+          if (!unknowns.ok) return cliError(unknowns.error);
+        }
       }
-    }
-    if (
-      tool !== "trace_native_ui_action" &&
-      snapshotPath !== undefined &&
-      evidence !== undefined
-    ) {
-      const snapshot = session.exportAnalysisSnapshot();
-      if (!snapshot.ok) return cliError(snapshot.error);
-      const written = await writeAnalysisSnapshot(
-        snapshot.value,
-        snapshotPath,
-        true,
-      );
-      if (!written.ok) return cliError(written.error);
-    }
-    return output;
-  } finally {
-    await session.close();
-  }
+      if (
+        isWorkflowEvidenceTool(tool) &&
+        tool !== "trace_native_ui_action" &&
+        snapshotPath !== undefined &&
+        evidence !== undefined &&
+        session.allowsSnapshotReplay(tool)
+      ) {
+        const workflowRecord = workflowSnapshotRecord(evidence, tool);
+        if (workflowRecord !== undefined) {
+          const recorded = session.recordWorkflowSnapshot(workflowRecord);
+          if (!recorded.ok) return cliError(recorded.error);
+        }
+      }
+      if (
+        tool !== "trace_native_ui_action" &&
+        snapshotPath !== undefined &&
+        evidence !== undefined
+      ) {
+        const snapshot = session.exportAnalysisSnapshot();
+        if (!snapshot.ok) return cliError(snapshot.error);
+        const written = await writeAnalysisSnapshot(
+          snapshot.value,
+          snapshotPath,
+          true,
+        );
+        if (!written.ok) return cliError(written.error);
+      }
+      return output;
+    },
+    directAnalysisCleanupFailure,
+  );
 };
 
 const executeAnalysisTool = async (input: {

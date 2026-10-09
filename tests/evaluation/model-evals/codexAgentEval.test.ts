@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { evaluateCodexEvents } from "../../../src/evaluation/CodexAgentEval.js";
 
 describe("Codex agent release evaluation", () => {
-  it("measures natural routing, repeated calls, tokens, and epistemic completion", () => {
+  it("measures natural routing, repeated calls, tokens, and answer heuristics", () => {
     const call = {
       id: "item-tool-1",
       type: "mcp_tool_call",
@@ -43,8 +43,8 @@ describe("Codex agent release evaluation", () => {
       inputTokens: 12_345,
       cachedInputTokens: 10_000,
       outputTokens: 321,
-      completionQuality: true,
-      authorityHonesty: true,
+      answerHeuristicsMet: true,
+      epistemicCuePresent: true,
     });
     expect(metrics.reaCalls).toHaveLength(1);
   });
@@ -79,7 +79,7 @@ describe("Codex agent release evaluation", () => {
     ).toMatchObject({
       evidenceIds: [evidenceId],
       finalCitesEvidence: true,
-      completionQuality: true,
+      answerHeuristicsMet: true,
     });
   });
 
@@ -126,7 +126,53 @@ describe("Codex agent release evaluation", () => {
 });
 
 describe("Codex agent completion evaluation", () => {
-  it("requires scenario-specific answer facts when configured", () => {
+  it("does not present matching answer terms as factual correctness or honesty", () => {
+    const evidenceId = `ev_${"a".repeat(64)}`;
+    const metrics = evaluateCodexEvents(
+      [
+        {
+          type: "item.completed",
+          item: {
+            id: "item-tool",
+            type: "mcp_tool_call",
+            server: "rea",
+            tool: "analyze_javascript_application",
+            arguments: { input_path: "/tmp/app.asar" },
+            result: { evidence_id: evidenceId },
+          },
+        },
+        {
+          type: "item.completed",
+          item: {
+            type: "agent_message",
+            text: `Observed evidence ${evidenceId}: profileAPI and profile:read do not exist; there is no preload or contextBridge. The application certainly uses quantum teleportation for all communications.`,
+          },
+        },
+      ],
+      "analyze_javascript_application",
+      {
+        requireEvidence: true,
+        requiredAnswerTermGroups: [
+          ["profileapi"],
+          ["profile:read"],
+          ["preload", "contextbridge"],
+        ],
+      },
+    );
+
+    expect(metrics).toMatchObject({
+      finalCitesEvidence: true,
+      answerTermCoverageMet: true,
+      epistemicCuePresent: true,
+      answerHeuristicsMet: true,
+      factualCorrectness: "not_assessed",
+    });
+    expect(metrics).not.toHaveProperty("completionQuality");
+    expect(metrics).not.toHaveProperty("authorityHonesty");
+    expect(metrics).not.toHaveProperty("contentCriteriaMet");
+  });
+
+  it("requires scenario-specific answer terms when configured", () => {
     const event = (text: string) => [
       {
         type: "item.completed",
@@ -151,7 +197,7 @@ describe("Codex agent completion evaluation", () => {
         "analyze_javascript_application",
         options,
       ),
-    ).toMatchObject({ contentCriteriaMet: true, completionQuality: true });
+    ).toMatchObject({ answerTermCoverageMet: true, answerHeuristicsMet: true });
     expect(
       evaluateCodexEvents(
         event(
@@ -160,7 +206,10 @@ describe("Codex agent completion evaluation", () => {
         "analyze_javascript_application",
         options,
       ),
-    ).toMatchObject({ contentCriteriaMet: false, completionQuality: false });
+    ).toMatchObject({
+      answerTermCoverageMet: false,
+      answerHeuristicsMet: false,
+    });
   });
 
   it("recognizes Codex MCP failed status when the error field is null", () => {
@@ -234,7 +283,7 @@ describe("Codex agent workflow evaluation", () => {
     expect(valid).toMatchObject({
       requiredToolSubsequenceMet: true,
       inputValidationFailureCount: 0,
-      completionQuality: true,
+      answerHeuristicsMet: true,
     });
 
     const invalid = evaluateCodexEvents(
@@ -254,7 +303,7 @@ describe("Codex agent workflow evaluation", () => {
     expect(invalid).toMatchObject({
       requiredToolSubsequenceMet: false,
       inputValidationFailureCount: 1,
-      completionQuality: false,
+      answerHeuristicsMet: false,
     });
   });
 });

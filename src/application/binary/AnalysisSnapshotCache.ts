@@ -71,7 +71,8 @@ export const isSnapshotCacheable = (
     typeof parameters.address === "string") &&
   descriptor?.effects.mutatesArtifact === false &&
   descriptor.cachePolicy !== "live" &&
-  descriptor.effects.mayWriteFilesystem === false &&
+  (descriptor.cachePolicy === "snapshot" ||
+    descriptor.effects.mayWriteFilesystem === false) &&
   descriptor.effects.changesPermissions === false;
 
 /** Bounded in-memory cache for one immutable binary identity. */

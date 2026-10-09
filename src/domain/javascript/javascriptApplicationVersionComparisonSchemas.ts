@@ -2,7 +2,11 @@ import { z } from "zod";
 
 import { emptyArraySchema } from "../emptyArraySchema.js";
 import { evidenceSchema } from "../evidence.js";
-import { javascriptApplicationGraphSchema } from "./javascriptApplicationGraph.js";
+import {
+  isValidatedImmutableJavaScriptApplicationGraph,
+  javascriptApplicationGraphSchema,
+  type JavaScriptApplicationGraph,
+} from "./javascriptApplicationGraph.js";
 import { JAVASCRIPT_APPLICATION_NODE_KINDS } from "./javascriptApplicationGraphSchemas.js";
 import { prefixedDigestSchema } from "../digests.js";
 
@@ -232,6 +236,14 @@ export const applicationVersionComparisonResultSchema = z
         path: ["coverage", "status"],
         message: "Comparison coverage must match source graph completeness",
       });
+  });
+
+/** Reuse the exact owned change graph while validating the rest of the result. */
+export const ownedApplicationVersionComparisonResultSchema =
+  applicationVersionComparisonResultSchema.safeExtend({
+    graph: z.custom<JavaScriptApplicationGraph>(
+      isValidatedImmutableJavaScriptApplicationGraph,
+    ),
   });
 
 export type ApplicationVersionComparisonItem = z.infer<

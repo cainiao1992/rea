@@ -123,8 +123,8 @@ describe.skipIf(process.platform === "win32")(
       expect(await readFile(stopped, "utf8")).toBe("SIGINT");
     });
 
-    it.each([-1, Number.NaN, 1.5, Number.POSITIVE_INFINITY])(
-      "refuses a malformed timeout (%s) before starting the command, as execFile does",
+    it.each([-1, Number.NaN, 1.5, Number.POSITIVE_INFINITY, 2 ** 53])(
+      "refuses a malformed timeout (%s) in both modes before starting the command",
       async (timeout) => {
         // Starting this command would fail with ENOENT instead.
         await expect(

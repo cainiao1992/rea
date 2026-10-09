@@ -54,8 +54,10 @@ const timeoutError = (
 };
 
 /**
- * Node's execFile contract for `timeout`. A stoppable command keeps its own
- * deadline, so it must refuse the values execFile would refuse.
+ * The `timeout` contract for both modes, checked before spawning. A stoppable
+ * command keeps its own deadline, so execFile never validates it. Node 26's
+ * execFile also caps it at Number.MAX_SAFE_INTEGER; Node 22 and 24 accept
+ * larger integers, which their timers then clamp to 1 ms.
  */
 const invalidTimeout = (timeout: number): RangeError | undefined => {
   if (Number.isSafeInteger(timeout) && timeout >= 0) return undefined;
@@ -106,10 +108,7 @@ export const execFileOutput = (
 ): Promise<{ readonly stdout: string; readonly stderr: string }> =>
   new Promise((resolve, reject) => {
     const { stopSignal, signal, timeout, ...execOptions } = options;
-    const invalid =
-      stopSignal === undefined || timeout === undefined
-        ? undefined
-        : invalidTimeout(timeout);
+    const invalid = timeout === undefined ? undefined : invalidTimeout(timeout);
     if (invalid !== undefined) {
       reject(invalid);
       return;

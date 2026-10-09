@@ -55,6 +55,13 @@ comes from, or what a check covers. Scope a claim positively and precisely:
 “The compiled function matches 63 bytes” is more useful than a broad claim
 followed by several qualifications.
 
+Search titles and sharing previews follow this standard too. Name the software
+or task so someone can understand the page before opening it. Keep titles and
+descriptions accurate and concise; use technical terms when they identify the
+actual topic. Preserve a clear visible headline rather than repeating search
+terms throughout the page. See [README.md](README.md#search-and-sharing-metadata)
+for canonical URLs, automatic sitemap generation and sharing assets.
+
 ## Build a page around one question
 
 ### Introductions and first exercises

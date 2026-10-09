@@ -43,6 +43,15 @@ branches when changing these figures. Match progress claims to the pinned
 reconstruction checkpoint. Validate the SVG as XML and inspect its browser
 rendering at desktop and mobile widths.
 
+## Sharing preview
+
+`public/assets/social-card.svg` is the 1200 × 630 preview source. It uses the
+homepage's direct headline, the site's white/charcoal/slate/blue palette, and a
+short agent → REA → evidence flow. CairoSVG renders the ignored PNG during asset
+preparation. Check the rendered image for readable text and spacing before
+publishing. The build uses DejaVu Sans for consistent typography; only the SVG
+source is committed. Metadata and build instructions are in the website README.
+
 ## Beginner homepage and dinosaur reconstruction
 
 The manual/agent comparison and Calculator percentage controls are semantic

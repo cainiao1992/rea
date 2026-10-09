@@ -298,7 +298,7 @@ For exact options, prerequisites and result contracts:
 - [Readiness and troubleshooting](docs/installation.md#check-readiness-for-your-task): diagnose one agent or analysis engine.
 - [CLI and Evidence](docs/cli.md): commands, provider selection, snapshots, import/export and exit statuses.
 - [MCP contracts](docs/mcp-contracts.md) and [agent prompts](docs/mcp-prompts.md): tool results, sessions and guided investigations.
-- [Tool catalog](docs/mcp-contracts.md#generated-catalog): build-generated inventory of tools, providers and CLI commands.
+- [Tool catalog](docs/mcp-contracts.md#generated-catalog): generated inventory of tools, providers and CLI commands.
 - [Roadmap](docs/roadmap.md): planned work and capability trackers.
 
 Report vulnerabilities through [SECURITY.md](SECURITY.md).

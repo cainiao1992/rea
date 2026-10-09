@@ -647,6 +647,17 @@ The dry-run option reports the chosen merge base, scope and build prerequisite
 without executing tests or building. A missing Git base reports how to fetch
 it or select another revision.
 
+Source typechecking needs no compiled runtime or generated test metadata.
+`npm run build:cached` compiles the CLI/MCP runtime and its packaged skill.
+`npm run test:prepare` also generates the MCP contract test catalog, product
+catalog, and portable managed evidence used by the complete suite. Focused
+tests prepare those extra outputs only when their selected files consume them.
+The MCP test catalog is JSON in `.cache/mcp-tool-catalog.json`; the tracked
+test loader supplies its types without making generation a source-check
+prerequisite. Run `npm run mcp-catalog:generate` to refresh it independently.
+Documentation generation and managed conformance run through their separate
+`docs:generate` and `evidence:generate` task graphs.
+
 Changed selection can miss runtime registration, generated data, shell
 entrypoints, bridges, or other relationships absent from the import graph.
 An empty changed selection means no tests were selected, not verified

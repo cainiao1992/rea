@@ -102,7 +102,7 @@ jobs:
         with:
           name: rea-dist
           path: dist
-      - name: Restore generated outputs from downloaded build
+      - name: Generate test artifacts from the downloaded runtime
         run: |
           node scripts/generate-mcp-tool-catalog.mjs
           node scripts/generate-skill-metadata.mjs

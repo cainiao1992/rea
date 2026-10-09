@@ -866,6 +866,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         JsonArray operands = new JsonArray();
         JsonArray references = new JsonArray();
         JsonArray destinations = new JsonArray();
+        JsonArray flowEvidence = new JsonArray();
         JsonObject flow = new JsonObject();
         flow.addProperty("kind", "unavailable");
         flow.addProperty("conditional", false);
@@ -881,7 +882,20 @@ public final class ReaGhidraBridge extends HeadlessScript {
             result.addProperty("mnemonic", instruction.getMnemonicString());
             result.addProperty("raw_disassembly", instruction.toString());
             RefType type = instruction.getFlowType();
-            flow.addProperty("kind", type.isCall() ? "call" : type.isJump() ? "jump" : type.isTerminal() ? "terminal" : "fallthrough");
+            JsonObject listingFlow = new JsonObject();
+            listingFlow.addProperty("source", "ghidra-listing-flow-type");
+            listingFlow.addProperty("value", type.getName());
+            flowEvidence.add(listingFlow);
+            boolean decodedReturn = false;
+            for (PcodeOp operation : instruction.getPcode()) {
+                if (operation.getOpcode() != PcodeOp.RETURN) continue;
+                decodedReturn = true;
+                JsonObject returnEvidence = new JsonObject();
+                returnEvidence.addProperty("source", "ghidra-instruction-pcode");
+                returnEvidence.addProperty("value", operation.getMnemonic());
+                flowEvidence.add(returnEvidence);
+            }
+            flow.addProperty("kind", type.isCall() ? "call" : type.isJump() ? "jump" : decodedReturn ? "return" : type.isTerminal() ? "terminal" : "fallthrough");
             flow.addProperty("conditional", type.isConditional());
             flow.addProperty("computed", type.isComputed());
             if (!type.isComputed()) for (Address target : instruction.getFlows()) destinations.add(canonicalAddress(target));
@@ -917,10 +931,13 @@ public final class ReaGhidraBridge extends HeadlessScript {
             }
         }
         flow.add("direct_destinations", destinations);
+        flow.add("classification_evidence", flowEvidence);
         result.add("operands", operands);
         result.add("flow", flow);
         result.add("references", references);
-        result.add("limitations", GSON.toJsonTree(List.of("Operand components are Ghidra Listing decoder tokens; effective memory base/index/displacement roles and per-instruction context mode are unavailable. The mode field is the program language variant.", "Terminal flow is not classified as a return without provider evidence.")));
+        List<String> limitations = new ArrayList<>(List.of("Operand components are Ghidra Listing decoder tokens; effective memory base/index/displacement roles and per-instruction context mode are unavailable. The mode field is the program language variant."));
+        if (flow.get("kind").getAsString().equals("terminal")) limitations.add("No RETURN operation was observed in the provider's instruction p-code; terminal classification remains generic.");
+        result.add("limitations", GSON.toJsonTree(limitations));
         return result;
     }
 

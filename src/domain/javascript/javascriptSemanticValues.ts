@@ -199,7 +199,8 @@ const evaluateExpression = (
   if (
     (t.isTSAsExpression(node) ||
       t.isTSTypeAssertion(node) ||
-      t.isTSNonNullExpression(node)) &&
+      t.isTSNonNullExpression(node) ||
+      t.isTSSatisfiesExpression(node)) &&
     t.isExpression(node.expression)
   )
     return evaluateExpression(node.expression, nestedContext(context));

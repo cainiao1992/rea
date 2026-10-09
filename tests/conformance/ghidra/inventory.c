@@ -2,6 +2,22 @@
 
 volatile int rea_ghidra_inventory_global = 7;
 
+#if defined(__x86_64__) && defined(__ELF__)
+// Static decoder controls: these functions are retained but never executed.
+__attribute__((naked, noinline, used)) void rea_ghidra_flow_return(void) {
+  __asm__("ret");
+}
+__attribute__((naked, noinline, used)) void rea_ghidra_flow_cleanup_return(void) {
+  __asm__("ret $16");
+}
+__attribute__((naked, noinline, used)) void rea_ghidra_flow_shared_tail(void) {
+  __asm__("jmp rea_ghidra_flow_return");
+}
+__attribute__((naked, noinline, used)) void rea_ghidra_flow_trap(void) {
+  __asm__("ud2");
+}
+#endif
+
 // This literal reproduces stack exhaustion in Java's recursive regex matcher.
 #define REA_REPEAT_4(value) value value value value
 #define REA_REPEAT_16(value) REA_REPEAT_4(REA_REPEAT_4(value))

@@ -89,6 +89,16 @@ describe("MCP composed workflow snapshot replay", () => {
     expect(closed.isError, JSON.stringify(closed.content)).not.toBe(true);
     const snapshot = await readAnalysisSnapshot(snapshotPath);
     if (!snapshot.ok) throw snapshot.error;
+    const receipt = toolContract("close_binary").outputSchema.parse(
+      closed.structuredContent,
+    ).result;
+    expect(receipt).toMatchObject({
+      path: snapshotPath,
+      entries: snapshot.value.entries.length,
+      primitive_entries: snapshot.value.entries.length,
+      workflow_entries: snapshot.value.workflow_entries?.length ?? 0,
+      evidence_records: snapshot.value.evidence_bundle.records.length,
+    });
     expect(snapshot.value.workflow_entries).toHaveLength(1);
     expect(snapshot.value.evidence_bundle.records).toContainEqual(
       expect.objectContaining({

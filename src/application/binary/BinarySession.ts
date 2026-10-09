@@ -368,7 +368,13 @@ export class BinarySession
       if (!written.ok) return written;
       const closed = await this.#closeActive(options);
       return closed.ok
-        ? ok({ ...written.value, entries: snapshot.value.entries.length })
+        ? ok({
+            ...written.value,
+            entries: snapshot.value.entries.length,
+            primitive_entries: snapshot.value.entries.length,
+            workflow_entries: snapshot.value.workflow_entries?.length ?? 0,
+            evidence_records: snapshot.value.evidence_bundle.records.length,
+          })
         : closed;
     });
   }

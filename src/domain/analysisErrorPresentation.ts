@@ -119,6 +119,13 @@ export const analysisErrorCategory = (
     return "unavailable";
   if (error instanceof ArtifactOperationError)
     return artifactErrorCategory(error.reason);
+  if (
+    error instanceof EvidenceFileError &&
+    (error.reason === "missing" ||
+      error.reason === "not-file" ||
+      error.reason === "exists")
+  )
+    return "invalid_input";
   return STATIC_ERROR_CATEGORIES[error._tag] ?? "execution_failure";
 };
 

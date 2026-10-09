@@ -11,7 +11,7 @@ import {
 import { ArtifactOperationError } from "./artifactOperationError.js";
 import { BinaryTargetError } from "./configurationErrors.js";
 import { BrowserObservationError } from "./browserObservationError.js";
-import { EvidenceIntegrityError } from "./evidenceErrors.js";
+import { EvidenceFileError, EvidenceIntegrityError } from "./evidenceErrors.js";
 import {
   HopperProcessError,
   HopperRemoteError,
@@ -572,4 +572,33 @@ describe("analysis error projection: operational diagnostics", () => {
     expect(unknown.message).not.toContain("stopped");
     expect(unknown.remediation.action).toContain("provider_operation_health");
   });
+});
+
+describe("analysis error projection: evidence files", () => {
+  it.each([
+    ["read", "missing", "invalid_request", "invalid_input"],
+    ["read", "not-file", "invalid_request", "invalid_input"],
+    ["write", "missing", "invalid_request", "invalid_input"],
+    ["write", "exists", "invalid_request", "invalid_input"],
+    [
+      "read",
+      "invalid-json",
+      "evidence_integrity_mismatch",
+      "execution_failure",
+    ],
+    ["read", "io", "execution_failure", "execution_failure"],
+  ] as const)(
+    "classifies a %s %s evidence file by who can correct it",
+    (operation, reason, code, category) => {
+      const projected = projectAnalysisError(
+        new EvidenceFileError(operation, reason, { path: "/selected.json" }),
+      );
+      expect(projected).toMatchObject({
+        code,
+        category,
+        details: { operation, reason, path: "/selected.json" },
+      });
+      expect(analysisErrorProjectionSchema.parse(projected)).toEqual(projected);
+    },
+  );
 });

@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { expect, it, onTestFinished } from "vitest";
@@ -92,7 +93,7 @@ it("publishes valid SDK schemas and retains historical inline Evidence with the 
     arguments: { ...args, sensitive_values: ["secret"], mysecret: true },
   });
   expect(invalidSensitive.isError).toBe(true);
-  expect(invalidSensitive.structuredContent).toMatchObject({
+  expect(parseMcpToolError(invalidSensitive)).toMatchObject({
     error: { code: "invalid_request", details: { issues: [{ path: [] }] } },
   });
   expect(JSON.stringify(invalidSensitive)).not.toContain("secret");

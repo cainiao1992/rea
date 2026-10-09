@@ -6,6 +6,7 @@ import { expect, it, onTestFinished } from "vitest";
 
 import { toolContract } from "../../../src/contracts/toolContracts.js";
 import { connectLocalToolsMcp } from "../../fixtures/localToolsMcp.js";
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 it("observes a real Node Inspector and releases attachments after cancellation and failures", async () => {
@@ -62,7 +63,7 @@ it("observes a real Node Inspector and releases attachments after cancellation a
     target_id: "../missing-target",
   });
   expect(missing.isError).toBe(true);
-  expect(missing.structuredContent).toMatchObject({
+  expect(parseMcpToolError(missing)).toMatchObject({
     error: {
       code: "target_unavailable",
       message: expect.stringContaining("Refresh target discovery"),
@@ -114,7 +115,7 @@ it("observes a real Node Inspector and releases attachments after cancellation a
     inspector_endpoint: endpoint,
   });
   expect(unreachable.isError).toBe(true);
-  expect(unreachable.structuredContent).toMatchObject({
+  expect(parseMcpToolError(unreachable)).toMatchObject({
     error: {
       code: "provider_unavailable",
       message: expect.stringContaining(

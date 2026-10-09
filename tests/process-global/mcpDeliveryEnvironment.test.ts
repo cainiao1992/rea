@@ -9,6 +9,7 @@ import { ok } from "../../src/domain/result.js";
 import { run } from "../../src/main.js";
 import { createServer } from "../../src/server/createServer.js";
 import type { EvidenceMcpServer } from "../../src/server/EvidenceMcpServer.js";
+import { parseMcpToolError } from "../fixtures/mcpToolError.js";
 
 const resources: Array<{ close(): Promise<void> }> = [];
 afterEach(async () => {
@@ -89,8 +90,10 @@ it("keeps independent server budgets for successful results and oversized errors
       }),
     ),
   );
+  if (smallResult === undefined || largeResult === undefined)
+    throw new Error("Missing result from selected-budget server");
   expect(smallResult?.isError).toBe(true);
-  expect(smallResult?.structuredContent).toMatchObject({
+  expect(parseMcpToolError(smallResult)).toMatchObject({
     error: {
       code: "resource_constraint",
       details: {
@@ -110,7 +113,9 @@ it("keeps independent server budgets for successful results and oversized errors
       client.callTool({ name: "selected_failure", arguments: {} }),
     ),
   );
-  expect(smallFailure?.structuredContent).toMatchObject({
+  if (smallFailure === undefined || largeFailure === undefined)
+    throw new Error("Missing failure from selected-budget server");
+  expect(parseMcpToolError(smallFailure)).toMatchObject({
     error: {
       code: "resource_constraint",
       details: {
@@ -122,7 +127,7 @@ it("keeps independent server budgets for successful results and oversized errors
       },
     },
   });
-  expect(largeFailure?.structuredContent).toMatchObject({
+  expect(parseMcpToolError(largeFailure)).toMatchObject({
     error: {
       code: "invalid_request",
       details: { issues: [{ message: diagnostic }] },

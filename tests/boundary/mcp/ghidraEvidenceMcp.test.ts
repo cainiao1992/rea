@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { describe, expect, it } from "vitest";
 import { EnhancedTools } from "../../../src/application/EnhancedTools.js";
 import { connectGhidraMcp, sessionEvidence } from "./ghidraMcpHarness.js";
@@ -52,7 +53,7 @@ it("rejects contradictory annotation readback across the provider and MCP bounda
         },
       });
       expect(reply.isError).toBe(true);
-      expect(reply.structuredContent).toMatchObject({
+      expect(parseMcpToolError(reply)).toMatchObject({
         error: { code: "unreadable_output" },
       });
     }

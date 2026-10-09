@@ -1,10 +1,13 @@
+import {
+  requireMcpToolError,
+  requireMcpOperationResult,
+} from "./mcp-verifier-results.mjs";
 import assert from "node:assert/strict";
 import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseAnalysisSnapshot } from "../../dist/domain/analysisSnapshot.js";
 import { parseEvidenceBundle } from "../../dist/domain/evidenceBundle.js";
-import { requireMcpOperationResult } from "./mcp-verifier-results.mjs";
 
 /** Keep mutable Ghidra observations out of immutable snapshots across target opens. */
 export async function verifyGhidraSnapshotLifecycle(
@@ -31,7 +34,7 @@ export async function verifyGhidraSnapshotLifecycle(
       true,
       `${name} accepted a mutated snapshot binding`,
     );
-    const error = reply.structuredContent?.error;
+    const error = requireMcpToolError(reply);
     assert.equal(
       error?.code,
       "evidence_integrity_mismatch",

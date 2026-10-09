@@ -1,3 +1,4 @@
+import { requireMcpToolError } from "../../lib/mcp-verifier-results.mjs";
 import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -172,11 +173,11 @@ window.loadFile("renderer.html");require("node:fs").writeFileSync(${JSON.stringi
       { timeout: 150_000 },
     );
     const capture = active.isError
-      ? active.structuredContent.error.details.partial_observation.capture
+      ? requireMcpToolError(active).details.partial_observation.capture
       : active.structuredContent.normalized_result;
     if (active.isError) {
       assert.equal(
-        active.structuredContent.error.code,
+        requireMcpToolError(active).code,
         "cleanup_incomplete",
         JSON.stringify(active),
       );

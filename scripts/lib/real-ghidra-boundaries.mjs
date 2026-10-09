@@ -1,3 +1,8 @@
+import {
+  requireMcpToolError,
+  mcpTextValue,
+  requireMcpOperationResult,
+} from "./mcp-verifier-results.mjs";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
@@ -7,11 +12,9 @@ import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
 import Ajv from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
+
 import { analysisErrorProjectionSchema } from "../../dist/contracts/errorSchemas.js";
-import {
-  mcpTextValue,
-  requireMcpOperationResult,
-} from "./mcp-verifier-results.mjs";
+
 import { verifyLegacyGhidraReferenceSnapshot } from "./ghidra-reference-snapshot-e2e.mjs";
 import { verifyGhidraSnapshotLifecycle } from "./real-ghidra-snapshot-lifecycle.mjs";
 import { verifyGhidraTargetAdmission } from "./real-ghidra-target-admission.mjs";
@@ -61,23 +64,19 @@ export async function verifyGhidraBoundaries(
       true,
       `${name} accepted ${JSON.stringify(args)}`,
     );
-    // SDK input-schema rejections are text-only; application errors use the
-    // canonical structured error projection, separately from success schemas.
-    if (reply.structuredContent !== undefined) {
-      analysisErrorProjectionSchema.parse(reply.structuredContent.error);
-      assert.deepEqual(
-        reply.structuredContent,
-        JSON.parse(mcpTextValue(reply)),
-      );
-    }
+    // SDK input rejections are prose; application errors carry canonical JSON
+    // text without publishing data outside the advertised success schema.
+    const error = mcpTextValue(reply).startsWith("{")
+      ? requireMcpToolError(reply)
+      : undefined;
+    assert.equal(reply.structuredContent, undefined);
     if (diagnostic !== undefined) {
-      const error = reply.structuredContent?.error;
       assert.equal(error?.code, "invalid_request");
       assert.equal(error?.details?.operation, name);
       assert.match(JSON.stringify(error.details.issues), diagnostic);
     }
     rejectedCalls++;
-    return reply.structuredContent?.error;
+    return error;
   };
   const cli = async (command, value, flags = []) => {
     const { stdout } = await promisify(execFile)(
@@ -481,7 +480,7 @@ export async function verifyGhidraBoundaries(
     options,
   );
   assert.equal(regexFailure.isError, true);
-  const regexError = regexFailure.structuredContent.error;
+  const regexError = requireMcpToolError(regexFailure);
   assert.equal(regexError.code, "resource_constraint");
   assert.equal(regexError.details.operation, "search_strings");
   assert.equal(regexError.details.resource, "memory");
@@ -503,7 +502,7 @@ export async function verifyGhidraBoundaries(
     options,
   );
   assert.equal(compileFailure.isError, true);
-  const compileError = compileFailure.structuredContent.error;
+  const compileError = requireMcpToolError(compileFailure);
   assert.equal(compileError.code, "resource_constraint");
   assert.equal(compileError.details.operation, "search_procedures");
   assert.match(compileError.details.reason, /stack while compiling pattern/u);

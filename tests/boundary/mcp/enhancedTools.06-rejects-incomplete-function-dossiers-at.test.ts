@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { functionDossierSchema } from "../../../src/domain/hopperValues.js";
@@ -26,7 +27,7 @@ describe("analyze_function MCP producer validation", () => {
     expect(result.isError).toBe(true);
     expect(result.content).toContainEqual({
       type: "text",
-      text: JSON.stringify(result.structuredContent),
+      text: JSON.stringify(parseMcpToolError(result)),
     });
   });
 
@@ -55,7 +56,7 @@ describe("analyze_function MCP producer validation", () => {
     expect(result.isError).toBe(true);
     expect(result.content).toContainEqual({
       type: "text",
-      text: JSON.stringify(result.structuredContent),
+      text: JSON.stringify(parseMcpToolError(result)),
     });
   });
 });

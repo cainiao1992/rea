@@ -1,3 +1,4 @@
+import { requireMcpToolError } from "./lib/mcp-verifier-results.mjs";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
@@ -50,7 +51,7 @@ const verifyMcpUnknownProvider = async (client, mcpOptions) => {
   );
   if (
     unknownProvider.isError !== true ||
-    unknownProvider.structuredContent?.error?.details?.selection_reason !==
+    requireMcpToolError(unknownProvider)?.details?.selection_reason !==
       "unknown_provider"
   )
     throw new Error("packaged MCP accepted an unknown analysis provider");

@@ -1,3 +1,4 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import type { Client } from "@modelcontextprotocol/client";
 import { describe, expect, it } from "vitest";
 
@@ -122,16 +123,13 @@ async function assertRejectedEvidenceReferences(
         application: record,
       },
     });
-    expect(rejected).toMatchObject({
-      isError: true,
-      structuredContent: {
-        // A recorded Evidence with the wrong operation or predicate is an
-        // invalid caller input, not a provider failure.
-        error: {
-          code: "invalid_request",
-          category: "invalid_input",
-          retryable: true,
-        },
+    expect(parseMcpToolError(rejected)).toMatchObject({
+      // A recorded Evidence with the wrong operation or predicate is an
+      // invalid caller input, not a provider failure.
+      error: {
+        code: "invalid_request",
+        category: "invalid_input",
+        retryable: true,
       },
     });
   }

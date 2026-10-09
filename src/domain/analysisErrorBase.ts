@@ -89,6 +89,7 @@ import type { NativeCallPartialObservation } from "./native/nativeCallPartialObs
 import type { ElectronActivePartialObservation } from "./javascript/electronActiveObservation.js";
 import type { JavaScriptRuntimeObservation } from "./javascript/javascriptRuntimeObservation.js";
 import type { ArtifactInventoryPartialObservation } from "./artifactPartialObservation.js";
+import type { BrowserScenarioPartialObservation } from "./browserScenarioCapture.js";
 
 /** Provider-neutral evidence collected before a typed analysis failure. */
 export type AnalysisPartialObservation =
@@ -96,5 +97,6 @@ export type AnalysisPartialObservation =
   | NativeCallPartialObservation
   | FileOffsetPartialObservation
   | ElectronActivePartialObservation
+  | BrowserScenarioPartialObservation
   | JavaScriptRuntimeObservation
   | ArtifactInventoryPartialObservation;

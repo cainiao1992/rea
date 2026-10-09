@@ -16,7 +16,7 @@ import {
   listBrowserTargetsInputSchema,
 } from "../dist/domain/browserObservation.js";
 import { observeWebSessionInputSchema } from "../dist/domain/browserSession.js";
-import { compareWebCapturesInputSchema } from "../dist/domain/webCaptureDiff.js";
+import { compareWebCapturesInputSchema } from "../dist/domain/webCaptureDiffSchemas.js";
 import {
   captureWebScreenshotInputSchema,
   compareWebScreenshotsInputSchema,
@@ -33,6 +33,7 @@ import {
   browserScenario,
   runScenarioCli,
   scenarioProfiles,
+  verifyScenarioFailureEvidence,
 } from "./lib/browser-scenario-verifier.mjs";
 import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
 import { verifyLargeScreenshotE2e } from "./lib/browser-screenshot-e2e.mjs";
@@ -294,6 +295,10 @@ try {
   if ([...profilesAfter].some((entry) => !profilesBefore.has(entry)))
     throw new Error("Scenario launch retained a temporary browser profile");
   assertScenarioCapture(launchedScenario.value);
+  const scenarioFailure = await verifyScenarioFailureEvidence(
+    executable,
+    site.origin,
+  );
   const scenarioResults = JSON.stringify([
     attachedScenario,
     launchedScenario.value,
@@ -360,6 +365,7 @@ try {
     browserScenarioCli: true,
     browserScenarioAttachCleanup: "disconnected-external",
     browserScenarioLaunchCleanup: "terminated-owned-process",
+    scenarioFailure,
     verified: true,
   };
 } finally {

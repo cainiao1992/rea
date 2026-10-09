@@ -9,13 +9,19 @@ import { PlaywrightScenarioBrowserCleanupOwner } from "./PlaywrightScenarioBrows
 import {
   browserScenarioSchema,
   type BrowserScenario,
-  type BrowserScenarioAction,
 } from "../domain/browserScenario.js";
+import type { BrowserScenarioAction } from "../domain/browserScenarioValues.js";
 import {
   browserStepArtifactsSchema,
   type BrowserScenarioEvent,
   type BrowserStepArtifacts,
-} from "../domain/browserScenarioCapture.js";
+} from "../domain/browserScenarioCaptureValues.js";
+import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
+import {
+  AnalysisCancelledError,
+  AnalysisOutputError,
+  AnalysisTimeoutError,
+} from "../domain/analysisErrorCore.js";
 
 const scenario = (
   options: {
@@ -70,6 +76,13 @@ const scenario = (
 
 type SnapshotKind = BrowserScenario["capture"]["after_each_step"][number];
 
+interface FakeSessionFailures {
+  readonly incomplete?: boolean;
+  readonly action?: Error;
+  readonly capture?: { readonly call: number; readonly error: Error };
+  readonly close?: Error;
+}
+
 const artifactState = (
   kind: SnapshotKind,
   requested: ReadonlySet<SnapshotKind>,
@@ -101,13 +114,11 @@ class FakeSession implements BrowserScenarioSessionPort {
   captureCalls = 0;
   onPerform: (() => void) | undefined;
   eventGaps: readonly string[] = [];
-  private step = 0;
+  eventItems: readonly BrowserScenarioEvent[] = [];
 
   constructor(
     readonly mode: "launch" | "connect",
-    private readonly incomplete = false,
-    private readonly failAction = false,
-    private readonly failCapture = false,
+    private readonly failures: FakeSessionFailures = {},
   ) {
     this.processOwnership = mode === "launch" ? "provider-owned" : "external";
   }
@@ -120,9 +131,7 @@ class FakeSession implements BrowserScenarioSessionPort {
     return sanitizeBrowserUrl(value);
   }
 
-  setStep(index: number) {
-    this.step = index;
-  }
+  setStep(_index: number) {}
 
   nextEventSequence() {
     return 1;
@@ -137,7 +146,11 @@ class FakeSession implements BrowserScenarioSessionPort {
     readonly dropped: number;
     readonly items: readonly BrowserScenarioEvent[];
   } {
-    return { retained: 0, dropped: 0, items: [] };
+    return {
+      retained: this.eventItems.length,
+      dropped: 0,
+      items: this.eventItems,
+    };
   }
 
   eventLimitations(): readonly string[] {
@@ -148,7 +161,7 @@ class FakeSession implements BrowserScenarioSessionPort {
     this.performCalls += 1;
     this.onPerform?.();
     if (signal?.aborted === true) throw new Error("request cancelled");
-    if (this.failAction) throw new Error("fixture secret action failure");
+    if (this.failures.action !== undefined) throw this.failures.action;
   }
 
   capture(
@@ -156,25 +169,40 @@ class FakeSession implements BrowserScenarioSessionPort {
     _signal?: AbortSignal,
   ): Promise<BrowserStepArtifacts> {
     this.captureCalls += 1;
-    if (this.failCapture) return Promise.reject(new Error("capture failed"));
+    if (this.failures.capture?.call === this.captureCalls)
+      return Promise.reject(this.failures.capture.error);
     return Promise.resolve(
       browserStepArtifactsSchema.parse({
-        screenshot: artifactState("screenshot", requested, this.incomplete),
-        dom: artifactState("dom", requested, this.incomplete),
+        screenshot: artifactState(
+          "screenshot",
+          requested,
+          this.failures.incomplete === true,
+        ),
+        dom: artifactState("dom", requested, this.failures.incomplete === true),
         accessibility: artifactState(
           "accessibility",
           requested,
-          this.incomplete,
+          this.failures.incomplete === true,
         ),
-        url: artifactState("url", requested, this.incomplete),
-        history: artifactState("history", requested, this.incomplete),
-        storage: artifactState("storage", requested, this.incomplete),
+        url: artifactState("url", requested, this.failures.incomplete === true),
+        history: artifactState(
+          "history",
+          requested,
+          this.failures.incomplete === true,
+        ),
+        storage: artifactState(
+          "storage",
+          requested,
+          this.failures.incomplete === true,
+        ),
       }),
     );
   }
 
   close() {
     this.closeCalls += 1;
+    if (this.failures.close !== undefined)
+      return Promise.reject(this.failures.close);
     return Promise.resolve(
       this.mode === "launch"
         ? ("terminated-owned-process" as const)
@@ -220,7 +248,7 @@ describe("PlaywrightBrowserScenarioProvider", () => {
   });
 
   it("makes missing and truncated captures ineligible for equality", async () => {
-    const session = new FakeSession("launch", true);
+    const session = new FakeSession("launch", { incomplete: true });
     const provider = new PlaywrightBrowserScenarioProvider({
       open: () => Promise.resolve(session),
     });
@@ -237,7 +265,9 @@ describe("PlaywrightBrowserScenarioProvider", () => {
   });
 
   it("records one failed step, cancels later actions, and still cleans up", async () => {
-    const session = new FakeSession("launch", false, true);
+    const session = new FakeSession("launch", {
+      action: new Error("fixture secret action failure"),
+    });
     const provider = new PlaywrightBrowserScenarioProvider({
       open: () => Promise.resolve(session),
     });
@@ -276,17 +306,187 @@ describe("PlaywrightBrowserScenarioProvider", () => {
     });
     expect(session.closeCalls).toBe(1);
   });
+});
 
-  it("closes the session when initial capture fails", async () => {
-    const session = new FakeSession("launch", false, false, true);
+describe("PlaywrightBrowserScenarioProvider cleanup", () => {
+  it("returns a cleanup failure with completed observations when close fails", async () => {
+    const session = new FakeSession("launch", {
+      action: new Error("fixture secret action failure"),
+      close: new Error("browser close failed"),
+    });
     const provider = new PlaywrightBrowserScenarioProvider({
       open: () => Promise.resolve(session),
     });
     const result = await provider.captureScenario(scenario());
+
     expect(result.ok).toBe(false);
+    if (result.ok) return;
+    const projection = projectAnalysisError(result.error);
+    expect(projection).toMatchObject({
+      code: "cleanup_incomplete",
+      details: {
+        cleanup: "incomplete",
+        resources: ["browser_transport"],
+        partial_observation: {
+          kind: "browser-scenario-observation",
+          capture: {
+            browser: { cleanup: "incomplete" },
+            steps: [
+              { step_id: "scenario_start" },
+              { step_id: "wait_0", status: "failed" },
+            ],
+          },
+        },
+      },
+    });
     expect(session.closeCalls).toBe(1);
   });
+});
 
+describe("PlaywrightBrowserScenarioProvider operation failures", () => {
+  it.each([{ cleanupFails: false }, { cleanupFails: true }])(
+    "retains typed partial data when operation fails and cleanupFails=$cleanupFails",
+    async ({ cleanupFails }) => {
+      const session = new FakeSession("launch", {
+        capture: {
+          call: 2,
+          error: new AnalysisOutputError(
+            "capture_browser_scenario",
+            "step capture failed",
+            {
+              capturedOutput: {
+                stdout: "partial stdout",
+                stderr: "",
+                truncated: false,
+              },
+              cleanup: {
+                reason: "capture cleanup is uncertain",
+                resources: ["capture_handle"],
+              },
+            },
+          ),
+        },
+        ...(cleanupFails ? { close: new Error("browser close failed") } : {}),
+      });
+      session.eventItems = [
+        {
+          sequence: 1,
+          step_index: 0,
+          kind: "console",
+          level: "log",
+          text: "navigation started",
+          url: sanitizeBrowserUrl("https://app.example.test/"),
+        },
+      ];
+      const provider = new PlaywrightBrowserScenarioProvider({
+        open: () => Promise.resolve(session),
+      });
+      const result = await provider.captureScenario(scenario());
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      const projection = projectAnalysisError(result.error);
+      expect(projection).toMatchObject({
+        code: "cleanup_incomplete",
+        details: {
+          diagnostics: {
+            primary_error: {
+              code: "cleanup_incomplete",
+              details: {
+                operation: "capture_browser_scenario",
+                reason: "step capture failed",
+              },
+            },
+            ...(cleanupFails
+              ? { cleanup_error: { code: "execution_failure" } }
+              : {}),
+          },
+          partial_observation: {
+            kind: "browser-scenario-observation",
+            capture: {
+              browser: {
+                cleanup: cleanupFails
+                  ? "incomplete"
+                  : "terminated-owned-process",
+              },
+              steps: [{ step_id: "scenario_start" }],
+              events: {
+                items: [
+                  expect.objectContaining({ text: "navigation started" }),
+                ],
+              },
+            },
+          },
+        },
+      });
+      expect(result.error.capturedOutput).toEqual({
+        stdout: "partial stdout",
+        stderr: "",
+        truncated: false,
+      });
+      expect(result.error.cleanup).toEqual(
+        cleanupFails
+          ? {
+              reason: "browser close failed",
+              resources: ["browser_transport"],
+            }
+          : {
+              reason: "capture cleanup is uncertain",
+              resources: ["capture_handle"],
+            },
+      );
+      expect(session.closeCalls).toBe(1);
+    },
+  );
+});
+
+describe("PlaywrightBrowserScenarioProvider cancellation and timeout", () => {
+  it.each([
+    {
+      name: "cancellation",
+      error: new AnalysisCancelledError("capture_browser_scenario"),
+      code: "cancelled",
+      category: "cancelled",
+      details: { operation: "capture_browser_scenario", cleanup: "complete" },
+    },
+    {
+      name: "timeout",
+      error: new AnalysisTimeoutError("capture_browser_scenario", 250),
+      code: "provider_timeout",
+      category: "timeout",
+      details: { operation: "capture_browser_scenario", timeout_ms: 250 },
+    },
+  ])(
+    "preserves $name category and details when cleanup succeeds",
+    async ({ error, code, category, details }) => {
+      const session = new FakeSession("launch", {
+        capture: { call: 1, error },
+      });
+      const provider = new PlaywrightBrowserScenarioProvider({
+        open: () => Promise.resolve(session),
+      });
+      const result = await provider.captureScenario(scenario());
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      const projection = projectAnalysisError(result.error);
+      expect(projection).toMatchObject({
+        code,
+        category,
+        details: {
+          ...details,
+          partial_observation: {
+            kind: "browser-scenario-observation",
+            capture: { browser: { cleanup: "terminated-owned-process" } },
+          },
+        },
+      });
+      expect(session.closeCalls).toBe(1);
+    },
+  );
+});
+
+describe("PlaywrightBrowserScenarioProvider request cancellation", () => {
   it("does not open a session for an already-cancelled request", async () => {
     let opens = 0;
     const provider = new PlaywrightBrowserScenarioProvider({

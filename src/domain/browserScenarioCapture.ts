@@ -108,3 +108,25 @@ export const browserScenarioCaptureSchema = z
 export type BrowserScenarioCapture = z.infer<
   typeof browserScenarioCaptureSchema
 >;
+
+/** Capture fields shared by complete results and retained partial observations. */
+export type BrowserScenarioCaptureData = Omit<
+  BrowserScenarioCapture,
+  "browser" | "steps" | "completeness" | "events"
+> & {
+  readonly browser: Omit<BrowserScenarioCapture["browser"], "cleanup"> & {
+    readonly cleanup:
+      | BrowserScenarioCapture["browser"]["cleanup"]
+      | "incomplete";
+  };
+  readonly steps: readonly BrowserScenarioCapture["steps"][number][];
+  readonly events: Omit<BrowserScenarioCapture["events"], "items"> & {
+    readonly items: readonly BrowserScenarioCapture["events"]["items"][number][];
+  };
+};
+
+/** Browser scenario data retained when an operation fails before a complete result. */
+export interface BrowserScenarioPartialObservation {
+  readonly kind: "browser-scenario-observation";
+  readonly capture: BrowserScenarioCaptureData;
+}

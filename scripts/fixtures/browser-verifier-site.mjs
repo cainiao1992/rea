@@ -7,6 +7,10 @@ export async function startBrowserVerifierSite() {
   let port = 0;
   let sessionGeneration = 0;
   const server = createServer((request, response) => {
+    if (request.url === "/failed-navigation") {
+      response.destroy();
+      return;
+    }
     if (request.url === "/slow-json") {
       response.setHeader("content-type", "application/json");
       response.write('{"pending":');

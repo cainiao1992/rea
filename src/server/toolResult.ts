@@ -65,7 +65,13 @@ export class ToolResultDelivery {
   /** Project an error without allocating oversized repeated MCP text. */
   toErrorToolResult(error: AnalysisError): CallToolResult {
     const structuredContent = { error: projectAnalysisError(error) };
-    const encoded = encodeToolResult(structuredContent, this.resultBudgetBytes);
+    // Errors reach the wire as text only; the structured copy is a private
+    // carrier the transport removes after its own budget check.
+    const encoded = encodeToolResult(
+      structuredContent,
+      this.resultBudgetBytes,
+      "text",
+    );
     // The transport retains an oversized projected error before replacing it
     // with a recoverable delivery constraint, using this same budget.
     return {

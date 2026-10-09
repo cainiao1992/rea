@@ -133,6 +133,30 @@ itWithCaptureCapability.each(["cli", "mcp"] as const)(
     expect(
       processCaptureSchema.safeParse({ ...result, truncated: false }).success,
     ).toBe(false);
+    const withTerminal = (
+      name: "raw_terminal" | "rendered_terminal",
+      change: Partial<typeof details.raw_terminal>,
+    ) =>
+      processCaptureSchema.safeParse({
+        ...result,
+        truncation_details: {
+          ...details,
+          [name]: { ...details[name], ...change },
+        },
+      }).success;
+    // Byte totals must match the retained frames, and with no omitted frame
+    // nothing observed can be missing from retention.
+    expect(withTerminal("raw_terminal", { retained_bytes: 0 })).toBe(false);
+    expect(
+      withTerminal("raw_terminal", {
+        observed_bytes: details.raw_terminal.observed_bytes + 1,
+      }),
+    ).toBe(false);
+    expect(
+      withTerminal("rendered_terminal", {
+        retained_bytes: details.rendered_terminal.retained_bytes - 1,
+      }),
+    ).toBe(false);
   },
   20_000,
 );

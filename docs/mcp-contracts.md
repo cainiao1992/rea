@@ -201,7 +201,8 @@ retained session history or an explicit bundle for transfer.
 
 REA prepares complete MCP results within the pinned stdio client's 10 MiB
 receive-buffer budget, including both text and structured representations and
-room for the JSON-RPC envelope. Response budget settings are captured at startup;
+room for the JSON-RPC envelope. Tool errors carry only their text
+representation, so only that text counts against the budget. Response budget settings are captured at startup;
 restart or recreate the server to apply changes. If a result cannot fit, REA returns
 `resource_constraint` with `details.resource: "transport"` before constructing
 a document-sized string. Analysis Evidence remains complete in the current

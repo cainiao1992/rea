@@ -41,6 +41,25 @@ describe("MCP result encoding budget", () => {
     });
   });
 
+  it.each([
+    { error: { code: "invalid_request", message: '中文"\n'.repeat(30000) } },
+    { error: { message: "😀\ud800" } },
+  ])("counts only escaped text for text-only error delivery", (candidate) => {
+    const textBytes = Buffer.byteLength(
+      JSON.stringify({
+        content: [{ type: "text", text: JSON.stringify(candidate) }],
+      }),
+    );
+    const encoded = encodeToolResult(candidate, textBytes, "text");
+    if (!encoded.ok) throw new Error("Expected complete encoding");
+    expect(encoded.text).toBe(JSON.stringify(candidate));
+    expect(encoded.bytes).toBe(textBytes);
+    expect(encodeToolResult(candidate, textBytes - 1, "text")).toMatchObject({
+      ok: false,
+      bytesAtLeast: textBytes,
+    });
+  });
+
   it("stops before reading the remainder of an oversized result", () => {
     const candidate: JsonValue = { text: "x".repeat(1000000) };
     Object.defineProperty(candidate, "remainder", {

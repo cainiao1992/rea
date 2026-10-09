@@ -16,6 +16,10 @@
 [![MIT license](https://img.shields.io/badge/license-MIT-f4c430?style=flat-square)](LICENSE)
 [![Discord](https://img.shields.io/discord/1556595354999332884?logo=discord&logoColor=white&label=Discord&color=5865F2)](https://discord.gg/GkcryMnJDM)
 
+🎉 **GitHub'da 30.000 yıldız — teşekkürler!**
+
+REA'yı kullanan, hata bildiren, derlemeleri test eden ve düzeltmelere katkıda bulunan herkese teşekkürler.
+
 <a href="https://trendshift.io/repositories/82054?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-82054" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/82054" alt="morluto%2Frea | Trendshift" width="250" height="55"/></a>
 
 **[Web sitesi](https://rea.tools/) · [Rehberler](https://rea.tools/guides/) · [Örnek çalışmalar](https://rea.tools/showcase/)**

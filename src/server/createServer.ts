@@ -61,7 +61,8 @@ import { AndroidAnalysisService } from "../application/android/AndroidAnalysisSe
 import type { AndroidAnalysisPort } from "../application/android/AndroidAnalysisPort.js";
 import { createAndroidAnalysisProvider } from "../composition/android.js";
 import { registerManagedWorkflowTools } from "./registerManagedWorkflowTools.js";
-import { registerNativeTools } from "./registerNativeTools.js";
+import { NATIVE_TOOL_CONTRACTS } from "../contracts/native/nativeToolContracts.js";
+import { registerEvidenceTools } from "./registerEvidenceTools.js";
 import { registerOfficialTools } from "./registerOfficialTools.js";
 import { registerGuidedPrompts } from "./registerPrompts.js";
 import { registerSessionTools } from "./registerSessionTools.js";
@@ -410,7 +411,7 @@ const registerBinaryAnalysisTools = ({
     recordEvidence,
     withAdmittedAnalysis,
   };
-  registerNativeTools(server, evidenceOptions);
+  registerEvidenceTools(server, NATIVE_TOOL_CONTRACTS, evidenceOptions);
   registerArtifactTools(server, evidenceOptions);
   registerManagedTools(server, evidenceOptions);
   if (session !== undefined)

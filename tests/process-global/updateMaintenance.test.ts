@@ -102,6 +102,8 @@ describe("OMP integration maintenance", () => {
   });
 
   it("preserves Grok Build disabled_mcp_servers during maintenance planning", async () => {
+    // Strict identity: a user-disabled integration must never be selected
+    // for maintenance, even with a healthy owned entry underneath.
     const registration = `[mcp_servers.rea]\ncommand = ${JSON.stringify(process.execPath)}\nargs = [${JSON.stringify(entryPoint)}, "mcp"]\nstartup_timeout_sec = 30\n`;
     const configPath = await writeClient(
       "grok_build",

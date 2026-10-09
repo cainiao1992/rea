@@ -28,7 +28,8 @@ export const discoverObjcClasses = (
         ({ name }) =>
           name.includes(OBJC_CLASS_MARKER) ||
           (name.startsWith(LEGACY_OBJC_CLASS_PREFIX) &&
-            name.length > LEGACY_OBJC_CLASS_PREFIX.length),
+            name.length > LEGACY_OBJC_CLASS_PREFIX.length &&
+            !/^l_OBJC_CLASS_NAME_(?:\.\d+)?$/u.test(name)),
       )
       .filter(({ name }) => pattern.length === 0 || name.includes(pattern)),
   );

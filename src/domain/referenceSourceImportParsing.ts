@@ -1,4 +1,4 @@
-import { parse, type ParserPlugin } from "@babel/parser";
+import { parse } from "@babel/parser";
 import type {
   CallExpression,
   File,
@@ -7,6 +7,7 @@ import type {
   StringLiteral,
 } from "@babel/types";
 import { traverseJavaScriptAst } from "./javascript/javascriptSemanticTraversal.js";
+import { parserPluginsForPath } from "./javascript/javascriptSourceParser.js";
 import {
   isCallExpression,
   isExportAllDeclaration,
@@ -206,6 +207,9 @@ const extractRequireAndDynamicImports = (
   from_path: string,
   relationships: ReferenceSourceImportRelationship[],
 ): void => {
+  // Single traversal owner: iterative, VISITOR_KEYS-gated, no recursion over
+  // loc/comment objects. Survives deeply nested generated member chains that
+  // overflowed the previous hand-rolled Object.values walker.
   const expressions: Array<CallExpression | ImportExpression> = [];
   for (const statement of body)
     traverseJavaScriptAst(statement, {
@@ -263,18 +267,11 @@ const parseWithBabel = (
   ast: File | undefined;
   reasons: readonly string[];
 } => {
-  const plugins: ParserPlugin[] = ["jsx"];
-  if (language === "TypeScript" || language === "TSX") {
-    plugins.push([
-      "typescript",
-      {
-        dts:
-          path.endsWith(".d.ts") ||
-          path.endsWith(".d.mts") ||
-          path.endsWith(".d.cts"),
-      },
-    ]);
-  }
+  // Single parser-mode owner: path-driven plugins (dts/JSX/mts) shared with
+  // the semantic pipeline. `language` only gates non-JS/TS callers upstream;
+  // TypeScript syntax must parse identically here and in semantic analysis.
+  void language;
+  const plugins = parserPluginsForPath(path);
 
   try {
     const ast = parse(source, {

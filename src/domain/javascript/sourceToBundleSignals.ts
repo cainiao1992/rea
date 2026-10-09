@@ -1,6 +1,9 @@
 import { posix } from "node:path";
 
-import { compareUnicodeCodePoints } from "../unicodeCodePointOrder.js";
+import {
+  compareUnicodeCodePoints,
+  compositeKey,
+} from "../unicodeCodePointOrder.js";
 import type { ApplicationNode } from "./javascriptApplicationGraphSchemas.js";
 import type { HistoricalSourceGraph } from "../referenceSourceGraph.js";
 import {
@@ -322,15 +325,15 @@ const uniquePaths = (paths: readonly CurrentPath[]): CurrentPath[] =>
   [
     ...new Map(
       paths.map((path) => [
-        `${path.kind}\0${path.value}\0${String(path.allowSuffix)}`,
+        compositeKey([path.kind, path.value, String(path.allowSuffix)]),
         path,
       ]),
     ).values(),
-  ].sort(
-    (left, right) =>
-      compareUnicodeCodePoints(left.kind, right.kind) ||
-      compareUnicodeCodePoints(left.value, right.value) ||
-      Number(left.allowSuffix) - Number(right.allowSuffix),
+  ].sort((left, right) =>
+    compareUnicodeCodePoints(
+      compositeKey([left.kind, left.value]),
+      compositeKey([right.kind, right.value]),
+    ),
   );
 
 const pathSuffixes = (path: string): string[] => {

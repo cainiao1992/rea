@@ -268,6 +268,20 @@ const fetchOne = async (
   }
 };
 
+/**
+ * Fetch redirect statuses per WHATWG Fetch (redirect status list:
+ * 301, 302, 303, 307, 308). Single owner for redirect decisions.
+ * 300/304/305/306 carry `Location` without being redirects — following
+ * them would replace the observed failure with an unrelated map.
+ * See https://fetch.spec.whatwg.org/#redirect-status
+ */
+export const isFetchRedirectStatus = (status: number): boolean =>
+  status === 301 ||
+  status === 302 ||
+  status === 303 ||
+  status === 307 ||
+  status === 308;
+
 const fetchFollowingApprovedRedirects = async (
   initialUrl: string,
   allowedOrigins: readonly string[],
@@ -298,9 +312,10 @@ const fetchFollowingApprovedRedirects = async (
       await response.body?.cancel(signal.reason).catch(() => undefined);
       throw signal.reason;
     }
-    // Location is a redirect target only for the Fetch redirect statuses.
-    // A 304 or another 3xx response must retain its own HTTP failure.
-    if (![301, 302, 303, 307, 308].includes(response.status))
+    // `Location` is a redirect target only for Fetch redirect statuses.
+    // Other 3xx responses retain their own HTTP failure (strict identity:
+    // never replace the observed failure with an unrelated map).
+    if (!isFetchRedirectStatus(response.status))
       return { response, fetchedUrl: current };
     const location = response.headers.get("location");
     if (location === null) return { response, fetchedUrl: current };

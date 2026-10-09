@@ -1,5 +1,8 @@
 import { uniqueSorted } from "./canonicalOrdering.js";
-import { compareUnicodeCodePoints } from "./unicodeCodePointOrder.js";
+import {
+  compareUnicodeCodePoints,
+  compositeKey,
+} from "./unicodeCodePointOrder.js";
 import type {
   ReconstructionClaim,
   ReconstructionClaimResult,
@@ -90,7 +93,7 @@ export const reconstructionProbes = (
     const probes = unknowns.flatMap(({ recommended_probes: items }) => items);
     const candidates = probes.length > 0 ? probes : [defaultProbe(result.kind)];
     for (const probe of candidates) {
-      const key = `${probe.operation}\0${probe.rationale}`;
+      const key = compositeKey([probe.operation, probe.rationale]);
       const current = output.get(key) ?? {
         ...probe,
         claim_ids: [],
@@ -104,10 +107,11 @@ export const reconstructionProbes = (
       output.set(key, current);
     }
   }
-  const sorted = [...output.values()].sort(
-    (left, right) =>
-      compareUnicodeCodePoints(left.operation, right.operation) ||
-      compareUnicodeCodePoints(left.rationale, right.rationale),
+  const sorted = [...output.values()].sort((left, right) =>
+    compareUnicodeCodePoints(
+      compositeKey([left.operation, left.rationale]),
+      compositeKey([right.operation, right.rationale]),
+    ),
   );
   return sorted;
 };

@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 
 import canonicalize from "canonicalize";
 import { z } from "zod";
-import { compareUnicodeCodePoints } from "./unicodeCodePointOrder.js";
+import {
+  compareUnicodeCodePoints,
+  compositeKey,
+} from "./unicodeCodePointOrder.js";
 import { prefixedDigestSchema } from "./../domain/digests.js";
 
 const evidenceIdSchema = prefixedDigestSchema("ev");
@@ -293,8 +296,9 @@ const sortedUnique = (values: readonly string[]): string[] =>
 const sortedRelationships = (
   values: readonly z.infer<typeof relationshipSchema>[],
 ): z.infer<typeof relationshipSchema>[] =>
-  [...values].sort(
-    (left, right) =>
-      compareUnicodeCodePoints(left.type, right.type) ||
-      compareUnicodeCodePoints(left.unknown_id, right.unknown_id),
+  [...values].sort((left, right) =>
+    compareUnicodeCodePoints(
+      compositeKey([left.type, left.unknown_id]),
+      compositeKey([right.type, right.unknown_id]),
+    ),
   );

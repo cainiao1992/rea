@@ -6,6 +6,7 @@ import type {
   WebMcpDiscovery,
 } from "../domain/webMcpDiscovery.js";
 import { inferJsonShape } from "../domain/jsonShape.js";
+import { compositeKey } from "../domain/unicodeCodePointOrder.js";
 import type { CdpEndpointDiscovery, CdpEndpointTarget } from "./CdpEndpoint.js";
 import type { CdpConnection, CdpEvent } from "./CdpConnection.js";
 import { CdpCaptureCompleteness } from "./CdpCaptureCompleteness.js";
@@ -502,8 +503,11 @@ const buildWebMcpResult = (options: WebMcpResultOptions): WebMcpDiscovery => {
 
 const toolKey = (frameUrl: string, frameId: string, name: string): string =>
   // Registrations without a known admitted frame are excluded above, so the
-  // frame ID here always distinguishes owners and keys cannot collapse.
-  `webmcp_${createHash("sha256").update(`${frameUrl}\0${frameId}\0${name}`).digest("hex")}`;
+  // frame ID here always distinguishes owners. Composite tuple keeps a NUL
+  // inside one field from collapsing two registrations before hashing.
+  `webmcp_${createHash("sha256")
+    .update(compositeKey([frameUrl, frameId, name]))
+    .digest("hex")}`;
 
 const booleanOrNull = (value: unknown): boolean | null =>
   typeof value === "boolean" ? value : null;

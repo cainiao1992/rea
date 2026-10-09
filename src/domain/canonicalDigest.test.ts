@@ -6,7 +6,7 @@ import { describe, expect } from "vitest";
 
 import { digestCanonicalValue } from "./canonicalDigest.js";
 
-const canonicalizeDigest = (value: unknown): string => {
+const legacyDigest = (value: unknown): string => {
   const encoded = canonicalize(value);
   if (encoded === undefined) throw new TypeError("Unserializable fixture");
   return createHash("sha256").update(encoded).digest("hex");
@@ -16,7 +16,7 @@ describe("incremental canonical digest", () => {
   it.prop([fc.jsonValue()])(
     "preserves canonicalize digests for JSON values",
     (value) => {
-      expect(digestCanonicalValue(value)).toBe(canonicalizeDigest(value));
+      expect(digestCanonicalValue(value)).toBe(legacyDigest(value));
     },
   );
 
@@ -25,7 +25,7 @@ describe("incremental canonical digest", () => {
     const sparse: unknown[] = [undefined, Symbol("omit"), () => undefined];
     sparse.length = 6;
     const fixtures: unknown[] = [
-      { "\ue000": "bmp", 𐀀: "supplementary" },
+      { "\uE000": "BMP", "\u{10000}": "supplementary" },
       {
         "€": "\ud800",
         "😀": "\udc00",
@@ -41,7 +41,7 @@ describe("incremental canonical digest", () => {
       { nested: { toJSON: () => undefined } },
     ];
     for (const value of fixtures)
-      expect(digestCanonicalValue(value)).toBe(canonicalizeDigest(value));
+      expect(digestCanonicalValue(value)).toBe(legacyDigest(value));
   });
 
   it("rejects unsupported roots, non-finite numbers, BigInt and ancestor cycles", () => {
@@ -56,18 +56,15 @@ describe("incremental canonical digest", () => {
       expect(() => digestCanonicalValue(value)).toThrow();
   });
 
-  it("hashes repeated large leaves with the same byte sequence", () => {
-    const value = {
-      payload: Array.from({ length: 64 }, () => "x".repeat(16_384)),
-    };
-    expect(digestCanonicalValue(value)).toBe(canonicalizeDigest(value));
-  });
-
-  it("keeps digests identical when buffered parts cross flush boundaries", () => {
+  it("preserves canonical bytes across large keys, repeated leaves and buffer flushes", () => {
     const manyKeys: Record<string, unknown> = {};
     for (let i = 0; i < 2000; i += 1) manyKeys[`k${i}`] = i;
-    const value = { keys: manyKeys, tail: ["€", "😀", "x".repeat(9000)] };
-    expect(digestCanonicalValue(value)).toBe(canonicalizeDigest(value));
+    const value = {
+      keys: manyKeys,
+      payload: Array.from({ length: 64 }, () => "x".repeat(16_384)),
+      tail: ["€", "😀", "x".repeat(9000)],
+    };
+    expect(digestCanonicalValue(value)).toBe(legacyDigest(value));
   });
 
   it("preserves canonicalize property access and toJSON cycle behavior", () => {
@@ -81,11 +78,11 @@ describe("incremental canonical digest", () => {
       };
     };
     expect(digestCanonicalValue(createAccessor())).toBe(
-      canonicalizeDigest(createAccessor()),
+      legacyDigest(createAccessor()),
     );
     const shared = { toJSON: () => ({ answer: 42 }) };
     expect(digestCanonicalValue([shared, shared])).toBe(
-      canonicalizeDigest([shared, shared]),
+      legacyDigest([shared, shared]),
     );
   });
 });

@@ -20,37 +20,69 @@ import { observed as ok } from "../../fixtures/analysisExecution.js";
 
 afterEach(closeEnhancedToolResources);
 
-describe("enhanced MCP tools", () => {
-  it("discovers every Objective-C class from one complete inventory", async () => {
-    const client = await connect({
-      execute: (name) => {
-        expect(name).toBe("list_names");
-        return Promise.resolve(
-          ok([
-            // Apple clang modern Objective-C ABI `nm` output: the first row
-            // is a class definition; the remaining rows are method metadata,
-            // class_ro_t, and a class reference.
-            { address: "0x70", value: "_OBJC_CLASS_$_ProbeClass" },
-            { address: "0x1a8", value: "__OBJC_$_CLASS_METHODS_ProbeClass" },
-            { address: "0x230", value: "__OBJC_CLASS_RO_$_ProbeClass" },
-            { address: "0x450", value: "_OBJC_CLASSLIST_REFERENCES_$_" },
-            {
-              address: "0x298",
-              value: "__OBJC_$_CATEGORY_CLASS_METHODS_ProbeClass_$_Category",
-            },
-          ]),
-        );
-      },
-    });
-    const result = jsonResult(
-      await client.callTool({ name: "get_objc_classes", arguments: {} }),
-    );
-    expect(result).toEqual({
-      count: 1,
-      classes: [{ address: "0x70", name: "_OBJC_CLASS_$_ProbeClass" }],
-    });
+it("discovers declarations without counting duplicates or compiler bookkeeping", async () => {
+  const client = await connect({
+    execute: (name) => {
+      expect(name).toBe("list_names");
+      return Promise.resolve(
+        ok([
+          { address: "0x1", value: "_OBJC_CLASS_$_First" },
+          { address: "0x2", value: "_OBJC_CLASS_$_Last" },
+          { address: "0x3", value: "_OBJC_CLASS_$_First" },
+          { address: "0x4", value: "__OBJC_CLASS_RO_$_First" },
+          { address: "0x5", value: "_OBJC_CLASSLIST_REFERENCES_$_" },
+          { address: "0x6", value: "l_OBJC_CLASS_NAME_" },
+          { address: "0x7", value: "_OBJC_IVAR_$_First.value" },
+          { address: "0x8", value: "_OBJC_METACLASS_$_First" },
+          { address: "0x9", value: "_OBJC_PROP_$_First.value" },
+          { address: "0xa", value: "__OBJC_PROTOCOL_$_Delegate" },
+          { address: "0xb", value: "__OBJC_PROTOCOL_$_Delegate" },
+          { address: "0xc", value: "__OBJC_PROTOCOL_REFERENCE_$_Delegate" },
+          { address: "0xd", value: "_$s4main7ScoringMp" },
+          { address: "0xe", value: "_$s4main7ScoringTL" },
+          { address: "0xf", value: "_$s4main7ScoringP5scoreSiyFTq" },
+          { address: "0x10", value: "l_OBJC_CLASS_Legacy" },
+          { address: "0x11", value: "l_OBJC_CLASS_NAME_.1" },
+        ]),
+      );
+    },
   });
+  const result = jsonResult(
+    await client.callTool({ name: "get_objc_classes", arguments: {} }),
+  );
+  expect(result).toMatchObject({
+    count: 3,
+    classes: [
+      { address: "0x1", name: "_OBJC_CLASS_$_First" },
+      { address: "0x2", name: "_OBJC_CLASS_$_Last" },
+      { address: "0x10", name: "l_OBJC_CLASS_Legacy" },
+    ],
+  });
+  expect(
+    jsonResult(
+      await client.callTool({
+        name: "get_objc_classes",
+        arguments: { pattern: "First" },
+      }),
+    ),
+  ).toMatchObject({
+    count: 1,
+    classes: [{ address: "0x1", name: "_OBJC_CLASS_$_First" }],
+  });
+  expect(
+    jsonResult(
+      await client.callTool({ name: "get_objc_protocols", arguments: {} }),
+    ),
+  ).toMatchObject({
+    count: 2,
+    protocols: [
+      { address: "0xa", name: "__OBJC_PROTOCOL_$_Delegate" },
+      { address: "0xd", name: "_$s4main7ScoringMp" },
+    ],
+  });
+});
 
+describe("enhanced MCP tools", () => {
   it("returns the complete overview inline with exhaustive totals", async () => {
     const client = await connect({
       execute: (name) => {

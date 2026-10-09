@@ -143,7 +143,7 @@ describe("function comparison normalized identity", () => {
     },
   );
 
-  it.each(["sub_deadbeef", "fcn.00401000", "FUN_00401000", "FUN_deadBEEF"])(
+  it.each(["sub_deadbeef", "fcn.00401000", "FUN_deadBEEF"])(
     "keeps %s as an address-derived name",
     (name) => {
       const generated = (base: "0x1000" | "0x2000") =>

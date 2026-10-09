@@ -3,7 +3,10 @@ import { createHash } from "node:crypto";
 import canonicalize from "canonicalize";
 import { z } from "zod";
 
-import { compareUnicodeCodePoints } from "./unicodeCodePointOrder.js";
+import {
+  compareUnicodeCodePoints,
+  compositeKey,
+} from "./unicodeCodePointOrder.js";
 
 import { evidenceBundleSchema, parseEvidenceBundle } from "./evidenceBundle.js";
 import {
@@ -405,8 +408,10 @@ const closureStatus = (
 };
 
 const reasonOrder = (left: ClosureReason, right: ClosureReason): number =>
-  compareUnicodeCodePoints(left.code, right.code) ||
-  compareUnicodeCodePoints(left.subject_id, right.subject_id);
+  compareUnicodeCodePoints(
+    compositeKey([left.code, left.subject_id]),
+    compositeKey([right.code, right.subject_id]),
+  );
 
 const digest = (value: unknown): string => {
   const encoded = canonicalize(value);

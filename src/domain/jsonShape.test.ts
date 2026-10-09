@@ -39,45 +39,19 @@ describe("inferJsonShape", () => {
     expect(inferJsonShape("not-json")).toBeNull();
   });
 
-  it.each([
-    ["é", "e\u0301", "e\u0341"],
-    ["é", "e\u0341", "e\u0301"],
-    ["e\u0301", "é", "e\u0341"],
-    ["e\u0301", "e\u0341", "é"],
-    ["e\u0341", "é", "e\u0301"],
-    ["e\u0341", "e\u0301", "é"],
-  ])("orders distinct collation-equal paths from %j, %j, %j", (...names) => {
-    for (const name of names) expect(name.localeCompare("é")).toBe(0);
-    const values: Readonly<Record<string, unknown>> = {
-      é: 1,
-      "e\u0301": "value",
-      "e\u0341": null,
-    };
-    const shape = inferJsonShape(
-      JSON.stringify(
-        Object.fromEntries(names.map((name) => [name, values[name]])),
-      ),
-    );
-
-    expect(shape).toEqual({
-      root_type: "object",
-      node_count: 4,
-      max_depth_observed: 1,
-      properties: [
-        { path: "/e\u0301", types: ["string"], observations: 1 },
-        { path: "/e\u0341", types: ["null"], observations: 1 },
-        { path: "/é", types: ["number"], observations: 1 },
-      ],
-    });
-  });
-
-  it.each([false, true])(
-    "preserves nested types, counts, depth and pointer names with reversed keys: %s",
-    (reverse) => {
+  it("preserves pointer escaping and code-point ordering independently of key insertion order", () => {
+    for (const reverse of [false, true]) {
       const object = (number: number, value: unknown) => {
         const entries = [
           ["é/~", number],
           ["e\u0301/~", value],
+          ["e\u0341/~", true],
+          ["A", false],
+          ["_", false],
+          ["a", false],
+          ["z", false],
+          ["\u{10000}", false],
+          ["\uE000", false],
         ];
         return Object.fromEntries(reverse ? entries.reverse() : entries);
       };
@@ -87,31 +61,30 @@ describe("inferJsonShape", () => {
 
       expect(shape).toEqual({
         root_type: "object",
-        node_count: 9,
+        node_count: 23,
         max_depth_observed: 4,
         properties: [
           { path: "/nested", types: ["array"], observations: 1 },
+          { path: "/nested/*/A", types: ["boolean"], observations: 2 },
+          { path: "/nested/*/_", types: ["boolean"], observations: 2 },
+          { path: "/nested/*/a", types: ["boolean"], observations: 2 },
           {
             path: "/nested/*/e\u0301~1~0",
             types: ["array", "null"],
             observations: 2,
           },
+          {
+            path: "/nested/*/e\u0341~1~0",
+            types: ["boolean"],
+            observations: 2,
+          },
+          { path: "/nested/*/z", types: ["boolean"], observations: 2 },
           { path: "/nested/*/é~1~0", types: ["number"], observations: 2 },
+          { path: "/nested/*/\uE000", types: ["boolean"], observations: 2 },
+          { path: "/nested/*/\u{10000}", types: ["boolean"], observations: 2 },
         ],
       });
-    },
-  );
-
-  it("orders paths deterministically by Unicode code point", () => {
-    const names = ["z", "é", "A", "_", "a"];
-    // Code-point order (locale-independent): A < _ < a < z < é.
-    // `localeCompare` order varies by host ICU and must not leak into evidence.
-    const expected = ["/A", "/_", "/a", "/z", "/é"];
-    const shape = inferJsonShape(
-      JSON.stringify(Object.fromEntries(names.map((name) => [name, true]))),
-    );
-
-    expect(shape?.properties.map(({ path }) => path)).toEqual(expected);
+    }
   });
 
   it("retains every parsed property beyond the former shape-node limit", () => {

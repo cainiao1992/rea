@@ -35,15 +35,23 @@ export const resolveHopperMachOImage = async (
 ): Promise<
   Result<HopperMachOImage, BinaryTargetError | AnalysisCancelledError>
 > => {
-  const invalid = (reason: string) =>
-    err(new BinaryTargetError(target.path, reason));
+  const invalid = (reason: string, cause?: unknown) =>
+    err(
+      new BinaryTargetError(
+        target.path,
+        reason,
+        cause === undefined ? undefined : { cause },
+      ),
+    );
   if (signal?.aborted) return err(new AnalysisCancelledError("open_binary"));
   let file: FileHandle;
   try {
     file = await open(target.path, "r");
   } catch (cause: unknown) {
+    // Keep the OS error so a read-permission denial reports access_denied.
     return invalid(
       `Cannot read FAT64 source for Hopper image preparation: ${cause instanceof Error ? cause.message : String(cause)}`,
+      cause,
     );
   }
   try {

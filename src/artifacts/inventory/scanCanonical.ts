@@ -1,6 +1,8 @@
 import type { ArtifactInventorySnapshot } from "../../domain/artifactInventorySnapshot.js";
 import { compareUnicodeCodePoints } from "../../domain/unicodeCodePointOrder.js";
 
+import { AsarArtifactReader } from "../AsarArtifactReader.js";
+
 import { lstat } from "node:fs/promises";
 import type { Stats } from "node:fs";
 
@@ -61,6 +63,7 @@ export const scanCanonicalArtifactInventory = async (
     options.environment ?? {},
     options.signal,
   );
+  const ownedReaders: ArtifactReader[] = reader === undefined ? [] : [reader];
   let outcome:
     | {
         readonly kind: "completed";
@@ -68,8 +71,11 @@ export const scanCanonicalArtifactInventory = async (
       }
     | { readonly kind: "failed"; readonly cause: unknown };
   try {
+    if (reader instanceof AsarArtifactReader)
+      await reader.prepareContainer(rootDigest?.sha256, options.signal);
     const { nodes, occurrences, pendingContradictions } = await scanReader(
       reader,
+      ownedReaders,
       options.signal,
       integrity,
     );
@@ -90,22 +96,26 @@ export const scanCanonicalArtifactInventory = async (
   } catch (cause: unknown) {
     outcome = { kind: "failed", cause };
   }
-  try {
-    await reader?.close();
-  } catch (cleanupCause: unknown) {
-    const cleanup = ArtifactReaderFailure.cleanupObservation(
-      cleanupCause,
-      `artifact reader for ${path}`,
-    );
-    const primary = outcome.kind === "failed" ? outcome.cause : cleanupCause;
-    throw ArtifactReaderFailure.withCleanup(
-      primary,
-      cleanup,
-      outcome.kind === "completed"
-        ? { kind: "artifact-inventory", inventory: outcome.snapshot }
-        : undefined,
-    );
+  let cleanupFailure: ArtifactReaderFailure | undefined;
+  for (const owned of ownedReaders.reverse()) {
+    try {
+      await owned.close();
+    } catch (cleanupCause: unknown) {
+      const cleanup = ArtifactReaderFailure.cleanupObservation(
+        cleanupCause,
+        `artifact reader for ${path}`,
+      );
+      cleanupFailure = ArtifactReaderFailure.withCleanup(
+        cleanupFailure ??
+          (outcome.kind === "failed" ? outcome.cause : cleanupCause),
+        cleanup,
+        outcome.kind === "completed"
+          ? { kind: "artifact-inventory", inventory: outcome.snapshot }
+          : undefined,
+      );
+    }
   }
+  if (cleanupFailure !== undefined) throw cleanupFailure;
   if (outcome.kind === "failed") throw outcome.cause;
   return outcome.snapshot;
 };

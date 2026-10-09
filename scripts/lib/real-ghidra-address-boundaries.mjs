@@ -47,7 +47,8 @@ export async function verifyGhidraAddressBoundaries(client, entry, cli) {
       const issues = JSON.stringify(error.details.issues);
       assert.match(issues, /cannot be represented without truncation/u);
       assert.ok(issues.includes(address), issues);
-      assert.equal(reply.structuredContent.evidence, undefined);
+      // A rejected request produces no Evidence; errors carry text only.
+      assert.equal(reply.structuredContent, undefined);
     }
   }
   assert.deepEqual(

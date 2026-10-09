@@ -125,9 +125,7 @@ it.skipIf(CAPTURE_SKIP_REASON || process.platform === "win32")(
       scope: "filesystem",
       reason: expect.any(String),
     });
-    expect(["unknown", "truncated"]).toContain(
-      compareProcessCaptures(capture, capture).filesystem,
-    );
+    expect(compareProcessCaptures(capture, capture).filesystem).toBe("unknown");
   },
   20_000,
 );

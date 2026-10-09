@@ -116,12 +116,9 @@ itWithCaptureCapability.each(["cli", "mcp"] as const)(
     expect(compareProcessTraces(result, result, specification).verdict).toBe(
       "equivalent",
     );
-    const legacy = parseProcessCapture({
-      ...result,
-      truncation_details: undefined,
-    });
-    expect(compareProcessTraces(legacy, legacy, specification).verdict).toBe(
-      "unknown",
+    const { truncation_details: _details, ...withoutCoverage } = result;
+    expect(() => parseProcessCapture(withoutCoverage)).toThrow(
+      "truncation_details",
     );
     expect(compareProcessCaptures(result, result)).toMatchObject({
       terminal: "unknown",

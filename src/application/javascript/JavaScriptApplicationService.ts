@@ -6,14 +6,9 @@ import {
   analyzeJavaScriptApplicationInputSchema,
   parseOwnedJavaScriptApplicationAnalysisSteps,
 } from "../../domain/javascript/javascriptApplicationAnalysis.js";
-import {
-  AnalysisAccessDeniedError,
-  AnalysisInputError,
-  AnalysisOutputError,
-  AnalysisUnsupportedTargetError,
-} from "../../domain/analysisErrorCore.js";
+import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
 import { ArtifactOperationError } from "../../domain/artifactOperationError.js";
-import { type AnalysisError } from "../../domain/analysisErrorBase.js";
+import { AnalysisError } from "../../domain/analysisErrorBase.js";
 import type { Evidence } from "../../domain/evidence.js";
 import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.js";
 import { err, ok, type Result } from "../../domain/result.js";
@@ -64,6 +59,12 @@ export const analyzeJavaScriptApplicationValidated = async (
         input_path: input.input_path,
         format: input.format,
         integrity_policy: input.integrity_policy,
+        ...(input.max_heap_mb === undefined
+          ? {}
+          : { max_heap_mb: input.max_heap_mb }),
+        ...(input.analysis_timeout_ms === undefined
+          ? {}
+          : { analysis_timeout_ms: input.analysis_timeout_ms }),
       },
       scope,
       options.signal,
@@ -110,13 +111,8 @@ export const analyzeJavaScriptApplicationValidated = async (
     assertJavaScriptAnalysisActive(options.signal);
     return ok(evidence);
   } catch (cause: unknown) {
-    // Input selection failures are already typed by their cause.
-    if (
-      cause instanceof AnalysisInputError ||
-      cause instanceof AnalysisUnsupportedTargetError ||
-      cause instanceof AnalysisAccessDeniedError
-    )
-      return err(cause);
+    // Preserve execution constraints and their completed partial Evidence.
+    if (cause instanceof AnalysisError) return err(cause);
     if (cause instanceof ArtifactReaderFailure)
       return err(artifactFailureToOperationError(cause));
     if (cause instanceof z.ZodError)

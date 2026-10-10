@@ -12,7 +12,7 @@ export class JavaScriptArtifactGraphAccumulator {
   readonly #nodes = new Map<string, ApplicationNode>();
   readonly #edges = new Map<string, ApplicationEdge>();
 
-  /** Create or merge one canonical node. */
+  /** Create or merge one canonical node, retaining a stable live construction reference. */
   addNode<Input extends DisplayableNodeInput>(input: Input): ApplicationNode {
     const created = createJavaScriptApplicationNode(displayableNode(input));
     const existing = this.#nodes.get(created.node_id);
@@ -23,19 +23,23 @@ export class JavaScriptArtifactGraphAccumulator {
     const bySemanticId = new Map(
       [...existing.observations, ...created.observations].map((observation) => [
         observation.observation_id,
-        observationInput(observation),
+        observation,
       ]),
     );
-    const observations = [...bySemanticId.entries()]
-      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
-      .map(([, observation]) => observation);
-    const merged = createJavaScriptApplicationNode({
-      kind: existing.kind,
-      identity: existing.identity,
-      observations,
-    });
-    this.#nodes.set(merged.node_id, merged);
-    return merged;
+    const observations = [...bySemanticId.values()].sort((left, right) =>
+      left.observation_id < right.observation_id
+        ? -1
+        : left.observation_id > right.observation_id
+          ? 1
+          : 0,
+    );
+    // Both factories already validated and identified these observations.
+    // Replacing the node retained every previous observation array through
+    // path/chunk/IPC indexes when multiple paths shared an entity identity.
+    existing.observations.length = 0;
+    for (const observation of observations)
+      existing.observations.push(observation);
+    return existing;
   }
 
   /** Create or replace one canonical edge by semantic identifier. */
@@ -55,17 +59,6 @@ export class JavaScriptArtifactGraphAccumulator {
     return [...this.#edges.values()];
   }
 }
-
-const observationInput = (
-  observation: ApplicationNode["observations"][number],
-) => {
-  const {
-    observation_id: _observationId,
-    identifier_strategy: _strategy,
-    ...input
-  } = observation;
-  return input;
-};
 
 /** Node fields whose display form is normalized before validation. */
 interface DisplayableNodeInput {

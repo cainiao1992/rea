@@ -19,6 +19,7 @@ import {
   JAVASCRIPT_SEMANTIC_RELATION_FAMILIES,
   JAVASCRIPT_SEMANTIC_RELATION_FAMILY,
   javaScriptSemanticFingerprintInputSchema,
+  javaScriptSemanticEvidenceContextSchema,
   javaScriptSemanticGraphInputSchema,
   javaScriptSemanticGraphRecordSchema,
   javaScriptSemanticNodeInputSchema,
@@ -108,6 +109,33 @@ export class JavaScriptSemanticEvidenceContextRegistry {
   clear(): void {
     this.#contexts.clear();
     this.#idsByCanonicalContext.clear();
+  }
+
+  /** Validate and intern provenance decoded in this realm from an analysis worker. */
+  adopt(input: unknown): void {
+    const context = javaScriptSemanticEvidenceContextSchema.parse(input);
+    const { context_id: identifier, ...value } = context;
+    if (identifier !== evidenceContextId(value))
+      throw new TypeError(
+        "Transferred semantic evidence context identifier is stale",
+      );
+    const canonical = canonicalJson(
+      value,
+      "JavaScript semantic evidence context",
+    );
+    const existing = this.#contexts.get(identifier);
+    if (existing !== undefined) {
+      const { context_id: _existingIdentifier, ...existingValue } = existing;
+      if (
+        canonical !==
+        canonicalJson(existingValue, "JavaScript semantic evidence context")
+      )
+        throw new TypeError(
+          "Transferred semantic evidence context digest collision",
+        );
+    }
+    this.#contexts.set(identifier, context);
+    this.#idsByCanonicalContext.set(canonical, identifier);
   }
 }
 

@@ -89,9 +89,9 @@ queries use per-file range indexes, while call sites use exact-range lookups.
 Existing node budgets and coverage reporting remain in effect.
 
 Progress identifies the source file being parsed and projected. Cancellation is
-checked between files, with event-loop yields that allow notifications and
-completed file-local allocations to be released. A single file's synchronous
-parser and semantic extraction still need to finish before that boundary.
+checked between files and throughout result transfer. The owned analyzer can
+be stopped while its synchronous parser or semantic extractor is active;
+the CLI/MCP process remains available for control requests.
 
 Graph and Evidence identifiers hash canonical JSON incrementally, without
 assembling a single string for the whole graph. The canonical bytes and existing
@@ -112,6 +112,46 @@ Field selection remains useful when the caller needs a
 smaller view, for example `--format json --filter-output
 evidence_id,normalized_result.statistics`. Streaming output does not bound the
 memory needed to construct the analysis graph itself.
+
+JavaScript source parsing, static analysis and semantic projection run in one
+owned analysis process, reused sequentially across files. Target code is never
+executed. The analyzer defaults to 1024 MiB of V8 old-space and a 300000 ms
+deadline per source, including startup and fact transfer. Select
+`max_heap_mb` and `analysis_timeout_ms` through MCP, or `--max-heap-mb` and
+`--analysis-timeout-ms` on the dedicated CLI command. These choices control the
+analyzer; the caller's `NODE_OPTIONS` still controls the CLI/MCP process heap.
+V8 old-space limits do not impose a process RSS limit.
+
+A source that exhausts the analyzer heap does not terminate the CLI/MCP
+process. Completed static facts are retained, other files can still be analyzed,
+and unexamined semantic relationships remain explicit unknowns. The parent
+also checks transfer expansion and accumulated results against its remaining
+heap before accepting semantic facts. A resource-limited result has partial
+coverage, the observed limits and an `analyze-javascript-source` unknown scope
+with the specific failure, including captured diagnostics when available.
+Resource failures do not increment syntax parse failures. There is no fixed
+source-length cutoff.
+
+Static observations also need memory when expanded into nodes, relationships
+and Evidence. If that expansion does not fit, the file node retains
+`static_analysis` and any admitted `semantic_module_analysis` observations,
+including their exact values and source locations. Use the public modules item
+view to read them. The graph marks those unexpanded relationships as unknown.
+If cumulative result capacity is exhausted, analysis stops; inventoried but
+unexamined files remain present with explicit unknown scopes.
+
+A timeout stops the remaining analysis and returns typed failure details with
+completed partial Evidence. MCP failure details return
+`partial_observation: { kind: "retained-evidence", evidence_id: "..." }`
+after recording succeeds, so `inspect_analysis_view` can open that analysis
+directly without serializing the entire partial graph into the error response.
+CLI failure output retains the complete partial Evidence.
+Cancellation after source analysis begins likewise
+retains completed facts; an SDK client may reject its cancelled request before
+receiving that reply. On the same MCP connection, inspect the Evidence bundle
+and use the retained analysis ID with `inspect_analysis_view`. Owned analyzer
+cleanup is verified before its private files are released. Cleanup uncertainty
+is reported separately and retains ownership for retry.
 
 CLI workflows parse larger JSON input files incrementally from one verified
 regular-file handle, without constructing a document-sized string. Smaller

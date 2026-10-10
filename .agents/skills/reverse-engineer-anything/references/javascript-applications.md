@@ -9,6 +9,22 @@ that static analysis. Read findings, coverage, limitations and unknowns, then
 follow a specific unanswered question. Older servers without `detail` return
 the complete application Evidence inline when it fits.
 
+When the connected schema advertises `max_heap_mb` and `analysis_timeout_ms`,
+these select the isolated source analyzer's old-space heap and per-source
+deadline. Defaults are 1024 MiB and 300000 ms. They do not change the MCP
+process heap. Resource-limited analyses preserve completed static facts and
+report partial semantic coverage with specific unknown scopes; this does not
+mean the source is malformed. Inspect those limits before retrying a source.
+When expanded relationships exceed the parent's available memory, inspect the
+file's modules item view for retained `static_analysis` and
+`semantic_module_analysis`. Their facts remain available even when graph links
+are unknown. Cumulative result exhaustion can stop analysis before every file
+is examined; the inventory and remaining unknown scopes distinguish that case.
+Timeout or cancellation after source analysis begins retains partial Evidence
+in the same session. A returned `error.details.partial_observation` reference
+can be supplied directly to `inspect_analysis_view`. If the SDK cancels locally, retrieve its recorded ID from
+the Evidence bundle before inspecting the partial analysis.
+
 ## Read a module without repeating analysis
 
 Use the actual returned parent ID, on the same connection, as `source.evidence_id`.

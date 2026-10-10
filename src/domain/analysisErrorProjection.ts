@@ -1,4 +1,5 @@
 import { jsonValueSchema, type JsonValue } from "./jsonValue.js";
+import { isImmutableJsonSnapshot } from "./immutableJson.js";
 
 import {
   analysisErrorCategory,
@@ -71,7 +72,9 @@ export const projectAnalysisError = (
     ...(error.partialObservation === undefined
       ? {}
       : {
-          partial_observation: jsonValueSchema.parse(error.partialObservation),
+          partial_observation: isImmutableJsonSnapshot(error.partialObservation)
+            ? error.partialObservation
+            : jsonValueSchema.parse(error.partialObservation),
         }),
   };
   return {

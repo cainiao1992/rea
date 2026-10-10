@@ -11,9 +11,15 @@ import { createJavaScriptArtifactReader as createReader } from "../../artifacts/
 import type { JavaScriptApplicationGraph } from "../../domain/javascript/javascriptApplicationGraph.js";
 import type { JavaScriptSemanticGraph } from "../../domain/javascript/javascriptSemanticGraph.js";
 import type { ElectronBoundarySummary } from "../../domain/javascript/javascriptApplicationAnalysis.js";
+import { parseOwnedJavaScriptApplicationAnalysisSteps } from "../../domain/javascript/javascriptApplicationAnalysis.js";
+import { AnalysisError } from "../../domain/analysisErrorBase.js";
 import type { ArtifactInventorySnapshot } from "../../domain/artifactInventorySnapshot.js";
 import type { ArtifactInventoryPartialObservation } from "../../domain/artifactPartialObservation.js";
-import { analyzeAndProjectJavaScriptArtifactFiles } from "./JavaScriptArtifactAnalysis.js";
+import type { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
+import { analyzeAndAdoptJavaScriptArtifactFiles } from "./JavaScriptArtifactAnalysis.js";
+import { createJavaScriptSourceAnalysis } from "../../artifacts/javascript/JavaScriptSourceAnalysis.js";
+import { JAVASCRIPT_ANALYSIS_RESOURCE_DEFAULTS } from "../../domain/javascript/javascriptAnalysisResourceControls.js";
+import { createOwnedJavaScriptApplicationEvidenceCooperatively } from "./JavaScriptApplicationEvidence.js";
 import { readJavaScriptArtifactFiles } from "../../artifacts/javascript/JavaScriptArtifactFiles.js";
 import { buildImmutableJavaScriptArtifactGraphSteps } from "./JavaScriptArtifactGraphBuilder.js";
 import {
@@ -21,7 +27,6 @@ import {
   type JavaScriptArtifactReconstructionInput,
 } from "./JavaScriptArtifactReconstructionInput.js";
 import { scanCanonicalArtifactInventoryInScope } from "../../artifacts/inventory/scanCanonical.js";
-import type { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
 import { summarizeElectronBoundaries } from "./ElectronBoundaryAnalysis.js";
 import { createJavaScriptSemanticGraphProjection } from "./JavaScriptSemanticGraphBuilder.js";
 import type { ProgressReporter } from "../ProgressReporter.js";
@@ -63,12 +68,19 @@ export const reconstructJavaScriptArtifact = async (
   progress?: ProgressReporter,
 ): Promise<JavaScriptArtifactReconstructionResult> =>
   scope.run(async () => {
+    let effectiveSignal = signal;
+    let effectiveProgress = progress;
     const reportPhase = async (
       phase: string,
       message: string,
     ): Promise<void> => {
-      await progress?.report({ phase, completed: 0, total: 1, message });
-      await checkpointJavaScriptAnalysis(signal);
+      await effectiveProgress?.report({
+        phase,
+        completed: 0,
+        total: 1,
+        message,
+      });
+      await checkpointJavaScriptAnalysis(effectiveSignal);
     };
     const input = javascriptArtifactReconstructionInputSchema.parse(rawInput);
     abortIfNeeded(signal);
@@ -85,7 +97,13 @@ export const reconstructJavaScriptArtifact = async (
         `Artifact inventory classified ${path} as ${snapshot.manifest.root_format}, not ${format}`,
       );
     const reader = createReader(path, format);
-    let outcome:
+    const readerOwner = {
+      kind: "reader" as const,
+      reader,
+      resource: `JavaScript artifact reader for ${path}`,
+    };
+    let readerOpen = true;
+    let reconstructionOutcome:
       | {
           readonly kind: "completed";
           readonly result: JavaScriptArtifactReconstructionResult;
@@ -102,28 +120,75 @@ export const reconstructJavaScriptArtifact = async (
         scope,
         signal,
       );
+      // Release acquisition before analysis consumes these owned file facts.
+      const earlyCleanup = await scope.release(readerOwner);
+      readerOpen = false;
+      if (earlyCleanup.kind === "failed")
+        throw ArtifactReaderFailure.withCleanup(
+          earlyCleanup.cause,
+          ArtifactReaderFailure.cleanupObservation(
+            earlyCleanup.cause,
+            readerOwner.resource,
+          ),
+          { kind: "artifact-inventory", inventory: snapshot },
+        );
       await reportPhase(
         "parse_javascript_sources",
         `Parsing and projecting ${String(files.files.length)} application source files`,
       );
       const semanticProjection = createJavaScriptSemanticGraphProjection();
-      const analysis = await analyzeAndProjectJavaScriptArtifactFiles(
-        files,
-        semanticProjection.projectFileSteps,
-        async (file, completed, total) => {
-          abortIfNeeded(signal);
-          await progress?.report({
-            phase: "parse_javascript_source",
-            completed: 0,
-            total: 1,
-            message: `Parsing and projecting ${file.path} (${String(completed + 1)}/${String(total)})`,
-          });
-          abortIfNeeded(signal);
+      const worker = createJavaScriptSourceAnalysis(
+        {
+          heapMb:
+            input.max_heap_mb ?? JAVASCRIPT_ANALYSIS_RESOURCE_DEFAULTS.heapMb,
+          timeoutMs:
+            input.analysis_timeout_ms ??
+            JAVASCRIPT_ANALYSIS_RESOURCE_DEFAULTS.timeoutMs,
         },
-        signal,
+        files.files.filter(
+          (file) => file.kind === "javascript" && file.text.included,
+        ).length,
       );
-      await checkpointJavaScriptAnalysis(signal);
-      abortIfNeeded(signal);
+      let outcome;
+      let cleanupFailure: AnalysisError | undefined;
+      try {
+        outcome = await analyzeAndAdoptJavaScriptArtifactFiles(
+          files,
+          worker,
+          semanticProjection,
+          async (file, completed, total) => {
+            abortIfNeeded(signal);
+            await progress?.report({
+              phase: "parse_javascript_source",
+              completed: 0,
+              total: 1,
+              message: `Parsing and projecting ${file.path} (${String(completed + 1)}/${String(total)})`,
+            });
+            abortIfNeeded(signal);
+          },
+          signal,
+        );
+      } finally {
+        try {
+          const cleanup = await scope.release({
+            kind: "javascript-source-analysis",
+            analysis: worker,
+            resource: `JavaScript source analyzer for ${path}`,
+          });
+          if (cleanup.kind === "failed") throw cleanup.cause;
+        } catch (cause: unknown) {
+          if (!(cause instanceof AnalysisError)) throw cause;
+          cleanupFailure = cause;
+        }
+      }
+      const analysis = outcome.analysis;
+      const interruption = cleanupFailure ?? outcome.interruption;
+      if (interruption !== null && interruption !== undefined) {
+        effectiveSignal = undefined;
+        effectiveProgress = undefined;
+      }
+      await checkpointJavaScriptAnalysis(effectiveSignal);
+      abortIfNeeded(effectiveSignal);
       await reportPhase(
         "build_javascript_application_graph",
         "Constructing application and Electron boundary relationships",
@@ -139,7 +204,7 @@ export const reconstructJavaScriptArtifact = async (
       );
       const graph = await completeJavaScriptAnalysisSteps(
         applicationGraphSteps,
-        signal,
+        effectiveSignal,
       );
       await reportPhase(
         "build_javascript_semantic_graph",
@@ -155,63 +220,83 @@ export const reconstructJavaScriptArtifact = async (
       );
       const semanticGraph = await completeJavaScriptAnalysisSteps(
         semanticGraphSteps,
-        signal,
+        effectiveSignal,
       );
-      await checkpointJavaScriptAnalysis(signal);
-      outcome = {
-        kind: "completed",
-        result: {
-          input_path: path,
-          format,
-          root_artifact_sha256: snapshot.manifest.root_sha256,
-          inventory_manifest_id: snapshot.manifest.manifest_id,
-          inventory_graph_sha256: snapshot.manifest.graph_sha256,
-          integrity_contradictions: snapshot.integrity_contradictions,
-          graph,
-          semantic_graph: semanticGraph,
-          electron_summary: summarizeElectronBoundaries(analysis),
-          statistics: {
-            relevant_files: files.files.length,
-            nested_asar_containers: files.containers.length,
-            text_bytes_read: files.text_bytes_read,
-            invalid_utf8_files: files.invalid_utf8_files,
-            parsed_javascript_files: analysis.files.filter(
-              ({ javascript }) => javascript !== null,
-            ).length,
-            visited_ast_nodes: analysis.visited_ast_nodes,
-            findings: analysis.findings,
-            modules: analysis.modules,
-            parse_failures: analysis.parse_failures,
-          },
-          limitations: analysis.limitations,
+      await checkpointJavaScriptAnalysis(effectiveSignal);
+      const completed = {
+        input_path: path,
+        format,
+        root_artifact_sha256: snapshot.manifest.root_sha256,
+        inventory_manifest_id: snapshot.manifest.manifest_id,
+        inventory_graph_sha256: snapshot.manifest.graph_sha256,
+        integrity_contradictions: snapshot.integrity_contradictions,
+        graph,
+        semantic_graph: semanticGraph,
+        electron_summary: summarizeElectronBoundaries(analysis),
+        statistics: {
+          relevant_files: files.files.length,
+          nested_asar_containers: files.containers.length,
+          text_bytes_read: files.text_bytes_read,
+          invalid_utf8_files: files.invalid_utf8_files,
+          parsed_javascript_files: analysis.files.filter(
+            ({ javascript }) => javascript !== null,
+          ).length,
+          visited_ast_nodes: analysis.visited_ast_nodes,
+          findings: analysis.findings,
+          modules: analysis.modules,
+          parse_failures: analysis.parse_failures,
         },
+        limitations: analysis.limitations,
       };
+      if (interruption !== null && interruption !== undefined) {
+        const { electron_summary: summary, ...application } = completed;
+        const partial = await completeJavaScriptAnalysisSteps(
+          parseOwnedJavaScriptApplicationAnalysisSteps({
+            ...application,
+            summary,
+            limitations: completed.graph.limitations,
+          }),
+        );
+        const { max_heap_mb, analysis_timeout_ms, ...coreInput } = input;
+        const parameters = {
+          ...coreInput,
+          ...(max_heap_mb === undefined ? {} : { max_heap_mb }),
+          ...(analysis_timeout_ms === undefined ? {} : { analysis_timeout_ms }),
+        };
+        const evidence =
+          await createOwnedJavaScriptApplicationEvidenceCooperatively(
+            parameters,
+            partial,
+          );
+        throw interruption.retainPartialObservation(evidence);
+      }
+      reconstructionOutcome = { kind: "completed", result: completed };
     } catch (cause: unknown) {
-      outcome = { kind: "failed", cause };
+      reconstructionOutcome = { kind: "failed", cause };
     }
-    const owner = {
-      kind: "reader" as const,
-      reader,
-      resource: `JavaScript artifact reader for ${path}`,
-    };
-    const cleanupAttempt = await scope.release(owner);
-    if (cleanupAttempt.kind === "failed") {
-      const cleanup = ArtifactReaderFailure.cleanupObservation(
-        cleanupAttempt.cause,
-        owner.resource,
-      );
-      const partialObservation: ArtifactInventoryPartialObservation = {
-        kind: "artifact-inventory",
-        inventory: snapshot,
-      };
-      throw ArtifactReaderFailure.withCleanup(
-        outcome.kind === "failed" ? outcome.cause : cleanupAttempt.cause,
-        cleanup,
-        partialObservation,
-      );
+    if (readerOpen) {
+      const cleanupAttempt = await scope.release(readerOwner);
+      if (cleanupAttempt.kind === "failed") {
+        const cleanup = ArtifactReaderFailure.cleanupObservation(
+          cleanupAttempt.cause,
+          readerOwner.resource,
+        );
+        const partialObservation: ArtifactInventoryPartialObservation = {
+          kind: "artifact-inventory",
+          inventory: snapshot,
+        };
+        throw ArtifactReaderFailure.withCleanup(
+          reconstructionOutcome.kind === "failed"
+            ? reconstructionOutcome.cause
+            : cleanupAttempt.cause,
+          cleanup,
+          partialObservation,
+        );
+      }
     }
-    if (outcome.kind === "failed") throw outcome.cause;
-    return outcome.result;
+    if (reconstructionOutcome.kind === "failed")
+      throw reconstructionOutcome.cause;
+    return reconstructionOutcome.result;
   });
 
 const OPERATION = "analyze_javascript_application";

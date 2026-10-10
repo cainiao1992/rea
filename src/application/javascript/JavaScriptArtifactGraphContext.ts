@@ -1,4 +1,5 @@
 import type { ArtifactInventorySnapshot } from "../../domain/artifactInventorySnapshot.js";
+import type { JsonValue } from "../../domain/jsonValue.js";
 import { compositeKey } from "../../domain/unicodeCodePointOrder.js";
 import {
   completeApplicationCoverage,
@@ -99,6 +100,8 @@ export interface UnavailableParseInput {
   readonly asset: ApplicationNode;
   readonly operation: string;
   readonly limitation: string;
+  readonly failure?: JsonValue;
+  readonly limits?: JavaScriptArtifactGraphCoverage["limits"];
 }
 
 /** Add a direct artifact-containment edge. */
@@ -182,12 +185,15 @@ export const addUnavailableStaticParseScope = (
           path: input.file.path,
           operation: input.operation,
           limitation: input.limitation,
+          ...(input.failure === undefined
+            ? {}
+            : { analysis_failure: input.failure }),
         },
         evidence: unavailableAstEvidence({
           sha256: input.file.sha256,
           path: input.file.path,
           operation: input.operation,
-          coverage: partialApplicationCoverage([], null),
+          coverage: partialApplicationCoverage(input.limits ?? [], null),
           limitation: input.limitation,
         }),
       },

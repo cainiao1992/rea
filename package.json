@@ -30,6 +30,9 @@
     "access": "public"
   },
   "type": "module",
+  "imports": {
+    "#javascript-analysis-worker": "./dist/composition/javascriptAnalysisWorkerProcess.js"
+  },
   "bin": {
     "rea": "scripts/rea.mjs",
     "rea-agents": "scripts/rea.mjs"

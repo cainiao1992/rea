@@ -1,5 +1,7 @@
 import { expect, it } from "vitest";
 
+import { err } from "../domain/result.js";
+import { AnalysisOutputError } from "../domain/analysisErrorCore.js";
 import type { ArtifactReader } from "./ArtifactReader.js";
 import { ArtifactResourceScope } from "./ArtifactResourceScope.js";
 
@@ -65,4 +67,48 @@ it("retains the same failed reader owner and retries before admitting work", asy
   expect(closeAttempts).toBe(3);
   await scope.close();
   expect(closeAttempts).toBe(4);
+});
+
+it("retains a failed source analyzer until shutdown can verify its release", async () => {
+  const scope = new ArtifactResourceScope();
+  let releaseAllowed = false;
+  const failure = new AnalysisOutputError(
+    "analyze_javascript_application",
+    "Owned worker is still running",
+  );
+  const owner = {
+    kind: "javascript-source-analysis" as const,
+    resource: "fixture source analyzer",
+    analysis: {
+      async analyze() {
+        return err({
+          error: failure,
+          javascript: null,
+          module: null,
+          projection: null,
+        });
+      },
+      async close() {
+        if (!releaseAllowed) throw failure;
+      },
+    },
+  };
+  expect(await scope.release(owner)).toEqual({
+    kind: "failed",
+    cause: failure,
+  });
+  let admitted = false;
+  await expect(
+    scope.run(async () => {
+      admitted = true;
+    }),
+  ).rejects.toMatchObject({
+    cleanup: { resources: ["fixture source analyzer"] },
+  });
+  expect(admitted).toBe(false);
+  await expect(scope.close()).rejects.toMatchObject({
+    cleanup: { resources: ["fixture source analyzer"] },
+  });
+  releaseAllowed = true;
+  await scope.close();
 });

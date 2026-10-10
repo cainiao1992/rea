@@ -22,20 +22,10 @@ export async function verifyGhidraEntryAliases({
   );
   const path = join(workspace, "entry-aliases");
   try {
-    // Mach-O function-start metadata would promote the interior control label.
-    await exec(
-      compiler,
-      [
-        "-O0",
-        "-g",
-        "-fno-inline",
-        ...(process.platform === "darwin" ? ["-Wl,-no_function_starts"] : []),
-        source,
-        "-o",
-        path,
-      ],
-      { env, timeout: 30000 },
-    );
+    await exec(compiler, ["-O0", "-g", "-fno-inline", source, "-o", path], {
+      env,
+      timeout: 30000,
+    });
     const bytes = await readFile(path);
     await call("close_binary");
     const imported = await call("open_binary", { path, provider_id: "ghidra" });
@@ -101,6 +91,18 @@ export async function verifyGhidraEntryAliases({
     );
     assert.ok(interior);
     assert.notEqual(interior.address, alias.address);
+    assert.equal(
+      interior.symbol.type,
+      "label",
+      "Fixture interior control must remain an imported label",
+    );
+    assert.equal(
+      (await call("list_procedures")).some(
+        ({ address }) => address === interior.address,
+      ),
+      false,
+      "Fixture interior control must not be a Ghidra procedure entry",
+    );
     const failure = await reject("procedure_address", {
       procedure: interior.value,
     });

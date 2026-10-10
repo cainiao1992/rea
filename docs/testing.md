@@ -160,8 +160,25 @@ Use `-- chat` for ordinary
 chat or `REA_VERIFY_RUNTIME_ROOT` for a production-only installed package.
 The native offline BYOK adapter uses a loopback OpenAI completions/SSE fixture
 and `gpt-5.4` model metadata; model inference and token usage are synthetic.
-Set `REA_VERIFY_COPILOT_MODEL` to examine another model configuration. In the
-verified client, `gpt-4.1` blocks the full input-schema profile before HTTP with
+Set `REA_VERIFY_COPILOT_MODEL` to examine another client model ID and
+`REA_VERIFY_COPILOT_WIRE_MODEL` for its backend model name (defaults to the client
+ID). Every actual HTTP request's model is checked and recorded separately.
+Both `HOME` and `USERPROFILE` point to the disposable account; native `skill add`
+still selects the installed skill directory explicitly.
+
+The same native client passed full-profile chat and analysis with the actual
+wire model `gpt-4.1` under a distinct BYOK model ID:
+
+```bash
+REA_VERIFY_COPILOT_MODEL=rea-gpt-4.1 REA_VERIFY_COPILOT_WIRE_MODEL=gpt-4.1 npm run verify:copilot-client -- chat
+REA_VERIFY_COPILOT_MODEL=rea-gpt-4.1 REA_VERIFY_COPILOT_WIRE_MODEL=gpt-4.1 npm run verify:copilot-client -- call
+```
+
+These runs retain full canonical input/output schemas, all tools, installed-skill
+loading and complete Evidence readback. They use the fixture's requested
+one-million-token BYOK prompt setting; effective capacity and live API acceptance
+remain unknown. With the built-in `gpt-4.1` model ID, the verified client still
+blocks the full input-schema profile before HTTP with
 `compaction_static_context_blocked`, even when requesting a larger BYOK prompt
 capacity. The effective capacity is unknown. The default verifier preserves
 the complete catalog and full schemas. To verify the existing compact profile:

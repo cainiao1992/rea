@@ -22,6 +22,7 @@ const runtimeRoot = process.env.REA_VERIFY_RUNTIME_ROOT ?? repo;
 const command = process.env.REA_VERIFY_COPILOT_COMMAND ?? "copilot";
 const mode = process.argv[2] ?? "call";
 const model = process.env.REA_VERIFY_COPILOT_MODEL ?? "gpt-5.4";
+const wireModel = process.env.REA_VERIFY_COPILOT_WIRE_MODEL ?? model;
 const inputSchemaProfile =
   process.env.REA_VERIFY_COPILOT_SCHEMA_PROFILE ?? "full";
 assert(
@@ -50,6 +51,7 @@ await exec("git", ["init", "--quiet", workspace], { timeout: 30_000 });
 const environment = {
   PATH: process.env.PATH,
   NODE_OPTIONS: process.env.NODE_OPTIONS,
+  HOME: account,
   USERPROFILE: account,
   COPILOT_HOME: profile,
   COPILOT_OFFLINE: "true",
@@ -60,7 +62,7 @@ const environment = {
   COPILOT_PROVIDER_BEARER_TOKEN: "",
   COPILOT_PROVIDER_HEADERS: "",
   COPILOT_PROVIDER_MODEL_ID: model,
-  COPILOT_PROVIDER_WIRE_MODEL: model,
+  COPILOT_PROVIDER_WIRE_MODEL: wireModel,
   COPILOT_PROVIDER_MAX_PROMPT_TOKENS: "1000000",
   COPILOT_PROVIDER_MAX_OUTPUT_TOKENS: "4096",
   REA_PROCESS_RUN_ID: verifier.run_id,
@@ -118,10 +120,17 @@ const extractEvidence = (value) => {
   }
   return undefined;
 };
+const wireModels = [];
 const fixture = await createOpenAiModelFixture({
   directory: lab,
   prefix: "copilot",
   onRequest: async ({ body, tools, requestIndex }) => {
+    assert.equal(
+      body.model,
+      wireModel,
+      "Copilot must send the selected wire model",
+    );
+    wireModels.push(body.model);
     // Auxiliary requests without tools cannot execute the analyst's workflow.
     if (tools.length === 0)
       return { role: "assistant", content: "REA fixture title" };
@@ -424,6 +433,7 @@ try {
     clientVersion,
     mode,
     model,
+    wireModel,
     inputSchemaProfile,
     passed: failure === undefined,
     artifacts: lab,
@@ -440,7 +450,7 @@ try {
     capacityBoundary:
       inputSchemaProfile === "compact"
         ? "Explicit compact profile: complete inventory and canonical server validation; advertised schemas may be reduced. This does not fix the full-profile gpt-4.1 context boundary."
-        : "gpt-4.1 model configuration blocks the full catalog before HTTP even with a ten-million-token requested prompt override; gpt-5.4 is the verified full-profile local fixture configuration",
+        : "Complete canonical input and output schemas. Client model ID and wire model are recorded separately; effective token capacity and live provider compatibility remain unknown.",
     catalogSize,
     schemasChecked,
     spillReadRequested,
@@ -448,6 +458,7 @@ try {
     skillLoaded,
     artifactDigest,
     finalSeen,
+    wireModels,
     requests: fixture.requests,
     probes: fixture.probes,
     fixtureFailure: fixture.failure,

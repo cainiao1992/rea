@@ -132,8 +132,11 @@ const resolveAnalysisViewSource = (
       return err(
         analysisInputErrorFromIssues(
           INSPECT_ANALYSIS_VIEW_OPERATION,
-          cause.issues,
-          source.evidence,
+          cause.issues.map((issue) => ({
+            ...issue,
+            path: ["source", "evidence", ...issue.path],
+          })),
+          { source },
           { cause },
         ),
       );

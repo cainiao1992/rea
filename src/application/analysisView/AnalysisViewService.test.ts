@@ -11,6 +11,7 @@ import {
 } from "../../../tests/fixtures/analysisView.js";
 import {
   inspectAnalysisView,
+  inspectAnalysisViewValidated,
   summarizeRetainedAnalysis,
 } from "./AnalysisViewService.js";
 import type { Evidence } from "../../domain/evidence.js";
@@ -57,6 +58,35 @@ it.each(["/fixtures/unknown.exe", ""])(
     );
   },
 );
+
+it("reports inline Evidence identity failures at the complete source path", () => {
+  const parent = analysisViewLayoutEvidence();
+  const input = {
+    source: {
+      kind: "inline",
+      evidence: { ...parent, evidence_id: `ev_${"0".repeat(64)}` },
+    },
+    view: { kind: "summary" },
+  } as const;
+
+  for (const result of [
+    inspectAnalysisView(input),
+    inspectAnalysisViewValidated(input),
+  ])
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        _tag: "AnalysisInputError",
+        issues: [
+          {
+            path: ["source", "evidence", "evidence_id"],
+            reason: "invalid_value",
+            message: "Evidence semantic identifier does not match its record",
+          },
+        ],
+      },
+    });
+});
 
 it("projects a small native view from an authenticated >10 MiB retained dossier", () => {
   const original = functionDossierSchema.parse(ghidraFunctionDossier());

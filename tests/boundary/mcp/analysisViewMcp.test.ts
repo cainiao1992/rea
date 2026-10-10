@@ -19,6 +19,7 @@ import {
   analysisViewJavaScriptEvidence,
   analysisViewJavaScriptAnalysisWithSource,
   analysisViewBindJavaScriptGraphs,
+  analysisViewLayoutEvidence,
   analysisViewLayoutFixture,
 } from "../../fixtures/analysisView.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
@@ -109,6 +110,35 @@ it("advertises exact schemas and projects one layout section from retained Evide
   expect(session.evidenceById(parsed.evidence_id)).toEqual(
     parseEvidence(parsed),
   );
+});
+
+it("reports a tampered inline Evidence ID at its full MCP source path", async () => {
+  const { client } = await connect();
+  const parent = analysisViewLayoutEvidence();
+  const response = await client.callTool({
+    name: "inspect_analysis_view",
+    arguments: {
+      source: {
+        kind: "inline",
+        evidence: { ...parent, evidence_id: `ev_${"0".repeat(64)}` },
+      },
+      view: { kind: "summary" },
+    },
+  });
+
+  expect(parseMcpToolError(response).error).toMatchObject({
+    code: "invalid_request",
+    category: "invalid_input",
+    details: {
+      issues: [
+        {
+          path: ["source", "evidence", "evidence_id"],
+          reason: "invalid_value",
+          message: "Evidence semantic identifier does not match its record",
+        },
+      ],
+    },
+  });
 });
 
 it("delivers a bounded native dossier view over MCP without a Ghidra provider or lost connection", async () => {

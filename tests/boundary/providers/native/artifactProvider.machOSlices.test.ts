@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 
@@ -40,6 +40,7 @@ describe("artifact Mach-O slices", () => {
         ),
     };
     const reader = new MachOSliceArtifactReader(binary, {}, runner);
+    onTestFinished(() => reader.close());
     const enumerate = async (): Promise<void> => {
       for await (const _entry of reader.entries()) {
         // Enumeration must reject out-of-bounds lipo metadata before yielding.
@@ -78,6 +79,7 @@ describe("artifact Mach-O slices", () => {
         ),
     };
     const reader = new MachOSliceArtifactReader(binary, {}, runner);
+    onTestFinished(() => reader.close());
     const entries = [];
     for await (const entry of reader.entries()) entries.push(entry);
     expect(entries).toHaveLength(2);
@@ -105,7 +107,9 @@ describe("artifact Mach-O slices", () => {
       Reflect.set(provenance[0], "tool", "forged");
     expect(reader.provenance()[0]?.tool).toBe("lipo");
   });
+});
 
+describe("artifact Mach-O slice integrity", () => {
   it.each([
     ["CPU type", "cputype 16777223"],
     ["CPU subtype", "cpusubtype 2"],
@@ -139,6 +143,7 @@ describe("artifact Mach-O slices", () => {
         {},
         lipoRunner(`${details.join("\n")}\n`),
       );
+      onTestFinished(() => reader.close());
       await expect(async () => {
         for await (const _entry of reader.entries()) {
           // The structural comparison runs before the reader yields a slice.
@@ -161,6 +166,7 @@ describe("artifact Mach-O slices", () => {
         `architecture arm64\n cputype 16777228\n cpusubtype 0\n offset 4096\n size ${thin.length}\n align 2^12 (4096)\n`,
       ),
     );
+    onTestFinished(() => reader.close());
     await expect(async () => {
       for await (const _entry of reader.entries()) {
         // Malformed structural facts must fail before any slice is yielded.
@@ -215,6 +221,7 @@ describe("artifact Mach-O arm64e variant slices", () => {
         `architecture x86_64\n cputype CPU_TYPE_X86_64\n cpusubtype CPU_SUBTYPE_X86_64_ALL\n offset 4096\n size ${String(x86.length)}\n align 2^12 (4096)\n${lipo(arm.length)}`,
       ),
     );
+    onTestFinished(() => reader.close());
     const entries = [];
     for await (const entry of reader.entries()) entries.push(entry);
     return entries.map(({ path, byteOffset }) => [path, byteOffset]);

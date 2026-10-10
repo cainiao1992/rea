@@ -20,6 +20,7 @@ import {
 import {
   type PendingDirectory,
   type ReferenceSourceEntry,
+  type ReferenceSourceEntryKind,
   type ReferenceSourceResult,
   type TraversalState,
 } from "./ReferenceSourceReaderTypes.js";
@@ -152,7 +153,20 @@ const processEntry = async (
   if (isAborted(state.signal)) return { ok: false, error: cancelled() };
   const absolute = join(current.path, name);
   const path = pathFromRoot(state.root, absolute);
-  const excluded = applyExclusion(state.shouldExclude, path);
+  const metadata = await readMetadata(absolute);
+  if (isAborted(state.signal)) return { ok: false, error: cancelled() };
+  if (!metadata.ok) {
+    state.entries.push(entryFailure(path, "unknown", "io", metadata.message));
+    return { ok: true, value: undefined };
+  }
+  const kind = metadata.value.isSymbolicLink()
+    ? "symlink"
+    : metadata.value.isDirectory()
+      ? "directory"
+      : metadata.value.isFile()
+        ? "file"
+        : "other";
+  const excluded = applyExclusion(state.shouldExclude, path, kind);
   if (!excluded.ok)
     return {
       ok: false,
@@ -163,28 +177,14 @@ const processEntry = async (
       },
     };
   if (excluded.value) return { ok: true, value: undefined };
-  const metadata = await readMetadata(absolute);
   if (isAborted(state.signal)) return { ok: false, error: cancelled() };
-  if (!metadata.ok) {
-    state.entries.push(entryFailure(path, "unknown", "io", metadata.message));
-    return { ok: true, value: undefined };
-  }
-  if (isAborted(state.signal))
-    return {
-      ok: false,
-      error: {
-        tag: "reference-source-reader",
-        code: "cancelled",
-        message: "Reference source traversal cancelled",
-      },
-    };
-  if (metadata.value.isSymbolicLink())
+  if (kind === "symlink")
     state.entries.push(
       await describeSymlink(state.root, absolute, path, state.signal),
     );
-  else if (metadata.value.isDirectory()) {
+  else if (kind === "directory") {
     directories.push({ path: absolute });
-  } else if (!metadata.value.isFile())
+  } else if (kind !== "file")
     state.entries.push(
       entryFailure(
         path,
@@ -298,11 +298,14 @@ const describeSymlink = async (
 };
 
 const applyExclusion = (
-  shouldExclude: ((path: string) => boolean) | undefined,
+  shouldExclude:
+    | ((path: string, kind: ReferenceSourceEntryKind) => boolean)
+    | undefined,
   path: string,
+  kind: ReferenceSourceEntryKind,
 ): { readonly ok: true; readonly value: boolean } | { readonly ok: false } => {
   try {
-    return { ok: true, value: shouldExclude?.(path) === true };
+    return { ok: true, value: shouldExclude?.(path, kind) === true };
   } catch (cause: unknown) {
     // Exclusion predicates are caller-supplied; a throwing predicate fails
     // closed and the caller-visible `{ ok: false }` preserves the rejection

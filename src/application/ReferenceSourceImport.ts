@@ -9,6 +9,7 @@ import {
 } from "../domain/referenceSourceGraph.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { readReferenceSource } from "../reference/ReferenceSourceReader.js";
+import type { ReferenceSourceEntryKind } from "../reference/ReferenceSourceReaderTypes.js";
 import { parseReferenceSourceEntries } from "./ReferenceSourceImportEntries.js";
 import { readReferenceSourceVcs } from "./ReferenceSourceVcsAdapter.js";
 import {
@@ -131,9 +132,10 @@ const createShouldExclude =
     exclusions: HistoricalSourceGraphInput["exclusions"],
     secrets: PreparedReferenceSourceImport["secrets"],
     ignored: PreparedReferenceSourceImport["ignored"],
-  ): ((path: string) => boolean) =>
-  (path) => {
-    const secretMatch = secrets.test(path);
+  ): ((path: string, kind: ReferenceSourceEntryKind) => boolean) =>
+  (path, kind) => {
+    const patternPath = kind === "directory" ? `${path}/` : path;
+    const secretMatch = secrets.test(patternPath);
     if (secretMatch.ignored) {
       if (!secretMatch.rule)
         throw new Error(`Ignored secret path has no matching rule: ${path}`);
@@ -144,7 +146,7 @@ const createShouldExclude =
       });
       return true;
     }
-    const match = ignored.test(path);
+    const match = ignored.test(patternPath);
     if (!match.ignored) return false;
     if (!match.rule)
       throw new Error(`Ignored path has no matching rule: ${path}`);

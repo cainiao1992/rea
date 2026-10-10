@@ -127,22 +127,25 @@ describe("readReferenceSource entries", () => {
 });
 
 describe("readReferenceSource failures and exclusions", () => {
-  it("applies exclusions to normalized paths before reading entries", async () => {
+  it("applies exclusions to normalized paths after no-follow type inspection", async () => {
     const root = await createTestTempDirectory("rea-reference-");
     await mkdir(join(root, "ignored"));
     await writeFile(join(root, "ignored", "secret"), "secret");
     await writeFile(join(root, "kept"), "kept");
-    const checked: string[] = [];
+    const checked: Array<[string, string]> = [];
 
     const result = await readReferenceSource(root, {
-      shouldExclude: (path) => {
-        checked.push(path);
+      shouldExclude: (path, kind) => {
+        checked.push([path, kind]);
         return path === "ignored";
       },
     });
 
     if (!result.ok) throw result.error;
-    expect(checked).toEqual(["ignored", "kept"]);
+    expect(checked).toEqual([
+      ["ignored", "directory"],
+      ["kept", "file"],
+    ]);
     expect(result.value.entries.map(({ path }) => path)).toEqual(["kept"]);
   });
 

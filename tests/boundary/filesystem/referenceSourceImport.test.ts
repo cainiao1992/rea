@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { add, commit, init } from "isomorphic-git";
@@ -444,13 +444,24 @@ describe.skipIf(process.platform === "win32")(
       const root = await createTestTempDirectory(
         "rea-reference-ignore-origin-",
       );
-      await mkdir(join(root, "dist"), { recursive: true });
-      await mkdir(join(root, "project-parent"), { recursive: true });
-      await mkdir(join(root, "caller-parent"), { recursive: true });
+      const directories = [
+        "dist",
+        "project-parent",
+        "caller-parent",
+        "node_modules/pkg",
+        "empty-ignored",
+        "secret-dir",
+        "keep-as-dir",
+        "link-target",
+      ];
+      await Promise.all(
+        directories.map((path) => mkdir(join(root, path), { recursive: true })),
+      );
+      const secretChild = join(root, "secret-dir", "unreadable.ts");
       await Promise.all([
         writeFile(
           join(root, ".gitignore"),
-          "project.tmp\n*.log\n!keep.log\nproject-parent/\n!project-parent/keep.ts\n!default.log\n",
+          "project.tmp\n*.log\n!keep.log\nproject-parent/\n!project-parent/keep.ts\n!default.log\nempty-ignored/\nkeep-as-dir\n!keep-as-dir/\nlinkdir/\n",
         ),
         writeFile(join(root, "project.tmp"), "project rule\n"),
         writeFile(join(root, "project.log"), "project rule\n"),
@@ -460,56 +471,112 @@ describe.skipIf(process.platform === "win32")(
         writeFile(join(root, "dist", "output.js"), "generated output\n"),
         writeFile(join(root, "project-parent", "keep.ts"), "parent ignored\n"),
         writeFile(join(root, "caller-parent", "keep.ts"), "caller parent\n"),
+        writeFile(join(root, "node_modules/pkg/package.json"), "{}\n"),
+        writeFile(join(root, "secret-dir", "unreadable.ts"), "secret\n"),
+        writeFile(join(root, "keep-as-dir", "kept.ts"), "re-included\n"),
+        writeFile(join(root, "link-target", "source.ts"), "target\n"),
         writeFile(join(root, "selected.ts"), "selected source\n"),
       ]);
+      await symlink(join(root, "link-target"), join(root, "linkdir"));
 
-      const imported = await importReferenceSource({
-        root,
-        caller: "reference-import-test",
-        policy: { secretPatterns: ["project.log"] },
-        excludePaths: ["caller-parent/", "!selected.ts", "!caller-keep.log"],
-      });
-      if (!imported.ok) throw imported.error;
+      const canRestrictPermissions =
+        process.platform !== "win32" && process.getuid?.() !== 0;
+      if (canRestrictPermissions) await chmod(secretChild, 0);
 
-      expect(imported.value.exclusions).toEqual(
-        expect.arrayContaining([
-          {
-            path: "project.tmp",
-            reason: "project-ignored",
-            pattern: "project.tmp",
-          },
-          {
-            path: "project.log",
-            reason: "configured-secret",
-            pattern: "project.log",
-          },
-          { path: "keep.log", reason: "default-ignored", pattern: "*.log" },
-          {
-            path: "dist/output.js",
-            reason: "default-ignored",
-            pattern: "dist/",
-          },
-          {
-            path: "project-parent/keep.ts",
-            reason: "project-ignored",
-            pattern: "project-parent/",
-          },
-          {
-            path: "caller-parent/keep.ts",
-            reason: "caller-excluded",
-            pattern: "caller-parent/",
-          },
-        ]),
-      );
-      expect(imported.value.entries).toContainEqual(
-        expect.objectContaining({ path: "selected.ts", kind: "file" }),
-      );
-      expect(imported.value.entries).toContainEqual(
-        expect.objectContaining({ path: "caller-keep.log", kind: "file" }),
-      );
-      expect(imported.value.exclusions).not.toContainEqual(
-        expect.objectContaining({ path: "selected.ts" }),
-      );
+      try {
+        const imported = await importReferenceSource({
+          root,
+          caller: "reference-import-test",
+          policy: { secretPatterns: ["project.log", "secret-dir/"] },
+          excludePaths: ["caller-parent/", "!selected.ts", "!caller-keep.log"],
+        });
+        if (!imported.ok) throw imported.error;
+
+        expect(imported.value.exclusions).toEqual(
+          expect.arrayContaining([
+            {
+              path: "project.tmp",
+              reason: "project-ignored",
+              pattern: "project.tmp",
+            },
+            {
+              path: "project.log",
+              reason: "configured-secret",
+              pattern: "project.log",
+            },
+            {
+              path: "keep.log",
+              reason: "default-ignored",
+              pattern: "*.log",
+            },
+            {
+              path: "dist",
+              reason: "default-ignored",
+              pattern: "dist/",
+            },
+            {
+              path: "node_modules",
+              reason: "default-ignored",
+              pattern: "node_modules/",
+            },
+            {
+              path: "empty-ignored",
+              reason: "project-ignored",
+              pattern: "empty-ignored/",
+            },
+            {
+              path: "project-parent",
+              reason: "project-ignored",
+              pattern: "project-parent/",
+            },
+            {
+              path: "caller-parent",
+              reason: "caller-excluded",
+              pattern: "caller-parent/",
+            },
+            {
+              path: "secret-dir",
+              reason: "configured-secret",
+              pattern: "secret-dir/",
+            },
+          ]),
+        );
+        expect(imported.value.entries).toContainEqual(
+          expect.objectContaining({ path: "selected.ts", kind: "file" }),
+        );
+        expect(imported.value.entries).toContainEqual(
+          expect.objectContaining({ path: "caller-keep.log", kind: "file" }),
+        );
+        expect(imported.value.entries).toContainEqual(
+          expect.objectContaining({
+            path: "keep-as-dir/kept.ts",
+            kind: "file",
+          }),
+        );
+        expect(imported.value.entries).toContainEqual(
+          expect.objectContaining({ path: "linkdir", kind: "symlink" }),
+        );
+        for (const path of [
+          "dist",
+          "node_modules",
+          "empty-ignored",
+          "project-parent",
+          "caller-parent",
+          "secret-dir",
+        ])
+          expect(
+            imported.value.entries.some(
+              (entry) =>
+                entry.path === path || entry.path.startsWith(`${path}/`),
+            ),
+            path,
+          ).toBe(false);
+        expect(imported.value.exclusions).not.toContainEqual(
+          expect.objectContaining({ path: "selected.ts" }),
+        );
+      } finally {
+        if (canRestrictPermissions) await chmod(secretChild, 0o600);
+      }
     });
   },
 );

@@ -2,9 +2,18 @@ import { type BigIntStats } from "node:fs";
 
 import { type Result } from "../domain/result.js";
 
+export type ReferenceSourceEntryKind =
+  | "file"
+  | "directory"
+  | "symlink"
+  | "other";
+
 export interface ReferenceSourceReaderOptions {
   readonly signal?: AbortSignal;
-  readonly shouldExclude?: (path: string) => boolean;
+  readonly shouldExclude?: (
+    path: string,
+    kind: ReferenceSourceEntryKind,
+  ) => boolean;
 }
 
 export type ReferenceSourceFailureCode =
@@ -66,7 +75,10 @@ export type TraversalState = {
   readonly root: string;
   readonly rootIdentity: BigIntStats;
   readonly signal?: AbortSignal;
-  readonly shouldExclude?: (path: string) => boolean;
+  readonly shouldExclude?: (
+    path: string,
+    kind: ReferenceSourceEntryKind,
+  ) => boolean;
   readonly entries: ReferenceSourceEntry[];
   readonly pending: PendingDirectory[];
   bytesRead: number;

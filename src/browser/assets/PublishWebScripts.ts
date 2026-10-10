@@ -114,7 +114,7 @@ export const publishWebScripts = async (
             cause instanceof ArtifactReaderFailure ? cause.reason : "io",
             tree.outputRoot,
             diagnostic,
-            [tree.outputRoot],
+            { residualPaths: [tree.outputRoot] },
           );
           if (tree.published && result !== undefined)
             error.retainPartialObservation({

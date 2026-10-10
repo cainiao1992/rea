@@ -4,6 +4,7 @@ import {
   access,
   chmod,
   mkdir,
+  open as fsOpen,
   readFile,
   readdir,
   symlink,
@@ -12,7 +13,15 @@ import {
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-import { describe, expect, it, onTestFinished, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest";
 
 import { analyzeJavaScriptApplication } from "../../support/javascriptApplicationScope.js";
 import { exportWebScripts } from "../../../src/application/WebScriptExportService.js";
@@ -30,6 +39,24 @@ import {
   scriptCaptureEvidenceFixture,
   scriptScenarioFixture,
 } from "../../fixtures/webScriptCapture.js";
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return { ...actual, open: vi.fn(actual.open) };
+});
+
+const openMock = vi.mocked(fsOpen);
+let actualFs: typeof import("node:fs/promises");
+
+beforeEach(async () => {
+  actualFs =
+    await vi.importActual<typeof import("node:fs/promises")>(
+      "node:fs/promises",
+    );
+  openMock.mockImplementation((...args) => actualFs.open(...args));
+});
+
+afterEach(() => openMock.mockReset());
 
 const setup = async (capture: unknown = scriptCaptureEvidenceFixture()) => {
   const root = await createTestTempDirectory("rea-web-script-export-");
@@ -275,7 +302,6 @@ describe("captured script output owner retry", () => {
 
   it("returns completed output when retry closes a descriptor after commit", async () => {
     const { input, resources } = await setup();
-    const capture = selectScriptCapture(scriptScenarioFixture());
     const createTree = SafeOutputTree.create.bind(SafeOutputTree);
     const create = vi
       .spyOn(SafeOutputTree, "create")
@@ -576,4 +602,209 @@ describe("captured script path and permission failures", () => {
       });
     },
   );
+});
+
+describe("capture read and close failure", () => {
+  it("retains a handle after capture read and close both fail", async () => {
+    const { input, resources } = await setup();
+    const readFailure = Object.assign(
+      new Error("injected capture read failure"),
+      { code: "EIO" },
+    );
+    const closeFailure = new Error("injected capture close failure");
+    let openedHandle: Awaited<ReturnType<typeof actualFs.open>> | undefined;
+    let closeCalls = 0;
+    let allowClose = false;
+    openMock.mockImplementation(async (...args) => {
+      const handle = await actualFs.open(...args);
+      if (String(args[0]) !== input.capture_path) return handle;
+      openedHandle = handle;
+      vi.spyOn(handle, "read").mockRejectedValue(readFailure);
+      const close = handle.close.bind(handle);
+      vi.spyOn(handle, "close").mockImplementation(async () => {
+        closeCalls += 1;
+        if (!allowClose) throw closeFailure;
+        await close();
+      });
+      return handle;
+    });
+
+    try {
+      const result = await exportWebScripts(input, resources);
+      if (result.ok) throw new Error("Expected capture read failure");
+      expect(projectAnalysisError(result.error)).toMatchObject({
+        code: "cleanup_incomplete",
+        details: {
+          resources: [input.capture_path],
+          diagnostics: {
+            primary_error: {
+              code: "artifact_operation_failed",
+              details: { reason: "io" },
+            },
+          },
+        },
+      });
+      if (openedHandle === undefined)
+        throw new Error("Expected the capture handle to be admitted");
+      expect(openedHandle.fd).toBeGreaterThanOrEqual(0);
+      expect(closeCalls).toBe(2);
+      await expect(access(input.output_directory)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+
+      await expect(resources.close()).rejects.toMatchObject({
+        cleanup: {
+          resources: [input.capture_path],
+          reason: expect.stringContaining(closeFailure.message),
+        },
+      });
+      expect(closeCalls).toBe(3);
+      allowClose = true;
+      await resources.close();
+      expect(closeCalls).toBe(4);
+      expect(openedHandle.fd).toBe(-1);
+    } finally {
+      allowClose = true;
+      await resources.close().catch(() => undefined);
+    }
+  });
+});
+
+describe("capture handle ownership", () => {
+  it("retains the failed handle and keeps invalid JSON primary", async () => {
+    const { input, resources } = await setup();
+    await writeFile(input.capture_path, "{");
+    const closeFailure = new Error("injected capture close failure");
+    const closeCalls = new Map<object, number>();
+    let allowClose = false;
+    openMock.mockImplementation(async (...args) => {
+      const handle = await actualFs.open(...args);
+      if (String(args[0]) !== input.capture_path) return handle;
+      const close = handle.close.bind(handle);
+      vi.spyOn(handle, "close").mockImplementation(async () => {
+        closeCalls.set(handle, (closeCalls.get(handle) ?? 0) + 1);
+        if (!allowClose) throw closeFailure;
+        await close();
+      });
+      return handle;
+    });
+
+    try {
+      const result = await exportWebScripts(input, resources);
+      if (result.ok) throw new Error("Expected invalid capture failure");
+      expect(projectAnalysisError(result.error)).toMatchObject({
+        code: "cleanup_incomplete",
+        details: {
+          resources: [input.capture_path],
+          diagnostics: {
+            primary_error: {
+              code: "invalid_request",
+              details: {
+                issues: [{ path: ["capture_path"], reason: "invalid_format" }],
+              },
+            },
+          },
+        },
+      });
+      expect([...closeCalls.values()]).toEqual([2]);
+      await expect(access(input.output_directory)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+
+      await expect(resources.close()).rejects.toMatchObject({
+        cleanup: {
+          resources: [input.capture_path],
+          reason: expect.stringContaining(closeFailure.message),
+        },
+      });
+      expect([...closeCalls.values()]).toEqual([3]);
+
+      allowClose = true;
+      await resources.close();
+      expect([...closeCalls.values()]).toEqual([4]);
+    } finally {
+      allowClose = true;
+      await resources.close().catch(() => undefined);
+    }
+  });
+
+  it("reports a recovered close failure without marking cleanup incomplete", async () => {
+    const { input, resources } = await setup();
+    await writeFile(input.capture_path, "{");
+    const closeFailure = new Error("injected one-time capture close failure");
+    let closeCalls = 0;
+    openMock.mockImplementation(async (...args) => {
+      const handle = await actualFs.open(...args);
+      if (String(args[0]) !== input.capture_path) return handle;
+      const close = handle.close.bind(handle);
+      vi.spyOn(handle, "close").mockImplementation(async () => {
+        closeCalls += 1;
+        if (closeCalls === 1) throw closeFailure;
+        await close();
+      });
+      return handle;
+    });
+
+    const result = await exportWebScripts(input, resources);
+    if (result.ok) throw new Error("Expected invalid capture failure");
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "invalid_request",
+      details: {
+        issues: [{ path: ["capture_path"], reason: "invalid_format" }],
+      },
+    });
+    expect(result.error.cause).toBeInstanceOf(AggregateError);
+    const cause = result.error.cause;
+    if (!(cause instanceof AggregateError))
+      throw new Error("Expected close diagnostic in the cause chain");
+    expect(cause.errors.map((error) => String(error))).toContain(
+      closeFailure.toString(),
+    );
+    expect(closeCalls).toBe(2);
+    await resources.close();
+  });
+
+  it("makes scope close wait for an admitted capture read", async () => {
+    const { input, resources } = await setup();
+    let notifyOpen!: () => void;
+    let releaseOpen!: () => void;
+    const opened = new Promise<void>((resolve) => {
+      notifyOpen = resolve;
+    });
+    const openGate = new Promise<void>((resolve) => {
+      releaseOpen = resolve;
+    });
+    openMock.mockImplementation(async (...args) => {
+      const handle = await actualFs.open(...args);
+      if (String(args[0]) === input.capture_path) {
+        notifyOpen();
+        await openGate;
+      }
+      return handle;
+    });
+
+    const exporting = exportWebScripts(input, resources);
+    try {
+      await opened;
+      let closeFinished = false;
+      const closing = resources.close().then(() => {
+        closeFinished = true;
+      });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(closeFinished).toBe(false);
+
+      releaseOpen();
+      await closing;
+      const result = await exporting;
+      if (result.ok)
+        throw new Error("Expected the closed scope to refuse publication");
+      expect(result.error.userMessage).toContain("resource scope is closed");
+      await expect(access(input.output_directory)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      releaseOpen();
+      await resources.close().catch(() => undefined);
+    }
+  });
 });

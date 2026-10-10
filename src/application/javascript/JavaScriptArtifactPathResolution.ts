@@ -234,7 +234,8 @@ const resolvePackageSpecifier = (
   if (rawExports === undefined || rawExports === null) {
     if (subpath === ".")
       return resolveDirectory(input, directory, metadata, new Set());
-    const candidate = confineCandidate(posix.join(directory, subpath.slice(2)));
+    // Preserve the trailing slash for a package directory request.
+    const candidate = confineCandidate(`${directory}/${subpath.slice(2)}`);
     return typeof candidate === "string"
       ? resolveCandidate(input, candidate, new Set())
       : candidate;

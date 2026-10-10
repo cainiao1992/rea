@@ -23,10 +23,14 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
       'const hidden = require("exported/hidden");',
       'const missing = require("exported/missing");',
       'new BrowserWindow({webPreferences:{preload:"exported/parser"}});',
+      'const file = require("fixture");',
+      'const packageDirectory = require("fixture/");',
     ].join("\n");
     const files = {
       "src/main.cjs": source,
       "src/node_modules/fixture/parser.js": "module.exports = 1;",
+      "src/node_modules/fixture.js": "module.exports = 'file';",
+      "src/node_modules/fixture/index.js": "module.exports = 'directory';",
       "node_modules/fixture/package.json": "{}",
       "node_modules/fixture/parser.js": "module.exports = 2;",
       "node_modules/nested/package.json": "{}",
@@ -59,6 +63,8 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
     const nativeRequire = createRequire(join(root, "src/main.cjs"));
     const expectedTargets = {
       "fixture/parser": "src/node_modules/fixture/parser.js",
+      fixture: "src/node_modules/fixture.js",
+      "fixture/": "src/node_modules/fixture/index.js",
       "nested/parser": "node_modules/nested/parser/entry.js",
       "exported/parser": "node_modules/exported/parser.cjs",
     };

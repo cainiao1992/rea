@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { lstat, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { TextReader, Uint8ArrayWriter, ZipWriter } from "@zip.js/zip.js";
@@ -20,6 +20,7 @@ import { artifactInventoryResultSchema } from "../../../../src/domain/artifactGr
 import type { BinaryTarget } from "../../../../src/domain/binaryTargetTypes.js";
 import { parseBinaryTarget } from "../../../../src/application/BinaryTargetResolver.js";
 import { parseEvidence } from "../../../../src/domain/evidence.js";
+import { projectAnalysisError } from "../../../../src/domain/analysisErrorProjection.js";
 
 const { runProviderAnalysis } = createDirectAnalysis({});
 
@@ -136,38 +137,51 @@ describe("artifact archive safety", () => {
       destinationCaseCollisionMessage("res/2f.xml", ["2f.xml", "2F.xml"]),
     ).toBeUndefined();
   });
+});
 
-  it("extracts logical names that differ only in case", async () => {
-    const root = await createTestTempDirectory("rea-case-distinct-zip-");
-    const path = join(root, "fixture.zip");
-    const writer = new ZipWriter(new Uint8ArrayWriter());
-    await writer.add("Main.js", new TextReader("upper"));
-    await writer.add("main.js", new TextReader("lower"));
-    await writeFile(path, await writer.close());
-    const parsed = await parseBinaryTarget(path);
-    expect(parsed.ok).toBe(true);
-    if (!parsed.ok) return;
-    const result = await inventory(parsed.value);
-    expect(result.limitations).toContain(
-      ENGLISH_UNICODE_CASE_INVENTORY_LIMITATION,
+it("extracts case-distinct names only when the destination can preserve them", async () => {
+  const root = await createTestTempDirectory("rea-case-distinct-zip-");
+  await writeFile(join(root, "case-probe"), "lower");
+  await writeFile(join(root, "CASE-PROBE"), "upper");
+  const caseSensitive =
+    (await readFile(join(root, "case-probe"), "utf8")) === "lower";
+  const path = join(root, "fixture.zip");
+  const writer = new ZipWriter(new Uint8ArrayWriter());
+  await writer.add("Main.js", new TextReader("upper"));
+  await writer.add("main.js", new TextReader("lower"));
+  await writeFile(path, await writer.close());
+  const parsed = await parseBinaryTarget(path);
+  if (!parsed.ok) throw parsed.error;
+  const result = await inventory(parsed.value);
+  expect(result.limitations).toContain(
+    ENGLISH_UNICODE_CASE_INVENTORY_LIMITATION,
+  );
+  expect(
+    result.occurrences
+      .filter(({ logical_path }) => logical_path !== ".")
+      .map(({ logical_path }) => logical_path)
+      .sort(),
+  ).toEqual(["Main.js", "main.js"]);
+  const output = join(root, "output");
+  const extracted = await new ArtifactProvider(process.env)
+    .createClient(parsed.value)
+    .execute(
+      "extract_artifact",
+      artifactExtractionExecutionSchema.parse({ output_root: output }),
     );
-    expect(
-      result.occurrences
-        .filter(({ logical_path }) => logical_path !== ".")
-        .map(({ logical_path }) => logical_path)
-        .sort(),
-    ).toEqual(["Main.js", "main.js"]);
-    const output = join(root, "output");
-    const extracted = await new ArtifactProvider(process.env)
-      .createClient(parsed.value)
-      .execute(
-        "extract_artifact",
-        artifactExtractionExecutionSchema.parse({ output_root: output }),
-      );
-    expect(extracted.ok).toBe(true);
-    expect(await readFile(join(output, "Main.js"), "utf8")).toBe("upper");
-    expect(await readFile(join(output, "main.js"), "utf8")).toBe("lower");
-  });
+  if (!caseSensitive) {
+    if (extracted.ok) throw new Error("expected a destination case collision");
+    expect(projectAnalysisError(extracted.error)).toMatchObject({
+      message:
+        "Destination filesystem cannot store both main.js and Main.js; inventory retains both logical names.",
+      details: { operation: "extract_artifact", reason: "path" },
+    });
+    await expect(lstat(output)).rejects.toMatchObject({ code: "ENOENT" });
+    return;
+  }
+  if (!extracted.ok) throw extracted.error;
+  expect(await readFile(join(output, "Main.js"), "utf8")).toBe("upper");
+  expect(await readFile(join(output, "main.js"), "utf8")).toBe("lower");
 });
 const inventory = async (targetValue: BinaryTarget) => {
   const result = await new ArtifactProvider(process.env)

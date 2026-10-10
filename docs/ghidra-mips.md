@@ -29,6 +29,13 @@ section names or the record being inside the initial 4 KiB header probe.
 Program and section declarations must agree; duplicate, conflicting, truncated
 or out-of-file records are rejected. Stripped section tables and section-only
 records are supported. Extended table numbering is explicitly unsupported.
+For carved ELFs whose section table extends beyond the captured file, REA
+examines every complete captured section header and records the unavailable
+headers as a limitation. A valid program-header ABI record can still establish
+the supported declaration. Available section declarations must agree with it;
+their duplicate, conflicting or unreadable records remain errors. A missing
+program-header record does not make ABI declarations in uncaptured sections
+absent or supply a default ABI.
 The field layout follows
 [`Elf_MIPS_ABIFlags_v0`](https://github.com/bminor/glibc/blob/master/elf/elf.h).
 
@@ -92,6 +99,11 @@ observations and does not relabel the upstream result as verified.
 
 CLI/MCP discovery and decompilation, direct calls, target/profile/Evidence
 identity, snapshot round-trip and final process cleanup remain covered.
+For both byte orders, the lane also carves away the section table while retaining
+all program-header payloads. It checks the actual Ghidra language, entry-address
+decompilation, distinct artifact digest and missing-section limitations through
+CLI Evidence and an MCP-produced snapshot. Caller-selected Ghidra heap limits
+are passed to these child workflows.
 Pseudocode presence is a liveness check, not proof of semantic equivalence.
 Instruction decoding and reader agreement likewise do not establish runtime,
 delay-slot execution or complete floating-point semantics. Assertion regressions

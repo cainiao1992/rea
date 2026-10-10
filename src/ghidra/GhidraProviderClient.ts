@@ -117,13 +117,17 @@ export const createGhidraProviderClient = (input: {
       }),
     );
   let extensionFailure: AnalysisError | undefined;
-  const targetLimitations =
-    target.format === "dos-mz"
+  const targetLimitations = [
+    ...(target.format === "dos-mz"
       ? [
           "DOS MZ uses 16-bit x86 real mode with the Ghidra load segment 0x1000. Returned addresses are linear byte coordinates; they do not identify a unique segment:offset alias.",
           "Static DOS analysis does not emulate BIOS, DOS interrupts, device ports, or self-modifying unpacking code. Packed targets require a separately identified unpacked artifact for original-program analysis; appended overlays are not the initialized load module.",
         ]
-      : [];
+      : []),
+    ...(target.kind === "executable" && target.architecture === "mips"
+      ? (target.mips.limitations ?? [])
+      : []),
+  ];
   const providerLimitations =
     installation.platform === "win32"
       ? windowsP0Limitations

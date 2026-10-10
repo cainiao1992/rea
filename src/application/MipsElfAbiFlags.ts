@@ -5,6 +5,12 @@ import type {
 } from "../domain/binaryTargetTypes.js";
 import { err, ok, type Result } from "../domain/result.js";
 
+/** Observed ABI declarations and coverage of their source tables. */
+export interface MipsAbiFlagsInspection {
+  readonly abiFlags: MipsAbiFlags | null;
+  readonly limitations: readonly string[];
+}
+
 /**
  * Read ELF32 MIPS ABI declarations from the caller's already-open file.
  * Inspect both typed tables (not section names), including records beyond the
@@ -15,7 +21,7 @@ export const readMipsElfAbiFlags = async (
   handle: FileHandle,
   metadata: MipsElfMetadata,
   checkCancelled: () => void,
-): Promise<Result<MipsAbiFlags | null, string>> => {
+): Promise<Result<MipsAbiFlagsInspection, string>> => {
   checkCancelled();
   if (metadata.elfClass !== 32)
     return err("MIPS ABI record inspection currently supports ELF32 only");
@@ -81,6 +87,7 @@ export const readMipsElfAbiFlags = async (
       dataOffset: 4,
       sizeOffset: 16,
       recordType: 0x70000003, // PT_MIPS_ABIFLAGS
+      optional: false,
     },
     {
       label: "section header table",
@@ -92,6 +99,7 @@ export const readMipsElfAbiFlags = async (
       dataOffset: 16,
       sizeOffset: 20,
       recordType: 0x7000002a, // SHT_MIPS_ABIFLAGS
+      optional: true,
     },
   ];
   // Extended numbering needs a separate section-zero reader. Refuse it rather
@@ -99,6 +107,7 @@ export const readMipsElfAbiFlags = async (
   if (u16(bytes, 44) === 0xffff || u16(bytes, 48) >= 0xff00)
     return err("extended or reserved MIPS ELF table numbering is unsupported");
   let record: Buffer | undefined;
+  const limitations: string[] = [];
   for (const table of tables) {
     if (table.count === 0) {
       if (table.offset !== 0)
@@ -107,16 +116,27 @@ export const readMipsElfAbiFlags = async (
     }
     if (table.offset < 52 || table.stride !== table.entrySize)
       return err(`invalid MIPS ${table.label} offset or entry size`);
+    const count = table.optional
+      ? Math.min(
+          table.count,
+          Math.max(0, Math.floor((fileSize - table.offset) / table.entrySize)),
+        )
+      : table.count;
+    if (count < table.count)
+      limitations.push(
+        `MIPS ${table.label} at file offset ${table.offset} extends beyond the captured file: examined ${count} of ${table.count} complete headers. ABI declarations in unavailable headers remain unknown.`,
+      );
+    if (count === 0) continue;
     // Counts are bounded by the ELF16 fields and strides by their exact ELF32
     // structure sizes. Never allocate according to an untrusted section size.
     const contents = await read(
       table.offset,
-      table.count * table.entrySize,
+      count * table.entrySize,
       table.label,
     );
     if (!contents.ok) return contents;
     let found = false;
-    for (let i = 0; i < table.count; i += 1) {
+    for (let i = 0; i < count; i += 1) {
       checkCancelled();
       const position = i * table.entrySize;
       if (u32(contents.value, position + table.typeOffset) !== table.recordType)
@@ -134,10 +154,10 @@ export const readMipsElfAbiFlags = async (
       record = candidate.value;
     }
   }
-  if (record === undefined) return ok(null);
+  if (record === undefined) return ok({ abiFlags: null, limitations });
   // Preserve declarations verbatim, including unknown versions/values. Provider
   // admission, not parsing, decides which interpretations have been verified.
-  return ok({
+  const abiFlags: MipsAbiFlags = {
     version: u16(record, 0),
     isaLevel: record.readUInt8(2),
     isaRevision: record.readUInt8(3),
@@ -149,5 +169,6 @@ export const readMipsElfAbiFlags = async (
     ases: u32(record, 12),
     flags1: u32(record, 16),
     flags2: u32(record, 20),
-  });
+  };
+  return ok({ abiFlags, limitations });
 };

@@ -31,7 +31,10 @@ export const ghidraMipsUnsupportedReason = (
     return "EF_MIPS_NAN2008 requires separate verification of NaN encoding semantics in this Ghidra lane.";
   const abi = metadata.abiFlags;
   if (abi === undefined || abi === null)
-    return "This Ghidra MIPS lane requires an inspected ABI flags record; header flags alone do not establish the floating-point ABI.";
+    return [
+      "This Ghidra MIPS lane requires an inspected ABI flags record; header flags alone do not establish the floating-point ABI.",
+      ...(metadata.limitations ?? []),
+    ].join(" ");
   if (abi.version !== 0)
     return "This Ghidra MIPS lane requires ABI flags version 0; newer record semantics are unsupported.";
   if (abi.isaLevel !== 32 || abi.isaRevision !== 2)
@@ -64,6 +67,9 @@ export const ghidraMipsProfileParameters = (
       byte_order: target.mips.byteOrder,
       type: target.mips.type,
       flags: target.mips.flags,
+      ...(target.mips.limitations === undefined
+        ? {}
+        : { abi_flags_limitations: [...target.mips.limitations] }),
       abi_flags:
         abi === undefined || abi === null
           ? null

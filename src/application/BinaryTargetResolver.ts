@@ -373,7 +373,13 @@ const readExecutableMetadata = async (
   if (!abiFlags.ok) return abiFlags;
   return ok({
     ...parsed.value,
-    mips: { ...parsed.value.mips, abiFlags: abiFlags.value },
+    mips: {
+      ...parsed.value.mips,
+      abiFlags: abiFlags.value.abiFlags,
+      ...(abiFlags.value.limitations.length === 0
+        ? {}
+        : { limitations: abiFlags.value.limitations }),
+    },
   });
 };
 

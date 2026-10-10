@@ -316,7 +316,7 @@ it("imports an operator-provided cache layer through an explicit file mapping", 
   const application = await applicationFixture();
   const cache = await createTestTempDirectory("rea-runtime-cache-static-");
   const runtimeCache = await createTestTempDirectory("rea-runtime-cache-live-");
-  const cacheSource = "export const cachedFeature = 'fixture';\n";
+  const cacheSource = SOURCE;
   await mkdir(join(cache, "mapped"));
   await Promise.all([
     writeFile(join(cache, "mapped", "chunk.js"), cacheSource),
@@ -373,6 +373,16 @@ it("imports an operator-provided cache layer through an explicit file mapping", 
     status: "unknown",
     reason: "layer-outside-runtime-scope",
   });
+  const sharedFile = result.graph.nodes.find(
+    ({ observations }) =>
+      observations.some(({ properties }) => properties.path === "app.js") &&
+      observations.some(
+        ({ properties }) => properties.path === "mapped/chunk.js",
+      ),
+  );
+  expect(
+    sharedFile?.observations.map(({ properties }) => properties.path),
+  ).toEqual(expect.arrayContaining(["app.js", "mapped/chunk.js"]));
 });
 
 const applicationFixture = async (): Promise<string> => {

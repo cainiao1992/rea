@@ -30,10 +30,6 @@ interface Traversal {
   readonly modules: Set<string>;
 }
 
-interface SeedAdmission {
-  readonly nodeIds: string[];
-}
-
 interface QueryResult {
   readonly retainedNodes: JavaScriptSemanticGraphNode[];
   readonly retainedRelations: JavaScriptSemanticGraphRelation[];
@@ -47,10 +43,10 @@ export const queryJavaScriptSemanticGraph = (
   const input = javaScriptSemanticQueryInputSchema.parse(rawInput);
   const queryId = queryIdentifier(graph, input);
   const seeds = resolveSeeds(graph, input);
-  const admission = admitSeeds(graph, seeds);
-  const retainedSeeds = admission.nodeIds;
+  const nodes = new Map(graph.nodes.map((node) => [node.node_id, node]));
+  const retainedSeeds = admitSeeds(nodes, seeds);
   const adjacency = buildAdjacency(graph.relations, input);
-  const traversal = traverse(graph, retainedSeeds, adjacency);
+  const traversal = traverse(nodes, retainedSeeds, adjacency);
   const result = createQueryResult(graph, traversal);
   const allRelevantUnknowns = relevantUnknownFrontiers(
     graph,
@@ -122,17 +118,16 @@ const createQueryResult = (
 };
 
 const admitSeeds = (
-  graph: JavaScriptSemanticGraph,
+  nodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>,
   seeds: readonly string[],
-): SeedAdmission => {
-  const nodes = new Map(graph.nodes.map((node) => [node.node_id, node]));
+): string[] => {
   const retained: string[] = [];
   for (const nodeId of seeds) {
     const node = nodes.get(nodeId);
     if (node === undefined) continue;
     retained.push(nodeId);
   }
-  return { nodeIds: retained };
+  return retained;
 };
 
 const buildAdjacency = (
@@ -222,11 +217,10 @@ const addEntry = (
 };
 
 const traverse = (
-  graph: JavaScriptSemanticGraph,
+  nodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>,
   seeds: readonly string[],
   adjacency: ReadonlyMap<string, TraversalEntry[]>,
 ): Traversal => {
-  const nodes = new Map(graph.nodes.map((node) => [node.node_id, node]));
   const nodeIds = new Set(seeds);
   const relationIds = new Set<string>();
   const functionIds = new Set<string>();

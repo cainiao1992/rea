@@ -316,6 +316,20 @@ it("returns every relevant unknown inline", () => {
   expect(result.unknowns).toHaveLength(1);
 });
 
+it("does not admit a semantic-node seed absent from the graph", () => {
+  const result = queryJavaScriptSemanticGraph(fixtureGraph(), {
+    seed: { kind: "semantic-node", node_id: `jsrg_node_${"f".repeat(64)}` },
+    direction: "forward-influence",
+  });
+
+  expect(result).toMatchObject({
+    status: "no-match",
+    seed_node_ids: [],
+    nodes: [],
+    summary: { total_seed_matches: 0, traversed_nodes: 0 },
+  });
+});
+
 it("returns the complete deterministic forward influence result inline", () => {
   const graph = fixtureGraph();
   const input = {

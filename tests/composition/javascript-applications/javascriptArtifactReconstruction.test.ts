@@ -11,7 +11,10 @@ import { expect, it } from "vitest";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
-import { reconstructJavaScriptArtifact } from "../../support/javascriptApplicationScope.js";
+import {
+  reconstructJavaScriptArtifact,
+  readJavaScriptArtifactFiles,
+} from "../../support/javascriptApplicationScope.js";
 import {
   analyzeJavaScriptArtifactFiles,
   analyzeAndProjectJavaScriptArtifactFiles,
@@ -22,7 +25,6 @@ import {
   createJavaScriptSemanticGraphProjection,
 } from "../../../src/application/javascript/JavaScriptSemanticGraphBuilder.js";
 import { createJavaScriptArtifactReader } from "../../../src/artifacts/javascript/JavaScriptArtifactReader.js";
-import { readJavaScriptArtifactFiles } from "../../../src/artifacts/javascript/JavaScriptArtifactFiles.js";
 import {
   scanCanonicalArtifactInventory,
   scanArtifactInventory,

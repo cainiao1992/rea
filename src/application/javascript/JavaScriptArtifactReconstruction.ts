@@ -96,7 +96,12 @@ export const reconstructJavaScriptArtifact = async (
         "read_javascript_artifacts",
         "Reading inventoried JavaScript application sources",
       );
-      const files = await readJavaScriptArtifactFiles(reader, snapshot, signal);
+      const files = await readJavaScriptArtifactFiles(
+        reader,
+        snapshot,
+        scope,
+        signal,
+      );
       await reportPhase(
         "parse_javascript_sources",
         `Parsing and projecting ${String(files.files.length)} application source files`,

@@ -49,6 +49,26 @@ export const filesystemFailureDetail = (
     : undefined;
 };
 
+/** Preserve root I/O detail while separating bad selections from access failures. */
+export const rootFilesystemFailure = (
+  cause: unknown,
+  operation: string,
+):
+  | {
+      readonly code: "invalid-root" | "io";
+      readonly message: string;
+    }
+  | undefined => {
+  if (!(cause instanceof Error)) return undefined;
+  const code: unknown = Reflect.get(cause, "code");
+  if (typeof code !== "string" || !FILESYSTEM_ERROR_CODES.has(code))
+    return undefined;
+  return {
+    code: code === "ENOENT" || code === "ENOTDIR" ? "invalid-root" : "io",
+    message: `${operation}: ${cause.message}`,
+  };
+};
+
 export const entryFailure = (
   ...[path, kind, code, message, size]: readonly [
     string,

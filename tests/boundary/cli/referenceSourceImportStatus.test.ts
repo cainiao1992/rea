@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect } from "vitest";
@@ -19,6 +19,9 @@ const unsupportedHostOutput = {
   message:
     "Safe no-follow file opens are unavailable on this host. Import the source tree with REA on Linux (including WSL) or macOS.",
 };
+
+const permissionChecksUnavailable =
+  process.platform === "win32" || process.getuid?.() === 0;
 
 describe("compiled Windows reference-source import", () => {
   for (const scenario of [
@@ -132,4 +135,38 @@ describe("compiled reference-source import preflight failures", () => {
       },
     );
   }
+
+  cliTest.skipIf(permissionChecksUnavailable)(
+    "classifies a blocked parent directory as an execution failure",
+    async ({ cli }) => {
+      const directory = await createTestTempDirectory(
+        "rea-reference-cli-blocked-root-",
+      );
+      const parent = join(directory, "blocked-parent");
+      const root = join(parent, "input");
+      await mkdir(root, { recursive: true });
+      await chmod(parent, 0);
+      try {
+        const result = await cli.run({
+          arguments: ["import-reference-source", root, "--json"],
+          cwd: directory,
+          environment: {
+            HOME: directory,
+            USERPROFILE: directory,
+            XDG_CONFIG_HOME: directory,
+            XDG_CACHE_HOME: directory,
+          },
+        });
+        expect(result.json).toEqual({
+          error: "Import failed",
+          category: "execution_failure",
+          message:
+            "Reference source files could not be read. Check directory permissions and try again.",
+        });
+        expect(result.exitCode).toBe(1);
+      } finally {
+        await chmod(parent, 0o700);
+      }
+    },
+  );
 });

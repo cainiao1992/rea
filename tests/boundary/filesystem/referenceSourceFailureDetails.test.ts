@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { chmod, writeFile } from "node:fs/promises";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -20,6 +20,32 @@ const permissionChecksUnavailable =
   process.platform === "win32" || process.getuid?.() === 0;
 
 describe("reference import native entry failure details", () => {
+  it.skipIf(permissionChecksUnavailable)(
+    "classifies a root behind a blocked parent as an I/O failure",
+    async () => {
+      const directory = await createTestTempDirectory(
+        "rea-reference-root-permission-",
+      );
+      const parent = join(directory, "blocked-parent");
+      const root = join(parent, "source");
+      await mkdir(root, { recursive: true });
+      await chmod(parent, 0);
+      try {
+        const read = await readReferenceSource(root);
+        expect(read).toMatchObject({
+          ok: false,
+          error: {
+            tag: "reference-source-reader",
+            code: "io",
+            message: expect.stringContaining("EACCES"),
+          },
+        });
+      } finally {
+        await chmod(parent, 0o700);
+      }
+    },
+  );
+
   it.skipIf(permissionChecksUnavailable)(
     "retains the actual operating-system reason for an unreadable file",
     async () => {

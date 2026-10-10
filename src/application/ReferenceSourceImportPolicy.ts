@@ -10,6 +10,7 @@ import {
   type ReferenceSourceImportError,
   type ReferenceSourceImportOptions,
 } from "./ReferenceSourceImportTypes.js";
+import { rootFilesystemFailure } from "../reference/ReferenceSourceReaderErrors.js";
 
 /** Validated inputs ready for filesystem traversal. */
 export interface PreparedReferenceSourceImport {
@@ -27,21 +28,39 @@ const failure = (
   message,
 });
 
+const isAborted = (signal?: AbortSignal): boolean => signal?.aborted === true;
+
 const resolveRoot = async (
   requestedRoot: string,
+  signal?: AbortSignal,
 ): Promise<Result<string, ReferenceSourceImportError>> => {
+  if (isAborted(signal))
+    return err(failure("cancelled", "Reference source import cancelled"));
   try {
-    if (!(await stat(requestedRoot)).isDirectory())
+    const metadata = await stat(requestedRoot);
+    if (isAborted(signal))
+      return err(failure("cancelled", "Reference source import cancelled"));
+    if (!metadata.isDirectory())
       return err(
         failure("invalid-root", "Reference source root is not a directory"),
       );
     const canonicalRoot = await realpath(resolve(requestedRoot));
+    if (isAborted(signal))
+      return err(failure("cancelled", "Reference source import cancelled"));
     return ok(canonicalRoot);
   } catch (cause: unknown) {
-    void cause;
-    return err(
-      failure("invalid-root", "Reference source root could not be resolved"),
+    if (isAborted(signal))
+      return err(failure("cancelled", "Reference source import cancelled"));
+    const rootFailure = rootFilesystemFailure(
+      cause,
+      "Reference source root could not be resolved",
     );
+    if (rootFailure === undefined) throw cause;
+    const message =
+      rootFailure.code === "invalid-root"
+        ? "Reference source root could not be resolved"
+        : rootFailure.message;
+    return err(failure(rootFailure.code, message));
   }
 };
 
@@ -83,7 +102,7 @@ export const prepareReferenceSourceImport = async (
 ): Promise<
   Result<PreparedReferenceSourceImport, ReferenceSourceImportError>
 > => {
-  const root = await resolveRoot(options.root);
+  const root = await resolveRoot(options.root, options.signal);
   if (!root.ok) return root;
   try {
     return ok({

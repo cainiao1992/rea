@@ -6,6 +6,7 @@ import {
   type ClientConfigurationDocument,
 } from "./ClientConfigurationDocument.js";
 import type { SetupClient } from "./SupportedClients.js";
+import { clientRegistrationEnvironment } from "./ClientRegistrationEnvironment.js";
 
 /** A named source failure that setup can explain without losing the bad path. */
 export interface ClientConfigurationFileError {
@@ -63,7 +64,16 @@ export const readClientConfigurationFiles = async (
   for (const path of client.configPaths ?? [client.configPath]) {
     const document = await readConfigurationFile(path, client.format);
     if (!document.ok) return document;
-    if (document.value !== undefined) documents.push(document.value);
+    if (document.value !== undefined) {
+      const environment = clientRegistrationEnvironment(document.value);
+      if (!environment.ok)
+        return err({
+          kind: "malformed",
+          path,
+          detail: `Configuration ${path} has an invalid REA server environment: ${environment.error.settings.map(({ setting, constraint }) => `${setting}: ${constraint}`).join("; ")}. Repair it before rerunning setup.`,
+        });
+      documents.push(document.value);
+    }
   }
   return ok(documents);
 };

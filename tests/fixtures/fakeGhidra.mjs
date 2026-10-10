@@ -153,6 +153,16 @@ const handleRequest = (socket, server, request, state) => {
 
 const handlePing = (socket, request, state) => {
   state.pings.value += 1;
+  if (state.mode === "diagnostic_output" && state.pings.value === 1) {
+    const retainedTokenPrefixBytes = Math.floor(state.token.length / 2);
+    const preservedMarker = "source=/tmp/local-evidence.bin?cursor=keep&";
+    const fillLength = 8 * 1024 * 1024 - retainedTokenPrefixBytes;
+    const fill = "x".repeat(fillLength - Buffer.byteLength(preservedMarker));
+    process.stderr.write(`${fill}${preservedMarker}`);
+    setImmediate(() => {
+      process.stderr.write(state.token);
+    });
+  }
   if (state.mode === "malformed") {
     socket.write("{invalid\n");
     return;

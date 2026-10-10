@@ -24,7 +24,10 @@ import type {
 } from "./GhidraClientTypes.js";
 import type { GhidraInventoryOperation } from "./GhidraInventoryValues.js";
 import type { GhidraFunctionOperation } from "./GhidraFunctionValues.js";
-import { createGhidraDiagnostics } from "./GhidraDiagnostics.js";
+import {
+  createGhidraDiagnostics,
+  GHIDRA_PROCESS_DIAGNOSTIC_BYTES,
+} from "./GhidraDiagnostics.js";
 import { GhidraLaunchError, type GhidraLaunch } from "./GhidraLauncher.js";
 import { GhidraResponseBuffer } from "./GhidraResponseBuffer.js";
 import { GhidraResponseRouter } from "./GhidraResponseRouter.js";
@@ -432,6 +435,7 @@ export class GhidraClient {
       if (partialLaunch !== undefined) {
         this.#launch = partialLaunch;
         this.#process = new ProviderProcessSupervisor(partialLaunch, {
+          maxDiagnosticBytes: GHIDRA_PROCESS_DIAGNOSTIC_BYTES,
           onDiagnostic: (event) => this.#onProcessDiagnostic(event),
         });
       }
@@ -444,6 +448,7 @@ export class GhidraClient {
     }
     this.#launch = launched.value;
     this.#process = new ProviderProcessSupervisor(launched.value, {
+      maxDiagnosticBytes: GHIDRA_PROCESS_DIAGNOSTIC_BYTES,
       onDiagnostic: (event) => this.#onProcessDiagnostic(event),
     });
     const connected = await this.#connect(endpoint, deadline);

@@ -264,14 +264,14 @@ const cleanupElectronProcesses = async (
   lineage: ProcessLineageObservation | undefined,
 ): Promise<ProcessCleanupResult> => {
   if (process.platform === "win32") {
-    const root = await cleanupWindowsProcessTree(ownership.leaderPid);
-    if (!root.cleaned) return root;
     if (lineage?.status !== "verified")
       return {
         cleaned: false,
         reason:
           "owned Electron lineage was unavailable; helper cleanup was not proven",
       };
+    const root = await cleanupWindowsProcessTree(ownership.leaderPid);
+    if (!root.cleaned) return root;
     for (const descendant of lineage.lineage.descendants) {
       const result = await cleanupWindowsProcessTree(descendant.pid);
       if (!result.cleaned) return result;

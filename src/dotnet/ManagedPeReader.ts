@@ -139,14 +139,14 @@ const resolveRva = (
       scope,
       `${scope} has an invalid RVA range`,
     );
+  // VirtualSize owns RVA containment; raw size also includes alignment padding.
   const selected = sections.find((section) => {
     const within = rva - section.virtualAddress;
-    const mappedSize = Math.max(section.virtualSize, section.rawSize);
     return (
-      mappedSize > 0 &&
+      section.virtualSize > 0 &&
       within >= 0 &&
-      within <= mappedSize &&
-      size <= mappedSize - within
+      within < section.virtualSize &&
+      size <= section.virtualSize - within
     );
   });
   if (selected === undefined)
@@ -156,13 +156,8 @@ const resolveRva = (
       `${scope} RVA is not covered by one PE section`,
     );
   for (const section of sections) {
-    if (
-      section === selected ||
-      Math.max(section.virtualSize, section.rawSize) === 0
-    )
-      continue;
-    const end =
-      section.virtualAddress + Math.max(section.virtualSize, section.rawSize);
+    if (section === selected || section.virtualSize === 0) continue;
+    const end = section.virtualAddress + section.virtualSize;
     const intersects =
       size === 0
         ? rva >= section.virtualAddress && rva < end
@@ -184,6 +179,7 @@ const resolveRva = (
   const offset = add(selected.rawOffset, within, scope);
   requireRange(bytes, offset, size, scope);
   let available = Math.min(
+    selected.virtualSize - within,
     selected.rawSize - within,
     bytes.length - offset,
     0x1_0000_0000 - rva,
@@ -193,7 +189,7 @@ const resolveRva = (
     if (
       section !== selected &&
       section.virtualAddress > rva &&
-      Math.max(section.virtualSize, section.rawSize) > 0
+      section.virtualSize > 0
     )
       available = Math.min(available, section.virtualAddress - rva);
   return { offset, available };

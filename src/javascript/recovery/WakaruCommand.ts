@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { access, realpath } from "node:fs/promises";
+import { access, realpath, stat } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import {
   AnalysisCancelledError,
@@ -87,6 +87,8 @@ export const resolveWakaruCommand = async (
     if (!isAbsolute(limiter))
       throw new TypeError("REA_JAVASCRIPT_PRLIMIT_COMMAND must be absolute");
     await access(limiter, constants.X_OK);
+    if (!(await stat(limiter)).isFile())
+      throw new TypeError(`Resource limiter is not a regular file: ${limiter}`);
     return { command, limiter, ...fingerprint };
   } catch (cause: unknown) {
     const reason = `Configured Wakaru or util-linux prlimit is unavailable: ${recoveryFailureMessage(cause)}`;

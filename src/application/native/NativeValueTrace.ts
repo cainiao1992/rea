@@ -21,6 +21,7 @@ export const traceNativeValues = async (
 ): EnhancedResult => {
   const input = nativeValueTraceInputSchema.parse(parameters);
   const nodes: typeof nativeValueTraceSchema._output.nodes = [];
+  const nodeIds = new Set<string>();
   const edges: typeof nativeValueTraceSchema._output.edges = [];
   const procedures: typeof nativeValueTraceSchema._output.procedures = [];
   const unknowns: typeof nativeValueTraceSchema._output.unknowns = [];
@@ -154,25 +155,28 @@ export const traceNativeValues = async (
       bytes += size;
       ids.add(operation.id);
       nodes.push(node);
+      nodeIds.add(node.id);
     }
     for (const parameter of flow.parameters) {
       if (nodes.length >= input.max_nodes) {
         truncated = true;
         break;
       }
+      const id = `${address}/parameter:${parameter.ordinal}`;
       nodes.push({
-        id: `${address}/parameter:${parameter.ordinal}`,
+        id,
         procedure: address,
         evidence_id: evidenceId,
         kind: "parameter",
         operation: null,
         parameter,
       });
+      nodeIds.add(id);
     }
     for (const use of flow.parameter_uses) {
       if (
         !ids.has(use.use) ||
-        !nodes.some((node) => node.id === `${address}/parameter:${use.ordinal}`)
+        !nodeIds.has(`${address}/parameter:${use.ordinal}`)
       )
         continue;
       if (edges.length >= input.max_edges) {

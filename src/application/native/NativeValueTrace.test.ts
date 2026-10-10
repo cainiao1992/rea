@@ -7,6 +7,7 @@ import {
 import { ghidraFunctionDossier } from "../../domain/ghidraValues.fixture.js";
 import { functionDossierSchema } from "../../domain/hopperValues.js";
 import { jsonValueSchema } from "../../domain/jsonValue.js";
+import { nativeValueTraceSchema } from "../../domain/native/nativeValueTrace.js";
 import { AnalysisCancelledError } from "../../domain/analysisErrorCore.js";
 import { ok, err } from "../../domain/result.js";
 
@@ -102,6 +103,132 @@ const analysis: AnalysisOperationPort = {
     );
   },
 };
+describe("native value parameter-use node membership", () => {
+  it("retains only parameter uses whose parameter nodes fit the node budget", async () => {
+    const operationCount = 3_000;
+    const parameterUseCount = 12_000;
+    const base = functionDossierSchema.parse(ghidraFunctionDossier());
+    const procedureAddress = base.procedure.address;
+    const largeFlow = {
+      available: true as const,
+      provenance: "ghidra-high-pcode" as const,
+      operations: Array.from({ length: operationCount }, (_, index) => ({
+        ...node(`operation-${String(index)}`, procedureAddress, "MULTIEQUAL"),
+        inputs: [scalar, scalar, scalar, scalar],
+      })),
+      def_use: [],
+      effects: [],
+      parameters: [{ ordinal: 0, name: "value", data_type: "/int" }],
+      parameter_uses: Array.from({ length: parameterUseCount }, (_, index) => ({
+        ordinal: 0,
+        use: `operation-${String(index % operationCount)}`,
+        input_index: Math.floor(index / operationCount),
+      })),
+      truncated: false,
+      omitted_operations_lower_bound: 0,
+      known_omitted_inputs: 0,
+      known_omitted_edges: 0,
+      limitations: [],
+    };
+    const largeDossier = {
+      ...base,
+      native_value_flow: largeFlow,
+    };
+    const largeAnalysis: AnalysisOperationPort = {
+      execute: async () =>
+        ok(createAnalysisExecution(largeDossier, provider, { subject })),
+    };
+
+    const includedParameter = await traceNativeValues(largeAnalysis, {
+      procedure: procedureAddress,
+      max_nodes: 20_000,
+      max_edges: 40_000,
+      offset: operationCount,
+      limit: 1,
+    });
+    if (!includedParameter.ok) throw includedParameter.error;
+    const includedResult = nativeValueTraceSchema.parse(
+      includedParameter.value,
+    );
+    expect(includedResult).toMatchObject({
+      total_nodes: operationCount + 1,
+      total_edges: parameterUseCount,
+      nodes: [
+        expect.objectContaining({
+          id: `${procedureAddress}/parameter:0`,
+          kind: "parameter",
+        }),
+      ],
+      truncated: true,
+    });
+    expect(includedResult.edges).toHaveLength(parameterUseCount);
+
+    const omittedParameter = await traceNativeValues(largeAnalysis, {
+      procedure: procedureAddress,
+      max_nodes: operationCount,
+      max_edges: 40_000,
+      offset: operationCount - 1,
+      limit: 1,
+    });
+    if (!omittedParameter.ok) throw omittedParameter.error;
+    const omittedResult = nativeValueTraceSchema.parse(omittedParameter.value);
+    expect(omittedResult).toMatchObject({
+      total_nodes: operationCount,
+      total_edges: 0,
+      nodes: [expect.objectContaining({ kind: "operation" })],
+      edges: [],
+      truncated: true,
+    });
+  });
+
+  it("preserves operation IDs that collide with generated parameter IDs", async () => {
+    const base = functionDossierSchema.parse(ghidraFunctionDossier());
+    const address = base.procedure.address;
+    const execution = createAnalysisExecution(
+      {
+        ...base,
+        native_value_flow: {
+          available: true,
+          provenance: "ghidra-high-pcode",
+          operations: [
+            node("parameter:0", address, "COPY"),
+            node("use", address, "COPY"),
+          ],
+          def_use: [],
+          effects: [],
+          parameters: [{ ordinal: 0, name: "value", data_type: "/int" }],
+          parameter_uses: [{ ordinal: 0, use: "use", input_index: 1 }],
+          truncated: false,
+          omitted_operations_lower_bound: 0,
+          known_omitted_inputs: 0,
+          known_omitted_edges: 0,
+          limitations: [],
+        },
+      },
+      provider,
+      { subject },
+    );
+    const result = await traceNativeValues(
+      { execute: async () => ok(execution) },
+      { procedure: address, max_nodes: 2 },
+    );
+
+    if (!result.ok) throw result.error;
+    const parsedResult = nativeValueTraceSchema.parse(result.value);
+    expect(parsedResult).toMatchObject({
+      total_nodes: 2,
+      total_edges: 1,
+      edges: [
+        {
+          source: `${address}/parameter:0`,
+          target: `${address}/use`,
+          kind: "parameter-use",
+        },
+      ],
+    });
+  });
+});
+
 describe("bounded native value dependency composition", () => {
   it("reports work truncation and stable pagination without traversing ambiguous calls", async () => {
     const bounded = await traceNativeValues(analysis, {

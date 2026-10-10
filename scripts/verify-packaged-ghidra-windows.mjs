@@ -26,12 +26,21 @@ if (process.platform !== "win32" || process.arch !== "x64")
   );
 const exec = promisify(execFile);
 const arguments_ = process.argv.slice(2);
+const internalWorkspace = arguments_[0] === "--internal-workspace";
+const fixtureArguments = internalWorkspace ? arguments_.slice(2) : arguments_;
+const x86Fixture = fixtureArguments.includes("--x86");
+const dllFixture = fixtureArguments.includes("--dll");
+const [packageRootArgument, targetArgument, reportArgument] =
+  fixtureArguments.filter(
+    (argument) => argument !== "--x86" && argument !== "--dll",
+  );
 // Windows locks the loaded package-owned addon until the verifier exits.
 // Keep installation cleanup in a parent that never loads that addon.
-if (arguments_[0] !== "--internal-workspace") {
+if (!internalWorkspace) {
   const ownedWorkspace = await mkdtemp(join(tmpdir(), "rea-packaged-ghidra-"));
+  let result;
   try {
-    const result = await exec(
+    result = await exec(
       process.execPath,
       [
         fileURLToPath(import.meta.url),
@@ -41,8 +50,6 @@ if (arguments_[0] !== "--internal-workspace") {
       ],
       { timeout: 900_000, maxBuffer: 8 * 1024 * 1024 },
     );
-    process.stdout.write(result.stdout);
-    process.stderr.write(result.stderr);
   } catch (cause) {
     if (typeof cause.stdout === "string") process.stdout.write(cause.stdout);
     if (typeof cause.stderr === "string") process.stderr.write(cause.stderr);
@@ -50,17 +57,17 @@ if (arguments_[0] !== "--internal-workspace") {
   } finally {
     await rm(ownedWorkspace, { recursive: true, force: true });
   }
+  const report = JSON.parse(result.stdout);
+  report.workspaceCleanup = true;
+  report.ok = true;
+  if (reportArgument !== undefined)
+    await writeFile(reportArgument, `${JSON.stringify(report)}\n`);
+  process.stdout.write(`${JSON.stringify(report)}\n`);
+  process.stderr.write(result.stderr);
   process.exit(0);
 }
 assert.ok(arguments_[1] !== undefined, "Missing verifier workspace.");
 const workspace = resolve(arguments_[1]);
-const fixtureArguments = arguments_.slice(2);
-const x86Fixture = fixtureArguments.includes("--x86");
-const dllFixture = fixtureArguments.includes("--dll");
-const [packageRootArgument, targetArgument, reportArgument] =
-  fixtureArguments.filter(
-    (argument) => argument !== "--x86" && argument !== "--dll",
-  );
 let packageRoot = resolve(packageRootArgument ?? ".");
 // The default lane verifies the npm artifact in an isolated prefix. Explicit
 // package roots support an already-installed artifact without a second install.
@@ -402,7 +409,7 @@ try {
     assert.deepEqual(await readdir(join(callerDirectory, name)), []);
   report.callerScriptCollisionsPreserved = true;
   report.runtimeCleanup = true;
-  report.ok = true;
+  // Only the parent can attest success after removing the installation.
   if (reportArgument !== undefined)
     await writeFile(reportArgument, `${JSON.stringify(report)}\n`);
   process.stdout.write(`${JSON.stringify(report)}\n`);

@@ -198,6 +198,32 @@ describe("Ghidra Mach-O slice support", () => {
 });
 
 describe("Ghidra platform support", () => {
+  it("commits the PE role and managed classification to profile identity", async () => {
+    const ghidra = provider({ ...installationHost(), platform: "win32" });
+    const application = peTarget("x86_64");
+    const library = {
+      ...application,
+      executableRole: "shared-library",
+    } as const;
+    const digests = new Set<string>();
+    for (const target of [
+      application,
+      library,
+      { ...library, managed: true },
+    ]) {
+      const resolved = await ghidra.resolveAnalysisProfile(target);
+      if (!resolved.ok) throw resolved.error;
+      const profile = resolved.value.profile;
+      if (profile === null) throw new Error("Expected a PE analysis profile");
+      expect(profile.parameters).toMatchObject({
+        executable_role: target.executableRole,
+        managed: target.managed,
+      });
+      digests.add(profile.digest);
+    }
+    expect(digests.size).toBe(3);
+  });
+
   it("keeps Windows annotation mutation unavailable independently of native controls", () => {
     const ghidra = provider({ ...installationHost(), platform: "win32" });
     expect(

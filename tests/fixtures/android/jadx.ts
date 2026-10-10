@@ -84,9 +84,20 @@ export const createJadxProtocolFixture = async (
           });
           // The SDK can close the child transport before process exit settles.
           // Retry retained ownership without bypassing the supervisor's proof.
+          // Retain the entire stop result so an incomplete teardown failure reports its reason.
           await expect
-            .poll(() => supervisor.stop(), { timeout: 5_000 })
-            .not.toMatchObject({ status: "incomplete" });
+            .poll(
+              async () => {
+                const stopped = await supervisor.stop();
+                if (stopped.status === "incomplete")
+                  throw new Error(
+                    `Owned process cleanup incomplete: ${stopped.reason}`,
+                  );
+                return stopped.status;
+              },
+              { timeout: 5_000 },
+            )
+            .not.toBe("incomplete");
           if (options.cwd !== undefined)
             await rm(options.cwd, { recursive: true, force: true });
         });

@@ -135,9 +135,16 @@ listed after the table because its connector is not one of these files:
 | Antigravity        | `antigravity`    |
 | GitHub Copilot CLI | `copilot_cli`    |
 | Command Code       | `commandcode`    |
+| Qwen Code          | `qwen_code`      |
 | VS Code            | `vscode`         |
 | Grok Build         | `grok_build`     |
 | OMP                | `omp`            |
+
+For Qwen Code, setup registers `rea` in the `mcpServers` table of the
+user-level `~/.qwen/settings.json`, or `$QWEN_HOME/settings.json` when configured.
+Setup and doctor follow Qwen Code's tilde and working-directory-relative home
+overrides. Qwen Code also discovers personal skills in `~/.agents/skills`,
+where setup installs the bundled workflow.
 
 For OMP, setup writes a `type: "stdio"` entry to the user-level
 `~/.omp/agent/mcp.json`. It follows `PI_CONFIG_DIR`, an absolute
@@ -194,10 +201,10 @@ save verified paths for an existing Ghidra installation.
 
 The bundled skill is installed where each selected client discovers personal
 skills: Claude Code uses `~/.claude/skills` (or
-`$CLAUDE_CONFIG_DIR/skills` when configured), while other supported clients
-use the shared `~/.agents/skills` directory. A mixed selection plans both
-paths. Selecting the skill without a client uses the shared directory. Setup
-leaves existing skill copies in other locations untouched.
+`$CLAUDE_CONFIG_DIR/skills` when configured), while other supported clients,
+including Qwen Code, use the shared `~/.agents/skills` directory. A mixed selection
+plans the relevant paths. Selecting the skill without a client uses the shared
+directory. Setup leaves existing skill copies in other locations untouched.
 
 `doctor --skill --json` verifies the selected copies against the bundled
 instructions and references. Consumers should use `identity.skill.state`,

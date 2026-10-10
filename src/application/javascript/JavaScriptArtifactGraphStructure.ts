@@ -115,9 +115,18 @@ export const addJavaScriptArtifactContainers = (
 export const addJavaScriptArtifactFiles = (
   context: JavaScriptArtifactGraphContext,
 ): void => {
+  const packagesByPath = indexFirstByPath(context.analysis.packages);
+  const jsonModulesByPath = indexFirstByPath(context.analysis.json_modules);
+  const sourceMapsByPath = indexFirstByPath(context.analysis.source_maps);
   for (const analyzed of context.analysis.files) {
     const { file } = analyzed;
-    const target = createFileTarget(context, file, analyzed.javascript);
+    const jsonValue = jsonModulesByPath.get(file.path);
+    const target = createFileTarget(
+      context,
+      file,
+      analyzed.javascript,
+      jsonValue,
+    );
     context.fileNodes.set(file.path, target);
     if (file.kind === "javascript") context.assetNodes.set(file.path, target);
     const entry = createAsarEntry(context, file);
@@ -163,9 +172,7 @@ export const addJavaScriptArtifactFiles = (
           ? "JavaScript syntax could not be parsed."
           : `JavaScript text was unavailable: ${file.text.reason}.`,
       });
-    const packageValue = context.analysis.packages.find(
-      ({ path }) => path === file.path,
-    );
+    const packageValue = packagesByPath.get(file.path);
     if (packageValue !== undefined && packageValue.status !== "included")
       addUnavailableStaticParseScope(context, {
         file,
@@ -173,9 +180,6 @@ export const addJavaScriptArtifactFiles = (
         operation: "parse-package-json",
         limitation: packageValue.limitation,
       });
-    const jsonValue = context.analysis.json_modules.find(
-      ({ path }) => path === file.path,
-    );
     if (jsonValue !== undefined && jsonValue.status !== "included")
       addUnavailableStaticParseScope(context, {
         file,
@@ -183,9 +187,7 @@ export const addJavaScriptArtifactFiles = (
         operation: "parse-json-module",
         limitation: jsonValue.limitation,
       });
-    const sourceMap = context.analysis.source_maps.find(
-      ({ path }) => path === file.path,
-    );
+    const sourceMap = sourceMapsByPath.get(file.path);
     if (sourceMap !== undefined && sourceMap.status === "invalid")
       addUnavailableStaticParseScope(context, {
         file,
@@ -270,11 +272,9 @@ const createFileTarget = (
   context: JavaScriptArtifactGraphContext,
   file: JavaScriptArtifactFile,
   javascript: JavaScriptModuleArtifactAnalysis["files"][number]["javascript"],
+  json: JavaScriptModuleArtifactAnalysis["json_modules"][number] | undefined,
 ): ApplicationNode => {
   const kind = artifactFileNodeKind(file.kind);
-  const json = context.analysis.json_modules.find(
-    ({ path }) => path === file.path,
-  );
   return context.accumulator.addNode({
     kind,
     identity: {
@@ -307,6 +307,16 @@ const createFileTarget = (
       },
     ],
   });
+};
+
+const indexFirstByPath = <Value extends { readonly path: string }>(
+  values: readonly Value[],
+): ReadonlyMap<string, Value> => {
+  const index = new Map<string, Value>();
+  for (const value of values) {
+    if (!index.has(value.path)) index.set(value.path, value);
+  }
+  return index;
 };
 
 const createAsarEntry = (

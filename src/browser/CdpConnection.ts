@@ -6,6 +6,11 @@ import { BrowserObservationError } from "../domain/browserObservationError.js";
 import { CdpCommandRejection } from "./CdpCommandRejection.js";
 import { type BrowserObservationOperation } from "../domain/browserObservationErrors.js";
 import { safeParseJson } from "../domain/safeJson.js";
+import { WEB_RUNTIME_LIMITS } from "../domain/webRuntime.js";
+
+// ws currently stores maxPayload as a signed 32-bit integer. Larger values can
+// wrap to a negative number, which disables its limit check.
+const MAX_WEBSOCKET_PAYLOAD_BYTES = 0x7fff_ffff;
 
 export interface CdpEvent {
   readonly method: string;
@@ -61,13 +66,25 @@ export class CdpConnection {
     limits?: { readonly maxPayloadBytes: number },
   ): Promise<CdpConnection> {
     if (signal?.aborted === true) throw new AnalysisCancelledError(operation);
+    const maxPayloadBytes =
+      limits === undefined
+        ? WEB_RUNTIME_LIMITS.protocolBytes
+        : limits.maxPayloadBytes;
+    if (
+      !Number.isSafeInteger(maxPayloadBytes) ||
+      maxPayloadBytes <= 0 ||
+      maxPayloadBytes > MAX_WEBSOCKET_PAYLOAD_BYTES
+    )
+      throw new RangeError(
+        `CDP maxPayloadBytes must be a positive safe integer no greater than ${String(MAX_WEBSOCKET_PAYLOAD_BYTES)}.`,
+      );
     const socket = new WebSocket(url, {
       handshakeTimeout: 0,
-      maxPayload: limits?.maxPayloadBytes ?? 0,
+      maxPayload: maxPayloadBytes,
       perMessageDeflate: false,
     });
     await waitForOpen(socket, operation, signal);
-    return new CdpConnection(socket, operation, limits?.maxPayloadBytes ?? 0);
+    return new CdpConnection(socket, operation, maxPayloadBytes);
   }
 
   /** Subscribe to validated CDP event envelopes. */

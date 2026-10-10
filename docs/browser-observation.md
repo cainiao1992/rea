@@ -55,6 +55,11 @@ REA does not launch, own, or terminate this browser. Use a dedicated profile and
 
 ## Request boundary
 
+CDP connections enforce the shared 64 MiB limit per WebSocket message. A larger
+reply, including a valid reply from Chrome, fails with `payload_limit`. The limit
+counts message bytes before JSON parsing; it does not bound the memory used by
+decoded strings or JSON objects.
+
 Discovery supplies a literal loopback CDP endpoint and returns all eligible
 page targets unless an exact HTTP(S) origin filter narrows the result. Follow-up
 inspection requests select one target; their default scope is its current origin. `localhost`, private-LAN

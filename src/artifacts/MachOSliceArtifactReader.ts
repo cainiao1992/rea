@@ -15,6 +15,8 @@ import type { MachoSlice } from "../domain/apple/dylibResolution.js";
 import { readMachoImage, type ReadAt } from "./apple/MachoLoadCommandReader.js";
 import {
   ArtifactReaderFailure,
+  copyArtifactEntry,
+  sameArtifactEntry,
   type ArtifactEntry,
   type ArtifactReader,
 } from "./ArtifactReader.js";
@@ -31,6 +33,7 @@ export class MachOSliceArtifactReader implements ArtifactReader {
   #command: ArtifactCommand | undefined;
   #source: StableRegularFileDescriptor | undefined;
   #pendingSource: Promise<StableRegularFileDescriptor> | undefined;
+  readonly #entries = new Map<string, ArtifactEntry>();
   readonly #ownsSource: boolean;
   #closed = false;
   #closePromise: Promise<void> | undefined;
@@ -48,6 +51,7 @@ export class MachOSliceArtifactReader implements ArtifactReader {
   }
 
   async *entries(signal?: AbortSignal): AsyncIterable<ArtifactEntry> {
+    this.#entries.clear();
     const source = await this.#ensureSource();
     await this.#verifySource(source);
     const captured = await this.runner.run(
@@ -127,7 +131,7 @@ export class MachOSliceArtifactReader implements ArtifactReader {
           "integrity",
           `lipo reported an out-of-bounds Mach-O slice: ${architecture.name}`,
         );
-      yield {
+      const entry: ArtifactEntry = {
         path: `slices/${architecture.name}`,
         kind: "slice",
         declaredSize: sliceSize,
@@ -163,6 +167,8 @@ export class MachOSliceArtifactReader implements ArtifactReader {
         ],
         adapterKey: `${String(offset)}:${String(sliceSize)}`,
       };
+      this.#entries.set(entry.adapterKey, copyArtifactEntry(entry));
+      yield entry;
     }
   }
 
@@ -171,14 +177,19 @@ export class MachOSliceArtifactReader implements ArtifactReader {
       return Promise.reject(
         new ArtifactReaderFailure("cancelled", "Mach-O slice read cancelled"),
       );
-    const [offsetText, sizeText] = entry.adapterKey.split(":");
-    const offset = parseSliceKeyInteger(offsetText);
-    const size = parseSliceKeyInteger(sizeText);
+    const produced = this.#entries.get(entry.adapterKey);
+    if (produced === undefined || !sameArtifactEntry(entry, produced))
+      throw new ArtifactReaderFailure(
+        "integrity",
+        "Mach-O slice entry metadata does not match this reader's inventory",
+      );
+    const offset = produced.byteOffset;
+    const size = produced.declaredSize;
     if (
-      !Number.isSafeInteger(offset) ||
-      !Number.isSafeInteger(size) ||
       offset === null ||
       size === null ||
+      !Number.isSafeInteger(offset) ||
+      !Number.isSafeInteger(size) ||
       offset < 0 ||
       size <= 0
     )
@@ -357,9 +368,3 @@ const lipoMatchesSlice = (
 const lipoNameMatches = (reported: string, observed: string): boolean =>
   reported === observed ||
   (observed === "arm64e" && /^arm64e\.[A-Za-z0-9_]+$/u.test(reported));
-
-const parseSliceKeyInteger = (value: string | undefined): number | null => {
-  if (value === undefined || !/^\d+$/u.test(value)) return null;
-  const parsed = Number(value);
-  return Number.isSafeInteger(parsed) ? parsed : null;
-};

@@ -23,6 +23,8 @@ import { listPackage, statFile, uncache } from "@electron/asar";
 
 import {
   ArtifactReaderFailure,
+  copyArtifactEntry,
+  sameArtifactEntry,
   type ArtifactEntry,
   type ArtifactReader,
 } from "./ArtifactReader.js";
@@ -489,35 +491,6 @@ const asarUnpackedEntryFailure = (
     );
   return asarFailure(archivePath, `read ${entry.path}`, cause);
 };
-
-const copyArtifactEntry = (entry: ArtifactEntry): ArtifactEntry => ({
-  ...entry,
-  limitations: [...entry.limitations],
-  ...(entry.sourceIdentity === undefined
-    ? {}
-    : { sourceIdentity: { ...entry.sourceIdentity } }),
-});
-
-const sameArtifactEntry = (
-  entry: ArtifactEntry,
-  produced: ArtifactEntry,
-): boolean =>
-  entry.path === produced.path &&
-  entry.kind === produced.kind &&
-  entry.declaredSize === produced.declaredSize &&
-  entry.compressedSize === produced.compressedSize &&
-  entry.executable === produced.executable &&
-  entry.encrypted === produced.encrypted &&
-  entry.byteOffset === produced.byteOffset &&
-  entry.declaredSha256 === produced.declaredSha256 &&
-  entry.unpacked === produced.unpacked &&
-  entry.adapterKey === produced.adapterKey &&
-  entry.limitations.length === produced.limitations.length &&
-  entry.limitations.every(
-    (limitation, index) => limitation === produced.limitations[index],
-  ) &&
-  entry.sourceIdentity?.device === produced.sourceIdentity?.device &&
-  entry.sourceIdentity?.inode === produced.sourceIdentity?.inode;
 
 const isAsarFileMetadata = (
   metadata: ReturnType<typeof statFile>,

@@ -35,6 +35,48 @@ it("bounds a requested metadata read without rejecting the underlying valid ZIP"
   }
 });
 
+it("binds ZIP opens to the emitted entry metadata", async () => {
+  const root = await createTestTempDirectory("rea-zip-entry-identity-");
+  const path = join(root, "entries.zip");
+  const writer = new ZipWriter(new Uint8ArrayWriter());
+  await writer.add("first.txt", new TextReader("first bytes"));
+  await writer.add("second.txt", new TextReader("second bytes"));
+  await writeFile(path, await writer.close());
+
+  const reader = new ZipArtifactReader(path, "zip");
+  try {
+    const entries = [];
+    for await (const entry of reader.entries()) entries.push(entry);
+    const first = entries[0];
+    const second = entries[1];
+    if (first === undefined || second === undefined)
+      throw new Error("Expected both ZIP entries");
+
+    await expect(
+      reader.open({ ...second, adapterKey: first.adapterKey }),
+    ).rejects.toMatchObject({ reason: "integrity" });
+    await expect(
+      reader.open({ ...second, path: first.path }),
+    ).rejects.toMatchObject({ reason: "integrity" });
+    await expect(
+      reader.open({ ...second, declaredSize: first.declaredSize }),
+    ).rejects.toMatchObject({ reason: "integrity" });
+    const originalKey = second.adapterKey;
+    Reflect.set(second, "adapterKey", first.adapterKey);
+    await expect(reader.open(second)).rejects.toMatchObject({
+      reason: "integrity",
+    });
+    Reflect.set(second, "adapterKey", originalKey);
+
+    const stream = await reader.open({ ...second });
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+    expect(Buffer.concat(chunks).toString()).toBe("second bytes");
+  } finally {
+    await reader.close();
+  }
+});
+
 it("rejects overlapping ZIP member data ranges through artifact inventory", async () => {
   const root = await createTestTempDirectory("rea-zip-overlap-");
   const path = join(root, "overlap.zip");

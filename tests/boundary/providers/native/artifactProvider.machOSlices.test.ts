@@ -83,9 +83,10 @@ describe("artifact Mach-O slices", () => {
     const entries = [];
     for await (const entry of reader.entries()) entries.push(entry);
     expect(entries).toHaveLength(2);
+    const firstEntry = entries[0];
     const secondEntry = entries[1];
-    expect(secondEntry).toBeDefined();
-    if (secondEntry === undefined) return;
+    if (firstEntry === undefined || secondEntry === undefined)
+      throw new Error("Expected both universal Mach-O slice entries");
     expect(secondEntry).toMatchObject({
       path: "slices/arm64",
       byteOffset: 8192,
@@ -95,8 +96,26 @@ describe("artifact Mach-O slices", () => {
       await expect(
         reader.open({ ...secondEntry, adapterKey }),
       ).rejects.toMatchObject({ reason: "integrity" });
+    await expect(
+      reader.open({ ...secondEntry, adapterKey: firstEntry.adapterKey }),
+    ).rejects.toMatchObject({ reason: "integrity" });
+    await expect(
+      reader.open({ ...secondEntry, path: firstEntry.path }),
+    ).rejects.toMatchObject({ reason: "integrity" });
+    await expect(
+      reader.open({ ...secondEntry, byteOffset: firstEntry.byteOffset }),
+    ).rejects.toMatchObject({ reason: "integrity" });
+    await expect(
+      reader.open({ ...secondEntry, declaredSize: arm.length + 1 }),
+    ).rejects.toMatchObject({ reason: "integrity" });
+    const originalKey = secondEntry.adapterKey;
+    Reflect.set(secondEntry, "adapterKey", firstEntry.adapterKey);
+    await expect(reader.open(secondEntry)).rejects.toMatchObject({
+      reason: "integrity",
+    });
+    Reflect.set(secondEntry, "adapterKey", originalKey);
     const chunks: Buffer[] = [];
-    const stream = await reader.open(secondEntry);
+    const stream = await reader.open({ ...secondEntry });
     for await (const chunk of stream) chunks.push(Buffer.from(chunk));
     expect(Buffer.concat(chunks)).toEqual(Buffer.from(arm));
     expect(reader.provenance()).toEqual([

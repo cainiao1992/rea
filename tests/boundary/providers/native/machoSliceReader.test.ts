@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 
-import { MachOSliceArtifactReader } from "./MachOSliceArtifactReader.js";
+import { MachOSliceArtifactReader } from "../../../../src/artifacts/MachOSliceArtifactReader.js";
 
 /**
  * Read a 32-bit FAT table directly. The host's /bin/ls changes between macOS
@@ -21,15 +21,18 @@ const fatSlices = async (
 
 describe("Mach-O slice reader with system lipo", () => {
   it.skipIf(process.platform !== "darwin")(
-    "checks real /bin/ls lipo CPU symbols and ptrauth capabilities against the FAT table",
+    "checks real /bin/ls slice ranges against its FAT table",
     async () => {
       const reader = new MachOSliceArtifactReader("/bin/ls", {});
+      onTestFinished(() => reader.close());
       const entries = [];
       for await (const entry of reader.entries()) entries.push(entry);
-      expect(entries.map(({ path }) => path)).toEqual([
-        "slices/x86_64",
-        "slices/arm64e",
-      ]);
+      expect(new Set(entries.map(({ path }) => path)).size).toBe(
+        entries.length,
+      );
+      expect(entries.every(({ path }) => path.startsWith("slices/"))).toBe(
+        true,
+      );
       expect(
         entries.map(({ byteOffset, declaredSize }) => [
           byteOffset,

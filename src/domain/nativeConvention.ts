@@ -26,8 +26,7 @@ export const nativeRuntimeConvention = (
 ): NativeRuntimeConvention | null => {
   for (const segment of path.split("/")) {
     const folded = foldSegment(segment);
-    if (REACT_NATIVE_SEGMENTS.has(folded))
-      return "react-native";
+    if (REACT_NATIVE_SEGMENTS.has(folded)) return "react-native";
     if (FLUTTER_SEGMENTS.has(folded)) return "flutter";
     if (UNITY_SEGMENTS.has(folded)) return "unity";
   }

@@ -16,51 +16,78 @@ import type {
   ProcessTableEntry,
 } from "./ProcessOwnership.js";
 
-/** Observe one group without signaling it, failing closed on identity doubt. */
-export const observeOwnedProcessGroup = async (
-  ownership: OwnedProcessGroup,
+/** Observe multiple groups from one process snapshot and one token batch. */
+export const observeOwnedProcessGroups = async (
+  runId: string,
+  processGroupIds: readonly number[],
   host: ProcessOwnershipHost = systemProcessOwnershipHost,
   signal?: AbortSignal,
-): Promise<ProcessGroupObservation> => {
+): Promise<ReadonlyMap<number, ProcessGroupObservation>> => {
   signal?.throwIfAborted();
-  let members: readonly ProcessTableEntry[];
+  const groupIds = [...new Set(processGroupIds)];
+  if (groupIds.length === 0) return new Map();
+  let processes: readonly ProcessTableEntry[];
   try {
-    members = (await host.listProcesses(signal)).filter(
-      ({ processGroupId }) => processGroupId === ownership.processGroupId,
-    );
+    processes = liveProcesses(await host.listProcesses(signal));
   } catch (cause: unknown) {
     signal?.throwIfAborted();
-    return {
-      state: "unverifiable",
+    const failure = {
+      state: "unverifiable" as const,
       reason: `process group could not be inspected: ${errorMessage(cause)}`,
     };
+    return new Map(groupIds.map((groupId) => [groupId, failure]));
   }
   signal?.throwIfAborted();
-  const liveMembers = liveProcesses(members);
-  if (liveMembers.length === 0) return { state: "empty" };
+  const membersByGroup = new Map(
+    groupIds.map((groupId) => [groupId, [] as ProcessTableEntry[]]),
+  );
+  for (const process of processes)
+    membersByGroup.get(process.processGroupId)?.push(process);
+  const observations = new Map<number, ProcessGroupObservation>(
+    groupIds.map((groupId) => [
+      groupId,
+      (membersByGroup.get(groupId)?.length ?? 0) > 0
+        ? { state: "alive" }
+        : { state: "empty" },
+    ]),
+  );
+  const liveMembers = groupIds.flatMap(
+    (groupId) => membersByGroup.get(groupId) ?? [],
+  );
+  const pendingGroups = new Set(
+    groupIds.filter(
+      (groupId) => (membersByGroup.get(groupId)?.length ?? 0) > 0,
+    ),
+  );
   for await (const { process: member, observation } of readProcessRunTokens(
     host,
     liveMembers,
     signal,
   )) {
+    if (!pendingGroups.has(member.processGroupId)) continue;
     if (observation.state === "readable") {
-      if (observation.runId !== ownership.runId)
-        return {
+      if (observation.runId !== runId) {
+        observations.set(member.processGroupId, {
           state: "unverifiable",
           reason: "process ownership did not match",
-        };
+        });
+        pendingGroups.delete(member.processGroupId);
+      }
     } else {
-      if (!(await processIsGone(host, member.pid))) {
-        signal?.throwIfAborted();
-        return {
+      const gone = await processIsGone(host, member.pid);
+      signal?.throwIfAborted();
+      if (!gone) {
+        observations.set(member.processGroupId, {
           state: "unverifiable",
           reason: `process ownership could not be revalidated for PID ${member.pid}: ${observation.reason}`,
-        };
+        });
+        pendingGroups.delete(member.processGroupId);
       }
     }
+    if (pendingGroups.size === 0) break;
   }
   signal?.throwIfAborted();
-  return { state: "alive" };
+  return observations;
 };
 
 /**

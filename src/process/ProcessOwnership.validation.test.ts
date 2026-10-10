@@ -6,7 +6,7 @@ import {
   type WindowsProcessTreeHost,
 } from "./ProcessOwnership.js";
 import {
-  observeOwnedProcessGroup,
+  observeOwnedProcessGroups,
   observeOwnedProcessLineage,
 } from "./ProcessOwnershipObservation.js";
 import { host, ownership } from "./ProcessOwnership.fixture.js";
@@ -160,7 +160,12 @@ describe("owned process-group cleanup validation: exited members", () => {
       },
     };
     await expect(
-      observeOwnedProcessGroup(ownership, adapter, controller.signal),
+      observeOwnedProcessGroups(
+        ownership.runId,
+        [ownership.processGroupId],
+        adapter,
+        controller.signal,
+      ),
     ).rejects.toBe(reason);
   });
   it("does not inspect a process group after observation was cancelled", async () => {
@@ -177,7 +182,12 @@ describe("owned process-group cleanup validation: exited members", () => {
       },
     };
     await expect(
-      observeOwnedProcessGroup(ownership, adapter, controller.signal),
+      observeOwnedProcessGroups(
+        ownership.runId,
+        [ownership.processGroupId],
+        adapter,
+        controller.signal,
+      ),
     ).rejects.toBe(reason);
   });
   it("ignores exited zombie members during live ownership checks", async () => {
@@ -229,9 +239,13 @@ describe("owned process-group cleanup validation: exited members", () => {
       environment,
       signalGroup: vi.fn(),
     };
-    expect(await observeOwnedProcessGroup(ownership, adapter)).toEqual({
-      state: "empty",
-    });
+    expect(
+      await observeOwnedProcessGroups(
+        ownership.runId,
+        [ownership.processGroupId],
+        adapter,
+      ),
+    ).toEqual(new Map([[ownership.processGroupId, { state: "empty" }]]));
     expect(environment).not.toHaveBeenCalled();
   });
   it("is idempotent when the owned group has already exited", async () => {

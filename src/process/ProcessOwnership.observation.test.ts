@@ -4,7 +4,7 @@ import {
   type ProcessOwnershipHost,
 } from "./ProcessOwnership.js";
 import {
-  observeOwnedProcessGroup,
+  observeOwnedProcessGroups,
   observeOwnedProcessLineage,
 } from "./ProcessOwnershipObservation.js";
 import { host, ownership } from "./ProcessOwnership.fixture.js";
@@ -16,6 +16,158 @@ const processes = [100, 101].map((pid) => ({
   state: "S",
   command: "fixture",
 }));
+
+describe("multi-group ownership observation", () => {
+  it("observes multiple groups from one process snapshot and token batch", async () => {
+    const rows = [
+      ...processes,
+      {
+        pid: 200,
+        parentPid: 1,
+        processGroupId: 200,
+        state: "S",
+        command: "other-owned-group",
+      },
+      {
+        pid: 300,
+        parentPid: 1,
+        processGroupId: 300,
+        state: "Z",
+        command: "[exited]",
+      },
+    ];
+    const listProcesses = vi.fn(() => Promise.resolve(rows));
+    const environment = vi.fn(() => Promise.resolve({}));
+    const runTokens = vi.fn<NonNullable<ProcessOwnershipHost["runTokens"]>>(
+      (members) =>
+        Promise.resolve(
+          new Map(
+            members.map(({ pid }) => [
+              pid,
+              {
+                state: "readable" as const,
+                runId: pid === 200 ? "other-run" : ownership.runId,
+              },
+            ]),
+          ),
+        ),
+    );
+
+    await expect(
+      observeOwnedProcessGroups(ownership.runId, [100, 200, 300], {
+        listProcesses,
+        environment,
+        runTokens,
+        signalGroup: vi.fn(),
+      }),
+    ).resolves.toEqual(
+      new Map([
+        [100, { state: "alive" }],
+        [
+          200,
+          { state: "unverifiable", reason: "process ownership did not match" },
+        ],
+        [300, { state: "empty" }],
+      ]),
+    );
+    expect(listProcesses).toHaveBeenCalledTimes(1);
+    expect(runTokens).toHaveBeenCalledTimes(1);
+    expect(runTokens).toHaveBeenCalledWith(
+      rows.filter(({ state }) => state !== "Z"),
+    );
+    expect(environment).not.toHaveBeenCalled();
+  });
+
+  it("rechecks unavailable members individually before classifying their groups", async () => {
+    const rows = [
+      ...processes,
+      {
+        pid: 200,
+        parentPid: 1,
+        processGroupId: 200,
+        state: "S",
+        command: "unreadable-group",
+      },
+    ];
+    const listProcesses = vi
+      .fn<ProcessOwnershipHost["listProcesses"]>()
+      .mockResolvedValueOnce(rows)
+      .mockResolvedValueOnce(rows.filter(({ pid }) => pid !== 101))
+      .mockResolvedValueOnce(rows);
+    const runTokens = vi.fn<NonNullable<ProcessOwnershipHost["runTokens"]>>(
+      (members) =>
+        Promise.resolve(
+          new Map(
+            members.map(({ pid }) => [
+              pid,
+              pid === 101 || pid === 200
+                ? {
+                    state: "unavailable" as const,
+                    reason: `unreadable-${String(pid)}`,
+                  }
+                : { state: "readable" as const, runId: ownership.runId },
+            ]),
+          ),
+        ),
+    );
+
+    await expect(
+      observeOwnedProcessGroups(ownership.runId, [100, 200], {
+        listProcesses,
+        environment: vi.fn(() => Promise.resolve({})),
+        runTokens,
+        signalGroup: vi.fn(),
+      }),
+    ).resolves.toEqual(
+      new Map([
+        [100, { state: "alive" }],
+        [
+          200,
+          {
+            state: "unverifiable",
+            reason:
+              "process ownership could not be revalidated for PID 200: unreadable-200",
+          },
+        ],
+      ]),
+    );
+    expect(listProcesses).toHaveBeenCalledTimes(3);
+    expect(runTokens).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("multi-group observation short-circuit", () => {
+  it("stops missing-row fallbacks once every live group is unverifiable", async () => {
+    const listProcesses = vi.fn(() => Promise.resolve(processes));
+    const environment = vi.fn((pid: number) =>
+      Promise.resolve({
+        REA_PROCESS_RUN_ID: pid === 100 ? "other-run" : ownership.runId,
+      }),
+    );
+    const runTokens = vi.fn<NonNullable<ProcessOwnershipHost["runTokens"]>>(
+      () => Promise.resolve(new Map()),
+    );
+
+    await expect(
+      observeOwnedProcessGroups(ownership.runId, [100], {
+        listProcesses,
+        environment,
+        runTokens,
+        signalGroup: vi.fn(),
+      }),
+    ).resolves.toEqual(
+      new Map([
+        [
+          100,
+          { state: "unverifiable", reason: "process ownership did not match" },
+        ],
+      ]),
+    );
+    expect(runTokens).toHaveBeenCalledTimes(1);
+    expect(environment.mock.calls).toEqual([[100]]);
+    expect(listProcesses).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("batched ownership observation", () => {
   it("observes group and lineage with one batch each and falls back only for missing rows", async () => {
@@ -32,8 +184,14 @@ describe("batched ownership observation", () => {
     );
     const observedHost = { ...adapter, environment, runTokens };
     await expect(
-      observeOwnedProcessGroup(ownership, observedHost),
-    ).resolves.toEqual({ state: "alive" });
+      observeOwnedProcessGroups(
+        ownership.runId,
+        [ownership.processGroupId],
+        observedHost,
+      ),
+    ).resolves.toEqual(
+      new Map([[ownership.processGroupId, { state: "alive" }]]),
+    );
     await expect(
       observeOwnedProcessLineage(ownership, observedHost),
     ).resolves.toMatchObject({
@@ -67,8 +225,9 @@ describe("batched ownership observation", () => {
         },
       );
       await expect(
-        observeOwnedProcessGroup(
-          ownership,
+        observeOwnedProcessGroups(
+          ownership.runId,
+          [ownership.processGroupId],
           { listProcesses, environment, runTokens, signalGroup: vi.fn() },
           controller.signal,
         ),

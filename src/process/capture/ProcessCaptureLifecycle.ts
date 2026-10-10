@@ -25,7 +25,7 @@ import {
   type ProcessOwnershipBaseline,
 } from "../ProcessOwnership.js";
 import {
-  observeOwnedProcessGroup,
+  observeOwnedProcessGroups,
   prepareProcessOwnershipInspection,
   systemProcessOwnershipHost,
 } from "../ProcessOwnershipObservation.js";
@@ -616,21 +616,20 @@ export const observeSettlement = async (
   while (!deadlineReached) {
     onLiveProgress?.();
     assertNotCancelled(signal);
-    const observations = await Promise.all(
-      [...new Set(processGroupIds)].map((processGroupId) =>
-        observeOwnedProcessGroup(
-          { runId, leaderPid: processGroupId, processGroupId },
-          undefined,
-          signal,
-        ),
-      ),
+    const observations = await observeOwnedProcessGroups(
+      runId,
+      processGroupIds,
+      undefined,
+      signal,
     );
     assertNotCancelled(signal);
-    if (observations.some(({ state }) => state === "unverifiable")) {
+    if (
+      [...observations.values()].some(({ state }) => state === "unverifiable")
+    ) {
       recordEvent("lifecycle", 1);
       return { state: "unverifiable", elapsed_ms: Date.now() - started };
     }
-    if (observations.every(({ state }) => state === "empty")) {
+    if ([...observations.values()].every(({ state }) => state === "empty")) {
       consecutiveEmpty += 1;
       if (consecutiveEmpty >= 2) {
         recordEvent("lifecycle", 1);

@@ -6,7 +6,6 @@ import {
   AnalysisInputError,
   AnalysisUnsupportedTargetError,
 } from "../../domain/analysisErrorCore.js";
-import type { JsonValue } from "../../domain/jsonValue.js";
 import { projectPlistValue } from "../../domain/apple/plistValue.js";
 import { createPlistNumberProjection } from "../../domain/apple/plistNumbers.js";
 import {
@@ -51,20 +50,27 @@ export const decodeKeyedArchiveBytes = (
   // plist.parseBinary recurses on every object reference and copies shared
   // containers, so a few hundred bytes can exhaust memory or the stack.
   // RangeError reports a resource limit; a reference cycle is malformed.
-  if (binary)
-    estimateBinaryPlistExpansion(bytes, MAX_DECODE_BYTES, {
-      budget: "the keyed archive decode budget",
-      fail: (kind, message) =>
-        kind === "cycle"
-          ? new TypeError(
-              "binary plist object references form a cycle, which a property list cannot represent",
-            )
-          : new RangeError(message),
-      bounds: "decoder",
-    });
-  const parsed = binary
-    ? { value: parseBinary(bytes), omittedPrototypeKeys: 0 }
-    : parseXmlPropertyList(xmlText ?? "");
+  const binaryExpansion = binary
+    ? estimateBinaryPlistExpansion(bytes, MAX_DECODE_BYTES, {
+        budget: "the keyed archive decode budget",
+        fail: (kind, message) =>
+          kind === "cycle"
+            ? new TypeError(
+                "binary plist object references form a cycle, which a property list cannot represent",
+              )
+            : new RangeError(message),
+        bounds: "decoder",
+      })
+    : undefined;
+  const parsed =
+    binaryExpansion !== undefined
+      ? {
+          value: parseBinary(bytes),
+          omittedPrototypeKeys: binaryExpansion.binaryPrototypeKeyObserved
+            ? null
+            : 0,
+        }
+      : parseXmlPropertyList(xmlText ?? "");
   const { value: plistValue, unknownRealCount } = projectPlistValue(
     parsed.value,
   );

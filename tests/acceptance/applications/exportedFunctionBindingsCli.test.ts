@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 
@@ -13,6 +14,7 @@ import { javaScriptExportShapeComparisonResultSchema } from "../../../src/domain
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 const execute = promisify(execFile);
+const requireFixture = createRequire(import.meta.url);
 const comparisonEnvelope = z.object({
   normalized_result: javaScriptExportShapeComparisonResultSchema,
 });
@@ -109,6 +111,28 @@ describe("exported function binding resolution through the CLI", () => {
     await expectRuntimeExports(fixture, (count) => count);
     const cli = await compareThroughCli(fixture);
     expectUncertainComparison(cli);
+    expect(await compareThroughMcp(fixture.input)).toEqual(cli);
+  });
+
+  it("does not treat rebinding the CommonJS exports alias as a default export", async () => {
+    const fixture = await analyzeVersions(
+      (count) =>
+        `exports = function parse() { return { kind: "result", count: ${String(count)} }; };`,
+      "default",
+      "app.cjs",
+    );
+
+    // This is a test-owned fixture, so Node's actual CommonJS loader is the
+    // oracle for what the application exports.
+    expect(requireFixture(fixture.leftPath)).toEqual({});
+    expect(requireFixture(fixture.rightPath)).toEqual({});
+
+    const cli = await compareThroughCli(fixture);
+    expect(cli).toMatchObject({
+      left: { status: "missing" },
+      right: { status: "missing" },
+      summary: { added: 0, removed: 0, changed: 0 },
+    });
     expect(await compareThroughMcp(fixture.input)).toEqual(cli);
   });
 });
@@ -588,6 +612,7 @@ const compareThroughMcp = async (input: Record<string, unknown>) => {
       arguments: input,
     });
     expect(response.isError).not.toBe(true);
+    await client.ping();
     return comparisonEnvelope.parse(response.structuredContent)
       .normalized_result;
   } finally {

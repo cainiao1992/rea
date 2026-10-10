@@ -641,7 +641,7 @@ const commonJsExportName = (
   node: t.Node,
   state: JavaScriptSemanticAnalysisState,
 ): string | undefined => {
-  if (isUnshadowedGlobal(node, state, "exports")) return "default";
+  // Rebinding the CommonJS `exports` alias does not replace `module.exports`.
   if (!t.isMemberExpression(node) && !t.isOptionalMemberExpression(node))
     return undefined;
   const key = semanticStaticPropertyKey(node.property, node.computed);

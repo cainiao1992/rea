@@ -80,12 +80,14 @@ import ghidra.program.database.mem.FileBytes;
 import ghidra.program.model.address.SegmentedAddress;
 import ghidra.program.model.reloc.Relocation;
 import java.io.ByteArrayOutputStream;
+import ghidra.program.model.symbol.Namespace;
 import ghidra.program.model.symbol.RefType;
 import ghidra.program.model.symbol.Reference;
 import ghidra.program.model.symbol.ReferenceIterator;
 import ghidra.program.model.symbol.SourceType;
 import ghidra.program.model.symbol.Symbol;
 import ghidra.program.model.symbol.SymbolIterator;
+import ghidra.program.model.symbol.SymbolTable;
 import ghidra.program.model.pcode.FunctionPrototype;
 import ghidra.program.model.pcode.HighFunction;
 import ghidra.program.model.pcode.HighParam;
@@ -1434,18 +1436,22 @@ public final class ReaGhidraBridge extends HeadlessScript {
         boolean commit = false;
         try {
             Function function = currentProgram.getFunctionManager().getFunctionAt(address);
-            String expected = name;
+            SymbolTable table = currentProgram.getSymbolTable();
+            Symbol primary = function == null ? table.getPrimarySymbol(address) : function.getSymbol();
+            Namespace namespace = primary == null
+                ? currentProgram.getGlobalNamespace()
+                : primary.getParentNamespace();
+            String expected = primary == null ? name : symbolLeafName(primary, name);
+            for (Symbol symbol : table.getLabelOrFunctionSymbols(expected, namespace)) {
+                if (!address.equals(symbol.getAddress())) return false;
+            }
             if (function != null) {
-                expected = symbolLeafName(function.getSymbol(), name);
                 function.setName(expected, SourceType.USER_DEFINED);
             } else {
-                var table = currentProgram.getSymbolTable();
-                Symbol primary = table.getPrimarySymbol(address);
                 if (primary != null && !primary.isDynamic()) {
-                    expected = symbolLeafName(primary, name);
                     primary.setName(expected, SourceType.USER_DEFINED);
                 } else {
-                    Symbol created = table.createLabel(address, name, SourceType.USER_DEFINED);
+                    Symbol created = table.createLabel(address, expected, SourceType.USER_DEFINED);
                     created.setPrimary();
                 }
             }

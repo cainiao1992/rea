@@ -10,6 +10,17 @@ volatile int rea_namespace_alpha_value
 volatile int rea_namespace_nested_value
     __asm__(REA_CPP_SYMBOL("_ZN5outer5inner5valueE")) = 1;
 
+volatile int rea_duplicate_label_a = 3;
+volatile int rea_duplicate_label_b = 4;
+
+__attribute__((noinline, used)) int rea_duplicate_function_a(int value) {
+  return value + 1;
+}
+
+__attribute__((noinline, used)) int rea_duplicate_function_b(int value) {
+  return value + 2;
+}
+
 __attribute__((noinline, used)) int rea_namespace_alpha(int value)
     __asm__(REA_CPP_SYMBOL("_ZN5alpha4sameEi"));
 __attribute__((noinline, used)) int rea_namespace_beta(int value)

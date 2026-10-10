@@ -391,6 +391,12 @@ regressions until a real fixture establishes equivalent coverage.
 
 `verify:browser` exercises source-map failure isolation and expanded-output limits through the compiled CLI and stdio MCP with real Chrome. It also submits five 2 MiB source-map annotations, checks retained script identities and explicit map omissions, and closes its owned fixture target. Replacement and document-reset behavior has separate producer-boundary coverage.
 
+The raw Chrome fixture launchers use `--password-store=basic` so Linux startup
+does not wait for an unlock prompt from a reachable but locked desktop keyring.
+Such a stall leaves the initial page unloaded with empty or placeholder CDP URLs;
+it does not establish permission to capture that page. See
+[the keyring diagnosis](https://github.com/morluto/rea/issues/1384#issuecomment-6093781686).
+
 `verify:browser` also captures a source-owned noise canvas as a real PNG above
 8 MiB through the CLI and stdio MCP, with complete byte/digest parity and real PNG
 decoding. Its SDK client explicitly permits the larger inline JSON response;

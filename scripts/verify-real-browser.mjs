@@ -64,6 +64,7 @@ try {
     executable,
     [
       "--headless=new",
+      "--password-store=basic",
       ...(process.env.REA_BROWSER_NO_SANDBOX === "true"
         ? ["--no-sandbox"]
         : []),

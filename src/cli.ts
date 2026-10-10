@@ -15,6 +15,7 @@ import { registerArtifactCommands } from "./cli/artifactCommands.js";
 import { registerManagedCommands } from "./cli/managedCommands.js";
 import { registerFirmwareCommands } from "./cli/firmwareCommands.js";
 import { registerAndroidCommands } from "./cli/androidCommands.js";
+import { registerJebCommands } from "./cli/jebCommands.js";
 import { registerAdbCommands } from "./cli/adbCommands.js";
 import { registerEvidenceCommands } from "./cliEvidenceCommands.js";
 import { registerProcessCommands } from "./cli/processCommands.js";
@@ -74,6 +75,7 @@ export const createCli = (
   registerArtifactCommands(cli, logger, analysis.runProviderAnalysis);
   registerManagedCommands(cli, logger, analysis.runProviderAnalysis);
   registerAndroidCommands(cli, logger, environment);
+  registerJebCommands(cli, logger, environment);
   registerAdbCommands(cli, logger, environment);
   registerFirmwareCommands(cli, logger, environment);
   registerBinaryDiagnosticsCommands(cli, logger, environment);

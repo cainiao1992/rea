@@ -25,6 +25,7 @@ export const TOOL_KINDS = [
   "artifact-provider",
   "managed-provider",
   "android-provider",
+  "jeb-provider",
   "adb-provider",
   "firmware-provider",
   "browser-provider",

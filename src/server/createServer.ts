@@ -64,12 +64,16 @@ import { FirmwareAnalysisService } from "../application/firmware/FirmwareAnalysi
 import type { FirmwareAnalysisPort } from "../application/firmware/FirmwareAnalysisPort.js";
 import { createFirmwareAnalysisProvider } from "../composition/firmware.js";
 import { registerAndroidTools } from "./registerAndroidTools.js";
+import { registerJebTools } from "./registerJebTools.js";
 import { registerAdbTools } from "./registerAdbTools.js";
 import { AndroidAnalysisService } from "../application/android/AndroidAnalysisService.js";
+import { JebAnalysisService } from "../application/jeb/JebAnalysisService.js";
 import type { AndroidAnalysisPort } from "../application/android/AndroidAnalysisPort.js";
+import type { JebAnalysisPort } from "../application/jeb/JebAnalysisPort.js";
+import { createAndroidAnalysisProvider } from "../composition/android.js";
+import { createJebAnalysisProvider } from "../composition/jeb.js";
 import type { AdbDeviceAnalysisPort } from "../application/adb/AdbDeviceAnalysisPort.js";
 import { AdbDeviceAnalysisService } from "../application/adb/AdbDeviceAnalysisService.js";
-import { createAndroidAnalysisProvider } from "../composition/android.js";
 import { createAdbDeviceAnalysisProvider } from "../composition/adb.js";
 import { registerManagedWorkflowTools } from "./registerManagedWorkflowTools.js";
 import { NATIVE_TOOL_CONTRACTS } from "../contracts/native/nativeToolContracts.js";
@@ -105,6 +109,7 @@ export interface CreateServerOptions {
   readonly webRuntime?: WebRuntimeService;
   readonly webNetworkCapture?: WebNetworkCaptureService;
   readonly androidAnalysis?: AndroidAnalysisPort;
+  readonly jebAnalysis?: JebAnalysisPort;
   readonly adbDeviceAnalysis?: AdbDeviceAnalysisPort;
   readonly browserObservation?: BrowserObservationPort;
   readonly browserScenarioCapture?: BrowserScenarioCapturePort;
@@ -204,6 +209,7 @@ export const createServer = (
   );
   const android =
     options.androidAnalysis ?? createAndroidAnalysisProvider(environment);
+  const jeb = options.jebAnalysis ?? createJebAnalysisProvider(environment);
   const adbDevice =
     options.adbDeviceAnalysis ?? createAdbDeviceAnalysisProvider(environment);
   const availability = installSessionToolAvailability(
@@ -240,14 +246,24 @@ export const createServer = (
         "Android provider cleanup failed",
       );
     });
+    void jeb.close().catch((cause: unknown) => {
+      logger.error(
+        { error: cause instanceof Error ? cause.message : String(cause) },
+        "JEB provider cleanup failed",
+      );
+    });
   };
   const closeServer = server.close.bind(server);
   server.close = async () => {
-    const results = await Promise.allSettled([closeServer(), android.close()]);
+    const results = await Promise.allSettled([
+      closeServer(),
+      android.close(),
+      jeb.close(),
+    ]);
     for (const result of results)
       if (result.status === "rejected") throw result.reason;
   };
-  registerConfiguredAnalysisTools(toolContext, android);
+  registerConfiguredAnalysisTools(toolContext, android, jeb);
   registerAdbTools(
     server,
     new AdbDeviceAnalysisService(adbDevice),
@@ -304,10 +320,17 @@ const registerConfiguredAnalysisTools = (
     recordEvidence,
   }: ServerToolContext,
   android: AndroidAnalysisPort,
+  jeb: JebAnalysisPort,
 ): void => {
   registerAndroidTools(
     server,
     new AndroidAnalysisService(android),
+    toolLogger,
+    recordEvidence,
+  );
+  registerJebTools(
+    server,
+    new JebAnalysisService(jeb),
     toolLogger,
     recordEvidence,
   );

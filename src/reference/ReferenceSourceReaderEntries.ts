@@ -1,10 +1,15 @@
 import type { BigIntStats, Dir, Dirent } from "node:fs";
 import { opendir, readlink, realpath } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
+import type { ArtifactCleanupAttempt } from "../artifacts/ArtifactResourceScope.js";
+import { OwnedDirectoryHandle } from "../filesystem/OwnedDirectoryHandle.js";
+import { err, ok } from "../domain/result.js";
 
 import {
   cancelled,
   entryFailure,
+  failure,
   filesystemFailureDetail,
   safeSize,
 } from "./ReferenceSourceReaderErrors.js";
@@ -56,28 +61,68 @@ export const traverseDirectory = async (
     readFailure = directoryReadFailure(cause);
   }
   if (handle !== undefined) {
-    const iterator = handle[Symbol.asyncIterator]();
+    const owner = new OwnedDirectoryHandle(handle);
+    let result: ReferenceSourceResult<undefined> = ok(undefined);
+    let cleanup: ArtifactCleanupAttempt;
     try {
       for (;;) {
-        let child: IteratorResult<Dirent>;
+        let child: Dirent | null;
         try {
-          child = await iterator.next();
+          child = await handle.read();
         } catch (cause: unknown) {
           readFailure = directoryReadFailure(cause);
           break;
         }
-        if (child.done) break;
-        const result = await processEntry(
-          state,
-          current,
-          child.value.name,
-          directories,
-        );
-        if (!result.ok) return result;
+        if (child === null) break;
+        result = await processEntry(state, current, child.name, directories);
+        if (!result.ok) break;
       }
     } finally {
-      await handle.close().catch(() => undefined);
+      cleanup = await state.resources.release({
+        kind: "directory-handle",
+        handle: owner,
+        resource: current.path,
+      });
     }
+    if (cleanup.kind === "failed") {
+      if (result.ok && !isAborted(state.signal) && readFailure !== undefined)
+        state.entries.push(
+          entryFailure(
+            pathFromRoot(state.root, current.path),
+            "directory",
+            "io",
+            readFailure,
+          ),
+        );
+      const observation = ArtifactReaderFailure.cleanupObservation(
+        cleanup.cause,
+        current.path,
+      );
+      const previous = result.ok ? undefined : result.error.cleanup;
+      const primary = result.ok
+        ? isAborted(state.signal)
+          ? cancelled()
+          : failure(
+              "io",
+              readFailure ??
+                `Reference directory cleanup failed: ${current.path}`,
+            )
+        : result.error;
+      return err({
+        ...primary,
+        cleanup:
+          previous === undefined
+            ? observation
+            : {
+                reason: `${previous.reason}; ${observation.reason}`,
+                resources: [
+                  ...new Set([...previous.resources, ...observation.resources]),
+                ],
+              },
+        cause: primary.cause ?? cleanup.cause,
+      });
+    }
+    if (!result.ok) return result;
   }
   if (isAborted(state.signal)) return { ok: false, error: cancelled() };
   if (readFailure !== undefined) {
@@ -194,7 +239,7 @@ const processEntry = async (
         safeSize(metadata.value.size),
       ),
     );
-  else await processFileEntry(state, absolute, path, metadata.value);
+  else return processFileEntry(state, absolute, path, metadata.value);
   return { ok: true, value: undefined };
 };
 
@@ -203,8 +248,9 @@ const processFileEntry = async (
   absolute: string,
   path: string,
   metadata: BigIntStats,
-): Promise<void> => {
+): Promise<ReferenceSourceResult<undefined>> => {
   const result = await readStableFile({
+    resources: state.resources,
     root: state.root,
     rootIdentity: state.rootIdentity,
     absolute,
@@ -212,9 +258,24 @@ const processFileEntry = async (
     expected: metadata,
     ...(state.signal === undefined ? {} : { signal: state.signal }),
   });
-  if (result.status === "read" && result.kind === "file")
-    state.bytesRead += result.bytes.byteLength;
-  state.entries.push(result);
+  const { entry } = result;
+  if (entry.status === "read" && entry.kind === "file")
+    state.bytesRead += entry.bytes.byteLength;
+  state.entries.push(entry);
+  if (result.cleanup !== undefined)
+    return err({
+      tag: "reference-source-reader",
+      code:
+        entry.status === "failed" && entry.code === "cancelled"
+          ? "cancelled"
+          : "io",
+      message:
+        entry.status === "failed"
+          ? entry.message
+          : `Reference file cleanup failed: ${path}`,
+      cleanup: result.cleanup,
+    });
+  return ok(undefined);
 };
 
 const describeSymlink = async (

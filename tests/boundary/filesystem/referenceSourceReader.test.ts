@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
-import { readReferenceSource } from "../../../src/reference/ReferenceSourceReader.js";
+import { readReferenceSource } from "../../support/referenceSourceResourceScope.js";
 
 describe("readReferenceSource entries", () => {
   it("returns explicit entries in canonical code-point path order", async () => {
@@ -158,12 +158,17 @@ describe("readReferenceSource failures and exclusions", () => {
       },
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
       error: {
         tag: "reference-source-reader",
         code: "io",
         message: "Reference source exclusion check failed",
+        partial: {
+          root,
+          entries: [],
+          bytesRead: 0,
+        },
       },
     });
   });

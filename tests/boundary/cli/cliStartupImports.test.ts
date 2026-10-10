@@ -62,7 +62,7 @@ describe("CLI startup imports", () => {
     await expect(
       resolvedPackages(
         evaluate(
-          `const { readReferenceSourceVcs } = await import("./dist/application/ReferenceSourceVcsAdapter.js"); await readReferenceSourceVcs(${JSON.stringify(source)});`,
+          `const { readReferenceSourceVcs } = await import("./dist/application/ReferenceSourceVcsAdapter.js"); const { ArtifactResourceScope } = await import("./dist/artifacts/ArtifactResourceScope.js"); const resources = new ArtifactResourceScope(); try { await readReferenceSourceVcs(${JSON.stringify(source)}, resources); } finally { await resources.close(); }`,
         ),
       ),
     ).resolves.toContain("isomorphic-git");

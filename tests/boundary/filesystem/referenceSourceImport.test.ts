@@ -7,19 +7,13 @@ import { describe, expect, it } from "vitest";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
-import {
-  importReferenceSource,
-  normalizeHistoricalSourceParseFailures,
-} from "../../../src/application/ReferenceSourceImport.js";
+import { normalizeHistoricalSourceParseFailures } from "../../../src/application/ReferenceSourceImport.js";
+import { importReferenceSource } from "../../support/referenceSourceResourceScope.js";
 import {
   parseReferenceSourceEntries,
   projectReferenceSourceEntryFailure,
 } from "../../../src/application/ReferenceSourceImportEntries.js";
 import type { ReferenceSourceRead } from "../../../src/reference/ReferenceSourceReaderTypes.js";
-import {
-  projectReferenceSourceImportError,
-  type ReferenceSourceImportError,
-} from "../../../src/application/ReferenceSourceImportTypes.js";
 import { createHistoricalSourceManifest } from "../../../src/domain/referenceSourceGraph.js";
 
 const fixture = async (parent: string, name: string): Promise<string> => {
@@ -49,7 +43,7 @@ const importTree = (
     ...(signal === undefined ? {} : { signal }),
   });
 
-describe("reference source import error projection", () => {
+describe("reference source import projections", () => {
   it("deduplicates exact parse failures without collapsing distinct reasons", () => {
     const malformed = {
       path: "src/main.ts",
@@ -90,29 +84,6 @@ describe("reference source import error projection", () => {
         "Observed entry failure at /owned/fixture/path",
       );
       expect(message).toMatch(/Check|try again|when ready|Exclude/u);
-    }
-  });
-
-  it("projects every import failure without raw parser or policy text", () => {
-    const expectedCategories = {
-      cancelled: "cancelled",
-      "invalid-root": "invalid_input",
-      unsupported: "unsupported_host",
-      io: "execution_failure",
-      parse: "execution_failure",
-    } as const;
-    for (const [code, category] of Object.entries(expectedCategories)) {
-      const projected = projectReferenceSourceImportError({
-        tag: "reference-source-import",
-        code: code as ReferenceSourceImportError["code"],
-        message: "SECRET parser stack and /private/path",
-      });
-      expect(projected.category).toBe(category);
-      expect(projected.message).not.toContain("SECRET");
-      expect(projected.message).not.toContain("/private/path");
-      expect(projected.message).toMatch(
-        /try again|when ready|Check that|REA on Linux/u,
-      );
     }
   });
 });

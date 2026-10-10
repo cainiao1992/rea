@@ -4,8 +4,12 @@ import { dirname } from "node:path";
 
 import {
   NonRegularFileReadError,
+  RegularFileAdmissionFailure,
   openRegularFile,
 } from "../filesystem/RegularFile.js";
+import { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
+import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
+import type { AnalysisCleanupObservation } from "../domain/analysisErrorBase.js";
 
 import {
   entryFailure,
@@ -195,9 +199,39 @@ const finalizeFileRead = async (
 
 export const readStableFile = async (
   request: StableFileRequest,
+): Promise<{
+  readonly entry: ReferenceSourceEntry;
+  readonly cleanup?: AnalysisCleanupObservation;
+}> => {
+  let owner: OwnedFileHandle | undefined;
+  let cleanup: AnalysisCleanupObservation | undefined;
+  let entry: ReferenceSourceEntry;
+  try {
+    entry = await readStableFileEntry(request, (admitted) => {
+      owner = admitted;
+    });
+  } finally {
+    if (owner !== undefined) {
+      const result = await request.resources.release({
+        kind: "file-handle",
+        handle: owner,
+        resource: request.absolute,
+      });
+      if (result.kind === "failed")
+        cleanup = ArtifactReaderFailure.cleanupObservation(
+          result.cause,
+          request.absolute,
+        );
+    }
+  }
+  return { entry, ...(cleanup === undefined ? {} : { cleanup }) };
+};
+
+const readStableFileEntry = async (
+  request: StableFileRequest,
+  retain: (owner: OwnedFileHandle) => void,
 ): Promise<ReferenceSourceEntry> => {
   const { root, rootIdentity, absolute, path, expected, signal } = request;
-  let handle: FileHandle | undefined;
   try {
     const parentBefore = await validateDirectory(
       root,
@@ -213,7 +247,11 @@ export const readStableFile = async (
         parentBefore.message,
         safeSize(expected.size),
       );
-    handle = await openRegularFile(absolute, { symlinks: "reject", signal });
+    const handle = await openRegularFile(absolute, {
+      symlinks: "reject",
+      signal,
+    });
+    retain(new OwnedFileHandle(handle));
     const prepared = await prepareFileRead(request, handle);
     if (prepared.status === "failed") return prepared.entry;
     const contents = await readFileContents({
@@ -236,6 +274,10 @@ export const readStableFile = async (
       ...(signal === undefined ? {} : { signal }),
     });
   } catch (cause: unknown) {
+    if (cause instanceof RegularFileAdmissionFailure) {
+      retain(cause.owner);
+      cause = cause.cause;
+    }
     if (isAborted(signal))
       return entryFailure(
         path,
@@ -258,8 +300,5 @@ export const readStableFile = async (
     );
     if (message === undefined) throw cause;
     return entryFailure(path, "file", "io", message, safeSize(expected.size));
-  } finally {
-    // best-effort cleanup: file-handle close must not mask the read result.
-    await handle?.close().catch(() => undefined);
   }
 };

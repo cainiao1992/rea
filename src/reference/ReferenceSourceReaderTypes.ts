@@ -1,6 +1,8 @@
 import { type BigIntStats } from "node:fs";
 
 import { type Result } from "../domain/result.js";
+import type { AnalysisCleanupObservation } from "../domain/analysisErrorBase.js";
+import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 
 export type ReferenceSourceEntryKind =
   | "file"
@@ -65,6 +67,10 @@ export interface ReferenceSourceReaderError {
   readonly tag: "reference-source-reader";
   readonly code: "cancelled" | "invalid-root" | "io" | "unsupported";
   readonly message: string;
+  readonly cleanup?: AnalysisCleanupObservation;
+  /** Captured entries before failure; this does not establish complete tree coverage. */
+  readonly partial?: ReferenceSourceRead;
+  readonly cause?: unknown;
 }
 
 export type PendingDirectory = {
@@ -72,6 +78,7 @@ export type PendingDirectory = {
 };
 
 export type TraversalState = {
+  readonly resources: ArtifactResourceScope;
   readonly root: string;
   readonly rootIdentity: BigIntStats;
   readonly signal?: AbortSignal;
@@ -85,6 +92,7 @@ export type TraversalState = {
 };
 
 export type StableFileRequest = {
+  readonly resources: ArtifactResourceScope;
   readonly root: string;
   readonly rootIdentity: BigIntStats;
   readonly absolute: string;

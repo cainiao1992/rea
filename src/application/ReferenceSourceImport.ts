@@ -8,8 +8,14 @@ import {
   type HistoricalSourceGraphInput,
 } from "../domain/referenceSourceGraph.js";
 import { err, ok, type Result } from "../domain/result.js";
+import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
+import type { AnalysisCleanupObservation } from "../domain/analysisErrorBase.js";
 import { readReferenceSource } from "../reference/ReferenceSourceReader.js";
-import type { ReferenceSourceEntryKind } from "../reference/ReferenceSourceReaderTypes.js";
+import type {
+  ReferenceSourceEntryKind,
+  ReferenceSourceRead,
+  ReferenceSourceReaderError,
+} from "../reference/ReferenceSourceReaderTypes.js";
 import { parseReferenceSourceEntries } from "./ReferenceSourceImportEntries.js";
 import { readReferenceSourceVcs } from "./ReferenceSourceVcsAdapter.js";
 import {
@@ -30,8 +36,12 @@ const failure = (
   message,
 });
 
-const cancelled = (): ReferenceSourceImportError =>
-  failure("cancelled", "Reference source import cancelled");
+const cancelled = (
+  partial?: ReferenceSourceRead,
+): ReferenceSourceImportError => ({
+  ...failure("cancelled", "Reference source import cancelled"),
+  ...(partial === undefined ? {} : { partial }),
+});
 
 const isAborted = (signal?: AbortSignal): boolean => signal?.aborted === true;
 
@@ -170,9 +180,10 @@ const createShouldExclude =
  */
 export const importReferenceSource = async (
   options: ReferenceSourceImportOptions,
+  resources: ArtifactResourceScope,
 ): Promise<Result<HistoricalSourceGraph, ReferenceSourceImportError>> => {
   if (isAborted(options.signal)) return err(cancelled());
-  const prepared = await prepareReferenceSourceImport(options);
+  const prepared = await prepareReferenceSourceImport(options, resources);
   if (!prepared.ok) return prepared;
   const { ignored, root, secrets } = prepared.value;
   if (isAborted(options.signal)) return err(cancelled());
@@ -180,23 +191,30 @@ export const importReferenceSource = async (
   const exclusions: HistoricalSourceGraphInput["exclusions"] = [];
   const shouldExclude = createShouldExclude(exclusions, secrets, ignored);
 
-  const [readResult, vcs] = await Promise.all([
-    readReferenceSource(root, {
+  const [readResult, vcsResult] = await Promise.all([
+    readReferenceSource(root, resources, {
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       shouldExclude,
     }),
-    readReferenceSourceVcs(root, options.signal),
+    readReferenceSourceVcs(root, resources, options.signal),
   ]);
 
-  if (!readResult.ok) {
-    const error = readResult.error;
-    if (error.code === "cancelled") return err(cancelled());
-    if (error.code === "unsupported")
-      return err(failure("unsupported", error.message));
-    return err(failure("io", error.message));
-  }
+  if (!readResult.ok)
+    return err(
+      combineReadFailures(
+        readResult.error,
+        vcsResult.ok ? undefined : vcsResult.error,
+        readResult.error.partial,
+      ),
+    );
+  if (!vcsResult.ok)
+    return err(
+      combineReadFailures(vcsResult.error, undefined, readResult.value),
+    );
 
-  if (isAborted(options.signal)) return err(cancelled());
+  const vcs = vcsResult.value;
+
+  if (isAborted(options.signal)) return err(cancelled(readResult.value));
 
   const read = readResult.value;
   const filePaths = new Set(
@@ -208,7 +226,7 @@ export const importReferenceSource = async (
   const { entries, relationships, parseFailures, limitations } =
     parseReferenceSourceEntries(read, filePaths, options.signal);
 
-  if (isAborted(options.signal)) return err(cancelled());
+  if (isAborted(options.signal)) return err(cancelled(read));
 
   const uniqueRelationships = deduplicateRelationships(relationships);
   const uniqueFailures = normalizeHistoricalSourceParseFailures(parseFailures);
@@ -253,4 +271,46 @@ export const importReferenceSource = async (
       ),
     );
   }
+};
+
+const combineReadFailures = (
+  primary: ReferenceSourceReaderError,
+  other: ReferenceSourceReaderError | undefined,
+  partial: ReferenceSourceRead | undefined,
+): ReferenceSourceImportError => {
+  const code =
+    primary.code === "cancelled" || other?.code === "cancelled"
+      ? "cancelled"
+      : primary.code;
+  const cleanup = mergeCleanup(primary.cleanup, other?.cleanup);
+  const message =
+    other === undefined
+      ? primary.message
+      : `${primary.message}; additional reference metadata failure: ${other.message}`;
+  const cause =
+    other === undefined
+      ? primary.cause
+      : new AggregateError(
+          [primary, other],
+          "Reference source inventory and metadata both failed",
+          { cause: primary },
+        );
+  return {
+    ...failure(code, message),
+    ...(cleanup === undefined ? {} : { cleanup }),
+    ...(partial === undefined ? {} : { partial }),
+    ...(cause === undefined ? {} : { cause }),
+  };
+};
+
+const mergeCleanup = (
+  first: AnalysisCleanupObservation | undefined,
+  second: AnalysisCleanupObservation | undefined,
+): AnalysisCleanupObservation | undefined => {
+  if (first === undefined) return second;
+  if (second === undefined) return first;
+  return {
+    reason: `${first.reason}; ${second.reason}`,
+    resources: [...new Set([...first.resources, ...second.resources])],
+  };
 };

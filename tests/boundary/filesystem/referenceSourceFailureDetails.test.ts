@@ -5,9 +5,11 @@ import { promisify } from "node:util";
 
 import { describe, expect, it } from "vitest";
 
-import { importReferenceSource } from "../../../src/application/ReferenceSourceImport.js";
-import { readReferenceSource } from "../../../src/reference/ReferenceSourceReader.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import {
+  importReferenceSource,
+  readReferenceSource,
+} from "../../support/referenceSourceResourceScope.js";
 
 const importTree = (root: string) =>
   importReferenceSource({

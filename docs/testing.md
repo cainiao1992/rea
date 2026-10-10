@@ -160,10 +160,21 @@ chat or `REA_VERIFY_RUNTIME_ROOT` for a production-only installed package.
 The native offline BYOK adapter uses a loopback OpenAI completions/SSE fixture
 and `gpt-5.4` model metadata; model inference and token usage are synthetic.
 Set `REA_VERIFY_COPILOT_MODEL` to examine another model configuration. In the
-verified client, `gpt-4.1` blocks the complete catalog before HTTP with
+verified client, `gpt-4.1` blocks the full input-schema profile before HTTP with
 `compaction_static_context_blocked`, even when requesting a larger BYOK prompt
-capacity. The effective capacity is unknown; this lane does not establish a
-fix for that client/model limit. It preserves the complete catalog and schemas.
+capacity. The effective capacity is unknown. The default verifier preserves
+the complete catalog and full schemas. To verify the existing compact profile:
+
+```bash
+REA_VERIFY_COPILOT_MODEL=gpt-4.1 REA_VERIFY_COPILOT_SCHEMA_PROFILE=compact npm run verify:copilot-client -- chat
+REA_VERIFY_COPILOT_MODEL=gpt-4.1 REA_VERIFY_COPILOT_SCHEMA_PROFILE=compact npm run verify:copilot-client -- call
+```
+
+Both native workflows passed with the complete tool inventory. The verifier selects the
+profile only in its disposable Copilot registration and records it in the
+receipt. Compact advertisements can reduce nested validation structure; the
+server still validates complete canonical inputs. This is a tested alternate
+workflow, not a fix for the full-profile client/model limit tracked in #1554.
 Live model APIs, native Windows and default OS-home skill discovery remain
 unverified.
 

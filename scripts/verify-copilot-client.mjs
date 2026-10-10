@@ -22,6 +22,12 @@ const runtimeRoot = process.env.REA_VERIFY_RUNTIME_ROOT ?? repo;
 const command = process.env.REA_VERIFY_COPILOT_COMMAND ?? "copilot";
 const mode = process.argv[2] ?? "call";
 const model = process.env.REA_VERIFY_COPILOT_MODEL ?? "gpt-5.4";
+const inputSchemaProfile =
+  process.env.REA_VERIFY_COPILOT_SCHEMA_PROFILE ?? "full";
+assert(
+  ["full", "compact"].includes(inputSchemaProfile),
+  "REA_VERIFY_COPILOT_SCHEMA_PROFILE must be full or compact",
+);
 assert(
   ["chat", "call"].includes(mode),
   "Usage: verify-copilot-client.mjs [chat|call]",
@@ -311,6 +317,16 @@ try {
   assert.deepEqual(JSON.parse(repeated.stdout).appliedActions, []);
   assert.equal(await readFile(configPath, "utf8"), configured);
   assert.equal(await readFile(`${configPath}.rea.backup`, "utf8"), original);
+  if (inputSchemaProfile === "compact") {
+    // Select the existing presentation in this disposable native-client profile.
+    const customized = JSON.parse(configured);
+    assert(customized.mcpServers.rea);
+    customized.mcpServers.rea.env = {
+      ...customized.mcpServers.rea.env,
+      REA_MCP_INPUT_SCHEMA_PROFILE: inputSchemaProfile,
+    };
+    await writeFile(configPath, JSON.stringify(customized, null, 2));
+  }
   const installedSkill = await readFile(
     join(skillDirectory, "SKILL.md"),
     "utf8",
@@ -408,6 +424,7 @@ try {
     clientVersion,
     mode,
     model,
+    inputSchemaProfile,
     passed: failure === undefined,
     artifacts: lab,
     runtimeRoot,
@@ -421,7 +438,9 @@ try {
     skillDiscovery:
       "native COPILOT_HOME MCP configuration and caller-added isolated skill directory; default OS-home discovery unverified",
     capacityBoundary:
-      "gpt-4.1 model configuration blocks the full catalog before HTTP even with a ten-million-token requested prompt override; gpt-5.4 is the verified local fixture configuration",
+      inputSchemaProfile === "compact"
+        ? "Explicit compact profile: complete inventory and canonical server validation; advertised schemas may be reduced. This does not fix the full-profile gpt-4.1 context boundary."
+        : "gpt-4.1 model configuration blocks the full catalog before HTTP even with a ten-million-token requested prompt override; gpt-5.4 is the verified full-profile local fixture configuration",
     catalogSize,
     schemasChecked,
     spillReadRequested,

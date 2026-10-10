@@ -142,6 +142,18 @@ listed after the table because its connector is not one of these files:
 | Pi                 | `pi`             |
 | Hermes             | `hermes`         |
 
+For GitHub Copilot CLI 1.0.95, `gpt-4.1` model metadata can block ordinary
+chat with REA's full input-schema profile before sending a model request
+(`compaction_static_context_blocked`; [#1554](https://github.com/morluto/rea/issues/1554)).
+The existing compact profile passed native chat and analysis with the complete
+tool inventory on Linux using a loopback model fixture. After setup, add
+`"REA_MCP_INPUT_SCHEMA_PROFILE": "compact"` to the `env` object of the
+`mcpServers.rea` entry in Copilot's `mcp-config.json`, preserving its other
+settings, then restart the client. Compact advertisements can reduce nested
+schema constraints; REA still validates complete canonical inputs. Full-profile
+`gpt-5.4` metadata is also verified locally. Live model API acceptance and
+Windows remain unverified; see [native client verification](testing.md).
+
 For [Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/mcp.md),
 setup writes a `type: "stdio"` entry under `mcpServers.rea` in the user-level
 `~/.pi/agent/mcp.json` and installs the bundled skill under `~/.agents/skills`.

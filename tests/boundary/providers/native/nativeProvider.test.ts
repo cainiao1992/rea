@@ -552,6 +552,43 @@ describe("native macOS provider inspection", () => {
   });
 });
 
+describe("native macOS provider raw results", () => {
+  it("records command provenance once, in the normalized result", async () => {
+    directory = await createTestTempDirectory("rea-native-");
+    const app = join(directory, "Fixture.app");
+    const executable = join(app, "Contents/MacOS/Fixture");
+    await mkdir(join(app, "Contents/MacOS"), { recursive: true });
+    await writeFile(executable, "fixture");
+    await writeFile(join(app, "Contents/Info.plist"), "fixture");
+    const client = new NativeMacOSProvider(
+      {},
+      new FixtureRunner(),
+      "darwin",
+    ).createClient(await nativeMachoTargetForFile(executable, app));
+    const requests: readonly (readonly [
+      Parameters<typeof client.execute>[0],
+      Parameters<typeof client.execute>[1],
+    ])[] = [
+      ["inspect_macho", {}],
+      ["list_architectures", {}],
+      ["inspect_signature", {}],
+      ["inspect_plist", {}],
+      ["demangle_swift", { symbols: ["$s4Test3fooyyF", "plain_symbol"] }],
+    ];
+
+    for (const [operation, parameters] of requests) {
+      const execution = await client.execute(operation, parameters);
+      if (!execution.ok) throw execution.error;
+      expect(execution.value.rawResult, operation).toBeNull();
+      expect(execution.value.result, operation).toMatchObject({
+        provenance: expect.arrayContaining([
+          expect.objectContaining({ tool: expect.any(String) }),
+        ]),
+      });
+    }
+  });
+});
+
 describe("native plist defaults for iOS-style bundles", () => {
   it("defaults to the Info.plist the bundle program was resolved from", async () => {
     directory = await createTestTempDirectory("rea-native-flat-");
@@ -693,6 +730,31 @@ describe("native macOS provider failures and parsing", () => {
       expect(!result.ok && result.error._tag).toBe(tag);
     }
   });
+
+  it.each([
+    {
+      ...machoTarget("/fixture.dll"),
+      format: "pe" as const,
+      executableRole: "shared-library" as const,
+      managed: false,
+    },
+    { ...machoTarget("/fixture.elf"), format: "elf" as const },
+  ])(
+    "refuses to list architectures of a $format target without running lipo",
+    async (target) => {
+      const runner = new CountingRunner();
+      const result = await new NativeMacOSProvider({}, runner, "darwin")
+        .createClient(target)
+        .execute("list_architectures", {});
+      if (result.ok) throw new Error("Expected a non-Mach-O refusal");
+      expect(result.error._tag).toBe("AnalysisCapabilityUnavailableError");
+      expect(projectAnalysisError(result.error)).toMatchObject({
+        code: "capability_unavailable",
+        details: { reason: "Active artifact is not Mach-O." },
+      });
+      expect(runner.calls).toBe(0);
+    },
+  );
 
   it("classifies pre-aborted requests before operation or runner discovery", async () => {
     const controller = new AbortController();

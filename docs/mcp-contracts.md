@@ -25,12 +25,23 @@ health transition leaves that catalog unchanged and does not emit
 
 Advertised input and output schemas contain no reachable recursive references.
 Schemas share repeated definitions through schema-local references while
-preserving complete fields and validation rules. Input properties retain their
-descriptions and literal examples. The SDK advertises an object root for
-canonical object unions and retains each branch's requirements and exclusions.
-Tests validate the schemas after SDK conversion and compare advertised
-validation with actual calls. Individual model APIs can impose additional
-nesting limits; complete producer captures can exceed ten structural levels.
+preserving complete nested fields and validation rules. Input properties retain
+their descriptions and literal examples. Root object unions are presented as
+one object without root `anyOf`, `oneOf`, or `allOf` for model API compatibility.
+The projection merges properties, retains shared required fields and
+group-specific field dependencies, and describes the accepted input groups.
+Canonical runtime validation enforces the exact union, including exclusions
+that the advertised projection does not express. Tests validate the schemas
+after SDK conversion and check advertised validation and actual calls.
+Individual model APIs can impose additional nesting limits; complete producer
+captures can exceed ten structural levels.
+
+Self-contained output schemas advertise a content-bound `$id`, including their
+declared dialect. SDK validators can reuse compiled schemas across complete
+catalog refreshes and equivalent tool outputs; changing the schema changes its
+identity. Explicit schema IDs and relative external reference bases are
+preserved. This keeps every tool and validation rule in discovery and does not
+change the SDK's catalog invalidation or availability checks.
 
 `compare_web_captures` accepts exactly one of two input shapes:
 
@@ -42,10 +53,11 @@ nesting limits; complete producer captures can exceed ten structural levels.
   `normalization` defaults to `{ "rules": [] }`.
 
 The advertised schema includes complete nested capture fields and rejects
-incomplete pairs, mixed comparison families, and structurally malformed
-captures. Domain validation additionally checks relationships such as event
-sequence references and retained counts; JSON Schema does not express those
-cross-field invariants.
+incomplete pairs and structurally malformed captures. Mixed comparison families
+can pass advertised validation; the SDK rejects them against the canonical
+input schema before invoking the handler. Domain validation additionally checks
+relationships such as event sequence references and retained counts; JSON
+Schema does not express those cross-field invariants.
 
 Call `binary_session` with `{}` and read `result.tool_availability` to choose a
 callable operation for the current target, provider, host, and negotiated client
@@ -188,9 +200,14 @@ increasing a client deadline alone does not fix those failures.
 
 ## Tool results
 
+Custom clients upgrading from 6.1 should follow the
+[6.2 migration guide](migration-6.2.md#mcp-results-and-evidence).
+
 Evidence-producing tools return the complete canonical Evidence record in both
 text and structured content. Read `structuredContent.normalized_result` for the
-operation result and `structuredContent.evidence_id` for its identity. The same
+operation result and `structuredContent.evidence_id` for its identity.
+`raw_result` holds a provider representation distinct from that result, such
+as an upstream tool's original report, and is `null` when there is none. The same
 record is retained in the session bundle. `analysis_profile` is always present:
 a concrete profile object or `null`; either value participates in semantic
 identity. Records omitting this field are rejected. Pass the returned Evidence
@@ -227,7 +244,12 @@ Ordinary responses keep their existing complete result contract.
 ## Retained application Evidence inputs
 
 `inspect_analysis_view` projects a caller-selected view of already completed
-`inspect_binary_layout` or `analyze_javascript_application` Evidence. Source is
+`inspect_binary_layout`, `analyze_javascript_application`, or `analyze_function`
+Evidence. Native views select procedure, pseudocode, assembly, callers/callees,
+references, and high-pcode facets without starting a provider. Native offset
+and limit default to 0 and 64; pseudocode uses UTF-16 code units and never
+splits surrogate pairs, while other pages count rows. Unavailable facts and
+provider limitations remain explicit. Source is
 an exact same-session retained reference or portable inline Evidence. Views are
 a summary, a layout mitigations or linkage facet, one section/symbol/module, or
 a stable page with a caller-selected positive `limit`. Module pages include
@@ -336,3 +358,9 @@ Contradictory bytes are quarantined from nested expansion and recorded with
 declared and observed hashes, trust, provenance, path, and unpacked state.
 Verified siblings continue. Comparisons classify the result as a contradiction
 and reconstruction cannot treat it as unchanged.
+
+`analyze_javascript_application` accepts the same policy in MCP and as
+`--integrity-policy` on both JavaScript CLI routes. Its result returns the
+canonical `integrity_contradictions` records and marks application graph
+coverage partial when any mismatch is continued. Contradicted nested ASARs
+remain opaque.

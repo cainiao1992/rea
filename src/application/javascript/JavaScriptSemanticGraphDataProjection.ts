@@ -137,7 +137,11 @@ const addRequestNode = (
     kind: operation.kind === "request" ? "request" : "response",
     roleKey: operation.requestId,
     location: operation.location,
-    label: operation.endpoint ?? operation.method,
+    label:
+      operation.endpoint !== null &&
+      operation.endpoint.length <= operation.method.length
+        ? operation.endpoint
+        : operation.method,
     functionNodeId:
       operation.ownerCallableId === null
         ? null
@@ -307,14 +311,17 @@ const addDataUnknown = (input: DataUnknownInput): void => {
   } = input;
   addSemanticGraphUnknown(
     context.state,
-    createJavaScriptSemanticGraphUnknown({
-      node_id: node.node_id,
-      family,
-      relation_kinds: relationKinds,
-      reason: "ambiguous-target",
-      detail,
-      candidate_node_ids: candidateNodeIds,
-      evidence: unknownSemanticEvidence(context.file, location),
-    }),
+    createJavaScriptSemanticGraphUnknown(
+      {
+        node_id: node.node_id,
+        family,
+        relation_kinds: relationKinds,
+        reason: "ambiguous-target",
+        detail,
+        candidate_node_ids: candidateNodeIds,
+        evidence: unknownSemanticEvidence(context.file, location),
+      },
+      context.state.evidenceContexts,
+    ),
   );
 };

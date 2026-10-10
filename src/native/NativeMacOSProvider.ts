@@ -82,6 +82,7 @@ import {
 export class NativeMacOSProvider implements AnalysisProvider {
   readonly #capabilities: readonly CapabilityDescriptor[];
   readonly #environment: NodeJS.ProcessEnv;
+  readonly #tracerFactory: () => NativeCallTracer;
 
   constructor(
     environment: Readonly<NodeJS.ProcessEnv>,
@@ -89,9 +90,11 @@ export class NativeMacOSProvider implements AnalysisProvider {
       environment,
     ),
     platform: NodeJS.Platform = process.platform,
-    private readonly tracer: NativeCallTracer = new LldbCallTracer(environment),
+    tracerFactory?: () => NativeCallTracer,
   ) {
     this.#environment = snapshotEnvironment(environment, platform);
+    this.#tracerFactory =
+      tracerFactory ?? (() => new LldbCallTracer(this.#environment));
     this.#capabilities = nativeMacOSCapabilities(platform);
   }
 
@@ -107,7 +110,7 @@ export class NativeMacOSProvider implements AnalysisProvider {
     return new NativeMacOSClient(
       target,
       this.runner,
-      this.tracer,
+      this.#tracerFactory(),
       this.#environment,
     );
   }
@@ -230,7 +233,6 @@ class NativeMacOSClient implements AnalysisClient {
       return observation.ok
         ? ok(
             createAnalysisExecution(observation.value.result, IDENTITY, {
-              rawResult: { provenance: observation.value.provenance },
               limitations: observation.value.limitations,
               locations: observation.value.locations,
             }),
@@ -246,7 +248,7 @@ class NativeMacOSClient implements AnalysisClient {
   }
 
   close(): Promise<Result<null, AnalysisError>> {
-    return Promise.resolve(ok(null));
+    return this.tracer.close();
   }
 
   #dispatch(
@@ -283,6 +285,16 @@ class NativeMacOSClient implements AnalysisClient {
   async #listArchitectures(
     signal?: AbortSignal,
   ): Promise<Result<NativeObservation, AnalysisError>> {
+    // lipo reads only Mach-O; its refusal of a PE, ELF, or plist target is not
+    // a tool failure that a retry or `rea doctor` could repair.
+    if (this.target.format !== "mach-o")
+      return err(
+        new AnalysisCapabilityUnavailableError(
+          IDENTITY.id,
+          "list_architectures",
+          "Active artifact is not Mach-O.",
+        ),
+      );
     const capture = await this.#run(
       "list_architectures",
       "lipo",
@@ -304,7 +316,6 @@ class NativeMacOSClient implements AnalysisClient {
     });
     return ok({
       result: jsonValueSchema.parse(result),
-      provenance,
       limitations: [],
       locations: architectureLocations(result.architectures.items),
     });
@@ -338,7 +349,6 @@ class NativeMacOSClient implements AnalysisClient {
     });
     return ok({
       result: jsonValueSchema.parse(result),
-      provenance,
       limitations: [],
       locations: [],
     });
@@ -435,7 +445,6 @@ class NativeMacOSClient implements AnalysisClient {
     });
     return ok({
       result: jsonValueSchema.parse(result),
-      provenance,
       limitations: result.limitations,
       locations: [],
     });
@@ -598,7 +607,6 @@ class NativeMacOSClient implements AnalysisClient {
     });
     return ok({
       result: jsonValueSchema.parse(result),
-      provenance,
       limitations: parsed.value.limitations,
       locations: [{ kind: "artifact-path", path: plist.value }],
     });
@@ -646,7 +654,6 @@ class NativeMacOSClient implements AnalysisClient {
 
 interface NativeObservation {
   readonly result: JsonValue;
-  readonly provenance: readonly NativeCommandInvocation[];
   readonly limitations: readonly string[];
   readonly locations: readonly EvidenceLocation[];
 }

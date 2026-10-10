@@ -388,12 +388,14 @@ export class JadxProvider implements AndroidAnalysisPort {
           jarHash,
           root.path,
           request.operation,
+          signal,
         );
         const snapshot = await snapshotAndroidTarget(
           target.path,
           target.sha256,
           root.path,
           request.operation,
+          signal,
         );
         const bridge = join(root.path, "ReaJadxBridge.java");
         await copyFile(BRIDGE_SOURCE, bridge);

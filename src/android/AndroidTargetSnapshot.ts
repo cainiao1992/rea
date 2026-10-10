@@ -20,10 +20,12 @@ export const snapshotAndroidTarget = async (
   sha256: string,
   root: string,
   operation: AndroidOperation,
+  signal?: AbortSignal,
 ): Promise<string> => {
   const snapshot = join(root, "target.apk");
   try {
-    await copyAndroidSnapshot(path, snapshot, sha256);
+    await copyAndroidSnapshot(path, snapshot, sha256, signal);
+    signal?.throwIfAborted();
     await chmod(snapshot, 0o400);
     return snapshot;
   } catch (cause: unknown) {
@@ -44,10 +46,12 @@ export const snapshotAndroidEngine = async (
   sha256: string,
   root: string,
   operation: AndroidOperation,
+  signal?: AbortSignal,
 ): Promise<{ path: string; sha256: string }> => {
   const path = join(root, "engine.jar");
   try {
-    const observed = await copyAndroidSnapshot(source, path, sha256);
+    const observed = await copyAndroidSnapshot(source, path, sha256, signal);
+    signal?.throwIfAborted();
     await chmod(path, 0o400);
     return { path, sha256: observed };
   } catch (cause: unknown) {
@@ -65,15 +69,22 @@ const copyAndroidSnapshot = async (
   sourcePath: string,
   snapshotPath: string,
   expectedSha256: string,
+  signal?: AbortSignal,
 ): Promise<string> => {
-  const source = await openRegularFile(sourcePath, { symlinks: "follow" });
+  signal?.throwIfAborted();
+  const source = await openRegularFile(sourcePath, {
+    symlinks: "follow",
+    signal,
+  });
   let destination: FileHandle | undefined;
   let inputStream: ReadStream | undefined;
   let outputStream: WriteStream | undefined;
+  let removeSnapshot = false;
   let copiedBytes = 0;
   const hash = createHash("sha256");
   try {
     const initial = await source.stat();
+    signal?.throwIfAborted();
     const digest = new Transform({
       transform(
         chunk: Buffer,
@@ -95,13 +106,15 @@ const copyAndroidSnapshot = async (
     });
     try {
       destination = await open(snapshotPath, "wx", 0o600);
+      signal?.throwIfAborted();
       inputStream = source.createReadStream({
         start: 0,
         end: initial.size,
         autoClose: false,
       });
       outputStream = destination.createWriteStream({ autoClose: false });
-      await pipeline(inputStream, digest, outputStream);
+      await pipeline(inputStream, digest, outputStream, { signal });
+      signal?.throwIfAborted();
       await verifySourceState(source, sourcePath, initial, copiedBytes);
       const observedSha256 = hash.digest("hex");
       if (observedSha256 !== expectedSha256)
@@ -110,8 +123,7 @@ const copyAndroidSnapshot = async (
         );
       return observedSha256;
     } catch (cause: unknown) {
-      if (destination !== undefined)
-        await rm(snapshotPath, { force: true }).catch(() => undefined);
+      removeSnapshot = destination !== undefined;
       throw cause;
     }
   } finally {
@@ -120,7 +132,12 @@ const copyAndroidSnapshot = async (
     // descriptor closure, after the admitted source state has been verified.
     inputStream?.destroy();
     outputStream?.destroy();
-    await Promise.all([source.close(), destination?.close()]);
+    try {
+      await Promise.all([source.close(), destination?.close()]);
+    } finally {
+      if (removeSnapshot)
+        await rm(snapshotPath, { force: true }).catch(() => undefined);
+    }
   }
 };
 

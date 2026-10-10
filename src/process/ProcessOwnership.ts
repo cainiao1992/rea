@@ -641,29 +641,7 @@ const processOwnershipFailures = async (
       }
     }
   }
-  for (const member of members) {
-    try {
-      if ((await host.environment(member.pid)).REA_PROCESS_RUN_ID !== runId)
-        failures.push({ pid: member.pid, reason: "run-token-mismatch" });
-    } catch (cause: unknown) {
-      try {
-        const live = liveProcesses(await host.listProcesses());
-        if (!live.some(({ pid }) => pid === member.pid)) continue;
-      } catch (recheckCause: unknown) {
-        failures.push({
-          pid: member.pid,
-          reason: "environment-unreadable",
-          diagnostic: `${errorMessage(cause)}; process liveness recheck failed: ${errorMessage(recheckCause)}`,
-        });
-        continue;
-      }
-      failures.push({
-        pid: member.pid,
-        reason: "environment-unreadable",
-        diagnostic: errorMessage(cause),
-      });
-    }
-  }
+  failures.push(...(await processRunTokenFailures(members, runId, host)));
   if (
     failures.length === 0 &&
     expectedIdentities.size > 0 &&
@@ -690,6 +668,60 @@ const processOwnershipFailures = async (
           "process identity changed or became unavailable during token validation",
       });
     }
+  }
+  return failures;
+};
+
+const processRunTokenFailures = async (
+  members: readonly ProcessTableEntry[],
+  runId: string,
+  host: ProcessOwnershipHost,
+): Promise<readonly ProcessOwnershipValidationFailure[]> => {
+  const failures: ProcessOwnershipValidationFailure[] = [];
+  let runTokenObservations:
+    | ReadonlyMap<number, ProcessRunTokenObservation>
+    | undefined;
+  let runTokenReadFailure: string | undefined;
+  if (host.runTokens !== undefined) {
+    try {
+      runTokenObservations = await host.runTokens(members);
+    } catch (cause: unknown) {
+      runTokenReadFailure = errorMessage(cause);
+    }
+  }
+  for (const member of members) {
+    const batchObservation = runTokenObservations?.get(member.pid);
+    let observation =
+      batchObservation ?? (await readEnvironmentRunToken(host, member.pid));
+    if (
+      runTokenReadFailure !== undefined &&
+      observation.state === "unavailable"
+    )
+      observation = {
+        state: "unavailable",
+        reason: `${observation.reason}; run-token batch failed: ${runTokenReadFailure}`,
+      };
+    if (observation.state === "readable") {
+      if (observation.runId !== runId)
+        failures.push({ pid: member.pid, reason: "run-token-mismatch" });
+      continue;
+    }
+    try {
+      const live = liveProcesses(await host.listProcesses());
+      if (!live.some(({ pid }) => pid === member.pid)) continue;
+    } catch (recheckCause: unknown) {
+      failures.push({
+        pid: member.pid,
+        reason: "environment-unreadable",
+        diagnostic: `${observation.reason}; process liveness recheck failed: ${errorMessage(recheckCause)}`,
+      });
+      continue;
+    }
+    failures.push({
+      pid: member.pid,
+      reason: "environment-unreadable",
+      diagnostic: observation.reason,
+    });
   }
   return failures;
 };

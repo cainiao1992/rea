@@ -115,6 +115,101 @@ describe("owned process-group cleanup validation: ownership and lineage", () => 
     });
     expect(signalGroup).not.toHaveBeenCalled();
   });
+});
+
+describe("owned process-group cleanup liveness rechecks", () => {
+  it("rechecks all unreadable members after the token phase in one fresh snapshot", async () => {
+    const members = [100, 101, 102, 103].map((pid) => ({
+      pid,
+      parentPid: pid === 100 ? 1 : 100,
+      processGroupId: 100,
+      state: "S",
+      command: "fixture",
+    }));
+    const tokenReads: number[] = [];
+    const listProcesses = vi.fn(async () => {
+      if (tokenReads.length > 0)
+        expect(tokenReads).toEqual([100, 101, 102, 103]);
+      return members;
+    });
+    const signalGroup = vi.fn();
+    const adapter: ProcessOwnershipHost = {
+      listProcesses,
+      environment: async (pid) => {
+        tokenReads.push(pid);
+        throw new Error(`unreadable ${pid}`);
+      },
+      signalGroup,
+    };
+    await expect(cleanupOwnedProcessGroup(ownership, adapter)).resolves.toEqual(
+      {
+        cleaned: false,
+        reason:
+          "process ownership token could not be read for 4 live process(es): other_unavailable=4; live candidates 100=other_unavailable, 101=other_unavailable, 102=other_unavailable, 103=other_unavailable",
+        failures: members.map(({ pid }) => ({
+          pid,
+          reason: "environment-unreadable",
+          diagnostic: `unreadable ${pid}`,
+        })),
+      },
+    );
+    expect(listProcesses).toHaveBeenCalledTimes(2);
+    expect(signalGroup).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])(
+    "retains mismatches and fails closed when the liveness recheck fails: %s",
+    async (recheckFails) => {
+      const members = [100, 101, 102].map((pid) => ({
+        pid,
+        parentPid: pid === 100 ? 1 : 100,
+        processGroupId: 100,
+        state: "S",
+        command: "fixture",
+      }));
+      const listProcesses = vi
+        .fn<ProcessOwnershipHost["listProcesses"]>()
+        .mockResolvedValueOnce(members);
+      if (recheckFails)
+        listProcesses.mockRejectedValue(new Error("process table denied"));
+      else listProcesses.mockResolvedValue([]);
+      const signalGroup = vi.fn();
+      const adapter: ProcessOwnershipHost = {
+        listProcesses,
+        environment: async (pid) => {
+          if (pid === 101) return { REA_PROCESS_RUN_ID: "other-run" };
+          throw new Error(`unreadable ${pid}`);
+        },
+        signalGroup,
+      };
+      await expect(
+        cleanupOwnedProcessGroup(ownership, adapter),
+      ).resolves.toEqual({
+        cleaned: false,
+        reason: "process tree contains an unowned or PID-reused process",
+        failures: recheckFails
+          ? [
+              {
+                pid: 100,
+                reason: "environment-unreadable",
+                diagnostic:
+                  "unreadable 100; process liveness recheck failed: process table denied",
+              },
+              { pid: 101, reason: "run-token-mismatch" },
+              {
+                pid: 102,
+                reason: "environment-unreadable",
+                diagnostic:
+                  "unreadable 102; process liveness recheck failed: process table denied",
+              },
+            ]
+          : [{ pid: 101, reason: "run-token-mismatch" }],
+      });
+      expect(listProcesses).toHaveBeenCalledTimes(2);
+      expect(signalGroup).not.toHaveBeenCalled();
+    },
+  );
+
   it("accepts a member that exits during ownership revalidation", async () => {
     const liveLauncher = {
       pid: 100,

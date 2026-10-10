@@ -73,25 +73,29 @@ describe("artifact inventory entry order", () => {
     const root = await createTestTempDirectory("rea-deep-archive-parent-");
     const archive = join(root, "deep.zip");
     // Fits the ZIP filename field while exceeding the formerly expensive depth.
-    const member = `observed/${"d/".repeat(30_000)}data.txt`;
-    await writeOrderedZip(archive, [member, "observed/", "unrelated/"]);
+    const members = ["data.txt", "second.txt", "third.bin"].map(
+      (name) => `observed/${"d/".repeat(30_000)}${name}`,
+    );
+    await writeOrderedZip(archive, [...members, "observed/", "unrelated/"]);
     const inventory = await inventoryArtifact(archive);
     expect(artifactParentPaths(inventory)).toEqual({
       ".": null,
       observed: ".",
       unrelated: ".",
-      [member]: "observed",
+      ...Object.fromEntries(members.map((member) => [member, "observed"])),
     });
-    const occurrence = artifactOccurrenceAt(inventory, member);
-    expect(occurrence.hash_status).toBe("verified");
-    expect(inventory.edges).toContainEqual(
-      expect.objectContaining({
-        occurrence_id: occurrence.occurrence_id,
-        parent_artifact_id: artifactOccurrenceAt(inventory, "observed")
-          .artifact_id,
-        relation: "contains",
-      }),
-    );
+    const observedParent = artifactOccurrenceAt(inventory, "observed");
+    for (const member of members) {
+      const occurrence = artifactOccurrenceAt(inventory, member);
+      expect(occurrence.hash_status).toBe("verified");
+      expect(inventory.edges).toContainEqual(
+        expect.objectContaining({
+          occurrence_id: occurrence.occurrence_id,
+          parent_artifact_id: observedParent.artifact_id,
+          relation: "contains",
+        }),
+      );
+    }
   });
 
   it.each([

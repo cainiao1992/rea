@@ -325,15 +325,20 @@ export const resolveOccurrenceParents = (
     branch.occurrence = occurrence;
   }
   for (const occurrence of occurrences) {
-    const segments = occurrence.logical_path.split("/");
+    const path = occurrence.logical_path;
     let branch = root;
     let parent: MutableOccurrence | undefined;
-    // The final segment identifies this occurrence, not one of its parents.
-    for (const segment of segments.slice(0, -1)) {
+    // Walk parent segments only. Stop scanning the path once no observed
+    // directory or expanded container can be an ancestor.
+    for (let start = 0; ;) {
+      const slash = path.indexOf("/", start);
+      if (slash < 0) break;
+      const segment = path.slice(start, slash);
       const child = branch.children.get(segment);
       if (child === undefined) break;
       branch = child;
       parent = branch.occurrence ?? parent;
+      start = slash + 1;
     }
     occurrence.parent_occurrence_id = parent?.occurrence_id ?? null;
   }

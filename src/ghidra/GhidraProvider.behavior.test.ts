@@ -540,24 +540,23 @@ describe("Ghidra client projection", () => {
 });
 
 describe("Ghidra result projection", () => {
+  const createElfClient = async (ghidra: GhidraProvider) => {
+    const target = executableTarget("elf", "x86_64");
+    const resolved = await ghidra.resolveAnalysisProfile(target);
+    if (!resolved.ok) throw resolved.error;
+    if (resolved.value.profile === null)
+      throw new Error("Expected a bound Ghidra profile");
+    return ghidra.createClient(target, resolved.value.profile);
+  };
+
   it("rejects malformed inventory output before Evidence creation", async () => {
     const ghidra = provider(installationHost(), () => ({
       start: () => Promise.resolve(ok(sessionInfo())),
       callTool: () => Promise.resolve(ok({ items: "not-an-inventory" })),
       close: () => Promise.resolve(ok(null)),
     }));
-    const resolved = await ghidra.resolveAnalysisProfile(
-      executableTarget("elf", "x86_64"),
-    );
-    if (!resolved.ok) throw resolved.error;
-    if (resolved.value.profile === null)
-      throw new Error("Expected a bound Ghidra profile");
-
-    await expect(
-      ghidra
-        .createClient(executableTarget("elf", "x86_64"), resolved.value.profile)
-        .execute("list_procedures", {}),
-    ).resolves.toMatchObject({
+    const client = await createElfClient(ghidra);
+    await expect(client.execute("list_procedures", {})).resolves.toMatchObject({
       ok: false,
       error: { _tag: "AnalysisOutputError" },
     });
@@ -586,21 +585,13 @@ describe("Ghidra result projection", () => {
           ),
         close: () => Promise.resolve(ok(null)),
       }));
-      const resolved = await ghidra.resolveAnalysisProfile(
-        executableTarget("elf", "x86_64"),
-      );
-      if (!resolved.ok) throw resolved.error;
-      if (resolved.value.profile === null)
-        throw new Error("Expected a bound Ghidra profile");
-
+      const client = await createElfClient(ghidra);
       await expect(
-        ghidra
-          .createClient(
-            executableTarget("elf", "x86_64"),
-            resolved.value.profile,
-          )
-          .execute("list_procedures", {}),
-      ).resolves.toMatchObject({ ok: false, error: { _tag: tag } });
+        client.execute("list_procedures", {}),
+      ).resolves.toMatchObject({
+        ok: false,
+        error: { _tag: tag },
+      });
     },
   );
 
@@ -622,19 +613,12 @@ describe("Ghidra result projection", () => {
         ),
       close: () => Promise.resolve(ok(null)),
     }));
-    const resolved = await ghidra.resolveAnalysisProfile(
-      executableTarget("elf", "x86_64"),
-    );
-    if (!resolved.ok) throw resolved.error;
-    if (resolved.value.profile === null)
-      throw new Error("Expected a bound profile");
+    const client = await createElfClient(ghidra);
     await expect(
-      ghidra
-        .createClient(executableTarget("elf", "x86_64"), resolved.value.profile)
-        .execute("annotate_native_function", {
-          procedure: "0x10100",
-          name: "bad name",
-        }),
+      client.execute("annotate_native_function", {
+        procedure: "0x10100",
+        name: "bad name",
+      }),
     ).resolves.toMatchObject({
       ok: false,
       error: {
@@ -662,16 +646,10 @@ describe("Ghidra result projection", () => {
         ),
       close: () => Promise.resolve(ok(null)),
     }));
-    const resolved = await ghidra.resolveAnalysisProfile(
-      executableTarget("elf", "x86_64"),
-    );
-    if (!resolved.ok) throw resolved.error;
-    if (resolved.value.profile === null)
-      throw new Error("Expected a bound Ghidra profile");
-
-    const result = await ghidra
-      .createClient(executableTarget("elf", "x86_64"), resolved.value.profile)
-      .execute("procedure_pseudo_code", { procedure: "main" });
+    const client = await createElfClient(ghidra);
+    const result = await client.execute("procedure_pseudo_code", {
+      procedure: "main",
+    });
     expect(result).toMatchObject({
       ok: false,
       error: { _tag: tag },

@@ -132,20 +132,20 @@ Il tuo agente chiama REA tramite MCP per ispezionare il bersaglio e tracciare il
 
 REA richiede Node.js 22.x (>=22.19), 24.x (>=24.11) o 26+, oltre a npm. Strumenti aggiuntivi e supporto host dipendono dal bersaglio:
 
-| Obiettivo | Cosa restituisce REA | Requisiti e guida |
-| ---------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Binari nativi | Pseudocodice, assembly, stringhe, simboli, chiamate e riferimenti | Hopper, Ghidra o IDA; [analisi nativa](https://rea.tools/guides/native/) |
-| Layout ELF offline | Sezioni, segmenti, simboli/relocazioni originali e candidati mitigazioni statiche | pwntools fornito dal chiamante su Linux x64; [diagnostica binaria](docs/binary-diagnostics.md) |
-| Bytecode EVM | Selettori di dispatch, offset dei byte, argomenti inferiti e mutabilità | Carrier raw/hex locale; [guida EVM offline](docs/evm-bytecode.md) |
-| Crash Linux registrati | Note grezze, registri/segnai di ogni thread registrato e candidati mapping opzionali | pwntools fornito dal chiamante; GDB/pwndbg opzionale; [crash registrati](docs/recorded-crashes.md) |
-| JavaScript / Electron | Moduli, import, source map, route, IPC e relazioni con add-on nativi | Node.js e npm; [analisi delle applicazioni](https://rea.tools/guides/javascript/) |
-| Siti web | Struttura della pagina, script, osservazioni di rete e screenshot richiesti | Un browser della famiglia Chrome; [analisi browser](https://rea.tools/guides/browser/) |
-| Acquisizioni di rete salvate | Richieste, risposte, payload esposti e posizioni sorgente | HAR; mitmdump su Linux per acquisizioni mitmproxy native; [guida alle acquisizioni](docs/web-network-captures.md) |
-| Assembly .NET | Metadati, istruzioni CIL, dipendenze native dichiarate e confronti di build | Nessuno (solo statico); [guida managed-code](docs/managed-code-analysis.md) |
-| APK Android | Dichiarazioni manifest, classi, metodi decompilati e riferimenti | JADX headless e un JDK completo su Linux/macOS/Windows x64; [guida Android](docs/android-analysis.md) |
-| Firmware | Regioni, risultati di estrazione e passaggi all'analisi nativa | Binwalk / Unblob su Linux; [guida firmware](docs/firmware-analysis.md) |
-| Pacchetti e risorse | Inventari file, digest, plist, anatomia dei bundle Apple e risorse estratte | [Guida artifact e JavaScript](docs/javascript-artifact-reconstruction.md), [Applicazioni Apple](docs/apple-application-analysis.md) |
-| Comportamento dei processi | Output del terminale, interazioni, osservazioni su uscita e filesystem ed confronti di esecuzione | Linux/macOS con un PTY nativo; [cattura dei processi](docs/process-capture.md) |
+| Obiettivo                    | Cosa restituisce REA                                                                              | Requisiti e guida                                                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Binari nativi                | Pseudocodice, assembly, stringhe, simboli, chiamate e riferimenti                                 | Hopper, Ghidra o IDA; [analisi nativa](https://rea.tools/guides/native/)                                                            |
+| Layout ELF offline           | Sezioni, segmenti, simboli/relocazioni originali e candidati mitigazioni statiche                 | pwntools fornito dal chiamante su Linux x64; [diagnostica binaria](docs/binary-diagnostics.md)                                      |
+| Bytecode EVM                 | Selettori di dispatch, offset dei byte, argomenti inferiti e mutabilità                           | Carrier raw/hex locale; [guida EVM offline](docs/evm-bytecode.md)                                                                   |
+| Crash Linux registrati       | Note grezze, registri/segnai di ogni thread registrato e candidati mapping opzionali              | pwntools fornito dal chiamante; GDB/pwndbg opzionale; [crash registrati](docs/recorded-crashes.md)                                  |
+| JavaScript / Electron        | Moduli, import, source map, route, IPC e relazioni con add-on nativi                              | Node.js e npm; [analisi delle applicazioni](https://rea.tools/guides/javascript/)                                                   |
+| Siti web                     | Struttura della pagina, script, osservazioni di rete e screenshot richiesti                       | Un browser della famiglia Chrome; [analisi browser](https://rea.tools/guides/browser/)                                              |
+| Acquisizioni di rete salvate | Richieste, risposte, payload esposti e posizioni sorgente                                         | HAR; mitmdump su Linux per acquisizioni mitmproxy native; [guida alle acquisizioni](docs/web-network-captures.md)                   |
+| Assembly .NET                | Metadati, istruzioni CIL, dipendenze native dichiarate e confronti di build                       | Nessuno (solo statico); [guida managed-code](docs/managed-code-analysis.md)                                                         |
+| APK Android                  | Dichiarazioni manifest, classi, metodi decompilati e riferimenti                                  | JADX headless e un JDK completo su Linux/macOS/Windows x64; [guida Android](docs/android-analysis.md)                               |
+| Firmware                     | Regioni, risultati di estrazione e passaggi all'analisi nativa                                    | Binwalk / Unblob su Linux; [guida firmware](docs/firmware-analysis.md)                                                              |
+| Pacchetti e risorse          | Inventari file, digest, plist, anatomia dei bundle Apple e risorse estratte                       | [Guida artifact e JavaScript](docs/javascript-artifact-reconstruction.md), [Applicazioni Apple](docs/apple-application-analysis.md) |
+| Comportamento dei processi   | Output del terminale, interazioni, osservazioni su uscita e filesystem ed confronti di esecuzione | Linux/macOS con un PTY nativo; [cattura dei processi](docs/process-capture.md)                                                      |
 
 L'ispezione statica di JavaScript e .NET legge i file forniti senza eseguire l'applicazione. La cattura a runtime esegue o interagisce con il bersaglio selezionato usando i tuoi permessi utente; ogni guida runtime descrive i suoi effetti.
 

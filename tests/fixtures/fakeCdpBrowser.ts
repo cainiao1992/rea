@@ -143,6 +143,7 @@ export const startFakeCdpBrowser = async (
     browserWebSocketUrl: `ws://127.0.0.1:${String(port)}/devtools/browser/fake`,
     allowedOrigin: endpoint,
     commands,
+    activeConnectionCount: () => sockets.size,
     emitRawMessage(message) {
       for (const socket of sockets) socket.send(message);
     },

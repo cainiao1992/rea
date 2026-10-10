@@ -401,28 +401,8 @@ export class EvmoleInterfaceProvider implements EvmInterfacePort {
     }
     if (processOwner !== undefined) {
       this.#pendingCleanup = { root, process: processOwner };
-      root = undefined;
-      return err(
-        new ProviderCleanupError(
-          EVMOLE_PROVIDER_IDENTITY.id,
-          [
-            processOwner.launch.ownership?.runId ?? "owned-worker",
-            ...(this.#pendingCleanup.root === undefined
-              ? []
-              : [this.#pendingCleanup.root.path]),
-          ],
-          {
-            reason: "Owned EVM worker cleanup could not be confirmed",
-            previous_error: result.ok
-              ? null
-              : projectAnalysisError(result.error),
-            ...(retainedOutput === undefined
-              ? {}
-              : { captured_output: { ...retainedOutput } }),
-          },
-          { operation: OPERATION },
-        ),
-      );
+      // The command failure already owns this cleanup diagnostic and its resources.
+      return result;
     }
     if (root !== undefined) {
       try {

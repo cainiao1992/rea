@@ -130,7 +130,9 @@ it.runIf(!unsupportedHost)(
     const { path } = await fixture();
     let ownedPath = "";
     let failCleanup = true;
+    let launches = 0;
     const provider = new EvmoleInterfaceProvider({}, async (spawn) => {
+      launches += 1;
       ownedPath = spawn.cwd ?? "";
       const launched = await spawnOwnedProviderProcess({
         ...spawn,
@@ -158,36 +160,42 @@ it.runIf(!unsupportedHost)(
     if (result.ok) throw new Error("Expected compounded lifecycle failure");
     expect(result.error.cleanupIncomplete).toBe(true);
     // Inspect the retained error chain without diffing a megabyte of stdout.
-    const output = z.object({ truncated: z.boolean(), stderr: z.string() });
     const cleanup = z
       .object({
         reason: z.string(),
-        previous_error: z.object({
-          code: z.string(),
-          details: z.object({
-            diagnostics: z.object({
-              reason: z.string(),
-              previous_error: z.object({ failure_kind: z.string() }),
-              captured_output: output,
-            }),
-          }),
+        previous_error: z
+          .object({
+            failure_kind: z.string(),
+            stdout: z.unknown().optional(),
+            stderr: z.unknown().optional(),
+          })
+          .transform(({ failure_kind, stdout, stderr }) => ({
+            failure_kind,
+            output_repeated: stdout !== undefined || stderr !== undefined,
+          })),
+        captured_output: z.object({
+          truncated: z.boolean(),
+          stderr: z.literal(""),
+          stdout: z.string().transform((value) => Buffer.byteLength(value)),
         }),
       })
       .parse(projectAnalysisError(result.error).details?.["diagnostics"]);
     expect(cleanup).toEqual({
-      reason: "Owned EVM worker cleanup could not be confirmed",
+      reason: "injected post-cleanup reporting failure",
       previous_error: {
-        code: "cleanup_incomplete",
-        details: {
-          diagnostics: {
-            reason: "injected post-cleanup reporting failure",
-            previous_error: { failure_kind: "output-limit" },
-            captured_output: { truncated: true, stderr: "" },
-          },
-        },
+        failure_kind: "output-limit",
+        output_repeated: false,
       },
+      captured_output: { truncated: true, stderr: "", stdout: 1048576 },
     });
+    expect(result.error.cleanupResources).toContain(ownedPath);
     await access(ownedPath);
+    const blocked = await provider.inspect({ path, encoding: "hex" });
+    expect(blocked.ok).toBe(false);
+    expect(launches).toBe(1);
+    await expect(provider.close()).rejects.toMatchObject({
+      cleanupIncomplete: true,
+    });
     failCleanup = false;
     await provider.close();
     await expect(access(ownedPath)).rejects.toMatchObject({ code: "ENOENT" });

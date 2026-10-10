@@ -34,11 +34,13 @@ export const normalizeProcessText = (
     normalized = normalizePortTokens(normalized);
   if (scenario.normalization.pids)
     normalized = normalizePidTokens(normalized, [pid]);
-  // Scenario replacements are literal text, so `$&`, `` $` ``, and `$1` must
-  // reach the captured output verbatim instead of expanding as a replacement
-  // pattern. split/join is literal on both sides.
+  // A callback keeps replacement text literal while preserving replaceAll's
+  // empty-pattern boundaries, which the process scenario contract permits.
   for (const pattern of scenario.normalization.patterns)
-    normalized = normalized.split(pattern.pattern).join(pattern.replacement);
+    normalized = normalized.replaceAll(
+      pattern.pattern,
+      () => pattern.replacement,
+    );
   return normalized;
 };
 

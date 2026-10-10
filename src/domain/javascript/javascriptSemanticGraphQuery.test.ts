@@ -4,6 +4,7 @@ import { z } from "zod";
 import { digestCanonicalValue } from "../canonicalDigest.js";
 import type { ApplicationGraphEvidence } from "./javascriptApplicationEvidenceSchemas.js";
 import {
+  JAVASCRIPT_SEMANTIC_RELATION_FAMILY,
   JAVASCRIPT_SEMANTIC_NODE_KINDS,
   JAVASCRIPT_SEMANTIC_RELATION_FAMILIES,
   JAVASCRIPT_SEMANTIC_RELATIONS,
@@ -27,6 +28,7 @@ import {
   parseJavaScriptSemanticGraph,
   serializeJavaScriptSemanticGraph,
 } from "./javascriptSemanticGraphSerialization.js";
+import { queryJavaScriptSemanticGraph } from "./javascriptSemanticQuery.js";
 
 const SHA = "a".repeat(64);
 const JAG_ID = `jag_${"b".repeat(64)}`;
@@ -322,6 +324,104 @@ const registryForGraph = (
     registry.intern(resolveJavaScriptSemanticEvidence(graph, reference));
   return registry;
 };
+
+const graphWithCandidateRelations = (): JavaScriptSemanticGraph => {
+  const base = fixtureGraph();
+  const evidenceContexts = registryForGraph(base);
+  const relations = base.relations.map(
+    ({ relation_id: _relationId, ...relation }) =>
+      createJavaScriptSemanticGraphRelation(
+        {
+          ...relation,
+          resolution: "candidate",
+          evidence: resolveJavaScriptSemanticEvidence(base, relation.evidence),
+        },
+        evidenceContexts,
+      ),
+  );
+  const binding = base.nodes.find(({ label }) => label === "binding");
+  const callable = base.nodes.find(({ label }) => label === "function");
+  if (binding === undefined || callable === undefined)
+    throw new Error("Expected candidate-cycle endpoints");
+  for (const [source, target] of [
+    [binding, callable],
+    [callable, binding],
+  ] as const)
+    relations.push(
+      createJavaScriptSemanticGraphRelation(
+        {
+          source_node_id: source.node_id,
+          target_node_id: target.node_id,
+          relation: "owns",
+          resolution: "candidate",
+          properties: {},
+          evidence: evidence("inferred"),
+        },
+        evidenceContexts,
+      ),
+    );
+
+  const { graph_id: _graphId, ...input } = base;
+  return createJavaScriptSemanticGraph({
+    ...input,
+    evidence_contexts: evidenceContexts.contexts,
+    relations,
+    coverage: {
+      ...input.coverage,
+      families: input.coverage.families.map((family) => ({
+        ...family,
+        retained_relations: relations.filter(
+          ({ relation }) =>
+            JAVASCRIPT_SEMANTIC_RELATION_FAMILY[relation] === family.family,
+        ).length,
+      })),
+    },
+  });
+};
+
+it("counts candidate edges by query direction and relation filter", () => {
+  const graph = graphWithCandidateRelations();
+  const binding = graph.nodes.find(({ label }) => label === "binding");
+  if (binding === undefined) throw new Error("Expected binding seed");
+  const query = (
+    direction: "forward-influence" | "backward-provenance",
+    allowedRelations: (typeof JAVASCRIPT_SEMANTIC_RELATIONS)[number][],
+  ) =>
+    queryJavaScriptSemanticGraph(graph, {
+      seed: { kind: "semantic-node", node_id: binding.node_id },
+      direction,
+      allowed_relations: allowedRelations,
+    });
+
+  expect(query("forward-influence", ["captures"]).status).toBe("ambiguous");
+  expect(query("forward-influence", ["defines"]).status).toBe("found");
+  expect(query("backward-provenance", ["defines"]).status).toBe("ambiguous");
+  expect(query("backward-provenance", ["captures"]).status).toBe("found");
+});
+
+it("counts candidate ownership cycles once and traverses them finitely", () => {
+  const graph = graphWithCandidateRelations();
+  const binding = graph.nodes.find(({ label }) => label === "binding");
+  if (binding === undefined) throw new Error("Expected binding seed");
+  const result = queryJavaScriptSemanticGraph(graph, {
+    seed: { kind: "semantic-node", node_id: binding.node_id },
+    direction: "ownership",
+    allowed_relations: ["owns"],
+    include_ambiguous_dynamic_edges: true,
+  });
+
+  expect(result.status).toBe("ambiguous");
+  expect(result.relations).toHaveLength(2);
+  expect(result.summary.traversed_nodes).toBe(2);
+  expect(result.summary.traversed_relations).toBe(2);
+  expect(
+    queryJavaScriptSemanticGraph(graph, {
+      seed: { kind: "semantic-node", node_id: binding.node_id },
+      direction: "ownership",
+      allowed_relations: ["constructs-request"],
+    }).status,
+  ).toBe("found");
+});
 
 it("defines every required relation family and canonicalizes records", () => {
   expect(JAVASCRIPT_SEMANTIC_RELATIONS).toContain("argument-to-parameter");

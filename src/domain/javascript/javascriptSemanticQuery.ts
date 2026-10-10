@@ -283,15 +283,32 @@ const relevantCandidateRelationCount = (
   nodeIds: ReadonlySet<string>,
   input: JavaScriptSemanticQueryInput,
 ): number => {
-  const adjacency = buildAdjacency(
-    graph.relations.filter(({ resolution }) => resolution === "candidate"),
-    { ...input, include_ambiguous_dynamic_edges: true },
-  );
-  const relevant = new Set<string>();
-  for (const nodeId of nodeIds)
-    for (const { relation } of adjacency.get(nodeId) ?? [])
-      relevant.add(relation.relation_id);
-  return relevant.size;
+  const allowed =
+    input.allowed_relations === undefined
+      ? null
+      : new Set(input.allowed_relations);
+  let relevant = 0;
+  for (const relation of graph.relations) {
+    if (
+      relation.resolution !== "candidate" ||
+      (allowed !== null && !allowed.has(relation.relation))
+    )
+      continue;
+    const sourceIsRelevant = nodeIds.has(relation.source_node_id);
+    const targetIsRelevant = nodeIds.has(relation.target_node_id);
+    if (
+      (input.direction === "callers" &&
+        relation.relation === "calls" &&
+        targetIsRelevant) ||
+      (input.direction === "ownership" &&
+        ownershipRelation(relation.relation) &&
+        (sourceIsRelevant || targetIsRelevant)) ||
+      (input.direction === "backward-provenance" && targetIsRelevant) ||
+      (input.direction === "forward-influence" && sourceIsRelevant)
+    )
+      relevant += 1;
+  }
+  return relevant;
 };
 
 const expectedMatchesFor = (

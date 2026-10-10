@@ -335,6 +335,7 @@ describe("reference source import behavior", () => {
       expect(left.value.exclusions).toContainEqual({
         path: ".env",
         reason: "configured-secret",
+        pattern: ".env",
       });
       expect(JSON.stringify(left.value)).not.toContain("SECRET_SENTINEL");
       expect(JSON.stringify(left.value)).not.toContain(leftRoot);
@@ -435,3 +436,80 @@ describe("reference source rooted module specifiers", () => {
     });
   });
 });
+
+describe.skipIf(process.platform === "win32")(
+  "reference source exclusion provenance",
+  () => {
+    it("preserves ordered ignore rules and reports each winning rule origin", async () => {
+      const root = await createTestTempDirectory(
+        "rea-reference-ignore-origin-",
+      );
+      await mkdir(join(root, "dist"), { recursive: true });
+      await mkdir(join(root, "project-parent"), { recursive: true });
+      await mkdir(join(root, "caller-parent"), { recursive: true });
+      await Promise.all([
+        writeFile(
+          join(root, ".gitignore"),
+          "project.tmp\n*.log\n!keep.log\nproject-parent/\n!project-parent/keep.ts\n!default.log\n",
+        ),
+        writeFile(join(root, "project.tmp"), "project rule\n"),
+        writeFile(join(root, "project.log"), "project rule\n"),
+        writeFile(join(root, "keep.log"), "later default rule wins\n"),
+        writeFile(join(root, "default.log"), "default rule\n"),
+        writeFile(join(root, "caller-keep.log"), "caller negation\n"),
+        writeFile(join(root, "dist", "output.js"), "generated output\n"),
+        writeFile(join(root, "project-parent", "keep.ts"), "parent ignored\n"),
+        writeFile(join(root, "caller-parent", "keep.ts"), "caller parent\n"),
+        writeFile(join(root, "selected.ts"), "selected source\n"),
+      ]);
+
+      const imported = await importReferenceSource({
+        root,
+        caller: "reference-import-test",
+        policy: { secretPatterns: ["project.log"] },
+        excludePaths: ["caller-parent/", "!selected.ts", "!caller-keep.log"],
+      });
+      if (!imported.ok) throw imported.error;
+
+      expect(imported.value.exclusions).toEqual(
+        expect.arrayContaining([
+          {
+            path: "project.tmp",
+            reason: "project-ignored",
+            pattern: "project.tmp",
+          },
+          {
+            path: "project.log",
+            reason: "configured-secret",
+            pattern: "project.log",
+          },
+          { path: "keep.log", reason: "default-ignored", pattern: "*.log" },
+          {
+            path: "dist/output.js",
+            reason: "default-ignored",
+            pattern: "dist/",
+          },
+          {
+            path: "project-parent/keep.ts",
+            reason: "project-ignored",
+            pattern: "project-parent/",
+          },
+          {
+            path: "caller-parent/keep.ts",
+            reason: "caller-excluded",
+            pattern: "caller-parent/",
+          },
+        ]),
+      );
+      expect(imported.value.entries).toContainEqual(
+        expect.objectContaining({ path: "selected.ts", kind: "file" }),
+      );
+      expect(imported.value.entries).toContainEqual(
+        expect.objectContaining({ path: "caller-keep.log", kind: "file" }),
+      );
+      expect(imported.value.exclusions).not.toContainEqual(
+        expect.objectContaining({ path: "selected.ts" }),
+      );
+    });
+  },
+);

@@ -175,7 +175,11 @@ describe("historical source graph", () => {
       },
       (input: HistoricalSourceGraphInput) => {
         input.exclusions = [
-          { path: "private.env", reason: "configured-secret" },
+          {
+            path: "private.env",
+            reason: "configured-secret",
+            pattern: ".env",
+          },
         ];
         input.inventory_state = "partial";
       },
@@ -186,6 +190,20 @@ describe("historical source graph", () => {
         original.root_sha256,
       );
     }
+  });
+
+  it("commits the matched pattern for each exclusion", () => {
+    const graphWith = (pattern: string) =>
+      createHistoricalSourceGraph({
+        ...graphInput(),
+        inventory_state: "partial",
+        exclusions: [
+          { path: "private.env", reason: "configured-secret", pattern },
+        ],
+      });
+    expect(graphWith(".env").root_sha256).not.toBe(
+      graphWith("*.env").root_sha256,
+    );
   });
 
   it("retains actual external targets and rejects placeholder targets", () => {
@@ -300,7 +318,13 @@ describe("partial historical source graphs", () => {
       { entries: partial.entries },
       { parse_failures: partial.parse_failures },
       {
-        exclusions: [{ path: "secret", reason: "configured-secret" as const }],
+        exclusions: [
+          {
+            path: "secret",
+            reason: "configured-secret" as const,
+            pattern: "secret",
+          },
+        ],
       },
       { limitations: ["Incomplete"] },
       {

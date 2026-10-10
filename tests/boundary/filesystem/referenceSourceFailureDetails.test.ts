@@ -116,6 +116,7 @@ describe("reference import native entry failure details", () => {
       expect(imported.value.exclusions).toContainEqual({
         path: "secret-events.pipe",
         reason: "configured-secret",
+        pattern: "*secret*",
       });
     },
   );

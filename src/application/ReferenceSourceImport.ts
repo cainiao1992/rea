@@ -15,7 +15,10 @@ import {
   type ReferenceSourceImportError,
   type ReferenceSourceImportOptions,
 } from "./ReferenceSourceImportTypes.js";
-import { prepareReferenceSourceImport } from "./ReferenceSourceImportPolicy.js";
+import {
+  prepareReferenceSourceImport,
+  type PreparedReferenceSourceImport,
+} from "./ReferenceSourceImportPolicy.js";
 
 const failure = (
   code: ReferenceSourceImportError["code"],
@@ -115,8 +118,46 @@ const sortExclusions = (
   [...exclusions].sort((left, right) => {
     const byPath = compareUnicodeCodePoints(left.path, right.path);
     if (byPath !== 0) return byPath;
-    return compareUnicodeCodePoints(left.reason, right.reason);
+    const byReason = compareUnicodeCodePoints(left.reason, right.reason);
+    if (byReason !== 0) return byReason;
+    return compareUnicodeCodePoints(
+      "pattern" in left ? left.pattern : "",
+      "pattern" in right ? right.pattern : "",
+    );
   });
+
+const createShouldExclude =
+  (
+    exclusions: HistoricalSourceGraphInput["exclusions"],
+    secrets: PreparedReferenceSourceImport["secrets"],
+    ignored: PreparedReferenceSourceImport["ignored"],
+  ): ((path: string) => boolean) =>
+  (path) => {
+    const secretMatch = secrets.test(path);
+    if (secretMatch.ignored) {
+      if (!secretMatch.rule)
+        throw new Error(`Ignored secret path has no matching rule: ${path}`);
+      exclusions.push({
+        path,
+        reason: "configured-secret",
+        pattern: secretMatch.rule.pattern,
+      });
+      return true;
+    }
+    const match = ignored.test(path);
+    if (!match.ignored) return false;
+    if (!match.rule)
+      throw new Error(`Ignored path has no matching rule: ${path}`);
+    const reason = match.rule.mark;
+    if (
+      reason !== "project-ignored" &&
+      reason !== "default-ignored" &&
+      reason !== "caller-excluded"
+    )
+      throw new Error(`Ignored path has unknown rule origin: ${path}`);
+    exclusions.push({ path, reason, pattern: match.rule.pattern });
+    return true;
+  };
 
 /**
  * Import a reference source directory into a committed historical source graph.
@@ -135,17 +176,7 @@ export const importReferenceSource = async (
   if (isAborted(options.signal)) return err(cancelled());
 
   const exclusions: HistoricalSourceGraphInput["exclusions"] = [];
-  const shouldExclude = (path: string): boolean => {
-    if (secrets.ignores(path)) {
-      exclusions.push({ path, reason: "configured-secret" });
-      return true;
-    }
-    if (ignored.ignores(path)) {
-      exclusions.push({ path, reason: "caller-excluded" });
-      return true;
-    }
-    return false;
-  };
+  const shouldExclude = createShouldExclude(exclusions, secrets, ignored);
 
   const [readResult, vcs] = await Promise.all([
     readReferenceSource(root, {

@@ -30,6 +30,16 @@ const failure = (
 
 const isAborted = (signal?: AbortSignal): boolean => signal?.aborted === true;
 
+const addMarkedPatterns = (
+  matcher: ReturnType<typeof ignore>,
+  patterns: readonly string[],
+  mark: "project-ignored" | "default-ignored" | "caller-excluded",
+): void => {
+  for (const pattern of patterns)
+    for (const line of pattern.split(/\r?\n/u))
+      matcher.add({ pattern: line, mark });
+};
+
 const resolveRoot = async (
   requestedRoot: string,
   signal?: AbortSignal,
@@ -87,11 +97,17 @@ const buildIgnored = async (
     present = false;
   }
   signal?.throwIfAborted();
-  if (present) ignored.add(await readRegularFileText(policyPath, { signal }));
-  ignored.add([...DEFAULT_REFERENCE_SOURCE_IGNORE_PATTERNS]);
+  if (present) {
+    const text = await readRegularFileText(policyPath, { signal });
+    addMarkedPatterns(ignored, [text], "project-ignored");
+  }
+  addMarkedPatterns(
+    ignored,
+    DEFAULT_REFERENCE_SOURCE_IGNORE_PATTERNS,
+    "default-ignored",
+  );
   for (const path of excludePaths) {
-    ignored.add(path);
-    ignored.add(`${path}/`);
+    addMarkedPatterns(ignored, [path, `${path}/`], "caller-excluded");
   }
   return ignored;
 };

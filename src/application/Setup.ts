@@ -23,6 +23,9 @@ import {
   hostRemediation,
   systemSetupHost,
 } from "./SetupHost.js";
+import { AnalysisError } from "../domain/analysisErrorBase.js";
+import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
+import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 
 /** Discover, approve, and apply setup actions idempotently. */
 export const runSetup = async (
@@ -48,6 +51,17 @@ export const runSetup = async (
   }
 
   if (threw) {
+    if (cleanupFailure !== undefined && primaryFailure instanceof AnalysisError)
+      throw analysisErrorWithCleanupFailure(
+        primaryFailure,
+        new ProviderCleanupError(
+          "setup",
+          primaryFailure.cleanupResources,
+          { reason: cleanupFailure },
+          { operation: "setup" },
+        ),
+        "setup",
+      );
     if (cleanupFailure !== undefined)
       throw new AggregateError(
         [primaryFailure, new Error(cleanupFailure)],

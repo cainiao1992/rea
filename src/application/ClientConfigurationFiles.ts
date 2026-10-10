@@ -1,5 +1,8 @@
 import { err, ok, type Result } from "../domain/result.js";
-import { readRegularFileText } from "./RegularFileRead.js";
+import {
+  RegularFileCleanupFailure,
+  readRegularFileText,
+} from "./RegularFileRead.js";
 import {
   effectiveClientServer,
   parseClientConfiguration,
@@ -13,6 +16,7 @@ export interface ClientConfigurationFileError {
   readonly kind: "unreadable" | "malformed";
   readonly path: string;
   readonly detail: string;
+  readonly cleanupFailure?: RegularFileCleanupFailure;
 }
 
 /** Preserve named read failures and distinguish a missing source from an empty file. */
@@ -28,6 +32,9 @@ export const readConfigurationText = async (
       kind: "unreadable",
       path,
       detail: `Configuration ${path} could not be read: ${cause instanceof Error ? cause.message : String(cause)}`,
+      ...(cause instanceof RegularFileCleanupFailure
+        ? { cleanupFailure: cause }
+        : {}),
     });
   }
 };

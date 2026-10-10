@@ -22,7 +22,11 @@ import { PRODUCT_IDENTITY } from "../identity.js";
 import { npxRegistrationCommand } from "./ClientRegistrationIdentity.js";
 import { MCP_STARTUP_POLICY } from "../mcpStartupPolicy.js";
 import { resolveClientConfigTransactionPath } from "./ClientConfigPath.js";
-import { readRegularFileText } from "./RegularFileRead.js";
+import {
+  readRegularFileText,
+  RegularFileCleanupFailure,
+} from "./RegularFileRead.js";
+import type { ClientConfigurationFileError } from "./ClientConfigurationFiles.js";
 import type {
   ClientConfigurationInspection,
   ClientConfigurationResult,
@@ -38,19 +42,22 @@ export const configureClientConfiguration = (
 ): Promise<ClientConfigurationResult> => {
   if (client.configPathError !== undefined)
     return Promise.resolve({ status: "failed", reason: "path" });
-  if (client.format === undefined || client.format === "unsupported")
-    return Promise.resolve({ status: "failed", reason: "readback" });
-  return configureClientDocument(client, environment, command, client.format);
+  return configureClientDocument(client, environment, command);
 };
 
 const configureClientDocument = async (
   client: SetupClient,
   environment: SetupProviderEnvironment,
   command: readonly string[],
-  format: NonNullable<SetupClient["format"]>,
 ): Promise<ClientConfigurationResult> => {
+  const format = client.format;
+  if (format === undefined || format === "unsupported")
+    return { status: "failed", reason: "readback" };
   const files = await readClientConfigurationFiles(client);
-  if (!files.ok) return { status: "failed", reason: "readback" };
+  if (!files.ok) {
+    throwCleanupFailure(files.error);
+    return { status: "failed", reason: "readback" };
+  }
   const policy = await readClientPolicyBlock(
     client,
     undefined,
@@ -61,7 +68,11 @@ const configureClientDocument = async (
       files.value.at(-1),
     ),
   );
-  if (!policy.ok || policy.value !== undefined)
+  if (!policy.ok) {
+    throwCleanupFailure(policy.error);
+    return { status: "failed", reason: "readback" };
+  }
+  if (policy.value !== undefined)
     return { status: "failed", reason: "readback" };
   const transactionPath = await resolveClientConfigTransactionPath(
     client.configPath,
@@ -72,6 +83,7 @@ const configureClientDocument = async (
   try {
     original = await readRegularFileText(transactionPath);
   } catch (cause: unknown) {
+    if (cause instanceof RegularFileCleanupFailure) throw cause;
     if (!isMissing(cause)) return { status: "failed", reason: "readback" };
   }
   let parsed: ClientConfigurationDocument;
@@ -85,9 +97,14 @@ const configureClientDocument = async (
       parsed,
       clientConfigurationDesired(client, environment, command, parsed),
     );
-    if (!policy.ok || policy.value !== undefined)
+    if (!policy.ok) {
+      throwCleanupFailure(policy.error);
+      return { status: "failed", reason: "readback" };
+    }
+    if (policy.value !== undefined)
       return { status: "failed", reason: "readback" };
   } catch (cause: unknown) {
+    if (cause instanceof RegularFileCleanupFailure) throw cause;
     // Malformed existing configuration fails the readback gate.
     void cause;
     return { status: "failed", reason: "readback" };
@@ -99,6 +116,33 @@ const configureClientDocument = async (
     parsed,
   );
   if (registrationCurrent(parsed, desired)) return { status: "unchanged" };
+  return persistClientConfiguration({
+    client,
+    transactionPath,
+    format,
+    original,
+    parsed,
+    desired,
+  });
+};
+
+interface ClientConfigurationUpdate {
+  readonly client: SetupClient;
+  readonly transactionPath: string;
+  readonly format: NonNullable<SetupClient["format"]>;
+  readonly original: string | undefined;
+  readonly parsed: ClientConfigurationDocument;
+  readonly desired: unknown;
+}
+
+const persistClientConfiguration = async ({
+  client,
+  transactionPath,
+  format,
+  original,
+  parsed,
+  desired,
+}: ClientConfigurationUpdate): Promise<ClientConfigurationResult> => {
   const backupPath =
     original === undefined ? undefined : `${client.configPath}.rea.backup`;
   if (
@@ -163,6 +207,7 @@ const configureClientDocument = async (
       return { status: "failed", reason: "readback" };
     }
   } catch (cause: unknown) {
+    if (cause instanceof RegularFileCleanupFailure) throw cause;
     // Readback failure restores the transaction before reporting.
     void cause;
     await restoreConfig(transactionPath, original);
@@ -183,7 +228,10 @@ export const clientConfigurationAligned = async (
   if (client.configPathError !== undefined) return false;
   try {
     const files = await readClientConfigurationFiles(client);
-    if (!files.ok) return false;
+    if (!files.ok) {
+      throwCleanupFailure(files.error);
+      return false;
+    }
     const original = await readRegularFileText(client.configPath);
     const parsed = parseClientConfiguration(original, client.format);
     const policy = await readClientPolicyBlock(
@@ -191,8 +239,11 @@ export const clientConfigurationAligned = async (
       parsed,
       clientConfigurationDesired(client, providerEnvironment, command, parsed),
     );
+    if (!policy.ok) {
+      throwCleanupFailure(policy.error);
+      return false;
+    }
     return (
-      policy.ok &&
       policy.value === undefined &&
       registrationCurrent(
         parsed,
@@ -205,6 +256,7 @@ export const clientConfigurationAligned = async (
       )
     );
   } catch (cause: unknown) {
+    if (cause instanceof RegularFileCleanupFailure) throw cause;
     // Unreadable configuration is treated as not aligned so setup repairs it.
     void cause;
     return false;
@@ -221,7 +273,13 @@ export const inspectClientConfiguration = async (
     return { status: "invalid", remediation: client.configPathError };
   if (client.format === "unsupported") return { status: "already_current" };
   const files = await readClientConfigurationFiles(client);
-  if (!files.ok) return { status: "invalid", remediation: files.error.detail };
+  if (!files.ok) {
+    throwCleanupFailure(files.error);
+    return {
+      status: "invalid",
+      remediation: files.error.detail,
+    };
+  }
   const policy = await readClientPolicyBlock(
     client,
     undefined,
@@ -232,8 +290,13 @@ export const inspectClientConfiguration = async (
       files.value.at(-1),
     ),
   );
-  if (!policy.ok)
-    return { status: "invalid", remediation: policy.error.detail };
+  if (!policy.ok) {
+    throwCleanupFailure(policy.error);
+    return {
+      status: "invalid",
+      remediation: policy.error.detail,
+    };
+  }
   if (policy.value !== undefined)
     return { status: "invalid", remediation: policy.value };
   const transactionPath = await resolveClientConfigTransactionPath(
@@ -249,11 +312,11 @@ export const inspectClientConfiguration = async (
   try {
     original = await readRegularFileText(transactionPath);
   } catch (cause: unknown) {
+    if (cause instanceof RegularFileCleanupFailure) throw cause;
     if (isMissing(cause)) return { status: "create" };
     return {
       status: "invalid",
-      remediation:
-        "The configuration file could not be read. Check its permissions before rerunning setup.",
+      remediation: `The configuration file could not be read. Check its permissions before rerunning setup. ${cause instanceof Error ? cause.message : String(cause)}`,
     };
   }
   try {
@@ -263,8 +326,13 @@ export const inspectClientConfiguration = async (
       parsed,
       clientConfigurationDesired(client, providerEnvironment, command, parsed),
     );
-    if (!policy.ok)
-      return { status: "invalid", remediation: policy.error.detail };
+    if (!policy.ok) {
+      throwCleanupFailure(policy.error);
+      return {
+        status: "invalid",
+        remediation: policy.error.detail,
+      };
+    }
     if (policy.value !== undefined)
       return { status: "invalid", remediation: policy.value };
     const desired = clientConfigurationDesired(
@@ -276,6 +344,7 @@ export const inspectClientConfiguration = async (
     if (registrationCurrent(parsed, desired))
       return { status: "already_current" };
   } catch (cause: unknown) {
+    if (cause instanceof RegularFileCleanupFailure) throw cause;
     // Malformed configuration is reported with the invalid remediation.
     void cause;
     return {
@@ -292,6 +361,11 @@ export const inspectClientConfiguration = async (
 
 const isMissing = (cause: unknown): boolean =>
   cause instanceof Error && "code" in cause && cause.code === "ENOENT";
+
+const throwCleanupFailure = (error: ClientConfigurationFileError): void => {
+  if (error.cleanupFailure !== undefined) throw error.cleanupFailure;
+};
+
 const preserveConfigBackup = async (
   source: string,
   destination: string,

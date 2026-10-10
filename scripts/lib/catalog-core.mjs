@@ -53,6 +53,8 @@ const SOURCE_PATHS = {
   firmwareProvider: "dist/firmware/FirmwareRelease.js",
   androidContracts: "dist/contracts/android/androidToolContracts.js",
   androidProvider: "dist/android/JadxRelease.js",
+  apktoolContracts: "dist/contracts/apktool/apktoolToolContracts.js",
+  apktoolProvider: "dist/apktool/ApktoolProvider.js",
   jebContracts: "dist/contracts/jeb/jebToolContracts.js",
   jebProvider: "dist/jeb/JebProvider.js",
   adbContracts: "dist/contracts/adb/adbToolContracts.js",

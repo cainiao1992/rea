@@ -98,6 +98,15 @@ export const TOOL_EFFECTS: Readonly<Record<string, ToolEffects>> = {
     launchesProcess: true,
     writesFilesystem: true,
   }),
+  inspect_apktool_client: effects({
+    mutatesSession: true,
+    launchesProcess: true,
+  }),
+  decode_android_resources: effects({
+    mutatesSession: true,
+    launchesProcess: true,
+    writesFilesystem: true,
+  }),
   inspect_jeb_client: effects({
     mutatesSession: true,
     accessesNetwork: true,

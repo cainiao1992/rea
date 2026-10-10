@@ -64,13 +64,17 @@ import { FirmwareAnalysisService } from "../application/firmware/FirmwareAnalysi
 import type { FirmwareAnalysisPort } from "../application/firmware/FirmwareAnalysisPort.js";
 import { createFirmwareAnalysisProvider } from "../composition/firmware.js";
 import { registerAndroidTools } from "./registerAndroidTools.js";
+import { registerApktoolTools } from "./registerApktoolTools.js";
 import { registerJebTools } from "./registerJebTools.js";
 import { registerAdbTools } from "./registerAdbTools.js";
 import { AndroidAnalysisService } from "../application/android/AndroidAnalysisService.js";
 import { JebAnalysisService } from "../application/jeb/JebAnalysisService.js";
 import type { AndroidAnalysisPort } from "../application/android/AndroidAnalysisPort.js";
-import type { JebAnalysisPort } from "../application/jeb/JebAnalysisPort.js";
+import type { ApktoolResourceAnalysisPort } from "../application/apktool/ApktoolResourceAnalysisPort.js";
+import { ApktoolResourceAnalysisService } from "../application/apktool/ApktoolResourceAnalysisService.js";
 import { createAndroidAnalysisProvider } from "../composition/android.js";
+import { createApktoolResourceAnalysisProvider } from "../composition/apktool.js";
+import type { JebAnalysisPort } from "../application/jeb/JebAnalysisPort.js";
 import { createJebAnalysisProvider } from "../composition/jeb.js";
 import type { AdbDeviceAnalysisPort } from "../application/adb/AdbDeviceAnalysisPort.js";
 import { AdbDeviceAnalysisService } from "../application/adb/AdbDeviceAnalysisService.js";
@@ -109,6 +113,7 @@ export interface CreateServerOptions {
   readonly webRuntime?: WebRuntimeService;
   readonly webNetworkCapture?: WebNetworkCaptureService;
   readonly androidAnalysis?: AndroidAnalysisPort;
+  readonly apktoolAnalysis?: ApktoolResourceAnalysisPort;
   readonly jebAnalysis?: JebAnalysisPort;
   readonly adbDeviceAnalysis?: AdbDeviceAnalysisPort;
   readonly browserObservation?: BrowserObservationPort;
@@ -209,6 +214,9 @@ export const createServer = (
   );
   const android =
     options.androidAnalysis ?? createAndroidAnalysisProvider(environment);
+  const apktool =
+    options.apktoolAnalysis ??
+    createApktoolResourceAnalysisProvider(environment);
   const jeb = options.jebAnalysis ?? createJebAnalysisProvider(environment);
   const adbDevice =
     options.adbDeviceAnalysis ?? createAdbDeviceAnalysisProvider(environment);
@@ -246,6 +254,12 @@ export const createServer = (
         "Android provider cleanup failed",
       );
     });
+    void apktool.close().catch((cause: unknown) => {
+      logger.error(
+        { error: cause instanceof Error ? cause.message : String(cause) },
+        "Apktool provider cleanup failed",
+      );
+    });
     void jeb.close().catch((cause: unknown) => {
       logger.error(
         { error: cause instanceof Error ? cause.message : String(cause) },
@@ -258,6 +272,7 @@ export const createServer = (
     const results = await Promise.allSettled([
       closeServer(),
       android.close(),
+      apktool.close(),
       jeb.close(),
     ]);
     for (const result of results)
@@ -267,6 +282,12 @@ export const createServer = (
   registerAdbTools(
     server,
     new AdbDeviceAnalysisService(adbDevice),
+    toolLogger,
+    recordEvidence,
+  );
+  registerApktoolTools(
+    server,
+    new ApktoolResourceAnalysisService(apktool),
     toolLogger,
     recordEvidence,
   );

@@ -120,6 +120,7 @@ const visitArtifactEntries = async (
       iterator: currentReader.entries(context.signal)[Symbol.asyncIterator](),
     },
   ];
+  let failure: { readonly cause: unknown } | undefined;
   try {
     while (stack.length > 0) {
       const frame = stack.at(-1);
@@ -194,10 +195,27 @@ const visitArtifactEntries = async (
         });
       }
     }
+  } catch (cause: unknown) {
+    failure = { cause };
   } finally {
     // Readers remain owned by the inventory until its complete observation is built.
-    for (const { iterator } of stack) await iterator.return?.();
+    for (const { iterator, prefix, reader } of stack.reverse()) {
+      try {
+        await iterator.return?.();
+      } catch (cause: unknown) {
+        failure = {
+          cause: ArtifactReaderFailure.withCleanup(
+            failure === undefined ? cause : failure.cause,
+            ArtifactReaderFailure.cleanupObservation(
+              cause,
+              `artifact traversal for ${prefix || reader.format}`,
+            ),
+          ),
+        };
+      }
+    }
   }
+  if (failure !== undefined) throw failure.cause;
 };
 
 const digestArtifactEntry = async (

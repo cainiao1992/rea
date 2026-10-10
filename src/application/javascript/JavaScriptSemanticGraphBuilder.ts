@@ -148,7 +148,7 @@ export interface JavaScriptSemanticGraphProjection {
 /** Accumulate semantic nodes while each source IR is still file-local. */
 export const createJavaScriptSemanticGraphProjection =
   (): JavaScriptSemanticGraphProjection => {
-    const state = emptyState({ nodes: [] });
+    const state = emptyState();
     const fingerprints: JavaScriptSemanticFingerprint[] = [];
     let truncatedFiles = 0;
     const projectSourceSteps = function* (

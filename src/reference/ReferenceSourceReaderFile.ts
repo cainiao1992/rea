@@ -1,7 +1,11 @@
 import type { BigIntStats } from "node:fs";
-import { constants } from "node:fs";
-import { open, type FileHandle } from "node:fs/promises";
+import type { FileHandle } from "node:fs/promises";
 import { dirname } from "node:path";
+
+import {
+  NonRegularFileReadError,
+  openRegularFile,
+} from "../filesystem/RegularFile.js";
 
 import {
   entryFailure,
@@ -209,7 +213,7 @@ export const readStableFile = async (
         parentBefore.message,
         safeSize(expected.size),
       );
-    handle = await open(absolute, constants.O_RDONLY | constants.O_NOFOLLOW);
+    handle = await openRegularFile(absolute, { symlinks: "reject", signal });
     const prepared = await prepareFileRead(request, handle);
     if (prepared.status === "failed") return prepared.entry;
     const contents = await readFileContents({
@@ -238,6 +242,14 @@ export const readStableFile = async (
         "file",
         "cancelled",
         "File read cancelled",
+        safeSize(expected.size),
+      );
+    if (cause instanceof NonRegularFileReadError)
+      return entryFailure(
+        path,
+        "file",
+        "changed",
+        "File is no longer a regular file",
         safeSize(expected.size),
       );
     const message = filesystemFailureDetail(

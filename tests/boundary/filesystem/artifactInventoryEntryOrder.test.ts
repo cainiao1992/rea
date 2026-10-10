@@ -154,6 +154,61 @@ describe("entry-order validation and reader controls", () => {
     }
   });
 
+  it("retains high-cardinality case-folded directories and their descendants", async () => {
+    const root = await createTestTempDirectory(
+      "rea-entry-order-case-capacity-",
+    );
+    const archive = join(root, "case-capacity.zip");
+    const variants = Array.from({ length: 256 }, (_, mask) =>
+      [..."abcdefgh"]
+        .map((character, index) =>
+          (mask & (1 << index)) === 0 ? character : character.toUpperCase(),
+        )
+        .join(""),
+    );
+    await writeOrderedZip(
+      archive,
+      variants.flatMap((variant) => [variant + "/", variant + "/entry.txt"]),
+    );
+
+    const inventory = await inventoryArtifact(archive);
+    const directories = variants.map((variant) =>
+      artifactOccurrenceAt(inventory, variant),
+    );
+    const descendants = variants.map((variant) =>
+      artifactOccurrenceAt(inventory, `${variant}/entry.txt`),
+    );
+    const ordered = [...variants].sort();
+    const first = ordered[0];
+    const second = ordered[1];
+
+    expect(inventory.occurrences).toHaveLength(1 + variants.length * 2);
+    expect(
+      new Set(inventory.occurrences.map(({ logical_path }) => logical_path))
+        .size,
+    ).toBe(1 + variants.length * 2);
+    expect(
+      new Set(
+        [...directories, ...descendants].map(
+          ({ occurrence_id }) => occurrence_id,
+        ),
+      ).size,
+    ).toBe(variants.length * 2);
+    expect(
+      directories.every(({ limitations }) => limitations.length === 1),
+    ).toBe(true);
+    expect(
+      descendants.every(({ limitations }) => limitations.length === 1),
+    ).toBe(true);
+    expect(
+      directories.find(({ logical_path }) => logical_path === first)
+        ?.limitations[0],
+    ).toContain(`with ${second} and 254 other spellings;`);
+    expect(descendants[0]?.limitations[0]).toContain(
+      `is under ${variants[0]}, which collides under English (en-US) Unicode case folding with ${first} and 254 other spellings;`,
+    );
+  });
+
   it("preserves ordinary directory and ASAR structure", async () => {
     const root = await createTestTempDirectory("rea-entry-order-readers-");
     const directory = join(root, "source");

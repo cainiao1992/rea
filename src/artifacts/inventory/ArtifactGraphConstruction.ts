@@ -295,23 +295,48 @@ export const createArtifactEdges = (
   return edges;
 };
 
-export const nearestParent = (
-  path: string,
-  occurrences: ReadonlyMap<string, MutableOccurrence>,
+interface ArtifactParentIndex {
+  readonly children: Map<string, ArtifactParentIndex>;
+  occurrence?: MutableOccurrence;
+}
+
+/** Resolve strict observed ancestors without rebuilding every path prefix. */
+export const resolveOccurrenceParents = (
+  occurrences: readonly MutableOccurrence[],
+  byPath: ReadonlyMap<string, MutableOccurrence>,
   expandedContainerIds: ReadonlySet<string>,
-): MutableOccurrence | undefined => {
-  const parts = path.split("/");
-  while (parts.length > 1) {
-    parts.pop();
-    const candidate = occurrences.get(parts.join("/"));
+): void => {
+  const root: ArtifactParentIndex = { children: new Map() };
+  for (const occurrence of byPath.values()) {
     if (
-      candidate !== undefined &&
-      (candidate.entry_kind === "directory" ||
-        expandedContainerIds.has(candidate.occurrence_id))
+      occurrence.entry_kind !== "directory" &&
+      !expandedContainerIds.has(occurrence.occurrence_id)
     )
-      return candidate;
+      continue;
+    let branch = root;
+    for (const segment of occurrence.logical_path.split("/")) {
+      let child = branch.children.get(segment);
+      if (child === undefined) {
+        child = { children: new Map() };
+        branch.children.set(segment, child);
+      }
+      branch = child;
+    }
+    branch.occurrence = occurrence;
   }
-  return undefined;
+  for (const occurrence of occurrences) {
+    const segments = occurrence.logical_path.split("/");
+    let branch = root;
+    let parent: MutableOccurrence | undefined;
+    // The final segment identifies this occurrence, not one of its parents.
+    for (const segment of segments.slice(0, -1)) {
+      const child = branch.children.get(segment);
+      if (child === undefined) break;
+      branch = child;
+      parent = branch.occurrence ?? parent;
+    }
+    occurrence.parent_occurrence_id = parent?.occurrence_id ?? null;
+  }
 };
 
 /**

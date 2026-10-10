@@ -69,6 +69,31 @@ describe("artifact inventory entry order", () => {
     },
   );
 
+  it("resolves deep ZIP members without inventing missing directories", async () => {
+    const root = await createTestTempDirectory("rea-deep-archive-parent-");
+    const archive = join(root, "deep.zip");
+    // Fits the ZIP filename field while exceeding the formerly expensive depth.
+    const member = `observed/${"d/".repeat(30_000)}data.txt`;
+    await writeOrderedZip(archive, [member, "observed/", "unrelated/"]);
+    const inventory = await inventoryArtifact(archive);
+    expect(artifactParentPaths(inventory)).toEqual({
+      ".": null,
+      observed: ".",
+      unrelated: ".",
+      [member]: "observed",
+    });
+    const occurrence = artifactOccurrenceAt(inventory, member);
+    expect(occurrence.hash_status).toBe("verified");
+    expect(inventory.edges).toContainEqual(
+      expect.objectContaining({
+        occurrence_id: occurrence.occurrence_id,
+        parent_artifact_id: artifactOccurrenceAt(inventory, "observed")
+          .artifact_id,
+        relation: "contains",
+      }),
+    );
+  });
+
   it.each([
     {
       entries: ["pkg/sub/data.txt"],

@@ -3,6 +3,12 @@ import canonicalize from "canonicalize";
 import { z } from "zod";
 
 const positiveBudget = z.number().int().safe().positive();
+/**
+ * Maximum xterm backing cells for one visible-plus-scrollback buffer. Each
+ * xterm BufferLine stores three Uint32 words per cell (12 MB at this cap),
+ * before row objects, serialization strings, and retained frame copies.
+ */
+export const PROCESS_TERMINAL_CELL_BUDGET = 1_000_000;
 const timedEventBase = { at_ms: z.number().int().safe().nonnegative() };
 const reservedRunIdEnvironmentName = "REA_PROCESS_RUN_ID";
 const ENVIRONMENT_NAME_CHARACTER = "[^=\\x00]";
@@ -41,6 +47,14 @@ const childProcessString = z
     /^[^\x00]*$/u,
     "Values passed to operating-system APIs cannot contain NUL",
   );
+
+const fitsProcessTerminalCellBudget = (
+  columns: number,
+  rows: number,
+  scrollback: number,
+): boolean =>
+  rows + scrollback <= Math.floor(PROCESS_TERMINAL_CELL_BUDGET / columns);
+
 export const normalizationSchema = z.object({
   paths: z.boolean(),
   pids: z.boolean(),
@@ -131,8 +145,11 @@ export const processScenarioSchema = z
       .strictObject({
         columns: z.number().int().min(1).max(65_535).default(80),
         rows: z.number().int().min(1).max(65_535).default(24),
-        scrollback: z.number().int().min(0).default(1_000),
+        scrollback: z.number().int().safe().nonnegative().default(1_000),
       })
+      .describe(
+        "The visible terminal and scrollback together must use at most 1,000,000 xterm renderer cells: columns × (rows + scrollback). Resize events use the same scrollback and limit.",
+      )
       .default({ columns: 80, rows: 24, scrollback: 1_000 }),
     events: z
       .array(
@@ -204,6 +221,18 @@ export const processScenarioSchema = z
       }),
   })
   .superRefine((scenario, context) => {
+    if (
+      !fitsProcessTerminalCellBudget(
+        scenario.terminal.columns,
+        scenario.terminal.rows,
+        scenario.terminal.scrollback,
+      )
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["terminal"],
+        message: `terminal columns × (rows + scrollback) must not exceed ${String(PROCESS_TERMINAL_CELL_BUDGET)} renderer cells`,
+      });
     for (let index = 1; index < scenario.events.length; index += 1) {
       const event = scenario.events[index];
       const previous = scenario.events[index - 1];
@@ -215,7 +244,20 @@ export const processScenarioSchema = z
         });
       }
     }
-    for (const event of scenario.events) {
+    for (const [index, event] of scenario.events.entries()) {
+      if (
+        event.type === "resize" &&
+        !fitsProcessTerminalCellBudget(
+          event.columns,
+          event.rows,
+          scenario.terminal.scrollback,
+        )
+      )
+        context.addIssue({
+          code: "custom",
+          path: ["events", index],
+          message: `resize event at ${String(event.at_ms)} ms exceeds the ${String(PROCESS_TERMINAL_CELL_BUDGET)}-cell renderer budget with the selected scrollback`,
+        });
       if (event.at_ms > scenario.timeout_ms) {
         context.addIssue({
           code: "custom",

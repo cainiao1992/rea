@@ -114,6 +114,12 @@ from launch, must be ordered, and must fall within `timeout_ms`. Inputs marked
 Environment overrides are recorded in the scenario commitment; inherited
 values are not copied into Evidence.
 
+Terminal dimensions must satisfy `columns × (rows + scrollback) ≤ 1,000,000`.
+Every scheduled resize uses the same selected scrollback and must fit this
+working-buffer budget. REA rejects oversized scenarios before launching the
+command; it never clamps the requested dimensions. This limit is independent
+of `limits.output_bytes`, which bounds retained terminal observations.
+
 The capture contains raw PTY output chunks and rendered terminal states,
 interaction dispatch outcomes, exit reason, sampled process-tree observations,
 and settlement status. When filesystem paths are selected, REA records

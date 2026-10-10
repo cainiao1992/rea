@@ -176,7 +176,7 @@ describe("ASAR captured-byte identity", () => {
     const originalSize = (await lstat(fixture.archive)).size;
     const directory = new DirectoryArtifactReader(fixture.bundle);
     await expect(
-      scanCanonicalArtifactInventory(fixture.bundle, {}, async () => ({
+      scanCanonicalArtifactInventory(fixture.bundle, {}, () => ({
         format: directory.format,
         entries: (signal) => directory.entries(signal),
         provenance: () => directory.provenance(),
@@ -254,7 +254,7 @@ describe("ASAR captured-byte identity", () => {
       const failure: unknown = await scanCanonicalArtifactInventory(
         fixture.archive,
         {},
-        async () => reader,
+        () => reader,
       ).catch((cause: unknown) => cause);
       expect(failure).toMatchObject({
         cleanup: { resources: [attempts[0]] },

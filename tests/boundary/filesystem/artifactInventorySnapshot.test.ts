@@ -53,7 +53,7 @@ describe("artifact inventory snapshot", () => {
     const failure = await scanCanonicalArtifactInventory(
       root,
       {},
-      async () => reader,
+      () => reader,
     ).catch((cause: unknown) => cause);
     expect(failure).toBeInstanceOf(ArtifactReaderFailure);
     if (!(failure instanceof ArtifactReaderFailure))

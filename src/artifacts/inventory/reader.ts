@@ -8,13 +8,12 @@ import type { ArtifactOccurrence } from "../../domain/artifactGraph.js";
 import { ZIP_NON_ENTRY_TAIL_LIMITATION } from "../../domain/zipPackageFormat.js";
 import type { StableRegularFileDescriptor } from "../../filesystem/RegularFile.js";
 
-export const createReader = async (
+export const createReader = (
   path: string,
   format: ArtifactOccurrence["artifact_format"],
   environment: Readonly<NodeJS.ProcessEnv>,
-  signal?: AbortSignal,
   rootSource?: StableRegularFileDescriptor,
-): Promise<ArtifactReader | undefined> => {
+): ArtifactReader | undefined => {
   switch (format) {
     case "directory":
       return new DirectoryArtifactReader(path);
@@ -32,7 +31,7 @@ export const createReader = async (
         : undefined;
     case "dmg":
       if (process.platform !== "darwin") return undefined;
-      return NativeDmgArtifactReader.create(path, environment, signal);
+      return new NativeDmgArtifactReader(path, environment);
     default:
       return undefined;
   }

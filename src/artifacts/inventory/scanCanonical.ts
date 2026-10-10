@@ -68,11 +68,10 @@ export const scanCanonicalArtifactInventory = async (
   let reader: ArtifactReader | undefined;
   let readerCreationFailure: { readonly cause: unknown } | undefined;
   try {
-    reader = await readerFactory(
+    reader = readerFactory(
       path,
       rootFormat,
       options.environment ?? {},
-      options.signal,
       rootSource,
     );
   } catch (cause: unknown) {

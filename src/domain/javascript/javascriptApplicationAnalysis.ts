@@ -15,6 +15,7 @@ import { prefixedDigestSchema } from "../digests.js";
 import { integrityContradictionSchema } from "../artifactGraph.js";
 import { artifactIntegrityPolicySchema } from "../artifactIntegrityPolicy.js";
 import { localPathStringSchema } from "../localPath.js";
+import { javaScriptAnalysisResourceControlsSchema } from "./javascriptAnalysisResourceControls.js";
 
 const countSchema = z.number().int().min(0);
 
@@ -23,6 +24,7 @@ export const analyzeJavaScriptApplicationInputSchema = z.strictObject({
   input_path: localPathStringSchema,
   format: z.enum(["auto", "asar", "directory"]).default("auto"),
   integrity_policy: artifactIntegrityPolicySchema,
+  ...javaScriptAnalysisResourceControlsSchema.shape,
 });
 
 /** Compact counts for the high-level Electron architecture/security surface. */

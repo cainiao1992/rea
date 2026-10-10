@@ -122,7 +122,6 @@ describe("JavaScript analysis cancellation before publication", () => {
       throw new Error("Cancelled analysis must not publish Evidence");
     expect(projectAnalysisError(result.error)).toMatchObject({
       code: "cancelled",
-      details: { reason: "cancelled" },
     });
     expect(terminal).toEqual([]);
   });

@@ -122,10 +122,8 @@ it("closes an Electron inspection session when cleanup is cancelled", async () =
       operation: "inspect_electron_page",
     },
   });
-  expect(browser.commands.map(({ method }) => method)).toContain(
-    "Page.disable",
-  );
   const methods = browser.commands.map(({ method }) => method);
+  expect(methods).not.toContain("Page.disable");
   expect(methods).toContain("Target.detachFromTarget");
   expect(methods).not.toContain("Target.closeTarget");
   expect(methods).not.toContain("Browser.close");

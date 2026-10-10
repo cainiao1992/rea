@@ -101,6 +101,35 @@ describe("Codex agent release evaluation", () => {
     ).toBe(1);
   });
 
+  it("distinguishes session verification after a successful close from an unchanged retry", () => {
+    const call = (id: string, tool: string, status = "completed") => ({
+      type: "item.completed",
+      item: {
+        id,
+        type: "mcp_tool_call",
+        server: "rea",
+        tool,
+        arguments: {},
+        status,
+      },
+    });
+    for (const [status, repeats] of [
+      ["completed", 0],
+      ["failed", 1],
+    ] as const) {
+      expect(
+        evaluateCodexEvents(
+          [
+            call("before", "binary_session"),
+            call("close", "close_binary", status),
+            call("after", "binary_session"),
+          ],
+          "binary_session",
+        ).repeatedCallCount,
+      ).toBe(repeats);
+    }
+  });
+
   it("counts identical arguments with reversed Unicode key insertion order", () => {
     const call = (id: string, arguments_: Record<string, number>) => ({
       type: "item.completed",
@@ -122,6 +151,119 @@ describe("Codex agent release evaluation", () => {
         "inspect_artifact",
       ).repeatedCallCount,
     ).toBe(1);
+  });
+});
+
+describe("Codex agent routing and error evaluation", () => {
+  it("preserves an unrecognized structured failure without inventing its code", () => {
+    const metrics = evaluateCodexEvents(
+      [
+        {
+          type: "item.completed",
+          item: {
+            type: "mcp_tool_call",
+            server: "rea",
+            tool: "close_binary",
+            arguments: {},
+            result: { structured_content: { error: "unrecognized failure" } },
+          },
+        },
+      ],
+      "close_binary",
+      { requiredToolSubsequence: ["close_binary"] },
+    );
+    expect(metrics.reaCalls[0]).toMatchObject({ error: true, errorCode: null });
+    expect(metrics.requiredToolSubsequenceMet).toBe(false);
+  });
+
+  it("requires no REA call when target selection is missing", () => {
+    const events = [
+      {
+        type: "item.completed",
+        item: { type: "agent_message", text: "Which app should I inspect?" },
+      },
+    ];
+    expect(evaluateCodexEvents(events, null)).toMatchObject({
+      naturalUse: false,
+      correctFirstTool: true,
+      firstTool: null,
+    });
+    expect(
+      evaluateCodexEvents(
+        [
+          ...events,
+          {
+            type: "item.completed",
+            item: {
+              type: "mcp_tool_call",
+              server: "rea",
+              tool: "analyze_javascript_application",
+              arguments: { input_path: "/nearby/test-fixture" },
+            },
+          },
+        ],
+        null,
+      ).correctFirstTool,
+    ).toBe(false);
+  });
+
+  it("counts actual text-only REA errors and SDK-rejected schema inputs once per call", () => {
+    const source = {
+      kind: "retained-evidence",
+      evidence_id: `ev_${"a".repeat(64)}`,
+    };
+    const failed = (id: string, arguments_: unknown, text: string) => ({
+      type: "item.completed",
+      item: {
+        id,
+        type: "mcp_tool_call",
+        server: "rea",
+        tool: "inspect_analysis_view",
+        arguments: arguments_,
+        status: "failed",
+        error: null,
+        result: { content: [{ type: "text", text }], structured_content: null },
+      },
+    });
+    const metrics = evaluateCodexEvents(
+      [
+        failed(
+          "sdk",
+          { source, view: { kind: "module", path: "main.js" } },
+          "Input validation error: Invalid arguments for tool inspect_analysis_view: view.kind: Invalid discriminator value.",
+        ),
+        failed(
+          "ambiguous",
+          {
+            source,
+            view: {
+              kind: "item",
+              collection: "modules",
+              selector: { path: "main.js" },
+            },
+          },
+          JSON.stringify({
+            error: {
+              code: "invalid_request",
+              message:
+                "Multiple modules have this path; select one by node_id.",
+            },
+          }),
+        ),
+        failed(
+          "incomplete-preview",
+          { source, view: { kind: "summary" } },
+          '{"error":{"code":"invalid_request"',
+        ),
+      ],
+      "inspect_analysis_view",
+    );
+    expect(metrics.inputValidationFailureCount).toBe(2);
+    expect(metrics.reaCalls.map(({ errorCode }) => errorCode)).toEqual([
+      null,
+      "invalid_request",
+      null,
+    ]);
   });
 });
 

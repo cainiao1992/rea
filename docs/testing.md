@@ -1053,6 +1053,39 @@ real local Codex CLI with:
 npm run verify:agent
 ```
 
+The lane runs scenarios sequentially in standalone Codex (`--no-daemon`) with a
+disposable HOME and CODEX_HOME under `~/.cache/rea-agent-evaluations/`. Set
+`REA_AGENT_EVAL_ROOT` to choose another parent directory outside the OS temporary
+directory: current Codex refuses helper aliases under `/tmp`, preventing shell
+commands and skill reads even if MCP works. Each owned run directory is removed
+after verification unless fixture retention is requested. The lane
+installs the packaged skill and MCP registration through public `rea setup`,
+rather than copying a skill into a project that also inherits the caller's
+skills and configuration. Only authentication is copied, when present, and it
+is removed even with `REA_AGENT_EVAL_KEEP_FIXTURES=true`. No user configuration,
+rules, plugins or history is copied; shell snapshots and additional agents are
+disabled. Existing API-key environment authentication remains available.
+The native missing-provider scenario preapproves only `open_binary` and
+`close_binary` in the disposable client so it reaches REA's actual provider
+boundary instead of stopping at Codex approval. This does not validate a real
+native engine or authorize arbitrary runtime execution.
+
+Select a smaller run with `REA_AGENT_EVAL_SCENARIOS`, a comma-separated list of
+scenario IDs. `asar-zh` exercises the packaged desktop rubric from a Chinese
+request. `javascript-module-view` exercises summary analysis, module paging and
+item inspection in a tree with unrelated modules; its routing and text checks
+remain heuristic, so review the retained transcript for selector choice and
+coverage claims. Set `REA_CODEX_CLI` to an installed Codex executable and
+`REA_AGENT_EVAL_MODEL` to an account-supported model. Use an external resource
+limit for the whole process tree when testing on a constrained host; a Node
+heap limit alone does not bound client and child-process memory.
+
+`missing-target` leaves desktop fixtures visible without selecting one in the
+request. It requires zero REA calls and a structured request for an app name or
+artifact path. Its `expectedFirstTool` is `null`, and
+`targetClarificationPassed` grades that limited routing outcome independently
+of analysis prose heuristics. Analyzing a nearby example cannot pass this case.
+
 The packaged desktop and parser-comparison scenarios now assess a closed set of
 known fixture claims. Each final answer must be a strict JSON manifest containing
 exactly the requested claim IDs, values, Evidence IDs, and Evidence authority and
@@ -1077,9 +1110,21 @@ navigation-context, and address-context scenarios have no factual rubric and
 remain `not_assessed`; the managed workflow requires both artifact and member
 inspection to answer its type and entry-point question.
 
+The closed factual scenarios request complete producer Evidence on the initial
+analysis so their source selectors can authenticate all configured facts.
+Summary/page/item workflows are exercised separately by `javascript-module-view`;
+its heuristic gate does not establish full-producer factual correctness.
+
 All scenarios retain routing, workflow, validation, repetition, process-exit,
 and token-use gates. Configured factual scenarios additionally require a factual
 pass. Their answer-text heuristics are diagnostic and do not affect the gate.
+Validation counts include complete text-only REA `invalid_request` envelopes
+and failed SDK calls whose arguments violate the named current REA contract.
+Client approval rejections and provider unavailability remain distinct failures;
+truncated JSON previews are not parsed into invented error codes.
+Repeated `binary_session` observations separated by a successful `open_binary`
+or `close_binary` are treated as lifecycle verification. An unchanged retry,
+including one after a failed lifecycle call, still counts as repetition.
 Scenarios without a rubric retain the legacy text-heuristic gate.
 `answerTermCoverageMet` checks case-insensitive substrings,
 `epistemicCuePresent` checks keywords, and `finalCitesEvidence` checks only an ID's
@@ -1087,7 +1132,11 @@ presence. These metrics can still accept fabricated prose and must not be read
 as factual assessments. Set `REA_AGENT_EVAL_TRANSCRIPT_DIR` to retain complete
 tool results and final answers for review.
 
-Report schema version 3 changes the top-level `factualCorrectness` from a constant
+Report schema version 4 adds negative routing scenarios with nullable
+`expectedFirstTool` and a `targetClarificationPassed` outcome. Consumers must
+allow an expected absence of REA calls; this does not make an analysis scenario
+pass without its required tools. Version 3 changed the top-level
+`factualCorrectness` from a constant
 string to an assessment summary with status, scope, and assessed/passed/failed/
 not-assessed scenario counts. Scenario records include the factual assessment and
 configured claim IDs. The evaluation scope is

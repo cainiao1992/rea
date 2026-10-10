@@ -71,6 +71,30 @@ const scenario = (normalization: {
     },
   });
 
+it("replaces caller-declared patterns literally, without expanding replacement patterns", () => {
+  const declared = parseProcessScenario({
+    executable: "/usr/bin/node",
+    working_directory: "/workspace",
+    normalization: {
+      paths: false,
+      time_bucket_ms: 10,
+      patterns: [
+        { pattern: "8080", replacement: "$&$&" },
+        { pattern: "READY", replacement: "$$" },
+        { pattern: "NAME", replacement: "$1" },
+      ],
+    },
+  });
+  expect(
+    normalizeProcessText(
+      "listening on 8080; READY; NAME=alpha; tail NAME",
+      declared,
+      "/temporary",
+      rootPid,
+    ),
+  ).toBe("listening on $&$&; $$; $1=alpha; tail $1");
+});
+
 it("preserves compact JSON, counters, line numbers, and ambiguous endpoint spellings", () => {
   const input = [
     '{"pid":32,"size":108,"height":480,"width":640,"score":20}',

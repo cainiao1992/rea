@@ -1,4 +1,5 @@
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, join, resolve, win32 } from "node:path";
+import { fileURLToPath } from "node:url";
 import { lstatSync } from "node:fs";
 
 /** One supported client configuration location. */
@@ -6,6 +7,8 @@ export interface SetupClient {
   readonly name: string;
   readonly displayName?: string;
   readonly configPath: string;
+  /** Unresolved path evidence only; consumers must not perform I/O on it. */
+  readonly configPathError?: string;
   readonly markerPath?: string;
   readonly format?:
     | "json"
@@ -16,6 +19,7 @@ export interface SetupClient {
     | "commandcode"
     | "grok"
     | "omp"
+    | "pi"
     | "hermes"
     | "unsupported";
 }
@@ -197,6 +201,41 @@ const ompAgentDirectory = (context: ClientPathContext): string => {
     : join(root, "agent");
 };
 
+/**
+ * Pi's public getAgentDir()/normalizePath semantics, not OMP's profiles.
+ * Keep relative overrides relative: filesystem consumers resolve them in cwd.
+ */
+const piAgentDirectory = ({
+  home,
+  platform,
+  env,
+}: ClientPathContext): string => {
+  const paths = platform === "win32" ? win32 : { join };
+  let directory = env.PI_CODING_AGENT_DIR;
+  if (!directory) return paths.join(home, ".pi", "agent");
+  if (
+    platform === "win32" &&
+    directory.startsWith("/") &&
+    !directory.startsWith("//") &&
+    !directory.includes("\\")
+  ) {
+    const drive = /^\/(?:mnt\/|cygdrive\/)?([a-z])(?:\/(.*))?$/iu.exec(
+      directory,
+    );
+    if (drive !== null)
+      directory = `${drive[1]?.toUpperCase()}:\\${drive[2]?.replaceAll("/", "\\") ?? ""}`;
+  }
+  if (directory === "~") return home;
+  if (
+    directory.startsWith("~/") ||
+    (platform === "win32" && directory.startsWith("~\\"))
+  )
+    return paths.join(home, directory.slice(2));
+  if (directory.startsWith("file://"))
+    return fileURLToPath(directory, { windows: platform === "win32" });
+  return directory;
+};
+
 const copilotDirectory = ({ home, env }: ClientPathContext): string =>
   env.COPILOT_HOME ?? join(home, ".copilot");
 
@@ -359,6 +398,17 @@ export const SUPPORTED_CLIENT_DEFINITIONS = [
     format: "omp",
   },
   {
+    name: "pi",
+    displayName: "Pi",
+    configPath: (context: ClientPathContext) =>
+      (context.platform === "win32" ? win32 : { join }).join(
+        piAgentDirectory(context),
+        "mcp.json",
+      ),
+    markerPath: piAgentDirectory,
+    format: "pi",
+  },
+  {
     name: "hermes",
     displayName: "Hermes",
     skillPath: (context: ClientPathContext) =>
@@ -387,13 +437,26 @@ export const supportedClients = (
   env: ClientPathContext["env"] = process.env,
 ): readonly SetupClient[] => {
   const context = { home, platform, env };
-  return SUPPORTED_CLIENT_DEFINITIONS.map((definition) => ({
-    name: definition.name,
-    displayName: definition.displayName,
-    configPath: resolvePath(definition.configPath, context),
-    markerPath: resolvePath(definition.markerPath, context),
-    format: definition.format,
-  }));
+  return SUPPORTED_CLIENT_DEFINITIONS.map((definition) => {
+    try {
+      return {
+        name: definition.name,
+        displayName: definition.displayName,
+        configPath: resolvePath(definition.configPath, context),
+        markerPath: resolvePath(definition.markerPath, context),
+        format: definition.format,
+      };
+    } catch (cause: unknown) {
+      if (definition.name !== "pi") throw cause;
+      return {
+        name: definition.name,
+        displayName: definition.displayName,
+        format: definition.format,
+        configPath: env.PI_CODING_AGENT_DIR ?? "",
+        configPathError: `Invalid PI_CODING_AGENT_DIR: ${cause instanceof Error ? cause.message : String(cause)}. Repair the override before configuring Pi.`,
+      };
+    }
+  });
 };
 
 /** Resolve personal skill roots using the same client environment as setup. */

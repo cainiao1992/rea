@@ -201,6 +201,8 @@ const readClientConfiguration = async (
   client: SetupClient,
   fileSystem: UninstallFileSystem,
 ): Promise<ClientConfigurationRead> => {
+  if (client.configPathError !== undefined)
+    return itemRead(item(client.name, "failed", client.configPathError));
   if (client.format === "unsupported")
     return itemRead(
       item(

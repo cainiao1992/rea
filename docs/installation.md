@@ -139,7 +139,35 @@ listed after the table because its connector is not one of these files:
 | VS Code            | `vscode`         |
 | Grok Build         | `grok_build`     |
 | OMP                | `omp`            |
+| Pi                 | `pi`             |
 | Hermes             | `hermes`         |
+
+For [Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/mcp.md),
+setup writes a `type: "stdio"` entry under `mcpServers.rea` in the user-level
+`~/.pi/agent/mcp.json` and installs the bundled skill under `~/.agents/skills`.
+Use `rea setup --client pi --dry-run --json` to inspect the plan, then
+`rea setup --client pi --yes --json` to approve it. Check the registration with
+`rea doctor --client pi --json`. Pi reads `mcp.json` as strict JSON, like its
+own loader: comments, trailing commas, a byte-order mark, or an empty existing
+file are invalid, and setup reports them instead of rewriting the file. Repair
+such a file to plain JSON first, then rerun setup.
+
+Setup follows Pi's `PI_CODING_AGENT_DIR`: unset or empty selects the default;
+`~` and `~/` expand to the home directory; absolute paths and file URLs select
+that directory; relative paths stay relative to the command's working directory.
+On Windows, native paths, `~\`, and Git Bash/MSYS, Cygwin, and WSL drive paths
+are normalized as Pi does. Run REA and Pi from the same working directory when
+using a relative override. Pi has no profiles: `OMP_PROFILE`, `PI_PROFILE`,
+`PI_CONFIG_DIR`, and OMP's `enabledServers`/`disabledServers` lists do not affect
+Pi registration. Doctor accepts an omitted `type` for stdio but reports a
+non-stdio type as invalid; `enabled: false` stays disabled.
+
+REA configures only the user scope. Pi also reads `.pi/mcp.json` in trusted
+projects; a same-name project entry can replace the user entry or override its
+enabled state and exposure. Check that file if the user registration is aligned
+but unavailable in a project. An extension that registers `/mcp` can replace
+Pi's built-in MCP support and use its own configuration instead. Run `/reload`
+in an existing Pi session after changing servers outside the session.
 
 For Qwen Code, setup registers `rea` in the `mcpServers` table of the
 user-level `~/.qwen/settings.json`, or `$QWEN_HOME/settings.json` when configured.

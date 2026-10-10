@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 
 import { describe, expect, it } from "vitest";
@@ -27,6 +28,95 @@ const expectInvalidIncludedSourceMaps = (result: WebSourceMaps): void => {
   });
   expectInvalidSourceMaps({ ...result, status: "unavailable" });
 };
+
+it("parses ECMA-426 HTTP source-map prefixes while retaining exact response evidence", async () => {
+  const map = JSON.stringify({
+    version: 3,
+    names: [],
+    sources: ["src/main.ts"],
+    sourcesContent: ["import './dependency.ts';"],
+    mappings: "AAAA",
+  });
+  const prefix = ")]}'transport prefix";
+  const texts = [
+    map,
+    `\uFEFF${prefix}\n${map}`,
+    `${prefix}\n${map}`,
+    `${prefix}\r\n${map}`,
+    `${prefix}\r${map}`,
+    `${prefix}${map}`,
+    `${prefix}\n{`,
+  ];
+  const server = createServer((incoming, response) => {
+    const index = Number(incoming.url?.slice(1));
+    response.setHeader("content-type", "application/source-map+json");
+    response.end(texts[index]);
+  });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    const address = server.address();
+    if (address === null || typeof address === "string")
+      throw new TypeError("Expected a TCP listener address");
+    const localOrigin = `http://127.0.0.1:${String(address.port)}`;
+    const result = await fetchWebSourceMaps(
+      texts.map((_, index) => ({
+        ...request,
+        fetchUrl: `${localOrigin}/${index}`,
+        declaredUrl: `${localOrigin}/${index}`,
+      })),
+      input({ allowed_origins: [localOrigin] }),
+    );
+    expect(result.items.map(({ status }) => status)).toEqual([
+      "included",
+      "included",
+      "included",
+      "included",
+      "included",
+      "invalid",
+      "invalid",
+    ]);
+    for (const [index, text] of texts.slice(0, 5).entries())
+      expect(result.items[index]).toMatchObject({
+        artifact: {
+          text,
+          bytes: Buffer.byteLength(text),
+          sha256: createHash("sha256").update(text).digest("hex"),
+        },
+        original_sources: [{ source: `${localOrigin}/src/main.ts` }],
+        mappings: [
+          {
+            generated_line: 1,
+            generated_column: 0,
+            source: `${localOrigin}/src/main.ts`,
+            original_line: 1,
+            original_column: 0,
+          },
+        ],
+        original_module_edges: [
+          {
+            from_source: `${localOrigin}/src/main.ts`,
+            specifier: "./dependency.ts",
+            resolved_source: `${localOrigin}/src/dependency.ts`,
+          },
+        ],
+      });
+    expect(result.items.slice(5)).toMatchObject([
+      { artifact: null, mappings: [], original_sources: [] },
+      { artifact: null, mappings: [], original_sources: [] },
+    ]);
+  } finally {
+    server.closeAllConnections();
+    if (server.listening)
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) =>
+          error === undefined ? resolve() : reject(error),
+        );
+      });
+  }
+});
 
 describe("source-map redirect URL resolution", () => {
   it.each(["/maps/current", "/assets/v2/app.js.map"])(

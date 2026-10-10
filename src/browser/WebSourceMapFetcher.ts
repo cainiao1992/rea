@@ -21,6 +21,7 @@ import { safeParseJson } from "../domain/safeJson.js";
 import { jsonParts } from "../domain/jsonSerialization.js";
 import {
   inspectSourceMapValue,
+  sourceMapJsonText,
   SourceMapFormatFailure,
   type SourceMapLeaf,
 } from "../javascript/sourceMaps/SourceMapFormat.js";
@@ -364,7 +365,9 @@ const readBoundedText = async (
     offset += chunk.byteLength;
   }
   try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(joined);
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      joined,
+    );
   } catch {
     throw new SourceMapEncodingError();
   }
@@ -455,7 +458,7 @@ const normalizeSourceMap = (
   fetchedUrl: string,
   context: SourceMapDecodeContext,
 ): SourceMapItem => {
-  const parsedJson = safeParseJson(text);
+  const parsedJson = safeParseJson(sourceMapJsonText(text));
   if (!parsedJson.ok)
     return emptySourceMapItem(
       request,

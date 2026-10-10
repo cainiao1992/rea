@@ -324,7 +324,7 @@ it("cancels a waiting request promptly while keeping later launches behind the a
   await assertFirmwareCleanup(fixture.launches);
 });
 
-it("retains an uncertain worker and prevents another launch", async () => {
+it("retains an uncertain worker's workspace and blocks later launches", async () => {
   const fixture = await firmwareFixture("cleanup-failure");
   const first = await fixture.service.execute("inspect_firmware_regions", {
     path: fixture.path,
@@ -335,14 +335,22 @@ it("retains an uncertain worker and prevents another launch", async () => {
   });
   const workspace = fixture.launches[0]?.cwd;
   expect(workspace).toBeDefined();
-  if (workspace === undefined) return;
+  if (workspace === undefined) throw new Error("Expected retained workspace");
   await access(workspace);
+  const originalLaunches = [...fixture.launches];
   const next = await fixture.service.execute("inspect_firmware_regions", {
     path: fixture.path,
   });
   expect(next).toMatchObject({ ok: false, error: { cleanupIncomplete: true } });
-  expect(fixture.launches).toHaveLength(1);
+  expect(fixture.launches).toEqual(originalLaunches);
   await access(workspace);
+  fixture.restoreCleanup();
+  const resumed = await fixture.service.execute("inspect_firmware_regions", {
+    path: fixture.path,
+  });
+  if (!resumed.ok) throw resumed.error;
+  expect(resumed.value.subject?.local_path).toBe(fixture.path);
+  await assertFirmwareCleanup(fixture.launches);
 });
 
 it("accepts another build on the verified release line and reports it", async () => {

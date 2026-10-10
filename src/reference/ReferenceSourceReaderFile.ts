@@ -77,9 +77,18 @@ const prepareFileRead = async (
   return { status: "ready", before };
 };
 
-const readFileContents = async (request: {
-  readonly handle: FileHandle;
+/** Read a stable-size file through its borrowed descriptor; growth is a change. */
+export const readFileContents = async (request: {
+  readonly handle: {
+    read(
+      buffer: Buffer,
+      offset: number,
+      length: number,
+      position: null,
+    ): Promise<{ readonly bytesRead: number }>;
+  };
   readonly path: string;
+  readonly expectedSize: bigint;
   readonly signal?: AbortSignal;
 }): Promise<FileContentsRead> => {
   const { handle, path, signal } = request;
@@ -97,7 +106,13 @@ const readFileContents = async (request: {
           total,
         ),
       };
-    const chunk = Buffer.allocUnsafe(READ_CHUNK_BYTES);
+    // One extra byte detects growth without allocating a full chunk at EOF.
+    const remaining = request.expectedSize - BigInt(total);
+    const chunkBytes =
+      remaining >= BigInt(READ_CHUNK_BYTES)
+        ? READ_CHUNK_BYTES
+        : Number(remaining) + 1;
+    const chunk = Buffer.allocUnsafe(chunkBytes);
     const read = await handle.read(chunk, 0, chunk.byteLength, null);
     if (isAborted(signal))
       return {
@@ -112,6 +127,17 @@ const readFileContents = async (request: {
       };
     if (read.bytesRead === 0) break;
     total += read.bytesRead;
+    if (BigInt(total) > request.expectedSize)
+      return {
+        status: "failed",
+        entry: entryFailure(
+          path,
+          "file",
+          "changed",
+          "File grew while it was read",
+          total,
+        ),
+      };
     chunks.push(chunk.subarray(0, read.bytesRead));
   }
   return { status: "ok", chunks, total };
@@ -189,6 +215,7 @@ export const readStableFile = async (
     const contents = await readFileContents({
       handle,
       path,
+      expectedSize: prepared.before.size,
       ...(signal === undefined ? {} : { signal }),
     });
     if (contents.status === "failed") return contents.entry;

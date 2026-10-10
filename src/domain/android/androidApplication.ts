@@ -222,7 +222,7 @@ const bridgeBasis = (
   if (convention === "react-native") return "react-native-convention";
   if (convention === "flutter") return "flutter-convention";
   if (convention === "unity") return "unity-convention";
-  if (/lib\/[^/]+\/lib[^/]+\.so$/u.test(path.toLowerCase()))
+  if (/(?:^|\/)lib\/[^/]+\/lib[^/]+\.so$/iu.test(path))
     return "jni-library-convention";
   return "managed-and-native-content";
 };

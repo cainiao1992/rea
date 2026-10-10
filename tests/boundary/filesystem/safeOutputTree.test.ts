@@ -3,6 +3,7 @@ import {
   access,
   chmod,
   mkdir,
+  open,
   readFile,
   readdir,
   readlink,
@@ -14,11 +15,12 @@ import {
 import { join } from "node:path";
 import { Readable } from "node:stream";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import { SafeOutputTree } from "../../../src/artifacts/SafeOutputTree.js";
+import { SafeOutputTreeCreationFailure } from "../../../src/artifacts/SafeOutputTreeCreationFailure.js";
 import { ArtifactReaderFailure } from "../../../src/artifacts/ArtifactReader.js";
 
 describe("safe artifact output cleanup", () => {
@@ -44,6 +46,109 @@ describe("safe artifact output cleanup", () => {
         residualPaths: ["published"],
       });
       await rm(parent, { recursive: true, force: true });
+    },
+  );
+});
+
+describe("safe artifact output file identity admission", () => {
+  it.skipIf(process.platform === "win32")(
+    "retains an O_EXCL file handle until its identity can be retried",
+    async () => {
+      const parent = await createTestTempDirectory("rea-safe-output-admit-");
+      const output = join(parent, "published");
+      const destination = join(output, "payload.txt");
+      const displaced = join(parent, "owned-payload.txt");
+      const outside = join(parent, "outside.txt");
+      await writeFile(outside, "outside bytes");
+      const prototypeHandle = await open(join(parent, "handle"), "w");
+      const handlePrototype = Object.getPrototypeOf(prototypeHandle) as Pick<
+        typeof prototypeHandle,
+        "stat"
+      >;
+      await prototypeHandle.close();
+      await rm(join(parent, "handle"));
+      const tree = await SafeOutputTree.create(output);
+      const originalStat = handlePrototype.stat;
+      const stat = vi.spyOn(handlePrototype, "stat");
+      stat
+        .mockImplementationOnce(function (
+          this: typeof prototypeHandle,
+          ...args
+        ) {
+          return originalStat.apply(this, args);
+        })
+        .mockRejectedValueOnce(new Error("injected file identity failure"));
+
+      await expect(
+        tree.write("payload.txt", Readable.from(Buffer.from("owned")), {
+          sha256: createHash("sha256").update("owned").digest("hex"),
+          bytes: Buffer.byteLength("owned"),
+        }),
+      ).rejects.toThrow("injected file identity failure");
+      stat.mockRestore();
+      await rename(destination, displaced);
+      await symlink(outside, destination, "file");
+
+      const failure = await tree.rollback().catch((cause: unknown) => cause);
+      expect(failure).toBeInstanceOf(ArtifactReaderFailure);
+      expect(await readlink(destination)).toBe(outside);
+      expect(await readFile(outside, "utf8")).toBe("outside bytes");
+
+      await rm(destination);
+      await rename(displaced, destination);
+      expect(await tree.rollback()).toEqual({
+        status: "complete",
+        residualPaths: [],
+      });
+      expect(await readdir(parent)).toEqual(["outside.txt"]);
+    },
+  );
+});
+
+describe("safe artifact output setup ownership", () => {
+  it.skipIf(process.platform === "win32")(
+    "returns its exact tree owner when setup fails after root identity capture",
+    async () => {
+      const parent = await createTestTempDirectory("rea-safe-output-setup-");
+      const output = join(parent, "published");
+      const blocker = join(output, "unowned.txt");
+      const prototypeHandle = await open(join(parent, "handle"), "w");
+      const handlePrototype = Object.getPrototypeOf(prototypeHandle) as Pick<
+        typeof prototypeHandle,
+        "chmod"
+      >;
+      await prototypeHandle.close();
+      await rm(join(parent, "handle"));
+      const chmodSpy = vi
+        .spyOn(handlePrototype, "chmod")
+        .mockImplementationOnce(async function (this: typeof prototypeHandle) {
+          await writeFile(blocker, "leave until cleanup retry");
+          throw new Error("injected setup failure");
+        });
+
+      const failure = await SafeOutputTree.create(output).catch(
+        (cause: unknown) => cause,
+      );
+      chmodSpy.mockRestore();
+      expect(failure).toBeInstanceOf(SafeOutputTreeCreationFailure);
+      if (!(failure instanceof SafeOutputTreeCreationFailure))
+        throw new Error("expected setup failure to retain its tree owner");
+      expect(failure.cause).toMatchObject({
+        message: "injected setup failure",
+      });
+      expect(failure.tree.outputRoot).toBe(output);
+
+      const cleanupFailure = await failure.tree
+        .rollback()
+        .catch((cause: unknown) => cause);
+      expect(cleanupFailure).toBeInstanceOf(ArtifactReaderFailure);
+      expect(await readFile(blocker, "utf8")).toBe("leave until cleanup retry");
+      await rm(blocker);
+      expect(await failure.tree.rollback()).toEqual({
+        status: "complete",
+        residualPaths: [],
+      });
+      expect(await readdir(parent)).toEqual([]);
     },
   );
 });

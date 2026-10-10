@@ -5,11 +5,11 @@ import {
   open,
   readdir,
   realpath,
-  rmdir,
   type FileHandle,
 } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import type { Readable } from "node:stream";
+import { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
 import { streamChunkToBuffer } from "./StreamBytes.js";
 
 import {
@@ -18,13 +18,14 @@ import {
   normalizeArtifactPath,
 } from "./ArtifactPaths.js";
 import { ArtifactReaderFailure } from "./ArtifactReader.js";
+import { SafeOutputTreeCreationFailure } from "./SafeOutputTreeCreationFailure.js";
+import { hashOutputFile } from "./SafeOutputTreeReadback.js";
 import { removeOwnedTree } from "./SafeOutputTreeCleanup.js";
 import {
   assertHandleIdentity,
   assertFilePathIdentity,
   assertPathIdentity,
   isAbsent,
-  pathHasIdentity,
   readDirectoryIdentity,
   readFileIdentity,
   replacedDirectory,
@@ -57,9 +58,12 @@ export type SafeOutputCleanup =
 export class SafeOutputTree {
   readonly #registry = new ArtifactPathRegistry();
   readonly #outputRoot: string;
-  readonly #rootIdentity: DirectoryIdentity;
+  #rootIdentity: DirectoryIdentity | undefined;
   readonly #nestedDirectories = new Map<string, DirectoryIdentity>();
+  readonly #unknownDirectories = new Set<string>();
   readonly #ownedFiles = new Map<string, FileIdentity>();
+  readonly #openFiles = new Map<string, OwnedFileHandle>();
+  readonly #openHandles = new Set<OwnedFileHandle>();
   #published = false;
   #cleanup: SafeOutputCleanup = {
     status: "not-required",
@@ -67,11 +71,9 @@ export class SafeOutputTree {
 
   private constructor(
     outputRoot: string,
-    rootIdentity: DirectoryIdentity,
     private readonly platform: NodeJS.Platform,
   ) {
     this.#outputRoot = outputRoot;
-    this.#rootIdentity = rootIdentity;
   }
 
   /**
@@ -113,62 +115,62 @@ export class SafeOutputTree {
         );
       throw cause;
     });
-    let rootIdentity: DirectoryIdentity | undefined;
+    const tree = new SafeOutputTree(canonicalOutput, platform);
     try {
-      rootIdentity = await readDirectoryIdentity(canonicalOutput);
+      const rootIdentity = await readDirectoryIdentity(canonicalOutput);
+      tree.#rootIdentity = rootIdentity;
       if (platform !== "win32") {
-        const stagingHandle = await open(
-          canonicalOutput,
-          constants.O_RDONLY | constants.O_DIRECTORY,
+        const stagingHandle = tree.#trackHandle(
+          await open(
+            canonicalOutput,
+            constants.O_RDONLY | constants.O_DIRECTORY,
+          ),
         );
+        let setup:
+          | { readonly kind: "ready" }
+          | {
+              readonly kind: "failed";
+              readonly cause: unknown;
+            } = { kind: "ready" };
         try {
           await assertHandleIdentity(
-            stagingHandle,
+            stagingHandle.handle,
             rootIdentity,
             canonicalOutput,
           );
-          await stagingHandle.chmod(0o700);
-        } finally {
-          await stagingHandle.close();
+          await stagingHandle.handle.chmod(0o700);
+        } catch (cause: unknown) {
+          setup = { kind: "failed", cause };
         }
+        try {
+          await tree.#closeHandle(stagingHandle);
+        } catch (closeCause: unknown) {
+          if (setup.kind === "failed")
+            throw ArtifactReaderFailure.withCleanup(
+              setup.cause,
+              ArtifactReaderFailure.cleanupObservation(
+                closeCause,
+                canonicalOutput,
+              ),
+            );
+          throw closeCause;
+        }
+        if (setup.kind === "failed") throw setup.cause;
       }
       await assertPathIdentity(canonicalOutput, rootIdentity);
-      return new SafeOutputTree(canonicalOutput, rootIdentity, platform);
+      return tree;
     } catch (cause: unknown) {
-      let removalFailure: unknown;
-      let ownedRootAtPath = false;
-      try {
-        ownedRootAtPath =
-          rootIdentity !== undefined &&
-          (await pathHasIdentity(canonicalOutput, rootIdentity));
-        if (ownedRootAtPath) await rmdir(canonicalOutput);
-        else
-          removalFailure = new Error(
-            "Extraction output root identity changed during setup",
-          );
-      } catch (cleanupCause: unknown) {
-        removalFailure = cleanupCause;
-      }
-      let absent = false;
-      try {
-        absent = ownedRootAtPath && (await isAbsent(canonicalOutput));
-      } catch (cleanupCause: unknown) {
-        removalFailure ??= cleanupCause;
-      }
-      if (!absent)
-        throw ArtifactReaderFailure.withCleanup(cause, {
-          reason:
-            removalFailure instanceof Error
-              ? removalFailure.message
-              : "Extraction output root ownership could not be verified after setup failure",
-          resources: [canonicalOutput],
-        });
-      throw cause;
+      throw new SafeOutputTreeCreationFailure(cause, tree);
     }
   }
 
   get outputRoot(): string {
     return this.#outputRoot;
+  }
+
+  /** The output was durably committed, even if descriptor cleanup later failed. */
+  get published(): boolean {
+    return this.#published;
   }
 
   get cleanup(): SafeOutputCleanup {
@@ -211,58 +213,62 @@ export class SafeOutputTree {
           { cause },
         );
       });
-      const fileIdentity = await readFileIdentity(handle, destination).catch(
-        async (cause: unknown) => {
-          await handle.close().catch(() => undefined);
-          throw cause;
-        },
+      const ownedHandle = this.#trackHandle(handle);
+      this.#openFiles.set(destination, ownedHandle);
+      const fileIdentity = await readFileIdentity(
+        ownedHandle.handle,
+        destination,
       );
+      await assertFilePathIdentity(destination, fileIdentity);
       this.#ownedFiles.set(destination, fileIdentity);
       const hash = createHash("sha256");
       let bytes = 0;
-      try {
-        await this.#assertLineage(lineage);
-        for await (const raw of source) {
-          abortIfNeeded(signal);
-          const chunk = streamChunkToBuffer(raw);
-          if (chunk.length > expected.bytes - bytes)
-            throw new ArtifactReaderFailure(
-              "integrity",
-              `Extracted content exceeds the inventoried size: ${path}`,
-            );
-          bytes += chunk.length;
-          hash.update(chunk);
-          await writeAll(handle, chunk);
-        }
-        if (bytes !== expected.bytes)
+      await this.#assertLineage(lineage);
+      for await (const raw of source) {
+        abortIfNeeded(signal);
+        const chunk = streamChunkToBuffer(raw);
+        if (chunk.length > expected.bytes - bytes)
           throw new ArtifactReaderFailure(
             "integrity",
-            `Extracted content size disagrees with inventory: ${path}`,
+            `Extracted content exceeds the inventoried size: ${path}`,
           );
-        const sha256 = hash.digest("hex");
-        if (sha256 !== expected.sha256)
-          throw new ArtifactReaderFailure(
-            "integrity",
-            `Extracted content disagrees with inventory: ${path}`,
-          );
-        await this.#assertLineage(lineage);
-        await assertFilePathIdentity(destination, fileIdentity);
-        await handle.sync();
-        await handle.close();
-        const readback = await hashFile(destination, bytes, signal);
-        await this.#assertLineage(lineage);
-        await assertFilePathIdentity(destination, fileIdentity);
-        if (readback.sha256 !== sha256 || readback.bytes !== bytes)
-          throw new ArtifactReaderFailure(
-            "integrity",
-            `Durable readback verification failed: ${path}`,
-          );
-        return { relativePath: path, sha256, bytesWritten: bytes };
-      } catch (cause: unknown) {
-        // best-effort cleanup: file-handle close must not mask the write failure.
-        await handle.close().catch(() => undefined);
-        throw cause;
+        bytes += chunk.length;
+        hash.update(chunk);
+        await writeAll(ownedHandle.handle, chunk);
       }
+      if (bytes !== expected.bytes)
+        throw new ArtifactReaderFailure(
+          "integrity",
+          `Extracted content size disagrees with inventory: ${path}`,
+        );
+      const sha256 = hash.digest("hex");
+      if (sha256 !== expected.sha256)
+        throw new ArtifactReaderFailure(
+          "integrity",
+          `Extracted content disagrees with inventory: ${path}`,
+        );
+      await this.#assertLineage(lineage);
+      await assertFilePathIdentity(destination, fileIdentity);
+      await ownedHandle.handle.sync();
+      await this.#closeFileHandle(destination, ownedHandle);
+      const readbackHandle = this.#trackHandle(
+        await open(destination, constants.O_RDONLY | constants.O_NOFOLLOW),
+      );
+      const readback = await hashOutputFile(
+        readbackHandle,
+        destination,
+        fileIdentity,
+        { maximum: bytes, signal },
+      );
+      await this.#closeHandle(readbackHandle);
+      await this.#assertLineage(lineage);
+      await assertFilePathIdentity(destination, fileIdentity);
+      if (readback.sha256 !== sha256 || readback.bytes !== bytes)
+        throw new ArtifactReaderFailure(
+          "integrity",
+          `Durable readback verification failed: ${path}`,
+        );
+      return { relativePath: path, sha256, bytesWritten: bytes };
     } catch (cause: unknown) {
       try {
         source.destroy();
@@ -282,34 +288,80 @@ export class SafeOutputTree {
       this.#published = true;
       return;
     }
-    const parent = await open(
-      dirname(this.#outputRoot),
-      constants.O_RDONLY | constants.O_DIRECTORY,
-    );
-    let output: FileHandle | undefined;
-    try {
-      output = await open(
-        this.#outputRoot,
+    const parent = this.#trackHandle(
+      await open(
+        dirname(this.#outputRoot),
         constants.O_RDONLY | constants.O_DIRECTORY,
+      ),
+    );
+    let output: OwnedFileHandle | undefined;
+    let sync:
+      | { readonly kind: "synced" }
+      | {
+          readonly kind: "failed";
+          readonly cause: unknown;
+        } = { kind: "synced" };
+    try {
+      output = this.#trackHandle(
+        await open(
+          this.#outputRoot,
+          constants.O_RDONLY | constants.O_DIRECTORY,
+        ),
       );
-      await assertHandleIdentity(output, this.#rootIdentity, this.#outputRoot);
-      await output.sync();
-      await parent.sync();
+      await assertHandleIdentity(
+        output.handle,
+        this.#requireRootIdentity(),
+        this.#outputRoot,
+      );
+      await output.handle.sync();
+      await parent.handle.sync();
       this.#published = true;
     } catch (cause: unknown) {
+      sync = { kind: "failed", cause };
+    }
+    const closeResults = await Promise.allSettled(
+      [parent, output]
+        .filter(isDefined)
+        .map((handle) => this.#closeHandle(handle)),
+    );
+    const closeFailures = closeResults
+      .filter(isRejected)
+      .map(({ reason }) => reason);
+    if (closeFailures.length > 0) {
+      const closeFailure = new AggregateError(
+        closeFailures,
+        "Extraction output directory handles could not be closed",
+      );
+      const cleanup = ArtifactReaderFailure.cleanupObservation(
+        closeFailure,
+        this.#outputRoot,
+      );
+      if (sync.kind === "failed")
+        throw ArtifactReaderFailure.withCleanup(
+          new ArtifactReaderFailure(
+            "path",
+            "Could not durably sync extraction output",
+            { cause: sync.cause },
+          ),
+          cleanup,
+        );
+      throw ArtifactReaderFailure.withCleanup(closeFailure, cleanup);
+    }
+    if (sync.kind === "failed")
       throw new ArtifactReaderFailure(
         "path",
         "Could not durably sync extraction output",
-        { cause },
+        { cause: sync.cause },
       );
-    } finally {
-      await Promise.allSettled([parent.close(), output?.close()]);
-    }
   }
 
   /** Remove only this operation's unsealed tree and verify absence. */
   async rollback(): Promise<SafeOutputCleanup> {
-    if (this.#published || this.#cleanup.status === "complete")
+    if (this.#published) {
+      await this.#closePendingHandles();
+      return structuredClone(this.#cleanup);
+    }
+    if (this.#cleanup.status === "complete")
       return structuredClone(this.#cleanup);
     this.#cleanup = {
       status: "incomplete",
@@ -317,10 +369,12 @@ export class SafeOutputTree {
     };
     let removalFailure: unknown;
     try {
+      await this.#admitPendingFiles();
+      await this.#closePendingHandles();
       await this.#assertOwnedDirectories();
       await removeOwnedTree({
         outputRoot: this.#outputRoot,
-        rootIdentity: this.#rootIdentity,
+        rootIdentity: this.#requireRootIdentity(),
         directories: this.#nestedDirectories,
         files: this.#ownedFiles,
       });
@@ -362,10 +416,10 @@ export class SafeOutputTree {
     let current = this.#outputRoot;
     let logicalParent = "";
     const lineage: DirectoryLineageEntry[] = [
-      { path: this.#outputRoot, identity: this.#rootIdentity },
+      { path: this.#outputRoot, identity: this.#requireRootIdentity() },
     ];
     if (parts.length === 0)
-      await assertPathIdentity(this.#outputRoot, this.#rootIdentity);
+      await assertPathIdentity(this.#outputRoot, this.#requireRootIdentity());
     for (const part of parts) {
       const parent = lineage.at(-1);
       if (parent === undefined) throw replacedDirectory(this.#outputRoot);
@@ -384,8 +438,13 @@ export class SafeOutputTree {
         if (identity === undefined) throw replacedDirectory(current);
         await assertPathIdentity(current, identity);
       } else {
-        const identity = await readDirectoryIdentity(current);
-        this.#nestedDirectories.set(current, identity);
+        try {
+          const identity = await readDirectoryIdentity(current);
+          this.#nestedDirectories.set(current, identity);
+        } catch (cause: unknown) {
+          this.#unknownDirectories.add(current);
+          throw cause;
+        }
       }
       await assertPathIdentity(parent.path, parent.identity);
       const identity = this.#nestedDirectories.get(current);
@@ -405,9 +464,24 @@ export class SafeOutputTree {
   }
 
   async #assertOwnedDirectories(): Promise<void> {
-    await assertPathIdentity(this.#outputRoot, this.#rootIdentity);
+    const rootIdentity = this.#requireRootIdentity();
+    await assertPathIdentity(this.#outputRoot, rootIdentity);
     for (const [path, identity] of this.#nestedDirectories)
       await assertPathIdentity(path, identity);
+    if (this.#unknownDirectories.size > 0)
+      throw new ArtifactReaderFailure(
+        "path",
+        `Extraction directory ownership is unknown: ${[...this.#unknownDirectories].join(", ")}`,
+      );
+  }
+
+  #requireRootIdentity(): DirectoryIdentity {
+    if (this.#rootIdentity === undefined)
+      throw new ArtifactReaderFailure(
+        "path",
+        `Extraction output root identity is unknown: ${this.#outputRoot}`,
+      );
+    return this.#rootIdentity;
   }
 
   #assertWritable(): void {
@@ -422,37 +496,57 @@ export class SafeOutputTree {
         "Extraction tree cleanup has already started",
       );
   }
+
+  #trackHandle(handle: FileHandle): OwnedFileHandle {
+    const owner = new OwnedFileHandle(handle);
+    this.#openHandles.add(owner);
+    return owner;
+  }
+
+  async #closeHandle(owner: OwnedFileHandle): Promise<void> {
+    await owner.close();
+    this.#openHandles.delete(owner);
+  }
+
+  async #closePendingHandles(): Promise<void> {
+    const failures: unknown[] = [];
+    for (const owner of this.#openHandles) {
+      try {
+        await this.#closeHandle(owner);
+      } catch (cause: unknown) {
+        failures.push(cause);
+      }
+    }
+    if (failures.length > 0)
+      throw new AggregateError(failures, "Output tree handles remain open");
+  }
+
+  async #closeFileHandle(path: string, owner: OwnedFileHandle): Promise<void> {
+    await this.#closeHandle(owner);
+    this.#openFiles.delete(path);
+  }
+
+  async #admitPendingFiles(): Promise<void> {
+    for (const [path, owner] of this.#openFiles) {
+      let identity = this.#ownedFiles.get(path);
+      if (identity === undefined) {
+        identity = await readFileIdentity(owner.handle, path);
+        await assertFilePathIdentity(path, identity);
+        this.#ownedFiles.set(path, identity);
+      }
+    }
+  }
 }
+
+const isDefined = <T>(value: T | undefined): value is T => value !== undefined;
+
+const isRejected = (
+  result: PromiseSettledResult<void>,
+): result is PromiseRejectedResult => result.status === "rejected";
 
 type DirectoryLineageEntry = {
   readonly path: string;
   readonly identity: DirectoryIdentity;
-};
-
-const hashFile = async (
-  path: string,
-  maximum: number,
-  signal?: AbortSignal,
-): Promise<{ readonly sha256: string; readonly bytes: number }> => {
-  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
-  const hash = createHash("sha256");
-  let bytes = 0;
-  try {
-    for await (const raw of handle.createReadStream({ autoClose: false })) {
-      abortIfNeeded(signal);
-      const chunk = streamChunkToBuffer(raw);
-      bytes += chunk.length;
-      if (bytes > maximum)
-        throw new ArtifactReaderFailure(
-          "integrity",
-          "Readback exceeded the bytes written",
-        );
-      hash.update(chunk);
-    }
-  } finally {
-    await handle.close();
-  }
-  return { sha256: hash.digest("hex"), bytes };
 };
 
 const writeAll = async (
@@ -475,6 +569,14 @@ const writeAll = async (
   }
 };
 
+const abortIfNeeded = (signal?: AbortSignal): void => {
+  if (signal?.aborted === true)
+    throw new ArtifactReaderFailure(
+      "cancelled",
+      "Artifact extraction cancelled",
+    );
+};
+
 const isAlreadyExists = (cause: unknown): boolean =>
   cause instanceof Error && "code" in cause && cause.code === "EEXIST";
 
@@ -493,12 +595,4 @@ const throwIfDestinationCaseCollision = async (
     message,
     cause === undefined ? undefined : { cause },
   );
-};
-
-const abortIfNeeded = (signal?: AbortSignal): void => {
-  if (signal?.aborted === true)
-    throw new ArtifactReaderFailure(
-      "cancelled",
-      "Artifact extraction cancelled",
-    );
 };

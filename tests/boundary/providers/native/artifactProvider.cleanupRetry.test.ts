@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, open, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { createPackage } from "@electron/asar";
@@ -164,6 +164,47 @@ it("retains a failed rollback owner and preserves the materialization failure", 
   expect(await client.close()).toMatchObject({ ok: true });
   expect(rollbackOwners).toHaveLength(2);
   expect(rollbackOwners[1]).toBe(rollbackOwners[0]);
+  await expect(access(output)).rejects.toThrow();
+});
+
+it("retains a tree whose setup failed after root identity was captured", async () => {
+  const { root, archive } = await createArchive();
+  const output = join(root, "output");
+  const blocker = join(output, "unowned.txt");
+  const client = createClient(archive);
+  const prototypeHandle = await open(join(root, "prototype-handle"), "w");
+  const handlePrototype = Object.getPrototypeOf(prototypeHandle) as Pick<
+    typeof prototypeHandle,
+    "chmod"
+  >;
+  await prototypeHandle.close();
+  await rm(join(root, "prototype-handle"));
+  onTestFinished(async () => {
+    vi.restoreAllMocks();
+    await rm(blocker, { force: true });
+    await client.close();
+  });
+  vi.spyOn(handlePrototype, "chmod").mockImplementationOnce(async function (
+    this: typeof prototypeHandle,
+  ) {
+    await writeFile(blocker, "keep until owner retry");
+    throw new Error("injected output setup failure");
+  });
+
+  const extraction = await client.execute("extract_artifact", {
+    output_root: output,
+  });
+  expect(extraction).toMatchObject({
+    ok: false,
+    error: {
+      _tag: "ArtifactOperationError",
+      detail: expect.stringContaining("injected output setup failure"),
+      cleanup: { resources: [output] },
+    },
+  });
+  expect(await readFile(blocker, "utf8")).toBe("keep until owner retry");
+  await rm(blocker);
+  expect(await client.close()).toMatchObject({ ok: true });
   await expect(access(output)).rejects.toThrow();
 });
 

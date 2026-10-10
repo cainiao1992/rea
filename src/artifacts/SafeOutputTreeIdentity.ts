@@ -71,20 +71,6 @@ export const assertFilePathIdentity = async (
     );
 };
 
-export const pathHasIdentity = async (
-  path: string,
-  expected: DirectoryIdentity,
-): Promise<boolean> => {
-  try {
-    await assertPathIdentity(path, expected);
-    return true;
-  } catch (cause: unknown) {
-    if (isNotFound(cause) || cause instanceof ArtifactReaderFailure)
-      return false;
-    throw cause;
-  }
-};
-
 export const isAbsent = async (path: string): Promise<boolean> =>
   lstat(path).then(
     () => false,

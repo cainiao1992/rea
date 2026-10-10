@@ -15,6 +15,7 @@ import {
 import { abortIfNeeded } from "../ArtifactHash.js";
 import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
 import { SafeOutputTree } from "../SafeOutputTree.js";
+import { SafeOutputTreeCreationFailure } from "../SafeOutputTreeCreationFailure.js";
 import { ZipArtifactReader } from "../ZipArtifactReader.js";
 import { MachOSliceArtifactReader } from "../MachOSliceArtifactReader.js";
 import {
@@ -220,9 +221,15 @@ const materializeSelection = async ({
   };
   let localReaderOwner: ArtifactResourceOwner | undefined = readerOwner;
   let output: SafeOutputTree | undefined;
+  let completed: ArtifactExtractionResult | undefined;
   const extracted: ExtractedOccurrence[] = [];
   try {
-    output = await SafeOutputTree.create(input.outputRoot);
+    try {
+      output = await SafeOutputTree.create(input.outputRoot);
+    } catch (cause: unknown) {
+      if (cause instanceof SafeOutputTreeCreationFailure) output = cause.tree;
+      throw cause;
+    }
     await writeSelectedEntries({ reader, output, byPath, extracted, signal });
     localReaderOwner = undefined;
     const closeAttempt = await input.resourceScope.release(readerOwner);
@@ -237,14 +244,9 @@ const materializeSelection = async ({
     extracted.sort((left, right) =>
       compareUnicodeCodePoints(left.relative_path, right.relative_path),
     );
-    const result = createExtractionResult(
-      input,
-      inventory,
-      selected,
-      extracted,
-    );
+    completed = createExtractionResult(input, inventory, selected, extracted);
     await output.commit();
-    return result;
+    return completed;
   } catch (cause: unknown) {
     const cleanupFailures = await releaseExtractionOwners(
       input.resourceScope,
@@ -257,13 +259,20 @@ const materializeSelection = async ({
         ({ cause: cleanupCause, resource }) =>
           ArtifactReaderFailure.cleanupObservation(cleanupCause, resource),
       );
-      throw ArtifactReaderFailure.withCleanup(cause, {
-        reason: observations.map(({ reason }) => reason).join("; "),
-        resources: [
-          ...new Set(observations.flatMap(({ resources }) => resources)),
-        ],
-      });
+      throw ArtifactReaderFailure.withCleanup(
+        cause,
+        {
+          reason: observations.map(({ reason }) => reason).join("; "),
+          resources: [
+            ...new Set(observations.flatMap(({ resources }) => resources)),
+          ],
+        },
+        output?.published === true && completed !== undefined
+          ? { kind: "artifact-extraction", extraction: completed }
+          : undefined,
+      );
     }
+    if (output?.published === true && completed !== undefined) return completed;
     throw cause;
   }
 };

@@ -19,7 +19,7 @@ import { isAbsolute, join, relative, sep } from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
-import { getRawHeader, listPackage, statFile, uncache } from "@electron/asar";
+import { listPackage, statFile, uncache } from "@electron/asar";
 
 import {
   ArtifactReaderFailure,
@@ -65,6 +65,7 @@ export class AsarArtifactReader implements ArtifactReader {
       try {
         const admitted = await admitAsarHeader(headerHandle);
         this.#archiveSize = admitted.archiveBytes;
+        this.#headerSize = admitted.headerBytes;
       } finally {
         await headerHandle.close();
       }
@@ -72,7 +73,6 @@ export class AsarArtifactReader implements ArtifactReader {
       paths = listPackage(snapshotPath, { isPack: false }).sort((left, right) =>
         left.localeCompare(right, "en"),
       );
-      this.#headerSize = getRawHeader(snapshotPath).headerSize;
       const archiveMetadata = await lstat(snapshotPath);
       if (!archiveMetadata.isFile() || archiveMetadata.isSymbolicLink())
         throw new ArtifactReaderFailure(

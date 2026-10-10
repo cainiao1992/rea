@@ -118,10 +118,17 @@ describe("compiled reference-source import preflight failures", () => {
         } else {
           expect(result.json).toMatchObject(invalidRootOutput);
         }
-        expect(JSON.stringify(result.json)).toContain(
-          "Check that the path exists, is readable, and points to a directory.",
+        const messagePath = scenario.fullOutput ? "data.message" : "message";
+        expect(result.json).toHaveProperty(
+          messagePath,
+          expect.stringContaining(
+            "Check that the path exists, is readable, and points to a directory.",
+          ),
         );
-        expect(JSON.stringify(result.json)).toContain(root);
+        expect(result.json).toHaveProperty(
+          messagePath,
+          expect.stringContaining(root),
+        );
         expect.soft(result.exitCode).toBe(1);
         if (scenario.logging) {
           const records: unknown[] = result.stderr
@@ -169,9 +176,13 @@ describe("compiled reference-source import preflight failures", () => {
           category: "execution_failure",
           message: expect.stringContaining("EACCES: permission denied"),
         });
-        expect(JSON.stringify(result.json)).toContain(root);
-        expect(JSON.stringify(result.json)).toContain(
-          "Check directory permissions and try again.",
+        expect(result.json).toHaveProperty(
+          "message",
+          expect.stringContaining(root),
+        );
+        expect(result.json).toHaveProperty(
+          "message",
+          expect.stringContaining("Check directory permissions and try again."),
         );
         expect(result.exitCode).toBe(1);
       } finally {

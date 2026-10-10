@@ -412,8 +412,7 @@ const elementInSvgContext = (
     }
     const parent = Math.trunc(parents[current] ?? -1);
     if (parent < 0 || parent === current) break;
-    if (indexedString(strings, nodeNames[parent]) === "foreignObject")
-      break;
+    if (indexedString(strings, nodeNames[parent]) === "foreignObject") break;
     current = parent;
   }
   // Cache the entire examined chain, including forward references and cycles,

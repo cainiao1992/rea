@@ -352,9 +352,17 @@ const bindingOrigin = (
       ? binding.directOrigins[0]
       : undefined;
   const [initializer] = binding.initializers;
-  if (binding.mutable || binding.initializers.length !== 1) return undefined;
-  const origin = semanticRequireOrigin(initializer?.node, state);
-  const projection = initializer?.projection ?? [];
+  // A var/let declaration permits writes without proving one occurred.
+  // Require one unconditional initializer and no actual binding writes.
+  if (
+    initializer === undefined ||
+    binding.initializers.length !== 1 ||
+    binding.definitions.some(({ kind }) => kind === "assignment") ||
+    state.conditionalInitializers.has(initializer.node)
+  )
+    return undefined;
+  const origin = semanticRequireOrigin(initializer.node, state);
+  const projection = initializer.projection;
   return origin === undefined ||
     !projection.every((key): key is string => typeof key === "string")
     ? undefined

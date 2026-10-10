@@ -116,6 +116,18 @@ describe("static Electron application analysis", () => {
     expect(handledChannels.sort()).toEqual(["rea:read", "rea:write"]);
   });
 
+  it("maps unchanged var and let require aliases while excluding reassigned bindings", async () => {
+    const root = await requireAliasFixtureDirectory();
+
+    const result = await reconstructJavaScriptArtifact({ input_path: root });
+
+    expect(result.electron_summary.ipc).toMatchObject({
+      main_handlers: 2,
+      paired_renderer_transmissions: 2,
+      unpaired_literal_renderer_transmissions: 0,
+    });
+  });
+
   it("returns a tagged cancellation without executing application code", async () => {
     const root = await fixtureDirectory();
     const controller = new AbortController();
@@ -323,6 +335,50 @@ const expectElectronBoundaries = (graph: ApplicationGraph): void => {
 const fixtureDirectory = async (): Promise<string> => {
   const root = await createTestTempDirectory("rea-electron-boundaries-");
   await writeElectronBoundaryFixture(root);
+  return root;
+};
+
+const requireAliasFixtureDirectory = async (): Promise<string> => {
+  const root = await createTestTempDirectory("rea-electron-require-aliases-");
+  await Promise.all([
+    writeFile(
+      join(root, "package.json"),
+      JSON.stringify({
+        name: "rea-electron-require-aliases",
+        main: "main.cjs",
+      }),
+    ),
+    writeFile(
+      join(root, "main.cjs"),
+      String.raw`
+var { ipcMain: main } = require("electron");
+let listener = require("electron/main").ipcMain;
+main.handle("rea:read", async () => "value");
+listener.on("rea:write", () => undefined);
+
+let replaced = require("electron").ipcMain;
+replaced = { handle() {} };
+replaced.handle("rea:reassigned", () => undefined);
+
+var assignedLater;
+assignedLater.handle("rea:before-assignment", () => undefined);
+assignedLater = require("electron").ipcMain;
+
+if (globalThis.registerIpc) {
+  var conditional = require("electron").ipcMain;
+}
+conditional.handle("rea:conditional", () => undefined);
+`,
+    ),
+    writeFile(
+      join(root, "preload.cjs"),
+      String.raw`
+const { ipcRenderer } = require("electron");
+ipcRenderer.invoke("rea:read");
+ipcRenderer.send("rea:write", "value");
+`,
+    ),
+  ]);
   return root;
 };
 

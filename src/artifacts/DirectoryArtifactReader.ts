@@ -1,4 +1,4 @@
-import { constants, type Dir, type Stats } from "node:fs";
+import { constants, type Stats } from "node:fs";
 import {
   lstat,
   open,
@@ -14,6 +14,7 @@ import {
   type ArtifactEntry,
   type ArtifactReader,
 } from "./ArtifactReader.js";
+import { OwnedDirectoryHandle } from "../filesystem/OwnedDirectoryHandle.js";
 import { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
 import { readFileHandleChunks } from "../filesystem/readFileHandleChunks.js";
 
@@ -286,38 +287,6 @@ const artifactEntry = (
       : {}),
   };
 };
-
-type DirectoryCloseState =
-  | { readonly kind: "open" }
-  | { readonly kind: "closing"; readonly attempt: Promise<void> }
-  | { readonly kind: "closed" }
-  | { readonly kind: "failed"; readonly cause: unknown };
-
-/** Dir.close invalidates Node's private handle before its native close settles. */
-class OwnedDirectoryHandle {
-  #state: DirectoryCloseState = { kind: "open" };
-
-  constructor(readonly handle: Dir) {}
-
-  close(): Promise<void> {
-    if (this.#state.kind === "closed") return Promise.resolve();
-    if (this.#state.kind === "closing") return this.#state.attempt;
-    if (this.#state.kind === "failed") return Promise.reject(this.#state.cause);
-    const attempt = Promise.resolve().then(async () => {
-      try {
-        await this.handle.close();
-        this.#state = { kind: "closed" };
-      } catch (cause: unknown) {
-        // Dir exposes no public validity signal; a second close can only lie
-        // with ERR_DIR_CLOSED after Node has invalidated the first owner.
-        this.#state = { kind: "failed", cause };
-        throw cause;
-      }
-    });
-    this.#state = { kind: "closing", attempt };
-    return attempt;
-  }
-}
 
 const directoryIoFailure = (
   operation: string,

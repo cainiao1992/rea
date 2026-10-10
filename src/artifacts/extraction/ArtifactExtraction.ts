@@ -90,20 +90,14 @@ export const materializeArtifactInventory = async (
   const selectedIds = new Set(
     activeOccurrences.map(({ occurrence_id: id }) => id),
   );
-  const occurrences = new Map<string, ArtifactOccurrence>();
-  const neededNodes = new Set<string>();
-  collectOccurrences(
-    snapshot.occurrences,
-    selectedIds,
-    occurrences,
-    neededNodes,
+  const neededNodes = new Set(
+    activeOccurrences.map(({ artifact_id: id }) => id),
   );
   const nodes = new Map<string, ArtifactNode>();
-  collectNodes(snapshot.nodes, neededNodes, nodes);
-  const inventory: LoadedInventory = {
+  for (const node of snapshot.nodes)
+    if (neededNodes.has(node.artifact_id)) nodes.set(node.artifact_id, node);
+  const inventory: ExtractionInventory = {
     manifest: snapshot.manifest,
-    occurrences,
-    nodes,
     integrityContradictions: snapshot.integrity_contradictions.filter(
       ({ occurrence_id: id }) => selectedIds.has(id),
     ),
@@ -144,7 +138,7 @@ export const materializeArtifactInventory = async (
         "format",
         `Selected occurrence is not an extractable regular child file: ${occurrence.logical_path} (${occurrence.occurrence_id})`,
       );
-    const node = inventory.nodes.get(occurrence.artifact_id);
+    const node = nodes.get(occurrence.artifact_id);
     if (node === undefined)
       throw new ArtifactReaderFailure(
         "integrity",
@@ -183,7 +177,7 @@ const materializeSelection = async ({
 }: {
   readonly input: ArtifactExtractionInput;
   readonly sourcePath: string;
-  readonly inventory: LoadedInventory;
+  readonly inventory: ExtractionInventory;
   readonly selected: readonly SelectedOccurrence[];
   readonly signal: AbortSignal | undefined;
 }): Promise<ArtifactExtractionResult> => {
@@ -298,7 +292,7 @@ const materializeSelection = async ({
 
 const createExtractionResult = (
   input: ArtifactExtractionInput,
-  inventory: LoadedInventory,
+  inventory: ExtractionInventory,
   selected: readonly SelectedOccurrence[],
   extracted: readonly ExtractedOccurrence[],
 ): ArtifactExtractionResult => {
@@ -333,34 +327,10 @@ const createExtractionResult = (
   });
 };
 
-interface LoadedInventory {
+interface ExtractionInventory {
   readonly manifest: ArtifactGraphManifest;
-  readonly occurrences: ReadonlyMap<string, ArtifactOccurrence>;
-  readonly nodes: ReadonlyMap<string, ArtifactNode>;
   readonly integrityContradictions: readonly IntegrityContradiction[];
 }
-
-const collectOccurrences = (
-  items: readonly ArtifactOccurrence[],
-  selected: ReadonlySet<string>,
-  output: Map<string, ArtifactOccurrence>,
-  neededNodes: Set<string>,
-): void => {
-  for (const item of items) {
-    if (!selected.has(item.occurrence_id)) continue;
-    output.set(item.occurrence_id, item);
-    if (item.artifact_id !== null) neededNodes.add(item.artifact_id);
-  }
-};
-
-const collectNodes = (
-  items: readonly ArtifactNode[],
-  selected: ReadonlySet<string>,
-  output: Map<string, ArtifactNode>,
-): void => {
-  for (const item of items)
-    if (selected.has(item.artifact_id)) output.set(item.artifact_id, item);
-};
 
 const ZIP_FORMATS = ["ipa", "apk", "msix", "appx", "zip"] as const;
 

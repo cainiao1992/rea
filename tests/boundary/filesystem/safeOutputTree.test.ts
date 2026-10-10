@@ -2,10 +2,14 @@ import { createHash } from "node:crypto";
 import {
   access,
   chmod,
+  mkdir,
   readFile,
   readdir,
   readlink,
+  rename,
   rm,
+  symlink,
+  writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
 import { Readable } from "node:stream";
@@ -17,7 +21,7 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { SafeOutputTree } from "../../../src/artifacts/SafeOutputTree.js";
 import { ArtifactReaderFailure } from "../../../src/artifacts/ArtifactReader.js";
 
-describe("safe artifact output tree", () => {
+describe("safe artifact output cleanup", () => {
   it.skipIf(process.platform !== "linux")(
     "closes the parent descriptor when the output disappears before commit",
     async () => {
@@ -32,12 +36,169 @@ describe("safe artifact output tree", () => {
         ),
       );
       expect(targets.filter((target) => target === parent)).toEqual([]);
+      const failure = await tree.rollback().catch((cause: unknown) => cause);
+      expect(failure).toBeInstanceOf(ArtifactReaderFailure);
+      expect(failure).toMatchObject({ cleanup: { resources: [output] } });
+      expect(tree.cleanup).toEqual({
+        status: "incomplete",
+        residualPaths: ["published"],
+      });
+      await rm(parent, { recursive: true, force: true });
+    },
+  );
+});
+
+describe("safe artifact output tree identity", () => {
+  it.skipIf(process.platform === "win32")(
+    "refuses a replaced root and retries cleanup when the owned root is restored",
+    async () => {
+      const parent = await createTestTempDirectory("rea-safe-output-root-");
+      const output = join(parent, "published");
+      const displaced = join(parent, "owned-original");
+      const outside = join(parent, "outside");
+      await mkdir(outside);
+      const tree = await SafeOutputTree.create(output);
+      await rename(output, displaced);
+      await symlink(outside, output, "dir");
+
+      const writeFailure = await tree
+        .write("escaped.txt", Readable.from(Buffer.from("outside")), {
+          sha256: createHash("sha256").update("outside").digest("hex"),
+          bytes: Buffer.byteLength("outside"),
+        })
+        .catch((cause: unknown) => cause);
+      expect(writeFailure).toBeInstanceOf(ArtifactReaderFailure);
+      await expect(access(join(outside, "escaped.txt"))).rejects.toThrow();
+      await expect(tree.commit()).rejects.toBeInstanceOf(ArtifactReaderFailure);
+      const cleanupFailure = await tree
+        .rollback()
+        .catch((cause: unknown) => cause);
+      expect(cleanupFailure).toBeInstanceOf(ArtifactReaderFailure);
+      expect(cleanupFailure).toMatchObject({
+        cleanup: { resources: [output] },
+      });
+      expect(await readlink(output)).toBe(outside);
+
+      await rm(output);
+      await rename(displaced, output);
       expect(await tree.rollback()).toEqual({
         status: "complete",
         residualPaths: [],
       });
+      expect(await readdir(parent)).toEqual(["outside"]);
     },
   );
+
+  it.skipIf(process.platform === "win32")(
+    "refuses a replaced nested parent without touching it and retries after restoration",
+    async () => {
+      const parent = await createTestTempDirectory("rea-safe-output-parent-");
+      const output = join(parent, "published");
+      const nested = join(output, "nested");
+      const displaced = join(parent, "owned-nested");
+      const outside = join(parent, "outside");
+      await mkdir(outside);
+      await writeFile(join(outside, "sentinel.txt"), "keep");
+      const tree = await SafeOutputTree.create(output);
+      const bytes = Buffer.from("owned");
+      await tree.write("nested/owned.txt", Readable.from(bytes), {
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        bytes: bytes.byteLength,
+      });
+      await rename(nested, displaced);
+      await symlink(outside, nested, "dir");
+
+      const writeFailure = await tree
+        .write("nested/escaped.txt", Readable.from(Buffer.from("outside")), {
+          sha256: createHash("sha256").update("outside").digest("hex"),
+          bytes: Buffer.byteLength("outside"),
+        })
+        .catch((cause: unknown) => cause);
+      expect(writeFailure).toBeInstanceOf(ArtifactReaderFailure);
+      await expect(access(join(outside, "escaped.txt"))).rejects.toThrow();
+      expect(await readFile(join(outside, "sentinel.txt"), "utf8")).toBe(
+        "keep",
+      );
+      const cleanupFailure = await tree
+        .rollback()
+        .catch((cause: unknown) => cause);
+      expect(cleanupFailure).toBeInstanceOf(ArtifactReaderFailure);
+      expect(await readlink(nested)).toBe(outside);
+      expect(await readFile(join(outside, "sentinel.txt"), "utf8")).toBe(
+        "keep",
+      );
+
+      await rm(nested);
+      await rename(displaced, nested);
+      expect(await tree.rollback()).toEqual({
+        status: "complete",
+        residualPaths: [],
+      });
+      expect(await readdir(parent)).toEqual(["outside"]);
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "preserves an outside file when a tracked output file is replaced by a symlink",
+    async () => {
+      const parent = await createTestTempDirectory("rea-safe-output-file-");
+      const output = join(parent, "published");
+      const tracked = join(output, "nested", "file.txt");
+      const displaced = join(parent, "owned-file.txt");
+      const outside = join(parent, "outside.txt");
+      await writeFile(outside, "outside bytes");
+      const tree = await SafeOutputTree.create(output);
+      const bytes = Buffer.from("owned bytes");
+      await tree.write("nested/file.txt", Readable.from(bytes), {
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        bytes: bytes.byteLength,
+      });
+      await rename(tracked, displaced);
+      await symlink(outside, tracked, "file");
+
+      const failure = await tree.rollback().catch((cause: unknown) => cause);
+      expect(failure).toBeInstanceOf(ArtifactReaderFailure);
+      expect(tree.cleanup).toMatchObject({ status: "incomplete" });
+      expect(await readlink(tracked)).toBe(outside);
+      expect(await readFile(outside, "utf8")).toBe("outside bytes");
+
+      await rm(tracked);
+      await rename(displaced, tracked);
+      expect(await tree.rollback()).toEqual({
+        status: "complete",
+        residualPaths: [],
+      });
+      expect(await readFile(outside, "utf8")).toBe("outside bytes");
+    },
+  );
+});
+
+it("retains an untracked regular entry and retries after it is removed", async () => {
+  const parent = await createTestTempDirectory("rea-safe-output-untracked-");
+  const output = join(parent, "published");
+  const untracked = join(output, "untracked.txt");
+  const tree = await SafeOutputTree.create(output);
+  const bytes = Buffer.from("owned bytes");
+  await tree.write("owned.txt", Readable.from(bytes), {
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    bytes: bytes.byteLength,
+  });
+  await writeFile(untracked, "leave untouched");
+
+  const failure = await tree.rollback().catch((cause: unknown) => cause);
+  expect(failure).toBeInstanceOf(ArtifactReaderFailure);
+  expect(tree.cleanup).toMatchObject({ status: "incomplete" });
+  expect(await readdir(output)).toEqual(["untracked.txt"]);
+  expect(await readFile(untracked, "utf8")).toBe("leave untouched");
+
+  await rm(untracked);
+  expect(await tree.rollback()).toEqual({
+    status: "complete",
+    residualPaths: [],
+  });
+  expect(await readdir(parent)).toEqual([]);
+});
+describe("safe artifact output tree", () => {
   it("removes only its owned tree after digest failure and proves absence", async () => {
     const parent = await createTestTempDirectory("rea-safe-output-");
     const output = join(parent, "published");
@@ -72,12 +233,61 @@ describe("safe artifact output tree", () => {
         const failure = await tree.rollback().catch((cause: unknown) => cause);
         expect(failure).toBeInstanceOf(ArtifactReaderFailure);
         expect(failure).toMatchObject({
+          cause: { code: "EACCES" },
           cleanup: { resources: [output] },
         });
       } finally {
         await chmod(output, 0o700).catch(() => undefined);
         await tree.rollback();
       }
+    },
+  );
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "retains cleanup progress when one owned sibling is not writable",
+    async () => {
+      const parent = await createTestTempDirectory("rea-safe-output-siblings-");
+      const output = join(parent, "published");
+      const completed = join(output, "completed");
+      const blocked = join(output, "blocked");
+      const tree = await SafeOutputTree.create(output);
+      for (const directory of ["completed", "blocked"]) {
+        const bytes = Buffer.from(join(output, directory));
+        await tree.write(`${directory}/file.txt`, Readable.from(bytes), {
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+          bytes: bytes.byteLength,
+        });
+      }
+
+      try {
+        await chmod(blocked, 0o500);
+        const failure = await tree.rollback().catch((cause: unknown) => cause);
+        expect(failure).toBeInstanceOf(ArtifactReaderFailure);
+        expect(failure).toMatchObject({
+          cause: { code: "EACCES" },
+          cleanup: { resources: [output] },
+        });
+        expect(await readdir(output)).toEqual(["blocked"]);
+        await expect(access(completed)).rejects.toThrow();
+        expect(await readFile(join(blocked, "file.txt"), "utf8")).toBe(blocked);
+        await expect(
+          tree.write("new/file.txt", Readable.from(Buffer.from("late")), {
+            sha256: createHash("sha256").update("late").digest("hex"),
+            bytes: Buffer.byteLength("late"),
+          }),
+        ).rejects.toBeInstanceOf(ArtifactReaderFailure);
+        await expect(tree.commit()).rejects.toBeInstanceOf(
+          ArtifactReaderFailure,
+        );
+      } finally {
+        await chmod(blocked, 0o700);
+      }
+
+      expect(await tree.rollback()).toEqual({
+        status: "complete",
+        residualPaths: [],
+      });
+      expect(await readdir(parent)).toEqual([]);
     },
   );
 
@@ -115,6 +325,13 @@ describe("safe artifact output tree", () => {
       status: "complete",
       residualPaths: [],
     });
+    await expect(
+      tree.write("late.txt", Readable.from(Buffer.from("late")), {
+        sha256: createHash("sha256").update("late").digest("hex"),
+        bytes: Buffer.byteLength("late"),
+      }),
+    ).rejects.toBeInstanceOf(ArtifactReaderFailure);
+    await expect(tree.commit()).rejects.toBeInstanceOf(ArtifactReaderFailure);
   });
 
   it("publishes without POSIX-only directory chmod or fsync on Windows", async () => {

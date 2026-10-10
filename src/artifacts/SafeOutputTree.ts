@@ -1,12 +1,11 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import {
-  lstat,
   mkdir,
   open,
   readdir,
   realpath,
-  rm,
+  rmdir,
   type FileHandle,
 } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
@@ -19,6 +18,19 @@ import {
   normalizeArtifactPath,
 } from "./ArtifactPaths.js";
 import { ArtifactReaderFailure } from "./ArtifactReader.js";
+import { removeOwnedTree } from "./SafeOutputTreeCleanup.js";
+import {
+  assertHandleIdentity,
+  assertFilePathIdentity,
+  assertPathIdentity,
+  isAbsent,
+  pathHasIdentity,
+  readDirectoryIdentity,
+  readFileIdentity,
+  replacedDirectory,
+  type DirectoryIdentity,
+  type FileIdentity,
+} from "./SafeOutputTreeIdentity.js";
 
 /** One file durably written to an operation-owned output tree. */
 export interface SafeOutputFile {
@@ -36,10 +48,18 @@ export type SafeOutputCleanup =
       readonly residualPaths: readonly [string, ...string[]];
     };
 
-/** Symlink-resistant materialization in an exclusively owned, initially absent tree. */
+/**
+ * Materialize files in a tree created by this operation.
+ *
+ * Path identities are revalidated around operations, but Node has no portable
+ * descriptor-relative traversal; a syscall-boundary pathname race remains.
+ */
 export class SafeOutputTree {
   readonly #registry = new ArtifactPathRegistry();
   readonly #outputRoot: string;
+  readonly #rootIdentity: DirectoryIdentity;
+  readonly #nestedDirectories = new Map<string, DirectoryIdentity>();
+  readonly #ownedFiles = new Map<string, FileIdentity>();
   #published = false;
   #cleanup: SafeOutputCleanup = {
     status: "not-required",
@@ -47,9 +67,11 @@ export class SafeOutputTree {
 
   private constructor(
     outputRoot: string,
+    rootIdentity: DirectoryIdentity,
     private readonly platform: NodeJS.Platform,
   ) {
     this.#outputRoot = outputRoot;
+    this.#rootIdentity = rootIdentity;
   }
 
   /**
@@ -91,29 +113,45 @@ export class SafeOutputTree {
         );
       throw cause;
     });
+    let rootIdentity: DirectoryIdentity | undefined;
     try {
+      rootIdentity = await readDirectoryIdentity(canonicalOutput);
       if (platform !== "win32") {
         const stagingHandle = await open(
           canonicalOutput,
           constants.O_RDONLY | constants.O_DIRECTORY,
         );
         try {
+          await assertHandleIdentity(
+            stagingHandle,
+            rootIdentity,
+            canonicalOutput,
+          );
           await stagingHandle.chmod(0o700);
         } finally {
           await stagingHandle.close();
         }
       }
-      return new SafeOutputTree(canonicalOutput, platform);
+      await assertPathIdentity(canonicalOutput, rootIdentity);
+      return new SafeOutputTree(canonicalOutput, rootIdentity, platform);
     } catch (cause: unknown) {
       let removalFailure: unknown;
+      let ownedRootAtPath = false;
       try {
-        await rm(canonicalOutput, { recursive: true, force: true });
+        ownedRootAtPath =
+          rootIdentity !== undefined &&
+          (await pathHasIdentity(canonicalOutput, rootIdentity));
+        if (ownedRootAtPath) await rmdir(canonicalOutput);
+        else
+          removalFailure = new Error(
+            "Extraction output root identity changed during setup",
+          );
       } catch (cleanupCause: unknown) {
         removalFailure = cleanupCause;
       }
       let absent = false;
       try {
-        absent = await isAbsent(canonicalOutput);
+        absent = ownedRootAtPath && (await isAbsent(canonicalOutput));
       } catch (cleanupCause: unknown) {
         removalFailure ??= cleanupCause;
       }
@@ -122,7 +160,7 @@ export class SafeOutputTree {
           reason:
             removalFailure instanceof Error
               ? removalFailure.message
-              : "Extraction output root remains after setup failure",
+              : "Extraction output root ownership could not be verified after setup failure",
           resources: [canonicalOutput],
         });
       throw cause;
@@ -153,7 +191,11 @@ export class SafeOutputTree {
         );
       const path = normalizeArtifactPath(relativePath);
       this.#registry.add(path, "file");
-      const destination = await this.#prepareParent(path);
+      const lineage = await this.#prepareParent(path);
+      const parent = lineage.at(-1);
+      if (parent === undefined) throw replacedDirectory(this.#outputRoot);
+      const fileName = path.slice(path.lastIndexOf("/") + 1);
+      const destination = join(parent.path, fileName);
       const handle = await open(
         destination,
         constants.O_CREAT |
@@ -162,20 +204,24 @@ export class SafeOutputTree {
           constants.O_NOFOLLOW,
         0o600,
       ).catch(async (cause: unknown) => {
-        await throwIfDestinationCaseCollision(
-          dirname(destination),
-          path,
-          cause,
-        );
+        await throwIfDestinationCaseCollision(parent.path, path, cause);
         throw new ArtifactReaderFailure(
           "path",
           `Could not exclusively create extraction path: ${path}`,
           { cause },
         );
       });
+      const fileIdentity = await readFileIdentity(handle, destination).catch(
+        async (cause: unknown) => {
+          await handle.close().catch(() => undefined);
+          throw cause;
+        },
+      );
+      this.#ownedFiles.set(destination, fileIdentity);
       const hash = createHash("sha256");
       let bytes = 0;
       try {
+        await this.#assertLineage(lineage);
         for await (const raw of source) {
           abortIfNeeded(signal);
           const chunk = streamChunkToBuffer(raw);
@@ -199,9 +245,13 @@ export class SafeOutputTree {
             "integrity",
             `Extracted content disagrees with inventory: ${path}`,
           );
+        await this.#assertLineage(lineage);
+        await assertFilePathIdentity(destination, fileIdentity);
         await handle.sync();
         await handle.close();
         const readback = await hashFile(destination, bytes, signal);
+        await this.#assertLineage(lineage);
+        await assertFilePathIdentity(destination, fileIdentity);
         if (readback.sha256 !== sha256 || readback.bytes !== bytes)
           throw new ArtifactReaderFailure(
             "integrity",
@@ -226,6 +276,7 @@ export class SafeOutputTree {
   /** Sync the owned output tree and prevent further writes through this instance. */
   async commit(): Promise<void> {
     this.#assertWritable();
+    await this.#assertOwnedDirectories();
     // Windows has no directory fsync; file contents are already synced in write().
     if (this.platform === "win32") {
       this.#published = true;
@@ -241,6 +292,7 @@ export class SafeOutputTree {
         this.#outputRoot,
         constants.O_RDONLY | constants.O_DIRECTORY,
       );
+      await assertHandleIdentity(output, this.#rootIdentity, this.#outputRoot);
       await output.sync();
       await parent.sync();
       this.#published = true;
@@ -257,14 +309,26 @@ export class SafeOutputTree {
 
   /** Remove only this operation's unsealed tree and verify absence. */
   async rollback(): Promise<SafeOutputCleanup> {
-    if (this.#published) return structuredClone(this.#cleanup);
+    if (this.#published || this.#cleanup.status === "complete")
+      return structuredClone(this.#cleanup);
+    this.#cleanup = {
+      status: "incomplete",
+      residualPaths: [basename(this.#outputRoot)],
+    };
     let removalFailure: unknown;
     try {
-      await rm(this.#outputRoot, { recursive: true, force: true });
+      await this.#assertOwnedDirectories();
+      await removeOwnedTree({
+        outputRoot: this.#outputRoot,
+        rootIdentity: this.#rootIdentity,
+        directories: this.#nestedDirectories,
+        files: this.#ownedFiles,
+      });
     } catch (cause: unknown) {
       removalFailure = cause;
     }
-    const absent = await isAbsent(this.#outputRoot);
+    const absent =
+      removalFailure === undefined && (await isAbsent(this.#outputRoot));
     this.#cleanup = absent
       ? { status: "complete", residualPaths: [] }
       : {
@@ -289,36 +353,61 @@ export class SafeOutputTree {
     return structuredClone(this.#cleanup);
   }
 
-  async #prepareParent(relativePath: string): Promise<string> {
+  async #prepareParent(
+    relativePath: string,
+  ): Promise<readonly DirectoryLineageEntry[]> {
     const parts = relativePath.split("/");
-    const fileName = parts.pop();
-    if (fileName === undefined)
+    if (parts.pop() === undefined)
       throw new ArtifactReaderFailure("path", "Invalid extraction path");
     let current = this.#outputRoot;
     let logicalParent = "";
+    const lineage: DirectoryLineageEntry[] = [
+      { path: this.#outputRoot, identity: this.#rootIdentity },
+    ];
+    if (parts.length === 0)
+      await assertPathIdentity(this.#outputRoot, this.#rootIdentity);
     for (const part of parts) {
-      const parentDirectory = current;
+      const parent = lineage.at(-1);
+      if (parent === undefined) throw replacedDirectory(this.#outputRoot);
       const logicalPath =
         logicalParent.length === 0 ? part : `${logicalParent}/${part}`;
       current = join(current, part);
+      await assertPathIdentity(parent.path, parent.identity);
       let created = true;
       await mkdir(current, { mode: 0o700 }).catch((cause: unknown) => {
         if (!isAlreadyExists(cause)) throw cause;
         created = false;
       });
-      if (!created)
-        await throwIfDestinationCaseCollision(parentDirectory, logicalPath);
-      const metadata = await lstat(current);
-      if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
-        await throwIfDestinationCaseCollision(parentDirectory, logicalPath);
-        throw new ArtifactReaderFailure(
-          "path",
-          `Unsafe extraction parent: ${relativePath}`,
-        );
+      if (!created) {
+        await throwIfDestinationCaseCollision(parent.path, logicalPath);
+        const identity = this.#nestedDirectories.get(current);
+        if (identity === undefined) throw replacedDirectory(current);
+        await assertPathIdentity(current, identity);
+      } else {
+        const identity = await readDirectoryIdentity(current);
+        this.#nestedDirectories.set(current, identity);
       }
+      await assertPathIdentity(parent.path, parent.identity);
+      const identity = this.#nestedDirectories.get(current);
+      if (identity === undefined) throw replacedDirectory(current);
+      await assertPathIdentity(current, identity);
+      lineage.push({ path: current, identity });
       logicalParent = logicalPath;
     }
-    return join(current, fileName);
+    return lineage;
+  }
+
+  async #assertLineage(
+    lineage: readonly DirectoryLineageEntry[],
+  ): Promise<void> {
+    for (const { path, identity } of lineage)
+      await assertPathIdentity(path, identity);
+  }
+
+  async #assertOwnedDirectories(): Promise<void> {
+    await assertPathIdentity(this.#outputRoot, this.#rootIdentity);
+    for (const [path, identity] of this.#nestedDirectories)
+      await assertPathIdentity(path, identity);
   }
 
   #assertWritable(): void {
@@ -327,8 +416,18 @@ export class SafeOutputTree {
         "integrity",
         "Extraction tree is already committed",
       );
+    if (this.#cleanup.status !== "not-required")
+      throw new ArtifactReaderFailure(
+        "integrity",
+        "Extraction tree cleanup has already started",
+      );
   }
 }
+
+type DirectoryLineageEntry = {
+  readonly path: string;
+  readonly identity: DirectoryIdentity;
+};
 
 const hashFile = async (
   path: string,
@@ -375,18 +474,6 @@ const writeAll = async (
     offset += bytesWritten;
   }
 };
-
-const isAbsent = async (path: string): Promise<boolean> =>
-  lstat(path).then(
-    () => false,
-    (cause: unknown) => {
-      if (isNotFound(cause)) return true;
-      throw cause;
-    },
-  );
-
-const isNotFound = (cause: unknown): boolean =>
-  cause instanceof Error && "code" in cause && cause.code === "ENOENT";
 
 const isAlreadyExists = (cause: unknown): boolean =>
   cause instanceof Error && "code" in cause && cause.code === "EEXIST";

@@ -25,6 +25,7 @@ import { jsonValueSchema } from "../domain/jsonValue.js";
 import { err, ok } from "../domain/result.js";
 import { PrivateRuntimeRoot } from "../process/PrivateRuntimeRoot.js";
 import type { ProviderProcessSupervisor } from "../process/ProviderProcess.js";
+import type { SafeOutputTree } from "../artifacts/SafeOutputTree.js";
 import { publishFirmwareExtraction } from "./FirmwarePublication.js";
 import {
   FIRMWARE_LIMITS,
@@ -48,6 +49,7 @@ import {
 type Outcome = Awaited<ReturnType<FirmwareAnalysisPort["execute"]>>;
 interface PendingFirmwareCleanup {
   supervisor?: ProviderProcessSupervisor;
+  tree?: SafeOutputTree;
   readonly root: PrivateRuntimeRoot;
   readonly engine: string;
   readonly operation: string;
@@ -184,8 +186,23 @@ export class FirmwareProvider implements FirmwareAnalysisPort {
         continue;
       }
       try {
+        if (pending.tree !== undefined) {
+          await pending.tree.rollback();
+          delete pending.tree;
+        }
+      } catch (cause: unknown) {
+        failures.push(
+          new ProviderCleanupError(
+            pending.engine,
+            [path, pending.tree?.outputRoot ?? path],
+            { reason: cause instanceof Error ? cause.message : String(cause) },
+            { operation: pending.operation, cause },
+          ),
+        );
+      }
+      try {
         await pending.root.close();
-        this.#pendingCleanup.delete(path);
+        if (pending.tree === undefined) this.#pendingCleanup.delete(path);
       } catch (cause: unknown) {
         // A verified stopped process cannot use this root. Keep ownership for
         // later removal without blocking a new operation's disjoint workspace.
@@ -366,6 +383,17 @@ export class FirmwareProvider implements FirmwareAnalysisPort {
           selection: target.selection,
           engine,
           signal,
+          retainCleanup: (tree) => {
+            const pending: PendingFirmwareCleanup = this.#pendingCleanup.get(
+              ownedRoot.path,
+            ) ?? {
+              root: ownedRoot,
+              engine: engineName,
+              operation: request.operation,
+            };
+            pending.tree = tree;
+            this.#pendingCleanup.set(ownedRoot.path, pending);
+          },
         });
         raw = { report, execution: processRun, version_execution: versionRun };
       }

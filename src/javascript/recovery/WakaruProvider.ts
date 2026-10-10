@@ -7,9 +7,13 @@ import {
   type ExecutionOptions,
 } from "../../application/AnalysisProvider.js";
 import { SafeOutputTree } from "../../artifacts/SafeOutputTree.js";
+import { SafeOutputTreeCreationFailure } from "../../artifacts/SafeOutputTreeCreationFailure.js";
 import { AnalysisError } from "../../domain/analysisErrorBase.js";
 import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
-import type { JavaScriptRecoveryInput } from "../../domain/javascript/javascriptRecovery.js";
+import {
+  javascriptRecoveryResultSchema,
+  type JavaScriptRecoveryInput,
+} from "../../domain/javascript/javascriptRecovery.js";
 import { ProviderAdapterError } from "../../domain/providerAdapterError.js";
 import { ProviderCleanupError } from "../../domain/providerCleanupError.js";
 import { err, ok, type Result } from "../../domain/result.js";
@@ -94,7 +98,7 @@ export class WakaruProvider implements JavaScriptRecoveryPort {
     if (pending !== undefined) return err(pending);
     let root: string | undefined;
     let tree: SafeOutputTree | undefined;
-    let failure: unknown;
+    let failed: { readonly cause: unknown } | undefined;
     let execution: AnalysisExecution | undefined;
     const deadline = Date.now() + RECOVERY_LIMITS.timeoutMs;
     try {
@@ -110,15 +114,16 @@ export class WakaruProvider implements JavaScriptRecoveryPort {
         join(inputs, "bundle.js"),
         options?.signal,
       );
-      tree = await SafeOutputTree.create(input.output_directory).catch(
-        (cause: unknown) => {
-          throw recoveryInputFailure(
-            "output_directory",
-            `Cannot create new recovery directory ${input.output_directory}: ${recoveryFailureMessage(cause)}`,
-            cause,
-          );
-        },
-      );
+      try {
+        tree = await SafeOutputTree.create(input.output_directory);
+      } catch (cause: unknown) {
+        if (cause instanceof SafeOutputTreeCreationFailure) tree = cause.tree;
+        throw recoveryInputFailure(
+          "output_directory",
+          `Cannot create new recovery directory ${input.output_directory}: ${recoveryFailureMessage(cause)}`,
+          cause,
+        );
+      }
       execution = await prepareWakaruExecution({
         root,
         tree,
@@ -136,10 +141,12 @@ export class WakaruProvider implements JavaScriptRecoveryPort {
       checkRecoveryDeadline(deadline, options?.signal);
       await tree.commit();
     } catch (cause: unknown) {
-      failure = cause;
+      failed = { cause };
     }
-    if (failure !== undefined) {
+    if (failed !== undefined) {
+      const failure = failed.cause;
       const residuals: string[] = [];
+      const cleanupFailures: { resource: string; reason: string }[] = [];
       const cleanupOwner =
         failure instanceof WakaruCleanupFailure
           ? failure.cleanupOwner
@@ -147,10 +154,14 @@ export class WakaruProvider implements JavaScriptRecoveryPort {
       let failedTree: SafeOutputTree | undefined;
       try {
         await tree?.rollback();
-      } catch {
+      } catch (cause: unknown) {
         if (tree !== undefined) {
           failedTree = tree;
           residuals.push(tree.outputRoot);
+          cleanupFailures.push({
+            resource: tree.outputRoot,
+            reason: recoveryFailureMessage(cause),
+          });
         }
       }
       if (cleanupOwner !== undefined)
@@ -160,8 +171,12 @@ export class WakaruProvider implements JavaScriptRecoveryPort {
         try {
           await rm(failedRoot, { recursive: true, force: true });
           root = undefined;
-        } catch {
+        } catch (cause: unknown) {
           residuals.push(failedRoot);
+          cleanupFailures.push({
+            resource: failedRoot,
+            reason: recoveryFailureMessage(cause),
+          });
         }
       }
       if (
@@ -179,10 +194,37 @@ export class WakaruProvider implements JavaScriptRecoveryPort {
       }
       if (residuals.length > 0)
         return err(
-          new ProviderCleanupError("wakaru", residuals, {
-            previous_error: recoveryFailureMessage(failure),
-          }),
+          new ProviderCleanupError(
+            "wakaru",
+            residuals,
+            {
+              ...(failure instanceof WakaruCleanupFailure
+                ? failure.diagnostics
+                : {}),
+              previous_error:
+                failure instanceof WakaruCleanupFailure
+                  ? (failure.diagnostics?.previous_error ?? null)
+                  : recoveryFailureMessage(failure),
+              cleanup_failures: cleanupFailures,
+            },
+            {
+              operation: OPERATION,
+              cause: failure,
+              ...(tree?.published && execution !== undefined
+                ? {
+                    partialObservation: {
+                      kind: "javascript-recovery" as const,
+                      result: javascriptRecoveryResultSchema.parse(
+                        execution.result,
+                      ),
+                    },
+                  }
+                : {}),
+            },
+          ),
         );
+      if (tree?.published === true && execution !== undefined)
+        return ok(execution);
       return err(
         failure instanceof AnalysisError
           ? failure

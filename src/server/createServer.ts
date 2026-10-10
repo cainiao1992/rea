@@ -211,7 +211,7 @@ export const createServer = (
     options.webSourceLocation ?? createWebSourceLocationService(environment);
   const javascriptRecovery =
     options.javascriptRecovery ?? createJavaScriptRecoveryProvider(environment);
-  const javascriptApplicationResources = new ArtifactResourceScope();
+  const artifactResources = new ArtifactResourceScope();
   const firmwareAnalysis = new FirmwareAnalysisService(
     options.firmwareAnalysis ?? createFirmwareAnalysisProvider(environment),
   );
@@ -248,7 +248,7 @@ export const createServer = (
       evmInterface.close(),
       webSourceLocation.close(),
       javascriptRecovery.close?.() ?? Promise.resolve(),
-      javascriptApplicationResources.close(),
+      artifactResources.close(),
       firmwareAnalysis.close(),
       options.browserScenarioCapture?.close?.() ?? Promise.resolve(),
     ])
@@ -289,7 +289,7 @@ export const createServer = (
     recordEvidence,
     recordEvidenceWithUnknown,
     withAdmittedAnalysis: analysisAdmission,
-    javascriptApplicationResources,
+    artifactResources,
   };
   registerBinaryAnalysisTools(toolContext);
   const previousOnclose = server.server.onclose;
@@ -501,7 +501,7 @@ const createSessionRecorders = (
 });
 
 interface ServerToolContext extends ReturnType<typeof createSessionRecorders> {
-  readonly javascriptApplicationResources: ArtifactResourceScope;
+  readonly artifactResources: ArtifactResourceScope;
   readonly server: EvidenceMcpServer;
   readonly session: BinarySessionPort | undefined;
   readonly options: CreateServerOptions;
@@ -572,10 +572,10 @@ const registerObservationTools = ({
   recordEvidence,
   recordEvidenceWithUnknown,
   withAdmittedAnalysis,
-  javascriptApplicationResources,
+  artifactResources,
 }: ServerToolContext): void => {
   const common = { logger, recordEvidence, withAdmittedAnalysis };
-  registerWebScriptTool(server, common);
+  registerWebScriptTool(server, { ...common, artifactResources });
   registerBrowserTools(server, {
     ...common,
     browser: options.browserObservation,
@@ -588,7 +588,7 @@ const registerObservationTools = ({
   });
   registerElectronTools(server, {
     ...common,
-    javascriptApplicationResources,
+    artifactResources,
     evidenceById,
     electron: options.electronObservation,
     electronActive: options.electronActiveObservation,

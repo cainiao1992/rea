@@ -4,6 +4,7 @@ import { isAbsolute } from "node:path";
 import { z } from "zod";
 
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
+import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import { publishWebScripts } from "../browser/assets/PublishWebScripts.js";
 import { selectScriptCapture } from "../browser/assets/ScriptCaptureAdapters.js";
 import {
@@ -37,11 +38,12 @@ const OPERATION = "export_web_scripts";
 /** Export one local capture through the shared CLI/MCP application workflow. */
 export const exportWebScripts = async (
   rawInput: unknown,
+  resources: ArtifactResourceScope,
   options: ExecutionOptions = {},
 ): Promise<Result<Evidence, AnalysisError>> => {
   const input = exportWebScriptsInputSchema.safeParse(rawInput);
   return input.success
-    ? exportWebScriptsValidated(input.data, options)
+    ? exportWebScriptsValidated(input.data, resources, options)
     : err(
         analysisInputErrorFromIssues(OPERATION, input.error.issues, rawInput),
       );
@@ -50,6 +52,7 @@ export const exportWebScripts = async (
 /** Publish input already parsed by a named adapter contract. */
 export const exportWebScriptsValidated = async (
   input: ExportWebScriptsInput,
+  resources: ArtifactResourceScope,
   options: ExecutionOptions = {},
 ): Promise<Result<Evidence, AnalysisError>> => {
   if (!isAbsolute(input.capture_path) || !isAbsolute(input.output_directory))
@@ -72,12 +75,10 @@ export const exportWebScriptsValidated = async (
     if (!loaded.ok) return loaded;
     options.signal?.throwIfAborted();
     const sha256 = createHash("sha256").update(bytes).digest("hex");
-    const result = await publishWebScripts(
-      input,
-      loaded.value,
-      sha256,
-      options.signal,
-    );
+    const result = await publishWebScripts(input, loaded.value, sha256, {
+      resources,
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+    });
     return ok(
       createEvidence(
         { path: input.capture_path, sha256, format: "file" },

@@ -12,11 +12,14 @@ import {
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { analyzeJavaScriptApplication } from "../../support/javascriptApplicationScope.js";
 import { exportWebScripts } from "../../../src/application/WebScriptExportService.js";
+import { ArtifactResourceScope } from "../../../src/artifacts/ArtifactResourceScope.js";
 import { publishWebScripts } from "../../../src/browser/assets/PublishWebScripts.js";
+import { SafeOutputTree } from "../../../src/artifacts/SafeOutputTree.js";
+import { SafeOutputTreeCreationFailure } from "../../../src/artifacts/SafeOutputTreeCreationFailure.js";
 import { selectScriptCapture } from "../../../src/browser/assets/ScriptCaptureAdapters.js";
 import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
@@ -30,12 +33,14 @@ import {
 
 const setup = async (capture: unknown = scriptCaptureEvidenceFixture()) => {
   const root = await createTestTempDirectory("rea-web-script-export-");
+  const resources = new ArtifactResourceScope();
+  onTestFinished(() => resources.close());
   const input = {
     capture_path: join(root, "capture.json"),
     output_directory: join(root, "export"),
   };
   await writeFile(input.capture_path, JSON.stringify(capture));
-  return { root, input };
+  return { root, input, resources };
 };
 
 describe("captured script publication boundary", () => {
@@ -52,8 +57,8 @@ describe("captured script publication boundary", () => {
         bytes: Buffer.from("export const marker = 'source-owned';\n"),
       },
     ]);
-    const { input } = await setup(capture);
-    const exported = await exportWebScripts(input);
+    const { input, resources } = await setup(capture);
+    const exported = await exportWebScripts(input, resources);
     if (!exported.ok) throw exported.error;
     const result = webScriptExportResultSchema.parse(
       exported.value.normalized_result,
@@ -106,20 +111,20 @@ describe("captured script publication boundary", () => {
   });
 
   it("links authenticated input Evidence and preserves binary and empty source bytes", async () => {
-    const { input } = await setup();
-    const result = await exportWebScripts(input);
+    const { input, resources } = await setup();
+    const result = await exportWebScripts(input, resources);
     if (!result.ok) throw result.error;
     expect(result.value.evidence_links).toEqual([
       scriptCaptureEvidenceFixture().evidence_id,
     ]);
     const binary = Buffer.from([255, 0, 254, 1]);
-    const { input: binaryInput } = await setup(
+    const { input: binaryInput, resources: binaryResources } = await setup(
       scriptScenarioFixture([
         { url: "https://fixture.test/binary.js", bytes: binary },
         { url: "https://fixture.test/empty.js", bytes: Buffer.alloc(0) },
       ]),
     );
-    const binaryExport = await exportWebScripts(binaryInput);
+    const binaryExport = await exportWebScripts(binaryInput, binaryResources);
     if (!binaryExport.ok) throw binaryExport.error;
     const parsed = webScriptExportResultSchema.parse(
       binaryExport.value.normalized_result,
@@ -149,8 +154,8 @@ describe("captured script publication boundary", () => {
       ({ kind }) => kind !== "network-content",
     );
     capture.events.retained = capture.events.items.length;
-    const { input } = await setup(capture);
-    const result = await exportWebScripts(input);
+    const { input, resources } = await setup(capture);
+    const result = await exportWebScripts(input, resources);
     if (!result.ok) throw result.error;
     const parsed = webScriptExportResultSchema.parse(
       result.value.normalized_result,
@@ -163,12 +168,14 @@ describe("captured script publication boundary", () => {
 
 describe("captured script publication failures and cleanup", () => {
   it("preserves adapter-reported limitations without strengthening their string contract", async () => {
-    const { input } = await setup();
+    const { input, resources } = await setup();
     const capture = {
       ...selectScriptCapture(scriptScenarioFixture()),
       limitations: ["", "producer-reported limitation"],
     };
-    const result = await publishWebScripts(input, capture, "a".repeat(64));
+    const result = await publishWebScripts(input, capture, "a".repeat(64), {
+      resources,
+    });
     expect(result.limitations.slice(0, 2)).toEqual(capture.limitations);
   });
 
@@ -179,9 +186,9 @@ describe("captured script publication failures and cleanup", () => {
   ])(
     "rejects malformed capture bytes before creating output",
     async (bytes) => {
-      const { input } = await setup();
+      const { input, resources } = await setup();
       await writeFile(input.capture_path, bytes);
-      const result = await exportWebScripts(input);
+      const result = await exportWebScripts(input, resources);
       if (result.ok) throw new Error("Expected invalid input");
       expect(result.error._tag).toBe("AnalysisInputError");
       await expect(access(input.output_directory)).rejects.toMatchObject({
@@ -191,7 +198,7 @@ describe("captured script publication failures and cleanup", () => {
   );
 
   it("preserves an existing destination and refuses output through a symlink", async () => {
-    const { root, input } = await setup();
+    const { root, input, resources } = await setup();
     const marker = join(root, "marker.js");
     await writeFile(marker, "keep");
     await symlink(
@@ -199,14 +206,14 @@ describe("captured script publication failures and cleanup", () => {
       input.output_directory,
       process.platform === "win32" ? "junction" : "dir",
     );
-    const result = await exportWebScripts(input);
+    const result = await exportWebScripts(input, resources);
     if (result.ok) throw new Error("Expected exclusive output failure");
     expect(result.error.userMessage).toContain("already exists");
     expect(await readFile(marker, "utf8")).toBe("keep");
   });
 
   it("rolls back only the new owned output when durable byte verification fails", async () => {
-    const { root, input } = await setup();
+    const { root, input, resources } = await setup();
     const capture = selectScriptCapture(
       scriptScenarioFixture([
         { url: "https://fixture.test/a.js", bytes: Buffer.from("first") },
@@ -223,16 +230,132 @@ describe("captured script publication failures and cleanup", () => {
       ].filter((value) => value !== undefined),
     };
     await expect(
-      publishWebScripts(input, broken, "a".repeat(64)),
+      publishWebScripts(input, broken, "a".repeat(64), { resources }),
     ).rejects.toMatchObject({ reason: "integrity" });
     expect(await readdir(root)).toEqual(["capture.json"]);
   });
+});
 
+describe("captured script output owner retry", () => {
+  it("retains a setup-failed output tree in the caller resource scope", async () => {
+    const { input, resources } = await setup();
+    const capture = selectScriptCapture(scriptScenarioFixture());
+    const createTree = SafeOutputTree.create.bind(SafeOutputTree);
+    let cleanupAttempts = 0;
+    const create = vi
+      .spyOn(SafeOutputTree, "create")
+      .mockImplementationOnce(async (outputRoot, platform) => {
+        const tree = await createTree(outputRoot, platform);
+        const rollbackTree = tree.rollback.bind(tree);
+        vi.spyOn(tree, "rollback").mockImplementation(async () => {
+          cleanupAttempts += 1;
+          if (cleanupAttempts === 1)
+            throw new Error("injected first cleanup failure");
+          return rollbackTree();
+        });
+        throw new SafeOutputTreeCreationFailure(
+          new Error("injected post-acquisition setup failure"),
+          tree,
+        );
+      });
+    try {
+      await expect(
+        publishWebScripts(input, capture, "a".repeat(64), { resources }),
+      ).rejects.toMatchObject({ cleanupIncomplete: true });
+      await expect(access(input.output_directory)).resolves.toBeUndefined();
+    } finally {
+      create.mockRestore();
+    }
+    await resources.close();
+    expect(cleanupAttempts).toBe(2);
+    await expect(access(input.output_directory)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("returns completed output when retry closes a descriptor after commit", async () => {
+    const { input, resources } = await setup();
+    const capture = selectScriptCapture(scriptScenarioFixture());
+    const createTree = SafeOutputTree.create.bind(SafeOutputTree);
+    const create = vi
+      .spyOn(SafeOutputTree, "create")
+      .mockImplementationOnce(async (outputRoot, platform) => {
+        const tree = await createTree(outputRoot, platform);
+        const commit = tree.commit.bind(tree);
+        vi.spyOn(tree, "commit").mockImplementation(async () => {
+          await commit();
+          throw new Error("injected descriptor close failure");
+        });
+        return tree;
+      });
+    try {
+      const result = await exportWebScripts(input, resources);
+      if (!result.ok) throw result.error;
+      const published = webScriptExportResultSchema.parse(
+        result.value.normalized_result,
+      );
+      expect(published.manifest.path).toBe(
+        join(input.output_directory, "manifest.json"),
+      );
+      await expect(access(published.manifest.path)).resolves.toBeUndefined();
+    } finally {
+      create.mockRestore();
+    }
+  });
+
+  it("retains published output and its result while cleanup remains unresolved", async () => {
+    const { input, resources } = await setup();
+    const createTree = SafeOutputTree.create.bind(SafeOutputTree);
+    let cleanupAttempts = 0;
+    const create = vi
+      .spyOn(SafeOutputTree, "create")
+      .mockImplementationOnce(async (outputRoot, platform) => {
+        const tree = await createTree(outputRoot, platform);
+        const commit = tree.commit.bind(tree);
+        vi.spyOn(tree, "commit").mockImplementation(async () => {
+          await commit();
+          throw new Error("injected descriptor close failure");
+        });
+        const rollback = tree.rollback.bind(tree);
+        vi.spyOn(tree, "rollback").mockImplementation(async () => {
+          cleanupAttempts += 1;
+          if (cleanupAttempts === 1)
+            throw new Error("injected cleanup refusal");
+          return rollback();
+        });
+        return tree;
+      });
+    try {
+      const result = await exportWebScripts(input, resources);
+      if (result.ok) throw new Error("Expected unresolved cleanup");
+      expect(result.error.cleanupIncomplete).toBe(true);
+      expect(result.error.userMessage).not.toContain("Remove the residual");
+      expect(result.error.partialObservation).toMatchObject({
+        kind: "web-script-export",
+        result: {
+          output_directory: input.output_directory,
+          manifest: { path: join(input.output_directory, "manifest.json") },
+        },
+      });
+      await expect(
+        access(join(input.output_directory, "manifest.json")),
+      ).resolves.toBeUndefined();
+      await resources.close();
+      expect(cleanupAttempts).toBe(2);
+    } finally {
+      create.mockRestore();
+    }
+  });
+});
+
+describe("captured script publication failures and cleanup", () => {
   it("cancels before work and rolls back cancellation after output creation", async () => {
-    const { root, input } = await setup();
+    const { root, input, resources } = await setup();
     const controller = new AbortController();
     controller.abort();
-    const result = await exportWebScripts(input, { signal: controller.signal });
+    const result = await exportWebScripts(input, resources, {
+      signal: controller.signal,
+    });
     if (result.ok) throw new Error("Expected cancellation");
     expect(result.error._tag).toBe("AnalysisCancelledError");
     await expect(
@@ -240,18 +363,21 @@ describe("captured script publication failures and cleanup", () => {
         input,
         selectScriptCapture(scriptScenarioFixture()),
         "a".repeat(64),
-        controller.signal,
+        { resources, signal: controller.signal },
       ),
     ).rejects.toBeDefined();
     expect(await readdir(root)).toEqual(["capture.json"]);
   });
 
   it("identifies a missing capture file and rejected host path syntax", async () => {
-    const { input } = await setup();
-    const missing = await exportWebScripts({
-      ...input,
-      capture_path: `${input.capture_path}.missing`,
-    });
+    const { input, resources } = await setup();
+    const missing = await exportWebScripts(
+      {
+        ...input,
+        capture_path: `${input.capture_path}.missing`,
+      },
+      resources,
+    );
     if (missing.ok) throw new Error("Expected unavailable input");
     expect(projectAnalysisError(missing.error)).toMatchObject({
       code: "invalid_request",
@@ -265,10 +391,13 @@ describe("captured script publication failures and cleanup", () => {
         ],
       },
     });
-    const relative = await exportWebScripts({
-      ...input,
-      capture_path: "capture.json",
-    });
+    const relative = await exportWebScripts(
+      {
+        ...input,
+        capture_path: "capture.json",
+      },
+      resources,
+    );
     if (relative.ok) throw new Error("Expected host path error");
     expect(relative.error._tag).toBe("AnalysisInputError");
   });
@@ -276,11 +405,14 @@ describe("captured script publication failures and cleanup", () => {
 
 describe("captured script selection failures", () => {
   it("accepts a capture symlink to a regular file and preserves its selected path", async () => {
-    const { root, input } = await setup();
+    const { root, input, resources } = await setup();
     const selected = join(root, "selected-capture.json");
     await symlink(input.capture_path, selected, "file");
 
-    const result = await exportWebScripts({ ...input, capture_path: selected });
+    const result = await exportWebScripts(
+      { ...input, capture_path: selected },
+      resources,
+    );
     if (!result.ok) throw result.error;
     expect(result.value.subject?.local_path).toBe(selected);
     expect(
@@ -301,7 +433,7 @@ describe("captured script selection failures", () => {
     .each(["a named pipe", "a symlink to a named pipe"])(
     "rejects %s without waiting for a writer or creating output",
     async (kind) => {
-      const { root, input } = await setup();
+      const { root, input, resources } = await setup();
       const fifoPath = join(root, "capture.pipe");
       await promisify(execFile)("mkfifo", [fifoPath]);
       const selected =
@@ -311,7 +443,7 @@ describe("captured script selection failures", () => {
       if (selected !== fifoPath) await symlink(fifoPath, selected, "file");
 
       const outcome = await readWithoutFifoWriter(fifoPath, () =>
-        exportWebScripts({ ...input, capture_path: selected }),
+        exportWebScripts({ ...input, capture_path: selected }, resources),
       );
       expect(outcome.state).toBe("completed");
       if (outcome.state !== "completed")
@@ -342,11 +474,14 @@ describe("captured script selection failures", () => {
   it.skipIf(process.platform === "win32")(
     "rejects a character device as a capture selection before parsing bytes",
     async () => {
-      const { input } = await setup();
-      const result = await exportWebScripts({
-        ...input,
-        capture_path: "/dev/null",
-      });
+      const { input, resources } = await setup();
+      const result = await exportWebScripts(
+        {
+          ...input,
+          capture_path: "/dev/null",
+        },
+        resources,
+      );
       if (result.ok) throw new Error("Expected invalid capture selection");
       expect(projectAnalysisError(result.error)).toMatchObject({
         code: "invalid_request",
@@ -372,17 +507,16 @@ describe("captured script selection failures", () => {
   it.skipIf(process.platform === "win32")(
     "honors a pre-aborted capture export before opening a named pipe",
     async () => {
-      const { root, input } = await setup();
+      const { root, input, resources } = await setup();
       const fifoPath = join(root, "capture.pipe");
       await promisify(execFile)("mkfifo", [fifoPath]);
       const controller = new AbortController();
       controller.abort();
 
       const outcome = await readWithoutFifoWriter(fifoPath, () =>
-        exportWebScripts(
-          { ...input, capture_path: fifoPath },
-          { signal: controller.signal },
-        ),
+        exportWebScripts({ ...input, capture_path: fifoPath }, resources, {
+          signal: controller.signal,
+        }),
       );
       expect(outcome.state).toBe("completed");
       if (outcome.state !== "completed")
@@ -398,14 +532,17 @@ describe("captured script selection failures", () => {
 
 describe("captured script path and permission failures", () => {
   it("reports a directory selected as the capture as invalid input", async () => {
-    const { root, input } = await setup();
+    const { root, input, resources } = await setup();
     const directory = join(root, "captures");
     await mkdir(directory);
 
-    const result = await exportWebScripts({
-      ...input,
-      capture_path: directory,
-    });
+    const result = await exportWebScripts(
+      {
+        ...input,
+        capture_path: directory,
+      },
+      resources,
+    );
     if (result.ok) throw new Error("Expected invalid input");
     expect(projectAnalysisError(result.error)).toMatchObject({
       code: "invalid_request",
@@ -427,11 +564,11 @@ describe("captured script path and permission failures", () => {
   it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
     "reports an unreadable capture as a host access denial",
     async () => {
-      const { input } = await setup();
+      const { input, resources } = await setup();
       await chmod(input.capture_path, 0o000);
       onTestFinished(() => chmod(input.capture_path, 0o600));
 
-      const result = await exportWebScripts(input);
+      const result = await exportWebScripts(input, resources);
       if (result.ok) throw new Error("Expected access denial");
       expect(projectAnalysisError(result.error)).toMatchObject({
         code: "access_denied",

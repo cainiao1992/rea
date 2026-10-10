@@ -19,15 +19,11 @@ import {
   JAVASCRIPT_SEMANTIC_RELATION_FAMILIES,
   JAVASCRIPT_SEMANTIC_RELATION_FAMILY,
   javaScriptSemanticFingerprintInputSchema,
-  javaScriptSemanticFingerprintSchema,
   javaScriptSemanticGraphInputSchema,
   javaScriptSemanticGraphRecordSchema,
   javaScriptSemanticNodeInputSchema,
-  javaScriptSemanticNodeSchema,
   javaScriptSemanticRelationInputSchema,
-  javaScriptSemanticRelationSchema,
   javaScriptSemanticUnknownInputSchema,
-  javaScriptSemanticUnknownSchema,
   type JavaScriptSemanticGraphInput,
   type JavaScriptSemanticGraphNode,
   type JavaScriptSemanticGraphRelation,
@@ -132,10 +128,10 @@ export const createJavaScriptSemanticGraphNode = (
     application_node_ids: uniqueSorted(parsed.application_node_ids),
     evidence: evidenceContexts.intern(parsed.evidence),
   };
-  return javaScriptSemanticNodeSchema.parse({
+  return {
     ...semantic,
     node_id: javaScriptSemanticNodeId(semantic),
-  });
+  };
 };
 
 /** Normalize one semantic relationship and derive its exact identifier. */
@@ -148,10 +144,10 @@ export const createJavaScriptSemanticGraphRelation = (
     ...parsed,
     evidence: evidenceContexts.intern(parsed.evidence),
   };
-  return javaScriptSemanticRelationSchema.parse({
+  return {
     ...semantic,
     relation_id: `jsrg_relation_${digestCanonicalValue(semantic, "JavaScript semantic graph")}`,
-  });
+  };
 };
 
 /** Normalize one unresolved semantic frontier and derive its identifier. */
@@ -166,10 +162,10 @@ export const createJavaScriptSemanticGraphUnknown = (
     candidate_node_ids: uniqueSorted(parsed.candidate_node_ids),
     evidence: evidenceContexts.intern(parsed.evidence),
   };
-  return javaScriptSemanticUnknownSchema.parse({
+  return {
     ...semantic,
     unknown_id: `jsrg_unknown_${digestCanonicalValue(semantic, "JavaScript semantic graph")}`,
-  });
+  };
 };
 
 /** Normalize one function fingerprint and derive its component commitment. */
@@ -191,7 +187,7 @@ export const createJavaScriptSemanticFingerprint = (
     semantic.components,
     "JavaScript semantic graph",
   );
-  return javaScriptSemanticFingerprintSchema.parse({
+  return {
     ...semantic,
     fingerprint_sha256: fingerprintSha256,
     fingerprint_id: `jsrg_fingerprint_${digestCanonicalValue(
@@ -202,7 +198,7 @@ export const createJavaScriptSemanticFingerprint = (
       },
       "JavaScript semantic graph",
     )}`,
-  });
+  };
 };
 
 type GraphRecord = z.infer<typeof javaScriptSemanticGraphRecordSchema>;

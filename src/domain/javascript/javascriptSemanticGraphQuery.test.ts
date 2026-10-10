@@ -140,6 +140,44 @@ it("accepts semantic module paths longer than the former schema ceiling", () => 
   ).toBe(modulePath);
 });
 
+it("captures caller-owned node identity, properties, and provenance", () => {
+  const contexts = new JavaScriptSemanticEvidenceContextRegistry();
+  const input = {
+    kind: "literal",
+    identity: {
+      artifact_sha256: SHA,
+      module_path: "bundle.js",
+      source_range: null,
+      role_key: "literal",
+    },
+    function_node_id: null,
+    application_node_ids: [],
+    label: "literal",
+    properties: { nested: ["original"] },
+    evidence: evidence(),
+  };
+  const captured = createJavaScriptSemanticGraphNode(input, contexts);
+  const expected = structuredClone(captured);
+  const expectedEvidence = structuredClone(input.evidence);
+
+  input.identity.module_path = "replaced.js";
+  input.properties.nested[0] = "replaced";
+  input.evidence.limitations.push("later mutation");
+  if (input.evidence.location.available)
+    input.evidence.location.value = {
+      kind: "artifact-path",
+      path: "replaced.js",
+    };
+
+  expect(captured).toEqual(expected);
+  expect(
+    resolveJavaScriptSemanticEvidence(
+      { evidence_contexts: contexts.contexts },
+      captured.evidence,
+    ),
+  ).toEqual(expectedEvidence);
+});
+
 const fixtureInput = (withUnknown = false): JavaScriptSemanticGraphInput => {
   const evidenceContexts = new JavaScriptSemanticEvidenceContextRegistry();
   const module = node("module", "module", {}, evidenceContexts);

@@ -12,8 +12,10 @@ import {
   type ArtifactReader,
 } from "./ArtifactReader.js";
 import type { ZipPackageFormat } from "../domain/zipPackageFormat.js";
+import { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
 import {
   NonRegularFileReadError,
+  RegularFileAdmissionFailure,
   openRegularFile,
   sameRegularFileState,
   type StableRegularFileDescriptor,
@@ -21,6 +23,7 @@ import {
 
 class NodeFileReader extends Reader<string> {
   #handle: FileHandle | undefined;
+  #owner: OwnedFileHandle | undefined;
   #initPromise: Promise<void> | undefined;
   readonly #ownsHandle: boolean;
 
@@ -40,10 +43,30 @@ class NodeFileReader extends Reader<string> {
 
   async #initialize(): Promise<void> {
     try {
-      this.#handle =
+      const handle =
         this.admitted?.handle ??
         (await openRegularFile(this.path, { symlinks: "reject" }));
+      this.#handle = handle;
+      if (this.#ownsHandle) this.#owner = new OwnedFileHandle(handle);
     } catch (cause: unknown) {
+      if (cause instanceof RegularFileAdmissionFailure) {
+        this.#owner = cause.owner;
+        const primary =
+          cause.cause instanceof NonRegularFileReadError
+            ? new ArtifactReaderFailure(
+                "format",
+                `ZIP source is not a regular file: ${this.path}`,
+                { cause: cause.cause },
+              )
+            : cause.cause;
+        throw ArtifactReaderFailure.withCleanup(
+          primary,
+          ArtifactReaderFailure.cleanupObservation(
+            cause.cleanupCause,
+            this.path,
+          ),
+        );
+      }
       if (cause instanceof NonRegularFileReadError)
         throw new ArtifactReaderFailure(
           "format",
@@ -88,8 +111,9 @@ class NodeFileReader extends Reader<string> {
   async closeHandle(): Promise<void> {
     if (!this.#ownsHandle) return;
     await this.#initPromise?.catch(() => undefined);
-    if (this.#handle === undefined) return;
-    await this.#handle.close();
+    if (this.#owner === undefined) return;
+    await this.#owner.close();
+    this.#owner = undefined;
     this.#handle = undefined;
   }
 }

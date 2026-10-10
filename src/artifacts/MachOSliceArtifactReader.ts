@@ -12,6 +12,7 @@ import {
   type LipoArchitecture,
 } from "../native/parsers/lipo.js";
 import type { MachoSlice } from "../domain/apple/dylibResolution.js";
+import { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
 import { readMachoImage, type ReadAt } from "./apple/MachoLoadCommandReader.js";
 import {
   ArtifactReaderFailure,
@@ -22,6 +23,8 @@ import {
 } from "./ArtifactReader.js";
 import { streamChunkToBuffer } from "./StreamBytes.js";
 import {
+  NonRegularFileReadError,
+  RegularFileAdmissionFailure,
   openRegularFile,
   sameRegularFileState,
   type StableRegularFileDescriptor,
@@ -33,6 +36,7 @@ export class MachOSliceArtifactReader implements ArtifactReader {
   readonly format = "file" as const;
   #command: ArtifactCommand | undefined;
   #source: StableRegularFileDescriptor | undefined;
+  #ownedSource: OwnedFileHandle | undefined;
   #pendingSource: Promise<StableRegularFileDescriptor> | undefined;
   readonly #entries = new Map<string, ArtifactEntry>();
   readonly #ownsSource: boolean;
@@ -283,23 +287,51 @@ export class MachOSliceArtifactReader implements ArtifactReader {
   }
 
   async #acquireSource(): Promise<StableRegularFileDescriptor> {
-    const handle = await openRegularFile(this.path, { symlinks: "reject" });
+    let handle: FileHandle;
+    try {
+      handle = await openRegularFile(this.path, { symlinks: "reject" });
+    } catch (cause: unknown) {
+      if (!(cause instanceof RegularFileAdmissionFailure)) throw cause;
+      this.#ownedSource = cause.owner;
+      const primary =
+        cause.cause instanceof NonRegularFileReadError
+          ? new ArtifactReaderFailure(
+              "format",
+              `Universal Mach-O source is not a regular file: ${this.path}`,
+              { cause: cause.cause },
+            )
+          : cause.cause;
+      throw ArtifactReaderFailure.withCleanup(
+        primary,
+        ArtifactReaderFailure.cleanupObservation(cause.cleanupCause, this.path),
+      );
+    }
+    const owner = new OwnedFileHandle(handle);
+    this.#ownedSource = owner;
     try {
       const initial = await handle.stat();
       const source = { handle, initial };
       this.#source = source;
       return source;
     } catch (cause: unknown) {
-      await handle.close().catch(() => undefined);
+      try {
+        await owner.close();
+        this.#ownedSource = undefined;
+      } catch (cleanupCause: unknown) {
+        throw ArtifactReaderFailure.withCleanup(
+          cause,
+          ArtifactReaderFailure.cleanupObservation(cleanupCause, this.path),
+        );
+      }
       throw cause;
     }
   }
 
   async #closeSource(): Promise<void> {
     await this.#pendingSource?.catch(() => undefined);
-    if (!this.#ownsSource || this.#source === undefined) return;
-    const source = this.#source;
-    await source.handle.close();
+    if (!this.#ownsSource || this.#ownedSource === undefined) return;
+    await this.#ownedSource.close();
+    this.#ownedSource = undefined;
     this.#source = undefined;
   }
 

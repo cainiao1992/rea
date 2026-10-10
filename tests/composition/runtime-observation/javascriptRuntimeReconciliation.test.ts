@@ -186,6 +186,40 @@ it("matches renderer, frame, script bytes, and worker without claiming execution
   );
 });
 
+it("keeps static load states unknown when one scoped capture omits scripts", async () => {
+  const fixture = await applicationFixture();
+  const staticEvidence = await analyzeFixture(fixture);
+  const result = reconcileInput({
+    static_layers: [{ role: "application", analysis: staticEvidence }],
+    runtime_observations: [
+      electronRuntimeEvidence(fixture, SOURCE, {
+        includeWorker: false,
+        targetId: "target-complete",
+      }),
+      electronRuntimeEvidence(fixture, SOURCE, {
+        includeWorker: false,
+        scriptsUnavailable: true,
+        targetId: "target-incomplete",
+      }),
+    ],
+  });
+
+  expect(
+    result.runtime_captures.map(
+      ({ scripts_complete_within_scope }) => scripts_complete_within_scope,
+    ),
+  ).toEqual(expect.arrayContaining([false, true]));
+  expect(result.summary.static_not_observed).toBe(0);
+  expect(result.static_load_states).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        status: "unknown",
+        reason: "static-or-runtime-coverage-incomplete",
+      }),
+    ]),
+  );
+});
+
 it("reports a captured digest disagreement instead of accepting a path match", async () => {
   const fixture = await applicationFixture();
   const staticEvidence = await analyzeFixture(fixture);
@@ -420,6 +454,7 @@ const electronRuntimeEvidence = (
     readonly targetId?: string;
     readonly sourceIncluded?: boolean;
     readonly workersUnavailable?: boolean;
+    readonly scriptsUnavailable?: boolean;
   } = {},
 ) => {
   const scriptFile = options.scriptFile ?? "app.js";
@@ -455,15 +490,7 @@ const electronRuntimeEvidence = (
         ended_at: "2026-07-15T00:00:00.100Z",
         observation_ms: 100,
       },
-      completeness: options.workersUnavailable
-        ? {
-            ...completeCapture(),
-            status: "attach_limited" as const,
-            conditions: ["attach_limited" as const],
-            attach_limited_sections: ["workers" as const],
-            unavailable_sections: ["workers" as const],
-          }
-        : completeCapture(),
+      completeness: captureCompleteness(options),
       frames: [
         {
           frame_id: "frame-main",
@@ -532,3 +559,21 @@ const completeCapture = () => ({
     total: 0,
   },
 });
+
+const captureCompleteness = (options: {
+  readonly workersUnavailable?: boolean;
+  readonly scriptsUnavailable?: boolean;
+}) => {
+  const unavailableSections = [
+    ...(options.scriptsUnavailable ? (["scripts"] as const) : []),
+    ...(options.workersUnavailable ? (["workers"] as const) : []),
+  ];
+  if (unavailableSections.length === 0) return completeCapture();
+  return {
+    ...completeCapture(),
+    status: "attach_limited" as const,
+    conditions: ["attach_limited" as const],
+    attach_limited_sections: unavailableSections,
+    unavailable_sections: unavailableSections,
+  };
+};

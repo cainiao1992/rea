@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import { z } from "zod";
 
 import { digestCanonicalValue } from "../canonicalDigest.js";
+import type { JsonValue } from "../jsonValue.js";
 import type { ApplicationGraphEvidence } from "./javascriptApplicationEvidenceSchemas.js";
 import {
   JAVASCRIPT_SEMANTIC_RELATION_FAMILY,
@@ -105,7 +106,7 @@ const unknownEvidence = (): ApplicationGraphEvidence => ({
 const node = (
   kind: (typeof JAVASCRIPT_SEMANTIC_NODE_KINDS)[number],
   role: string,
-  properties: Record<string, string | number | boolean | null> = {},
+  properties: Record<string, JsonValue> = {},
   evidenceContexts: JavaScriptSemanticEvidenceContextRegistry,
   options: {
     readonly functionNodeId?: string | null;
@@ -397,6 +398,49 @@ it("counts candidate edges by query direction and relation filter", () => {
   expect(query("forward-influence", ["defines"]).status).toBe("found");
   expect(query("backward-provenance", ["defines"]).status).toBe("ambiguous");
   expect(query("backward-provenance", ["captures"]).status).toBe("found");
+});
+
+it("matches scalar literal seeds and skips non-scalar literal metadata", () => {
+  const input = fixtureInput();
+  const metadataContexts = new JavaScriptSemanticEvidenceContextRegistry();
+  const literals = [
+    node("literal", "string-seven", { value: "7" }, metadataContexts),
+    node("literal", "number-seven", { value: 7 }, metadataContexts),
+    node("literal", "boolean-true", { value: true }, metadataContexts),
+    node("literal", "null", { value: null }, metadataContexts),
+    node("literal", "empty-string", { value: "" }, metadataContexts),
+    node("literal", "zero", { value: 0 }, metadataContexts),
+    node("literal", "negative-zero", { value: -0 }, metadataContexts),
+    node("literal", "missing-value", {}, metadataContexts),
+    node(
+      "literal",
+      "structured-value",
+      { value: { nested: "metadata" } },
+      metadataContexts,
+    ),
+  ];
+  input.nodes.push(...literals);
+  const graph = createJavaScriptSemanticGraph(input);
+  const query = (value: string | number | boolean | null) =>
+    queryJavaScriptSemanticGraph(graph, {
+      seed: { kind: "literal", value },
+      direction: "forward-influence",
+    }).seed_node_ids;
+  const nodeId = (role: string) => {
+    const literal = literals.find(({ identity }) => identity.role_key === role);
+    if (literal === undefined) throw new Error(`Missing literal ${role}`);
+    return literal.node_id;
+  };
+
+  expect(query("7")).toEqual([nodeId("string-seven")]);
+  expect(query(7)).toEqual([nodeId("number-seven")]);
+  expect(query(true)).toEqual([nodeId("boolean-true")]);
+  expect(query(null)).toEqual([nodeId("null")]);
+  expect(query("")).toEqual([nodeId("empty-string")]);
+  expect(query(0)).toEqual(
+    [nodeId("zero"), nodeId("negative-zero")].toSorted(),
+  );
+  expect(query("unmatched")).toEqual([]);
 });
 
 it("counts candidate ownership cycles once and traverses them finitely", () => {

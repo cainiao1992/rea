@@ -191,7 +191,7 @@ export class SafeOutputTree {
           "format",
           `Invalid expected extraction size for ${relativePath}`,
         );
-      const path = normalizeArtifactPath(relativePath);
+      const path = normalizeDestinationPath(relativePath, this.platform);
       this.#registry.add(path, "file");
       const lineage = await this.#prepareParent(path);
       const parent = lineage.at(-1);
@@ -567,6 +567,19 @@ const writeAll = async (
       );
     offset += bytesWritten;
   }
+};
+
+const normalizeDestinationPath = (
+  relativePath: string,
+  platform: NodeJS.Platform,
+): string => {
+  const path = normalizeArtifactPath(relativePath);
+  if (platform === "win32" && path.includes(":"))
+    throw new ArtifactReaderFailure(
+      "path",
+      `Windows destination cannot materialize artifact path as a regular file: ${path}; ':' denotes alternate data stream syntax.`,
+    );
+  return path;
 };
 
 const abortIfNeeded = (signal?: AbortSignal): void => {

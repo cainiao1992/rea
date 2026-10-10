@@ -456,3 +456,37 @@ describe("safe artifact output tree", () => {
     );
   });
 });
+
+describe("safe artifact output Windows stream paths", () => {
+  it.each([
+    "hello.txt:hidden",
+    "nested/hello.txt::$DATA",
+    "folder:stream/file.txt",
+  ])("refuses Windows stream syntax before creating %s", async (path) => {
+    const parent = await createTestTempDirectory("rea-safe-output-stream-");
+    const output = join(parent, "published");
+    const tree = await SafeOutputTree.create(output, "win32");
+    const bytes = Buffer.from("regular file content");
+    const source = Readable.from(bytes);
+    try {
+      await expect(
+        tree.write(path, source, {
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+          bytes: bytes.byteLength,
+        }),
+      ).rejects.toMatchObject({
+        reason: "path",
+        message: `Windows destination cannot materialize artifact path as a regular file: ${path}; ':' denotes alternate data stream syntax.`,
+      });
+      expect(source.destroyed).toBe(true);
+      expect(await readdir(output)).toEqual([]);
+    } finally {
+      expect(await tree.rollback()).toEqual({
+        status: "complete",
+        residualPaths: [],
+      });
+    }
+    await expect(access(output)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readdir(parent)).toEqual([]);
+  });
+});

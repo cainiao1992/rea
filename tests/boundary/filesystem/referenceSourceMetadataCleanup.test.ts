@@ -52,6 +52,41 @@ const failCloseUntilAllowed = (
   };
 };
 
+const createPackedRefRepository = async () => {
+  const root = await createTestTempDirectory("rea-reference-packed-owner-");
+  await execFileOutput("git", ["init", "--initial-branch=main"], { cwd: root });
+  await writeFile(join(root, "main.ts"), "export const value = 1;\n");
+  await execFileOutput(
+    "git",
+    [
+      "-c",
+      "user.name=REA fixture",
+      "-c",
+      "user.email=fixture@example.invalid",
+      "-c",
+      "commit.gpgsign=false",
+      "commit",
+      "--allow-empty",
+      "-m",
+      "fixture",
+    ],
+    { cwd: root },
+  );
+  const head = (
+    await execFileOutput("git", ["rev-parse", "HEAD"], { cwd: root })
+  ).stdout.trim();
+  await execFileOutput("git", ["pack-refs", "--all", "--prune"], {
+    cwd: root,
+  });
+  const looseRef = join(root, ".git", "refs", "heads", "main");
+  const packedRefs = join(root, ".git", "packed-refs");
+  await actual.mkdir(join(root, ".git", "refs", "heads"), {
+    recursive: true,
+  });
+  await writeFile(looseRef, `${head}\n`);
+  return { root, looseRef, packedRefs };
+};
+
 it("retains failed .gitignore cleanup under the caller's scope", async () => {
   const root = await createTestTempDirectory("rea-reference-ignore-owner-");
   const path = join(root, ".gitignore");
@@ -144,33 +179,7 @@ it("preserves Git metadata cleanup failure and the completed source read", async
 });
 
 it("retains later packed-ref cleanup after an earlier loose-ref read failure", async () => {
-  const root = await createTestTempDirectory("rea-reference-packed-owner-");
-  await execFileOutput("git", ["init", "--initial-branch=main"], { cwd: root });
-  await writeFile(join(root, "main.ts"), "export const value = 1;\n");
-  await execFileOutput(
-    "git",
-    [
-      "-c",
-      "user.name=REA fixture",
-      "-c",
-      "user.email=fixture@example.invalid",
-      "-c",
-      "commit.gpgsign=false",
-      "commit",
-      "--allow-empty",
-      "-m",
-      "fixture",
-    ],
-    { cwd: root },
-  );
-  const head = (
-    await execFileOutput("git", ["rev-parse", "HEAD"], { cwd: root })
-  ).stdout.trim();
-  await execFileOutput("git", ["pack-refs", "--all", "--prune"], { cwd: root });
-  const looseRef = join(root, ".git", "refs", "heads", "main");
-  const packedRefs = join(root, ".git", "packed-refs");
-  await actual.mkdir(join(root, ".git", "refs", "heads"), { recursive: true });
-  await writeFile(looseRef, `${head}\n`);
+  const { root, looseRef, packedRefs } = await createPackedRefRepository();
 
   const resources = new ArtifactResourceScope();
   let allowClose = false;
@@ -222,5 +231,55 @@ it("retains later packed-ref cleanup after an earlier loose-ref read failure", a
   await resources.close();
   expect([...packedCloseCalls.values()]).toEqual(
     Array.from({ length: packedCloseCalls.size }, () => 3),
+  );
+});
+
+it("keeps a later packed-ref read error primary over earlier loose-ref cleanup", async () => {
+  const { root, looseRef, packedRefs } = await createPackedRefRepository();
+  const resources = new ArtifactResourceScope();
+  let allowClose = false;
+  const looseCloseCalls = new Map<object, number>();
+  openMock.mockImplementation(async (...args) => {
+    const handle = await actual.open(...args);
+    const path = resolve(String(args[0]));
+    if (path === resolve(looseRef)) {
+      const close = handle.close.bind(handle);
+      vi.spyOn(handle, "close").mockImplementation(async () => {
+        looseCloseCalls.set(handle, (looseCloseCalls.get(handle) ?? 0) + 1);
+        if (!allowClose) throw new Error("injected loose ref close failure");
+        await close();
+      });
+    }
+    if (path === resolve(packedRefs))
+      vi.spyOn(handle, "read").mockImplementation(async () => {
+        throw Object.assign(new Error("injected packed-refs EIO"), {
+          code: "EIO",
+        });
+      });
+    return handle;
+  });
+  onTestFinished(async () => {
+    allowClose = true;
+    await resources.close().catch(() => undefined);
+  });
+
+  const result = await readReferenceSourceVcs(root, resources);
+  if (result.ok) throw new Error("Expected Git metadata read to fail");
+  expect(result.error.message).toContain("injected packed-refs EIO");
+  expect(result.error.message).not.toContain(
+    "injected loose ref close failure",
+  );
+  expect(result.error.cleanup).toMatchObject({
+    resources: [looseRef],
+    reason: expect.stringContaining("injected loose ref close failure"),
+  });
+  expect([...looseCloseCalls.values()]).toEqual(
+    Array.from({ length: looseCloseCalls.size }, () => 2),
+  );
+
+  allowClose = true;
+  await resources.close();
+  expect([...looseCloseCalls.values()]).toEqual(
+    Array.from({ length: looseCloseCalls.size }, () => 3),
   );
 });

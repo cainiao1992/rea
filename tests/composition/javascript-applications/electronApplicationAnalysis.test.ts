@@ -89,6 +89,33 @@ describe("static Electron application analysis", () => {
     expect(requestedMembers).toEqual(["*"]);
   });
 
+  it("maps Electron boundaries through bundler-renamed bindings", async () => {
+    const root = await renamedBindingFixtureDirectory();
+
+    const result = await reconstructJavaScriptArtifact({ input_path: root });
+    const graph = parseJavaScriptApplicationGraph(result.graph);
+    const handledChannels = graph.nodes.flatMap(({ kind, observations }) =>
+      kind === "ipc-handler"
+        ? observations.flatMap(({ properties }) =>
+            properties.side === "main" ? [properties.channel] : [],
+          )
+        : [],
+    );
+
+    expect(result.electron_summary).toMatchObject({
+      browser_windows: 1,
+      context_bridge_apis: 1,
+      exposed_api_members: 2,
+      ipc: {
+        main_handlers: 2,
+        paired_renderer_transmissions: 2,
+        unpaired_literal_renderer_transmissions: 0,
+      },
+      utility_processes: 1,
+    });
+    expect(handledChannels.sort()).toEqual(["rea:read", "rea:write"]);
+  });
+
   it("returns a tagged cancellation without executing application code", async () => {
     const root = await fixtureDirectory();
     const controller = new AbortController();
@@ -296,6 +323,45 @@ const expectElectronBoundaries = (graph: ApplicationGraph): void => {
 const fixtureDirectory = async (): Promise<string> => {
   const root = await createTestTempDirectory("rea-electron-boundaries-");
   await writeElectronBoundaryFixture(root);
+  return root;
+};
+
+const renamedBindingFixtureDirectory = async (): Promise<string> => {
+  const root = await createTestTempDirectory("rea-electron-renamed-");
+  await Promise.all([
+    writeFile(
+      join(root, "package.json"),
+      JSON.stringify({ name: "rea-electron-renamed", main: "main.mjs" }),
+    ),
+    // Bundlers rename colliding imports, e.g. esbuild's ipcMain2.
+    writeFile(
+      join(root, "main.mjs"),
+      String.raw`
+import { BrowserWindow as BrowserWindow2, ipcMain as ipcMain2 } from "electron";
+import { ipcMain as ipcMain3, utilityProcess as utility } from "electron/main";
+
+new BrowserWindow2({ webPreferences: { preload: "./preload.cjs" } });
+ipcMain2.handle("rea:read", async () => "value");
+ipcMain3.on("rea:write", () => undefined);
+utility.fork("./worker.js");
+function register(ipcMain2) {
+  ipcMain2.handle("rea:shadowed", async () => "local");
+}
+export { register };
+`,
+    ),
+    writeFile(
+      join(root, "preload.cjs"),
+      String.raw`
+const { contextBridge: bridge, ipcRenderer: ipc } = require("electron");
+bridge.exposeInMainWorld("reaApi", {
+  read: () => ipc.invoke("rea:read"),
+  write: (value) => ipc.send("rea:write", value),
+});
+`,
+    ),
+    writeFile(join(root, "worker.js"), "module.exports = {};"),
+  ]);
   return root;
 };
 

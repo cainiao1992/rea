@@ -9,6 +9,12 @@ import {
 } from "../../../../src/hopper/HopperClient.js";
 import { HopperFixtureLauncher } from "./hopperClient.fixture.js";
 
+const expectStoppedLauncher = (launcher: HopperFixtureLauncher): void => {
+  const child = launcher.processes[0];
+  if (child === undefined) throw new Error("Diagnostic fixture did not launch");
+  expect(child.exitCode !== null || child.signalCode !== null).toBe(true);
+};
+
 it("bounds long-lived launcher output while keeping the bridge usable", async () => {
   let observedStderrBytes = 0;
   const diagnosticLauncher = new HopperFixtureLauncher(undefined, "noisy");
@@ -35,7 +41,7 @@ it("bounds long-lived launcher output while keeping the bridge usable", async ()
   await client.close();
   const directory = diagnosticLauncher.directories[0] ?? "";
   await expect(access(directory)).rejects.toMatchObject({ code: "ENOENT" });
-  expect(diagnosticLauncher.processes[0]?.exitCode).not.toBeNull();
+  expectStoppedLauncher(diagnosticLauncher);
 });
 
 it("reports observed and retained output when capture cuts a token", async () => {
@@ -84,5 +90,5 @@ it("reports observed and retained output when capture cuts a token", async () =>
   await client.close();
   const directory = diagnosticLauncher.directories[0] ?? "";
   await expect(access(directory)).rejects.toMatchObject({ code: "ENOENT" });
-  expect(diagnosticLauncher.processes[0]?.exitCode).not.toBeNull();
+  expectStoppedLauncher(diagnosticLauncher);
 });

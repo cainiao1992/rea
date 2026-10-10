@@ -9,7 +9,8 @@ volatile int rea_xrefs_data = 17;
 __attribute__((used)) volatile int rea_xrefs_unreferenced = 41;
 
 __attribute__((noinline, used)) int rea_alias_target(void) {
-  __asm__ volatile(".globl " REA_SYMBOL("rea_interior") "\n"
+  // ARM64 leaf functions may have no prologue; keep the control past entry.
+  __asm__ volatile("nop\n.globl " REA_SYMBOL("rea_interior") "\n"
                    REA_SYMBOL("rea_interior") ":");
   return rea_xrefs_data;
 }

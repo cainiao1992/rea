@@ -343,6 +343,9 @@ describe("ASAR read failures", () => {
         const handle = await openFile(path, flags);
         expect(await matchingDescriptorCount(identity)).toBeGreaterThan(0);
         return {
+          get fd() {
+            return handle.fd;
+          },
           async stat() {
             throw ioError;
           },
@@ -351,7 +354,7 @@ describe("ASAR read failures", () => {
             if (closeCount === 1) throw closeError;
             await handle.close();
           },
-          createReadStream: (options) => handle.createReadStream(options),
+          read: handle.read.bind(handle),
         };
       });
 
@@ -382,6 +385,54 @@ describe("ASAR read failures", () => {
 });
 
 it.skipIf(process.platform === "win32")(
+  "never treats an invalidated unpacked handle as proof of cleanup recovery",
+  async () => {
+    const { archive, unpackedPath, identity } = await createUnpackedFixture();
+    const statFailure = Object.assign(new Error("unpacked metadata failed"), {
+      code: "EIO",
+      errno: -5,
+      syscall: "fstat",
+    });
+    const closeFailure = new Error("native close outcome unavailable");
+    let closeCount = 0;
+    const reader = new AsarArtifactReader(archive, async (path, flags) => {
+      const handle = await openFile(path, flags);
+      return {
+        get fd() {
+          return handle.fd;
+        },
+        async stat() {
+          throw statFailure;
+        },
+        async close() {
+          closeCount += 1;
+          // Model Node's invalidated-descriptor rejection without leaking a
+          // native descriptor in the test process.
+          await handle.close();
+          throw closeFailure;
+        },
+        read: handle.read.bind(handle),
+      };
+    });
+    const entry = await unpackedMember(reader);
+    await expect(reader.open(entry)).rejects.toMatchObject({
+      reason: "io",
+      message: expect.stringContaining("unpacked metadata failed"),
+      cleanup: {
+        resources: [unpackedPath],
+        reason: "native close outcome unavailable",
+      },
+    });
+    for (let attempt = 0; attempt < 2; attempt += 1)
+      await expect(reader.close()).rejects.toMatchObject({
+        cleanup: { resources: [unpackedPath] },
+      });
+    expect(closeCount).toBe(1);
+    await waitForNoMatchingDescriptor(identity);
+  },
+);
+
+it.skipIf(process.platform === "win32")(
   "retries cleanup when cancellation arrives immediately after unpacked stat",
   async () => {
     const { archive, unpackedPath, identity } = await createUnpackedFixture();
@@ -390,6 +441,9 @@ it.skipIf(process.platform === "win32")(
     const reader = new AsarArtifactReader(archive, async (path, flags) => {
       const handle = await openFile(path, flags);
       return {
+        get fd() {
+          return handle.fd;
+        },
         async stat() {
           const observed = await handle.stat();
           controller.abort();
@@ -400,7 +454,7 @@ it.skipIf(process.platform === "win32")(
           if (closeCount === 1) throw new Error("first close failed");
           await handle.close();
         },
-        createReadStream: (options) => handle.createReadStream(options),
+        read: handle.read.bind(handle),
       };
     });
 
@@ -432,6 +486,9 @@ it.skipIf(process.platform === "win32")(
     const reader = new AsarArtifactReader(archive, async (path, flags) => {
       const handle = await openFile(path, flags);
       return {
+        get fd() {
+          return handle.fd;
+        },
         async stat() {
           const observed = await handle.stat();
           return Object.assign(Object.create(observed), {
@@ -443,7 +500,7 @@ it.skipIf(process.platform === "win32")(
           if (closeCount === 1) throw closeError;
           await handle.close();
         },
-        createReadStream: (options) => handle.createReadStream(options),
+        read: handle.read.bind(handle),
       };
     });
 
@@ -481,6 +538,9 @@ it.skipIf(process.platform === "win32")(
       async (path, flags) => {
         const handle = await openFile(path, flags);
         return {
+          get fd() {
+            return handle.fd;
+          },
           async stat() {
             throw Object.assign(new Error("device stat failed"), {
               code: "EIO",
@@ -493,7 +553,7 @@ it.skipIf(process.platform === "win32")(
             if (closeCount < 3) throw closeError;
             await handle.close();
           },
-          createReadStream: (options) => handle.createReadStream(options),
+          read: handle.read.bind(handle),
         };
       },
       async (path) => {

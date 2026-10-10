@@ -26,6 +26,7 @@ import {
   sameRegularFileState,
   type StableRegularFileDescriptor,
 } from "../filesystem/RegularFile.js";
+import { readFileHandleChunks } from "../filesystem/readFileHandleChunks.js";
 
 /** Read-only universal Mach-O slice reader backed by native lipo metadata. */
 export class MachOSliceArtifactReader implements ArtifactReader {
@@ -207,10 +208,9 @@ export class MachOSliceArtifactReader implements ArtifactReader {
         "integrity",
         `Mach-O slice range is outside the artifact: ${entry.path}`,
       );
-    const sourceStream = source.handle.createReadStream({
+    const sourceStream = readFileHandleChunks(source.handle, {
       start: offset,
       end: offset + size - 1,
-      autoClose: false,
       ...(signal === undefined ? {} : { signal }),
     });
     const verifySource = () => this.#verifySource(source);

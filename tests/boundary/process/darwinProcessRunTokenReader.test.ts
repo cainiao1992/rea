@@ -567,9 +567,9 @@ it.skipIf(process.platform === "win32")(
   },
 );
 
-it.skipIf(process.platform === "win32")(
-  "preserves cancellation through system-host baseline identity inspection",
-  async () => {
+it.skipIf(process.platform === "win32").each(["baseline", "tokens"] as const)(
+  "preserves cancellation through system-host %s inspection",
+  async (kind) => {
     const directory = await mkdtemp(
       join(tmpdir(), "rea-process-baseline-abort-test-"),
     );
@@ -579,8 +579,23 @@ it.skipIf(process.platform === "win32")(
     });
     const controller = new AbortController();
     let helperRoot: string | undefined;
+    const inspection =
+      kind === "baseline"
+        ? host.captureBaseline?.(controller.signal)
+        : host.runTokens?.(
+            [
+              {
+                pid: process.pid,
+                parentPid: process.ppid,
+                processGroupId: process.pid,
+                state: "S",
+                command: process.execPath,
+              },
+            ],
+            controller.signal,
+          );
     const baseline =
-      host.captureBaseline?.(controller.signal).then(
+      inspection?.then(
         () => ({ state: "fulfilled" as const }),
         (cause: unknown) => ({ state: "rejected" as const, cause }),
       ) ?? Promise.resolve({ state: "missing" as const });

@@ -5,6 +5,7 @@ import { launcherIdentityFailure } from "./ProcessOwnershipIdentity.js";
 import { descendantsOf, liveProcesses } from "./ProcessOwnershipProcessTree.js";
 import { execFileOutput } from "./ExecFileOutput.js";
 import { createDarwinProcessRunTokenReader } from "./DarwinProcessRunTokenReader.js";
+import { readProcessRunTokens } from "./ProcessRunTokenObservations.js";
 import type {
   OwnedProcessGroup,
   ProcessGroupObservation,
@@ -37,26 +38,28 @@ export const observeOwnedProcessGroup = async (
   signal?.throwIfAborted();
   const liveMembers = liveProcesses(members);
   if (liveMembers.length === 0) return { state: "empty" };
-  for (const member of liveMembers) {
-    signal?.throwIfAborted();
-    try {
-      const runId = (await host.environment(member.pid)).REA_PROCESS_RUN_ID;
-      signal?.throwIfAborted();
-      if (runId !== ownership.runId)
+  for await (const { process: member, observation } of readProcessRunTokens(
+    host,
+    liveMembers,
+    signal,
+  )) {
+    if (observation.state === "readable") {
+      if (observation.runId !== ownership.runId)
         return {
           state: "unverifiable",
           reason: "process ownership did not match",
         };
-    } catch (cause: unknown) {
-      signal?.throwIfAborted();
+    } else {
       if (!(await processIsGone(host, member.pid))) {
+        signal?.throwIfAborted();
         return {
           state: "unverifiable",
-          reason: `process ownership could not be revalidated for PID ${member.pid}: ${errorMessage(cause)}`,
+          reason: `process ownership could not be revalidated for PID ${member.pid}: ${observation.reason}`,
         };
       }
     }
   }
+  signal?.throwIfAborted();
   return { state: "alive" };
 };
 
@@ -88,18 +91,18 @@ export const observeOwnedProcessLineage = async (
     return unavailableLineage(ownership, identityFailure);
   const descendants = descendantsOf(launcher.pid, processes);
   const verifiedDescendants: ProcessTableEntry[] = [];
-  for (const member of [launcher, ...descendants]) {
-    try {
-      if (
-        (await host.environment(member.pid)).REA_PROCESS_RUN_ID !==
-        ownership.runId
-      )
+  for await (const { process: member, observation } of readProcessRunTokens(
+    host,
+    [launcher, ...descendants],
+  )) {
+    if (observation.state === "readable") {
+      if (observation.runId !== ownership.runId)
         return unavailableLineage(
           ownership,
           "process lineage contains an unowned or PID-reused process",
         );
       if (member.pid !== launcher.pid) verifiedDescendants.push(member);
-    } catch (cause: unknown) {
+    } else {
       if (await processIsGone(host, member.pid)) {
         if (member.pid === launcher.pid)
           return unavailableLineage(
@@ -110,7 +113,7 @@ export const observeOwnedProcessLineage = async (
       }
       return unavailableLineage(
         ownership,
-        `process ownership could not be revalidated for PID ${member.pid}: ${errorMessage(cause)}`,
+        `process ownership could not be revalidated for PID ${member.pid}: ${observation.reason}`,
       );
     }
   }
@@ -330,18 +333,21 @@ export const createSystemProcessOwnershipHost = (
       }
     },
     listProcesses,
-    async environment(pid) {
+    async environment(pid, signal) {
+      signal?.throwIfAborted();
       if (platform === "linux")
         return parseProcessEnvironment(
-          await readFile(`/proc/${pid}/environ`, "utf8"),
+          await readFile(`/proc/${pid}/environ`, { encoding: "utf8", signal }),
         );
       if (platform === "darwin") {
-        const process = (await listProcesses()).find(
+        const process = (await listProcesses(signal)).find(
           (entry) => entry.pid === pid,
         );
         if (process === undefined)
           throw new Error(`process ${String(pid)} is not live`);
-        const observation = (await darwinTokens?.read([process]))?.get(pid);
+        const observation = (await darwinTokens?.read([process], signal))?.get(
+          pid,
+        );
         if (observation === undefined || observation.state === "unavailable")
           throw new Error(
             observation?.reason ?? "process run token could not be read",
@@ -355,6 +361,7 @@ export const createSystemProcessOwnershipHost = (
         ["eww", "-p", String(pid)],
         {
           env: hostEnvironment,
+          ...(signal === undefined ? {} : { signal }),
         },
       );
       const observedEnvironment: Record<string, string> = {};
@@ -366,11 +373,13 @@ export const createSystemProcessOwnershipHost = (
       }
       return observedEnvironment;
     },
-    async runTokens(processes) {
+    async runTokens(processes, signal) {
+      signal?.throwIfAborted();
       if (platform !== "darwin" || processes.length === 0) return new Map();
       try {
-        return (await darwinTokens?.read(processes)) ?? new Map();
+        return (await darwinTokens?.read(processes, signal)) ?? new Map();
       } catch (cause: unknown) {
+        if (isExpectedAbort(cause, signal)) throw cause;
         void cause;
         return new Map(
           processes.map(({ pid }) => [

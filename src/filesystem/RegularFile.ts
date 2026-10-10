@@ -2,6 +2,8 @@ import { constants } from "node:fs";
 import type { BigIntStats, Stats } from "node:fs";
 import { open, type FileHandle } from "node:fs/promises";
 
+import { OwnedFileHandle } from "./OwnedFileHandle.js";
+
 /** Identifies a selected path that cannot be read as one regular file. */
 export class NonRegularFileReadError extends Error {
   readonly code: "EISDIR" | "ENOTFILE";
@@ -13,6 +15,24 @@ export class NonRegularFileReadError extends Error {
     super(`Selected input must be a regular file: ${path}`);
     this.name = "NonRegularFileReadError";
     this.code = directory ? "EISDIR" : "ENOTFILE";
+  }
+}
+
+/** Admission failed and the opened descriptor could not be confirmed closed. */
+export class RegularFileAdmissionFailure extends Error {
+  override readonly cause: unknown;
+
+  constructor(
+    readonly path: string,
+    admissionCause: unknown,
+    readonly cleanupCause: unknown,
+    readonly owner: OwnedFileHandle,
+  ) {
+    super(
+      `Selected input failed admission and its descriptor close failed: ${path}`,
+    );
+    this.name = "RegularFileAdmissionFailure";
+    this.cause = admissionCause;
   }
 }
 
@@ -47,6 +67,7 @@ export const openRegularFile = async (
       (constants.O_NOCTTY ?? 0) |
       (options.symlinks === "reject" ? (constants.O_NOFOLLOW ?? 0) : 0),
   );
+  const owner = new OwnedFileHandle(handle);
   try {
     options.signal?.throwIfAborted();
     const metadata = await handle.stat();
@@ -55,7 +76,11 @@ export const openRegularFile = async (
       throw new NonRegularFileReadError(path, metadata.isDirectory());
     return handle;
   } catch (cause: unknown) {
-    await handle.close().catch(() => undefined);
+    try {
+      await owner.close();
+    } catch (cleanupCause: unknown) {
+      throw new RegularFileAdmissionFailure(path, cause, cleanupCause, owner);
+    }
     throw cause;
   }
 };

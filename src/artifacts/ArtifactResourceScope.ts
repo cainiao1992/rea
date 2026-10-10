@@ -1,4 +1,4 @@
-import type { FileHandle } from "node:fs/promises";
+import type { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
 
 import type { ArtifactReader } from "./ArtifactReader.js";
 import { ArtifactReaderFailure } from "./ArtifactReader.js";
@@ -14,7 +14,7 @@ export type ArtifactResourceOwner =
   | {
       readonly kind: "file-handle";
       readonly resource: string;
-      readonly handle: FileHandle;
+      readonly handle: OwnedFileHandle;
     }
   | {
       readonly kind: "output-tree";

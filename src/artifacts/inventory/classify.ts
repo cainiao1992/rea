@@ -1,11 +1,8 @@
-import {
-  NonRegularFileReadError,
-  openRegularFile,
-  sameRegularFileState,
-} from "../../filesystem/RegularFile.js";
+import { sameRegularFileState } from "../../filesystem/RegularFile.js";
 import type { FileHandle } from "node:fs/promises";
 import type { Stats } from "node:fs";
 import type { StableRegularFileDescriptor } from "../../filesystem/RegularFile.js";
+import type { OwnedFileHandle } from "../../filesystem/OwnedFileHandle.js";
 
 import { classifyArtifactContent } from "./ArtifactGraphConstruction.js";
 import { ARTIFACT_CLASSIFICATION_PREFIX_BYTES } from "../ArtifactHash.js";
@@ -17,7 +14,10 @@ import {
 import { ArtifactReaderFailure } from "../ArtifactReader.js";
 import { type ArtifactResourceOwner } from "../ArtifactResourceScope.js";
 import type { HashResult } from "../ArtifactHash.js";
-import { hashStableRootArtifactHandle } from "./hashStableRootArtifact.js";
+import {
+  hashStableRootArtifactHandle,
+  openRootArtifact,
+} from "./hashStableRootArtifact.js";
 import type { ArtifactInventoryOptions } from "./types.js";
 
 interface RootClassification {
@@ -26,8 +26,13 @@ interface RootClassification {
 }
 
 type RootInventoryClassification = RootClassification & {
-  readonly rootSource: StableRegularFileDescriptor | undefined;
+  readonly rootSource: RootInventorySource | undefined;
 };
+
+/** The admitted descriptor and the single owner that can confirm its close. */
+export interface RootInventorySource extends StableRegularFileDescriptor {
+  readonly owner: OwnedFileHandle;
+}
 
 /** Classify and hash one file root through the same stable open descriptor. */
 export const classifyAndHashRoot = async (
@@ -47,7 +52,7 @@ export const classifyAndHashRoot = async (
     if (rootSource !== undefined) {
       const owner: ArtifactResourceOwner = {
         kind: "file-handle",
-        handle: rootSource.handle,
+        handle: rootSource.owner,
         resource: `root artifact descriptor for ${path}`,
       };
       const cleanupAttempt = await options.resourceScope.release(owner);
@@ -73,10 +78,15 @@ export const classifyAndHashRootForInventory = async (
 ): Promise<RootInventoryClassification> => {
   if (directory)
     return { format: "directory", digest: null, rootSource: undefined };
-  const handle = await openRootFile(path, options.signal);
+  const ownedHandle = await openRootArtifact(
+    path,
+    options.resourceScope,
+    options.signal,
+  );
+  const handle = ownedHandle.handle;
   const owner: ArtifactResourceOwner = {
     kind: "file-handle",
-    handle,
+    handle: ownedHandle,
     resource: `root artifact descriptor for ${path}`,
   };
   let outcome:
@@ -105,7 +115,9 @@ export const classifyAndHashRootForInventory = async (
       value: {
         format,
         digest,
-        rootSource: retainSource ? { handle, initial } : undefined,
+        rootSource: retainSource
+          ? { handle, initial, owner: ownedHandle }
+          : undefined,
       },
     };
   } catch (cause: unknown) {
@@ -132,23 +144,6 @@ const isZipFormat = (format: ArtifactOccurrence["artifact_format"]): boolean =>
   format === "apk" ||
   format === "msix" ||
   format === "appx";
-
-const openRootFile = async (
-  path: string,
-  signal?: AbortSignal,
-): Promise<FileHandle> => {
-  try {
-    return await openRegularFile(path, { symlinks: "reject", signal });
-  } catch (cause: unknown) {
-    if (cause instanceof NonRegularFileReadError)
-      throw new ArtifactReaderFailure(
-        "format",
-        `Artifact root is not a regular file: ${path}`,
-        { cause },
-      );
-    throw cause;
-  }
-};
 
 const classifyRootFormat = async (
   path: string,

@@ -5,7 +5,7 @@ import { AsarArtifactReader } from "../AsarArtifactReader.js";
 
 import { lstat } from "node:fs/promises";
 import type { Stats } from "node:fs";
-import type { StableRegularFileDescriptor } from "../../filesystem/RegularFile.js";
+import type { RootInventorySource } from "./classify.js";
 
 import {
   ArtifactReaderFailure,
@@ -107,6 +107,7 @@ export const scanCanonicalArtifactInventoryInScope = async (
         rootFormat,
         rootDigest,
         rootSource,
+        resourceScope: options.resourceScope,
         reader,
         signal: options.signal,
         nodes,
@@ -146,7 +147,7 @@ const cleanupInventoryOwners = async ({
 }: {
   readonly path: string;
   readonly options: ArtifactInventoryOptions;
-  readonly rootSource: StableRegularFileDescriptor | undefined;
+  readonly rootSource: RootInventorySource | undefined;
   readonly ownedReaders: readonly ArtifactReader[];
   readonly outcome: InventoryScanOutcome;
 }): Promise<ArtifactReaderFailure | undefined> => {
@@ -161,7 +162,7 @@ const cleanupInventoryOwners = async ({
   if (rootSource !== undefined)
     owners.push({
       kind: "file-handle",
-      handle: rootSource.handle,
+      handle: rootSource.owner,
       resource: `root artifact descriptor for ${path}`,
     });
   for (const owner of owners) {
@@ -182,11 +183,12 @@ const cleanupInventoryOwners = async ({
 };
 
 interface SnapshotBuildInput {
+  readonly resourceScope: ArtifactInventoryOptions["resourceScope"];
   readonly path: string;
   readonly metadata: Stats;
   readonly rootFormat: ArtifactOccurrence["artifact_format"];
   readonly rootDigest: HashResult | null;
-  readonly rootSource: StableRegularFileDescriptor | undefined;
+  readonly rootSource: RootInventorySource | undefined;
   readonly reader: ArtifactReader | undefined;
   readonly signal: AbortSignal | undefined;
   readonly nodes: Map<string, ArtifactNode>;
@@ -243,7 +245,13 @@ const buildInventorySnapshot = async (
     ordinal,
   }));
 
-  await verifyRootDigest(path, rootDigest, rootSource, signal);
+  await verifyRootDigest(
+    path,
+    rootDigest,
+    rootSource,
+    input.resourceScope,
+    signal,
+  );
 
   const graphSha256 = artifactGraphDigest({
     nodes: orderedNodes,
@@ -318,13 +326,14 @@ const buildIntegrityContradictions = (
 const verifyRootDigest = async (
   path: string,
   rootDigest: HashResult | null,
-  rootSource: StableRegularFileDescriptor | undefined,
+  rootSource: RootInventorySource | undefined,
+  resourceScope: ArtifactInventoryOptions["resourceScope"],
   signal: AbortSignal | undefined,
 ): Promise<void> => {
   if (rootDigest === null) return;
   const verified =
     rootSource === undefined
-      ? await hashStableRootArtifact(path, signal)
+      ? await hashStableRootArtifact(path, resourceScope, signal)
       : await hashStableRootArtifactHandle(
           path,
           rootSource.handle,

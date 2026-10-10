@@ -8,6 +8,7 @@ import {
 } from "../process/WindowsAuthority.js";
 import { GHIDRA_FUNCTION_OPERATIONS } from "./GhidraFunctionValues.js";
 import { GHIDRA_INVENTORY_OPERATIONS } from "./GhidraInventoryValues.js";
+import { GHIDRA_MUTATING_OPERATIONS } from "./GhidraSessionValues.js";
 
 /** Public identity committed by every Ghidra-backed observation. */
 export const GHIDRA_PROVIDER_IDENTITY: ProviderIdentity = Object.freeze({
@@ -49,6 +50,14 @@ export const limitationsFor = (operation: string): readonly string[] => {
         "Names use Ghidra USER_DEFINED source. Name writes accept a leaf name or a fully qualified name within the existing namespace; readback uses the fully qualified name and can be reused without adding namespace prefixes. Edits retain the current namespace; other namespace-like text remains literal leaf-name text. Regular comments map to PRE and inline comments to EOL at the exact function entry. Changes commit together after readback and refreshed analysis; failure rolls them all back.",
         "Annotation text rejects NUL and unpaired Unicode surrogates before mutation, with the field and UTF-16 index in the error. Supported Unicode and line endings are preserved.",
         "Metadata edits invalidate immutable analysis snapshots and are discarded on close. CLI returns the updated dossier before session cleanup; this is not a saved Ghidra project.",
+      ];
+    case "set_address_name":
+    case "set_addresses_names":
+      return [
+        ...common,
+        "Names use Ghidra USER_DEFINED source. A local function entry renames that function; any other mapped address receives a new or renamed primary label. Existing symbols retain their namespace and accept leaf names or qualified names within that namespace; qualified readback can be reused without adding namespace prefixes. Readback compares the primary symbol name.",
+        "set_addresses_names applies each address in its own transaction and reports per-address success; invalid names, unmapped addresses, and readback mismatches roll back only that address.",
+        "Metadata edits invalidate immutable analysis snapshots and are discarded on close; this is not a saved Ghidra project.",
       ];
     case "inspect_native_load_image":
       return [
@@ -162,12 +171,12 @@ export const CAPABILITIES: readonly CapabilityDescriptor[] = Object.freeze(
       reason: null,
       // Project writes are private import machinery. Analysis reads are bound
       // to the artifact/profile; session annotations disable snapshot replay.
-      ...(operation === "annotate_native_function" ||
+      ...(GHIDRA_MUTATING_OPERATIONS.has(operation) ||
       operation === "list_documents"
         ? {}
         : { cachePolicy: "snapshot" as const }),
       effects: Object.freeze({
-        mutatesArtifact: operation === "annotate_native_function",
+        mutatesArtifact: GHIDRA_MUTATING_OPERATIONS.has(operation),
         launchesProcess: true,
         mayShowUi: false,
         mayAccessNetwork: false,

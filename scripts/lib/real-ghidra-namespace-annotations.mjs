@@ -54,6 +54,14 @@ export async function verifyGhidraNamespaceAnnotations({
       );
       return { namespace, address: procedure.address };
     });
+    const names = await call("list_names");
+    const globals = ["alpha", "outer::inner"].map((namespace) => {
+      const symbol = names.find(
+        (item) => item.value === `${namespace}::value` && item.symbol.primary,
+      );
+      assert.ok(symbol, `Missing demangled fixture global ${namespace}::value`);
+      return { namespace, address: symbol.address };
+    });
     const ambiguous = await reject("procedure_address", { procedure: "same" });
     assert.equal(ambiguous.code, "invalid_request");
     for (const { address } of entries)
@@ -125,6 +133,16 @@ export async function verifyGhidraNamespaceAnnotations({
       });
       assert.deepEqual(unchanged.annotations, qualified.annotations);
     }
+    await verifyAddressNames(call, [entries[0], entries[2], ...globals]);
+    for (const { namespace, address } of entries) {
+      assert.equal(
+        await call("set_address_name", {
+          address,
+          name: `${namespace}::qualified`,
+        }),
+        true,
+      );
+    }
     const { stdout } = await exec(
       process.execPath,
       [
@@ -156,6 +174,96 @@ export async function verifyGhidraNamespaceAnnotations({
     await call("open_binary", { path: target.path, provider_id: "ghidra" });
   } finally {
     await rm(workspace, { recursive: true, force: true });
+  }
+}
+
+async function verifyAddressNames(call, symbols) {
+  for (const { namespace, address } of symbols) {
+    assert.equal(
+      await call("set_address_name", { address, name: "address_renamed" }),
+      true,
+    );
+    const qualified = `${namespace}::address_qualified`;
+    assert.equal(
+      await call("set_address_name", { address, name: qualified }),
+      true,
+    );
+    assert.equal(await call("address_name", { address }), qualified);
+    assert.equal(
+      await call("set_address_name", { address, name: "other::literal" }),
+      true,
+    );
+    const literal = await call("address_name", { address });
+    assert.equal(literal, `${namespace}::other::literal`);
+    assert.equal(
+      await call("set_address_name", { address, name: literal }),
+      true,
+    );
+    assert.equal(await call("address_name", { address }), literal);
+    assert.equal(
+      await call("set_address_name", { address, name: qualified }),
+      true,
+    );
+    for (let repeat = 0; repeat < 2; repeat++) {
+      const readback = await call("address_name", { address });
+      assert.deepEqual(
+        await call("set_addresses_names", { names: { [address]: readback } }),
+        { [address]: true },
+      );
+      assert.equal(await call("address_name", { address }), qualified);
+    }
+    assert.equal(
+      await call("set_address_name", { address, name: `${namespace}::` }),
+      false,
+    );
+    const session = await call("binary_session");
+    for (const operation of [
+      "set_address_name",
+      "set_addresses_names",
+      "address_name",
+      "list_names",
+    ])
+      assert.equal(
+        session.capabilities.find((item) => item.operation === operation)
+          ?.available,
+        true,
+        `An invalid name must not mark ${operation} unavailable`,
+      );
+    assert.equal(await call("address_name", { address }), qualified);
+  }
+  const [valid, invalid] = symbols;
+  assert.deepEqual(
+    await call("set_addresses_names", {
+      names: {
+        [valid.address]: `${valid.namespace}::batch_renamed`,
+        [invalid.address]: `${invalid.namespace}::`,
+      },
+    }),
+    { [valid.address]: true, [invalid.address]: false },
+  );
+  assert.equal(
+    await call("address_name", { address: valid.address }),
+    `${valid.namespace}::batch_renamed`,
+  );
+  assert.equal(
+    await call("address_name", { address: invalid.address }),
+    `${invalid.namespace}::address_qualified`,
+  );
+  const names = await call("list_names");
+  for (const { namespace, address } of symbols) {
+    const expected =
+      address === valid.address
+        ? `${namespace}::batch_renamed`
+        : `${namespace}::address_qualified`;
+    assert.ok(
+      names.some(
+        (item) =>
+          item.address === address &&
+          item.value === expected &&
+          item.symbol.primary,
+      ),
+      `Missing refreshed primary symbol ${expected}`,
+    );
   }
 }
 

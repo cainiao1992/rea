@@ -19,7 +19,10 @@ import type {
   GhidraLauncher,
 } from "../../../../src/ghidra/GhidraLauncher.js";
 import type { GhidraTransportKind } from "../../../../src/ghidra/GhidraTransport.js";
-import { GHIDRA_SESSION_CAPABILITIES } from "../../../../src/ghidra/GhidraSessionValues.js";
+import {
+  GHIDRA_MUTATING_OPERATIONS,
+  GHIDRA_SESSION_CAPABILITIES,
+} from "../../../../src/ghidra/GhidraSessionValues.js";
 import { waitForExit as waitForChildExit } from "../../../support/process/processFixture.js";
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 
@@ -177,7 +180,7 @@ describe("GhidraClient", () => {
         capabilities: GHIDRA_SESSION_CAPABILITIES.filter(
           (value) =>
             HOST_TRANSPORT === "unix-socket" ||
-            value !== "annotate_native_function",
+            !GHIDRA_MUTATING_OPERATIONS.has(value),
         ),
         target: {
           image_base: "0x1000",

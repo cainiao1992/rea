@@ -120,6 +120,8 @@ public final class ReaGhidraBridge extends HeadlessScript {
     );
     private static final String[] CAPABILITIES = {
         "annotate_native_function",
+        "set_address_name",
+        "set_addresses_names",
         "inspect_native_load_image",
         "read_bytes",
         "address_to_file_offset",
@@ -374,6 +376,12 @@ public final class ReaGhidraBridge extends HeadlessScript {
             case "resolve_native_call_targets" -> resolveNativeCallTargets(request.params);
             case "xrefs" -> xrefs(request.params);
             case "analyze_function" -> analyzeFunction(request.params);
+            case "set_address_name", "set_addresses_names" -> {
+                if (!descriptor.transport.equals("unix-socket"))
+                    throw new RequestFailure("method_unavailable", "Windows P0 does not admit database mutation");
+                yield request.method.equals("set_address_name")
+                    ? setAddressName(request.params) : setAddressesNames(request.params);
+            }
             case "annotate_native_function" -> {
                 if (!descriptor.transport.equals("unix-socket"))
                     throw new RequestFailure("method_unavailable", "Windows P0 does not admit database mutation");
@@ -417,7 +425,8 @@ public final class ReaGhidraBridge extends HeadlessScript {
         result.addProperty("analysis_timed_out", timedOut);
         result.add("capabilities", GSON.toJsonTree(
             java.util.Arrays.stream(CAPABILITIES)
-                .filter(value -> !readOnly || !value.equals("annotate_native_function"))
+                .filter(value -> !readOnly || !(value.equals("annotate_native_function")
+                    || value.equals("set_address_name") || value.equals("set_addresses_names")))
                 .toArray(String[]::new)
         ));
         result.add("target", target);
@@ -1027,11 +1036,11 @@ public final class ReaGhidraBridge extends HeadlessScript {
         for (String field : List.of("name", "comment", "inline_comment")) {
             if (params.has(field)) validateAnnotationText(requireText(params, field), field);
         }
-        String leafName = params.has("name")
-            ? annotationLeafName(function, requireString(params, "name")) : null;
         int transaction = currentProgram.startTransaction("REA function annotations");
         boolean commit = false;
         try {
+            String leafName = params.has("name")
+                ? symbolLeafName(function.getSymbol(), requireString(params, "name")) : null;
             // Validate edits through Ghidra's own setters, including name rules.
             // A later invalid name must roll back earlier comment writes.
             for (String field : List.of("comment", "inline_comment")) {
@@ -1080,18 +1089,18 @@ public final class ReaGhidraBridge extends HeadlessScript {
         }
     }
 
-    private String annotationLeafName(Function function, String requested) {
+    private String symbolLeafName(Symbol symbol, String requested) throws ghidra.util.exception.InvalidInputException {
         // Fully qualified readback must be usable as an idempotent rename input.
-        if (requested.equals(procedureName(function))) return function.getName();
-        String namespace = function.getParentNamespace().isGlobal()
-            ? "" : function.getParentNamespace().getName(true);
+        if (requested.equals(symbol.getName(true))) return symbol.getName();
+        String namespace = symbol.getParentNamespace().isGlobal()
+            ? "" : symbol.getParentNamespace().getName(true);
         String prefix = namespace + "::";
         if (!namespace.isEmpty() && requested.startsWith(prefix)) {
             String leaf = requested.substring(prefix.length());
             if (!leaf.isEmpty()) return leaf;
-            throw new RequestFailure("invalid_function_name",
-                "Function name has an empty leaf within namespace " + namespace + " at " +
-                canonicalAddress(function.getEntryPoint()) + ": " + requested);
+            throw new ghidra.util.exception.InvalidInputException(
+                "Symbol name has an empty leaf within namespace " + namespace + " at " +
+                canonicalAddress(symbol.getAddress()) + ": " + requested);
         }
         return requested;
     }
@@ -1414,6 +1423,68 @@ public final class ReaGhidraBridge extends HeadlessScript {
         Address address = requireAddress(params, "address");
         Symbol symbol = currentProgram.getSymbolTable().getPrimarySymbol(address);
         return symbol == null ? JsonNull.INSTANCE : GSON.toJsonTree(symbol.getName(true));
+    }
+
+    // Analyst naming: a function entry renames the function, other addresses get a primary label.
+    private boolean applyAddressName(Address address, String name) throws Exception {
+        if (!currentProgram.getMemory().contains(address))
+            throw new RequestFailure("invalid_request", "Address is not mapped: " + canonicalAddress(address));
+        validateAnnotationText(name, "name");
+        int transaction = currentProgram.startTransaction("REA address name");
+        boolean commit = false;
+        try {
+            Function function = currentProgram.getFunctionManager().getFunctionAt(address);
+            String expected = name;
+            if (function != null) {
+                expected = symbolLeafName(function.getSymbol(), name);
+                function.setName(expected, SourceType.USER_DEFINED);
+            } else {
+                var table = currentProgram.getSymbolTable();
+                Symbol primary = table.getPrimarySymbol(address);
+                if (primary != null && !primary.isDynamic()) {
+                    expected = symbolLeafName(primary, name);
+                    primary.setName(expected, SourceType.USER_DEFINED);
+                } else {
+                    Symbol created = table.createLabel(address, name, SourceType.USER_DEFINED);
+                    created.setPrimary();
+                }
+            }
+            invalidateAnalysisCaches();
+            Symbol readback = currentProgram.getSymbolTable().getPrimarySymbol(address);
+            commit = readback != null && expected.equals(readback.getName());
+            return commit;
+        }
+        catch (ghidra.util.exception.InvalidInputException | ghidra.util.exception.DuplicateNameException exception) {
+            return false;
+        }
+        finally {
+            currentProgram.endTransaction(transaction, commit);
+        }
+    }
+
+    private JsonElement setAddressName(JsonObject params) throws Exception {
+        requireKeys(params, Set.of("document", "address", "name"));
+        requireDocument(params);
+        return GSON.toJsonTree(applyAddressName(requireAddress(params, "address"), requireString(params, "name")));
+    }
+
+    private JsonElement setAddressesNames(JsonObject params) throws Exception {
+        requireKeys(params, Set.of("document", "names"));
+        requireDocument(params);
+        if (!params.has("names") || !params.get("names").isJsonObject())
+            throw new RequestFailure("invalid_request", "names must be an object of address -> name");
+        JsonObject result = new JsonObject();
+        for (Map.Entry<String, JsonElement> entry : params.getAsJsonObject("names").entrySet()) {
+            boolean ok;
+            try {
+                ok = applyAddressName(parseReaAddress(entry.getKey()), entry.getValue().getAsString());
+            }
+            catch (RequestFailure failure) {
+                ok = false;
+            }
+            result.addProperty(entry.getKey(), ok);
+        }
+        return result;
     }
 
     private JsonArray listDocuments(JsonObject params) {

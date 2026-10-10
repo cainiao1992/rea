@@ -610,8 +610,10 @@ dossiers, instructions, recovered data types, measured load mappings, loaded
 memory bytes, and observed file offsets. Independent load-image attestation
 supports DOS MZ and explicitly selected COM; PE returns its measurements with that limitation.
 On Linux and macOS, `annotate_native_function` also edits a function name and/or
-entry comments atomically and returns refreshed analysis. These session metadata
-edits leave executable bytes unchanged and are discarded on close. GUI controls
+entry comments atomically and returns refreshed analysis, and `set_address_name`
+and `set_addresses_names` name a function entry or any other mapped address
+(creating or renaming its primary label) with per-address success results. These
+session metadata edits leave executable bytes unchanged and are discarded on close. GUI controls
 require Hopper; Windows P0 remains read-only.
 
 Windows P0 admits native x86 and x86-64 PE applications and DLLs on fixed local NTFS volumes.

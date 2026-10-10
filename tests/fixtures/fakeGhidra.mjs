@@ -231,6 +231,8 @@ const sessionInfo = ({
     "resolve_containing_procedure",
     "search_procedures",
     "search_strings",
+    "set_address_name",
+    "set_addresses_names",
     "annotate_native_function",
     "inspect_native_data_type",
     "inspect_native_instruction",
@@ -246,7 +248,12 @@ const sessionInfo = ({
     "xrefs",
   ].filter(
     (value) =>
-      transport === "unix-socket" || value !== "annotate_native_function",
+      transport === "unix-socket" ||
+      ![
+        "annotate_native_function",
+        "set_address_name",
+        "set_addresses_names",
+      ].includes(value),
   ),
   target: {
     name: "fixture",

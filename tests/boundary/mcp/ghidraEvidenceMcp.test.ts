@@ -62,6 +62,66 @@ it("rejects contradictory annotation readback across the provider and MCP bounda
   }
 });
 
+it("routes address naming to Ghidra with compact per-address results", async () => {
+  const requests: { operation: string; input: unknown }[] = [];
+  let output: unknown = null;
+  const harness = await connectGhidraMcp(
+    "ghidra-address-naming",
+    (operation, input) => {
+      requests.push({ operation, input });
+      return Promise.resolve(ok(jsonValueSchema.parse(output)));
+    },
+  );
+  try {
+    output = true;
+    const single = await harness.mcp.callTool({
+      name: "set_address_name",
+      arguments: { address: "0x1000", name: "fixture_entry" },
+    });
+    expect(single.isError).not.toBe(true);
+    expect(single.structuredContent).toMatchObject({ normalized_result: true });
+    output = { "0x1000": true, "0x2000": false };
+    const batch = await harness.mcp.callTool({
+      name: "set_addresses_names",
+      arguments: { names: { "0x1000": "fixture_entry", "0x2000": "g_value" } },
+    });
+    expect(batch.isError).not.toBe(true);
+    expect(batch.structuredContent).toMatchObject({
+      normalized_result: { "0x1000": true, "0x2000": false },
+    });
+    expect(requests).toEqual([
+      {
+        operation: "set_address_name",
+        input: { document: null, address: "0x1000", name: "fixture_entry" },
+      },
+      {
+        operation: "set_addresses_names",
+        input: {
+          document: null,
+          names: { "0x1000": "fixture_entry", "0x2000": "g_value" },
+        },
+      },
+    ]);
+    const empty = await harness.mcp.callTool({
+      name: "set_addresses_names",
+      arguments: { names: {} },
+    });
+    expect(empty.isError).toBe(true);
+    expect(requests).toHaveLength(2);
+    output = "fixture_entry";
+    const malformed = await harness.mcp.callTool({
+      name: "set_address_name",
+      arguments: { address: "0x1000", name: "fixture_entry" },
+    });
+    expect(malformed.isError).toBe(true);
+    expect(parseMcpToolError(malformed)).toMatchObject({
+      error: { code: "unreadable_output" },
+    });
+  } finally {
+    await harness.close();
+  }
+});
+
 describe("Ghidra MCP evidence parity", () => {
   it("preserves provider evidence, composed parity, and capability routing", async () => {
     const harness = await connectGhidraMcp("ghidra-parity");

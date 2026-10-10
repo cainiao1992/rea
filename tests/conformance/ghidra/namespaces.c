@@ -5,6 +5,11 @@
 #define REA_CPP_SYMBOL(name) name
 #endif
 
+volatile int rea_namespace_alpha_value
+    __asm__(REA_CPP_SYMBOL("_ZN5alpha5valueE")) = 3;
+volatile int rea_namespace_nested_value
+    __asm__(REA_CPP_SYMBOL("_ZN5outer5inner5valueE")) = 1;
+
 __attribute__((noinline, used)) int rea_namespace_alpha(int value)
     __asm__(REA_CPP_SYMBOL("_ZN5alpha4sameEi"));
 __attribute__((noinline, used)) int rea_namespace_beta(int value)
@@ -12,9 +17,9 @@ __attribute__((noinline, used)) int rea_namespace_beta(int value)
 __attribute__((noinline, used)) int rea_namespace_nested(int value)
     __asm__(REA_CPP_SYMBOL("_ZN5outer5inner4sameEi"));
 
-int rea_namespace_alpha(int value) { return value + 3; }
+int rea_namespace_alpha(int value) { return value + rea_namespace_alpha_value; }
 int rea_namespace_beta(int value) { return value * 2; }
-int rea_namespace_nested(int value) { return value - 1; }
+int rea_namespace_nested(int value) { return value - rea_namespace_nested_value; }
 
 int main(void) {
   return rea_namespace_alpha(1) + rea_namespace_beta(2) +

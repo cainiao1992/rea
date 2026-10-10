@@ -91,8 +91,9 @@ it("reuses immutable engine state while keeping each Evidence observation separa
   await verifyCleanup(launches);
 });
 
-it("bounds output per operation across a retained session rather than accumulating earlier captures", async () => {
-  const { service, apk, launches, provider } = await setup("large-manifest");
+it("bounds output per operation without repeating prerequisite probes for a retained session", async () => {
+  const { service, apk, launches, provider, javaProbeCount } =
+    await setup("large-manifest");
   const expectedManifest = "x".repeat(1024 * 1024);
   for (let index = 0; index < 34; index += 1) {
     const result = await service.execute("inspect_android_package", {
@@ -106,12 +107,14 @@ it("bounds output per operation across a retained session rather than accumulati
     ).toBe(expectedManifest);
   }
   expect(launches).toHaveLength(1);
+  expect(await javaProbeCount()).toBe(1);
   await provider.close();
   await verifyCleanup(launches);
 });
 
 it("retire sessions when APK bytes, engine bytes or JVM options change", async () => {
-  const { service, apk, jar, launches, provider, environment } = await setup();
+  const { service, apk, jar, launches, provider, environment, javaProbeCount } =
+    await setup();
   const inspect = async () => {
     const result = await service.execute("inspect_android_package", {
       path: apk,
@@ -133,6 +136,7 @@ it("retire sessions when APK bytes, engine bytes or JVM options change", async (
   environment._JAVA_OPTIONS = "-XX:+UseG1GC";
   await inspect();
   expect(launches).toHaveLength(4);
+  expect(await javaProbeCount()).toBe(4);
   expect(launches[3]).toMatchObject({
     javaToolOptions: "-Xmx8g",
     legacyJavaOptions: "-XX:+UseG1GC",

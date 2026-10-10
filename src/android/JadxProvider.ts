@@ -27,7 +27,8 @@ import { hashStableFile } from "../filesystem/StableFileHash.js";
 import { RegularFileChangedError } from "../filesystem/RegularFile.js";
 import {
   inspectJadxAvailability,
-  resolveJadxConfiguration,
+  resolveJadxConfigurationInputs,
+  validateJadxConfiguration,
 } from "./JadxConfiguration.js";
 import type { JadxLauncher } from "./JadxMcpTransport.js";
 
@@ -333,7 +334,7 @@ export class JadxProvider implements AndroidAnalysisPort {
           request.operation,
           `Target ${target.path} is ${target.format}; provide one standalone APK.`,
         );
-      const configuration = await resolveJadxConfiguration(
+      const configuration = await resolveJadxConfigurationInputs(
         this.environment,
         request.operation,
         signal,
@@ -382,6 +383,12 @@ export class JadxProvider implements AndroidAnalysisPort {
       }
       let retained = this.#retained;
       if (retained === undefined) {
+        await validateJadxConfiguration(
+          configuration,
+          this.environment,
+          request.operation,
+          signal,
+        );
         root = await PrivateRuntimeRoot.create({ prefix: "rea-android-" });
         const engine = await snapshotAndroidEngine(
           configuration.jar,

@@ -14,6 +14,7 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 import { execFileOutput } from "../../../../src/process/ExecFileOutput.js";
 import { ArtifactReaderFailure } from "../../../../src/artifacts/ArtifactReader.js";
+import { ArtifactResourceScope } from "../../../../src/artifacts/ArtifactResourceScope.js";
 import {
   NativeDmgArtifactReader,
   type NativeDmgHost,
@@ -209,9 +210,11 @@ describe("DMG inventory reader ownership", () => {
 
     let reader: NativeDmgArtifactReader | undefined;
     let closeCalls = 0;
+    const resourceScope = new ArtifactResourceScope();
+    onTestFinished(() => resourceScope.close());
     const failure = await scanCanonicalArtifactInventory(
       path,
-      {},
+      { resourceScope },
       (inputPath, _format, environment) => {
         reader = new NativeDmgArtifactReader(inputPath, environment, host);
         const closeReader = reader.close.bind(reader);
@@ -240,7 +243,8 @@ describe("DMG inventory reader ownership", () => {
     expect(await realpath(mountRoot)).toBe(mountRoot);
 
     infoAvailable = true;
-    await reader.close();
+    await resourceScope.close();
+    expect(closeCalls).toBe(2);
     expect(attached).toBe(false);
     await expect(realpath(mountRoot)).rejects.toMatchObject({ code: "ENOENT" });
     expect(calls.map(([operation]) => operation)).toEqual([

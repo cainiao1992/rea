@@ -11,6 +11,7 @@ import {
   ArtifactReaderFailure,
   type ArtifactReader,
 } from "../ArtifactReader.js";
+import type { ArtifactResourceOwner } from "../ArtifactResourceScope.js";
 import {
   artifactInventoryResultSchema,
   type ArtifactInventoryResult,
@@ -50,7 +51,16 @@ import {
 
 export const scanCanonicalArtifactInventory = async (
   path: string,
-  options: ArtifactInventoryOptions = {},
+  options: ArtifactInventoryOptions,
+  readerFactory: typeof createReader = createReader,
+): Promise<ArtifactInventorySnapshot> =>
+  options.resourceScope.run(() =>
+    scanCanonicalArtifactInventoryInScope(path, options, readerFactory),
+  );
+
+export const scanCanonicalArtifactInventoryInScope = async (
+  path: string,
+  options: ArtifactInventoryOptions,
   readerFactory: typeof createReader = createReader,
 ): Promise<ArtifactInventorySnapshot> => {
   const integrity = options.integrity ?? STRICT_INTEGRITY_POLICY;
@@ -63,7 +73,7 @@ export const scanCanonicalArtifactInventory = async (
     path,
     metadata.isDirectory(),
     metadata,
-    options.signal,
+    options,
   );
   let reader: ArtifactReader | undefined;
   let readerCreationFailure: { readonly cause: unknown } | undefined;
@@ -78,12 +88,7 @@ export const scanCanonicalArtifactInventory = async (
     readerCreationFailure = { cause };
   }
   const ownedReaders: ArtifactReader[] = reader === undefined ? [] : [reader];
-  let outcome:
-    | {
-        readonly kind: "completed";
-        readonly snapshot: ArtifactInventorySnapshot;
-      }
-    | { readonly kind: "failed"; readonly cause: unknown };
+  let outcome: InventoryScanOutcome;
   try {
     if (readerCreationFailure !== undefined) throw readerCreationFailure.cause;
     if (reader instanceof AsarArtifactReader)
@@ -113,46 +118,67 @@ export const scanCanonicalArtifactInventory = async (
   } catch (cause: unknown) {
     outcome = { kind: "failed", cause };
   }
-  let cleanupFailure: ArtifactReaderFailure | undefined;
-  for (const owned of ownedReaders.reverse()) {
-    try {
-      await owned.close();
-    } catch (cleanupCause: unknown) {
-      const cleanup = ArtifactReaderFailure.cleanupObservation(
-        cleanupCause,
-        `artifact reader for ${path}`,
-      );
-      cleanupFailure = ArtifactReaderFailure.withCleanup(
-        cleanupFailure ??
-          (outcome.kind === "failed" ? outcome.cause : cleanupCause),
-        cleanup,
-        outcome.kind === "completed"
-          ? { kind: "artifact-inventory", inventory: outcome.snapshot }
-          : undefined,
-      );
-    }
-  }
-  if (rootSource !== undefined) {
-    try {
-      await rootSource.handle.close();
-    } catch (cleanupCause: unknown) {
-      const cleanup = ArtifactReaderFailure.cleanupObservation(
-        cleanupCause,
-        `root artifact descriptor for ${path}`,
-      );
-      cleanupFailure = ArtifactReaderFailure.withCleanup(
-        cleanupFailure ??
-          (outcome.kind === "failed" ? outcome.cause : cleanupCause),
-        cleanup,
-        outcome.kind === "completed"
-          ? { kind: "artifact-inventory", inventory: outcome.snapshot }
-          : undefined,
-      );
-    }
-  }
+  const cleanupFailure = await cleanupInventoryOwners({
+    path,
+    options,
+    rootSource,
+    ownedReaders,
+    outcome,
+  });
   if (cleanupFailure !== undefined) throw cleanupFailure;
   if (outcome.kind === "failed") throw outcome.cause;
   return outcome.snapshot;
+};
+
+type InventoryScanOutcome =
+  | {
+      readonly kind: "completed";
+      readonly snapshot: ArtifactInventorySnapshot;
+    }
+  | { readonly kind: "failed"; readonly cause: unknown };
+
+const cleanupInventoryOwners = async ({
+  path,
+  options,
+  rootSource,
+  ownedReaders,
+  outcome,
+}: {
+  readonly path: string;
+  readonly options: ArtifactInventoryOptions;
+  readonly rootSource: StableRegularFileDescriptor | undefined;
+  readonly ownedReaders: readonly ArtifactReader[];
+  readonly outcome: InventoryScanOutcome;
+}): Promise<ArtifactReaderFailure | undefined> => {
+  let cleanupFailure: ArtifactReaderFailure | undefined;
+  const owners: ArtifactResourceOwner[] = [...ownedReaders]
+    .reverse()
+    .map((reader) => ({
+      kind: "reader" as const,
+      reader,
+      resource: `artifact reader for ${path}`,
+    }));
+  if (rootSource !== undefined)
+    owners.push({
+      kind: "file-handle",
+      handle: rootSource.handle,
+      resource: `root artifact descriptor for ${path}`,
+    });
+  for (const owner of owners) {
+    const attempt = await options.resourceScope.release(owner);
+    if (attempt.kind === "released") continue;
+    const primary =
+      cleanupFailure ??
+      (outcome.kind === "failed" ? outcome.cause : attempt.cause);
+    cleanupFailure = ArtifactReaderFailure.withCleanup(
+      primary,
+      ArtifactReaderFailure.cleanupObservation(attempt.cause, owner.resource),
+      outcome.kind === "completed"
+        ? { kind: "artifact-inventory", inventory: outcome.snapshot }
+        : undefined,
+    );
+  }
+  return cleanupFailure;
 };
 
 interface SnapshotBuildInput {

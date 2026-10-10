@@ -12,6 +12,7 @@ import type { JavaScriptApplicationGraph } from "../../domain/javascript/javascr
 import type { JavaScriptSemanticGraph } from "../../domain/javascript/javascriptSemanticGraph.js";
 import type { ElectronBoundarySummary } from "../../domain/javascript/javascriptApplicationAnalysis.js";
 import type { ArtifactInventorySnapshot } from "../../domain/artifactInventorySnapshot.js";
+import type { ArtifactInventoryPartialObservation } from "../../domain/artifactPartialObservation.js";
 import { analyzeAndProjectJavaScriptArtifactFiles } from "./JavaScriptArtifactAnalysis.js";
 import { readJavaScriptArtifactFiles } from "../../artifacts/javascript/JavaScriptArtifactFiles.js";
 import { buildImmutableJavaScriptArtifactGraphSteps } from "./JavaScriptArtifactGraphBuilder.js";
@@ -19,7 +20,8 @@ import {
   javascriptArtifactReconstructionInputSchema,
   type JavaScriptArtifactReconstructionInput,
 } from "./JavaScriptArtifactReconstructionInput.js";
-import { scanCanonicalArtifactInventory } from "../../artifacts/inventory/scanCanonical.js";
+import { scanCanonicalArtifactInventoryInScope } from "../../artifacts/inventory/scanCanonical.js";
+import type { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
 import { summarizeElectronBoundaries } from "./ElectronBoundaryAnalysis.js";
 import { createJavaScriptSemanticGraphProjection } from "./JavaScriptSemanticGraphBuilder.js";
 import type { ProgressReporter } from "../ProgressReporter.js";
@@ -56,118 +58,156 @@ export interface JavaScriptArtifactReconstructionResult {
 /** Reconstruct one local ASAR or extracted directory without executing code. */
 export const reconstructJavaScriptArtifact = async (
   rawInput: unknown,
+  scope: ArtifactResourceScope,
   signal?: AbortSignal,
   progress?: ProgressReporter,
-): Promise<JavaScriptArtifactReconstructionResult> => {
-  const reportPhase = async (phase: string, message: string): Promise<void> => {
-    await progress?.report({ phase, completed: 0, total: 1, message });
-    await checkpointJavaScriptAnalysis(signal);
-  };
-  const input = javascriptArtifactReconstructionInputSchema.parse(rawInput);
-  abortIfNeeded(signal);
-  const path = await resolveSelectedInput(input.input_path);
-  const format = await resolveFormat(path, input);
-  const snapshot = await scanCanonicalArtifactInventory(path, {
-    signal,
-    integrity: { mode: input.integrity_policy },
-  });
-  if (snapshot.manifest.root_format !== format)
-    throw new ArtifactReaderFailure(
-      "format",
-      `Artifact inventory classified ${path} as ${snapshot.manifest.root_format}, not ${format}`,
-    );
-  const reader = createReader(path, format);
-  try {
-    await reportPhase(
-      "read_javascript_artifacts",
-      "Reading inventoried JavaScript application sources",
-    );
-    const files = await readJavaScriptArtifactFiles(reader, snapshot, signal);
-    await reportPhase(
-      "parse_javascript_sources",
-      `Parsing and projecting ${String(files.files.length)} application source files`,
-    );
-    const semanticProjection = createJavaScriptSemanticGraphProjection();
-    const analysis = await analyzeAndProjectJavaScriptArtifactFiles(
-      files,
-      semanticProjection.projectFileSteps,
-      async (file, completed, total) => {
-        abortIfNeeded(signal);
-        await progress?.report({
-          phase: "parse_javascript_source",
-          completed: 0,
-          total: 1,
-          message: `Parsing and projecting ${file.path} (${String(completed + 1)}/${String(total)})`,
-        });
-        abortIfNeeded(signal);
-      },
-      signal,
-    );
-    await checkpointJavaScriptAnalysis(signal);
-    abortIfNeeded(signal);
-    await reportPhase(
-      "build_javascript_application_graph",
-      "Constructing application and Electron boundary relationships",
-    );
-    const applicationGraphSteps = buildImmutableJavaScriptArtifactGraphSteps(
-      snapshot,
-      files,
-      analysis,
-    );
-    await reportPhase(
-      "seal_javascript_application_graph",
-      "Sealing the validated application graph",
-    );
-    const graph = await completeJavaScriptAnalysisSteps(
-      applicationGraphSteps,
-      signal,
-    );
-    await reportPhase(
-      "build_javascript_semantic_graph",
-      "Binding and validating static semantic relationships",
-    );
-    const semanticGraphSteps = semanticProjection.finishImmutableSteps(
-      snapshot.manifest.root_sha256,
-      graph,
-    );
-    await reportPhase(
-      "seal_javascript_semantic_graph",
-      "Validating and sealing the semantic graph",
-    );
-    const semanticGraph = await completeJavaScriptAnalysisSteps(
-      semanticGraphSteps,
-      signal,
-    );
-    await checkpointJavaScriptAnalysis(signal);
-    return {
-      input_path: path,
-      format,
-      root_artifact_sha256: snapshot.manifest.root_sha256,
-      inventory_manifest_id: snapshot.manifest.manifest_id,
-      inventory_graph_sha256: snapshot.manifest.graph_sha256,
-      integrity_contradictions: snapshot.integrity_contradictions,
-      graph,
-      semantic_graph: semanticGraph,
-      electron_summary: summarizeElectronBoundaries(analysis),
-      statistics: {
-        relevant_files: files.files.length,
-        nested_asar_containers: files.containers.length,
-        text_bytes_read: files.text_bytes_read,
-        invalid_utf8_files: files.invalid_utf8_files,
-        parsed_javascript_files: analysis.files.filter(
-          ({ javascript }) => javascript !== null,
-        ).length,
-        visited_ast_nodes: analysis.visited_ast_nodes,
-        findings: analysis.findings,
-        modules: analysis.modules,
-        parse_failures: analysis.parse_failures,
-      },
-      limitations: analysis.limitations,
+): Promise<JavaScriptArtifactReconstructionResult> =>
+  scope.run(async () => {
+    const reportPhase = async (
+      phase: string,
+      message: string,
+    ): Promise<void> => {
+      await progress?.report({ phase, completed: 0, total: 1, message });
+      await checkpointJavaScriptAnalysis(signal);
     };
-  } finally {
-    await reader.close();
-  }
-};
+    const input = javascriptArtifactReconstructionInputSchema.parse(rawInput);
+    abortIfNeeded(signal);
+    const path = await resolveSelectedInput(input.input_path);
+    const format = await resolveFormat(path, input);
+    const snapshot = await scanCanonicalArtifactInventoryInScope(path, {
+      resourceScope: scope,
+      signal,
+      integrity: { mode: input.integrity_policy },
+    });
+    if (snapshot.manifest.root_format !== format)
+      throw new ArtifactReaderFailure(
+        "format",
+        `Artifact inventory classified ${path} as ${snapshot.manifest.root_format}, not ${format}`,
+      );
+    const reader = createReader(path, format);
+    let outcome:
+      | {
+          readonly kind: "completed";
+          readonly result: JavaScriptArtifactReconstructionResult;
+        }
+      | { readonly kind: "failed"; readonly cause: unknown };
+    try {
+      await reportPhase(
+        "read_javascript_artifacts",
+        "Reading inventoried JavaScript application sources",
+      );
+      const files = await readJavaScriptArtifactFiles(reader, snapshot, signal);
+      await reportPhase(
+        "parse_javascript_sources",
+        `Parsing and projecting ${String(files.files.length)} application source files`,
+      );
+      const semanticProjection = createJavaScriptSemanticGraphProjection();
+      const analysis = await analyzeAndProjectJavaScriptArtifactFiles(
+        files,
+        semanticProjection.projectFileSteps,
+        async (file, completed, total) => {
+          abortIfNeeded(signal);
+          await progress?.report({
+            phase: "parse_javascript_source",
+            completed: 0,
+            total: 1,
+            message: `Parsing and projecting ${file.path} (${String(completed + 1)}/${String(total)})`,
+          });
+          abortIfNeeded(signal);
+        },
+        signal,
+      );
+      await checkpointJavaScriptAnalysis(signal);
+      abortIfNeeded(signal);
+      await reportPhase(
+        "build_javascript_application_graph",
+        "Constructing application and Electron boundary relationships",
+      );
+      const applicationGraphSteps = buildImmutableJavaScriptArtifactGraphSteps(
+        snapshot,
+        files,
+        analysis,
+      );
+      await reportPhase(
+        "seal_javascript_application_graph",
+        "Sealing the validated application graph",
+      );
+      const graph = await completeJavaScriptAnalysisSteps(
+        applicationGraphSteps,
+        signal,
+      );
+      await reportPhase(
+        "build_javascript_semantic_graph",
+        "Binding and validating static semantic relationships",
+      );
+      const semanticGraphSteps = semanticProjection.finishImmutableSteps(
+        snapshot.manifest.root_sha256,
+        graph,
+      );
+      await reportPhase(
+        "seal_javascript_semantic_graph",
+        "Validating and sealing the semantic graph",
+      );
+      const semanticGraph = await completeJavaScriptAnalysisSteps(
+        semanticGraphSteps,
+        signal,
+      );
+      await checkpointJavaScriptAnalysis(signal);
+      outcome = {
+        kind: "completed",
+        result: {
+          input_path: path,
+          format,
+          root_artifact_sha256: snapshot.manifest.root_sha256,
+          inventory_manifest_id: snapshot.manifest.manifest_id,
+          inventory_graph_sha256: snapshot.manifest.graph_sha256,
+          integrity_contradictions: snapshot.integrity_contradictions,
+          graph,
+          semantic_graph: semanticGraph,
+          electron_summary: summarizeElectronBoundaries(analysis),
+          statistics: {
+            relevant_files: files.files.length,
+            nested_asar_containers: files.containers.length,
+            text_bytes_read: files.text_bytes_read,
+            invalid_utf8_files: files.invalid_utf8_files,
+            parsed_javascript_files: analysis.files.filter(
+              ({ javascript }) => javascript !== null,
+            ).length,
+            visited_ast_nodes: analysis.visited_ast_nodes,
+            findings: analysis.findings,
+            modules: analysis.modules,
+            parse_failures: analysis.parse_failures,
+          },
+          limitations: analysis.limitations,
+        },
+      };
+    } catch (cause: unknown) {
+      outcome = { kind: "failed", cause };
+    }
+    const owner = {
+      kind: "reader" as const,
+      reader,
+      resource: `JavaScript artifact reader for ${path}`,
+    };
+    const cleanupAttempt = await scope.release(owner);
+    if (cleanupAttempt.kind === "failed") {
+      const cleanup = ArtifactReaderFailure.cleanupObservation(
+        cleanupAttempt.cause,
+        owner.resource,
+      );
+      const partialObservation: ArtifactInventoryPartialObservation = {
+        kind: "artifact-inventory",
+        inventory: snapshot,
+      };
+      throw ArtifactReaderFailure.withCleanup(
+        outcome.kind === "failed" ? outcome.cause : cleanupAttempt.cause,
+        cleanup,
+        partialObservation,
+      );
+    }
+    if (outcome.kind === "failed") throw outcome.cause;
+    return outcome.result;
+  });
 
 const OPERATION = "analyze_javascript_application";
 

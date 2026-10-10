@@ -8,7 +8,7 @@ import { afterEach, expect, it } from "vitest";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import { createElectronEvidence } from "../../../src/application/javascript/ElectronEvidence.js";
-import { analyzeJavaScriptApplication } from "../../../src/application/javascript/JavaScriptApplicationService.js";
+import { analyzeJavaScriptApplication } from "../../support/javascriptApplicationScope.js";
 import {
   parseRuntimeReconciliationInput,
   reconcileJavaScriptRuntime,

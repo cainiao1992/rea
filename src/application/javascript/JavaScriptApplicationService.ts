@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
+import type { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
 import {
   analyzeJavaScriptApplicationInputSchema,
   parseOwnedJavaScriptApplicationAnalysisSteps,
@@ -32,6 +33,7 @@ const OPERATION = "analyze_javascript_application" as const;
 /** Statically analyze one local JavaScript/Electron application. */
 export const analyzeJavaScriptApplication = async (
   rawInput: unknown,
+  scope: ArtifactResourceScope,
   options: ExecutionOptions = {},
 ): Promise<Result<Evidence, AnalysisError>> => {
   const parsed = analyzeJavaScriptApplicationInputSchema.safeParse(rawInput);
@@ -39,12 +41,13 @@ export const analyzeJavaScriptApplication = async (
     return err(
       analysisInputErrorFromIssues(OPERATION, parsed.error.issues, rawInput),
     );
-  return analyzeJavaScriptApplicationValidated(parsed.data, options);
+  return analyzeJavaScriptApplicationValidated(parsed.data, scope, options);
 };
 
 /** Analyze input already parsed by a trusted adapter boundary. */
 export const analyzeJavaScriptApplicationValidated = async (
   input: z.output<typeof analyzeJavaScriptApplicationInputSchema>,
+  scope: ArtifactResourceScope,
   options: ExecutionOptions = {},
 ): Promise<Result<Evidence, AnalysisError>> => {
   try {
@@ -62,6 +65,7 @@ export const analyzeJavaScriptApplicationValidated = async (
         format: input.format,
         integrity_policy: input.integrity_policy,
       },
+      scope,
       options.signal,
       options.progress,
     );
@@ -114,14 +118,7 @@ export const analyzeJavaScriptApplicationValidated = async (
     )
       return err(cause);
     if (cause instanceof ArtifactReaderFailure)
-      return err(
-        new ArtifactOperationError(
-          OPERATION,
-          cause.reason,
-          cause.details,
-          cause.message,
-        ),
-      );
+      return err(artifactFailureToOperationError(cause));
     if (cause instanceof z.ZodError)
       return err(
         new AnalysisOutputError(OPERATION, describeResultSchemaFailure(cause), {
@@ -152,6 +149,23 @@ export const analyzeJavaScriptApplicationValidated = async (
     );
   }
 };
+
+const artifactFailureToOperationError = (
+  cause: ArtifactReaderFailure,
+): ArtifactOperationError =>
+  new ArtifactOperationError(
+    OPERATION,
+    cause.reason,
+    cause.details,
+    cause.message,
+    {
+      cause,
+      ...(cause.cleanup === undefined ? {} : { cleanup: cause.cleanup }),
+      ...(cause.partialObservation === undefined
+        ? {}
+        : { partialObservation: cause.partialObservation }),
+    },
+  );
 
 const describeResultSchemaFailure = (cause: z.ZodError): string => {
   const issue = cause.issues[0];

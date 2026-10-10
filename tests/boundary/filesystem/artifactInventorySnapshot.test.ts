@@ -1,7 +1,7 @@
 import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
@@ -10,9 +10,10 @@ import {
   ArtifactReaderFailure,
   type ArtifactReader,
 } from "../../../src/artifacts/ArtifactReader.js";
+import { ArtifactResourceScope } from "../../../src/artifacts/ArtifactResourceScope.js";
 import { DirectoryArtifactReader } from "../../../src/artifacts/DirectoryArtifactReader.js";
-import { scanCanonicalArtifactInventory } from "../../../src/artifacts/inventory/scanCanonical.js";
-import { scanArtifactInventory } from "../../../src/artifacts/inventory/ArtifactInventory.js";
+import { scanCanonicalArtifactInventory as scanCanonicalArtifactInventoryOwned } from "../../../src/artifacts/inventory/scanCanonical.js";
+import { scanArtifactInventory } from "../../fixtures/artifactInventory.js";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
 
 describe("artifact inventory snapshot", () => {
@@ -35,6 +36,9 @@ describe("artifact inventory snapshot", () => {
     const root = await createTestTempDirectory("rea-inventory-cleanup-");
     await writeFile(join(root, "observed.txt"), "observed");
     const directory = new DirectoryArtifactReader(root);
+    const resourceScope = new ArtifactResourceScope();
+    onTestFinished(() => resourceScope.close());
+    let closeAttempts = 0;
     const reader: ArtifactReader = {
       format: directory.format,
       entries: (signal) => directory.entries(signal),
@@ -42,6 +46,8 @@ describe("artifact inventory snapshot", () => {
       provenance: () => directory.provenance(),
       async close() {
         await directory.close();
+        closeAttempts += 1;
+        if (closeAttempts > 1) return;
         throw new ArtifactReaderFailure("unavailable", "mount still attached", {
           cleanup: {
             reason: "DMG detach failed",
@@ -50,9 +56,9 @@ describe("artifact inventory snapshot", () => {
         });
       },
     };
-    const failure = await scanCanonicalArtifactInventory(
+    const failure = await scanCanonicalArtifactInventoryOwned(
       root,
-      {},
+      { resourceScope },
       () => reader,
     ).catch((cause: unknown) => cause);
     expect(failure).toBeInstanceOf(ArtifactReaderFailure);
@@ -79,5 +85,7 @@ describe("artifact inventory snapshot", () => {
         },
       },
     });
+    await resourceScope.close();
+    expect(closeAttempts).toBe(2);
   });
 });

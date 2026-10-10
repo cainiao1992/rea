@@ -1,7 +1,7 @@
 import { parse } from "@babel/parser";
 import { expect, it } from "vitest";
 
-import { reconstructJavaScriptArtifact } from "../../../src/application/javascript/JavaScriptArtifactReconstruction.js";
+import { reconstructJavaScriptArtifact } from "../../support/javascriptApplicationScope.js";
 import {
   typeScriptDialectCases,
   createTypeScriptDialectArtifact,

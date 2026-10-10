@@ -6,8 +6,10 @@ import { createPackage, createPackageWithOptions } from "@electron/asar";
 import { expect, it } from "vitest";
 
 import { ArtifactProvider } from "../../../../src/artifacts/ArtifactProvider.js";
-import { materializeArtifactInventory } from "../../../../src/artifacts/extraction/ArtifactExtraction.js";
-import { scanArtifactInventory } from "../../../../src/artifacts/inventory/ArtifactInventory.js";
+import {
+  materializeArtifactInventory,
+  scanArtifactInventory,
+} from "../../../fixtures/artifactInventory.js";
 import { artifactExtractionResultSchema } from "../../../../src/domain/artifactGraph.js";
 import { projectAnalysisError } from "../../../../src/domain/analysisErrorProjection.js";
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";

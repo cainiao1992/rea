@@ -15,8 +15,10 @@ import {
   zipPackageFormatForPath,
 } from "../../domain/zipPackageFormat.js";
 import { ArtifactReaderFailure } from "../ArtifactReader.js";
+import { type ArtifactResourceOwner } from "../ArtifactResourceScope.js";
 import type { HashResult } from "../ArtifactHash.js";
 import { hashStableRootArtifactHandle } from "./hashStableRootArtifact.js";
+import type { ArtifactInventoryOptions } from "./types.js";
 
 interface RootClassification {
   readonly format: ArtifactOccurrence["artifact_format"];
@@ -32,19 +34,34 @@ export const classifyAndHashRoot = async (
   path: string,
   directory: boolean,
   expectedMetadata: Stats,
-  signal?: AbortSignal,
+  options: Pick<ArtifactInventoryOptions, "resourceScope" | "signal">,
 ): Promise<RootClassification> => {
-  const result = await classifyAndHashRootForInventory(
-    path,
-    directory,
-    expectedMetadata,
-    signal,
-  );
-  try {
+  return options.resourceScope.run(async () => {
+    const result = await classifyAndHashRootForInventory(
+      path,
+      directory,
+      expectedMetadata,
+      options,
+    );
+    const rootSource = result.rootSource;
+    if (rootSource !== undefined) {
+      const owner: ArtifactResourceOwner = {
+        kind: "file-handle",
+        handle: rootSource.handle,
+        resource: `root artifact descriptor for ${path}`,
+      };
+      const cleanupAttempt = await options.resourceScope.release(owner);
+      if (cleanupAttempt.kind === "failed")
+        throw ArtifactReaderFailure.withCleanup(
+          cleanupAttempt.cause,
+          ArtifactReaderFailure.cleanupObservation(
+            cleanupAttempt.cause,
+            owner.resource,
+          ),
+        );
+    }
     return { format: result.format, digest: result.digest };
-  } finally {
-    await result.rootSource?.handle.close();
-  }
+  });
 };
 
 /** Classify a root and retain its admitted ZIP descriptor for child inventory. */
@@ -52,12 +69,22 @@ export const classifyAndHashRootForInventory = async (
   path: string,
   directory: boolean,
   expectedMetadata: Stats,
-  signal?: AbortSignal,
+  options: Pick<ArtifactInventoryOptions, "resourceScope" | "signal">,
 ): Promise<RootInventoryClassification> => {
   if (directory)
     return { format: "directory", digest: null, rootSource: undefined };
-  const handle = await openRootFile(path, signal);
-  let transferHandle = false;
+  const handle = await openRootFile(path, options.signal);
+  const owner: ArtifactResourceOwner = {
+    kind: "file-handle",
+    handle,
+    resource: `root artifact descriptor for ${path}`,
+  };
+  let outcome:
+    | {
+        readonly kind: "completed";
+        readonly value: RootInventoryClassification;
+      }
+    | { readonly kind: "failed"; readonly cause: unknown };
   try {
     const initial = await handle.stat();
     if (!sameRegularFileState(expectedMetadata, initial))
@@ -70,18 +97,33 @@ export const classifyAndHashRootForInventory = async (
       path,
       handle,
       initial,
-      signal,
+      options.signal,
     );
     const retainSource = isZipFormat(format) || format === "mach-o-universal";
-    if (retainSource) transferHandle = true;
-    return {
-      format,
-      digest,
-      rootSource: retainSource ? { handle, initial } : undefined,
+    outcome = {
+      kind: "completed",
+      value: {
+        format,
+        digest,
+        rootSource: retainSource ? { handle, initial } : undefined,
+      },
     };
-  } finally {
-    if (!transferHandle) await handle.close();
+  } catch (cause: unknown) {
+    outcome = { kind: "failed", cause };
   }
+  if (outcome.kind === "failed" || outcome.value.rootSource === undefined) {
+    const cleanupAttempt = await options.resourceScope.release(owner);
+    if (cleanupAttempt.kind === "failed")
+      throw ArtifactReaderFailure.withCleanup(
+        outcome.kind === "failed" ? outcome.cause : cleanupAttempt.cause,
+        ArtifactReaderFailure.cleanupObservation(
+          cleanupAttempt.cause,
+          owner.resource,
+        ),
+      );
+  }
+  if (outcome.kind === "failed") throw outcome.cause;
+  return outcome.value;
 };
 
 const isZipFormat = (format: ArtifactOccurrence["artifact_format"]): boolean =>

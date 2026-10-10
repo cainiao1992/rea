@@ -14,7 +14,7 @@ import { promisify } from "node:util";
 
 import { describe, expect, it, onTestFinished } from "vitest";
 
-import { analyzeJavaScriptApplication } from "../../../src/application/javascript/JavaScriptApplicationService.js";
+import { analyzeJavaScriptApplication } from "../../support/javascriptApplicationScope.js";
 import { exportWebScripts } from "../../../src/application/WebScriptExportService.js";
 import { publishWebScripts } from "../../../src/browser/assets/PublishWebScripts.js";
 import { selectScriptCapture } from "../../../src/browser/assets/ScriptCaptureAdapters.js";

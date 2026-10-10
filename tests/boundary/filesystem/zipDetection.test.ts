@@ -9,8 +9,10 @@ import {
 } from "@zip.js/zip.js";
 import { describe, expect, it } from "vitest";
 
-import { inventoryArtifact } from "../../../src/artifacts/inventory/ArtifactInventory.js";
-import { classifyAndHashRoot } from "../../../src/artifacts/inventory/classify.js";
+import {
+  classifyAndHashRoot,
+  inventoryArtifact,
+} from "../../fixtures/artifactInventory.js";
 import { parseBinaryTarget } from "../../../src/application/BinaryTargetResolver.js";
 import { artifactOccurrenceAt } from "../../fixtures/artifactEntryOrder.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";

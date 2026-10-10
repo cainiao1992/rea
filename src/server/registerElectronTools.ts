@@ -18,6 +18,7 @@ import {
   listElectronTargets,
 } from "../application/javascript/ElectronObservationService.js";
 import { analyzeJavaScriptApplicationValidated } from "../application/javascript/JavaScriptApplicationService.js";
+import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import { reconcileJavaScriptRuntimeEvidenceValidated } from "../application/javascript/JavaScriptRuntimeReconciliationService.js";
 import type { ProgressReporter } from "../application/ProgressReporter.js";
 import { toolContract } from "../contracts/toolContracts.js";
@@ -34,6 +35,7 @@ import type { WithAdmittedAnalysis } from "./analysisAdmission.js";
 import { runAdmittedToolOperation } from "./admittedToolOperation.js";
 
 interface ElectronToolRegistration {
+  readonly javascriptApplicationResources: ArtifactResourceScope;
   readonly logger: Logger;
   readonly observationLoadFailure?: OptionalProviderLoadFailure | undefined;
   readonly activeLoadFailure?: OptionalProviderLoadFailure | undefined;
@@ -104,6 +106,7 @@ export const registerElectronTools = (
         async ({ detail, ...request }, { signal, progress }) => {
           const analyzed = await analyzeJavaScriptApplicationValidated(
             request,
+            options.javascriptApplicationResources,
             { signal, progress },
           );
           return detail === "summary" && analyzed.ok

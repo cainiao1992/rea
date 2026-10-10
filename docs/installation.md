@@ -68,7 +68,15 @@ selects the npm release, and persistent MCP registrations are pinned to the
 version that performed setup. Installing newer instructions does not update a
 running server or its registration.
 
-The release checked on **2026-10-07** was **5.0.0** (133 MCP tools), published
+The npm release checked on **2026-10-10** was **6.3.0**, published from
+[`74cf9e14`](https://github.com/morluto/rea/commit/74cf9e1401fcd89482fe39c27cc898f5858e9b72),
+with bundled skill version 34. It does not include automatic Pi or Hermes
+registration: `setup --client pi` and `setup --client hermes` reject those IDs
+before writing configuration. Their setup workflows below require a source build
+or a later release containing those integrations; `@latest` alone cannot select
+unpublished changes.
+
+The earlier release checked on **2026-10-07** was **5.0.0** (133 MCP tools), published
 from the fixed checkpoint
 [`b33236ec`](https://github.com/morluto/rea/releases/tag/rea-agents-5.0.0).
 The public CLI, MCP catalog and target-free session, and isolated update from
@@ -155,6 +163,9 @@ schema constraints; REA still validates complete canonical inputs. Full-profile
 Windows remain unverified; see [native client verification](testing.md).
 
 For [Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/mcp.md),
+automatic setup requires a build containing the integration; npm 6.3.0 does not
+include it. See [released package and main](#released-package-and-main).
+In a supported build,
 setup writes a `type: "stdio"` entry under `mcpServers.rea` in the user-level
 `~/.pi/agent/mcp.json` and installs the bundled skill under `~/.agents/skills`.
 Use `rea setup --client pi --dry-run --json` to inspect the plan, then
@@ -213,7 +224,10 @@ registration. Doctor treats an `enabled: false` entry as active when
 `enabledServers` lists `rea`, as OMP does, unless `disabledServers` also lists
 it. Run setup under each profile that should load REA.
 
-For Hermes, setup writes a `mcp_servers.rea` entry to `config.yaml`, preserving
+For Hermes, automatic setup also requires a build containing the integration;
+npm 6.3.0 does not include it. See
+[released package and main](#released-package-and-main).
+In a supported build, setup writes a `mcp_servers.rea` entry to `config.yaml`, preserving
 comments and unrelated settings. It resolves that file from `HERMES_HOME`, else
 from the platform default Hermes itself uses — `%LOCALAPPDATA%\hermes` on
 Windows, `~/.hermes` elsewhere — including any `HERMES_DATA_DIR_SUFFIX`. Hermes

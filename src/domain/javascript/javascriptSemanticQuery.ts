@@ -3,7 +3,6 @@ import type {
   JavaScriptSemanticGraphNode,
   JavaScriptSemanticGraphRelation,
 } from "./javascriptSemanticGraphSchemas.js";
-import { compareUnicodeCodePoints } from "../unicodeCodePointOrder.js";
 import type { JavaScriptSemanticGraphUnknown } from "./javascriptSemanticGraphSchemas.js";
 import { isJavaScriptSemanticOwnershipRelation as ownershipRelation } from "./javascriptSemanticQueryRelations.js";
 import {
@@ -44,16 +43,14 @@ export const queryJavaScriptSemanticGraph = (
   const queryId = queryIdentifier(graph, input);
   const seeds = resolveSeeds(graph, input);
   const nodes = new Map(graph.nodes.map((node) => [node.node_id, node]));
-  const retainedSeeds = admitSeeds(nodes, seeds);
   const adjacency = buildAdjacency(graph.relations, input);
-  const traversal = traverse(nodes, retainedSeeds, adjacency);
+  const traversal = traverse(nodes, seeds, adjacency);
   const result = createQueryResult(graph, traversal);
-  const allRelevantUnknowns = relevantUnknownFrontiers(
+  const relevantUnknowns = relevantUnknownFrontiers(
     graph,
     traversal.nodeIds,
     input,
   );
-  const relevantUnknowns = allRelevantUnknowns;
   const candidateRelations = relevantCandidateRelationCount(
     graph,
     traversal.nodeIds,
@@ -83,7 +80,7 @@ export const queryJavaScriptSemanticGraph = (
     seed: input.seed,
     direction: input.direction,
     status: assessment.status,
-    seed_node_ids: retainedSeeds,
+    seed_node_ids: seeds,
     evidence_contexts: graph.evidence_contexts.filter(({ context_id }) =>
       retainedContextIds.has(context_id),
     ),
@@ -97,7 +94,7 @@ export const queryJavaScriptSemanticGraph = (
       traversed_relations: traversal.relationIds.size,
       traversed_functions: traversal.functionIds.size,
       traversed_modules: traversal.modules.size,
-      relevant_unknowns: allRelevantUnknowns.length,
+      relevant_unknowns: relevantUnknowns.length,
     },
     coverage: assessment.coverage,
     limitations: assessment.limitations,
@@ -115,19 +112,6 @@ const createQueryResult = (
     traversal.relationIds.has(relation_id),
   );
   return { retainedNodes, retainedRelations };
-};
-
-const admitSeeds = (
-  nodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>,
-  seeds: readonly string[],
-): string[] => {
-  const retained: string[] = [];
-  for (const nodeId of seeds) {
-    const node = nodes.get(nodeId);
-    if (node === undefined) continue;
-    retained.push(nodeId);
-  }
-  return retained;
 };
 
 const buildAdjacency = (
@@ -148,13 +132,6 @@ const buildAdjacency = (
       continue;
     addDirectedEntries(adjacency, relation, input.direction);
   }
-  for (const entries of adjacency.values())
-    entries.sort((left, right) =>
-      compareUnicodeCodePoints(
-        `${left.relation.relation_id}\0${left.nextNodeId}`,
-        `${right.relation.relation_id}\0${right.nextNodeId}`,
-      ),
-    );
   return adjacency;
 };
 

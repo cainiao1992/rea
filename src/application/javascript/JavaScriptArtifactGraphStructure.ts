@@ -26,6 +26,7 @@ import {
   staticInferenceEvidence,
 } from "./JavaScriptArtifactGraphEvidence.js";
 import { resolveArtifactPathByContext } from "./JavaScriptArtifactPathResolution.js";
+import { compareUnicodeCodePoints } from "../../domain/unicodeCodePointOrder.js";
 
 interface PackageRoleInput {
   readonly packageNode: ApplicationNode;
@@ -281,6 +282,7 @@ export const addJavaScriptPackageNodes = (
   context: JavaScriptArtifactGraphContext,
 ): ApplicationNode[] => {
   const roots: ApplicationNode[] = [];
+  const rootPath = applicationManifestPath(context);
   for (const packageValue of context.analysis.packages) {
     const file = context.filesByPath.get(packageValue.path);
     if (file === undefined) continue;
@@ -309,7 +311,7 @@ export const addJavaScriptPackageNodes = (
         },
       ],
     });
-    if (roots.length === 0) {
+    if (file.path === rootPath) {
       roots.push(node);
       context.accumulator.addEdge({
         source_node_id: node.node_id,
@@ -330,6 +332,7 @@ export const addJavaScriptPackageNodes = (
         file,
         operation: "inventory-package",
       });
+    if (dependencyManifest(file.path)) continue;
     addPackageRole(context, {
       packageNode: node,
       packageFile: file,
@@ -345,6 +348,24 @@ export const addJavaScriptPackageNodes = (
   }
   return roots;
 };
+
+/** Dependency-only artifacts retain their inventory root. */
+const applicationManifestPath = (
+  context: JavaScriptArtifactGraphContext,
+): string | undefined =>
+  context.analysis.packages
+    .map(({ path }) => path)
+    .filter(
+      (path) => context.filesByPath.has(path) && !dependencyManifest(path),
+    )
+    .sort(
+      (left, right) =>
+        left.split("/").length - right.split("/").length ||
+        compareUnicodeCodePoints(left, right),
+    )[0];
+
+const dependencyManifest = (path: string): boolean =>
+  path.split("/").slice(0, -1).includes("node_modules");
 
 const createFileTarget = (
   context: JavaScriptArtifactGraphContext,

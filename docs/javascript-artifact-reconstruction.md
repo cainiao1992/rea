@@ -60,6 +60,12 @@ manifest and graph commitments, JavaScript Application Graph, static
 Electron summary, reconstruction statistics, and explicit limitations. It does
 not require a live Hopper, Ghidra, browser, or Electron process.
 
+The application graph selects the shallowest `package.json` outside
+`node_modules` as its package root, breaking equal-depth ties by Unicode
+code-point order. Dependency manifests remain package observations but do not
+declare Electron main or renderer entries. If only dependency manifests are
+present, the inventory artifact remains the graph root.
+
 ## ASAR integrity
 
 ASAR inventory checks Electron integrity metadata for embedded archive entries

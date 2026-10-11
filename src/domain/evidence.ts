@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import { z } from "zod";
 
 import { digestCanonicalValue } from "./canonicalDigest.js";
@@ -182,6 +183,18 @@ export interface EvidenceSubjectTarget {
   readonly format: z.infer<typeof subjectSchema>["format"];
   readonly architecture?: BinaryArchitecture;
 }
+
+/** Rebind a matching immutable artifact subject to the caller's selected path. */
+export const rebindEvidenceSubjectTargetPath = (
+  subject: EvidenceSubjectTarget,
+  target: EvidenceSubjectTarget,
+): EvidenceSubjectTarget =>
+  subject.sha256 === target.sha256 &&
+  subject.format === target.format &&
+  (subject.architecture ?? null) === (target.architecture ?? null)
+    ? { ...subject, path: target.path }
+    : subject;
+
 type EvidenceAuthority = z.infer<typeof evidenceAuthoritySchema>;
 type ExecutionEnvironment = z.infer<typeof executionEnvironmentSchema>;
 
@@ -252,6 +265,43 @@ export const parseEvidence = (input: unknown): Evidence => {
 export const immutableEvidence = (input: unknown): Evidence =>
   rememberImmutableEvidence(parseEvidence(input));
 
+/** Rebind display path metadata when an authenticated record names this target. */
+export const rebindEvidenceToTargetPath = (
+  evidence: Evidence,
+  target: EvidenceSubjectTarget,
+): Evidence => {
+  const subject = evidence.subject;
+  if (subject === null) return evidence;
+  const rebound = rebindEvidenceSubjectTargetPath(
+    {
+      path: subject.local_path,
+      sha256: subject.digest.sha256,
+      format: subject.format,
+      ...(subject.architecture === null
+        ? {}
+        : { architecture: subject.architecture }),
+    },
+    target,
+  );
+  if (rebound.path === subject.local_path) return evidence;
+  const reboundSubject = subjectSchema.parse({
+    ...subject,
+    name: basename(target.path) || "artifact",
+    local_path: target.path,
+  });
+  const reboundEvidence = { ...evidence, subject: reboundSubject };
+  if (!isImmutableEvidence(evidence)) return immutableEvidence(reboundEvidence);
+
+  // The original authenticated Evidence owns immutable payloads. Only the
+  // small display subject and envelope are new, so preserve those payloads
+  // without reparsing a potentially large analysis result.
+  Object.freeze(reboundSubject.digest);
+  Object.freeze(reboundSubject);
+  Object.freeze(reboundEvidence);
+  immutableEvidenceSnapshots.set(reboundEvidence, reboundEvidence);
+  return reboundEvidence;
+};
+
 /** Recognize authenticated Evidence whose complete reachable JSON data is immutable. */
 export const isImmutableEvidence = (evidence: Evidence): boolean =>
   immutableEvidenceSnapshots.has(evidence);
@@ -316,7 +366,7 @@ const normalizeEvidenceObservation = (
     target === undefined
       ? null
       : {
-          name: target.path.split("/").at(-1) || "artifact",
+          name: basename(target.path) || "artifact",
           digest: { sha256: target.sha256 },
           format: target.format,
           architecture: target.architecture ?? null,

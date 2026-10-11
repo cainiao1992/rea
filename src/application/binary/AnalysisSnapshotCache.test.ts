@@ -115,6 +115,63 @@ it("exports independent nested query, workflow and Evidence payloads", () => {
   expect(serializeAnalysisSnapshot(fresh.value)).toBe(expected);
 });
 
+it("rebinds replayed target subjects while preserving child artifact subjects", () => {
+  const cache = new AnalysisSnapshotCache();
+  const target = ANALYSIS_SNAPSHOT_TARGET;
+  const profile = ANALYSIS_SNAPSHOT_PROFILE;
+  const relocatedTarget = { ...target, path: "/tmp/relocated-app" };
+  const parameters = { address: "0x1000" };
+  const locations = [{ kind: "address" as const, address: "0x1000" }];
+  cache.record({
+    target,
+    profile,
+    operation: "procedure_info",
+    parameters,
+    execution: createAnalysisExecution(
+      { name: "main" },
+      ANALYSIS_SNAPSHOT_PROVIDER,
+      {
+        subject: target,
+        rawResult: { provider: "raw" },
+        locations,
+        analysisProfile: profile,
+      },
+    ),
+  });
+
+  const replayedTarget = cache.lookup(
+    relocatedTarget,
+    profile,
+    "procedure_info",
+    parameters,
+  );
+  expect(replayedTarget?.subject?.path).toBe(relocatedTarget.path);
+  expect(replayedTarget?.rawResult).toEqual({ provider: "raw" });
+  expect(replayedTarget?.locations).toEqual(locations);
+
+  const childSubject = {
+    path: "/tmp/child.zip",
+    sha256: "b".repeat(64),
+    format: "zip" as const,
+  };
+  const childParameters = { address: "0x2000" };
+  cache.record({
+    target,
+    profile,
+    operation: "procedure_info",
+    parameters: childParameters,
+    execution: createAnalysisExecution(
+      { name: "child" },
+      ANALYSIS_SNAPSHOT_PROVIDER,
+      { subject: childSubject, analysisProfile: profile },
+    ),
+  });
+  expect(
+    cache.lookup(relocatedTarget, profile, "procedure_info", childParameters)
+      ?.subject,
+  ).toMatchObject(childSubject);
+});
+
 describe("analysis snapshot cache capacity", () => {
   it("shares capacity across query kinds while allowing replacements and fresh partitions", () => {
     const cache = new AnalysisSnapshotCache();

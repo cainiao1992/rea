@@ -1,48 +1,48 @@
-import { parseConfig } from "../../src/config/parseConfig.js";
+import { parseConfig } from "../../../src/config/parseConfig.js";
 import { writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { runDirectAnalysis } from "../../src/application/DirectAnalysis.js";
+import { runDirectAnalysis } from "../../../src/application/DirectAnalysis.js";
 import type {
   AnalysisProvider,
   CapabilityDescriptor,
   ProviderIdentity,
-} from "../../src/application/AnalysisProvider.js";
-import type { DirectAnalysisDependencies } from "../../src/application/DirectAnalysisDependencies.js";
-import { createAnalysisProfile } from "../../src/domain/analysisProfile.js";
-import { createAnalysisExecution } from "../../src/application/AnalysisProvider.js";
-import { ok } from "../../src/domain/result.js";
+} from "../../../src/application/AnalysisProvider.js";
+import type { DirectAnalysisDependencies } from "../../../src/application/DirectAnalysisDependencies.js";
+import { createAnalysisProfile } from "../../../src/domain/analysisProfile.js";
+import { createAnalysisExecution } from "../../../src/application/AnalysisProvider.js";
+import { ok } from "../../../src/domain/result.js";
 import {
   readAnalysisSnapshot,
   writeAnalysisSnapshot,
-} from "../../src/application/binary/AnalysisSnapshotFiles.js";
+} from "../../../src/application/binary/AnalysisSnapshotFiles.js";
 import {
   createEvidence,
   parseEvidence,
   type Evidence,
-} from "../../src/domain/evidence.js";
-import { createEvidenceBundle } from "../../src/domain/evidenceBundle.js";
+} from "../../../src/domain/evidence.js";
+import { createEvidenceBundle } from "../../../src/domain/evidenceBundle.js";
 import {
   REA_WORKFLOW_PROVIDER,
   workflowAnalysisProfile,
-} from "../../src/application/InvestigationProviders.js";
+} from "../../../src/application/InvestigationProviders.js";
 import {
   createAnalysisSnapshotWorkflowEntry,
   type AnalysisSnapshot,
-} from "../../src/domain/analysisSnapshot.js";
+} from "../../../src/domain/analysisSnapshot.js";
 import {
   createTestBinarySession,
   createTestProviderRouter,
-} from "../fixtures/binarySession.js";
-import { BinarySession } from "../../src/application/binary/BinarySession.js";
-import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
+} from "../../fixtures/binarySession.js";
+import { BinarySession } from "../../../src/application/binary/BinarySession.js";
+import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import {
   CAPABILITIES as GHIDRA_CAPABILITIES,
   GHIDRA_PROVIDER_IDENTITY,
-} from "../../src/ghidra/GhidraProviderCapabilities.js";
+} from "../../../src/ghidra/GhidraProviderCapabilities.js";
 
 const IDENTITY = {
   id: "snapshot-fixture",
@@ -550,6 +550,40 @@ describe("binary overview snapshot replay", () => {
     expect(second).toEqual(first);
     expect(fixture.calls.toSorted()).toEqual(operations.toSorted());
     expect(fixture.starts).toHaveLength(1);
+
+    const relocatedPath = join(dirname(fixture.path), "relocated.hop");
+    await writeFile(relocatedPath, "fixture");
+    const relocated = await runDirectAnalysis(
+      dependencies,
+      relocatedPath,
+      "binary_overview",
+      {},
+      { snapshotPath: fixture.snapshotPath },
+    );
+    const firstEvidence = parseEvidence(first);
+    const relocatedEvidence = parseEvidence(relocated);
+    expect(relocatedEvidence).toMatchObject({
+      evidence_id: firstEvidence.evidence_id,
+      subject: {
+        local_path: relocatedPath,
+        name: basename(relocatedPath),
+      },
+    });
+    expect(relocatedEvidence.normalized_result).toEqual(
+      firstEvidence.normalized_result,
+    );
+    expect(relocatedEvidence.raw_result).toEqual(firstEvidence.raw_result);
+    expect(relocatedEvidence.locations).toEqual(firstEvidence.locations);
+    expect(fixture.calls.toSorted()).toEqual(operations.toSorted());
+    expect(fixture.starts).toHaveLength(1);
+
+    const persisted = await readAnalysisSnapshot(fixture.snapshotPath);
+    if (!persisted.ok) throw persisted.error;
+    expect(
+      persisted.value.evidence_bundle.records.find(
+        (record) => record.evidence_id === firstEvidence.evidence_id,
+      )?.subject?.local_path,
+    ).toBe(fixture.path);
   });
 });
 

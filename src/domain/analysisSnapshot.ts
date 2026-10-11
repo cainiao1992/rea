@@ -27,6 +27,7 @@ import {
 } from "./evidenceBundle.js";
 import {
   evidenceLocationSchema,
+  rebindEvidenceToTargetPath,
   type Evidence,
   type EvidenceLocation,
   type EvidenceSubjectTarget,
@@ -411,7 +412,7 @@ export const snapshotEvidenceForQuery = (
     (candidate) => candidate.query_id === queryId,
   );
   if (entry === undefined && workflowEntry === undefined) return undefined;
-  return snapshot.evidence_bundle.records.find(
+  const evidence = snapshot.evidence_bundle.records.find(
     (record) =>
       record.subject?.digest.sha256 === target.sha256 &&
       record.operation === operation &&
@@ -425,6 +426,9 @@ export const snapshotEvidenceForQuery = (
         (workflowEntry !== undefined &&
           evidenceMatchesWorkflowEntry(record, workflowEntry, snapshot))),
   );
+  return evidence === undefined
+    ? undefined
+    : rebindEvidenceToTargetPath(evidence, target);
 };
 
 /** Create one exact replay record for a derived application workflow result. */

@@ -8,6 +8,7 @@ import {
 } from "../../domain/evidenceErrors.js";
 import { NoBinaryOpenError } from "../../domain/configurationErrors.js";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
+import { rebindEvidenceSubjectTargetPath } from "../../domain/evidence.js";
 import { err, ok, type Result } from "../../domain/result.js";
 import {
   analysisQueryId,
@@ -277,7 +278,21 @@ export class AnalysisSnapshotCache {
     );
     const cached = this.#entries.get(queryId);
     if (cached === undefined) return undefined;
-    const subject = cached.execution.subject;
+    const cachedSubject = cached.execution.subject;
+    const subject =
+      cachedSubject === null
+        ? null
+        : rebindEvidenceSubjectTargetPath(
+            {
+              path: cachedSubject.path,
+              sha256: cachedSubject.sha256,
+              format: cachedSubject.format,
+              ...(cachedSubject.architecture === null
+                ? {}
+                : { architecture: cachedSubject.architecture }),
+            },
+            target,
+          );
     return structuredClone({
       result: cached.execution.result,
       rawResult: cached.execution.raw_result,
@@ -288,21 +303,7 @@ export class AnalysisSnapshotCache {
         "Loaded from a local REA analysis snapshot; this call did not re-run the provider.",
       ],
       locations: cached.execution.locations,
-      subject:
-        subject === null
-          ? null
-          : subject.architecture === null
-            ? {
-                path: subject.path,
-                sha256: subject.sha256,
-                format: subject.format,
-              }
-            : {
-                path: subject.path,
-                sha256: subject.sha256,
-                format: subject.format,
-                architecture: subject.architecture,
-              },
+      subject,
     });
   }
 

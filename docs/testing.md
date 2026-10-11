@@ -801,6 +801,35 @@ separate Apple-artifact and real-provider lanes. Actual Hopper, Ghidra, IDA,
 browser and managed-tool claims require their corresponding verification lanes.
 Runner labels follow the [GitHub hosted-runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
 
+### Termux Android browser smoke test
+
+The **Real Termux browser verification** workflow is manual-only while its
+emulator setup is being validated. After the workflow reaches the default
+branch, select a revision under **Actions → Real Termux browser verification →
+Run workflow**. It boots an Android 11 (API 30) x86_64 emulator, installs the
+checksum-verified Termux 0.118.3 APK, and lets the app initialize its bootstrap.
+The host stages the selected revision using `git archive HEAD`; no workstation
+build outputs or dependencies are copied into Android.
+
+`scripts/verify/termux/emulator.sh` sends a `RUN_COMMAND` intent to Termux's app
+service. Root access is limited to staging files, sending the intent, and reading
+diagnostics; installation, compilation, Node, and Chromium run as Termux's app
+UID. The in-app script installs Termux's Android-linked Node distribution,
+checks its version against `.nvmrc`, pins npm from `packageManager`, runs
+`npm ci`, and builds with `build:termux`. Termux repository packages, including
+Chromium, are resolved at run time; their installed versions are logged.
+
+The verifier leaves Playwright's cache environment overrides unset, requires
+a healthy public MCP doctor result, and captures URL plus DOM from a loopback
+HTTP fixture through `capture-browser-scenario`. It checks completed steps,
+the exact URL, a DOM marker, and reported browser cleanup. This lane covers one
+Android emulator and Termux combination, not physical ARM devices, Electron,
+or the complete desktop browser suite. A workflow definition alone does not
+establish passing Android coverage; inspect its execution receipt.
+
+The `termux-browser-diagnostics` artifact retains the Termux command log, exit
+status, and Android logcat on success or failure. The emulator is disposable.
+
 ## Developer commands
 
 Use source feedback while editing, explicit boundary checks for the changed

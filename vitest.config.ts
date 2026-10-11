@@ -4,6 +4,18 @@ import { join } from "node:path";
 
 import { defineConfig } from "vitest/config";
 
+// Playwright's registry does not derive a cache directory for Termux's
+// `android` platform. Match the production CLI fallback before workers import
+// browser modules.
+if (
+  process.platform === "android" &&
+  process.env.PLAYWRIGHT_BROWSERS_PATH === undefined
+) {
+  const cacheRoot =
+    process.env.XDG_CACHE_HOME ?? join(process.env.HOME ?? ".", ".cache");
+  process.env.PLAYWRIGHT_BROWSERS_PATH = join(cacheRoot, "ms-playwright");
+}
+
 const CANONICAL_TEMPORARY_DIRECTORY = realpathSync(tmpdir());
 const COVERAGE_ENABLED = process.argv.some((argument) =>
   argument.startsWith("--coverage"),

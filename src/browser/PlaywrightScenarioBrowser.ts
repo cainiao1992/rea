@@ -273,13 +273,26 @@ const allowedBrowserEnvironment = (
     "XAUTHORITY",
     "XDG_RUNTIME_DIR",
   ];
-  return Object.fromEntries(
+  const selected = Object.fromEntries(
     allowed
       .map((name) => [name, environment[name]] as const)
       .filter(
         (entry): entry is readonly [string, string] => entry[1] !== undefined,
       ),
   );
+  if (process.platform !== "android") return selected;
+
+  // Android rejects execve() for binaries below Termux's application data
+  // directory. Termux supplies an exec interceptor that rewrites those calls
+  // through the system linker and removes itself for the launched program.
+  // Playwright must retain it for its Chromium child process.
+  const prefix = environment.PREFIX;
+  if (prefix === undefined) return selected;
+  return {
+    ...selected,
+    LD_PRELOAD: `${prefix}/lib/libtermux-exec.so`,
+    TERMUX_EXEC__PROC_SELF_EXE: process.execPath,
+  };
 };
 const findConnectedPage = async (
   browser: Pick<Browser, "contexts">,
@@ -495,6 +508,13 @@ export const openPlaywrightScenarioBrowser = async (
       handleSIGINT: false,
       handleSIGTERM: false,
       timeout: 0,
+      // Termux's Chromium cannot create its renderer process through Android's
+      // executable boundary. Single-process mode keeps the browser and page in
+      // the Termux-launched process so scenario navigation remains available.
+      args:
+        process.platform === "android"
+          ? ["--no-sandbox", "--single-process"]
+          : [],
     });
   } catch (cause: unknown) {
     const cleanup = () =>

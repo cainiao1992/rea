@@ -104,6 +104,8 @@
     "precheck:ci": "npm run deps:check",
     "check:ci": "node scripts/run-exclusive.mjs artifacts turbo run typecheck lint format:check knip metadata:check jscpd scan:todos && npm run verify:architecture-guards",
     "build:cached": "node scripts/check-dependency-install.mjs && node scripts/run-exclusive.mjs artifacts turbo run artifacts:skills",
+    "build:termux": "node scripts/run-exclusive.mjs artifacts npm run build:termux:run",
+    "build:termux:run": "npm run compile:termux && npm run artifacts:skills",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint && npm run verify:module-boundaries",
@@ -239,6 +241,7 @@
     "verify:recorded:crash": "npm run build:cached && node scripts/verify-recorded-crash.mjs",
     "mcp-catalog:check:built": "node scripts/generate-mcp-tool-catalog.mjs --check",
     "compile": "node scripts/clean-build-output.mjs && tsc -p tsconfig.build.json",
+    "compile:termux": "node scripts/clean-build-output.mjs && node --max-old-space-size=3072 node_modules/typescript-termux/lib/tsc.js -p tsconfig.build.json",
     "artifacts:mcp-catalog": "node scripts/generate-mcp-tool-catalog.mjs",
     "artifacts:skills": "node scripts/generate-skill-metadata.mjs",
     "artifacts:product-catalog": "node scripts/generate-product-catalog.mjs",
@@ -312,6 +315,7 @@
     "oxlint": "1.87.0",
     "turbo": "2.11.7",
     "typescript": "7.0.2",
+    "typescript-termux": "npm:typescript@5.9.3",
     "vitepress": "1.6.4",
     "vitest": "5.0.3"
   }

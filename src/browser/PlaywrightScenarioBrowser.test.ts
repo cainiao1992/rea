@@ -8,7 +8,12 @@ import {
   PlaywrightScenarioBrowserCleanupOwner,
 } from "./PlaywrightScenarioBrowser.js";
 
-afterEach(() => vi.unstubAllEnvs());
+const hostPlatform = process.platform;
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  Object.defineProperty(process, "platform", { value: hostPlatform });
+});
 
 it("locks one attached browser for spellings that discover the same endpoint", () => {
   expect(attachedScenarioLeaseKey("http://127.0.0.1:9222", "page-1")).toBe(
@@ -70,6 +75,43 @@ it("passes the selected environment to the actual browser launch boundary", asyn
   expect(launchedEnvironment).toEqual({
     LANG: "selected-language",
     PATH: "/selected/bin",
+  });
+});
+
+it("keeps Termux execution support when launching Chromium on Android", async () => {
+  Object.defineProperty(process, "platform", { value: "android" });
+  vi.stubEnv("PREFIX", "/data/data/com.termux/files/usr");
+  const selected = { LANG: "selected-language", PREFIX: process.env.PREFIX };
+  let launchOptions: Parameters<
+    typeof import("playwright-core").chromium.launchPersistentContext
+  >[1];
+  const scenario = browserScenarioSchema.parse({
+    browser: { mode: "launch", executable_path: process.execPath },
+    start_url: { url: "https://example.test" },
+    actions: [
+      { step_id: "settle", action: "wait_for_timeout", duration_ms: 1 },
+    ],
+  });
+
+  await expect(
+    openPlaywrightScenarioBrowser(scenario, selected, {
+      launcher: {
+        connectOverCDP: async () => {
+          throw new Error("Unexpected connection");
+        },
+        launchPersistentContext: async (_profile, options) => {
+          launchOptions = options;
+          throw new Error("launch boundary reached");
+        },
+      },
+    }),
+  ).rejects.toThrow("launch boundary reached");
+
+  expect(launchOptions?.args).toEqual(["--no-sandbox", "--single-process"]);
+  expect(launchOptions?.env).toEqual({
+    LANG: "selected-language",
+    LD_PRELOAD: "/data/data/com.termux/files/usr/lib/libtermux-exec.so",
+    TERMUX_EXEC__PROC_SELF_EXE: process.execPath,
   });
 });
 

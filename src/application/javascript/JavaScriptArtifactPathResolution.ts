@@ -162,6 +162,14 @@ const contextualCandidate = (
     return unresolvedCandidate("external", [
       "URL schemes and protocol-relative URLs are outside this local artifact path context.",
     ]);
+  if (context === "url-reference") {
+    const decoded = percentDecodeUrlPath(declared);
+    if (decoded === null)
+      return unresolvedCandidate("rejected", [
+        "The URL reference path percent-decodes to NUL or to bytes that are not UTF-8.",
+      ]);
+    declared = decoded;
+  }
   return relativeCandidate(input.sourcePath, declared);
 };
 

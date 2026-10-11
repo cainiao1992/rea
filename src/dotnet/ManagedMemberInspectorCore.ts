@@ -21,6 +21,9 @@ import {
 } from "./ManagedMetadataHeaps.js";
 
 export type ManagedType = ManagedMemberInspection["types"][number];
+export type ManagedExportedType = NonNullable<
+  ManagedMemberInspection["exported_types"]
+>[number];
 export type ManagedField = ManagedMemberInspection["fields"][number];
 export type ManagedMethod = ManagedMemberInspection["methods"][number];
 export type ManagedMemberRef = ManagedMemberInspection["member_refs"][number];

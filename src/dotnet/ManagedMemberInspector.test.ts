@@ -5,9 +5,12 @@ import { ManagedDecodeBudget } from "./ManagedDecodeBudget.js";
 import { edges } from "./ManagedMemberRows.js";
 import type { ManagedMethod } from "./ManagedMemberInspectorCore.js";
 import { ManagedReaderFailure } from "./ManagedReaderFailure.js";
+import { managedMemberInspectionSchema } from "../domain/managed/managedArtifact.js";
+import { comparisonLimitations } from "../domain/managed/managedMemberComparisonCoverage.js";
 
 import {
   buildManagedPeFixture,
+  buildNativePeFixture,
   managedPeFixtureTarget,
 } from "./ManagedPe.fixture.js";
 
@@ -135,6 +138,112 @@ describe("managed member inspection", () => {
       },
     ]);
     expect(result.coverage).toMatchObject({ state: "complete", issues: [] });
+  });
+});
+
+describe("managed exported types", () => {
+  it("reports type forwarders and nested exported types with their implementation scope", () => {
+    const bytes = buildManagedPeFixture({
+      exportedTypes: [
+        {
+          namespace: "System",
+          name: "Object",
+          flags: 0x0020_0001,
+          implementationRaw: (1 << 2) | 1,
+        },
+        {
+          namespace: "",
+          name: "Enumerator",
+          flags: 0x0000_0002,
+          implementationRaw: (1 << 2) | 2,
+        },
+      ],
+    });
+    const result = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.metadata.table_row_counts).toMatchObject({
+      ExportedType: 2,
+    });
+    expect(result.exported_types).toMatchObject([
+      {
+        token: "0x27000001",
+        namespace: "System",
+        name: "Object",
+        flags: 0x0020_0001,
+        forwarder: true,
+        type_def_id: 0,
+        implementation_token: "0x23000001",
+      },
+      {
+        token: "0x27000002",
+        namespace: "",
+        name: "Enumerator",
+        forwarder: false,
+        implementation_token: "0x27000001",
+      },
+    ]);
+    expect(result.coverage).toEqual({ state: "complete", issues: [] });
+  });
+
+  it("leaves exported types unknown when CLI metadata is unavailable", () => {
+    const bytes = buildNativePeFixture();
+    const result = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.coverage.state).toBe("unavailable");
+    expect(result.exported_types).toBeNull();
+  });
+
+  it("reads member Evidence recorded before exported types as unexamined", () => {
+    const bytes = buildManagedPeFixture();
+    const { exported_types: _omitted, ...legacy } = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+    const parsed = managedMemberInspectionSchema.parse(legacy);
+
+    expect(parsed.exported_types).toBeNull();
+    expect(comparisonLimitations(parsed, parsed)).toContain(
+      "At least one managed member observation predates ExportedType inspection; its exported and forwarded types are unknown.",
+    );
+  });
+
+  it("retains an exported type whose implementation is out of range as partial", () => {
+    const bytes = buildManagedPeFixture({
+      exportedTypes: [
+        {
+          namespace: "System",
+          name: "Object",
+          flags: 0x0020_0001,
+          implementationRaw: (9 << 2) | 1,
+        },
+      ],
+    });
+    const result = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.exported_types).toMatchObject([
+      { token: "0x27000001", name: "Object", implementation_token: null },
+    ]);
+    expect(result.coverage).toMatchObject({
+      state: "partial",
+      issues: [
+        {
+          code: "invalid-row",
+          scope: "metadata.ExportedType:0x27000001",
+          detail: expect.stringContaining(
+            "ExportedType implementation coded index 0x25 is invalid",
+          ),
+        },
+      ],
+    });
   });
 });
 

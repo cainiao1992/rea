@@ -336,9 +336,35 @@ it("reports a missing selected binary as a capability gap with recovery", async 
   if (result.ok) return;
   const projected = projectAnalysisError(result.error);
   expect(projected).toMatchObject({ code: "capability_unavailable" });
+  expect(projected.message).toContain("REA_ADB_PATH");
+  expect(projected.remediation).toMatchObject({
+    action: expect.stringContaining("REA_ADB_PATH") as unknown,
+  });
   expect(projected.details).toMatchObject({
     provider_id: "adb",
     reason: expect.stringContaining("not found") as unknown,
+  });
+});
+
+it("reports relative adb configuration as an actionable refusal", async () => {
+  const provider = new AdbProvider({
+    environment: { REA_ADB_PATH: "relative/adb" },
+  });
+  const availability = await provider.inspectAvailability();
+  expect(availability).toMatchObject({
+    status: "unavailable",
+    reason: expect.stringContaining("REA_ADB_PATH") as unknown,
+  });
+  const projected = await refusedBy(provider, {
+    operation: "list_adb_devices",
+    input: {},
+  });
+  expect(projected).toMatchObject({
+    code: "capability_unavailable",
+    message: expect.stringContaining("REA_ADB_PATH") as unknown,
+    remediation: {
+      action: expect.stringContaining("REA_ADB_PATH") as unknown,
+    },
   });
 });
 

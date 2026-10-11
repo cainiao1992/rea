@@ -34,13 +34,28 @@ it.each([
   expect(schema).toBeTruthy();
 });
 
-it("reports a missing adb binary with recovery guidance", async () => {
-  const result = await serve(["inspect-adb-client", "--json"], {
-    REA_ADB_PATH: "/nonexistent/adb",
-  });
-  expect(result.stdout).toContain("capability_unavailable");
-  expect(result.stdout).toContain("REA_ADB_PATH");
-});
+it.each([
+  ["inspect-adb-client", "/nonexistent/adb", "not found"],
+  ["list-adb-devices", "relative/adb", "absolute path"],
+])(
+  "%s names the adb configuration requirement",
+  async (command, binary, cause) => {
+    const result = await serve([command, "--json"], {
+      REA_ADB_PATH: binary,
+    });
+    const output = JSON.parse(result.stdout) as {
+      code?: unknown;
+      message?: unknown;
+      remediation?: { action?: unknown };
+    };
+    expect(output.code).toBe("capability_unavailable");
+    expect(output.message).toEqual(expect.stringContaining(cause));
+    expect(output.message).toEqual(expect.stringContaining("REA_ADB_PATH"));
+    expect(output.remediation?.action).toEqual(
+      expect.stringContaining("REA_ADB_PATH"),
+    );
+  },
+);
 
 it("validates device serials before contacting any device", async () => {
   const result = await serve(["inspect-adb-device", "bad serial", "--json"]);

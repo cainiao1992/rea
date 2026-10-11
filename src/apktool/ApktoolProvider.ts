@@ -20,6 +20,7 @@ import type {
   ExecutionOptions,
   ProviderAvailability,
 } from "../application/AnalysisProvider.js";
+import { providerConfigurationRefusal } from "../domain/providerConfigurationRefusal.js";
 import {
   createAnalysisExecution,
   type AnalysisExecution,
@@ -410,17 +411,11 @@ export class ApktoolProvider {
     } catch (cause) {
       if (cause instanceof AnalysisCancelledError) return err(cause);
       if (cause instanceof ApktoolConfigurationFailure) {
-        // A host configuration refusal; the target is not the problem.
-        const reason =
-          typeof cause.diagnostics.remediation === "string"
-            ? `${cause.message}. ${cause.diagnostics.remediation}.`
-            : `${cause.message}.`;
         return err(
-          new AnalysisCapabilityUnavailableError(
+          providerConfigurationRefusal(
             APKTOOL_PROVIDER_IDENTITY.id,
             request.operation,
-            reason,
-            { cause, userMessage: reason },
+            cause,
           ),
         );
       }

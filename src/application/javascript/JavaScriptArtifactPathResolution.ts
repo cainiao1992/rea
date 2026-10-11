@@ -60,6 +60,7 @@ export interface ResolveArtifactPathInput {
   readonly context: ArtifactPathResolutionContext;
   readonly files: ReadonlyMap<string, JavaScriptArtifactFile>;
   readonly htmlBaseHref?: string | null;
+  /** Import/require semantics; runtime resource paths omit this provenance. */
   readonly moduleKind?: "import" | "require";
 }
 
@@ -149,6 +150,7 @@ const resolvePath = (input: ResolveArtifactPathInput): CandidateResolution => {
     confined,
     new Set(),
     input.context === "module-specifier" &&
+      input.moduleKind !== undefined &&
       (input.declaredPath.startsWith(".") || input.declaredPath.startsWith("/"))
       ? typescriptEmittedSourceCandidates(input.sourcePath, confined)
       : [],

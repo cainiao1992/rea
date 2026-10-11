@@ -231,6 +231,11 @@ unknown instead of silently treating them as absent or verified.
 Plain `.ts` artifact sources use TypeScript syntax without JSX, including
 angle-bracket type assertions. `.tsx` and `.jsx` retain JSX parsing.
 
+Relative TypeScript imports can name their emitted `.js`, `.mjs`, or `.cjs`
+counterparts while resolving to inventoried source files. This substitution
+requires import or require semantics. Literal Electron preload, renderer, and
+utility-process runtime paths retain the runtime filename selected by the caller.
+
 Selected bounded text is then parsed as inert data to recover:
 
 - `package.json` metadata and declared main or renderer entrypoints;

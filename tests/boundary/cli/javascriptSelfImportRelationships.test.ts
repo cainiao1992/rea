@@ -12,6 +12,78 @@ import {
 } from "../../support/javascriptApplicationFixture.js";
 
 cliTest(
+  "resolves emitted module imports without substituting Electron runtime paths",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-typescript-runtime-paths-");
+    await writeFixtureFiles(root, {
+      "package.json": JSON.stringify({ main: "main.ts" }),
+      "main.ts": `import { BrowserWindow, utilityProcess } from "electron";
+        import "./worker.js";
+        import "./config.mjs";
+        import "./legacy.cjs";
+        import "./view.js";
+        import "./runtime.js";
+        const win = new BrowserWindow({webPreferences:{preload:"./worker.js"}});
+        win.loadURL("./renderer.js");
+        utilityProcess.fork("./worker.js");
+        utilityProcess.fork("./runtime.js");
+        throw new Error("source must stay inert");`,
+      "worker.ts": "export const worker = 1;",
+      "config.mts": "export const config = 1;",
+      "legacy.cts": "export const legacy = 1;",
+      "view.tsx": "export const view = <div />;",
+      "renderer.ts": "export const renderer = 1;",
+      "runtime.ts": "export const source = 1;",
+      "runtime.js": "throw new Error('runtime must stay inert');",
+    });
+    const output = await cli.run({
+      arguments: ["analyze-javascript-application", root, "--json"],
+    });
+    expect(output.exitCode, output.stderr).toBe(0);
+    const result = javascriptApplicationAnalysisResultSchema.parse(
+      parseEvidence(output.json).normalized_result,
+    );
+    const { graph } = result;
+    const source = findSourceModule(graph, "main.ts");
+    for (const [specifier, target] of [
+      ["./worker.js", "worker.ts"],
+      ["./config.mjs", "config.mts"],
+      ["./legacy.cjs", "legacy.cts"],
+      ["./view.js", "view.tsx"],
+      ["./runtime.js", "runtime.js"],
+    ] as const)
+      expect(
+        findGraphEdge(graph, source, findSourceModule(graph, target), "imports")
+          ?.properties,
+      ).toMatchObject({ specifier, resolved_path: target });
+    expect(result.summary).toMatchObject({
+      utility_processes: 2,
+      resolved_utility_entrypoints: 1,
+    });
+    expect(
+      graph.edges.find(
+        (edge) =>
+          edge.evidence.extractor.operation ===
+          "associate-browser-window-preload",
+      )?.properties,
+    ).toMatchObject({
+      declared_path: "./worker.js",
+      resolved_path: null,
+      resolution_status: "not-found",
+    });
+    expect(
+      graph.edges
+        .filter(
+          (edge) =>
+            edge.properties.declared_path === "./worker.js" ||
+            edge.properties.declared_path === "./renderer.js",
+        )
+        .some((edge) => edge.properties.resolved_path != null),
+    ).toBe(false);
+  },
+);
+
+cliTest(
   "returns literal self-import evidence while preserving sibling imports and self-re-exports",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-self-import-");

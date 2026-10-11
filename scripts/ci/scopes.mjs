@@ -214,7 +214,7 @@ export const SCOPES = {
     "src/artifacts/readStableArtifact.ts",
   ],
   nativeaot: [
-    "bridge/ghidra/extensions/nativeaot/**",
+    "bridge/nativeaot/**",
     "scripts/generate-nativeaot-fixtures.mjs",
     "tests/fixtures/nativeaot/**",
     ".github/workflows/nativeaot-fixtures.yml",

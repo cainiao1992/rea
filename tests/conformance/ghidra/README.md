@@ -39,3 +39,11 @@ bounded, and address-bearing; it never compares their text with Hopper. The
 callback fixture also proves that an unresolved targetless flow is not silently
 promoted to a direct callee. Every target runs in a separate owned project and
 must leave no process, socket, project, or runtime root after close.
+
+`relative-switch-signed.S` covers signed halfword offsets, the CBZ zero-entry
+route, and selector biases of 0, 2 and 10 in the AArch64 jump-table lane. The
+nonzero biases exercise overlapping and disjoint typed label/index ranges. REA
+retains Ghidra's typed labels when the compared selector has an earlier register
+definition; additional labels remain unknown until their relationship to the
+typed switch selector can be proved. The oracle rejects extra numeric labels
+and verifies each retained target against the source instruction immediate.

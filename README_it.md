@@ -20,7 +20,7 @@
 
 **[Sito web](https://rea.tools/it/) · [Guide](https://rea.tools/it/guides/) · [Showcase](https://rea.tools/it/showcase/)**
 
-[Quick start](#quick-start) · [Come funziona REA](#come-funziona-rea) · [Cosa puoi analizzare](#cosa-puoi-analizzare) · [Showcase](#showcase) · [FAQ](#faq) · [Documentazione](#documentazione)
+[Avvio rapido](#avvio-rapido) · [Come funziona REA](#come-funziona-rea) · [Cosa puoi analizzare](#cosa-puoi-analizzare) · [Showcase](#showcase) · [FAQ](#faq) · [Documentazione](#documentazione)
 
 <code>npx rea-agents setup</code>
 
@@ -56,7 +56,7 @@ La configurazione registra REA con il tuo agente e installa le istruzioni di wor
 
 > **[Visita il sito web di REA](https://rea.tools/it/)** per istruzioni di configurazione, guide illustrate e veri casi studio.
 
-## Quick start
+## Avvio rapido
 
 ### Configura il tuo agente
 
@@ -102,11 +102,13 @@ Per l'analisi nativa, configura prima un provider. Vedi la [guida CLI ed Evidenc
 
 REA cambia rapidamente e le nuove versioni includono correzioni di bug frequenti. Tieni aggiornata la tua installazione.
 
-Per una CLI installata via npm:
+Per una CLI installata con `npm install --global` o `bun add --global`:
 
 ```bash
 rea update
 ```
+
+Gli aggiornamenti globali con Bun richiedono Bun 1.2.17 o versioni successive. Con una versione precedente di Bun, aggiorna Bun manualmente prima di eseguire `rea update`.
 
 Per aggiornare le registrazioni del tuo agente e lo skill, esegui il comando di configurazione mostrato dall'aggiornamento.
 
@@ -116,7 +118,7 @@ Se usi `npx`, aggiorna la configurazione del tuo agente con:
 npx rea-agents@latest setup
 ```
 
-Rivedi le modifiche di configurazione e riavvia il tuo agente. Per comandi CLI singoli, usa `npx rea-agents@latest` seguito dal comando.
+Rivedi le modifiche di configurazione e riavvia il tuo agente. Per comandi CLI singoli, usa `npx rea-agents@latest` seguito dal comando. Con Bun, usa `bunx rea-agents@latest` al posto di `npx rea-agents@latest`.
 
 ## Come funziona REA
 
@@ -136,6 +138,7 @@ REA richiede Node.js 22.x (>=22.19), 24.x (>=24.11) o 26+, oltre a npm. Strument
 | ---------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | Binari nativi                | Pseudocodice, assembly, stringhe, simboli, chiamate e riferimenti                                 | Hopper, Ghidra o IDA; [analisi nativa](https://rea.tools/it/guides/native/)                                                         |
 | Layout ELF offline           | Sezioni, segmenti, simboli/relocazioni originali e candidati mitigazioni statiche                 | pwntools fornito dal chiamante su Linux x64; [diagnostica binaria](docs/binary-diagnostics.md)                                      |
+| Artefatto WASM               | Convalida, sezioni, forme WAT di import/export esatte e WAT decodificato                          | WABT 1.0.42 fornito dal chiamante; `inspect_wasm_artifact`                                                                          |
 | Bytecode EVM                 | Selettori di dispatch, offset dei byte, argomenti inferiti e mutabilità                           | Carrier raw/hex locale; [guida EVM offline](docs/evm-bytecode.md)                                                                   |
 | Crash Linux registrati       | Note grezze, registri/segnai di ogni thread registrato e candidati mapping opzionali              | pwntools fornito dal chiamante; GDB/pwndbg opzionale; [crash registrati](docs/recorded-crashes.md)                                  |
 | JavaScript / Electron        | Moduli, import, source map, route, IPC e relazioni con add-on nativi                              | Node.js e npm; [analisi delle applicazioni](https://rea.tools/it/guides/javascript/)                                                |
@@ -229,7 +232,7 @@ REA analizza i bersagli localmente. Il tuo agente riceve i risultati degli strum
 
 Aggiorna prima; una release recente potrebbe averlo già risolto.
 
-Per una CLI installata via npm:
+Per una CLI installata con `npm install --global` o `bun add --global`:
 
 ```bash
 rea update

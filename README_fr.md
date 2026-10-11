@@ -52,7 +52,7 @@ Vous avez repéré dans une application une fonctionnalité que vous aimeriez av
 
 REA connecte votre agent à des outils d'inspection de binaires natifs, d'applications JavaScript et Electron, d'assemblys .NET et de sites web. Les mêmes outils sont aussi disponibles depuis votre terminal. L'analyse s'exécute localement, et chaque conclusion s'accompagne des preuves et des limites sur lesquelles elle repose.
 
-Setup enregistre REA auprès de votre agent et installe les instructions de workflow correspondantes. L'analyse native peut utiliser une installation existante de Hopper ou de Ghidra ; Setup peut aussi installer Hopper après votre accord. L'analyse statique JavaScript ne nécessite aucun de ces moteurs.
+Setup enregistre REA auprès de votre agent et installe les instructions de workflow correspondantes. L'analyse native peut utiliser une installation existante de Hopper, de Ghidra ou d'IDA ; Setup peut aussi installer Hopper après votre accord. L'analyse statique JavaScript ne nécessite aucun moteur d'analyse natif.
 
 > **[Visitez le site web de REA](https://rea.tools/fr/)** pour les instructions d'installation, des guides illustrés et des études de cas réelles.
 
@@ -102,11 +102,13 @@ Pour l'analyse native, configurez d'abord un fournisseur. Consultez le [guide CL
 
 REA évolue rapidement, et les nouvelles versions apportent fréquemment des corrections de bugs. Maintenez votre installation à jour.
 
-Pour une CLI installée avec npm :
+Pour une CLI installée avec `npm install --global` ou `bun add --global` :
 
 ```bash
 rea update
 ```
+
+Les mises à jour globales avec Bun nécessitent Bun 1.2.17 ou une version ultérieure. Avec une version plus ancienne de Bun, mettez à jour Bun manuellement avant d'exécuter `rea update`.
 
 Pour actualiser les enregistrements de vos agents et le skill, exécutez la commande setup affichée par la mise à jour.
 
@@ -116,7 +118,7 @@ Si vous utilisez `npx`, mettez à jour la configuration de votre agent avec :
 npx rea-agents@latest setup
 ```
 
-Vérifiez les modifications proposées par Setup et redémarrez votre agent. Pour des commandes CLI ponctuelles, utilisez `npx rea-agents@latest` suivi de la commande.
+Vérifiez les modifications proposées par Setup et redémarrez votre agent. Pour des commandes CLI ponctuelles, utilisez `npx rea-agents@latest` suivi de la commande. Avec Bun, utilisez `bunx rea-agents@latest` à la place de `npx rea-agents@latest`.
 
 ## Comment fonctionne REA
 
@@ -136,6 +138,7 @@ REA nécessite Node.js 22.x (>=22.19), 24.x (>=24.11) ou 26+, ainsi que npm. Les
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | Binaires natifs              | Pseudo-code, assembleur, chaînes, symboles, appels et références                                            | Hopper, Ghidra ou IDA ; [analyse native](https://rea.tools/fr/guides/native/)                                                         |
 | Structure ELF hors ligne     | Sections, segments, symboles et relocations d'origine, et protections statiques candidates                  | pwntools fourni par l'utilisateur sous Linux x64 ; [diagnostics binaires](docs/binary-diagnostics.md)                                 |
+| Artefact WASM                | Validation, sections, formes WAT exactes d'import/export et WAT décodé                                      | WABT 1.0.42 fourni par l'utilisateur ; `inspect_wasm_artifact`                                                                        |
 | Bytecode EVM                 | Sélecteurs de dispatch, offsets en octets, arguments inférés et mutabilité                                  | Fichier local brut ou hexadécimal sous Linux x64 ; [guide EVM hors ligne](docs/evm-bytecode.md)                                       |
 | Crashs Linux enregistrés     | Notes brutes, registres et signaux de chaque thread enregistré, et correspondances de mappings facultatives | pwntools fourni par l'utilisateur sous Linux x64 ; GDB/pwndbg en option ; [crashs enregistrés](docs/recorded-crashes.md)              |
 | JavaScript / Electron        | Modules, imports, source maps, routes, IPC et relations avec les modules natifs                             | Node.js et npm ; [analyse d'applications](https://rea.tools/fr/guides/javascript/)                                                    |
@@ -229,7 +232,7 @@ REA analyse les cibles localement. Votre agent reçoit les résultats des outils
 
 Commencez par mettre à jour ; une version récente l'a peut-être déjà corrigé.
 
-Pour une CLI installée avec npm :
+Pour une CLI installée avec `npm install --global` ou `bun add --global` :
 
 ```bash
 rea update
@@ -250,7 +253,7 @@ Si vous utilisez un agent, terminez l'[actualisation de la configuration](#mettr
 Commencez par les [guides pas à pas](https://rea.tools/fr/guides/) du site web. Pour les options exactes, les prérequis et les contrats de résultats :
 
 - [Installation et configuration](docs/installation.md) : enregistrement des agents, configuration des fournisseurs, mises à jour et désinstallation.
-- [Vérification et dépannage](docs/installation.md#check-readiness-for-your-task) : diagnostiquer un agent ou un moteur d'analyse précis.
+- [Vérification et dépannage](docs/installation.md#check-readiness-for-your-task) : diagnostiquer un agent ou un moteur d'analyse donné.
 - [CLI et Evidence](docs/cli.md) : commandes, choix du fournisseur, snapshots, import/export et codes de sortie.
 - [Contrats MCP](docs/mcp-contracts.md) et [prompts pour agents](docs/mcp-prompts.md) : résultats des outils, sessions et investigations guidées.
 - [Catalogue des outils](docs/mcp-contracts.md#generated-catalog) : inventaire des outils, fournisseurs et commandes CLI, généré lors du build.
@@ -280,7 +283,7 @@ REA fournit des outils destinés à la recherche, à l'analyse et à la reconstr
 
 Votre aide sur REA est la bienvenue ! [Ouvrez une issue](https://github.com/morluto/rea/issues) pour signaler un bug ou proposer une fonctionnalité, ou [envoyez une pull request](https://github.com/morluto/rea/pulls) pour améliorer le code ou la documentation.
 
-Consultez [CONTRIBUTING.md](CONTRIBUTING.md) pour l'environnement de développement et les vérifications, la page [tests](docs/testing.md) pour les filières de vérification, et la [carte de l'architecture](docs/architecture.mermaid) pour la structure du projet.
+Consultez [CONTRIBUTING.md](CONTRIBUTING.md) pour l'environnement de développement et les vérifications, la page [tests](docs/testing.md) pour les procédures de vérification, et la [carte de l'architecture](docs/architecture.mermaid) pour la structure du projet.
 
 ## Licence
 

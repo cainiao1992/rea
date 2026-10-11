@@ -38,6 +38,12 @@ Inspect separately obtained components explicitly and preserve their identities.
 A valid implementation marker establishes a candidate native boundary, not
 recovered native semantics or runtime behavior.
 
+An assembly targeting [.NET Standard](https://learn.microsoft.com/en-us/dotnet/standard/net-standard)
+declares API compatibility across multiple .NET implementations. REA preserves
+that target in `target_frameworks` and leaves `runtime_family` as `unknown`
+unless independent markers identify a runtime family, such as a ReadyToRun
+signature.
+
 ### Resource admission
 
 The static provider admits regular input files up to 128 MiB before retaining

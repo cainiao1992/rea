@@ -8,6 +8,56 @@ import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
 
 cliTest(
+  "managed CLI separates .NET Standard API targets from runtime evidence",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-managed-runtime-family-");
+    for (const [name, targetFramework, readyToRun, runtimeFamily] of [
+      ["standard", ".NETStandard,Version=v2.0", false, "unknown"],
+      ["core", ".NETCoreApp,Version=v8.0", false, "modern-dotnet"],
+      ["standard-r2r", ".NETStandard,Version=v2.0", true, "modern-dotnet"],
+    ] as const) {
+      const path = join(root, `${name}.dll`);
+      await writeFile(
+        path,
+        buildManagedPeFixture({ targetFramework, readyToRun }),
+      );
+      const result = await cli.run({
+        arguments: ["inspect-managed-artifact", path, "--json"],
+      });
+      expect(result.exitCode).toBe(0);
+      expect(result.json).toMatchObject({
+        operation: "inspect_managed_artifact",
+        subject: { local_path: path },
+        normalized_result: {
+          classification: {
+            status: "managed",
+            runtime_family: runtimeFamily,
+            implementation: readyToRun ? "cil-and-ready-to-run" : "cil",
+            evidence: expect.arrayContaining([
+              expect.objectContaining({
+                code: readyToRun
+                  ? "ready-to-run-signature-observed"
+                  : "target-framework-observed",
+                detail: expect.stringContaining(
+                  readyToRun
+                    ? "ReadyToRun signature"
+                    : name === "standard"
+                      ? "does not identify a runtime family"
+                      : "names modern .NET",
+                ),
+                file_offset: expect.any(Number),
+              }),
+            ]),
+          },
+          target_frameworks: [targetFramework],
+          coverage: { state: "complete", issues: [] },
+        },
+      });
+    }
+  },
+);
+
+cliTest(
   "managed CLI preserves evidence, filters, envelopes, and bounded token counts",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-managed-cli-output-");

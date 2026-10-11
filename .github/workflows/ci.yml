@@ -378,6 +378,8 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Verify Apple artifact formats and metadata
+        env:
+          REA_ARTIFACT_NODE_COMPILE_CACHE: ${{ runner.temp }}/rea-artifact-node-cache
         run: |
           npm run verify:keyed-archive
           npm run verify:asset-catalog

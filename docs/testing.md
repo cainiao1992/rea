@@ -991,6 +991,13 @@ the fixture cache. These subprocesses are outside aggregate Vitest coverage;
 subprocess coverage attachment remains disabled. Cold-start import checks launch
 independently without this fixture cache.
 
+The Apple artifact verifier step shares a job-temporary bytecode cache among
+its fresh CLI/MCP children via `REA_ARTIFACT_NODE_COMPILE_CACHE`. The artifact
+helper maps this setting to child `NODE_COMPILE_CACHE`; npm, Turbo, and nested
+Vitest runs do not inherit that setting. Explicit `NODE_COMPILE_CACHE` takes
+precedence, and coverage collection or `NODE_DISABLE_COMPILE_CACHE=1` disables
+the helper's cache. The cache is discarded with the CI job.
+
 To evaluate persistent compile caching for repeated local runs, opt in for both
 cold and warm measurements with an isolated cache:
 

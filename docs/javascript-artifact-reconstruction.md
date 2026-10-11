@@ -66,6 +66,45 @@ code-point order. Dependency manifests remain package observations but do not
 declare Electron main or renderer entries. If only dependency manifests are
 present, the inventory artifact remains the graph root.
 
+## Select sources before analysis
+
+For a question about known entry sources, supply exact artifact-relative file
+paths in `source_paths`, or repeat `--source-path` on either CLI route:
+
+```bash
+rea analyze /absolute/path/to/app.asar \
+  --source-path package.json --source-path main.js --json
+```
+
+```json
+{
+  "input_path": "/absolute/path/to/app.asar",
+  "source_paths": ["package.json", "main.js"],
+  "detail": "summary"
+}
+```
+
+REA inventories and verifies the complete artifact, including unselected bytes,
+but allocates source text and performs static analysis only for selected files.
+Include supporting manifests, HTML or source maps explicitly when needed;
+imports do not expand the selection. Paths must match relevant inventoried
+files exactly, including nested ASAR prefixes. Unknown paths, aliases and globs
+return an `invalid_request` correction. Selected files are analyzed in request
+order before unselected scopes are projected. Repeated paths preserve the
+caller's request and first-occurrence priority, analyzing the file once.
+Omit the selection for the existing complete
+application workflow.
+
+The result and summary retain `source_selection.requested_paths` and
+`source_selection.unselected_files`. Every relevant file keeps its original
+inventory identity; unselected files report `text_status:
+"outside-analysis-scope"`. Their relationships remain unknown, and application
+coverage is partial while any file remains outside scope. Selection does not
+claim whole-application completeness or change integrity policy. Summary detail
+only reduces delivery; source selection reduces text acquisition and analysis.
+Explicit native provider or snapshot routing rejects `--source-path` rather
+than ignoring it.
+
 ## ASAR integrity
 
 ASAR inventory checks Electron integrity metadata for embedded archive entries

@@ -66,6 +66,9 @@ export const analyzeJavaScriptApplicationValidated = async (
         input_path: input.input_path,
         format: input.format,
         integrity_policy: input.integrity_policy,
+        ...(input.source_paths === undefined
+          ? {}
+          : { source_paths: input.source_paths }),
         ...(input.max_heap_mb === undefined
           ? {}
           : { max_heap_mb: input.max_heap_mb }),

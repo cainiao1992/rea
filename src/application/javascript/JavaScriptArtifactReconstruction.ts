@@ -11,6 +11,7 @@ import {
 import { createJavaScriptArtifactReader as createReader } from "../../artifacts/javascript/JavaScriptArtifactReader.js";
 import type { JavaScriptApplicationGraph } from "../../domain/javascript/javascriptApplicationGraph.js";
 import type { JavaScriptSemanticGraph } from "../../domain/javascript/javascriptSemanticGraph.js";
+import type { JavaScriptSourceSelection } from "../../domain/javascript/javascriptSourceSelection.js";
 import type { ElectronBoundarySummary } from "../../domain/javascript/javascriptApplicationAnalysis.js";
 import { parseOwnedJavaScriptApplicationAnalysisSteps } from "../../domain/javascript/javascriptApplicationAnalysis.js";
 import { AnalysisError } from "../../domain/analysisErrorBase.js";
@@ -45,6 +46,7 @@ export interface JavaScriptArtifactReconstructionResult {
   readonly inventory_manifest_id: string;
   readonly inventory_graph_sha256: string;
   readonly integrity_contradictions: ArtifactInventorySnapshot["integrity_contradictions"];
+  readonly source_selection?: JavaScriptSourceSelection;
   readonly graph: JavaScriptApplicationGraph;
   readonly semantic_graph: JavaScriptSemanticGraph;
   readonly electron_summary: ElectronBoundarySummary;
@@ -119,6 +121,7 @@ export const reconstructJavaScriptArtifact = async (
         snapshot,
         scope,
         signal,
+        input.source_paths,
       );
       // Release acquisition before analysis consumes these owned file facts.
       const earlyCleanup = await scope.release(readerOwner);
@@ -134,7 +137,7 @@ export const reconstructJavaScriptArtifact = async (
         );
       await reportPhase(
         "parse_javascript_sources",
-        `Parsing and projecting ${String(files.files.length)} application source files`,
+        `Parsing and projecting ${String(files.files.length - (files.source_selection?.unselected_files ?? 0))} selected application source files`,
       );
       const semanticProjection = createJavaScriptSemanticGraphProjection();
       const worker = createJavaScriptSourceAnalysis(
@@ -237,6 +240,9 @@ export const reconstructJavaScriptArtifact = async (
         inventory_manifest_id: snapshot.manifest.manifest_id,
         inventory_graph_sha256: snapshot.manifest.graph_sha256,
         integrity_contradictions: snapshot.integrity_contradictions,
+        ...(files.source_selection === undefined
+          ? {}
+          : { source_selection: files.source_selection }),
         graph,
         semantic_graph: semanticGraph,
         electron_summary: summarizeElectronBoundaries(analysis),

@@ -224,6 +224,7 @@ describe("CdpBrowserProvider: explicitly requested text and payload shapes", () 
     const browser = await startFakeCdpBrowser({
       sensitiveShapes: true,
       binaryWebSocketEvent: true,
+      eventsBeforeReply: ["Network.enable"],
     });
     trackBrowser(browser);
     const result = await new CdpBrowserProvider().inspectPage(

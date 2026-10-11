@@ -50,6 +50,33 @@ it("omits trailing blank cells from visible lines without losing rows", async ()
   );
 });
 
+it("applies rendered retention cumulatively across sparse frames", async () => {
+  const renderer = new TerminalRenderer({
+    columns: 10,
+    rows: 1,
+    scrollback: 0,
+    maxBytes: 5,
+    normalize: (value) => value,
+  });
+  try {
+    renderer.write("a", 0);
+    renderer.write("b", 1);
+    const frames = await renderer.frames();
+
+    expect(frames.map(({ lines }) => lines)).toEqual([["a"]]);
+    expect(renderer.retention()).toEqual({
+      budget_bytes: 5,
+      observed_bytes: 6,
+      retained_bytes: 2,
+      observed_frames: 2,
+      retained_frames: 1,
+    });
+    expect(renderer.truncated()).toBe(true);
+  } finally {
+    await renderer.dispose();
+  }
+});
+
 it("trims only after normalization sees the full-width row", async () => {
   const { frames } = await renderFrames("pid 4242", (value) =>
     value.replace(/4242 +$/u, "<pid>"),

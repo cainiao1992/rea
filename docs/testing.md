@@ -139,8 +139,11 @@ directory, so default OS-home discovery remains unverified. Live model APIs and
 native Windows are also unverified.
 
 `verify:claude-client` requires installed Claude Code (verified with
-`@anthropic-ai/claude-code@2.1.296`); select it with `REA_VERIFY_CLAUDE_COMMAND`.
-The optional POSIX lane uses native `CLAUDE_CONFIG_DIR` discovery, an independent
+`@anthropic-ai/claude-code@2.1.296` on POSIX and native Windows); select it
+with `REA_VERIFY_CLAUDE_COMMAND`. On Windows, select
+`claude.exe`: npm installs put only a `claude.cmd` shim on `PATH`, and the real
+executable is under `node_modules/@anthropic-ai/claude-code/bin`.
+The optional lane uses native `CLAUDE_CONFIG_DIR` discovery, an independent
 Git workspace, user settings and default built-in tools. It preserves caller
 preferences and backups, checks idempotent setup, waits through the native
 `WaitForMcpServers` tool when discovery is pending, and validates the complete
@@ -149,8 +152,8 @@ native `Skill`, checks its full body and verifies named-schema JavaScript Eviden
 for a Unicode path. Use `-- chat` for ordinary chat with REA enabled, or
 `REA_VERIFY_RUNTIME_ROOT` for a production-only installed package. The local
 Anthropic Messages/SSE fixture preserves native resource-hint envelopes in its
-request artifacts. Usage is synthetic; live Anthropic API, native Windows and
-bare-mode personal-skill activation remain unverified by this lane.
+request artifacts. Usage is synthetic; live Anthropic API and bare-mode
+personal-skill activation remain unverified by this lane.
 
 `verify:copilot-client` requires installed GitHub Copilot CLI (verified with
 `@github/copilot@1.0.95`); select it with `REA_VERIFY_COPILOT_COMMAND`.

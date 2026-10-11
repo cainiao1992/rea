@@ -9,6 +9,45 @@ import {
   withOtoolMachHeader,
 } from "../../../fixtures/nativeCommands.js";
 
+it("retains the delayed dependency in the complete real framed otool output", async () => {
+  const output = await nativeFixture("otool-dylib-use.txt");
+  const runner = new NativeFixtureRunner({ "otool:-h": output });
+  const client = new NativeMacOSProvider({}, runner, "darwin").createClient(
+    nativeMachoTarget("/owned/fixture"),
+  );
+  const result = await client.execute("inspect_macho", {});
+  if (!result.ok) throw result.error;
+  expect(result.value.result).toMatchObject({
+    load_commands: {
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          index: 16,
+          kind: "LC_LOAD_DYLIB",
+          fields: expect.objectContaining({ options: "delay-init" }),
+        }),
+      ]),
+    },
+    dependencies: {
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          path: "@rpath/libdelay.dylib",
+          current_version: "0.0.0",
+          compatibility_version: "1.0.0",
+        }),
+      ]),
+    },
+  });
+  expect(parseOtoolLoadCommands(output).commands).toHaveLength(23);
+});
+
+it("rejects a repeated options field even when the duplicate has no value", async () => {
+  const output = (await nativeFixture("otool-dylib-use.txt")).replace(
+    "      options delay-init ",
+    "      options delay-init\n      options",
+  );
+  expect(() => parseOtoolLoadCommands(output)).toThrow(/otool/u);
+});
+
 it("collects the actual Mach header alongside the native load commands", async () => {
   // The provider always invokes `otool -h -l`, which the runner resolves
   // via the "otool:-h" key; no bare `otool` override is needed.

@@ -38,6 +38,7 @@ export const resolveJavaScriptIntrinsicInvocation = (
   let callee: t.Node = node.callee;
   let arguments_: JavaScriptIntrinsicInvocation["arguments"] = node.arguments;
   let receiver: t.Node | undefined;
+  let explicitReceiver = false;
   for (;;) {
     callee = unwrapJavaScriptExpression(callee).node;
     if (visited.has(callee)) return undefined;
@@ -62,6 +63,7 @@ export const resolveJavaScriptIntrinsicInvocation = (
           )
             return { kind: "opaque", path: bound.path, arguments: undefined };
           receiver = arguments_?.[0];
+          explicitReceiver = true;
           callee = callee.object;
           arguments_ = invocationArguments(method, arguments_);
           continue;
@@ -72,26 +74,26 @@ export const resolveJavaScriptIntrinsicInvocation = (
       if (bound.kind === "opaque") return bound;
       path = bound.path;
       receiver = bound.receiver;
+      explicitReceiver = true;
       arguments_ =
         bound.arguments === undefined
           ? undefined
           : [...bound.arguments, ...(arguments_ ?? [])];
     }
-    // A projected .call/.apply invokes the preceding callable. The actual
-    // Function.prototype methods instead invoke their receiver, retained by bind.
-    while (path.length > 3 && !genericInvocationMethod(path)) {
-      const method = path.at(-1);
-      if (method !== "call" && method !== "apply") break;
+    const method = path.length > 3 ? path.at(-1) : undefined;
+    if (method === "call" || method === "apply") {
+      // These properties hold generic function values. Their receiver selects
+      // the callable; property-chain depth does not consume more arguments.
+      const callable: t.Node | undefined = explicitReceiver
+        ? receiver
+        : t.isMemberExpression(callee) || t.isOptionalMemberExpression(callee)
+          ? callee.object
+          : undefined;
+      if (!t.isExpression(callable)) return undefined;
+      callee = callable;
       receiver = arguments_?.[0];
+      explicitReceiver = true;
       arguments_ = invocationArguments(method, arguments_);
-      path = path.slice(0, -1);
-    }
-    const genericMethod = genericInvocationMethod(path);
-    if (genericMethod !== undefined) {
-      if (!t.isExpression(receiver)) return undefined;
-      callee = receiver;
-      receiver = arguments_?.[0];
-      arguments_ = invocationArguments(genericMethod, arguments_);
       continue;
     }
     if (path.join(".") === "intrinsic.Reflect.apply") {
@@ -99,6 +101,7 @@ export const resolveJavaScriptIntrinsicInvocation = (
       if (!t.isExpression(callable)) return undefined;
       callee = callable;
       receiver = arguments_?.[1];
+      explicitReceiver = true;
       arguments_ = arrayArguments(arguments_?.[2]);
       continue;
     }
@@ -110,14 +113,3 @@ export const resolveJavaScriptIntrinsicInvocation = (
     };
   }
 };
-
-const genericInvocationMethod = (
-  path: readonly string[],
-): "call" | "apply" | undefined =>
-  path.length === 4 &&
-  path[0] === "intrinsic" &&
-  path[1] === "Function" &&
-  path[2] === "prototype" &&
-  (path[3] === "call" || path[3] === "apply")
-    ? path[3]
-    : undefined;

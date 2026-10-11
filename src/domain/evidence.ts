@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { digestCanonicalValue } from "./canonicalDigest.js";
 import { canonicalJsonDigestSteps } from "./canonicalJsonDigestSteps.js";
+import { nulFreeStringSchema } from "./localPath.js";
 
 import {
   analysisProfileSchema,
@@ -65,7 +66,7 @@ const subjectSchema = z.object({
     "entitlements",
   ]),
   architecture: z.enum(BINARY_ARCHITECTURES).nullable(),
-  local_path: z.string(),
+  local_path: nulFreeStringSchema,
 });
 /** Source location attached to an evidence observation. */
 /** Source-location schema shared by evidence-bearing persistence formats. */

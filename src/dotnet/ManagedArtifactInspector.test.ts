@@ -177,36 +177,29 @@ describe("managed artifact coded indexes", () => {
     });
   });
 
-  it("reports an invalid CustomAttribute constructor coded index", () => {
-    const bytes = buildManagedPeFixture({ customAttributeTypeRaw: 19 });
-    const result = inspectManagedArtifactBytes(
-      bytes,
-      managedPeFixtureTarget(bytes),
-    );
-
-    expect(result.attributes).toEqual([]);
-    expect(result.coverage).toMatchObject({
-      state: "partial",
-      issues: [
-        expect.objectContaining({
-          code: "invalid-row",
-          scope: "metadata.CustomAttribute:0x0c000001",
-          detail: expect.stringContaining(
-            "coded index 0x13 is invalid: coded index selects row 2 in table 10, which has 1 rows",
-          ),
-        }),
-      ],
-    });
-  });
-
   it("reports null for the required CustomAttribute constructor coded index", () => {
     const bytes = buildManagedPeFixture({ customAttributeTypeRaw: 0 });
     const result = inspectManagedArtifactBytes(
       bytes,
       managedPeFixtureTarget(bytes),
     );
+    const text = Buffer.from(".NETCoreApp,Version=v8.0", "utf8");
+    const attributeValue = Buffer.concat([
+      Buffer.from([1, 0, text.length]),
+      text,
+      Buffer.alloc(2),
+    ]);
 
-    expect(result.attributes).toEqual([]);
+    expect(result.attributes).toMatchObject([
+      {
+        parent_token: "0x20000001",
+        constructor_token: null,
+        type_name: null,
+        value_length: attributeValue.length,
+        value_sha256: createHash("sha256").update(attributeValue).digest("hex"),
+        token: "0x0c000001",
+      },
+    ]);
     expect(result.coverage).toMatchObject({
       state: "partial",
       issues: [
@@ -227,7 +220,7 @@ describe("managed artifact coded indexes", () => {
     const bytes = buildManagedPeFixture({
       references,
       extendsRaw: 9,
-      customAttributeTypeRaw: 19,
+      customAttributeTypeRaw: 0,
     });
     const layout = metadataLayoutFor(bytes);
     const artifact = inspectManagedArtifactBytes(

@@ -171,6 +171,54 @@ describe("ASAR inventory freshness", () => {
   );
 });
 
+describe("ASAR snapshot operation ownership", () => {
+  it("waits for preparation before close and cancels a queued caller", async () => {
+    const fixture = await archiveFixture();
+    let allowRemoval: (() => void) | undefined;
+    let removalStarted: (() => void) | undefined;
+    const removalGate = new Promise<void>((resolve) => {
+      allowRemoval = resolve;
+    });
+    const removalStartedPromise = new Promise<void>((resolve) => {
+      removalStarted = resolve;
+    });
+    const reader = new AsarArtifactReader(
+      fixture.archive,
+      undefined,
+      async (path) => {
+        removalStarted?.();
+        await removalGate;
+        await rm(path, { recursive: true, force: true });
+      },
+    );
+    let prepared = false;
+    const preparing = reader.prepareContainer().then(() => {
+      prepared = true;
+    });
+    const closing = reader.close();
+    const controller = new AbortController();
+    try {
+      const closeReachedRemoval = Promise.race([
+        removalStartedPromise,
+        closing.then(() => {
+          throw new Error("close completed before snapshot removal began");
+        }),
+      ]);
+      await Promise.all([preparing, closeReachedRemoval]);
+      expect(prepared).toBe(true);
+      const queued = reader.prepareContainer(undefined, controller.signal);
+      controller.abort();
+      await expect(queued).rejects.toMatchObject({ reason: "cancelled" });
+      allowRemoval?.();
+      await Promise.all([preparing, closing]);
+      await expect(reader.prepareContainer()).resolves.toBeUndefined();
+    } finally {
+      allowRemoval?.();
+      await reader.close();
+    }
+  });
+});
+
 describe("ASAR captured-byte identity", () => {
   it("rejects same-size nested-container replacement between hashing and interpretation", async () => {
     const fixture = await archiveFixture();

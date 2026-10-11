@@ -4,24 +4,24 @@ import { TextReader, Uint8ArrayWriter, ZipWriter } from "@zip.js/zip.js";
 
 import { describe, expect, it } from "vitest";
 
-import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 import {
   createNonApplicationZipInventory,
   inventoryApplicationPackage,
   requireDeterministicProjection,
   requireSuccessfulProjection,
   writeApplicationZip,
-} from "../../support/applicationSessionFixture.js";
+} from "../../../support/applicationSessionFixture.js";
 
-import { projectHarmonyApplicationEvidence } from "../../../src/application/harmony/HarmonyApplicationService.js";
-import { createDirectAnalysis } from "../../../src/composition/directAnalysis.js";
-import { harmonyApplicationProjectionResultSchema } from "../../../src/domain/harmony/harmonyApplication.js";
-import { artifactInventoryResultSchema } from "../../../src/domain/artifactGraph.js";
-import { parseBinaryTarget } from "../../../src/application/BinaryTargetResolver.js";
+import { projectHarmonyApplicationEvidence } from "../../../../src/application/harmony/HarmonyApplicationService.js";
+import { createDirectAnalysis } from "../../../../src/composition/directAnalysis.js";
+import { harmonyApplicationProjectionResultSchema } from "../../../../src/domain/harmony/harmonyApplication.js";
+import { artifactInventoryResultSchema } from "../../../../src/domain/artifactGraph.js";
+import { parseBinaryTarget } from "../../../../src/application/BinaryTargetResolver.js";
 import {
   ZIP_PACKAGE_FORMATS,
   ZIP_NON_ENTRY_TAIL_LIMITATION,
-} from "../../../src/domain/zipPackageFormat.js";
+} from "../../../../src/domain/zipPackageFormat.js";
 
 const { runProviderAnalysis } = createDirectAnalysis({});
 const elf = Uint8Array.from([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0]);

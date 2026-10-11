@@ -9,16 +9,16 @@ import {
 } from "@zip.js/zip.js";
 import { describe, expect, it } from "vitest";
 
-import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 import {
   createNonApplicationZipInventory,
   requireSuccessfulProjection,
-} from "../../support/applicationSessionFixture.js";
+} from "../../../support/applicationSessionFixture.js";
 
-import { projectAndroidApplicationEvidence } from "../../../src/application/android/AndroidApplicationService.js";
-import { createDirectAnalysis } from "../../../src/composition/directAnalysis.js";
-import { androidApplicationProjectionResultSchema } from "../../../src/domain/android/androidApplication.js";
-import { parseEvidence } from "../../../src/domain/evidence.js";
+import { projectAndroidApplicationEvidence } from "../../../../src/application/android/AndroidApplicationService.js";
+import { createDirectAnalysis } from "../../../../src/composition/directAnalysis.js";
+import { androidApplicationProjectionResultSchema } from "../../../../src/domain/android/androidApplication.js";
+import { parseEvidence } from "../../../../src/domain/evidence.js";
 
 const { runProviderAnalysis } = createDirectAnalysis({});
 

@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 
 import { describe, expect, it } from "vitest";
 
-import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
+import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 const execute = promisify(execFile);
 

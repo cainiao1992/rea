@@ -3,26 +3,26 @@ import { join } from "node:path";
 
 import { expect, it } from "vitest";
 
-import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 
-import { createElectronActiveEvidence } from "../../../src/application/javascript/ElectronActiveEvidence.js";
-import { reconcileJavaScriptRuntimeEvidence } from "../../../src/application/javascript/JavaScriptRuntimeReconciliationService.js";
-import { createEvidence } from "../../../src/domain/evidence.js";
+import { createElectronActiveEvidence } from "../../../../src/application/javascript/ElectronActiveEvidence.js";
+import { reconcileJavaScriptRuntimeEvidence } from "../../../../src/application/javascript/JavaScriptRuntimeReconciliationService.js";
+import { createEvidence } from "../../../../src/domain/evidence.js";
 import {
   parseRuntimeReconciliationInput,
   reconcileJavaScriptRuntime,
-} from "../../../src/domain/javascript/javascriptRuntimeReconciliation.js";
-import { reconcileJavaScriptRuntimeInputSchema } from "../../../src/domain/javascript/javascriptRuntimeReconciliationSchemas.js";
-import { javascriptRuntimeReconciliationResultSchema } from "../../../src/domain/javascript/javascriptRuntimeReconciliationSchemas.js";
-import { electronActiveObservationInputSchema } from "../../../src/domain/javascript/electronActiveObservation.js";
-import { createElectronActiveObservationFixtureResult } from "../../../src/domain/javascript/electronActiveObservation.fixture.js";
+} from "../../../../src/domain/javascript/javascriptRuntimeReconciliation.js";
+import { reconcileJavaScriptRuntimeInputSchema } from "../../../../src/domain/javascript/javascriptRuntimeReconciliationSchemas.js";
+import { javascriptRuntimeReconciliationResultSchema } from "../../../../src/domain/javascript/javascriptRuntimeReconciliationSchemas.js";
+import { electronActiveObservationInputSchema } from "../../../../src/domain/javascript/electronActiveObservation.js";
+import { createElectronActiveObservationFixtureResult } from "../../../../src/domain/javascript/electronActiveObservation.fixture.js";
 
 import {
   SOURCE,
   applicationFixture,
   analyzeFixture,
   electronRuntimeEvidence,
-} from "../../fixtures/javascriptRuntimeReconciliation.js";
+} from "../../../fixtures/javascriptRuntimeReconciliation.js";
 
 const reconcileInput = (input: unknown) =>
   reconcileJavaScriptRuntime(

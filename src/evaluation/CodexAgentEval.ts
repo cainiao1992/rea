@@ -1,4 +1,5 @@
 import {
+  deliveredCodexEvidence,
   evaluateKnownAnswers,
   type FixtureClaimExpectation,
   type KnownAnswerAssessment,
@@ -67,12 +68,6 @@ const canonicalValue = (value: unknown): unknown => {
   );
 };
 
-const evidenceIdsFrom = (value: unknown): readonly string[] => {
-  const encoded = JSON.stringify(value);
-  if (encoded === undefined) return [];
-  return [...new Set(encoded.match(/ev_[a-f0-9]{64}/gu) ?? [])];
-};
-
 const toolResultError = (
   item: Record<string, unknown>,
 ): Record<string, unknown> | undefined => {
@@ -118,8 +113,16 @@ const toolResultFailed = (
   );
 };
 
-const callFromItem = (value: unknown): CodexMcpCall | undefined => {
-  const item = record(value);
+const callFromEvent = (
+  event: Record<string, unknown>,
+): CodexMcpCall | undefined => {
+  const item = record(
+    event.type === "item.completed"
+      ? event.item
+      : event.type === "mcp_tool_call"
+        ? event
+        : undefined,
+  );
   if (item?.type !== "mcp_tool_call") return undefined;
   const tool = textValue(item.tool) ?? textValue(item.name);
   if (tool === undefined) return undefined;
@@ -129,7 +132,9 @@ const callFromItem = (value: unknown): CodexMcpCall | undefined => {
     server: textValue(item.server) ?? textValue(item.server_name) ?? null,
     tool,
     arguments: item.arguments ?? item.input ?? {},
-    evidenceIds: evidenceIdsFrom(item.result ?? item.output),
+    evidenceIds: deliveredCodexEvidence(event).map(
+      ({ evidence_id }) => evidence_id,
+    ),
     error: toolResultFailed(item, error),
     errorCode: textValue(error?.code) ?? null,
   };
@@ -163,9 +168,7 @@ const consumeEvent = (state: EvaluationState, value: unknown): void => {
   if (event === undefined) return;
   const completedItem =
     event.type === "item.completed" ? event.item : undefined;
-  const call =
-    callFromItem(completedItem) ??
-    (event.type === "mcp_tool_call" ? callFromItem(event) : undefined);
+  const call = callFromEvent(event);
   if (call !== undefined) {
     const identity =
       call.id ??

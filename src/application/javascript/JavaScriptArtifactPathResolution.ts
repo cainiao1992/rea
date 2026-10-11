@@ -74,6 +74,21 @@ const EXTENSIONS = [
   ".node",
 ];
 
+// A private URL namespace for logical artifact paths, including root packages.
+// Encode inventory segments so filename punctuation remains literal in the base.
+const PACKAGE_ARTIFACT_ROOT_URL = new URL("file:///rea-artifact/");
+const packageMetadataUrl = (path: string): URL =>
+  new URL(
+    path.split("/").map(encodeURIComponent).join("/"),
+    PACKAGE_ARTIFACT_ROOT_URL,
+  );
+
+interface PackageFileTarget {
+  readonly value: string;
+  /** Normalized URL retained until loader-specific validation and file lookup. */
+  readonly url: URL;
+}
+
 type CandidateResolution =
   | {
       readonly resolvedPath: string;
@@ -313,7 +328,11 @@ const resolvePackageImportAlias = (
     return unresolvedCandidate("external", [
       `Wildcard package import aliases remain unresolved; package metadata ${metadata.path} has no exact imports key ${specifier}.`,
     ]);
-  const selected = selectPackageImportTarget(lookup.target, input.moduleKind);
+  const selected = selectPackageImportTarget(
+    lookup.target,
+    input.moduleKind,
+    metadata.path,
+  );
   if (selected.status === "rejected")
     return unresolvedCandidate("rejected", [
       `Package metadata ${metadata.path}: ${selected.limitation}`,
@@ -334,14 +353,15 @@ const resolvePackageImportAlias = (
         : `External-package import targets remain unresolved; package metadata ${metadata.path} maps ${specifier} to ${JSON.stringify(target.target)}.`,
     ]);
   }
-  return resolveExportTarget(input, metadata.path, selected.value, "imports");
+  return resolveExportTarget(input, metadata.path, selected, "imports");
 };
 
 const selectPackageImportTarget = (
   value: unknown,
   moduleKind: ResolveArtifactPathInput["moduleKind"],
+  packagePath: string,
 ):
-  | { readonly status: "value"; readonly value: string }
+  | ({ readonly status: "value" } & PackageFileTarget)
   | { readonly status: "non-relative"; readonly value: string }
   | { readonly status: "blocked"; readonly cause: PackageTargetBlockCause }
   | { readonly status: "unmatched"; readonly declared: readonly string[] }
@@ -349,6 +369,7 @@ const selectPackageImportTarget = (
   const selected = selectExportTarget(
     value,
     packageExportConditions(moduleKind),
+    packageMetadataUrl(packagePath),
     "imports",
   );
   if (selected.kind === "invalid" || selected.kind === "invalid-config")
@@ -362,7 +383,11 @@ const selectPackageImportTarget = (
     return { status: "blocked", cause: selected.cause };
   if (selected.kind === "non-relative")
     return { status: "non-relative", value: selected.value };
-  return { status: "value", value: selected.value };
+  return {
+    status: "value",
+    value: selected.value,
+    url: selected.url,
+  };
 };
 
 /** Self references use the nearest package scope before dependency lookup. */
@@ -430,7 +455,12 @@ const resolvePackageExports = (
   subpath: string,
   rawExports: string | object,
 ): CandidateResolution => {
-  const exported = selectPackageExport(rawExports, subpath, input.moduleKind);
+  const exported = selectPackageExport(
+    rawExports,
+    subpath,
+    input.moduleKind,
+    packagePath,
+  );
   if (exported.status === "rejected")
     return unresolvedCandidate("rejected", [
       `Package metadata ${packagePath}: ${exported.limitation}`,
@@ -443,25 +473,45 @@ const resolvePackageExports = (
     return unresolvedCandidate("external", [
       `Directory package metadata ${packagePath} blocks subpath ${subpath} with ${exported.cause === "null" ? "an explicit null exports target" : "an empty exports target array"}.`,
     ]);
-  return resolveExportTarget(input, packagePath, exported.value);
+  return resolveExportTarget(input, packagePath, exported);
 };
 
 /** An exports or import target is a URL naming one exact file for both Node loaders. */
 const resolveExportTarget = (
   input: ResolveArtifactPathInput,
   packagePath: string,
-  target: string,
+  target: PackageFileTarget,
   mapKind: "exports" | "imports" = "exports",
 ): CandidateResolution => {
-  const rejected = rejectDeclaration(target);
-  if (rejected !== null) return rejected;
-  const decoded = decodeModuleUrlPath(stripQueryAndFragment(target));
-  if (typeof decoded !== "string") return decoded;
-  const candidate = confineCandidate(relativeCandidate(packagePath, decoded));
-  if (typeof candidate !== "string") return candidate;
+  const withTargetSource = (
+    outcome: CandidateResolution,
+  ): CandidateResolution => ({
+    ...outcome,
+    limitations: outcome.limitations.map(
+      (reason) =>
+        `Package metadata ${packagePath}, ${mapKind} target ${JSON.stringify(target.value)}: ${reason}`,
+    ),
+  });
+  // Node's CommonJS finalizer checks the serialized URL, including suffixes;
+  // its ESM finalizer checks only the pathname. Neither error retries arrays.
+  if (input.moduleKind === "require" && /%(?:2f|5c)/iu.test(target.url.href))
+    return withTargetSource(
+      unresolvedCandidate("rejected", [
+        "The selected package URL contains encoded separator bytes.",
+      ]),
+    );
+  const encodedPath = target.url.pathname.slice(
+    PACKAGE_ARTIFACT_ROOT_URL.pathname.length,
+  );
+  const rejected = rejectDeclaration(encodedPath);
+  if (rejected !== null) return withTargetSource(rejected);
+  const decoded = decodeModuleUrlPath(encodedPath);
+  if (typeof decoded !== "string") return withTargetSource(decoded);
+  const candidate = confineCandidate(decoded);
+  if (typeof candidate !== "string") return withTargetSource(candidate);
   return (
     resolveFileCandidates(input, [candidate]) ??
-    exactPackageTargetNotFound(candidate, mapKind)
+    withTargetSource(exactPackageTargetNotFound(candidate, mapKind))
   );
 };
 
@@ -776,7 +826,7 @@ const indexCandidates = (candidate: string): readonly string[] =>
 type PackageTargetBlockCause = "null" | "empty-array";
 
 type PackageExportOutcome =
-  | { readonly status: "value"; readonly value: string }
+  | ({ readonly status: "value" } & PackageFileTarget)
   | { readonly status: "rejected"; readonly limitation: string }
   | { readonly status: "blocked"; readonly cause: PackageTargetBlockCause }
   | { readonly status: "unmatched"; readonly declared: readonly string[] };
@@ -786,6 +836,7 @@ const selectPackageExport = (
   value: unknown,
   subpath: string,
   moduleKind: ResolveArtifactPathInput["moduleKind"],
+  packagePath: string,
 ): PackageExportOutcome => {
   let target = value;
   let declared: string[] = [];
@@ -812,6 +863,7 @@ const selectPackageExport = (
   const selected = selectExportTarget(
     target,
     packageExportConditions(moduleKind),
+    packageMetadataUrl(packagePath),
   );
   if (selected.kind === "invalid" || selected.kind === "invalid-config")
     return { status: "rejected", limitation: selected.limitation };
@@ -827,11 +879,15 @@ const selectPackageExport = (
       status: "rejected",
       limitation: `The package exports target ${JSON.stringify(selected.value)} must start with "./".`,
     };
-  return { status: "value", value: selected.value };
+  return {
+    status: "value",
+    value: selected.value,
+    url: selected.url,
+  };
 };
 
 type ExportTargetOutcome =
-  | { readonly kind: "value"; readonly value: string }
+  | ({ readonly kind: "value" } & PackageFileTarget)
   | { readonly kind: "non-relative"; readonly value: string }
   | { readonly kind: "blocked"; readonly cause: PackageTargetBlockCause }
   | { readonly kind: "unmatched"; readonly declared: readonly string[] }
@@ -866,6 +922,7 @@ const forbiddenExportSegment = (value: string): string | undefined =>
 
 const selectStringPackageTarget = (
   value: string,
+  packageUrl: URL,
   mapKind: "exports" | "imports",
 ): ExportTargetOutcome => {
   if (mapKind === "imports") {
@@ -880,18 +937,33 @@ const selectStringPackageTarget = (
   } else if (!value.startsWith("./"))
     return invalidExportTarget(value, 'must start with "./"', mapKind);
   const forbidden = forbiddenExportSegment(value);
-  return forbidden === undefined
-    ? { kind: "value", value }
-    : invalidExportTarget(
-        value,
-        `contains forbidden path segment ${JSON.stringify(forbidden)} before URL normalization`,
-        mapKind,
-      );
+  if (forbidden !== undefined)
+    return invalidExportTarget(
+      value,
+      `contains forbidden path segment ${JSON.stringify(forbidden)} before URL normalization`,
+      mapKind,
+    );
+  // Node constructs the URL before deciding whether this array entry is an
+  // invalid package target. Tabs/newlines and dot segments normalize here;
+  // percent decoding and existence checks belong after target selection.
+  const url = new URL(value, packageUrl);
+  if (!url.pathname.startsWith(new URL(".", packageUrl).pathname))
+    return invalidExportTarget(
+      value,
+      "escapes the package root after URL normalization",
+      mapKind,
+    );
+  return {
+    kind: "value",
+    value,
+    url,
+  };
 };
 
 const selectArrayPackageTarget = (
   value: readonly unknown[],
   conditions: ReadonlySet<string>,
+  packageUrl: URL,
   mapKind: "exports" | "imports",
 ): ExportTargetOutcome => {
   if (value.length === 0) return { kind: "blocked", cause: "empty-array" };
@@ -900,7 +972,7 @@ const selectArrayPackageTarget = (
     | undefined;
   const declared = new Set<string>();
   for (const entry of value) {
-    const nested = selectExportTarget(entry, conditions, mapKind);
+    const nested = selectExportTarget(entry, conditions, packageUrl, mapKind);
     // Node's array fallback catches invalid targets, not invalid configuration.
     if (nested.kind === "invalid-config") return nested;
     if (nested.kind === "unmatched") {
@@ -926,13 +998,14 @@ const selectArrayPackageTarget = (
 const selectExportTarget = (
   value: unknown,
   conditions: ReadonlySet<string>,
+  packageUrl: URL,
   mapKind: "exports" | "imports" = "exports",
 ): ExportTargetOutcome => {
   if (typeof value === "string")
-    return selectStringPackageTarget(value, mapKind);
+    return selectStringPackageTarget(value, packageUrl, mapKind);
   if (value === null) return { kind: "blocked", cause: "null" };
   if (Array.isArray(value))
-    return selectArrayPackageTarget(value, conditions, mapKind);
+    return selectArrayPackageTarget(value, conditions, packageUrl, mapKind);
   if (typeof value !== "object")
     return invalidExportTarget(
       value,
@@ -951,7 +1024,7 @@ const selectExportTarget = (
   for (const [condition, target] of Object.entries(value)) {
     declared.add(condition);
     if (!conditions.has(condition)) continue;
-    const nested = selectExportTarget(target, conditions, mapKind);
+    const nested = selectExportTarget(target, conditions, packageUrl, mapKind);
     if (nested.kind !== "unmatched") return nested;
     for (const name of nested.declared) declared.add(name);
   }

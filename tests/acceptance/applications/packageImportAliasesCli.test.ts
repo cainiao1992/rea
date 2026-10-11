@@ -13,6 +13,11 @@ import { cliTest } from "../../support/cli/cliFixture.js";
 
 const literalAliases = ["#/x", "#x%2Fy", "#x%2Ey", "#x\\y", "#x\0y"];
 const fallbackAliases = {
+  "#tab-escape": ["./.\t./outside.cjs", "./config.cjs"],
+  "#newline-escape": ["./.%\n2e/outside.cjs", "./config.cjs"],
+  "#normalized-url": "./con\tfig.cjs",
+  "#trimmed-url": "./config.cjs \t",
+  "#url-suffix": "./config.cjs?selected=one#fragment",
   "#inactive-array": {
     node: [{ browser: "./browser.cjs" }],
     default: "./config.cjs",
@@ -30,28 +35,52 @@ const fallbackAliases = {
 };
 const resolvedAliases = [...literalAliases, ...Object.keys(fallbackAliases)];
 const refusedAliases = {
-  "#empty": { target: [], limitation: "an empty imports target array" },
+  "#empty": {
+    target: [],
+    status: "external",
+    limitation: "an empty imports target array",
+  },
   "#empty-active": {
     target: { node: [] },
+    status: "external",
     limitation: "an empty imports target array",
   },
   "#null-last": {
     target: [[], null],
+    status: "external",
     limitation: "an explicit null imports target",
   },
   "#empty-last": {
     target: [null, []],
+    status: "external",
     limitation: "an empty imports target array",
   },
   "#inactive": {
     target: [{ browser: "./browser.cjs" }],
+    status: "external",
     limitation: "it declares browser.",
   },
   "#nested-inactive": {
+    status: "external",
     target: [
       [{ browser: "./browser.cjs" }, { "rea-inactive": "./inactive.cjs" }],
     ],
     limitation: "it declares browser, rea-inactive.",
+  },
+  "#escape": {
+    target: "./.\t./outside.cjs",
+    status: "rejected",
+    limitation: "escapes the package root",
+  },
+  "#encoded-separator": {
+    target: ["./con%2ffig.cjs", "./config.cjs"],
+    status: "rejected",
+    limitation: "separator bytes",
+  },
+  "#missing-url": {
+    target: ["./miss\ting.cjs", "./config.cjs"],
+    status: "not-found",
+    limitation: JSON.stringify("./miss\ting.cjs"),
   },
 };
 const allAliases = [...resolvedAliases, ...Object.keys(refusedAliases)];
@@ -168,7 +197,9 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
     const imports = graph.edges.filter(
       ({ properties }) => properties.module_link_kind === "require",
     );
-    for (const [specifier, { limitation }] of Object.entries(refusedAliases))
+    for (const [specifier, { status, limitation }] of Object.entries(
+      refusedAliases,
+    ))
       for (const [moduleKind, sourcePath, source] of [
         ["require", "main.cjs", mainSource],
         ["import", "main.mjs", moduleSource],
@@ -179,7 +210,7 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
               module_link_kind: moduleKind,
               specifier,
               resolved_path: null,
-              resolution_status: "external",
+              resolution_status: status,
             }),
             evidence: sourceEvidence(sourcePath, source, limitation),
           }),

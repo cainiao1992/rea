@@ -482,8 +482,12 @@ and one percent-decoding pass. CommonJS relative paths and legacy package main
 fields retain literal filename punctuation. Exports targets must start with
 `./` and exclude `.`, `..`, and `node_modules` path segments, including their
 encoded forms, before URL normalization. Arrays skip invalid exports targets
-in declared order; URL decoding and file lookup failures for a selected target
-do not select a later entry. Rejected references retain the package metadata
+in declared order, including URLs that escape the package root after normalization.
+Selected package targets use the normalized URL path for lookup; tabs and
+newlines in the URL text are removed by the URL parser. CommonJS package targets
+reject encoded separators anywhere in the selected URL; ESM checks its pathname.
+URL decoding and file lookup failures for a selected target do not select a
+later entry. Rejected references retain the package metadata
 path, original target, failed constraint, and importing source location.
 
 HTML script references resolve to exact inventoried files after applying the

@@ -1,3 +1,4 @@
+import type { GhidraSeedReport } from "./GhidraAnalysisSeeds.js";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 // Fake-backed provider coverage; real Ghidra verification lives in
@@ -1009,4 +1010,155 @@ it("projects Ghidra startup failure and its incomplete cleanup together", async 
         },
       },
     });
+});
+
+describe("Ghidra analysis seeds and configured language", () => {
+  const seedSession = async (
+    report: (sha256: string) => GhidraSeedReport | undefined,
+  ) => {
+    const directory = await mkdtemp(join(tmpdir(), "rea-provider-seeds-"));
+    const seeds = join(directory, "seeds.tsv");
+    await writeFile(seeds, "0x401000\tfunction\tentry\n0x401010\tcode\n");
+    const config = parseConfig({
+      GHIDRA_INSTALL_DIR: INSTALL,
+      REA_GHIDRA_SEED_FILE: seeds,
+    });
+    if (!config.ok) throw config.error;
+    const counts = { starts: 0, calls: 0, closes: 0 };
+    const ghidra = new GhidraProvider(
+      config.value,
+      silentLogger,
+      {},
+      installationHost(),
+      () => ({
+        start: () => {
+          counts.starts++;
+          const seedReport = report(
+            createHash("sha256")
+              .update("0x401000\tfunction\tentry\n0x401010\tcode\n")
+              .digest("hex"),
+          );
+          return Promise.resolve(
+            ok({
+              ...sessionInfo(),
+              ...(seedReport === undefined
+                ? {}
+                : { analysis_seeds: seedReport }),
+            }),
+          );
+        },
+        callTool: () => {
+          counts.calls++;
+          return Promise.resolve(ok(null));
+        },
+        close: () => {
+          counts.closes++;
+          return Promise.resolve(ok(null));
+        },
+      }),
+    );
+    const target = executableTarget("elf", "x86_64");
+    const resolved = await ghidra.resolveAnalysisProfile(target);
+    if (!resolved.ok || resolved.value.profile === null)
+      throw new Error("expected seed profile");
+    return {
+      directory,
+      counts,
+      client: ghidra.createClient(target, resolved.value.profile),
+    };
+  };
+  const applied = (sha256: string): GhidraSeedReport => ({
+    format: "rea-ghidra-seeds-v1",
+    sha256,
+    entries: 2,
+    function_created: 1,
+    function_existing: 0,
+    function_failed: 0,
+    code_decoded: 0,
+    code_failed: 1,
+    label_applied: 0,
+    label_failed: 0,
+    unmapped: 0,
+  });
+
+  it("reports the verified seed outcome as a session limitation", async () => {
+    const { directory, client } = await seedSession(applied);
+    try {
+      const health = await client.execute("health", {});
+      if (!health.ok) throw health.error;
+      expect(health.value.limitations).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining("caller assertions, not Ghidra discoveries"),
+          expect.stringContaining(
+            "1 functions created, 0 already present, 0 failed; 0 code seeds decoded, 1 failed",
+          ),
+        ]),
+      );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    ["no seed report", () => undefined],
+    [
+      "a report for other seeds",
+      (sha256: string): GhidraSeedReport => ({
+        ...applied(sha256),
+        sha256: "0".repeat(64),
+      }),
+    ],
+  ])("fails closed on %s before any analysis call", async (_label, report) => {
+    const { directory, counts, client } = await seedSession(report);
+    try {
+      const failed = await client.execute("list_procedures", {});
+      expect(failed.ok).toBe(false);
+      if (!failed.ok) expect(failed.error._tag).toBe("ProviderAdapterError");
+      expect(counts).toEqual({ starts: 1, calls: 0, closes: 1 });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses a profile resolved without the configured seeds or language", async () => {
+    const plain = parseConfig({ GHIDRA_INSTALL_DIR: INSTALL });
+    if (!plain.ok) throw plain.error;
+    const target = executableTarget("elf", "x86_64");
+    const resolved = await new GhidraProvider(
+      plain.value,
+      silentLogger,
+      {},
+      installationHost(),
+    ).resolveAnalysisProfile(target);
+    if (!resolved.ok || resolved.value.profile === null)
+      throw new Error("expected profile");
+    for (const environment of [
+      { REA_GHIDRA_SEED_FILE: "/seeds.tsv" },
+      { REA_GHIDRA_LANGUAGE_ID: "x86:LE:32:default" },
+    ]) {
+      const configured = parseConfig({
+        GHIDRA_INSTALL_DIR: INSTALL,
+        ...environment,
+      });
+      if (!configured.ok) throw configured.error;
+      let starts = 0;
+      const client = new GhidraProvider(
+        configured.value,
+        silentLogger,
+        {},
+        installationHost(),
+        () => ({
+          start: () => {
+            starts++;
+            return Promise.resolve(ok(sessionInfo()));
+          },
+          callTool: () => Promise.resolve(ok(null)),
+          close: () => Promise.resolve(ok(null)),
+        }),
+      ).createClient(target, resolved.value.profile);
+      const failed = await client.execute("health", {});
+      expect(failed.ok).toBe(false);
+      expect(starts).toBe(0);
+    }
+  });
 });

@@ -12,6 +12,9 @@ configuration, startup deadlines, resource controls, and cleanup recovery.
 extension. Check the [release boundary](installation.md#released-package-and-main)
 when using npm.
 
+See [import language and analysis seeds](installation.md#ghidra-import-language-and-analysis-seeds)
+to override the header-detected language or seed analysis.
+
 Provider selection and profile identity follow
 [MCP contracts](mcp-contracts.md#identity-and-discovery). One deep
 provider stays bound to the target; runtime failure never selects another

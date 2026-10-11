@@ -1,3 +1,4 @@
+import { ghidraSeedReportSchema } from "./GhidraAnalysisSeeds.js";
 import { z } from "zod";
 
 import type { JsonValue } from "../domain/jsonValue.js";
@@ -40,6 +41,7 @@ const sessionInfoSchema = z
     analysis_complete: z.boolean(),
     analysis_timed_out: z.boolean(),
     analysis_extensions: z.array(ghidraExtensionResultSchema).optional(),
+    analysis_seeds: ghidraSeedReportSchema.optional(),
     capabilities: z.array(capabilitySchema),
     target: z
       .object({

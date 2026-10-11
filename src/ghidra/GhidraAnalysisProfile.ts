@@ -3,6 +3,7 @@ import type {
   ProviderIdentity,
 } from "../application/AnalysisProvider.js";
 import { createAnalysisProfile } from "../domain/analysisProfile.js";
+import type { GhidraLanguageOverride } from "../config/ghidraLanguageOverride.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import {
   AnalysisCancelledError,
@@ -23,6 +24,7 @@ export const resolveGhidraAnalysisProfile = (
   identity: ProviderIdentity,
   installation: GhidraInstallationInspection,
   signal?: AbortSignal,
+  languageOverride?: GhidraLanguageOverride,
 ): Promise<Result<AnalysisProfileResolution, AnalysisError>> => {
   if (signal?.aborted === true)
     return Promise.resolve(err(new AnalysisCancelledError("open_binary")));
@@ -47,6 +49,17 @@ export const resolveGhidraAnalysisProfile = (
   const dosMz = target.format === "dos-mz";
   const dosCom = target.format === "dos-com";
   const dos = dosMz || dosCom;
+  // DOS imports already force an admitted loader, language, and context.
+  if (dos && languageOverride !== undefined)
+    return Promise.resolve(
+      err(
+        new AnalysisUnsupportedTargetError(
+          "resolve_analysis_profile",
+          target.path,
+          "REA_GHIDRA_LANGUAGE_ID cannot override the admitted DOS real-mode import.",
+        ),
+      ),
+    );
   return Promise.resolve(
     ok({
       profile: createAnalysisProfile(provider, {
@@ -89,8 +102,17 @@ export const resolveGhidraAnalysisProfile = (
           : dosCom
             ? "BinaryLoader"
             : "auto-from-header",
-        language_id: dos ? "x86:LE:16:Real Mode" : "auto-from-header",
-        compiler_spec_id: dos ? "default" : "auto-default",
+        language_id: dos
+          ? "x86:LE:16:Real Mode"
+          : (languageOverride?.languageId ?? "auto-from-header"),
+        compiler_spec_id: dos
+          ? "default"
+          : languageOverride === undefined
+            ? "auto-default"
+            : (languageOverride.compilerSpecId ?? "language-default"),
+        ...(languageOverride === undefined
+          ? {}
+          : { language_selection: "configured-v1" }),
         ...(dos
           ? {
               load_segment: "0x1000",
@@ -115,3 +137,25 @@ export const resolveGhidraAnalysisProfile = (
     }),
   );
 };
+
+/** Read the import-language commitment back from a resolved profile. */
+export const ghidraProfileLanguageOverride = (
+  parameters: Readonly<Record<string, unknown>>,
+): GhidraLanguageOverride | undefined => {
+  if (parameters.language_selection !== "configured-v1") return undefined;
+  const languageId = parameters.language_id;
+  const compilerSpecId = parameters.compiler_spec_id;
+  if (typeof languageId !== "string" || typeof compilerSpecId !== "string")
+    return undefined;
+  return compilerSpecId === "language-default"
+    ? { languageId }
+    : { languageId, compilerSpecId };
+};
+
+/** Whether a committed profile and the active configuration select the same language. */
+export const sameGhidraLanguageOverride = (
+  left: GhidraLanguageOverride | undefined,
+  right: GhidraLanguageOverride | undefined,
+): boolean =>
+  left?.languageId === right?.languageId &&
+  left?.compilerSpecId === right?.compilerSpecId;

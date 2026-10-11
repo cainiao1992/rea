@@ -175,6 +175,7 @@ const callerDirectory = join(workspace, "caller cwd with spaces");
 const scriptCollisions = [
   "ReaGhidraBridge.java",
   "ReaGhidraPrepareCom.java",
+  "ReaGhidraApplySeeds.java",
   "ReaGhidraNoReturnFix.java",
 ];
 await mkdir(callerDirectory);

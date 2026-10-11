@@ -702,7 +702,10 @@ export class JavaScriptAnalysisWorker {
       },
       {
         operation: OPERATION,
-        ...(original === undefined ? {} : { cause: original }),
+        cause: new Error(
+          reason,
+          original === undefined ? undefined : { cause: original },
+        ),
       },
     );
   }

@@ -123,7 +123,11 @@ it("preserves a failed owned cleanup retry when the next caller cancels before a
     const file = source("app.mjs", "export const observed = 7;");
     const first = await worker.analyze(file, 100);
     if (!first.ok) throw first.error.error;
-    await expect(worker.close()).rejects.toBeInstanceOf(ProviderCleanupError);
+    const closing = worker.close();
+    await expect(closing).rejects.toBeInstanceOf(ProviderCleanupError);
+    await expect(closing).rejects.toMatchObject({
+      cause: { message: "Fixture owned cleanup is unavailable" },
+    });
     const interrupted = await next.analyze(file, 100, controller.signal);
     if (interrupted.ok)
       throw new Error("Unreleased ownership must block subsequent analysis");

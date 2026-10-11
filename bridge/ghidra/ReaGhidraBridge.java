@@ -438,6 +438,11 @@ public final class ReaGhidraBridge extends HeadlessScript {
         result.add("target", target);
         JsonArray extensions = analysisExtensions.reports();
         if (extensions.size() > 0) result.add("analysis_extensions", extensions);
+        // Written by ReaGhidraApplySeeds before auto-analysis; REA checks it
+        // against the committed profile.
+        String seeds = currentProgram.getOptions(ghidra.program.model.listing.Program.PROGRAM_INFO)
+            .getString("REA analysis seeds", null);
+        if (seeds != null) result.add("analysis_seeds", JsonParser.parseString(seeds));
         return result;
     }
 

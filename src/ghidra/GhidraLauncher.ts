@@ -1,3 +1,9 @@
+import {
+  GHIDRA_SEED_SCRIPT,
+  snapshotGhidraAnalysisSeeds,
+  type GhidraSeedCommitment,
+} from "./GhidraAnalysisSeeds.js";
+import type { GhidraLanguageOverride } from "../config/ghidraLanguageOverride.js";
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
 import { mkdir } from "node:fs/promises";
 import { basename, dirname, join, posix, win32 } from "node:path";
@@ -85,6 +91,10 @@ export interface GhidraHeadlessLauncherOptions {
   /** Select the admitted 16-bit real-mode MZ import instead of auto-detection. */
   readonly dosMz?: true;
   readonly dosCom?: true;
+  /** Explicit import language committed by the analysis profile. */
+  readonly languageOverride?: GhidraLanguageOverride;
+  /** Caller seeds committed by the analysis profile, applied before analysis. */
+  readonly analysisSeeds?: GhidraSeedCommitment;
   readonly analysisExtensions?: readonly GhidraExtension[];
   /** Spawn seam for provider-boundary lifecycle tests. */
   readonly spawnProcess?: typeof spawnOwnedProviderProcess;
@@ -111,6 +121,13 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
     let started: SpawnedOwnedProviderProcess | undefined;
     try {
       await createGhidraRuntimeDirectories(paths, platform);
+      const seedPath =
+        this.options.analysisSeeds === undefined
+          ? undefined
+          : await snapshotGhidraAnalysisSeeds(
+              this.options.analysisSeeds,
+              session.runtimeRoot,
+            );
       const extensions = await snapshotGhidraExtensions(
         this.options.analysisExtensions ?? [],
         session.runtimeRoot,
@@ -147,6 +164,10 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
         ...(this.options.dosMz === undefined
           ? {}
           : { dosMz: this.options.dosMz }),
+        ...(this.options.languageOverride === undefined
+          ? {}
+          : { languageOverride: this.options.languageOverride }),
+        ...(seedPath === undefined ? {} : { seedPath }),
       });
       const scriptCommand = ghidraHeadlessCommand({
         environment: this.options.environment,
@@ -368,6 +389,9 @@ export interface GhidraHeadlessArgumentOptions {
   readonly scriptLogPath: string;
   readonly dosMz?: true;
   readonly dosCom?: true;
+  readonly languageOverride?: GhidraLanguageOverride;
+  /** Canonical seed snapshot passed to the pre-analysis seed script. */
+  readonly seedPath?: string;
 }
 
 /** Build the complete read-only headless invocation in deterministic order. */
@@ -379,6 +403,14 @@ export const ghidraHeadlessArguments = (
   const scriptPath =
     (options.platform ?? process.platform) === "win32" ? win32 : posix;
   const bridgeDirectory = scriptPath.dirname(options.bridgeScriptPath);
+  const override = options.languageOverride;
+  if (
+    override !== undefined &&
+    (options.dosMz === true || options.dosCom === true)
+  )
+    throw new Error(
+      "A Ghidra language override cannot be combined with a DOS import.",
+    );
   return [
     options.projectRoot,
     "rea-project",
@@ -404,7 +436,15 @@ export const ghidraHeadlessArguments = (
             "-cspec",
             "default",
           ]
-        : []),
+        : override !== undefined
+          ? [
+              "-processor",
+              override.languageId,
+              ...(override.compilerSpecId === undefined
+                ? []
+                : ["-cspec", override.compilerSpecId]),
+            ]
+          : []),
     "-readOnly",
     "-deleteProject",
     "-log",
@@ -419,6 +459,14 @@ export const ghidraHeadlessArguments = (
           scriptPath.join(bridgeDirectory, "ReaGhidraPrepareCom.java"),
         ]
       : []),
+    // Seeds follow any loader preparation and precede default auto-analysis.
+    ...(options.seedPath === undefined
+      ? []
+      : [
+          "-preScript",
+          scriptPath.join(bridgeDirectory, GHIDRA_SEED_SCRIPT),
+          options.seedPath,
+        ]),
     ...((options.platform ?? process.platform) === "win32"
       ? []
       : [

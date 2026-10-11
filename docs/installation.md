@@ -733,6 +733,27 @@ is no fixed per-operation or response-size ceiling. Unresolved computed calls
 remain unknown, reference-kind provenance is preserved, and provider-specific
 pseudocode is never treated as original source or Hopper-equivalent text.
 
+### Ghidra import language and analysis seeds
+
+Ghidra detects the language from the executable header. To set it (for example, Borland C++ PE images):
+
+```bash
+export REA_GHIDRA_LANGUAGE_ID="x86:LE:32:default"
+export REA_GHIDRA_COMPILER_SPEC_ID="borlandcpp"   # optional; requires a language
+```
+
+REA passes `-processor`/`-cspec`, checks both against the installation's `.ldefs`, and records them in the analysis profile. DOS imports reject an override.
+
+To seed code that auto-analysis cannot reach (computed jumps, pointers in data):
+
+```bash
+export REA_GHIDRA_SEED_FILE=/absolute/path/to/seeds.tsv
+```
+
+Each line is `address<TAB>kind[<TAB>name]`, where kind is `function`, `code` or `label` (a label needs a name). Addresses are `0x` hex in the default space; `#` lines are comments. A pre-script applies seeds before auto-analysis: functions from the highest address down, then code, then labels. The seed digest is part of the analysis profile, and the session fails if the applied seeds differ. Result limitations report the outcome counts; a seed fails when it overlaps an instruction Ghidra already decoded.
+
+Label seeds can name mapped uninitialized storage such as `.bss`; function and code seeds require initialized bytes.
+
 ### Ghidra heap and CPU controls
 
 Set resource controls in the environment that launches the CLI or MCP server,

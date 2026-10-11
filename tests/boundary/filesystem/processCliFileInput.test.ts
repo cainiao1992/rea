@@ -1,24 +1,13 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   captureProcessScenarioFile,
   projectProcessCliError,
-} from "./ProcessCli.js";
-import { JSON_BYTE_ORDER_MARK_MESSAGE } from "../Utf8JsonInput.js";
+} from "../../../src/application/process/ProcessCli.js";
+import { JSON_BYTE_ORDER_MARK_MESSAGE } from "../../../src/application/Utf8JsonInput.js";
 
-const roots: string[] = [];
-afterEach(async () => {
-  await Promise.all(
-    roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
-  );
-});
-const fixture = async (): Promise<string> => {
-  const root = await mkdtemp(join(tmpdir(), "rea-process-cli-diagnostics-"));
-  roots.push(root);
-  return root;
-};
+import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 describe("process CLI input diagnostics", () => {
   it("preserves local diagnostics for unexpected process failures", () => {
@@ -35,7 +24,7 @@ describe("process CLI input diagnostics", () => {
   });
 
   it("projects missing, malformed JSON, and invalid scenario files", async () => {
-    const root = await fixture();
+    const root = await createTestTempDirectory("rea-process-cli-diagnostics-");
     const malformed = join(root, "malformed.json");
     const invalid = join(root, "invalid.json");
     const invalidUtf8 = join(root, "invalid-utf8.json");
@@ -90,7 +79,10 @@ describe("process CLI input diagnostics", () => {
   });
 
   it("names a leading byte-order mark instead of quoting it as a token", async () => {
-    const path = join(await fixture(), "scenario.json");
+    const path = join(
+      await createTestTempDirectory("rea-process-cli-diagnostics-"),
+      "scenario.json",
+    );
     await writeFile(path, '\uFEFF{"executable":"/bin/echo"}');
     expect(await captureProcessScenarioFile(path)).toEqual({
       error: "Process command failed",

@@ -5,12 +5,12 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import { expect, it } from "vitest";
 import { z } from "zod";
 
-import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
-import { javascriptApplicationAnalysisResultSchema } from "../../domain/javascript/javascriptApplicationAnalysis.js";
-import { matchJavaScriptApplicationVersions } from "../../domain/javascript/javascriptApplicationVersionKeys.js";
-import { findApplicationFeatureSeeds } from "../../domain/javascript/javascriptFeatureSeed.js";
-import { traceApplicationFeatureInputSchema } from "../../domain/javascript/javascriptFeatureTraceSchemas.js";
-import { analyzeJavaScriptApplication } from "../../../tests/support/javascriptApplicationScope.js";
+import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
+import { javascriptApplicationAnalysisResultSchema } from "../../../../src/domain/javascript/javascriptApplicationAnalysis.js";
+import { matchJavaScriptApplicationVersions } from "../../../../src/domain/javascript/javascriptApplicationVersionKeys.js";
+import { findApplicationFeatureSeeds } from "../../../../src/domain/javascript/javascriptFeatureSeed.js";
+import { traceApplicationFeatureInputSchema } from "../../../../src/domain/javascript/javascriptFeatureTraceSchemas.js";
+import { analyzeJavaScriptApplication } from "../../../support/javascriptApplicationScope.js";
 
 const analyzeSource = async (
   source: string,

@@ -3,8 +3,8 @@ import { dirname, join } from "node:path";
 
 import { expect, it } from "vitest";
 
-import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory.js";
-import { systemDoctorHost } from "./Doctor.js";
+import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { systemDoctorHost } from "../../../src/application/Doctor.js";
 
 it("threads the selected host and environment into system diagnostics", async () => {
   const environment = {
@@ -25,7 +25,9 @@ it("threads the selected host and environment into system diagnostics", async ()
       calls.push({ command, arguments: arguments_, environment: options?.env });
       if (command === "sw_vers") return { stdout: "15.0\n", stderr: "" };
       if (command === "ldd") return { stdout: "linux-vdso.so.1", stderr: "" };
-      return { stdout: "/selected/bin/rea\n", stderr: "" };
+      if (command === "which")
+        return { stdout: "/selected/bin/rea\n", stderr: "" };
+      throw new Error(`Unexpected diagnostic command: ${command}`);
     },
   });
 
@@ -114,7 +116,7 @@ it("reports no Homebrew Hopper when the cask has no receipt", async () => {
   });
 
   expect(await host.brewHopperPath()).toBeUndefined();
-  expect(
-    calls.every((arguments_) => arguments_.join(" ") === "--caskroom"),
-  ).toBe(true);
+  expect(new Set(calls.map((arguments_) => arguments_.join(" ")))).toEqual(
+    new Set(["--caskroom"]),
+  );
 });

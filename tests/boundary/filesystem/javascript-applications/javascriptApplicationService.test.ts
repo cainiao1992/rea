@@ -3,15 +3,15 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { parseEvidence } from "../../domain/evidence.js";
-import { javascriptApplicationAnalysisResultSchema } from "../../domain/javascript/javascriptApplicationAnalysis.js";
-import { writeJavaScriptSourceSelectionFixture } from "../../../tests/fixtures/javascriptSourceSelection.js";
+import { parseEvidence } from "../../../../src/domain/evidence.js";
+import { javascriptApplicationAnalysisResultSchema } from "../../../../src/domain/javascript/javascriptApplicationAnalysis.js";
+import { writeJavaScriptSourceSelectionFixture } from "../../../fixtures/javascriptSourceSelection.js";
 
-import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
-import { scanCanonicalArtifactInventory } from "../../../tests/fixtures/artifactInventory.js";
-import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
-import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
-import { analyzeJavaScriptApplication } from "../../../tests/support/javascriptApplicationScope.js";
+import { ArtifactReaderFailure } from "../../../../src/artifacts/ArtifactReader.js";
+import { scanCanonicalArtifactInventory } from "../../../fixtures/artifactInventory.js";
+import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
+import { projectAnalysisError } from "../../../../src/domain/analysisErrorProjection.js";
+import { analyzeJavaScriptApplication } from "../../../support/javascriptApplicationScope.js";
 
 describe("Selected JavaScript source failure diagnostics", () => {
   it("analyzes selected files in first-request order and reports only selected progress", async () => {
@@ -33,10 +33,18 @@ describe("Selected JavaScript source failure diagnostics", () => {
         },
       },
     );
-    expect(result.ok).toBe(true);
+    if (!result.ok) throw result.error;
+    const analysis = javascriptApplicationAnalysisResultSchema.parse(
+      result.value.normalized_result,
+    );
+    expect(analysis.source_selection).toEqual({
+      requested_paths: ["z-later.mjs", "main.mjs", "z-later.mjs"],
+      unselected_files: 5,
+    });
+    expect(analysis.statistics.parsed_javascript_files).toBe(2);
     expect(progress).toEqual([
-      "Parsing and projecting z-later.mjs (1/2)",
-      "Parsing and projecting main.mjs (2/2)",
+      expect.stringContaining("z-later.mjs"),
+      expect.stringContaining("main.mjs"),
     ]);
   });
 

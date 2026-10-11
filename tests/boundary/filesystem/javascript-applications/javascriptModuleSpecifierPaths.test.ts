@@ -4,11 +4,11 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
-import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptArtifactFiles.js";
-import { resolveArtifactPathByContext } from "./JavaScriptArtifactPathResolution.js";
-import { analyzeJavaScriptApplication } from "../../../tests/support/javascriptApplicationScope.js";
-import { javascriptApplicationAnalysisResultSchema } from "../../domain/javascript/javascriptApplicationAnalysis.js";
+import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
+import type { JavaScriptArtifactFile } from "../../../../src/domain/javascript/javascriptArtifactFiles.js";
+import { resolveArtifactPathByContext } from "../../../../src/application/javascript/JavaScriptArtifactPathResolution.js";
+import { analyzeJavaScriptApplication } from "../../../support/javascriptApplicationScope.js";
+import { javascriptApplicationAnalysisResultSchema } from "../../../../src/domain/javascript/javascriptApplicationAnalysis.js";
 
 const filesFor = (paths: readonly string[]) =>
   new Map<string, JavaScriptArtifactFile>(

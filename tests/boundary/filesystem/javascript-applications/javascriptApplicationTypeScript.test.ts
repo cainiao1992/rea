@@ -3,11 +3,11 @@ import { join } from "node:path";
 
 import { expect, it } from "vitest";
 
-import { canonicalJson } from "../../domain/comparisonSemantics.js";
-import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
-import { javascriptApplicationAnalysisResultSchema } from "../../domain/javascript/javascriptApplicationAnalysis.js";
-import { parseJavaScriptSource } from "../../domain/javascript/javascriptSourceParser.js";
-import { analyzeJavaScriptApplication } from "../../../tests/support/javascriptApplicationScope.js";
+import { canonicalJson } from "../../../../src/domain/comparisonSemantics.js";
+import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
+import { javascriptApplicationAnalysisResultSchema } from "../../../../src/domain/javascript/javascriptApplicationAnalysis.js";
+import { parseJavaScriptSource } from "../../../../src/domain/javascript/javascriptSourceParser.js";
+import { analyzeJavaScriptApplication } from "../../../support/javascriptApplicationScope.js";
 
 type ApplicationAnalysis = ReturnType<
   typeof javascriptApplicationAnalysisResultSchema.parse

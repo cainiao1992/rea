@@ -3,9 +3,9 @@ import { join } from "node:path";
 
 import { expect, it } from "vitest";
 
-import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
-import { javascriptApplicationAnalysisResultSchema } from "../../domain/javascript/javascriptApplicationAnalysis.js";
-import { analyzeJavaScriptApplication } from "../../../tests/support/javascriptApplicationScope.js";
+import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
+import { javascriptApplicationAnalysisResultSchema } from "../../../../src/domain/javascript/javascriptApplicationAnalysis.js";
+import { analyzeJavaScriptApplication } from "../../../support/javascriptApplicationScope.js";
 
 it("classifies overloaded open calls from lexical receiver facts", async () => {
   const inputPath = await createTestTempDirectory(

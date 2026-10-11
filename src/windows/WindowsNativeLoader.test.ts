@@ -169,17 +169,18 @@ describe("packaged Windows native admission", () => {
       }),
     ).toMatchObject({
       available: false,
+      retryable: true,
       reason: expect.stringContaining("private DACL: access denied"),
     });
   });
 
   it("requires every inspected native fact", () => {
     const value = fixture();
-    expect(
-      loadWindowsNativeAuthority({
-        ...value.host,
-        loadArtifact: () => ({ call: () => ({ privateDacl: true }) }),
-      }).available,
-    ).toBe(false);
+    const loaded = loadWindowsNativeAuthority({
+      ...value.host,
+      loadArtifact: () => ({ call: () => ({ privateDacl: true }) }),
+    });
+    expect(loaded.available).toBe(false);
+    expect(loaded).not.toHaveProperty("retryable");
   });
 });

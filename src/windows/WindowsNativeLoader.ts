@@ -67,7 +67,12 @@ export interface WindowsNativeAuthority {
 /** Availability of the bundled native implementation, including load failures. */
 export type WindowsNativeLoadResult =
   | { readonly available: true; readonly authority: WindowsNativeAuthority }
-  | { readonly available: false; readonly reason: string };
+  | {
+      readonly available: false;
+      readonly reason: string;
+      /** Only a failed native invocation can recover on a later query. */
+      readonly retryable?: true;
+    };
 
 /** Trusted package reads and module loading, replaceable in loader tests. */
 export interface WindowsNativeLoadHost {
@@ -106,7 +111,17 @@ export const loadWindowsNativeAuthority = (
       );
     assertWindowsX64Artifact(artifact);
     const binding = bindingSchema.parse(host.loadArtifact());
-    const inspection = inspectionSchema.parse(binding.call("inspect", []));
+    let observed: unknown;
+    try {
+      observed = binding.call("inspect", []);
+    } catch (cause: unknown) {
+      return {
+        available: false,
+        retryable: true,
+        reason: `REA Windows native self-test failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+      };
+    }
+    const inspection = inspectionSchema.parse(observed);
     return { available: true, authority: { call: binding.call, inspection } };
   } catch (cause: unknown) {
     return {
@@ -131,8 +146,10 @@ const assertWindowsX64Artifact = (bytes: Buffer): void => {
 
 let cached: WindowsNativeLoadResult | undefined;
 
-/** Load only the package-owned artifact, lazily and once per process. */
+/** Cache stable admission; let a later query retry failed owned inspection. */
 export const systemWindowsNativeAuthority = (): WindowsNativeLoadResult => {
+  if (cached?.available === false && cached.retryable === true)
+    cached = undefined;
   cached ??= loadWindowsNativeAuthority({
     platform: process.platform,
     architecture: process.arch,

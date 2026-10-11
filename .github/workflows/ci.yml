@@ -305,6 +305,12 @@ jobs:
           sudo apt-get install --no-install-recommends -y g++-mingw-w64-x86-64
       - run: npm run build:windows-native
       - run: npm run verify:windows-native:artifact
+      - run: node scripts/build-windows-native.mjs --inspection-fixture
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-native-inspection-fixture
+          path: .cache/windows-native-inspection-fixture/
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: windows-native-controls
@@ -505,6 +511,12 @@ jobs:
           tests/process-global/updateMaintenance.test.ts
           tests/conformance/providers/ghidra/realGhidraWindowsWorkflow.test.ts
       - run: npm run verify:windows-native
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-native-inspection-fixture
+          path: .cache/windows-native-inspection-fixture/
+      - name: Verify native inspection failure ownership and recovery
+        run: node scripts/verify-windows-native-inspection.mjs
       - name: Verify real Node Inspector discovery and observation
         timeout-minutes: 10
         env:

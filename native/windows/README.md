@@ -106,6 +106,30 @@ npm run verify:windows-native
 npm run verify:ghidra:windows
 ```
 
+The native inspection probe retains its directory owner if deletion fails. A
+later availability query retries that cleanup before creating another probe;
+successful admission and static artifact failures remain cached. Environment
+teardown makes one final cleanup attempt and reports a persistent failure to
+stderr rather than claiming the directory was removed.
+
+CI separately builds and verifies a test-only artifact:
+
+```sh
+node scripts/build-windows-native.mjs --inspection-fixture
+```
+
+On Windows, after compiling the runtime:
+
+```powershell
+node scripts/verify-windows-native-inspection.mjs
+```
+
+This artifact injects one access-denied disposition result while using a real
+NTFS directory. The verifier checks retained ownership, recovery on a later
+query, cached successful admission, and cleanup on environment teardown. It
+does not reproduce or identify the host-dependent cause reported in #1701.
+The fixture is stored under `.cache/` and is excluded from the shipped addon.
+
 The native lane checks DACL readback independently, source write/replacement
 rejection, unrelated sibling renames, reparse rejection, immutable snapshots,
 asynchronous cancellation, cleanup containment,

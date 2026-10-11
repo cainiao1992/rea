@@ -93,6 +93,7 @@ export interface FakeOptions {
   readonly webSocketWithoutFrames?: boolean;
   readonly invalidBinaryWebSocketEvent?: boolean;
   readonly sourceMapBody?: string;
+  readonly sourceMapRedirect?: string;
   readonly sessionTimeline?:
     | "same_origin"
     | "outside_policy"

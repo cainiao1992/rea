@@ -1,4 +1,8 @@
-import { createServer, type IncomingMessage } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 
 import { WebSocket, WebSocketServer } from "ws";
 
@@ -34,13 +38,7 @@ export const startFakeCdpBrowser = async (
       referer: request.headers.referer,
     });
     response.setHeader("content-type", "application/json");
-    if (
-      request.url?.startsWith("/app.js.map") === true &&
-      options.sourceMapBody !== undefined
-    ) {
-      response.end(options.sourceMapBody);
-      return;
-    }
+    if (serveSourceMap(request, response, options)) return;
     if (request.url === "/json/version") {
       response.end(
         options.oversizedDiscovery === true
@@ -221,4 +219,23 @@ const replyToCommand = (
   if (eventsFirst) reply();
   if (options.closeAfterMethod === command.method)
     setImmediate(() => socket.close());
+};
+
+const serveSourceMap = (
+  request: IncomingMessage,
+  response: ServerResponse,
+  options: FakeOptions,
+): boolean => {
+  if (options.sourceMapBody === undefined) return false;
+  if (request.url?.startsWith("/app.js.map") === true) {
+    if (options.sourceMapRedirect !== undefined)
+      response.writeHead(302, { location: options.sourceMapRedirect }).end();
+    else response.end(options.sourceMapBody);
+    return true;
+  }
+  if (request.url === options.sourceMapRedirect) {
+    response.end(options.sourceMapBody);
+    return true;
+  }
+  return false;
 };

@@ -129,6 +129,7 @@ describe("web bundle analyzer", () => {
         {
           script_key: `scr_${"1".repeat(64)}`,
           declared_url: "https://app.example.test/app.js.map",
+          effective_url: null,
           status: "fetch_failed",
           artifact: null,
           original_sources: [],

@@ -11,6 +11,11 @@ import { basename, dirname, join, posix, win32 } from "node:path";
 import writeFileAtomic from "write-file-atomic";
 
 import { windowsPrivateRuntime } from "../windows/WindowsPrivateRuntime.js";
+import {
+  quoteWindowsBatchToken,
+  windowsBatchCommand,
+  WindowsBatchCommandError,
+} from "../process/WindowsBatchCommand.js";
 
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import { err, ok, type Result } from "../domain/result.js";
@@ -322,50 +327,34 @@ export const ghidraHeadlessCommand = (options: {
       command: options.analyzeHeadlessPath,
       arguments: [...options.arguments],
     };
-  const environment = snapshotEnvironment(
-    options.environment,
-    options.platform,
+  const command = ghidraBatchStep(() =>
+    windowsBatchCommand({
+      environment: options.environment,
+      batchPath: options.analyzeHeadlessPath,
+      arguments: options.arguments,
+      ...(options.comSpec === undefined ? {} : { comSpec: options.comSpec }),
+    }),
   );
-  const systemRoot = environment.SYSTEMROOT;
-  const comSpec =
-    options.comSpec ??
-    environment.COMSPEC ??
-    (systemRoot === undefined
-      ? "C:\\Windows\\System32\\cmd.exe"
-      : win32.join(systemRoot, "System32", "cmd.exe"));
-  if (
-    !win32.isAbsolute(comSpec) ||
-    win32.basename(comSpec).toLowerCase() !== "cmd.exe"
-  )
-    throw new GhidraLaunchError(
-      "Windows ComSpec must be an absolute cmd.exe path",
-    );
-  const tokens = [options.analyzeHeadlessPath, ...options.arguments].map(
-    quoteWindowsBatchToken,
-  );
-  const invocation = `"${tokens.join(" ")}"`;
-  if (invocation.length > 30_000)
+  if ((command.arguments.at(-1)?.length ?? 0) > 30_000)
     throw new GhidraLaunchError(
       "Windows Ghidra command exceeds the P0 length limit",
     );
-  return {
-    command: comSpec,
-    arguments: ["/d", "/e:on", "/v:off", "/s", "/c", invocation],
-  };
+  return command;
 };
 
-const quoteWindowsBatchToken = (value: string): string => {
-  if (
-    value.length === 0 ||
-    value.includes("\0") ||
-    value.includes("\r") ||
-    value.includes("\n") ||
-    /["%^!&|<>]/u.test(value)
-  )
+/** Keep Ghidra's launch error type and P0 wording for shared batch checks. */
+const ghidraBatchStep = <T>(step: () => T): T => {
+  try {
+    return step();
+  } catch (cause: unknown) {
+    if (!(cause instanceof WindowsBatchCommandError)) throw cause;
     throw new GhidraLaunchError(
-      "Windows Ghidra P0 paths cannot contain command-interpreter metacharacters",
+      cause.reason === "metacharacter"
+        ? "Windows Ghidra P0 paths cannot contain command-interpreter metacharacters"
+        : cause.message,
+      { cause },
     );
-  return `"${value}"`;
+  }
 };
 
 const cleanupStartedProcess = (
@@ -578,7 +567,7 @@ export const ghidraHeadlessJavaOptions = (
   if (platform === "win32")
     return {
       JDK_JAVA_OPTIONS: [...options, "-XX:-UsePerfData"]
-        .map(quoteWindowsBatchToken)
+        .map((option) => ghidraBatchStep(() => quoteWindowsBatchToken(option)))
         .join(" "),
       GHIDRA_HEADLESS_JAVA_OPTIONS: "",
     };

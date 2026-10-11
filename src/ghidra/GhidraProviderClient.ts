@@ -59,6 +59,7 @@ import { ghidraPspExtensionSchema } from "./GhidraPspExtension.js";
 import {
   GHIDRA_MIPS_SOFT_FLOAT_STORAGE,
   ghidraMipsSoftFloatFailure,
+  ghidraMipsRelocatableLimitations,
   ghidraMipsSoftFloatLimitations,
   isGhidraMipsSoftFloatTarget,
 } from "./GhidraMipsProfile.js";
@@ -510,6 +511,7 @@ export const createGhidraProviderClient = (input: {
     ...(target.kind === "executable" && target.architecture === "mips"
       ? (target.mips.limitations ?? [])
       : []),
+    ...ghidraMipsRelocatableLimitations(target),
   ];
   const providerLimitations =
     installation.platform === "win32"

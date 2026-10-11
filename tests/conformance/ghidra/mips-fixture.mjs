@@ -18,7 +18,6 @@ export async function buildMipsFixture(
   if (floatAbi !== "hard" && floatAbi !== "soft")
     throw new Error("MIPS fixture float ABI must be hard or soft");
   const soft = floatAbi === "soft";
-  const compiler = process.env.REA_MIPS_CLANG ?? "clang";
   const target = byteOrder === "little" ? "mipsel-linux-gnu" : "mips-linux-gnu";
   const source = fileURLToPath(new URL("../c/mips.c", import.meta.url));
   const softSource = fileURLToPath(
@@ -46,6 +45,71 @@ export async function buildMipsFixture(
     "-o",
     path,
   ];
+  return {
+    ...(await compileMipsFixture(path, byteOrder, 2, args)),
+    float_abi: floatAbi,
+    source_sha256: createHash("sha256")
+      .update(await readFile(source))
+      .digest("hex"),
+    ...(soft
+      ? {
+          soft_source_sha256: createHash("sha256")
+            .update(await readFile(softSource))
+            .digest("hex"),
+        }
+      : {}),
+    probe_sha256: createHash("sha256")
+      .update(await readFile(probe))
+      .digest("hex"),
+  };
+}
+
+/**
+ * Build the source-owned ET_REL object. `-G0` keeps gp-relative relocations
+ * out, and `kernelModule` adds the soft-float long-call options Linux MIPS
+ * modules use, so every call becomes a HI16/LO16 pair.
+ */
+export async function buildMipsRelocatableFixture(
+  directory,
+  byteOrder,
+  kernelModule = false,
+) {
+  if (byteOrder !== "little" && byteOrder !== "big")
+    throw new Error("MIPS fixture byte order must be little or big");
+  const target = byteOrder === "little" ? "mipsel-linux-gnu" : "mips-linux-gnu";
+  const source = fileURLToPath(
+    new URL("../c/mips-relocatable.c", import.meta.url),
+  );
+  const path = join(directory, `${target}${kernelModule ? "-module" : ""}.o`);
+  const args = [
+    `--target=${target}`,
+    "-march=mips32r2",
+    "-mabi=32",
+    ...(kernelModule ? ["-msoft-float", "-mlong-calls"] : []),
+    "-mno-abicalls",
+    "-fno-pic",
+    "-G0",
+    // Keeps powf(1.5f, 2.5f) a real external call instead of a folded constant.
+    "-fno-builtin",
+    "-O1",
+    "-c",
+    source,
+    "-o",
+    path,
+  ];
+  return {
+    ...(await compileMipsFixture(path, byteOrder, 1, args)),
+    float_abi: kernelModule ? "soft" : "hard",
+    kernel_module_options: kernelModule,
+    source_sha256: createHash("sha256")
+      .update(await readFile(source))
+      .digest("hex"),
+  };
+}
+
+/** Compile and attest the shared ELF32/o32/MIPS32r2 fixture boundary. */
+async function compileMipsFixture(path, byteOrder, objectType, args) {
+  const compiler = process.env.REA_MIPS_CLANG ?? "clang";
   const version = await execute(compiler, ["--version"], { timeout: 10000 });
   await execute(compiler, args, { timeout: 60000 });
   const bytes = await readFile(path);
@@ -62,7 +126,7 @@ export async function buildMipsFixture(
     bytes.toString("hex", 0, 4) !== "7f454c46" ||
     bytes[4] !== 1 ||
     bytes[5] !== (byteOrder === "little" ? 1 : 2) ||
-    read16(16) !== 2 ||
+    read16(16) !== objectType ||
     read16(18) !== 8 ||
     read32(36) !== 0x70001001
   )
@@ -72,22 +136,8 @@ export async function buildMipsFixture(
   return {
     path,
     byte_order: byteOrder,
-    float_abi: floatAbi,
     flags: read32(36),
     sha256: createHash("sha256").update(bytes).digest("hex"),
-    source_sha256: createHash("sha256")
-      .update(await readFile(source))
-      .digest("hex"),
-    ...(soft
-      ? {
-          soft_source_sha256: createHash("sha256")
-            .update(await readFile(softSource))
-            .digest("hex"),
-        }
-      : {}),
-    probe_sha256: createHash("sha256")
-      .update(await readFile(probe))
-      .digest("hex"),
     compiler: version.stdout.trim(),
     arguments: args,
   };

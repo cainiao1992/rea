@@ -2,6 +2,8 @@ import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 
 const MIPS_FP_ABI_SOFT = 3;
+const MIPS_ET_REL = 1;
+const MIPS_ET_EXEC = 2;
 
 /** Keep family recognition separate from the deliberately bounded Ghidra lane. */
 export const ghidraMipsUnsupportedReason = (
@@ -14,8 +16,8 @@ export const ghidraMipsUnsupportedReason = (
     return "MIPS analysis requires ELF header metadata; a family name alone does not select an ISA or ABI.";
   if (metadata.elfClass !== 32)
     return "This Ghidra MIPS lane supports ELF32 only; MIPS64 and n64 remain unsupported.";
-  if (metadata.type !== 2)
-    return "This Ghidra MIPS lane supports ET_EXEC only; relocatable objects, shared images and PSP PRX need separate load verification.";
+  if (metadata.type !== MIPS_ET_EXEC && metadata.type !== MIPS_ET_REL)
+    return "This Ghidra MIPS lane supports ET_EXEC and ET_REL only; shared images and PSP PRX need separate load verification.";
   if ((metadata.flags & 0x0f000000) !== 0)
     return "MIPS16, microMIPS and other ASE encodings are outside this standard-instruction MIPS lane.";
   if ((metadata.flags & 0x00ff0000) !== 0)
@@ -101,6 +103,19 @@ export const ghidraMipsSoftFloatLimitations = (
       ]
     : [];
 
+/** Ghidra-placed relocatable objects need coordinates and relocation caveats. */
+export const ghidraMipsRelocatableLimitations = (
+  target: BinaryTarget,
+): readonly string[] =>
+  target.kind === "executable" &&
+  target.architecture === "mips" &&
+  target.mips?.type === MIPS_ET_REL
+    ? [
+        "Relocatable MIPS ELF: Ghidra assigns each allocated section an analysis address and applies the object's relocations there. Returned addresses are analysis coordinates, not the addresses a kernel or linker would choose at load time.",
+        "Undefined symbols (for example kernel exports used by a module) are placed in Ghidra's EXTERNAL block; their definitions are outside this artifact. inspect_native_load_image reports each relocation with Ghidra's status; HI16 entries report PARTIAL because Ghidra applies them together with their paired LO16.",
+      ]
+    : [];
+
 /** Commit source ELF interpretation without confusing target ISA with host CPU. */
 export const ghidraMipsProfileParameters = (
   target: BinaryTarget,
@@ -141,6 +156,9 @@ export const ghidraMipsProfileParameters = (
     ...(isGhidraMipsSoftFloatTarget(target)
       ? { mips_soft_float_storage: GHIDRA_MIPS_SOFT_FLOAT_STORAGE }
       : {}),
-    mips_support_lane: "elf32-exec-o32-arch32r2-standard-v3",
+    mips_support_lane:
+      target.mips.type === MIPS_ET_REL
+        ? "elf32-rel-o32-arch32r2-standard-v1"
+        : "elf32-exec-o32-arch32r2-standard-v3",
   };
 };

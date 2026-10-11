@@ -23,9 +23,18 @@ const SOFT_FLOAT_SYMBOLS = [
   "rea_mips_soft_caller",
 ];
 
-/** Parse only the documented GNU readelf fields needed by our tiny fixture. */
-export function parseMipsReadelf(text, byteOrder, floatAbi = "hard") {
+/**
+ * Parse only the documented GNU readelf fields needed by our tiny fixtures.
+ * `rel` objects carry their own symbol checks in mips-relocatable-checks.mjs.
+ */
+export function parseMipsReadelf(
+  text,
+  byteOrder,
+  floatAbi = "hard",
+  objectType = "exec",
+) {
   assert.ok(floatAbi === "hard" || floatAbi === "soft");
+  assert.ok(objectType === "exec" || objectType === "rel");
   language(byteOrder);
   const field = (expression, label) => {
     const matches = [...text.matchAll(expression)];
@@ -37,7 +46,10 @@ export function parseMipsReadelf(text, byteOrder, floatAbi = "hard") {
     field(/^\s*Data:.*?,\s*(little|big) endian\s*$/gmu, "byte order"),
     byteOrder,
   );
-  assert.match(field(/^\s*Type:\s*(.+)$/gmu, "type"), /^EXEC\b/u);
+  assert.match(
+    field(/^\s*Type:\s*(.+)$/gmu, "type"),
+    objectType === "rel" ? /^REL\b/u : /^EXEC\b/u,
+  );
   assert.match(field(/^\s*Machine:\s*(.+)$/gmu, "machine"), /^MIPS\b/u);
   const flags = Number(field(/^\s*Flags:\s*(0x[\da-f]+),.*$/gmu, "flags"));
   assert.equal(flags, 0x70001001, "Fixture ELF flags differ from build intent");
@@ -85,14 +97,16 @@ export function parseMipsReadelf(text, byteOrder, floatAbi = "hard") {
     ),
   };
   const symbols = {};
-  for (const name of [
-    "rea_mips_entry",
-    "rea_mips_leaf",
-    "rea_mips_probe",
-    "rea_mips_global",
-    "rea_mips_marker",
-    ...(floatAbi === "soft" ? SOFT_FLOAT_SYMBOLS : []),
-  ]) {
+  for (const name of objectType === "rel"
+    ? []
+    : [
+        "rea_mips_entry",
+        "rea_mips_leaf",
+        "rea_mips_probe",
+        "rea_mips_global",
+        "rea_mips_marker",
+        ...(floatAbi === "soft" ? SOFT_FLOAT_SYMBOLS : []),
+      ]) {
     const value = field(
       new RegExp(
         `^\\s*\\d+:\\s+([\\da-f]+)\\s+\\d+\\s+(?:FUNC|OBJECT)\\s+GLOBAL\\s+\\S+\\s+\\d+\\s+${name}\\s*$`,
@@ -103,7 +117,13 @@ export function parseMipsReadelf(text, byteOrder, floatAbi = "hard") {
     symbols[name] = `0x${BigInt(`0x${value}`).toString(16)}`;
   }
   return {
-    mips: { elfClass: 32, byteOrder, type: 2, flags, abiFlags },
+    mips: {
+      elfClass: 32,
+      byteOrder,
+      type: objectType === "rel" ? 1 : 2,
+      flags,
+      abiFlags,
+    },
     symbols,
   };
 }

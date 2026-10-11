@@ -493,7 +493,7 @@ jobs:
           tests/acceptance/webSourceLocationCli.test.ts
           tests/boundary/cli/referenceSourceImportStatus.test.ts
           tests/boundary/filesystem/asarInventoryFreshness.test.ts
-          tests/composition/javascript-applications/javascriptArtifactReconstruction.test.ts
+          tests/boundary/filesystem/javascript-applications/javascriptArtifactReconstruction.test.ts
           tests/conformance/providers/ghidra/windowsCapabilities.test.ts
           src/ghidra/GhidraInstallation.test.ts
           tests/boundary/providers/ghidra/ghidraTransport.test.ts

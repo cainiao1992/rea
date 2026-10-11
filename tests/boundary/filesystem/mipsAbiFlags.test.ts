@@ -131,7 +131,7 @@ for (const little of [true, false]) {
     const fp64 = await inspect(bytes, little);
     assert.ok(fp64.ok);
     const changed = target({ ...metadata(little), abiFlags: fp64.value });
-    assert.match(ghidraMipsUnsupportedReason(changed) ?? "", /register modes/u);
+    assert.match(ghidraMipsUnsupportedReason(changed) ?? "", /FP64/u);
     assert.notDeepEqual(ghidraMipsProfileParameters(changed), before);
   });
 }
@@ -272,14 +272,6 @@ const unsupported: [string, (bytes: Buffer) => void, RegExp][] = [
     /MIPS32r2/u,
   ],
   [
-    "soft-float",
-    (b) => {
-      b[abiOffset + 5] = 0;
-      b[abiOffset + 7] = 3;
-    },
-    /register modes/u,
-  ],
-  [
     "unspecified FP ABI",
     (b) => {
       b[abiOffset + 7] = 0;
@@ -309,6 +301,19 @@ for (const [name, change, reason] of unsupported) {
     );
   });
 }
+it("resolves soft-float ABI metadata and commits its integer-register storage policy", async () => {
+  const bytes = fixture();
+  bytes[abiOffset + 5] = 0;
+  bytes[abiOffset + 7] = 3;
+  const resolved = await resolveFixture(bytes);
+  assert.equal(resolved.mips.abiFlags?.cpr1Size, 0);
+  assert.equal(resolved.mips.abiFlags?.fpAbi, 3);
+  assert.equal(ghidraMipsUnsupportedReason(resolved), null);
+  assert.equal(
+    ghidraMipsProfileParameters(resolved).mips_soft_float_storage,
+    "o32-soft-float-prototype-v1",
+  );
+});
 it("preserves the caller's cancellation error during table inspection", async () => {
   const cancelled = new Error("caller cancellation sentinel");
   let checks = 0;

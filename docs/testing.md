@@ -1386,7 +1386,8 @@ generation. It installs nothing. Without configuration, the default invocation
 reports a named skip; `--require-tools` makes missing configuration fail.
 
 The verifier creates and validates real modules with custom sections, multiple
-import/export kinds, escaped names and empty modules. It compares exact WAT,
+import/export kinds, escaped names, an empty module, and a bulk-memory
+DataCount section. It compares exact WAT,
 section output and selected/tool digests through the compiled CLI and real MCP
 SDK, validates advertised schemas, checks identical CLI/MCP Evidence IDs and
 session bundle readback, retains invalid/truncated module diagnostics, preserves

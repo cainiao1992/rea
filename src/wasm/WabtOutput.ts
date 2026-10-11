@@ -13,7 +13,7 @@ export const parseWabtOutput = (
   const sections = [];
   while (!text.startsWith("\nSection Details:\n", offset)) {
     const match =
-      /^[ \t]+(\w+) start=0x([\da-f]+) end=0x([\da-f]+) \(size=0x([\da-f]+)\) /u.exec(
+      /^[ \t]*(\w+) start=0x([\da-f]+) end=0x([\da-f]+) \(size=0x([\da-f]+)\) /u.exec(
         text.slice(offset),
       );
     if (match === null) throw new Error("Unrecognized WABT section row.");

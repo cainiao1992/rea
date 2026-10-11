@@ -1,4 +1,5 @@
 import { constants } from "node:buffer";
+import { createHash } from "node:crypto";
 import type { FileHandle } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { getHeapStatistics } from "node:v8";
@@ -7,6 +8,7 @@ import { asStream, none } from "stream-chain";
 import fun from "stream-chain/fun.js";
 import parser from "stream-json/parser.js";
 import streamValues from "stream-json/streamers/stream-values.js";
+import streamArray from "stream-json/streamers/stream-array.js";
 
 import { RegularFileChangedError } from "../filesystem/RegularFile.js";
 import { withRegularFile } from "./RegularFileRead.js";
@@ -39,6 +41,196 @@ const nativeParseFits = (inputBytes: number): boolean =>
   inputBytes * 72 + READ_CHUNK_BYTES <=
     getHeapStatistics().total_available_size;
 
+/** One selected root member; repeated keys begin again with last-value semantics. */
+export interface JsonObjectMemberReader {
+  readonly mode: "value" | "array";
+  readonly begin: () => void;
+  readonly accept: (value: unknown) => void | Promise<void>;
+  readonly reject: (cause: unknown) => void;
+}
+
+/** Scan selected members without retaining skipped subtrees or prior array items. */
+export const readJsonObjectFile = (
+  path: string,
+  operation: string,
+  scans: readonly ReadonlyMap<string, JsonObjectMemberReader>[],
+  signal?: AbortSignal,
+): Promise<Result<void, JsonInputFileFailure>> =>
+  withRegularFile(
+    path,
+    async (handle, stats) => {
+      let previousDigest: string | undefined;
+      try {
+        const native = await readNativeJson(
+          handle,
+          stats.size,
+          path,
+          operation,
+          signal,
+        );
+        if (native !== undefined) {
+          if (!native.ok) return native;
+          const value = native.value;
+          if (
+            typeof value !== "object" ||
+            value === null ||
+            Array.isArray(value)
+          )
+            throw new TypeError("JSON document root must be an object");
+          for (const members of scans)
+            for (const [key, member] of members) {
+              if (!Object.hasOwn(value, key)) continue;
+              signal?.throwIfAborted();
+              member.begin();
+              const selected: unknown = Reflect.get(value, key);
+              if (member.mode === "array" && !Array.isArray(selected)) {
+                member.reject(
+                  new TypeError(`JSON member ${key} must be an array`),
+                );
+                continue;
+              }
+              for (const item of member.mode === "array" &&
+              Array.isArray(selected)
+                ? selected
+                : [selected]) {
+                signal?.throwIfAborted();
+                try {
+                  await member.accept(item);
+                } catch (cause: unknown) {
+                  member.reject(cause);
+                }
+              }
+            }
+          return ok(undefined);
+        }
+        for (const members of scans) {
+          const hash = createHash("sha256");
+          let rootObject = false;
+          let depth = 0;
+          let key: string | undefined;
+          let consume:
+            | ((token: parser.Token) => typeof none | Promise<typeof none>)
+            | undefined;
+          await pipeline(
+            decodedChunks(handle, stats.size, path, signal, (bytes) => {
+              hash.update(bytes);
+            }),
+            asStream(
+              fun(
+                parser({
+                  jsonStreaming: false,
+                  streamValues: false,
+                  packKeys: false,
+                  packStrings: false,
+                  packNumbers: false,
+                }),
+                packJsonScalars(operation, stats.size, path),
+                (token: parser.Token): typeof none | Promise<typeof none> => {
+                  const opens =
+                    token.name === "startObject" || token.name === "startArray";
+                  const closes =
+                    token.name === "endObject" || token.name === "endArray";
+                  if (depth === 0) {
+                    rootObject = token.name === "startObject";
+                  } else if (
+                    rootObject &&
+                    depth === 1 &&
+                    token.name === "keyValue"
+                  ) {
+                    key = token.value;
+                  } else if (rootObject && depth === 1 && !closes) {
+                    const member =
+                      key === undefined ? undefined : members.get(key);
+                    consume = undefined;
+                    if (member !== undefined) {
+                      member.begin();
+                      if (
+                        member.mode === "array" &&
+                        token.name !== "startArray"
+                      ) {
+                        member.reject(
+                          new TypeError(`JSON member ${key} must be an array`),
+                        );
+                      } else {
+                        consume = memberConsumer(
+                          member,
+                          operation,
+                          stats.size,
+                          path,
+                        );
+                      }
+                    }
+                    key = undefined;
+                  }
+                  const selected = consume;
+                  if (opens) depth += 1;
+                  if (closes) depth -= 1;
+                  if (rootObject && depth === 1 && token.name !== "keyValue")
+                    consume = undefined;
+                  if (selected === undefined) return none;
+                  return selected(token);
+                },
+              ),
+            ),
+            signal === undefined ? {} : { signal },
+          );
+          if (!rootObject)
+            throw new TypeError("JSON document root must be an object");
+          const digest = hash.digest("hex");
+          if (previousDigest !== undefined && digest !== previousDigest)
+            throw new RegularFileChangedError(path);
+          previousDigest = digest;
+        }
+        return ok(undefined);
+      } catch (cause: unknown) {
+        const failure = jsonReadFailure(cause, operation, stats.size, path);
+        if (failure !== undefined) return err(failure);
+        throw cause;
+      }
+    },
+    { signal },
+  );
+
+const memberConsumer = (
+  member: JsonObjectMemberReader,
+  operation: string,
+  size: number,
+  path: string,
+) => {
+  let admit = admitJsonAssembly(operation, size, path);
+  const streamer: parser.TokenConsumer<{ readonly value: unknown }> =
+    member.mode === "array" ? streamArray() : streamValues();
+  const consume = fun(
+    (token: parser.Token) => admit(token),
+    streamer,
+    (row: unknown): typeof none | Promise<typeof none> => {
+      if (typeof row !== "object" || row === null || !("value" in row))
+        throw new Error("Unexpected JSON member parser result");
+      // The preceding array item has left the assembler; retain only what the
+      // consumer owns and use live headroom when admitting the next item.
+      admit = admitJsonAssembly(operation, size, path);
+      try {
+        const accepted = member.accept(row.value);
+        if (accepted instanceof Promise)
+          return accepted.then(
+            () => none,
+            (cause: unknown) => {
+              member.reject(cause);
+              return none;
+            },
+          );
+      } catch (cause: unknown) {
+        member.reject(cause);
+      }
+      return none;
+    },
+  );
+  return (token: parser.Token): typeof none | Promise<typeof none> => {
+    const consumed = consume(token);
+    return consumed instanceof Promise ? consumed.then(() => none) : none;
+  };
+};
+
 /** Parse strict UTF-8 JSON without requiring a whole-document string. */
 export const readJsonInputFile = (
   path: string,
@@ -51,22 +243,14 @@ export const readJsonInputFile = (
       let found = false;
       let value: unknown;
       try {
-        const prefix = nativeParseFits(stats.size)
-          ? await readPrefix(handle, stats.size + 1, signal)
-          : undefined;
-        if (prefix !== undefined) {
-          if (!prefix.complete || prefix.bytes.length !== stats.size)
-            throw new RegularFileChangedError(path);
-          const parsed = parseUtf8Json(
-            prefix.bytes,
-            operation,
-            path,
-            "json-file-input",
-          );
-          return parsed.ok
-            ? ok(parsed.value)
-            : err(invalidJson(operation, parsed.error, parsed.cause));
-        }
+        const native = await readNativeJson(
+          handle,
+          stats.size,
+          path,
+          operation,
+          signal,
+        );
+        if (native !== undefined) return native;
         await pipeline(
           decodedChunks(handle, stats.size, path, signal),
           // Fuse synchronous token stages so only file chunks cross the async
@@ -105,47 +289,54 @@ export const readJsonInputFile = (
           ? ok(value)
           : err(invalidJson(operation, "JSON document is empty"));
       } catch (cause: unknown) {
-        if (cause instanceof AnalysisResourceConstraintError) return err(cause);
-        if (
-          cause instanceof TypeError &&
-          "code" in cause &&
-          cause.code === "ERR_ENCODING_INVALID_ENCODED_DATA"
-        )
-          return err(
-            invalidJson(operation, "JSON input is not valid UTF-8", cause),
-          );
-        if (
-          cause instanceof SyntaxError ||
-          (cause instanceof Error && cause.message.startsWith("Parser "))
-        )
-          return err(invalidJson(operation, cause.message, cause));
-        if (
-          cause instanceof Error &&
-          ((cause instanceof RangeError &&
-            cause.message === "Invalid string length") ||
-            ("code" in cause && cause.code === "ERR_STRING_TOO_LONG"))
-        )
-          return err(
-            new AnalysisResourceConstraintError(
-              operation,
-              "memory",
-              "An individual JSON string or number token exceeds the runtime string limit",
-              {
-                input_path: path,
-                input_file_bytes: stats.size,
-                max_string_code_units: constants.MAX_STRING_LENGTH,
-              },
-              {
-                cause,
-                remediationAction: JSON_INPUT_RESOURCE_REMEDIATION,
-              },
-            ),
-          );
+        const failure = jsonReadFailure(cause, operation, stats.size, path);
+        if (failure !== undefined) return err(failure);
         throw cause;
       }
     },
     { signal },
   );
+
+const jsonReadFailure = (
+  cause: unknown,
+  operation: string,
+  size: number,
+  path: string,
+): JsonInputFileFailure | undefined => {
+  if (cause instanceof AnalysisResourceConstraintError) return cause;
+  if (
+    cause instanceof TypeError &&
+    "code" in cause &&
+    cause.code === "ERR_ENCODING_INVALID_ENCODED_DATA"
+  )
+    return invalidJson(operation, "JSON input is not valid UTF-8", cause);
+  if (
+    cause instanceof SyntaxError ||
+    (cause instanceof Error && cause.message.startsWith("Parser "))
+  )
+    return invalidJson(operation, cause.message, cause);
+  if (
+    cause instanceof Error &&
+    ((cause instanceof RangeError &&
+      cause.message === "Invalid string length") ||
+      ("code" in cause && cause.code === "ERR_STRING_TOO_LONG"))
+  )
+    return new AnalysisResourceConstraintError(
+      operation,
+      "memory",
+      "An individual JSON string or number token exceeds the runtime string limit",
+      {
+        input_path: path,
+        input_file_bytes: size,
+        max_string_code_units: constants.MAX_STRING_LENGTH,
+      },
+      {
+        cause,
+        remediationAction: JSON_INPUT_RESOURCE_REMEDIATION,
+      },
+    );
+  return undefined;
+};
 
 const packJsonScalars = (
   operation: string,
@@ -304,6 +495,7 @@ async function* decodedChunks(
   admittedBytes: number,
   path: string,
   signal: AbortSignal | undefined,
+  observe?: (bytes: Uint8Array) => void,
 ): AsyncGenerator<string> {
   const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
   let leading = true;
@@ -322,15 +514,15 @@ async function* decodedChunks(
       bytes,
       0,
       Math.min(bytes.length, admittedBytes - observedBytes + 1),
-      null,
+      observedBytes,
     );
     signal?.throwIfAborted();
     if (read.bytesRead === 0) break;
     observedBytes += read.bytesRead;
     if (observedBytes > admittedBytes) throw new RegularFileChangedError(path);
-    yield checked(
-      decoder.decode(bytes.subarray(0, read.bytesRead), { stream: true }),
-    );
+    const chunk = bytes.subarray(0, read.bytesRead);
+    observe?.(chunk);
+    yield checked(decoder.decode(chunk, { stream: true }));
   }
   if (observedBytes !== admittedBytes) throw new RegularFileChangedError(path);
   yield checked(decoder.decode());
@@ -360,6 +552,28 @@ const readPrefix = async (
   }
   // One byte beyond the admitted extent proves the selected file changed.
   return { bytes, complete: false };
+};
+
+const readNativeJson = async (
+  handle: FileHandle,
+  size: number,
+  path: string,
+  operation: string,
+  signal?: AbortSignal,
+): Promise<Result<unknown, JsonInputFileFailure> | undefined> => {
+  if (!nativeParseFits(size)) return undefined;
+  const prefix = await readPrefix(handle, size + 1, signal);
+  if (!prefix.complete || prefix.bytes.length !== size)
+    throw new RegularFileChangedError(path);
+  const parsed = parseUtf8Json(
+    prefix.bytes,
+    operation,
+    path,
+    "json-file-input",
+  );
+  return parsed.ok
+    ? ok(parsed.value)
+    : err(invalidJson(operation, parsed.error, parsed.cause));
 };
 
 const invalidJson = (

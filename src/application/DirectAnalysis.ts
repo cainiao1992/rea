@@ -451,7 +451,7 @@ const prepareSnapshot = async (options: {
   const { path, snapshotPath } = options;
   if (snapshotPath === undefined || !(await fileExists(snapshotPath)))
     return ok({});
-  const loaded = await readAnalysisSnapshot(snapshotPath);
+  const loaded = await readAnalysisSnapshot(snapshotPath, options.signal);
   if (!loaded.ok) return loaded;
   const target = await parseBinaryTarget(path, {
     signal: options.signal,

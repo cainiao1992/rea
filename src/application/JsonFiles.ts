@@ -16,7 +16,11 @@ import {
   AnalysisResourceConstraintError,
 } from "../domain/analysisErrorCore.js";
 import { err, ok, type Result } from "../domain/result.js";
-import { readJsonInputFile } from "./JsonInputFile.js";
+import {
+  readJsonInputFile,
+  readJsonObjectFile,
+  type JsonObjectMemberReader,
+} from "./JsonInputFile.js";
 import { NonRegularFileReadError } from "../filesystem/RegularFile.js";
 
 /** Request control and its owning operation for an interruptible atomic write. */
@@ -33,13 +37,47 @@ export const readJsonFile = async (
   path: string,
 ): Promise<
   Result<unknown, EvidenceFileError | AnalysisResourceConstraintError>
+> =>
+  readJsonFileInput(path, (selected) =>
+    readJsonInputFile(selected, "read_evidence_file"),
+  );
+
+/** Read selected JSON members through the same regular-file error boundary. */
+export const readJsonObjectMembersFile = (
+  path: string,
+  scans: readonly ReadonlyMap<string, JsonObjectMemberReader>[],
+  signal?: AbortSignal,
+): Promise<
+  Result<
+    void,
+    EvidenceFileError | AnalysisResourceConstraintError | AnalysisCancelledError
+  >
+> =>
+  readJsonFileInput(
+    path,
+    (selected) =>
+      readJsonObjectFile(selected, "read_evidence_file", scans, signal),
+    signal,
+  );
+
+const readJsonFileInput = async <Value>(
+  path: string,
+  read: (
+    selected: string,
+  ) => Promise<
+    Result<
+      Value,
+      | import("../domain/analysisErrorCore.js").AnalysisInputError
+      | AnalysisResourceConstraintError
+    >
+  >,
+  signal?: AbortSignal,
+): Promise<
+  Result<Value, EvidenceFileError | AnalysisResourceConstraintError>
 > => {
   const requestedPath = resolve(path);
   try {
-    const decoded = await readJsonInputFile(
-      requestedPath,
-      "read_evidence_file",
-    );
+    const decoded = await read(requestedPath);
     if (!decoded.ok) {
       if (decoded.error instanceof AnalysisResourceConstraintError)
         return err(decoded.error);
@@ -57,6 +95,7 @@ export const readJsonFile = async (
     return ok(decoded.value);
   } catch (cause: unknown) {
     if (cause instanceof AnalysisResourceConstraintError) return err(cause);
+    if (signal?.aborted === true) throw cause;
     return err(
       new EvidenceFileError(
         "read",

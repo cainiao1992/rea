@@ -191,7 +191,10 @@ const registerOpenLifecycleTool = ({
     async (input, context) => {
       let snapshot: AnalysisSnapshot | undefined;
       if (input.snapshot_path !== undefined) {
-        const loaded = await readAnalysisSnapshot(input.snapshot_path);
+        const loaded = await readAnalysisSnapshot(
+          input.snapshot_path,
+          context.mcpReq.signal,
+        );
         if (!loaded.ok)
           return server.delivery.toCallToolResult(loaded, openContract);
         snapshot = loaded.value;

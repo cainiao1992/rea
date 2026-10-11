@@ -82,8 +82,7 @@ interface TraversalFrame {
  * not be reintroduced (they diverge on loc/comment fields and ordering).
  */
 export const childNodes = (node: t.Node): t.Node[] => {
-  const keys = t.VISITOR_KEYS[node.type];
-  if (keys === undefined) return [];
+  const keys = javaScriptAstChildKeys(node);
   const children: t.Node[] = [];
   for (const key of keys) {
     const value: unknown = Reflect.get(node, key);
@@ -98,3 +97,7 @@ export const childNodes = (node: t.Node): t.Node[] => {
   }
   return children;
 };
+
+/** Child-bearing fields; shared by traversal and structural AST comparison. */
+export const javaScriptAstChildKeys = (node: t.Node): readonly string[] =>
+  t.VISITOR_KEYS[node.type] ?? [];

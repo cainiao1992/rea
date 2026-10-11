@@ -323,15 +323,42 @@ substitute version-dependent Electron defaults for omitted `webPreferences`.
 Dynamic option objects, bridge keys, API objects, and IPC channel expressions
 remain unknown and make coverage partial.
 
-Electron API identity follows proven lexical module aliases. Bundled CommonJS
-namespace imports are also followed through the interop helpers that bundlers
-and compilers emit (`__toESM`, `__importStar`, `_interopRequireWildcard`),
-including the `electron = __toESM(electron)` rewrap that Rolldown emits. This
-step is inferred: a helper is recognized by its emitted name and a single
-program-scope function definition, and its body is not evaluated, so a local
-function that reuses one of these names is trusted to pass the module through.
-Other reassigned bindings, dynamic selections, and visibly overwritten namespace
-members are unresolved.
+Electron API identity follows proven lexical module aliases. Namespace interop
+also preserves identity when the complete Rolldown helper operations, lexical
+roles, live getters, and captured intrinsic origins match, or when a stable
+helper simply returns its module parameter. Harmless single-statement control
+blocks preserve recognition; added operations still require proof. Literal
+member and destructuring projections are retained from proven results.
+Omitted or literal node-mode arguments preserve named exports; a module-valued
+default projection requires a truthy literal node mode. Computed or extra
+arguments remain unresolved.
+Recognition uses structure rather than emitted names; other helper bodies and ambiguous
+runtime fallbacks remain unresolved. Captured function identities survive later global-property
+replacement, including copies through initialized aliases. Reads before an
+alias initializer remain unresolved. Visible intrinsic writes before capture or
+conversion are checked in their owning callable scope, including identifier leaves in nested/default/rest
+destructuring and loop targets. Property keys and shadowed local bindings do not
+overwrite the global intrinsic identity. Cross-call side effects, including
+writes inside directly invoked local functions, are not evaluated. Other
+reassignments, dynamic selections, and visibly overwritten namespace members
+are unresolved.
+Known Object/Reflect mutators remain recognizable through literal destructuring
+of intrinsic objects and stable bound-function aliases. Calls retain bound
+argument prefixes and the original bound receiver through `call`, `apply`, and
+`Reflect.apply`, including generic `Function.prototype` invocation and binding
+creation. Visibly replaced invocation intrinsics produce unknown effects instead
+of using their former call semantics; captured function aliases retain their
+earlier identity. Unexamined
+targets remain unresolved. `Reflect.set` examines its explicit receiver as well
+as its target, retaining unknown receiver effects. Creating an unused binding does not itself mutate
+an intrinsic. Variable redeclarations retain a single unconditional initializer
+when they introduce no assignment or second initializer.
+Stable identifier chains to fresh object, array, function,
+undecorated class or RegExp syntax keep those targets separate from intrinsic
+objects when initialized before use; opaque, decorated, reassigned or
+not-yet-initialized targets remain unresolved. Writes during class initialization
+are still retained. Function declarations are available before their textual
+position; variable and class initializers must precede use.
 Direct and destructuring assignment, loop, update, and delete targets are checked
 through namespace aliases; unrelated member writes do not discard observed API
 identity. This static check does

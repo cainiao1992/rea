@@ -100,6 +100,7 @@ export const collectSemanticModuleLink = (
     );
   else if (t.isVariableDeclarator(node)) collectRequireLink(node, state);
   else if (t.isAssignmentExpression(node)) collectCommonJsExport(node, state);
+  else if (t.isCallExpression(node)) collectUnboundRequireLink(node, state);
 };
 
 /** Collect lexical references after definitions exist, optionally for one name. */
@@ -322,9 +323,11 @@ const collectRequireLink = (
   node: t.VariableDeclarator,
   state: JavaScriptSemanticAnalysisState,
 ): void => {
-  const origin = semanticRequireOrigin(node.init, state);
-  if (origin === undefined) return;
-  for (const binding of requirePatternBindings(node.id, origin.importedPath))
+  const required = semanticRequireOrigin(node.init, state);
+  if (required === undefined) return;
+  const { origin, call } = required;
+  const bindings = requirePatternBindings(node.id, origin.importedPath);
+  for (const binding of bindings)
     addModuleLink(
       state,
       {
@@ -337,6 +340,29 @@ const collectRequireLink = (
       },
       node,
     );
+  if (bindings.length > 0) state.linkedRequireCalls.add(call);
+};
+
+const collectUnboundRequireLink = (
+  node: t.CallExpression,
+  state: JavaScriptSemanticAnalysisState,
+): void => {
+  if (state.linkedRequireCalls.has(node)) return;
+  const required = semanticRequireOrigin(node, state);
+  if (required === undefined) return;
+  addModuleLink(
+    state,
+    {
+      kind: "require",
+      specifier: required.origin.specifier,
+      importedName: null,
+      localName: null,
+      exportedName: null,
+      location: range(node),
+    },
+    node,
+  );
+  state.linkedRequireCalls.add(node);
 };
 
 const requirePatternBindings = (
@@ -382,8 +408,9 @@ const collectCommonJsExport = (
     node.operator === "=" && receiverEffect !== "uncertain" ? node.right : null;
   while (t.isAssignmentExpression(value, { operator: "=" }))
     value = value.right;
-  const origin =
+  const required =
     value === null ? undefined : semanticRequireOrigin(value, state);
+  const origin = required?.origin;
   addModuleLink(
     state,
     {
@@ -397,6 +424,7 @@ const collectCommonJsExport = (
     },
     node,
   );
+  if (required !== undefined) state.linkedRequireCalls.add(required.call);
 };
 
 /**

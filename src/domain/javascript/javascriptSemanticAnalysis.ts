@@ -384,7 +384,7 @@ export function* classifyParsedJavaScriptElectronBindingsSteps(
       }
       return exported ?? undefined;
     }
-    const origin = semanticRequireOrigin(root, state);
+    const origin = semanticRequireOrigin(root, state)?.origin;
     return origin !== undefined && ELECTRON_MODULE.test(origin.specifier)
       ? electronExportPath(origin.importedPath)
       : undefined;
@@ -459,7 +459,7 @@ const bindingOrigin = (
     state.conditionalInitializers.has(initializer.node)
   )
     return undefined;
-  const origin = semanticRequireOrigin(initializer.node, state);
+  const origin = semanticRequireOrigin(initializer.node, state)?.origin;
   const projection = initializer.projection;
   return origin === undefined ||
     !projection.every((key): key is string => typeof key === "string")
@@ -485,6 +485,7 @@ const createState = (program: t.Program): JavaScriptSemanticAnalysisState => {
     callables: [],
     callableNodesById: new Map(),
     moduleLinks: [],
+    linkedRequireCalls: new WeakSet(),
     moduleLinkBindings: new WeakMap(),
     conditionalInitializers: new WeakSet(),
   };

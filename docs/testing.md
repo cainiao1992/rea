@@ -927,7 +927,7 @@ behavior, and complete CI evidence before merging.
 | `npm run test:focused -- PATH...` | Exact existing test files; compiled boundaries build first, and unmatched paths fail                                    |
 | `npm run test:changed`            | Source tests affected since the merge base with `origin/main`, including committed and dirty changes                    |
 | `npm run test:fast`               | All domain, service, adapter, composition, conformance, and evaluation tests without build                              |
-| `npm run test:boundary`           | Boundary, MCP boundary, process boundary, and process-global projects                                                   |
+| `npm run test:boundary`           | Boundary, CLI boundary, MCP boundary, process boundary, and process-global projects                                     |
 | `npm run test:mcp`                | MCP boundary project                                                                                                    |
 | `npm run test:acceptance`         | Complete compiled CLI and MCP acceptance workflows                                                                      |
 | `npm run test:watch`              | Dirty source tests in watch mode, without build                                                                         |
@@ -989,11 +989,18 @@ Vitest projects use up to two workers, bounded by host parallelism.
 `process-boundary` runs later with serial files because process-tree sampling
 shares host resources. Acceptance and process-global cases use isolated forks
 without serial scheduling. Pure domain/service, composition, conformance,
-evaluation, and MCP boundary projects share module graphs; their tests avoid
-process-global state and keep resource cleanup test-scoped. Each MCP session
-still owns its resources. Adapter, non-MCP boundary, acceptance, and
-process-global projects retain per-file isolation. See `vitest.config.ts` for
-current settings.
+evaluation, CLI boundary, and MCP boundary projects share module graphs. Their
+tests avoid process-global state and keep resource cleanup test-scoped. Each
+MCP session still owns its resources, and CLI cases retain fresh command
+instances or subprocesses. CLI module mocks belong in `tests/process-global/`
+so they keep per-file isolation. Product catalog verification stays with the
+isolated filesystem boundary tests because it loads both source and compiled
+module graphs. Adapter, other boundary, acceptance, and process-global projects
+retain per-file isolation. See `vitest.config.ts` for current settings.
+
+The reused CLI boundary workers cap V8 old space at 384 MiB, based on their
+profiled allocation and cleanup behavior. This encourages collection between
+files; spawned REA processes retain their own heap settings.
 
 Vitest worker limits do not bound subprocesses launched within a test. Bound
 those batches separately so repeated CLI validation cannot oversubscribe the

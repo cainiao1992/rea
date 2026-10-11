@@ -626,6 +626,18 @@ remain GUI-only surfaces in JEB 5.48.0 headless.
 Authenticated IPA and macOS application inventory projection is documented in
 [Apple application analysis](apple-application-analysis.md).
 
+`npm run verify:harmony` requires no SDK or engine. It projects the pinned
+harmony-next-pipeline 1.0.1 release HAP from an MIT-licensed source repository,
+fetched by `npm run fixtures:harmony` into ignored
+`_reference/harmony-integration/`, set as `REA_HARMONY_TEST_HAP`.
+The lane exercises `inspect_artifact`, projection determinism, Stage-model
+path hints, exact component sets, signing-entry limitations, and CLI/MCP parity.
+The release artifact has no independently established compiler/SDK or
+reproducible source build; the default lane does not verify an installed package.
+See [HarmonyOS package inventory](harmony-analysis.md) for those proof boundaries.
+HarmonyOS `.har` libraries are deliberately not suffix-classified because
+`.har` also names HTTP Archive JSON.
+
 Synthetic producer regressions run independently:
 
 ```sh

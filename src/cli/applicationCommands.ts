@@ -8,6 +8,7 @@ import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import { androidApplicationProjectionInputSchema } from "../domain/android/androidApplication.js";
 import { appleApplicationProjectionInputSchema } from "../domain/apple/appleApplication.js";
+import { harmonyApplicationProjectionInputSchema } from "../domain/harmony/harmonyApplication.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 import type { Logger } from "pino";
 import { traceApplicationFeatureInputSchema } from "../domain/javascript/javascriptFeatureTraceSchemas.js";
@@ -119,6 +120,22 @@ export const registerApplicationCommands = (
       const { projectAppleApplicationEvidence } =
         await import("../application/apple/AppleApplicationService.js");
       const result = projectAppleApplicationEvidence(input);
+      return result.ok
+        ? { ok: true, value: jsonValueSchema.parse(result.value) }
+        : result;
+    },
+  });
+  registerJsonCommand({
+    cli,
+    logger,
+    name: CLI_COMMANDS.projectHarmonyApplicationGraph,
+    description:
+      "Project authenticated HarmonyOS HAP, HSP, or App Pack inventory Evidence into an application graph",
+    inputSchema: harmonyApplicationProjectionInputSchema,
+    workflow: async (input) => {
+      const { projectHarmonyApplicationEvidence } =
+        await import("../application/harmony/HarmonyApplicationService.js");
+      const result = projectHarmonyApplicationEvidence(input);
       return result.ok
         ? { ok: true, value: jsonValueSchema.parse(result.value) }
         : result;

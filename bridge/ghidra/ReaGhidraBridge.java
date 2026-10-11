@@ -27,6 +27,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1504,16 +1505,33 @@ public final class ReaGhidraBridge extends HeadlessScript {
         requireDocument(params);
         if (!params.has("names") || !params.get("names").isJsonObject())
             throw new RequestFailure("invalid_request", "names must be an object of address -> name");
+        Map<Address, List<AddressNameRequest>> requestsByAddress = new LinkedHashMap<>();
         JsonObject result = new JsonObject();
         for (Map.Entry<String, JsonElement> entry : params.getAsJsonObject("names").entrySet()) {
-            boolean ok;
             try {
-                ok = applyAddressName(parseReaAddress(entry.getKey()), entry.getValue().getAsString());
+                Address address = parseReaAddress(entry.getKey());
+                requestsByAddress.computeIfAbsent(address, ignored -> new ArrayList<>())
+                    .add(new AddressNameRequest(entry.getKey(), address, entry.getValue().getAsString()));
             }
             catch (RequestFailure failure) {
-                ok = false;
+                result.addProperty(entry.getKey(), false);
             }
-            result.addProperty(entry.getKey(), ok);
+        }
+        for (List<AddressNameRequest> requests : requestsByAddress.values()) {
+            String name = requests.get(0).name;
+            boolean conflictingAliasNames = requests.stream()
+                .anyMatch(request -> !request.name.equals(name));
+            boolean success = false;
+            if (!conflictingAliasNames) {
+                try {
+                    success = applyAddressName(requests.get(0).address, name);
+                }
+                catch (RequestFailure failure) {
+                    // Keep per-address failures in the existing batch result shape.
+                }
+            }
+            for (AddressNameRequest request : requests)
+                result.addProperty(request.inputAddress, success);
         }
         return result;
     }
@@ -3564,6 +3582,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
             .thenComparing(Reference::isPrimary);
 
     private record InventoryItem(Address address, String value, JsonObject facts) {}
+    private record AddressNameRequest(String inputAddress, Address address, String name) {}
     private record FunctionEntry(Function function, InventoryItem item) {}
     private record FunctionAnalysisObservation(JsonObject dossier, List<String> limitations) {}
     private record InstructionScan(List<Instruction> instructions, boolean truncated) {}

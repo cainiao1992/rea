@@ -2,7 +2,7 @@ import type { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 
 import type { BinarySessionPort } from "../application/binary/BinarySessionPort.js";
 import {
-  readEvidenceBundle,
+  readImmutableEvidenceBundle,
   writeEvidenceBundle,
 } from "../application/EvidenceBundleFiles.js";
 import { toolContract } from "../contracts/toolContracts.js";
@@ -91,7 +91,7 @@ const registerImportEvidenceTool = ({
     toolRegistrationOptions(importContract),
     async (input) => {
       const path = input.path;
-      const loaded = await readEvidenceBundle(path);
+      const loaded = await readImmutableEvidenceBundle(path);
       if (!loaded.ok)
         return server.delivery.toCallToolResult(loaded, importContract);
       const retainedUnknownRevisions = new Set(

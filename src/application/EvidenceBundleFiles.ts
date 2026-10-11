@@ -1,4 +1,5 @@
 import {
+  createImmutableEvidenceBundle,
   describeEvidenceBundleFailure,
   describeValidationFailure,
   parseEvidenceBundle,
@@ -30,14 +31,29 @@ type EvidenceWriteFailure =
   | AnalysisCancelledError;
 
 /** Read and validate an evidence bundle at the caller-supplied path. */
-export const readEvidenceBundle = async (
+export const readEvidenceBundle = (
   path: string,
+): Promise<Result<EvidenceBundle, EvidenceReadFailure>> =>
+  readBundle(path, parseEvidenceBundle);
+
+/** Read an authenticated immutable snapshot for a subsequent session import. */
+export const readImmutableEvidenceBundle = (
+  path: string,
+): Promise<Result<EvidenceBundle, EvidenceReadFailure>> =>
+  readBundle(path, (input) => {
+    const bundle = parseEvidenceBundle(input);
+    return createImmutableEvidenceBundle(bundle.records, bundle.unknowns);
+  });
+
+const readBundle = async (
+  path: string,
+  parseBundle: (input: unknown) => EvidenceBundle,
 ): Promise<Result<EvidenceBundle, EvidenceReadFailure>> => {
   const loaded = await readJsonFile(path);
   if (!loaded.ok) return loaded;
   let bundle: EvidenceBundle;
   try {
-    bundle = parseEvidenceBundle(loaded.value);
+    bundle = parseBundle(loaded.value);
   } catch (cause: unknown) {
     return err(
       new EvidenceIntegrityError("Evidence bundle validation failed", {

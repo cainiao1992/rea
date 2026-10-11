@@ -14,9 +14,11 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import {
   readEvidenceBundle,
+  readImmutableEvidenceBundle,
   writeEvidenceBundle,
 } from "../../../src/application/EvidenceBundleFiles.js";
 import { compareEvidenceBundlesCommand } from "../../../src/application/EvidenceBundleCommands.js";
+import { EvidenceLedger } from "../../../src/application/investigation/EvidenceLedger.js";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
 import { createEvidence } from "../../../src/domain/evidence.js";
 import { writeTextParts } from "../../../src/application/JsonFiles.js";
@@ -209,6 +211,46 @@ describe("evidence bundle publication", () => {
   });
 });
 
+it("reuses authenticated file snapshots while isolating mutable public reads", async () => {
+  const directory = await createTestTempDirectory("rea-evidence-owned-");
+  const path = join(directory, "bundle.json");
+  const evidence = createEvidence(
+    {
+      path: "/local/observed-target",
+      sha256: "a".repeat(64),
+      format: "file",
+    },
+    { id: "fixture", name: "Fixture", version: "1" },
+    { operation: "health", parameters: {}, result: { nested: [true] } },
+  );
+  const source = serializeEvidenceBundle(createEvidenceBundle([evidence]));
+  await writeFile(path, source);
+  const mutable = await readEvidenceBundle(path);
+  if (!mutable.ok) throw mutable.error;
+  expect(Object.isFrozen(mutable.value.records[0])).toBe(false);
+  const loaded = await readImmutableEvidenceBundle(path);
+  if (!loaded.ok) throw loaded.error;
+  const record = loaded.value.records[0];
+  if (record === undefined) throw new Error("Expected an imported record");
+  expect(record).toEqual(evidence);
+  expect(Object.isFrozen(loaded.value)).toBe(true);
+  expect(Object.isFrozen(record.normalized_result)).toBe(true);
+  expect(Reflect.set(record, "operation", "forged")).toBe(false);
+
+  const ledger = new EvidenceLedger();
+  const imported = ledger.import(loaded.value);
+  if (!imported.ok) throw imported.error;
+  expect(imported.value).toMatchObject({ recordsAdded: 1, changed: true });
+  expect(ledger.forAnalysis(evidence.evidence_id)).toBe(record);
+  const detached = ledger.get(evidence.evidence_id);
+  if (detached === undefined) throw new Error("Expected a detached record");
+  expect(Reflect.set(detached, "normalized_result", false)).toBe(true);
+  expect(ledger.record(detached).ok).toBe(false);
+  expect(ledger.export()).toEqual(loaded.value);
+  expect(await readFile(path, "utf8")).toBe(source);
+  ledger.clear();
+});
+
 describe("evidence bundle filesystem adapter", () => {
   it("round trips canonical bytes and requires explicit overwrite", async () => {
     const directory = await createTestTempDirectory("rea-evidence-");
@@ -290,34 +332,37 @@ describe("evidence bundle filesystem adapter", () => {
     );
   });
 
-  it("rejects malformed and tampered input", async () => {
-    const directory = await createTestTempDirectory("rea-evidence-");
-    const malformed = join(directory, "malformed.json");
-    await writeFile(malformed, "{");
-    expect(await readEvidenceBundle(malformed)).toMatchObject({
-      ok: false,
-      error: { _tag: "EvidenceFileError", reason: "invalid-json" },
-    });
+  it.each([readEvidenceBundle, readImmutableEvidenceBundle])(
+    "rejects malformed and tampered input (%s)",
+    async (readBundle) => {
+      const directory = await createTestTempDirectory("rea-evidence-");
+      const malformed = join(directory, "malformed.json");
+      await writeFile(malformed, "{");
+      expect(await readBundle(malformed)).toMatchObject({
+        ok: false,
+        error: { _tag: "EvidenceFileError", reason: "invalid-json" },
+      });
 
-    const tampered = bundle();
-    const tamperedPath = join(directory, "tampered.json");
-    await writeFile(
-      tamperedPath,
-      JSON.stringify({
-        ...tampered,
-        records: [{ ...tampered.records[0], normalized_result: "changed" }],
-      }),
-    );
-    expect(await readEvidenceBundle(tamperedPath)).toMatchObject({
-      ok: false,
-      error: {
-        _tag: "EvidenceIntegrityError",
-        userMessage: expect.stringContaining(
-          "at records.0.evidence_id: Evidence semantic identifier does not match its record",
-        ),
-      },
-    });
-  });
+      const tampered = bundle();
+      const tamperedPath = join(directory, "tampered.json");
+      await writeFile(
+        tamperedPath,
+        JSON.stringify({
+          ...tampered,
+          records: [{ ...tampered.records[0], normalized_result: "changed" }],
+        }),
+      );
+      expect(await readBundle(tamperedPath)).toMatchObject({
+        ok: false,
+        error: {
+          _tag: "EvidenceIntegrityError",
+          userMessage: expect.stringContaining(
+            "at records.0.evidence_id: Evidence semantic identifier does not match its record",
+          ),
+        },
+      });
+    },
+  );
 
   it("names the failed bundle constraint for a single record or schema mismatch", async () => {
     const directory = await createTestTempDirectory("rea-evidence-");

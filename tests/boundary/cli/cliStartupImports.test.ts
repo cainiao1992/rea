@@ -15,6 +15,54 @@ const MARKER = "REA_TEST_RESOLVED ";
 // must not resolve them just to register the complete command catalog.
 const DEFERRED_IMPORTS = [
   {
+    name: "direct-analysis",
+    path: "/dist/application/DirectAnalysis.js",
+  },
+  {
+    name: "direct-analysis-status",
+    path: "/dist/application/DirectAnalysisStatus.js",
+  },
+  {
+    name: "doctor",
+    path: "/dist/application/Doctor.js",
+  },
+  {
+    name: "doctor-runtime",
+    path: "/dist/doctorRuntime.js",
+  },
+  {
+    name: "setup",
+    path: "/dist/application/Setup.js",
+  },
+  {
+    name: "setup-host",
+    path: "/dist/application/SetupHost.js",
+  },
+  {
+    name: "uninstall",
+    path: "/dist/application/Uninstall.js",
+  },
+  {
+    name: "update",
+    path: "/dist/application/Update.js",
+  },
+  {
+    name: "update-runtime",
+    path: "/dist/application/UpdateRuntime.js",
+  },
+  {
+    name: "catalog-identity",
+    path: "/dist/catalogIdentity.js",
+  },
+  {
+    name: "server-identity",
+    path: "/dist/serverIdentity.js",
+  },
+  {
+    name: "tool-contracts",
+    path: "/dist/contracts/toolContracts.js",
+  },
+  {
     name: "playwright-core",
     path: "/node_modules/playwright-core/",
   },
@@ -130,13 +178,17 @@ describe("CLI startup imports", () => {
   });
 
   it("loads native provider composition when a provider operation is called", async () => {
-    await expect(
-      resolvedPackages(
-        evaluate(
-          'const { createDirectAnalysis } = await import("./dist/composition/directAnalysis.js"); await createDirectAnalysis({}).runSessionStatus();',
-        ),
+    const resolved = await resolvedPackages(
+      evaluate(
+        'const { createDirectAnalysis } = await import("./dist/composition/directAnalysis.js"); await createDirectAnalysis({}).runSessionStatus();',
       ),
-    ).resolves.toContain("binary-composition");
+    );
+    expect(resolved).toContain("binary-composition");
+    expect(resolved).not.toContain("direct-analysis");
+    expect(resolved).toContain("direct-analysis-status");
+    expect(resolved).toContain("server-identity");
+    expect(resolved).toContain("catalog-identity");
+    expect(resolved).toContain("tool-contracts");
   });
 });
 

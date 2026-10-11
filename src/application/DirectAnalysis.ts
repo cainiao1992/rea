@@ -1,7 +1,5 @@
 import type { ExecutableFormatHint } from "../domain/dosCom.js";
 import type { JsonValue } from "../domain/jsonValue.js";
-import { EnhancedTools } from "./EnhancedTools.js";
-import { executeFunctionAnalysisEvidence } from "./FunctionAnalysisEvidence.js";
 import type { DirectAnalysisDependencies } from "./DirectAnalysisDependencies.js";
 import type { BinarySession } from "./binary/BinarySession.js";
 import type { SessionProviderRoute } from "./binary/SessionProviderRouter.js";
@@ -332,6 +330,8 @@ const executeAnalysisTool = async (input: {
 }): Promise<{ readonly output: JsonValue; readonly evidence?: Evidence }> => {
   const { session, tool, signal, evidenceProfile } = input;
   if (tool === "analyze_function") {
+    const { executeFunctionAnalysisEvidence } =
+      await import("./FunctionAnalysisEvidence.js");
     const result = await executeFunctionAnalysisEvidence(
       session,
       input.arguments,
@@ -350,6 +350,7 @@ const executeAnalysisTool = async (input: {
     tool === "trace_native_values" ||
     tool === "trace_native_ui_action"
   ) {
+    const { EnhancedTools } = await import("./EnhancedTools.js");
     const result = await new EnhancedTools(session).execute(
       tool,
       input.arguments,

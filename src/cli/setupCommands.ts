@@ -1,24 +1,14 @@
 import { z } from "incur";
 
-import {
-  DOCTOR_PROVIDER_IDS,
-  runDoctor,
-  type DoctorScope,
-} from "../application/Doctor.js";
+import type { DoctorScope } from "../application/Doctor.js";
+import { DOCTOR_PROVIDER_IDS } from "../application/DoctorProviderIds.js";
 import {
   isSetupFailure,
   type SetupOptions,
 } from "../application/SetupTypes.js";
-import { runSetup } from "../application/Setup.js";
-import { systemSetupHost } from "../application/SetupHost.js";
-import {
-  isUninstallFailure,
-  runUninstall,
-  systemUninstallHost,
-} from "../application/Uninstall.js";
+import { isUninstallFailure } from "../application/UninstallFailure.js";
 import { homeDirectoryFromEnvironment } from "../config/homeDirectory.js";
-import { isUpdateFailure, runUpdate } from "../application/Update.js";
-import { systemUpdateHost } from "../application/UpdateRuntime.js";
+import { isUpdateFailure } from "../application/UpdateFailure.js";
 import {
   confirmInteractiveSetup,
   renderInteractiveSetupResult,
@@ -26,7 +16,6 @@ import {
 } from "./interactiveSetup.js";
 import { PRODUCT_IDENTITY } from "../identity.js";
 import { logCliCommand } from "../cliLogging.js";
-import { createSystemDoctorHost } from "../doctorRuntime.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
 import type { Logger } from "pino";
 import type { CliInstance } from "./types.js";
@@ -130,13 +119,17 @@ const registerDoctorCommand = (
         .describe("Require the installed REA skill identity to be aligned"),
     }),
     run: ({ options }) =>
-      logCliCommand(logger, "doctor", () =>
-        runDoctor(
+      logCliCommand(logger, "doctor", async () => {
+        const [{ runDoctor }, { createSystemDoctorHost }] = await Promise.all([
+          import("../application/Doctor.js"),
+          import("../doctorRuntime.js"),
+        ]);
+        return runDoctor(
           options.target,
           createSystemDoctorHost(environment),
           doctorScope(options),
-        ),
-      ),
+        );
+      }),
   });
 };
 
@@ -157,15 +150,18 @@ const registerMaintenanceCommands = (
       logCliCommand(
         logger,
         "uninstall",
-        () =>
-          runUninstall(
+        async () => {
+          const { runUninstall, systemUninstallHost } =
+            await import("../application/Uninstall.js");
+          return runUninstall(
             options.purgeData,
             systemUninstallHost(
               homeDirectoryFromEnvironment(environment, process.platform),
               undefined,
               environment,
             ),
-          ),
+          );
+        },
         isUninstallFailure,
       ),
   });
@@ -176,12 +172,17 @@ const registerMaintenanceCommands = (
       logCliCommand(
         logger,
         CLI_COMMANDS.update,
-        () =>
-          runUpdate(
+        async () => {
+          const [{ runUpdate }, { systemUpdateHost }] = await Promise.all([
+            import("../application/Update.js"),
+            import("../application/UpdateRuntime.js"),
+          ]);
+          return runUpdate(
             PRODUCT_IDENTITY.packageVersion,
             systemUpdateHost(undefined, undefined, environment),
             formatExplicit ? "structured" : "human",
-          ),
+          );
+        },
         isUpdateFailure,
       ),
   });
@@ -208,6 +209,12 @@ const runSetupCommand = async (
   const { options } = input;
   const interactive = setupIsInteractive(options, input.formatExplicit);
   const hasExplicitScope = setupHasExplicitScope(options);
+  const [{ runSetup }, { systemSetupHost }, { createSystemDoctorHost }] =
+    await Promise.all([
+      import("../application/Setup.js"),
+      import("../application/SetupHost.js"),
+      import("../doctorRuntime.js"),
+    ]);
   const result = await runSetup(
     setupRunOptions(input, interactive, hasExplicitScope),
     systemSetupHost(createSystemDoctorHost(environment), environment),

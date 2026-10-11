@@ -52,7 +52,6 @@ export const inferJsonShape = (text: string): JsonShape | null => {
     void cause;
     return null;
   }
-  const properties: ShapeNode[] = [];
   const rootShape: ShapeNode = {
     path: [],
     types: new Set(),
@@ -77,7 +76,6 @@ export const inferJsonShape = (text: string): JsonShape | null => {
       observations: 0,
     };
     children.set(key, node);
-    properties.push(node);
     return node;
   };
   const pending: Array<{
@@ -109,18 +107,26 @@ export const inferJsonShape = (text: string): JsonShape | null => {
       pending.push({ value, shape: childShape(current.shape, name) });
     }
   }
-  return jsonShapeSchema.parse({
+  // Preorder over sorted siblings gives canonical paths without repeatedly
+  // comparing their shared prefixes. Each returned path owns its segments.
+  const properties: JsonShape["properties"] = [];
+  const shapes = orderedChildren(rootShape);
+  while (shapes.length > 0) {
+    const shape = shapes.pop();
+    if (shape === undefined) break;
+    properties.push({
+      path: shape.path.map((segment) => ({ ...segment })),
+      types: [...shape.types].sort(),
+      observations: shape.observations,
+    });
+    for (const child of orderedChildren(shape)) shapes.push(child);
+  }
+  return {
     root_type: jsonValueType(root),
     node_count: nodeCount,
     max_depth_observed: maxDepthObserved,
-    properties: properties
-      .map((value) => ({
-        path: value.path,
-        types: [...value.types].sort(),
-        observations: value.observations,
-      }))
-      .sort((left, right) => compareShapePaths(left.path, right.path)),
-  });
+    properties,
+  };
 };
 
 const jsonValueType = (value: unknown): JsonValueType => {
@@ -141,20 +147,16 @@ const jsonValueType = (value: unknown): JsonValueType => {
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const compareShapePaths = (
-  left: readonly JsonShapePathSegment[],
-  right: readonly JsonShapePathSegment[],
-): number => {
-  for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
-    const a = left[index];
-    const b = right[index];
-    if (a === undefined || b === undefined) break;
-    const order =
-      compareUnicodeCodePoints(a.kind, b.kind) ||
-      (a.kind === "property" && b.kind === "property"
-        ? compareUnicodeCodePoints(a.name, b.name)
-        : 0);
-    if (order !== 0) return order;
-  }
-  return left.length - right.length;
-};
+/** Reverse sibling order for the traversal stack; array elements sort first. */
+const orderedChildren = (node: ShapeNode): ShapeNode[] =>
+  [...(node.children ?? [])]
+    .sort(([left], [right]) =>
+      left === right
+        ? 0
+        : left === arrayElementKey
+          ? 1
+          : right === arrayElementKey
+            ? -1
+            : compareUnicodeCodePoints(right, left),
+    )
+    .map(([, child]) => child);

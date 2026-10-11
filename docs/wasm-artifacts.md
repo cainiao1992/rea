@@ -37,7 +37,8 @@ into a private workspace as read-only `module.wasm`; its digest is rechecked
 before and after each tool. WABT validates with `--enable-all`,
 reports sections through `wasm-objdump -h -x`, and decodes through
 `wasm2wat --enable-all`. The result retains selected byte SHA-256 and size,
-section payload ranges, full header/detail output, exact import/export WAT
+section payload ranges, full header/detail output (including module-name
+preambles), exact import/export WAT
 forms, decoded WAT and its UTF-8 SHA-256. Producer format drift and invalid or
 truncated modules are failures, with validation diagnostics and partial Evidence
 retaining selected byte identity and tool provenance.

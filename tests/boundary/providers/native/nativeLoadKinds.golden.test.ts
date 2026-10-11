@@ -32,6 +32,69 @@ it("retains lazily loaded library dependencies", () => {
   });
 });
 
+// Captured from the real Apple bundle CI fixture's `otool -h -l` output.
+const delayedDylib = withOtoolMachHeader(`Load command 0
+          cmd LC_LOAD_DYLIB
+      cmdsize 56
+         name @rpath/libdelay.dylib (offset 28)
+      options delay-init
+      current version 0.0.0
+compatibility version 1.0.0
+`);
+
+it("preserves dylib-use options through native Mach-O inspection", async () => {
+  const runner = new NativeFixtureRunner({ "otool:-h": delayedDylib });
+  const client = new NativeMacOSProvider({}, runner, "darwin").createClient(
+    nativeMachoTarget("/owned/fixture"),
+  );
+  const result = await client.execute("inspect_macho", {});
+  if (!result.ok) throw result.error;
+  expect(result.value.result).toMatchObject({
+    load_commands: {
+      items: [{ kind: "LC_LOAD_DYLIB", fields: { options: "delay-init" } }],
+    },
+    dependencies: {
+      items: [
+        {
+          path: "@rpath/libdelay.dylib",
+          kind: "LC_LOAD_DYLIB",
+          current_version: "0.0.0",
+          compatibility_version: "1.0.0",
+        },
+      ],
+    },
+  });
+});
+
+it("retains empty dylib-use options and rejects missing or ambiguous encoding fields", () => {
+  expect(
+    parseOtoolLoadCommands(delayedDylib.replace("delay-init", "")).commands[0]
+      ?.fields.options,
+  ).toBe("");
+  const malformed: Array<readonly [string, RegExp]> = [
+    ["", /timestamp or options/u],
+    [
+      "      options delay-init\n      options weak\n",
+      /options is missing or repeated/u,
+    ],
+    [
+      "      options delay-init\n   time stamp 2 Thu Jan  1 00:00:02 1970\n",
+      /timestamp or options/u,
+    ],
+    [
+      "      options delay-init\n      injected text\n",
+      /ambiguous multiline text/u,
+    ],
+  ];
+  for (const [replacement, reason] of malformed) {
+    expect(() =>
+      parseOtoolLoadCommands(
+        delayedDylib.replace("      options delay-init\n", replacement),
+      ),
+    ).toThrow(reason);
+  }
+});
+
 it("preserves dependency install names that begin with the word stamp", () => {
   const load = parseOtoolLoadCommands(
     withOtoolMachHeader(

@@ -138,6 +138,28 @@ it("accepts an unpadded DataCount row and still rejects malformed output and bad
     ),
   ).toThrow(/header/u);
 });
+it.each([
+  { displayed: [], decoded: ["named"] },
+  { displayed: ["named"], decoded: [] },
+  { displayed: ["other"], decoded: ["named"] },
+])(
+  "rejects module-name headers inconsistent with decoded WAT: %j",
+  async ({ displayed, decoded }) => {
+    const text = (await golden()).replace(
+      "\n\nSections:",
+      `\n${displayed.map((name) => `module name: <${name}>\n`).join("")}\nSections:`,
+    );
+    expect(() => parseWabtOutput(text, 76, ["test"], decoded)).toThrow(
+      /header format/u,
+    );
+  },
+);
+it.each([
+  '(module (@custom "name" "\\00\\06\\05name"))',
+  '(module (@custom "name" "\\00\\05\\05name"))',
+])("rejects incomplete decoded module-name metadata: %s", (text) => {
+  expect(() => parseWabtWat(text)).toThrow(/metadata/u);
+});
 it("extracts escaped WAT import/export forms while retaining multiline producer text", async () => {
   const text = await readFile(
     new URL("../../tests/fixtures/wasm/decoded.wat", import.meta.url),
@@ -147,6 +169,7 @@ it("extracts escaped WAT import/export forms while retaining multiline producer 
     imports: ['(import "env" "foo" (func (;0;) (type 0)))'],
     exports: ['(export "memory" (memory 0))', '(export "run" (func 1))'],
     customSectionNames: ["test"],
+    debugModuleNames: [],
   });
   expect(
     parseWabtWat(
@@ -156,6 +179,7 @@ it("extracts escaped WAT import/export forms while retaining multiline producer 
     imports: ['(import "a.b" "c\\0aline" (func))'],
     exports: ['(export "fake\\22Export[1]:" (func 0))'],
     customSectionNames: [],
+    debugModuleNames: [],
   });
   expect(
     parseWabtWat(

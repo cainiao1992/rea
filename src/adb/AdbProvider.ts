@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
 import { access, lstat, mkdir, rm, stat, writeFile } from "node:fs/promises";
-import { basename, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 
 import type {
   ExecutionOptions,
@@ -47,6 +47,7 @@ import {
   parsePackageListOutput,
   parsePmPathOutput,
 } from "./AdbDeviceOutput.js";
+import { adbHostFileName } from "./AdbHostFileName.js";
 import {
   parseAmStartOutput,
   parseBugreportCopiedPath,
@@ -1399,13 +1400,23 @@ export class AdbProvider {
     },
     signal: AbortSignal | undefined,
   ): Promise<Result<AnalysisExecution, AnalysisError>> {
+    const derived = adbHostFileName(input.device_path);
+    if (!derived.ok)
+      return err(
+        new AnalysisInputError(operation, undefined, [
+          {
+            path: ["device_path"],
+            reason: "invalid_value",
+            message: `The device path does not name a portable host file (${derived.reason}); REA never renames a device-reported file.`,
+          },
+        ]),
+      );
     const directory = await prepareOutputDirectory(
       operation,
       input.output_directory,
     );
     if (!directory.ok) return directory;
-    const fileName = basename(input.device_path) || "pulled";
-    const localPath = join(directory.value, fileName);
+    const localPath = join(directory.value, derived.fileName);
     const existing = await refuseExistingTarget(operation, localPath);
     if (existing !== undefined) return err(existing);
     const pulled = await runAdb(

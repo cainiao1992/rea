@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { evidenceBundleSummarySchema } from "../domain/evidenceRecordSummary.js";
 import { BINARY_ARCHITECTURES } from "../domain/binaryTargetTypes.js";
 import { nativeFunctionAnnotationsSchema } from "../domain/native/nativeFunctionAnnotations.js";
 import { nativeLoadImageSchema } from "../domain/native/nativeLoadImage.js";
@@ -470,7 +471,9 @@ export const sessionOutputSchemas = {
       unknowns: z.number().int().min(0),
     }),
   ),
-  get_evidence_bundle: lifecycleResultOf(evidenceBundleSchema),
+  get_evidence_bundle: lifecycleResultOf(
+    z.union([evidenceBundleSchema, evidenceBundleSummarySchema]),
+  ),
   get_navigation_context: lifecycleResultOf(
     z.object({
       document: z.string(),

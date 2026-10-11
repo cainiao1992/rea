@@ -43,6 +43,7 @@ export const CLI_COMMANDS = Object.freeze({
   inspectBinaryLayout: "inspect-binary-layout",
   inspectPeResources: "inspect-pe-resources",
   inspectAnalysisView: "inspect-analysis-view",
+  inspectEvidenceBundle: "inspect-evidence-bundle",
   inspectFirmwareRegions: "inspect-firmware-regions",
   extractFirmware: "extract-firmware",
   inspectAndroidPackage: "inspect-android-package",

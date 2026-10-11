@@ -53,6 +53,10 @@ export const TOOL_EXAMPLE_OVERRIDES: Readonly<
   trace_native_ui_action: { action: "buildTapped:" },
   open_binary: { path: "/tmp/fixture" },
   export_evidence_bundle: { path: "/tmp/evidence.json" },
+  get_evidence_bundle: {
+    detail: "summary",
+    filters: { operation: "analyze_function", procedure_address: "0x1000" },
+  },
   inspect_address_context: { address: "0x1000" },
   import_evidence_bundle: { path: "/tmp/evidence.json" },
   capture_process_scenario: {

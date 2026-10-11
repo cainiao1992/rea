@@ -159,7 +159,7 @@ export const SESSION_TOOL_CONTRACTS = [
   ),
   session(
     "get_evidence_bundle",
-    "Return every Evidence record and residual unknown currently retained by this session as one inline bundle for direct inspection or follow-up workflows.",
+    "Return every retained Evidence record and residual unknown as a complete canonical bundle by default. detail=summary discovers retained records without copying or transferring their payloads; optionally filter by exact Evidence ID, operation, target SHA-256, analysis-profile digest or canonical native procedure address. Metadata distinguishes complete record retention from native value-flow truncation or unavailable/unknown coverage. Use a discovered evidence_id with inspect_analysis_view without restarting a provider. Filters apply only to summary delivery.",
     getEvidenceBundleInputSchema,
   ),
   session(

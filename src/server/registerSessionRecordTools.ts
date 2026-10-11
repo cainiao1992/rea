@@ -8,6 +8,7 @@ import {
 import { toolContract } from "../contracts/toolContracts.js";
 import type { EvidenceBundle } from "../domain/evidenceBundle.js";
 import { ok } from "../domain/result.js";
+import { inspectEvidenceBundle } from "../application/investigation/InspectEvidenceBundle.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 
 interface EvidenceToolRegistration {
@@ -72,9 +73,9 @@ const registerSnapshotEvidenceTool = ({
   server.registerTool(
     snapshotContract.name,
     toolRegistrationOptions(snapshotContract),
-    () =>
+    (input) =>
       server.delivery.toCallToolResult(
-        ok(bundleForSerialization(session)),
+        inspectEvidenceBundle(bundleForSerialization(session), input),
         snapshotContract,
       ),
   );

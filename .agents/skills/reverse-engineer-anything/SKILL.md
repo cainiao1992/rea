@@ -135,6 +135,16 @@ session to a selected path. The analysis remains complete in the ledger; avoid
 repeating it merely to request the same oversized response. Complete CLI JSON
 output also streams without a single MCP frame.
 
+When the retained parent ID is unknown, use `get_evidence_bundle` with
+`detail: "summary"` and exact filters for operation, target SHA-256,
+analysis-profile digest or canonical procedure address. Select its returned
+Evidence ID for the next view instead of requesting the complete bundle.
+`retention: "complete-record"` means the whole record is stored; native
+value-flow truncation and unknown metadata remain separate. For an exported
+portable bundle, use `rea inspect-evidence-bundle` with JSON containing `path`,
+`detail: "summary"` and the same `filters`. Reading that file still requires
+validating its full contents within the local memory budget.
+
 A client can also truncate a successful tool result without a REA transport
 error. Treat that preview as incomplete; use the retained parent ID for smaller
 views or export when the full record is needed. Do not parse the preview as

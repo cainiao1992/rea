@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { once } from "node:events";
 import {
   access,
+  copyFile,
   mkdir,
   mkdtemp,
   readFile,
@@ -77,6 +78,31 @@ const wait = async (child) => {
 };
 const report = { ok: false, artifact: "verified", controls: {}, processes: {} };
 try {
+  // Exercise the loader in a process whose image is not named node.exe. The
+  // ordinary Windows lane otherwise cannot detect eager Node-API imports.
+  const renamedHost = join(workspace, "rea-renamed-node.exe");
+  const renamedHostFixture = join(workspace, "renamed-host.mjs");
+  const loaderUrl = pathToFileURL(
+    join(packageRoot, "dist/windows/WindowsNativeLoader.js"),
+  ).href;
+  await copyFile(process.execPath, renamedHost);
+  await writeFile(
+    renamedHostFixture,
+    `import {basename} from 'node:path';
+import {requireWindowsNativeAuthority} from ${JSON.stringify(loaderUrl)};
+const {inspection}=requireWindowsNativeAuthority();
+process.stdout.write(JSON.stringify({executable:basename(process.execPath),abiVersion:inspection.abiVersion}));\n`,
+  );
+  const renamedHostResult = execFileSync(renamedHost, [renamedHostFixture], {
+    encoding: "utf8",
+    timeout: 20_000,
+    windowsHide: true,
+  });
+  assert.deepEqual(JSON.parse(renamedHostResult), {
+    executable: "rea-renamed-node.exe",
+    abiVersion: 1,
+  });
+  report.controls.renamedHostNodeApi = true;
   const sourceDirectory = join(workspace, "source");
   await mkdir(sourceDirectory);
   const source = join(sourceDirectory, "target.bin");

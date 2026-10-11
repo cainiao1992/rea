@@ -100,11 +100,15 @@ export const methodBody = (
     if (ilOffset > bytes.length - header.ilSize)
       throw new RangeError("Method IL bytes leave artifact");
     const il = bytes.subarray(ilOffset, ilOffset + header.ilSize);
-    // One byte can produce an instruction record, start index, normalized tuple,
-    // and anchor. Bound that bookkeeping before decoding; the retained body is
-    // reserved once it is known.
-    budget?.admitTransient(il.length * 256, ilOffset);
-    const decoded = decodeInstructions(il);
+    // Bound the actual instruction records before allocating them. One raw
+    // byte is only an upper bound on count; wide operands do not create a
+    // separate instruction for every byte. Retained output is charged below.
+    const decoded = decodeInstructions(
+      il,
+      budget === undefined
+        ? undefined
+        : (start) => budget.admitTransient(256, ilOffset + start),
+    );
     const opcodeCounts: Record<string, number> = {};
     for (const instruction of decoded.parsed)
       opcodeCounts[instruction.opcode] =

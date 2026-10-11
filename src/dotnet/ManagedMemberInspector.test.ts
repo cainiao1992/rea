@@ -248,6 +248,63 @@ describe("managed exported types", () => {
 });
 
 describe("managed member decoding budget", () => {
+  it("admits a wide-instruction method whose actual records fit the budget", () => {
+    // Five-byte branches all target the next instruction. A final ret leaves
+    // the method stack-neutral, despite over 256 KiB of valid IL bytes.
+    const il = Buffer.alloc(270_001);
+    for (let offset = 0; offset < il.length - 1; offset += 5) {
+      il[offset] = 0x38;
+    }
+    il[il.length - 1] = 0x2a;
+    const header = Buffer.alloc(12);
+    header.writeUInt16LE(0x3003, 0);
+    header.writeUInt16LE(8, 2);
+    header.writeUInt32LE(il.length, 4);
+    const bytes = buildManagedPeFixture({
+      ilBody: Buffer.concat([header, il]),
+    });
+    const result = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.coverage).toMatchObject({ state: "complete", issues: [] });
+    expect(result.types).toHaveLength(1);
+    expect(result.methods[0]?.body).toMatchObject({
+      status: "present",
+      il_size: il.length,
+      decoded_instruction_count: 54_001,
+      opcode_counts: { br: 54_000, ret: 1 },
+    });
+  });
+
+  it("still rejects dense one-byte instructions before exceeding capacity", () => {
+    // All NOPs: unlike wide instructions, each IL byte adds a decoded record.
+    // A true oversized transient must remain an actionable resource limit.
+    const il = Buffer.alloc(270_001);
+    il[il.length - 1] = 0x2a;
+    const header = Buffer.alloc(12);
+    header.writeUInt16LE(0x3003, 0);
+    header.writeUInt16LE(8, 2);
+    header.writeUInt32LE(il.length, 4);
+    const bytes = buildManagedPeFixture({
+      ilBody: Buffer.concat([header, il]),
+    });
+    const result = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.coverage).toMatchObject({
+      state: "unavailable",
+      issues: [{ code: "resource-limit", scope: "metadata.representation" }],
+    });
+    // Report the originating IL coordinate, not a generic decoding error.
+    expect(result.coverage.issues[0]?.offset).toBeGreaterThan(0);
+    expect(result.types).toEqual([]);
+    expect(result.methods).toEqual([]);
+  });
+
   it("charges decoded output rather than accumulated decoding bounds", () => {
     // Each bound fits alone, but 256 bytes per IL and signature byte together
     // exceed the 64 MiB budget although the retained members are small.

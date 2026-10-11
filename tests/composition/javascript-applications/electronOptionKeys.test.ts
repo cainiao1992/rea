@@ -164,8 +164,14 @@ const windowPreloadNodes = (result: Reconstruction) =>
 const reconstructSource = async (source: string): Promise<Reconstruction> => {
   const root = await createTestTempDirectory("rea-electron-option-keys-");
   await Promise.all([
-    writeFile(join(root, "package.json"), JSON.stringify({ main: "main.js" })),
-    writeFile(join(root, "main.js"), source),
+    writeFile(
+      join(root, "package.json"),
+      JSON.stringify({ main: "main.js", type: "module" }),
+    ),
+    writeFile(
+      join(root, "main.js"),
+      `${source}\nimport { BrowserWindow, utilityProcess } from "electron";\n`,
+    ),
     writeFile(join(root, "preload.js"), "void 0;"),
     writeFile(join(root, "worker.js"), "void 0;"),
   ]);

@@ -1,3 +1,4 @@
+import { ELECTRON_IDENTITY_LIMITATION } from "../../domain/javascript/javascriptElectronMemberWrites.js";
 import type { ArtifactInventorySnapshot } from "../../domain/artifactInventorySnapshot.js";
 import {
   createJavaScriptApplicationGraph,
@@ -255,6 +256,11 @@ const graphLimitations = (
     "CommonJS and ESM binding relationships were recovered from inert syntax and resolved only within the inventoried artifact container.",
     "Webpack/Rspack factories were recovered from AST literals; REA did not invoke push handlers or bundle bootstrap code.",
     "Static imports, entrypoints, workers, endpoints, and storage relationships do not prove runtime execution.",
+    ...(context.analysis.files.some(({ javascript }) =>
+      javascript?.limitations.includes(ELECTRON_IDENTITY_LIMITATION),
+    )
+      ? [ELECTRON_IDENTITY_LIMITATION]
+      : []),
     ...(electronFindings === 0
       ? []
       : [

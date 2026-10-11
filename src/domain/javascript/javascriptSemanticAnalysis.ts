@@ -44,6 +44,11 @@ import {
 } from "./javascriptSemanticReturns.js";
 import { collectJavaScriptDerivedSemanticsSteps } from "./javascriptSemanticDerivedAnalysis.js";
 import { evaluateSemanticProvenance } from "./javascriptSemanticValues.js";
+import {
+  collectElectronMemberWritesSteps,
+  electronMemberPath,
+  ELECTRON_MODULE,
+} from "./javascriptElectronMemberWrites.js";
 import { range } from "./javascriptStaticAnalysisHelpers.js";
 import { propertyName } from "./javascriptAstValues.js";
 import { semanticCoverage } from "./javascriptSemanticCoverage.js";
@@ -311,8 +316,6 @@ const resolveGlobalAliasFact = (
   return openGlobalFact(name);
 };
 
-const ELECTRON_MODULE = /^electron(?:\/(?:common|main|renderer|utility))?$/u;
-
 /**
  * Proven Electron export path segments for call and construction roots, keyed by
  * root offset. Only proven Electron origins are present; callers must not
@@ -331,6 +334,27 @@ export function* classifyParsedJavaScriptElectronBindingsSteps(
   const state = createState(file.program);
   yield* collectDefinitionsSteps(file.program, state);
   const exportsByBinding = new Map<string, readonly string[] | null>();
+  const rootExport = (root: t.Node): readonly string[] | undefined => {
+    if (t.isIdentifier(root)) {
+      if (semanticResolutionBlocked(state, root, root.name)) return undefined;
+      const binding = resolveSemanticBindingState(state, root, root.name);
+      if (binding === undefined) return undefined;
+      let exported = exportsByBinding.get(binding.bindingId);
+      if (exported === undefined) {
+        exported = electronExport(binding, state);
+        exportsByBinding.set(binding.bindingId, exported);
+      }
+      return exported ?? undefined;
+    }
+    const origin = semanticRequireOrigin(root, state);
+    return origin !== undefined && ELECTRON_MODULE.test(origin.specifier)
+      ? origin.importedPath
+      : undefined;
+  };
+  const writes = yield* collectElectronMemberWritesSteps(
+    file.program,
+    rootExport,
+  );
   yield* traverseJavaScriptAstSteps(file.program, {
     enter: (node) => {
       if (
@@ -339,34 +363,14 @@ export function* classifyParsedJavaScriptElectronBindingsSteps(
         !t.isNewExpression(node)
       )
         return;
-      const root = calleeRoot(node.callee);
-      if (root === undefined) return;
-      if (t.isIdentifier(root)) {
-        const binding = resolveSemanticBindingState(state, root, root.name);
-        if (binding === undefined) return;
-        let exported = exportsByBinding.get(binding.bindingId);
-        if (exported === undefined) {
-          exported = electronExport(binding, state);
-          exportsByBinding.set(binding.bindingId, exported);
-        }
-        if (exported !== null) facts.set(root.start ?? -1, exported);
-        return;
-      }
-      const origin = semanticRequireOrigin(root, state);
-      if (origin !== undefined && ELECTRON_MODULE.test(origin.specifier))
-        facts.set(root.start ?? -1, origin.importedPath);
+      const { root, members } = electronMemberPath(node.callee);
+      const exported = rootExport(root);
+      if (exported !== undefined && !writes.covers([...exported, ...members]))
+        facts.set(root.start ?? -1, exported);
     },
   });
   return facts;
 }
-
-const calleeRoot = (node: t.Node): t.Node | undefined => {
-  while (t.isMemberExpression(node) || t.isOptionalMemberExpression(node)) {
-    if (!t.isNode(node.object)) return undefined;
-    node = node.object;
-  }
-  return node;
-};
 
 // Read import and require origins directly; general value evaluation is
 // unnecessary here and costly across large vendor bundles.

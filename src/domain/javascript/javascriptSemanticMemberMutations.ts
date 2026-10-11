@@ -28,6 +28,7 @@ import { compareUnicodeCodePoints } from "../unicodeCodePointOrder.js";
 import { traverseJavaScriptAstSteps } from "./javascriptSemanticTraversal.js";
 import {
   semanticStaticPropertyKey,
+  semanticMemberWriteTargets,
   unwrapJavaScriptExpression,
 } from "./javascriptAstValues.js";
 
@@ -356,26 +357,14 @@ export function* collectSemanticMemberMutationsSteps(
       markEscaped(expression.object, mutation);
   };
   const markTarget = (node: t.Node, mutation: t.Node): void => {
-    if (t.isMemberExpression(node) || t.isOptionalMemberExpression(node))
+    for (const target of semanticMemberWriteTargets(node))
       markValue(
-        node.object,
-        [semanticStaticPropertyKey(node.property, node.computed)],
+        target.object,
+        [semanticStaticPropertyKey(target.property, target.computed)],
         new Set(),
         "write",
         mutation,
       );
-    else if (t.isRestElement(node)) markTarget(node.argument, mutation);
-    else if (t.isAssignmentPattern(node)) markTarget(node.left, mutation);
-    else if (t.isArrayPattern(node)) {
-      for (const element of node.elements)
-        if (element !== null) markTarget(element, mutation);
-    } else if (t.isObjectPattern(node)) {
-      for (const property of node.properties)
-        markTarget(
-          t.isRestElement(property) ? property.argument : property.value,
-          mutation,
-        );
-    }
   };
   yield* traverseJavaScriptAstSteps(program, {
     enter: (node, parent) => {

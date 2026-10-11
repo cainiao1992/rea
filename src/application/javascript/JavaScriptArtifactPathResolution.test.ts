@@ -1015,6 +1015,7 @@ describe("contextual JavaScript module identity", () => {
   it("retains CommonJS and ESM file-base identity during inert extraction", () => {
     const analysis = analyzeJavaScriptStaticSource(
       `
+        import { BrowserWindow } from "electron";
         new BrowserWindow({ webPreferences: {
           preload: path.resolve("ignored", __dirname, "preload.cjs")
         }});

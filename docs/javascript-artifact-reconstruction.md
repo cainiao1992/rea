@@ -270,6 +270,14 @@ substitute version-dependent Electron defaults for omitted `webPreferences`.
 Dynamic option objects, bridge keys, API objects, and IPC channel expressions
 remain unknown and make coverage partial.
 
+Electron API identity follows proven lexical module aliases. Reassigned bindings,
+dynamic selections, and visibly overwritten namespace members are unresolved.
+Direct and destructuring assignment, loop, update, and delete targets are checked
+through namespace aliases; unrelated member writes do not discard observed API
+identity. This static check does
+not evaluate arbitrary call side effects or runtime registration. Missing findings
+do not establish that an application has no Electron boundary usage.
+
 IPC pairing is an inference, not an observation. A renderer `invoke` pairs only
 with one unique `ipcMain.handle`/`handleOnce` candidate on the same exact literal
 channel; a renderer send pairs only with one unique `ipcMain.on`/`once`

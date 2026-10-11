@@ -24,6 +24,8 @@ import {
 import { parseJavaScriptApplicationGraph } from "../../../src/domain/javascript/javascriptApplicationGraph.js";
 import { z } from "zod";
 
+import { ELECTRON_IDENTITY_LIMITATION } from "../../../src/domain/javascript/javascriptElectronMemberWrites.js";
+
 const execute = promisify(execFile);
 const requireFixture = createRequire(import.meta.url);
 const temporary: string[] = [];
@@ -200,6 +202,254 @@ const analyzeThroughStdioMcp = async (
     }
   }
 };
+
+describe("Electron alias identity CLI and MCP", () => {
+  it.each([
+    {
+      name: "CommonJS binding chains",
+      esm: false,
+      main: 'const { BrowserWindow, ipcMain } = require("electron"); const First = BrowserWindow; const Win = First; const ipc = ipcMain;',
+      preload:
+        'const { contextBridge, ipcRenderer } = require("electron"); const First = contextBridge; const bridge = First; const ipc = ipcRenderer;',
+    },
+    {
+      name: "static namespace members",
+      esm: false,
+      main: 'const electron = require("electron"); const copied = electron; copied.unrelated = {}; const Win = copied["BrowserWindow"]; const ipc = copied.ipcMain;',
+      preload:
+        'const electron = require("electron"); const copied = electron; const bridge = copied.contextBridge; const ipc = copied["ipcRenderer"];',
+    },
+    {
+      name: "namespace destructuring",
+      esm: false,
+      main: 'const electron = require("electron"); const { BrowserWindow: Win, ipcMain: ipc } = electron;',
+      preload:
+        'const electron = require("electron"); const { contextBridge: bridge, ipcRenderer: ipc } = electron;',
+    },
+    {
+      name: "unwritten let and var bindings",
+      esm: false,
+      main: 'const { BrowserWindow, ipcMain } = require("electron"); let Win = BrowserWindow; var ipc = ipcMain;',
+      preload:
+        'const { contextBridge, ipcRenderer } = require("electron"); var bridge = contextBridge; let ipc = ipcRenderer;',
+    },
+    {
+      name: "ESM binding aliases",
+      esm: true,
+      main: 'import { BrowserWindow, ipcMain } from "electron"; const Win = BrowserWindow; const ipc = ipcMain;',
+      preload:
+        'import { contextBridge, ipcRenderer } from "electron"; const bridge = contextBridge; const ipc = ipcRenderer;',
+    },
+  ])(
+    "recovers Electron boundaries through $name in CLI and MCP (#1656)",
+    async ({ main, preload, esm }) => {
+      const root = await createTestTempDirectory("rea-electron-alias-cli-");
+      temporary.push(root);
+      await Promise.all([
+        writeFile(
+          join(root, "package.json"),
+          JSON.stringify({
+            name: "alias-repro",
+            version: "1.0.0",
+            main: "main.js",
+            type: esm ? "module" : "commonjs",
+          }),
+        ),
+        writeFile(
+          join(root, "main.js"),
+          `${main}\n${esm ? 'import { fileURLToPath } from "node:url";' : 'const path = require("node:path");'}\nnew Win({ webPreferences: { preload: ${esm ? 'fileURLToPath(new URL("./preload.js", import.meta.url))' : 'path.join(__dirname, "preload.js")'} } });\nipc.handle("ch:ping", async () => "pong");\nfunction shadow(Win, ipc) { new Win(); ipc.handle("ch:decoy", () => null); }\n`,
+        ),
+        writeFile(
+          join(root, "preload.js"),
+          `${preload}\nbridge.exposeInMainWorld("api", { ping: () => ipc.invoke("ch:ping") });\nfunction shadow(bridge, ipc) { bridge.exposeInMainWorld("decoy", {}); ipc.invoke("ch:decoy"); }\n`,
+        ),
+      ]);
+      const cli = z
+        .object({
+          normalized_result: javascriptApplicationAnalysisResultSchema,
+        })
+        .parse(
+          await runCli(["analyze-javascript-application", root, "--json"]),
+        ).normalized_result;
+      const mcp = await analyzeThroughStdioMcp(root);
+      expect(cli.summary).toMatchObject({
+        browser_windows: 1,
+        explicit_web_preferences: 1,
+        preload_entrypoints: 1,
+        context_bridge_apis: 1,
+        exposed_api_members: 1,
+        ipc: {
+          operations: 2,
+          literal_channels: 1,
+          main_handlers: 1,
+          renderer_transmissions: 1,
+          paired_renderer_transmissions: 1,
+        },
+      });
+      expect(mcp.summary).toEqual(cli.summary);
+      for (const result of [cli, mcp]) {
+        expect(result.limitations).toContain(ELECTRON_IDENTITY_LIMITATION);
+        expect(result.graph.nodes).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              kind: "ipc-channel",
+              observations: expect.arrayContaining([
+                expect.objectContaining({
+                  properties: expect.objectContaining({
+                    channel: "ch:ping",
+                    operation: "handle",
+                  }),
+                  evidence: expect.objectContaining({
+                    authority: "ast-static-analysis",
+                    location: expect.objectContaining({
+                      available: true,
+                      value: expect.objectContaining({
+                        kind: "source-range",
+                        source: "main.js",
+                      }),
+                    }),
+                  }),
+                }),
+                expect.objectContaining({
+                  properties: expect.objectContaining({
+                    channel: "ch:ping",
+                    operation: "invoke",
+                  }),
+                  evidence: expect.objectContaining({
+                    authority: "ast-static-analysis",
+                    location: expect.objectContaining({
+                      available: true,
+                      value: expect.objectContaining({
+                        kind: "source-range",
+                        source: "preload.js",
+                      }),
+                    }),
+                  }),
+                }),
+              ]),
+            }),
+          ]),
+        );
+        expect(result.graph.edges).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ relation: "handles" }),
+            expect.objectContaining({ relation: "invokes" }),
+            expect.objectContaining({ relation: "loads" }),
+            expect.objectContaining({ relation: "exposes" }),
+          ]),
+        );
+      }
+    },
+  );
+});
+
+describe("Electron unavailable identity CLI and MCP", () => {
+  it.each([
+    {
+      name: "reassigned aliases",
+      main: 'const { BrowserWindow, ipcMain } = require("electron"); let Win = BrowserWindow; let ipc = ipcMain; Win = class {}; ipc = { handle() {} };',
+      preload:
+        'const { contextBridge, ipcRenderer } = require("electron"); let bridge = contextBridge; let ipc = ipcRenderer; bridge = { exposeInMainWorld() {} }; ipc = { invoke() {} };',
+    },
+    {
+      name: "conditional initializers",
+      main: 'const { BrowserWindow, ipcMain } = require("electron"); if (enabled) { var Win = BrowserWindow; var ipc = ipcMain; }',
+      preload:
+        'const { contextBridge, ipcRenderer } = require("electron"); if (enabled) { var bridge = contextBridge; var ipc = ipcRenderer; }',
+    },
+    {
+      name: "dynamic property selections",
+      main: 'const electron = require("electron"); const Win = electron[windowKey]; const ipc = electron[ipcKey];',
+      preload:
+        'const electron = require("electron"); const bridge = electron[bridgeKey]; const ipc = electron[ipcKey];',
+    },
+    {
+      name: "overwritten namespace exports",
+      main: 'const electron = require("electron"); const copied = electron; copied.BrowserWindow = class {}; electron.ipcMain = { handle() {} }; const Win = electron.BrowserWindow; const ipc = copied.ipcMain;',
+      preload:
+        'const electron = require("electron"); electron.contextBridge = { exposeInMainWorld() {} }; electron.ipcRenderer = { invoke() {} }; const bridge = electron.contextBridge; const ipc = electron.ipcRenderer;',
+    },
+    {
+      name: "overwritten API methods",
+      main: 'const electron = require("electron"); const ipc = electron.ipcMain; ipc.handle = () => null; const Win = electron[windowKey];',
+      preload:
+        'const electron = require("electron"); const bridge = electron.contextBridge; delete bridge.exposeInMainWorld; const ipc = electron.ipcRenderer; ipc.invoke++;',
+    },
+    {
+      name: "direct require namespace writes",
+      main: 'require("electron").BrowserWindow = class {}; require("electron").ipcMain = {handle() {}}; const {BrowserWindow: Win, ipcMain: ipc} = require("electron");',
+      preload:
+        'require("electron").contextBridge = {}; require("electron").ipcRenderer = {}; const {contextBridge: bridge, ipcRenderer: ipc} = require("electron");',
+    },
+    {
+      name: "unknown namespace write keys",
+      main: 'const electron = require("electron"); electron[unknownKey] = {}; const {BrowserWindow: Win, ipcMain: ipc} = electron;',
+      preload:
+        'const electron = require("electron"); electron[unknownKey] = {}; const {contextBridge: bridge, ipcRenderer: ipc} = electron;',
+    },
+    {
+      name: "destructuring assignment targets",
+      main: 'const electron = require("electron"); ({ BrowserWindow: electron.BrowserWindow, ipcMain: electron.ipcMain } = replacement); const {BrowserWindow: Win, ipcMain: ipc} = electron;',
+      preload:
+        'const electron = require("electron"); [electron.contextBridge, electron.ipcRenderer] = replacements; const {contextBridge: bridge, ipcRenderer: ipc} = electron;',
+    },
+    {
+      name: "loop assignment targets",
+      main: 'const electron = require("electron"); for ({ BrowserWindow: electron.BrowserWindow, ipcMain: electron.ipcMain } of replacements) {} const {BrowserWindow: Win, ipcMain: ipc} = electron;',
+      preload:
+        'const electron = require("electron"); for (electron.contextBridge in replacements) {} for (electron.ipcRenderer of replacements) {} const {contextBridge: bridge, ipcRenderer: ipc} = electron;',
+    },
+    {
+      name: "literal keys containing dots",
+      main: 'const electron = require("electron"); const Win = electron["fake.BrowserWindow"]; const ipc = electron["fake.ipcMain"]; electron["ipcMain.handle"]("ch:literal", () => null);',
+      preload:
+        'const electron = require("electron"); const bridge = electron["fake.contextBridge"]; const ipc = electron["fake.ipcRenderer"];',
+    },
+  ])(
+    "keeps Electron identity unresolved for $name in CLI and MCP (#1656)",
+    async ({ main, preload }) => {
+      const root = await createTestTempDirectory("rea-electron-alias-unknown-");
+      temporary.push(root);
+      await Promise.all([
+        writeFile(
+          join(root, "package.json"),
+          JSON.stringify({
+            name: "alias-unknown",
+            version: "1.0.0",
+            main: "main.js",
+          }),
+        ),
+        writeFile(
+          join(root, "main.js"),
+          `${main}\nnew Win(); ipc.handle("ch:ping", () => "pong");\n`,
+        ),
+        writeFile(
+          join(root, "preload.js"),
+          `${preload}\nbridge.exposeInMainWorld("api", { ping: () => ipc.invoke("ch:ping") });\n`,
+        ),
+      ]);
+      const cli = z
+        .object({
+          normalized_result: javascriptApplicationAnalysisResultSchema,
+        })
+        .parse(
+          await runCli(["analyze-javascript-application", root, "--json"]),
+        ).normalized_result;
+      const mcp = await analyzeThroughStdioMcp(root);
+      for (const result of [cli, mcp]) {
+        expect(result.summary).toMatchObject({
+          browser_windows: 0,
+          context_bridge_apis: 0,
+          ipc: { operations: 0 },
+        });
+        expect(
+          result.graph.nodes.some(({ kind }) => kind === "ipc-channel"),
+        ).toBe(false);
+        expect(result.limitations).toContain(ELECTRON_IDENTITY_LIMITATION);
+      }
+    },
+  );
+});
 
 describe("JavaScript application path CLI", () => {
   it("accepts a relative local application path and preserves canonical Evidence identity", async () => {

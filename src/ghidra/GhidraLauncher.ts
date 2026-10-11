@@ -5,7 +5,7 @@ import {
 } from "./GhidraAnalysisSeeds.js";
 import type { GhidraLanguageOverride } from "../config/ghidraLanguageOverride.js";
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
-import { mkdir } from "node:fs/promises";
+import { mkdir, realpath } from "node:fs/promises";
 import { basename, dirname, join, posix, win32 } from "node:path";
 
 import writeFileAtomic from "write-file-atomic";
@@ -36,6 +36,11 @@ import {
   snapshotGhidraExtensions,
   type GhidraExtension,
 } from "./extensions/GhidraExtensions.js";
+
+import {
+  inspectGhidraPspExtension,
+  type GhidraPspExtension,
+} from "./GhidraPspExtension.js";
 
 /** Private paths and identity material for one headless Ghidra import. */
 export interface GhidraLaunchSession {
@@ -101,6 +106,7 @@ export interface GhidraHeadlessLauncherOptions {
   /** Caller seeds committed by the analysis profile, applied before analysis. */
   readonly analysisSeeds?: GhidraSeedCommitment;
   readonly analysisExtensions?: readonly GhidraExtension[];
+  readonly pspExtension?: GhidraPspExtension;
   /** Spawn seam for provider-boundary lifecycle tests. */
   readonly spawnProcess?: typeof spawnOwnedProviderProcess;
 }
@@ -125,6 +131,31 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
     const platform = this.options.platform ?? process.platform;
     let started: SpawnedOwnedProviderProcess | undefined;
     try {
+      const psp = this.options.pspExtension;
+      if (psp !== undefined) {
+        const installedRoot = await realpath(
+          join(
+            dirname(this.options.analyzeHeadlessPath),
+            "..",
+            "Ghidra",
+            "Extensions",
+            "ghidra-allegrex",
+          ),
+        );
+        if (installedRoot !== psp.root)
+          throw new GhidraLaunchError(
+            "Allegrex profile does not belong to the selected Ghidra installation.",
+          );
+        const inspected = await inspectGhidraPspExtension(
+          psp.root,
+          psp.ghidra_version,
+          options.signal,
+        );
+        if (inspected.sha256 !== psp.sha256)
+          throw new GhidraLaunchError(
+            "Installed Allegrex content changed since profile resolution; reopen the target to resolve a fresh profile.",
+          );
+      }
       await createGhidraRuntimeDirectories(paths, platform);
       const seedPath =
         this.options.analysisSeeds === undefined
@@ -157,6 +188,7 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
         return err(new AnalysisCancelledError("open_binary"));
       const headlessArguments = ghidraHeadlessArguments({
         platform,
+        ...(psp === undefined ? {} : { psp: true as const }),
         projectRoot: paths.projectRoot,
         targetPath: session.targetPath,
         bridgeScriptPath: this.options.bridgeScriptPath,
@@ -376,6 +408,7 @@ export interface GhidraHeadlessArgumentOptions {
   readonly descriptorPath: string;
   readonly ghidraLogPath: string;
   readonly scriptLogPath: string;
+  readonly psp?: true;
   readonly dosMz?: true;
   readonly dosCom?: true;
   readonly languageOverride?: GhidraLanguageOverride;
@@ -393,6 +426,15 @@ export const ghidraHeadlessArguments = (
     (options.platform ?? process.platform) === "win32" ? win32 : posix;
   const bridgeDirectory = scriptPath.dirname(options.bridgeScriptPath);
   const override = options.languageOverride;
+  if (
+    options.psp === true &&
+    (options.dosMz === true ||
+      options.dosCom === true ||
+      override !== undefined)
+  )
+    throw new Error(
+      "A PSP ELF import cannot be combined with DOS or a generic Ghidra language override.",
+    );
   if (
     override !== undefined &&
     (options.dosMz === true || options.dosCom === true)
@@ -425,15 +467,24 @@ export const ghidraHeadlessArguments = (
             "-cspec",
             "default",
           ]
-        : override !== undefined
+        : options.psp === true
           ? [
+              "-loader",
+              "PspElfLoader",
               "-processor",
-              override.languageId,
-              ...(override.compilerSpecId === undefined
-                ? []
-                : ["-cspec", override.compilerSpecId]),
+              "Allegrex:LE:32:default",
+              "-cspec",
+              "default",
             ]
-          : []),
+          : override !== undefined
+            ? [
+                "-processor",
+                override.languageId,
+                ...(override.compilerSpecId === undefined
+                  ? []
+                  : ["-cspec", override.compilerSpecId]),
+              ]
+            : []),
     "-readOnly",
     "-deleteProject",
     "-log",

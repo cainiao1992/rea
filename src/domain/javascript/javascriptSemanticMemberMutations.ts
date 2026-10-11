@@ -139,8 +139,15 @@ export function* collectSemanticMemberMutationsSteps(
         // same prefix added on every cycle, so exact paths never repeat. When
         // that prefix can never be pruned, escaping it once covers every longer
         // effect, including writes below shared children.
+        // Only a capture already on this alias chain can repeat a prefix.
+        const captureKey = JSON.stringify(capture);
+        const revisited = current.bindings.has(captureKey);
         let repeatedPrefix: PropertyPath | undefined;
-        for (let start = 1; start <= current.path.length; start++) {
+        for (
+          let start = 1;
+          revisited && start <= current.path.length;
+          start++
+        ) {
           const suffix = current.path.slice(start);
           if (!current.bindings.has(JSON.stringify([...capture, suffix])))
             continue;
@@ -240,7 +247,7 @@ export function* collectSemanticMemberMutationsSteps(
         const primitiveWrite =
           value?.status === "literal" || value?.status === "union";
         recordedEffects.add(identity);
-        const nested = new Set([...current.bindings, lifetime]);
+        const nested = new Set([...current.bindings, lifetime, captureKey]);
         const origins =
           current.originAt === undefined
             ? binding

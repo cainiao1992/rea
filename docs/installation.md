@@ -68,23 +68,15 @@ selects the npm release, and persistent MCP registrations are pinned to the
 version that performed setup. Installing newer instructions does not update a
 running server or its registration.
 
-The npm release checked on **2026-10-11** was **6.3.0**, published from
-[`74cf9e14`](https://github.com/morluto/rea/commit/74cf9e1401fcd89482fe39c27cc898f5858e9b72),
-with bundled skill version 34. It does not include automatic Qwen Code, Pi, or
-Hermes registration: `setup --client qwen_code`, `setup --client pi`, and
-`setup --client hermes` reject those IDs before writing configuration. It also
-does not honor `OPENCODE_CONFIG_DIR` when selecting OpenCode's configuration
-directory. These workflows below require a source build or a later release
-containing the relevant changes; `@latest` alone cannot select unpublished
-changes.
-
-The earlier release checked on **2026-10-07** was **5.0.0** (133 MCP tools), published
-from the fixed checkpoint
-[`b33236ec`](https://github.com/morluto/rea/releases/tag/rea-agents-5.0.0).
-The public CLI, MCP catalog and target-free session, and isolated update from
-4.1.0 to 5.0.0 were verified through npm. The artifact includes Windows native
-controls, Android/JADX and firmware tools, Ghidra function annotations, and
-retained application-Evidence references.
+The npm release checked on **2026-10-11** was **6.4.0**, published from
+[`a56f7bb6`](https://github.com/morluto/rea/commit/a56f7bb668ab23fec8d33f7af353ac7ed2fe1895).
+The actual registry package accepted dry-run setup plans for all 17 client IDs
+listed below, including Qwen Code, Pi and Hermes. OpenCode's plan selected
+`OPENCODE_CONFIG_DIR` even when that directory did not yet exist. These checks
+used an isolated home on macOS with Node 24; they verify planning and argument
+admission, without writing client configuration or establishing live integration
+with every client. This resolves the npm 6.3.0 setup gaps tracked in
+[#1650](https://github.com/morluto/rea/issues/1650).
 
 Main's catalog describes the current code. A source build or a subsequent
 release containing changes after this checkpoint is required for newer
@@ -172,9 +164,6 @@ schema constraints; REA still validates complete canonical inputs. Full-profile
 Windows remain unverified; see [native client verification](testing.md).
 
 For [Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/mcp.md),
-automatic setup requires a build containing the integration; npm 6.3.0 does not
-include it. See [released package and main](#released-package-and-main).
-In a supported build,
 setup writes a `type: "stdio"` entry under `mcpServers.rea` in the user-level
 `~/.pi/agent/mcp.json` and installs the bundled skill under `~/.agents/skills`.
 Use `rea setup --client pi --dry-run --json` to inspect the plan, then
@@ -201,10 +190,7 @@ but unavailable in a project. An extension that registers `/mcp` can replace
 Pi's built-in MCP support and use its own configuration instead. Run `/reload`
 in an existing Pi session after changing servers outside the session.
 
-For Qwen Code, automatic setup requires a build containing the integration;
-npm 6.3.0 does not include it. See
-[released package and main](#released-package-and-main). In a supported build,
-setup registers `rea` in the `mcpServers` table of the
+For Qwen Code, setup registers `rea` in the `mcpServers` table of the
 user-level `~/.qwen/settings.json`, or `$QWEN_HOME/settings.json` when configured.
 Setup and doctor follow Qwen Code's tilde and working-directory-relative home
 overrides. Qwen Code also discovers personal skills in `~/.agents/skills`,
@@ -236,10 +222,7 @@ registration. Doctor treats an `enabled: false` entry as active when
 `enabledServers` lists `rea`, as OMP does, unless `disabledServers` also lists
 it. Run setup under each profile that should load REA.
 
-For Hermes, automatic setup also requires a build containing the integration;
-npm 6.3.0 does not include it. See
-[released package and main](#released-package-and-main).
-In a supported build, setup writes a `mcp_servers.rea` entry to `config.yaml`, preserving
+For Hermes, setup writes a `mcp_servers.rea` entry to `config.yaml`, preserving
 comments and unrelated settings. It resolves that file from `HERMES_HOME`, else
 from the platform default Hermes itself uses — `%LOCALAPPDATA%\hermes` on
 Windows, `~/.hermes` elsewhere — including any `HERMES_DATA_DIR_SUFFIX`. Hermes
@@ -293,10 +276,7 @@ for its native configuration contract.
 
 ### Other client settings
 
-For OpenCode, npm 6.3.0 does not honor `OPENCODE_CONFIG_DIR`; use a source build
-or a later release containing the override support when selecting a custom
-configuration directory. See [released package and main](#released-package-and-main).
-In a supported build, setup writes the V1 `mcp.rea` entry, which OpenCode V1 and V2
+For OpenCode, setup writes the V1 `mcp.rea` entry, which OpenCode V1 and V2
 both load. If the configuration already uses OpenCode V2's native
 `mcp.servers` table, setup registers REA there instead and replaces any earlier
 `mcp.rea` entry from REA. Setup honors `OPENCODE_CONFIG_DIR` and

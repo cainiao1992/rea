@@ -3,14 +3,14 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 
-import { analyzeJavaScriptApplication } from "../../support/javascriptApplicationScope.js";
-import { reconstructJavaScriptArtifact } from "../../support/javascriptApplicationScope.js";
-import { parseEvidence } from "../../../src/domain/evidence.js";
-import { parseJavaScriptApplicationGraph } from "../../../src/domain/javascript/javascriptApplicationGraph.js";
-import { analyzeJavaScriptApplicationInputSchema } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";
-import { writeElectronBoundaryFixture } from "../../fixtures/electronBoundaryApplication.js";
+import { analyzeJavaScriptApplication } from "../../../support/javascriptApplicationScope.js";
+import { reconstructJavaScriptArtifact } from "../../../support/javascriptApplicationScope.js";
+import { parseEvidence } from "../../../../src/domain/evidence.js";
+import { parseJavaScriptApplicationGraph } from "../../../../src/domain/javascript/javascriptApplicationGraph.js";
+import { analyzeJavaScriptApplicationInputSchema } from "../../../../src/domain/javascript/javascriptApplicationAnalysis.js";
+import { writeElectronBoundaryFixture } from "../../../fixtures/electronBoundaryApplication.js";
 
 describe("static Electron application analysis", () => {
   it("accepts relative paths and rejects caller-selected analysis bounds", () => {

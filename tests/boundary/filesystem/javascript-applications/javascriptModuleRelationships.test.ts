@@ -3,8 +3,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
-import { parseJavaScriptApplicationGraph } from "../../../src/domain/javascript/javascriptApplicationGraph.js";
+import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
+import { parseJavaScriptApplicationGraph } from "../../../../src/domain/javascript/javascriptApplicationGraph.js";
 
 import {
   findExportNode,
@@ -12,7 +12,7 @@ import {
   findSourceModule,
   reconstructJavaScriptFixture,
   writeFixtureFiles,
-} from "../../support/javascriptApplicationFixture.js";
+} from "../../../support/javascriptApplicationFixture.js";
 
 describe("CommonJS and ESM module relationships", () => {
   it("composes bindings, re-exports, dynamic imports, and JSON modules", async () => {

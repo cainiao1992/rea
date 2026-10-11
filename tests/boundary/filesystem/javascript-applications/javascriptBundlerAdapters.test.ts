@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 
 import {
   findChunkNode,
@@ -8,7 +8,7 @@ import {
   findModuleNodeByKey,
   reconstructJavaScriptFixture,
   writeFixtureFiles,
-} from "../../support/javascriptApplicationFixture.js";
+} from "../../../support/javascriptApplicationFixture.js";
 
 describe("Webpack and Rspack runtime adapters", () => {
   it("recovers runtime entry modules, async chunks, and factory require aliases", async () => {

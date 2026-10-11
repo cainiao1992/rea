@@ -1,7 +1,7 @@
 import {
   primitiveCandidateExpansionSource,
   primitiveByteExpansionSource,
-} from "../../fixtures/javascriptPrimitiveExpansion.js";
+} from "../../../fixtures/javascriptPrimitiveExpansion.js";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -9,47 +9,47 @@ import { join } from "node:path";
 import { createPackageWithOptions } from "@electron/asar";
 import { expect, it } from "vitest";
 
-import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 
 import {
   reconstructJavaScriptArtifact,
   readJavaScriptArtifactFiles,
-} from "../../support/javascriptApplicationScope.js";
+} from "../../../support/javascriptApplicationScope.js";
 import {
   analyzeJavaScriptArtifactFiles,
   analyzeAndProjectJavaScriptArtifactFiles,
-} from "../../../src/application/javascript/JavaScriptArtifactAnalysis.js";
-import { buildJavaScriptArtifactGraph } from "../../../src/application/javascript/JavaScriptArtifactGraphBuilder.js";
+} from "../../../../src/application/javascript/JavaScriptArtifactAnalysis.js";
+import { buildJavaScriptArtifactGraph } from "../../../../src/application/javascript/JavaScriptArtifactGraphBuilder.js";
 import {
   buildJavaScriptSemanticGraph,
   createJavaScriptSemanticGraphProjection,
   projectJavaScriptSemanticFileSteps,
-} from "../../../src/application/javascript/JavaScriptSemanticGraphBuilder.js";
+} from "../../../../src/application/javascript/JavaScriptSemanticGraphBuilder.js";
 import {
   projectJavaScriptModuleSemantics,
   type JavaScriptModuleSemanticIr,
-} from "../../../src/domain/javascript/javascriptModuleSemanticIr.js";
-import type { JavaScriptStaticAnalysis } from "../../../src/domain/javascript/javascriptStaticAnalysisTypes.js";
-import type { JavaScriptArtifactFile } from "../../../src/domain/javascript/javascriptArtifactFiles.js";
-import { completeJavaScriptAnalysisSteps } from "../../../src/application/javascript/JavaScriptAnalysisControl.js";
+} from "../../../../src/domain/javascript/javascriptModuleSemanticIr.js";
+import type { JavaScriptStaticAnalysis } from "../../../../src/domain/javascript/javascriptStaticAnalysisTypes.js";
+import type { JavaScriptArtifactFile } from "../../../../src/domain/javascript/javascriptArtifactFiles.js";
+import { completeJavaScriptAnalysisSteps } from "../../../../src/application/javascript/JavaScriptAnalysisControl.js";
 import {
   writeJavaScriptAnalysisTransfer,
   readJavaScriptAnalysisTransfer,
-} from "../../../src/javascript/analysis/JavaScriptAnalysisTransfer.js";
-import { javaScriptWorkerStaticAnalysisSchema } from "../../../src/javascript/analysis/JavaScriptAnalysisWorkerSchemas.js";
-import { createJavaScriptArtifactReader } from "../../../src/artifacts/javascript/JavaScriptArtifactReader.js";
+} from "../../../../src/javascript/analysis/JavaScriptAnalysisTransfer.js";
+import { javaScriptWorkerStaticAnalysisSchema } from "../../../../src/javascript/analysis/JavaScriptAnalysisWorkerSchemas.js";
+import { createJavaScriptArtifactReader } from "../../../../src/artifacts/javascript/JavaScriptArtifactReader.js";
 import {
   scanCanonicalArtifactInventory,
   scanArtifactInventory,
-} from "../../fixtures/artifactInventory.js";
-import { parseJavaScriptApplicationGraph } from "../../../src/domain/javascript/javascriptApplicationGraph.js";
-import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";
+} from "../../../fixtures/artifactInventory.js";
+import { parseJavaScriptApplicationGraph } from "../../../../src/domain/javascript/javascriptApplicationGraph.js";
+import { javascriptApplicationAnalysisResultSchema } from "../../../../src/domain/javascript/javascriptApplicationAnalysis.js";
 import {
   createJavaScriptSemanticGraph,
   isValidatedImmutableJavaScriptSemanticGraph,
-} from "../../../src/domain/javascript/javascriptSemanticGraph.js";
-import { parseJavaScriptSemanticGraph } from "../../../src/domain/javascript/javascriptSemanticGraphSerialization.js";
-import { writeJavaScriptArtifactFixture } from "../../fixtures/javascriptArtifactApplication.js";
+} from "../../../../src/domain/javascript/javascriptSemanticGraph.js";
+import { parseJavaScriptSemanticGraph } from "../../../../src/domain/javascript/javascriptSemanticGraphSerialization.js";
+import { writeJavaScriptArtifactFixture } from "../../../fixtures/javascriptArtifactApplication.js";
 
 it("reports file progress and honors cancellation before the next source", async () => {
   const root = await fixtureDirectory();

@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import pino from "pino";
 import type { Logger } from "pino";
+import type { ProgressUpdate } from "../../../../src/application/ProgressReporter.js";
 
 import { ok } from "../../../../src/domain/result.js";
 import { GhidraClient } from "../../../../src/ghidra/GhidraClient.js";
@@ -144,6 +145,81 @@ const clientFor = (
 afterEach(async () => {
   vi.useRealTimers();
   await Promise.all(clients.splice(0).map((client) => client.close()));
+});
+
+it("reports unknown startup work and stops notifications when cancellation releases the process", async () => {
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  const launcher = new FixtureLauncher("silent");
+  const client = clientFor(launcher, { startupTimeoutMs: 30_000 });
+  const controller = new AbortController();
+  const updates: ProgressUpdate[] = [];
+  const started = client.start(controller.signal, {
+    report: async (update) => {
+      updates.push(update);
+      controller.abort();
+    },
+  });
+  const child = await launcher.started;
+  await vi.advanceTimersByTimeAsync(10_000);
+  expect(await started).toMatchObject({
+    ok: false,
+    error: { kind: "cancelled" },
+  });
+  expect(updates).toEqual([
+    expect.objectContaining({
+      phase: "ghidra_startup",
+      completed: 0,
+      total: null,
+      message: expect.stringContaining("Waiting for Ghidra startup"),
+    }),
+  ]);
+  await client.close();
+  await expect(waitForChildExit(child, 5_000)).resolves.toBe(true);
+  await expect(access(launcher.runtimeRoots[0] ?? "")).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+  await vi.advanceTimersByTimeAsync(30_000);
+  expect(updates).toHaveLength(1);
+});
+
+it("keeps one shared startup despite a failed progress sink and stops reports after readiness", async () => {
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  const launcher = new FixtureLauncher();
+  let releaseLaunch: (() => void) | undefined;
+  let markLaunchPending: (() => void) | undefined;
+  const launchPending = new Promise<void>((resolve) => {
+    markLaunchPending = resolve;
+  });
+  const launchGate = new Promise<void>((resolve) => {
+    releaseLaunch = resolve;
+  });
+  const client = clientFor(
+    {
+      async launch(session) {
+        markLaunchPending?.();
+        await launchGate;
+        return launcher.launch(session);
+      },
+    },
+    { startupTimeoutMs: 30_000 },
+  );
+  let reports = 0;
+  const started = client.start(undefined, {
+    report: async () => {
+      reports += 1;
+      throw new Error("notification unavailable");
+    },
+  });
+  const concurrent = client.start();
+  await launchPending;
+  await vi.advanceTimersByTimeAsync(10_000);
+  expect(reports).toBe(1);
+  releaseLaunch?.();
+  await expect(started).resolves.toMatchObject({ ok: true });
+  await expect(concurrent).resolves.toMatchObject({ ok: true });
+  expect(launcher.processes).toHaveLength(1);
+  await vi.advanceTimersByTimeAsync(30_000);
+  expect(reports).toBe(1);
 });
 
 describe("GhidraClient captured source snapshot", () => {

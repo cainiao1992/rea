@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import type { Socket } from "node:net";
+import type { ProgressReporter } from "../application/ProgressReporter.js";
 
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import type { JsonValue } from "../domain/jsonValue.js";
@@ -162,7 +163,12 @@ export class GhidraClient {
   }
 
   /** Launch Ghidra once and require its exact post-analysis handshake. */
-  start(signal?: AbortSignal): Promise<GhidraStartResult> {
+  start(
+    signal?: AbortSignal,
+    progress?: ProgressReporter,
+  ): Promise<GhidraStartResult> {
+    if (progress !== undefined)
+      return this.#reportStartupWait(this.start(signal), signal, progress);
     if (this.#closePromise !== undefined)
       return this.#closePromise.then(
         () => this.start(signal),
@@ -216,6 +222,41 @@ export class GhidraClient {
     return started;
   }
 
+  async #reportStartupWait(
+    started: Promise<GhidraStartResult>,
+    signal: AbortSignal | undefined,
+    progress: ProgressReporter,
+  ): Promise<GhidraStartResult> {
+    const startedAt = performance.now();
+    let active = true;
+    let reporting = false;
+    const timer = setInterval(() => {
+      if (!active || reporting || signal?.aborted) return;
+      reporting = true;
+      void Promise.resolve()
+        .then(() => {
+          if (!active || signal?.aborted) return;
+          return progress.report({
+            phase: "ghidra_startup",
+            completed: 0,
+            total: null,
+            message: `Waiting for Ghidra startup (${String(Math.floor((performance.now() - startedAt) / 1000))}s elapsed); import, auto-analysis and bridge readiness may still be pending`,
+          });
+        })
+        // Notification failure does not release the owned startup process.
+        .catch(() => {})
+        .finally(() => {
+          reporting = false;
+        });
+    }, 10_000);
+    try {
+      return await started;
+    } finally {
+      active = false;
+      clearInterval(timer);
+    }
+  }
+
   /** Revalidate live bridge, provider, run, and profile metadata. */
   async ping(
     options: GhidraRequestOptions = {},
@@ -231,9 +272,12 @@ export class GhidraClient {
   async callTool(
     operation: GhidraOperation,
     parameters: Readonly<Record<string, JsonValue>>,
-    options: { readonly signal?: AbortSignal } = {},
+    options: {
+      readonly signal?: AbortSignal;
+      readonly progress?: ProgressReporter;
+    } = {},
   ): Promise<Result<JsonValue, GhidraSessionError>> {
-    const started = await this.start(options.signal);
+    const started = await this.start(options.signal, options.progress);
     if (!started.ok) return started;
     return this.#requestQueue.run(
       operation,

@@ -573,7 +573,7 @@ export const createGhidraProviderClient = (input: {
           ),
         );
       if (operation === "health") {
-        const started = await client.start(options?.signal);
+        const started = await client.start(options?.signal, options?.progress);
         if (!started.ok)
           return err(
             projectSessionError(
@@ -596,7 +596,7 @@ export const createGhidraProviderClient = (input: {
         : parseGhidraInventoryInput(operation, parameters);
       if (!input.ok) return input;
       if (extensions.length > 0 || seeds !== undefined) {
-        const started = await client.start(options?.signal);
+        const started = await client.start(options?.signal, options?.progress);
         if (!started.ok)
           return err(
             projectSessionError(
@@ -608,11 +608,12 @@ export const createGhidraProviderClient = (input: {
         const failed = await checkExtensions(operation, started.value);
         if (failed !== undefined) return err(failed);
       }
-      const called = await client.callTool(
-        operation,
-        input.value,
-        options?.signal === undefined ? {} : { signal: options.signal },
-      );
+      const called = await client.callTool(operation, input.value, {
+        ...(options?.signal === undefined ? {} : { signal: options.signal }),
+        ...(options?.progress === undefined
+          ? {}
+          : { progress: options.progress }),
+      });
       if (!called.ok)
         return err(
           projectSessionError(
@@ -637,7 +638,10 @@ export const createGhidraProviderClient = (input: {
         const address = input.value.address;
         if (typeof address === "string") {
           if (target.format === "pe" && nativeAotOwner !== undefined) {
-            const started = await client.start(options?.signal);
+            const started = await client.start(
+              options?.signal,
+              options?.progress,
+            );
             if (!started.ok)
               return err(
                 projectSessionError(

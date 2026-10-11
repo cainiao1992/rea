@@ -17,7 +17,7 @@ import {
   open,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, parse, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { verifyWindowsProtocolInput } from "./lib/windows-protocol-input.mjs";
 
@@ -32,6 +32,9 @@ const { requireWindowsNativeAuthority } = await import(
 const native = requireWindowsNativeAuthority();
 const { WindowsPrivateRuntime, windowsPrivateRuntime } = await import(
   pathToFileURL(join(packageRoot, "dist/windows/WindowsPrivateRuntime.js"))
+);
+const { ghidraSessionRoot } = await import(
+  pathToFileURL(join(packageRoot, "dist/ghidra/GhidraSessionRoot.js"))
 );
 const workspace = await mkdtemp(join(tmpdir(), "rea-native-conformance-"));
 const environment = Object.entries(process.env)
@@ -136,6 +139,47 @@ process.stdout.write(JSON.stringify({executable:basename(process.execPath),abiVe
   ])
     assert.throws(() => native.call("open", [rejected]));
   report.controls.ordinaryDriveSeparatorsAndRequestedIdentity = true;
+  const driveRoot = parse(workspace).root;
+  const runtimeParent = ghidraSessionRoot({
+    base: join(driveRoot, ".Tmp", "scratch"),
+  });
+  assert.equal(runtimeParent, driveRoot);
+  const driveRootRuntime = native.call("runtime_create", [
+    runtimeParent,
+    "rea-drive-root-",
+  ]);
+  try {
+    assert.equal(driveRootRuntime.path.startsWith(`${driveRoot}\\`), false);
+    assert.equal(dirname(driveRootRuntime.path), driveRoot);
+    const snapshot = await native.call("runtime_snapshot", [
+      driveRootRuntime.handle,
+      source,
+      "probe.bin",
+    ]);
+    const sourceBytes = await readFile(source);
+    assert.equal(
+      snapshot.sha256,
+      createHash("sha256").update(sourceBytes).digest("hex"),
+    );
+    assert.equal(snapshot.source.requestedPath, source);
+    const readback = native.call("runtime_open", [
+      driveRootRuntime.handle,
+      "probe.bin",
+    ]);
+    try {
+      assert.equal(readback.size, sourceBytes.byteLength);
+      assert.deepEqual(
+        native.call("read", [readback.handle, 0, 65536]),
+        sourceBytes.subarray(0, 65536),
+      );
+    } finally {
+      native.call("close", [readback.handle]);
+    }
+  } finally {
+    native.call("runtime_close", [driveRootRuntime.handle]);
+  }
+  assert.equal(await exists(driveRootRuntime.path), false);
+  report.controls.driveRootRuntimeParent = true;
   const snapshotOwner = WindowsPrivateRuntime.create(
     workspace.replace(/\\/u, "/"),
     "single-flight-",

@@ -33,6 +33,7 @@ codedb.snapshot
 htmlcov/
 .coverage
 coverage/
+.vitest/
 .vitest-reports/
 test-results.xml
 .turbo/

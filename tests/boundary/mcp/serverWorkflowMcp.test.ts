@@ -65,7 +65,7 @@ it("executes a realistic workflow: list methods, decompile selected, get xrefs",
         case "xrefs":
           return Promise.resolve(ok(["0x1000"]));
         default:
-          return Promise.resolve(ok(null));
+          throw new Error(`Unexpected analysis operation: ${name}`);
       }
     },
   });

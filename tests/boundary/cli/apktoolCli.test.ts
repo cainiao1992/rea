@@ -1,6 +1,9 @@
 import { expect, it } from "vitest";
 
-import { serveCli as serve } from "./cliServeHarness.js";
+import {
+  expectConfigurationRefusal,
+  serveCli as serve,
+} from "./cliServeHarness.js";
 
 it.each(["inspect-apktool-client", "decode-android-resources"])(
   "%s advertises a schema through the public CLI",
@@ -32,15 +35,7 @@ it.each([
   "%j with REA_APKTOOL_COMMAND=%s names the host requirement",
   async (argv, command, reason) => {
     const result = await serve(argv, { REA_APKTOOL_COMMAND: command });
-    const output = JSON.parse(result.stdout) as {
-      code?: unknown;
-      message?: unknown;
-      remediation?: { action?: unknown };
-    };
-    expect(output.code).toBe("capability_unavailable");
-    // The target is not the problem; the refusal must say what to configure.
-    expect(output.message).toEqual(expect.stringContaining(reason));
-    expect(output.remediation?.action).toEqual(expect.stringContaining(reason));
+    expectConfigurationRefusal(result, reason);
   },
 );
 

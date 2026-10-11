@@ -1,6 +1,9 @@
 import { expect, it } from "vitest";
 
-import { serveCli as serve } from "./cliServeHarness.js";
+import {
+  expectConfigurationRefusal,
+  serveCli as serve,
+} from "./cliServeHarness.js";
 
 it.each([
   ["inspect-adb-client"],
@@ -35,25 +38,26 @@ it.each([
 });
 
 it.each([
-  ["inspect-adb-client", "/nonexistent/adb", "not found"],
-  ["list-adb-devices", "relative/adb", "absolute path"],
+  [
+    ["inspect-adb-client", "--json"],
+    "/nonexistent/adb",
+    "The selected adb binary was not found: /nonexistent/adb. Set REA_ADB_PATH",
+  ],
+  [
+    ["list-adb-devices", "--json"],
+    "/nonexistent/adb",
+    "The selected adb binary was not found: /nonexistent/adb. Set REA_ADB_PATH",
+  ],
+  [
+    ["list-adb-devices", "--json"],
+    "relative/adb",
+    "REA_ADB_PATH must be an absolute path to the adb binary.",
+  ],
 ])(
-  "%s names the adb configuration requirement",
-  async (command, binary, cause) => {
-    const result = await serve([command, "--json"], {
-      REA_ADB_PATH: binary,
-    });
-    const output = JSON.parse(result.stdout) as {
-      code?: unknown;
-      message?: unknown;
-      remediation?: { action?: unknown };
-    };
-    expect(output.code).toBe("capability_unavailable");
-    expect(output.message).toEqual(expect.stringContaining(cause));
-    expect(output.message).toEqual(expect.stringContaining("REA_ADB_PATH"));
-    expect(output.remediation?.action).toEqual(
-      expect.stringContaining("REA_ADB_PATH"),
-    );
+  "%j with REA_ADB_PATH=%s names the host requirement",
+  async (argv, binary, reason) => {
+    const result = await serve(argv, { REA_ADB_PATH: binary });
+    expectConfigurationRefusal(result, reason);
   },
 );
 

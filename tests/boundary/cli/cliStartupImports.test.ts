@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -9,20 +9,34 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 const execute = promisify(execFile);
 const MARKER = "REA_TEST_RESOLVED ";
-// Dependencies that only one command uses; startup must not resolve them.
-const DEFERRED_PACKAGES = ["playwright-core", "isomorphic-git"] as const;
+// Dependencies and composition modules used by one command family; startup
+// must not resolve them just to register the complete command catalog.
+const DEFERRED_IMPORTS = [
+  {
+    name: "playwright-core",
+    path: "/node_modules/playwright-core/",
+  },
+  {
+    name: "isomorphic-git",
+    path: "/node_modules/isomorphic-git/",
+  },
+  {
+    name: "binary-composition",
+    path: "/dist/composition/binary.js",
+  },
+] as const;
 // Report each resolved deferred package on stderr without changing resolution.
 const RESOLUTION_HOOK = `data:text/javascript,${encodeURIComponent(`
 import { registerHooks } from "node:module";
-const packages = ${JSON.stringify(DEFERRED_PACKAGES)};
+const imports = ${JSON.stringify(DEFERRED_IMPORTS)};
 registerHooks({
   resolve(specifier, context, next) {
     const resolved = next(specifier, context);
-    const name = packages.find((item) =>
-      resolved.url.includes("/node_modules/" + item + "/"),
+    const name = imports.find((item) =>
+      resolved.url.includes(item.path),
     );
     if (name !== undefined)
-      process.stderr.write(${JSON.stringify(MARKER)} + name + "\\n");
+      process.stderr.write(${JSON.stringify(MARKER)} + name.name + "\\n");
     return resolved;
   },
 });
@@ -68,9 +82,45 @@ describe("CLI startup imports", () => {
     ).resolves.toContain("isomorphic-git");
   });
 
-  it("does not load command-specific packages to register commands", async () => {
+  it("does not load command-specific code to register the command catalog", async () => {
     await expect(
       resolvedPackages(["scripts/rea.mjs", "--help"]),
     ).resolves.toEqual(new Set());
+  });
+
+  it("does not load native provider composition for JavaScript application analysis", async () => {
+    const source = await createTestTempDirectory("rea-cli-js-startup-");
+    await mkdir(join(source, "src"));
+    await writeFile(
+      join(source, "package.json"),
+      JSON.stringify({
+        name: "startup-fixture",
+        version: "1.0.0",
+        main: "src/index.js",
+      }),
+    );
+    await writeFile(
+      join(source, "src/index.js"),
+      "export const answer = 42;\n",
+    );
+
+    await expect(
+      resolvedPackages([
+        "scripts/rea.mjs",
+        "analyze-javascript-application",
+        source,
+        "--json",
+      ]),
+    ).resolves.toEqual(new Set());
+  });
+
+  it("loads native provider composition when a provider operation is called", async () => {
+    await expect(
+      resolvedPackages(
+        evaluate(
+          'const { createDirectAnalysis } = await import("./dist/composition/directAnalysis.js"); await createDirectAnalysis({}).runSessionStatus();',
+        ),
+      ),
+    ).resolves.toContain("binary-composition");
   });
 });

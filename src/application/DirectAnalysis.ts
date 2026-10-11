@@ -138,7 +138,7 @@ export const runManagedProviderExecution = async (
   signal?: AbortSignal,
 ): Promise<Result<AnalysisExecution, AnalysisError>> =>
   withProcessCancellation(signal, async (operationSignal) => {
-    const session = dependencies.createManagedBinarySession();
+    const session = await dependencies.createManagedBinarySession();
     return withSessionCleanup(
       session,
       async () => {
@@ -194,7 +194,7 @@ const runAnalysis = async (
   const { logger, signal, snapshotPath } = options;
   const config = dependencies.readConfiguration();
   if (!config.ok) return cliError(config.error);
-  const session = dependencies.createBinarySession(config.value, logger);
+  const session = await dependencies.createBinarySession(config.value, logger);
   return withSessionCleanup(
     session,
     async () => {

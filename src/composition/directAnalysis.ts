@@ -7,7 +7,6 @@ import {
 } from "../application/DirectAnalysis.js";
 import { runSessionStatus as executeSessionStatus } from "../application/DirectAnalysisStatus.js";
 import type { DirectAnalysisDependencies } from "../application/DirectAnalysisDependencies.js";
-import { createBinarySession, createManagedBinarySession } from "./binary.js";
 
 /** Bind one-shot analysis and status commands to one caller-selected environment. */
 export const createDirectAnalysis = (
@@ -16,9 +15,14 @@ export const createDirectAnalysis = (
   const environment = snapshotEnvironment(selectedEnvironment);
   const dependencies: DirectAnalysisDependencies = {
     readConfiguration: () => parseConfig(environment),
-    createBinarySession: (config, logger) =>
-      createBinarySession(config, logger, environment),
-    createManagedBinarySession,
+    createBinarySession: async (config, logger) => {
+      const { createBinarySession } = await import("./binary.js");
+      return createBinarySession(config, logger, environment);
+    },
+    createManagedBinarySession: async () => {
+      const { createManagedBinarySession } = await import("./binary.js");
+      return createManagedBinarySession();
+    },
   };
   return {
     runDirectAnalysis: executeDirectAnalysis.bind(undefined, dependencies),
@@ -34,6 +38,9 @@ export type DirectAnalysis = ReturnType<typeof createDirectAnalysis>;
 export const runManagedProviderExecution = executeManagedProvider.bind(
   undefined,
   {
-    createManagedBinarySession,
+    createManagedBinarySession: async () => {
+      const { createManagedBinarySession } = await import("./binary.js");
+      return createManagedBinarySession();
+    },
   },
 );

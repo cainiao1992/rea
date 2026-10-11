@@ -159,9 +159,11 @@ completed partial Evidence. MCP failure details return
 after recording succeeds, so `inspect_analysis_view` can open that analysis
 directly without serializing the entire partial graph into the error response.
 CLI failure output retains the complete partial Evidence.
-Cancellation after source analysis begins likewise
-retains completed facts; an SDK client may reject its cancelled request before
-receiving that reply. On the same MCP connection, inspect the Evidence bundle
+Cancellation after source analysis begins likewise retains completed facts,
+including cancellation during analyzer cleanup, graph construction, or Evidence
+sealing. REA finishes projecting those owned facts cooperatively to return partial
+Evidence. An SDK client may reject its cancelled request before receiving that
+reply. On the same MCP connection, inspect the Evidence bundle
 and use the retained analysis ID with `inspect_analysis_view`. Owned analyzer
 cleanup is verified before its private files are released. Cleanup uncertainty
 is reported separately and retains ownership for retry.

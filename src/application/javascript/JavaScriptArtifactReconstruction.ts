@@ -1,5 +1,6 @@
 import { constants } from "node:fs";
 import { access, lstat, realpath } from "node:fs/promises";
+import { setImmediate } from "node:timers/promises";
 
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import {
@@ -13,6 +14,7 @@ import type { JavaScriptSemanticGraph } from "../../domain/javascript/javascript
 import type { ElectronBoundarySummary } from "../../domain/javascript/javascriptApplicationAnalysis.js";
 import { parseOwnedJavaScriptApplicationAnalysisSteps } from "../../domain/javascript/javascriptApplicationAnalysis.js";
 import { AnalysisError } from "../../domain/analysisErrorBase.js";
+import { ArtifactOperationError } from "../../domain/artifactOperationError.js";
 import type { ArtifactInventorySnapshot } from "../../domain/artifactInventorySnapshot.js";
 import type { ArtifactInventoryPartialObservation } from "../../domain/artifactPartialObservation.js";
 import type { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
@@ -68,19 +70,17 @@ export const reconstructJavaScriptArtifact = async (
   progress?: ProgressReporter,
 ): Promise<JavaScriptArtifactReconstructionResult> =>
   scope.run(async () => {
-    let effectiveSignal = signal;
-    let effectiveProgress = progress;
     const reportPhase = async (
       phase: string,
       message: string,
     ): Promise<void> => {
-      await effectiveProgress?.report({
+      await progress?.report({
         phase,
         completed: 0,
         total: 1,
         message,
       });
-      await checkpointJavaScriptAnalysis(effectiveSignal);
+      await checkpointJavaScriptAnalysis(signal);
     };
     const input = javascriptArtifactReconstructionInputSchema.parse(rawInput);
     abortIfNeeded(signal);
@@ -182,14 +182,24 @@ export const reconstructJavaScriptArtifact = async (
         }
       }
       const analysis = outcome.analysis;
-      const interruption = cleanupFailure ?? outcome.interruption;
-      if (interruption !== null && interruption !== undefined) {
-        effectiveSignal = undefined;
-        effectiveProgress = undefined;
-      }
-      await checkpointJavaScriptAnalysis(effectiveSignal);
-      abortIfNeeded(effectiveSignal);
-      await reportPhase(
+      let interruption = cleanupFailure ?? outcome.interruption;
+      // Source facts are owned now. Finish their projection cooperatively so a
+      // later cancellation can retain Evidence instead of discarding those facts.
+      const checkpointCompletedAnalysis = async (): Promise<void> => {
+        await setImmediate();
+        if (interruption == null && signal?.aborted === true)
+          interruption = new ArtifactOperationError(OPERATION, "cancelled");
+      };
+      const reportCompletedPhase = async (
+        phase: string,
+        message: string,
+      ): Promise<void> => {
+        await checkpointCompletedAnalysis();
+        if (interruption == null)
+          await progress?.report({ phase, completed: 0, total: 1, message });
+        await checkpointCompletedAnalysis();
+      };
+      await reportCompletedPhase(
         "build_javascript_application_graph",
         "Constructing application and Electron boundary relationships",
       );
@@ -198,15 +208,14 @@ export const reconstructJavaScriptArtifact = async (
         files,
         analysis,
       );
-      await reportPhase(
+      await reportCompletedPhase(
         "seal_javascript_application_graph",
         "Sealing the validated application graph",
       );
       const graph = await completeJavaScriptAnalysisSteps(
         applicationGraphSteps,
-        effectiveSignal,
       );
-      await reportPhase(
+      await reportCompletedPhase(
         "build_javascript_semantic_graph",
         "Binding and validating static semantic relationships",
       );
@@ -214,15 +223,13 @@ export const reconstructJavaScriptArtifact = async (
         snapshot.manifest.root_sha256,
         graph,
       );
-      await reportPhase(
+      await reportCompletedPhase(
         "seal_javascript_semantic_graph",
         "Validating and sealing the semantic graph",
       );
-      const semanticGraph = await completeJavaScriptAnalysisSteps(
-        semanticGraphSteps,
-        effectiveSignal,
-      );
-      await checkpointJavaScriptAnalysis(effectiveSignal);
+      const semanticGraph =
+        await completeJavaScriptAnalysisSteps(semanticGraphSteps);
+      await checkpointCompletedAnalysis();
       const completed = {
         input_path: path,
         format,

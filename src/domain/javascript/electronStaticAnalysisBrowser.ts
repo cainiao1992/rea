@@ -33,7 +33,7 @@ export const inspectElectronBrowserNode = (
   context: JavaScriptFindingContext,
 ): void => {
   if (t.isNewExpression(node)) inspectBrowserWindow(node, context);
-  if (!t.isCallExpression(node)) return;
+  if (!t.isCallExpression(node) && !t.isOptionalCallExpression(node)) return;
   inspectContextBridge(node, context);
   inspectUtilityProcess(node, context);
 };
@@ -162,7 +162,7 @@ const collectWebPreferences = (
 };
 
 const inspectContextBridge = (
-  node: t.CallExpression,
+  node: t.CallExpression | t.OptionalCallExpression,
   context: JavaScriptFindingContext,
 ): void => {
   const path = electronCalleePath(node.callee, context);
@@ -208,7 +208,7 @@ const inspectContextBridge = (
 };
 
 const inspectUtilityProcess = (
-  node: t.CallExpression,
+  node: t.CallExpression | t.OptionalCallExpression,
   context: JavaScriptFindingContext,
 ): void => {
   const path = electronCalleePath(node.callee, context);

@@ -47,6 +47,7 @@ import { collectJavaScriptDerivedSemanticsSteps } from "./javascriptSemanticDeri
 import { evaluateSemanticProvenance } from "./javascriptSemanticValues.js";
 import {
   collectElectronMemberWritesSteps,
+  electronExportPath,
   electronMemberPath,
   ELECTRON_MODULE,
 } from "./javascriptElectronMemberWrites.js";
@@ -385,7 +386,7 @@ export function* classifyParsedJavaScriptElectronBindingsSteps(
     }
     const origin = semanticRequireOrigin(root, state);
     return origin !== undefined && ELECTRON_MODULE.test(origin.specifier)
-      ? origin.importedPath
+      ? electronExportPath(origin.importedPath)
       : undefined;
   };
   const writes = yield* collectElectronMemberWritesSteps(
@@ -436,7 +437,7 @@ const electronExport = (
       ? provenance.origins[0]
       : undefined);
   return origin !== undefined && ELECTRON_MODULE.test(origin.specifier)
-    ? origin.importedPath
+    ? electronExportPath(origin.importedPath)
     : null;
 };
 

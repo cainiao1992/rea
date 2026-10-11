@@ -12,6 +12,16 @@ import { traverseJavaScriptAstSteps } from "./javascriptSemanticTraversal.js";
 export const ELECTRON_MODULE =
   /^electron(?:\/(?:common|main|renderer|utility))?$/u;
 
+/**
+ * Electron's CommonJS exports define no `default` member, so a leading
+ * `default` segment can only denote the module object itself, as an ES module
+ * default import (`import electron from "electron"`) binds it.
+ */
+export const electronExportPath = (
+  importedPath: readonly string[],
+): readonly string[] =>
+  importedPath[0] === "default" ? importedPath.slice(1) : importedPath;
+
 /** Static identity recovery cannot establish the absence of Electron usage. */
 export const ELECTRON_IDENTITY_LIMITATION =
   "Electron API identity follows proven lexical module aliases. Reassigned bindings, dynamic selections, and visibly overwritten namespace members are unresolved; missing findings do not establish absence. Arbitrary call side effects and runtime registration are not evaluated.";

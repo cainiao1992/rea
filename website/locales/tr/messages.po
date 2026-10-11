@@ -3317,12 +3317,6 @@ msgctxt "page:get-started/index.html"
 msgid "{ph0}Windows (PowerShell){ph1}"
 msgstr "{ph0} Windows (PowerShell){ph1}"
 
-#: website/public/get-started/index.html:219
-#: website/public/get-started/index.html:242
-msgctxt "page:get-started/index.html"
-msgid "Windows PowerShell"
-msgstr "Windows Powershell'in"
-
 #. {ph0}: <code>node -v</code>
 #: website/public/get-started/index.html:231
 #, python-brace-format
@@ -3351,11 +3345,6 @@ msgstr ""
 msgctxt "page:get-started/index.html"
 msgid "If you use Homebrew:"
 msgstr "Homebrew kullanıyorsanız :"
-
-#: website/public/get-started/index.html:258
-msgctxt "page:get-started/index.html"
-msgid "macOS · Homebrew"
-msgstr "macOS · Homebrew"
 
 #: website/public/get-started/index.html:270
 msgctxt "page:get-started/index.html"
@@ -4262,8 +4251,8 @@ msgstr "CLI kurulum komutunu kopyalayın"
 
 #: website/public/get-started/index.html:632
 msgctxt "page:get-started/index.html"
-msgid "Copy ghidra connection · macos / linux"
-msgstr "Ghidra bağlantısını kopyala * macos / linux"
+msgid "Copy Ghidra connection for macOS and Linux"
+msgstr "macOS ve Linux için Ghidra bağlantı komutunu kopyala"
 
 #: website/public/get-started/index.html:664
 msgctxt "page:get-started/index.html"
@@ -11137,32 +11126,27 @@ msgctxt "page:showcase/th04/index.html"
 msgid "Back to top"
 msgstr "Başa dön"
 
-#: website/public/assets/main.js:39
-msgctxt "runtime"
-msgid "Copy"
-msgstr "Kopyala"
-
-#: website/public/assets/main.js:20
+#: website/public/assets/main.js:21
 msgctxt "runtime"
 msgid "Copied"
 msgstr "Kopyalandı"
 
-#: website/public/assets/main.js:31
+#: website/public/assets/main.js:32
 msgctxt "runtime"
 msgid "Selected"
 msgstr "Seçili"
 
-#: website/public/assets/main.js:22
+#: website/public/assets/main.js:23
 msgctxt "runtime"
 msgid "Code copied to clipboard."
 msgstr "Kod panoya kopyalandı."
 
-#: website/public/assets/main.js:33
+#: website/public/assets/main.js:34
 msgctxt "runtime"
 msgid "Code selected. Use your keyboard to copy it."
 msgstr "Kod seçildi. Kopyalamak için klavyenizi kullanın."
 
-#: website/public/assets/main.js:147
+#: website/public/assets/main.js:148
 #, python-brace-format
 msgctxt "runtime"
 msgid "REA on GitHub ({count})"
@@ -12645,7 +12629,7 @@ msgstr ""
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
 #. {ph2}: <span id="aegis-prompt" >
-#. {ph3}: <span translate="no" >3.apk</span >
+#. {ph3}: <span translate="no">aegis-v3.4.3.apk</span>
 #. {ph4}: </span >
 #. {ph5}: <span class="terminal-cursor" aria-hidden="true">
 #. {ph6}: </span>
@@ -12653,14 +12637,13 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/aegis/index.html"
 msgid ""
-"{ph0}›{ph1}{ph2}Use REA to inspect aegis-v3.4.{ph3}. Find how it generates "
-"the six-digit login code, explain why it changes every 30 seconds, and "
-"rebuild a small demo where I can change the time.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Use REA to inspect {ph3}. Find how it generates the six-"
+"digit login code, explain why it changes every 30 seconds, and rebuild a "
+"small demo where I can change the time.{ph4}{ph5}{ph6}"
 msgstr ""
-"{ph0}\"{ph1}{ph2}Aegis-v3.4'ü incelemek için REA kullanın.{ph3}. Altı "
-"basamaklı giriş kodunu nasıl oluşturduğunu bulun, neden her 30 saniyede bir "
-"değiştiğini açıklayın ve zamanı değiştirebileceğim küçük bir demoyu yeniden "
-"oluşturun.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}REA ile {ph3} dosyasını incele. Altı haneli giriş kodunun "
+"nasıl üretildiğini ve neden 30 saniyede bir değiştiğini açıkla. Zamanı "
+"değiştirebileceğim küçük bir demo yap.{ph4}{ph5}{ph6}"
 
 #. {ph0}: <span translate="no">preload.js</span>
 #: website/public/showcase/notion/index.html:329
@@ -12689,6 +12672,18 @@ msgstr "main /{ph0} * işleyici yardımcısı"
 msgctxt "page:showcase/notion/index.html"
 msgid "main/{ph0} · clipboard receiver"
 msgstr "ana /{ph0} * pano alıcısı"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "Windows PowerShell"
+#~ msgstr "Windows Powershell'in"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "macOS · Homebrew"
+#~ msgstr "macOS · Homebrew"
+
+#~ msgctxt "runtime"
+#~ msgid "Copy"
+#~ msgstr "Kopyala"
 
 #~ msgctxt "figure:dx-ball-sound-pan-investigation.svg"
 #~ msgid "DXBALL.EXE"

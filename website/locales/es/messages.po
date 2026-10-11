@@ -3367,12 +3367,6 @@ msgctxt "page:get-started/index.html"
 msgid "{ph0}Windows (PowerShell){ph1}"
 msgstr "{ph0} Windows (PowerShell){ph1}"
 
-#: website/public/get-started/index.html:219
-#: website/public/get-started/index.html:242
-msgctxt "page:get-started/index.html"
-msgid "Windows PowerShell"
-msgstr "Windows Carcasa de energía"
-
 #. {ph0}: <code>node -v</code>
 #: website/public/get-started/index.html:231
 #, python-brace-format
@@ -3402,11 +3396,6 @@ msgstr ""
 msgctxt "page:get-started/index.html"
 msgid "If you use Homebrew:"
 msgstr "Si usa Homebrew :"
-
-#: website/public/get-started/index.html:258
-msgctxt "page:get-started/index.html"
-msgid "macOS · Homebrew"
-msgstr "macOS · Homebrew"
 
 #: website/public/get-started/index.html:270
 msgctxt "page:get-started/index.html"
@@ -3618,8 +3607,8 @@ msgid ""
 "{ph0}Windows:{ph1} open the Start menu, type {ph2}PowerShell{ph3} and press "
 "Enter."
 msgstr ""
-"{ph0} Windows :{ph1} abra el menú Inicio, escriba {ph2}Potencia Shell{ph3} y"
-" presione Entrar."
+"{ph0} Windows :{ph1} abra el menú Inicio, escriba {ph2}PowerShell{ph3} y "
+"presione Entrar."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -4326,8 +4315,8 @@ msgstr "Copie el comando de instalación de CLI"
 
 #: website/public/get-started/index.html:632
 msgctxt "page:get-started/index.html"
-msgid "Copy ghidra connection · macos / linux"
-msgstr "Copie la conexión ghidra * macos / linux"
+msgid "Copy Ghidra connection for macOS and Linux"
+msgstr "Copiar el comando de conexión de Ghidra para macOS y Linux"
 
 #: website/public/get-started/index.html:664
 msgctxt "page:get-started/index.html"
@@ -11287,32 +11276,27 @@ msgctxt "page:showcase/th04/index.html"
 msgid "Back to top"
 msgstr "Volver arriba"
 
-#: website/public/assets/main.js:39
-msgctxt "runtime"
-msgid "Copy"
-msgstr "Copiar"
-
-#: website/public/assets/main.js:20
+#: website/public/assets/main.js:21
 msgctxt "runtime"
 msgid "Copied"
 msgstr "Copiado"
 
-#: website/public/assets/main.js:31
+#: website/public/assets/main.js:32
 msgctxt "runtime"
 msgid "Selected"
 msgstr "Seleccionados"
 
-#: website/public/assets/main.js:22
+#: website/public/assets/main.js:23
 msgctxt "runtime"
 msgid "Code copied to clipboard."
 msgstr "Código copiado al portapapeles."
 
-#: website/public/assets/main.js:33
+#: website/public/assets/main.js:34
 msgctxt "runtime"
 msgid "Code selected. Use your keyboard to copy it."
 msgstr "Código seleccionado. Usa el teclado para copiarlo."
 
-#: website/public/assets/main.js:147
+#: website/public/assets/main.js:148
 #, python-brace-format
 msgctxt "runtime"
 msgid "REA on GitHub ({count})"
@@ -12810,7 +12794,7 @@ msgstr ""
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
 #. {ph2}: <span id="aegis-prompt" >
-#. {ph3}: <span translate="no" >3.apk</span >
+#. {ph3}: <span translate="no">aegis-v3.4.3.apk</span>
 #. {ph4}: </span >
 #. {ph5}: <span class="terminal-cursor" aria-hidden="true">
 #. {ph6}: </span>
@@ -12818,14 +12802,13 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/aegis/index.html"
 msgid ""
-"{ph0}›{ph1}{ph2}Use REA to inspect aegis-v3.4.{ph3}. Find how it generates "
-"the six-digit login code, explain why it changes every 30 seconds, and "
-"rebuild a small demo where I can change the time.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Use REA to inspect {ph3}. Find how it generates the six-"
+"digit login code, explain why it changes every 30 seconds, and rebuild a "
+"small demo where I can change the time.{ph4}{ph5}{ph6}"
 msgstr ""
-"{ph0}›{ph1}{ph2}Uso REA para inspeccionar aegis-v3.4.{ph3}. Descubra cómo "
-"genera el código de inicio de sesión de seis dígitos, explique por qué "
-"cambia cada 30 segundos y reconstruya una pequeña demostración en la que "
-"pueda cambiar la hora.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Analiza {ph3} con REA. Explica cómo se genera el código de "
+"acceso de seis dígitos y por qué cambia cada 30 segundos. Crea una pequeña "
+"demo donde pueda cambiar la hora.{ph4}{ph5}{ph6}"
 
 #. {ph0}: <span translate="no">preload.js</span>
 #: website/public/showcase/notion/index.html:329
@@ -12854,6 +12837,18 @@ msgstr "principal/{ph0} * ayudante del manejador"
 msgctxt "page:showcase/notion/index.html"
 msgid "main/{ph0} · clipboard receiver"
 msgstr "principal/{ph0} * receptor del portapapeles"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "Windows PowerShell"
+#~ msgstr "Windows PowerShell"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "macOS · Homebrew"
+#~ msgstr "macOS · Homebrew"
+
+#~ msgctxt "runtime"
+#~ msgid "Copy"
+#~ msgstr "Copiar"
 
 #~ msgctxt "figure:dx-ball-sound-pan-investigation.svg"
 #~ msgid "DXBALL.EXE"

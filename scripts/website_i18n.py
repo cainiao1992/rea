@@ -21,7 +21,7 @@ PROSE = {"a", "p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "dt", "dd", "figcap
 PROTECTED = {"code", "kbd", "pre", "script", "style", "svg", "math"}
 ATTRIBUTES = {"alt", "aria-label", "aria-description", "title", "placeholder"}
 PLACEHOLDER = re.compile(r"\{([a-zA-Z][a-zA-Z0-9_]*)\}")
-LITERALS = {"REA", "Reverse Engineer Anything", "REA · Reverse Engineer Anything", "GitHub", "Discord", "FAQ", "MCP", "CLI", "CSV", "JSON", "HTML", "CSS", "JavaScript", "Electron", "Hopper", "Ghidra", "IDA", "Windows", "Linux", "macOS", "Notion", "DX-Ball", "TH04", "TH08", "TH095", "Aegis", "SHA-1", "HMAC", "Node.js", "npm", "npx", "DOS", "PC-98"}
+LITERALS = {"REA", "Reverse Engineer Anything", "REA · Reverse Engineer Anything", "GitHub", "Discord", "FAQ", "MCP", "CLI", "CSV", "JSON", "HTML", "CSS", "JavaScript", "Electron", "Hopper", "Ghidra", "IDA", "Windows", "Linux", "macOS", "Notion", "DX-Ball", "TH04", "TH08", "TH095", "Aegis", "SHA-1", "HMAC", "Node.js", "Windows PowerShell", "macOS · Homebrew", "npm", "npx", "DOS", "PC-98"}
 FALLBACK_NOTICE = "Translation is being updated. Read this page in English for now."
 
 

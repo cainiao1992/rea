@@ -3262,13 +3262,7 @@ msgstr "คัดลอก"
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "{ph0}Windows (PowerShell){ph1}"
-msgstr "{ph0}Windows (พาวเวอร์เชลล์){ph1}"
-
-#: website/public/get-started/index.html:219
-#: website/public/get-started/index.html:242
-msgctxt "page:get-started/index.html"
-msgid "Windows PowerShell"
-msgstr "Windows พาวเวอร์เชลล์"
+msgstr "{ph0}Windows (PowerShell){ph1}"
 
 #. {ph0}: <code>node -v</code>
 #: website/public/get-started/index.html:231
@@ -3278,8 +3272,8 @@ msgid ""
 "Type Y if asked to accept the terms. Close PowerShell, open it again, then "
 "run {ph0}."
 msgstr ""
-"การเขียนข้อความโฆษณา,การเขียนในนามคนอื่น,บทความ "
-"ปิดเปลือกเปิดอีกครั้งแล้วเรียกใช้ {ph0}."
+"หากระบบขอให้ยอมรับเงื่อนไข ให้พิมพ์ Y แล้วปิด PowerShell เปิดใหม่ "
+"และเรียกใช้ {ph0}"
 
 #. {ph0}: <em>
 #. {ph1}: </em>
@@ -3291,7 +3285,7 @@ msgid ""
 "If PowerShell later says {ph0}\"running scripts is disabled on this "
 "system\"{ph1} when you run {ph2}, run this once and try again:"
 msgstr ""
-"ถ้าพาวเวอร์เชลล์ในภายหลังกล่าวว่า "
+"ถ้าPowerShellในภายหลังกล่าวว่า "
 "{ph0}\"การเรียกใช้สคริปต์ถูกปิดใช้งานในระบบนี้\"{ph1} เมื่อคุณวิ่ง {ph2} "
 "เรียกใช้ครั้งนี้และลองอีกครั้ง:"
 
@@ -3299,11 +3293,6 @@ msgstr ""
 msgctxt "page:get-started/index.html"
 msgid "If you use Homebrew:"
 msgstr "ถ้าคุณใช้ Homebrew:"
-
-#: website/public/get-started/index.html:258
-msgctxt "page:get-started/index.html"
-msgid "macOS · Homebrew"
-msgstr "macOS · Homebrew"
 
 #: website/public/get-started/index.html:270
 msgctxt "page:get-started/index.html"
@@ -3402,7 +3391,8 @@ msgid ""
 msgstr ""
 "เรียกใช้การตั้งค่าเพื่อเชื่อมต่อ REA กับตัวแทนการเขียนโค้ดของคุณ "
 "ทางเลือกของลูกค้ารวมถึง Claude Code, Codex, Cursor, Gemini CLI, Windsurf, "
-"Grok Build และสนับสนุนอื่นๆ MCP ลูกค้า เชื่อมต่อบอทกรกจะถูกเพิ่มจากการแชทของ"
+"Grok Build และสนับสนุนอื่นๆ MCP ลูกค้า เชื่อมต่อGrok "
+"Botจะถูกเพิ่มจากการแชทของ"
 
 #: website/public/get-started/index.html:366
 msgctxt "page:get-started/index.html"
@@ -3507,8 +3497,7 @@ msgctxt "page:get-started/index.html"
 msgid ""
 "{ph0}Windows:{ph1} open the Start menu, type {ph2}PowerShell{ph3} and press "
 "Enter."
-msgstr ""
-"{ph0}Windows:{ph1} เปิดเมนูเริ่ม,ชนิด {ph2}พาวเวอร์เชลล์{ph3} และกดป้อน"
+msgstr "{ph0}Windows:{ph1} เปิดเมนูเริ่ม,ชนิด {ph2}PowerShell{ph3} และกดป้อน"
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -3863,7 +3852,7 @@ msgstr ""
 #: website/public/get-started/index.html:663
 msgctxt "page:get-started/index.html"
 msgid "Ghidra connection · Windows PowerShell"
-msgstr "Ghidra การเชื่อมต่อ · Windows พาวเวอร์เชลล์"
+msgstr "Ghidra การเชื่อมต่อ · Windows PowerShell"
 
 #: website/public/get-started/index.html:678
 msgctxt "page:get-started/index.html"
@@ -3925,7 +3914,7 @@ msgstr ""
 #: website/public/get-started/index.html:720
 msgctxt "page:get-started/index.html"
 msgid "IDA connection · Windows PowerShell"
-msgstr "IDA การเชื่อมต่อ · Windows พาวเวอร์เชลล์"
+msgstr "IDA การเชื่อมต่อ · Windows PowerShell"
 
 #. {ph0}: <code>"mode": "headless"</code>
 #: website/public/get-started/index.html:735
@@ -4126,7 +4115,7 @@ msgstr "คัดลอก Node.js คำสั่งการติดตั้
 #: website/public/get-started/index.html:243
 msgctxt "page:get-started/index.html"
 msgid "Copy PowerShell execution policy command"
-msgstr "คัดลอกคำสั่งนโยบายการดำเนินการ"
+msgstr "คัดลอกคำสั่งตั้งค่านโยบายการเรียกใช้สคริปต์ของ PowerShell"
 
 #: website/public/get-started/index.html:259
 msgctxt "page:get-started/index.html"
@@ -4185,18 +4174,18 @@ msgstr "คัดลอกCLIคำสั่งการติดตั้ง"
 
 #: website/public/get-started/index.html:632
 msgctxt "page:get-started/index.html"
-msgid "Copy ghidra connection · macos / linux"
-msgstr "การเชื่อมต่อเครือข่าย"
+msgid "Copy Ghidra connection for macOS and Linux"
+msgstr "คัดลอกคำสั่งเชื่อมต่อ Ghidra สำหรับ macOS และ Linux"
 
 #: website/public/get-started/index.html:664
 msgctxt "page:get-started/index.html"
 msgid "Copy Ghidra connection for Windows PowerShell"
-msgstr "คัดลอก Ghidra การเชื่อมต่อสำหรับ Windows พาวเวอร์เชลล์"
+msgstr "คัดลอก Ghidra การเชื่อมต่อสำหรับ Windows PowerShell"
 
 #: website/public/get-started/index.html:721
 msgctxt "page:get-started/index.html"
 msgid "Copy IDA connection for Windows PowerShell"
-msgstr "คัดลอก IDA การเชื่อมต่อสำหรับ Windows พาวเวอร์เชลล์"
+msgstr "คัดลอก IDA การเชื่อมต่อสำหรับ Windows PowerShell"
 
 #: website/public/get-started/index.html:762
 msgctxt "page:get-started/index.html"
@@ -10915,32 +10904,27 @@ msgctxt "page:showcase/th04/index.html"
 msgid "Back to top"
 msgstr "กลับขึ้นด้านบน"
 
-#: website/public/assets/main.js:39
-msgctxt "runtime"
-msgid "Copy"
-msgstr "คัดลอก"
-
-#: website/public/assets/main.js:20
+#: website/public/assets/main.js:21
 msgctxt "runtime"
 msgid "Copied"
 msgstr "คัดลอก"
 
-#: website/public/assets/main.js:31
+#: website/public/assets/main.js:32
 msgctxt "runtime"
 msgid "Selected"
 msgstr "เลือก"
 
-#: website/public/assets/main.js:22
+#: website/public/assets/main.js:23
 msgctxt "runtime"
 msgid "Code copied to clipboard."
 msgstr "รหัสคัดลอกไปยังคลิปบอร์ด"
 
-#: website/public/assets/main.js:33
+#: website/public/assets/main.js:34
 msgctxt "runtime"
 msgid "Code selected. Use your keyboard to copy it."
 msgstr "รหัสที่เลือก ใช้แป้นพิมพ์ของคุณเพื่อคัดลอก"
 
-#: website/public/assets/main.js:147
+#: website/public/assets/main.js:148
 #, python-brace-format
 msgctxt "runtime"
 msgid "REA on GitHub ({count})"
@@ -12416,7 +12400,7 @@ msgstr ""
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
 #. {ph2}: <span id="aegis-prompt" >
-#. {ph3}: <span translate="no" >3.apk</span >
+#. {ph3}: <span translate="no">aegis-v3.4.3.apk</span>
 #. {ph4}: </span >
 #. {ph5}: <span class="terminal-cursor" aria-hidden="true">
 #. {ph6}: </span>
@@ -12424,13 +12408,13 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/aegis/index.html"
 msgid ""
-"{ph0}›{ph1}{ph2}Use REA to inspect aegis-v3.4.{ph3}. Find how it generates "
-"the six-digit login code, explain why it changes every 30 seconds, and "
-"rebuild a small demo where I can change the time.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Use REA to inspect {ph3}. Find how it generates the six-"
+"digit login code, explain why it changes every 30 seconds, and rebuild a "
+"small demo where I can change the time.{ph4}{ph5}{ph6}"
 msgstr ""
-"{ph0}›{ph1}{ph2}ใช้ REA เพื่อตรวจสอบเอจิส-เวอร์ชั่น 3.4{ph3}. "
-"หาวิธีที่จะสร้างรหัสล็อกอินหกหลักอธิบายว่าทำไมมันเปลี่ยนทุก 30 "
-"วินาทีและสร้างการสาธิตขนาดเล็กที่ฉันสามารถเปลี่ยนเวลา{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}ใช้ REA วิเคราะห์ {ph3} "
+"อธิบายวิธีสร้างรหัสเข้าสู่ระบบหกหลักและเหตุผลที่รหัสเปลี่ยนทุก 30 วินาที "
+"แล้วสร้างเดโมเล็ก ๆ ที่ฉันปรับเวลาได้{ph4}{ph5}{ph6}"
 
 #. {ph0}: <span translate="no">preload.js</span>
 #: website/public/showcase/notion/index.html:329
@@ -12459,6 +12443,18 @@ msgstr "หลัก/{ph0} *ผู้ช่วยผู้จัดการ"
 msgctxt "page:showcase/notion/index.html"
 msgid "main/{ph0} · clipboard receiver"
 msgstr "หลัก/{ph0} *รับคลิปบอร์ด"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "Windows PowerShell"
+#~ msgstr "Windows PowerShell"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "macOS · Homebrew"
+#~ msgstr "macOS · Homebrew"
+
+#~ msgctxt "runtime"
+#~ msgid "Copy"
+#~ msgstr "คัดลอก"
 
 #~ msgctxt "figure:dx-ball-sound-pan-investigation.svg"
 #~ msgid "DXBALL.EXE"

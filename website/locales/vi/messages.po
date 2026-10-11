@@ -3323,12 +3323,6 @@ msgctxt "page:get-started/index.html"
 msgid "{ph0}Windows (PowerShell){ph1}"
 msgstr "{ph0} Windows (PowerShell){ph1}"
 
-#: website/public/get-started/index.html:219
-#: website/public/get-started/index.html:242
-msgctxt "page:get-started/index.html"
-msgid "Windows PowerShell"
-msgstr "Windows PowerShell"
-
 #. {ph0}: <code>node -v</code>
 #: website/public/get-started/index.html:231
 #, python-brace-format
@@ -3357,11 +3351,6 @@ msgstr ""
 msgctxt "page:get-started/index.html"
 msgid "If you use Homebrew:"
 msgstr "NẾU bạn sử DỤNG Homebrew :"
-
-#: website/public/get-started/index.html:258
-msgctxt "page:get-started/index.html"
-msgid "macOS · Homebrew"
-msgstr "macOS · Homebrew"
 
 #: website/public/get-started/index.html:270
 msgctxt "page:get-started/index.html"
@@ -3572,7 +3561,8 @@ msgid ""
 "{ph0}Windows:{ph1} open the Start menu, type {ph2}PowerShell{ph3} and press "
 "Enter."
 msgstr ""
-"{ph0} Windows :{ph1} mở Menu Bắt đầu, nhập {ph2}Hp{ph3} và nhấn Enter."
+"{ph0} Windows :{ph1} mở Menu Bắt đầu, nhập {ph2}PowerShell{ph3} và nhấn "
+"Enter."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -4267,8 +4257,8 @@ msgstr "Sao CHÉP lệnh cài ĐẶT CLI"
 
 #: website/public/get-started/index.html:632
 msgctxt "page:get-started/index.html"
-msgid "Copy ghidra connection · macos / linux"
-msgstr "Sao chép kết nối ghidra · macos / linux"
+msgid "Copy Ghidra connection for macOS and Linux"
+msgstr "Sao chép lệnh kết nối Ghidra cho macOS và Linux"
 
 #: website/public/get-started/index.html:664
 msgctxt "page:get-started/index.html"
@@ -11125,32 +11115,27 @@ msgctxt "page:showcase/th04/index.html"
 msgid "Back to top"
 msgstr "Về đầu trang"
 
-#: website/public/assets/main.js:39
-msgctxt "runtime"
-msgid "Copy"
-msgstr "Sao chép"
-
-#: website/public/assets/main.js:20
+#: website/public/assets/main.js:21
 msgctxt "runtime"
 msgid "Copied"
 msgstr "Sao chép"
 
-#: website/public/assets/main.js:31
+#: website/public/assets/main.js:32
 msgctxt "runtime"
 msgid "Selected"
 msgstr "Đã chọn"
 
-#: website/public/assets/main.js:22
+#: website/public/assets/main.js:23
 msgctxt "runtime"
 msgid "Code copied to clipboard."
 msgstr "Mã sao chép vào clipboard."
 
-#: website/public/assets/main.js:33
+#: website/public/assets/main.js:34
 msgctxt "runtime"
 msgid "Code selected. Use your keyboard to copy it."
 msgstr "Mã được chọn. Sử dụng bàn phím của bạn để sao chép nó."
 
-#: website/public/assets/main.js:147
+#: website/public/assets/main.js:148
 #, python-brace-format
 msgctxt "runtime"
 msgid "REA on GitHub ({count})"
@@ -12631,7 +12616,7 @@ msgstr ""
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
 #. {ph2}: <span id="aegis-prompt" >
-#. {ph3}: <span translate="no" >3.apk</span >
+#. {ph3}: <span translate="no">aegis-v3.4.3.apk</span>
 #. {ph4}: </span >
 #. {ph5}: <span class="terminal-cursor" aria-hidden="true">
 #. {ph6}: </span>
@@ -12639,14 +12624,13 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/aegis/index.html"
 msgid ""
-"{ph0}›{ph1}{ph2}Use REA to inspect aegis-v3.4.{ph3}. Find how it generates "
-"the six-digit login code, explain why it changes every 30 seconds, and "
-"rebuild a small demo where I can change the time.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Use REA to inspect {ph3}. Find how it generates the six-"
+"digit login code, explain why it changes every 30 seconds, and rebuild a "
+"small demo where I can change the time.{ph4}{ph5}{ph6}"
 msgstr ""
-"{ph0}›{ph1}{ph2}Sử dụng REA để kiểm tra aegis-v3. 4. {ph3}. Tìm cách nó tạo "
-"mã đăng nhập gồm sáu chữ số, giải thích lý do tại sao nó thay đổi sau mỗi 30"
-" giây và xây dựng lại một bản demo nhỏ nơi tôi có thể thay đổi thời "
-"gian.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Dùng REA phân tích {ph3}. Giải thích cách tạo mã đăng nhập "
+"gồm sáu chữ số và vì sao mã thay đổi mỗi 30 giây. Tạo một bản demo nhỏ cho "
+"phép tôi thay đổi thời gian.{ph4}{ph5}{ph6}"
 
 #. {ph0}: <span translate="no">preload.js</span>
 #: website/public/showcase/notion/index.html:329
@@ -12675,6 +12659,18 @@ msgstr "chính/{ph0} * trình trợ giúp xử lý"
 msgctxt "page:showcase/notion/index.html"
 msgid "main/{ph0} · clipboard receiver"
 msgstr "chính/{ph0} * bộ thu clipboard"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "Windows PowerShell"
+#~ msgstr "Windows PowerShell"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "macOS · Homebrew"
+#~ msgstr "macOS · Homebrew"
+
+#~ msgctxt "runtime"
+#~ msgid "Copy"
+#~ msgstr "Sao chép"
 
 #~ msgctxt "figure:dx-ball-sound-pan-investigation.svg"
 #~ msgid "DXBALL.EXE"

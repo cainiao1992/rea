@@ -3,6 +3,7 @@ async function initializeWebsite() {
 
   function initializeCopyButtons() {
     document.querySelectorAll("[data-copy]").forEach((button) => {
+      const label = button.textContent;
       button.addEventListener("click", async () => {
         const target = document.getElementById(
           button.getAttribute("data-copy"),
@@ -36,7 +37,7 @@ async function initializeWebsite() {
         }
 
         window.setTimeout(() => {
-          button.textContent = t("Copy");
+          button.textContent = label;
         }, 2000);
       });
     });

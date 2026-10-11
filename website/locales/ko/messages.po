@@ -3081,13 +3081,7 @@ msgstr "복사"
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "{ph0}Windows (PowerShell){ph1}"
-msgstr "{ph0}Windows (파워쉘){ph1}"
-
-#: website/public/get-started/index.html:219
-#: website/public/get-started/index.html:242
-msgctxt "page:get-started/index.html"
-msgid "Windows PowerShell"
-msgstr "WindowsPowerShell"
+msgstr "{ph0}Windows (PowerShell){ph1}"
 
 #. {ph0}: <code>node -v</code>
 #: website/public/get-started/index.html:231
@@ -3096,7 +3090,7 @@ msgctxt "page:get-started/index.html"
 msgid ""
 "Type Y if asked to accept the terms. Close PowerShell, open it again, then "
 "run {ph0}."
-msgstr "입력 와이 약관에 동의하도록 요청하는 경우. 파워 셸을 닫고 다시 연 다음 실행하십시오 {ph0}."
+msgstr "약관 동의를 요청하면 Y를 입력하세요. PowerShell을 닫았다가 다시 열고 {ph0}을 실행하세요."
 
 #. {ph0}: <em>
 #. {ph1}: </em>
@@ -3108,18 +3102,13 @@ msgid ""
 "If PowerShell later says {ph0}\"running scripts is disabled on this "
 "system\"{ph1} when you run {ph2}, run this once and try again:"
 msgstr ""
-"파워셸이 나중에 말한다면 {ph0}\"이 시스템에서 스크립트 실행을 사용할 수 없습니다.\"{ph1} 당신이 달릴 때 {ph2},이것을 "
-"한 번 실행하고 다시 시도하십시오:"
+"나중에 {ph2}을 실행할 때 PowerShell에 {ph0}\"running scripts is disabled on this "
+"system\"{ph1}(스크립트 실행이 비활성화됨) 메시지가 나오면, 다음 명령을 한 번 실행하고 다시 시도하세요."
 
 #: website/public/get-started/index.html:255
 msgctxt "page:get-started/index.html"
 msgid "If you use Homebrew:"
 msgstr "당신이 사용하는 경우 Homebrew:"
-
-#: website/public/get-started/index.html:258
-msgctxt "page:get-started/index.html"
-msgid "macOS · Homebrew"
-msgstr "macOS · Homebrew"
 
 #: website/public/get-started/index.html:270
 msgctxt "page:get-started/index.html"
@@ -3212,7 +3201,7 @@ msgid ""
 "MCP clients. Grok Bot's connector is added from its chat."
 msgstr ""
 "설치 프로그램을 실행하여 연결 REA 코딩 에이전트에. 고객 선택은 Claude Code, Codex, Cursor, Gemini "
-"CLI, Windsurf, Grok Build,및 기타 지원 MCP 고객. 그록 봇의 커넥터는 채팅에서 추가됩니다."
+"CLI, Windsurf, Grok Build,및 기타 지원 MCP 고객. Grok Bot의 커넥터는 채팅에서 추가됩니다."
 
 #: website/public/get-started/index.html:366
 msgctxt "page:get-started/index.html"
@@ -3311,7 +3300,7 @@ msgctxt "page:get-started/index.html"
 msgid ""
 "{ph0}Windows:{ph1} open the Start menu, type {ph2}PowerShell{ph3} and press "
 "Enter."
-msgstr "{ph0}Windows:{ph1} 시작 메뉴를 열고 다음을 입력하십시오 {ph2}파워셸{ph3} 를 눌러 입력합니다."
+msgstr "{ph0}Windows:{ph1} 시작 메뉴를 열고 {ph2}PowerShell{ph3}을 입력한 뒤 Enter를 누르세요."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -3705,7 +3694,7 @@ msgstr ""
 #: website/public/get-started/index.html:720
 msgctxt "page:get-started/index.html"
 msgid "IDA connection · Windows PowerShell"
-msgstr "IDA 연결 · Windows 파워셸"
+msgstr "IDA 연결 · Windows PowerShell"
 
 #. {ph0}: <code>"mode": "headless"</code>
 #: website/public/get-started/index.html:735
@@ -3895,7 +3884,7 @@ msgstr "복사 Node.js 설치 명령 Windows"
 #: website/public/get-started/index.html:243
 msgctxt "page:get-started/index.html"
 msgid "Copy PowerShell execution policy command"
-msgstr "복사 파워 셸 실행 정책 명령"
+msgstr "복사 PowerShell 실행 정책 명령"
 
 #: website/public/get-started/index.html:259
 msgctxt "page:get-started/index.html"
@@ -3954,8 +3943,8 @@ msgstr "복사CLI설치 명령"
 
 #: website/public/get-started/index.html:632
 msgctxt "page:get-started/index.html"
-msgid "Copy ghidra connection · macos / linux"
-msgstr "기드라 연결 복사·마코스/리눅스"
+msgid "Copy Ghidra connection for macOS and Linux"
+msgstr "macOS 및 Linux용 Ghidra 연결 명령 복사"
 
 #: website/public/get-started/index.html:664
 msgctxt "page:get-started/index.html"
@@ -3965,7 +3954,7 @@ msgstr "복사Ghidra연결WindowsPowerShell"
 #: website/public/get-started/index.html:721
 msgctxt "page:get-started/index.html"
 msgid "Copy IDA connection for Windows PowerShell"
-msgstr "복사 IDA 에 대한 연결 Windows 파워셸"
+msgstr "복사 IDA 에 대한 연결 Windows PowerShell"
 
 #: website/public/get-started/index.html:762
 msgctxt "page:get-started/index.html"
@@ -10399,32 +10388,27 @@ msgctxt "page:showcase/th04/index.html"
 msgid "Back to top"
 msgstr "맨 위로"
 
-#: website/public/assets/main.js:39
-msgctxt "runtime"
-msgid "Copy"
-msgstr "복사"
-
-#: website/public/assets/main.js:20
+#: website/public/assets/main.js:21
 msgctxt "runtime"
 msgid "Copied"
 msgstr "복사"
 
-#: website/public/assets/main.js:31
+#: website/public/assets/main.js:32
 msgctxt "runtime"
 msgid "Selected"
 msgstr "선택된"
 
-#: website/public/assets/main.js:22
+#: website/public/assets/main.js:23
 msgctxt "runtime"
 msgid "Code copied to clipboard."
 msgstr "코드는 클립 보드에 복사."
 
-#: website/public/assets/main.js:33
+#: website/public/assets/main.js:34
 msgctxt "runtime"
 msgid "Code selected. Use your keyboard to copy it."
 msgstr "코드 선택. 그것을 복사 키보드를 사용합니다."
 
-#: website/public/assets/main.js:147
+#: website/public/assets/main.js:148
 #, python-brace-format
 msgctxt "runtime"
 msgid "REA on GitHub ({count})"
@@ -11869,7 +11853,7 @@ msgstr ""
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
 #. {ph2}: <span id="aegis-prompt" >
-#. {ph3}: <span translate="no" >3.apk</span >
+#. {ph3}: <span translate="no">aegis-v3.4.3.apk</span>
 #. {ph4}: </span >
 #. {ph5}: <span class="terminal-cursor" aria-hidden="true">
 #. {ph6}: </span>
@@ -11877,12 +11861,12 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/aegis/index.html"
 msgid ""
-"{ph0}›{ph1}{ph2}Use REA to inspect aegis-v3.4.{ph3}. Find how it generates "
-"the six-digit login code, explain why it changes every 30 seconds, and "
-"rebuild a small demo where I can change the time.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Use REA to inspect {ph3}. Find how it generates the six-"
+"digit login code, explain why it changes every 30 seconds, and rebuild a "
+"small demo where I can change the time.{ph4}{ph5}{ph6}"
 msgstr ""
-"{ph0}›{ph1}{ph2}사용 REA 이지스-3.4 를 검사합니다.{ph3}. 이 6 자리 로그인 코드를 생성하는 방법을 찾아 30 "
-"초마다 변경 이유를 설명하고 시간을 변경할 수있는 작은 데모를 다시 작성하십시오.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}REA로 {ph3}을 분석해 주세요. 6자리 로그인 코드가 어떻게 생성되고 왜 30초마다 바뀌는지 설명한 "
+"뒤, 시간을 바꿔 볼 수 있는 작은 데모를 만들어 주세요.{ph4}{ph5}{ph6}"
 
 #. {ph0}: <span translate="no">preload.js</span>
 #: website/public/showcase/notion/index.html:329
@@ -11911,6 +11895,18 @@ msgstr "주요/{ph0} *핸들러 도우미"
 msgctxt "page:showcase/notion/index.html"
 msgid "main/{ph0} · clipboard receiver"
 msgstr "주요/{ph0} *클립 보드 수신기"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "Windows PowerShell"
+#~ msgstr "WindowsPowerShell"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "macOS · Homebrew"
+#~ msgstr "macOS · Homebrew"
+
+#~ msgctxt "runtime"
+#~ msgid "Copy"
+#~ msgstr "복사"
 
 #~ msgctxt "figure:dx-ball-sound-pan-investigation.svg"
 #~ msgid "DXBALL.EXE"

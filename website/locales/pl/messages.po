@@ -3314,12 +3314,6 @@ msgctxt "page:get-started/index.html"
 msgid "{ph0}Windows (PowerShell){ph1}"
 msgstr "{ph0} Windows (PowerShell){ph1}"
 
-#: website/public/get-started/index.html:219
-#: website/public/get-started/index.html:242
-msgctxt "page:get-started/index.html"
-msgid "Windows PowerShell"
-msgstr "Windows PowerShell"
-
 #. {ph0}: <code>node -v</code>
 #: website/public/get-started/index.html:231
 #, python-brace-format
@@ -3349,11 +3343,6 @@ msgstr ""
 msgctxt "page:get-started/index.html"
 msgid "If you use Homebrew:"
 msgstr "Jeśli używasz Homebrew :"
-
-#: website/public/get-started/index.html:258
-msgctxt "page:get-started/index.html"
-msgid "macOS · Homebrew"
-msgstr "macOS * Homebrew"
 
 #: website/public/get-started/index.html:270
 msgctxt "page:get-started/index.html"
@@ -4258,8 +4247,8 @@ msgstr "Skopiuj polecenie instalacji CLI"
 
 #: website/public/get-started/index.html:632
 msgctxt "page:get-started/index.html"
-msgid "Copy ghidra connection · macos / linux"
-msgstr "Skopiuj połączenie ghidra * macos / linux"
+msgid "Copy Ghidra connection for macOS and Linux"
+msgstr "Kopiuj polecenie połączenia z Ghidra dla macOS i Linux"
 
 #: website/public/get-started/index.html:664
 msgctxt "page:get-started/index.html"
@@ -11146,32 +11135,27 @@ msgctxt "page:showcase/th04/index.html"
 msgid "Back to top"
 msgstr "Do góry"
 
-#: website/public/assets/main.js:39
-msgctxt "runtime"
-msgid "Copy"
-msgstr "Kopiuj"
-
-#: website/public/assets/main.js:20
+#: website/public/assets/main.js:21
 msgctxt "runtime"
 msgid "Copied"
 msgstr "Skopiowano"
 
-#: website/public/assets/main.js:31
+#: website/public/assets/main.js:32
 msgctxt "runtime"
 msgid "Selected"
 msgstr "Wybrane"
 
-#: website/public/assets/main.js:22
+#: website/public/assets/main.js:23
 msgctxt "runtime"
 msgid "Code copied to clipboard."
 msgstr "Kod skopiowany do schowka."
 
-#: website/public/assets/main.js:33
+#: website/public/assets/main.js:34
 msgctxt "runtime"
 msgid "Code selected. Use your keyboard to copy it."
 msgstr "Wybrany kod. Użyj klawiatury, aby ją skopiować."
 
-#: website/public/assets/main.js:147
+#: website/public/assets/main.js:148
 #, python-brace-format
 msgctxt "runtime"
 msgid "REA on GitHub ({count})"
@@ -12663,7 +12647,7 @@ msgstr ""
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
 #. {ph2}: <span id="aegis-prompt" >
-#. {ph3}: <span translate="no" >3.apk</span >
+#. {ph3}: <span translate="no">aegis-v3.4.3.apk</span>
 #. {ph4}: </span >
 #. {ph5}: <span class="terminal-cursor" aria-hidden="true">
 #. {ph6}: </span>
@@ -12671,13 +12655,13 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/aegis/index.html"
 msgid ""
-"{ph0}›{ph1}{ph2}Use REA to inspect aegis-v3.4.{ph3}. Find how it generates "
-"the six-digit login code, explain why it changes every 30 seconds, and "
-"rebuild a small demo where I can change the time.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Use REA to inspect {ph3}. Find how it generates the six-"
+"digit login code, explain why it changes every 30 seconds, and rebuild a "
+"small demo where I can change the time.{ph4}{ph5}{ph6}"
 msgstr ""
-"{ph0}›{ph1}{ph2}Użycie REA aby sprawdzić aegis-v3.4. {ph3}. Dowiedz się, jak"
-" generuje sześciocyfrowy kod logowania, wyjaśnij, dlaczego zmienia się co 30"
-" sekund i odbuduj małe demo, w którym mogę zmienić czas.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Zbadaj {ph3} za pomocą REA. Wyjaśnij, jak powstaje "
+"sześciocyfrowy kod logowania i dlaczego zmienia się co 30 sekund. Zbuduj "
+"małe demo, w którym mogę zmieniać czas.{ph4}{ph5}{ph6}"
 
 #. {ph0}: <span translate="no">preload.js</span>
 #: website/public/showcase/notion/index.html:329
@@ -12706,6 +12690,18 @@ msgstr "główna/{ph0} * Pomocnik obsługi"
 msgctxt "page:showcase/notion/index.html"
 msgid "main/{ph0} · clipboard receiver"
 msgstr "główna/{ph0} * odbiornik schowka"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "Windows PowerShell"
+#~ msgstr "Windows PowerShell"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "macOS · Homebrew"
+#~ msgstr "macOS * Homebrew"
+
+#~ msgctxt "runtime"
+#~ msgid "Copy"
+#~ msgstr "Kopiuj"
 
 #~ msgctxt "figure:dx-ball-sound-pan-investigation.svg"
 #~ msgid "DXBALL.EXE"

@@ -3267,12 +3267,6 @@ msgctxt "page:get-started/index.html"
 msgid "{ph0}Windows (PowerShell){ph1}"
 msgstr "{ph0} Windows (PowerShell){ph1}"
 
-#: website/public/get-started/index.html:219
-#: website/public/get-started/index.html:242
-msgctxt "page:get-started/index.html"
-msgid "Windows PowerShell"
-msgstr "Windows PowerShell"
-
 #. {ph0}: <code>node -v</code>
 #: website/public/get-started/index.html:231
 #, python-brace-format
@@ -3301,11 +3295,6 @@ msgstr ""
 msgctxt "page:get-started/index.html"
 msgid "If you use Homebrew:"
 msgstr "اگر از Homebrew استفاده می کنید :"
-
-#: website/public/get-started/index.html:258
-msgctxt "page:get-started/index.html"
-msgid "macOS · Homebrew"
-msgstr "macOS * Homebrew"
 
 #: website/public/get-started/index.html:270
 msgctxt "page:get-started/index.html"
@@ -3515,8 +3504,8 @@ msgid ""
 "{ph0}Windows:{ph1} open the Start menu, type {ph2}PowerShell{ph3} and press "
 "Enter."
 msgstr ""
-"{ph0} Windows :{ph1} منوی Start را باز کنید ، تایپ کنید {ph2}پاور شل{ph3} و "
-"Enter را فشار دهید."
+"{ph0} Windows :{ph1} منوی Start را باز کنید ، تایپ کنید {ph2}PowerShell{ph3}"
+" و Enter را فشار دهید."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -4201,8 +4190,8 @@ msgstr "دستور نصب CLI را کپی کنید"
 
 #: website/public/get-started/index.html:632
 msgctxt "page:get-started/index.html"
-msgid "Copy ghidra connection · macos / linux"
-msgstr "کپی اتصال ghidra · macos / لینوکس"
+msgid "Copy Ghidra connection for macOS and Linux"
+msgstr "کپی فرمان اتصال Ghidra برای macOS و Linux"
 
 #: website/public/get-started/index.html:664
 msgctxt "page:get-started/index.html"
@@ -11012,32 +11001,27 @@ msgctxt "page:showcase/th04/index.html"
 msgid "Back to top"
 msgstr "بازگشت به بالا"
 
-#: website/public/assets/main.js:39
-msgctxt "runtime"
-msgid "Copy"
-msgstr "کپی"
-
-#: website/public/assets/main.js:20
+#: website/public/assets/main.js:21
 msgctxt "runtime"
 msgid "Copied"
 msgstr "کپی شده"
 
-#: website/public/assets/main.js:31
+#: website/public/assets/main.js:32
 msgctxt "runtime"
 msgid "Selected"
 msgstr "انتخاب شده"
 
-#: website/public/assets/main.js:22
+#: website/public/assets/main.js:23
 msgctxt "runtime"
 msgid "Code copied to clipboard."
 msgstr "کد کپی شده به کلیپ بورد."
 
-#: website/public/assets/main.js:33
+#: website/public/assets/main.js:34
 msgctxt "runtime"
 msgid "Code selected. Use your keyboard to copy it."
 msgstr "کد انتخاب شده از صفحه کلید خود برای کپی کردن آن استفاده کنید."
 
-#: website/public/assets/main.js:147
+#: website/public/assets/main.js:148
 #, python-brace-format
 msgctxt "runtime"
 msgid "REA on GitHub ({count})"
@@ -12520,7 +12504,7 @@ msgstr ""
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
 #. {ph2}: <span id="aegis-prompt" >
-#. {ph3}: <span translate="no" >3.apk</span >
+#. {ph3}: <span translate="no">aegis-v3.4.3.apk</span>
 #. {ph4}: </span >
 #. {ph5}: <span class="terminal-cursor" aria-hidden="true">
 #. {ph6}: </span>
@@ -12528,14 +12512,13 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/aegis/index.html"
 msgid ""
-"{ph0}›{ph1}{ph2}Use REA to inspect aegis-v3.4.{ph3}. Find how it generates "
-"the six-digit login code, explain why it changes every 30 seconds, and "
-"rebuild a small demo where I can change the time.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Use REA to inspect {ph3}. Find how it generates the six-"
+"digit login code, explain why it changes every 30 seconds, and rebuild a "
+"small demo where I can change the time.{ph4}{ph5}{ph6}"
 msgstr ""
-"{ph0}›{ph1}{ph2}استفاده کنید REA برای بازرسی aegis-v3.4.{ph3}. پیدا کنید که "
-"چگونه کد ورود شش رقمی را تولید می کند ، توضیح دهید که چرا هر 30 ثانیه تغییر "
-"می کند ، و یک نمایشی کوچک را بازسازی کنید که در آن می توانم زمان را تغییر "
-"دهم.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}با REA فایل {ph3} را بررسی کن. توضیح بده کد ورود شش‌رقمی "
+"چگونه ساخته می‌شود و چرا هر ۳۰ ثانیه تغییر می‌کند. یک دموی کوچک بساز که "
+"بتوانم زمان را در آن تغییر دهم.{ph4}{ph5}{ph6}"
 
 #. {ph0}: <span translate="no">preload.js</span>
 #: website/public/showcase/notion/index.html:329
@@ -12564,6 +12547,18 @@ msgstr "اصلی/{ph0} * handler helper"
 msgctxt "page:showcase/notion/index.html"
 msgid "main/{ph0} · clipboard receiver"
 msgstr "اصلی/{ph0} * گیرنده کلیپ بورد"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "Windows PowerShell"
+#~ msgstr "Windows PowerShell"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "macOS · Homebrew"
+#~ msgstr "macOS * Homebrew"
+
+#~ msgctxt "runtime"
+#~ msgid "Copy"
+#~ msgstr "کپی"
 
 #~ msgctxt "figure:dx-ball-sound-pan-investigation.svg"
 #~ msgid "DXBALL.EXE"

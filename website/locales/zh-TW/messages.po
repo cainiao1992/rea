@@ -2877,21 +2877,24 @@ msgctxt "page:get-started/index.html"
 msgid "{ph0}Home{ph1} / Get started"
 msgstr "{ph0}首頁{ph1} / 開始使用"
 
+# Adapted from Kaoru0822's Traditional Chinese draft in PR #1737.
 #: website/public/get-started/index.html:182
 msgctxt "page:get-started/index.html"
 msgid "Set up REA."
-msgstr "安裝與配置 REA。"
+msgstr "設定 REA。"
 
+# Adapted from Kaoru0822's Traditional Chinese draft in PR #1737.
 #: website/public/get-started/index.html:183
 msgctxt "page:get-started/index.html"
 msgid ""
 "Connect REA to your coding agent, or inspect a local app from your terminal."
-msgstr "把 REA 連線到程式設計助手，或從終端檢查本地應用。"
+msgstr "將 REA 連接到你的程式設計助手，或在終端機中檢查本機應用程式。"
 
+# Adapted from Kaoru0822's Traditional Chinese draft in PR #1737.
 #: website/public/get-started/index.html:195
 msgctxt "page:get-started/index.html"
 msgid "Open a terminal and check:"
-msgstr "開啟終端，檢查版本："
+msgstr "開啟終端機並檢查："
 
 #: website/public/get-started/index.html:198
 #: website/public/get-started/index.html:455
@@ -2929,12 +2932,7 @@ msgctxt "page:get-started/index.html"
 msgid "{ph0}Windows (PowerShell){ph1}"
 msgstr "{ph0}Windows（PowerShell）{ph1}"
 
-#: website/public/get-started/index.html:219
-#: website/public/get-started/index.html:242
-msgctxt "page:get-started/index.html"
-msgid "Windows PowerShell"
-msgstr "WindowsQ"
-
+# Adapted from Kaoru0822's Traditional Chinese draft in PR #1737.
 #. {ph0}: <code>node -v</code>
 #: website/public/get-started/index.html:231
 #, python-brace-format
@@ -2942,7 +2940,7 @@ msgctxt "page:get-started/index.html"
 msgid ""
 "Type Y if asked to accept the terms. Close PowerShell, open it again, then "
 "run {ph0}."
-msgstr "如果提示接受條款，輸入 Y。關閉 PowerShell，再次開啟，然後執行 {ph0}。"
+msgstr "如果要求你接受條款，請輸入 Y。關閉 PowerShell 後重新開啟，再執行 {ph0}。"
 
 #. {ph0}: <em>
 #. {ph1}: </em>
@@ -2961,11 +2959,6 @@ msgstr ""
 msgctxt "page:get-started/index.html"
 msgid "If you use Homebrew:"
 msgstr "如果你使用 Homebrew："
-
-#: website/public/get-started/index.html:258
-msgctxt "page:get-started/index.html"
-msgid "macOS · Homebrew"
-msgstr "macOS*Homebrew"
 
 #: website/public/get-started/index.html:270
 msgctxt "page:get-started/index.html"
@@ -2988,6 +2981,7 @@ msgid ""
 "terminal, open it again, then:"
 msgstr "安裝程式需要 {ph0} 和 {ph1}（Debian/Ubuntu 上用 {ph2} 安裝）。關閉終端，重新開啟，然後執行："
 
+# Adapted from Kaoru0822's Traditional Chinese draft in PR #1737.
 #. {ph0}: <code>nodejs</code>
 #. {ph1}: <code>node -v</code>
 #: website/public/get-started/index.html:336
@@ -2996,8 +2990,9 @@ msgctxt "page:get-started/index.html"
 msgid ""
 "Your distribution's own {ph0} package is often older than 22.19, so check "
 "{ph1} if you use it instead."
-msgstr "發行版自帶的 {ph0} 包經常早於 22.19。如果使用它，請用 {ph1} 確認版本。"
+msgstr "發行版提供的 {ph0} 套件通常早於 22.19。如果使用它，請執行 {ph1} 確認版本。"
 
+# Adapted from Kaoru0822's Traditional Chinese draft in PR #1737.
 #. {ph0}: <a href="https://nodejs.org/en/download">
 #. {ph1}: </a>
 #: website/public/get-started/index.html:340
@@ -3006,7 +3001,7 @@ msgctxt "page:get-started/index.html"
 msgid ""
 "Prefer a regular installer? Download the LTS version from "
 "{ph0}nodejs.org{ph1}."
-msgstr "更喜歡普通安裝包？從 {ph0}nodejs.org{ph1} 下載 LTS 版。"
+msgstr "偏好一般的安裝程式？到 {ph0}nodejs.org{ph1} 下載 LTS 版本。"
 
 #: website/public/get-started/index.html:348
 msgctxt "page:get-started/index.html"
@@ -3050,6 +3045,7 @@ msgctxt "page:get-started/index.html"
 msgid "Connect your coding agent"
 msgstr "連線程式設計助手"
 
+# Adapted from Kaoru0822's Traditional Chinese draft in PR #1737.
 #: website/public/get-started/index.html:359
 msgctxt "page:get-started/index.html"
 msgid ""
@@ -3057,8 +3053,8 @@ msgid ""
 " Code, Codex, Cursor, Gemini CLI, Windsurf, Grok Build, and other supported "
 "MCP clients. Grok Bot's connector is added from its chat."
 msgstr ""
-"執行 setup，把 REA 連線到程式設計助手。可選擇 Claude Code、Codex、Cursor、Gemini "
-"CLI、Windsurf、Grok Build 和其他受支援的 MCP 客戶端。Grok Bot 的聯結器從聊天中新增。"
+"執行設定流程，將 REA 連接到你的程式設計助手。可選擇的用戶端包括 Claude Code、Codex、Cursor、Gemini "
+"CLI、Windsurf、Grok Build 和其他支援的 MCP 用戶端。Grok Bot 的連接器要從它的聊天介面新增。"
 
 #: website/public/get-started/index.html:366
 msgctxt "page:get-started/index.html"
@@ -3145,6 +3141,7 @@ msgctxt "page:get-started/index.html"
 msgid "How do I open a terminal?"
 msgstr "怎麼開啟終端？"
 
+# Adapted from Kaoru0822's Traditional Chinese draft in PR #1737.
 #. {ph0}: <strong>
 #. {ph1}: </strong>
 #. {ph2}: <em>
@@ -3155,7 +3152,7 @@ msgctxt "page:get-started/index.html"
 msgid ""
 "{ph0}Windows:{ph1} open the Start menu, type {ph2}PowerShell{ph3} and press "
 "Enter."
-msgstr "{ph0}Windows：{ph1}開啟開始選單，輸入 {ph2}PowerShell{ph3}，按 Enter。"
+msgstr "{ph0}Windows：{ph1}開啟「開始」功能表，輸入 {ph2}PowerShell{ph3} 後按 Enter。"
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -3197,13 +3194,14 @@ msgid ""
 msgstr ""
 "用 {ph0} {ph1} 貼上命令（macOS：{ph2} {ph3}；Linux 終端：{ph4} {ph5} {ph6}），再按 Enter。"
 
+# Adapted from Kaoru0822's Traditional Chinese draft in PR #1737.
 #: website/public/get-started/index.html:468
 msgctxt "page:get-started/index.html"
 msgid ""
 "Choose your client and review the setup plan. REA adds its MCP connection "
 "and the matching investigation skill, keeping a backup of existing "
 "configuration. It asks before applying the changes."
-msgstr "選擇客戶端，並檢視配置計劃。REA 會新增 MCP 連線和配套調查技能，同時備份已有配置。確認後才會應用更改。"
+msgstr "選擇你的用戶端並檢查設定計畫。REA 會加入它的 MCP 連線和對應的調查 skill，並備份現有的設定。套用變更前，它會先詢問你。"
 
 #: website/public/get-started/index.html:473
 msgctxt "page:get-started/index.html"
@@ -3710,20 +3708,23 @@ msgid ""
 "app from the terminal. Setup, first questions and native provider guides."
 msgstr "把 REA 連線到程式設計助手，或用終端檢查本地 JavaScript、Electron 應用。包含配置、首次提問和原生分析後端指南。"
 
+# Adapted from Kaoru0822's Traditional Chinese draft in PR #1737.
 #: website/public/get-started/index.html:199
 msgctxt "page:get-started/index.html"
 msgid "Copy Node.js version check"
-msgstr "複製Node.js版本檢查"
+msgstr "複製 Node.js 版本檢查命令"
 
+# Adapted from Kaoru0822's Traditional Chinese draft in PR #1737.
 #: website/public/get-started/index.html:220
 msgctxt "page:get-started/index.html"
 msgid "Copy Node.js installation command for Windows"
-msgstr "複製Node.js的Windows安裝命令"
+msgstr "複製 Windows 的 Node.js 安裝命令"
 
+# Adapted from Kaoru0822's Traditional Chinese draft in PR #1737.
 #: website/public/get-started/index.html:243
 msgctxt "page:get-started/index.html"
 msgid "Copy PowerShell execution policy command"
-msgstr "複製PowerShell執行策略命令"
+msgstr "複製 PowerShell 執行原則命令"
 
 #: website/public/get-started/index.html:259
 msgctxt "page:get-started/index.html"
@@ -3782,8 +3783,8 @@ msgstr "複製CLI安裝命令"
 
 #: website/public/get-started/index.html:632
 msgctxt "page:get-started/index.html"
-msgid "Copy ghidra connection · macos / linux"
-msgstr "複製ghidra連線 · macos/linux"
+msgid "Copy Ghidra connection for macOS and Linux"
+msgstr "複製 macOS 和 Linux 的 Ghidra 連線命令"
 
 #: website/public/get-started/index.html:664
 msgctxt "page:get-started/index.html"
@@ -10152,7 +10153,7 @@ msgstr ""
 #: website/public/showcase/th04/index.html:319
 msgctxt "page:showcase/th04/index.html"
 msgid "Copy TH04 firing template"
-msgstr "複製TH04燒製模板"
+msgstr "複製 TH04 發射範本"
 
 #: website/public/showcase/th04/index.html:446
 msgctxt "page:showcase/th04/index.html"
@@ -10174,32 +10175,27 @@ msgctxt "page:showcase/th04/index.html"
 msgid "Back to top"
 msgstr "回到頂部"
 
-#: website/public/assets/main.js:39
-msgctxt "runtime"
-msgid "Copy"
-msgstr "複製"
-
-#: website/public/assets/main.js:20
+#: website/public/assets/main.js:21
 msgctxt "runtime"
 msgid "Copied"
 msgstr "已複製"
 
-#: website/public/assets/main.js:31
+#: website/public/assets/main.js:32
 msgctxt "runtime"
 msgid "Selected"
 msgstr "已選中"
 
-#: website/public/assets/main.js:22
+#: website/public/assets/main.js:23
 msgctxt "runtime"
 msgid "Code copied to clipboard."
 msgstr "程式碼已複製到剪貼簿。"
 
-#: website/public/assets/main.js:33
+#: website/public/assets/main.js:34
 msgctxt "runtime"
 msgid "Code selected. Use your keyboard to copy it."
 msgstr "程式碼已選中，請用鍵盤快捷鍵複製。"
 
-#: website/public/assets/main.js:147
+#: website/public/assets/main.js:148
 #, python-brace-format
 msgctxt "runtime"
 msgid "REA on GitHub ({count})"
@@ -10870,7 +10866,7 @@ msgstr "匯出指令碼"
 #: website/public/guides/javascript/index.html:344
 msgctxt "page:guides/javascript/index.html"
 msgid "REA result · summary.ipc excerpt"
-msgstr "REA結果 · 摘要。ipc摘錄"
+msgstr "REA 結果 · summary.ipc 摘錄"
 
 #: website/public/guides/native/index.html:371
 msgctxt "page:guides/native/index.html"
@@ -11491,7 +11487,7 @@ msgstr "{ph0} · CSV 格式化函式"
 msgctxt "page:get-started/index.html"
 msgid ""
 "You'll need {ph0} 22 (22.19+), 24 (24.11+) or 26+. npm comes with {ph1}."
-msgstr "你需要 {ph0} 22 (22.19+), 24 (24.11+) 或26+。  npm自帶 {ph1}."
+msgstr "需要 {ph0} 22（22.19+）、24（24.11+）或 26+。npm 會隨 {ph1} 一起安裝。"
 
 #. {ph0}: <span translate="no">Node.js</span>
 #: website/public/get-started/index.html:192
@@ -11632,7 +11628,7 @@ msgstr ""
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
 #. {ph2}: <span id="aegis-prompt" >
-#. {ph3}: <span translate="no" >3.apk</span >
+#. {ph3}: <span translate="no">aegis-v3.4.3.apk</span>
 #. {ph4}: </span >
 #. {ph5}: <span class="terminal-cursor" aria-hidden="true">
 #. {ph6}: </span>
@@ -11640,12 +11636,12 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/aegis/index.html"
 msgid ""
-"{ph0}›{ph1}{ph2}Use REA to inspect aegis-v3.4.{ph3}. Find how it generates "
-"the six-digit login code, explain why it changes every 30 seconds, and "
-"rebuild a small demo where I can change the time.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Use REA to inspect {ph3}. Find how it generates the six-"
+"digit login code, explain why it changes every 30 seconds, and rebuild a "
+"small demo where I can change the time.{ph4}{ph5}{ph6}"
 msgstr ""
-"{ph0}›{ph1}{ph2}使用REA檢查aegis-v3.4。{ph3}. "
-"找到它如何生成六位數的登入程式碼，解釋為什麼它每30秒更改一次，並重建一個我可以更改時間的小演示。{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}用 REA 分析 {ph3}，找出六位登入驗證碼是怎麼產生的，解釋為什麼它每 30 "
+"秒變化一次，再做一個可以調整時間的小示範。{ph4}{ph5}{ph6}"
 
 #. {ph0}: <span translate="no">preload.js</span>
 #: website/public/showcase/notion/index.html:329
@@ -11674,6 +11670,18 @@ msgstr "主要/{ph0}  · 處理程式助手"
 msgctxt "page:showcase/notion/index.html"
 msgid "main/{ph0} · clipboard receiver"
 msgstr "主要/{ph0}  · 剪貼簿接收器"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "Windows PowerShell"
+#~ msgstr "WindowsQ"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "macOS · Homebrew"
+#~ msgstr "macOS*Homebrew"
+
+#~ msgctxt "runtime"
+#~ msgid "Copy"
+#~ msgstr "複製"
 
 #~ msgctxt "figure:dx-ball-sound-pan-investigation.svg"
 #~ msgid "DXBALL.EXE"

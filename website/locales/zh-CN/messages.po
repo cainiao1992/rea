@@ -2927,12 +2927,6 @@ msgctxt "page:get-started/index.html"
 msgid "{ph0}Windows (PowerShell){ph1}"
 msgstr "{ph0}Windows（PowerShell）{ph1}"
 
-#: website/public/get-started/index.html:219
-#: website/public/get-started/index.html:242
-msgctxt "page:get-started/index.html"
-msgid "Windows PowerShell"
-msgstr "WindowsQ"
-
 #. {ph0}: <code>node -v</code>
 #: website/public/get-started/index.html:231
 #, python-brace-format
@@ -2959,11 +2953,6 @@ msgstr ""
 msgctxt "page:get-started/index.html"
 msgid "If you use Homebrew:"
 msgstr "如果你使用 Homebrew："
-
-#: website/public/get-started/index.html:258
-msgctxt "page:get-started/index.html"
-msgid "macOS · Homebrew"
-msgstr "macOS*Homebrew"
 
 #: website/public/get-started/index.html:270
 msgctxt "page:get-started/index.html"
@@ -3780,8 +3769,8 @@ msgstr "复制CLI安装命令"
 
 #: website/public/get-started/index.html:632
 msgctxt "page:get-started/index.html"
-msgid "Copy ghidra connection · macos / linux"
-msgstr "复制ghidra连接 · macos/linux"
+msgid "Copy Ghidra connection for macOS and Linux"
+msgstr "复制 macOS 和 Linux 的 Ghidra 连接命令"
 
 #: website/public/get-started/index.html:664
 msgctxt "page:get-started/index.html"
@@ -10145,7 +10134,7 @@ msgstr ""
 #: website/public/showcase/th04/index.html:319
 msgctxt "page:showcase/th04/index.html"
 msgid "Copy TH04 firing template"
-msgstr "复制TH04烧制模板"
+msgstr "复制 TH04 发射模板"
 
 #: website/public/showcase/th04/index.html:446
 msgctxt "page:showcase/th04/index.html"
@@ -10167,32 +10156,27 @@ msgctxt "page:showcase/th04/index.html"
 msgid "Back to top"
 msgstr "回到顶部"
 
-#: website/public/assets/main.js:39
-msgctxt "runtime"
-msgid "Copy"
-msgstr "复制"
-
-#: website/public/assets/main.js:20
+#: website/public/assets/main.js:21
 msgctxt "runtime"
 msgid "Copied"
 msgstr "已复制"
 
-#: website/public/assets/main.js:31
+#: website/public/assets/main.js:32
 msgctxt "runtime"
 msgid "Selected"
 msgstr "已选中"
 
-#: website/public/assets/main.js:22
+#: website/public/assets/main.js:23
 msgctxt "runtime"
 msgid "Code copied to clipboard."
 msgstr "代码已复制到剪贴板。"
 
-#: website/public/assets/main.js:33
+#: website/public/assets/main.js:34
 msgctxt "runtime"
 msgid "Code selected. Use your keyboard to copy it."
 msgstr "代码已选中，请用键盘快捷键复制。"
 
-#: website/public/assets/main.js:147
+#: website/public/assets/main.js:148
 #, python-brace-format
 msgctxt "runtime"
 msgid "REA on GitHub ({count})"
@@ -10863,7 +10847,7 @@ msgstr "导出脚本"
 #: website/public/guides/javascript/index.html:344
 msgctxt "page:guides/javascript/index.html"
 msgid "REA result · summary.ipc excerpt"
-msgstr "REA结果 · 摘要。ipc摘录"
+msgstr "REA 结果 · summary.ipc 摘录"
 
 #: website/public/guides/native/index.html:371
 msgctxt "page:guides/native/index.html"
@@ -11483,7 +11467,7 @@ msgstr "{ph0} · CSV 格式化函数"
 msgctxt "page:get-started/index.html"
 msgid ""
 "You'll need {ph0} 22 (22.19+), 24 (24.11+) or 26+. npm comes with {ph1}."
-msgstr "你需要 {ph0} 22 (22.19+), 24 (24.11+) 或26+。  npm自带 {ph1}."
+msgstr "需要 {ph0} 22（22.19+）、24（24.11+）或 26+。npm 会随 {ph1} 一起安装。"
 
 #. {ph0}: <span translate="no">Node.js</span>
 #: website/public/get-started/index.html:192
@@ -11624,7 +11608,7 @@ msgstr ""
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
 #. {ph2}: <span id="aegis-prompt" >
-#. {ph3}: <span translate="no" >3.apk</span >
+#. {ph3}: <span translate="no">aegis-v3.4.3.apk</span>
 #. {ph4}: </span >
 #. {ph5}: <span class="terminal-cursor" aria-hidden="true">
 #. {ph6}: </span>
@@ -11632,12 +11616,12 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/aegis/index.html"
 msgid ""
-"{ph0}›{ph1}{ph2}Use REA to inspect aegis-v3.4.{ph3}. Find how it generates "
-"the six-digit login code, explain why it changes every 30 seconds, and "
-"rebuild a small demo where I can change the time.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Use REA to inspect {ph3}. Find how it generates the six-"
+"digit login code, explain why it changes every 30 seconds, and rebuild a "
+"small demo where I can change the time.{ph4}{ph5}{ph6}"
 msgstr ""
-"{ph0}›{ph1}{ph2}使用REA检查aegis-v3.4。{ph3}. "
-"找到它如何生成六位数的登录代码，解释为什么它每30秒更改一次，并重建一个我可以更改时间的小演示。{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}用 REA 分析 {ph3}，找出六位登录验证码是怎么生成的，解释为什么它每 30 "
+"秒变化一次，再做一个可以调整时间的小演示。{ph4}{ph5}{ph6}"
 
 #. {ph0}: <span translate="no">preload.js</span>
 #: website/public/showcase/notion/index.html:329
@@ -11666,6 +11650,18 @@ msgstr "主要/{ph0}  · 处理程序助手"
 msgctxt "page:showcase/notion/index.html"
 msgid "main/{ph0} · clipboard receiver"
 msgstr "主要/{ph0}  · 剪贴板接收器"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "Windows PowerShell"
+#~ msgstr "WindowsQ"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "macOS · Homebrew"
+#~ msgstr "macOS*Homebrew"
+
+#~ msgctxt "runtime"
+#~ msgid "Copy"
+#~ msgstr "复制"
 
 #~ msgctxt "figure:dx-ball-sound-pan-investigation.svg"
 #~ msgid "DXBALL.EXE"

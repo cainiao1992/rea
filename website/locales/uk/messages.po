@@ -2369,9 +2369,9 @@ msgid ""
 " Grok Bot's connector is added from its chat."
 msgstr ""
 "Будь-який агент, який підтримує локальні сервери MCP. Установка включає в "
-"себе Claude Code, Claude для настільних комп'ютерів, Codex, Cursor, Gemini "
-"CLI, Windsurf, Devin, OpenCode, Antigravity, GitHub Copilot CLI , Command "
-"Code , Grok Build , OMP і VS Code . Коннектор Grok-бота доданий з його чату."
+"себе Claude Code, Claude Desktop, Codex, Cursor, Gemini CLI, Windsurf, "
+"Devin, OpenCode, Antigravity, GitHub Copilot CLI , Command Code , Grok Build"
+" , OMP і VS Code . Коннектор Grok Bot доданий з його чату."
 
 #. {ph0}: <a href="../get-started/#agent">
 #. {ph1}: </a>
@@ -3332,12 +3332,6 @@ msgctxt "page:get-started/index.html"
 msgid "{ph0}Windows (PowerShell){ph1}"
 msgstr "{ph0} Windows (PowerShell){ph1}"
 
-#: website/public/get-started/index.html:219
-#: website/public/get-started/index.html:242
-msgctxt "page:get-started/index.html"
-msgid "Windows PowerShell"
-msgstr "Оболонка PowerShell Windows"
-
 #. {ph0}: <code>node -v</code>
 #: website/public/get-started/index.html:231
 #, python-brace-format
@@ -3367,11 +3361,6 @@ msgstr ""
 msgctxt "page:get-started/index.html"
 msgid "If you use Homebrew:"
 msgstr "Якщо ви використовуєте Homebrew :"
-
-#: website/public/get-started/index.html:258
-msgctxt "page:get-started/index.html"
-msgid "macOS · Homebrew"
-msgstr "macOS · Homebrew"
 
 #: website/public/get-started/index.html:270
 msgctxt "page:get-started/index.html"
@@ -3471,7 +3460,7 @@ msgid ""
 msgstr ""
 "Запустіть програму встановлення, щоб підключити REA до свого програміста. "
 "Серед доступних клієнтів Claude Code, Codex, Cursor, Gemini CLI, Windsurf, "
-"Grok Build та інші підтримувані клієнти MCP. Коннектор Grok-бота доданий з "
+"Grok Build та інші підтримувані клієнти MCP. Коннектор Grok Bot доданий з "
 "його чату."
 
 #: website/public/get-started/index.html:366
@@ -3665,11 +3654,10 @@ msgid ""
 "macOS press {ph2} {ph3}; on Windows, also quit from the tray icon if there "
 "is one."
 msgstr ""
-"{ph0}Додатки для настільних{ph1} комп'ютерів (Claude для настільних "
-"комп'ютерів, Cursor, Windsurf, VS Code): повністю закрийте програму, а потім"
-" відкрийте її знову. Закрити вікно недостатньо. На macOS натисніть {ph2} "
-"{ph3}; на Windows також завершіть роботу за допомогою піктограми лотка, якщо"
-" вона є."
+"{ph0}Додатки для настільних{ph1} комп'ютерів (Claude Desktop, Cursor, "
+"Windsurf, VS Code): повністю закрийте програму, а потім відкрийте її знову. "
+"Закрити вікно недостатньо. На macOS натисніть {ph2} {ph3}; на Windows також "
+"завершіть роботу за допомогою піктограми лотка, якщо вона є."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -4282,8 +4270,8 @@ msgstr "Скопіювати команду установки CLI"
 
 #: website/public/get-started/index.html:632
 msgctxt "page:get-started/index.html"
-msgid "Copy ghidra connection · macos / linux"
-msgstr "Скопіюйте з'єднання з ghidra * macos / linux"
+msgid "Copy Ghidra connection for macOS and Linux"
+msgstr "Скопіювати команду підключення Ghidra для macOS і Linux"
 
 #: website/public/get-started/index.html:664
 msgctxt "page:get-started/index.html"
@@ -11213,32 +11201,27 @@ msgctxt "page:showcase/th04/index.html"
 msgid "Back to top"
 msgstr "Нагору"
 
-#: website/public/assets/main.js:39
-msgctxt "runtime"
-msgid "Copy"
-msgstr "Копіювати"
-
-#: website/public/assets/main.js:20
+#: website/public/assets/main.js:21
 msgctxt "runtime"
 msgid "Copied"
 msgstr "Скопійований"
 
-#: website/public/assets/main.js:31
+#: website/public/assets/main.js:32
 msgctxt "runtime"
 msgid "Selected"
 msgstr "Вибраний"
 
-#: website/public/assets/main.js:22
+#: website/public/assets/main.js:23
 msgctxt "runtime"
 msgid "Code copied to clipboard."
 msgstr "Код копіюється в буфер обміну."
 
-#: website/public/assets/main.js:33
+#: website/public/assets/main.js:34
 msgctxt "runtime"
 msgid "Code selected. Use your keyboard to copy it."
 msgstr "Обраний код. Скопіюйте його з клавіатури."
 
-#: website/public/assets/main.js:147
+#: website/public/assets/main.js:148
 #, python-brace-format
 msgctxt "runtime"
 msgid "REA on GitHub ({count})"
@@ -12731,7 +12714,7 @@ msgstr ""
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
 #. {ph2}: <span id="aegis-prompt" >
-#. {ph3}: <span translate="no" >3.apk</span >
+#. {ph3}: <span translate="no">aegis-v3.4.3.apk</span>
 #. {ph4}: </span >
 #. {ph5}: <span class="terminal-cursor" aria-hidden="true">
 #. {ph6}: </span>
@@ -12739,14 +12722,13 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/aegis/index.html"
 msgid ""
-"{ph0}›{ph1}{ph2}Use REA to inspect aegis-v3.4.{ph3}. Find how it generates "
-"the six-digit login code, explain why it changes every 30 seconds, and "
-"rebuild a small demo where I can change the time.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Use REA to inspect {ph3}. Find how it generates the six-"
+"digit login code, explain why it changes every 30 seconds, and rebuild a "
+"small demo where I can change the time.{ph4}{ph5}{ph6}"
 msgstr ""
-"{ph0}\"{ph1}{ph2}Використовувати REA для перевірки aegis-v3.4. {ph3}. "
-"Дізнайтеся, як він генерує шестизначний код для входу, поясніть, чому він "
-"змінюється кожні 30 секунд, і відновіть невелику демонстрацію, де я можу "
-"змінити час.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Досліди {ph3} за допомогою REA. Поясни, як створюється "
+"шестизначний код входу й чому він змінюється кожні 30 секунд. Зроби "
+"невеликий приклад, у якому можна змінювати час.{ph4}{ph5}{ph6}"
 
 #. {ph0}: <span translate="no">preload.js</span>
 #: website/public/showcase/notion/index.html:329
@@ -12775,6 +12757,18 @@ msgstr "main/{ph0} * помічник обробника"
 msgctxt "page:showcase/notion/index.html"
 msgid "main/{ph0} · clipboard receiver"
 msgstr "головний/{ph0} * приймач буфера обміну"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "Windows PowerShell"
+#~ msgstr "Оболонка PowerShell Windows"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "macOS · Homebrew"
+#~ msgstr "macOS · Homebrew"
+
+#~ msgctxt "runtime"
+#~ msgid "Copy"
+#~ msgstr "Копіювати"
 
 #~ msgctxt "figure:dx-ball-sound-pan-investigation.svg"
 #~ msgid "DXBALL.EXE"

@@ -2391,7 +2391,7 @@ msgstr ""
 "Любой агент, поддерживающий локальные серверы MCP. Установка включает в себя"
 " Claude Code, Claude для настольных компьютеров, Codex, Cursor, Gemini CLI, "
 "Windsurf, Devin, OpenCode, Antigravity, GitHub Copilot CLI , Command Code , "
-"Grok Build , OMP и VS Code . Коннектор Grok-бота добавлен из его чата."
+"Grok Build , OMP и VS Code . Коннектор Grok Bot добавлен из его чата."
 
 #. {ph0}: <a href="../get-started/#agent">
 #. {ph1}: </a>
@@ -3351,12 +3351,6 @@ msgctxt "page:get-started/index.html"
 msgid "{ph0}Windows (PowerShell){ph1}"
 msgstr "{ph0} Windows (PowerShell){ph1}"
 
-#: website/public/get-started/index.html:219
-#: website/public/get-started/index.html:242
-msgctxt "page:get-started/index.html"
-msgid "Windows PowerShell"
-msgstr "Оболочка PowerShell Windows"
-
 #. {ph0}: <code>node -v</code>
 #: website/public/get-started/index.html:231
 #, python-brace-format
@@ -3386,11 +3380,6 @@ msgstr ""
 msgctxt "page:get-started/index.html"
 msgid "If you use Homebrew:"
 msgstr "Если вы используете Homebrew :"
-
-#: website/public/get-started/index.html:258
-msgctxt "page:get-started/index.html"
-msgid "macOS · Homebrew"
-msgstr "macOS · Homebrew"
 
 #: website/public/get-started/index.html:270
 msgctxt "page:get-started/index.html"
@@ -3490,8 +3479,8 @@ msgid ""
 msgstr ""
 "Запустите программу установки, чтобы подключить REA к вашему программисту. "
 "Среди доступных клиентов Claude Code, Codex, Cursor, Gemini CLI, Windsurf, "
-"Grok Build и другие поддерживаемые клиенты MCP. Коннектор Grok-бота добавлен"
-" из его чата."
+"Grok Build и другие поддерживаемые клиенты MCP. Коннектор Grok Bot добавлен "
+"из его чата."
 
 #: website/public/get-started/index.html:366
 msgctxt "page:get-started/index.html"
@@ -4305,8 +4294,8 @@ msgstr "Скопировать команду установки CLI"
 
 #: website/public/get-started/index.html:632
 msgctxt "page:get-started/index.html"
-msgid "Copy ghidra connection · macos / linux"
-msgstr "Скопировать соединение с ghidra · macos / linux"
+msgid "Copy Ghidra connection for macOS and Linux"
+msgstr "Скопировать команду подключения Ghidra для macOS и Linux"
 
 #: website/public/get-started/index.html:664
 msgctxt "page:get-started/index.html"
@@ -11259,32 +11248,27 @@ msgctxt "page:showcase/th04/index.html"
 msgid "Back to top"
 msgstr "Наверх"
 
-#: website/public/assets/main.js:39
-msgctxt "runtime"
-msgid "Copy"
-msgstr "Копировать"
-
-#: website/public/assets/main.js:20
+#: website/public/assets/main.js:21
 msgctxt "runtime"
 msgid "Copied"
 msgstr "Скопированный"
 
-#: website/public/assets/main.js:31
+#: website/public/assets/main.js:32
 msgctxt "runtime"
 msgid "Selected"
 msgstr "Выбранный"
 
-#: website/public/assets/main.js:22
+#: website/public/assets/main.js:23
 msgctxt "runtime"
 msgid "Code copied to clipboard."
 msgstr "Код копируется в буфер обмена."
 
-#: website/public/assets/main.js:33
+#: website/public/assets/main.js:34
 msgctxt "runtime"
 msgid "Code selected. Use your keyboard to copy it."
 msgstr "Выбранный код. Скопируйте его с клавиатуры."
 
-#: website/public/assets/main.js:147
+#: website/public/assets/main.js:148
 #, python-brace-format
 msgctxt "runtime"
 msgid "REA on GitHub ({count})"
@@ -12779,7 +12763,7 @@ msgstr ""
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
 #. {ph2}: <span id="aegis-prompt" >
-#. {ph3}: <span translate="no" >3.apk</span >
+#. {ph3}: <span translate="no">aegis-v3.4.3.apk</span>
 #. {ph4}: </span >
 #. {ph5}: <span class="terminal-cursor" aria-hidden="true">
 #. {ph6}: </span>
@@ -12787,14 +12771,13 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/aegis/index.html"
 msgid ""
-"{ph0}›{ph1}{ph2}Use REA to inspect aegis-v3.4.{ph3}. Find how it generates "
-"the six-digit login code, explain why it changes every 30 seconds, and "
-"rebuild a small demo where I can change the time.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Use REA to inspect {ph3}. Find how it generates the six-"
+"digit login code, explain why it changes every 30 seconds, and rebuild a "
+"small demo where I can change the time.{ph4}{ph5}{ph6}"
 msgstr ""
-"{ph0}\"{ph1}{ph2}Используйте REA для проверки aegis-v3.4.{ph3}. Узнайте, как"
-" он генерирует шестизначный код для входа, объясните, почему он меняется "
-"каждые 30 секунд, и восстановите небольшую демонстрацию, в которой я могу "
-"изменить время.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Исследуй {ph3} с помощью REA. Объясни, как создаётся "
+"шестизначный код входа и почему он меняется каждые 30 секунд. Сделай "
+"небольшую демонстрацию, в которой можно менять время.{ph4}{ph5}{ph6}"
 
 #. {ph0}: <span translate="no">preload.js</span>
 #: website/public/showcase/notion/index.html:329
@@ -12823,6 +12806,18 @@ msgstr "main/{ph0} · помощник обработчика"
 msgctxt "page:showcase/notion/index.html"
 msgid "main/{ph0} · clipboard receiver"
 msgstr "main/{ph0} · приемник буфера обмена"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "Windows PowerShell"
+#~ msgstr "Оболочка PowerShell Windows"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "macOS · Homebrew"
+#~ msgstr "macOS · Homebrew"
+
+#~ msgctxt "runtime"
+#~ msgid "Copy"
+#~ msgstr "Копировать"
 
 #~ msgctxt "figure:dx-ball-sound-pan-investigation.svg"
 #~ msgid "DXBALL.EXE"

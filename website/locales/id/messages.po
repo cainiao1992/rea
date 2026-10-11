@@ -2387,9 +2387,9 @@ msgid ""
 " Grok Bot's connector is added from its chat."
 msgstr ""
 "Agen apa pun yang mendukung server MCP lokal. Pengaturan termasuk Claude "
-"Code , Desktop Claude, Codex , Cursor , Gemini CLI , Windsurf , Devin , "
+"Code , Claude Desktop, Codex , Cursor , Gemini CLI , Windsurf , Devin , "
 "OpenCode , Antigravity , GitHub Copilot CLI , Command Code , Grok Build , "
-"OMP , dan VS Code . Konektor Bot Grok ditambahkan dari obrolannya."
+"OMP , dan VS Code . Konektor Grok Bot ditambahkan dari obrolannya."
 
 #. {ph0}: <a href="../get-started/#agent">
 #. {ph1}: </a>
@@ -3344,12 +3344,6 @@ msgctxt "page:get-started/index.html"
 msgid "{ph0}Windows (PowerShell){ph1}"
 msgstr "{ph0} Windows (PowerShell){ph1}"
 
-#: website/public/get-started/index.html:219
-#: website/public/get-started/index.html:242
-msgctxt "page:get-started/index.html"
-msgid "Windows PowerShell"
-msgstr "Windows PowerShell"
-
 #. {ph0}: <code>node -v</code>
 #: website/public/get-started/index.html:231
 #, python-brace-format
@@ -3379,11 +3373,6 @@ msgstr ""
 msgctxt "page:get-started/index.html"
 msgid "If you use Homebrew:"
 msgstr "Jika Anda menggunakan Homebrew :"
-
-#: website/public/get-started/index.html:258
-msgctxt "page:get-started/index.html"
-msgid "macOS · Homebrew"
-msgstr "macOS · Homebrew"
 
 #: website/public/get-started/index.html:270
 msgctxt "page:get-started/index.html"
@@ -3482,7 +3471,7 @@ msgid ""
 msgstr ""
 "Jalankan pengaturan untuk menghubungkan REA ke agen pengkodean Anda. Pilihan"
 " klien termasuk Claude Code, Codex , Cursor , Gemini CLI , Windsurf , Grok "
-"Build, dan klien MCP lain yang didukung. Konektor Bot Grok ditambahkan dari "
+"Build, dan klien MCP lain yang didukung. Konektor Grok Bot ditambahkan dari "
 "obrolannya."
 
 #: website/public/get-started/index.html:366
@@ -3673,7 +3662,7 @@ msgid ""
 "macOS press {ph2} {ph3}; on Windows, also quit from the tray icon if there "
 "is one."
 msgstr ""
-"{ph0}Aplikasi desktop{ph1} (Desktop Claude, Cursor, Windsurf, VS Code): "
+"{ph0}Aplikasi desktop{ph1} (Claude Desktop, Cursor, Windsurf, VS Code): "
 "keluar dari aplikasi sepenuhnya, lalu buka lagi. Menutup jendela saja tidak "
 "cukup. Pada pers macOS {ph2} {ph3}; pada Windows, keluar juga dari ikon baki"
 " jika ada."
@@ -4289,8 +4278,8 @@ msgstr "Salin perintah instalasi CLI"
 
 #: website/public/get-started/index.html:632
 msgctxt "page:get-started/index.html"
-msgid "Copy ghidra connection · macos / linux"
-msgstr "Salin koneksi ghidra * macos / linux"
+msgid "Copy Ghidra connection for macOS and Linux"
+msgstr "Salin perintah koneksi Ghidra untuk macOS dan Linux"
 
 #: website/public/get-started/index.html:664
 msgctxt "page:get-started/index.html"
@@ -11188,32 +11177,27 @@ msgctxt "page:showcase/th04/index.html"
 msgid "Back to top"
 msgstr "Kembali ke atas"
 
-#: website/public/assets/main.js:39
-msgctxt "runtime"
-msgid "Copy"
-msgstr "Salin"
-
-#: website/public/assets/main.js:20
+#: website/public/assets/main.js:21
 msgctxt "runtime"
 msgid "Copied"
 msgstr "Disalin"
 
-#: website/public/assets/main.js:31
+#: website/public/assets/main.js:32
 msgctxt "runtime"
 msgid "Selected"
 msgstr "Dipilih"
 
-#: website/public/assets/main.js:22
+#: website/public/assets/main.js:23
 msgctxt "runtime"
 msgid "Code copied to clipboard."
 msgstr "Kode disalin ke papan klip."
 
-#: website/public/assets/main.js:33
+#: website/public/assets/main.js:34
 msgctxt "runtime"
 msgid "Code selected. Use your keyboard to copy it."
 msgstr "Kode dipilih. Gunakan keyboard Anda untuk menyalinnya."
 
-#: website/public/assets/main.js:147
+#: website/public/assets/main.js:148
 #, python-brace-format
 msgctxt "runtime"
 msgid "REA on GitHub ({count})"
@@ -12697,7 +12681,7 @@ msgstr ""
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
 #. {ph2}: <span id="aegis-prompt" >
-#. {ph3}: <span translate="no" >3.apk</span >
+#. {ph3}: <span translate="no">aegis-v3.4.3.apk</span>
 #. {ph4}: </span >
 #. {ph5}: <span class="terminal-cursor" aria-hidden="true">
 #. {ph6}: </span>
@@ -12705,14 +12689,13 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/aegis/index.html"
 msgid ""
-"{ph0}›{ph1}{ph2}Use REA to inspect aegis-v3.4.{ph3}. Find how it generates "
-"the six-digit login code, explain why it changes every 30 seconds, and "
-"rebuild a small demo where I can change the time.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Use REA to inspect {ph3}. Find how it generates the six-"
+"digit login code, explain why it changes every 30 seconds, and rebuild a "
+"small demo where I can change the time.{ph4}{ph5}{ph6}"
 msgstr ""
-"{ph0}›{ph1}{ph2}Gunakan REA untuk memeriksa aegis-v3. 4. {ph3}. Temukan cara"
-" menghasilkan kode login enam digit, jelaskan mengapa kode tersebut berubah "
-"setiap 30 detik, dan buat ulang demo kecil di mana saya dapat mengubah "
-"waktu.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Analisis {ph3} dengan REA. Jelaskan cara kode login enam "
+"digit dibuat dan mengapa berubah setiap 30 detik. Buat demo kecil yang "
+"memungkinkan saya mengubah waktu.{ph4}{ph5}{ph6}"
 
 #. {ph0}: <span translate="no">preload.js</span>
 #: website/public/showcase/notion/index.html:329
@@ -12741,6 +12724,18 @@ msgstr "utama/{ph0} * pembantu penangan"
 msgctxt "page:showcase/notion/index.html"
 msgid "main/{ph0} · clipboard receiver"
 msgstr "utama/{ph0} * penerima papan klip"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "Windows PowerShell"
+#~ msgstr "Windows PowerShell"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "macOS · Homebrew"
+#~ msgstr "macOS · Homebrew"
+
+#~ msgctxt "runtime"
+#~ msgid "Copy"
+#~ msgstr "Salin"
 
 #~ msgctxt "figure:dx-ball-sound-pan-investigation.svg"
 #~ msgid "DXBALL.EXE"

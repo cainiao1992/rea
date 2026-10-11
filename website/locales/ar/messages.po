@@ -3245,13 +3245,7 @@ msgstr "نسخ"
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "{ph0}Windows (PowerShell){ph1}"
-msgstr "{ph0}Windows (بوويرشيل){ph1}"
-
-#: website/public/get-started/index.html:219
-#: website/public/get-started/index.html:242
-msgctxt "page:get-started/index.html"
-msgid "Windows PowerShell"
-msgstr "Windows بوويرشيل"
+msgstr "{ph0}Windows (PowerShell){ph1}"
 
 #. {ph0}: <code>node -v</code>
 #: website/public/get-started/index.html:231
@@ -3261,7 +3255,7 @@ msgid ""
 "Type Y if asked to accept the terms. Close PowerShell, open it again, then "
 "run {ph0}."
 msgstr ""
-"اكتب ذ إذا طلب منك قبول الشروط. إغلاق بوويرشيل ، فتحه مرة أخرى ، ثم تشغيل "
+"اكتب Y إذا طُلب منك قبول الشروط. أغلق PowerShell وافتحه مجددًا، ثم شغّل "
 "{ph0}."
 
 #. {ph0}: <em>
@@ -3274,18 +3268,13 @@ msgid ""
 "If PowerShell later says {ph0}\"running scripts is disabled on this "
 "system\"{ph1} when you run {ph2}, run this once and try again:"
 msgstr ""
-"إذا قال بوويرشيل لاحقا {ph0}\"تشغيل البرامج النصية معطل على هذا "
+"إذا قال PowerShell لاحقا {ph0}\"تشغيل البرامج النصية معطل على هذا "
 "النظام\"{ph1} عند تشغيل {ph2}، قم بتشغيل هذا مرة واحدة وحاول مرة أخرى:"
 
 #: website/public/get-started/index.html:255
 msgctxt "page:get-started/index.html"
 msgid "If you use Homebrew:"
 msgstr "إذا كنت تستخدم Homebrew:"
-
-#: website/public/get-started/index.html:258
-msgctxt "page:get-started/index.html"
-msgid "macOS · Homebrew"
-msgstr "macOS · Homebrew"
 
 #: website/public/get-started/index.html:270
 msgctxt "page:get-started/index.html"
@@ -3383,7 +3372,7 @@ msgid ""
 msgstr ""
 "تشغيل الإعداد للاتصال REA إلى مساعدك البرمجي. تشمل خيارات العميل ما يلي "
 "Claude Code, Codex, Cursor, Gemini CLI, Windsurf, Grok Build، وغيرها من "
-"الدعم MCP العملاء. يضاف موصل غروك بوت من الدردشة لها."
+"الدعم MCP العملاء. يضاف موصل Grok Bot من الدردشة لها."
 
 #: website/public/get-started/index.html:366
 msgctxt "page:get-started/index.html"
@@ -3492,7 +3481,7 @@ msgid ""
 "{ph0}Windows:{ph1} open the Start menu, type {ph2}PowerShell{ph3} and press "
 "Enter."
 msgstr ""
-"{ph0}Windows:{ph1} افتح قائمة ابدأ ، اكتب {ph2}بوويرشيل{ph3} واضغط على "
+"{ph0}Windows:{ph1} افتح قائمة ابدأ ، اكتب {ph2}PowerShell{ph3} واضغط على "
 "إدخال."
 
 #. {ph0}: <strong>
@@ -3849,7 +3838,7 @@ msgstr ""
 #: website/public/get-started/index.html:663
 msgctxt "page:get-started/index.html"
 msgid "Ghidra connection · Windows PowerShell"
-msgstr "Ghidra اتصال · Windows بوويرشيل"
+msgstr "Ghidra اتصال · Windows PowerShell"
 
 #: website/public/get-started/index.html:678
 msgctxt "page:get-started/index.html"
@@ -3911,7 +3900,7 @@ msgstr ""
 #: website/public/get-started/index.html:720
 msgctxt "page:get-started/index.html"
 msgid "IDA connection · Windows PowerShell"
-msgstr "IDA اتصال · Windows بوويرشيل"
+msgstr "IDA اتصال · Windows PowerShell"
 
 #. {ph0}: <code>"mode": "headless"</code>
 #: website/public/get-started/index.html:735
@@ -4110,7 +4099,7 @@ msgstr "نسخ Node.js أمر التثبيت ل Windows"
 #: website/public/get-started/index.html:243
 msgctxt "page:get-started/index.html"
 msgid "Copy PowerShell execution policy command"
-msgstr "نسخ أمر سياسة تنفيذ بوويرشيل"
+msgstr "نسخ أمر سياسة تنفيذ PowerShell"
 
 #: website/public/get-started/index.html:259
 msgctxt "page:get-started/index.html"
@@ -4169,18 +4158,18 @@ msgstr "نسخ CLI أمر التثبيت"
 
 #: website/public/get-started/index.html:632
 msgctxt "page:get-started/index.html"
-msgid "Copy ghidra connection · macos / linux"
-msgstr "نسخة غيدرا اتصال * ماك / لينكس"
+msgid "Copy Ghidra connection for macOS and Linux"
+msgstr "نسخ أمر اتصال Ghidra على macOS وLinux"
 
 #: website/public/get-started/index.html:664
 msgctxt "page:get-started/index.html"
 msgid "Copy Ghidra connection for Windows PowerShell"
-msgstr "نسخ Ghidra اتصال ل Windows بوويرشيل"
+msgstr "نسخ Ghidra اتصال ل Windows PowerShell"
 
 #: website/public/get-started/index.html:721
 msgctxt "page:get-started/index.html"
 msgid "Copy IDA connection for Windows PowerShell"
-msgstr "نسخ IDA اتصال ل Windows بوويرشيل"
+msgstr "نسخ IDA اتصال ل Windows PowerShell"
 
 #: website/public/get-started/index.html:762
 msgctxt "page:get-started/index.html"
@@ -10920,32 +10909,27 @@ msgctxt "page:showcase/th04/index.html"
 msgid "Back to top"
 msgstr "العودة للأعلى"
 
-#: website/public/assets/main.js:39
-msgctxt "runtime"
-msgid "Copy"
-msgstr "نسخ"
-
-#: website/public/assets/main.js:20
+#: website/public/assets/main.js:21
 msgctxt "runtime"
 msgid "Copied"
 msgstr "نسخ"
 
-#: website/public/assets/main.js:31
+#: website/public/assets/main.js:32
 msgctxt "runtime"
 msgid "Selected"
 msgstr "مختارة"
 
-#: website/public/assets/main.js:22
+#: website/public/assets/main.js:23
 msgctxt "runtime"
 msgid "Code copied to clipboard."
 msgstr "رمز نسخ إلى الحافظة."
 
-#: website/public/assets/main.js:33
+#: website/public/assets/main.js:34
 msgctxt "runtime"
 msgid "Code selected. Use your keyboard to copy it."
 msgstr "رمز المحدد. استخدم لوحة المفاتيح لنسخها."
 
-#: website/public/assets/main.js:147
+#: website/public/assets/main.js:148
 #, python-brace-format
 msgctxt "runtime"
 msgid "REA on GitHub ({count})"
@@ -12418,7 +12402,7 @@ msgstr ""
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
 #. {ph2}: <span id="aegis-prompt" >
-#. {ph3}: <span translate="no" >3.apk</span >
+#. {ph3}: <span translate="no">aegis-v3.4.3.apk</span>
 #. {ph4}: </span >
 #. {ph5}: <span class="terminal-cursor" aria-hidden="true">
 #. {ph6}: </span>
@@ -12426,13 +12410,13 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/aegis/index.html"
 msgid ""
-"{ph0}›{ph1}{ph2}Use REA to inspect aegis-v3.4.{ph3}. Find how it generates "
-"the six-digit login code, explain why it changes every 30 seconds, and "
-"rebuild a small demo where I can change the time.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}Use REA to inspect {ph3}. Find how it generates the six-"
+"digit login code, explain why it changes every 30 seconds, and rebuild a "
+"small demo where I can change the time.{ph4}{ph5}{ph6}"
 msgstr ""
-"{ph0}›{ph1}{ph2}استخدام REA لتفقد ايجيس-الإصدار 3.4.{ph3}. ابحث عن كيفية "
-"إنشاء رمز تسجيل الدخول المكون من ستة أرقام ، واشرح سبب تغييره كل 30 ثانية ، "
-"وأعد بناء عرض توضيحي صغير حيث يمكنني تغيير الوقت.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}استخدم REA لتحليل {ph3}. اشرح كيف يُنشأ رمز تسجيل الدخول "
+"المكوّن من ستة أرقام ولماذا يتغير كل 30 ثانية. أنشئ عرضًا صغيرًا أستطيع فيه "
+"تغيير الوقت.{ph4}{ph5}{ph6}"
 
 #. {ph0}: <span translate="no">preload.js</span>
 #: website/public/showcase/notion/index.html:329
@@ -12461,6 +12445,18 @@ msgstr "الرئيسية/{ph0} * معالج مساعد"
 msgctxt "page:showcase/notion/index.html"
 msgid "main/{ph0} · clipboard receiver"
 msgstr "الرئيسية/{ph0} * استقبال الحافظة"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "Windows PowerShell"
+#~ msgstr "Windows PowerShell"
+
+#~ msgctxt "page:get-started/index.html"
+#~ msgid "macOS · Homebrew"
+#~ msgstr "macOS · Homebrew"
+
+#~ msgctxt "runtime"
+#~ msgid "Copy"
+#~ msgstr "نسخ"
 
 #~ msgctxt "figure:dx-ball-sound-pan-investigation.svg"
 #~ msgid "DXBALL.EXE"

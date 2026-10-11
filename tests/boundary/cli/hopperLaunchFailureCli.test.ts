@@ -29,6 +29,7 @@ describe("Hopper launcher failure through the one-shot CLI", () => {
   // Hopper target leases are acquired only for the macOS launcher route.
   workspaceCliTest.skipIf(process.platform !== "darwin")(
     "exits after a retained-cleanup failure and releases the target to a retry",
+    { timeout: 90_000 },
     async ({ cli, workspace }) => {
       const launcherPath = await workspace.write(
         "failure-helper",
@@ -58,7 +59,7 @@ describe("Hopper launcher failure through the one-shot CLI", () => {
             HOPPER_LOADER_ARGS_JSON: JSON.stringify(loaderArgs),
             REA_LOG_LEVEL: "silent",
           },
-          timeoutMs: 30_000,
+          timeoutMs: 45_000,
         });
         const retained = RetainedRuntime.safeParse(result.json);
         if (retained.success)

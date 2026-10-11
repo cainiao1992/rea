@@ -34,7 +34,10 @@ import type { ProgressReporter } from "../application/ProgressReporter.js";
 import { silentLogger } from "../logger.js";
 import type { Logger } from "pino";
 import { PrivateRuntimeRoot } from "../process/PrivateRuntimeRoot.js";
-import { ProviderStartupDeadline } from "../process/ProviderDeadline.js";
+import {
+  ProviderStartupDeadline,
+  waitForAbortableDelay,
+} from "../process/ProviderDeadline.js";
 import { redactCapturedTransportCredential } from "../process/ProviderDiagnosticRedaction.js";
 import { ProviderRunLineage } from "../process/ProviderRunLineage.js";
 import {
@@ -423,7 +426,7 @@ export class HopperClient {
     );
     if (!health.ok) {
       return this.#startupFailure(
-        deadline.signal.aborted
+        deadline.signal.aborted || health.error instanceof HopperTimeoutError
           ? await this.#startupInterruption(deadline)
           : health.error,
       );
@@ -542,11 +545,28 @@ export class HopperClient {
     );
     this.#closing = true;
     try {
-      const connected = await connectHopperSocketOnce(
-        join(root.path, "bridge.sock"),
+      const socketPath = join(root.path, "bridge.sock");
+      let connected = await connectHopperSocketOnce(
+        socketPath,
         controller.signal,
       );
-      if (!connected.ok) return;
+      while (!connected.ok) {
+        const cause = connected.error.cause;
+        if (
+          !(
+            cause instanceof Error &&
+            "code" in cause &&
+            (cause.code === "ENOENT" || cause.code === "ECONNREFUSED")
+          )
+        )
+          return;
+        if ((await waitForAbortableDelay(50, controller.signal)) === "aborted")
+          return;
+        connected = await connectHopperSocketOnce(
+          socketPath,
+          controller.signal,
+        );
+      }
       const socket = connected.value;
       this.#socket = socket;
       this.#attachSocket(socket);

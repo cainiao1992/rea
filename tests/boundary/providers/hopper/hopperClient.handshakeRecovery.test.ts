@@ -1,5 +1,7 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { access, rm } from "node:fs/promises";
+import { setTimeout as delay } from "node:timers/promises";
+import { promisify } from "node:util";
 
 import { expect, it, onTestFinished, vi } from "vitest";
 
@@ -64,18 +66,84 @@ const setup = (
   const launcher = new ExternalBridgeLauncher(identity, healthMode);
   const client = new HopperClient({ launcher, startupTimeoutMs: 2_000 });
   onTestFinished(async () => {
+    await client.close();
     await Promise.all(
       [...launcher.helpers, ...launcher.fixture.processes].map(stop),
     );
-    await client.close();
     await Promise.all(
       launcher.sessions.map(({ directory }) =>
         rm(directory, { recursive: true, force: true }),
       ),
     );
-  });
+  }, 45_000);
   return { client, launcher };
 };
+
+it.each(["missing", "not-listening"] as const)(
+  "waits for a matching bridge published during close after a %s socket failure",
+  async (socketState) => {
+    const fixture = new HopperFixtureLauncher();
+    let session: BridgeSession | undefined;
+    let helper: ChildProcess | undefined;
+    const client = new HopperClient({
+      startupTimeoutMs: 2_000,
+      launcher: {
+        launch(value) {
+          session = value;
+          helper = spawn(process.execPath, ["-e", "process.exit(0)"], {
+            stdio: "ignore",
+          });
+          return Promise.resolve(
+            ok({
+              process: helper,
+              ownsProcessLifetime: false as const,
+              providerLifetime: "external-application" as const,
+              shutdownMode: "bridge-request" as const,
+            }),
+          );
+        },
+      },
+    });
+    onTestFinished(async () => {
+      await Promise.all(
+        [...(helper === undefined ? [] : [helper]), ...fixture.processes].map(
+          stop,
+        ),
+      );
+      if (session !== undefined)
+        await rm(session.directory, { recursive: true, force: true });
+    });
+    const started = await client.start();
+    if (started.ok) throw new Error("Expected readiness to time out");
+    expect(projectAnalysisError(started.error)).toMatchObject({
+      code: "cleanup_incomplete",
+      details: { diagnostics: { primary_error: { code: "provider_timeout" } } },
+    });
+    if (session === undefined) throw new Error("Fixture did not launch");
+    if (socketState === "not-listening")
+      await promisify(execFile)(process.execPath, [
+        "-e",
+        'require("node:net").createServer().listen(process.argv[1], () => process.exit(0))',
+        session.socketPath,
+      ]);
+    const closing = client.close();
+    // Publish after close has encountered an unavailable endpoint, within its
+    // cleanup window rather than before the caller requests cleanup.
+    await delay(150);
+    await rm(session.socketPath, { force: true });
+    await fixture.launch(session);
+    const closed = await closing;
+    if (!closed.ok) throw closed.error;
+    expect(fixture.requests.map(({ method }) => method)).toEqual([
+      "health",
+      "shutdown_document",
+    ]);
+    await vi.waitFor(() => expect(fixture.processes[0]?.exitCode).toBe(0));
+    await expect(access(session.directory)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  },
+);
 
 it.each(["wrong-run", "wrong-token"] as const)(
   "never requests document shutdown after the first handshake rejects %s",

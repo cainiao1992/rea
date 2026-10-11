@@ -835,6 +835,12 @@ target-free analysis, configuration backups/recovery, Evidence and owned
 lifecycle; Inspector checks execute source-owned loopback targets and special
 filename cases.
 
+POSIX package verification resolves the runner's configured npm cache before
+creating disposable client homes and passes that location to its child installs.
+This reuses the download cache restored by `setup-node` while keeping client
+configuration isolated. Installs retain their existing registry and integrity
+checks.
+
 The Apple artifact CLI/MCP lane uses one `macos-15` job to avoid adding demand
 for scarce macOS runner capacity. It runs the artifact-format and metadata
 verifiers, followed by one consolidated focused invocation containing all
@@ -846,6 +852,15 @@ snapshot includes `dist/`, generated skills, the MCP tool catalog, product
 catalog, and managed-conformance metadata. Each shard still installs the locked
 dependencies and runs its assigned coverage-enabled tests; it no longer
 regenerates the same metadata independently.
+
+The build job also retrieves the merged timing report from the last successful
+default-branch push and includes that same report in each shard's snapshot.
+CI assigns discovered files by historical duration, with a deterministic
+fallback weight for new files, rather than dividing only by file count. Every
+discovered file still belongs to exactly one shard; worker limits, project
+ordering, coverage instrumentation, and aggregate thresholds remain unchanged.
+Missing or unusable history falls back to Vitest's default assignment. Only
+timing data is reused; persistent compile caches remain disabled.
 
 These native baseline checks complement the Linux source-test shards and the
 separate Apple-artifact and real-provider lanes. Actual Hopper, Ghidra, IDA,

@@ -4,6 +4,8 @@ import { join } from "node:path";
 
 import { defineConfig } from "vitest/config";
 
+import { CiTestSequencer } from "./tests/ciTestSequencer.js";
+
 // Playwright's registry does not derive a cache directory for Termux's
 // `android` platform. Match the production CLI fallback before workers import
 // browser modules.
@@ -151,6 +153,9 @@ export default defineConfig({
     env: { TMPDIR: CANONICAL_TEMPORARY_DIRECTORY },
     maxWorkers: MAX_TEST_WORKERS,
     projects,
+    ...(process.env.REA_CI_TEST_HISTORY
+      ? { sequence: { sequencer: CiTestSequencer } }
+      : {}),
     retry: 0,
     reporters: ["default"],
     runner: "./tests/processOwnershipRunner.ts",

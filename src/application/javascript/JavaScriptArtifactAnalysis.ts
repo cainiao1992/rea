@@ -11,7 +11,10 @@ import type { JavaScriptSemanticIr } from "../../domain/javascript/javascriptSem
 import { projectJavaScriptModuleSemantics } from "../../domain/javascript/javascriptModuleSemanticIr.js";
 import { parseJavaScriptSource } from "../../domain/javascript/javascriptSourceParser.js";
 import { hasValidSourceMapContents } from "../../domain/sourceMapContents.js";
-import { flattenSourceMapLeaves } from "../../domain/sourceMapEnvelope.js";
+import {
+  flattenSourceMapLeaves,
+  sourceMapJsonText,
+} from "../../domain/sourceMapEnvelope.js";
 import type {
   JavaScriptSourceRange,
   JavaScriptSourcePoint,
@@ -521,7 +524,7 @@ const parseSourceMap = (
   if (!file.text.included) return unavailableSourceMap(file);
   let value: unknown;
   try {
-    value = JSON.parse(file.text.value);
+    value = JSON.parse(sourceMapJsonText(file.text.value));
   } catch (cause: unknown) {
     void cause;
     return invalidSourceMap(file, "Source map is not valid JSON.");

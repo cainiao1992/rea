@@ -8,6 +8,19 @@
  */
 type SourceMapRecord = Readonly<Record<string, unknown>>;
 
+/**
+ * Return the JSON parsing view of retained source-map text. ECMA-426 permits
+ * HTTP responses to start with `)]}'`; the first line is transport framing.
+ * Keep the original text for artifact identity and Evidence provenance.
+ * https://tc39.es/ecma426/#sec-fetchsourcemap
+ */
+export const sourceMapJsonText = (text: string): string => {
+  const withoutBom = text.replace(/^\uFEFF/u, "");
+  if (!withoutBom.startsWith(")]}'")) return withoutBom;
+  const newline = withoutBom.search(/[\r\n]/u);
+  return newline === -1 ? "" : withoutBom.slice(newline);
+};
+
 const isRecord = (value: unknown): value is SourceMapRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 

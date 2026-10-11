@@ -20,7 +20,10 @@ the complete application Evidence inline when it fits.
 When the connected schema advertises `max_heap_mb` and `analysis_timeout_ms`,
 these select the isolated source analyzer's old-space heap and per-source
 deadline. Defaults are 1024 MiB and 300000 ms. They do not change the MCP
-process heap. Resource-limited analyses preserve completed static facts and
+process heap. A Bun-hosted REA does not enforce the heap choice; on Windows it
+instead limits the analyzer's committed memory to that choice plus a 512 MiB
+runtime reserve.
+Resource-limited analyses preserve completed static facts and
 report partial semantic coverage with specific unknown scopes; this does not
 mean the source is malformed. Inspect those limits before retrying a source.
 When expanded relationships exceed the parent's available memory, inspect the

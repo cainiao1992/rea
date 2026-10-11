@@ -44,6 +44,8 @@ const inspectionSchema = z.strictObject({
   atomicJobAssignment: z.literal(true),
   killOnOwnerClose: z.literal(true),
   protocolStdin: z.boolean().optional(),
+  /** Absent from artifacts built before owned Job Object commit limits. */
+  jobMemoryLimit: z.literal(true).optional(),
 });
 
 type NativeCall = (

@@ -126,7 +126,14 @@ deadline per source, including startup and fact transfer. Select
 `max_heap_mb` and `analysis_timeout_ms` through MCP, or `--max-heap-mb` and
 `--analysis-timeout-ms` on the dedicated CLI command. These choices control the
 analyzer; the caller's `NODE_OPTIONS` still controls the CLI/MCP process heap.
-V8 old-space limits do not impose a process RSS limit.
+V8 old-space limits do not impose a process RSS limit. When REA runs on Bun,
+the analyzer ignores the V8 heap flags; resource failures then report
+`worker_heap_limit_bytes` as null instead of a requested or V8-reported limit.
+On Windows, the analyzer's owned Job Object instead limits its committed
+memory to `max_heap_mb` plus a 512 MiB reserve for Bun itself (1536 MiB by
+default). Reaching it fails the current source with the same memory resource
+failure and reports `worker_process_memory_limit_bytes`, also a coverage limit;
+the next source starts a new analyzer. Bun elsewhere enforces no analyzer limit.
 
 A source that exhausts the analyzer heap does not terminate the CLI/MCP
 process. Completed static facts are retained, other files can still be analyzed,

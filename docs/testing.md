@@ -478,7 +478,9 @@ native decompiler. The namespace verifier reports missing or non-executable
 components before testing the fixture. REA does not build or install them.
 
 Windows native conformance runs with `npm run verify:windows-native` and does
-not require Ghidra or Java. An optional independently compiled Windows fixture
+not require Ghidra or Java. It includes Job Object commit-limit controls (a
+limited child that reaches the limit, a control that does not, and invalid
+limit rejection). An optional independently compiled Windows fixture
 adds in-place reparse, breakaway, environment, and token observations.
 `npm run verify:ghidra:windows:package` additionally packs and installs REA into
 an isolated prefix and runs ordinary-user CLI/MCP operations against their

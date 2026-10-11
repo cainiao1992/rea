@@ -35,7 +35,21 @@ jobs:
       contents: write
       pull-requests: write
     steps:
+      - name: Respect finalized release notes
+        id: editorial
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          finalized=$(gh api --paginate "repos/${GH_REPO}/pulls?state=open&base=main&per_page=100" \
+            --jq '.[] | select(.head.repo.full_name == .base.repo.full_name) | select(.head.ref | startswith("release-please--branches--main--")) | select(any(.labels[]; .name == "rea:release-notes-finalized")) | .number')
+          if [[ -n "${finalized}" ]]; then
+            echo "Finalized release notes on PR ${finalized}; automatic proposal refresh is paused." >> "$GITHUB_STEP_SUMMARY"
+            echo "frozen=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: googleapis/release-please-action@v4
+        if: steps.editorial.outputs.frozen != 'true'
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           target-branch: main
@@ -79,6 +93,16 @@ jobs:
           fi
           node scripts/verify-release-checkpoint.mjs \
             --phase publish --release-branch main --source-sha "$SOURCE_SHA"
+
+      - name: Validate finalized notes before release creation
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_PR: ${{ github.event.pull_request.number }}
+          SOURCE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          node scripts/release-notes.mjs publication --repository "$GH_REPO" \
+            --source "$SOURCE_SHA" --pr "$RELEASE_PR"
 
       - uses: googleapis/release-please-action@v4
         id: release
@@ -191,6 +215,16 @@ jobs:
           node scripts/verify-release-checkpoint.mjs
           --phase "$RELEASE_PHASE" --release-branch "$RELEASE_BRANCH"
           --source-sha "$SOURCE_SHA"
+
+      - name: Validate manual finalized notes before release creation
+        if: inputs.phase == 'publish'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ steps.branch.outputs.sha }}
+        run: |
+          node scripts/release-notes.mjs publication --repository "$GH_REPO" \
+            --source "$SOURCE_SHA"
 
       - uses: googleapis/release-please-action@v4
         id: release

@@ -103,6 +103,9 @@ it("keeps main pushes proposal-only and gates merged-release automation", async 
     "skip-github-release": true,
   });
   expect(action?.with?.["skip-github-pull-request"]).not.toBe(true);
+  expect(action?.if).toBe("steps.editorial.outputs.frozen != 'true'");
+  expect(proposal.steps[0]?.run).toContain("rea:release-notes-finalized");
+  expect(proposal.steps[0]?.run).toContain("--paginate");
   const merged = workflow.jobs["merged-release"];
   expect(merged.if).toContain("github.event.pull_request.merged == true");
   expect(merged.if).toContain("github.repository");
@@ -147,6 +150,12 @@ it("validates the reviewed merge before creating its release", async () => {
     SOURCE_SHA: "${{ github.event.pull_request.merge_commit_sha }}",
     RELEASE_SHA: "${{ steps.release.outputs.sha }}",
   });
+  const notesIndex = steps.findIndex((step) =>
+    step.run?.includes("release-notes.mjs publication"),
+  );
+  expect(notesIndex).toBeGreaterThan(steps.indexOf(checkpoint!));
+  expect(notesIndex).toBeLessThan(steps.indexOf(release!));
+  expect(steps[notesIndex]?.run).toContain('--pr "$RELEASE_PR"');
 });
 
 it("keeps frozen candidate preparation and publication explicit", async () => {
@@ -171,6 +180,17 @@ it("keeps frozen candidate preparation and publication explicit", async () => {
     "skip-github-release": "${{ inputs.phase == 'prepare' }}",
     "skip-github-pull-request": "${{ inputs.phase == 'publish' }}",
   });
+  const steps = workflow.jobs["release-please"].steps;
+  const notesIndex = steps.findIndex((step) =>
+    step.run?.includes("release-notes.mjs publication"),
+  );
+  expect(notesIndex).toBeGreaterThan(
+    steps.findIndex((step) =>
+      step.run?.includes("verify-release-checkpoint.mjs"),
+    ),
+  );
+  expect(notesIndex).toBeLessThan(steps.indexOf(release!));
+  expect(steps[notesIndex]?.if).toBe("inputs.phase == 'publish'");
   const catalogValidation = workflow.jobs["release-please"].steps.find(
     (step) => step.name === "Validate generated release documentation",
   );

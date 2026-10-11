@@ -190,6 +190,7 @@ const typeDefRow = ({
   fieldListSize,
   methodListSize,
   extendsRaw = (1 << 2) | 1,
+  flags = 0x0010_0001,
 }: {
   readonly name: number;
   readonly namespace: number;
@@ -200,9 +201,10 @@ const typeDefRow = ({
   readonly fieldListSize: MetadataIndexSize;
   readonly methodListSize: MetadataIndexSize;
   readonly extendsRaw?: number;
+  readonly flags?: number;
 }): Buffer =>
   Buffer.concat([
-    u32(0x0010_0001),
+    u32(flags),
     metadataIndex(name, stringSize),
     metadataIndex(namespace, stringSize),
     metadataIndex(extendsRaw, typeDefOrRefSize),
@@ -231,6 +233,7 @@ interface MethodDefRowInput {
   readonly rva?: number;
   readonly flags?: number;
   readonly implFlags?: number;
+  readonly parameterList?: number;
 }
 
 const methodDefRow = ({
@@ -242,6 +245,7 @@ const methodDefRow = ({
   rva = 0,
   flags = 0x0016,
   implFlags = 0,
+  parameterList = 0,
 }: MethodDefRowInput): Buffer =>
   Buffer.concat([
     u32(rva),
@@ -249,7 +253,7 @@ const methodDefRow = ({
     u16(flags),
     metadataIndex(name, stringSize),
     metadataIndex(signature, blobSize),
-    metadataIndex(0, parameterSize),
+    metadataIndex(parameterList, parameterSize),
   ]);
 
 const memberRefRow = ({
@@ -416,6 +420,7 @@ const metadataRoot = (
   strings: Buffer,
   guid: Buffer,
   blob: Buffer,
+  tableStreamName: "#~" | "#-" = "#~",
 ): Buffer => {
   const version = Buffer.from("v4.0.30319\0\0", "utf8");
   const header = Buffer.concat([
@@ -429,7 +434,7 @@ const metadataRoot = (
     u16(4),
   ]);
   const streamHeaderSize =
-    metadataStreamHeader(0, 0, "#~").length +
+    metadataStreamHeader(0, 0, tableStreamName).length +
     metadataStreamHeader(0, 0, "#Strings").length +
     metadataStreamHeader(0, 0, "#GUID").length +
     metadataStreamHeader(0, 0, "#Blob").length;
@@ -442,7 +447,7 @@ const metadataRoot = (
   offset = align4(offset + guid.length);
   const blobOffset = offset;
   const headers = Buffer.concat([
-    metadataStreamHeader(tablesOffset, tables.length, "#~"),
+    metadataStreamHeader(tablesOffset, tables.length, tableStreamName),
     metadataStreamHeader(stringsOffset, strings.length, "#Strings"),
     metadataStreamHeader(guidOffset, guid.length, "#GUID"),
     metadataStreamHeader(blobOffset, blob.length, "#Blob"),
@@ -989,6 +994,130 @@ export const buildManagedPeFixture = (
   buildManagedFixtureImage(options, (methodRva) =>
     buildManagedFixtureMetadata(options, methodRva),
   );
+
+/** Two attribute classes whose pointer-table slots can reorder physical members. */
+export const buildManagedMemberPointerFixture = (
+  options: {
+    readonly fieldPointers?: readonly number[] | null;
+    readonly methodPointers?: readonly number[] | null;
+    readonly streamName?: "#~" | "#-";
+  } = {},
+): Buffer => {
+  const fieldPointers =
+    options.fieldPointers === undefined ? [2, 1] : options.fieldPointers;
+  const methodPointers =
+    options.methodPointers === undefined ? [2, 1] : options.methodPointers;
+  // Both instance constructors call System.Attribute::.ctor(), then return.
+  const body = Buffer.from([0x1e, 0x02, 0x28, 0x01, 0, 0, 0x0a, 0x2a]);
+  const image = buildManagedFixtureImage({ ilBody: body }, (methodRva) => {
+    const strings = new StringHeap();
+    const blobs = new BlobHeap();
+    const moduleName = strings.add("MemberPointers.dll");
+    const assemblyName = strings.add("Fixture.MemberPointers");
+    const namespace = strings.add("Fixture");
+    const typeNames = ["<Module>", "A", "B"].map((name) => strings.add(name));
+    const fieldNames = ["firstField", "secondField"].map((name) =>
+      strings.add(name),
+    );
+    const constructorName = strings.add(".ctor");
+    const attributeName = strings.add("Attribute");
+    const systemNamespace = strings.add("System");
+    const runtimeName = strings.add("System.Runtime");
+    const fieldSignature = blobs.add(Buffer.from([0x06, 0x08]));
+    const constructorSignature = blobs.add(
+      Buffer.from([0x20, 0x01, 0x01, 0x0e]),
+    );
+    const baseConstructorSignature = blobs.add(Buffer.from([0x20, 0, 0x01]));
+    const attributeValue = blobs.add(fixedStringAttributeBlob("fixture"));
+    const rows = new Map<number, readonly Buffer[]>([
+      [0, [moduleRow(moduleName, 2, 2)]],
+      // ResolutionScope selects AssemblyRef 1, which contains System.Attribute.
+      [
+        1,
+        [
+          Buffer.concat([
+            u16((1 << 2) | 2),
+            u16(attributeName),
+            u16(systemNamespace),
+          ]),
+        ],
+      ],
+      [
+        2,
+        typeNames.map((name, index) =>
+          typeDefRow({
+            name,
+            namespace: index === 0 ? 0 : namespace,
+            fieldList: index === 2 ? 2 : 1,
+            methodList: index === 2 ? 2 : 1,
+            stringSize: 2,
+            typeDefOrRefSize: 2,
+            fieldListSize: 2,
+            methodListSize: 2,
+            extendsRaw: index === 0 ? 0 : (1 << 2) | 1,
+            flags: index === 0 ? 0 : 0x0010_0001,
+          }),
+        ),
+      ],
+      [4, fieldNames.map((name) => fieldRow(name, fieldSignature, 2, 2))],
+      [
+        6,
+        [1, 2].map(() =>
+          methodDefRow({
+            name: constructorName,
+            signature: constructorSignature,
+            stringSize: 2,
+            blobSize: 2,
+            parameterSize: 2,
+            parameterList: 1,
+            rva: methodRva,
+            flags: 0x1886,
+          }),
+        ),
+      ],
+      [
+        10,
+        [
+          memberRefRow({
+            name: constructorName,
+            signature: baseConstructorSignature,
+            stringSize: 2,
+            blobSize: 2,
+            parentSize: 2,
+          }),
+        ],
+      ],
+      // The assembly attribute constructor is physical MethodDef row 1.
+      [
+        12,
+        [
+          customAttributeRow(
+            attributeValue,
+            { customAttributeTypeRaw: (1 << 3) | 2 },
+            2,
+            2,
+            2,
+          ),
+        ],
+      ],
+      [32, [assemblyRow(assemblyName, 2, 2)]],
+      [35, [assemblyRefRow(runtimeName, 0, false, 2, 2)]],
+    ]);
+    if (fieldPointers !== null) rows.set(3, fieldPointers.map(u16));
+    if (methodPointers !== null) rows.set(5, methodPointers.map(u16));
+    return metadataRoot(
+      tablesStream(rows, 0n, 0),
+      strings.toBuffer(),
+      guidHeap(),
+      blobs.toBuffer(),
+      options.streamName ?? "#-",
+    );
+  });
+  // The shared PE shell defaults to an executable; this fixture is a DLL.
+  image.writeUInt16LE(image.readUInt16LE(0x84 + 18) | 0x2000, 0x84 + 18);
+  image.writeUInt32LE(0, 0x0200 + 20);
+  return image;
+};
 
 /** Build a syntactically valid PE32 fixture with no CLI directory. */
 export const buildNativePeFixture = (): Buffer => {

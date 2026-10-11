@@ -147,8 +147,17 @@ export class ZipArtifactReader implements ArtifactReader {
   }
 
   async *entries(signal?: AbortSignal): AsyncIterable<ArtifactEntry> {
+    const filenames = new Set<string>();
     for await (const entry of this.#reader.getEntriesGenerator()) {
       abortIfNeeded(signal);
+      // Each enumeration can replay valid entries, but a second record with
+      // the same name must not replace an already emitted source identity.
+      if (filenames.has(entry.filename))
+        throw new ArtifactReaderFailure(
+          "path",
+          `Artifact path collision: ${entry.filename}`,
+        );
+      filenames.add(entry.filename);
       const metadata = projectZipEntry(entry);
       this.#entries.set(entry.filename, {
         source: entry,

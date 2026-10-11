@@ -77,6 +77,88 @@ it("binds ZIP opens to the emitted entry metadata", async () => {
   }
 });
 
+it("rejects duplicate ZIP names before replacing an emitted entry", async () => {
+  const root = await createTestTempDirectory("rea-zip-duplicate-identity-");
+  const path = join(root, "duplicates.zip");
+  const writer = new ZipWriter(new Uint8ArrayWriter());
+  await writer.add("x.txt", new TextReader("first bytes\n"), { level: 0 });
+  await writer.add("y.txt", new TextReader("later bytes\n"), { level: 0 });
+  const bytes = Buffer.from(await writer.close());
+  // zip.js refuses to produce duplicate names. Rename the second local and
+  // central-directory records without changing their data, sizes, or CRCs.
+  for (const [signature, headerSize] of [
+    [Buffer.from([0x50, 0x4b, 0x03, 0x04]), 30],
+    [Buffer.from([0x50, 0x4b, 0x01, 0x02]), 46],
+  ] as const) {
+    const first = bytes.indexOf(signature);
+    const second = bytes.indexOf(signature, first + 4);
+    if (first < 0 || second <= first)
+      throw new Error("Expected both ZIP member headers");
+    expect(
+      bytes.subarray(second + headerSize, second + headerSize + 5).toString(),
+    ).toBe("y.txt");
+    bytes.write("x.txt", second + headerSize);
+  }
+  await writeFile(path, bytes);
+
+  const reader = new ZipArtifactReader(path, "zip");
+  try {
+    const iterator = reader.entries()[Symbol.asyncIterator]();
+    const first = await iterator.next();
+    if (first.done) throw new Error("Expected the first ZIP member");
+    await expect(iterator.next()).rejects.toMatchObject({ reason: "path" });
+    const stream = await reader.open({ ...first.value });
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+    expect(Buffer.concat(chunks).toString()).toBe("first bytes\n");
+  } finally {
+    await reader.close();
+  }
+
+  const target = await parseBinaryTarget(path);
+  if (!target.ok) throw target.error;
+  const client = new ArtifactProvider(process.env).createClient(target.value);
+  try {
+    expect(await client.execute("inventory_artifact", {})).toMatchObject({
+      ok: false,
+      error: { _tag: "ArtifactOperationError", reason: "path" },
+    });
+  } finally {
+    await client.close();
+  }
+});
+
+it("can enumerate case-distinct ZIP members again without losing entry identity", async () => {
+  const root = await createTestTempDirectory("rea-zip-entry-replay-");
+  const path = join(root, "case-distinct.zip");
+  const writer = new ZipWriter(new Uint8ArrayWriter());
+  await writer.add("x.txt", new TextReader("first bytes\n"), { level: 0 });
+  await writer.add("X.txt", new TextReader("later bytes\n"), { level: 0 });
+  await writeFile(path, await writer.close());
+
+  const reader = new ZipArtifactReader(path, "zip");
+  try {
+    for (let pass = 0; pass < 2; pass++) {
+      const entries = [];
+      for await (const entry of reader.entries()) entries.push(entry);
+      expect(entries.map(({ path: entryPath }) => entryPath)).toEqual([
+        "x.txt",
+        "X.txt",
+      ]);
+      const contents = [];
+      for (const entry of entries) {
+        const chunks: Buffer[] = [];
+        for await (const chunk of await reader.open({ ...entry }))
+          chunks.push(Buffer.from(chunk));
+        contents.push(Buffer.concat(chunks).toString());
+      }
+      expect(contents).toEqual(["first bytes\n", "later bytes\n"]);
+    }
+  } finally {
+    await reader.close();
+  }
+});
+
 it("rejects overlapping ZIP member data ranges through artifact inventory", async () => {
   const root = await createTestTempDirectory("rea-zip-overlap-");
   const path = join(root, "overlap.zip");

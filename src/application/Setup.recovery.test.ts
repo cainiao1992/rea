@@ -267,7 +267,7 @@ describe("setup scoped readiness", () => {
     expect(result.status).toBe("needs_human");
     expect(host.hopperInstalls).toBe(0);
     expect(result.remediation).toBe(
-      "Automated Hopper setup supports Ubuntu 24.04+, Fedora 41+, Nobara 44+, 64-bit Arch Linux, and CachyOS; configure an existing supported provider instead.",
+      "Automated Hopper setup supports Ubuntu 24.04+, Fedora 41+, Nobara 44+, 64-bit Arch Linux, CachyOS, and Omarchy; configure an existing supported provider instead.",
     );
   });
 

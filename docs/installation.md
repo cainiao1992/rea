@@ -463,7 +463,7 @@ vendor-defined limits, and a paid license is optional. REA reuses any detected
 installation and preserves Hopper during uninstall.
 
 The supported native host baseline is macOS 12+, Ubuntu 24.04+, Fedora 41+,
-Nobara 44+, 64-bit Arch Linux, or CachyOS. Ghidra and IDA have their own provider-specific
+Nobara 44+, 64-bit Arch Linux, CachyOS, or Omarchy. Ghidra and IDA have their own provider-specific
 host requirements; Windows Ghidra uses the [experimental P0 boundary](windows-ghidra-p0.md).
 
 On macOS, approved setup downloads the official DMG, checks its published size

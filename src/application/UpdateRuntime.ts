@@ -18,6 +18,7 @@ import {
   type UpdateOutput,
 } from "./Update.js";
 import { planIntegrationMaintenance } from "./UpdateMaintenance.js";
+import { withoutPackageRunnerIdentity } from "./ClientRegistrationIdentity.js";
 
 /** npm filesystem queries used to identify the installation being updated. */
 export interface NpmInstallationHost {
@@ -45,9 +46,8 @@ export const runUpdateCommand = (
       resolveResult(err("No executable supplied."));
       return;
     }
-    const environment = { ...selectedEnvironment };
-    // A fresh installed entry point must not inherit npx's invocation identity.
-    delete environment.npm_command;
+    // A fresh installed entry point must not inherit a package runner's invocation identity.
+    const environment = withoutPackageRunnerIdentity(selectedEnvironment);
     const child = spawn(executable, args, {
       stdio: ["ignore", "pipe", "pipe"],
       env: environment,

@@ -36,6 +36,13 @@ Setup continues to pin persistent MCP registrations to the exact version that
 performed setup. Running current setup later migrates unversioned or older
 managed registrations through the normal reviewed setup transaction.
 
+With Bun, `bunx rea-agents setup` (or `bunx rea-agents@latest setup`) is the
+equivalent entry point. Setup run through `npx` registers
+`npx -y rea-agents@<version> mcp`; setup run through `bunx` or `bun x` registers
+`bunx rea-agents@<version> mcp`. On Windows, setup wraps either command in
+`cmd.exe /d /c` so clients can start the runner's command shim. Neither
+registration points into the runner's temporary package cache.
+
 REA supports Node.js 22.x (>=22.19), 24.x (>=24.11), and 26+. Node.js 23, 25, and prereleases are unsupported. It uses the npm already paired with that runtime and never upgrades Node.js, npm, or Homebrew.
 
 Running `npm install rea-agents` without `--global` installs the executable only
@@ -669,7 +676,7 @@ rea providers --json
 
 `rea setup` can configure supported Windows agents and install the bundled
 REA skill after approval. Direct registrations use Node to launch REA's entry
-script; package-runner registrations use the pinned `npx` command. Hopper
+script; package-runner registrations use the pinned `npx` or `bunx` command. Hopper
 installation remains unavailable on Windows. Setup never installs Ghidra,
 Java, or Python. It preserves valid detected Ghidra/JDK settings in agent
 registrations. See [Windows Ghidra P0](windows-ghidra-p0.md) for provider diagnostics.
@@ -836,7 +843,7 @@ Ghidra/JDK installation; neither is inferred from startup alone.
 
 ## Diagnose, update, and remove
 
-`rea doctor --json` is strictly read-only. `rea update` updates only the npm or Bun global installation that owns the running CLI. Source checkouts and package-runner copies must be updated through the mechanism that owns them; a fresh package-runner invocation can use `npx rea-agents@latest`. `rea uninstall` removes only REA-owned agent registrations and skill files; `--purge-data` additionally removes REA cache and state paths.
+`rea doctor --json` is strictly read-only. `rea update` updates only the npm or Bun global installation that owns the running CLI. Source checkouts and package-runner copies must be updated through the mechanism that owns them; a fresh package-runner invocation can use `npx rea-agents@latest` or `bunx rea-agents@latest`. `rea uninstall` removes only REA-owned agent registrations and skill files; `--purge-data` additionally removes REA cache and state paths.
 
 ```bash
 rea update
@@ -881,6 +888,7 @@ For a client that requires manual configuration, use:
 <!-- x-release-please-end -->
 
 Persistent registrations should use one exact package version. `rea setup`
-writes the same package-runner shape and pins it to the exact version that
-performed setup. Run current setup to refresh an older registration, then
-restart the client.
+writes the same package-runner shape, or `bunx rea-agents@<version> mcp` when
+setup runs through `bunx`, and pins it to the exact version that performed
+setup. Run current setup to refresh an older registration, then restart the
+client.

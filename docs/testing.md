@@ -828,11 +828,25 @@ CI exercises the pinned Node.js runtime on native hosted runners:
 
 Package lanes assert the actual Node platform/architecture before verification
 and record those values with the Node version. The four-host package matrix
-runs at most two jobs concurrently with explicit timeouts and Node heap/thread
-limits; Windows retains its curated capability lane. Package checks cover
-installation, CLI/MCP discovery, target-free
-analysis, configuration backups/recovery, Evidence and owned lifecycle; Inspector
-checks execute source-owned loopback targets and special filename cases.
+runs up to four jobs concurrently on independent hosted runners with explicit
+timeouts and per-runner Node heap/thread limits; Windows retains its curated
+capability lane. Package checks cover installation, CLI/MCP discovery,
+target-free analysis, configuration backups/recovery, Evidence and owned
+lifecycle; Inspector checks execute source-owned loopback targets and special
+filename cases.
+
+The Apple artifact CLI/MCP lane uses two macOS jobs: artifact-format and metadata
+verifiers run together in one group, while the existing focused native and
+process-boundary regressions run in the other. Both groups retain the same
+`macos-15` host and timeout; the process-boundary test group remains ordered
+within its Vitest run.
+
+The Linux source-test shards download a shared runtime and generated test
+metadata snapshot produced by the build job with `npm run test:prepare`. The
+snapshot includes `dist/`, generated skills, the MCP tool catalog, product
+catalog, and managed-conformance metadata. Each shard still installs the locked
+dependencies and runs its assigned coverage-enabled tests; it no longer
+regenerates the same metadata independently.
 
 These native baseline checks complement the Linux source-test shards and the
 separate Apple-artifact and real-provider lanes. Actual Hopper, Ghidra, IDA,

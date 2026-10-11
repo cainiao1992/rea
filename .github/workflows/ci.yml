@@ -115,14 +115,8 @@ jobs:
       - run: npm ci
       - uses: actions/download-artifact@v4
         with:
-          name: rea-dist
-          path: dist
-      - name: Generate test artifacts from the downloaded runtime
-        run: |
-          node scripts/generate-mcp-tool-catalog.mjs
-          node scripts/generate-skill-metadata.mjs
-          node scripts/generate-product-catalog.mjs
-          node scripts/generate-completion-ledger.mjs
+          name: rea-test-runtime
+          path: .
       - run: npm run test:ci:shard:run -- --shard=${{ matrix.shard }}
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
@@ -146,11 +140,17 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run build:cached
+      - run: npm run test:prepare
       - uses: actions/upload-artifact@v4
         with:
-          name: rea-dist
-          path: dist
+          name: rea-test-runtime
+          path: |
+            dist/
+            skills/
+            .cache/mcp-tool-catalog.json
+            docs/public/product-catalog.json
+            docs/verification/managed-conformance-*.json
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
 
@@ -274,7 +274,10 @@ jobs:
     if: needs.changes.outputs.runtime == 'true'
     strategy:
       fail-fast: false
-      max-parallel: 2
+      # The four platform jobs use independent hosted runners; keep each
+      # runner's existing heap and threadpool limits while avoiding a queued
+      # second platform wave.
+      max-parallel: 4
       matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
@@ -308,11 +311,15 @@ jobs:
         run: npm run verify:inspector
 
   apple-artifacts:
-    name: Real Apple artifact CLI/MCP E2E
+    name: Real Apple artifact CLI/MCP E2E (${{ matrix.group }})
     needs: changes
     if: needs.changes.outputs.apple == 'true'
     runs-on: macos-15
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [artifacts, native-regressions]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -320,25 +327,36 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run verify:keyed-archive
-      - run: npm run verify:asset-catalog
-      - run: npm run verify:macos-bundle
-      - name: Legacy simulator platform verification
-        run: npm run verify:legacy-simulator
-      - name: Native installer and compiled NIB hierarchy regressions
-        run: npm run test:focused -- tests/boundary/filesystem/installScript.test.ts tests/boundary/filesystem/nibNativeHierarchy.test.ts tests/boundary/filesystem/interfaceBuilderBundle.test.ts
-      - name: Real binary metadata and Interface Builder integration
-        run: npm run verify:apple-dispatch && npm run verify:interface-builder
-      - name: Native plist CLI selection regressions
-        run: npm run test:focused -- tests/boundary/cli/nativePlistCli.test.ts tests/boundary/cli/nativePlistPrototypeKeyCli.test.ts tests/boundary/cli/nativePlistSelectionFailureCli.test.ts
-      - name: Native Swift demangling CLI and MCP regressions
-        run: npm run test:focused -- tests/boundary/cli/nativeDemangleCli.test.ts tests/boundary/mcp/nativeDemangleMcp.test.ts
-      - name: Native signature target binding and CLI/MCP recovery regressions
-        run: npm run test:focused -- tests/boundary/providers/native/nativeSignatureTargetBinding.test.ts tests/boundary/cli/nativeSignatureCli.test.ts tests/boundary/mcp/nativeSignatureTargetBindingMcp.test.ts
-      - name: Process filesystem snapshot descriptor regressions
-        run: npm run test:focused -- src/process/capture/FilesystemSnapshot.test.ts
-      - name: Native Darwin ownership and process cleanup regressions
-        run: npm run test:focused -- tests/boundary/process/darwinProcessRunTokenReader.test.ts tests/boundary/process/directAnalysisSignals.test.ts tests/boundary/process/processCaptureLifecycle.test.ts tests/boundary/process/processCli.test.ts tests/boundary/mcp/sessionMcp.test.ts
+      - name: Verify Apple artifact formats and metadata
+        if: matrix.group == 'artifacts'
+        run: |
+          npm run verify:keyed-archive
+          npm run verify:asset-catalog
+          npm run verify:macos-bundle
+          npm run verify:legacy-simulator
+          npm run verify:apple-dispatch
+          npm run verify:interface-builder
+      - name: Run native Apple and process boundary regressions
+        if: matrix.group == 'native-regressions'
+        run: >-
+          npm run test:focused --
+          tests/boundary/filesystem/installScript.test.ts
+          tests/boundary/filesystem/nibNativeHierarchy.test.ts
+          tests/boundary/filesystem/interfaceBuilderBundle.test.ts
+          tests/boundary/cli/nativePlistCli.test.ts
+          tests/boundary/cli/nativePlistPrototypeKeyCli.test.ts
+          tests/boundary/cli/nativePlistSelectionFailureCli.test.ts
+          tests/boundary/cli/nativeDemangleCli.test.ts
+          tests/boundary/mcp/nativeDemangleMcp.test.ts
+          tests/boundary/providers/native/nativeSignatureTargetBinding.test.ts
+          tests/boundary/cli/nativeSignatureCli.test.ts
+          tests/boundary/mcp/nativeSignatureTargetBindingMcp.test.ts
+          src/process/capture/FilesystemSnapshot.test.ts
+          tests/boundary/process/darwinProcessRunTokenReader.test.ts
+          tests/boundary/process/directAnalysisSignals.test.ts
+          tests/boundary/process/processCaptureLifecycle.test.ts
+          tests/boundary/process/processCli.test.ts
+          tests/boundary/mcp/sessionMcp.test.ts
 
   reconstruction-readiness:
     name: Reconstruction readiness

@@ -17,7 +17,10 @@ import { parseProcessCapture } from "../../domain/process/processCaptureParsing.
 import { createProgressReporter } from "../ProgressReporter.js";
 import { captureProcessScenario } from "../../process/capture/ProcessHarness.js";
 import { ProcessCaptureResourceScope } from "../../process/capture/ProcessCaptureLifecycle.js";
-import { PROCESS_PROVIDER } from "../../domain/process/processEvidenceProvider.js";
+import {
+  PROCESS_PROVIDER,
+  isProcessEvidenceProvider,
+} from "../../domain/process/processEvidenceProvider.js";
 import { createProcessCaptureEvidence } from "./ProcessEvidence.js";
 import { readJsonFile } from "../JsonFiles.js";
 
@@ -94,8 +97,8 @@ export const compareProcessEvidenceFiles = async (
   traceSpecPath?: string,
 ) => {
   try {
-    const left = parseCaptureEvidence(await readJson(leftPath));
-    const right = parseCaptureEvidence(await readJson(rightPath));
+    const left = parseCaptureEvidence(await readJson(leftPath), "left");
+    const right = parseCaptureEvidence(await readJson(rightPath), "right");
     const traceSpecification =
       traceSpecPath === undefined
         ? undefined
@@ -130,7 +133,7 @@ export const compareProcessEvidenceFiles = async (
   }
 };
 
-const parseCaptureEvidence = (input: unknown) => {
+const parseCaptureEvidence = (input: unknown, side: "left" | "right") => {
   let evidence;
   try {
     evidence = parseEvidence(input);
@@ -145,15 +148,21 @@ const parseCaptureEvidence = (input: unknown) => {
   }
   if (
     evidence.operation !== "capture_process_scenario" ||
-    evidence.predicate_type !== "rea.process-capture" ||
-    evidence.provider.id !== PROCESS_PROVIDER.id ||
-    evidence.provider.version !== PROCESS_PROVIDER.version
+    evidence.predicate_type !== "rea.process-capture"
   ) {
     throw new ProcessCliFailure(
       "invalid_input",
       "Capture evidence is not from the current process-capture workflow. Create new capture evidence, then try again.",
     );
   }
+  if (!isProcessEvidenceProvider(evidence.provider))
+    throw new AnalysisInputError("compare_process_captures", undefined, [
+      {
+        path: [side, "provider"],
+        reason: "invalid_value",
+        message: `The ${side} Evidence provider ${evidence.provider.id} v${evidence.provider.version} (${evidence.provider.name}) is not the current or supported legacy ${PROCESS_PROVIDER.id} v${PROCESS_PROVIDER.version} process capture provider.`,
+      },
+    ]);
   try {
     return {
       id: evidence.evidence_id,

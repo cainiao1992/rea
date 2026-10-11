@@ -23,7 +23,10 @@ import { err, ok, type Result } from "../domain/result.js";
 import { recordDerivedEvidence } from "./recordDerivedEvidence.js";
 import { recordSessionEvidenceSources } from "./sessionEvidence.js";
 import { runDerivedOperation } from "./runDerivedOperation.js";
-import { PROCESS_PROVIDER } from "../domain/process/processEvidenceProvider.js";
+import {
+  PROCESS_PROVIDER,
+  isProcessEvidenceProvider,
+} from "../domain/process/processEvidenceProvider.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 import { withAdmittedAnalysis } from "./analysisAdmission.js";
 import { runAdmittedToolOperation } from "./admittedToolOperation.js";
@@ -71,6 +74,16 @@ const parseCaptureSide = (
           path: [side],
           reason: "invalid_value",
           message: `Expected process capture Evidence (operation ${PROCESS_CAPTURE_EVIDENCE.operation}, predicate ${PROCESS_CAPTURE_EVIDENCE.predicate}); the ${side} Evidence has operation ${record.operation} and predicate ${record.predicate_type}.`,
+        },
+      ]),
+    );
+  if (!isProcessEvidenceProvider(record.provider))
+    return err(
+      new AnalysisInputError(operation, undefined, [
+        {
+          path: [side, "provider"],
+          reason: "invalid_value",
+          message: `The ${side} Evidence provider ${record.provider.id} v${record.provider.version} (${record.provider.name}) is not the current or supported legacy ${PROCESS_PROVIDER.id} v${PROCESS_PROVIDER.version} process capture provider.`,
         },
       ]),
     );

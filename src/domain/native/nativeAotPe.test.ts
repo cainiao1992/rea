@@ -72,6 +72,62 @@ describe("read-only NativeAOT PE parser", () => {
     });
   });
 
+  it("does not discover an RTR directory in raw padding beyond VirtualSize", () => {
+    const bytes = nativeAotPeFixture();
+    const sectionTable = 0x98 + 0xf0;
+    const dataSection = sectionTable + 40;
+    bytes.writeUInt32LE(0x20, dataSection + 8);
+    const parsed = parseNativeAotPe(
+      bytes,
+      nativeAotPeDigest(bytes),
+      SUMMARY_BUDGET,
+    );
+    expect(parsed.summary).toMatchObject({
+      status: "not_applicable",
+      reason:
+        "No supported ReadyToRun directory signature was found in initialized non-executable PE sections.",
+      method_tables: 0,
+    });
+  });
+
+  it("uses raw size as the virtual extent when VirtualSize is zero", () => {
+    const bytes = nativeAotPeFixture();
+    const sectionTable = 0x98 + 0xf0;
+    bytes.writeUInt32LE(0, sectionTable + 40 + 8);
+    const parsed = parseNativeAotPe(
+      bytes,
+      nativeAotPeDigest(bytes),
+      SUMMARY_BUDGET,
+    );
+    expect(parsed.summary).toMatchObject({
+      status: "complete",
+      method_tables: 3,
+      derived_overlay: { address: "0x140002380", size_bytes: 1 },
+    });
+  });
+
+  it("accepts executable-section targets in the zero-filled virtual tail", () => {
+    const bytes = nativeAotPeFixture();
+    const sectionTable = 0x98 + 0xf0;
+    bytes.writeUInt32LE(0x300, sectionTable + 8);
+    const slotOffset = 0x600 + (0x2280 - 0x2000) + 24;
+    // RVA 0x1200 is executable-section zero fill: virtual size 0x300, raw size 0x200.
+    bytes.writeBigUInt64LE(0x140001200n, slotOffset);
+    const parsed = parseNativeAotPe(
+      bytes,
+      nativeAotPeDigest(bytes),
+      SUMMARY_BUDGET,
+      "0x140000000",
+    );
+    expect(parsed.summary).toMatchObject({
+      status: "complete",
+      method_tables: 3,
+    });
+    expect(parsed.readTypeDetail("0x140002280", SUMMARY_BUDGET)).toMatchObject({
+      virtual_slots: [{ slot: 0, target_address: "0x140001200" }],
+    });
+  });
+
   it("does not claim an image mapping when Ghidra rebased the image", () => {
     const bytes = nativeAotPeFixture();
     expect(

@@ -28,8 +28,9 @@ interface Section {
   readonly size: number;
 }
 
-// The image loader maps VirtualSize bytes, using SizeOfRawData only when
-// VirtualSize is zero. Raw bytes past that extent are file-alignment padding.
+// RVA ownership follows the declared virtual extent. Raw size describes
+// initialized file bytes and can include file-alignment padding; loaders may
+// map page-rounded tails, but those bytes are outside the declared section.
 const virtualExtent = (section: Section): number =>
   section.virtualSize === 0 ? section.size : section.virtualSize;
 

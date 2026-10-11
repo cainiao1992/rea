@@ -945,6 +945,11 @@ it or select another revision.
 
 Source typechecking needs no compiled runtime or generated test metadata.
 `npm run build:cached` compiles the CLI/MCP runtime and its packaged skill.
+Turbo's strict task environment preserves caller-selected `GOMAXPROCS`,
+`GOMEMLIMIT`, and `UV_THREADPOOL_SIZE` for resource-constrained builds and
+checks. These execution controls do not change artifact content, so changing
+their values retains cache reuse. They control individual runtimes; monitor
+the complete process family separately when enforcing a total memory budget.
 `npm run test:prepare` also generates the MCP contract test catalog, product
 catalog, and portable managed evidence used by the complete suite. Focused
 tests prepare those extra outputs only when their selected files consume them.

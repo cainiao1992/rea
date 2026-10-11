@@ -229,6 +229,211 @@ describe("native value parameter-use node membership", () => {
   });
 });
 
+const nativeFlowDossier = (
+  base: ReturnType<typeof functionDossierSchema.parse>,
+  facts: {
+    address: string;
+    name: string;
+    operations: ReturnType<typeof node>[];
+    parameters: { ordinal: number; name: string; data_type: string }[];
+  },
+) => {
+  const { address, name, operations, parameters } = facts;
+  return jsonValueSchema.parse({
+    ...base,
+    procedure: {
+      address,
+      name,
+      classification: null,
+      body: {
+        available: false,
+        reason: "The provider did not report complete function body ranges.",
+      },
+      signature: null,
+      locals: [],
+    },
+    native_value_flow: {
+      available: true,
+      provenance: "ghidra-high-pcode",
+      operations,
+      def_use: [],
+      effects: [],
+      parameters,
+      parameter_uses: [],
+      truncated: false,
+      omitted_operations_lower_bound: 0,
+      known_omitted_inputs: 0,
+      known_omitted_edges: 0,
+      limitations: [],
+    },
+  });
+};
+
+const callBindingAnalysis = (
+  callerAddress: string,
+  calleeAddress: string,
+  caller: ReturnType<typeof jsonValueSchema.parse>,
+  callee: ReturnType<typeof jsonValueSchema.parse>,
+): AnalysisOperationPort => ({
+  execute: async (operation, parameters) => {
+    if (operation === "resolve_native_call_targets")
+      return ok(
+        createAnalysisExecution(
+          {
+            call_site: String(parameters.address),
+            procedure: calleeAddress,
+            status: "direct",
+            mechanism: "direct",
+            targets: [
+              {
+                address: calleeAddress,
+                procedure: calleeAddress,
+                status: "direct",
+                basis: "provider-reference",
+                references: [],
+              },
+            ],
+            limitations: [],
+          },
+          provider,
+          { subject },
+        ),
+      );
+    if (operation !== "analyze_function")
+      throw new Error(`Unexpected native trace operation: ${operation}`);
+    if (
+      parameters.procedure !== callerAddress &&
+      parameters.procedure !== calleeAddress
+    )
+      throw new Error(`Unexpected procedure: ${String(parameters.procedure)}`);
+    return ok(
+      createAnalysisExecution(
+        parameters.procedure === callerAddress ? caller : callee,
+        provider,
+        { subject },
+      ),
+    );
+  },
+});
+
+describe("native value call-binding fan-out", () => {
+  it("preserves binding order and edge-budget behavior for repeated callees", async () => {
+    const callCount = 128;
+    const callerAddress = "0x1000";
+    const calleeAddress = "0x2000";
+    const base = functionDossierSchema.parse(ghidraFunctionDossier());
+    const caller = nativeFlowDossier(base, {
+      address: callerAddress,
+      name: "caller",
+      operations: Array.from({ length: callCount }, (_, index) => ({
+        ...node(
+          `call-${index}`,
+          `0x${(0x1000 + index * 4).toString(16)}`,
+          "CALL",
+        ),
+        sequence: index,
+        inputs: [scalar, scalar],
+      })),
+      parameters: [],
+    });
+    const callee = nativeFlowDossier(base, {
+      address: calleeAddress,
+      name: "callee",
+      operations: [node("return", calleeAddress, "RETURN")],
+      parameters: [{ ordinal: 0, name: "value", data_type: "/int" }],
+    });
+    const fanoutAnalysis = callBindingAnalysis(
+      callerAddress,
+      calleeAddress,
+      caller,
+      callee,
+    );
+    const expectedEdges = [
+      ...Array.from({ length: callCount }, (_, index) => ({
+        source: `${callerAddress}/call-${index}`,
+        target: calleeAddress,
+        input_index: null,
+        kind: "call",
+      })),
+      ...Array.from({ length: callCount }, (_, index) => [
+        {
+          source: `${callerAddress}/call-${index}`,
+          target: `${calleeAddress}/parameter:0`,
+          input_index: 1,
+          kind: "argument-binding",
+        },
+        {
+          source: `${calleeAddress}/return`,
+          target: `${callerAddress}/call-${index}`,
+          input_index: 1,
+          kind: "return-binding",
+        },
+      ]).flat(),
+    ];
+    const request = {
+      procedure: callerAddress,
+      max_functions: 2,
+      max_call_sites: callCount,
+      max_nodes: callCount + 2,
+      max_edges: callCount * 3,
+      limit: callCount + 2,
+    };
+
+    const complete = await traceNativeValues(fanoutAnalysis, request);
+    if (!complete.ok) throw complete.error;
+    const completeResult = nativeValueTraceSchema.parse(complete.value);
+    const edgeShape = (edges: typeof completeResult.edges) =>
+      edges.map(({ source, target, input_index, kind }) => ({
+        source,
+        target,
+        input_index,
+        kind,
+      }));
+    expect(completeResult).toMatchObject({
+      total_nodes: callCount + 2,
+      total_edges: callCount * 3,
+      truncated: false,
+      unknowns: [],
+    });
+    expect(edgeShape(completeResult.edges)).toEqual(expectedEdges);
+
+    const capped = await traceNativeValues(fanoutAnalysis, {
+      ...request,
+      max_edges: callCount * 3 - 1,
+    });
+    if (!capped.ok) throw capped.error;
+    const cappedResult = nativeValueTraceSchema.parse(capped.value);
+    expect(cappedResult).toMatchObject({
+      total_nodes: callCount + 2,
+      total_edges: callCount * 3 - 1,
+      truncated: true,
+    });
+    expect(edgeShape(cappedResult.edges)).toEqual(
+      expectedEdges.slice(0, callCount * 3 - 1),
+    );
+
+    const nodeCapped = await traceNativeValues(fanoutAnalysis, {
+      ...request,
+      max_nodes: callCount + 1,
+    });
+    if (!nodeCapped.ok) throw nodeCapped.error;
+    const nodeCappedResult = nativeValueTraceSchema.parse(nodeCapped.value);
+    expect(nodeCappedResult).toMatchObject({
+      total_nodes: callCount + 1,
+      total_edges: callCount * 2,
+      truncated: true,
+      unknowns: Array.from({ length: callCount }, () => ({
+        procedure: callerAddress,
+        address: null,
+        reason: `Parameter bindings for ${calleeAddress} are unavailable or omitted`,
+      })),
+    });
+    expect(edgeShape(nodeCappedResult.edges)).toEqual(
+      expectedEdges.filter(({ kind }) => kind !== "argument-binding"),
+    );
+  });
+});
+
 describe("bounded native value dependency composition", () => {
   it("reports work truncation and stable pagination without traversing ambiguous calls", async () => {
     const bounded = await traceNativeValues(analysis, {

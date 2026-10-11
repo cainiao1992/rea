@@ -113,18 +113,20 @@ describe("JavaScript export return-shape comparison", () => {
 });
 
 describe("JavaScript export return-shape pairing limits", () => {
-  it.each([
-    { presence: "absent", side: "left" },
-    { presence: "unknown-coverage", side: "left" },
-    { presence: "absent", side: "right" },
-    { presence: "unknown-coverage", side: "right" },
-  ] as const)(
-    "does not pair an inline $side discriminant whose presence is $presence",
-    async ({ presence, side }) => {
-      const [left, right] = await analyzeSources({
-        left: 'export default () => ({ kind: "result", count: 1 });',
-        right: 'export default () => ({ kind: "result", total: 2 });',
-      });
+  it("does not pair an inline discriminant with absent or unknown presence", async () => {
+    const rows = [
+      { presence: "absent", side: "left" },
+      { presence: "unknown-coverage", side: "left" },
+      { presence: "absent", side: "right" },
+      { presence: "unknown-coverage", side: "right" },
+    ] as const;
+    const [left, right] = await analyzeSources({
+      left: 'export default () => ({ kind: "result", count: 1 });',
+      right: 'export default () => ({ kind: "result", total: 2 });',
+    });
+
+    for (const { presence, side } of rows) {
+      const label = `${side} discriminant presence ${presence}`;
       const selected = side === "left" ? left : right;
       const graph = createJavaScriptApplicationGraph({
         schema: "JavaScriptApplicationGraph",
@@ -165,26 +167,28 @@ describe("JavaScript export return-shape pairing limits", () => {
         side === "left"
           ? compare({ ...left, graph }, right)
           : compare(left, { ...right, graph });
-      expect(result.coverage).toMatchObject({
+      expect(result.coverage, label).toMatchObject({
         status: "partial",
         paired_variants: 0,
         unpaired_left_variants: 1,
         unpaired_right_variants: 1,
       });
-      expect(result.changes).toHaveLength(2);
+      expect(result.changes, label).toHaveLength(2);
       expect(
         result.changes.every(
           ({ status, discriminant }) =>
             status === "unknown" && discriminant === null,
         ),
+        label,
       ).toBe(true);
       expect(
         result.property_inventories.every(
           ({ paired, discriminant }) => !paired && discriminant === null,
         ),
+        label,
       ).toBe(true);
-    },
-  );
+    }
+  });
 
   it("does not pair discriminants that an unknown trailing spread can overwrite", async () => {
     const [left, right] = await analyzeSources({

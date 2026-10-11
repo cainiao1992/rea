@@ -231,6 +231,11 @@ unknown instead of silently treating them as absent or verified.
 Plain `.ts` artifact sources use TypeScript syntax without JSX, including
 angle-bracket type assertions. `.tsx` and `.jsx` retain JSX parsing.
 
+Relative TypeScript imports can name their emitted `.js`, `.mjs`, or `.cjs`
+counterparts while resolving to inventoried source files. This substitution
+requires import or require semantics. Literal Electron preload, renderer, and
+utility-process runtime paths retain the runtime filename selected by the caller.
+
 Selected bounded text is then parsed as inert data to recover:
 
 - `package.json` metadata and declared main or renderer entrypoints;
@@ -323,15 +328,44 @@ substitute version-dependent Electron defaults for omitted `webPreferences`.
 Dynamic option objects, bridge keys, API objects, and IPC channel expressions
 remain unknown and make coverage partial.
 
-Electron API identity follows proven lexical module aliases. Bundled CommonJS
-namespace imports are also followed through the interop helpers that bundlers
-and compilers emit (`__toESM`, `__importStar`, `_interopRequireWildcard`),
-including the `electron = __toESM(electron)` rewrap that Rolldown emits. This
-step is inferred: a helper is recognized by its emitted name and a single
-program-scope function definition, and its body is not evaluated, so a local
-function that reuses one of these names is trusted to pass the module through.
-Other reassigned bindings, dynamic selections, and visibly overwritten namespace
-members are unresolved.
+Electron API identity follows proven lexical module aliases. Namespace interop
+also preserves identity when the complete Rolldown helper operations, lexical
+roles, live getters, and captured intrinsic origins match, or when a stable
+helper simply returns its module parameter. Harmless single-statement control
+blocks preserve recognition; added operations still require proof. Literal
+member and destructuring projections are retained from proven results.
+Omitted or literal node-mode arguments preserve named exports; a module-valued
+default projection requires a truthy literal node mode. Computed or extra
+arguments remain unresolved.
+Recognition uses structure rather than emitted names; other helper bodies and ambiguous
+runtime fallbacks remain unresolved. Captured function identities survive later global-property
+replacement, including copies through initialized aliases. Reads before an
+alias initializer remain unresolved. Visible intrinsic writes before capture or
+conversion are checked in their owning callable scope, including identifier leaves in nested/default/rest
+destructuring and loop targets. Property keys and shadowed local bindings do not
+overwrite the global intrinsic identity. Cross-call side effects, including
+writes inside directly invoked local functions, are not evaluated. Other
+reassignments, dynamic selections, and visibly overwritten namespace members
+are unresolved.
+Known Object/Reflect mutators remain recognizable through literal destructuring
+of intrinsic objects and stable bound-function aliases. Calls retain bound
+argument prefixes and the original bound receiver through `call`, `apply`, and
+`Reflect.apply`, including generic `Function.prototype` invocation and binding
+creation. Arguments follow each actual callable invocation rather than property
+chain depth; rebinding retains the original bound receiver.
+Visibly replaced invocation intrinsics produce unknown effects instead
+of using their former call semantics; captured function aliases retain their
+earlier identity. Unexamined targets remain unresolved. `Reflect.set` examines
+its explicit receiver as well as its target, retaining unknown receiver effects.
+Creating an unused binding does not itself mutate an intrinsic. Variable
+redeclarations retain a single unconditional initializer
+when they introduce no assignment or second initializer.
+Stable identifier chains to fresh object, array, function,
+undecorated class or RegExp syntax keep those targets separate from intrinsic
+objects when initialized before use; opaque, decorated, reassigned or
+not-yet-initialized targets remain unresolved. Writes during class initialization
+are still retained. Function declarations are available before their textual
+position; variable and class initializers must precede use.
 Direct and destructuring assignment, loop, update, and delete targets are checked
 through namespace aliases; unrelated member writes do not discard observed API
 identity. This static check does
@@ -425,16 +459,40 @@ such as `./web3:app.js` still names a local artifact.
 Package `exports` fallback arrays are supported both at the top level and under
 the root `"."` entry. The resolver selects targets in declared order using the
 same conditional and invalid-entry handling as nested exports arrays.
+Nonempty arrays containing only inactive conditions remain unmatched, allowing
+the enclosing condition object to continue to a later active condition.
+Empty arrays and explicit null targets keep their blocking outcome.
+Refusal evidence distinguishes those source values and retains condition names
+from unmatched nested targets rather than reporting array indices.
 For imports and requires, the active Node conditions include `module-sync`;
 earlier active conditions retain precedence over later ones.
+
+Exact package-private `#alias` specifiers resolve against the importer's
+enclosing `package.json` `imports` map — the nearest same-container package
+scope, stopping at a `node_modules` directory so a nested package cannot inherit
+an ancestor's aliases. Selected targets are package-local `./` files with no
+extension or index fallback, using the same condition, array, and null selection
+as exports subpaths. A missing key, explicit null, or out-of-scope alias keeps
+an unresolved edge with that reason. Wildcard keys (`#internal/*`), recursive
+`#` targets, and external-package import targets remain unresolved.
+
+Exact keys such as `#/x` are literal lookup identities. `#` and names ending
+in `/` are invalid. Imports arrays skip invalid parent-relative, absolute, and
+URL targets before selecting a later package-local file; an unsupported bare
+package or recursive alias keeps its unresolved outcome rather than selecting
+a later fallback.
 
 ESM relative module paths and selected package exports targets use URL suffix handling
 and one percent-decoding pass. CommonJS relative paths and legacy package main
 fields retain literal filename punctuation. Exports targets must start with
 `./` and exclude `.`, `..`, and `node_modules` path segments, including their
 encoded forms, before URL normalization. Arrays skip invalid exports targets
-in declared order; URL decoding and file lookup failures for a selected target
-do not select a later entry. Rejected references retain the package metadata
+in declared order, including URLs that escape the package root after normalization.
+Selected package targets use the normalized URL path for lookup; tabs and
+newlines in the URL text are removed by the URL parser. CommonJS package targets
+reject encoded separators anywhere in the selected URL; ESM checks its pathname.
+URL decoding and file lookup failures for a selected target do not select a
+later entry. Rejected references retain the package metadata
 path, original target, failed constraint, and importing source location.
 
 HTML script references resolve to exact inventoried files after applying the

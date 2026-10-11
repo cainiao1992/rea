@@ -9,7 +9,10 @@ provenance; inputs and recovered code are never executed. Recovery requires a
 caller-supplied Wakaru on Linux x64; see [the recovery guide](https://github.com/morluto/rea/blob/main/docs/javascript-recovery.md).
 
 Use `analyze_javascript_application` directly on the operator-supplied ASAR or
-extracted tree. When size is unknown or large and the connected schema advertises
+extracted tree. Exact `#alias` specifiers resolve through the importer's
+enclosing package `imports` map to package-local files; nested `node_modules`
+packages use their own map. Wildcard, recursive, and external-package import
+targets stay unresolved with that limitation. When size is unknown or large and the connected schema advertises
 `detail`, request `detail: "summary"`. This returns an `inspect_analysis_view`
 Evidence record with a distinct ID and a `normalized_result.parent_evidence_id`
 for the complete retained application analysis. Source-map contents are part of

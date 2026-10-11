@@ -122,13 +122,16 @@ it("traverses every ARM64 callee in a call path without a goal and records no fa
         { source_address: "0x1000", target_address: "0x3000" },
       ],
       failures: [],
-      truncated: true,
+      truncated: false,
       limitations: expect.arrayContaining([
         "This relationship read does not establish calls to targets IDA does not recognize as functions; imports and other non-function call targets remain unknown.",
       ]),
-      residual_unknowns: expect.arrayContaining([
-        expect.stringContaining("Call relationships for 0x1000 are limited:"),
-      ]),
+      residual_unknowns: [],
+      relationship_coverage: {
+        "0x1000": { status: "complete" },
+        "0x2000": { status: "complete" },
+        "0x3000": { status: "complete" },
+      },
     });
     expect(
       requestedRoots(producer),
@@ -203,7 +206,9 @@ it("preserves missing callgraph coverage through direct, graph, and trace workfl
         expect.stringContaining("callgraph was unavailable"),
       ]),
       residual_unknowns: expect.arrayContaining([
-        expect.stringContaining("Call relationships for 0x1000 are limited:"),
+        expect.stringContaining(
+          "Call relationship coverage is unknown for 0x1000:",
+        ),
       ]),
     });
     expect(

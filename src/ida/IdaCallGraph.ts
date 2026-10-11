@@ -5,6 +5,7 @@ import {
 } from "../domain/analysisErrorCore.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import type { JsonValue } from "../domain/jsonValue.js";
+import type { RelationshipCoverage } from "../domain/relationshipCoverage.js";
 import { ZodError } from "zod";
 import {
   idaAddressSchema,
@@ -48,6 +49,7 @@ export interface CallGraphCallees {
     readonly name: string;
   }[];
   readonly limitations: readonly string[];
+  readonly coverage: RelationshipCoverage;
 }
 
 /** No function edges can be observed when the server lacks the graph tool. */
@@ -57,6 +59,10 @@ export const unavailableCallGraph = (reason: string): CallGraphCallees => ({
     UNRECOGNIZED_CALLEE_LIMITATION,
     `Upstream callgraph was unavailable (${reason}); callee edges remain unknown.`,
   ],
+  coverage: {
+    status: "unknown",
+    reason: `Upstream callgraph was unavailable (${reason}); callee edges remain unknown.`,
+  },
 });
 
 /**
@@ -95,6 +101,7 @@ export const readCallGraphCallees = async (
     BigInt(left) < BigInt(right) ? -1 : BigInt(left) > BigInt(right) ? 1 : 0,
   );
   const limitations = [UNRECOGNIZED_CALLEE_LIMITATION];
+  const coverageLimitations: string[] = [];
   const truncated =
     row.truncated === true ||
     row.per_func_capped === true ||
@@ -104,8 +111,13 @@ export const readCallGraphCallees = async (
   const saturated =
     row.max_edges_per_func !== undefined &&
     edges.length >= row.max_edges_per_func;
-  if (truncated) limitations.push(TRUNCATED_LIMITATION);
-  else if (saturated) limitations.push(POSSIBLY_TRUNCATED_LIMITATION);
+  if (truncated) {
+    limitations.push(TRUNCATED_LIMITATION);
+    coverageLimitations.push(TRUNCATED_LIMITATION);
+  } else if (saturated) {
+    limitations.push(POSSIBLY_TRUNCATED_LIMITATION);
+    coverageLimitations.push(POSSIBLY_TRUNCATED_LIMITATION);
+  }
 
   const names = new Map<string, string>();
   if (targets.length > 0) {
@@ -149,5 +161,9 @@ export const readCallGraphCallees = async (
       };
     }),
     limitations,
+    coverage:
+      coverageLimitations.length === 0
+        ? { status: "complete" }
+        : { status: "partial", limitations: coverageLimitations },
   };
 };

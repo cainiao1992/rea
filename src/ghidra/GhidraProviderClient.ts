@@ -821,6 +821,10 @@ export const createGhidraProviderClient = (input: {
         createAnalysisExecution(normalized, committedProfile.provider, {
           rawResult: called.value,
           analysisProfile: committedProfile,
+          ...(operation === "procedure_callers" ||
+          operation === "procedure_callees"
+            ? { relationshipCoverage: { status: "complete" as const } }
+            : {}),
           limitations: [
             ...limitationsFor(operation),
             ...observationLimitations,

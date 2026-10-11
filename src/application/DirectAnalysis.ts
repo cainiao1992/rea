@@ -177,6 +177,9 @@ const runManagedProviderAnalysis = async (
     result: value.result,
     rawResult: value.rawResult,
     limitations: value.limitations,
+    ...(value.relationshipCoverage === undefined
+      ? {}
+      : { relationshipCoverage: value.relationshipCoverage }),
     locations: value.locations,
   });
 };
@@ -436,6 +439,9 @@ const executeAnalysisTool = async (input: {
         : { analysisProfile: result.value.analysisProfile }),
       rawResult: result.value.rawResult,
       limitations: result.value.limitations,
+      ...(result.value.relationshipCoverage === undefined
+        ? {}
+        : { relationshipCoverage: result.value.relationshipCoverage }),
       locations: result.value.locations,
       evidenceLinks:
         tool === "inspect_artifact"

@@ -389,6 +389,10 @@ export class EnhancedTools {
         address: current.address,
         status: "ok",
         calls: [...related.value],
+        relationship_coverage: result.value.relationshipCoverage ?? {
+          status: "unknown",
+          reason: "Provider did not report relationship coverage.",
+        },
         ...(result.value.limitations.length === 0
           ? {}
           : { limitations: [...result.value.limitations] }),

@@ -23,6 +23,7 @@ import {
   PROVIDER_RETRY_ACTIONS,
 } from "../domain/providerOperationHealth.js";
 import { analysisErrorProjectionSchema } from "./errorSchemas.js";
+import { relationshipCoverageSchema } from "../domain/relationshipCoverage.js";
 
 /** Specialize the single normalized result inside a complete Evidence record. */
 export const evidenceResultOf = <Schema extends z.ZodType>(schema: Schema) =>
@@ -505,6 +506,7 @@ export const graphNode = z.discriminatedUnion("status", [
     address: z.string(),
     status: z.literal("ok"),
     calls: z.array(z.string()),
+    relationship_coverage: relationshipCoverageSchema,
     limitations: z.array(z.string()).optional(),
   }),
   z.object({

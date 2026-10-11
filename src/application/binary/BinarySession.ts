@@ -594,9 +594,22 @@ export class BinarySession
       name,
       active.target,
     );
-    this.#observeRuntimeAvailability(name, profiled);
-    if (
+    const execution =
       profiled.ok &&
+      (name === "procedure_callers" || name === "procedure_callees") &&
+      profiled.value.relationshipCoverage === undefined
+        ? ok({
+            ...profiled.value,
+            relationshipCoverage: {
+              status: "unknown" as const,
+              reason:
+                "Provider did not report relationship coverage for this observation.",
+            },
+          })
+        : profiled;
+    this.#observeRuntimeAvailability(name, execution);
+    if (
+      execution.ok &&
       cacheable &&
       profile !== undefined &&
       name !== "decode_interface_builder" &&
@@ -605,16 +618,21 @@ export class BinarySession
       name !== "trace_dylib_resolution"
     ) {
       const evidence = createEvidence(
-        profiled.value.subject ?? active.target,
-        profiled.value.provider,
+        execution.value.subject ?? active.target,
+        execution.value.provider,
         {
           operation: name,
           parameters: arguments_,
-          result: profiled.value.result,
+          result: execution.value.result,
           analysisProfile: profile,
-          rawResult: profiled.value.rawResult,
-          limitations: profiled.value.limitations,
-          locations: profiled.value.locations,
+          rawResult: execution.value.rawResult,
+          limitations: execution.value.limitations,
+          ...(execution.value.relationshipCoverage === undefined
+            ? {}
+            : {
+                relationshipCoverage: execution.value.relationshipCoverage,
+              }),
+          locations: execution.value.locations,
         },
       );
       const recorded = this.recordEvidence(evidence);
@@ -624,12 +642,12 @@ export class BinarySession
         profile,
         operation: name,
         parameters: arguments_,
-        execution: profiled.value,
+        execution: execution.value,
       });
     } else if (profiled.ok && capability.effects.mutatesArtifact) {
       this.invalidateSnapshot();
     }
-    return profiled;
+    return execution;
   }
 
   #observeRuntimeAvailability(

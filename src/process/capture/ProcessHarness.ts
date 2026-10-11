@@ -43,6 +43,7 @@ import {
   type ProcessCaptureCleanupHost,
   type ProcessCaptureObservationBuffer,
   type PendingProcessCapture,
+  describeUnverifiedCause,
   type ProcessCaptureResourceCleanupOptions,
   ProcessCaptureResourceScope,
 } from "./ProcessCaptureLifecycle.js";
@@ -65,6 +66,10 @@ import {
   type ProcessCaptureProgressTracker,
 } from "./ProcessCaptureProgress.js";
 import type { ProcessOwnershipBaseline } from "../ProcessOwnership.js";
+import {
+  observeProcessStartIdentity,
+  signalProcessWithStartIdentity,
+} from "../ProcessOwnershipObservation.js";
 
 interface StartedCaptureRuntime {
   readonly renderer: TerminalRenderer;
@@ -75,7 +80,78 @@ interface StartedCaptureRuntime {
   readonly lastOutput: () => number;
   readonly rawTerminalRetention: () => TerminalRetention;
   readonly stopSampler: ReturnType<typeof startProcessSampler>;
+  /** Signals the captured root only while its launch-time start identity still matches. */
+  readonly signalRoot: (signal: "SIGTERM" | "SIGKILL") => Promise<{
+    readonly delivery: "signaled" | "gone" | "identity-changed" | "unverified";
+    readonly reason?: string | undefined;
+  }>;
 }
+
+/** Identity observation and signalling used for finalization signals; injectable for tests. */
+export interface FinalizationHost {
+  readonly observe: typeof observeProcessStartIdentity;
+  readonly signal: typeof signalProcessWithStartIdentity;
+}
+
+/** Bind the captured root's initial identity to its run token before retaining it. */
+export const retainRootSignaller = (
+  pid: number,
+  finalizationMs: number,
+  runId: string,
+  host: FinalizationHost = {
+    observe: (rootPid) =>
+      observeProcessStartIdentity(rootPid, undefined, runId),
+    signal: signalProcessWithStartIdentity,
+  },
+): StartedCaptureRuntime["signalRoot"] => {
+  const retained =
+    finalizationMs > 0
+      ? host.observe(pid).then(
+          (observation) =>
+            observation === undefined
+              ? ({ state: "gone" } as const)
+              : observation.state === "readable"
+                ? ({
+                    state: "identity",
+                    identity: observation.identity,
+                  } as const)
+                : ({
+                    state: "unverified",
+                    reason:
+                      observation.reason.trim() === ""
+                        ? "start identity is unavailable without a diagnostic"
+                        : observation.reason,
+                  } as const),
+          (cause: unknown) =>
+            ({
+              state: "unverified",
+              reason: describeUnverifiedCause(
+                cause,
+                "start identity inspection failed without a message",
+              ),
+            }) as const,
+        )
+      : undefined;
+  return async (signal) => {
+    const identity = await retained;
+    if (identity === undefined)
+      return {
+        delivery: "unverified",
+        reason: "root identity was not retained",
+      };
+    if (identity.state === "unverified")
+      return { delivery: "unverified", reason: identity.reason };
+    if (identity.state === "gone") return { delivery: "gone" };
+    const delivery = await host.signal(pid, identity.identity, signal);
+    return delivery === "unverified"
+      ? {
+          delivery,
+          reason:
+            "start identity could not be verified or the signal call failed",
+        }
+      : { delivery };
+  };
+};
 
 const cleanupFailedStartup = async (options: {
   readonly cause: unknown;
@@ -176,6 +252,7 @@ interface StartCaptureRuntimeOptions {
   readonly dispatchedEventIndexes: Set<number>;
   readonly recordEvent: RecordProcessCaptureEvent;
   readonly signal?: AbortSignal;
+  readonly finalizationHost?: FinalizationHost;
 }
 
 const startCaptureRuntime = async (
@@ -245,6 +322,12 @@ const startCaptureRuntime = async (
       lastOutput: () => lastOutput,
       rawTerminalRetention,
       stopSampler,
+      signalRoot: retainRootSignaller(
+        terminal.pid,
+        scenario.finalization_ms,
+        options.runId,
+        options.finalizationHost,
+      ),
     };
   } catch (cause: unknown) {
     return cleanupFailedStartup({
@@ -371,7 +454,10 @@ const completeCapture = async (options: {
   readonly frames: readonly TerminalFrame[];
   readonly samples: readonly ProcessSample[];
   readonly interactions: readonly InteractionEvent[];
-  readonly exit: Awaited<ReturnType<typeof awaitTerminalExit>>;
+  readonly exit: Extract<
+    Awaited<ReturnType<typeof awaitTerminalExit>>,
+    { readonly unobserved?: false }
+  >;
   readonly signal?: AbortSignal;
   readonly captureSnapshot: typeof snapshotRoots;
   readonly eventJournal: readonly ProcessCaptureEventJournalEntry[];
@@ -532,6 +618,7 @@ const runProcessScenario = async (
   cleanupHost?: ProcessCaptureCleanupHost,
   progress?: ProcessCaptureProgress,
   resourceScope?: ProcessCaptureResourceScope,
+  finalizationHost?: FinalizationHost,
 ): Promise<ProcessCapture> => {
   const progressTracker = createProcessCaptureProgressTracker(progress);
   const frames: TerminalFrame[] = [];
@@ -584,6 +671,7 @@ const runProcessScenario = async (
     samples,
     eventJournal,
     before,
+    finalizationEnabled: scenario.finalization_ms > 0,
   });
   let runtime: StartedCaptureRuntime | undefined;
   let actualRootPid: number | undefined;
@@ -613,6 +701,7 @@ const runProcessScenario = async (
       dispatchedEventIndexes,
       recordEvent,
       ...(signal === undefined ? {} : { signal }),
+      ...(finalizationHost === undefined ? {} : { finalizationHost }),
     });
     stopSampler = runtime.stopSampler;
     const exit = await awaitTerminalExit({
@@ -621,12 +710,35 @@ const runProcessScenario = async (
       started: runtime.started,
       lastOutput: runtime.lastOutput,
       signal,
+      signalTarget: runtime.signalRoot,
+      recordFinalization: (finalization) => {
+        observations.finalization = { state: "available", value: finalization };
+      },
       timers,
       interactions,
       dispatchedEventIndexes,
       recordEvent,
       ...(progress === undefined ? {} : { onLiveProgress: reportRunning }),
     });
+    if (exit.unobserved === true) {
+      observations.finalization = {
+        state: "available",
+        value: exit.finalization,
+      };
+      observations.exit = {
+        state: "unavailable",
+        reason: `The captured process exit was not observed because the finalization SIGKILL could not be delivered (initiating reason: ${exit.reason}).`,
+      };
+      if (exit.reason === "cancelled") throw processCaptureCancelled();
+      throw new Error(
+        "The captured process exit was not observed because the finalization SIGKILL could not be delivered.",
+      );
+    }
+    if (exit.finalization !== undefined)
+      observations.finalization = {
+        state: "available",
+        value: exit.finalization,
+      };
     observations.exit = {
       state: "available",
       value: {
@@ -634,6 +746,9 @@ const runProcessScenario = async (
           exit.reason === "exited" && exit.exitCode >= 0 ? exit.exitCode : null,
         signal: exit.signal ?? null,
         reason: exit.reason,
+        ...(exit.finalization === undefined
+          ? {}
+          : { finalization: exit.finalization }),
       },
     };
     capture = await completeCapture({
@@ -710,6 +825,7 @@ export const captureProcessScenario = async (
   cleanupHost?: ProcessCaptureCleanupHost,
   progress?: ProcessCaptureProgress,
   resourceScope?: ProcessCaptureResourceScope,
+  finalizationHost?: FinalizationHost,
 ): Promise<Result<ProcessCapture, ProcessCaptureError | AnalysisError>> => {
   const ownershipReason = processCaptureOwnershipUnavailableReason(platform);
   if (ownershipReason !== undefined)
@@ -740,6 +856,7 @@ export const captureProcessScenario = async (
         cleanupHost,
         progress,
         runResourceScope,
+        finalizationHost,
       );
       return ok(capture);
     } catch (cause: unknown) {

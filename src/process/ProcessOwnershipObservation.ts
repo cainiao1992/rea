@@ -431,10 +431,15 @@ export const createSystemProcessOwnershipHost = (
 
 export const systemProcessOwnershipHost = createSystemProcessOwnershipHost();
 
-/** Observe the current OS start identity for one live PID, when supported. */
+/**
+ * Observe a live PID's start identity, optionally binding it to an owned run.
+ * Token validation is bracketed by identity reads so PID reuse cannot supply
+ * the first identity of a different process for an owned launch.
+ */
 export const observeProcessStartIdentity = async (
   pid: number,
   host: ProcessOwnershipHost = systemProcessOwnershipHost,
+  expectedRunId?: string,
 ): Promise<ProcessIdentityObservation | undefined> => {
   const process = (await host.listProcesses()).find(
     (entry) => entry.pid === pid,
@@ -443,12 +448,42 @@ export const observeProcessStartIdentity = async (
     return undefined;
   if (host.processIdentities === undefined)
     return { state: "unavailable", reason: "process identity is unsupported" };
-  return (
-    (await host.processIdentities([process])).get(pid) ?? {
+  const identity: ProcessIdentityObservation = (
+    await host.processIdentities([process])
+  ).get(pid) ?? {
+    state: "unavailable",
+    reason: "process identity was not returned",
+  };
+  if (expectedRunId === undefined || identity.state !== "readable")
+    return identity;
+  let owned = false;
+  for await (const { observation } of readProcessRunTokens(host, [process])) {
+    if (observation.state === "unavailable")
+      return {
+        state: "unavailable",
+        reason: `process ownership token could not be read for PID ${String(pid)}: ${observation.reason}`,
+      };
+    if (observation.runId !== expectedRunId)
+      return {
+        state: "unavailable",
+        reason: `process ownership token did not match the captured run for PID ${String(pid)}`,
+      };
+    owned = true;
+  }
+  if (!owned)
+    return {
       state: "unavailable",
-      reason: "process identity was not returned",
-    }
-  );
+      reason: `process ownership token was not returned for PID ${String(pid)}`,
+    };
+  const confirmed = await observeProcessStartIdentity(pid, host);
+  if (confirmed === undefined || confirmed.state !== "readable")
+    return confirmed;
+  return confirmed.identity === identity.identity
+    ? identity
+    : {
+        state: "unavailable",
+        reason: `process identity changed while validating the captured run token for PID ${String(pid)}`,
+      };
 };
 
 /** Revalidate a launch-time start identity immediately before signaling a PID. */

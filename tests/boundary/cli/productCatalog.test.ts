@@ -209,7 +209,7 @@ describe("canonical product catalog drift", () => {
         "https://rea.tools/zh-CN/guides/native/",
         "https://rea.tools/zh-CN/guides/native/?other=1",
       ],
-    ]) {
+    ] as const) {
       expect(translated).toContain(original);
       await writeFile(
         translatedPath,

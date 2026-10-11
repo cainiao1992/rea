@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";
@@ -17,6 +17,27 @@ const execute = promisify(execFile);
 const requireFixture = createRequire(import.meta.url);
 const comparisonEnvelope = z.object({
   normalized_result: javaScriptExportShapeComparisonResultSchema,
+});
+let mcpComparisonConnection:
+  | {
+      readonly client: Client;
+      readonly transport: StdioClientTransport;
+      readonly ready: Promise<void>;
+    }
+  | undefined;
+
+afterAll(async () => {
+  if (mcpComparisonConnection === undefined) return;
+  try {
+    await mcpComparisonConnection.ready;
+  } catch {
+    // Keep the failed connection owned until both resources are closed below.
+  }
+  try {
+    await mcpComparisonConnection.client.close();
+  } finally {
+    await mcpComparisonConnection.transport.close();
+  }
 });
 
 describe("exported function binding resolution through the CLI", () => {
@@ -905,34 +926,37 @@ const compareThroughCli = async (
 };
 
 const compareThroughMcp = async (input: Record<string, unknown>) => {
-  const transport = new StdioClientTransport({
-    command: process.execPath,
-    args: [resolve("scripts/rea.mjs"), "mcp"],
-    cwd: process.cwd(),
-    env: { PATH: process.env.PATH ?? "", REA_LOG_LEVEL: "silent" },
-    stderr: "pipe",
+  const client = await getMcpComparisonClient();
+  const response = await client.callTool({
+    name: "compare_javascript_export_shapes",
+    arguments: input,
   });
-  const client = new Client({
-    name: "exported-function-bindings",
-    version: "1",
-  });
-  try {
-    await client.connect(transport);
-    const response = await client.callTool({
-      name: "compare_javascript_export_shapes",
-      arguments: input,
+  expect(response.isError).not.toBe(true);
+  await client.ping();
+  return comparisonEnvelope.parse(response.structuredContent).normalized_result;
+};
+
+const getMcpComparisonClient = async (): Promise<Client> => {
+  if (mcpComparisonConnection === undefined) {
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [resolve("scripts/rea.mjs"), "mcp"],
+      cwd: process.cwd(),
+      env: { PATH: process.env.PATH ?? "", REA_LOG_LEVEL: "silent" },
+      stderr: "pipe",
     });
-    expect(response.isError).not.toBe(true);
-    await client.ping();
-    return comparisonEnvelope.parse(response.structuredContent)
-      .normalized_result;
-  } finally {
-    try {
-      await client.close();
-    } finally {
-      await transport.close();
-    }
+    const client = new Client({
+      name: "exported-function-bindings",
+      version: "1",
+    });
+    mcpComparisonConnection = {
+      client,
+      transport,
+      ready: client.connect(transport),
+    };
   }
+  await mcpComparisonConnection.ready;
+  return mcpComparisonConnection.client;
 };
 
 const runtimeExport = async (

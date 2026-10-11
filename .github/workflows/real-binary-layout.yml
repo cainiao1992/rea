@@ -32,6 +32,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - uses: ./.github/actions/portable-build-cache
       - name: Acquire exact upstream libraries in an isolated runner environment
         shell: bash
         run: |

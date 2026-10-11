@@ -145,6 +145,10 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - name: Reuse portable build outputs across runs
+        uses: ./.github/actions/portable-build-cache
+        with:
+          save: "true"
       - run: npm run test:prepare
       - name: Find successful default-branch timing history
         id: history

@@ -26,6 +26,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - uses: ./.github/actions/portable-build-cache
       - name: Acquire unchanged fixture compiler in isolated runner storage
         shell: bash
         run: |

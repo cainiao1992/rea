@@ -29,6 +29,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - uses: ./.github/actions/portable-build-cache
       - name: Install GDB on the disposable CI runner
         shell: bash
         run: |

@@ -1015,6 +1015,13 @@ summary. Static checks, documentation, build, package verification, and
 real-system lanes remain separate jobs so one kind of evidence cannot stand in
 for another.
 
+The build job saves portable Turbo outputs across runs. Eight Linux real-system
+lanes restore this cache without waiting for the build job. The shared action
+derives its key from `test:prepare --dry=json` task hashes, runner OS and
+architecture, and `.npmrc`; test-only changes can reuse compiled outputs. Every
+build and verification command still runs, so Turbo checks task inputs and
+rebuilds misses. There is no prefix fallback to accumulate older build outputs.
+
 Native package jobs reuse the same workflow's Turbo cache for portable compiled
 JavaScript, skills, and catalogs. They retain the normal build and prepack
 commands, which restore matching outputs or rebuild on a cache miss. Native

@@ -215,6 +215,16 @@ it.each([
   ],
   ["website/src/index.ts", { code: false, website: true, package: false }],
   [
+    "website/locales/zh-CN/messages.po",
+    { code: false, website: true, package: false },
+  ],
+  ["scripts/website_i18n.py", { code: false, website: true, package: false }],
+  ["README_ja.md", { code: false, docs: true, website: true, package: false }],
+  [
+    ".github/workflows/website-pages.yml",
+    { code: false, website: true, package: false },
+  ],
+  [
     "src/process/ProviderProcess.ts",
     { code: true, package: true, evm: true, browser: true },
   ],

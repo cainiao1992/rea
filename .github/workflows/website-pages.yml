@@ -68,7 +68,7 @@ jobs:
           import os
           from pathlib import Path
 
-          Path("website/public/deployment.json").write_text(
+          Path("website/_site/deployment.json").write_text(
               json.dumps({"commit": os.environ["GITHUB_SHA"]}) + "\n",
               encoding="utf-8",
           )
@@ -78,7 +78,7 @@ jobs:
       - name: Upload the website
         uses: actions/upload-pages-artifact@v4
         with:
-          path: website/public
+          path: website/_site
 
   deploy:
     needs: prepare

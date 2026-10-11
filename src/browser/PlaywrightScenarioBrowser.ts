@@ -49,6 +49,10 @@ export class PlaywrightScenarioBrowserCleanupOwner {
     this.#profileRemoved = resources.removeProfile === undefined;
   }
 
+  get browserClosed(): boolean {
+    return this.#browserClosed;
+  }
+
   close(
     finishEvents?: () => Promise<void>,
     signal?: AbortSignal,

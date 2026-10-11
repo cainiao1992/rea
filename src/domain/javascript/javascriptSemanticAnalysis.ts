@@ -43,6 +43,7 @@ import {
   resolveSemanticModuleCallables,
 } from "./javascriptSemanticReturns.js";
 import { collectJavaScriptDerivedSemanticsSteps } from "./javascriptSemanticDerivedAnalysis.js";
+import { evaluateSemanticProvenance } from "./javascriptSemanticValues.js";
 import { range } from "./javascriptStaticAnalysisHelpers.js";
 import { propertyName } from "./javascriptAstValues.js";
 import { semanticCoverage } from "./javascriptSemanticCoverage.js";
@@ -313,23 +314,23 @@ const resolveGlobalAliasFact = (
 const ELECTRON_MODULE = /^electron(?:\/(?:common|main|renderer|utility))?$/u;
 
 /**
- * Electron export paths for call and construction roots bound to Electron
- * under another name, such as esbuild's `import { ipcMain as ipcMain2 }`.
- * Keys are root identifier offsets; roots spelled as their export are omitted.
+ * Proven Electron export path segments for call and construction roots, keyed by
+ * root offset. Only proven Electron origins are present; callers must not
+ * infer an Electron export from an absent entry or familiar local name.
  */
 export const classifyParsedJavaScriptElectronBindings = (
   file: ParsedJavaScriptSource,
-): ReadonlyMap<number, string> =>
+): ReadonlyMap<number, readonly string[]> =>
   completeSemanticSteps(classifyParsedJavaScriptElectronBindingsSteps(file));
 
 /** Resolve Electron aliases while yielding during lexical and AST scans. */
 export function* classifyParsedJavaScriptElectronBindingsSteps(
   file: ParsedJavaScriptSource,
-): Generator<void, ReadonlyMap<number, string>> {
-  const facts = new Map<number, string>();
+): Generator<void, ReadonlyMap<number, readonly string[]>> {
+  const facts = new Map<number, readonly string[]>();
   const state = createState(file.program);
   yield* collectDefinitionsSteps(file.program, state);
-  const exportsByBinding = new Map<string, string | null>();
+  const exportsByBinding = new Map<string, readonly string[] | null>();
   yield* traverseJavaScriptAstSteps(file.program, {
     enter: (node) => {
       if (
@@ -340,26 +341,31 @@ export function* classifyParsedJavaScriptElectronBindingsSteps(
         return;
       const root = calleeRoot(node.callee);
       if (root === undefined) return;
-      const binding = resolveSemanticBindingState(state, root, root.name);
-      if (binding === undefined) return;
-      let exported = exportsByBinding.get(binding.bindingId);
-      if (exported === undefined) {
-        exported = electronExport(binding, state);
-        exportsByBinding.set(binding.bindingId, exported);
+      if (t.isIdentifier(root)) {
+        const binding = resolveSemanticBindingState(state, root, root.name);
+        if (binding === undefined) return;
+        let exported = exportsByBinding.get(binding.bindingId);
+        if (exported === undefined) {
+          exported = electronExport(binding, state);
+          exportsByBinding.set(binding.bindingId, exported);
+        }
+        if (exported !== null) facts.set(root.start ?? -1, exported);
+        return;
       }
-      if (exported !== null && exported !== root.name)
-        facts.set(root.start ?? -1, exported);
+      const origin = semanticRequireOrigin(root, state);
+      if (origin !== undefined && ELECTRON_MODULE.test(origin.specifier))
+        facts.set(root.start ?? -1, origin.importedPath);
     },
   });
   return facts;
 }
 
-const calleeRoot = (node: t.Node): t.Identifier | undefined => {
+const calleeRoot = (node: t.Node): t.Node | undefined => {
   while (t.isMemberExpression(node) || t.isOptionalMemberExpression(node)) {
     if (!t.isNode(node.object)) return undefined;
     node = node.object;
   }
-  return t.isIdentifier(node) ? node : undefined;
+  return node;
 };
 
 // Read import and require origins directly; general value evaluation is
@@ -367,12 +373,29 @@ const calleeRoot = (node: t.Node): t.Identifier | undefined => {
 const electronExport = (
   binding: JavaScriptSemanticBindingState,
   state: JavaScriptSemanticAnalysisState,
-): string | null => {
-  const origin = bindingOrigin(binding, state);
-  return origin !== undefined &&
-    ELECTRON_MODULE.test(origin.specifier) &&
-    origin.importedPath.length > 0
-    ? origin.importedPath.join(".")
+): readonly string[] | null => {
+  if (binding.definitions.some(({ kind }) => kind === "assignment"))
+    return null;
+  const directOrigin = bindingOrigin(binding, state);
+  const [initializer] = binding.initializers;
+  if (
+    directOrigin === undefined &&
+    (initializer === undefined ||
+      binding.initializers.length !== 1 ||
+      state.conditionalInitializers.has(initializer.node))
+  )
+    return null;
+  const provenance =
+    directOrigin === undefined
+      ? evaluateSemanticProvenance(binding, state)
+      : undefined;
+  const origin =
+    directOrigin ??
+    (provenance?.status === "module" && provenance.origins.length === 1
+      ? provenance.origins[0]
+      : undefined);
+  return origin !== undefined && ELECTRON_MODULE.test(origin.specifier)
+    ? origin.importedPath
     : null;
 };
 

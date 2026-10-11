@@ -9,18 +9,19 @@ import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { writeElectronApiAliasApplication } from "../../fixtures/electronApiAliasApplication.js";
 
 import {
   JAVASCRIPT_FEATURE_TRACE_EXAMPLE,
   JAVASCRIPT_APPLICATION_VERSION_COMPARISON_EXAMPLE,
   SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE,
 } from "../../../src/contracts/javascript/javascriptApplicationWorkflowExamples.js";
-import { JAVASCRIPT_EXPORT_SHAPE_COMPARISON_EXAMPLE } from "../../../src/contracts/javascript/javascriptExportShapeComparisonExample.js";
 import { analyzeJavaScriptApplication } from "../../support/javascriptApplicationScope.js";
 import {
   javascriptApplicationAnalysisResultSchema,
   type JavaScriptApplicationAnalysisResult,
 } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";
+import { parseJavaScriptApplicationGraph } from "../../../src/domain/javascript/javascriptApplicationGraph.js";
 import { z } from "zod";
 
 const execute = promisify(execFile);
@@ -249,6 +250,59 @@ describe("JavaScript application path CLI", () => {
     expect(mcpResult.semantic_graph).toEqual(
       result.normalized_result.semantic_graph,
     );
+  }, 20_000);
+
+  it("preserves canonical Electron API aliases through CLI and stdio MCP", async () => {
+    const root = await createTestTempDirectory("rea-electron-api-alias-");
+    temporary.push(root);
+    await writeElectronApiAliasApplication(root);
+
+    const cliResult = z
+      .object({ normalized_result: javascriptApplicationAnalysisResultSchema })
+      .parse(
+        await runCli(["analyze-javascript-application", root, "--json"]),
+      ).normalized_result;
+    expect(cliResult.summary).toMatchObject({
+      browser_windows: 1,
+      explicit_web_preferences: 1,
+      preload_entrypoints: 1,
+      context_bridge_apis: 1,
+      exposed_api_members: 1,
+      ipc: {
+        operations: 2,
+        literal_channels: 1,
+        main_handlers: 1,
+        renderer_transmissions: 1,
+        paired_renderer_transmissions: 1,
+        unpaired_literal_renderer_transmissions: 0,
+      },
+    });
+    const graph = parseJavaScriptApplicationGraph(cliResult.graph);
+    const window = graph.nodes.find(({ kind }) => kind === "browser-window");
+    expect(window?.observations[0]?.evidence.location).toMatchObject({
+      available: true,
+      value: {
+        kind: "source-range",
+        source: "main.cjs",
+        start: { line: 6 },
+      },
+    });
+    const bridge = graph.nodes.find(
+      ({ kind }) => kind === "context-bridge-api",
+    );
+    expect(bridge?.observations[0]?.evidence.location).toMatchObject({
+      available: true,
+      value: {
+        kind: "source-range",
+        source: "preload.cjs",
+        start: { line: 5 },
+      },
+    });
+
+    const mcpResult = await analyzeThroughStdioMcp(root);
+    expect(mcpResult.summary).toEqual(cliResult.summary);
+    expect(mcpResult.graph).toEqual(cliResult.graph);
+    expect(mcpResult.semantic_graph).toEqual(cliResult.semantic_graph);
   }, 20_000);
 });
 

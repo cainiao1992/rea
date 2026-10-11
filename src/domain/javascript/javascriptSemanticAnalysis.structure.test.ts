@@ -43,9 +43,9 @@ describe("JavaScript semantic analysis: structure 1", () => {
       specifier: "electron",
       importedPath: ["ipcMain"],
     });
-    expect(origin(topLevelBinding(ir, "assigned"))).toEqual({
-      specifier: "electron",
-      importedPath: ["ipcRenderer"],
+    expect(topLevelBinding(ir, "assigned").provenance).toMatchObject({
+      status: "ambiguous",
+      origins: [{ specifier: "electron", importedPath: ["ipcRenderer"] }],
     });
     expect(ir.moduleLinks).toEqual(
       expect.arrayContaining([
@@ -120,11 +120,15 @@ describe("JavaScript semantic analysis: structure 1", () => {
       assigned = require("electron").ipcMain;
       { const require = localLoader; require("./local.js"); }
     `);
-    for (const name of ["bus", "forwarded", "assigned"])
+    for (const name of ["bus", "forwarded"])
       expect(origin(topLevelBinding(ir, name))).toEqual({
         specifier: "electron",
         importedPath: ["ipcMain"],
       });
+    expect(topLevelBinding(ir, "assigned").provenance).toMatchObject({
+      status: "ambiguous",
+      origins: [{ specifier: "electron", importedPath: ["ipcMain"] }],
+    });
     expect(
       ir.moduleLinks.filter(({ kind }) => kind === "require"),
     ).toHaveLength(1);

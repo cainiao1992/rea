@@ -96,9 +96,74 @@ new NativeWindow();
   expect(electronStep.done).toBe(false);
   while (electronStep.done !== true) electronStep = electronSteps.next();
   expect([...electronStep.value]).toEqual([
-    [text.lastIndexOf("NativeWindow()"), "BrowserWindow"],
+    [text.lastIndexOf("NativeWindow()"), ["BrowserWindow"]],
   ]);
   expect(electronStep.value).toEqual(
     classifyParsedJavaScriptElectronBindings(parsed),
   );
+});
+
+it("resolves Electron APIs through proven immutable aliases", () => {
+  const text = `
+const {
+  BrowserWindow: ImportedWindow,
+  contextBridge: ImportedBridge,
+  ipcMain: ImportedMain,
+  ipcRenderer: ImportedRenderer,
+} = require("electron");
+const Win = ImportedWindow;
+const bridge = ImportedBridge;
+const ipc = ImportedMain;
+const renderer = ImportedRenderer;
+new Win({ webPreferences: { preload: "./preload.js" } });
+bridge.exposeInMainWorld("api", {});
+ipc.handle("main:ping", () => "pong");
+renderer.invoke("main:ping");
+
+const electron = require("electron");
+const namespace = electron;
+const directMember = electron.ipcMain;
+directMember.handle("direct-namespace:ping", () => "pong");
+const member = namespace.ipcMain;
+member.handle("namespace:ping", () => "pong");
+require("electron").ipcMain.handle("direct-require:ping", () => "pong");
+require("electron").notAnApi.ipcMain.handle("nested-lookalike", () => "local");
+require("electron")["ipcMain.handle"]("dotted-lookalike", () => "local");
+
+function shadow(ipc) {
+  ipc.handle("shadowed:ping", () => "local");
+}
+const fakeElectron = require("./fake-electron");
+const fakeIpc = fakeElectron.ipcMain;
+fakeIpc.handle("lookalike:ping", () => "local");
+let reassigned = ImportedMain;
+reassigned = fakeIpc;
+reassigned.handle("reassigned:ping", () => "local");
+let { ipcMain: reassignedImport } = require("electron");
+reassignedImport = fakeIpc;
+reassignedImport.handle("reassigned-import:ping", () => "local");
+let transitive = ImportedMain;
+transitive = fakeIpc;
+const reassignedAlias = transitive;
+reassignedAlias.handle("transitive-reassigned:ping", () => "local");
+if (globalThis.register) {
+  var conditional = require("electron").ipcMain;
+}
+const conditionalAlias = conditional;
+conditionalAlias.handle("conditional-alias:ping", () => "local");
+`;
+  const parsed = parseJavaScriptSource(text, "aliases.js");
+  if (parsed === null) throw new Error("Expected parsed source");
+
+  expect([...classifyParsedJavaScriptElectronBindings(parsed)]).toEqual([
+    [text.indexOf("Win({"), ["BrowserWindow"]],
+    [text.indexOf("bridge.exposeInMainWorld"), ["contextBridge"]],
+    [text.indexOf('ipc.handle("main:ping"'), ["ipcMain"]],
+    [text.indexOf("renderer.invoke"), ["ipcRenderer"]],
+    [text.indexOf("directMember.handle"), ["ipcMain"]],
+    [text.indexOf("member.handle"), ["ipcMain"]],
+    [text.indexOf('require("electron").ipcMain.handle'), []],
+    [text.indexOf('require("electron").notAnApi.ipcMain.handle'), []],
+    [text.indexOf('require("electron")["ipcMain.handle"]'), []],
+  ]);
 });

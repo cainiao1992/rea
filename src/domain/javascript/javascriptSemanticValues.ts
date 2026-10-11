@@ -568,6 +568,30 @@ const provenanceForBinding = (
   binding: JavaScriptSemanticBindingState,
   context: EvaluationContext,
 ): JavaScriptBindingProvenance => {
+  const provenance = provenanceForBindingValue(binding, context);
+  const assigned = binding.definitions.some(
+    ({ kind }) => kind === "assignment",
+  );
+  const conditionallyInitialized = binding.initializers.some(({ node }) =>
+    context.state.conditionalInitializers.has(node),
+  );
+  if (
+    provenance.status !== "module" ||
+    (!assigned && !conditionallyInitialized)
+  )
+    return provenance;
+  return semanticAmbiguousProvenance(
+    provenance.origins,
+    assigned
+      ? `Binding ${binding.name} may be reassigned.`
+      : `Binding ${binding.name} is conditionally initialized.`,
+  );
+};
+
+const provenanceForBindingValue = (
+  binding: JavaScriptSemanticBindingState,
+  context: EvaluationContext,
+): JavaScriptBindingProvenance => {
   if (context.bindings.has(binding.bindingId))
     return semanticUnresolvedProvenance(
       "cycle",

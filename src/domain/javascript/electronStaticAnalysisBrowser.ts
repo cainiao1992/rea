@@ -12,7 +12,7 @@ import type {
 import {
   boundedExpression,
   collectContextBridgeMembers,
-  electronCalleeName,
+  electronCalleePath,
   electronStaticValue,
   objectProperty,
 } from "./electronStaticAnalysisValues.js";
@@ -42,8 +42,8 @@ const inspectBrowserWindow = (
   node: t.NewExpression,
   context: JavaScriptFindingContext,
 ): void => {
-  const name = electronCalleeName(node.callee, context);
-  if (name !== "BrowserWindow" && !name.endsWith(".BrowserWindow")) return;
+  const path = electronCalleePath(node.callee, context);
+  if (path?.length !== 1 || path[0] !== "BrowserWindow") return;
   const options = argumentNode(node.arguments[0]);
   const collected = collectWindowOptions(context.source, options);
   context.accumulator.unknownFindings += collected.unknown;
@@ -62,7 +62,7 @@ const inspectBrowserWindow = (
   };
   addLocatedFinding(context, {
     collection: context.accumulator.browserWindows,
-    key: `electron-window\0${name}`,
+    key: "electron-window\0BrowserWindow",
     node,
     value: finding,
   });
@@ -165,13 +165,11 @@ const inspectContextBridge = (
   node: t.CallExpression,
   context: JavaScriptFindingContext,
 ): void => {
-  const name = electronCalleeName(node.callee, context);
-  const main =
-    name === "contextBridge.exposeInMainWorld" ||
-    name.endsWith(".contextBridge.exposeInMainWorld");
-  const isolated =
-    name === "contextBridge.exposeInIsolatedWorld" ||
-    name.endsWith(".contextBridge.exposeInIsolatedWorld");
+  const path = electronCalleePath(node.callee, context);
+  const exposureMethod =
+    path?.length === 2 && path[0] === "contextBridge" ? path[1] : undefined;
+  const main = exposureMethod === "exposeInMainWorld";
+  const isolated = exposureMethod === "exposeInIsolatedWorld";
   if (!main && !isolated) return;
   const keyNode = argumentNode(node.arguments[isolated ? 1 : 0]);
   const apiNode = argumentNode(node.arguments[isolated ? 2 : 1]);
@@ -213,8 +211,8 @@ const inspectUtilityProcess = (
   node: t.CallExpression,
   context: JavaScriptFindingContext,
 ): void => {
-  const name = electronCalleeName(node.callee, context);
-  if (name !== "utilityProcess.fork" && !name.endsWith(".utilityProcess.fork"))
+  const path = electronCalleePath(node.callee, context);
+  if (path?.length !== 2 || path[0] !== "utilityProcess" || path[1] !== "fork")
     return;
   const moduleNode = argumentNode(node.arguments[0]);
   const modulePath =

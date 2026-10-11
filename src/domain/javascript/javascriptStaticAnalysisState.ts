@@ -68,8 +68,8 @@ export interface JavaScriptFindingContext {
     | "local-indexed-db"
     | "local-cache-storage"
   >;
-  /** Electron export paths for renamed call roots, by identifier offset. */
-  readonly electronBindings?: ReadonlyMap<number, string>;
+  /** Proven Electron export path segments by root offset. */
+  readonly electronBindings?: ReadonlyMap<number, readonly string[]>;
 }
 
 /** Candidate import, require, worker, or service-worker reference. */

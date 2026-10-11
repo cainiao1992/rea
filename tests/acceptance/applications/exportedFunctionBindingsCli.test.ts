@@ -289,6 +289,113 @@ describe("CommonJS assignment-chain receiver identity through the CLI", () => {
   });
 });
 
+describe("CommonJS export identity and scope regressions", () => {
+  it("does not export a named write through the original exports alias after replacement", async () => {
+    const fixture = await analyzeVersions(
+      (count) =>
+        `const VERSION = ${String(count)};\nexports.parse = (module.exports = () => ({ count: VERSION }));`,
+      "parse",
+      "app.cjs",
+    );
+    for (const path of [fixture.leftPath, fixture.rightPath]) {
+      const value = requireFixture(path);
+      expect(typeof value).toBe("function");
+      expect(Reflect.ownKeys(value)).toEqual(["length", "name"]);
+    }
+    const cli = await compareThroughCli(fixture);
+    expect(cli).toMatchObject({
+      left: { status: "missing" },
+      right: { status: "missing" },
+      summary: { added: 0, removed: 0, changed: 0 },
+    });
+    expect(await compareThroughMcp(fixture.input)).toEqual(cli);
+  });
+
+  it("keeps a dead var shadow of the alias-chain RHS unavailable", async () => {
+    const fixture = await analyzeVersions(
+      (count) =>
+        `function parse() { return { count: ${String(count)} }; }\nfunction configure() { if (false) { var parse = () => ({ count: 7 }); } module.exports = exports = parse; }\nconfigure();`,
+      "default",
+      "app.cjs",
+    );
+    expect(requireFixture(fixture.leftPath)).toBeUndefined();
+    expect(requireFixture(fixture.rightPath)).toBeUndefined();
+    const cli = await compareThroughCli(fixture);
+    expectUncertainComparison(cli);
+    expect(await compareThroughMcp(fixture.input)).toEqual(cli);
+  });
+
+  it.each(["+=", "||=", "??="] as const)(
+    "does not treat module.exports %s as a definite function export",
+    async (operator) => {
+      const fixture = await analyzeVersions(
+        (count) =>
+          `module.exports ${operator} (() => ({ kind: "result", count: ${String(count)} }));`,
+        "default",
+        "app.cjs",
+      );
+      const left = requireFixture(fixture.leftPath);
+      const right = requireFixture(fixture.rightPath);
+      if (operator === "+=") {
+        expect(typeof left).toBe("string");
+        expect(typeof right).toBe("string");
+      } else {
+        expect(left).toEqual({});
+        expect(right).toEqual({});
+      }
+      const cli = await compareThroughCli(fixture);
+      expectUncertainComparison(cli);
+      expect(await compareThroughMcp(fixture.input)).toEqual(cli);
+    },
+  );
+
+  it("keeps a parameter-default mutation unknown in a CommonJS return shape", async () => {
+    const fixture = await analyzeVersions(
+      (count) =>
+        `const source = { value: 0 }; module.exports = exports = function current(arg = null, set = (arg = source)) { var arg; arg.value = ${String(count)}; return { kind: "result", count: source.value }; };`,
+      "default",
+      "app.cjs",
+    );
+    expect(requireFixture(fixture.leftPath)()).toEqual({
+      kind: "result",
+      count: 1,
+    });
+    expect(requireFixture(fixture.rightPath)()).toEqual({
+      kind: "result",
+      count: 2,
+    });
+    for (const evidence of [fixture.input.left, fixture.input.right]) {
+      const analysis = z
+        .object({
+          normalized_result: javascriptApplicationAnalysisResultSchema,
+        })
+        .parse(evidence).normalized_result;
+      const shapes = analysis.graph.nodes
+        .flatMap(({ observations }) => observations)
+        .find(
+          ({ properties }) =>
+            properties.semantic_role === "export-return-shapes" &&
+            properties.exported_name === "default",
+        )?.properties.static_return_shapes;
+      expect(shapes).toEqual([
+        expect.objectContaining({
+          fields: expect.arrayContaining([
+            expect.objectContaining({ path: "/count", state: "unknown" }),
+          ]),
+        }),
+      ]);
+    }
+    const cli = await compareThroughCli(fixture);
+    expect(cli).toMatchObject({
+      left: { status: "selected" },
+      right: { status: "selected" },
+      summary: { added: 0, removed: 0, changed: 0 },
+      changes: [],
+    });
+    expect(await compareThroughMcp(fixture.input)).toEqual(cli);
+  });
+});
+
 describe("stable exported function bindings through the CLI", () => {
   it.each([
     {

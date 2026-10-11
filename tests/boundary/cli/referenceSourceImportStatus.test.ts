@@ -80,7 +80,11 @@ describe("compiled reference-source import preflight failures", () => {
         const directory = await createTestTempDirectory(
           "rea-reference-cli-status-",
         );
-        const root = join(directory, "input");
+        // Exercise JSON escaping on POSIX too; Windows paths already need it.
+        const root = join(
+          directory,
+          process.platform === "win32" ? "input" : "input\\escaped",
+        );
         if (scenario.rootKind === "regular-file")
           await writeFile(root, "inert input\n");
         const result = await cli.run({

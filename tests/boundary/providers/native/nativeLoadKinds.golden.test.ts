@@ -4,20 +4,25 @@ import { NativeMacOSProvider } from "../../../../src/native/NativeMacOSProvider.
 import { parseOtoolLoadCommands } from "../../../../src/native/parsers/otool.js";
 import {
   NativeFixtureRunner,
+  nativeFixture,
   nativeMachoTarget,
+  withOtoolMachHeader,
 } from "../../../fixtures/nativeCommands.js";
 
 it("retains lazily loaded library dependencies", () => {
   const load = parseOtoolLoadCommands(
-    [
-      "Load command 9",
-      "      cmd LC_LAZY_LOAD_DYLIB",
-      "      name /usr/lib/libLazy.dylib (offset 24)",
-      "   time stamp 2 Thu Jan  1 00:00:02 1970",
-      "      current version 1.0.0",
-      "compatibility version 1.0.0",
-      "",
-    ].join("\n"),
+    withOtoolMachHeader(
+      [
+        "Load command 0",
+        "      cmd LC_LAZY_LOAD_DYLIB",
+        "      cmdsize 48",
+        "      name /usr/lib/libLazy.dylib (offset 24)",
+        "   time stamp 2 Thu Jan  1 00:00:02 1970",
+        "      current version 1.0.0",
+        "compatibility version 1.0.0",
+        "",
+      ].join("\n"),
+    ),
   );
   expect(load.dependencies).toContainEqual({
     path: "/usr/lib/libLazy.dylib",
@@ -29,15 +34,18 @@ it("retains lazily loaded library dependencies", () => {
 
 it("preserves dependency install names that begin with the word stamp", () => {
   const load = parseOtoolLoadCommands(
-    [
-      "Load command 2",
-      "          cmd LC_LOAD_DYLIB",
-      "          name stamp plugin.dylib (offset 24)",
-      "   time stamp 2 Thu Jan  1 00:00:02 1970",
-      "      current version 1.0.0",
-      "compatibility version 1.0.0",
-      "",
-    ].join("\n"),
+    withOtoolMachHeader(
+      [
+        "Load command 0",
+        "          cmd LC_LOAD_DYLIB",
+        "      cmdsize 48",
+        "          name stamp plugin.dylib (offset 24)",
+        "   time stamp 2 Thu Jan  1 00:00:02 1970",
+        "      current version 1.0.0",
+        "compatibility version 1.0.0",
+        "",
+      ].join("\n"),
+    ),
   );
   expect(load.dependencies).toContainEqual({
     path: "stamp plugin.dylib",
@@ -54,20 +62,25 @@ it("preserves dependency install names that begin with the word stamp", () => {
 
 it("normalizes legacy version-minimum commands into build metadata", () => {
   const load = parseOtoolLoadCommands(
-    [
-      "Load command 3",
-      "      cmd LC_VERSION_MIN_MACOSX",
-      "    version 10.13",
-      "        sdk 10.15",
-      "Load command 4",
-      "      cmd LC_VERSION_MIN_IPHONEOS",
-      "    version 12.0",
-      "        sdk 12.1",
-      "Load command 5",
-      "      cmd LC_SOURCE_VERSION",
-      "    version 1.2.3",
-      "",
-    ].join("\n"),
+    withOtoolMachHeader(
+      [
+        "Load command 0",
+        "      cmd LC_VERSION_MIN_MACOSX",
+        "  cmdsize 16",
+        "    version 10.13",
+        "        sdk 10.15",
+        "Load command 1",
+        "      cmd LC_VERSION_MIN_IPHONEOS",
+        "  cmdsize 16",
+        "    version 12.0",
+        "        sdk 12.1",
+        "Load command 2",
+        "      cmd LC_SOURCE_VERSION",
+        "  cmdsize 16",
+        "    version 1.2.3",
+        "",
+      ].join("\n"),
+    ),
   );
   expect(load.builds).toEqual([
     {
@@ -85,15 +98,30 @@ it("normalizes legacy version-minimum commands into build metadata", () => {
   ]);
 });
 
+it("does not classify LC_LOAD_DYLINKER as a dylib dependency", async () => {
+  const load = parseOtoolLoadCommands(
+    await nativeFixture("native-macho-header/otool-header-load.txt"),
+  );
+  expect(load.commands.some(({ kind }) => kind === "LC_LOAD_DYLINKER")).toBe(
+    true,
+  );
+  expect(load.dependencies.some(({ path }) => path === "/usr/lib/dyld")).toBe(
+    false,
+  );
+});
+
 it("limits thread-state entrypoints instead of reporting none silently", async () => {
   const runner = new NativeFixtureRunner({
-    "otool:-h": [
-      "Load command 0",
-      "      cmd LC_UNIXTHREAD",
-      "      flavor 1",
-      "      count 1",
-      "",
-    ].join("\n"),
+    "otool:-h": withOtoolMachHeader(
+      [
+        "Load command 0",
+        "      cmd LC_UNIXTHREAD",
+        "      cmdsize 16",
+        "      flavor 1",
+        "      count 1",
+        "",
+      ].join("\n"),
+    ),
   });
   const client = new NativeMacOSProvider({}, runner, "darwin").createClient(
     nativeMachoTarget("/owned/legacy-fixture"),

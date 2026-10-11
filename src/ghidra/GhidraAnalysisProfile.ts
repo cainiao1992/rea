@@ -67,6 +67,7 @@ export const resolveGhidraAnalysisProfile = (
         load_image_observations: "source-mappings-entry-context-v2",
         function_body_evidence: "complete-inclusive-ranges-v1",
         function_references: "complete-body-and-entry-reference-manager-v2",
+        string_inventory_evidence: "defined-data-coverage-v1",
         location_resolution: "explicit-address-exact-entry-symbol-first-v3",
         instruction_flow_evidence: "decoded-return-pcode-v1",
         process_launch:

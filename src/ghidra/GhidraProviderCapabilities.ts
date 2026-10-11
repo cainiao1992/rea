@@ -37,6 +37,12 @@ export const windowsP0Limitations = Object.freeze([
   "Windows sessions require the matching packaged Windows x64 native addon, local NTFS targets and runtimes, and Windows 10 or later. Native handles enforce path admission, private DACLs, and Job Object ownership automatically.",
 ]);
 
+const stringInventoryLimitation =
+  "Only Ghidra-defined string Data is observed; packed or undefined string bytes may be absent. Completeness applies to that inventory, and an empty search does not establish that text is absent from the artifact. If an address is known, use read_bytes and xrefs to inspect bytes and references.";
+
+const searchLimitation =
+  "Regex mode uses Java Pattern semantics. Matcher or compiler stack exhaustion returns a resource constraint without closing the session; literal mode avoids regex recursion and returns complete matching values.";
+
 /** Limitation text for one admitted operation, including the common base. */
 export const limitationsFor = (operation: string): readonly string[] => {
   const common = [
@@ -93,7 +99,8 @@ export const limitationsFor = (operation: string): readonly string[] => {
     case "list_strings":
       return [
         ...common,
-        "Only Ghidra-defined string Data is observed; charset is reported, while a non-missing terminator cannot distinguish a present terminator from a fixed or Pascal layout.",
+        stringInventoryLimitation,
+        "Charset is reported, while a non-missing terminator cannot distinguish a present terminator from a fixed or Pascal layout.",
       ];
     case "resolve_containing_procedure":
       return [
@@ -106,11 +113,9 @@ export const limitationsFor = (operation: string): readonly string[] => {
         "Memory-block end addresses are exclusive; permissions come from Ghidra MemoryBlock flags rather than inference from section names.",
       ];
     case "search_procedures":
+      return [...common, searchLimitation];
     case "search_strings":
-      return [
-        ...common,
-        "Regex mode uses Java Pattern semantics. Matcher or compiler stack exhaustion returns a resource constraint without closing the session; literal mode avoids regex recursion and returns complete matching values.",
-      ];
+      return [...common, stringInventoryLimitation, searchLimitation];
     case "procedure_pseudo_code":
       return [
         ...common,

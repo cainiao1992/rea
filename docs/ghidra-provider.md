@@ -29,8 +29,14 @@ not equivalence with another engine's pseudocode or analysis database.
 | Strings          | Only Ghidra-defined string `Data` is observed. Items report charset, byte length, and whether a required null terminator is missing. The API cannot distinguish a present terminator from fixed/Pascal layouts when no terminator is missing, so that state is named `present_or_not_required`. |
 | Memory           | Memory-block end addresses are exclusive. Read/write/execute, initialization, overlay, address space, and image base are direct Ghidra observations.                                                                                                                                            |
 | Inventory        | Procedure, symbol, and string listings plus searches return the complete matching collection in one response; callers do not provide offsets or result-count limits.                                                                                                                            |
-| Search           | Literal and Java-regex searches scan the complete immutable inventory and return all matching entries inline. Search waits for a reply or caller cancellation; there are no caller-supplied offsets or result-count limits.                                                                     |
+| Search           | Literal and Java-regex searches return every match in the immutable provider-defined inventory; string search does not cover every text sequence in artifact bytes. Search waits for a reply or caller cancellation; there are no caller-supplied offsets or result-count limits.               |
 | Analysis state   | The socket is exposed only after default auto-analysis completes. Established operations wait for their reply or caller cancellation; there is no fixed response-size ceiling.                                                                                                                  |
+
+String-search completeness applies only to Ghidra-defined string `Data`. Packed
+or undefined literals, including Rust strings, may be absent; an empty result
+does not prove text is absent. Both list and search Evidence carry this
+limitation. When an address is known, use `read_bytes` and `xrefs` to inspect
+bytes and references.
 
 ## Admitted function-analysis semantics
 

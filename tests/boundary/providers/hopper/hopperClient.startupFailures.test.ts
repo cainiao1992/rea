@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { access } from "node:fs/promises";
+import { createServer, type Server } from "node:net";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -119,6 +120,80 @@ class LateSilentLauncher implements BridgeLauncher {
   }
 }
 
+/**
+ * Bridge fixture whose health handshake returns an invalid payload, so
+ * parseHopperServerInfo rejects it with HopperProtocolError.
+ * Note: assumes the client's first bridge request is `health`; any
+ * auth/preamble request added before it would hit the -32601 branch.
+ */
+class BadHealthLauncher implements BridgeLauncher {
+  #server: Server | undefined;
+  #process: ChildProcess | undefined;
+
+  async launch(session: BridgeSession) {
+    const server = createServer((socket) => {
+      let buffer = "";
+      socket.setEncoding("utf8");
+      socket.on("data", (chunk: string) => {
+        buffer += chunk;
+        let newline = buffer.indexOf("\n");
+        while (newline >= 0) {
+          const line = buffer.slice(0, newline);
+          buffer = buffer.slice(newline + 1);
+          try {
+            const request = JSON.parse(line) as {
+              id: number;
+              method: string;
+            };
+            if (request.method === "health") {
+              socket.write(
+                `${JSON.stringify({ id: request.id, result: { bogus: true } })}\n`,
+              );
+            } else {
+              socket.write(
+                `${JSON.stringify({
+                  id: request.id,
+                  error: { code: -32601, message: "unknown method" },
+                })}\n`,
+              );
+            }
+          } catch {
+            // Ignore malformed input; the client only sends NDJSON.
+          }
+          newline = buffer.indexOf("\n");
+        }
+      });
+    });
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(session.socketPath, () => {
+        server.off("error", reject);
+        resolve();
+      });
+    });
+    this.#server = server;
+    const child = spawn(
+      process.execPath,
+      ["-e", "setInterval(() => {}, 1000)"],
+      {
+        stdio: "ignore",
+      },
+    );
+    this.#process = child;
+    return ok({
+      process: child,
+      ownsProcessLifetime: true as const,
+      providerLifetime: "launcher-process" as const,
+      shutdownMode: "process-cleanup" as const,
+      cleanup: async () => {
+        child.kill("SIGTERM");
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+        return { cleaned: true as const, signaled: true };
+      },
+    });
+  }
+}
+
 const clients: HopperClient[] = [];
 
 afterEach(async () => {
@@ -218,6 +293,38 @@ describe("HopperClient startup failures", () => {
       ok: true,
       value: { value: "retried" },
     });
+  });
+
+  it("records unknown when startup is cancelled before launch", async () => {
+    const launcher = new FixtureLauncher();
+    const client = new HopperClient({ launcher, startupTimeoutMs: 30_000 });
+    clients.push(client);
+    const controller = new AbortController();
+    controller.abort();
+
+    const result = await client.start(controller.signal);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error._tag).toBe("HopperCancelledError");
+    expect(launcher.processes).toHaveLength(0);
+    // A cancelled startup must not report idle: the same-target fast path
+    // would otherwise treat the client as live and skip the retire path.
+    expect(client.operationHealth()).toMatchObject({ state: "unknown" });
+  });
+
+  it("records unknown when the health handshake is invalid", async () => {
+    const launcher = new BadHealthLauncher();
+    const client = new HopperClient({ launcher, startupTimeoutMs: 30_000 });
+    clients.push(client);
+
+    const result = await client.start();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error._tag).toBe("HopperProtocolError");
+    // parseHopperServerInfo failures were never recorded, so operationHealth()
+    // reported idle and the fast path kept a client whose next start stays
+    // blocked by retained resources.
+    expect(client.operationHealth()).toMatchObject({ state: "unknown" });
   });
 
   it.each([70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80])(

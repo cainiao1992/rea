@@ -1,4 +1,5 @@
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
+import { crc32, deflateSync } from "node:zlib";
 import { parseEvidence } from "../../../src/domain/evidence.js";
 import { ok as resultOk } from "../../../src/domain/result.js";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
@@ -7,6 +8,7 @@ import { afterEach, expect, it } from "vitest";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { CdpBrowserProvider } from "../../../src/browser/CdpBrowserProvider.js";
 import { webPageInspectionSchema } from "../../../src/domain/browserObservationSchemas.js";
+import { createWebScreenshotArtifact } from "../../../src/domain/webScreenshot.js";
 import { JAVASCRIPT_RUNTIME_RECONCILIATION_EXAMPLE } from "../../../src/contracts/javascript/javascriptRuntimeReconciliationExample.js";
 import { TOOL_CONTRACTS } from "../../../src/contracts/toolContracts.js";
 import { createServer } from "../../../src/server/createServer.js";
@@ -262,11 +264,75 @@ const verifySessionAndComparisonTools = async (
   expect(visual.structuredContent).toMatchObject({
     normalized_result: { status: "identical", changed_pixels: 0 },
   });
+
+  await assertScreenshotPngFailures(connected.client);
   expect(inspected.structuredContent).toMatchObject({
     normalized_result: expect.any(Object),
     operation: "inspect_web_page",
     predicate_type: expect.any(String),
     parameters: expect.any(Object),
+  });
+};
+
+const pngChunk = (type: string, data: Buffer): Buffer => {
+  const chunk = Buffer.alloc(12 + data.length);
+  chunk.writeUInt32BE(data.length, 0);
+  chunk.write(type, 4, 4, "ascii");
+  data.copy(chunk, 8);
+  chunk.writeUInt32BE(
+    crc32(chunk.subarray(4, 8 + data.length)),
+    8 + data.length,
+  );
+  return chunk;
+};
+
+const assertScreenshotPngFailures = async (client: Client): Promise<void> => {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(1, 0);
+  header.writeUInt32BE(1, 4);
+  header.set([8, 2, 0, 0, 0], 8);
+  const malformedPng = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk("IHDR", header),
+    pngChunk("IDAT", Buffer.from("bad")),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
+  const malformedArtifact = createWebScreenshotArtifact(malformedPng);
+  const malformed = await client.callTool({
+    name: "compare_web_screenshots",
+    arguments: {
+      before: malformedArtifact,
+      after: malformedArtifact,
+    },
+  });
+  expect(parseMcpToolError(malformed)).toMatchObject({
+    error: {
+      code: "invalid_request",
+      category: "invalid_input",
+      details: {
+        operation: "compare_web_screenshots",
+        issues: [{ path: [], reason: "invalid_format" }],
+      },
+    },
+  });
+
+  const grayscaleHeader = Buffer.alloc(13);
+  grayscaleHeader.writeUInt32BE(1, 0);
+  grayscaleHeader.writeUInt32BE(1, 4);
+  grayscaleHeader.set([8, 0, 0, 0, 0], 8);
+  const unsupportedPng = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk("IHDR", grayscaleHeader),
+    pngChunk("IDAT", deflateSync(Buffer.from([0, 30]))),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
+  const unsupported = createWebScreenshotArtifact(unsupportedPng);
+  const rejectedFormat = await client.callTool({
+    name: "compare_web_screenshots",
+    arguments: { before: unsupported, after: unsupported },
+  });
+  expect(parseMcpToolError(rejectedFormat)).toMatchObject({
+    error: { code: "unsupported_target", category: "unsupported_target" },
   });
 };
 

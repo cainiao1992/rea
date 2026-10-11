@@ -311,15 +311,11 @@ jobs:
         run: npm run verify:inspector
 
   apple-artifacts:
-    name: Real Apple artifact CLI/MCP E2E (${{ matrix.group }})
+    name: Real Apple artifact CLI/MCP E2E
     needs: changes
     if: needs.changes.outputs.apple == 'true'
     runs-on: macos-15
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        group: [artifacts, native-regressions]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -328,7 +324,6 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Verify Apple artifact formats and metadata
-        if: matrix.group == 'artifacts'
         run: |
           npm run verify:keyed-archive
           npm run verify:asset-catalog
@@ -337,7 +332,6 @@ jobs:
           npm run verify:apple-dispatch
           npm run verify:interface-builder
       - name: Run native Apple and process boundary regressions
-        if: matrix.group == 'native-regressions'
         run: >-
           npm run test:focused --
           tests/boundary/filesystem/installScript.test.ts

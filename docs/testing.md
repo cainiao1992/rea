@@ -835,11 +835,10 @@ target-free analysis, configuration backups/recovery, Evidence and owned
 lifecycle; Inspector checks execute source-owned loopback targets and special
 filename cases.
 
-The Apple artifact CLI/MCP lane uses two macOS jobs: artifact-format and metadata
-verifiers run together in one group, while the existing focused native and
-process-boundary regressions run in the other. Both groups retain the same
-`macos-15` host and timeout; the process-boundary test group remains ordered
-within its Vitest run.
+The Apple artifact CLI/MCP lane uses one `macos-15` job to avoid adding demand
+for scarce macOS runner capacity. It runs the artifact-format and metadata
+verifiers, followed by one consolidated focused invocation containing all
+existing native and process-boundary regression paths.
 
 The Linux source-test shards download a shared runtime and generated test
 metadata snapshot produced by the build job with `npm run test:prepare`. The

@@ -2277,6 +2277,7 @@ msgctxt "page:faq/index.html"
 msgid "Which coding agents can use REA?"
 msgstr "ما هي عوامل الترميز التي يمكن استخدامها REA?"
 
+# Reviewed for readable instructions and accurate software terminology.
 #: website/public/faq/index.html:234
 msgctxt "page:faq/index.html"
 msgid ""
@@ -2285,10 +2286,10 @@ msgid ""
 "Antigravity, GitHub Copilot CLI, Command Code, Grok Build, OMP, and VS Code."
 " Grok Bot's connector is added from its chat."
 msgstr ""
-"أي وكيل يدعم المحلية MCP الخوادم. يتضمن الإعداد Claude Code, Claude سطح "
-"المكتب, Codex, Cursor, Gemini CLI, Windsurf, Devin, OpenCode, Antigravity, "
-"GitHub Copilot CLI, Command Code, Grok Build, OMP، و VS Code. يضاف موصل غروك"
-" بوت من الدردشة لها."
+"يمكنك استخدام أي مساعد يدعم خوادم MCP المحلية. يشمل الإعداد Claude Code "
+"وClaude Desktop وCodex وCursor وGemini CLI وWindsurf وDevin وOpenCode "
+"وAntigravity وGitHub Copilot CLI وCommand Code وGrok Build وOMP وVS Code. "
+"تُضاف وصلة Grok Bot من محادثته."
 
 #. {ph0}: <a href="../get-started/#agent">
 #. {ph1}: </a>
@@ -2317,6 +2318,7 @@ msgctxt "page:faq/index.html"
 msgid "Terminal · installed CLI"
 msgstr "المحطة الطرفية * مثبتة CLI"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <code>npx</code>
 #: website/public/faq/index.html:265
 #, python-brace-format
@@ -2325,8 +2327,8 @@ msgid ""
 "Follow the setup refresh command printed by the update. If you set up your "
 "agent through {ph0}, run:"
 msgstr ""
-"اتبع أمر تحديث الإعداد المطبوع بواسطة التحديث. إذا قمت بإعداد وكيلك من خلال "
-"{ph0}, يركض:"
+"اتبع أمر تحديث الإعداد الذي يظهر بعد التحديث. إذا أعددت مساعدك باستخدام "
+"{ph0}، فنفّذ:"
 
 #: website/public/faq/index.html:271
 msgctxt "page:faq/index.html"
@@ -2352,6 +2354,7 @@ msgctxt "page:faq/index.html"
 msgid "Is installing the skill from skills.sh enough?"
 msgstr "يتم تثبيت المهارة من skills.sh كفى?"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="#install">
 #. {ph1}: </a>
 #: website/public/faq/index.html:294
@@ -2362,9 +2365,8 @@ msgid ""
 "setup{ph1} to connect the MCP server and install the matching skill, then "
 "restart your agent so it can call the tools."
 msgstr ""
-"مهارة يعطي تعليمات التحقيق وكيلك. تشغيل {ph0}REA الإعداد{ph1} لتوصيل MCP "
-"الخادم وتثبيت مهارة المطابقة ، ثم أعد تشغيل وكيلك حتى يتمكن من استدعاء "
-"الأدوات."
+"تزوّد المهارة مساعدك بتعليمات التحليل. شغّل {ph0}إعداد REA{ph1} لتوصيل خادم "
+"MCP وتثبيت المهارة المناسبة، ثم أعد تشغيل مساعدك ليتمكّن من استخدام الأدوات."
 
 #: website/public/faq/index.html:305
 msgctxt "page:faq/index.html"
@@ -2381,6 +2383,7 @@ msgctxt "page:faq/index.html"
 msgid "Start with the kind of software you have:"
 msgstr "تبدأ مع هذا النوع من البرامج لديك:"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../guides/native/" >
 #. {ph1}: </a >
 #: website/public/faq/index.html:311
@@ -2390,8 +2393,8 @@ msgid ""
 "{ph0}Native executables and libraries{ph1}: functions, assembly, pseudocode "
 "and references."
 msgstr ""
-"{ph0}الملفات التنفيذية والمكتبات الأصلية{ph1}: وظائف ، والتجمع ، بسيودوكود "
-"والمراجع."
+"{ph0}الملفات التنفيذية والمكتبات الأصلية{ph1}: الدوال وتعليمات التجميع "
+"والكود شبه البرمجي والمراجع."
 
 #. {ph0}: <a href="../guides/javascript/" >
 #. {ph1}: </a >
@@ -2414,6 +2417,7 @@ msgid "{ph0}Browser pages{ph1}: scripts, requests and runtime observations."
 msgstr ""
 "{ph0}صفحات المتصفح{ph1}: البرامج النصية والطلبات وملاحظات وقت التشغيل."
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../showcase/">
 #. {ph1}: </a>
 #: website/public/faq/index.html:326
@@ -2424,23 +2428,27 @@ msgid ""
 "packaged resources. {ph0}See the case studies{ph1} for worked "
 "investigations."
 msgstr ""
-"REA لديها أيضا سير العمل للجمعيات المدارة ، أبكس الروبوت ، الثابتة والموارد "
-"تعبئتها. {ph0}انظر دراسات الحالة{ph1} لتحقيقات عملت."
+"يدعم REA أيضًا تحليل تجميعات .NET وغيرها من التجميعات المُدارة وملفات "
+"Android APK والبرامج الثابتة والموارد المعبأة. تعرض {ph0}دراسات الحالة{ph1} "
+"أمثلة عملية."
 
 #: website/public/faq/index.html:334
 msgctxt "page:faq/index.html"
 msgid "Do I need Hopper, Ghidra or IDA?"
 msgstr "هل أحتاج Hopper, Ghidra أو IDA?"
 
+# Reviewed for readable instructions and accurate software terminology.
 #: website/public/faq/index.html:335
 msgctxt "page:faq/index.html"
 msgid ""
 "Deep native analysis uses one of them. Static JavaScript and .NET inspection"
 " work with the supplied files and do not need a native analysis engine."
 msgstr ""
-"يستخدم التحليل الأصلي العميق واحد منهم. ثابت JavaScript والعمل التفتيش "
-"الصافي مع الملفات الموردة ولا تحتاج إلى محرك تحليل الأصلي."
+"يستخدم التحليل المتعمّق للبرامج الأصلية إحدى هذه الأدوات. أما الفحص الثابت "
+"لـ JavaScript و.NET فيعمل على الملفات المقدّمة ولا يحتاج إلى محرك تحليل "
+"أصلي."
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../get-started/#native">
 #. {ph1}: </a>
 #: website/public/faq/index.html:340
@@ -2451,29 +2459,31 @@ msgid ""
 " and propose an installation. Your host and target determine which provider "
 "can be used. {ph0}Set up native analysis{ph1}."
 msgstr ""
-"ربط الموجودة لديك Ghidra أو IDA التثبيت ، أو السماح الإعداد كشف Hopper "
-"واقتراح التثبيت. يحدد مضيفك وهدفك المزود الذي يمكن استخدامه. {ph0}إعداد "
-"التحليل الأصلي{ph1}."
+"وصّل تثبيت Ghidra أو IDA الموجود لديك، أو دع الإعداد يكتشف Hopper ويقترح "
+"تثبيته. تعتمد الأداة المتاحة على نظام التشغيل والهدف. {ph0}إعداد التحليل "
+"الأصلي{ph1}."
 
 #: website/public/faq/index.html:348
 msgctxt "page:faq/index.html"
 msgid "Can I use REA without a coding agent?"
 msgstr "هل يمكنني استخدام REA بدون المساعد البرمجي?"
 
+# Reviewed for readable instructions and accurate software terminology.
 #: website/public/faq/index.html:349
 msgctxt "page:faq/index.html"
 msgid ""
 "Yes. The CLI uses the same analysis workflows. For a local JavaScript or "
 "Electron app:"
 msgstr ""
-"نعم. ال CLI يستخدم نفس مهام سير العمل التحليل. على المستوى المحلي JavaScript"
-" أو Electron التطبيق:"
+"نعم. تستخدم CLI عمليات التحليل نفسها. لتحليل تطبيق JavaScript أو Electron "
+"محلي:"
 
 #: website/public/faq/index.html:355
 msgctxt "page:faq/index.html"
 msgid "Terminal · static application analysis"
 msgstr "محطة * تحليل التطبيق الثابت"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../get-started/#terminal">
 #. {ph1}: </a>
 #: website/public/faq/index.html:368
@@ -2483,8 +2493,8 @@ msgid ""
 "Replace the path with an extracted application folder or ASAR file. {ph0}Use"
 " the CLI{ph1} for installation options."
 msgstr ""
-"استبدل المسار بمجلد تطبيق مستخرج أو ASAR ملف. {ph0}استخدام CLI{ph1} لخيارات "
-"التثبيت."
+"استبدل المسار بمجلد التطبيق المستخرج أو ملف ASAR. راجع {ph0}استخدام CLI{ph1}"
+" لخيارات التثبيت."
 
 # Reviewed for readable setup and analysis terminology.
 #: website/public/faq/index.html:375
@@ -2504,6 +2514,7 @@ msgstr ""
 "الدوال والمراجع والثوابت ذات الصلة. ويعيد تحليل JavaScript الوحدات والعلاقات"
 " بينها ومواقعها في الكود المصدري."
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../showcase/dx-ball/#sound-pan" >
 #. {ph1}: </a >
 #. {ph2}: <a href="../showcase/ctf/">
@@ -2516,21 +2527,23 @@ msgid ""
 "implementation. The {ph0}DX-Ball calculation{ph1} and {ph2}CTF flag "
 "checker{ph3} show how that process works."
 msgstr ""
-"يستخدم وكيلك هذه النتائج لشرح السلوك أو كتابة واختبار التنفيذ. ال {ph0}DX-"
-"Ball الحساب{ph1} و {ph2}مدقق العلم كتف{ph3} أظهر كيف تعمل هذه العملية."
+"يستخدم مساعدك النتائج لشرح السلوك أو كتابة تنفيذ واختباره. توضح {ph0}حسابات "
+"DX-Ball{ph1} و{ph2}أداة التحقق من flag في CTF{ph3} هذه العملية."
 
 #: website/public/faq/index.html:392
 msgctxt "page:faq/index.html"
 msgid "What should I ask my agent?"
 msgstr "ماذا أسأل مساعدي؟"
 
+# Reviewed for readable instructions and accurate software terminology.
 #: website/public/faq/index.html:393
 msgctxt "page:faq/index.html"
 msgid ""
 "Give it a local target and one behavior to investigate. For a JavaScript or "
 "Electron app:"
 msgstr ""
-"إعطائها هدفا محليا وسلوك واحد للتحقيق. ل JavaScript أو Electron التطبيق:"
+"أعطه هدفًا محليًا وسلوكًا واحدًا تريد فهمه. مثال لتطبيق JavaScript أو "
+"Electron:"
 
 #. {ph0}: <span class="terminal-dots" aria-hidden="true" >
 #. {ph1}: <i>
@@ -2546,6 +2559,7 @@ msgctxt "page:faq/index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
 msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}مساعدك البرمجي"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../guides/">
 #. {ph1}: </a>
 #: website/public/faq/index.html:422
@@ -2555,8 +2569,8 @@ msgid ""
 "Replace the path with your target. The {ph0}guides{ph1} provide prompts for "
 "native, Electron and browser examples."
 msgstr ""
-"استبدال المسار مع الهدف الخاص بك. ال {ph0}أدلة{ph1} تقديم مطالبات للأصل, "
-"Electron وأمثلة المتصفح."
+"استبدل المسار بهدفك. تحتوي {ph0}الأدلة{ph1} على طلبات نموذجية للبرامج "
+"الأصلية وElectron والمتصفح."
 
 #: website/public/faq/index.html:432
 msgctxt "page:faq/index.html"
@@ -2568,6 +2582,7 @@ msgctxt "page:faq/index.html"
 msgid "Why can't my agent see the REA tools?"
 msgstr "لماذا لا يستطيع وكيل أعمالي رؤية REA أدوات?"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <code>doctor</code>
 #: website/public/faq/index.html:436
 #, python-brace-format
@@ -2576,14 +2591,15 @@ msgid ""
 "Restart or reconnect your agent after setup. Check its REA registration with"
 " {ph0}; for Codex:"
 msgstr ""
-"أعد تشغيل الوكيل أو أعد توصيله بعد الإعداد. تحقق لها REA التسجيل مع {ph0}؛ "
-"إلى عن على Codex:"
+"أعد تشغيل مساعدك أو اتصاله بعد الإعداد. افحص تسجيل REA باستخدام {ph0}؛ مثال "
+"لـ Codex:"
 
 #: website/public/faq/index.html:442
 msgctxt "page:faq/index.html"
 msgid "Terminal · check one client"
 msgstr "محطة * تحقق عميل واحد"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <code>codex</code>
 #. {ph1}: <code>claude_code</code>
 #. {ph2}: <code>cursor</code>
@@ -2594,14 +2610,15 @@ msgid ""
 "Replace {ph0} with your client ID, such as {ph1} or {ph2}. If the report "
 "shows a missing or stale registration, run setup for that client:"
 msgstr ""
-"استبدال {ph0} مع معرف العميل الخاص بك ، مثل {ph1} أو {ph2}. إذا أظهر التقرير"
-" تسجيلا مفقودا أو قديما ، فقم بتشغيل الإعداد لهذا العميل:"
+"استبدل {ph0} بمعرّف العميل، مثل {ph1} أو {ph2}. إذا أظهر التقرير تسجيلًا "
+"مفقودًا أو قديمًا، فأعد الإعداد لذلك العميل:"
 
 #: website/public/faq/index.html:462
 msgctxt "page:faq/index.html"
 msgid "Terminal · repair one client's setup"
 msgstr "محطة * إصلاح إعداد عميل واحد"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../get-started/#help">
 #. {ph1}: </a>
 #: website/public/faq/index.html:474
@@ -2612,15 +2629,15 @@ msgid ""
 " remain absent, check the client's MCP connection error. {ph0}More setup "
 "diagnostics{ph1}."
 msgstr ""
-"مراجعة خطتها وإعادة تشغيل العميل. إذا كان التسجيل صحيا ولكن الأدوات لا تزال "
-"غائبة ، فتحقق من العميل MCP خطأ في الاتصال. {ph0}المزيد من تشخيصات "
-"الإعداد{ph1}."
+"راجع الخطة وأعد تشغيل العميل. إذا كان التسجيل سليمًا لكن الأدوات لا تظهر، "
+"فافحص خطأ اتصال MCP لدى العميل. {ph0}تشخيصات إعداد إضافية{ph1}."
 
 #: website/public/faq/index.html:482
 msgctxt "page:faq/index.html"
 msgid "Do I need to start Hopper first?"
 msgstr "هل أحتاج إلى البدء Hopper أولا?"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../get-started/#native">
 #. {ph1}: </a >
 #: website/public/faq/index.html:483
@@ -2631,15 +2648,16 @@ msgid ""
 "run choice of demo mode or license activation before unattended analysis. "
 "{ph0}See native provider setup{ph1}."
 msgstr ""
-"REA يبدأ Hopper عندما تحتاج العملية إلى ذلك. على macOS، أكمل اختيار التشغيل "
-"الأول للوضع التجريبي أو تنشيط الترخيص قبل التحليل غير المراقب. {ph0}راجع "
-"إعداد الموفر الأصلي{ph1}."
+"يشغّل REA برنامج Hopper عندما تتطلّبه العملية. على macOS، اختر الوضع "
+"التجريبي أو فعّل الترخيص في شاشة التشغيل الأول قبل بدء التحليل دون تدخل. "
+"{ph0}إعداد أدوات التحليل الأصلية{ph1}."
 
 #: website/public/faq/index.html:492
 msgctxt "page:faq/index.html"
 msgid "What should I do if I hit a bug?"
 msgstr "ماذا أفعل إذا واجهت خطأ؟"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="#update">
 #. {ph1}: </a>
 #: website/public/faq/index.html:493
@@ -2649,9 +2667,10 @@ msgid ""
 "{ph0}Update REA{ph1}, restart your agent and retry the same task. A recent "
 "release may already fix the problem."
 msgstr ""
-"{ph0}تحديث REA{ph1}، أعد تشغيل وكيلك وأعد محاولة نفس المهمة. قد يؤدي الإصدار"
-" الأخير إلى حل المشكلة بالفعل."
+"{ph0}حدّث REA{ph1} وأعد تشغيل مساعدك، ثم جرّب المهمة نفسها. قد يكون الإصدار "
+"الأخير قد أصلح المشكلة بالفعل."
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="https://github.com/morluto/rea/issues/new/choose" >
 #. {ph1}: </a >
 #: website/public/faq/index.html:497
@@ -2662,9 +2681,9 @@ msgid ""
 "system, target type, steps to reproduce and error output. Include the "
 "provider name when the problem involves native analysis."
 msgstr ""
-"إذا استمرت, {ph0}افتح مشكلة{ph1} مع الخاص بك REA الإصدار ونظام التشغيل ونوع "
-"الهدف وخطوات إعادة الإنتاج وإخراج الخطأ. قم بتضمين اسم الموفر عندما تتضمن "
-"المشكلة تحليلا أصليا."
+"إذا استمرت المشكلة، {ph0}افتح issue{ph1} واذكر إصدار REA ونظام التشغيل ونوع "
+"الهدف وخطوات إعادة إنتاج المشكلة ومخرجات الخطأ. أضف اسم أداة التحليل إذا "
+"كانت المشكلة تتعلق بالتحليل الأصلي."
 
 #: website/public/faq/index.html:511
 msgctxt "page:faq/index.html"
@@ -2676,20 +2695,22 @@ msgctxt "page:faq/index.html"
 msgid "Does REA upload my app?"
 msgstr "هل REA تحميل تطبيقي?"
 
+# Reviewed for readable instructions and accurate software terminology.
 #: website/public/faq/index.html:515
 msgctxt "page:faq/index.html"
 msgid ""
 "REA analyzes targets on your machine. Your agent receives the results, and "
 "its model provider's data policy applies to those results."
 msgstr ""
-"REA يحلل الأهداف على جهازك. يتلقى وكيلك النتائج ، وتنطبق سياسة بيانات موفر "
-"النموذج الخاص به على تلك النتائج."
+"يحلّل REA الأهداف على جهازك. يستقبل مساعدك النتائج، وتخضع هذه النتائج لسياسة"
+" البيانات الخاصة بمزوّد نموذجه."
 
 #: website/public/faq/index.html:522
 msgctxt "page:faq/index.html"
 msgid "How can I share an example or contribute?"
 msgstr "كيف يمكنني مشاركة مثال أو المساهمة?"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="https://github.com/morluto/rea/issues/new/choose" >
 #. {ph1}: </a >
 #. {ph2}: <a href="https://github.com/morluto/rea/pulls">
@@ -2703,10 +2724,11 @@ msgid ""
 "{ph2}pull request{ph3}. Short code excerpts and figures help others follow "
 "the investigation."
 msgstr ""
-"لديك مفيدة REA مثال? كنا نحب أن نرى ذلك. مشاركة الهدف ، سؤالك ، والنتائج "
-"وكيف يمكنك التحقق منها في {ph0}القضية{ph1} أو {ph2}طلب سحب{ph3}. تساعد "
-"مقتطفات وأرقام التعليمات البرمجية القصيرة الآخرين على متابعة التحقيق."
+"هل لديك مثال مفيد باستخدام REA؟ يسعدنا رؤيته. شارك الهدف وسؤالك والنتائج "
+"وطريقة التحقق منها في {ph0}issue{ph1} أو {ph2}pull request{ph3}. تساعد مقاطع"
+" الكود القصيرة والرسوم الآخرين على متابعة التحليل."
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="https://discord.gg/GkcryMnJDM">
 #. {ph1}: </a>
 #: website/public/faq/index.html:535
@@ -2716,22 +2738,23 @@ msgid ""
 "Bug reports, feature requests, documentation and code improvements are "
 "welcome too. You can also discuss an example in the {ph0}community{ph1}."
 msgstr ""
-"نرحب أيضا بتقارير الأخطاء وطلبات الميزات والتوثيق وتحسينات التعليمات "
-"البرمجية. يمكنك أيضا مناقشة مثال في {ph0}المجتمع{ph1}."
+"نرحب أيضًا بتقارير الأخطاء وطلبات الميزات وتحسينات الكود والوثائق. يمكنك "
+"مناقشة المثال في {ph0}المجتمع{ph1}."
 
 #: website/public/faq/index.html:6
 msgctxt "page:faq/index.html"
 msgid "REA FAQ: Setup, Updates and Troubleshooting"
 msgstr "REA التعليمات: الإعداد والتحديثات واستكشاف الأخطاء وإصلاحها"
 
+# Reviewed for readable instructions and accurate software terminology.
 #: website/public/faq/index.html:7
 msgctxt "page:faq/index.html"
 msgid ""
 "Answers to common REA questions: installation, updates, analysis tools, "
 "coding agents, troubleshooting and sharing examples."
 msgstr ""
-"إجابات مشتركة REA الأسئلة: التثبيت والتحديثات وأدوات التحليل وعوامل الترميز "
-"واستكشاف الأخطاء وإصلاحها ومشاركة الأمثلة."
+"إجابات عن أسئلة REA الشائعة: التثبيت والتحديث وأدوات التحليل والمساعدون "
+"البرمجيون وحل المشكلات ومشاركة الأمثلة."
 
 #: website/public/faq/index.html:186
 msgctxt "page:faq/index.html"
@@ -2992,8 +3015,8 @@ msgid ""
 "The file path, formatter and write call are together in this handler. Ask "
 "your agent to show these lines if its answer leaves them out."
 msgstr ""
-"مسار الملف ، المنسق وكتابة المكالمة معا في هذا المعالج. اطلب من وكيلك إظهار "
-"هذه السطور إذا كانت إجابته تتركها."
+"مسار الملف ، المنسق وكتابة الاستدعاء دالة معا في هذا المعالج. اطلب من وكيلك "
+"إظهار هذه السطور إذا كانت إجابته تتركها."
 
 #. {ph0}: <a href="../guides/javascript/#follow" >
 #. {ph1}: </a >
@@ -4716,8 +4739,8 @@ msgid ""
 "Start with a Windows game executable. Inspect instructions, follow a caller,"
 " read numeric constants and check the recovered C."
 msgstr ""
-"تبدأ مع Windows لعبة قابلة للتنفيذ. فحص التعليمات ، اتبع المتصل ، وقراءة "
-"الثوابت الرقمية والتحقق من ج المستردة."
+"تبدأ مع Windows لعبة قابلة للتنفيذ. فحص التعليمات ، اتبع الدالة المستدعية ، "
+"وقراءة الثوابت الرقمية والتحقق من ج المستردة."
 
 #: website/public/guides/index.html:211
 msgctxt "page:guides/index.html"
@@ -5349,7 +5372,8 @@ msgid ""
 " way to investigate the missing arithmetic."
 msgstr ""
 "وظيفة البداية, {ph0}، له نتيجة قصيرة لمفك التحويل: دعوة إلى {ph1}. REA كما "
-"يعود تعليماته والمتصلين ، والتي تعطي وكيل وسيلة للتحقيق في الحساب المفقود."
+"يعود تعليماته والدوال المستدعية ، والتي تعطي وكيل وسيلة للتحقيق في الحساب "
+"المفقود."
 
 #: website/public/guides/native/index.html:215
 msgctxt "page:guides/native/index.html"
@@ -5392,7 +5416,8 @@ msgid ""
 "{ph0}Caller:{ph1} a function that calls this one. It shows which values are "
 "passed in."
 msgstr ""
-"{ph0}المتصل:{ph1} وظيفة تستدعي هذا. فإنه يدل على القيم التي يتم تمريرها في."
+"{ph0}الدالة المستدعية:{ph1} وظيفة تستدعي هذا. فإنه يدل على القيم التي يتم "
+"تمريرها في."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -5453,8 +5478,8 @@ msgid ""
 "{ph0}02 · Caller{ph1}{ph2}A screen coordinate{ph3}{ph4}The brick-hit caller "
 "passes {ph5}.{ph6}"
 msgstr ""
-"{ph0}02 * المتصل{ph1}{ph2}تنسيق الشاشة{ph3}{ph4}وظيفة ضرب الطوب التي تستدعي "
-"هذه الوظيفة تمر {ph5}.{ph6}"
+"{ph0}02 * الدالة المستدعية{ph1}{ph2}تنسيق الشاشة{ph3}{ph4}وظيفة ضرب الطوب "
+"التي تستدعي هذه الوظيفة تمر {ph5}.{ph6}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
@@ -5667,7 +5692,7 @@ msgstr ""
 #: website/public/guides/native/index.html:382
 msgctxt "page:guides/native/index.html"
 msgid "Follow the caller"
-msgstr "اتبع المتصل"
+msgstr "اتبع الدالة المستدعية"
 
 #. {ph0}: <code>0x14</code>
 #: website/public/guides/native/index.html:391
@@ -5677,8 +5702,8 @@ msgid ""
 "REA identifies the brick-hit caller. Its earlier instructions multiply the "
 "tile coordinate by 30; adding {ph0} (20) gives the brick's screen position."
 msgstr ""
-"REA يحدد المتصل ضرب الطوب. تعليماته السابقة تضاعف إحداثيات البلاط في 30 ؛ "
-"مضيفا {ph0} (20) يعطي موقف شاشة الطوب."
+"REA يحدد الدالة المستدعية ضرب الطوب. تعليماته السابقة تضاعف إحداثيات البلاط "
+"في 30 ؛ مضيفا {ph0} (20) يعطي موقف شاشة الطوب."
 
 #: website/public/guides/native/index.html:396
 msgctxt "page:guides/native/index.html"
@@ -5782,7 +5807,7 @@ msgid ""
 "leaves a call or value unresolved, use that location as the next question."
 msgstr ""
 "اقرأ الكود الكاذب جنبا إلى جنب مع التعليمات والمراجع. عندما تترك نتيجة "
-"مكالمة أو قيمة دون حل ، استخدم هذا الموقع كسؤال تالي."
+"استدعاء دالة أو قيمة دون حل ، استخدم هذا الموقع كسؤال تالي."
 
 #: website/public/guides/native/index.html:6
 msgctxt "page:guides/native/index.html"
@@ -5795,8 +5820,8 @@ msgid ""
 "Recover a native calculation with REA: inspect instructions, follow a "
 "caller, read constants and check reconstructed C."
 msgstr ""
-"استعادة حساب الأصلي مع REA: فحص التعليمات ، اتبع المتصل ، وقراءة الثوابت "
-"والتحقق من إعادة بنائها ج."
+"استعادة حساب الأصلي مع REA: فحص التعليمات ، اتبع الدالة المستدعية ، وقراءة "
+"الثوابت والتحقق من إعادة بنائها ج."
 
 #: website/public/guides/native/index.html:191
 msgctxt "page:guides/native/index.html"
@@ -7045,7 +7070,7 @@ msgid ""
 "in an Android APK, then rebuild it with a clock you can control."
 msgstr ""
 "يتغير الرمز المكون من ستة أرقام كل 30 ثانية. استخدام REA للعثور على الحساب "
-"في الروبوت APK، ثم إعادة بنائه مع ساعة يمكنك التحكم."
+"في Android APK، ثم إعادة بنائه مع ساعة يمكنك التحكم."
 
 #: website/public/showcase/aegis/index.html:192
 msgctxt "page:showcase/aegis/index.html"
@@ -7206,6 +7231,7 @@ msgctxt "page:showcase/aegis/index.html"
 msgid "Copy"
 msgstr "نسخ"
 
+# Reviewed for concrete meaning, software terminology and readable sentences.
 #. {ph0}: <a href="#try">
 #. {ph1}: </a>
 #: website/public/showcase/aegis/index.html:276
@@ -7215,14 +7241,15 @@ msgid ""
 "An example prompt for the downloaded APK, with REA's Android analysis "
 "configured. {ph0}Get the APK and analysis setup ↓{ph1}"
 msgstr ""
-"مثال موجه للتحميل APK، مع REAالصورة تحليل الروبوت تكوينها. {ph0}الحصول على "
-"APK وإعداد التحليل ↓{ph1}"
+"هذا طلب نموذجي لتحليل ملف APK الذي نزّلته. اضبط تحليل Android في REA أولًا. "
+"{ph0}تنزيل APK وإعداد التحليل ↓{ph1}"
 
 #: website/public/showcase/aegis/index.html:284
 msgctxt "page:showcase/aegis/index.html"
 msgid "Try the code generator"
 msgstr "جرب مولد الكود"
 
+# Reviewed for concrete meaning, software terminology and readable sentences.
 #. {ph0}: <mark class="prose-highlight">
 #. {ph1}: </mark>
 #: website/public/showcase/aegis/index.html:285
@@ -7233,8 +7260,8 @@ msgid ""
 "number with the account key to generate a code. The same key and block "
 "produce the same code."
 msgstr ""
-"يقوم التطبيق بتجميع الوقت في {ph0}كتل 30 ثانية.{ph1} فهو يجمع بين رقم الكتلة"
-" ومفتاح الحساب لإنشاء رمز. نفس المفتاح وكتلة تنتج نفس الرمز."
+"يقسّم التطبيق الوقت إلى {ph0}فترات من 30 ثانية.{ph1} يجمع رقم الفترة مع "
+"مفتاح الحساب لإنشاء الرمز. يعطي المفتاح نفسه والفترة نفسها الرمز نفسه."
 
 #: website/public/showcase/aegis/index.html:292
 msgctxt "page:showcase/aegis/index.html"
@@ -7373,8 +7400,8 @@ msgid ""
 "REA identifies the timestamp overload and finds the base method's callers. "
 "Inspecting {ph0} then shows the display calling {ph1}."
 msgstr ""
-"REA يحدد الحمل الزائد للطابع الزمني ويجد المتصلين بالطريقة الأساسية. التفتيش"
-" {ph0} ثم يظهر استدعاء العرض {ph1}."
+"REA يحدد الحمل الزائد للطابع الزمني ويجد الدوال المستدعية بالطريقة الأساسية."
+" التفتيش {ph0} ثم يظهر استدعاء العرض {ph1}."
 
 #. {ph0}: <code>com.beemdevelopment.aegis</code>
 #: website/public/showcase/aegis/index.html:451
@@ -7496,8 +7523,8 @@ msgid ""
 "The released APK puts {ph0} in {ph1}. REA follows the call from {ph2} and "
 "returns this body; the original source calls the helper {ph3}."
 msgstr ""
-"المفرج عنهم APK يضع {ph0} في {ph1}. REA يتبع المكالمة من {ph2} ويعيد هذا "
-"الجسم ؛ المصدر الأصلي يدعو المساعد {ph3}."
+"المفرج عنهم APK يضع {ph0} في {ph1}. REA يتبع الاستدعاء دالة من {ph2} ويعيد "
+"هذا الجسم ؛ المصدر الأصلي يدعو المساعد {ph3}."
 
 #: website/public/showcase/aegis/index.html:601
 msgctxt "page:showcase/aegis/index.html"
@@ -7597,7 +7624,7 @@ msgid ""
 "Verification runs extracted Java methods and the new demo. The Android APK "
 "was inspected statically."
 msgstr ""
-"يعمل التحقق استخراج أساليب جافا والتجريبي الجديد. الروبوت APK تم تفتيشه بشكل"
+"يعمل التحقق استخراج أساليب جافا والتجريبي الجديد. Android APK تم تفتيشه بشكل"
 " ثابت."
 
 #: website/public/showcase/aegis/index.html:693
@@ -7626,7 +7653,7 @@ msgid ""
 "Android analysis needs a full JDK 17 or later. Select it with {ph0} or "
 "{ph1}. This case used JDK 21."
 msgstr ""
-"تحليل الروبوت يحتاج جدك الكامل 17 أو في وقت لاحق. حدده مع {ph0} أو {ph1}. "
+"تحليل Android يحتاج جدك الكامل 17 أو في وقت لاحق. حدده مع {ph0} أو {ph1}. "
 "هذه الحالة تستخدم جدك 21."
 
 #: website/public/showcase/aegis/index.html:715
@@ -8500,14 +8527,15 @@ msgctxt "page:showcase/dx-ball/index.html"
 msgid "Rebuilding DX-Ball{ph0}from its executable."
 msgstr "إعادة البناء DX-Ball{ph0}من قابل للتنفيذ."
 
+# Reviewed for concrete meaning, software terminology and readable sentences.
 #: website/public/showcase/dx-ball/index.html:186
 msgctxt "page:showcase/dx-ball/index.html"
 msgid ""
 "The goal is a maintainable C version of the 1996 Windows game. REA helps the"
 " agent inspect the original, one function at a time."
 msgstr ""
-"الهدف هو نسخة ج قابلة للصيانة من 1996 Windows لعبة. REA يساعد الوكيل على فحص"
-" الأصل ، وظيفة واحدة في كل مرة."
+"الهدف هو إعادة بناء لعبة Windows الصادرة عام 1996 بكود C يمكن صيانته. يساعد "
+"REA المساعد البرمجي على فحص دوال البرنامج الأصلي، دالة بعد أخرى."
 
 #: website/public/showcase/dx-ball/index.html:190
 msgctxt "page:showcase/dx-ball/index.html"
@@ -8524,8 +8552,9 @@ msgid ""
 "callers and data reads; the reconstruction project implements and tests the "
 "result. {ph0}Open figure{ph1}"
 msgstr ""
-"وظيفة واحدة ، من قابل للتنفيذ لفحص ج. REA يوفر التعليمات والمتصلين وقراءة "
-"البيانات ؛ ينفذ مشروع إعادة الإعمار ويختبر النتيجة. {ph0}الشكل المفتوح{ph1}"
+"وظيفة واحدة ، من قابل للتنفيذ لفحص ج. REA يوفر التعليمات والدوال المستدعية "
+"وقراءة البيانات ؛ ينفذ مشروع إعادة الإعمار ويختبر النتيجة. {ph0}الشكل "
+"المفتوح{ph1}"
 
 #: website/public/showcase/dx-ball/index.html:218
 msgctxt "page:showcase/dx-ball/index.html"
@@ -8678,6 +8707,7 @@ msgstr ""
 "مثال موجه لعامل الترميز الخاص بك ، مع توفر الملف التنفيذي المحلي. التحقيق "
 "أدناه يوضح REA الاستفسارات والأدلة وراء الجواب."
 
+# Reviewed for concrete meaning, software terminology and readable sentences.
 #: website/public/showcase/dx-ball/index.html:299
 msgctxt "page:showcase/dx-ball/index.html"
 msgid ""
@@ -8685,9 +8715,9 @@ msgid ""
 "read the constants from the executable. Those results supplied the input and"
 " arithmetic needed to write the C function below."
 msgstr ""
-"الوكيل المستخدم REA لتفقد وظيفة ، اتبع المتصل لبنة ضرب وقراءة الثوابت من "
-"الملف القابل للتنفيذ. قدمت هذه النتائج المدخلات والحساب اللازمين لكتابة دالة"
-" ج أدناه."
+"استخدم المساعد REA لفحص الدالة، وتتبّع الدالة التي تستدعيها عند إصابة الطوب،"
+" وقراءة الثوابت من الملف التنفيذي. حدّدت هذه النتائج المدخلات وخطوات الحساب "
+"اللازمة لكتابة دالة C أدناه."
 
 #. {ph0}: <code>0x406400</code>
 #. {ph1}: <code>FUN_00406400(void)</code>
@@ -8716,8 +8746,8 @@ msgid ""
 "The output shows a conversion call. Reading the instructions below reveals "
 "the input and the calculation feeding that call."
 msgstr ""
-"يظهر الإخراج مكالمة تحويل. قراءة التعليمات أدناه تكشف عن المدخلات والتغذية "
-"حساب تلك الدعوة."
+"يظهر الإخراج استدعاء دالة تحويل. قراءة التعليمات أدناه تكشف عن المدخلات "
+"والتغذية حساب تلك الدعوة."
 
 #: website/public/showcase/dx-ball/index.html:332
 msgctxt "page:showcase/dx-ball/index.html"
@@ -8744,7 +8774,7 @@ msgstr ""
 #: website/public/showcase/dx-ball/index.html:359
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "Follow the caller to understand the input"
-msgstr "اتبع المتصل لفهم المدخلات"
+msgstr "اتبع الدالة المستدعية لفهم المدخلات"
 
 #. {ph0}: <code>tile_x</code>
 #. {ph1}: <code>20 + 30 × tile_x</code>
@@ -8755,8 +8785,8 @@ msgid ""
 "REA identified this caller in the first result. Its preceding instructions "
 "scale {ph0} by 30; adding 20 gives the brick's screen coordinate, {ph1}."
 msgstr ""
-"REA حدد هذا المتصل في النتيجة الأولى. مقياس التعليمات السابق {ph0} بواسطة 30"
-" ؛ إضافة 20 يعطي تنسيق شاشة الطوب, {ph1}."
+"REA حدد هذا الدالة المستدعية في النتيجة الأولى. مقياس التعليمات السابق {ph0}"
+" بواسطة 30 ؛ إضافة 20 يعطي تنسيق شاشة الطوب, {ph1}."
 
 #: website/public/showcase/dx-ball/index.html:383
 msgctxt "page:showcase/dx-ball/index.html"
@@ -8851,8 +8881,8 @@ msgid ""
 "{ph4}."
 msgstr ""
 "{ph0}01 * قراءة المدخلات.{ph1} عرض التعليمات في REAقراءة نتيجة الوظيفة {ph2}"
-" ويستخدم {ph3} لتحميل عدد صحيح. متابعة المتصل من خلال REA يحدد معنى تنسيق "
-"الشاشة للمعلمة ج {ph4}."
+" ويستخدم {ph3} لتحميل عدد صحيح. متابعة الدالة المستدعية من خلال REA يحدد "
+"معنى تنسيق الشاشة للمعلمة ج {ph4}."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -8945,7 +8975,7 @@ msgstr "REA النتيجة * 0 * 406400-0 * 40643 هـ"
 #: website/public/showcase/dx-ball/index.html:593
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "What the caller supplies"
-msgstr "ما لوازم المتصل"
+msgstr "ما لوازم الدالة المستدعية"
 
 #. {ph0}: <code>0x411f40</code>
 #: website/public/showcase/dx-ball/index.html:594
@@ -8956,7 +8986,7 @@ msgid ""
 "then pushes it before the call:"
 msgstr ""
 "وظيفة ضرب الطوب في {ph0} موازين تنسيق البلاط من قبل 30 ، ويضيف 20 ، ثم يدفع "
-"به قبل المكالمة:"
+"به قبل الاستدعاء دالة:"
 
 #: website/public/showcase/dx-ball/index.html:608
 msgctxt "page:showcase/dx-ball/index.html"
@@ -9070,7 +9100,7 @@ msgid ""
 "matches the complete function after applying the reviewed relocations and "
 "checking the referenced constants."
 msgstr ""
-"يتم تجميع وظيفة ج مع سلسلة أدوات فك 4.0 المثبتة. يتطابق إعادة تشغيل المترجم "
+"يتم تجميع دالة C مع سلسلة أدوات فك 4.0 المثبتة. يتطابق إعادة تشغيل المترجم "
 "مع الوظيفة الكاملة بعد تطبيق عمليات الترحيل التي تمت مراجعتها والتحقق من "
 "الثوابت المشار إليها."
 
@@ -9197,10 +9227,11 @@ msgid ""
 "checked independently against the original x86 in 3,205 cases and by VC4.0 "
 "compiler replay matching 63 bytes."
 msgstr ""
-"دي إكس بول.إيكس وظيفة 0 * 00406400 يتم تفتيشها مع REA. يوفر المتصل الذي تم "
-"ضربه من الطوب 20 مرة بالإضافة إلى 30 مرة تحميل التعليمات س ، اضرب في 1.5625 "
-"، اطرح 500.0 ، طبق مقياس عموم وأعد عددا صحيحا.  يتم فحص ج الحفاظ بشكل مستقل "
-"ضد الأصلي 86 في 3 ، 205 الحالات و فك 4.0 مترجم إعادة مطابقة 63 بايت."
+"دي إكس بول.إيكس وظيفة 0 * 00406400 يتم تفتيشها مع REA. يوفر الدالة المستدعية"
+" الذي تم ضربه من الطوب 20 مرة بالإضافة إلى 30 مرة تحميل التعليمات س ، اضرب "
+"في 1.5625 ، اطرح 500.0 ، طبق مقياس عموم وأعد عددا صحيحا.  يتم فحص ج الحفاظ "
+"بشكل مستقل ضد الأصلي 86 في 3 ، 205 الحالات و فك 4.0 مترجم إعادة مطابقة 63 "
+"بايت."
 
 #: website/public/showcase/dx-ball/index.html:217
 msgctxt "page:showcase/dx-ball/index.html"
@@ -9271,7 +9302,7 @@ msgid ""
 "Android, games, Electron and a CTF challenge, with code, figures and checked"
 " results."
 msgstr ""
-"الروبوت, ألعاب, Electron وتحدي فرقة العمل المشتركة ، مع رمز والأرقام "
+"Android, ألعاب, Electron وتحدي فرقة العمل المشتركة ، مع رمز والأرقام "
 "والنتائج فحص."
 
 #: website/public/showcase/index.html:190
@@ -9297,7 +9328,7 @@ msgstr ""
 #: website/public/showcase/index.html:204
 msgctxt "page:showcase/index.html"
 msgid "Read the Android case study"
-msgstr "قراءة دراسة حالة الروبوت"
+msgstr "قراءة دراسة حالة Android"
 
 #: website/public/showcase/index.html:208
 msgctxt "page:showcase/index.html"
@@ -9343,8 +9374,8 @@ msgid ""
 "function, checked against the original behavior and all 63 compiled bytes."
 msgstr ""
 "استعادة حساب عموم الصوت من عام 1996 Windows لعبة. REAتعليمات الصورة ، مراجع "
-"المتصل والثوابت الرقمية تؤدي إلى وظيفة ج صغيرة ، فحص ضد السلوك الأصلي وجميع "
-"63 بايت المترجمة."
+"الدالة المستدعية والثوابت الرقمية تؤدي إلى دالة C صغيرة ، فحص ضد السلوك "
+"الأصلي وجميع 63 بايت المترجمة."
 
 #: website/public/showcase/index.html:241
 msgctxt "page:showcase/index.html"
@@ -9473,8 +9504,8 @@ msgid ""
 "Trace a clipboard call from Notion's page API, through the preload and main "
 "process, to Electron's clipboard writer."
 msgstr ""
-"تتبع مكالمة الحافظة من Notionواجهة برمجة تطبيقات الصفحة ، من خلال التحميل "
-"المسبق والعملية الرئيسية ، إلى Electronكاتب الحافظة."
+"تتبع استدعاء دالة الحافظة من Notionواجهة برمجة تطبيقات الصفحة ، من خلال "
+"التحميل المسبق والعملية الرئيسية ، إلى Electronكاتب الحافظة."
 
 #: website/public/showcase/notion/index.html:190
 msgctxt "page:showcase/notion/index.html"
@@ -9674,8 +9705,9 @@ msgid ""
 "the call that sends an IPC request. Both findings come with source ranges in"
 " the minified bundle:"
 msgstr ""
-"تحليل علامة التبويب التحميل المسبق مع REA يقع أبي يتعرض إلى الصفحة والمكالمة"
-" التي ترسل طلب إيبك. تأتي كلتا النتيجتين مع نطاقات المصدر في الحزمة المصغرة:"
+"تحليل علامة التبويب التحميل المسبق مع REA يقع أبي يتعرض إلى الصفحة "
+"والاستدعاء دالة التي ترسل طلب إيبك. تأتي كلتا النتيجتين مع نطاقات المصدر في "
+"الحزمة المصغرة:"
 
 #: website/public/showcase/notion/index.html:288
 msgctxt "page:showcase/notion/index.html"
@@ -9786,7 +9818,7 @@ msgid ""
 msgstr ""
 "هذه هي الوجهة. بعد التحقق من المرسل ، يقوم المعالج بتمرير البيانات المقدمة "
 "إلى Electronواجهة برمجة تطبيقات الحافظة. تقوم القناة والأغلفة التي تم حلها "
-"بتوصيل الطريقة المكشوفة بهذه المكالمة."
+"بتوصيل الطريقة المكشوفة بهذه الاستدعاء دالة."
 
 #: website/public/showcase/notion/index.html:448
 msgctxt "page:showcase/notion/index.html"
@@ -10001,7 +10033,7 @@ msgid ""
 "{ph0}DX-Ball reconstruction{ph1}{ph2}Follow native instructions to a checked"
 " C function.{ph3}"
 msgstr ""
-"{ph0}DX-Ball إعادة الإعمار{ph1}{ph2}اتبع التعليمات الأصلية إلى دالة ج "
+"{ph0}DX-Ball إعادة الإعمار{ph1}{ph2}اتبع التعليمات الأصلية إلى دالة C "
 "محددة.{ph3}"
 
 #: website/public/showcase/notion/index.html:6
@@ -11130,10 +11162,10 @@ msgid ""
 "converted to an integer. Maintained C is checked in 3,205 original-x86 cases"
 " and a separate 63-byte compiler replay."
 msgstr ""
-"REA يوفر دليل التعليمات والمتصل والبايت للقراءة لأحد DX-Ball وظيفة. يتم ضرب "
-"إدخال المكدس في 1.5625 ، ويقابله 500 ، ويتم تحجيمه وتحويله إلى عدد صحيح. يتم"
-" التحقق من الحفاظ على ج في 3205 الحالات الأصلية-س 86 وإعادة مترجم 63 بايت "
-"منفصلة."
+"REA يوفر دليل التعليمات والدالة المستدعية والبايت للقراءة لأحد DX-Ball "
+"وظيفة. يتم ضرب إدخال المكدس في 1.5625 ، ويقابله 500 ، ويتم تحجيمه وتحويله "
+"إلى عدد صحيح. يتم التحقق من الحفاظ على ج في 3205 الحالات الأصلية-س 86 وإعادة"
+" مترجم 63 بايت منفصلة."
 
 # Reviewed for technical meaning and concise diagram labels.
 #: website/public/assets/figures/dx-ball-sound-pan-investigation.svg:28
@@ -11550,7 +11582,7 @@ msgstr "التعليمات"
 #: website/public/guides/index.html:207
 msgctxt "page:guides/index.html"
 msgid "Caller"
-msgstr "المتصل"
+msgstr "الدالة المستدعية"
 
 #: website/public/guides/index.html:208
 msgctxt "page:guides/index.html"
@@ -11610,7 +11642,7 @@ msgstr "REA مقتطفات التعليمات * 0 * 406409"
 #: website/public/guides/native/index.html:385
 msgctxt "page:guides/native/index.html"
 msgid "REA caller excerpt · 0x411f5b"
-msgstr "REA مقتطف المتصل · 0 * 411 أف 5 ب"
+msgstr "REA مقتطف الدالة المستدعية · 0 * 411 أف 5 ب"
 
 #: website/public/guides/native/index.html:399
 msgctxt "page:guides/native/index.html"
@@ -11676,7 +11708,7 @@ msgstr "REA - وكيل * نتائج مختارة"
 #: website/public/showcase/aegis/index.html:432
 msgctxt "page:showcase/aegis/index.html"
 msgid "REA → agent · methods and callers"
-msgstr "REA - وكيل * طرق والمتصلين"
+msgstr "REA - وكيل * طرق والدوال المستدعية"
 
 #: website/public/showcase/aegis/index.html:502
 msgctxt "page:showcase/aegis/index.html"
@@ -11701,7 +11733,7 @@ msgstr "تحميل Aegis APK"
 #: website/public/showcase/aegis/index.html:709
 msgctxt "page:showcase/aegis/index.html"
 msgid "Download Android analysis provider"
-msgstr "تحميل مزود تحليل الروبوت"
+msgstr "تحميل مزود تحليل Android"
 
 #: website/public/showcase/ctf/index.html:289
 #: website/public/showcase/ctf/index.html:325
@@ -11765,7 +11797,7 @@ msgstr "REA - وكيل * مقتطفات التعليمات"
 #: website/public/showcase/dx-ball/index.html:369
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "REA → agent · caller excerpt"
-msgstr "REA - وكيل * المتصل مقتطفات"
+msgstr "REA - وكيل * الدالة المستدعية مقتطفات"
 
 #. {ph0}: <code>read_bytes</code>
 #: website/public/showcase/dx-ball/index.html:387
@@ -11981,6 +12013,7 @@ msgctxt "runtime"
 msgid "Translation is being updated. Read this page in English for now."
 msgstr "يتم تحديث الترجمة. اقرأ هذه الصفحة باللغة الإنجليزية في الوقت الحالي."
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
 #. {ph2}: <span id="faq-analysis-prompt" >
@@ -11995,8 +12028,8 @@ msgid ""
 "{ph0}›{ph1}{ph2}Use REA to analyze {ph3} and explain how it exports data. "
 "Show the relevant code and source locations.{ph4}{ph5}{ph6}"
 msgstr ""
-"{ph0}›{ph1}{ph2}استخدام REA لتحليل {ph3} وشرح كيفية تصدير البيانات. إظهار "
-"التعليمات البرمجية ذات الصلة ومواقع المصدر.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}استخدم REA لتحليل {ph3} واشرح كيف يصدّر البيانات. اعرض الكود"
+" المرتبط ومواقعه في المصدر.{ph4}{ph5}{ph6}"
 
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
@@ -12098,6 +12131,7 @@ msgctxt "page:examples/dino-lab/index.html"
 msgid "Reconstruction · {ph0}"
 msgstr "إعادة الإعمار · {ph0}"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <span translate="no">Node.js</span>
 #: website/public/faq/index.html:205
 #, python-brace-format
@@ -12106,8 +12140,8 @@ msgid ""
 "With {ph0} and npm available, run setup, choose your coding agent and review"
 " the proposed changes."
 msgstr ""
-"مع {ph0} و npm متاح ، تشغيل الإعداد ، واختيار مساعدك البرمجي ومراجعة "
-"التغييرات المقترحة."
+"بعد تجهيز {ph0} وnpm، شغّل الإعداد واختر مساعدك البرمجي وراجع التغييرات "
+"المقترحة."
 
 #. {ph0}: <span translate="no">Node.js</span>
 #: website/public/first-investigation/index.html:189
@@ -12142,7 +12176,8 @@ msgstr ""
 msgctxt "page:first-investigation/index.html"
 msgid "{ph0}Page · {ph1}{ph2}{ph3}Export notes{ph4}{ph5}Calls {ph6}.{ph7}"
 msgstr ""
-"{ph0}الصفحة · {ph1}{ph2}{ph3}ملاحظات التصدير{ph4}{ph5}المكالمات {ph6}.{ph7}"
+"{ph0}الصفحة · {ph1}{ph2}{ph3}ملاحظات التصدير{ph4}{ph5}استدعاءات الدوال "
+"{ph6}.{ph7}"
 
 #. {ph0}: <span class="flow-label" >
 #. {ph1}: <span translate="no">preload.js</span>

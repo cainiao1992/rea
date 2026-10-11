@@ -4865,7 +4865,7 @@ msgid ""
 " read numeric constants and check the recovered C."
 msgstr ""
 "Mulailah dengan game Windows yang dapat dieksekusi. Periksa instruksi, ikuti"
-" penelepon, baca konstanta numerik, dan periksa C yang dipulihkan."
+" fungsi pemanggil, baca konstanta numerik, dan periksa C yang dipulihkan."
 
 #: website/public/guides/index.html:211
 msgctxt "page:guides/index.html"
@@ -5507,8 +5507,8 @@ msgid ""
 " way to investigate the missing arithmetic."
 msgstr ""
 "Fungsi awal, {ph0}, memiliki hasil dekompiler singkat: panggilan ke {ph1}.  "
-"REA juga mengembalikan instruksi dan peneleponnya, yang memberi agen cara "
-"untuk menyelidiki aritmatika yang hilang."
+"REA juga mengembalikan instruksi dan fungsi pemanggilnya, yang memberi agen "
+"cara untuk menyelidiki aritmatika yang hilang."
 
 #: website/public/guides/native/index.html:215
 msgctxt "page:guides/native/index.html"
@@ -5551,7 +5551,7 @@ msgid ""
 "{ph0}Caller:{ph1} a function that calls this one. It shows which values are "
 "passed in."
 msgstr ""
-"{ph0}Penelepon:{ph1} sebuah fungsi yang memanggil yang satu ini. Ini "
+"{ph0}Fungsi pemanggil:{ph1} sebuah fungsi yang memanggil yang satu ini. Ini "
 "menunjukkan nilai mana yang diteruskan."
 
 #. {ph0}: <strong>
@@ -5614,8 +5614,8 @@ msgid ""
 "{ph0}02 · Caller{ph1}{ph2}A screen coordinate{ph3}{ph4}The brick-hit caller "
 "passes {ph5}.{ph6}"
 msgstr ""
-"{ph0}02 * Penelepon{ph1}{ph2}Koordinat layar{ph3}{ph4}Penelepon yang dipukul"
-" dengan batu bata lolos {ph5}.{ph6}"
+"{ph0}02 * Fungsi pemanggil{ph1}{ph2}Koordinat layar{ph3}{ph4}Fungsi "
+"pemanggil yang dipukul dengan batu bata lolos {ph5}.{ph6}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
@@ -5839,7 +5839,7 @@ msgstr ""
 #: website/public/guides/native/index.html:382
 msgctxt "page:guides/native/index.html"
 msgid "Follow the caller"
-msgstr "Ikuti penelepon"
+msgstr "Ikuti fungsi pemanggil"
 
 #. {ph0}: <code>0x14</code>
 #: website/public/guides/native/index.html:391
@@ -5849,7 +5849,7 @@ msgid ""
 "REA identifies the brick-hit caller. Its earlier instructions multiply the "
 "tile coordinate by 30; adding {ph0} (20) gives the brick's screen position."
 msgstr ""
-"REA mengidentifikasi penelepon yang terkena pukulan keras. Instruksi "
+"REA mengidentifikasi fungsi pemanggil yang terkena pukulan keras. Instruksi "
 "sebelumnya mengalikan koordinat ubin dengan 30; menambahkan {ph0} (20) "
 "memberikan posisi layar bata."
 
@@ -5973,8 +5973,8 @@ msgid ""
 "Recover a native calculation with REA: inspect instructions, follow a "
 "caller, read constants and check reconstructed C."
 msgstr ""
-"Pulihkan perhitungan asli dengan REA : periksa instruksi, ikuti penelepon, "
-"baca konstanta, dan periksa C yang direkonstruksi."
+"Pulihkan perhitungan asli dengan REA : periksa instruksi, ikuti fungsi "
+"pemanggil, baca konstanta, dan periksa C yang direkonstruksi."
 
 #: website/public/guides/native/index.html:191
 msgctxt "page:guides/native/index.html"
@@ -7589,8 +7589,8 @@ msgid ""
 "REA identifies the timestamp overload and finds the base method's callers. "
 "Inspecting {ph0} then shows the display calling {ph1}."
 msgstr ""
-"REA mengidentifikasi kelebihan stempel waktu dan menemukan penelepon metode "
-"dasar. Memeriksa {ph0} kemudian menampilkan panggilan tampilan {ph1}."
+"REA mengidentifikasi kelebihan stempel waktu dan menemukan fungsi pemanggil "
+"metode dasar. Memeriksa {ph0} kemudian menampilkan panggilan tampilan {ph1}."
 
 #. {ph0}: <code>com.beemdevelopment.aegis</code>
 #: website/public/showcase/aegis/index.html:451
@@ -8312,8 +8312,8 @@ msgid ""
 "Select a step to connect the summing helper and its caller to the same rule "
 "in C."
 msgstr ""
-"Pilih langkah untuk menghubungkan summing helper dan peneleponnya ke aturan "
-"yang sama di C."
+"Pilih langkah untuk menghubungkan summing helper dan fungsi pemanggilnya ke "
+"aturan yang sama di C."
 
 #. {ph0}: <span>
 #. {ph1}: </span>
@@ -8422,8 +8422,8 @@ msgid ""
 "{ph0}05 · Compare with the stored target.{ph1} The caller receives the sum "
 "in {ph2}. A mismatch jumps to {ph3}."
 msgstr ""
-"{ph0}05 * Bandingkan dengan target yang disimpan.{ph1} Penelepon menerima "
-"jumlah dalam {ph2}. Ketidakcocokan melompat ke {ph3}."
+"{ph0}05 * Bandingkan dengan target yang disimpan.{ph1} Fungsi pemanggil "
+"menerima jumlah dalam {ph2}. Ketidakcocokan melompat ke {ph3}."
 
 #: website/public/showcase/ctf/index.html:557
 msgctxt "page:showcase/ctf/index.html"
@@ -8431,8 +8431,8 @@ msgid ""
 "The instructions come from the summing helper and its caller. The C is an "
 "explanatory summary with descriptive names and a flattened 36-cell loop."
 msgstr ""
-"Instruksi datang dari pembantu penjumlahan dan peneleponnya. C adalah "
-"ringkasan penjelasan dengan nama deskriptif dan loop 36 sel yang diratakan."
+"Instruksi datang dari pembantu penjumlahan dan fungsi pemanggilnya. C adalah"
+" ringkasan penjelasan dengan nama deskriptif dan loop 36 sel yang diratakan."
 
 #: website/public/showcase/ctf/index.html:565
 msgctxt "page:showcase/ctf/index.html"
@@ -8766,7 +8766,7 @@ msgid ""
 "result. {ph0}Open figure{ph1}"
 msgstr ""
 "Satu fungsi, dari dapat dieksekusi hingga dicentang C. REA menyediakan "
-"instruksi, penelepon, dan pembacaan data; proyek rekonstruksi "
+"instruksi, fungsi pemanggil, dan pembacaan data; proyek rekonstruksi "
 "mengimplementasikan dan menguji hasilnya. {ph0}Sosok terbuka{ph1}"
 
 #: website/public/showcase/dx-ball/index.html:218
@@ -8931,8 +8931,8 @@ msgid ""
 "read the constants from the executable. Those results supplied the input and"
 " arithmetic needed to write the C function below."
 msgstr ""
-"Agen menggunakan REA untuk memeriksa fungsi, mengikuti peneleponnya yang "
-"rusak dan membaca konstanta dari executable. Hasil tersebut memberikan "
+"Agen menggunakan REA untuk memeriksa fungsi, mengikuti fungsi pemanggilnya "
+"yang rusak dan membaca konstanta dari executable. Hasil tersebut memberikan "
 "masukan dan aritmatika yang diperlukan untuk menulis fungsi C di bawah ini."
 
 #. {ph0}: <code>0x406400</code>
@@ -8984,14 +8984,14 @@ msgid ""
 "The function result includes instructions alongside pseudocode and callers. "
 "Here, {ph0} exposes the integer input missing from the decompiler view."
 msgstr ""
-"Hasil fungsi menyertakan instruksi bersama pseudocode dan penelepon. Di "
-"sini, {ph0} memperlihatkan input integer yang hilang dari tampilan "
+"Hasil fungsi menyertakan instruksi bersama pseudocode dan fungsi pemanggil. "
+"Di sini, {ph0} memperlihatkan input integer yang hilang dari tampilan "
 "decompiler."
 
 #: website/public/showcase/dx-ball/index.html:359
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "Follow the caller to understand the input"
-msgstr "Ikuti penelepon untuk memahami masukannya"
+msgstr "Ikuti fungsi pemanggil untuk memahami masukannya"
 
 #. {ph0}: <code>tile_x</code>
 #. {ph1}: <code>20 + 30 × tile_x</code>
@@ -9002,9 +9002,9 @@ msgid ""
 "REA identified this caller in the first result. Its preceding instructions "
 "scale {ph0} by 30; adding 20 gives the brick's screen coordinate, {ph1}."
 msgstr ""
-"REA mengidentifikasi penelepon ini pada hasil pertama. Skala instruksi "
-"sebelumnya {ph0} sebesar 30; menambahkan 20 memberikan koordinat layar bata,"
-" {ph1}."
+"REA mengidentifikasi fungsi pemanggil ini pada hasil pertama. Skala "
+"instruksi sebelumnya {ph0} sebesar 30; menambahkan 20 memberikan koordinat "
+"layar bata, {ph1}."
 
 #: website/public/showcase/dx-ball/index.html:383
 msgctxt "page:showcase/dx-ball/index.html"
@@ -9100,8 +9100,8 @@ msgid ""
 msgstr ""
 "{ph0}01 * Baca inputnya.{ph1} Tampilan instruksi dalam hasil fungsi REA "
 "berbunyi {ph2} dan menggunakan {ph3} untuk memuat bilangan bulat. Mengikuti "
-"peneleponnya melalui REA menetapkan arti koordinat layar dari parameter C "
-"{ph4}."
+"fungsi pemanggilnya melalui REA menetapkan arti koordinat layar dari "
+"parameter C {ph4}."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -9197,7 +9197,7 @@ msgstr "Hasil REA · 0x406400-0x40643e"
 #: website/public/showcase/dx-ball/index.html:593
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "What the caller supplies"
-msgstr "Apa yang disediakan penelepon"
+msgstr "Apa yang disediakan fungsi pemanggil"
 
 #. {ph0}: <code>0x411f40</code>
 #: website/public/showcase/dx-ball/index.html:594
@@ -9457,11 +9457,12 @@ msgid ""
 "checked independently against the original x86 in 3,205 cases and by VC4.0 "
 "compiler replay matching 63 bytes."
 msgstr ""
-"DXBALL.Fungsi EXE 0x00406400 diperiksa dengan REA . Penelepon yang terkena "
-"batu bata memasok 20 ditambah 30 kali tile_x. Instruksi memuat x, kalikan "
-"dengan 1,5625, kurangi 500,0, terapkan pan_scale dan kembalikan bilangan "
-"bulat. C yang dipertahankan diperiksa secara independen terhadap x86 asli "
-"dalam 3.205 kasus dan oleh replay kompiler VC4. 0 yang cocok dengan 63 byte."
+"DXBALL.Fungsi EXE 0x00406400 diperiksa dengan REA . Fungsi pemanggil yang "
+"terkena batu bata memasok 20 ditambah 30 kali tile_x. Instruksi memuat x, "
+"kalikan dengan 1,5625, kurangi 500,0, terapkan pan_scale dan kembalikan "
+"bilangan bulat. C yang dipertahankan diperiksa secara independen terhadap "
+"x86 asli dalam 3.205 kasus dan oleh replay kompiler VC4. 0 yang cocok dengan"
+" 63 byte."
 
 #: website/public/showcase/dx-ball/index.html:217
 msgctxt "page:showcase/dx-ball/index.html"
@@ -11851,7 +11852,7 @@ msgstr "Instruksi"
 #: website/public/guides/index.html:207
 msgctxt "page:guides/index.html"
 msgid "Caller"
-msgstr "Penelepon"
+msgstr "Fungsi pemanggil"
 
 #: website/public/guides/index.html:208
 msgctxt "page:guides/index.html"
@@ -11911,7 +11912,7 @@ msgstr "Kutipan instruksi REA · 0x406409"
 #: website/public/guides/native/index.html:385
 msgctxt "page:guides/native/index.html"
 msgid "REA caller excerpt · 0x411f5b"
-msgstr "Kutipan penelepon REA · 0x411f5b"
+msgstr "Kutipan fungsi pemanggil REA · 0x411f5b"
 
 #: website/public/guides/native/index.html:399
 msgctxt "page:guides/native/index.html"
@@ -11977,7 +11978,7 @@ msgstr "REA →"
 #: website/public/showcase/aegis/index.html:432
 msgctxt "page:showcase/aegis/index.html"
 msgid "REA → agent · methods and callers"
-msgstr "REA → agen * metode dan penelepon"
+msgstr "REA → agen * metode dan fungsi pemanggil"
 
 #: website/public/showcase/aegis/index.html:502
 msgctxt "page:showcase/aegis/index.html"
@@ -12066,7 +12067,7 @@ msgstr "REA excerpt agen · kutipan instruksi"
 #: website/public/showcase/dx-ball/index.html:369
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "REA → agent · caller excerpt"
-msgstr "REA excerpt agen · kutipan penelepon"
+msgstr "REA excerpt agen · kutipan fungsi pemanggil"
 
 #. {ph0}: <code>read_bytes</code>
 #: website/public/showcase/dx-ball/index.html:387

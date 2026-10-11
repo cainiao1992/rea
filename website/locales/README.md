@@ -69,6 +69,8 @@ program to another platform. An **oracle** is a concrete reference or checker
 used to verify a reconstruction. Translate those meanings rather than unrelated
 dictionary senses. Distinguish native machine-code analysis from local analysis,
 and .NET assemblies from assembly instructions.
+Android names the operating system; C names the programming language. Read the
+whole sentence when a dictionary sense would change what the software does.
 
 Review the question, REA's findings, the agent's reasoning and the verification
 result together. Keep recorded versions, milestone counts, unknowns and source

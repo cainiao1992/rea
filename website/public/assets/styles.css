@@ -96,7 +96,7 @@ h3 {
 }
 ul,
 ol {
-  padding-left: 1.3rem;
+  padding-inline-start: 1.3rem;
 }
 li + li {
   margin-top: 0.45rem;
@@ -1390,7 +1390,7 @@ pre code {
 .flow-steps li:not(:last-child)::after {
   content: "→";
   position: absolute;
-  right: -1.4rem;
+  inset-inline-end: -1.4rem;
   top: 2.1rem;
   color: #8191a2;
 }
@@ -1485,7 +1485,7 @@ pre code {
 .notion-mini-flow li:not(:last-child)::after {
   content: "→";
   position: absolute;
-  right: -1.3rem;
+  inset-inline-end: -1.3rem;
   color: #8191a2;
 }
 .case-preview {
@@ -2380,8 +2380,8 @@ pre code {
     content: "↓";
     top: auto;
     bottom: -1.7rem;
-    right: auto;
-    left: 0.85rem;
+    inset-inline-end: auto;
+    inset-inline-start: 0.85rem;
   }
 }
 
@@ -2536,8 +2536,8 @@ pre code {
   }
   .notion-mini-flow li:not(:last-child)::after {
     content: "↓";
-    right: auto;
-    left: 0.4rem;
+    inset-inline-end: auto;
+    inset-inline-start: 0.4rem;
     bottom: -1.4rem;
   }
   .step-selector {
@@ -2595,16 +2595,26 @@ html[dir="rtl"] code,
 html[dir="rtl"] pre,
 html[dir="rtl"] kbd,
 html[dir="rtl"] .dino-stage,
-html[dir="rtl"] .percent-demo,
 html[dir="rtl"] .aegis-calculation {
   direction: ltr;
   unicode-bidi: isolate;
   text-align: left;
 }
-html[dir="rtl"] ul,
-html[dir="rtl"] ol {
-  padding-left: 0;
-  padding-right: 1.3rem;
+html[dir="rtl"] .percent-display {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+@media (min-width: 851px) {
+  html[dir="rtl"]
+    .flow-steps:not(.aegis-calculation)
+    li:not(:last-child)::after {
+    content: "←";
+  }
+}
+@media (min-width: 641px) {
+  html[dir="rtl"] .notion-mini-flow li:not(:last-child)::after {
+    content: "←";
+  }
 }
 html[dir="rtl"] .terminal-prompt {
   font-family: inherit;

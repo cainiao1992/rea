@@ -2165,6 +2165,7 @@ msgctxt "page:faq/index.html"
 msgid "Which coding agents can use REA?"
 msgstr "어떤 코딩 에이전트가 사용할 수 있습니까 REA?"
 
+# Reviewed for readable instructions and accurate software terminology.
 #: website/public/faq/index.html:234
 msgctxt "page:faq/index.html"
 msgid ""
@@ -2173,9 +2174,10 @@ msgid ""
 "Antigravity, GitHub Copilot CLI, Command Code, Grok Build, OMP, and VS Code."
 " Grok Bot's connector is added from its chat."
 msgstr ""
-"로컬을 지원하는 모든 에이전트 MCP 서버 설치 포함 Claude Code, Claude 데스크톱, Codex, Cursor, "
-"Gemini CLI, Windsurf, Devin, OpenCode, Antigravity, GitHub Copilot CLI, "
-"Command Code, Grok Build, OMP,그리고 VS Code. 그록 봇의 커넥터는 채팅에서 추가됩니다."
+"로컬 MCP 서버를 지원하는 에이전트라면 사용할 수 있습니다. 설정은 Claude Code, Claude Desktop, Codex, "
+"Cursor, Gemini CLI, Windsurf, Devin, OpenCode, Antigravity, GitHub Copilot "
+"CLI, Command Code, Grok Build, OMP, VS Code를 지원합니다. Grok Bot의 커넥터는 채팅에서 "
+"추가합니다."
 
 #. {ph0}: <a href="../get-started/#agent">
 #. {ph1}: </a>
@@ -2202,6 +2204,7 @@ msgctxt "page:faq/index.html"
 msgid "Terminal · installed CLI"
 msgstr "터미널·설치CLI"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <code>npx</code>
 #: website/public/faq/index.html:265
 #, python-brace-format
@@ -2209,7 +2212,7 @@ msgctxt "page:faq/index.html"
 msgid ""
 "Follow the setup refresh command printed by the update. If you set up your "
 "agent through {ph0}, run:"
-msgstr "업데이트에서 인쇄한 설치 새로 고침 명령을 따릅니다. 를 통해 에이전트를 설정하는 경우 {ph0},실행:"
+msgstr "업데이트가 출력하는 설정 갱신 명령을 실행하세요. {ph0}로 에이전트를 설정했다면 다음 명령을 사용하세요:"
 
 #: website/public/faq/index.html:271
 msgctxt "page:faq/index.html"
@@ -2234,6 +2237,7 @@ msgctxt "page:faq/index.html"
 msgid "Is installing the skill from skills.sh enough?"
 msgstr "에서 기술을 설치 skills.sh 충분히?"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="#install">
 #. {ph1}: </a>
 #: website/public/faq/index.html:294
@@ -2244,8 +2248,8 @@ msgid ""
 "setup{ph1} to connect the MCP server and install the matching skill, then "
 "restart your agent so it can call the tools."
 msgstr ""
-"이 기술은 에이전트 조사 지침을 제공합니다. 실행 {ph0}REA 설정{ph1} 연결하려면 MCP 이 도구를 호출 할 수 있도록 서버와 "
-"일치하는 기술을 설치 한 다음 에이전트를 다시 시작합니다."
+"스킬은 에이전트에게 분석 방법을 알려줍니다. {ph0}REA 설정{ph1}을 실행해 MCP 서버를 연결하고 스킬을 설치하세요. 도구를 "
+"사용하려면 에이전트를 다시 시작해야 합니다."
 
 #: website/public/faq/index.html:305
 msgctxt "page:faq/index.html"
@@ -2262,6 +2266,7 @@ msgctxt "page:faq/index.html"
 msgid "Start with the kind of software you have:"
 msgstr "당신이 가지고있는 소프트웨어의 종류로 시작:"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../guides/native/" >
 #. {ph1}: </a >
 #: website/public/faq/index.html:311
@@ -2270,7 +2275,7 @@ msgctxt "page:faq/index.html"
 msgid ""
 "{ph0}Native executables and libraries{ph1}: functions, assembly, pseudocode "
 "and references."
-msgstr "{ph0}기본 실행 파일 및 라이브러리{ph1}:함수,어셈블리,의사 코드 및 참조."
+msgstr "{ph0}네이티브 실행 파일과 라이브러리{ph1}: 함수, 어셈블리, 의사 코드, 참조."
 
 #. {ph0}: <a href="../guides/javascript/" >
 #. {ph1}: </a >
@@ -2290,6 +2295,7 @@ msgctxt "page:faq/index.html"
 msgid "{ph0}Browser pages{ph1}: scripts, requests and runtime observations."
 msgstr "{ph0}브라우저 페이지{ph1}:스크립트,요청 및 런타임 관찰."
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../showcase/">
 #. {ph1}: </a>
 #: website/public/faq/index.html:326
@@ -2300,23 +2306,25 @@ msgid ""
 "packaged resources. {ph0}See the case studies{ph1} for worked "
 "investigations."
 msgstr ""
-"REA 또한 관리되는 어셈블리,안드로이드 소프트웨어,펌웨어 및 패키지 리소스에 대한 워크 플로우가 있습니다. {ph0}사례 연구 "
-"참조{ph1} 일한 조사를 위해."
+"REA는 .NET 등의 관리형 어셈블리, Android APK, 펌웨어, 패키지 리소스도 분석합니다. 실제 분석 과정은 {ph0}사례 "
+"소개{ph1}에서 확인하세요."
 
 #: website/public/faq/index.html:334
 msgctxt "page:faq/index.html"
 msgid "Do I need Hopper, Ghidra or IDA?"
 msgstr "내가 필요합니까 Hopper, Ghidra 또는 IDA?"
 
+# Reviewed for readable instructions and accurate software terminology.
 #: website/public/faq/index.html:335
 msgctxt "page:faq/index.html"
 msgid ""
 "Deep native analysis uses one of them. Static JavaScript and .NET inspection"
 " work with the supplied files and do not need a native analysis engine."
 msgstr ""
-"깊은 네이티브 분석은 그 중 하나를 사용합니다. 정적 JavaScript 그리고 닷넷 검사 제공된 파일 작업 및 기본 분석 엔진이 "
-"필요하지 않습니다."
+"네이티브 프로그램을 깊이 분석할 때는 이 중 하나를 사용합니다. JavaScript와 .NET의 정적 분석은 제공된 파일로 수행하므로 "
+"네이티브 분석 엔진이 필요하지 않습니다."
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../get-started/#native">
 #. {ph1}: </a>
 #: website/public/faq/index.html:340
@@ -2327,26 +2335,28 @@ msgid ""
 " and propose an installation. Your host and target determine which provider "
 "can be used. {ph0}Set up native analysis{ph1}."
 msgstr ""
-"기존 연결 Ghidra 또는 IDA 설치 또는 설치 감지 Hopper 그리고 설치를 제안합니다. 호스트와 대상은 사용할 수 있는 공급자를"
-" 결정합니다. {ph0}기본 분석 설정{ph1}."
+"기존 Ghidra나 IDA를 연결하세요. 또는 설정 명령으로 Hopper를 찾아 설치 계획을 확인할 수 있습니다. 사용할 수 있는 분석 "
+"도구는 운영체제와 대상에 따라 달라집니다. {ph0}네이티브 분석 설정{ph1}."
 
 #: website/public/faq/index.html:348
 msgctxt "page:faq/index.html"
 msgid "Can I use REA without a coding agent?"
 msgstr "내가 사용할 수 있습니까 REA 코딩 에이전트가 없다면?"
 
+# Reviewed for readable instructions and accurate software terminology.
 #: website/public/faq/index.html:349
 msgctxt "page:faq/index.html"
 msgid ""
 "Yes. The CLI uses the same analysis workflows. For a local JavaScript or "
 "Electron app:"
-msgstr "네 그 CLI 동일한 분석 워크플로를 사용합니다. 지역 JavaScript 또는 Electron 앱:"
+msgstr "네. CLI에서도 같은 분석 흐름을 사용합니다. 로컬 JavaScript 또는 Electron 앱은 다음처럼 분석합니다:"
 
 #: website/public/faq/index.html:355
 msgctxt "page:faq/index.html"
 msgid "Terminal · static application analysis"
 msgstr "터미널*정적 애플리케이션 분석"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../get-started/#terminal">
 #. {ph1}: </a>
 #: website/public/faq/index.html:368
@@ -2355,7 +2365,7 @@ msgctxt "page:faq/index.html"
 msgid ""
 "Replace the path with an extracted application folder or ASAR file. {ph0}Use"
 " the CLI{ph1} for installation options."
-msgstr "경로를 추출된 응용 프로그램 폴더로 바꾸거나 ASAR 파일 {ph0}사용 CLI{ph1} 설치 옵션."
+msgstr "경로를 압축 해제한 앱 폴더나 ASAR 파일로 바꾸세요. 설치 방법은 {ph0}CLI 사용 안내{ph1}를 참고하세요."
 
 # Reviewed for readable setup and analysis terminology.
 #: website/public/faq/index.html:375
@@ -2374,6 +2384,7 @@ msgstr ""
 "네이티브 프로그램을 분석하면 어셈블리와 의사 코드, 함수 호출, 참조, 관련 상수를 반환합니다. JavaScript를 분석하면 모듈과 "
 "모듈 간 관계, 소스 위치를 반환합니다."
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../showcase/dx-ball/#sound-pan" >
 #. {ph1}: </a >
 #. {ph2}: <a href="../showcase/ctf/">
@@ -2386,20 +2397,21 @@ msgid ""
 "implementation. The {ph0}DX-Ball calculation{ph1} and {ph2}CTF flag "
 "checker{ph3} show how that process works."
 msgstr ""
-"에이전트는 이러한 결과를 사용하여 동작을 설명하거나 구현을 작성하고 테스트합니다. 그 {ph0}DX-Ball 계산{ph1} 그리고 "
-"{ph2}플래그 검사기{ph3} 그 과정이 어떻게 작동하는지 보여주세요."
+"에이전트는 분석 결과로 동작을 설명하거나 구현을 작성하고 테스트합니다. {ph0}DX-Ball 계산{ph1}과 {ph2}CTF flag "
+"검사기{ph3}에서 그 과정을 볼 수 있습니다."
 
 #: website/public/faq/index.html:392
 msgctxt "page:faq/index.html"
 msgid "What should I ask my agent?"
 msgstr "에이전트에게 무엇을 물어보면 되나요?"
 
+# Reviewed for readable instructions and accurate software terminology.
 #: website/public/faq/index.html:393
 msgctxt "page:faq/index.html"
 msgid ""
 "Give it a local target and one behavior to investigate. For a JavaScript or "
 "Electron app:"
-msgstr "로컬 대상 및 조사 할 하나의 동작을 지정하십시오. 에 대한 JavaScript 또는 Electron 앱:"
+msgstr "로컬 대상과 조사할 동작 하나를 알려주세요. JavaScript 또는 Electron 앱의 예:"
 
 #. {ph0}: <span class="terminal-dots" aria-hidden="true" >
 #. {ph1}: <i>
@@ -2415,6 +2427,7 @@ msgctxt "page:faq/index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
 msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}코딩 에이전트"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../guides/">
 #. {ph1}: </a>
 #: website/public/faq/index.html:422
@@ -2424,7 +2437,7 @@ msgid ""
 "Replace the path with your target. The {ph0}guides{ph1} provide prompts for "
 "native, Electron and browser examples."
 msgstr ""
-"경로를 대상으로 바꿉니다. 그 {ph0}가이드{ph1} 네이티브에 대한 프롬프트 제공, Electron 그리고 브라우저 예제."
+"경로를 분석할 대상으로 바꾸세요. {ph0}가이드{ph1}에는 네이티브 프로그램, Electron, 브라우저용 예시 프롬프트가 있습니다."
 
 #: website/public/faq/index.html:432
 msgctxt "page:faq/index.html"
@@ -2436,6 +2449,7 @@ msgctxt "page:faq/index.html"
 msgid "Why can't my agent see the REA tools?"
 msgstr "왜 내 에이전트가 볼 수 없습니까 REA 도구?"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <code>doctor</code>
 #: website/public/faq/index.html:436
 #, python-brace-format
@@ -2443,13 +2457,14 @@ msgctxt "page:faq/index.html"
 msgid ""
 "Restart or reconnect your agent after setup. Check its REA registration with"
 " {ph0}; for Codex:"
-msgstr "설치 후 에이전트를 다시 시작하거나 다시 연결합니다. 그 확인 REA 등록 {ph0};를 위해 Codex:"
+msgstr "설정 후 에이전트를 다시 시작하거나 다시 연결하세요. {ph0}로 REA 등록 상태를 확인할 수 있습니다. Codex의 예:"
 
 #: website/public/faq/index.html:442
 msgctxt "page:faq/index.html"
 msgid "Terminal · check one client"
 msgstr "터미널*하나의 클라이언트 확인"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <code>codex</code>
 #. {ph1}: <code>claude_code</code>
 #. {ph2}: <code>cursor</code>
@@ -2460,14 +2475,15 @@ msgid ""
 "Replace {ph0} with your client ID, such as {ph1} or {ph2}. If the report "
 "shows a missing or stale registration, run setup for that client:"
 msgstr ""
-"교체 {ph0} 고객 아이디와 같은 {ph1} 또는 {ph2}. 보고서에 누락되거나 오래된 등록이 표시되면 해당 클라이언트에 대해 설치 "
-"프로그램을 실행합니다:"
+"{ph0}를 {ph1} 또는 {ph2} 같은 클라이언트 ID로 바꾸세요. 등록이 없거나 오래되었다고 나오면 해당 클라이언트의 설정을 다시"
+" 실행하세요:"
 
 #: website/public/faq/index.html:462
 msgctxt "page:faq/index.html"
 msgid "Terminal · repair one client's setup"
 msgstr "터미널*한 클라이언트의 설정을 복구"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../get-started/#help">
 #. {ph1}: </a>
 #: website/public/faq/index.html:474
@@ -2478,14 +2494,15 @@ msgid ""
 " remain absent, check the client's MCP connection error. {ph0}More setup "
 "diagnostics{ph1}."
 msgstr ""
-"계획을 검토하고 클라이언트를 다시 시작하십시오. 등록이 정상이지만 도구가 없는 경우 클라이언트의 MCP 연결 오류. {ph0}더 많은 "
-"설치 진단{ph1}."
+"변경 계획을 확인하고 클라이언트를 다시 시작하세요. 등록은 정상이지만 도구가 보이지 않으면 클라이언트의 MCP 연결 오류를 확인하세요. "
+"{ph0}추가 설정 진단{ph1}."
 
 #: website/public/faq/index.html:482
 msgctxt "page:faq/index.html"
 msgid "Do I need to start Hopper first?"
 msgstr "내가 시작해야합니까 Hopper 먼저?"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../get-started/#native">
 #. {ph1}: </a >
 #: website/public/faq/index.html:483
@@ -2496,14 +2513,15 @@ msgid ""
 "run choice of demo mode or license activation before unattended analysis. "
 "{ph0}See native provider setup{ph1}."
 msgstr ""
-"REA 시작 Hopper 작업이 필요할 때. 시작 macOS,무인 분석 전에 데모 모드 또는 라이센스 활성화의 첫 번째 실행 선택을 "
-"완료하십시오. {ph0}기본 공급자 설정을 참조하십시오{ph1}."
+"REA는 작업에 필요할 때 Hopper를 실행합니다. macOS에서는 자동 분석 전에 첫 실행 화면에서 데모 모드나 라이선스 활성화를 "
+"선택해야 합니다. {ph0}네이티브 분석 도구 설정{ph1}."
 
 #: website/public/faq/index.html:492
 msgctxt "page:faq/index.html"
 msgid "What should I do if I hit a bug?"
 msgstr "버그가 발생하면 어떻게 하나요?"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="#update">
 #. {ph1}: </a>
 #: website/public/faq/index.html:493
@@ -2513,9 +2531,10 @@ msgid ""
 "{ph0}Update REA{ph1}, restart your agent and retry the same task. A recent "
 "release may already fix the problem."
 msgstr ""
-"{ph0}업데이트 REA{ph1},에이전트를 다시 시작하고 동일한 작업을 다시 시도하십시오. 최근 릴리스는 이미 문제를 해결할 수 "
+"{ph0}REA를 업데이트{ph1}하고 에이전트를 다시 시작한 뒤 같은 작업을 시도하세요. 최신 버전에서 이미 문제가 해결되었을 수 "
 "있습니다."
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="https://github.com/morluto/rea/issues/new/choose" >
 #. {ph1}: </a >
 #: website/public/faq/index.html:497
@@ -2526,8 +2545,8 @@ msgid ""
 "system, target type, steps to reproduce and error output. Include the "
 "provider name when the problem involves native analysis."
 msgstr ""
-"지속되면, {ph0}문제 열기{ph1} 당신과 함께 REA 버전,운영 체제,대상 유형,재현 단계 및 오류 출력. 문제가 네이티브 분석과 "
-"관련된 경우 공급자 이름을 포함합니다."
+"문제가 계속되면 REA 버전, 운영체제, 대상 종류, 재현 방법, 오류 출력을 포함해 {ph0}이슈를 등록하세요{ph1}. 네이티브 분석"
+" 문제라면 분석 도구 이름도 알려주세요."
 
 #: website/public/faq/index.html:511
 msgctxt "page:faq/index.html"
@@ -2539,18 +2558,20 @@ msgctxt "page:faq/index.html"
 msgid "Does REA upload my app?"
 msgstr "않습니다 REA 내 앱을 업로드 하시겠습니까?"
 
+# Reviewed for readable instructions and accurate software terminology.
 #: website/public/faq/index.html:515
 msgctxt "page:faq/index.html"
 msgid ""
 "REA analyzes targets on your machine. Your agent receives the results, and "
 "its model provider's data policy applies to those results."
-msgstr "REA 컴퓨터의 대상을 분석합니다. 에이전트가 결과를 수신하고 해당 모델 공급자의 데이터 정책이 해당 결과에 적용됩니다."
+msgstr "REA는 사용자의 컴퓨터에서 대상을 분석합니다. 결과는 에이전트가 받으므로 해당 모델 제공자의 데이터 정책이 적용됩니다."
 
 #: website/public/faq/index.html:522
 msgctxt "page:faq/index.html"
 msgid "How can I share an example or contribute?"
 msgstr "예를 공유하거나 기여할 수 있는 방법은 무엇입니까?"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="https://github.com/morluto/rea/issues/new/choose" >
 #. {ph1}: </a >
 #. {ph2}: <a href="https://github.com/morluto/rea/pulls">
@@ -2564,9 +2585,10 @@ msgid ""
 "{ph2}pull request{ph3}. Short code excerpts and figures help others follow "
 "the investigation."
 msgstr ""
-"유용한 REA 예? 우리는 그것을 보고 싶습니다. 대상,질문,결과를 공유하고 당신이 그들을 확인하는 방법 {ph0}문제{ph1} 또는 "
-"{ph2}끌어 오기 요청{ph3}. 짧은 코드 발췌 및 수치는 다른 사람들이 조사를 수행하는 데 도움이됩니다."
+"유용한 REA 사례가 있나요? 함께 보고 싶습니다. 대상, 질문, 발견한 내용, 검증 방법을 {ph0}이슈{ph1}나 "
+"{ph2}PR{ph3}로 공유해 주세요. 짧은 코드와 그림을 곁들이면 과정을 이해하기 쉽습니다."
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="https://discord.gg/GkcryMnJDM">
 #. {ph1}: </a>
 #: website/public/faq/index.html:535
@@ -2575,20 +2597,20 @@ msgctxt "page:faq/index.html"
 msgid ""
 "Bug reports, feature requests, documentation and code improvements are "
 "welcome too. You can also discuss an example in the {ph0}community{ph1}."
-msgstr ""
-"버그 리포트,기능 요청,문서 및 코드 개선도 환영합니다. 당신은 또한에서 예를 논의 할 수 있습니다 {ph0}커뮤니티{ph1}."
+msgstr "버그 보고, 기능 요청, 문서와 코드 개선도 환영합니다. {ph0}커뮤니티{ph1}에서 사례를 이야기할 수도 있습니다."
 
 #: website/public/faq/index.html:6
 msgctxt "page:faq/index.html"
 msgid "REA FAQ: Setup, Updates and Troubleshooting"
 msgstr "REAFAQ 설치,업데이트 문제 해결"
 
+# Reviewed for readable instructions and accurate software terminology.
 #: website/public/faq/index.html:7
 msgctxt "page:faq/index.html"
 msgid ""
 "Answers to common REA questions: installation, updates, analysis tools, "
 "coding agents, troubleshooting and sharing examples."
-msgstr "일반적인 답변 REA 트랙에 작은:설치,업데이트,분석 도구,코딩 에이전트,문제 해결 및 공유 예제."
+msgstr "REA의 설치, 업데이트, 분석 도구, 코딩 에이전트, 문제 해결, 사례 공유에 관한 자주 묻는 질문."
 
 #: website/public/faq/index.html:186
 msgctxt "page:faq/index.html"
@@ -4476,7 +4498,8 @@ msgctxt "page:guides/index.html"
 msgid ""
 "Start with a Windows game executable. Inspect instructions, follow a caller,"
 " read numeric constants and check the recovered C."
-msgstr "로 시작 Windows 게임 실행 파일. 지시 사항을 검사하고,발신자를 따르고,숫자 상수를 읽고 복구 된 것을 확인하십시오."
+msgstr ""
+"로 시작 Windows 게임 실행 파일. 지시 사항을 검사하고,호출하는 함수를 따르고,숫자 상수를 읽고 복구 된 것을 확인하십시오."
 
 #: website/public/guides/index.html:211
 msgctxt "page:guides/index.html"
@@ -4714,8 +4737,8 @@ msgid ""
 "API. The path is inferred from code; a runtime capture can check what "
 "executes."
 msgstr ""
-"REA치 리터럴 IPC 전화 핸들러를 식별하고 노출된 API 를 사용합니다. 경로는 코드에서 추론됩니다.런타임 캡처는 실행되는 것을 "
-"확인할 수 있습니다."
+"REA치 리터럴 IPC 함수 호출 핸들러를 식별하고 노출된 API 를 사용합니다. 경로는 코드에서 추론됩니다.런타임 캡처는 실행되는 것을"
+" 확인할 수 있습니다."
 
 #: website/public/guides/javascript/index.html:253
 msgctxt "page:guides/javascript/index.html"
@@ -5007,7 +5030,7 @@ msgctxt "page:guides/native/index.html"
 msgid ""
 "Inspect the original instructions, identify the input and constants, then "
 "check the recovered C."
-msgstr "원래 명령어를 검사하고 입력 및 상수를 식별 한 다음 복구 된 기음을 확인하십시오."
+msgstr "원래 명령어를 검사하고 입력 및 상수를 식별 한 다음 복구 된 C을 확인하십시오."
 
 #: website/public/guides/native/index.html:192
 msgctxt "page:guides/native/index.html"
@@ -5173,7 +5196,8 @@ msgctxt "page:guides/native/index.html"
 msgid ""
 "{ph0}02 · Caller{ph1}{ph2}A screen coordinate{ph3}{ph4}The brick-hit caller "
 "passes {ph5}.{ph6}"
-msgstr "{ph0}02*발신자{ph1}{ph2}스크린 좌표{ph3}{ph4}이 함수를 호출하는 브릭 히트 함수는 {ph5}.{ph6}"
+msgstr ""
+"{ph0}02*호출하는 함수{ph1}{ph2}스크린 좌표{ph3}{ph4}이 함수를 호출하는 브릭 히트 함수는 {ph5}.{ph6}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
@@ -5380,7 +5404,7 @@ msgstr "명령은 정수 인수를 로드하고 부동 소수점 계산으로 �
 #: website/public/guides/native/index.html:382
 msgctxt "page:guides/native/index.html"
 msgid "Follow the caller"
-msgstr "발신자 팔로우"
+msgstr "호출하는 함수 팔로우"
 
 #. {ph0}: <code>0x14</code>
 #: website/public/guides/native/index.html:391
@@ -5498,7 +5522,7 @@ msgctxt "page:guides/native/index.html"
 msgid ""
 "Recover a native calculation with REA: inspect instructions, follow a "
 "caller, read constants and check reconstructed C."
-msgstr "기본 계산 복구 REA:지시 사항을 검사하고,발신자를 따르고,상수를 읽고 재구성 된 것을 확인하십시오."
+msgstr "기본 계산 복구 REA:지시 사항을 검사하고,호출하는 함수를 따르고,상수를 읽고 재구성 된 것을 확인하십시오."
 
 #: website/public/guides/native/index.html:191
 msgctxt "page:guides/native/index.html"
@@ -6871,6 +6895,7 @@ msgctxt "page:showcase/aegis/index.html"
 msgid "Copy"
 msgstr "복사"
 
+# Reviewed for concrete meaning, software terminology and readable sentences.
 #. {ph0}: <a href="#try">
 #. {ph1}: </a>
 #: website/public/showcase/aegis/index.html:276
@@ -6880,14 +6905,15 @@ msgid ""
 "An example prompt for the downloaded APK, with REA's Android analysis "
 "configured. {ph0}Get the APK and analysis setup ↓{ph1}"
 msgstr ""
-"다운로드 한 사용자에 대한 예제 프롬프트 APK,함께 REA안드로이드 분석이 구성되어 있습니다. {ph0}를 얻을 APK 고 분석 "
-"설정↓{ph1}"
+"다운로드한 APK를 분석하는 예시 프롬프트입니다. 먼저 REA의 Android 분석 환경을 설정하세요. {ph0}APK와 분석 설정 받기"
+" ↓{ph1}"
 
 #: website/public/showcase/aegis/index.html:284
 msgctxt "page:showcase/aegis/index.html"
 msgid "Try the code generator"
 msgstr "코드 생성기 사용해보기"
 
+# Reviewed for concrete meaning, software terminology and readable sentences.
 #. {ph0}: <mark class="prose-highlight">
 #. {ph1}: </mark>
 #: website/public/showcase/aegis/index.html:285
@@ -6898,8 +6924,8 @@ msgid ""
 "number with the account key to generate a code. The same key and block "
 "produce the same code."
 msgstr ""
-"앱 그룹 시간에 {ph0}30 초 블록.{ph1} 블록 번호와 계정 키를 결합하여 코드를 생성합니다. 동일한 키와 블록은 동일한 코드를 "
-"생성합니다."
+"앱은 시간을 {ph0}30초 단위로 나눕니다.{ph1} 시간 구간 번호와 계정 키를 결합해 코드를 생성합니다. 같은 키와 같은 시간 "
+"구간이면 같은 코드가 나옵니다."
 
 #: website/public/showcase/aegis/index.html:292
 msgctxt "page:showcase/aegis/index.html"
@@ -7152,8 +7178,8 @@ msgid ""
 "The released APK puts {ph0} in {ph1}. REA follows the call from {ph2} and "
 "returns this body; the original source calls the helper {ph3}."
 msgstr ""
-"석방 된 사람 들 APK 풋 {ph0} 그 안에 {ph1}. REA 에서 전화를 다음과 {ph2} 그리고 이 몸을 반환합니다.원래의 "
-"소스는 도우미를 호출합니다. {ph3}."
+"석방 된 사람 들 APK 풋 {ph0} 그 안에 {ph1}. REA 에서 함수 호출를 다음과 {ph2} 그리고 이 몸을 반환합니다.원래의"
+" 소스는 도우미를 호출합니다. {ph3}."
 
 #: website/public/showcase/aegis/index.html:601
 msgctxt "page:showcase/aegis/index.html"
@@ -8111,14 +8137,15 @@ msgctxt "page:showcase/dx-ball/index.html"
 msgid "Rebuilding DX-Ball{ph0}from its executable."
 msgstr "재건 DX-Ball{ph0}실행 파일에서."
 
+# Reviewed for concrete meaning, software terminology and readable sentences.
 #: website/public/showcase/dx-ball/index.html:186
 msgctxt "page:showcase/dx-ball/index.html"
 msgid ""
 "The goal is a maintainable C version of the 1996 Windows game. REA helps the"
 " agent inspect the original, one function at a time."
 msgstr ""
-"목표는 1996 의 유지 가능한 다 버전입니다 Windows 게임. REA 에이전트가 원본,한 번에 하나의 기능을 검사하는 데 "
-"도움이됩니다."
+"목표는 1996년에 나온 Windows 게임을 유지보수 가능한 C 코드로 재구성하는 것입니다. REA는 에이전트가 원본 함수를 하나씩 "
+"분석하도록 돕습니다."
 
 #: website/public/showcase/dx-ball/index.html:190
 msgctxt "page:showcase/dx-ball/index.html"
@@ -8135,8 +8162,8 @@ msgid ""
 "callers and data reads; the reconstruction project implements and tests the "
 "result. {ph0}Open figure{ph1}"
 msgstr ""
-"하나의 기능,실행 파일에서 확인 된 기음. REA 지침,호출자 및 데이터 읽기를 제공하고 재구성 프로젝트는 결과를 구현하고 테스트합니다."
-" {ph0}열린 그림{ph1}"
+"하나의 기능,실행 파일에서 확인 된 C. REA 지침,호출자 및 데이터 읽기를 제공하고 재구성 프로젝트는 결과를 구현하고 테스트합니다. "
+"{ph0}열린 그림{ph1}"
 
 #: website/public/showcase/dx-ball/index.html:218
 msgctxt "page:showcase/dx-ball/index.html"
@@ -8283,6 +8310,7 @@ msgid ""
 " the answer."
 msgstr "로컬 실행 파일을 사용할 수 있는 코딩 에이전트에 대한 예제 프롬프트입니다. 아래의 조사는 REA 답변 뒤에 쿼리 및 증거."
 
+# Reviewed for concrete meaning, software terminology and readable sentences.
 #: website/public/showcase/dx-ball/index.html:299
 msgctxt "page:showcase/dx-ball/index.html"
 msgid ""
@@ -8290,8 +8318,8 @@ msgid ""
 "read the constants from the executable. Those results supplied the input and"
 " arithmetic needed to write the C function below."
 msgstr ""
-"사용 된 에이전트 REA 함수를 검사하려면 브릭 히트 호출자를 따라 실행 파일에서 상수를 읽습니다. 그 결과는 아래의 기음 함수를 "
-"작성하는 데 필요한 입력 및 산술을 제공했습니다."
+"에이전트는 REA로 함수를 살펴보고, 벽돌 충돌 처리 함수가 이 함수를 어떻게 호출하는지 추적한 뒤 실행 파일의 상수를 읽었습니다. 이 "
+"결과로 입력과 계산 방법을 확인하고 아래의 C 함수를 작성했습니다."
 
 #. {ph0}: <code>0x406400</code>
 #. {ph1}: <code>FUN_00406400(void)</code>
@@ -8343,7 +8371,7 @@ msgstr ""
 #: website/public/showcase/dx-ball/index.html:359
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "Follow the caller to understand the input"
-msgstr "발신자를 따라 입력 내용을 파악합니다"
+msgstr "호출하는 함수를 따라 입력 내용을 파악합니다"
 
 #. {ph0}: <code>tile_x</code>
 #. {ph1}: <code>20 + 30 × tile_x</code>
@@ -8511,7 +8539,7 @@ msgid ""
 "identified in REA's callee results. The C casts the result to {ph4}; "
 "original-x86 comparisons check the returned value."
 msgstr ""
-"{ph0}05*정수를 반환합니다.{ph1} 전화 {ph2} 도달 {ph3},확인된 REA수신자 결과입니다. 결과는 다음과 같습니다 "
+"{ph0}05*정수를 반환합니다.{ph1} 함수 호출 {ph2} 도달 {ph3},확인된 REA수신자 결과입니다. 결과는 다음과 같습니다 "
 "{ph4};원본-86 비교 반환 된 값을 확인합니다."
 
 #: website/public/showcase/dx-ball/index.html:550
@@ -8536,7 +8564,7 @@ msgstr "REA결과·0x406400–0x40643e"
 #: website/public/showcase/dx-ball/index.html:593
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "What the caller supplies"
-msgstr "발신자가 제공하는 것"
+msgstr "호출하는 함수가 제공하는 것"
 
 #. {ph0}: <code>0x411f40</code>
 #: website/public/showcase/dx-ball/index.html:594
@@ -8961,7 +8989,7 @@ msgid ""
 "divide and coordinate operations to readable C++, then see how they produce "
 "a ring aimed at the player."
 msgstr ""
-"원래 16 비트 각도 도우미를 검사하십시오. REA. 그 곱하기,나누기 및 좌표 연산을 읽을 수있는 기음++에 일치시킨 다음 플레이어를 "
+"원래 16 비트 각도 도우미를 검사하십시오. REA. 그 곱하기,나누기 및 좌표 연산을 읽을 수있는 C++에 일치시킨 다음 플레이어를 "
 "겨냥한 링을 어떻게 생성하는지 확인하십시오."
 
 #: website/public/showcase/index.html:277
@@ -9124,7 +9152,7 @@ msgid ""
 "The packaged code uses the same channel in the preload and main process. "
 "Resolving the wrappers reveals the Electron calls behind those names."
 msgstr ""
-"패키지 코드는 사전 로드 및 기본 프로세스에서 동일한 채널을 사용합니다. 래퍼를 해결하면 Electron 그 이름 뒤에 전화."
+"패키지 코드는 사전 로드 및 기본 프로세스에서 동일한 채널을 사용합니다. 래퍼를 해결하면 Electron 그 이름 뒤에 함수 호출."
 
 #: website/public/showcase/notion/index.html:238
 msgctxt "page:showcase/notion/index.html"
@@ -9461,7 +9489,7 @@ msgid ""
 "call."
 msgstr ""
 "클립보드 브리지는 Notion 데스크톱 7.6.1 의 {ph0}:탭 사전로드 및 {ph1}. 발췌는 축소 된 변수 이름을 확장하고 "
-"관련이없는 코드를 생략;발신자 검사 도우미는 기본과 함께 표시됩니다 {ph2} 전화."
+"관련이없는 코드를 생략;발신자 검사 도우미는 기본과 함께 표시됩니다 {ph2} 함수 호출."
 
 #. {ph0}: <code>747001</code>
 #. {ph1}: <code>58169</code>
@@ -9527,7 +9555,7 @@ msgctxt "page:showcase/notion/index.html"
 msgid ""
 "{ph0}DX-Ball reconstruction{ph1}{ph2}Follow native instructions to a checked"
 " C function.{ph3}"
-msgstr "{ph0}DX-Ball 재건{ph1}{ph2}기본 지침에 따라 체크 된 기음 기능.{ph3}"
+msgstr "{ph0}DX-Ball 재건{ph1}{ph2}기본 지침에 따라 체크 된 C 기능.{ph3}"
 
 #: website/public/showcase/notion/index.html:6
 msgctxt "page:showcase/notion/index.html"
@@ -9624,7 +9652,7 @@ msgstr "총알의 고리는 짧은 각도 계산으로 시작됩니다. 사용 R
 #: website/public/showcase/th04/index.html:191
 msgctxt "page:showcase/th04/index.html"
 msgid "PC-98 · 16-bit DOS · C++ and assembly"
-msgstr "PC-98 ·16 비트 도스*기음++및 어셈블리"
+msgstr "PC-98 ·16 비트 도스*C++및 어셈블리"
 
 #: website/public/showcase/th04/index.html:192
 msgctxt "page:showcase/th04/index.html"
@@ -9680,7 +9708,7 @@ msgctxt "page:showcase/th04/index.html"
 msgid ""
 "{ph0}03 · Read the C++{ph1}{ph2}Space → aim → rotate{ph3}{ph4}Connect each "
 "operation to the maintained reconstruction.{ph5}"
-msgstr "{ph0}03*읽기 기음++{ph1}{ph2}공간→목표→회전{ph3}{ph4}유지 재건에 각 작업을 연결합니다.{ph5}"
+msgstr "{ph0}03*읽기 C++{ph1}{ph2}공간→목표→회전{ph3}{ph4}유지 재건에 각 작업을 연결합니다.{ph5}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
@@ -10062,8 +10090,8 @@ msgid ""
 " The C++ above is a readable summary. Compiler checks below apply to the "
 "maintained source in the linked project."
 msgstr ""
-"어셈블리는 조준 링 분기,조준 계산 및 최종 저장소를 선택합니다. 위의 기음++는 읽을 수있는 요약입니다. 아래의 컴파일러 검사는 연결된"
-" 프로젝트의 유지되는 소스에 적용됩니다."
+"어셈블리는 조준 링 분기,조준 계산 및 최종 저장소를 선택합니다. 위의 C++는 읽을 수있는 요약입니다. 아래의 컴파일러 검사는 연결된 "
+"프로젝트의 유지되는 소스에 적용됩니다."
 
 #: website/public/showcase/th04/index.html:597
 msgctxt "page:showcase/th04/index.html"
@@ -10247,7 +10275,7 @@ msgid ""
 "assembly. Beyond bullet generation, the source covers stages, bosses, "
 "rendering, input, menus, endings and score handling."
 msgstr ""
-"이 프로젝트는 유지 관리 된 기음++및 어셈블리에서 게임의 네 가지 도스 제품을 빌드합니다. 총알 생성 외에도 소스는 "
+"이 프로젝트는 유지 관리 된 C++및 어셈블리에서 게임의 네 가지 도스 제품을 빌드합니다. 총알 생성 외에도 소스는 "
 "스테이지,보스,렌더링,입력,메뉴,엔딩 및 점수 처리를 다룹니다."
 
 #. {ph0}: <a class="text-link" href="https://github.com/N0zoM1z0/th04" >
@@ -10605,8 +10633,8 @@ msgid ""
 "converted to an integer. Maintained C is checked in 3,205 original-x86 cases"
 " and a separate 63-byte compiler replay."
 msgstr ""
-"REA제공하는 지시,발신자 및 바이트 읽기에 대한 증거 하나DX-Ball기능입니다. 스택 입력에 1.5625 를 곱하고,500 을 "
-"오프셋하고,크기를 조정하고,정수로 변환합니다. 3,205 개의 원본 86 케이스와 별도의 63 바이트 컴파일러 재생에서 확인됩니다."
+"REA제공하는 지시,호출하는 함수 및 바이트 읽기에 대한 증거 하나DX-Ball기능입니다. 스택 입력에 1.5625 를 곱하고,500 을"
+" 오프셋하고,크기를 조정하고,정수로 변환합니다. 3,205 개의 원본 86 케이스와 별도의 63 바이트 컴파일러 재생에서 확인됩니다."
 
 # Reviewed for technical meaning and concise diagram labels.
 #: website/public/assets/figures/dx-ball-sound-pan-investigation.svg:28
@@ -11032,7 +11060,7 @@ msgstr "상수"
 #: website/public/guides/index.html:209
 msgctxt "page:guides/index.html"
 msgid "C function"
-msgstr "기음 기능"
+msgstr "C 기능"
 
 #: website/public/guides/index.html:224
 msgctxt "page:guides/index.html"
@@ -11092,7 +11120,7 @@ msgstr "REA바이트로 결합하는 것으로 해석 little-endian 복식"
 #: website/public/guides/native/index.html:416
 msgctxt "page:guides/native/index.html"
 msgid "Recovered C · excerpt"
-msgstr "복구 된 기음*발췌"
+msgstr "복구 된 C*발췌"
 
 #: website/public/index.html:219
 msgctxt "page:index.html"
@@ -11148,7 +11176,7 @@ msgstr "REA→에이전트·선택한 결과"
 #: website/public/showcase/aegis/index.html:432
 msgctxt "page:showcase/aegis/index.html"
 msgid "REA → agent · methods and callers"
-msgstr "REA→에이전트·방법과 발신자"
+msgstr "REA→에이전트·방법과 호출하는 함수"
 
 #: website/public/showcase/aegis/index.html:502
 msgctxt "page:showcase/aegis/index.html"
@@ -11237,7 +11265,7 @@ msgstr "REA→에이전트·사용법 발췌문"
 #: website/public/showcase/dx-ball/index.html:369
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "REA → agent · caller excerpt"
-msgstr "REA→agent·발신자 발췌문"
+msgstr "REA→agent·호출하는 함수 발췌문"
 
 #. {ph0}: <code>read_bytes</code>
 #: website/public/showcase/dx-ball/index.html:387
@@ -11421,7 +11449,7 @@ msgstr "동일한 기능 결과*목표 발췌"
 #: website/public/showcase/th04/index.html:420
 msgctxt "page:showcase/th04/index.html"
 msgid "Corresponding maintained C++"
-msgstr "해당 유지 관리 기음++"
+msgstr "해당 유지 관리 C++"
 
 #: website/public/showcase/th04/index.html:600
 msgctxt "page:showcase/th04/index.html"
@@ -11453,6 +11481,7 @@ msgctxt "runtime"
 msgid "Translation is being updated. Read this page in English for now."
 msgstr "번역이 업데이트되고 있습니다. 지금 이 페이지를 영어로 읽어보세요."
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
 #. {ph2}: <span id="faq-analysis-prompt" >
@@ -11467,8 +11496,8 @@ msgid ""
 "{ph0}›{ph1}{ph2}Use REA to analyze {ph3} and explain how it exports data. "
 "Show the relevant code and source locations.{ph4}{ph5}{ph6}"
 msgstr ""
-"{ph0}›{ph1}{ph2}사용 REA 분석 {ph3} 그리고 데이터를 내보내는 방법을 설명하십시오. 관련 코드 및 소스 위치를 "
-"표시합니다.{ph4}{ph5}{ph6}"
+"{ph0}›{ph1}{ph2}REA로 {ph3}를 분석하고 데이터를 어떻게 내보내는지 설명해 줘. 관련 코드와 소스 위치도 보여 "
+"줘.{ph4}{ph5}{ph6}"
 
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
@@ -11568,6 +11597,7 @@ msgctxt "page:examples/dino-lab/index.html"
 msgid "Reconstruction · {ph0}"
 msgstr "재건 · {ph0}"
 
+# Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <span translate="no">Node.js</span>
 #: website/public/faq/index.html:205
 #, python-brace-format
@@ -11575,7 +11605,7 @@ msgctxt "page:faq/index.html"
 msgid ""
 "With {ph0} and npm available, run setup, choose your coding agent and review"
 " the proposed changes."
-msgstr "함께 {ph0} 그리고 npm 사용 가능,설치 실행,코딩 에이전트를 선택하고 제안 된 변경 사항을 검토하십시오."
+msgstr "{ph0}와 npm을 준비한 뒤 설정 명령을 실행하세요. 사용할 코딩 에이전트를 선택하고 변경 계획을 확인하세요."
 
 #. {ph0}: <span translate="no">Node.js</span>
 #: website/public/first-investigation/index.html:189

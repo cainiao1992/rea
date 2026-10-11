@@ -5583,6 +5583,7 @@ msgstr ""
 "Bildschirmposition. Der Soundcode wandelt ihn in einen Links / Rechts-"
 "Schwenkwert um."
 
+# Reviewed for grammatical function-call terminology.
 #. {ph0}: <code>0x00406400</code>
 #. {ph1}: <code>__ftol()</code>
 #: website/public/guides/native/index.html:208
@@ -5593,9 +5594,9 @@ msgid ""
 "{ph1}. REA also returns its instructions and callers, which give the agent a"
 " way to investigate the missing arithmetic."
 msgstr ""
-"Die Startfunktion, {ph0}, hat ein kurzes Dekompilierergebnis: ein Aufruf an "
-"{ph1}.  REA gibt auch seine Anweisungen und Anrufer zurück, die dem Agenten "
-"die Möglichkeit geben, die fehlende Arithmetik zu untersuchen."
+"Der Dekompilierer zeigt für die Ausgangsfunktion {ph0} nur einen Aufruf von "
+"{ph1}. REA liefert auch die Maschinenbefehle und die aufrufenden Funktionen."
+" Damit kann der Agent die fehlenden Rechenschritte untersuchen."
 
 #: website/public/guides/native/index.html:215
 msgctxt "page:guides/native/index.html"
@@ -5629,6 +5630,7 @@ msgstr ""
 "Analysewerkzeugs, Anweisungen wieder in C-ähnlichen Code umzuwandeln. Es "
 "kann Teile vermissen, wie in diesem Beispiel."
 
+# Reviewed for grammatical function-call terminology.
 #. {ph0}: <strong>
 #. {ph1}: </strong>
 #: website/public/guides/native/index.html:227
@@ -5638,8 +5640,8 @@ msgid ""
 "{ph0}Caller:{ph1} a function that calls this one. It shows which values are "
 "passed in."
 msgstr ""
-"{ph0}Anrufer:{ph1} eine Funktion, die diese aufruft. Es zeigt an, welche "
-"Werte übergeben werden."
+"{ph0}Aufrufende Funktion:{ph1} Sie ruft diese Funktion auf und zeigt, welche"
+" Werte dabei übergeben werden."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -5688,6 +5690,7 @@ msgstr ""
 "Stapellesevorgang liefert den Wert, der von den Gleitkommabefehlen verwendet"
 " wird.{ph5}"
 
+# Reviewed for grammatical function-call terminology.
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
 #. {ph2}: <span class="flow-node">
@@ -5702,8 +5705,9 @@ msgid ""
 "{ph0}02 · Caller{ph1}{ph2}A screen coordinate{ph3}{ph4}The brick-hit caller "
 "passes {ph5}.{ph6}"
 msgstr ""
-"{ph0}02 * Anrufer{ph1}{ph2}Eine Bildschirmkoordinate{ph3}{ph4}Der "
-"Ziegelstein-Hit-Anrufer geht vorbei {ph5}.{ph6}"
+"{ph0}02 · Aufrufende Funktion{ph1}{ph2}Eine "
+"Bildschirmkoordinate{ph3}{ph4}Die Funktion für Ziegeltreffer übergibt "
+"{ph5}.{ph6}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
@@ -5929,11 +5933,13 @@ msgstr ""
 "Gleitkomma-Arithmetik. Dies ist die Eingabe, die in der ersten Pseudocode-"
 "Ansicht fehlt."
 
+# Reviewed for grammatical function-call terminology.
 #: website/public/guides/native/index.html:382
 msgctxt "page:guides/native/index.html"
 msgid "Follow the caller"
-msgstr "Folgen Sie dem Anrufer"
+msgstr "Die aufrufende Funktion verfolgen"
 
+# Reviewed for grammatical function-call terminology.
 #. {ph0}: <code>0x14</code>
 #: website/public/guides/native/index.html:391
 #, python-brace-format
@@ -5942,9 +5948,9 @@ msgid ""
 "REA identifies the brick-hit caller. Its earlier instructions multiply the "
 "tile coordinate by 30; adding {ph0} (20) gives the brick's screen position."
 msgstr ""
-"REA identifiziert den Brick-Hit-Anrufer. Seine früheren Anweisungen "
-"multiplizieren die Kachelkoordinate mit 30; Hinzufügen {ph0} (20) gibt die "
-"Bildschirmposition des Bausteins an."
+"REA findet die aufrufende Funktion für Ziegeltreffer. Vor dem Aufruf "
+"multipliziert sie die Gitterkoordinate mit 30 und addiert {ph0} (20). So "
+"ergibt sich die Bildschirmposition des Ziegels."
 
 #: website/public/guides/native/index.html:396
 msgctxt "page:guides/native/index.html"
@@ -8543,6 +8549,7 @@ msgstr ""
 "{ph0}04 * Gehe zur nächsten Zelle.{ph1} Die ursprüngliche Schleife rückt "
 "vier Bytes pro Ganzzahl vor und besucht sechs Zeilen mit sechs Zellen."
 
+# Reviewed for grammatical function-call terminology.
 #. {ph0}: <strong>
 #. {ph1}: </strong>
 #. {ph2}: <code>EAX</code>
@@ -8554,8 +8561,9 @@ msgid ""
 "{ph0}05 · Compare with the stored target.{ph1} The caller receives the sum "
 "in {ph2}. A mismatch jumps to {ph3}."
 msgstr ""
-"{ph0}05 * Vergleichen Sie mit dem gespeicherten Ziel.{ph1} Der Anrufer "
-"erhält die Summe in {ph2}. Eine Fehlanpassung springt zu {ph3}."
+"{ph0}05 · Mit dem gespeicherten Zielwert vergleichen.{ph1} Die aufrufende "
+"Funktion erhält die Summe in {ph2}. Bei einer Abweichung springt sie zu "
+"{ph3}."
 
 #: website/public/showcase/ctf/index.html:557
 msgctxt "page:showcase/ctf/index.html"
@@ -9126,11 +9134,13 @@ msgstr ""
 "Hier, {ph0} macht die Integer-Eingabe verfügbar, die in der "
 "Dekompilierungsansicht fehlt."
 
+# Reviewed for grammatical function-call terminology.
 #: website/public/showcase/dx-ball/index.html:359
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "Follow the caller to understand the input"
-msgstr "Folgen Sie dem Anrufer, um die Eingabe zu verstehen"
+msgstr "Die aufrufende Funktion erklärt die Eingabe"
 
+# Reviewed for grammatical function-call terminology.
 #. {ph0}: <code>tile_x</code>
 #. {ph1}: <code>20 + 30 × tile_x</code>
 #: website/public/showcase/dx-ball/index.html:376
@@ -9140,9 +9150,9 @@ msgid ""
 "REA identified this caller in the first result. Its preceding instructions "
 "scale {ph0} by 30; adding 20 gives the brick's screen coordinate, {ph1}."
 msgstr ""
-"REA hat diesen Anrufer im ersten Ergebnis identifiziert. Seine "
-"vorhergehenden Anweisungen skalieren {ph0} um 30; Das Addieren von 20 ergibt"
-" die Bildschirmkoordinate des Bausteins, {ph1}."
+"REA nennt diese aufrufende Funktion bereits im ersten Ergebnis. Vor dem "
+"Aufruf multipliziert sie {ph0} mit 30 und addiert 20. Das ergibt die "
+"Bildschirmkoordinate des Ziegels, {ph1}."
 
 #: website/public/showcase/dx-ball/index.html:383
 msgctxt "page:showcase/dx-ball/index.html"
@@ -9334,10 +9344,11 @@ msgctxt "page:showcase/dx-ball/index.html"
 msgid "REA result · 0x406400–0x40643e"
 msgstr "REA Ergebnis · 0x406400–0x40643e"
 
+# Reviewed for grammatical function-call terminology.
 #: website/public/showcase/dx-ball/index.html:593
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "What the caller supplies"
-msgstr "Was der Anrufer liefert"
+msgstr "Was die aufrufende Funktion übergibt"
 
 #. {ph0}: <code>0x411f40</code>
 #: website/public/showcase/dx-ball/index.html:594
@@ -12029,10 +12040,11 @@ msgctxt "page:guides/index.html"
 msgid "Instructions"
 msgstr "Anweisung"
 
+# Reviewed for grammatical function-call terminology.
 #: website/public/guides/index.html:207
 msgctxt "page:guides/index.html"
 msgid "Caller"
-msgstr "Anrufer"
+msgstr "Aufrufende Funktion"
 
 #: website/public/guides/index.html:208
 msgctxt "page:guides/index.html"
@@ -12089,10 +12101,11 @@ msgctxt "page:guides/native/index.html"
 msgid "REA instruction excerpt · 0x406409"
 msgstr "REA Auszug aus der Anleitung · 0x406409"
 
+# Reviewed for grammatical function-call terminology.
 #: website/public/guides/native/index.html:385
 msgctxt "page:guides/native/index.html"
 msgid "REA caller excerpt · 0x411f5b"
-msgstr "REA Anruferauszug · 0x411f5b"
+msgstr "REA · Aufrufende Funktion bei 0x411f5b"
 
 #: website/public/guides/native/index.html:399
 msgctxt "page:guides/native/index.html"
@@ -12155,10 +12168,11 @@ msgctxt "page:showcase/aegis/index.html"
 msgid "REA → agent · selected results"
 msgstr "REA → Agent * ausgewählte Ergebnisse"
 
+# Reviewed for grammatical function-call terminology.
 #: website/public/showcase/aegis/index.html:432
 msgctxt "page:showcase/aegis/index.html"
 msgid "REA → agent · methods and callers"
-msgstr "REA → agent * Methoden und Anrufer"
+msgstr "REA → Agent · Methoden und aufrufende Funktionen"
 
 #: website/public/showcase/aegis/index.html:502
 msgctxt "page:showcase/aegis/index.html"
@@ -12244,10 +12258,11 @@ msgctxt "page:showcase/dx-ball/index.html"
 msgid "REA → agent · instruction excerpt"
 msgstr "REA → Agent * Anweisungsauszug"
 
+# Reviewed for grammatical function-call terminology.
 #: website/public/showcase/dx-ball/index.html:369
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "REA → agent · caller excerpt"
-msgstr "REA → Agent * Anrufer Auszug"
+msgstr "REA → Agent · Auszug der aufrufenden Funktion"
 
 #. {ph0}: <code>read_bytes</code>
 #: website/public/showcase/dx-ball/index.html:387

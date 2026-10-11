@@ -50,7 +50,7 @@ msgid ""
 "agents, verification and knowledge that compounds across projects."
 msgstr ""
 "NHỮNG gì HƯỚNG DẪN SỬ DỤNG LẠI VÀ tái TẠO TH08, TH095 và TH04 đã dạy tôi về "
-"các đại lý, xác minh và kiến thức mà các hợp chất trong các dự án."
+"các agent, xác minh và kiến thức mà các hợp chất trong các dự án."
 
 #: website/public/blog/index.html:195
 msgctxt "page:blog/index.html"
@@ -96,7 +96,7 @@ msgid ""
 "Thoughts on reverse engineering, drawing on practical experience with REA "
 "and AI agents."
 msgstr ""
-"Suy nghĩ về kỹ thuật đảo ngược, dựa trên kinh nghiệm thực tế VỚI CÁC đại lý "
+"Suy nghĩ về kỹ thuật đảo ngược, dựa trên kinh nghiệm thực tế VỚI CÁC agent "
 "REA và AI."
 
 #: website/public/blog/index.html:75 website/public/blog/index.html:88
@@ -132,8 +132,8 @@ msgid ""
 "REA — Find out how software works. Reverse engineering with your coding "
 "agent."
 msgstr ""
-"REA-Tìm hiểu cách thức hoạt động của phần mềm. Kỹ thuật đảo ngược với đại lý"
-" mã hóa của bạn."
+"REA-Tìm hiểu cách thức hoạt động của phần mềm. Kỹ thuật đảo ngược với agent "
+"mã hóa của bạn."
 
 #: website/public/blog/index.html:104
 #: website/public/blog/touhou-reconstruction/index.html:104
@@ -284,8 +284,8 @@ msgid ""
 "{ph0}Give agents autonomy over the investigation.{ph1} Set a clear goal and "
 "acceptance criteria, then let the agent decide what to try next."
 msgstr ""
-"{ph0}Cung cấp cho các đại lý quyền tự chủ trong cuộc điều tra.{ph1} Đặt mục "
-"tiêu rõ ràng và tiêu chí chấp nhận, sau đó để đại lý quyết định thử gì tiếp "
+"{ph0}Cung cấp cho các agent quyền tự chủ trong cuộc điều tra.{ph1} Đặt mục "
+"tiêu rõ ràng và tiêu chí chấp nhận, sau đó để agent quyết định thử gì tiếp "
 "theo."
 
 #. {ph0}: <strong>
@@ -557,9 +557,9 @@ msgid ""
 "which to find out."
 msgstr ""
 "Vào tháng 8 năm 2026, tôi bắt đầu khám phá tái agent-driven nghiêm túc. Tôi "
-"muốn xem một đại lý có thể đi được bao xa với quyền truy cập vào chương "
-"trình và các công cụ phát triển thông thường. Touhou tái thiết đã cho tôi "
-"một dự án đáng kể trong đó để tìm hiểu."
+"muốn xem một agent có thể đi được bao xa với quyền truy cập vào chương trình"
+" và các công cụ phát triển thông thường. Touhou tái thiết đã cho tôi một dự "
+"án đáng kể trong đó để tìm hiểu."
 
 #: website/public/blog/touhou-reconstruction/index.html:389
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -573,10 +573,10 @@ msgid ""
 msgstr ""
 "Sự tiến bộ ban đầu thật đáng kinh ngạc. Một cuộc điều tra có thể tiếp tục di"
 " chuyển mà không cần tôi chọn từng bước riêng lẻ. Một so sánh thất bại có "
-"thể gửi các đại lý cho người gọi khác. Nó có thể viết một chẩn đoán nhỏ và "
-"sử dụng kết quả để quyết định những gì để thử tiếp theo. Cho nó rằng tự do "
-"đã tạo ra sự khác biệt: tôi có thể dành nhiều sự chú ý hơn cho hướng của dự "
-"án và về việc kiểm tra của nó có đáng tin cậy hay không."
+"thể gửi các agent cho người gọi khác. Nó có thể viết một chẩn đoán nhỏ và sử"
+" dụng kết quả để quyết định những gì để thử tiếp theo. Cho nó rằng tự do đã "
+"tạo ra sự khác biệt: tôi có thể dành nhiều sự chú ý hơn cho hướng của dự án "
+"và về việc kiểm tra của nó có đáng tin cậy hay không."
 
 #: website/public/blog/touhou-reconstruction/index.html:398
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -665,9 +665,9 @@ msgstr ""
 "{ph0}tài liệu tham khảo xác minh (oracles){ph1}. So sánh mã có thể cho chúng"
 " ta biết liệu một hàm được xây dựng lại có tái tạo các hướng dẫn ban đầu hay"
 " không. Kiểm tra thời gian chạy có thể cho chúng tôi biết liệu một tuyến "
-"đường được thực hiện có đạt đến trạng thái mong đợi hay không. Đại lý đề "
-"xuất một lời giải thích và kiểm tra nó; một sự không phù hợp mang lại cho nó"
-" một cái gì đó cụ thể để điều tra."
+"đường được thực hiện có đạt đến trạng thái mong đợi hay không. Agent đề xuất"
+" một lời giải thích và kiểm tra nó; một sự không phù hợp mang lại cho nó một"
+" cái gì đó cụ thể để điều tra."
 
 #: website/public/blog/touhou-reconstruction/index.html:440
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -797,9 +797,9 @@ msgid ""
 "investigations before I notice it. I have to understand what the checker "
 "actually verifies and test it against cases that ought to fail."
 msgstr ""
-"Điều đó quan trọng khi nhóm chủ yếu là một người làm việc với các đại lý. Cá"
-" nhân tôi không thể kiểm tra mọi dòng họ sản xuất, vì vậy phần lớn sự tự tin"
-" của tôi nằm trên séc của họ. Điểm mù của tài liệu tham khảo xác minh được "
+"Điều đó quan trọng khi nhóm chủ yếu là một người làm việc với các agent. Cá "
+"nhân tôi không thể kiểm tra mọi dòng họ sản xuất, vì vậy phần lớn sự tự tin "
+"của tôi nằm trên séc của họ. Điểm mù của tài liệu tham khảo xác minh được "
 "chia sẻ (oracle) có thể ảnh hưởng đến nhiều cuộc điều tra trước khi tôi nhận"
 " thấy nó. Tôi phải hiểu những gì trình kiểm tra thực sự xác minh và kiểm tra"
 " nó chống lại các trường hợp phải thất bại."
@@ -901,8 +901,8 @@ msgid ""
 "pursue the next investigation on its own."
 msgstr ""
 "Các dự án hiện tại đã bảo tồn kiến thức trong nguồn của họ và xây dựng các "
-"công cụ. Điều thay đổi đối với tôi là một đại lý có thể sử dụng kiến thức đó"
-" để tự mình theo đuổi cuộc điều tra tiếp theo."
+"công cụ. Điều thay đổi đối với tôi là một agent có thể sử dụng kiến thức đó "
+"để tự mình theo đuổi cuộc điều tra tiếp theo."
 
 #: website/public/blog/touhou-reconstruction/index.html:561
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -914,10 +914,10 @@ msgid ""
 "agent did most of the work."
 msgstr ""
 "Trong phần tiếp theo của mình, tôi quyết định mục tiêu và tiêu chuẩn để chấp"
-" nhận kết quả. Đại lý có quyền tự do điều tra rộng rãi. Tái thiết đề xuất "
-"của nó sau đó phải tồn tại các kiểm tra có liên quan. Tôi muốn một người "
-"khác có thể kiểm tra lý do tại sao chúng tôi chọn một triển khai, ngay cả "
-"khi một đại lý đã làm hầu hết công việc."
+" nhận kết quả. Agent có quyền tự do điều tra rộng rãi. Tái thiết đề xuất của"
+" nó sau đó phải tồn tại các kiểm tra có liên quan. Tôi muốn một người khác "
+"có thể kiểm tra lý do tại sao chúng tôi chọn một triển khai, ngay cả khi một"
+" agent đã làm hầu hết công việc."
 
 #: website/public/blog/touhou-reconstruction/index.html:568
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -1057,8 +1057,8 @@ msgid ""
 msgstr ""
 "Một bài học ở trong đầu tôi rất hữu ích khi tôi ở đó. Một khi nó trở thành "
 "một kiểm tra mà một phiên khác có thể chạy, nó có thể tiếp tục giúp đỡ sau "
-"khi tôi đã chuyển sang. Các đại lý tiếp theo có thể sử dụng kết quả mà không"
-" cần lặp lại điều tra dẫn đến nó."
+"khi tôi đã chuyển sang. Các agent tiếp theo có thể sử dụng kết quả mà không "
+"cần lặp lại điều tra dẫn đến nó."
 
 #: website/public/blog/touhou-reconstruction/index.html:641
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -1163,7 +1163,7 @@ msgstr ""
 "Hãy xem xét sự chuyển đổi từ lối chơi sang kết thúc. Chúng ta cần biết trạng"
 " thái nào mang qua ranh giới đó và chương trình nào chịu trách nhiệm về nó. "
 "Đó là điều chúng tôi có thể điều tra chống lại sản phẩm dos. Một khi các "
-"bằng chứng và kiểm tra có sẵn, một đại lý có thể làm việc thông qua các câu "
+"bằng chứng và kiểm tra có sẵn, một agent có thể làm việc thông qua các câu "
 "hỏi nhiều như nó đã làm trên một tiêu đề Windows."
 
 #: website/public/blog/touhou-reconstruction/index.html:693
@@ -1365,7 +1365,7 @@ msgstr ""
 "Họ bắt những sai lầm khác nhau. Thay đổi kiểu có thể thay đổi các hướng dẫn "
 "được tạo. Một sự thay đổi quyền sở hữu có thể để lại hai phần của trò chơi "
 "bằng cách sử dụng các bản sao khác nhau của nhà nước. Giữ cả hai kiểm tra có"
-" sẵn cung cấp cho các đại lý một thất bại cụ thể để điều tra trước khi thực "
+" sẵn cung cấp cho các agent một thất bại cụ thể để điều tra trước khi thực "
 "hiện một refactor hơn nữa."
 
 #: website/public/blog/touhou-reconstruction/index.html:790
@@ -1429,10 +1429,10 @@ msgid ""
 " one of the most useful things I could do. A better tool could help with "
 "every later function that needed it."
 msgstr ""
-"Những dự án này đã thay đổi nơi tôi dành sự chú ý của mình. Một khi các đại "
-"lý có thể tiến hành nhiều cuộc điều tra, việc cải thiện môi trường làm việc "
-"của họ đã trở thành một trong những điều hữu ích nhất mà tôi có thể làm. Một"
-" công cụ tốt hơn có thể giúp với mọi chức năng sau này cần nó."
+"Những dự án này đã thay đổi nơi tôi dành sự chú ý của mình. Một khi các "
+"agent có thể tiến hành nhiều cuộc điều tra, việc cải thiện môi trường làm "
+"việc của họ đã trở thành một trong những điều hữu ích nhất mà tôi có thể "
+"làm. Một công cụ tốt hơn có thể giúp với mọi chức năng sau này cần nó."
 
 #: website/public/blog/touhou-reconstruction/index.html:825
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -1443,9 +1443,9 @@ msgid ""
 "of the work remains tied to my attention."
 msgstr ""
 "Vấn đề tự chủ ở đây. Bước tiếp theo hữu ích thường trở nên rõ ràng chỉ sau "
-"một thử nghiệm thất bại. Một đại lý cần đủ tự do để làm theo kết quả đó ở "
-"đâu đó bất ngờ. Nếu phải đợi tôi quy định từng bước, phần lớn công việc vẫn "
-"gắn liền với sự chú ý của tôi."
+"một thử nghiệm thất bại. Một agent cần đủ tự do để làm theo kết quả đó ở đâu"
+" đó bất ngờ. Nếu phải đợi tôi quy định từng bước, phần lớn công việc vẫn gắn"
+" liền với sự chú ý của tôi."
 
 #: website/public/blog/touhou-reconstruction/index.html:832
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -1455,7 +1455,7 @@ msgid ""
 "understand the mistake well enough to try again. I still have to decide "
 "whether the accumulated evidence supports a project milestone."
 msgstr ""
-"Tôi hy vọng các đại lý để làm cho giả thuyết sai. Điều quan trọng là liệu "
+"Tôi hy vọng các agent để làm cho giả thuyết sai. Điều quan trọng là liệu "
 "chúng ta có thể kiểm tra chúng và học hỏi từ kết quả hay không. Kiểm tra "
 "thất bại sẽ giúp nó hiểu rõ sai lầm đủ để thử lại. Tôi vẫn phải quyết định "
 "xem bằng chứng tích lũy có hỗ trợ một cột mốc dự án hay không."
@@ -1469,7 +1469,7 @@ msgid ""
 "use those to test the source it proposes and see where its explanation holds"
 " up."
 msgstr ""
-"REA cung cấp cho các đại lý truy cập vào các công cụ phân tích. Một câu hỏi "
+"REA cung cấp cho các agent truy cập vào các công cụ phân tích. Một câu hỏi "
 "về người gọi của một chức năng có thể dẫn thẳng vào việc kiểm tra người gọi "
 "đó. Dự án tái thiết cung cấp trình biên dịch và kiểm tra tham chiếu của "
 "riêng nó. Tác nhân có thể sử dụng chúng để kiểm tra nguồn mà nó đề xuất và "
@@ -1525,8 +1525,8 @@ msgid ""
 "results it affected. The next project can then inherit a stronger tool."
 msgstr ""
 "{ph0}Chúng tôi đang trong giai đoạn đầu của sự thay đổi công nghiệp "
-"này.{ph1} Phần lớn cơ sở hạ tầng vẫn chưa trưởng thành. Các đại lý có thể di"
-" chuyển nhanh hơn so với séc của chúng tôi được thiết kế để hỗ trợ, vì vậy "
+"này.{ph1} Phần lớn cơ sở hạ tầng vẫn chưa trưởng thành. Các agent có thể di "
+"chuyển nhanh hơn so với séc của chúng tôi được thiết kế để hỗ trợ, vì vậy "
 "quá trình này phải phát triển cùng với chúng. Khi chúng tôi tìm thấy một lỗi"
 " trong một công cụ được chia sẻ, chúng tôi phải sửa chữa nó và xem lại kết "
 "quả mà nó bị ảnh hưởng. Dự án tiếp theo sau đó có thể kế thừa một công cụ "
@@ -1571,7 +1571,7 @@ msgstr ""
 "Đó là những gì làm cho sự tương tự công nghiệp có ý nghĩa đối với tôi. Kinh "
 "nghiệm bắt đầu trở thành một phần của các công cụ mà người khác có thể sử "
 "dụng. Cải thiện những công cụ thay đổi bao nhiêu người tiếp theo—hoặc các "
-"đại lý tiếp theo—có thể được thực hiện."
+"agent tiếp theo—có thể được thực hiện."
 
 #: website/public/blog/touhou-reconstruction/index.html:900
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -1614,7 +1614,7 @@ msgid ""
 "accumulated knowledge would let an agent work on this reliably?{ph1}"
 msgstr ""
 "Bây giờ tôi nhìn vào một chương trình xa lạ và hỏi: {ph0}truy cập, phản hồi "
-"và kiến thức tích lũy nào sẽ cho phép một đại lý làm việc về điều này một "
+"và kiến thức tích lũy nào sẽ cho phép một agent làm việc về điều này một "
 "cách đáng tin cậy?{ph1}"
 
 #: website/public/blog/touhou-reconstruction/index.html:921
@@ -1809,8 +1809,8 @@ msgid ""
 "{ph0}Method:{ph1} the Factory's {ph2}agent autonomy{ph3} and {ph4}cross-game"
 " knowledge{ph5} documents retain the working principles and lessons."
 msgstr ""
-"{ph0}Phương pháp:{ph1} Nhà Máy {ph2}tự chủ đại lý{ph3} và {ph4}kiến thức trò"
-" chơi chéo{ph5} tài liệu giữ lại các nguyên tắc làm việc và bài học."
+"{ph0}Phương pháp:{ph1} Nhà Máy {ph2}tự chủ agent{ph3} và {ph4}kiến thức trò "
+"chơi chéo{ph5} tài liệu giữ lại các nguyên tắc làm việc và bài học."
 
 #. {ph0}: <a class="text-link" href="../">
 #. {ph1}: </a>
@@ -2126,7 +2126,7 @@ msgstr "Hãy tự mình thử phân tích"
 #, python-brace-format
 msgctxt "page:examples/dino-lab/index.html"
 msgid "{ph0}Set up REA{ph1} with your coding agent."
-msgstr "{ph0}Thiết LẬP REA {ph1} với đại lý mã hóa của bạn."
+msgstr "{ph0}Thiết LẬP REA {ph1} với agent mã hóa của bạn."
 
 #. {ph0}: <a href="../../guides/browser/#prepare" >
 #. {ph1}: </a >
@@ -2146,8 +2146,8 @@ msgid ""
 "Give your agent the page URL and local debugging endpoint, then copy this "
 "prompt."
 msgstr ""
-"Cung cấp cho đại lý CỦA bạn URL trang và điểm cuối gỡ lỗi cục bộ, sau đó sao"
-" chép lời nhắc này."
+"Cung cấp cho agent CỦA bạn URL trang và điểm cuối gỡ lỗi cục bộ, sau đó sao "
+"chép lời nhắc này."
 
 #. {ph0}: <span class="terminal-dots" aria-hidden="true" >
 #. {ph1}: <i>
@@ -2161,7 +2161,7 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:examples/dino-lab/index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
-msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Đại lý mã hóa của bạn"
+msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Agent mã hóa của bạn"
 
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
@@ -2326,7 +2326,7 @@ msgstr "Cài đặt REA thế nào?"
 #: website/public/faq/index.html:212
 msgctxt "page:faq/index.html"
 msgid "Terminal · agent setup"
-msgstr "Thiết bị đầu cuối · thiết lập đại lý"
+msgstr "Thiết bị đầu cuối · thiết lập agent"
 
 #: website/public/faq/index.html:213 website/public/faq/index.html:254
 #: website/public/faq/index.html:272 website/public/faq/index.html:356
@@ -2356,7 +2356,7 @@ msgstr ""
 #: website/public/faq/index.html:233
 msgctxt "page:faq/index.html"
 msgid "Which coding agents can use REA?"
-msgstr "NHỮNG đại lý mã hóa NÀO có thể sử DỤNG REA ?"
+msgstr "NHỮNG agent mã hóa NÀO có thể sử DỤNG REA ?"
 
 #: website/public/faq/index.html:234
 msgctxt "page:faq/index.html"
@@ -2366,9 +2366,9 @@ msgid ""
 "Antigravity, GitHub Copilot CLI, Command Code, Grok Build, OMP, and VS Code."
 " Grok Bot's connector is added from its chat."
 msgstr ""
-"Bất kỳ đại lý nào hỗ trợ MÁY chủ MCP cục bộ. Thiết lập BAO GỒM Claude Code ,"
-" Claude Desktop, Codex , Cursor , Gemini CLI , Windsurf , Devin , OpenCode ,"
-" Antigravity , GitHub Copilot CLI , Command Code , Grok Build , OMP , VÀ VS "
+"Bất kỳ agent nào hỗ trợ MÁY chủ MCP cục bộ. Thiết lập BAO GỒM Claude Code , "
+"Claude Desktop, Codex , Cursor , Gemini CLI , Windsurf , Devin , OpenCode , "
+"Antigravity , GitHub Copilot CLI , Command Code , Grok Build , OMP , VÀ VS "
 "Code . Trình kết nối của Grok Bot được thêm vào từ cuộc trò chuyện của Nó."
 
 #. {ph0}: <a href="../get-started/#agent">
@@ -2377,7 +2377,7 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:faq/index.html"
 msgid "{ph0}Connect your coding agent{ph1}."
-msgstr "{ph0}Kết nối đại lý mã hóa của bạn{ph1}."
+msgstr "{ph0}Kết nối agent mã hóa của bạn{ph1}."
 
 #: website/public/faq/index.html:246
 msgctxt "page:faq/index.html"
@@ -2407,12 +2407,12 @@ msgid ""
 "agent through {ph0}, run:"
 msgstr ""
 "Thực hiện theo lệnh làm mới thiết lập được in bởi bản cập nhật. Nếu bạn "
-"thiết lập đại lý của bạn thông qua {ph0}, chạy đi:"
+"thiết lập agent của bạn thông qua {ph0}, chạy đi:"
 
 #: website/public/faq/index.html:271
 msgctxt "page:faq/index.html"
 msgid "Terminal · refresh agent setup"
-msgstr "Thiết bị đầu cuối · thiết lập đại lý làm mới"
+msgstr "Thiết bị đầu cuối · thiết lập agent làm mới"
 
 # Reviewed for readable setup and analysis terminology.
 #. {ph0}: <code>npx -y rea-agents@latest</code>
@@ -2443,9 +2443,9 @@ msgid ""
 "setup{ph1} to connect the MCP server and install the matching skill, then "
 "restart your agent so it can call the tools."
 msgstr ""
-"Kỹ năng đưa ra hướng dẫn điều tra đại lý của bạn. Chạy đi {ph0} THIẾT LẬP "
+"Kỹ năng đưa ra hướng dẫn điều tra agent của bạn. Chạy đi {ph0} THIẾT LẬP "
 "REA{ph1} để kết nối MÁY chủ MCP và cài đặt kỹ năng phù hợp, sau đó khởi động"
-" lại đại lý của bạn để nó có thể gọi các công cụ."
+" lại agent của bạn để nó có thể gọi các công cụ."
 
 #: website/public/faq/index.html:305
 msgctxt "page:faq/index.html"
@@ -2542,7 +2542,7 @@ msgstr ""
 #: website/public/faq/index.html:348
 msgctxt "page:faq/index.html"
 msgid "Can I use REA without a coding agent?"
-msgstr "Tôi có thể sử DỤNG REA mà không cần đại lý mã hóa không?"
+msgstr "Tôi có thể sử DỤNG REA mà không cần agent mã hóa không?"
 
 #: website/public/faq/index.html:349
 msgctxt "page:faq/index.html"
@@ -2600,8 +2600,8 @@ msgid ""
 "implementation. The {ph0}DX-Ball calculation{ph1} and {ph2}CTF flag "
 "checker{ph3} show how that process works."
 msgstr ""
-"Đại lý của bạn sử dụng những phát hiện này để giải thích hành vi hoặc viết "
-"và kiểm tra việc thực hiện. Các {ph0} DX-Ball tính TOÁN{ph1} và {ph2}CTF cờ "
+"Agent của bạn sử dụng những phát hiện này để giải thích hành vi hoặc viết và"
+" kiểm tra việc thực hiện. Các {ph0} DX-Ball tính TOÁN{ph1} và {ph2}CTF cờ "
 "checker{ph3} cho thấy quá trình đó hoạt động như thế nào."
 
 #: website/public/faq/index.html:392
@@ -2630,7 +2630,7 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:faq/index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
-msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Đại lý mã hóa của bạn"
+msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Agent mã hóa của bạn"
 
 #. {ph0}: <a href="../guides/">
 #. {ph1}: </a>
@@ -2652,7 +2652,7 @@ msgstr "Khắc phục sự cố"
 #: website/public/faq/index.html:435
 msgctxt "page:faq/index.html"
 msgid "Why can't my agent see the REA tools?"
-msgstr "Tại sao đại lý của tôi không thể thấy CÁC CÔNG cụ REA?"
+msgstr "Tại sao agent của tôi không thể thấy CÁC CÔNG cụ REA?"
 
 #. {ph0}: <code>doctor</code>
 #: website/public/faq/index.html:436
@@ -2662,7 +2662,7 @@ msgid ""
 "Restart or reconnect your agent after setup. Check its REA registration with"
 " {ph0}; for Codex:"
 msgstr ""
-"Khởi động lại hoặc kết nối lại đại lý của bạn sau khi thiết lập. Kiểm tra "
+"Khởi động lại hoặc kết nối lại agent của bạn sau khi thiết lập. Kiểm tra "
 "ĐĂNG ký REA của NÓ với {ph0}; CHO Codex :"
 
 #: website/public/faq/index.html:442
@@ -2736,7 +2736,7 @@ msgid ""
 "{ph0}Update REA{ph1}, restart your agent and retry the same task. A recent "
 "release may already fix the problem."
 msgstr ""
-"{ph0}Cập NHẬT REA {ph1}, khởi động lại đại lý của bạn và thử lại cùng một "
+"{ph0}Cập NHẬT REA {ph1}, khởi động lại agent của bạn và thử lại cùng một "
 "nhiệm vụ. Một bản phát hành gần đây có thể đã khắc phục được sự cố."
 
 #. {ph0}: <a href="https://github.com/morluto/rea/issues/new/choose" >
@@ -2769,7 +2769,7 @@ msgid ""
 "REA analyzes targets on your machine. Your agent receives the results, and "
 "its model provider's data policy applies to those results."
 msgstr ""
-"REA phân tích mục tiêu trên máy tính của bạn. Đại lý của bạn nhận được kết "
+"REA phân tích mục tiêu trên máy tính của bạn. Agent của bạn nhận được kết "
 "quả và chính sách dữ liệu của nhà cung cấp mô hình áp dụng cho các kết quả "
 "đó."
 
@@ -2820,7 +2820,7 @@ msgid ""
 "coding agents, troubleshooting and sharing examples."
 msgstr ""
 "Câu trả lời cho CÁC CÂU HỎI REA phổ biến: cài đặt, cập nhật, công cụ phân "
-"tích, đại lý mã hóa, khắc phục sự cố và chia sẻ ví dụ."
+"tích, agent mã hóa, khắc phục sự cố và chia sẻ ví dụ."
 
 #: website/public/faq/index.html:186
 msgctxt "page:faq/index.html"
@@ -2949,7 +2949,7 @@ msgstr "{ph0}5. Hỏi một câu hỏi khác{ph1}"
 #: website/public/first-investigation/index.html:207
 msgctxt "page:first-investigation/index.html"
 msgid "1. Connect your agent to REA"
-msgstr "1. Kết nối đại lý CỦA BẠN VỚI REA"
+msgstr "1. Kết nối agent CỦA BẠN VỚI REA"
 
 #. {ph0}: <span class="terminal-dots" aria-hidden="true" >
 #. {ph1}: <i>
@@ -2965,7 +2965,7 @@ msgstr "1. Kết nối đại lý CỦA BẠN VỚI REA"
 #, python-brace-format
 msgctxt "page:first-investigation/index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
-msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Đại lý mã hóa của bạn"
+msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Agent mã hóa của bạn"
 
 #: website/public/first-investigation/index.html:221
 #: website/public/first-investigation/index.html:243
@@ -2987,7 +2987,7 @@ msgid ""
 "Review the plan, approve the setup, then restart your agent. Already "
 "connected? Continue below."
 msgstr ""
-"Xem lại kế hoạch, phê duyệt thiết lập, sau đó khởi động lại đại lý của bạn. "
+"Xem lại kế hoạch, phê duyệt thiết lập, sau đó khởi động lại agent của bạn. "
 "Đã kết nối? Tiếp tục dưới đây."
 
 #: website/public/first-investigation/index.html:258
@@ -3006,8 +3006,8 @@ msgid ""
 "Electron."
 msgstr ""
 "Ví dụ là một ứng dụng Electron sáu tệp với một {ph0}Xuất ghi chú{ph1} nút. "
-"Đại lý của bạn có thể kiểm tra mã của nó mà không cần cài đặt hoặc khởi CHẠY"
-" Electron ."
+"Agent của bạn có thể kiểm tra mã của nó mà không cần cài đặt hoặc khởi CHẠY "
+"Electron ."
 
 #: website/public/first-investigation/index.html:294
 msgctxt "page:first-investigation/index.html"
@@ -3015,7 +3015,7 @@ msgid ""
 "Your agent downloads the files and gives the unpacked folder to REA for "
 "inspection."
 msgstr ""
-"Đại lý của bạn tải xuống các tệp và cung cấp thư mục đã giải nén CHO REA để "
+"Agent của bạn tải xuống các tệp và cung cấp thư mục đã giải nén CHO REA để "
 "kiểm tra."
 
 #. {ph0}: <a class="button" href="../examples/notes-example.zip"
@@ -3035,8 +3035,8 @@ msgid ""
 "If your agent can’t download files, unzip this archive yourself. Give it the"
 " path to the {ph0} folder and the same export question."
 msgstr ""
-"Nếu đại lý của bạn không thể tải xuống tệp, hãy tự giải nén kho lưu trữ này."
-" Cung cấp cho nó con đường đến {ph0} thư mục và cùng một câu hỏi xuất."
+"Nếu agent của bạn không thể tải xuống tệp, hãy tự giải nén kho lưu trữ này. "
+"Cung cấp cho nó con đường đến {ph0} thư mục và cùng một câu hỏi xuất."
 
 #: website/public/first-investigation/index.html:313
 msgctxt "page:first-investigation/index.html"
@@ -3085,8 +3085,8 @@ msgid ""
 "your agent to show these lines if its answer leaves them out."
 msgstr ""
 "Đường dẫn tệp, trình định dạng và cuộc gọi ghi nằm cùng nhau trong trình xử "
-"lý này. Yêu cầu đại lý của bạn hiển thị những dòng này nếu câu trả lời của "
-"nó loại bỏ chúng."
+"lý này. Yêu cầu agent của bạn hiển thị những dòng này nếu câu trả lời của nó"
+" loại bỏ chúng."
 
 #. {ph0}: <a href="../guides/javascript/#follow" >
 #. {ph1}: </a >
@@ -3129,7 +3129,7 @@ msgid ""
 "Your agent can run the same JavaScript in your platform’s shell."
 msgstr ""
 "Lệnh này sử dụng một shell có hỗ trợ tài liệu ở đây, chẳng hạn như Bash hoặc"
-" Zsh. Đại lý của bạn có thể chạy CÙNG MỘT JavaScript trong vỏ nền tảng của "
+" Zsh. Agent của bạn có thể chạy CÙNG MỘT JavaScript trong vỏ nền tảng của "
 "bạn."
 
 #: website/public/first-investigation/index.html:457
@@ -3157,7 +3157,7 @@ msgid ""
 "Or give your agent an app of your own and ask about one button, file or "
 "behavior."
 msgstr ""
-"Hoặc cung cấp cho đại lý của bạn một ứng dụng của riêng bạn và hỏi về một "
+"Hoặc cung cấp cho agent của bạn một ứng dụng của riêng bạn và hỏi về một "
 "nút, tệp hoặc hành vi."
 
 #. {ph0}: <a href="../showcase/notion/">
@@ -3213,8 +3213,8 @@ msgid ""
 "Try REA on a small Notes app. Set up your agent, ask where exported notes "
 "go, and check the CSV formatter with a sample title."
 msgstr ""
-"Hãy thử REA trên Một Ứng dụng Ghi chú nhỏ. Thiết lập đại lý của bạn, hỏi ghi"
-" chú đã xuất đi đâu và kiểm tra TRÌNH định dạng CSV với tiêu đề mẫu."
+"Hãy thử REA trên Một Ứng dụng Ghi chú nhỏ. Thiết lập agent của bạn, hỏi ghi "
+"chú đã xuất đi đâu và kiểm tra TRÌNH định dạng CSV với tiêu đề mẫu."
 
 #: website/public/first-investigation/index.html:195
 msgctxt "page:first-investigation/index.html"
@@ -3279,7 +3279,7 @@ msgctxt "page:get-started/index.html"
 msgid ""
 "Connect REA to your coding agent, or inspect a local app from your terminal."
 msgstr ""
-"Kết nối REA với đại lý mã hóa của bạn hoặc kiểm tra một ứng dụng cục bộ từ "
+"Kết nối REA với agent mã hóa của bạn hoặc kiểm tra một ứng dụng cục bộ từ "
 "thiết bị đầu cuối của bạn."
 
 #: website/public/get-started/index.html:195
@@ -3421,7 +3421,7 @@ msgstr "Tùy chọn thiết lập"
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "{ph0}Connect your coding agent{ph1}"
-msgstr "{ph0}Kết nối đại lý mã hóa của bạn{ph1}"
+msgstr "{ph0}Kết nối agent mã hóa của bạn{ph1}"
 
 #. {ph0}: <a href="#terminal">
 #. {ph1}: </a>
@@ -3450,7 +3450,7 @@ msgstr "{ph0}Nhận trợ giúp{ph1}"
 #: website/public/get-started/index.html:358
 msgctxt "page:get-started/index.html"
 msgid "Connect your coding agent"
-msgstr "Kết nối đại lý mã hóa của bạn"
+msgstr "Kết nối agent mã hóa của bạn"
 
 #: website/public/get-started/index.html:359
 msgctxt "page:get-started/index.html"
@@ -3467,7 +3467,7 @@ msgstr ""
 #: website/public/get-started/index.html:366
 msgctxt "page:get-started/index.html"
 msgid "New to coding agents?"
-msgstr "Mới đối với đại lý mã hóa?"
+msgstr "Mới đối với agent mã hóa?"
 
 #: website/public/get-started/index.html:367
 msgctxt "page:get-started/index.html"
@@ -3534,7 +3534,7 @@ msgid ""
 "Then open it and copy the prompt below into it. The agent runs REA's setup "
 "and shows you the plan before changing anything."
 msgstr ""
-"Sau đó mở nó và sao chép lời nhắc bên dưới vào nó. Các đại lý chạy REA 's "
+"Sau đó mở nó và sao chép lời nhắc bên dưới vào nó. Các agent chạy REA 's "
 "thiết lập và cho bạn thấy kế hoạch trước khi thay đổi bất cứ điều gì."
 
 #. {ph0}: <span class="terminal-dots" aria-hidden="true" >
@@ -3549,7 +3549,7 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
-msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Đại lý mã hóa của bạn"
+msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Agent mã hóa của bạn"
 
 #: website/public/get-started/index.html:430
 msgctxt "page:get-started/index.html"
@@ -3667,7 +3667,7 @@ msgid ""
 "{ph0}Terminal agents{ph1} (Claude Code, Codex, Gemini CLI): exit the session"
 " and start it again."
 msgstr ""
-"{ph0}Đại lý thiết bị đầu cuối{ph1} (Claude Code, Codex, Gemini CLI): thoát "
+"{ph0}Agent thiết bị đầu cuối{ph1} (Claude Code, Codex, Gemini CLI): thoát "
 "khỏi phiên và bắt đầu lại."
 
 #: website/public/get-started/index.html:488
@@ -3676,8 +3676,8 @@ msgid ""
 "Give your agent a target path and a specific question. For a JavaScript or "
 "Electron app, you might start with:"
 msgstr ""
-"Cung cấp cho đại lý của bạn một đường dẫn mục tiêu và một câu hỏi cụ thể. "
-"ĐỐI với ỨNG dụng JavaScript hoặc Electron, bạn có thể bắt đầu với:"
+"Cung cấp cho agent của bạn một đường dẫn mục tiêu và một câu hỏi cụ thể. ĐỐI"
+" với ỨNG dụng JavaScript hoặc Electron, bạn có thể bắt đầu với:"
 
 #. {ph0}: <code>/absolute/path/to/app</code>
 #: website/public/get-started/index.html:493
@@ -4032,7 +4032,7 @@ msgid ""
 "when opening the binary."
 msgstr ""
 "Cung CẤP CHO REA đường dẫn thực thi ban đầu, với {ph0} TRONG truy vấn CLI. "
-"Đối với một đại lý, bao gồm {ph1} trong môi trường ĐĂNG ký REA và chọn IDA "
+"Đối với một agent, bao gồm {ph1} trong môi trường ĐĂNG ký REA và chọn IDA "
 "khi mở nhị phân."
 
 #: website/public/get-started/index.html:756
@@ -4065,7 +4065,7 @@ msgid ""
 "open."
 msgstr ""
 "Mỗi lệnh CLI nhập và phân tích nhị phân, sau đó đóng phiên của nó. Các truy "
-"vấn MCP của đại lý của bạn sử dụng lại nhị phân đã nhập trong khi phiên đó "
+"vấn MCP của agent của bạn sử dụng lại nhị phân đã nhập trong khi phiên đó "
 "đang mở."
 
 #. {ph0}: <a href="../guides/native/">
@@ -4088,7 +4088,7 @@ msgstr "Nhận trợ giúp"
 #: website/public/get-started/index.html:794
 msgctxt "page:get-started/index.html"
 msgid "If your agent doesn't see REA"
-msgstr "Nếu đại lý của bạn không THẤY REA"
+msgstr "Nếu agent của bạn không THẤY REA"
 
 #. {ph0}: <code>doctor</code>
 #: website/public/get-started/index.html:795
@@ -4136,7 +4136,7 @@ msgctxt "page:get-started/index.html"
 msgid ""
 "{ph0}REA FAQ{ph1}{ph2}Quick answers on updates, agents and analysis.{ph3}"
 msgstr ""
-"{ph0} REA CÂU HỎI THƯỜNG GẶP{ph1}{ph2}Câu trả lời nhanh về cập nhật, đại lý "
+"{ph0} REA CÂU HỎI THƯỜNG GẶP{ph1}{ph2}Câu trả lời nhanh về cập nhật, agent "
 "và phân tích.{ph3}"
 
 #. {ph0}: <a href="../guides/">
@@ -4183,7 +4183,7 @@ msgstr ""
 #: website/public/get-started/index.html:6
 msgctxt "page:get-started/index.html"
 msgid "Install REA and Set Up Your Coding Agent"
-msgstr "Cài ĐẶT REA và Thiết Lập Đại lý Mã Hóa Của Bạn"
+msgstr "Cài ĐẶT REA và Thiết Lập Agent Mã Hóa Của Bạn"
 
 #: website/public/get-started/index.html:7
 msgctxt "page:get-started/index.html"
@@ -4191,8 +4191,8 @@ msgid ""
 "Connect REA to your coding agent or inspect a local JavaScript or Electron "
 "app from the terminal. Setup, first questions and native provider guides."
 msgstr ""
-"Kết nối REA với đại lý mã hóa của bạn hoặc kiểm tra ỨNG dụng JavaScript hoặc"
-" Electron cục bộ từ thiết bị đầu cuối. Thiết lập, câu hỏi đầu tiên và hướng "
+"Kết nối REA với agent mã hóa của bạn hoặc kiểm tra ỨNG dụng JavaScript hoặc "
+"Electron cục bộ từ thiết bị đầu cuối. Thiết lập, câu hỏi đầu tiên và hướng "
 "dẫn nhà cung cấp bản địa."
 
 #: website/public/get-started/index.html:199
@@ -4358,7 +4358,7 @@ msgstr "{ph0}Mở trình duyệt{ph1}"
 #, python-brace-format
 msgctxt "page:guides/browser/index.html"
 msgid "{ph0}Ask your agent{ph1}"
-msgstr "{ph0}Hỏi đại lý của bạn{ph1}"
+msgstr "{ph0}Hỏi agent của bạn{ph1}"
 
 #. {ph0}: <a href="#capture">
 #. {ph1}: </a>
@@ -4450,7 +4450,7 @@ msgid ""
 "{ph0}03 · Your agent{ph1}{ph2}Read the export code{ph3}{ph4}Connect the "
 "observed request to {ph5} in {ph6}.{ph7}"
 msgstr ""
-"{ph0}03 * đại lý của Bạn{ph1}{ph2}Đọc mã xuất{ph3}{ph4}Kết nối yêu cầu quan "
+"{ph0}03 * agent của Bạn{ph1}{ph2}Đọc mã xuất{ph3}{ph4}Kết nối yêu cầu quan "
 "sát được với {ph5} trong {ph6}.{ph7}"
 
 #: website/public/guides/browser/index.html:244
@@ -4508,7 +4508,7 @@ msgstr ""
 #: website/public/guides/browser/index.html:283
 msgctxt "page:guides/browser/index.html"
 msgid "Ask your agent to watch one action"
-msgstr "Yêu cầu đại lý của bạn xem một hành động"
+msgstr "Yêu cầu agent của bạn xem một hành động"
 
 #. {ph0}: <span class="terminal-dots" aria-hidden="true" >
 #. {ph1}: <i>
@@ -4522,7 +4522,7 @@ msgstr "Yêu cầu đại lý của bạn xem một hành động"
 #, python-brace-format
 msgctxt "page:guides/browser/index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
-msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Đại lý mã hóa của bạn"
+msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Agent mã hóa của bạn"
 
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
@@ -4549,7 +4549,7 @@ msgid ""
 "Example prompt. Give your agent the debugging endpoint, {ph0}, and the page "
 "URL. Let it start the capture before you click."
 msgstr ""
-"Ví dụ nhắc nhở. Cung cấp cho đại lý của bạn điểm cuối gỡ lỗi, {ph0}, VÀ url "
+"Ví dụ nhắc nhở. Cung cấp cho agent của bạn điểm cuối gỡ lỗi, {ph0}, VÀ url "
 "trang. Hãy để nó bắt đầu chụp trước khi bạn nhấp vào."
 
 #: website/public/guides/browser/index.html:312
@@ -4559,7 +4559,7 @@ msgid ""
 "reads the resulting evidence. It can then inspect the script behind the "
 "export."
 msgstr ""
-"Đại lý của bạn phát hiện ra mục tiêu trang, bắt đầu một cửa sổ quan sát và "
+"Agent của bạn phát hiện ra mục tiêu trang, bắt đầu một cửa sổ quan sát và "
 "đọc bằng chứng kết quả. Sau đó, nó có thể kiểm tra tập lệnh đằng sau xuất "
 "khẩu."
 
@@ -4819,7 +4819,7 @@ msgstr "Thiết LẬP REA"
 #: website/public/guides/index.html:193
 msgctxt "page:guides/index.html"
 msgid "Connect your coding agent or use REA from the terminal."
-msgstr "Kết nối đại lý mã hóa của bạn hoặc SỬ dụng REA từ thiết bị đầu cuối."
+msgstr "Kết nối agent mã hóa của bạn hoặc SỬ dụng REA từ thiết bị đầu cuối."
 
 #: website/public/guides/index.html:194
 msgctxt "page:guides/index.html"
@@ -4842,8 +4842,8 @@ msgid ""
 "Start with a Windows game executable. Inspect instructions, follow a caller,"
 " read numeric constants and check the recovered C."
 msgstr ""
-"Bắt đầu với MỘT TRÒ CHƠI Windows thực thi. Kiểm tra hướng dẫn, theo dõi "
-"người gọi, đọc hằng Số và kiểm Tra C đã khôi Phục."
+"Bắt đầu với MỘT TRÒ CHƠI Windows thực thi. Kiểm tra hướng dẫn, theo dõi hàm "
+"gọi, đọc hằng Số và kiểm Tra C đã khôi Phục."
 
 #: website/public/guides/index.html:211
 msgctxt "page:guides/index.html"
@@ -4978,7 +4978,7 @@ msgstr "{ph0}Ví dụ{ph1}"
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid "{ph0}Ask your agent{ph1}"
-msgstr "{ph0}Hỏi đại lý của bạn{ph1}"
+msgstr "{ph0}Hỏi agent của bạn{ph1}"
 
 #. {ph0}: <a href="#follow">
 #. {ph1}: </a>
@@ -5115,8 +5115,8 @@ msgid ""
 "{ph0}Connect your agent to REA{ph1} and give it the app directory or ASAR "
 "file:"
 msgstr ""
-"{ph0}Kết nối đại lý CỦA BẠN VỚI REA {ph1} và cung cấp cho nó thư mục ứng "
-"dụng hoặc TỆP ASAR:"
+"{ph0}Kết nối agent CỦA BẠN VỚI REA {ph1} và cung cấp cho nó thư mục ứng dụng"
+" hoặc TỆP ASAR:"
 
 #. {ph0}: <span class="terminal-dots" aria-hidden="true" >
 #. {ph1}: <i>
@@ -5130,7 +5130,7 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
-msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Đại lý mã hóa của bạn"
+msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Agent mã hóa của bạn"
 
 #: website/public/guides/javascript/index.html:264
 #: website/public/guides/javascript/index.html:413
@@ -5172,8 +5172,8 @@ msgid ""
 " the export feature."
 msgstr ""
 "REA đọc các tệp ứng dụng và xây dựng bản đồ các điểm vào, mô-đun và ranh "
-"giới quy trình. Đại lý của bạn sử dụng bản đồ đó để thu hẹp cuộc điều tra về"
-" tính năng xuất."
+"giới quy trình. Agent của bạn sử dụng bản đồ đó để thu hẹp cuộc điều tra về "
+"tính năng xuất."
 
 #: website/public/guides/javascript/index.html:292
 msgctxt "page:guides/javascript/index.html"
@@ -5435,7 +5435,7 @@ msgstr "{ph0}Ví dụ{ph1}"
 #, python-brace-format
 msgctxt "page:guides/native/index.html"
 msgid "{ph0}Ask your agent{ph1}"
-msgstr "{ph0}Hỏi đại lý của bạn{ph1}"
+msgstr "{ph0}Hỏi agent của bạn{ph1}"
 
 #. {ph0}: <a href="#follow">
 #. {ph1}: </a>
@@ -5486,7 +5486,7 @@ msgid ""
 " way to investigate the missing arithmetic."
 msgstr ""
 "Chức năng bắt đầu, {ph0}, có một kết quả dịch ngược ngắn: một cuộc gọi đến "
-"{ph1}.  REA cũng trả về các hướng dẫn và người gọi của nó, cung cấp cho tác "
+"{ph1}.  REA cũng trả về các hướng dẫn và hàm gọi của nó, cung cấp cho tác "
 "nhân một cách để điều tra số học bị thiếu."
 
 #: website/public/guides/native/index.html:215
@@ -5620,8 +5620,8 @@ msgid ""
 "REA supplies the instructions, call relationship and bytes. The agent "
 "interprets them together."
 msgstr ""
-"REA cung cấp các hướng dẫn, mối quan hệ cuộc gọi chức năng và byte. Các đại "
-"lý giải thích chúng cùng nhau."
+"REA cung cấp các hướng dẫn, mối quan hệ cuộc gọi chức năng và byte. Các "
+"agent giải thích chúng cùng nhau."
 
 #: website/public/guides/native/index.html:281
 msgctxt "page:guides/native/index.html"
@@ -5639,8 +5639,8 @@ msgid ""
 "After {ph0}connecting REA to your agent{ph1} and {ph2}setting up a native "
 "analysis tool{ph3}, provide the local executable and a question:"
 msgstr ""
-"Sau {ph0}kết NỐI REA với đại lý của bạn{ph1} và {ph2}thiết lập phân tích "
-"công cụ chương trình mã máy{ph3}, cung cấp thực thi cục bộ và một câu hỏi:"
+"Sau {ph0}kết NỐI REA với agent của bạn{ph1} và {ph2}thiết lập phân tích công"
+" cụ chương trình mã máy{ph3}, cung cấp thực thi cục bộ và một câu hỏi:"
 
 #: website/public/guides/native/index.html:293
 msgctxt "page:guides/native/index.html"
@@ -5709,7 +5709,7 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:guides/native/index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
-msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Đại lý mã hóa của bạn"
+msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Agent mã hóa của bạn"
 
 #: website/public/guides/native/index.html:324
 #: website/public/guides/native/index.html:455
@@ -5740,7 +5740,7 @@ msgid ""
 "executable. REA doesn't include DX-Ball, so use your own copy, or ask the "
 "same kind of question about another small Windows program you have."
 msgstr ""
-"Ví dụ nhắc nhở. Cung cấp cho đại lý của bạn đường dẫn ĐẾN tệp THỰC thi DX-"
+"Ví dụ nhắc nhở. Cung cấp cho agent của bạn đường dẫn ĐẾN tệp THỰC thi DX-"
 "Ball 1.07 cục BỘ của bạn.  REA không bao gồm DX-Ball , vì vậy hãy sử dụng "
 "bản sao của riêng bạn hoặc hỏi cùng một loại câu hỏi về một chương trình "
 "Windows nhỏ khác mà bạn có."
@@ -5813,7 +5813,7 @@ msgstr ""
 #: website/public/guides/native/index.html:382
 msgctxt "page:guides/native/index.html"
 msgid "Follow the caller"
-msgstr "Theo dõi người gọi"
+msgstr "Theo dõi hàm gọi"
 
 #. {ph0}: <code>0x14</code>
 #: website/public/guides/native/index.html:391
@@ -5823,7 +5823,7 @@ msgid ""
 "REA identifies the brick-hit caller. Its earlier instructions multiply the "
 "tile coordinate by 30; adding {ph0} (20) gives the brick's screen position."
 msgstr ""
-"REA xác định người gọi gạch-hit. Các hướng dẫn trước đó của nó nhân tọa độ "
+"REA xác định hàm gọi gạch-hit. Các hướng dẫn trước đó của nó nhân tọa độ "
 "gạch với 30; thêm {ph0} (20) cho vị trí màn hình của gạch."
 
 #: website/public/guides/native/index.html:396
@@ -5892,9 +5892,9 @@ msgid ""
 " menu action?”"
 msgstr ""
 "{ph0}Kết nối phân tích nhà cung cấp chương trình mã máy{ph1}, sau đó cung "
-"cấp cho đại lý của bạn một tệp thực thi hoặc thư viện cục bộ và một tính "
-"năng để điều tra. Các câu hỏi bắt đầu hữu ích bao gồm \" tệp này được phân "
-"tích cú pháp Như thế nào?\"hoặc\" chức năng nào xử lý hành động menu này?”"
+"cấp cho agent của bạn một tệp thực thi hoặc thư viện cục bộ và một tính năng"
+" để điều tra. Các câu hỏi bắt đầu hữu ích bao gồm \" tệp này được phân tích "
+"cú pháp Như thế nào?\"hoặc\" chức năng nào xử lý hành động menu này?”"
 
 #: website/public/guides/native/index.html:448
 msgctxt "page:guides/native/index.html"
@@ -5922,7 +5922,7 @@ msgid ""
 msgstr ""
 "Thay thế đường dẫn mục tiêu và {ph0} với tên chức năng hoặc địa chỉ của "
 "riêng bạn. Mỗi LẦN NHẬP lệnh GỌI CLI và phân tích nhị phân, sau đó đóng "
-"phiên của NÓ. Các truy vấn MCP của đại lý của bạn sử dụng lại nhị phân đã "
+"phiên của NÓ. Các truy vấn MCP của agent của bạn sử dụng lại nhị phân đã "
 "nhập trong khi phiên đó đang mở."
 
 #: website/public/guides/native/index.html:473
@@ -5946,8 +5946,8 @@ msgid ""
 "Recover a native calculation with REA: inspect instructions, follow a "
 "caller, read constants and check reconstructed C."
 msgstr ""
-"Khôi phục tính toán gốc VỚI REA : kiểm Tra hướng Dẫn, theo dõi người gọi, "
-"đọc hằng số và kiểm Tra Tái Tạo C."
+"Khôi phục tính toán gốc VỚI REA : kiểm Tra hướng Dẫn, theo dõi hàm gọi, đọc "
+"hằng số và kiểm Tra Tái Tạo C."
 
 #: website/public/guides/native/index.html:191
 msgctxt "page:guides/native/index.html"
@@ -6065,7 +6065,7 @@ msgstr "{ph0}Cộng đồng{ph1}"
 #: website/public/index.html:212
 msgctxt "page:index.html"
 msgid "Reverse engineering, with your coding agent"
-msgstr "Kỹ thuật đảo ngược, với đại lý mã hóa của bạn"
+msgstr "Kỹ thuật đảo ngược, với agent mã hóa của bạn"
 
 #. {ph0}: <br />
 #: website/public/index.html:213
@@ -6116,7 +6116,7 @@ msgstr "Dán lời nhắc này vào trợ lý lập trình AI của bạn:"
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
-msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Đại lý mã hóa của bạn"
+msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Agent mã hóa của bạn"
 
 #: website/public/index.html:242 website/public/index.html:264
 #: website/public/index.html:479 website/public/index.html:647
@@ -6608,7 +6608,7 @@ msgid ""
 "{ph0}02 · Your agent{ph1}{ph2}Rebuild the rule, add a control{ph3}{ph4}Use "
 "the recovered acceleration in a small game with a speed slider.{ph5}"
 msgstr ""
-"{ph0}02 * đại lý của Bạn{ph1}{ph2}Xây dựng lại quy tắc, thêm một điều "
+"{ph0}02 * agent của Bạn{ph1}{ph2}Xây dựng lại quy tắc, thêm một điều "
 "khiển{ph3}{ph4}Sử dụng khả năng tăng tốc phục hồi trong một trò chơi nhỏ với"
 " một thanh trượt tốc độ.{ph5}"
 
@@ -6683,7 +6683,7 @@ msgid ""
 "and your local debugging endpoint, then copy the prompt above."
 msgstr ""
 "Để tự mình kiểm tra mục tiêu, hãy làm theo {ph0}các bước kết nối trình "
-"duyệt{ph1} sử dụng {ph2}trang khủng long{ph3}. Cung cấp cho đại lý CỦA bạn "
+"duyệt{ph1} sử dụng {ph2}trang khủng long{ph3}. Cung cấp cho agent CỦA bạn "
 "URL trang đó và điểm cuối gỡ lỗi cục bộ của bạn, sau đó sao chép lời nhắc ở "
 "trên."
 
@@ -6952,8 +6952,8 @@ msgid ""
 " together on anything from {ph0}cloning this website{ph1} to "
 "{ph2}reconstructing a game from its executable.{ph3}"
 msgstr ""
-"Nói với đại lý của bạn những gì bạn muốn hiểu hoặc xây dựng. VỚI REA, bạn có"
-" thể làm việc cùng nhau trên bất cứ điều gì từ {ph0}nhân bản trang web "
+"Nói với agent của bạn những gì bạn muốn hiểu hoặc xây dựng. VỚI REA, bạn có "
+"thể làm việc cùng nhau trên bất cứ điều gì từ {ph0}nhân bản trang web "
 "này{ph1} để {ph2}xây dựng lại một trò chơi từ thực thi của nó.{ph3}"
 
 #. {ph0}: <span class="terminal-dots" aria-hidden="true" >
@@ -7272,7 +7272,7 @@ msgid ""
 " they fit together.{ph5}"
 msgstr ""
 "{ph0}02 * Đọc tính Toán{ph1}{ph2}Thời gian + khóa tài khoản → sáu chữ "
-"số{ph3}{ph4} REA trả về các phương thức và mặc định. Các đại lý giải thích "
+"số{ph3}{ph4} REA trả về các phương thức và mặc định. Các agent giải thích "
 "cách họ phù hợp với nhau.{ph5}"
 
 #. {ph0}: <span class="flow-label">
@@ -7304,7 +7304,7 @@ msgstr "Trong trường hợp này nghiên cứu"
 #, python-brace-format
 msgctxt "page:showcase/aegis/index.html"
 msgid "{ph0}Ask your agent{ph1}"
-msgstr "{ph0}Hỏi đại lý của bạn{ph1}"
+msgstr "{ph0}Hỏi agent của bạn{ph1}"
 
 #. {ph0}: <a href="#demo">
 #. {ph1}: </a>
@@ -7349,7 +7349,7 @@ msgstr "{ph0}Tự kiểm tra APK{ph1}"
 #: website/public/showcase/aegis/index.html:245
 msgctxt "page:showcase/aegis/index.html"
 msgid "Ask your agent"
-msgstr "Hỏi đại lý của bạn"
+msgstr "Hỏi agent của bạn"
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -7375,7 +7375,7 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/aegis/index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
-msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Đại lý mã hóa của bạn"
+msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Agent mã hóa của bạn"
 
 #: website/public/showcase/aegis/index.html:256
 #: website/public/showcase/aegis/index.html:719
@@ -7551,7 +7551,7 @@ msgid ""
 "REA identifies the timestamp overload and finds the base method's callers. "
 "Inspecting {ph0} then shows the display calling {ph1}."
 msgstr ""
-"REA xác định quá tải dấu thời gian và tìm người gọi của phương thức cơ sở. "
+"REA xác định quá tải dấu thời gian và tìm hàm gọi của phương thức cơ sở. "
 "Kiểm tra {ph0} sau đó hiển thị cuộc gọi hiển thị {ph1}."
 
 #. {ph0}: <code>com.beemdevelopment.aegis</code>
@@ -7828,7 +7828,7 @@ msgid ""
 "Your agent can continue through REA's CLI using the prompt above. For MCP, "
 "add {ph0} to the REA server's environment and reconnect it."
 msgstr ""
-"Đại lý của bạn có thể tiếp tục THÔNG qua REA 'S CLI bằng cách sử dụng lời "
+"Agent của bạn có thể tiếp tục THÔNG qua REA 'S CLI bằng cách sử dụng lời "
 "nhắc ở trên. ĐỐI VỚI MCP, thêm {ph0} ĐẾN MÔI trường CỦA MÁY chủ REA và kết "
 "nối lại nó."
 
@@ -8118,7 +8118,7 @@ msgid ""
 "{ph1}. Start with a simple request to your agent."
 msgstr ""
 "Bản phát hành là một TỆP thực thi 15 KB. Nó yêu cầu một lá cờ, sau đó in "
-"{ph0} hoặc {ph1}. Bắt đầu với một yêu cầu đơn giản cho đại lý của bạn."
+"{ph0} hoặc {ph1}. Bắt đầu với một yêu cầu đơn giản cho agent của bạn."
 
 #. {ph0}: <span class="terminal-dots" aria-hidden="true" >
 #. {ph1}: <i>
@@ -8132,7 +8132,7 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/ctf/index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
-msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Đại lý mã hóa của bạn"
+msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Agent mã hóa của bạn"
 
 #: website/public/showcase/ctf/index.html:262
 #: website/public/showcase/ctf/index.html:481
@@ -8256,7 +8256,7 @@ msgid ""
 msgstr ""
 "Hướng dẫn {ph0} đọc các byte mặt nạ dưới dạng các giá trị đã ký. Đây là lý "
 "do tại sao {ph1} có nghĩa là -21. Mục tiêu là một số nguyên cuối nhỏ. Cùng "
-"với nhau, các byte này cho đại lý biết rằng {ph2}, vì vậy nhân vật đó là "
+"với nhau, các byte này cho agent biết rằng {ph2}, vì vậy nhân vật đó là "
 "{ph3}."
 
 #: website/public/showcase/ctf/index.html:425
@@ -8270,8 +8270,8 @@ msgid ""
 "Select a step to connect the summing helper and its caller to the same rule "
 "in C."
 msgstr ""
-"Chọn một bước để kết Nối trình trợ giúp tổng hợp và người gọi của nó với "
-"cùng một quy Tắc Trong C."
+"Chọn một bước để kết Nối trình trợ giúp tổng hợp và hàm gọi của nó với cùng "
+"một quy Tắc Trong C."
 
 #. {ph0}: <span>
 #. {ph1}: </span>
@@ -8388,8 +8388,8 @@ msgid ""
 "The instructions come from the summing helper and its caller. The C is an "
 "explanatory summary with descriptive names and a flattened 36-cell loop."
 msgstr ""
-"Các hướng dẫn đến từ người trợ giúp tổng hợp và người gọi của nó. C Là một "
-"bản tóm tắt giải thích với tên mô tả và một vòng lặp 36 ô phẳng."
+"Các hướng dẫn đến từ người trợ giúp tổng hợp và hàm gọi của nó. C Là một bản"
+" tóm tắt giải thích với tên mô tả và một vòng lặp 36 ô phẳng."
 
 #: website/public/showcase/ctf/index.html:565
 msgctxt "page:showcase/ctf/index.html"
@@ -8561,7 +8561,7 @@ msgid ""
 "prompt above to investigate with your agent, or run the included script."
 msgstr ""
 "Tải xuống thử thách ban đầu và người giải quyết vào một thư mục. Sử dụng lời"
-" nhắc ở trên để điều tra với đại lý của bạn hoặc chạy tập lệnh đi kèm."
+" nhắc ở trên để điều tra với agent của bạn hoặc chạy tập lệnh đi kèm."
 
 #: website/public/showcase/ctf/index.html:721
 msgctxt "page:showcase/ctf/index.html"
@@ -8584,7 +8584,7 @@ msgstr ""
 #: website/public/showcase/ctf/index.html:743
 msgctxt "page:showcase/ctf/index.html"
 msgid "Set up REA with your coding agent"
-msgstr "Thiết LẬP REA với đại lý mã hóa của bạn"
+msgstr "Thiết LẬP REA với agent mã hóa của bạn"
 
 #: website/public/showcase/ctf/index.html:6
 msgctxt "page:showcase/ctf/index.html"
@@ -8702,7 +8702,7 @@ msgid ""
 " agent inspect the original, one function at a time."
 msgstr ""
 "Mục tiêu là một phiên bản C có thể bảo trì của TRÒ chơi Windows NĂM 1996.  "
-"REA giúp các đại lý kiểm tra bản gốc, một chức năng tại một thời điểm."
+"REA giúp các agent kiểm tra bản gốc, một chức năng tại một thời điểm."
 
 #: website/public/showcase/dx-ball/index.html:190
 msgctxt "page:showcase/dx-ball/index.html"
@@ -8719,9 +8719,9 @@ msgid ""
 "callers and data reads; the reconstruction project implements and tests the "
 "result. {ph0}Open figure{ph1}"
 msgstr ""
-"Một chức năng, từ thực thi đến Kiểm tra C. REA cung cấp các hướng dẫn, người"
-" gọi và dữ liệu đọc; dự án tái thiết thực hiện và kiểm tra kết quả. "
-"{ph0}Hình mở{ph1}"
+"Một chức năng, từ thực thi đến Kiểm tra C. REA cung cấp các hướng dẫn, hàm "
+"gọi và dữ liệu đọc; dự án tái thiết thực hiện và kiểm tra kết quả. {ph0}Hình"
+" mở{ph1}"
 
 #: website/public/showcase/dx-ball/index.html:218
 msgctxt "page:showcase/dx-ball/index.html"
@@ -8839,7 +8839,7 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
-msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Đại lý mã hóa của bạn"
+msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Agent mã hóa của bạn"
 
 #: website/public/showcase/dx-ball/index.html:277
 #: website/public/showcase/dx-ball/index.html:468
@@ -8884,9 +8884,9 @@ msgid ""
 "read the constants from the executable. Those results supplied the input and"
 " arithmetic needed to write the C function below."
 msgstr ""
-"Tác nhân đã sử dụng REA để kiểm tra chức năng, theo dõi người gọi gạch của "
-"nó và đọc các hằng số từ tệp thực thi. Những kết quả đó cung cấp đầu vào và "
-"số học cần thiết để viết hàm C bên dưới."
+"Tác nhân đã sử dụng REA để kiểm tra chức năng, theo dõi hàm gọi gạch của nó "
+"và đọc các hằng số từ tệp thực thi. Những kết quả đó cung cấp đầu vào và số "
+"học cần thiết để viết hàm C bên dưới."
 
 #. {ph0}: <code>0x406400</code>
 #. {ph1}: <code>FUN_00406400(void)</code>
@@ -8902,7 +8902,7 @@ msgid ""
 msgstr ""
 "Kết quả chức năng đầu tiên cho {ph0} bao gồm khai báo mã giả {ph1} và gọi "
 "{ph2}. Chế độ xem hướng dẫn của nó cho thấy một đầu vào ngăn xếp và các hoạt"
-" động dấu phẩy động. Sự khác biệt đó đã cho đại lý một lý do cụ thể để tiếp "
+" động dấu phẩy động. Sự khác biệt đó đã cho agent một lý do cụ thể để tiếp "
 "tục điều tra."
 
 #: website/public/showcase/dx-ball/index.html:313
@@ -8937,13 +8937,13 @@ msgid ""
 "The function result includes instructions alongside pseudocode and callers. "
 "Here, {ph0} exposes the integer input missing from the decompiler view."
 msgstr ""
-"Kết quả chức năng bao gồm các hướng dẫn cùng với mã giả và người gọi. Đây, "
+"Kết quả chức năng bao gồm các hướng dẫn cùng với mã giả và hàm gọi. Đây, "
 "{ph0} hiển thị đầu vào số nguyên bị thiếu từ chế độ xem trình dịch ngược."
 
 #: website/public/showcase/dx-ball/index.html:359
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "Follow the caller to understand the input"
-msgstr "Theo dõi người gọi để hiểu đầu vào"
+msgstr "Theo dõi hàm gọi để hiểu đầu vào"
 
 #. {ph0}: <code>tile_x</code>
 #. {ph1}: <code>20 + 30 × tile_x</code>
@@ -8954,8 +8954,8 @@ msgid ""
 "REA identified this caller in the first result. Its preceding instructions "
 "scale {ph0} by 30; adding 20 gives the brick's screen coordinate, {ph1}."
 msgstr ""
-"REA đã xác định người gọi này trong kết quả đầu tiên. Quy mô hướng dẫn trước"
-" của nó {ph0} bằng 30; thêm 20 cho tọa độ màn hình của gạch, {ph1}."
+"REA đã xác định hàm gọi này trong kết quả đầu tiên. Quy mô hướng dẫn trước "
+"của nó {ph0} bằng 30; thêm 20 cho tọa độ màn hình của gạch, {ph1}."
 
 #: website/public/showcase/dx-ball/index.html:383
 msgctxt "page:showcase/dx-ball/index.html"
@@ -9050,8 +9050,8 @@ msgid ""
 "{ph4}."
 msgstr ""
 "{ph0}01 * Đọc đầu vào.{ph1} Chế độ xem hướng dẫn TRONG REA kết quả chức năng"
-" của đọc {ph2} và sử dụng {ph3} để tải số nguyên. Theo người gọi của NÓ "
-"thông QUA REA thiết lập ý nghĩa tọa độ màn hình Của tham Số C {ph4}."
+" của đọc {ph2} và sử dụng {ph3} để tải số nguyên. Theo hàm gọi của NÓ thông "
+"QUA REA thiết lập ý nghĩa tọa độ màn hình Của tham Số C {ph4}."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -9145,7 +9145,7 @@ msgstr "REA kết quả · 0x406400-0x40643e"
 #: website/public/showcase/dx-ball/index.html:593
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "What the caller supplies"
-msgstr "Những gì người gọi cung cấp"
+msgstr "Những gì hàm gọi cung cấp"
 
 #. {ph0}: <code>0x411f40</code>
 #: website/public/showcase/dx-ball/index.html:594
@@ -9403,11 +9403,11 @@ msgid ""
 "checked independently against the original x86 in 3,205 cases and by VC4.0 "
 "compiler replay matching 63 bytes."
 msgstr ""
-"DXBALL.EXE chức năng 0x00406400 được kiểm tra VỚI REA . Một người gọi gạch-"
-"hit cung cấp 20 cộng với 30 lần tile_x. Hướng dẫn tải x, nhân với 1.5625, "
-"trừ 500.0, áp dụng pan_scale và trả về một số nguyên. C được duy trì được "
-"kiểm tra độc lập so với x86 ban đầu trong 3.205 trường hợp và bằng cách phát"
-" lại trình biên dịch vc4.0 khớp với 63 byte."
+"DXBALL.EXE chức năng 0x00406400 được kiểm tra VỚI REA . Một hàm gọi gạch-hit"
+" cung cấp 20 cộng với 30 lần tile_x. Hướng dẫn tải x, nhân với 1.5625, trừ "
+"500.0, áp dụng pan_scale và trả về một số nguyên. C được duy trì được kiểm "
+"tra độc lập so với x86 ban đầu trong 3.205 trường hợp và bằng cách phát lại "
+"trình biên dịch vc4.0 khớp với 63 byte."
 
 #: website/public/showcase/dx-ball/index.html:217
 msgctxt "page:showcase/dx-ball/index.html"
@@ -9551,7 +9551,7 @@ msgid ""
 "function, checked against the original behavior and all 63 compiled bytes."
 msgstr ""
 "Khôi phục tính toán vị trí âm thanh trái/phải từ TRÒ chơi Windows năm 1996."
-"  REA ' s hướng dẫn, tham chiếu người gọi và hằng số dẫn đến một hàm c nhỏ, "
+"  REA ' s hướng dẫn, tham chiếu hàm gọi và hằng số dẫn đến một hàm c nhỏ, "
 "được kiểm tra đối với hành vi ban đầu và tất cả 63 byte được biên dịch."
 
 #: website/public/showcase/index.html:241
@@ -9840,7 +9840,7 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/notion/index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
-msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Đại lý mã hóa của bạn"
+msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Agent mã hóa của bạn"
 
 #: website/public/showcase/notion/index.html:259
 #: website/public/showcase/notion/index.html:332
@@ -9873,7 +9873,7 @@ msgid ""
 "An example prompt with Notion's local application package available to your "
 "coding agent."
 msgstr ""
-"Một lời nhắc ví dụ VỚI GÓI ứng dụng CỤC BỘ CỦA Notion có sẵn cho đại lý mã "
+"Một lời nhắc ví dụ VỚI GÓI ứng dụng CỤC BỘ CỦA Notion có sẵn cho agent mã "
 "hóa của bạn."
 
 #: website/public/showcase/notion/index.html:281
@@ -10487,7 +10487,7 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/th04/index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
-msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Đại lý mã hóa của bạn"
+msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Agent mã hóa của bạn"
 
 #: website/public/showcase/th04/index.html:263
 #: website/public/showcase/th04/index.html:319
@@ -11370,10 +11370,10 @@ msgid ""
 "converted to an integer. Maintained C is checked in 3,205 original-x86 cases"
 " and a separate 63-byte compiler replay."
 msgstr ""
-"REA cung cấp hướng dẫn, người gọi và byte-đọc bằng chứng cho một CHỨC năng "
-"DX-Ball. Đầu vào ngăn xếp được nhân với 1.5625, được bù bằng 500, chia tỷ lệ"
-" và chuyển đổi thành số nguyên. Duy Trì C được kiểm tra trong 3.205 trường "
-"hợp gốc-x86 và phát lại trình biên dịch 63 byte riêng biệt."
+"REA cung cấp hướng dẫn, hàm gọi và byte-đọc bằng chứng cho một CHỨC năng DX-"
+"Ball. Đầu vào ngăn xếp được nhân với 1.5625, được bù bằng 500, chia tỷ lệ và"
+" chuyển đổi thành số nguyên. Duy Trì C được kiểm tra trong 3.205 trường hợp "
+"gốc-x86 và phát lại trình biên dịch 63 byte riêng biệt."
 
 # Reviewed for technical meaning and concise diagram labels.
 #: website/public/assets/figures/dx-ball-sound-pan-investigation.svg:28
@@ -11468,7 +11468,7 @@ msgid ""
 msgstr ""
 "Đặt câu hỏi về một mục tiêu địa phương.  REA kiểm tra và theo dõi thông qua "
 "các bộ điều hợp phân tích cục bộ, trả về bằng chứng và hỗ trợ các câu hỏi "
-"tiếp theo như đại lý của bạn giải thích, thực hiện và kiểm tra."
+"tiếp theo như agent của bạn giải thích, thực hiện và kiểm tra."
 
 # Reviewed for technical meaning and concise diagram labels.
 #: website/public/assets/figures/rea-investigation-flow.svg:19
@@ -11851,7 +11851,7 @@ msgstr "TRÍCH ĐOẠN HƯỚNG dẫn REA · 0x406409"
 #: website/public/guides/native/index.html:385
 msgctxt "page:guides/native/index.html"
 msgid "REA caller excerpt · 0x411f5b"
-msgstr "REA người gọi trích đoạn * 0x411f5b"
+msgstr "REA hàm gọi trích đoạn * 0x411f5b"
 
 #: website/public/guides/native/index.html:399
 msgctxt "page:guides/native/index.html"
@@ -11907,17 +11907,17 @@ msgstr "Theo dõi @ reatools Trên X"
 #: website/public/showcase/aegis/index.html:418
 msgctxt "page:showcase/aegis/index.html"
 msgid "Agent → REA"
-msgstr "Đại lý → REA"
+msgstr "Agent → REA"
 
 #: website/public/showcase/aegis/index.html:396
 msgctxt "page:showcase/aegis/index.html"
 msgid "REA → agent · selected results"
-msgstr "REA → đại lý · kết quả đã chọn"
+msgstr "REA → agent · kết quả đã chọn"
 
 #: website/public/showcase/aegis/index.html:432
 msgctxt "page:showcase/aegis/index.html"
 msgid "REA → agent · methods and callers"
-msgstr "REA → đại lý · phương pháp và người gọi"
+msgstr "REA → agent · phương pháp và hàm gọi"
 
 #: website/public/showcase/aegis/index.html:502
 msgctxt "page:showcase/aegis/index.html"
@@ -11927,7 +11927,7 @@ msgstr "REA * Đã chọn Java dịch ngược"
 #: website/public/showcase/aegis/index.html:532
 msgctxt "page:showcase/aegis/index.html"
 msgid "Readable summary · agent's interpretation"
-msgstr "Tóm tắt có thể đọc được · giải thích của đại lý"
+msgstr "Tóm tắt có thể đọc được · giải thích của agent"
 
 #: website/public/showcase/aegis/index.html:587
 msgctxt "page:showcase/aegis/index.html"
@@ -11948,27 +11948,27 @@ msgstr "Tải Xuống Nhà cung Cấp Phân Tích Android"
 #: website/public/showcase/ctf/index.html:325
 msgctxt "page:showcase/ctf/index.html"
 msgid "Agent → REA"
-msgstr "Đại lý → REA"
+msgstr "Agent → REA"
 
 #: website/public/showcase/ctf/index.html:305
 msgctxt "page:showcase/ctf/index.html"
 msgid "REA → agent · selected results"
-msgstr "REA → đại lý · kết quả đã chọn"
+msgstr "REA → agent · kết quả đã chọn"
 
 #: website/public/showcase/ctf/index.html:337
 msgctxt "page:showcase/ctf/index.html"
 msgid "REA → agent · selected instructions"
-msgstr "REA → đại lý · hướng dẫn đã chọn"
+msgstr "REA → agent · hướng dẫn đã chọn"
 
 #: website/public/showcase/ctf/index.html:400
 msgctxt "page:showcase/ctf/index.html"
 msgid "Agent → REA · read_bytes"
-msgstr "Đại lý → REA * read_bytes"
+msgstr "Agent → REA * read_bytes"
 
 #: website/public/showcase/ctf/index.html:407
 msgctxt "page:showcase/ctf/index.html"
 msgid "REA → agent · seventh entries"
-msgstr "REA → đại lý · mục thứ bảy"
+msgstr "REA → agent · mục thứ bảy"
 
 #: website/public/showcase/ctf/index.html:675
 msgctxt "page:showcase/ctf/index.html"
@@ -11996,24 +11996,24 @@ msgstr "KẾT quả REA · đoạn trích mã giả"
 #, python-brace-format
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "Agent → REA · {ph0}"
-msgstr "Đại lý → REA  · {ph0}"
+msgstr "Agent → REA  · {ph0}"
 
 #: website/public/showcase/dx-ball/index.html:345
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "REA → agent · instruction excerpt"
-msgstr "REA → đại lý · trích đoạn hướng dẫn"
+msgstr "REA → agent · trích đoạn hướng dẫn"
 
 #: website/public/showcase/dx-ball/index.html:369
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "REA → agent · caller excerpt"
-msgstr "REA → đại lý · người gọi trích đoạn"
+msgstr "REA → agent · hàm gọi trích đoạn"
 
 #. {ph0}: <code>read_bytes</code>
 #: website/public/showcase/dx-ball/index.html:387
 #, python-brace-format
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "Agent → REA · two {ph0} requests"
-msgstr "Đại lý → REA * hai {ph0} yêu cầu"
+msgstr "Agent → REA * hai {ph0} yêu cầu"
 
 #: website/public/showcase/dx-ball/index.html:397
 msgctxt "page:showcase/dx-ball/index.html"
@@ -12163,24 +12163,24 @@ msgstr "Phân tích ứng dụng của riêng bạn"
 #: website/public/showcase/th04/index.html:356
 msgctxt "page:showcase/th04/index.html"
 msgid "Agent → REA"
-msgstr "Đại lý → REA"
+msgstr "Agent → REA"
 
 #: website/public/showcase/th04/index.html:365
 msgctxt "page:showcase/th04/index.html"
 msgid "REA → agent · selected fields"
-msgstr "REA → đại lý * các trường được chọn"
+msgstr "REA → agent * các trường được chọn"
 
 #. {ph0}: <code>analyze_function</code>
 #: website/public/showcase/th04/index.html:384
 #, python-brace-format
 msgctxt "page:showcase/th04/index.html"
 msgid "Agent → REA · {ph0}"
-msgstr "Đại lý → REA  · {ph0}"
+msgstr "Agent → REA  · {ph0}"
 
 #: website/public/showcase/th04/index.html:390
 msgctxt "page:showcase/th04/index.html"
 msgid "REA → agent · instruction excerpt"
-msgstr "REA → đại lý · trích đoạn hướng dẫn"
+msgstr "REA → agent · trích đoạn hướng dẫn"
 
 #: website/public/showcase/th04/index.html:411
 msgctxt "page:showcase/th04/index.html"
@@ -12352,7 +12352,7 @@ msgid ""
 "With {ph0} and npm available, run setup, choose your coding agent and review"
 " the proposed changes."
 msgstr ""
-"Với {ph0} và npm có sẵn, chạy thiết lập, chọn đại lý mã hóa của bạn và xem "
+"Với {ph0} và npm có sẵn, chạy thiết lập, chọn agent mã hóa của bạn và xem "
 "xét các thay đổi được đề xuất."
 
 #. {ph0}: <span translate="no">Node.js</span>
@@ -12360,7 +12360,7 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:first-investigation/index.html"
 msgid "A supplied example · {ph0} and npm · Your coding agent"
-msgstr "Một ví dụ được cung cấp · {ph0} và npm * Đại lý mã hóa của bạn"
+msgstr "Một ví dụ được cung cấp · {ph0} và npm * Agent mã hóa của bạn"
 
 #. {ph0}: <span translate="no">Node.js</span>
 #. {ph1}: <a href="../get-started/">
@@ -12560,8 +12560,8 @@ msgid ""
 "First time, or missing {ph0} or a coding agent? {ph1}Follow the step-by-step"
 " setup guide →{ph2}"
 msgstr ""
-"Lần đầu tiên, hoặc mất tích {ph0} hoặc một đại lý mã hóa? {ph1}Làm theo "
-"hướng dẫn thiết lập từng bước →{ph2}"
+"Lần đầu tiên, hoặc mất tích {ph0} hoặc một agent mã hóa? {ph1}Làm theo hướng"
+" dẫn thiết lập từng bước →{ph2}"
 
 #. {ph0}: <strong >
 #. {ph1}: <span translate="no">200 + 10%</span>

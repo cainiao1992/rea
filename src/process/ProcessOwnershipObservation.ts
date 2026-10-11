@@ -116,7 +116,7 @@ export const observeOwnedProcessLineage = async (
   const identityFailure = launcherIdentityFailure(launcher, ownership);
   if (identityFailure !== null)
     return unavailableLineage(ownership, identityFailure);
-  const descendants = descendantsOf(launcher.pid, processes);
+  const descendants = descendantsOf([launcher.pid], processes);
   const verifiedDescendants: ProcessTableEntry[] = [];
   for await (const { process: member, observation } of readProcessRunTokens(
     host,

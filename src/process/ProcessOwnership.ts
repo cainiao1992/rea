@@ -339,11 +339,61 @@ interface OwnedCleanupPlan {
   readonly unverified: readonly OwnershipSweepUnverifiedProcess[];
 }
 
-const createOwnedCleanupPlan = async (
+// A process-table read can race exit and retain the old state with an altered
+// command. Only a fresh table proving that PID is no longer live can settle
+// that mismatch; surviving group members still require normal token checks.
+const settleLauncherExit = async (
   ownership: OwnedProcessGroup,
   processes: readonly ProcessTableEntry[],
   host: ProcessOwnershipHost,
+): Promise<
+  | readonly ProcessTableEntry[]
+  | Extract<ProcessCleanupResult, { readonly cleaned: false }>
+> => {
+  const launcher = processes.find(({ pid }) => pid === ownership.leaderPid);
+  if (launcher === undefined) return processes;
+  const reason = launcherIdentityFailure(launcher, ownership);
+  if (reason === null) return processes;
+  const refreshed = await readLiveProcessTable(host);
+  if (
+    refreshed.available &&
+    !refreshed.processes.some(({ pid }) => pid === launcher.pid)
+  ) {
+    // Refreshing must not discard a surviving detached descendant's lineage,
+    // including a child that changed groups while the launcher exited.
+    const descendants = descendantsOf([launcher.pid], processes);
+    const descendantPids = new Set(descendants.map(({ pid }) => pid));
+    const descendantGroupIds = new Set(
+      descendants.map(({ processGroupId }) => processGroupId),
+    );
+    const refreshedDescendantPids = new Set(
+      descendantsOf(
+        descendants.map(({ pid }) => pid),
+        refreshed.processes,
+      ).map(({ pid }) => pid),
+    );
+    if (
+      refreshed.processes.some(
+        (process) =>
+          process.processGroupId !== ownership.processGroupId &&
+          (refreshedDescendantPids.has(process.pid) ||
+            descendantPids.has(process.pid) ||
+            descendantGroupIds.has(process.processGroupId)),
+      )
+    )
+      return { cleaned: false, reason };
+    return refreshed.processes;
+  }
+  return { cleaned: false, reason };
+};
+
+const createOwnedCleanupPlan = async (
+  ownership: OwnedProcessGroup,
+  initialProcesses: readonly ProcessTableEntry[],
+  host: ProcessOwnershipHost,
 ): Promise<OwnedCleanupPlan | ProcessCleanupResult> => {
+  const processes = await settleLauncherExit(ownership, initialProcesses, host);
+  if ("cleaned" in processes) return processes;
   const sampledProcessGroupIds = new Set(
     (ownership.sampledProcessGroupIds ?? []).filter(
       (processGroupId) =>
@@ -397,10 +447,7 @@ const createOwnedCleanupPlan = async (
         };
   let descendants: readonly ProcessTableEntry[] = [];
   if (launcher !== undefined) {
-    const identityFailure = launcherIdentityFailure(launcher, ownership);
-    if (identityFailure !== null)
-      return { cleaned: false, reason: identityFailure };
-    descendants = descendantsOf(launcher.pid, processes);
+    descendants = descendantsOf([launcher.pid], processes);
   }
   const descendantPids = new Set(descendants.map(({ pid }) => pid));
   const processGroupIds = new Set<number>([ownership.processGroupId]);
@@ -496,7 +543,13 @@ const revalidateOwnedProcessGroup = async (
 ): Promise<{ readonly empty: boolean } | ProcessCleanupResult> => {
   let members: readonly ProcessTableEntry[];
   try {
-    members = liveProcesses(await host.listProcesses()).filter(
+    const processes = await settleLauncherExit(
+      ownership,
+      liveProcesses(await host.listProcesses()),
+      host,
+    );
+    if ("cleaned" in processes) return processes;
+    members = processes.filter(
       ({ processGroupId: observedGroupId }) =>
         observedGroupId === processGroupId,
     );
@@ -513,14 +566,6 @@ const revalidateOwnedProcessGroup = async (
     expectedIdentities,
   );
   if (failures.length > 0) return cleanupValidationFailure(failures);
-  if (processGroupId === ownership.processGroupId) {
-    const launcher = members.find(({ pid }) => pid === ownership.leaderPid);
-    if (launcher !== undefined) {
-      const identityFailure = launcherIdentityFailure(launcher, ownership);
-      if (identityFailure !== null)
-        return { cleaned: false, reason: identityFailure };
-    }
-  }
   if (
     processGroupId !== ownership.processGroupId &&
     members.length > 0 &&
@@ -850,7 +895,7 @@ const scanTokenOwnedProcesses = async (
   const relatedGroupIds = new Set<number>();
   if (relation !== undefined) {
     relatedPids.add(relation.leaderPid);
-    for (const descendant of descendantsOf(relation.leaderPid, processes))
+    for (const descendant of descendantsOf([relation.leaderPid], processes))
       relatedPids.add(descendant.pid);
     relatedGroupIds.add(relation.processGroupId);
     for (const processGroupId of relation.sampledProcessGroupIds ?? [])

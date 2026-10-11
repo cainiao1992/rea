@@ -245,7 +245,9 @@ Ghidra and IDA use your existing installations. See [provider setup](docs/instal
 <summary><strong>Do I need to start Hopper first?</strong></summary>
 
 REA starts Hopper when an operation needs it. On macOS, a first-run dialog may
-ask you to choose demo mode or activate your license. See
+ask you to choose demo mode or activate your license. Complete that prompt in the
+same user session before your first CLI/MCP operation or unattended job. Open
+Hopper manually if needed. See
 [Hopper startup and troubleshooting](docs/installation.md#launcher-paths-and-troubleshooting).
 
 </details>

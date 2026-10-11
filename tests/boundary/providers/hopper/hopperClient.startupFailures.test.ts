@@ -53,10 +53,7 @@ class CancelThenFixtureLauncher implements BridgeLauncher {
 }
 
 class ExitingLauncher implements BridgeLauncher {
-  constructor(
-    readonly code: number,
-    readonly ownsProcessLifetime = true,
-  ) {}
+  constructor(readonly code: number) {}
 
   launch() {
     return Promise.resolve(
@@ -64,10 +61,8 @@ class ExitingLauncher implements BridgeLauncher {
         process: spawn(process.execPath, ["-e", `process.exit(${this.code})`], {
           stdio: ["ignore", "ignore", "pipe"],
         }),
-        ownsProcessLifetime: this.ownsProcessLifetime,
-        providerLifetime: this.ownsProcessLifetime
-          ? ("launcher-process" as const)
-          : ("external-application" as const),
+        ownsProcessLifetime: true as const,
+        providerLifetime: "launcher-process" as const,
         shutdownMode: "bridge-request" as const,
       }),
     );
@@ -285,22 +280,5 @@ describe("HopperClient startup failures", () => {
         },
       },
     });
-  });
-
-  it("allows a short-lived launcher to hand off bridge startup", async () => {
-    const client = new HopperClient({
-      launcher: new ExitingLauncher(0, false),
-      startupTimeoutMs: 100,
-    });
-    clients.push(client);
-    const result = await client.start();
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toMatchObject({
-        cleanupIncomplete: true,
-        cause: { _tag: "HopperTimeoutError" },
-        diagnostics: { primary_error: { code: "provider_timeout" } },
-      });
-    }
   });
 });

@@ -89,6 +89,10 @@ export const semanticScopeId = (
 ): string =>
   `scope:${kind}:${String(node.start ?? -1)}:${String(node.end ?? -1)}`;
 
+/** Create the canonical identity used by one binding in a lexical scope. */
+export const semanticBindingId = (scopeId: string, name: string): string =>
+  `${scopeId}:binding:${encodeURIComponent(name)}`;
+
 /** Resolve one lexical name from the scope containing a node. */
 export const resolveSemanticBindingState = (
   state: JavaScriptSemanticAnalysisState,

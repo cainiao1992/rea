@@ -2,38 +2,7 @@ name: Real historical web network captures
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - ".github/workflows/real-web-network-captures.yml"
-      - "bridge/mitmproxy/**"
-      - "src/browser/history/**"
-      - "src/domain/webNetworkCapture*.ts"
-      - "src/domain/analysisError*.ts"
-      - "src/contracts/errorSchemas.ts"
-      - "src/domain/explicitSensitive*.ts"
-      - "src/application/WebNetworkCapture*"
-      - "src/composition/webNetworkCaptures.ts"
-      - "src/cli/webNetworkCaptureCommands.ts"
-      - "src/server/registerWebNetworkCaptureTool.ts"
-      - "src/server/createServer.ts"
-      - "src/server/toolRegistrationOptions.ts"
-      - "src/cli.ts"
-      - "src/cliCommandNames.ts"
-      - "src/contracts/toolContracts.ts"
-      - "src/contracts/toolEffects.ts"
-      - "src/process/OwnedCommand.ts"
-      - "src/process/ProviderProcess.ts"
-      - "src/process/ProviderDeadline.ts"
-      - "src/process/ProcessOwnership*.ts"
-      - "src/process/PrivateRuntimeRoot.ts"
-      - "src/process/capture/ProcessCaptureLifecycle.ts"
-      - "src/artifacts/readStableArtifact*.ts"
-      - "src/artifacts/ArtifactReader.ts"
-      - "src/contracts/webNetworkCaptureToolContracts.ts"
-      - "scripts/verify-web-network-captures.mjs"
-      - "scripts/fixtures/generate-mitmproxy-capture.py"
-      - "package.json"
-      - "package-lock.json"
+  workflow_call:
 
 permissions:
   contents: read

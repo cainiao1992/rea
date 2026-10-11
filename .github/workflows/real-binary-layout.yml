@@ -7,36 +7,7 @@ on:
         description: "Also verify the complete 65,281-section result over MCP (slow)"
         type: boolean
         default: false
-  pull_request:
-    paths:
-      - ".github/workflows/real-binary-layout.yml"
-      - "bridge/pwntools/**"
-      - "src/native/pwntools/**"
-      - "src/domain/native/binaryLayout*"
-      - "src/application/binaryDiagnostics/**"
-      - "src/contracts/native/binaryDiagnosticsToolContracts.ts"
-      - "src/composition/binaryDiagnostics.ts"
-      - "src/server/registerBinaryDiagnosticsTools.ts"
-      - "src/server/createServer.ts"
-      - "src/cli/binaryDiagnosticsCommands.ts"
-      - "src/cli.ts"
-      - "src/cliCommandNames.ts"
-      - "src/contracts/toolContracts.ts"
-      - "src/contracts/toolEffects.ts"
-      - "src/process/OwnedCommand.ts"
-      - "src/process/ProviderProcess.ts"
-      - "src/process/ProviderDeadline.ts"
-      - "src/process/ProcessOwnership*.ts"
-      - "src/process/PrivateRuntimeRoot.ts"
-      - "src/artifacts/readStableArtifact*.ts"
-      - "src/artifacts/ArtifactReader.ts"
-      - "src/domain/analysisError*.ts"
-      - "scripts/verify-binary-layout.mjs"
-      - "scripts/lib/elf-section-name-fixtures.mjs"
-      - "scripts/lib/large-result-mcp.mjs"
-      - "scripts/fixtures/binary-layout*"
-      - "package.json"
-      - "package-lock.json"
+  workflow_call:
 
 permissions:
   contents: read

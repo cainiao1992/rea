@@ -1,32 +1,7 @@
 name: Real JavaScript recovery
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/real-javascript-recovery.yml"
-      - "src/javascript/recovery/**"
-      - "src/domain/javascript/**"
-      - "src/application/javascript/JavaScriptRecovery*.ts"
-      - "src/composition/javascriptRecovery.ts"
-      - "src/contracts/javascript/javascriptRecoveryToolContracts.ts"
-      - "src/cli/javascriptRecoveryCommands.ts"
-      - "src/cli/javascriptApplicationAnalysis.ts"
-      - "src/server/registerJavaScriptRecoveryTool.ts"
-      - "src/server/createServer.ts"
-      - "src/server/sessionAvailabilityPolicy.ts"
-      - "src/application/CapabilityInventory.ts"
-      - "src/cli.ts"
-      - "src/cliCommandNames.ts"
-      - "src/contracts/toolContracts.ts"
-      - "src/contracts/toolEffects.ts"
-      - "scripts/rea.mjs"
-      - "src/process/**"
-      - "src/artifacts/SafeOutputTree.ts"
-      - "scripts/verify/javascript/recovery.mjs"
-      - "scripts/fixtures/javascript-recovery/**"
-      - "third_party/wakaru"
-      - "package.json"
-      - "package-lock.json"
+  workflow_call:
   workflow_dispatch:
 
 permissions:

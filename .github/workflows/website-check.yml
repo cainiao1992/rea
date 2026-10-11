@@ -1,12 +1,7 @@
 name: Website checks
 
 on:
-  pull_request:
-    branches: [main, "release/*"]
-    paths:
-      - "website/**"
-      - "scripts/*website*.py"
-      - ".github/workflows/**"
+  workflow_call:
   workflow_dispatch:
 
 permissions:

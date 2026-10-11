@@ -2,12 +2,7 @@ name: Source-built NativeAOT fixtures
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - "bridge/ghidra/extensions/nativeaot/**"
-      - "scripts/generate-nativeaot-fixtures.mjs"
-      - "tests/fixtures/nativeaot/**"
-      - ".github/workflows/nativeaot-fixtures.yml"
+  workflow_call:
 
 permissions:
   contents: read

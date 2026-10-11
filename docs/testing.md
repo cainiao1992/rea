@@ -771,12 +771,37 @@ Pull requests that change only root `README*.md` files, `docs/`, `AGENTS.md`,
 or `CONTRIBUTING.md` run formatting and generated-document validation without
 the source-test shards or native package lanes. Classification compares the PR
 head with its merge base, so later base-branch changes do not expand that scope.
-The required static and coverage aggregate jobs remain present and fail if
-classification fails. Mixed changes, unknown paths and CI configuration changes
-retain full checks. Main pushes retain the full baseline, including after
-documentation merges; newer commits cancel superseded CI for the same PR or
-main branch. Release publication has its own concurrency group and retains its
-package verification and public-registry canary.
+Static and coverage aggregate jobs remain present and fail if classification
+fails. Every code change retains the complete four-shard Linux suite; individual
+test files are not selected by imports or filenames.
+
+`scripts/ci/plan.mjs` selects lanes using the ownership table in
+`scripts/ci/scopes.mjs`. Provider implementation changes run their real-provider
+verifiers and the Linux x64 installed-package/Inspector baseline. Test-only
+changes run the Linux suite without native package verification. Website changes
+run website checks. Provider workflow changes validate the workflow and run that provider's verifier.
+Manual-provider/Android workflow changes run workflow validation only.
+Shared process/contract/CLI boundaries, dependencies, packaging inputs, unknown
+paths, and changes to the planner select the full baseline. Package script-only
+edits select their owning verifier when its entrypoint is identifiable; unknown
+or shared script changes select everything. Android build-script edits retain
+the Linux suite and workflow validation; real Android verification stays manual.
+Renames account for both paths.
+
+Main pushes and manual dispatch retain the full baseline, including all portable
+provider lanes and the native matrix below. A `ci:full` PR label selects the full
+baseline on the next PR run; manual dispatch can request it immediately. Each
+classification job records its selection and broad-fallback reasons in the run
+summary. Representative Git-diff cases live in
+`tests/boundary/filesystem/ciChangeScope.test.ts`.
+
+`CI required` checks classification and every selected lane, rejecting failed,
+cancelled, or unexpectedly skipped work. Existing required check names are
+preserved; changing branch protection to require the new aggregate is a separate
+repository-settings operation. Newer commits cancel superseded CI for the same
+PR or main branch. Release publication has its own concurrency group and retains
+its package verification and public-registry canary. Licensed/self-hosted
+provider workflows and the Android smoke test retain their explicit triggers.
 
 CI exercises the pinned Node.js runtime on native hosted runners:
 

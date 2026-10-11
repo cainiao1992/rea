@@ -2,33 +2,7 @@ name: Real offline EVM interface
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - ".github/workflows/real-evm-interface.yml"
-      - "src/evm/**"
-      - "src/domain/evm/**"
-      - "src/application/evm/**"
-      - "src/contracts/evm/**"
-      - "src/composition/evm.ts"
-      - "src/cli/evmCommands.ts"
-      - "src/server/registerEvmTools.ts"
-      - "src/server/createServer.ts"
-      - "src/cli.ts"
-      - "src/cliCommandNames.ts"
-      - "src/contracts/toolContracts.ts"
-      - "src/contracts/toolEffects.ts"
-      - "src/process/OwnedCommand.ts"
-      - "src/process/ProviderProcess.ts"
-      - "src/process/ProcessOwnership*.ts"
-      - "src/process/ProviderDeadline.ts"
-      - "src/process/PrivateRuntimeRoot.ts"
-      - "src/artifacts/readStableArtifact*.ts"
-      - "src/artifacts/ArtifactReader.ts"
-      - "scripts/verify-evm-interface.mjs"
-      - "scripts/fixtures/evm-interface.sol"
-      - "third_party/evmole/**"
-      - "package.json"
-      - "package-lock.json"
+  workflow_call:
 
 permissions:
   contents: read

@@ -2,34 +2,7 @@ name: Real recorded crash evidence
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - ".github/workflows/real-recorded-crash.yml"
-      - "bridge/pwntools/**"
-      - "bridge/pwndbg/**"
-      - "src/native/pwntools/**"
-      - "src/native/pwndbg/**"
-      - "src/domain/native/recordedCrash*"
-      - "src/application/binaryDiagnostics/**"
-      - "src/contracts/native/binaryDiagnosticsToolContracts.ts"
-      - "src/contracts/toolEffects.ts"
-      - "src/contracts/toolOutputSchemaGroups.ts"
-      - "src/composition/binaryDiagnostics.ts"
-      - "src/server/registerRecordedCrashTools.ts"
-      - "src/server/createServer.ts"
-      - "src/server/sessionAvailabilityPolicy.ts"
-      - "src/cli/binaryDiagnosticsCommands.ts"
-      - "src/cliCommandNames.ts"
-      - "src/process/**"
-      - "src/artifacts/readStableArtifact*.ts"
-      - "src/domain/analysisError*.ts"
-      - "scripts/verify-recorded-crash.mjs"
-      - "scripts/verify/recorded-crash/**"
-      - "scripts/lib/recorded-core-fixtures.py"
-      - "scripts/fixtures/recorded-crash.c"
-      - "third_party/pwndbg/**"
-      - "package.json"
-      - "package-lock.json"
+  workflow_call:
 
 permissions:
   contents: read

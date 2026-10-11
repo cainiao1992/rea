@@ -582,12 +582,12 @@ it("runs release PR CI without enabling implementation pushes on release branche
   );
 });
 
-it("checks website changes on release-branch pull requests", async () => {
+it("routes website verification through the central PR policy", async () => {
   const workflow = z
     .object({
-      on: z.object({
-        pull_request: z.object({ branches: z.array(z.string()) }),
-      }),
+      on: z
+        .object({ workflow_call: z.null(), workflow_dispatch: z.null() })
+        .passthrough(),
     })
     .parse(
       parse(
@@ -600,7 +600,26 @@ it("checks website changes on release-branch pull requests", async () => {
         ),
       ),
     );
-  expect(workflow.on.pull_request.branches).toEqual(["main", "release/*"]);
+  expect(workflow.on).not.toHaveProperty("pull_request");
+  const ci = z
+    .object({
+      jobs: z.object({
+        website: z.object({
+          uses: z.string(),
+          if: z.string(),
+        }),
+      }),
+    })
+    .parse(
+      parse(
+        await readFile(
+          new URL("../../../.github/workflows/ci.yml", import.meta.url),
+          "utf8",
+        ),
+      ),
+    );
+  expect(ci.jobs.website.uses).toBe("./.github/workflows/website-check.yml");
+  expect(ci.jobs.website.if).toBe("needs.changes.outputs.website == 'true'");
 });
 
 // Publishing is irreversible. Keep the release authority invariant as a static

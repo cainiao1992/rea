@@ -322,7 +322,7 @@ async function functionOperation(operation, parameters) {
   const result = parseGhidraFunctionResult(operation, called.value);
   if (!result.ok) throw result.error;
   observed.add(operation);
-  return result.value;
+  return result.value.value;
 }
 
 function assertSession(session, targetSha256, profileDigest) {

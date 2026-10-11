@@ -20,7 +20,55 @@ import {
   ghidraReferenceEdge,
 } from "../domain/ghidraValues.fixture.js";
 
+const observationOperations: ReadonlySet<GhidraFunctionOperation> = new Set([
+  "analyze_function",
+  "procedure_assembly",
+  "procedure_info",
+  "procedure_pseudo_code",
+  "read_function_instructions",
+]);
+
+// Existing assertions focus on the value schema; this helper builds the current
+// bridge envelope and returns its normalized value for those assertions.
+const parseFunctionValueFixture = (
+  operation: GhidraFunctionOperation,
+  value: JsonValue,
+) => {
+  const wireValue = observationOperations.has(operation)
+    ? { value, limitations: [] }
+    : value;
+  const parsed = parseGhidraFunctionResult(operation, wireValue);
+  return parsed.ok ? { ok: true as const, value: parsed.value.value } : parsed;
+};
+
 describe("Ghidra function-analysis result values", () => {
+  it.each([...observationOperations])(
+    "requires the function-observation limitations envelope for %s",
+    (operation) => {
+      expect(parseGhidraFunctionResult(operation, null)).toMatchObject({
+        ok: false,
+        error: { _tag: "AnalysisOutputError" },
+      });
+    },
+  );
+
+  it("preserves a named function-observation limitation", () => {
+    expect(
+      parseGhidraFunctionResult("procedure_pseudo_code", "void f() {}"),
+    ).toMatchObject({ ok: false, error: { _tag: "AnalysisOutputError" } });
+    const limitation =
+      "Ghidra marks a call to external __tls_get_addr terminal; return behavior is not independently verified.";
+    expect(
+      parseGhidraFunctionResult("procedure_pseudo_code", {
+        value: "void f() {}",
+        limitations: [limitation],
+      }),
+    ).toEqual({
+      ok: true,
+      value: { value: "void f() {}", limitations: [limitation] },
+    });
+  });
+
   it.each(["reference_kinds_available", "unresolved_calls"])(
     "rejects omitted %s instead of inventing complete reference observations",
     (field) => {
@@ -35,10 +83,10 @@ describe("Ghidra function-analysis result values", () => {
         Object.entries(output).filter(([key]) => key !== field),
       );
       expect(
-        parseGhidraFunctionResult("procedure_references", output),
+        parseFunctionValueFixture("procedure_references", output),
       ).toMatchObject({ ok: true });
       expect(
-        parseGhidraFunctionResult("procedure_references", incomplete),
+        parseFunctionValueFixture("procedure_references", incomplete),
       ).toMatchObject({ ok: false, error: { _tag: "AnalysisOutputError" } });
     },
   );
@@ -80,7 +128,7 @@ describe("Ghidra function-analysis result values", () => {
             );
 
       expect(
-        parseGhidraFunctionResult(
+        parseFunctionValueFixture(
           "analyze_function",
           jsonValueSchema.parse({
             ...dossier,
@@ -103,7 +151,7 @@ describe("Ghidra function-analysis result values", () => {
     if (typeof flow !== "object" || flow === null || Array.isArray(flow))
       throw new TypeError("Ghidra p-code fixture is invalid");
     expect(
-      parseGhidraFunctionResult("analyze_function", {
+      parseFunctionValueFixture("analyze_function", {
         ...dossier,
         native_value_flow: {
           ...flow,
@@ -159,7 +207,7 @@ describe("Ghidra compact reference provenance", () => {
       };
       for (const reference of [complete, legacy, unknown]) {
         const expected = output([reference]);
-        const parsed = parseGhidraFunctionResult(operation, expected);
+        const parsed = parseFunctionValueFixture(operation, expected);
         if (!parsed.ok) throw parsed.error;
         expect(parsed.value).toEqual(expected);
       }
@@ -179,7 +227,7 @@ describe("Ghidra compact reference provenance", () => {
         ["source", false],
       ] as const) {
         expect(
-          parseGhidraFunctionResult(
+          parseFunctionValueFixture(
             operation,
             output([{ ...compactReference(), [field]: value }]),
           ),
@@ -215,7 +263,7 @@ describe("Ghidra jump-table mapping contract", () => {
         ],
       },
     ];
-    const parsed = parseGhidraFunctionResult("analyze_function", {
+    const parsed = parseFunctionValueFixture("analyze_function", {
       ...dossier,
       native_api: {
         ...boundary,
@@ -255,7 +303,7 @@ describe("Ghidra jump-table mapping contract", () => {
       throw new TypeError("Ghidra jump-table fixture is unavailable");
     const { default_targets: omittedDefaults, ...withoutDefaults } = table;
     expect(omittedDefaults).toHaveLength(1);
-    const parsed = parseGhidraFunctionResult("analyze_function", {
+    const parsed = parseFunctionValueFixture("analyze_function", {
       ...dossier,
       native_api: {
         ...boundary,
@@ -288,7 +336,7 @@ describe("Ghidra jump-table mapping contract", () => {
       { target_address: "0x401020", confidence: "high", evidence: [] },
     ]) {
       expect(
-        parseGhidraFunctionResult("analyze_function", {
+        parseFunctionValueFixture("analyze_function", {
           ...dossier,
           native_api: {
             ...boundary,
@@ -304,7 +352,7 @@ describe("Ghidra function-analysis malformed results", () => {
   it.each(malformedOutputs())(
     "rejects malformed %s output",
     (_name, operation, value) => {
-      expect(parseGhidraFunctionResult(operation, value)).toMatchObject({
+      expect(parseFunctionValueFixture(operation, value)).toMatchObject({
         ok: false,
         error: { _tag: "AnalysisOutputError" },
       });
@@ -438,7 +486,7 @@ describe("complete Ghidra function body range evidence", () => {
     body: body(),
   });
   it("preserves inclusive disjoint ranges and distinguishes owned bytes from enclosing span", () => {
-    expect(parseGhidraFunctionResult("procedure_info", info())).toMatchObject({
+    expect(parseFunctionValueFixture("procedure_info", info())).toMatchObject({
       ok: true,
       value: { body: body(), length: 5 },
     });
@@ -446,7 +494,7 @@ describe("complete Ghidra function body range evidence", () => {
   it("rejects omitted body evidence instead of accepting a length as complete coverage", () => {
     const { body: omitted, ...withoutBody } = info();
     expect(omitted.total_bytes).toBe(5);
-    expect(parseGhidraFunctionResult("procedure_info", withoutBody).ok).toBe(
+    expect(parseFunctionValueFixture("procedure_info", withoutBody).ok).toBe(
       false,
     );
   });
@@ -460,14 +508,14 @@ describe("complete Ghidra function body range evidence", () => {
       contains_entry: false,
     };
     expect(
-      parseGhidraFunctionResult("procedure_info", {
+      parseFunctionValueFixture("procedure_info", {
         ...info(),
         body: empty,
         length: 0,
       }).ok,
     ).toBe(false);
     expect(
-      parseGhidraFunctionResult("procedure_info", {
+      parseFunctionValueFixture("procedure_info", {
         ...info(),
         classification: { ...ghidraFunctionClassification(), external: true },
         body: empty,
@@ -480,7 +528,7 @@ describe("complete Ghidra function body range evidence", () => {
     const { body: omitted, ...identity } = ghidraFunctionIdentity();
     expect(omitted.total_bytes).toBe(6);
     expect(
-      parseGhidraFunctionResult("analyze_function", {
+      parseFunctionValueFixture("analyze_function", {
         ...dossier,
         callers: [identity],
       }).ok,
@@ -488,10 +536,10 @@ describe("complete Ghidra function body range evidence", () => {
   });
   it("requires body length and Ghidra-specific body provenance", () => {
     expect(
-      parseGhidraFunctionResult("procedure_info", { ...info(), length: 18 }).ok,
+      parseFunctionValueFixture("procedure_info", { ...info(), length: 18 }).ok,
     ).toBe(false);
     expect(
-      parseGhidraFunctionResult("procedure_info", {
+      parseFunctionValueFixture("procedure_info", {
         ...info(),
         body: { ...body(), provenance: "unreviewed" },
       }).ok,
@@ -511,7 +559,7 @@ describe("complete Ghidra function body range evidence", () => {
     { ranges: [{ start: "0x401002", end: "0x401000" }] },
   ])("rejects contradictory complete body facts %j", (change) => {
     expect(
-      parseGhidraFunctionResult("procedure_info", {
+      parseFunctionValueFixture("procedure_info", {
         ...info(),
         body: { ...body(), ...change },
       }).ok,

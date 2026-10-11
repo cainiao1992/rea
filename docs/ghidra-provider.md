@@ -52,6 +52,17 @@ bytes and references.
 | P-code value flow       | Function dossiers include up to 3,000 high-p-code operations, at most 64 inputs per operation, and 12,000 def-use edges. Results identify memory reads/writes, branches, and calls by p-code opcode, and mark decompiler-dead operations. Large results report truncation, an omitted-operation lower bound, and known omitted-input/edge counts. The dossier is an intra-function graph; `trace_native_values` composes derived parameter/argument and return/output dependencies across resolved calls. It does not resolve memory aliasing, call side effects, runtime behavior, persistent state, or business meaning. |
 | Result extent           | Function instruction scans and native API boundary observations remain complete. P-code flow is the explicit bounded exception; its count fields distinguish exact retained counts from lower-bound or known-omitted counts. Caller cancellation and provider failures remain distinct.                                                                                                                                                                                                                                                                                                                                    |
 
+Function extents and instruction completeness refer to Ghidra's analyzed body.
+An inferred no-return call can terminate that body before subsequent bytes.
+Pseudocode, assembly, procedure info, instruction windows, and dossiers report
+observed terminal call sites in Evidence limitations, including resolved callee
+names, addresses, and FunctionManager flags when available. Instruction windows
+and dossiers also retain these warnings in their result limitations. An
+unresolved callee or unestablished terminal-flow basis remains explicit. These
+observations qualify the analysis; they do not prove that a no-return flag is
+incorrect or recover excluded code. Analysis profiles version this observation
+contract so older snapshots cannot replay unqualified results.
+
 `npm run verify:ghidra` compiles the versioned C oracle into debug and stripped
 host-native targets (x86-64/AArch64 ELF on Linux or Mach-O on macOS), plus a native
 DWARF 4 type-layout object. It proves the admitted operations, external functions, resolved thunks, exports, stripped-name

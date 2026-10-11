@@ -21,6 +21,10 @@ import {
 } from "./verify-real-ghidra-assertions.mjs";
 
 async function functionCall(client, operation, parameters) {
+  return (await functionObservationCall(client, operation, parameters)).value;
+}
+
+async function functionObservationCall(client, operation, parameters) {
   const input = parseGhidraFunctionInput(operation, parameters);
   if (!input.ok) throw input.error;
   const called = await client.callTool(operation, input.value);
@@ -153,6 +157,57 @@ export async function verifyDebugFunctionOperations(
   const denseSwitchDossier = await functionCall(client, "analyze_function", {
     procedure: denseSwitchProcedure.address,
   });
+  const terminalProcedure = requireProcedure(
+    procedures,
+    "rea_ghidra_inventory_terminal_call",
+  );
+  const terminalObservations = await Promise.all(
+    [
+      "procedure_info",
+      "procedure_assembly",
+      "read_function_instructions",
+      "procedure_pseudo_code",
+      "analyze_function",
+    ].map((operation) =>
+      functionObservationCall(client, operation, {
+        ...(operation === "analyze_function" ? {} : { document: null }),
+        procedure: terminalProcedure.address,
+      }),
+    ),
+  );
+  const terminalLimitations = terminalObservations.map((result) =>
+    result.limitations.find(
+      (limitation) =>
+        /terminal call at 0x[0-9a-f]+/i.test(limitation) &&
+        / to 0x[0-9a-f]+/i.test(limitation) &&
+        limitation.includes("abort") &&
+        limitation.includes("hasNoReturn=true"),
+    ),
+  );
+  if (
+    terminalLimitations.some((limitation) => limitation === undefined) ||
+    terminalLimitations.some(
+      (limitation) =>
+        !limitation.includes("external=") ||
+        !limitation.includes("thunk=") ||
+        !limitation.includes("fallthrough is excluded") ||
+        !limitation.includes("not an independent verification"),
+    )
+  )
+    throw new Error(
+      `Ghidra no-return boundary evidence was missing callee, address, or flag provenance: ${JSON.stringify(terminalObservations.map(({ limitations }) => limitations))}`,
+    );
+  const returningObservation = await functionObservationCall(
+    client,
+    "procedure_info",
+    { document: null, procedure: leaf.address },
+  );
+  if (
+    returningObservation.limitations.some((limitation) =>
+      limitation.includes("puts"),
+    )
+  )
+    throw new Error("Ghidra marked an ordinary returning call as terminal");
   // The debug fixture is compiled -O0, and GCC 16 and later lower dense
   // switches to compare chains at -O0, so this dossier asserts only its
   // complete shape; the optimized jump-table variant proves dense jump-table
@@ -179,6 +234,8 @@ export async function verifyDebugFunctionOperations(
     instruction_window: {
       returned: instructionWindow.instructions.length,
     },
+    terminal_call_limitations: terminalLimitations,
+    returning_call_limitations: returningObservation.limitations,
     cancellation,
     timeout,
     concurrency: concurrent,

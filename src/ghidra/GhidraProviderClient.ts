@@ -8,6 +8,7 @@ import {
   type AnalysisOperation,
 } from "../application/AnalysisProvider.js";
 import type { AppConfig } from "../config/types.js";
+import type { JsonValue } from "../domain/jsonValue.js";
 import type { AnalysisProfileCommitment } from "../domain/analysisProfile.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import {
@@ -263,16 +264,23 @@ export const createGhidraProviderClient = (input: {
             config.ghidraStartupTimeoutMs,
           ),
         );
-      const result = isGhidraFunctionOperation(operation)
-        ? parseGhidraFunctionResult(operation, called.value)
-        : parseGhidraInventoryResult(operation, called.value);
-      if (!result.ok) return result;
-      let normalized = result.value;
+      let normalized: JsonValue;
+      let observationLimitations: readonly string[] = [];
+      if (isGhidraFunctionOperation(operation)) {
+        const result = parseGhidraFunctionResult(operation, called.value);
+        if (!result.ok) return result;
+        normalized = result.value.value;
+        observationLimitations = result.value.limitations;
+      } else {
+        const result = parseGhidraInventoryResult(operation, called.value);
+        if (!result.ok) return result;
+        normalized = result.value;
+      }
       if (operation === "inspect_native_load_image") {
         const attested = await attestGhidraNativeLoadImage(
           target,
           operation,
-          result.value,
+          normalized,
           client,
           (failure) =>
             projectSessionError(
@@ -288,7 +296,11 @@ export const createGhidraProviderClient = (input: {
         createAnalysisExecution(normalized, committedProfile.provider, {
           rawResult: called.value,
           analysisProfile: committedProfile,
-          limitations: [...limitationsFor(operation), ...sessionLimitations],
+          limitations: [
+            ...limitationsFor(operation),
+            ...observationLimitations,
+            ...sessionLimitations,
+          ],
         }),
       );
     },

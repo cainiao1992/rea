@@ -23,6 +23,11 @@ cases. Share setup without hiding inputs or expected evidence. For successful
 `.ok` assertion adds no coverage. Protocol fixtures must reject unmodeled
 commands and preserve actual producer reply shapes.
 
+Stateless source-analysis matrices may share a file-owned stdio MCP connection
+and retain representative compiled CLI parity checks. Every distinct source
+scenario still runs through the public workflow; session-lifecycle scenarios
+need their own sessions and cleanup assertions.
+
 Report unavailable authority as a named skip. Await owned cleanup before a
 verifier reports success. Native process inspectors are released at Vitest
 worker teardown; fork termination does not run Node exit hooks, and per-file
@@ -930,9 +935,12 @@ provider evidence.
 Vitest projects use up to two workers, bounded by host parallelism.
 `process-boundary` runs later with serial files because process-tree sampling
 shares host resources. Acceptance and process-global cases use isolated forks
-without serial scheduling. Pure domain/service and MCP boundary projects share
-immutable module graphs; each MCP session still owns its resources. Other
-projects retain per-file isolation. See `vitest.config.ts` for current settings.
+without serial scheduling. Pure domain/service, composition, conformance,
+evaluation, and MCP boundary projects share module graphs; their tests avoid
+process-global state and keep resource cleanup test-scoped. Each MCP session
+still owns its resources. Adapter, non-MCP boundary, acceptance, and
+process-global projects retain per-file isolation. See `vitest.config.ts` for
+current settings.
 
 Build/documentation writers hold checkout-local output locks. Tests do not
 hold a broad command lock; `check:pr` finishes tests before document validation.

@@ -59,6 +59,9 @@ const TEST_PROJECTS = [
     include: ["tests/composition/**/*.test.ts"],
     pool: "threads" as const,
     maxWorkers: MAX_TEST_WORKERS,
+    // Composition tests use provider-neutral sessions and test-scoped cleanup;
+    // sharing their immutable module graph avoids per-file startup work.
+    isolate: false,
   },
   {
     name: "boundary",
@@ -106,12 +109,16 @@ const TEST_PROJECTS = [
     include: ["tests/conformance/**/*.test.ts"],
     pool: "threads" as const,
     maxWorkers: MAX_TEST_WORKERS,
+    // Contract cases use recording providers and own no process-global state.
+    isolate: false,
   },
   {
     name: "evaluation",
     include: ["tests/evaluation/**/*.test.ts"],
     pool: "threads" as const,
     maxWorkers: MAX_TEST_WORKERS,
+    // Evaluator tests inspect deterministic inputs without mutating shared state.
+    isolate: false,
   },
 ];
 

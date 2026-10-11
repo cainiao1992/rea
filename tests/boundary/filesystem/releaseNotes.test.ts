@@ -1,9 +1,20 @@
-import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import {
+  access,
+  chmod,
+  cp,
+  mkdir,
+  readFile,
+  writeFile,
+} from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, it } from "vitest";
+import { afterAll, beforeAll, expect, it } from "vitest";
 import { z } from "zod";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import {
+  createTestWorkspace,
+  removeTestWorkspace,
+} from "../../support/workspace/workspaceFixture.js";
 import {
   executeWorkflowFixture as exec,
   workflowGit as git,
@@ -23,8 +34,20 @@ const page = (nodes: unknown[], cursor: string | null = null) => ({
   pageInfo: { hasNextPage: cursor !== null, endCursor: cursor },
 });
 
-async function fixture() {
-  const directory = await createTestTempDirectory("rea-release-notes-");
+interface ReleaseNotesSeed {
+  readonly directory: string;
+  readonly base: string;
+  readonly target: string;
+}
+
+let seed: ReleaseNotesSeed | undefined;
+let seedWorkspaceRoot: string | undefined;
+
+beforeAll(async () => {
+  const workspace = await createTestWorkspace("rea-release-notes-seed-");
+  seedWorkspaceRoot = workspace.root;
+  const directory = workspace.path("repository");
+  await mkdir(directory, { recursive: true });
   await git(directory, ["init", "--initial-branch=main"]);
   await writeFile(join(directory, "product.txt"), "base");
   await writeFile(
@@ -142,6 +165,25 @@ process.stdout.write(JSON.stringify({data:{repository:result}}));
 `,
   );
   await chmod(join(bin, "gh"), 0o755);
+  seed = { directory, base, target };
+});
+
+afterAll(async () => {
+  if (seedWorkspaceRoot !== undefined)
+    await removeTestWorkspace(seedWorkspaceRoot);
+});
+
+async function fixture() {
+  const initial = seed;
+  if (initial === undefined)
+    throw new Error("Release notes seed was not initialized");
+  const directory = await createTestTempDirectory("rea-release-notes-");
+  await cp(initial.directory, directory, {
+    recursive: true,
+    dereference: true,
+  });
+  const { base, target } = initial;
+  const bin = join(directory, "bin");
   const manifest = join(directory, "inventory.json");
   const invoke = (args: string[]) =>
     exec(process.execPath, [cli, ...args], {

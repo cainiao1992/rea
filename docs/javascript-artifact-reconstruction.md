@@ -247,6 +247,46 @@ while locally shadowed receivers can still contribute network endpoint
 candidates. A template recovered with a parser error and no cooked value stays
 dynamic; its raw spelling is not treated as a valid JavaScript string.
 
+RPC client syntax also contributes network endpoint candidates, in both
+`analyze_javascript_application` and `analyze_web_bundle`, distinguished by
+`mechanism`:
+
+- `trpc:procedure:<method>` records the static member path between the root
+  expression and the method, such as `invoice.list` in
+  `root.invoice.list.useQuery(...)`. tRPC proxies keep these property names
+  through identifier minification. React hooks and TanStack option factories
+  (`useQuery`, `useMutation`, `useInfiniteQuery`, `useSubscription`, suspense
+  and prefetch variants, `queryOptions`, `infiniteQueryOptions`,
+  `mutationOptions`, `subscriptionOptions`) are recognized directly. The
+  vanilla `query` and `mutate` methods are recognized on a root bound to
+  `createTRPCClient` or `createTRPCProxyClient` in the same lexical binding, or on a
+  path of at least two segments in a source containing `TRPCClientError`,
+  `trpc-accept`, or `/trpc`. Factory bindings must have one unconditional
+  initializer and no binding assignments; shadowed locals do not inherit client
+  identity. `subscribe` additionally requires a tRPC observer
+  argument (`onData`, `onError`, `onStarted`, `onStopped`, `onComplete`, or
+  `onConnectionStateChange`). `this` roots, browser globals, and any path
+  containing an RTK Query `endpoints` segment are never procedures; cache-key
+  helpers such as `queryKey` issue no request and are excluded.
+- `trpc:link:<link>` records the literal `url` option of `httpLink`,
+  `httpBatchLink`, `httpBatchStreamLink`, and `httpSubscriptionLink` when the
+  link's callee name survives bundling, including `(0, module.httpBatchLink)`
+  import-call wrappers.
+- `graphql:query`, `graphql:mutation`, and `graphql:subscription` record a
+  named operation found at the start of a string or cooked template literal —
+  the name must be followed by variable definitions (`($`), a directive, or a
+  selection set starting with a field name — or in a precompiled
+  `OperationDefinition` document object. A graphql-tag `loc.source.body` copy is
+  not reported twice. Anonymous operations are not reported.
+
+A procedure path is the server-side procedure name, not a resolved URL; the
+transport URL depends on the link configuration and batching. When the proxy is
+reached through a member expression, such as a webpack module binding
+(`l.S.invoice.list`) or a property holding the proxy (`o.api.post.byId`), the
+recorded path keeps those leading carrier segments; the procedure path is its
+suffix. Utility calls such as `useUtils().invoice.list.fetch()`, `useQueries`,
+and links whose callee was renamed by a minifier are not recognized.
+
 Each recovered bundle module retains the exact factory-source digest. A complete
 bounded AST also receives a `babel-ast-v1` structural fingerprint that ignores
 ordinary identifier names while retaining syntax, literals, operators, object

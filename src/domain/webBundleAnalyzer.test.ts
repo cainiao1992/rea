@@ -603,3 +603,56 @@ it("retains direct and literal computed call names", () => {
     expect.objectContaining({ name: "literal-tool" }),
   ]);
 });
+
+it("recognizes tRPC procedures and named GraphQL operations in captured scripts", () => {
+  const result = analyzeCapturedWebBundle(
+    inspection(`
+      const n = createTRPCClient({ links: [httpBatchLink({ url: "/api/trpc" })] });
+      e.invoice.list.useQuery({ competencia: "2026-09" });
+      n.empresa.byCnpj.query("00000000000191");
+      const q = "query ListarNotas($competencia: String!) { notas { id } }";
+      this.client.query({ query: q });
+    `),
+  );
+  expect(
+    result.observations.endpoints.map(({ value, mechanism }) => ({
+      value,
+      mechanism,
+    })),
+  ).toEqual([
+    { value: "/api/trpc", mechanism: "trpc:link:httpBatchLink" },
+    { value: "invoice.list", mechanism: "trpc:procedure:useQuery" },
+    { value: "empresa.byCnpj", mechanism: "trpc:procedure:query" },
+    { value: "ListarNotas", mechanism: "graphql:query" },
+  ]);
+});
+
+it("keeps RPC lexical identity and bundled factory recognition in captured scripts", () => {
+  const longOperation = "Operation" + "x".repeat(512);
+  const document =
+    "#" +
+    "comment".repeat(700) +
+    "\nquery " +
+    longOperation +
+    " { users { id } }";
+  const result = analyzeCapturedWebBundle(
+    inspection(`
+    function first() { const c = createTRPCClient({}); }
+    function unrelated(c) { c.users.query("select 1"); }
+    const c = (0, t.createTRPCClient)({ links: [(0, t.httpBatchLink)({ url: "/api/rpc" })] });
+    c.posts.query();
+    const doc = ${JSON.stringify(document)};
+  `),
+  );
+  expect(
+    result.observations.endpoints.map(({ value, mechanism }) => ({
+      value,
+      mechanism,
+    })),
+  ).toEqual([
+    { value: "/api/rpc", mechanism: "trpc:link:httpBatchLink" },
+    { value: "posts", mechanism: "trpc:procedure:query" },
+    { value: longOperation, mechanism: "graphql:query" },
+  ]);
+  expect(result.completeness.status).toBe("complete");
+});

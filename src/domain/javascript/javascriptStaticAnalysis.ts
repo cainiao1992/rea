@@ -23,6 +23,7 @@ import {
   inspectCall,
   inspectRouteProperty,
   inspectRoleProperty,
+  inspectRpcNode,
 } from "./javascriptStaticAnalysisCalls.js";
 import {
   inspectBundlerRegistration,
@@ -37,6 +38,7 @@ import {
 import type { JavaScriptStaticAnalysis } from "./javascriptStaticAnalysisTypes.js";
 import {
   classifyParsedJavaScriptElectronBindingsSteps,
+  classifyParsedJavaScriptRpcClientRootsSteps,
   classifyParsedJavaScriptOpenReceivers,
   type JavaScriptOpenReceiverFact,
 } from "./javascriptSemanticAnalysis.js";
@@ -44,6 +46,8 @@ import {
   parseJavaScriptSource,
   type ParsedJavaScriptSource,
 } from "./javascriptSourceParser.js";
+
+import { createJavaScriptRpcScan } from "./javascriptRpcEndpoints.js";
 
 /** Parse one JavaScript artifact and recover static structure only. */
 export const analyzeJavaScriptStaticSource = (
@@ -78,11 +82,13 @@ export function* analyzeParsedJavaScriptStaticSourceSteps(
   const accumulator = createJavaScriptAnalysisAccumulator(source.length);
   const electronBindings =
     yield* classifyParsedJavaScriptElectronBindingsSteps(file);
+  const clientRoots = yield* classifyParsedJavaScriptRpcClientRootsSteps(file);
   yield* traverseStaticSourceSteps(file, {
     source,
     accumulator,
     ...(openReceiverFacts === undefined ? {} : { openReceiverFacts }),
     electronBindings,
+    rpcScan: createJavaScriptRpcScan(source, clientRoots),
   });
   addSourceMapDirectives(source, file.comments ?? [], accumulator);
   return finalizeStaticAnalysis(source, file, accumulator);
@@ -223,4 +229,5 @@ const inspectNode = (
     inspectRouteProperty(node, findings);
     inspectRoleProperty(node, findings);
   }
+  inspectRpcNode(node, findings);
 };

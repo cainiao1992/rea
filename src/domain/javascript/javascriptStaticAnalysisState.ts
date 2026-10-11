@@ -1,4 +1,5 @@
 import type * as t from "@babel/types";
+import type { JavaScriptRpcScan } from "./javascriptRpcEndpoints.js";
 
 import type {
   JavaScriptBundlerRegistration,
@@ -57,6 +58,7 @@ export interface JavaScriptAnalysisAccumulator {
 
 /** Shared source and accumulator for helper inspections. */
 export interface JavaScriptFindingContext {
+  readonly rpcScan: JavaScriptRpcScan;
   readonly source: string;
   readonly accumulator: JavaScriptAnalysisAccumulator;
   readonly openReceiverFacts?: ReadonlyMap<

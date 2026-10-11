@@ -201,6 +201,13 @@ const inspectEndpointCall = (
     });
 };
 
+/** Record tRPC procedures, tRPC link URLs and named GraphQL operations. */
+export const inspectRpcNode = (node: t.Node, context: FindingContext): void => {
+  const rpc = context.rpcScan.inspect(node);
+  if (rpc !== undefined)
+    addEndpoint(context, { node, kind: "network", ...rpc });
+};
+
 export const inspectRouteProperty = (
   node: t.ObjectProperty,
   context: FindingContext,

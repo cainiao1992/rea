@@ -8,7 +8,36 @@ import { toolContract } from "../../../src/contracts/toolContracts.js";
 import { peResourcesSchema } from "../../../src/domain/native/peResources.js";
 import { peResourceFixture } from "../../../src/native/pe/PeResources.fixture.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
-import { cliTest } from "../../support/cli/cliFixture.js";
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
+import { cliTest, type TestCli } from "../../support/cli/cliFixture.js";
+
+const expectPeInputFailureAcrossAdapters = async (input: {
+  readonly cli: TestCli;
+  readonly client: Client;
+  readonly toolName: string;
+  readonly path: string;
+  readonly reason: "invalid_format" | "invalid_value";
+}) => {
+  const { cli, client, toolName, path, reason } = input;
+  const result = await cli.run({
+    arguments: ["inspect-pe-resources", path, "--json"],
+  });
+  expect(result.exitCode).toBe(1);
+  expect(result.json).toMatchObject({
+    code: "invalid_request",
+    category: "invalid_input",
+    details: {
+      operation: "inspect_pe_resources",
+      issues: [{ path: ["path"], reason }],
+    },
+  });
+  const response = await client.callTool({
+    name: toolName,
+    arguments: { path },
+  });
+  expect(response.isError).toBe(true);
+  expect(parseMcpToolError(response)).toEqual({ error: result.json });
+};
 
 cliTest(
   "inspects PE32/PE32+ resources through compiled CLI and real stdio MCP without an active target",
@@ -91,6 +120,20 @@ cliTest(
           contract.outputSchema.parse(JSON.parse(text.text)).evidence_id,
         ).toBe(evidence.evidence_id);
         expect(await readFile(path)).toEqual(fixture.bytes);
+      }
+      const malformedPath = join(root, "malformed.exe");
+      await writeFile(malformedPath, Buffer.from("not a PE image"));
+      for (const [path, reason] of [
+        [join(root, "missing.exe"), "invalid_value"],
+        [malformedPath, "invalid_format"],
+      ] as const) {
+        await expectPeInputFailureAcrossAdapters({
+          cli,
+          client,
+          toolName: contract.name,
+          path,
+          reason,
+        });
       }
       const absent = peResourceFixture();
       absent.bytes.fill(0, absent.directoryAt, absent.directoryAt + 8);

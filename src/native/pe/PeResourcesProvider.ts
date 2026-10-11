@@ -5,7 +5,9 @@ import type { ExecutionOptions } from "../../application/AnalysisProvider.js";
 import { ArtifactOperationError } from "../../domain/artifactOperationError.js";
 import {
   AnalysisAccessDeniedError,
+  AnalysisArtifactChangedError,
   AnalysisCancelledError,
+  AnalysisInputError,
   AnalysisResourceConstraintError,
 } from "../../domain/analysisErrorCore.js";
 import type { InspectPeResourcesInput } from "../../domain/native/peResources.js";
@@ -37,47 +39,70 @@ export class PeResourcesProvider implements PeResourcesPort {
         ),
       );
     } catch (cause) {
-      if (options?.signal?.aborted)
-        return err(
-          new AnalysisCancelledError("inspect_pe_resources", { cause }),
-        );
-      if (cause instanceof ArtifactReaderFailure && cause.reason === "limit")
-        return err(
-          new AnalysisResourceConstraintError(
-            "inspect_pe_resources",
-            "memory",
-            cause.message,
-            {
-              max_file_bytes: input.max_file_bytes,
-              max_entries: input.max_entries,
-            },
-            { cause },
-          ),
-        );
-      if (
-        cause instanceof Error &&
-        "code" in cause &&
-        (cause.code === "EACCES" || cause.code === "EPERM")
-      )
-        return err(
-          new AnalysisAccessDeniedError(
-            "inspect_pe_resources",
-            input.path,
-            cause.code,
-            { cause },
-          ),
-        );
-      return err(
-        new ArtifactOperationError(
-          "inspect_pe_resources",
-          cause instanceof ArtifactReaderFailure ? cause.reason : "io",
-          undefined,
-          cause instanceof Error
-            ? cause.message
-            : "PE artifact inspection failed.",
-          { cause },
-        ),
-      );
+      return err(peResourcesFailure(cause, input, options?.signal));
     }
   }
 }
+
+const peResourcesFailure = (
+  cause: unknown,
+  input: InspectPeResourcesInput,
+  signal: AbortSignal | undefined,
+) => {
+  const operation = "inspect_pe_resources";
+  if (signal?.aborted) return new AnalysisCancelledError(operation, { cause });
+
+  if (cause instanceof ArtifactReaderFailure) {
+    if (cause.reason === "limit")
+      return new AnalysisResourceConstraintError(
+        operation,
+        "memory",
+        cause.message,
+        {
+          max_file_bytes: input.max_file_bytes,
+          max_entries: input.max_entries,
+        },
+        { cause },
+      );
+    if (cause.reason === "integrity")
+      return new AnalysisArtifactChangedError(
+        operation,
+        input.path,
+        cause.message,
+        { cause },
+      );
+    if (cause.reason === "path" || cause.reason === "format")
+      return new AnalysisInputError(operation, { cause }, [
+        {
+          path: ["path"],
+          reason: "invalid_format",
+          message: cause.message,
+        },
+      ]);
+    if (cause.reason === "cancelled")
+      return new AnalysisCancelledError(operation, { cause });
+  }
+
+  if (cause instanceof Error && "code" in cause) {
+    if (cause.code === "EACCES" || cause.code === "EPERM")
+      return new AnalysisAccessDeniedError(operation, input.path, cause.code, {
+        cause,
+      });
+    if (cause.code === "ENOENT" || cause.code === "ENOTDIR")
+      return new AnalysisInputError(operation, { cause }, [
+        {
+          path: ["path"],
+          reason: "invalid_value",
+          message: `Selected PE image could not be read (${cause.code}): ${input.path}.`,
+        },
+      ]);
+  }
+
+  return new ArtifactOperationError(
+    operation,
+    cause instanceof ArtifactReaderFailure ? cause.reason : "io",
+    undefined,
+    cause instanceof Error ? cause.message : "PE artifact inspection failed.",
+    { cause },
+  );
+};

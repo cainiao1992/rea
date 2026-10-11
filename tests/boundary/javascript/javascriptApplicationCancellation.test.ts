@@ -1,10 +1,79 @@
 import { setImmediate } from "node:timers";
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
+import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
 import { analyzeJavaScriptApplication } from "../../support/javascriptApplicationScope.js";
+
+it("preserves imported manifest status when cancelled before visiting manifests", async () => {
+  const root = await createTestTempDirectory("rea-js-cancel-package-");
+  const manifests = [
+    ["valid", '{"version":"1.0.0"}', "included"],
+    ["malformed", "{", "invalid"],
+    ["non-object", "[]", "included"],
+    ["unavailable", Buffer.from([0xff]), "unavailable"],
+  ] as const;
+  await Promise.all(
+    manifests.map(async ([name, content]) => {
+      const directory = join(root, "z", name);
+      await mkdir(directory, { recursive: true });
+      await writeFile(join(directory, "package.json"), content);
+    }),
+  );
+  await writeFile(
+    join(root, "a.cjs"),
+    manifests
+      .map(
+        ([name], index) =>
+          `const manifest${index} = require("./z/${name}/package.json");`,
+      )
+      .join("\n"),
+  );
+  await writeFile(join(root, "b.cjs"), "module.exports = 1;");
+  const controller = new AbortController();
+  const visited: string[] = [];
+  const result = await analyzeJavaScriptApplication(
+    { input_path: root, format: "directory" },
+    {
+      signal: controller.signal,
+      progress: {
+        async report(event) {
+          if (event.phase !== "parse_javascript_source") return;
+          visited.push(event.message);
+          if (event.message.includes("b.cjs")) controller.abort();
+        },
+      },
+    },
+  );
+  if (result.ok) throw new Error("Cancelled analysis must return a failure");
+  const failure = projectAnalysisError(result.error);
+  expect(failure.code).toBe("cancelled");
+  expect(visited).toHaveLength(2);
+  const { graph } = z
+    .object({
+      details: z.object({
+        partial_observation: z.object({
+          normalized_result: javascriptApplicationAnalysisResultSchema,
+        }),
+      }),
+    })
+    .parse(failure).details.partial_observation.normalized_result;
+  for (const [name, , status] of manifests)
+    expect(
+      graph.edges.find(
+        ({ properties }) =>
+          properties.module_link_kind === "require" &&
+          properties.specifier === `./z/${name}/package.json`,
+      )?.properties,
+    ).toMatchObject({
+      resolution_status: "resolved",
+      target_file_kind: "package-json",
+      target_json_status: status,
+    });
+});
 
 describe("JavaScript application cancellation", () => {
   it("interrupts semantic graph commitment before result validation", async () => {

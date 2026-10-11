@@ -22,6 +22,8 @@ const EXECUTION_WORDING_EXCEPTIONS: Readonly<Record<string, string>> = {
   inspect_macho: "runs host Mach-O inspection tools, not the target",
   inspect_evm_interface:
     "decodes bytecode in REA's bundled worker without executing it",
+  inspect_wasm_artifact:
+    "WABT validates and decompiles the module without executing it",
   inspect_managed_artifact: "reads metadata without executing target code",
   inspect_managed_members: "reads metadata without executing target code",
   inspect_managed_native_boundaries:
@@ -47,6 +49,7 @@ const EXECUTION_WORDING_EXCEPTIONS: Readonly<Record<string, string>> = {
   compare_javascript_export_shapes: "states it does not execute JavaScript",
   project_android_application_graph: "execution-free inventory",
   project_apple_application_graph: "execution-free inventory",
+  project_harmony_application_graph: "execution-free inventory",
   trace_web_source_location: "states there is no application execution",
   trace_web_module_imports:
     "runs only REA's resolver stub in operator-configured Chromium",

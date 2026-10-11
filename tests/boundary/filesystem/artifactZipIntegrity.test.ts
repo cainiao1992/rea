@@ -61,6 +61,19 @@ it("binds ZIP opens to the emitted entry metadata", async () => {
     await expect(
       reader.open({ ...second, declaredSize: first.declaredSize }),
     ).rejects.toMatchObject({ reason: "integrity" });
+    await expect(
+      reader.open({
+        ...second,
+        sourceIdentity: {
+          device: 1n,
+          inode: 2n,
+          size: 3n,
+          mode: 4n,
+          mtimeNs: 5n,
+          ctimeNs: 6n,
+        },
+      }),
+    ).rejects.toMatchObject({ reason: "integrity" });
     const originalKey = second.adapterKey;
     Reflect.set(second, "adapterKey", first.adapterKey);
     await expect(reader.open(second)).rejects.toMatchObject({

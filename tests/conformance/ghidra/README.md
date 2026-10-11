@@ -14,6 +14,15 @@ binaries and Ghidra projects are never committed.
   x86-64 PE, and x86-64 Mach-O targets from the same semantics. It preserves an
   exported entry, direct and indirect calls, a volatile string reference, and a
   multi-block branch across loaders.
+- `no-return.c` and `ReaNoReturnProbe.java` inject incorrect import flags into a
+  real ELF analysis database, verify caller recovery, propagated flag repair and signature preservation,
+  and retain genuine/unknown no-return calls and independently identified entries.
+  Run `npm run build:cached`, then `node scripts/verify-real-ghidra-noreturn.mjs`
+  with the Ghidra/JDK environment below on Linux x64 and a procps-compatible process
+  table that exposes REA's current process for owned cleanup. It also checks named
+  limitations through the real read-only TCP bridge and provider Evidence
+  projection; default Unix-socket transport, Windows, and the reported Amethyst
+  artifact need separate verification. Fixture target code is never executed.
 
 `scripts/verify-real-ghidra.mjs` uses `cc`, `clang`, and `lld-link` by default;
 `REA_CC`, `REA_CLANG`, and `REA_LLD_LINK` can select alternate commands. The

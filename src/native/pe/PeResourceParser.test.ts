@@ -259,3 +259,62 @@ describe("PE header admission and bounded traversal", () => {
     await expect(parsing).rejects.toThrow();
   });
 });
+
+describe("PE resource section virtual extent", () => {
+  const sectionSizes = (fixture: ReturnType<typeof peResourceFixture>) => {
+    const virtualSize = fixture.bytes.readUInt32LE(fixture.sectionAt + 8);
+    const rawSize = fixture.bytes.readUInt32LE(fixture.sectionAt + 16);
+    expect(rawSize - virtualSize).toBeGreaterThanOrEqual(8);
+    return { virtualSize, rawSize };
+  };
+
+  it.each([
+    [0, "Resource RVA has missing or overlapping section mappings."],
+    [-2, "Resource range leaves its section's virtual size."],
+  ])(
+    "rejects a payload reaching raw alignment padding past VirtualSize (start %i)",
+    async (start, message) => {
+      const fixture = peResourceFixture();
+      const { virtualSize } = sectionSizes(fixture);
+      const rva = 0x2000 + virtualSize + start;
+      fixture.bytes.writeUInt32LE(rva, fixture.dataOffsets[0]);
+      fixture.bytes.writeUInt32LE(4, (fixture.dataOffsets[0] ?? 0) + 4);
+      await expect(parse(fixture.bytes)).rejects.toMatchObject({
+        reason: "format",
+        message,
+      });
+    },
+  );
+
+  it("maps raw bytes when VirtualSize is zero, as the image loader does", async () => {
+    const fixture = peResourceFixture();
+    fixture.bytes.writeUInt32LE(0, fixture.sectionAt + 8);
+    expect(await parse(fixture.bytes)).toMatchObject({
+      coverage: { status: "complete", resources: 5 },
+    });
+  });
+
+  it("selects a later section that starts inside earlier raw padding", async () => {
+    const fixture = peResourceFixture();
+    const { virtualSize } = sectionSizes(fixture);
+    const laterRva = 0x2000 + Math.ceil(virtualSize / 4) * 4;
+    const rawOffset = fixture.bytes.length;
+    const payload = Buffer.from("LATE");
+    const bytes = Buffer.concat([fixture.bytes, payload]);
+    bytes.writeUInt16LE(2, 0x86);
+    const later = fixture.sectionAt + 40;
+    bytes.writeUInt32LE(payload.length, later + 8);
+    bytes.writeUInt32LE(laterRva, later + 12);
+    bytes.writeUInt32LE(payload.length, later + 16);
+    bytes.writeUInt32LE(rawOffset, later + 20);
+    bytes.writeUInt32LE(laterRva, fixture.dataOffsets[0]);
+    bytes.writeUInt32LE(payload.length, (fixture.dataOffsets[0] ?? 0) + 4);
+
+    const result = peResourcesSchema.parse(await parse(bytes));
+    expect(result.resources[0]?.payload).toMatchObject({
+      rva: laterRva,
+      location: { offset: rawOffset, bytes: payload.length },
+      sha256: createHash("sha256").update(payload).digest("hex"),
+    });
+  });
+});

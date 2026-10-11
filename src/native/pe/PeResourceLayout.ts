@@ -28,6 +28,11 @@ interface Section {
   readonly size: number;
 }
 
+// The image loader maps VirtualSize bytes, using SizeOfRawData only when
+// VirtualSize is zero. Raw bytes past that extent are file-alignment padding.
+const virtualExtent = (section: Section): number =>
+  section.virtualSize === 0 ? section.size : section.virtualSize;
+
 /** Header admission and unambiguous file-backed RVA mapping, independent of section names. */
 export const readPeResourceLayout = (bytes: Buffer) => {
   requirePeRange(bytes, 0, 64);
@@ -64,7 +69,7 @@ export const readPeResourceLayout = (bytes: Buffer) => {
       offset: bytes.readUInt32LE(at + 20),
       size: bytes.readUInt32LE(at + 16),
     };
-    if (section.rva + Math.max(section.virtualSize, section.size) > 0x100000000)
+    if (section.rva + virtualExtent(section) > 0x100000000)
       peFailure("PE section RVA range overflows.");
     if (section.size > 0) {
       requirePeRange(bytes, section.offset, section.size);
@@ -90,15 +95,14 @@ export const readPeResourceLayout = (bytes: Buffer) => {
     if (rva + size > 0x100000000) peFailure("Resource RVA range overflows.");
     const candidates = sections.filter(
       (section) =>
-        rva >= section.rva &&
-        rva - section.rva < Math.max(section.size, section.virtualSize),
+        rva >= section.rva && rva - section.rva < virtualExtent(section),
     );
     if (rva < headerSize) {
       if (
         sections.some(
           (section) =>
             section.rva < rva + size &&
-            section.rva + Math.max(section.size, section.virtualSize) > rva,
+            section.rva + virtualExtent(section) > rva,
         ) ||
         size > headerSize - rva
       )
@@ -111,6 +115,8 @@ export const readPeResourceLayout = (bytes: Buffer) => {
     const section = candidates[0];
     if (section === undefined) return peFailure("Missing resource section.");
     const within = rva - section.rva;
+    if (size > virtualExtent(section) - within)
+      peFailure("Resource range leaves its section's virtual size.");
     if (within > section.size || size > section.size - within)
       peFailure("Resource range is not entirely file-backed in one section.");
     // A second section starting inside the requested interval is ambiguous too.
@@ -119,7 +125,7 @@ export const readPeResourceLayout = (bytes: Buffer) => {
         (other) =>
           other !== section &&
           other.rva < rva + size &&
-          other.rva + Math.max(other.size, other.virtualSize) > rva,
+          other.rva + virtualExtent(other) > rva,
       )
     )
       peFailure("Resource interval intersects overlapping virtual sections.");

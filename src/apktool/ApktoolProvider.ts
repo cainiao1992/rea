@@ -717,7 +717,7 @@ export class ApktoolProvider {
                 : []),
               ...(parsedStrings.unparsedCount > 0
                 ? [
-                    `${String(parsedStrings.unparsedCount)} string entries with nested markup were not projected`,
+                    `String entries omitted due to malformed XML or unsupported markup: ${String(parsedStrings.unparsedCount)}`,
                   ]
                 : []),
               ...(parsedStrings.entries.length > MAX_STRINGS

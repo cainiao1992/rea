@@ -277,11 +277,13 @@ try {
     throw new Error("Scenario attachment terminated its external browser");
 
   const profilesBefore = await scenarioProfiles();
+  process.stderr.write("Browser verifier: scenario environment\n");
   const scenarioEnvironment = await verifyScenarioEnvironment(
     endpoint,
     target,
     site.origin,
   );
+  process.stderr.write("Browser verifier: scenario storage\n");
   const scenarioStorage = await verifyScenarioStorage({
     executable,
     endpoint,
@@ -339,7 +341,9 @@ try {
         `Browser scenario included unselected structured value: ${unselectedValue}`,
       );
 
+  process.stderr.write("Browser verifier: large screenshot\n");
   const largeScreenshot = await verifyLargeScreenshotE2e(endpoint, site.origin);
+  process.stderr.write("Browser verifier: popup coverage\n");
   const popupEvents = await verifyPopupEventCoverage(executable);
   const networkEvidence = await verifyBrowserNetworkEvidence(
     executable,

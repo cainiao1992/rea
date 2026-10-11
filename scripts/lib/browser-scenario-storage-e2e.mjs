@@ -176,6 +176,9 @@ const startStorageSite = async () => {
     origin: `http://127.0.0.1:${port}`,
     close: async () => {
       server.close();
+      // Chrome can leave speculative TCP connections without an HTTP request;
+      // server.close() alone waits indefinitely for those owned sockets.
+      server.closeAllConnections();
       await once(server, "close");
     },
   };

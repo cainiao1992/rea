@@ -400,9 +400,21 @@ rea setup --yes --all-detected --install-hopper --json
 Setup pins package-runner MCP registrations to the exact installed REA version,
 installs the matching skill and on-demand references in the same plan, and adds
 `startup_timeout_sec = 30` for Codex and Grok Build. `rea update` installs the exact resolved
-release into the npm prefix that owns the running package, then checks the new
-executable's version before reporting success. It does not reopen onboarding.
-Release lookup and installation both use npm's configured registry.
+release into the npm prefix or Bun global directory that owns the running
+package, then checks the new executable's version before reporting success. It
+does not reopen onboarding. For npm installations, release lookup and
+installation both use npm's configured registry. Bun global updates require
+Bun 1.2.17 or later, which introduced `bun info`. The updater checks `bun --version`
+first and stops with an instruction to upgrade Bun manually if the version is
+older or cannot be parsed; it does not upgrade Bun itself.
+For supported Bun global installations, `bun info` and
+`bun add --global --ignore-scripts` use Bun's configured registry
+and run inside the owning Bun global directory (`BUN_INSTALL_GLOBAL_DIR`, else
+`$BUN_INSTALL/install/global`, else `$XDG_CACHE_HOME/.bun/install/global`,
+else `~/.bun/install/global`), never in the caller's current project. A Bun
+global directory without its `package.json` is not treated as an owned
+installation, because Bun would install into the nearest ancestor project
+instead.
 Its maintenance plan selects only existing REA registrations and an already
 installed REA skill. Run the returned scoped setup command to review and approve
 those changes, then restart affected agents. The plan is returned in terminal,
@@ -824,7 +836,7 @@ Ghidra/JDK installation; neither is inferred from startup alone.
 
 ## Diagnose, update, and remove
 
-`rea doctor --json` is strictly read-only. `rea update` updates only the npm installation that owns the running CLI. Source checkouts and package-runner copies must be updated through the mechanism that owns them; a fresh package-runner invocation can use `npx rea-agents@latest`. `rea uninstall` removes only REA-owned agent registrations and skill files; `--purge-data` additionally removes REA cache and state paths.
+`rea doctor --json` is strictly read-only. `rea update` updates only the npm or Bun global installation that owns the running CLI. Source checkouts and package-runner copies must be updated through the mechanism that owns them; a fresh package-runner invocation can use `npx rea-agents@latest`. `rea uninstall` removes only REA-owned agent registrations and skill files; `--purge-data` additionally removes REA cache and state paths.
 
 ```bash
 rea update

@@ -1,4 +1,7 @@
-import type { ManagedDecodeBudget } from "./ManagedDecodeBudget.js";
+import {
+  admitManagedProjection,
+  type ManagedDecodeBudget,
+} from "./ManagedDecodeBudget.js";
 import type { ManagedPeLayout } from "./ManagedPeReader.js";
 import type { ManagedMethodBody } from "./ManagedMemberInspectorCore.js";
 import {
@@ -98,8 +101,9 @@ export const methodBody = (
       throw new RangeError("Method IL bytes leave artifact");
     const il = bytes.subarray(ilOffset, ilOffset + header.ilSize);
     // One byte can produce an instruction record, start index, normalized tuple,
-    // and anchor. Reserve conservative bookkeeping capacity before decoding.
-    budget?.reserve(il.length * 256, ilOffset);
+    // and anchor. Bound that bookkeeping before decoding; the retained body is
+    // reserved once it is known.
+    budget?.admitTransient(il.length * 256, ilOffset);
     const decoded = decodeInstructions(il);
     const opcodeCounts: Record<string, number> = {};
     for (const instruction of decoded.parsed)
@@ -143,7 +147,7 @@ export const methodBody = (
       decoded.truncated,
       exceptionRegions,
     );
-    return {
+    const body: ManagedMethodBody = {
       status,
       header_format: header.format,
       rva,
@@ -173,6 +177,7 @@ export const methodBody = (
           ? "Instruction decoding stopped before the end of the method body"
           : null),
     };
+    return budget === undefined ? body : admitManagedProjection(body, budget);
   } catch (cause: unknown) {
     if (
       cause instanceof ManagedReaderFailure &&
@@ -189,6 +194,9 @@ export const methodBody = (
       "malformed",
       cause instanceof Error ? cause.message : "Method body parse failed",
     );
+  } finally {
+    // IL and exception-section bookkeeping coexist until the body is built.
+    budget?.releaseTransient();
   }
 };
 

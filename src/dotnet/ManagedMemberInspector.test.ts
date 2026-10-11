@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { inspectManagedMembersBytes } from "./ManagedMemberInspector.js";
+import { ManagedDecodeBudget } from "./ManagedDecodeBudget.js";
+import { edges } from "./ManagedMemberRows.js";
+import type { ManagedMethod } from "./ManagedMemberInspectorCore.js";
+import { ManagedReaderFailure } from "./ManagedReaderFailure.js";
+
 import {
   buildManagedPeFixture,
   managedPeFixtureTarget,
@@ -130,6 +135,128 @@ describe("managed member inspection", () => {
       },
     ]);
     expect(result.coverage).toMatchObject({ state: "complete", issues: [] });
+  });
+});
+
+describe("managed member decoding budget", () => {
+  it("charges decoded output rather than accumulated decoding bounds", () => {
+    // Each bound fits alone, but 256 bytes per IL and signature byte together
+    // exceed the 64 MiB budget although the retained members are small.
+    const il = Buffer.concat([Buffer.alloc(200_000), Buffer.from([0x2a])]);
+    const header = Buffer.alloc(12);
+    header.writeUInt16LE(0x3003, 0);
+    header.writeUInt16LE(8, 2);
+    header.writeUInt32LE(il.length, 4);
+    const bytes = buildManagedPeFixture({
+      ilBody: Buffer.concat([header, il]),
+      methodSignature: Buffer.concat([
+        Buffer.from([0x00, 0x00, 0x01]),
+        Buffer.alloc(80_000),
+      ]),
+    });
+    const result = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.coverage.state).not.toBe("unavailable");
+    expect(result.methods[0]?.body).toMatchObject({
+      status: "present",
+      il_size: il.length,
+      opcode_counts: { nop: 200_000, ret: 1 },
+    });
+  });
+
+  it("bounds a method's IL and exception sections together", () => {
+    // Each bound fits alone; both stay live while one method is decoded.
+    const il = Buffer.concat([Buffer.alloc(159_999), Buffer.from([0x2a])]);
+    const header = Buffer.alloc(12);
+    header.writeUInt16LE(0x300b, 0);
+    header.writeUInt16LE(8, 2);
+    header.writeUInt32LE(il.length, 4);
+    const clauses = 110_000;
+    const section = Buffer.alloc(4 + clauses * 24);
+    section.writeUInt32LE(0x41 | ((4 + clauses * 24) << 8), 0);
+    const bytes = buildManagedPeFixture({
+      ilBody: Buffer.concat([header, il, section]),
+    });
+    const result = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.coverage).toMatchObject({
+      state: "unavailable",
+      issues: [{ code: "resource-limit" }],
+    });
+  });
+});
+
+describe("managed derived edges", () => {
+  it("admits call edges before the derived graph exceeds the budget", () => {
+    const anchor = {
+      il_offset: 0,
+      opcode: "call",
+      operand_kind: "method",
+      operand: "0x0a000001",
+    };
+    const method = {
+      token: "0x06000001",
+      declaring_type: "T".repeat(2000),
+      name: "m",
+      body: { anchors: Array.from({ length: 40_000 }, () => anchor) },
+    } as unknown as ManagedMethod;
+
+    expect(() =>
+      edges(
+        [method],
+        new Map(),
+        new Map(),
+        new Map(),
+        new ManagedDecodeBudget(),
+      ),
+    ).toThrow(ManagedReaderFailure);
+  });
+});
+
+describe("managed derived caller names", () => {
+  it("admits a caller name before building it", () => {
+    let built = false;
+    // A string-like type name records whether the caller was interpolated.
+    const declaringType = {
+      length: 70 * 1024 * 1024,
+      charCodeAt: () => 0x54,
+      toString: () => {
+        built = true;
+        return "T";
+      },
+    } as unknown as string;
+    const method = {
+      token: "0x06000001",
+      declaring_type: declaringType,
+      name: "m",
+      body: {
+        anchors: [
+          {
+            il_offset: 0,
+            opcode: "call",
+            operand_kind: "method",
+            operand: "0x0a000001",
+          },
+        ],
+      },
+    } as unknown as ManagedMethod;
+
+    expect(() =>
+      edges(
+        [method],
+        new Map(),
+        new Map(),
+        new Map(),
+        new ManagedDecodeBudget(),
+      ),
+    ).toThrow(ManagedReaderFailure);
+    expect(built).toBe(false);
   });
 });
 

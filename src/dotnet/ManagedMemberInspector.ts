@@ -142,6 +142,7 @@ export const inspectManagedMembersBytes = (
       methods.core,
       fields.core,
       memberRefs.core,
+      managedDecodeBudget(layout),
     );
     return managedMemberInspectionSchema.parse(
       admitManagedProjection(

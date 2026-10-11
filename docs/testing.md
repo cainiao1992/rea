@@ -282,10 +282,12 @@ establish live DeepSeek API or native Windows coverage. Receipts include
 request artifacts, result digests and owned-process lineage.
 
 Full E2E tests invoke the production command dispatcher and real providers,
-without fake launchers, runners or responses. `verify:keyed-archive` writes an
-actual Foundation binary archive, runs the CLI and a separate stdio MCP
-subprocess, checks parity and pagination, rejects an escaping path and checks
-an XML graph golden. `verify:asset-catalog` compiles source-owned colors with
+without fake launchers, runners or responses. `verify:keyed-archive` writes
+Foundation binary, XML, and integer archives using one run-owned Swift module
+cache. It checks CLI and separate stdio MCP parity, pagination, escaping-path
+rejection, an XML graph golden, and numeric meaning for safe controls, unsafe
+integers, boxed numbers, and integral-valued reals. `verify:asset-catalog`
+compiles source-owned colors with
 `actool`, invokes real `assetutil`, then checks CLI/MCP results, exact catalog
 digest, every raw metadata field, pagination and malformed input rejection.
 Neither artifact workflow requires Hopper or launches it. Both run in macOS CI.

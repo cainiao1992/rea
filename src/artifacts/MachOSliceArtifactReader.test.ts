@@ -1,3 +1,5 @@
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -6,9 +8,151 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory.js";
 import { CPU, fatImage, machoImage } from "./apple/MachoImage.fixture.js";
 import { MachOSliceArtifactReader } from "./MachOSliceArtifactReader.js";
-import { ok } from "../domain/result.js";
+import { err, ok } from "../domain/result.js";
 import { openRegularFile } from "../filesystem/RegularFile.js";
+import { ProviderProcessSupervisor } from "../process/ProviderProcess.js";
 import type { NativeCommandRunner } from "../native/CommandRunner.js";
+import { NativeCommandFailure } from "../native/CommandRunner.js";
+
+const cleanupOwner = (runId: string): ProviderProcessSupervisor => {
+  const child = Object.assign(new EventEmitter(), {
+    stdout: new PassThrough(),
+    stderr: new PassThrough(),
+    exitCode: null as number | null,
+    signalCode: null as NodeJS.Signals | null,
+    kill: () => true,
+  });
+  return new ProviderProcessSupervisor({
+    process: child,
+    ownsProcessLifetime: true,
+    ownership: {
+      runId,
+      leaderPid: 45_000,
+      processGroupId: 45_000,
+      expectedParentPid: process.pid,
+    },
+    cleanup: async () => ({ cleaned: false, reason: "still running" }),
+  });
+};
+
+describe("Mach-O cleanup exceptions", () => {
+  it("retains an undefined cleanup rejection as an explicit failure", async () => {
+    const reader = new MachOSliceArtifactReader(
+      "/unused/macho",
+      {},
+      {
+        run: async () => {
+          throw new Error("Unexpected command");
+        },
+        retryCleanup: async () => {
+          throw undefined;
+        },
+      },
+    );
+    await expect(reader.close()).rejects.toMatchObject({
+      cleanup: {
+        reason: "undefined",
+        resources: ["native-command-process-cleanup"],
+      },
+    });
+  });
+});
+
+describe("Mach-O command cleanup lifecycle", () => {
+  it("waits for active lipo capture before cleanup and preserves its failure", async () => {
+    const root = await createTestTempDirectory("rea-slices-close-race-");
+    const binary = join(root, "input");
+    await writeFile(binary, Buffer.from("fixture"));
+    let finishCommand!: (
+      result: Awaited<ReturnType<NativeCommandRunner["run"]>>,
+    ) => void;
+    let commandStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      commandStarted = resolve;
+    });
+    const command = new Promise<
+      Awaited<ReturnType<NativeCommandRunner["run"]>>
+    >((resolve) => {
+      finishCommand = resolve;
+    });
+    let cleanupRetries = 0;
+    const runner: NativeCommandRunner = {
+      run: () => {
+        commandStarted();
+        return command;
+      },
+      retryCleanup: async () => {
+        cleanupRetries += 1;
+        if (cleanupRetries > 1) return [];
+        return [
+          {
+            owner: cleanupOwner("run:first"),
+            reason: "first process group remains live",
+            resources: ["run:first", "process-group:1234"],
+          },
+          {
+            owner: cleanupOwner("run:second"),
+            reason: "second process group remains live",
+            resources: ["run:second", "process-group:5678"],
+          },
+        ];
+      },
+    };
+    const reader = new MachOSliceArtifactReader(binary, {}, runner);
+    const iteration = reader.entries();
+    const firstEntry = iteration[Symbol.asyncIterator]().next();
+    await started;
+    const closing = reader.close();
+    await Promise.resolve();
+    expect(cleanupRetries).toBe(0);
+    finishCommand(
+      err(
+        new NativeCommandFailure(
+          "lipo",
+          "timeout",
+          null,
+          undefined,
+          {
+            stdout: "partial lipo output",
+            stderr: "partial lipo diagnostic",
+            stdoutBytes: 19,
+            stderrBytes: 23,
+            exitCode: null,
+            signal: null,
+            truncated: false,
+          },
+          "capture process group remains unverified",
+          ["capture-group:9999"],
+        ),
+      ),
+    );
+
+    await expect(firstEntry).rejects.toMatchObject({
+      reason: "unavailable",
+      cause: expect.objectContaining({
+        cleanupFailure: "capture process group remains unverified",
+      }),
+      cleanup: {
+        reason: "capture process group remains unverified",
+        resources: ["capture-group:9999"],
+      },
+    });
+    await expect(closing).rejects.toMatchObject({
+      cleanup: {
+        reason:
+          "run:first, process-group:1234: first process group remains live; run:second, process-group:5678: second process group remains live",
+        resources: [
+          "run:first",
+          "process-group:1234",
+          "run:second",
+          "process-group:5678",
+        ],
+      },
+    });
+    await reader.close();
+    expect(cleanupRetries).toBe(2);
+  });
+});
 
 describe("MachOSliceArtifactReader", () => {
   it("keeps a borrowed source usable after a cancelled slice read", async () => {

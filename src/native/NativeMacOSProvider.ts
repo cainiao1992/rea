@@ -60,6 +60,7 @@ import {
   NATIVE_COMMAND_OUTPUT_BUDGET_BYTES,
   NativeCommandFailure,
   XcrunCommandRunner,
+  type NativeCommandCleanupFailure,
   type NativeCommandCapture,
   type NativeCommandRunner,
 } from "./CommandRunner.js";
@@ -126,6 +127,7 @@ export class NativeMacOSProvider implements AnalysisProvider {
 
 class NativeMacOSClient implements AnalysisClient {
   readonly #pendingNativeUiRuntimes = new Set<NativeUiHelperRuntime>();
+  readonly #pendingCommands = new Set<Promise<unknown>>();
   #nativeUiTail: Promise<void> = Promise.resolve();
   #closed = false;
 
@@ -259,18 +261,23 @@ class NativeMacOSClient implements AnalysisClient {
 
   async close(): Promise<Result<null, AnalysisError>> {
     this.#closed = true;
+    await Promise.allSettled([...this.#pendingCommands]);
     const uiCleanupFailures = await this.#serializeNativeUi(() =>
       this.#retryNativeUiCleanup(),
     );
-    const tracer = await this.tracer.close();
-    if (uiCleanupFailures.length === 0) return tracer;
-    const uiCleanup = this.#nativeUiCleanupFailure(
-      uiCleanupFailures,
-      "close_binary",
-    );
-    return tracer.ok
-      ? err(uiCleanup)
-      : err(analysisErrorWithCleanupFailure(tracer.error, uiCleanup));
+    const commandCleanup = await this.#retryNativeCommandCleanup();
+    let result = await this.tracer.close();
+    const cleanupErrors = [
+      ...(uiCleanupFailures.length === 0
+        ? []
+        : [this.#nativeUiCleanupFailure(uiCleanupFailures, "close_binary")]),
+      ...(commandCleanup === undefined ? [] : [commandCleanup]),
+    ];
+    for (const cleanupError of cleanupErrors)
+      result = result.ok
+        ? err(cleanupError)
+        : err(analysisErrorWithCleanupFailure(result.error, cleanupError));
+    return result;
   }
 
   #observeNativeUi(
@@ -358,6 +365,28 @@ class NativeMacOSClient implements AnalysisClient {
       }
     }
     return failures;
+  }
+
+  async #retryNativeCommandCleanup(): Promise<AnalysisError | undefined> {
+    if (this.runner.retryCleanup === undefined) return undefined;
+    try {
+      const failures = await this.runner.retryCleanup();
+      return failures.length === 0
+        ? undefined
+        : nativeCommandCleanupFailure(failures);
+    } catch (cause: unknown) {
+      return new ProviderCleanupError(
+        IDENTITY.id,
+        ["native-command-process-cleanup"],
+        {
+          reason:
+            cause instanceof Error
+              ? cause.message || cause.name
+              : String(cause) || "native command cleanup failed unexpectedly",
+        },
+        { cause },
+      );
+    }
   }
 
   #nativeUiCleanupFailure(
@@ -782,14 +811,44 @@ class NativeMacOSClient implements AnalysisClient {
       readonly acceptNonZero?: boolean;
     } = {},
   ): Promise<Result<NativeCommandCapture, AnalysisError>> {
-    const captured = await this.runner.run(tool, arguments_, {
+    if (this.#closed)
+      return err(
+        new AnalysisCapabilityUnavailableError(
+          IDENTITY.id,
+          operation,
+          "Native provider client is closed",
+        ),
+      );
+    const command = this.runner.run(tool, arguments_, {
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       acceptNonZero: options.acceptNonZero ?? false,
     });
+    this.#pendingCommands.add(command);
+    let captured: Awaited<typeof command>;
+    try {
+      captured = await command;
+    } finally {
+      this.#pendingCommands.delete(command);
+    }
     if (captured.ok) return captured;
     return err(translateCommandFailure(operation, captured.error));
   }
 }
+
+const nativeCommandCleanupFailure = (
+  failures: readonly NativeCommandCleanupFailure[],
+): ProviderCleanupError =>
+  new ProviderCleanupError(
+    IDENTITY.id,
+    [...new Set(failures.flatMap(({ resources }) => resources))],
+    {
+      reason: "Native command process cleanup remains incomplete",
+      failures: failures.map(({ reason, resources }) => ({
+        reason,
+        resources: [...resources],
+      })),
+    },
+  );
 
 interface NativeObservation {
   readonly result: JsonValue;

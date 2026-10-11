@@ -1116,7 +1116,7 @@ describe("application workflow CLI copy boundaries", () => {
         };
       }`,
     ];
-    const [left, right] = await analyzeCliSources(root, sources);
+    const [left, right] = await analyzeComparisonSources(root, sources);
     const inputPath = join(root, "comparison.json");
     await writeFile(
       inputPath,
@@ -1208,7 +1208,12 @@ describe("application workflow CLI and MCP capture lifetimes", () => {
         ...Object.fromEntries(fields.map((field) => [field, "UPDATED"])),
       })}; }`,
     ];
-    const [left, right] = await analyzeCliSources(root, sources);
+    // Retain a complete CLI analysis-to-comparison journey alongside MCP parity.
+    const [left, right] = await Promise.all(
+      (await writeComparisonSources(root, sources)).map((applicationRoot) =>
+        runCli(["analyze-javascript-application", applicationRoot, "--json"]),
+      ),
+    );
     // Execute the authored fixtures independently of static analysis.
     for (const [index, value] of ["TOKEN", "UPDATED"].entries()) {
       const { stdout } = await execute(process.execPath, [
@@ -1267,7 +1272,7 @@ describe("application workflow CLI export Evidence", () => {
       }`,
       'export default async function make() { return { kind: "record", extra: 1 }; }',
     ];
-    const [left, right] = await analyzeCliSources(root, sources);
+    const [left, right] = await analyzeComparisonSources(root, sources);
     const compared = await runCli([
       "compare-javascript-export-shapes",
       JSON.stringify({
@@ -1491,22 +1496,39 @@ const compareThroughStdioMcp = async (
   return response.structuredContent;
 };
 
-const analyzeCliSources = (
+const writeComparisonSources = (
   root: string,
   sources: readonly string[],
-): Promise<unknown[]> =>
+): Promise<string[]> =>
   Promise.all(
     sources.map(async (source, index) => {
       const applicationRoot = join(root, String(index));
       await mkdir(applicationRoot);
       await writeFile(join(applicationRoot, "parser.mjs"), source);
-      return runCli([
-        "analyze-javascript-application",
-        applicationRoot,
-        "--json",
-      ]);
+      return applicationRoot;
     }),
   );
+
+// Produce comparison inputs through the shared stateless stdio workflow;
+// each consumer still executes the real CLI with its own authored sources.
+const analyzeComparisonSources = async (
+  root: string,
+  sources: readonly string[],
+): Promise<unknown[]> => {
+  const client = await connectedMcpClient();
+  return Promise.all(
+    (await writeComparisonSources(root, sources)).map(
+      async (applicationRoot) => {
+        const response = await client.callTool({
+          name: "analyze_javascript_application",
+          arguments: { input_path: applicationRoot },
+        });
+        expect(response.isError).not.toBe(true);
+        return response.structuredContent;
+      },
+    ),
+  );
+};
 
 const runCli = async (
   arguments_: readonly string[],

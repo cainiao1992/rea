@@ -8,7 +8,7 @@ import {
   type ManagedNativeBoundaryInspection,
   type ManagedParseIssue,
 } from "../domain/managed/managedArtifact.js";
-import { type ManagedMetadataLayout } from "./ManagedMetadataLayout.js";
+import type { ManagedMetadataLayout } from "./ManagedMetadataLayout.js";
 import {
   metadataRowCursor,
   metadataCodedToken,

@@ -7,9 +7,9 @@ import type {
   ManagedMemberInspection,
   ManagedParseIssue,
 } from "../domain/managed/managedArtifact.js";
-import {
-  type ManagedMetadataLayout,
-  type MetadataTableLayout,
+import type {
+  ManagedMetadataLayout,
+  MetadataTableLayout,
 } from "./ManagedMetadataLayout.js";
 import {
   metadataRowCursor,

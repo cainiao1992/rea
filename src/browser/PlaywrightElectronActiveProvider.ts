@@ -3,7 +3,7 @@ import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-import { _electron as electron } from "playwright-core";
+import type { _electron as electron } from "playwright-core";
 
 import type {
   ExecutionOptions,
@@ -60,8 +60,9 @@ type ElectronPaths = {
 export class PlaywrightElectronActiveProvider implements ElectronActiveObservationPort {
   constructor(
     private readonly environment: Readonly<Record<string, string | undefined>>,
-    private readonly launch: typeof electron.launch = (options) =>
-      electron.launch(options),
+    // Load Playwright only when a capture launches; MCP startup stays off its module graph.
+    private readonly launch: typeof electron.launch = async (options) =>
+      (await import("playwright-core"))._electron.launch(options),
   ) {}
 
   identity(): ProviderIdentity {

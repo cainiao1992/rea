@@ -1,7 +1,7 @@
-import {
-  type ReferenceSourceEntry,
-  type ReferenceSourceFailureCode,
-  type ReferenceSourceReaderError,
+import type {
+  ReferenceSourceEntry,
+  ReferenceSourceFailureCode,
+  ReferenceSourceReaderError,
 } from "./ReferenceSourceReaderTypes.js";
 
 export const failure = (

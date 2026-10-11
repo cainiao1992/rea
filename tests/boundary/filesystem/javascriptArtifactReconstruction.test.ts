@@ -11,9 +11,9 @@ import {
   readJavaScriptArtifactFiles,
 } from "../../support/javascriptApplicationScope.js";
 import { scanArtifactInventory } from "../../fixtures/artifactInventory.js";
-import {
-  type ArtifactEntry,
-  type ArtifactReader,
+import type {
+  ArtifactEntry,
+  ArtifactReader,
 } from "../../../src/artifacts/ArtifactReader.js";
 import { writeJavaScriptArtifactFixture } from "../../fixtures/javascriptArtifactApplication.js";
 

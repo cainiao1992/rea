@@ -17,7 +17,7 @@ import {
   HopperStartError,
   HopperTimeoutError,
 } from "../domain/hopperErrors.js";
-import { type AnalysisError } from "../domain/analysisErrorBase.js";
+import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import {
   hopperStartupFailure,
   type HopperStartupFailureDiagnostic,

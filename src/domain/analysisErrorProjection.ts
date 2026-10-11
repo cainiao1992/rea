@@ -40,10 +40,7 @@ import { ProviderAdapterError } from "./providerAdapterError.js";
 import { ProviderSelectionError } from "./providerSelectionError.js";
 import { UnknownRegistryError } from "./unknownRegistryError.js";
 import { providerRetryAction } from "./providerOperationHealth.js";
-import {
-  type AnalysisError,
-  type AnalysisErrorTag,
-} from "./analysisErrorBase.js";
+import type { AnalysisError, AnalysisErrorTag } from "./analysisErrorBase.js";
 
 /** Project expected failures into exhaustive, secret-safe caller fields. */
 export const projectAnalysisError = (

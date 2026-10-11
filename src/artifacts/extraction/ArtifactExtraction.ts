@@ -27,9 +27,9 @@ import {
   type IntegrityContradiction,
 } from "../../domain/artifactGraph.js";
 import { AnalysisUnsupportedTargetError } from "../../domain/analysisErrorCore.js";
-import {
-  type ArtifactResourceOwner,
-  type ArtifactResourceScope,
+import type {
+  ArtifactResourceOwner,
+  ArtifactResourceScope,
 } from "../ArtifactResourceScope.js";
 import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
 import type { ArtifactInventorySnapshot } from "../../domain/artifactInventorySnapshot.js";

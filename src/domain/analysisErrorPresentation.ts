@@ -27,11 +27,8 @@ import {
 import { ProviderSelectionError } from "./providerSelectionError.js";
 import { UnknownRegistryError } from "./unknownRegistryError.js";
 import { providerRetryAction } from "./providerOperationHealth.js";
-import {
-  type AnalysisError,
-  type AnalysisErrorTag,
-} from "./analysisErrorBase.js";
-import { type AnalysisErrorProjection } from "./analysisErrorProjection.js";
+import type { AnalysisError, AnalysisErrorTag } from "./analysisErrorBase.js";
+import type { AnalysisErrorProjection } from "./analysisErrorProjection.js";
 
 export const analysisErrorRemediationAction = (
   error: AnalysisError,

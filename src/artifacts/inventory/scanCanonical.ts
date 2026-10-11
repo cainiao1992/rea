@@ -34,7 +34,7 @@ import {
   artifactManifestId,
 } from "../../domain/artifactIdentity.js";
 import { classifyAndHashRootForInventory } from "./classify.js";
-import { type HashResult } from "../ArtifactHash.js";
+import type { HashResult } from "../ArtifactHash.js";
 import {
   hashStableRootArtifact,
   hashStableRootArtifactHandle,

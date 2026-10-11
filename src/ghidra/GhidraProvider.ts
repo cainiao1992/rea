@@ -1,13 +1,13 @@
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
-import {
-  type AnalysisClient,
-  type AnalysisClientContext,
-  type AnalysisProfileResolutionOptions,
-  type AnalysisProviderCandidate,
-  type CapabilityDescriptor,
-  type ProviderAvailability,
-  type ProviderIdentity,
-  type ProviderTargetSupport,
+import type {
+  AnalysisClient,
+  AnalysisClientContext,
+  AnalysisProfileResolutionOptions,
+  AnalysisProviderCandidate,
+  CapabilityDescriptor,
+  ProviderAvailability,
+  ProviderIdentity,
+  ProviderTargetSupport,
 } from "../application/AnalysisProvider.js";
 import type { AppConfig } from "../config/types.js";
 import {

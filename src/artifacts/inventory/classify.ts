@@ -12,7 +12,7 @@ import {
   zipPackageFormatForPath,
 } from "../../domain/zipPackageFormat.js";
 import { ArtifactReaderFailure } from "../ArtifactReader.js";
-import { type ArtifactResourceOwner } from "../ArtifactResourceScope.js";
+import type { ArtifactResourceOwner } from "../ArtifactResourceScope.js";
 import type { HashResult } from "../ArtifactHash.js";
 import {
   hashStableRootArtifactHandle,

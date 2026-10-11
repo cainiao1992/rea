@@ -2,12 +2,7 @@ import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-import {
-  chromium,
-  type Browser,
-  type BrowserContext,
-  type Page,
-} from "playwright-core";
+import type { Browser, BrowserContext, Page, chromium } from "playwright-core";
 
 import type { BrowserScenario } from "../domain/browserScenario.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
@@ -479,7 +474,9 @@ export const openPlaywrightScenarioBrowser = async (
     readonly retainCleanup?: (close: () => Promise<unknown>) => void;
   } = {},
 ): Promise<OpenedScenarioBrowser> => {
-  const launcher = options.launcher ?? chromium;
+  // Load Playwright only when a scenario opens; MCP startup stays off its module graph.
+  const launcher =
+    options.launcher ?? (await import("playwright-core")).chromium;
   if (scenario.browser.mode === "connect")
     return openAttachedScenarioBrowser(
       scenario.browser,

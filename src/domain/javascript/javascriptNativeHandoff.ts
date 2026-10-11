@@ -1,8 +1,8 @@
 import { compareUnicodeCodePoints } from "../unicodeCodePointOrder.js";
 import type { Evidence } from "../evidence.js";
-import {
-  type ApplicationEdge,
-  type ApplicationNode,
+import type {
+  ApplicationEdge,
+  ApplicationNode,
 } from "./javascriptApplicationGraphSchemas.js";
 import type { ApplicationFeatureTraceResult } from "./javascriptFeatureTraceSchemas.js";
 

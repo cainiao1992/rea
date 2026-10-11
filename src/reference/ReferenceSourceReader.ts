@@ -3,11 +3,11 @@ import { err, ok } from "../domain/result.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import { traverseDirectory } from "./ReferenceSourceReaderEntries.js";
-import {
-  type ReferenceSourceReaderOptions,
-  type ReferenceSourceRead,
-  type ReferenceSourceResult,
-  type TraversalState,
+import type {
+  ReferenceSourceReaderOptions,
+  ReferenceSourceRead,
+  ReferenceSourceResult,
+  TraversalState,
 } from "./ReferenceSourceReaderTypes.js";
 import {
   isAborted,

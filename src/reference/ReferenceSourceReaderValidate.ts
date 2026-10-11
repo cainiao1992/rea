@@ -10,9 +10,9 @@ import {
   rootFilesystemFailure,
 } from "./ReferenceSourceReaderErrors.js";
 import { isPathWithinRoot } from "../domain/localPath.js";
-import {
-  type ReferenceSourceFailureCode,
-  type ReferenceSourceResult,
+import type {
+  ReferenceSourceFailureCode,
+  ReferenceSourceResult,
 } from "./ReferenceSourceReaderTypes.js";
 
 export const bigLstat = (path: string): Promise<BigIntStats> =>

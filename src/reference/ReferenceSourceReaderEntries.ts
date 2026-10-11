@@ -22,12 +22,12 @@ import {
   validateDirectory,
   bigLstat,
 } from "./ReferenceSourceReaderValidate.js";
-import {
-  type PendingDirectory,
-  type ReferenceSourceEntry,
-  type ReferenceSourceEntryKind,
-  type ReferenceSourceResult,
-  type TraversalState,
+import type {
+  PendingDirectory,
+  ReferenceSourceEntry,
+  ReferenceSourceEntryKind,
+  ReferenceSourceResult,
+  TraversalState,
 } from "./ReferenceSourceReaderTypes.js";
 
 export const traverseDirectory = async (

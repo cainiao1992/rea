@@ -1,6 +1,6 @@
-import { type BigIntStats } from "node:fs";
+import type { BigIntStats } from "node:fs";
 
-import { type Result } from "../domain/result.js";
+import type { Result } from "../domain/result.js";
 import type { AnalysisCleanupObservation } from "../domain/analysisErrorBase.js";
 import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 

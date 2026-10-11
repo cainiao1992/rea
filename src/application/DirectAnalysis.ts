@@ -18,7 +18,7 @@ import {
 } from "../contracts/managed/managedToolContracts.js";
 import { EvidenceIntegrityError } from "../domain/evidenceErrors.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
-import { type AnalysisError } from "../domain/analysisErrorBase.js";
+import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import { access } from "node:fs/promises";
 import {
   readAnalysisSnapshot,

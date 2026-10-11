@@ -1,4 +1,4 @@
-import { type WebSocket } from "ws";
+import type { WebSocket } from "ws";
 
 import type { FakeCdpCommand, FakeOptions } from "./fakeCdpBrowserTypes.js";
 

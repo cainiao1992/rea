@@ -13,7 +13,7 @@ import {
   attestGhidraDosComLoadImage,
   attestGhidraDosLoadImage,
 } from "./GhidraLoadImageValues.js";
-import { type NativeAotPeResult } from "../domain/native/nativeAotPe.js";
+import type { NativeAotPeResult } from "../domain/native/nativeAotPe.js";
 import type { GhidraTargetSnapshot } from "./GhidraClient.js";
 import type { GhidraSessionError } from "./GhidraSessionError.js";
 

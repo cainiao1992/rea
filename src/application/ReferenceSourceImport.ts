@@ -18,9 +18,9 @@ import type {
 } from "../reference/ReferenceSourceReaderTypes.js";
 import { parseReferenceSourceEntries } from "./ReferenceSourceImportEntries.js";
 import { readReferenceSourceVcs } from "./ReferenceSourceVcsAdapter.js";
-import {
-  type ReferenceSourceImportError,
-  type ReferenceSourceImportOptions,
+import type {
+  ReferenceSourceImportError,
+  ReferenceSourceImportOptions,
 } from "./ReferenceSourceImportTypes.js";
 import {
   prepareReferenceSourceImport,

@@ -8,10 +8,10 @@ import type { ApplicationNode } from "../javascript/javascriptApplicationGraphSc
 import { managedSourceCoverage } from "./managedApplicationGraphCoverage.js";
 import type { Evidence } from "../evidence.js";
 import { managedTokenScopesMatch } from "./managedInspectionEvidence.js";
-import {
-  type ManagedArtifactInspection,
-  type ManagedMemberInspection,
-  type ManagedNativeBoundaryInspection,
+import type {
+  ManagedArtifactInspection,
+  ManagedMemberInspection,
+  ManagedNativeBoundaryInspection,
 } from "./managedArtifact.js";
 import type {
   GraphBuildState,

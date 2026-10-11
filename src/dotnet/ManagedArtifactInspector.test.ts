@@ -259,6 +259,35 @@ describe("managed artifact coded indexes", () => {
         layout.codedIndexSize("HasCustomAttribute"),
     );
   });
+
+  it("resolves local attribute constructors without rescanning TypeDef rows", () => {
+    // The owning type follows every empty type. A per-attribute TypeDef scan
+    // took about 38 s here; the owner index is built once per layout.
+    const bytes = buildManagedPeFixture({
+      additionalEmptyTypes: 16_000,
+      customAttributeRowCount: 16_000,
+      customAttributeTypeRaw: (1 << 3) | 2,
+      typeName: "LookupAttribute",
+      extendsRaw: 0,
+      methodName: ".ctor",
+      methodFlags: 0x1886,
+      methodSignature: Buffer.from([0x20, 0x01, 0x01, 0x0e]),
+    });
+    const start = performance.now();
+    const artifact = inspectManagedArtifactBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(performance.now() - start).toBeLessThan(2000);
+    expect(artifact.coverage).toEqual({ state: "complete", issues: [] });
+    expect(artifact.attributes).toHaveLength(16_000);
+    expect(
+      artifact.attributes.every(
+        (attribute) => attribute.type_name === "Fixture.LookupAttribute",
+      ),
+    ).toBe(true);
+  }, 30_000);
 });
 
 describe("managed artifact reference inventory", () => {

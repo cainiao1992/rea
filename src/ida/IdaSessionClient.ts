@@ -30,6 +30,7 @@ import {
   type IdaOperation,
 } from "./IdaProviderCapabilities.js";
 import {
+  absentDatabaseCloseSchema,
   closeDatabaseSchema,
   databaseListSchema,
   legacyMetadataSchema,
@@ -101,7 +102,7 @@ export class IdaSessionClient implements AnalysisClient {
   #closePromise: Promise<Result<null, AnalysisError>> | undefined;
   #workspace: IdaWorkspace | undefined;
   #database: string | undefined;
-  #databaseCloseAcknowledged = false;
+  #databaseCloseCompleted = false;
   #openAttempted = false;
   #openCompleted = false;
   #callGraphAdvertised = false;
@@ -418,6 +419,28 @@ export class IdaSessionClient implements AnalysisClient {
     return shared;
   }
 
+  async #closeDatabase(database: string): Promise<void> {
+    const response = await this.connection.call("idb_close", {
+      database,
+      save: false,
+    });
+    const closed = closeDatabaseSchema.safeParse(response);
+    if (!closed.success) {
+      if (!absentDatabaseCloseSchema(database).safeParse(response).success)
+        throw closed.error;
+      return;
+    }
+    if (
+      closed.data.session_id !== database ||
+      closed.data.saved === true ||
+      closed.data.owned !== true ||
+      closed.data.backend !== "worker"
+    )
+      throw new AnalysisProtocolError(
+        "IDA database close did not confirm the requested owned, unsaved session release.",
+      );
+  }
+
   async #closeOnce(): Promise<Result<null, AnalysisError>> {
     this.#closing = true;
     await this.#tail;
@@ -447,23 +470,9 @@ export class IdaSessionClient implements AnalysisClient {
             );
         }
         if (this.#database !== undefined) {
-          if (!this.#databaseCloseAcknowledged) {
-            const closed = closeDatabaseSchema.parse(
-              await this.connection.call("idb_close", {
-                database: this.#database,
-                save: false,
-              }),
-            );
-            if (
-              closed.session_id !== this.#database ||
-              closed.saved === true ||
-              closed.owned !== true ||
-              closed.backend !== "worker"
-            )
-              throw new AnalysisProtocolError(
-                "IDA database close did not confirm the requested owned, unsaved session release.",
-              );
-            this.#databaseCloseAcknowledged = true;
+          if (!this.#databaseCloseCompleted) {
+            await this.#closeDatabase(this.#database);
+            this.#databaseCloseCompleted = true;
           }
           const inventory = databaseListSchema.parse(
             await this.connection.call("idb_list", {}),

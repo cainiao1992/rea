@@ -242,3 +242,8 @@ export const closeDatabaseSchema = z
     backend: z.enum(["worker", "gui"]),
   })
   .passthrough();
+/** Supervisor response when the requested worker was already reaped. */
+export const absentDatabaseCloseSchema = (sessionId: string) =>
+  z
+    .object({ error: z.literal(`Session not found: ${sessionId}`) })
+    .passthrough();

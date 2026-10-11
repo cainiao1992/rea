@@ -101,10 +101,13 @@ export async function readReleaseHistory(run, base, target) {
 // REA history maps Anthropic and Cursor's agent trailers to ordinary User actors.
 // Keep those source identities in the inventory while excluding automation credit.
 const AGENT_ACCOUNTS = new Set(["claude", "cursoragent"]);
+// REA's maintainer requested external-contributor thanks without self-credit.
+const MAINTAINER_ACCOUNTS = new Set(["morluto"]);
 const human = (value) =>
   value?.__typename === "User" &&
   !value.login.endsWith("[bot]") &&
-  !AGENT_ACCOUNTS.has(value.login.toLowerCase())
+  !AGENT_ACCOUNTS.has(value.login.toLowerCase()) &&
+  !MAINTAINER_ACCOUNTS.has(value.login.toLowerCase())
     ? value.login
     : undefined;
 const unique = (values) =>
@@ -161,6 +164,12 @@ export function contributionRecord(raw) {
       );
   }
   return `${lines.join("\n")}\n`;
+}
+
+/** Keep the full authorship snapshot available without duplicating public thanks. */
+export function contributionSummary(raw) {
+  const inventory = releaseInventorySchema.parse(raw);
+  return `Full contribution record: [${inventory.commits.length} commits and ${inventory.pullRequests.length} merged PR${inventory.pullRequests.length === 1 ? "" : "s"}](https://github.com/${inventory.repository}/blob/rea-agents-${inventory.version}/docs/releases/${inventory.version}.contributions.json).\n`;
 }
 
 export function selectedReleaseNotes(text, version) {
@@ -236,7 +245,8 @@ function requiredCredits(inventory, bullet, references) {
     if (matches[0].parents.length > 1) continue;
     for (const identity of matches[0].authors) {
       const handle = human(identity.user);
-      if (handle) required.push({ handle, context: `commit ${match[2]}` });
+      if (handle)
+        required.push({ handle, context: `commit ${matches[0].sha}` });
     }
   }
   return required;
@@ -264,6 +274,8 @@ function verifyEditorialCredits(inventory, prose) {
     ]).map((handle) => handle.toLowerCase()),
   );
   const errors = [];
+  const requiredByContext = new Map();
+  const thankedByContext = new Map();
   for (const bullet of proseBullets(prose)) {
     const references = bulletPrs(bullet, inventory.repository);
     const start = bullet.indexOf("Thanks ");
@@ -282,13 +294,21 @@ function verifyEditorialCredits(inventory, prose) {
       bullet,
       references,
     )) {
-      if (!thanked.has(handle.toLowerCase()))
-        errors.push(`Missing Thanks @${handle} in bullet for ${context}`);
+      const required = requiredByContext.get(context) ?? new Set();
+      required.add(handle);
+      requiredByContext.set(context, required);
+      const credited = thankedByContext.get(context) ?? new Set();
+      for (const login of thanked) credited.add(login);
+      thankedByContext.set(context, credited);
     }
     for (const handle of thanked)
       if (!eligible.has(handle))
         errors.push(`Unverified human credit @${handle}`);
   }
+  for (const [context, required] of requiredByContext)
+    for (const handle of required)
+      if (!thankedByContext.get(context)?.has(handle.toLowerCase()))
+        errors.push(`Missing Thanks @${handle} for ${context}`);
   return errors;
 }
 
@@ -305,8 +325,15 @@ export function verifyReleaseNotes(raw, text, body) {
       "Release notes exceed GitHub's body budget; shorten prose without dropping credit",
     );
   const record = contributionRecord(inventory).trim();
-  const start = notes.indexOf("### Complete contribution record");
-  if (start < 0 || notes.slice(start).trim() !== record)
+  const summary = contributionSummary(inventory).trim();
+  const start = notes.endsWith(summary)
+    ? notes.length - summary.length
+    : notes.indexOf("### Complete contribution record");
+  if (
+    start < 0 ||
+    (notes.slice(start).trim() !== record &&
+      notes.slice(start).trim() !== summary)
+  )
     throw new Error(
       "Contribution record differs from inventory; regenerate it with release-notes record",
     );

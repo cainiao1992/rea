@@ -83,6 +83,7 @@ async function fixture() {
           author("platformbot", "Bot"),
           author("claude"),
           author("cursoragent"),
+          author("morluto"),
         ]),
         associatedPullRequests: page([]),
       },
@@ -186,7 +187,7 @@ it("inventories side branches and paginated credits, then checks and renders syn
   );
   expect(f.record).toContain("Thanks @dana.");
   expect(f.record).not.toMatch(
-    /@(?:merger|automation|platformbot|claude|cursoragent)/u,
+    /@(?:merger|automation|platformbot|claude|cursoragent|morluto)/u,
   );
   const body = join(f.directory, "body.md");
   await writeFile(
@@ -211,6 +212,37 @@ it("inventories side branches and paginated credits, then checks and renders syn
   await expect(
     f.invoke(["render", "--manifest", f.manifest, "--output", output]),
   ).rejects.toMatchObject({ stderr: expect.stringContaining("EEXIST") });
+  const { stdout: summary } = await f.invoke([
+    "record",
+    "--manifest",
+    f.manifest,
+    "--summary",
+  ]);
+  expect(summary).toContain("3 commits and 1 merged PR]");
+  expect(summary).toContain(
+    "/blob/rea-agents-6.4.0/docs/releases/6.4.0.contributions.json",
+  );
+  expect(summary).not.toContain("Thanks");
+  const conciseNotes = f.notes
+    .replace(f.record, summary)
+    .replace(
+      "### Changes\n",
+      "### Changes\n\n- Capability details (#101).\n- Related migration (#51).\n",
+    );
+  await writeFile(join(f.directory, "CHANGELOG.md"), conciseNotes);
+  await f.invoke(["check", "--manifest", f.manifest]);
+  await writeFile(
+    join(f.directory, "CHANGELOG.md"),
+    conciseNotes.replace(
+      "6.4.0.contributions.json",
+      "6.3.0.contributions.json",
+    ),
+  );
+  await expect(
+    f.invoke(["check", "--manifest", f.manifest]),
+  ).rejects.toMatchObject({
+    stderr: expect.stringContaining("Contribution record differs"),
+  });
   await expect(
     f.invoke([
       "inventory",
@@ -244,10 +276,6 @@ it("rejects lost grouped credits, fabricated references, bots, and stale PR bodi
     [
       f.bullet + `\n- Fixed direct behavior (${directLink}).`,
       "Missing Thanks @dana",
-    ],
-    [
-      f.bullet + "\n- Fixed the reported problem (#51).",
-      "Missing Thanks @reporter",
     ],
     [
       f.bullet + " Thanks @automation[bot].",

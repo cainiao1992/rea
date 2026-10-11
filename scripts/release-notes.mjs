@@ -6,6 +6,7 @@ import { collectGitHubCredits } from "./lib/release-notes-github.mjs";
 import { verifyNotesPublication } from "./lib/release-notes-publication.mjs";
 import {
   contributionRecord,
+  contributionSummary,
   readReleaseHistory,
   releaseInventorySchema,
   selectedReleaseNotes,
@@ -73,6 +74,7 @@ async function main() {
       "pr-body": { type: "string" },
       source: { type: "string" },
       output: { type: "string" },
+      summary: { type: "boolean", default: false },
     },
   });
   const [command] = positionals;
@@ -92,7 +94,7 @@ async function main() {
     !values.manifest
   )
     throw new Error(
-      "Usage: release-notes inventory|record|check|render --manifest FILE [--repository OWNER/REPO --base TAG --target SHA --version VERSION] [--notes FILE --pr-body FILE --source SHA --output FILE]",
+      "Usage: release-notes inventory|record|check|render --manifest FILE [--repository OWNER/REPO --base TAG --target SHA --version VERSION] [--notes FILE --pr-body FILE --source SHA --output FILE] [--summary for record]",
     );
   if (command === "inventory") {
     await createInventory(values);
@@ -103,11 +105,14 @@ async function main() {
   );
   await verifyInventoryHistory(run, inventory, values.source);
   if (command === "record") {
+    const record = values.summary
+      ? contributionSummary(inventory)
+      : contributionRecord(inventory);
     if (values.output)
-      await writeFile(values.output, contributionRecord(inventory), {
+      await writeFile(values.output, record, {
         flag: "wx",
       });
-    else process.stdout.write(contributionRecord(inventory));
+    else process.stdout.write(record);
     return;
   }
   const notes = await readFile(values.notes, "utf8");

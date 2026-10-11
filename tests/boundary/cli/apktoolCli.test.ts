@@ -12,13 +12,37 @@ it.each(["inspect-apktool-client", "decode-android-resources"])(
   },
 );
 
-it("reports a missing apktool launcher with recovery guidance", async () => {
-  const result = await serve(["inspect-apktool-client", "--json"], {
-    REA_APKTOOL_COMMAND: "/nonexistent/apktool",
-  });
-  expect(result.stdout).toContain("capability_unavailable");
-  expect(result.stdout).toContain("REA_APKTOOL_COMMAND");
-});
+it.each([
+  [
+    ["inspect-apktool-client", "--json"],
+    "/nonexistent/apktool",
+    "The selected apktool launcher was not found: /nonexistent/apktool. Set REA_APKTOOL_COMMAND",
+  ],
+  [
+    ["decode-android-resources", "/targets/app.apk", "--json"],
+    "/nonexistent/apktool",
+    "The selected apktool launcher was not found: /nonexistent/apktool. Set REA_APKTOOL_COMMAND",
+  ],
+  [
+    ["decode-android-resources", "/targets/app.apk", "--json"],
+    "relative/apktool",
+    "REA_APKTOOL_COMMAND must be an absolute path to the apktool launcher.",
+  ],
+])(
+  "%j with REA_APKTOOL_COMMAND=%s names the host requirement",
+  async (argv, command, reason) => {
+    const result = await serve(argv, { REA_APKTOOL_COMMAND: command });
+    const output = JSON.parse(result.stdout) as {
+      code?: unknown;
+      message?: unknown;
+      remediation?: { action?: unknown };
+    };
+    expect(output.code).toBe("capability_unavailable");
+    // The target is not the problem; the refusal must say what to configure.
+    expect(output.message).toEqual(expect.stringContaining(reason));
+    expect(output.remediation?.action).toEqual(expect.stringContaining(reason));
+  },
+);
 
 it("validates the locale option before launching apktool", async () => {
   const result = await serve([

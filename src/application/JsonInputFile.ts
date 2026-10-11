@@ -3,6 +3,8 @@ import type { FileHandle } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { getHeapStatistics } from "node:v8";
 
+import { asStream, none } from "stream-chain";
+import fun from "stream-chain/fun.js";
 import parser from "stream-json/parser.js";
 import streamValues from "stream-json/streamers/stream-values.js";
 
@@ -67,31 +69,36 @@ export const readJsonInputFile = (
         }
         await pipeline(
           decodedChunks(handle, stats.size, path, signal),
-          parser.asStream({
-            jsonStreaming: false,
-            streamValues: false,
-            packKeys: false,
-            packStrings: false,
-            packNumbers: false,
-          }),
-          packJsonScalars(operation, stats.size, path),
-          admitJsonAssembly(operation, stats.size, path),
-          streamValues.asStream(),
-          async (rows: AsyncIterable<unknown>) => {
-            for await (const row of rows) {
-              if (
-                found ||
-                typeof row !== "object" ||
-                row === null ||
-                !("key" in row) ||
-                row.key !== 0 ||
-                !("value" in row)
-              )
-                throw new Error("Unexpected JSON parser result");
-              found = true;
-              value = row.value;
-            }
-          },
+          // Fuse synchronous token stages so only file chunks cross the async
+          // stream boundary. Admission still precedes scalar/value assembly.
+          asStream(
+            fun(
+              parser({
+                jsonStreaming: false,
+                streamValues: false,
+                packKeys: false,
+                packStrings: false,
+                packNumbers: false,
+              }),
+              packJsonScalars(operation, stats.size, path),
+              admitJsonAssembly(operation, stats.size, path),
+              streamValues(),
+              (row: unknown): typeof none => {
+                if (
+                  found ||
+                  typeof row !== "object" ||
+                  row === null ||
+                  !("key" in row) ||
+                  row.key !== 0 ||
+                  !("value" in row)
+                )
+                  throw new Error("Unexpected JSON parser result");
+                found = true;
+                value = row.value;
+                return none;
+              },
+            ),
+          ),
           signal === undefined ? {} : { signal },
         );
         return found
@@ -144,128 +151,123 @@ const packJsonScalars = (
   operation: string,
   inputFileBytes: number,
   path: string,
-) =>
-  async function* (tokens: AsyncIterable<unknown>): AsyncGenerator<unknown> {
-    let kind: "keyValue" | "stringValue" | "numberValue" | undefined;
-    let length = 0;
-    let value = "";
-    let parts: string[] = [];
-    let partLength = 0;
-    for await (const token of tokens) {
-      if (typeof token !== "object" || token === null || !("name" in token))
-        throw new Error("Unexpected JSON parser token");
-      switch (token.name) {
-        case "startKey":
-        case "startString":
-          kind = token.name === "startKey" ? "keyValue" : "stringValue";
-          break;
-        case "startNumber":
-          kind = "numberValue";
-          break;
-        case "numberChunk":
-        case "stringChunk":
-          if (
-            kind === undefined ||
-            !("value" in token) ||
-            typeof token.value !== "string"
-          )
-            throw new Error("Unexpected JSON scalar fragment");
-          length += token.value.length;
-          if (length > constants.MAX_STRING_LENGTH)
-            throw new RangeError("Invalid string length");
-          parts.push(token.value);
-          partLength += token.value.length;
-          if (partLength >= PACKED_TOKEN_PART_CODE_UNITS) {
-            // The tokenizer emits short fragments. Coalesce them before retaining
-            // a scalar so millions of substring/rope nodes cannot exhaust the heap
-            // before the native string-length constraint can be reported.
-            requireStringAssemblyHeadroom(
-              operation,
-              inputFileBytes,
-              path,
-              length,
-            );
-            value += parts.join("");
-            parts = [];
-            partLength = 0;
-          }
-          break;
-        case "endKey":
-        case "endString":
-        case "endNumber":
-          if (kind === undefined) throw new Error("Unexpected JSON scalar end");
+) => {
+  let kind: "keyValue" | "stringValue" | "numberValue" | undefined;
+  let length = 0;
+  let value = "";
+  let parts: string[] = [];
+  let partLength = 0;
+  return (token: parser.Token): parser.Token | typeof none => {
+    if (typeof token !== "object" || token === null || !("name" in token))
+      throw new Error("Unexpected JSON parser token");
+    switch (token.name) {
+      case "startKey":
+      case "startString":
+        kind = token.name === "startKey" ? "keyValue" : "stringValue";
+        break;
+      case "startNumber":
+        kind = "numberValue";
+        break;
+      case "numberChunk":
+      case "stringChunk":
+        if (
+          kind === undefined ||
+          !("value" in token) ||
+          typeof token.value !== "string"
+        )
+          throw new Error("Unexpected JSON scalar fragment");
+        length += token.value.length;
+        if (length > constants.MAX_STRING_LENGTH)
+          throw new RangeError("Invalid string length");
+        parts.push(token.value);
+        partLength += token.value.length;
+        if (partLength >= PACKED_TOKEN_PART_CODE_UNITS) {
+          // The tokenizer emits short fragments. Coalesce them before retaining
+          // a scalar so millions of substring/rope nodes cannot exhaust the heap
+          // before the native string-length constraint can be reported.
           requireStringAssemblyHeadroom(
             operation,
             inputFileBytes,
             path,
             length,
           );
-          yield { name: kind, value: value + parts.join("") };
-          kind = undefined;
-          length = 0;
-          value = "";
+          value += parts.join("");
           parts = [];
           partLength = 0;
-          break;
-        default:
-          yield token;
+        }
+        break;
+      case "endKey":
+      case "endString":
+      case "endNumber": {
+        if (kind === undefined) throw new Error("Unexpected JSON scalar end");
+        requireStringAssemblyHeadroom(operation, inputFileBytes, path, length);
+        const packed = { name: kind, value: value + parts.join("") };
+        kind = undefined;
+        length = 0;
+        value = "";
+        parts = [];
+        partLength = 0;
+        return packed;
       }
+      default:
+        return token;
     }
+    return none;
   };
+};
 
 /** Admit the retained value graph before the upstream assembler grows it. */
 const admitJsonAssembly = (
   operation: string,
   inputFileBytes: number,
   path: string,
-) =>
-  async function* (tokens: AsyncIterable<unknown>): AsyncGenerator<unknown> {
-    let projectedBytes = 0;
-    let nextCheck = 0;
-    for await (const token of tokens) {
-      if (typeof token !== "object" || token === null || !("name" in token))
-        throw new Error("Unexpected JSON assembly token");
-      if (token.name === "startObject" || token.name === "startArray") {
-        projectedBytes += 128;
-      } else if (token.name === "keyValue" || token.name === "stringValue") {
-        if (!("value" in token) || typeof token.value !== "string")
-          throw new Error("Unexpected packed JSON string");
-        projectedBytes += 64 + token.value.length * 2;
-      } else if (
-        token.name === "numberValue" ||
-        token.name === "nullValue" ||
-        token.name === "trueValue" ||
-        token.name === "falseValue"
-      ) {
-        projectedBytes += 64;
-      }
-      if (projectedBytes >= nextCheck) {
-        const heap = getHeapStatistics();
-        // Conservative capacity for containers, property/array slots and UTF-16
-        // values. Keep another whole projection available for container growth,
-        // plus the next chunk of estimates between samples. This is admission
-        // against live runtime headroom, not a fixed document-size policy.
-        const requiredBytes = projectedBytes + READ_CHUNK_BYTES;
-        if (requiredBytes > heap.total_available_size)
-          throw new AnalysisResourceConstraintError(
-            operation,
-            "memory",
-            "Insufficient heap headroom to materialize the complete JSON value",
-            {
-              input_path: path,
-              input_file_bytes: inputFileBytes,
-              projected_value_bytes: projectedBytes,
-              assembly_headroom_bytes: requiredBytes,
-              available_heap_bytes: heap.total_available_size,
-              heap_size_limit_bytes: heap.heap_size_limit,
-            },
-            { remediationAction: JSON_INPUT_RESOURCE_REMEDIATION },
-          );
-        nextCheck = projectedBytes + READ_CHUNK_BYTES;
-      }
-      yield token;
+) => {
+  let projectedBytes = 0;
+  let nextCheck = 0;
+  return (token: parser.Token): parser.Token => {
+    if (typeof token !== "object" || token === null || !("name" in token))
+      throw new Error("Unexpected JSON assembly token");
+    if (token.name === "startObject" || token.name === "startArray") {
+      projectedBytes += 128;
+    } else if (token.name === "keyValue" || token.name === "stringValue") {
+      if (!("value" in token) || typeof token.value !== "string")
+        throw new Error("Unexpected packed JSON string");
+      projectedBytes += 64 + token.value.length * 2;
+    } else if (
+      token.name === "numberValue" ||
+      token.name === "nullValue" ||
+      token.name === "trueValue" ||
+      token.name === "falseValue"
+    ) {
+      projectedBytes += 64;
     }
+    if (projectedBytes >= nextCheck) {
+      const heap = getHeapStatistics();
+      // Conservative capacity for containers, property/array slots and UTF-16
+      // values. Keep another whole projection available for container growth,
+      // plus the next chunk of estimates between samples. This is admission
+      // against live runtime headroom, not a fixed document-size policy.
+      const requiredBytes = projectedBytes + READ_CHUNK_BYTES;
+      if (requiredBytes > heap.total_available_size)
+        throw new AnalysisResourceConstraintError(
+          operation,
+          "memory",
+          "Insufficient heap headroom to materialize the complete JSON value",
+          {
+            input_path: path,
+            input_file_bytes: inputFileBytes,
+            projected_value_bytes: projectedBytes,
+            assembly_headroom_bytes: requiredBytes,
+            available_heap_bytes: heap.total_available_size,
+            heap_size_limit_bytes: heap.heap_size_limit,
+          },
+          { remediationAction: JSON_INPUT_RESOURCE_REMEDIATION },
+        );
+      nextCheck = projectedBytes + READ_CHUNK_BYTES;
+    }
+    return token;
   };
+};
 
 const requireStringAssemblyHeadroom = (
   operation: string,

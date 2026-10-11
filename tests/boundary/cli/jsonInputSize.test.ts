@@ -117,6 +117,63 @@ cliTest(
 );
 
 cliTest(
+  "returns a typed container assembly constraint and allows a following read",
+  async ({ cli, processes }) => {
+    const root = await createTestTempDirectory("rea-json-container-headroom-");
+    const input = join(root, "containers.json");
+    const following = join(root, "following.json");
+    const file = await open(input, "wx");
+    try {
+      await file.writeFile("[");
+      const chunk = Buffer.from("[],".repeat(65_536));
+      for (let index = 0; index < 128; index++) await file.writeFile(chunk);
+      await file.writeFile("null]");
+    } finally {
+      await file.close();
+    }
+    await writeFile(following, '{"after":true}');
+    const result = await cli.run({
+      arguments: ["trace-application-feature", input, "--json"],
+      environment: { NODE_OPTIONS: "--max-old-space-size=768" },
+    });
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(result.json).toMatchObject({
+      code: "resource_constraint",
+      details: {
+        resource: "memory",
+        reported_limits: {
+          input_path: input,
+          projected_value_bytes: expect.any(Number),
+          assembly_headroom_bytes: expect.any(Number),
+        },
+      },
+    });
+    const evidence = await processes.run(process.execPath, [
+      "--max-old-space-size=768",
+      "--input-type=module",
+      "-e",
+      `import { readJsonFile } from "./dist/application/JsonFiles.js";
+       import { projectAnalysisError } from "./dist/domain/analysisErrorProjection.js";
+       const large = await readJsonFile(process.argv[1]);
+       const following = await readJsonFile(process.argv[2]);
+       console.log(JSON.stringify({large: large.ok ? large : projectAnalysisError(large.error), following}));`,
+      input,
+      following,
+    ]);
+    expect(evidence.exitCode).toBe(0);
+    expect(evidence.stderr).toBe("");
+    expect(JSON.parse(evidence.stdout)).toMatchObject({
+      large: {
+        code: "resource_constraint",
+        details: { reported_limits: { input_path: input } },
+      },
+      following: { ok: true, value: { after: true } },
+    });
+  },
+);
+
+cliTest(
   "returns a typed string assembly constraint under a bounded heap",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-json-string-headroom-");

@@ -970,6 +970,10 @@ still owns its resources. Adapter, non-MCP boundary, acceptance, and
 process-global projects retain per-file isolation. See `vitest.config.ts` for
 current settings.
 
+Vitest worker limits do not bound subprocesses launched within a test. Bound
+those batches separately so repeated CLI validation cannot oversubscribe the
+runner. Preserve simultaneous launches where concurrency is itself under test.
+
 Build/documentation writers hold checkout-local output locks. Tests do not
 hold a broad command lock; `check:pr` finishes tests before document validation.
 

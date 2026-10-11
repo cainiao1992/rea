@@ -168,6 +168,33 @@
               returns its instructions and callers, which give the agent a way
               to investigate the missing arithmetic.
             </p>
+            <details class="evidence-details">
+              <summary>New to these terms?</summary>
+              <ul>
+                <li>
+                  <strong>Instructions:</strong> the steps the processor runs,
+                  shown in readable form such as <code>MOV</code> or
+                  <code>ADD</code>.
+                </li>
+                <li>
+                  <strong>Decompiler result / pseudocode:</strong> an analysis
+                  tool's attempt to turn instructions back into C-like code. It
+                  can miss parts, as in this example.
+                </li>
+                <li>
+                  <strong>Caller:</strong> a function that calls this one. It
+                  shows which values are passed in.
+                </li>
+                <li>
+                  <strong>Address:</strong> a location in the program, written
+                  in hexadecimal, such as <code>0x00406400</code>.
+                </li>
+                <li>
+                  <strong>Constants:</strong> fixed numbers stored in the
+                  program, read as raw bytes and decoded.
+                </li>
+              </ul>
+            </details>
             <figure class="workflow-figure">
               <p class="figure-title">
                 Three pieces of evidence, one calculation
@@ -211,9 +238,40 @@
             <h2>Ask about the behavior</h2>
             <p>
               After
-              <a href="../../get-started/#agent">connecting REA to your agent</a
+              <a href="../../get-started/#agent"
+                >connecting REA to your agent</a
+              >
+              and
+              <a href="../../get-started/#native"
+                >setting up a native analysis tool</a
               >, provide the local executable and a question:
             </p>
+            <details class="evidence-details">
+              <summary>Which analysis tool should I use?</summary>
+              <p>REA needs one of these to read native programs:</p>
+              <ul>
+                <li>
+                  <strong>Hopper</strong> (macOS or Linux): REA's setup detects
+                  it or offers to install it. On macOS, open Hopper once and
+                  choose demo mode or activate a license before your first
+                  analysis.
+                </li>
+                <li>
+                  <strong>Ghidra</strong> (macOS or Linux; experimental on
+                  Windows): free, but needs an existing Ghidra 12.1.x
+                  installation and a 64-bit JDK 21 or newer.
+                </li>
+                <li>
+                  <strong>IDA</strong> (Windows): for an existing IDA setup with
+                  an MCP registration.
+                </li>
+              </ul>
+              <p>
+                See
+                <a href="../../get-started/#native">Set up native analysis</a>
+                for the steps.
+              </p>
+            </details>
             <div class="agent-terminal">
               <div class="terminal-header">
                 <span class="terminal-title"
@@ -239,8 +297,28 @@
             </div>
             <p class="caption">
               Example prompt. Give your agent the path to your local DX-Ball
-              1.07 executable.
+              1.07 executable. REA doesn't include DX-Ball, so use your own
+              copy, or ask the same kind of question about another small Windows
+              program you have.
             </p>
+            <details class="evidence-details">
+              <summary>How do I get a file's full path?</summary>
+              <ul>
+                <li>
+                  <strong>Windows:</strong> in File Explorer, right-click the
+                  file and choose <em>Copy as path</em>. On Windows 10, hold
+                  Shift while right-clicking.
+                </li>
+                <li>
+                  <strong>macOS:</strong> in Finder, right-click the file, hold
+                  Option and choose <em>Copy "…" as Pathname</em>.
+                </li>
+                <li>
+                  <strong>Any system:</strong> drag the file into a terminal
+                  window and its path appears.
+                </li>
+              </ul>
+            </details>
           </section>
           <section class="article-section" id="follow">
             <h2>Read the REA results</h2>

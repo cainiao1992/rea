@@ -6,11 +6,17 @@ coverage and unknowns. The CLI and MCP use the same application workflows.
 
 ## Static inspection
 
-`inspect_macho` retains otool segment `file_offset` values relative to the
-selected Mach-O slice. Its evidence file-offset ranges address the original
-input file and include the observed lipo slice offset for universal binaries.
-If that offset is unavailable, segment evidence locations are omitted with an
-explicit limitation; architecture inventory locations remain available.
+`inspect_macho.selected_architecture` identifies the exact selected lipo slice
+and its `container_file_offset` in the input file. A thin Mach-O has a known
+offset of zero; an unknown universal-slice offset stays null. Architecture
+`file_offset` values are container-relative. Entrypoint, segment and section
+`file_offset` values retain their source meaning and are relative to the
+selected Mach-O slice. Raw load-command fields retain their original values.
+Evidence locations map the LC_MAIN entrypoint and nonempty file-backed segment
+ranges to container offsets by adding the observed slice offset. Zero-fill
+segments do not produce file ranges. When the selected slice's container offset
+is unknown, those mapped locations are omitted with an explicit limitation;
+architecture inventory locations remain available.
 
 Hopper's `address_to_file_offset` combines the native image-relative mapping with
 original-file coordinates only after checking the source against the session's

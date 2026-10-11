@@ -9,10 +9,15 @@ import {
   expectValidTypeScriptInput,
 } from "../../fixtures/javascriptArtifactTypeScriptDialect.js";
 
+for (const fixture of typeScriptDialectCases) {
+  it(`validates ${fixture.path} with the locked TypeScript producer`, async () => {
+    await expectValidTypeScriptInput(fixture.path, fixture.source);
+  });
+}
+
 for (const format of ["directory", "asar"] as const) {
   for (const fixture of typeScriptDialectCases) {
     it(`${format} retains ${fixture.path} syntax-derived reference facts`, async () => {
-      await expectValidTypeScriptInput(fixture.path, fixture.source);
       const input = await createTypeScriptDialectArtifact(format, [fixture]);
       const result = await reconstructJavaScriptArtifact({ input_path: input });
       expect(result.statistics).toMatchObject({

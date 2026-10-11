@@ -304,14 +304,22 @@ const collectNamedExports = (
         node,
       );
   for (const specifier of node.specifiers)
-    if (t.isExportSpecifier(specifier))
+    if (
+      t.isExportSpecifier(specifier) ||
+      (t.isExportNamespaceSpecifier(specifier) && node.exportKind !== "type")
+    )
       addModuleLink(
         state,
         {
           kind: node.source == null ? "export" : "re-export",
           specifier: node.source?.value ?? null,
-          importedName: propertyName(specifier.local),
-          localName: node.source == null ? propertyName(specifier.local) : null,
+          importedName: t.isExportNamespaceSpecifier(specifier)
+            ? "*"
+            : propertyName(specifier.local),
+          localName:
+            node.source == null && t.isExportSpecifier(specifier)
+              ? propertyName(specifier.local)
+              : null,
           exportedName: propertyName(specifier.exported),
           location: range(specifier),
         },

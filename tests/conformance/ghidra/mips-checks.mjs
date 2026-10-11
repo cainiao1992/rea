@@ -15,8 +15,17 @@ const wordHex = (value, byteOrder) => {
   return bytes.toString("hex");
 };
 
+const SOFT_FLOAT_SYMBOLS = [
+  "rea_mips_soft_pick",
+  "rea_mips_soft_wide",
+  "rea_mips_soft_mixed",
+  "rea_mips_soft_struct",
+  "rea_mips_soft_caller",
+];
+
 /** Parse only the documented GNU readelf fields needed by our tiny fixture. */
-export function parseMipsReadelf(text, byteOrder) {
+export function parseMipsReadelf(text, byteOrder, floatAbi = "hard") {
+  assert.ok(floatAbi === "hard" || floatAbi === "soft");
   language(byteOrder);
   const field = (expression, label) => {
     const matches = [...text.matchAll(expression)];
@@ -44,8 +53,14 @@ export function parseMipsReadelf(text, byteOrder) {
   const fpAbi = new Map([
     ["Hard float (double precision)", 1],
     ["Hard float (32-bit CPU, Any FPU)", 5],
+    ["Soft float", 3],
   ]).get(fp);
   assert.ok(fpAbi !== undefined, `Unrecognized fixture FP ABI: ${fp}`);
+  assert.equal(
+    fpAbi === 3,
+    floatAbi === "soft",
+    `Fixture FP ABI ${fp} differs from the ${floatAbi}-float build intent`,
+  );
   assert.equal(field(/^ISA Extension:\s*(.+)$/gmu, "ISA extension"), "None");
   assert.equal(field(/^ASEs:\s*\n[ \t]*(.+)$/gmu, "ASEs"), "None");
   const abiFlags = {
@@ -76,6 +91,7 @@ export function parseMipsReadelf(text, byteOrder) {
     "rea_mips_probe",
     "rea_mips_global",
     "rea_mips_marker",
+    ...(floatAbi === "soft" ? SOFT_FLOAT_SYMBOLS : []),
   ]) {
     const value = field(
       new RegExp(
@@ -93,7 +109,7 @@ export function parseMipsReadelf(text, byteOrder) {
 }
 
 /** Independent reader is a bounded test prerequisite, never an REA provider. */
-export async function inspectMipsReadelf(path, byteOrder) {
+export async function inspectMipsReadelf(path, byteOrder, floatAbi = "hard") {
   const command = process.env.REA_MIPS_READELF ?? "readelf";
   const options = {
     env: { ...process.env, LC_ALL: "C" },
@@ -117,7 +133,7 @@ export async function inspectMipsReadelf(path, byteOrder) {
     `readelf diagnostics: ${result.stderr}`,
   );
   return {
-    ...parseMipsReadelf(result.stdout, byteOrder),
+    ...parseMipsReadelf(result.stdout, byteOrder, floatAbi),
     command,
     version: version.stdout.split("\n")[0],
     raw: result.stdout,
@@ -177,4 +193,68 @@ export function assertMipsProbe(move, branch, byteOrder, address) {
 /** Four bytes must encode the known source-owned global in the declared order. */
 export function assertMipsGlobal(bytes, byteOrder) {
   assert.equal(bytes, wordHex(7, byteOrder));
+}
+
+/**
+ * Soft-float o32 places float/double values exactly where a same-size integer
+ * goes: Ghidra joins register pairs most-significant word first. The struct
+ * return keeps its hidden $a0 pointer and its float in $a1.
+ */
+export function assertMipsSoftFloatStorage(boundaries, byteOrder) {
+  language(byteOrder);
+  const pair = (low, high) =>
+    byteOrder === "little" ? `${high}:4,${low}:4` : `${low}:4,${high}:4`;
+  const expected = {
+    rea_mips_soft_pick: {
+      return: ["float", "v0:4"],
+      parameters: [
+        ["a", "float", "a0:4"],
+        ["b", "float", "a1:4"],
+        ["sel", "int", "a2:4"],
+      ],
+    },
+    rea_mips_soft_wide: {
+      return: ["double", pair("v0", "v1")],
+      parameters: [
+        ["a", "double", pair("a0", "a1")],
+        ["sel", "int", "a2:4"],
+      ],
+    },
+    rea_mips_soft_mixed: {
+      return: ["double", pair("v0", "v1")],
+      parameters: [
+        ["i", "int", "a0:4"],
+        ["d", "double", pair("a2", "a3")],
+        ["f", "float", "Stack[0x10]:4"],
+        ["e", "double", "Stack[0x18]:8"],
+      ],
+    },
+    rea_mips_soft_struct: {
+      return: ["rea_mips_soft_pair *", "v0:4"],
+      parameters: [
+        ["__return_storage_ptr__", "rea_mips_soft_pair *", "a0:4 (auto)"],
+        ["scale", "float", "a1:4"],
+        ["sel", "int", "a2:4"],
+      ],
+    },
+  };
+  assert.deepEqual(
+    Object.keys(boundaries).sort(),
+    Object.keys(expected).sort(),
+  );
+  for (const [name, want] of Object.entries(expected)) {
+    const boundary = boundaries[name];
+    assert.deepEqual(
+      [boundary.return_type.data_type, boundary.return_type.storage],
+      want.return,
+      `${name} return storage`,
+    );
+    assert.deepEqual(
+      [...boundary.parameters]
+        .sort((left, right) => left.ordinal - right.ordinal)
+        .map((item) => [item.name, item.data_type, item.storage]),
+      want.parameters,
+      `${name} parameter storage`,
+    );
+  }
 }

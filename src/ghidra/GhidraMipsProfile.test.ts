@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ok } from "../domain/result.js";
 import { parseConfig } from "../config/parseConfig.js";
 import type {
   BinaryTarget,
@@ -10,6 +11,8 @@ import { hopperLoaderArgsForTarget } from "../hopper/HopperAnalysisProfile.js";
 import { IdaProvider } from "../ida/IdaProvider.js";
 import { GhidraProvider } from "./GhidraProvider.js";
 import type { GhidraInstallationHost } from "./GhidraInstallation.js";
+import { GHIDRA_SESSION_CAPABILITIES } from "./GhidraSessionValues.js";
+import type { GhidraMipsSoftFloatReport } from "./GhidraMipsProfile.js";
 
 // Fake installation inspection tests admission/profile contracts, not Ghidra.
 const host: GhidraInstallationHost = {
@@ -56,6 +59,18 @@ const target = (change: Partial<MipsElfMetadata> = {}): BinaryTarget => ({
     ...change,
   },
 });
+const abi = (
+  change: Partial<NonNullable<MipsElfMetadata["abiFlags"]>>,
+): Partial<MipsElfMetadata> => {
+  const base = target();
+  if (base.kind !== "executable" || base.architecture !== "mips")
+    throw new Error("expected a MIPS fixture target");
+  const flags = base.mips.abiFlags;
+  if (flags === undefined || flags === null)
+    throw new Error("expected fixture ABI flags");
+  return { abiFlags: { ...flags, ...change } };
+};
+const softFloat = abi({ cpr1Size: 0, fpAbi: 3 });
 
 describe("bounded Ghidra MIPS admission", () => {
   it("binds endian and flags without widening Windows P0", async () => {
@@ -118,6 +133,11 @@ describe("bounded Ghidra MIPS admission", () => {
     [{ flags: 0x70001201 }, "EF_MIPS_FP64"],
     [{ flags: 0x70001401 }, "EF_MIPS_NAN2008"],
     [{ abiFlags: null }, "inspected ABI"],
+    [abi({ cpr1Size: 0, fpAbi: 1 }), "soft-float without CPR1"],
+    [abi({ cpr1Size: 1, fpAbi: 3 }), "soft-float without CPR1"],
+    [abi({ cpr1Size: 1, fpAbi: 2 }), "single-float"],
+    [abi({ cpr1Size: 1, fpAbi: 0 }), "unspecified"],
+    [abi({ cpr1Size: 2, fpAbi: 6 }), "FP64"],
   ] satisfies [Partial<MipsElfMetadata>, string][])(
     "refuses an unverified MIPS interpretation %j",
     async (change, reason) => {
@@ -138,5 +158,138 @@ describe("bounded Ghidra MIPS admission", () => {
     expect(hopperLoaderArgsForTarget(target()).ok).toBe(false);
     const ida = new IdaProvider(config, {});
     expect(ida.inspectTargetSupport(target()).status).toBe("unsupported");
+  });
+});
+
+describe("soft-float MIPS storage", () => {
+  const report: GhidraMipsSoftFloatReport = {
+    policy: "o32-soft-float-prototype-v1",
+    functions: 5,
+    definitions: 1,
+  };
+  const session = async (
+    value: BinaryTarget,
+    reported: GhidraMipsSoftFloatReport | undefined,
+    profileFor: BinaryTarget = value,
+  ) => {
+    const counts = { starts: 0, calls: 0, closes: 0 };
+    const ghidra = new GhidraProvider(config, silentLogger, {}, host, () => ({
+      start: () => {
+        counts.starts++;
+        return Promise.resolve(
+          ok({
+            name: "REA Ghidra bridge" as const,
+            run_id: "11111111-1111-4111-8111-111111111111",
+            profile_digest: "a".repeat(64),
+            provider: { id: "ghidra" as const, version: "12.1.4" },
+            read_only: false,
+            analysis_complete: true,
+            analysis_timed_out: false,
+            capabilities: [...GHIDRA_SESSION_CAPABILITIES],
+            target: {
+              name: "fixture.elf",
+              language_id: "MIPS:LE:32:default",
+              compiler_spec_id: "default",
+              image_base: "0x0",
+              default_address_space: "ram",
+              sha256: "a".repeat(64),
+            },
+            ...(reported === undefined
+              ? {}
+              : { mips_soft_float_storage: reported }),
+          }),
+        );
+      },
+      callTool: () => {
+        counts.calls++;
+        return Promise.resolve(ok(null));
+      },
+      close: () => {
+        counts.closes++;
+        return Promise.resolve(ok(null));
+      },
+    }));
+    const resolved = await ghidra.resolveAnalysisProfile(profileFor);
+    if (!resolved.ok || resolved.value.profile === null)
+      throw new Error("expected a MIPS profile");
+    return {
+      counts,
+      profile: resolved.value.profile,
+      client: ghidra.createClient(value, resolved.value.profile),
+    };
+  };
+
+  it("admits soft-float o32 and commits its storage policy only for it", async () => {
+    const soft = target(softFloat);
+    const ghidra = new GhidraProvider(config, silentLogger, {}, host);
+    expect(ghidra.inspectTargetSupport(soft).status).toBe("supported");
+    const { profile } = await session(soft, report);
+    expect(profile.parameters.mips_soft_float_storage).toBe(
+      "o32-soft-float-prototype-v1",
+    );
+    const hard = await session(target(), undefined);
+    expect(hard.profile.parameters).not.toHaveProperty(
+      "mips_soft_float_storage",
+    );
+  });
+
+  it("admits the ODDSPREG default that soft-float toolchains emit, but no other flags", () => {
+    const ghidra = new GhidraProvider(config, silentLogger, {}, host);
+    // GCC 5.2 kernel modules and LLVM/Rust firmware both record flags1 = 1.
+    expect(
+      ghidra.inspectTargetSupport(
+        target(abi({ cpr1Size: 0, fpAbi: 3, flags1: 1 })),
+      ).status,
+    ).toBe("supported");
+    expect(
+      ghidra.inspectTargetSupport(
+        target(abi({ cpr1Size: 0, fpAbi: 3, flags1: 2 })),
+      ),
+    ).toMatchObject({
+      status: "unsupported",
+      reason: expect.stringContaining("general flags"),
+    });
+  });
+
+  it("reports the prototype outcome as session limitations", async () => {
+    const { client } = await session(target(softFloat), report);
+    const health = await client.execute("health", {});
+    if (!health.ok) throw health.error;
+    expect(health.value.limitations).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("model hard-float o32 only"),
+        expect.stringContaining(
+          "5 functions and 1 function-pointer definitions use __rea_soft_float.",
+        ),
+      ]),
+    );
+  });
+
+  it("fails closed on a soft-float session without a storage report before any analysis call", async () => {
+    const { counts, client } = await session(target(softFloat), undefined);
+    const failed = await client.execute("list_procedures", {});
+    expect(failed.ok).toBe(false);
+    if (!failed.ok) expect(failed.error._tag).toBe("ProviderAdapterError");
+    expect(counts).toEqual({ starts: 1, calls: 0, closes: 1 });
+  });
+
+  it("rejects soft-float storage reported by a hard-float session", async () => {
+    const { counts, client } = await session(target(), report);
+    const failed = await client.execute("health", {});
+    expect(failed.ok).toBe(false);
+    if (!failed.ok) expect(failed.error._tag).toBe("ProviderAdapterError");
+    expect(counts).toEqual({ starts: 1, calls: 0, closes: 1 });
+  });
+
+  it("refuses a profile whose storage policy disagrees with the target", async () => {
+    for (const [value, profileFor] of [
+      [target(softFloat), target()],
+      [target(), target(softFloat)],
+    ] as const) {
+      const { counts, client } = await session(value, report, profileFor);
+      const failed = await client.execute("health", {});
+      expect(failed.ok).toBe(false);
+      expect(counts.starts).toBe(0);
+    }
   });
 });

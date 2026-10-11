@@ -81,7 +81,8 @@
     "bridge/pwndbg/launch_impl.py",
     "bridge/pwndbg/core_context.py",
     "third_party/pwndbg/README.md",
-    "third_party/pwndbg/LICENSE.md"
+    "third_party/pwndbg/LICENSE.md",
+    "licenses/nativeaot-parser-MIT.txt"
   ],
   "scripts": {
     "release:notes": "node scripts/release-notes.mjs",

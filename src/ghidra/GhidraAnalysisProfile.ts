@@ -17,6 +17,13 @@ import {
   ghidraMipsProfileParameters,
   ghidraMipsUnsupportedReason,
 } from "./GhidraMipsProfile.js";
+import {
+  NATIVE_AOT_MAX_REPORT_BYTES,
+  NATIVE_AOT_MAX_SOURCE_BYTES,
+  NATIVE_AOT_MAX_WORKING_MEMORY_BYTES,
+  NATIVE_AOT_MAX_WORK_UNITS,
+  NATIVE_AOT_PROFILE_CONTRACT_REVISION,
+} from "../domain/native/nativeAotPe.js";
 
 /** Resolve version-bound, deterministic semantics before Ghidra imports a target. */
 export const resolveGhidraAnalysisProfile = (
@@ -69,6 +76,13 @@ export const resolveGhidraAnalysisProfile = (
           ? {
               executable_role: target.executableRole ?? null,
               managed: target.managed ?? null,
+              native_aot_metadata: {
+                contract_revision: NATIVE_AOT_PROFILE_CONTRACT_REVISION,
+                source_bytes: NATIVE_AOT_MAX_SOURCE_BYTES,
+                work_units: NATIVE_AOT_MAX_WORK_UNITS,
+                working_memory_bytes: NATIVE_AOT_MAX_WORKING_MEMORY_BYTES,
+                report_bytes: NATIVE_AOT_MAX_REPORT_BYTES,
+              },
             }
           : {}),
         architecture: target.architecture ?? null,

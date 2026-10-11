@@ -10,16 +10,22 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { fixtureDosLoadImage } from "./GhidraLoadImage.fixture.js";
+import {
+  nativeAotPeDigest,
+  nativeAotPeFixture,
+} from "../../tests/fixtures/nativeaotPe.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 
 import { parseConfig } from "../config/parseConfig.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { parseExecutableHeader } from "../domain/binaryTarget.js";
 import { GhidraProvider } from "./GhidraProvider.js";
+import type { GhidraTargetSnapshot } from "./GhidraClient.js";
 import type { GhidraProviderClientFactory } from "./GhidraProviderClient.js";
 import type { GhidraInstallationHost } from "./GhidraInstallation.js";
 import { GHIDRA_SESSION_CAPABILITIES } from "./GhidraSessionValues.js";
 import { err, ok } from "../domain/result.js";
+import type { Result } from "../domain/result.js";
 import { GhidraSessionError } from "./GhidraSessionError.js";
 import { silentLogger } from "../logger.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
@@ -219,10 +225,25 @@ describe("Ghidra platform support", () => {
       expect(profile.parameters).toMatchObject({
         executable_role: target.executableRole,
         managed: target.managed,
+        native_aot_metadata: {
+          contract_revision: "rtr-9.1-x64-pe-read-only-v1",
+          source_bytes: 128 * 1024 * 1024,
+          work_units: 64 * 1024 * 1024,
+          working_memory_bytes: 64 * 1024 * 1024,
+          report_bytes: 4 * 1024 * 1024,
+        },
       });
       digests.add(profile.digest);
     }
     expect(digests.size).toBe(3);
+    const nonPe = await ghidra.resolveAnalysisProfile(
+      executableTarget("elf", "x86_64"),
+    );
+    if (!nonPe.ok || nonPe.value.profile === null)
+      throw new Error("Expected a non-PE analysis profile");
+    expect(nonPe.value.profile.parameters).not.toHaveProperty(
+      "native_aot_metadata",
+    );
   });
 
   it("keeps Windows annotation mutation unavailable independently of native controls", () => {
@@ -717,7 +738,8 @@ describe("Ghidra measured load-image projection", () => {
         ...(state === "missing-snapshot"
           ? {}
           : {
-              readTargetSnapshot: () => Promise.resolve(ok(fixture.bytes)),
+              readTargetSnapshot: () =>
+                Promise.resolve(ok({ kind: "captured", bytes: fixture.bytes })),
             }),
       });
       const ghidra = provider(installationHost(), factory);
@@ -755,6 +777,505 @@ describe("Ghidra measured load-image projection", () => {
       }
     },
   );
+});
+
+it("returns read-only NativeAOT metadata inline and drills down by derived MethodTable address", async () => {
+  const bytes = nativeAotPeFixture();
+  const observations = fixtureDosLoadImage().observation;
+  observations.image_base = "0x140000000";
+  const factory: GhidraProviderClientFactory = () => ({
+    start: () =>
+      Promise.resolve(
+        ok({
+          ...sessionInfo(),
+          target: { ...sessionInfo().target, image_base: "0x140000000" },
+        }),
+      ),
+    callTool: (operation) =>
+      Promise.resolve(
+        ok(
+          jsonValueSchema.parse(
+            operation === "inspect_native_load_image"
+              ? observations
+              : {
+                  status: "unavailable",
+                  reason: "No Ghidra DataType is defined at this address.",
+                  id: null,
+                  name: null,
+                  kind: "unavailable",
+                  source: "analysis-database",
+                  source_archive: null,
+                  address: null,
+                  size_bytes: null,
+                  alignment_bytes: null,
+                  packing_enabled: null,
+                  referenced_type: null,
+                  array_count: null,
+                  array_stride_bytes: null,
+                  fields: [],
+                  members: [],
+                  total_fields: 0,
+                  truncated: false,
+                  limitations: [],
+                },
+          ),
+        ),
+      ),
+    readTargetSnapshot: () => Promise.resolve(ok({ kind: "captured", bytes })),
+    close: () => Promise.resolve(ok(null)),
+  });
+  const ghidra = provider(installationHost(), factory);
+  const target = { ...peTarget("x86_64"), sha256: nativeAotPeDigest(bytes) };
+  const profile = await ghidra.resolveAnalysisProfile(target);
+  if (!profile.ok || profile.value.profile === null)
+    throw new Error("Expected admitted PE profile");
+  const client = ghidra.createClient(target, profile.value.profile);
+  const image = await client.execute("inspect_native_load_image", {});
+  expect(image).toMatchObject({
+    ok: true,
+    value: {
+      result: {
+        status: "unsupported",
+        observations: {
+          metadata_recovery: [
+            {
+              status: "complete",
+              analysis_mode: "read-only-derived-overlay",
+              method_tables: 3,
+              frozen_strings: [{ value: "REA_NATIVEAOT_FROZEN" }],
+            },
+          ],
+        },
+      },
+      rawResult: observations,
+    },
+  });
+  const detail = await client.execute("inspect_native_data_type", {
+    address: "0x140002280",
+  });
+  expect(detail).toMatchObject({
+    ok: true,
+    value: {
+      result: {
+        status: "unavailable",
+        source: "analysis-database",
+        metadata_recovery: {
+          source: "read-only-derived-overlay",
+          method_table_address: "0x140002280",
+          related_type: { address: "0x140002200", type: null },
+        },
+      },
+    },
+  });
+  await client.close();
+});
+
+it("derives PE metadata for a direct type-address query without a load-image call", async () => {
+  const bytes = nativeAotPeFixture();
+  const operations: string[] = [];
+  const factory: GhidraProviderClientFactory = () => ({
+    start: () =>
+      Promise.resolve(
+        ok({
+          ...sessionInfo(),
+          target: { ...sessionInfo().target, image_base: "0x140000000" },
+        }),
+      ),
+    callTool: (operation) => {
+      operations.push(operation);
+      return Promise.resolve(
+        ok(
+          jsonValueSchema.parse({
+            status: "unavailable",
+            reason: "No Ghidra DataType is defined at this address.",
+            id: null,
+            name: null,
+            kind: "unavailable",
+            source: "analysis-database",
+            source_archive: null,
+            address: null,
+            size_bytes: null,
+            alignment_bytes: null,
+            packing_enabled: null,
+            referenced_type: null,
+            array_count: null,
+            array_stride_bytes: null,
+            fields: [],
+            members: [],
+            total_fields: 0,
+            truncated: false,
+            limitations: [],
+          }),
+        ),
+      );
+    },
+    readTargetSnapshot: () => Promise.resolve(ok({ kind: "captured", bytes })),
+    close: () => Promise.resolve(ok(null)),
+  });
+  const ghidra = provider(installationHost(), factory);
+  const target = { ...peTarget("x86_64"), sha256: nativeAotPeDigest(bytes) };
+  const profile = await ghidra.resolveAnalysisProfile(target);
+  if (!profile.ok || profile.value.profile === null)
+    throw new Error("Expected admitted PE profile");
+  const client = ghidra.createClient(target, profile.value.profile);
+  const detail = await client.execute("inspect_native_data_type", {
+    address: "0x140002280",
+  });
+  expect(detail).toMatchObject({
+    ok: true,
+    value: {
+      result: {
+        metadata_recovery: {
+          source: "read-only-derived-overlay",
+          method_table_address: "0x140002280",
+          related_type: { address: "0x140002200", type: null },
+        },
+      },
+    },
+  });
+  expect(operations).toEqual(["inspect_native_data_type"]);
+  await client.close();
+});
+
+it("shares one session snapshot across callers while isolating cancellation and rejecting a changed base", async () => {
+  const bytes = nativeAotPeFixture();
+  const baseObservation = fixtureDosLoadImage().observation;
+  baseObservation.image_base = "0x140000000";
+  let calls = 0;
+  let snapshotReads = 0;
+  let snapshotSignal: AbortSignal | undefined;
+  let releaseSnapshot:
+    | ((value: Result<GhidraTargetSnapshot, GhidraSessionError>) => void)
+    | undefined;
+  let markSnapshotStarted: (() => void) | undefined;
+  const snapshotStarted = new Promise<void>((resolve) => {
+    markSnapshotStarted = resolve;
+  });
+  const snapshotResult = new Promise<
+    Result<GhidraTargetSnapshot, GhidraSessionError>
+  >((resolve) => {
+    releaseSnapshot = resolve;
+  });
+  const factory: GhidraProviderClientFactory = () => ({
+    start: () => Promise.resolve(ok(sessionInfo())),
+    callTool: (operation) => {
+      calls += 1;
+      const observation = {
+        ...baseObservation,
+        source_files: [
+          { ...baseObservation.source_files[0]!, name: `caller-${calls}` },
+        ],
+      };
+      return Promise.resolve(
+        ok(
+          jsonValueSchema.parse(
+            operation === "inspect_native_load_image"
+              ? observation
+              : {
+                  status: "unavailable",
+                  reason: "No Ghidra DataType is defined at this address.",
+                  id: null,
+                  name: null,
+                  kind: "unavailable",
+                  source: "analysis-database",
+                  source_archive: null,
+                  address: null,
+                  size_bytes: null,
+                  alignment_bytes: null,
+                  packing_enabled: null,
+                  referenced_type: null,
+                  array_count: null,
+                  array_stride_bytes: null,
+                  fields: [],
+                  members: [],
+                  total_fields: 0,
+                  truncated: false,
+                  limitations: [],
+                },
+          ),
+        ),
+      );
+    },
+    readTargetSnapshot: (_maximumBytes, signal) => {
+      snapshotReads += 1;
+      snapshotSignal = signal;
+      markSnapshotStarted?.();
+      return snapshotResult;
+    },
+    close: () => Promise.resolve(ok(null)),
+  });
+  const ghidra = provider(installationHost(), factory);
+  const target = { ...peTarget("x86_64"), sha256: nativeAotPeDigest(bytes) };
+  const profile = await ghidra.resolveAnalysisProfile(target);
+  if (!profile.ok || profile.value.profile === null)
+    throw new Error("Expected admitted PE profile");
+  const client = ghidra.createClient(target, profile.value.profile);
+  const firstCaller = new AbortController();
+  const secondCaller = new AbortController();
+  const first = client.execute(
+    "inspect_native_load_image",
+    {},
+    {
+      signal: firstCaller.signal,
+    },
+  );
+  const second = client.execute(
+    "inspect_native_load_image",
+    {},
+    {
+      signal: secondCaller.signal,
+    },
+  );
+  await snapshotStarted;
+  expect(snapshotReads).toBe(1);
+  expect(snapshotSignal).toBeDefined();
+  expect(snapshotSignal).not.toBe(firstCaller.signal);
+  expect(snapshotSignal).not.toBe(secondCaller.signal);
+  firstCaller.abort();
+  await expect(first).resolves.toMatchObject({
+    ok: false,
+    error: { _tag: "AnalysisCancelledError" },
+  });
+  releaseSnapshot?.(ok({ kind: "captured", bytes }));
+  const secondResult = await second;
+  expect(secondResult).toMatchObject({
+    ok: true,
+    value: {
+      rawResult: {
+        source_files: [{ name: "caller-2" }],
+      },
+      result: {
+        observations: {
+          source_files: [{ name: "caller-2" }],
+        },
+      },
+    },
+  });
+  expect(snapshotReads).toBe(1);
+  expect(calls).toBe(2);
+
+  baseObservation.image_base = "0x150000000";
+  const conflictingBase = await client.execute("inspect_native_load_image", {});
+  expect(conflictingBase).toMatchObject({
+    ok: false,
+    error: {
+      _tag: "ProviderAdapterError",
+      diagnostics: {
+        reason: expect.stringContaining("different loaded image base"),
+      },
+    },
+  });
+  expect(snapshotReads).toBe(1);
+  await client.close();
+  expect(snapshotSignal?.aborted).toBe(true);
+});
+
+it("retries a failed NativeAOT snapshot read without retaining a failed derivation", async () => {
+  const bytes = nativeAotPeFixture();
+  const observations = fixtureDosLoadImage().observation;
+  observations.image_base = "0x140000000";
+  let snapshotReads = 0;
+  const factory: GhidraProviderClientFactory = () => ({
+    start: () => Promise.resolve(ok(sessionInfo())),
+    callTool: () => Promise.resolve(ok(jsonValueSchema.parse(observations))),
+    readTargetSnapshot: () => {
+      snapshotReads += 1;
+      return Promise.resolve(
+        snapshotReads === 1
+          ? err(
+              new GhidraSessionError(
+                "process",
+                "temporary snapshot read failure",
+              ),
+            )
+          : ok({ kind: "captured", bytes }),
+      );
+    },
+    close: () => Promise.resolve(ok(null)),
+  });
+  const ghidra = provider(installationHost(), factory);
+  const target = { ...peTarget("x86_64"), sha256: nativeAotPeDigest(bytes) };
+  const profile = await ghidra.resolveAnalysisProfile(target);
+  if (!profile.ok || profile.value.profile === null)
+    throw new Error("Expected admitted PE profile");
+  const client = ghidra.createClient(target, profile.value.profile);
+  await expect(
+    client.execute("inspect_native_load_image", {}),
+  ).resolves.toMatchObject({
+    ok: false,
+    error: { _tag: "ProviderAdapterError" },
+  });
+  await expect(
+    client.execute("inspect_native_load_image", {}),
+  ).resolves.toMatchObject({
+    ok: true,
+    value: {
+      result: {
+        observations: {
+          metadata_recovery: [{ status: "complete" }],
+        },
+      },
+    },
+  });
+  expect(snapshotReads).toBe(2);
+  await client.close();
+});
+
+it("rejects all waiters when the loaded image base changes during derivation", async () => {
+  const bytes = nativeAotPeFixture();
+  const observation = fixtureDosLoadImage().observation;
+  let calls = 0;
+  let resolveSnapshot:
+    | ((value: Result<GhidraTargetSnapshot, GhidraSessionError>) => void)
+    | undefined;
+  let markSnapshotStarted: (() => void) | undefined;
+  const snapshotStarted = new Promise<void>((resolve) => {
+    markSnapshotStarted = resolve;
+  });
+  const snapshot = new Promise<
+    Result<GhidraTargetSnapshot, GhidraSessionError>
+  >((resolve) => {
+    resolveSnapshot = resolve;
+  });
+  const factory: GhidraProviderClientFactory = () => ({
+    start: () => Promise.resolve(ok(sessionInfo())),
+    callTool: () => {
+      calls += 1;
+      return Promise.resolve(
+        ok(
+          jsonValueSchema.parse({
+            ...observation,
+            image_base: calls === 1 ? "0x140000000" : "0x150000000",
+          }),
+        ),
+      );
+    },
+    readTargetSnapshot: () => {
+      markSnapshotStarted?.();
+      return snapshot;
+    },
+    close: () => Promise.resolve(ok(null)),
+  });
+  const ghidra = provider(installationHost(), factory);
+  const target = { ...peTarget("x86_64"), sha256: nativeAotPeDigest(bytes) };
+  const profile = await ghidra.resolveAnalysisProfile(target);
+  if (!profile.ok || profile.value.profile === null)
+    throw new Error("Expected admitted PE profile");
+  const client = ghidra.createClient(target, profile.value.profile);
+  const originalBase = client.execute("inspect_native_load_image", {});
+  await snapshotStarted;
+  const changedBase = await client.execute("inspect_native_load_image", {});
+  expect(changedBase).toMatchObject({
+    ok: false,
+    error: {
+      _tag: "ProviderAdapterError",
+      diagnostics: {
+        observed_image_base: "0x150000000",
+        measured_observation: { image_base: "0x150000000" },
+      },
+    },
+  });
+  resolveSnapshot?.(ok({ kind: "captured", bytes }));
+  await expect(originalBase).resolves.toMatchObject({
+    ok: false,
+    error: {
+      _tag: "ProviderAdapterError",
+      diagnostics: {
+        reason: expect.stringContaining("conflicting loaded image bases"),
+        measured_observation: { image_base: "0x140000000" },
+        conflicting_observation: { image_base: "0x150000000" },
+      },
+    },
+  });
+  expect(calls).toBe(2);
+  await client.close();
+});
+
+it("cancels an in-flight NativeAOT waiter when its owning session closes", async () => {
+  const bytes = nativeAotPeFixture();
+  const observations = fixtureDosLoadImage().observation;
+  observations.image_base = "0x140000000";
+  let resolveSnapshot:
+    | ((value: Result<GhidraTargetSnapshot, GhidraSessionError>) => void)
+    | undefined;
+  let snapshotSignal: AbortSignal | undefined;
+  let markSnapshotStarted: (() => void) | undefined;
+  const snapshotStarted = new Promise<void>((resolve) => {
+    markSnapshotStarted = resolve;
+  });
+  const snapshot = new Promise<
+    Result<GhidraTargetSnapshot, GhidraSessionError>
+  >((resolve) => {
+    resolveSnapshot = resolve;
+  });
+  const factory: GhidraProviderClientFactory = () => ({
+    start: () => Promise.resolve(ok(sessionInfo())),
+    callTool: () => Promise.resolve(ok(jsonValueSchema.parse(observations))),
+    readTargetSnapshot: (_maximumBytes, signal) => {
+      snapshotSignal = signal;
+      markSnapshotStarted?.();
+      return snapshot;
+    },
+    close: () => Promise.resolve(ok(null)),
+  });
+  const ghidra = provider(installationHost(), factory);
+  const target = { ...peTarget("x86_64"), sha256: nativeAotPeDigest(bytes) };
+  const profile = await ghidra.resolveAnalysisProfile(target);
+  if (!profile.ok || profile.value.profile === null)
+    throw new Error("Expected admitted PE profile");
+  const client = ghidra.createClient(target, profile.value.profile);
+  const pending = client.execute("inspect_native_load_image", {});
+  await snapshotStarted;
+  await client.close();
+  expect(snapshotSignal?.aborted).toBe(true);
+  resolveSnapshot?.(ok({ kind: "captured", bytes }));
+  await expect(pending).resolves.toMatchObject({
+    ok: false,
+    error: { _tag: "AnalysisCancelledError" },
+  });
+});
+
+describe("Ghidra NativeAOT snapshot budget", () => {
+  it("reports snapshot-capacity omissions inline through the load-image result", async () => {
+    const observations = fixtureDosLoadImage().observation;
+    const target = peTarget("x86_64");
+    const factory: GhidraProviderClientFactory = () => ({
+      start: () => Promise.resolve(ok(sessionInfo())),
+      callTool: () => Promise.resolve(ok(jsonValueSchema.parse(observations))),
+      readTargetSnapshot: () =>
+        Promise.resolve(
+          ok({
+            kind: "over-capacity",
+            sourceBytesAtLeast: 128 * 1024 * 1024 + 1,
+            maximumBytes: 128 * 1024 * 1024,
+          }),
+        ),
+      close: () => Promise.resolve(ok(null)),
+    });
+    const ghidra = provider(installationHost(), factory);
+    const profile = await ghidra.resolveAnalysisProfile(target);
+    if (!profile.ok || profile.value.profile === null)
+      throw new Error("Expected admitted PE profile");
+    const client = ghidra.createClient(target, profile.value.profile);
+    const image = await client.execute("inspect_native_load_image", {});
+    expect(image).toMatchObject({
+      ok: true,
+      value: {
+        result: {
+          observations: {
+            metadata_recovery: [
+              {
+                status: "partial",
+                truncated: true,
+                coverage: { truncation_reason: "source-byte-budget" },
+              },
+            ],
+          },
+        },
+      },
+    });
+    await client.close();
+  });
 });
 
 const sessionInfo = () => ({

@@ -146,7 +146,7 @@ afterEach(async () => {
   await Promise.all(clients.splice(0).map((client) => client.close()));
 });
 
-describe("GhidraClient", () => {
+describe("GhidraClient captured source snapshot", () => {
   it("exposes the immutable import snapshot only during the live session", async () => {
     const client = clientFor(new FixtureLauncher());
     await expect(client.readTargetSnapshot()).resolves.toMatchObject({
@@ -154,16 +154,43 @@ describe("GhidraClient", () => {
       error: { kind: "protocol" },
     });
     await expect(client.start()).resolves.toMatchObject({ ok: true });
+    const abortedRead = new AbortController();
+    abortedRead.abort();
+    await expect(
+      client.readTargetSnapshot(1024, abortedRead.signal),
+    ).resolves.toMatchObject({ ok: false, error: { kind: "cancelled" } });
     const snapshot = await client.readTargetSnapshot();
     expect(snapshot.ok).toBe(true);
-    if (snapshot.ok) expect(snapshot.value).toEqual(readFileSync(fixturePath));
+    const expected = readFileSync(fixturePath);
+    if (snapshot.ok)
+      expect(snapshot.value).toEqual({
+        kind: "captured",
+        bytes: expected,
+      });
+    await expect(
+      client.readTargetSnapshot(expected.length),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { kind: "captured", bytes: expected },
+    });
+    const bounded = await client.readTargetSnapshot(0);
+    expect(bounded).toMatchObject({
+      ok: true,
+      value: {
+        kind: "over-capacity",
+        maximumBytes: 0,
+        sourceBytesAtLeast: readFileSync(fixturePath).length,
+      },
+    });
     await client.close();
     await expect(client.readTargetSnapshot()).resolves.toMatchObject({
       ok: false,
       error: { kind: "protocol" },
     });
   });
+});
 
+describe("GhidraClient", () => {
   it("completes an exact, fragmented post-analysis handshake", async () => {
     const launcher = new FixtureLauncher("fragmented");
     const client = clientFor(launcher);

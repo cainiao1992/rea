@@ -672,6 +672,13 @@ boundaries and budgets.
 
 ## Optional NativeAOT Ghidra analysis
 
+The source parser lane is independent of the optional annotation JAR. Its
+synthetic RTR 9.1 PE golden checks captured-byte digest admission, rehydration
+into an immutable parser overlay, MethodTable/slot relationships, and frozen
+literal extraction; provider tests exercise `inspect_native_load_image` and
+address-based `inspect_native_data_type` with the database result still
+unavailable. These tests do not establish Windows Ghidra host behavior.
+
 This lane is separate from the default native lane. `build:fixtures:nativeaot`
 requires an existing .NET SDK 8.0.416, the platform NativeAOT compiler/linker and
 runtime pack 8.0.22. It builds benign sources into ignored `_reference/` and

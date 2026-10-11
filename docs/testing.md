@@ -1095,7 +1095,10 @@ and `REA_JAVASCRIPT_FIXTURE_TOOLS` pointing to an isolated npm prefix containing
 esbuild 0.25.10 and webpack 5.101.3. No global installation is required.
 The lane compiles source-owned fixtures, exercises CLI and stdio MCP, verifies
 published bytes and provenance, feeds recovered modules into existing analysis,
-and compares a finite set of known fixture results. The provider also accepts
+and compares a finite set of known fixture results. A webpack fixture with separate
+runtime, shared, entry and lazy chunks verifies multi-input recovery through both
+surfaces, per-file provenance and resolved cross-chunk imports in the downstream
+application graph. The provider also accepts
 other ^1.13.0 releases and reports them as unverified; this lane proves the
 audited release. It does not establish
 arbitrary recovered-application equivalence. CI installs these prerequisites only

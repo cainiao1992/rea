@@ -1,5 +1,13 @@
 # JavaScript and Electron application artifacts
 
+For captured or bundled JavaScript that needs readable source recovery, use
+`recover_javascript_sources` with an absolute `path` and absent
+`output_directory`. Supply related runtime/shared/lazy files in
+`additional_paths` when advertised, then analyze the returned `analysis_input`
+directory together. Each input retains its own snapshot, digest and byte-range
+provenance; inputs and recovered code are never executed. Recovery requires a
+caller-supplied Wakaru on Linux x64; see [the recovery guide](https://github.com/morluto/rea/blob/main/docs/javascript-recovery.md).
+
 Use `analyze_javascript_application` directly on the operator-supplied ASAR or
 extracted tree. When size is unknown or large and the connected schema advertises
 `detail`, request `detail: "summary"`. This returns an `inspect_analysis_view`

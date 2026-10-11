@@ -182,6 +182,17 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      # test:prepare caches only portable JS, skill, and catalog outputs.
+      # Native package jobs still run their build and prepack checks; Turbo
+      # restores matching outputs or rebuilds when their inputs differ.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rea-build-cache
+          path: .turbo/cache/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
   test:
     name: Test (coverage + timing)
     needs: [changes, test-shard]
@@ -298,7 +309,7 @@ jobs:
 
   package-e2e:
     name: Native package baseline (${{ matrix.platform }} ${{ matrix.architecture }})
-    needs: [changes, windows-native-build]
+    needs: [changes, build, windows-native-build]
     if: needs.changes.outputs.runtime == 'true'
     strategy:
       fail-fast: false
@@ -328,6 +339,10 @@ jobs:
           assert.equal(process.arch, process.env.EXPECTED_CI_ARCHITECTURE);
           console.log(JSON.stringify({ platform: process.platform, architecture: process.arch, node: process.version }));"
       - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: rea-build-cache
+          path: .turbo/cache/
       - uses: actions/download-artifact@v4
         with:
           name: windows-native-controls

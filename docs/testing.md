@@ -1015,6 +1015,12 @@ summary. Static checks, documentation, build, package verification, and
 real-system lanes remain separate jobs so one kind of evidence cannot stand in
 for another.
 
+Native package jobs reuse the same workflow's Turbo cache for portable compiled
+JavaScript, skills, and catalogs. They retain the normal build and prepack
+commands, which restore matching outputs or rebuild on a cache miss. Native
+artifacts, dependency installs, package archives, and runtime verification remain
+host-local. Keep platform-dependent outputs out of this shared cache.
+
 The PR acceptance target is a median `npm run check:pr` wall time below three
 minutes across three warm-build runs on the benchmark host. Keep Vitest caches
 cold unless separately identified. A PR that touches packaging or real-system

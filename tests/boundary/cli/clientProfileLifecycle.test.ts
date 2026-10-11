@@ -1,4 +1,12 @@
-import { access, readFile, writeFile } from "node:fs/promises";
+import {
+  access,
+  lstat,
+  mkdir,
+  readFile,
+  realpath,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { expect } from "vitest";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
@@ -78,6 +86,54 @@ const groups = [
     ],
   },
 ];
+
+cliTest(
+  "uninstall purge retains unrelated data behind a managed-root symlink",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-uninstall-root-link-");
+    const home = join(root, "home");
+    const unrelated = join(root, "unrelated-application");
+    await mkdir(home);
+    for (const name of ["cache", "state"]) {
+      await mkdir(join(unrelated, name), { recursive: true });
+      await writeFile(join(unrelated, name, "keep.txt"), `unrelated ${name}`);
+    }
+    const managedRoot = join(home, ".rea");
+    await symlink(
+      unrelated,
+      managedRoot,
+      process.platform === "win32" ? "junction" : "dir",
+    );
+
+    const result = await cli.run({
+      arguments: ["uninstall", "--purge-data", "--json"],
+      cwd: home,
+      environment: {
+        HOME: home,
+        USERPROFILE: home,
+        XDG_CONFIG_HOME: join(root, "xdg-config"),
+        XDG_CACHE_HOME: join(root, "xdg-cache"),
+      },
+      timeoutMs: 20_000,
+    });
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect.soft(result.json).toMatchObject({
+      status: "complete",
+      items: expect.arrayContaining([
+        expect.objectContaining({ name: "cache", status: "retained" }),
+        expect.objectContaining({ name: "state", status: "retained" }),
+      ]),
+    });
+    expect((await lstat(managedRoot)).isSymbolicLink()).toBe(true);
+    expect(await realpath(managedRoot)).toBe(await realpath(unrelated));
+    for (const name of ["cache", "state"])
+      await expect
+        .soft(readFile(join(unrelated, name, "keep.txt"), "utf8"))
+        .resolves.toBe(`unrelated ${name}`);
+  },
+);
+
 for (const group of groups) {
   cliTest(
     `${group.name} lifecycle follows the selected roots`,

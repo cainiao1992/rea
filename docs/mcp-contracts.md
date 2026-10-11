@@ -165,6 +165,11 @@ Provider calls receive the request cancellation signal. Artifact traversal,
 hashing, version comparisons, Hopper requests, and process capture
 check the same signal. Cancellation is distinct from timeout. A cleanup failure
 uses `cleanup_incomplete` and lists only the owned resource kinds that remain.
+An atomic Evidence bundle or snapshot write can publish its complete output
+before staging cleanup fails. In that case, `details.published: true`,
+`details.published_path`, and `details.bytes` retain the publication receipt.
+Use that receipt to distinguish completed publication from a write that never
+committed. Staging resources remain owned until cleanup is verified.
 Native call tracing and process capture retain available observations in
 `details.partial_observation` on failure, including when cleanup succeeds.
 The observation reports its partial coverage; cleanup details describe host

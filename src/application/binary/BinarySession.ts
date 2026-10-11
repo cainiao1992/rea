@@ -24,7 +24,6 @@ import type {
   BinarySessionPort,
   SavedAnalysisSnapshot,
 } from "./BinarySessionPort.js";
-import { writeAnalysisSnapshot } from "./AnalysisSnapshotFiles.js";
 import {
   SessionProviderRouter,
   type SessionProviderRoute,
@@ -376,7 +375,7 @@ export class BinarySession
       await this.#drainCalls(admittedThrough);
       const snapshot = this.exportAnalysisSnapshot();
       if (!snapshot.ok) return snapshot;
-      const written = await writeAnalysisSnapshot(
+      const written = await this.writeAnalysisSnapshot(
         snapshot.value,
         path,
         overwrite,
@@ -421,7 +420,16 @@ export class BinarySession
           );
     this.clearSessionRecords();
     this.#clearRuntimeAvailability();
-    return closed;
+    const fileResources = await this.closeWriteResources();
+    if (!closed.ok && !fileResources.ok)
+      return err(
+        analysisErrorWithCleanupFailure(
+          closed.error,
+          fileResources.error,
+          "close_binary",
+        ),
+      );
+    return closed.ok ? fileResources : closed;
   }
 
   async #retireClient(

@@ -342,6 +342,38 @@ describe("JavaScript semantic analysis: structure 2", () => {
     );
   });
 
+  it("resolves the value of a simple assignment expression exported through CommonJS", () => {
+    const ir = analyzeJavaScriptSemantics(`
+      function parse() { return { kind: "result" }; }
+      const holder = {};
+      module.exports = holder.value = parse;
+    `);
+    expect(ir.moduleLinks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "commonjs-export",
+          localName: "parse",
+          exportedName: "default",
+        }),
+      ]),
+    );
+  });
+
+  it.each(["parse", "default"])(
+    "does not export a %s property write to a replaced module.exports receiver",
+    (name) => {
+      const ir = analyzeJavaScriptSemantics(`
+        module.exports.${name} = (module.exports = () => ({ kind: "result" }));
+      `);
+      expect(ir.moduleLinks).toEqual([
+        expect.objectContaining({
+          kind: "commonjs-export",
+          exportedName: "default",
+        }),
+      ]);
+    },
+  );
+
   it("classifies destructuring and loop targets as writes, not reads", () => {
     const ir = analyzeJavaScriptSemantics(`
       let a, b, c;

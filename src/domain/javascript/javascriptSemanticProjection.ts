@@ -372,19 +372,64 @@ const collectCommonJsExport = (
 ): void => {
   const exportedName = commonJsExportName(node.left, state);
   if (exportedName === undefined) return;
-  const origin = semanticRequireOrigin(node.right, state);
+  const receiverEffect = isCommonJsModuleExports(node.left, state)
+    ? null
+    : commonJsExportReceiverEffect(node.right, state);
+  if (receiverEffect === "detached") return;
+  // Simple assignment chains yield their rightmost assigned value. Compound
+  // and logical writes also depend on the previous value, so remain unknown.
+  let value =
+    node.operator === "=" && receiverEffect !== "uncertain" ? node.right : null;
+  while (t.isAssignmentExpression(value, { operator: "=" }))
+    value = value.right;
+  const origin =
+    value === null ? undefined : semanticRequireOrigin(value, state);
   addModuleLink(
     state,
     {
       kind: "commonjs-export",
       specifier: origin?.specifier ?? null,
       importedName: origin?.importedPath.at(-1) ?? null,
-      localName: t.isIdentifier(node.right) ? node.right.name : null,
+      localName: value !== null && t.isIdentifier(value) ? value.name : null,
       exportedName,
-      callableId: semanticCallableIdForNode(node.right),
+      callableId: value === null ? null : semanticCallableIdForNode(value),
       location: range(node),
     },
     node,
+  );
+};
+
+/**
+ * An outer property assignment captures its receiver before evaluating the
+ * RHS. When that chain assigns a freshly created identity to `module.exports`,
+ * the outer write targets the old exports object and cannot define an export
+ * on the value ultimately returned by the CommonJS module. Reassignments from
+ * existing bindings may preserve identity, so this guard leaves them as
+ * export candidates.
+ */
+const commonJsExportReceiverEffect = (
+  node: t.Node,
+  state: JavaScriptSemanticAnalysisState,
+): "detached" | "uncertain" | null => {
+  let value = node;
+  while (t.isAssignmentExpression(value, { operator: "=" })) {
+    if (isCommonJsModuleExports(value.left, state))
+      return isFreshAssignmentResult(value.right) ? "detached" : "uncertain";
+    value = value.right;
+  }
+  return null;
+};
+
+const isFreshAssignmentResult = (node: t.Node): boolean => {
+  let value = node;
+  while (t.isAssignmentExpression(value, { operator: "=" }))
+    value = value.right;
+  return (
+    t.isArrowFunctionExpression(value) ||
+    t.isFunctionExpression(value) ||
+    t.isClassExpression(value) ||
+    t.isObjectExpression(value) ||
+    t.isArrayExpression(value)
   );
 };
 
@@ -652,15 +697,17 @@ const commonJsExportName = (
     return key === null ? "*" : key || "*";
   if (
     t.isMemberExpression(node.object) &&
-    isUnshadowedGlobal(node.object.object, state, "module") &&
-    semanticStaticPropertyKey(node.object.property, node.object.computed) ===
-      "exports"
+    isCommonJsModuleExports(node.object, state)
   )
     return key === null ? "*" : key || "default";
-  if (
-    isUnshadowedGlobal(node.object, state, "module") &&
-    semanticStaticPropertyKey(node.property, node.computed) === "exports"
-  )
-    return "default";
+  if (isCommonJsModuleExports(node, state)) return "default";
   return undefined;
 };
+
+const isCommonJsModuleExports = (
+  node: t.Node,
+  state: JavaScriptSemanticAnalysisState,
+): boolean =>
+  (t.isMemberExpression(node) || t.isOptionalMemberExpression(node)) &&
+  isUnshadowedGlobal(node.object, state, "module") &&
+  semanticStaticPropertyKey(node.property, node.computed) === "exports";

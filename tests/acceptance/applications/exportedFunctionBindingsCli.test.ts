@@ -135,6 +135,158 @@ describe("exported function binding resolution through the CLI", () => {
     });
     expect(await compareThroughMcp(fixture.input)).toEqual(cli);
   });
+
+  it.each([
+    ["the CommonJS exports alias", "exports"],
+    ["an ordinary object property", "holder.value"],
+  ])(
+    "resolves exported callable values through = chains ending at %s",
+    async (_, target) => {
+      const fixture = await analyzeVersions(
+        (count) =>
+          `const holder = {};\nfunction parse() { return { kind: "result", count: ${String(count)} }; }\nmodule.exports = ${target} = parse;`,
+        "default",
+        "app.cjs",
+      );
+      expect(requireFixture(fixture.leftPath)()).toEqual({
+        kind: "result",
+        count: 1,
+      });
+      expect(requireFixture(fixture.rightPath)()).toEqual({
+        kind: "result",
+        count: 2,
+      });
+      for (const evidence of [fixture.input.left, fixture.input.right])
+        expectExportedCallableBinding(evidence, "parse");
+      const cli = await compareThroughCli(fixture);
+      expectCountChange(cli);
+      expect(await compareThroughMcp(fixture.input)).toEqual(cli);
+    },
+  );
+});
+
+describe("CommonJS assignment-chain receiver identity through the CLI", () => {
+  it("does not export a named write whose captured module.exports receiver is replaced", async () => {
+    const fixture = await analyzeVersions(
+      (count) =>
+        `const VERSION = ${String(count)};\nmodule.exports.parse = (module.exports = () => ({ count: VERSION }));`,
+      "parse",
+      "app.cjs",
+    );
+    for (const path of [fixture.leftPath, fixture.rightPath]) {
+      const value = requireFixture(path);
+      expect(typeof value).toBe("function");
+      expect(Reflect.ownKeys(value)).toEqual(["length", "name"]);
+    }
+    for (const evidence of [fixture.input.left, fixture.input.right]) {
+      const analysis = z
+        .object({
+          normalized_result: javascriptApplicationAnalysisResultSchema,
+        })
+        .parse(evidence).normalized_result;
+      expect(
+        analysis.graph.nodes
+          .flatMap(({ observations }) => observations)
+          .filter(
+            ({ properties }) =>
+              properties.semantic_role === "export-binding" &&
+              properties.exported_name === "parse",
+          ),
+      ).toEqual([]);
+    }
+    const cli = await compareThroughCli(fixture);
+    expect(cli).toMatchObject({
+      left: { status: "missing" },
+      right: { status: "missing" },
+      summary: { added: 0, removed: 0, changed: 0 },
+    });
+    expect(await compareThroughMcp(fixture.input)).toEqual(cli);
+  });
+
+  it("keeps a named property export when its receiver remains stable through the RHS chain", async () => {
+    const fixture = await analyzeVersions(
+      (count) =>
+        `const holder = {};\nfunction parse() { return { kind: "result", count: ${String(count)} }; }\nmodule.exports.parse = holder.value = parse;`,
+      "parse",
+      "app.cjs",
+    );
+    for (const path of [fixture.leftPath, fixture.rightPath])
+      expect(requireFixture(path).parse()).toEqual({
+        kind: "result",
+        count: path === fixture.leftPath ? 1 : 2,
+      });
+    const cli = await compareThroughCli(fixture);
+    expectCountChange(cli);
+    expect(await compareThroughMcp(fixture.input)).toEqual(cli);
+  });
+
+  it("keeps receiver identity unresolved when module.exports is reassigned to the same function", async () => {
+    const fixture = await analyzeVersions(
+      (count) =>
+        `const VERSION = ${String(count)};\nfunction parse() { return { count: VERSION }; }\nmodule.exports = parse;\nmodule.exports.parse = (module.exports = parse);`,
+      "parse",
+      "app.cjs",
+    );
+    for (const path of [fixture.leftPath, fixture.rightPath]) {
+      const value = requireFixture(path);
+      expect(value.parse).toBe(value);
+      expect(value.parse()).toEqual({
+        count: path === fixture.leftPath ? 1 : 2,
+      });
+    }
+    for (const evidence of [fixture.input.left, fixture.input.right])
+      expectUnresolvedExportBinding(evidence, "parse");
+    const cli = await compareThroughCli(fixture);
+    expect(cli).toMatchObject({
+      left: { status: "unavailable" },
+      right: { status: "unavailable" },
+    });
+    expect(await compareThroughMcp(fixture.input)).toEqual(cli);
+  });
+
+  it("keeps receiver replacement by an existing function unresolved", async () => {
+    const fixture = await analyzeVersions(
+      (count) =>
+        `const VERSION = ${String(count)};\nfunction parse() { return { count: VERSION }; }\nmodule.exports.parse = (module.exports = parse);`,
+      "parse",
+      "app.cjs",
+    );
+    for (const path of [fixture.leftPath, fixture.rightPath]) {
+      const value = requireFixture(path);
+      expect(typeof value).toBe("function");
+      expect(value.parse).toBeUndefined();
+      expect(value()).toEqual({
+        count: path === fixture.leftPath ? 1 : 2,
+      });
+    }
+    for (const evidence of [fixture.input.left, fixture.input.right])
+      expectUnresolvedExportBinding(evidence, "parse");
+    const cli = await compareThroughCli(fixture);
+    expect(cli).toMatchObject({
+      left: { status: "unavailable" },
+      right: { status: "unavailable" },
+    });
+    expect(await compareThroughMcp(fixture.input)).toEqual(cli);
+  });
+
+  it("resolves a nested lexical parse binding in an ordinary module.exports chain", async () => {
+    const fixture = await analyzeVersions(
+      (count) =>
+        `function parse() { return { count: VERSION }; }\nfunction configure() { const parse = () => ({ count: 7 }); let local; module.exports = local = parse; }\nconst VERSION = ${String(count)};\nconfigure();`,
+      "default",
+      "app.cjs",
+    );
+    for (const path of [fixture.leftPath, fixture.rightPath])
+      expect(requireFixture(path)()).toEqual({ count: 7 });
+    for (const evidence of [fixture.input.left, fixture.input.right])
+      expectExportedCallableBinding(evidence, "parse");
+    const cli = await compareThroughCli(fixture);
+    expect(cli).toMatchObject({
+      summary: { added: 0, removed: 0, changed: 0, unknown: 0 },
+      changes: [],
+    });
+    expect(await compareThroughMcp(fixture.input)).toEqual(cli);
+  });
 });
 
 describe("stable exported function bindings through the CLI", () => {
@@ -503,6 +655,58 @@ const expectRuntimeExports = async (
     [fixture.rightPath, fixture.input.right_export_name, 2],
   ] as const)
     expect(await runtimeExport(path, exportName)).toEqual(expected(count));
+};
+
+const expectExportedCallableBinding = (
+  evidence: unknown,
+  localName: string,
+): void => {
+  const analysis = z
+    .object({
+      normalized_result: javascriptApplicationAnalysisResultSchema,
+    })
+    .parse(evidence).normalized_result;
+  const exportBinding = analysis.graph.nodes
+    .flatMap(({ observations }) => observations)
+    .find(
+      ({ properties }) =>
+        properties.semantic_role === "export-binding" &&
+        properties.exported_name === "default",
+    );
+  expect(exportBinding?.properties.local_name).toBe(localName);
+  expect(analysis.semantic_graph.nodes).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ kind: "function", label: localName }),
+    ]),
+  );
+};
+
+const expectUnresolvedExportBinding = (
+  evidence: unknown,
+  exportName: string,
+): void => {
+  const analysis = z
+    .object({
+      normalized_result: javascriptApplicationAnalysisResultSchema,
+    })
+    .parse(evidence).normalized_result;
+  const observations = analysis.graph.nodes.flatMap(
+    ({ observations }) => observations,
+  );
+  expect(
+    observations.filter(
+      ({ properties }) =>
+        properties.semantic_role === "export-binding" &&
+        properties.exported_name === exportName,
+    ),
+  ).not.toHaveLength(0);
+  expect(
+    observations.filter(
+      ({ properties }) =>
+        properties.semantic_role === "export-return-shapes" &&
+        properties.exported_name === exportName,
+    ),
+  ).toEqual([]);
 };
 
 const expectUncertainComparison = (

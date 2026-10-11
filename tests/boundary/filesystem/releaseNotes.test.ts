@@ -270,6 +270,10 @@ it("rejects lost grouped credits, fabricated references, bots, and stale PR bodi
     throw new Error("Fixture is missing its direct contribution");
   for (const [replacement, error] of [
     [f.bullet.replace(", @bob", ""), "Missing Thanks @bob"],
+    [
+      f.bullet.replace(", @bob", "") + "\n- Thanks @bob for other work.",
+      "Missing Thanks @bob",
+    ],
     [f.bullet + " (#999)", "Unknown release reference #999"],
     [f.bullet + "a".repeat(65_536), "inline PR body limit"],
     [f.bullet + "汉".repeat(43_000), "GitHub's body budget"],

@@ -53,7 +53,8 @@ export const unshadowedReferenceSourceRequireCalls = (
       if (start === undefined) return;
       if (
         readAncestors().some(
-          (ancestor) => t.isWithStatement(ancestor) && contains(ancestor.body, node),
+          (ancestor) =>
+            t.isWithStatement(ancestor) && contains(ancestor.body, node),
         )
       )
         return;
@@ -91,9 +92,7 @@ const isExplicitModuleSource = (path: string): boolean => {
   return false;
 };
 
-const hasUninitializedTopLevelVarRequire = (
-  program: t.Program,
-): boolean => {
+const hasUninitializedTopLevelVarRequire = (program: t.Program): boolean => {
   let found = false;
   let initialized = false;
   traverseJavaScriptAst(program, {

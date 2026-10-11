@@ -112,9 +112,7 @@ it("resolves require calls by lexical binding and source mode", async () => {
     result.value.relationships
       .filter(({ kind }) => kind === "requires")
       .map(({ from_path, to }) => [from_path, to])
-      .sort((left, right) =>
-        (left[0] ?? "").localeCompare(right[0] ?? ""),
-      ),
+      .sort((left, right) => (left[0] ?? "").localeCompare(right[0] ?? "")),
   ).toEqual([
     ["create-require-esm.mjs", "loaded.cjs"],
     ["nested.cjs", "loaded.cjs"],

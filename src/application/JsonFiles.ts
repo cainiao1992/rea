@@ -35,11 +35,14 @@ type TextWriteResult<Failure = EvidenceFileError | AnalysisCancelledError> =
 /** Read JSON data from a regular file at the caller-supplied path. */
 export const readJsonFile = async (
   path: string,
+  signal?: AbortSignal,
 ): Promise<
   Result<unknown, EvidenceFileError | AnalysisResourceConstraintError>
 > =>
-  readJsonFileInput(path, (selected) =>
-    readJsonInputFile(selected, "read_evidence_file"),
+  readJsonFileInput(
+    path,
+    (selected) => readJsonInputFile(selected, "read_evidence_file", signal),
+    signal,
   );
 
 /** Read selected JSON members through the same regular-file error boundary. */

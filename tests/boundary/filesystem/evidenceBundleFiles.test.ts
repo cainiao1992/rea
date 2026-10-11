@@ -8,7 +8,7 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
@@ -19,6 +19,8 @@ import {
 } from "../../../src/application/EvidenceBundleFiles.js";
 import { compareEvidenceBundlesCommand } from "../../../src/application/EvidenceBundleCommands.js";
 import { EvidenceLedger } from "../../../src/application/investigation/EvidenceLedger.js";
+import { RegularFileCleanupFailure } from "../../../src/application/RegularFileRead.js";
+import { OwnedFileHandle } from "../../../src/filesystem/OwnedFileHandle.js";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
 import { createEvidence } from "../../../src/domain/evidence.js";
 import { writeTextParts } from "../../../src/application/JsonFiles.js";
@@ -35,6 +37,56 @@ const bundle = (result = true) =>
       { operation: "health", parameters: {}, result },
     ),
   ]);
+
+it("returns import cancellation before inspecting a selected path", async () => {
+  const root = await createTestTempDirectory("rea-import-pre-cancel-");
+  const controller = new AbortController();
+  controller.abort(new Error("cancel before import"));
+  expect(
+    await readImmutableEvidenceBundle(
+      join(root, "missing.json"),
+      controller.signal,
+    ),
+  ).toMatchObject({
+    ok: false,
+    error: {
+      _tag: "AnalysisCancelledError",
+      operation: "import_evidence_bundle",
+    },
+  });
+  expect(await readdir(root)).toEqual([]);
+});
+
+it("preserves the failed-close owner when import is also cancelled", async () => {
+  const root = await createTestTempDirectory("rea-import-cancel-cleanup-");
+  const path = join(root, "bundle.json");
+  await writeFile(path, JSON.stringify(bundle()));
+  const controller = new AbortController();
+  const cleanupCause = new Error("fixture close failure");
+  const close = vi
+    .spyOn(OwnedFileHandle.prototype, "close")
+    .mockImplementationOnce(async () => {
+      controller.abort(new Error("cancel during cleanup"));
+      throw cleanupCause;
+    });
+  let failure: unknown;
+  try {
+    try {
+      await readImmutableEvidenceBundle(path, controller.signal);
+    } catch (cause: unknown) {
+      failure = cause;
+    }
+    expect(failure).toBeInstanceOf(RegularFileCleanupFailure);
+    if (!(failure instanceof RegularFileCleanupFailure))
+      throw new Error("Expected the retained file handle owner");
+    expect(failure.cleanupCause).toBe(cleanupCause);
+  } finally {
+    close.mockRestore();
+    if (failure instanceof RegularFileCleanupFailure)
+      await failure.owner.close();
+  }
+  expect(await readEvidenceBundle(path)).toMatchObject({ ok: true });
+});
 
 describe("evidence bundle export cancellation", () => {
   it("does not inspect the path or advance a source cancelled before writing", async () => {

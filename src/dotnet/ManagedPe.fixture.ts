@@ -1091,13 +1091,14 @@ export const buildManagedMemberPointerFixture = (
       [
         12,
         [
-          customAttributeRow(
-            attributeValue,
-            { customAttributeTypeRaw: (1 << 3) | 2 },
-            2,
-            2,
-            2,
-          ),
+          customAttributeRow({
+            value: attributeValue,
+            options: { customAttributeTypeRaw: (1 << 3) | 2 },
+            parentIndexSize: 2,
+            typeIndexSize: 2,
+            blobSize: 2,
+            row: 1,
+          }),
         ],
       ],
       [32, [assemblyRow(assemblyName, 2, 2)]],

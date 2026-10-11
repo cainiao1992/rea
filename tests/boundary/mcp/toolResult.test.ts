@@ -50,6 +50,8 @@ const contract: ToolContract = {
     accessesNetwork: false,
     changesUiState: false,
     mayDiscardData: false,
+    executesForeignCode: false,
+    mutatesDevice: false,
     idempotent: true,
   },
   annotations: {

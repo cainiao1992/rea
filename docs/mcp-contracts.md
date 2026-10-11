@@ -450,7 +450,13 @@ Tool annotations describe effects and are hints, not authorization controls
 ([MCP ToolAnnotations](https://modelcontextprotocol.io/specification/2025-06-18/schema#toolannotations)).
 `readOnlyHint` includes session state: an analysis call that records additive
 Evidence is marked non-read-only even when it leaves the target unchanged.
-`destructiveHint` describes possible data loss, not ordinary Evidence recording.
+`destructiveHint` is true when a tool may discard data (overwriting or clearing
+analyst metadata, replacing files, dropping session state), runs or drives code
+REA does not own (`executesForeignCode`: process, LLDB, Electron, browser, and
+native UI scenarios), or changes an attached Android device (`mutatesDevice`:
+push, install, uninstall, start, and stop). Ordinary Evidence recording is not
+destructive. The effect record in `binary_session` and the generated catalog
+carries each flag separately.
 Effect metadata covers possible behavior across supported inputs: DMG inventory
 can launch `hdiutil` and create an owned temporary mount directory; extraction
 creates a fresh output directory on every call. Comparing supplied web captures

@@ -216,6 +216,8 @@ export const createServer = (
     options.evmInterface ?? createEvmInterfaceService(environment);
   const webSourceLocation =
     options.webSourceLocation ?? createWebSourceLocationService(environment);
+  const webModuleTrace =
+    options.webModuleTrace ?? createWebModuleTraceService(environment);
   const javascriptRecovery =
     options.javascriptRecovery ?? createJavaScriptRecoveryProvider(environment);
   const artifactResources = new ArtifactResourceScope();
@@ -228,6 +230,7 @@ export const createServer = (
     delivery,
     evmInterface,
     webSourceLocation,
+    webModuleTrace,
     javascriptRecovery,
   };
   const startedAt = new Date().toISOString();
@@ -257,6 +260,7 @@ export const createServer = (
       adbDevice.close(),
       evmInterface.close(),
       webSourceLocation.close(),
+      webModuleTrace.close(),
       javascriptRecovery.close?.() ?? Promise.resolve(),
       artifactResources.close(),
       firmwareAnalysis.close(),

@@ -361,6 +361,43 @@ it("does not attach to a target outside the request's allowed origin scope", asy
   expect(browser.commands).toHaveLength(0);
 });
 
+it("projects legal oversized PNG dimensions as a memory constraint", async () => {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(0x7fffffff, 0);
+  header.writeUInt32BE(1, 4);
+  header.set([8, 6, 0, 0, 0], 8);
+  const artifact = createWebScreenshotArtifact(
+    Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      pngChunk("IHDR", header),
+      pngChunk("IDAT", deflateSync(Buffer.from([0]))),
+      pngChunk("IEND", Buffer.alloc(0)),
+    ]),
+  );
+  const connected = await connectBrowser();
+  const result = await connected.client.callTool({
+    name: "compare_web_screenshots",
+    arguments: { before: artifact, after: artifact },
+  });
+
+  expect(parseMcpToolError(result)).toMatchObject({
+    error: {
+      code: "resource_constraint",
+      category: "resource_constraint",
+      details: {
+        operation: "compare_web_screenshots",
+        resource: "memory",
+        reported_limits: {
+          maximum_working_memory_bytes: 256 * 1024 * 1024,
+          estimated_working_memory_bytes: "34359738499",
+          before_dimensions: { width: 0x7fffffff, height: 1 },
+          after_dimensions: { width: 0x7fffffff, height: 1 },
+        },
+      },
+    },
+  });
+});
+
 const connectBrowser = async () => {
   const session = createTestBinarySession(() => ({
     execute: () => Promise.resolve(observed(null)),

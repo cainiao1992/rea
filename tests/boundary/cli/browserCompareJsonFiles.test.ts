@@ -197,4 +197,39 @@ const assertPngInputErrorProjections = async (): Promise<void> => {
     code: "unsupported_target",
     details: { operation: "compare_web_screenshots" },
   });
+
+  const oversizedHeader = Buffer.alloc(13);
+  oversizedHeader.writeUInt32BE(0x7fffffff, 0);
+  oversizedHeader.writeUInt32BE(1, 4);
+  oversizedHeader.set([8, 6, 0, 0, 0], 8);
+  const hugeDimensions = JSON.stringify(
+    createWebScreenshotArtifact(
+      Buffer.concat([
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        pngChunk("IHDR", oversizedHeader),
+        pngChunk("IDAT", deflateSync(Buffer.from([0]))),
+        pngChunk("IEND", Buffer.alloc(0)),
+      ]),
+    ),
+  );
+  expect(
+    await runCli([
+      "compare-web-screenshots",
+      hugeDimensions,
+      hugeDimensions,
+      "--json",
+    ]),
+  ).toMatchObject({
+    code: "resource_constraint",
+    details: {
+      operation: "compare_web_screenshots",
+      resource: "memory",
+      reported_limits: {
+        maximum_working_memory_bytes: 256 * 1024 * 1024,
+        estimated_working_memory_bytes: "34359738499",
+        before_dimensions: { width: 0x7fffffff, height: 1 },
+        after_dimensions: { width: 0x7fffffff, height: 1 },
+      },
+    },
+  });
 };

@@ -1,11 +1,14 @@
-import { crc32, inflateSync } from "node:zlib";
+import { constants as zlibConstants, crc32, inflateSync } from "node:zlib";
 
 import type {
   CompareWebScreenshotsInput,
   WebScreenshotArtifact,
   WebScreenshotDiff,
 } from "../domain/webScreenshot.js";
-import { AnalysisUnsupportedTargetError } from "../domain/analysisErrorCore.js";
+import {
+  AnalysisResourceConstraintError,
+  AnalysisUnsupportedTargetError,
+} from "../domain/analysisErrorCore.js";
 import { decodeCanonicalBase64 } from "../domain/webScreenshot.js";
 
 interface DecodedPng {
@@ -14,12 +17,32 @@ interface DecodedPng {
   readonly rgba: Buffer;
 }
 
+interface ParsedPng {
+  readonly bytes: Buffer;
+  readonly width: number;
+  readonly height: number;
+  readonly channels: number;
+  readonly compressed: readonly Buffer[];
+  readonly transparentColor: readonly number[] | undefined;
+  readonly expectedRawBytes: bigint;
+  readonly unfilteredBytes: bigint;
+  readonly rgbaBytes: bigint;
+}
+
+/** Conservative allowance for the simultaneously live PNG comparison buffers. */
+const PNG_COMPARISON_WORKING_MEMORY_BYTES = 256 * 1024 * 1024;
+const PNG_INFLATE_CHUNK_BYTES = zlibConstants.Z_DEFAULT_CHUNK;
+
 /** Compare two validated screenshots using deterministic RGBA metrics. */
 export const comparePngScreenshots = (
   input: CompareWebScreenshotsInput,
 ): WebScreenshotDiff => {
-  const before = decodePng(input.before, "before");
-  const after = decodePng(input.after, "after");
+  admitEncodedInputPair(input.before, input.after);
+  const beforePlan = parsePng(input.before, "before");
+  const afterPlan = parsePng(input.after, "after");
+  admitPngPair(beforePlan, afterPlan);
+  const before = decodePng(beforePlan);
+  const after = decodePng(afterPlan);
   if (before.width !== after.width || before.height !== after.height)
     return {
       status: "dimension_mismatch",
@@ -74,10 +97,10 @@ export const comparePngScreenshots = (
   };
 };
 
-const decodePng = (
+const parsePng = (
   artifact: WebScreenshotArtifact,
   field: "before" | "after",
-): DecodedPng => {
+): ParsedPng => {
   const bytes = decodeCanonicalBase64(artifact.data_base64);
   if (bytes === undefined || !bytes.subarray(0, 8).equals(PNG_SIGNATURE))
     throw new TypeError("Invalid PNG signature");
@@ -180,24 +203,136 @@ const decodePng = (
       field,
       "PNG encoding is not supported for pixel comparison.",
     );
-  const rowBytes = header.width * header.channels;
-  const expected = (rowBytes + 1) * header.height;
-  const raw = inflatePng(Buffer.concat(compressed), expected + 1);
-  if (raw.byteLength !== expected) throw new TypeError("Unexpected PNG size");
+  const pixels = BigInt(header.width) * BigInt(header.height);
+  const expectedRawBytes =
+    (BigInt(header.width) * BigInt(header.channels) + 1n) *
+    BigInt(header.height);
   return {
+    bytes,
     width: header.width,
     height: header.height,
+    channels: header.channels,
+    compressed,
+    transparentColor,
+    expectedRawBytes,
+    unfilteredBytes: pixels * BigInt(header.channels),
+    rgbaBytes: pixels * 4n,
+  };
+};
+
+const decodePng = (plan: ParsedPng): DecodedPng => {
+  const expected = Number(plan.expectedRawBytes);
+  const raw = inflatePng(Buffer.concat(plan.compressed), expected + 1);
+  if (raw.byteLength !== expected) throw new TypeError("Unexpected PNG size");
+  return {
+    width: plan.width,
+    height: plan.height,
     rgba: expandRgba(
-      unfilter(raw, header.width, header.height, header.channels),
-      header.channels,
-      transparentColor,
+      unfilter(raw, plan.width, plan.height, plan.channels),
+      plan.channels,
+      plan.transparentColor,
     ),
   };
 };
 
+const admitEncodedInputPair = (
+  before: WebScreenshotArtifact,
+  after: WebScreenshotArtifact,
+): void => {
+  const sourceBytes = BigInt(before.bytes) + BigInt(after.bytes);
+  if (sourceBytes > BigInt(PNG_COMPARISON_WORKING_MEMORY_BYTES))
+    throw pngWorkingMemoryError(sourceBytes, null, null);
+};
+
+const admitPngPair = (before: ParsedPng, after: ParsedPng): void => {
+  // Input buffers remain live for both plans. For each decode, count the
+  // concatenated IDAT, rounded zlib output chunks, any concatenated output and
+  // unfiltered rows, plus RGB-to-RGBA output. The first completed RGBA image
+  // remains live while the second is decoded.
+  const inputBytes = BigInt(before.bytes.byteLength + after.bytes.byteLength);
+  const estimate = (current: ParsedPng, retained: ParsedPng | undefined) => {
+    const compressedBytes = current.compressed.reduce(
+      (total, chunk) => total + BigInt(chunk.byteLength),
+      0n,
+    );
+    const rgbaExpansion = current.channels === 3 ? current.rgbaBytes : 0n;
+    return (
+      inputBytes +
+      (retained?.rgbaBytes ?? 0n) +
+      compressedBytes +
+      inflateBufferAllowance(current.expectedRawBytes) +
+      current.unfilteredBytes +
+      rgbaExpansion
+    );
+  };
+  const estimateBytes = [
+    estimate(before, undefined),
+    estimate(after, before),
+  ].reduce((maximum, value) => (value > maximum ? value : maximum), 0n);
+  if (estimateBytes > BigInt(PNG_COMPARISON_WORKING_MEMORY_BYTES))
+    throw pngWorkingMemoryError(estimateBytes, before, after);
+};
+
+const inflateBufferAllowance = (expectedRawBytes: bigint): bigint => {
+  const chunkBytes = BigInt(PNG_INFLATE_CHUNK_BYTES);
+  const maximumOutputBytes = expectedRawBytes + 1n;
+  const roundUpToChunk = (bytes: bigint): bigint =>
+    ((bytes + chunkBytes - 1n) / chunkBytes) * chunkBytes;
+
+  // Node checks maxOutputLength after writing a chunk, so a rejected stream can
+  // retain one chunk's worth of output past the limit before it throws.
+  const rejectedOutputChunks = roundUpToChunk(
+    maximumOutputBytes + chunkBytes - 1n,
+  );
+
+  // Sync zlib retains each output chunk while Buffer.concat creates the final
+  // result. A full final chunk also allocates the next scratch chunk first.
+  const returnedOutputChunks = roundUpToChunk(maximumOutputBytes);
+  const scratchChunk =
+    expectedRawBytes % chunkBytes === 0n ||
+    maximumOutputBytes % chunkBytes === 0n
+      ? chunkBytes
+      : 0n;
+  const concatenatedOutput =
+    maximumOutputBytes > chunkBytes ? maximumOutputBytes : 0n;
+  const returnedOutput =
+    returnedOutputChunks + scratchChunk + concatenatedOutput;
+
+  return rejectedOutputChunks > returnedOutput
+    ? rejectedOutputChunks
+    : returnedOutput;
+};
+
+const pngWorkingMemoryError = (
+  estimateBytes: bigint,
+  before: Pick<ParsedPng, "width" | "height"> | null,
+  after: Pick<ParsedPng, "width" | "height"> | null,
+) =>
+  new AnalysisResourceConstraintError(
+    "compare_web_screenshots",
+    "memory",
+    "Screenshot comparison exceeds REA's 256 MiB estimated working-memory budget.",
+    {
+      boundary: "png-screenshot-comparison",
+      estimated_working_memory_bytes: estimateBytes.toString(),
+      maximum_working_memory_bytes: PNG_COMPARISON_WORKING_MEMORY_BYTES,
+      before_dimensions:
+        before === null ? null : { width: before.width, height: before.height },
+      after_dimensions:
+        after === null ? null : { width: after.width, height: after.height },
+    },
+    {
+      remediationAction:
+        "Compare smaller screenshots or reduce their viewport dimensions before capture.",
+    },
+  );
+
 const inflatePng = (compressed: Buffer, maxOutputLength: number): Buffer => {
   try {
-    return inflateSync(compressed, { maxOutputLength });
+    return inflateSync(compressed, {
+      maxOutputLength,
+      chunkSize: PNG_INFLATE_CHUNK_BYTES,
+    });
   } catch (cause: unknown) {
     if (
       cause instanceof Error &&
@@ -217,8 +352,6 @@ const parseHeader = (data: Buffer) => {
   const height = data.readUInt32BE(4);
   const bitDepth = data[8] ?? 0;
   const colorType = data[9] ?? -1;
-  const safePixelCount =
-    BigInt(width) * BigInt(height) <= BigInt(Number.MAX_SAFE_INTEGER);
   const validDepth =
     (colorType === 0 && [1, 2, 4, 8, 16].includes(bitDepth)) ||
     (colorType === 2 && [8, 16].includes(bitDepth)) ||
@@ -244,10 +377,7 @@ const parseHeader = (data: Buffer) => {
     interlace: data[12],
     channels: colorType === 6 ? 4 : 3,
     supported:
-      safePixelCount &&
-      bitDepth === 8 &&
-      (colorType === 2 || colorType === 6) &&
-      data[12] === 0,
+      bitDepth === 8 && (colorType === 2 || colorType === 6) && data[12] === 0,
   };
 };
 

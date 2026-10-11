@@ -3,7 +3,10 @@ import { crc32, deflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 
 import { comparePngScreenshots } from "./PngVisualDiff.js";
-import { AnalysisUnsupportedTargetError } from "../domain/analysisErrorCore.js";
+import {
+  AnalysisResourceConstraintError,
+  AnalysisUnsupportedTargetError,
+} from "../domain/analysisErrorCore.js";
 import {
   compareWebScreenshotsInputSchema,
   createWebScreenshotArtifact,
@@ -118,7 +121,7 @@ describe("PNG visual diff", () => {
   });
 
   it("rejects malformed PNG dimensions after validating image data", () => {
-    const image = artifact(32_000_001, 1, [0, 0, 0, 255]);
+    const image = artifact(2, 1, [0, 0, 0, 255]);
     expect(() =>
       comparePngScreenshots(
         compareWebScreenshotsInputSchema.parse({
@@ -147,6 +150,32 @@ describe("PNG visual diff", () => {
         compared_pixels: 2,
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("PNG comparison memory budget", () => {
+  it("classifies legal huge dimensions as a memory constraint before inflate", () => {
+    const image = createWebScreenshotArtifact(headerOnlyPng(0x7fffffff, 1));
+    const input = compareWebScreenshotsInputSchema.parse({
+      before: image,
+      after: image,
+    });
+
+    try {
+      comparePngScreenshots(input);
+      throw new Error("expected PNG working-memory rejection");
+    } catch (cause: unknown) {
+      expect(cause).toBeInstanceOf(AnalysisResourceConstraintError);
+      expect(cause).toMatchObject({
+        resource: "memory",
+        reportedLimits: {
+          maximum_working_memory_bytes: 256 * 1024 * 1024,
+          estimated_working_memory_bytes: "34359738499",
+          before_dimensions: { width: 0x7fffffff, height: 1 },
+          after_dimensions: { width: 0x7fffffff, height: 1 },
+        },
+      });
+    }
   });
 });
 
@@ -394,6 +423,19 @@ const png = (
     Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
     chunk("IHDR", header),
     chunk("IDAT", deflateSync(Buffer.from(rows))),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+};
+
+const headerOnlyPng = (width: number, height: number): Buffer => {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 6, 0, 0, 0], 8);
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk("IHDR", header),
+    chunk("IDAT", deflateSync(Buffer.from([0]))),
     chunk("IEND", Buffer.alloc(0)),
   ]);
 };

@@ -24,6 +24,29 @@ REA can attach to a user-owned Chrome-family browser through the Chrome DevTools
 
 Target discovery returns the complete in-scope target array in one result.
 
+## Screenshot comparison memory budget
+
+`compare_web_screenshots` admits both PNGs against a 256 MiB estimated
+working-memory budget before inflating either image. This is a processing
+buffer budget for this operation, not a PNG dimension limit, CDP transport
+limit, or process RSS guarantee. Header-valid dimensions that exceed the
+budget return `resource_constraint` with `details.resource: "memory"` and the
+estimated and maximum working-set bytes. Invalid PNG structure remains
+malformed input; encodings outside supported pixel-comparison coverage remain
+unsupported-target errors.
+
+The conservative estimate includes the two decoder-owned decoded input
+buffers, the current image's concatenated IDAT buffer, Node zlib's default
+16 KiB output chunk backing rounded up for retained chunks, the concatenated
+inflate result while its output chunks are retained, one possible extra output
+chunk before zlib checks `maxOutputLength`, unfiltered scanline storage,
+RGB-to-RGBA expansion, and the first retained RGBA image while the second is
+decoded. RGBA output aliases its unfiltered buffer and is counted once.
+Admission uses checked integer arithmetic before image-sized allocation.
+Caller-owned JSON/base64 strings, input parsing and validation, transport
+buffers, garbage-collector behavior, and other runtime memory are outside this
+estimate; the budget does not promise a bound on total process memory.
+
 Electron `file://` pages use a separate provider and target boundary; see [electron-observation.md](electron-observation.md).
 
 ## Provider authorities

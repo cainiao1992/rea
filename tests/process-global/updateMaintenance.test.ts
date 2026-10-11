@@ -1,9 +1,9 @@
 import { mkdir, readFile, rm, writeFile, access } from "node:fs/promises";
-import { delimiter, dirname, join, resolve } from "node:path";
+import { delimiter, dirname, join, relative, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { err, ok } from "../../src/domain/result.js";
-import { runUpdate } from "../../src/application/Update.js";
+import { runUpdate, type UpdateResult } from "../../src/application/Update.js";
 import { PRODUCT_IDENTITY } from "../../src/identity.js";
 import { supportedClients } from "../../src/application/SupportedClients.js";
 import {
@@ -375,14 +375,15 @@ describe("update subprocess boundaries", () => {
 
 describe("Bun global installation update", () => {
   it.each([
-    ["1.4.2", "updated"],
-    ["1.2.17", "updated"],
-    ["1.2.14", "failed"],
-    ["1.2.17-canary.1", "failed"],
-    ["unknown", "failed"],
+    ["1.4.2", "updated", "absolute"],
+    ["1.2.17", "updated", "absolute"],
+    ["1.2.17", "updated", "relative"],
+    ["1.2.14", "failed", "absolute"],
+    ["1.2.17-canary.1", "failed", "absolute"],
+    ["unknown", "failed", "absolute"],
   ])(
-    "handles Bun %s with outcome %s inside its global project",
-    async (bunVersion, status) => {
+    "handles Bun %s with outcome %s using %s global-directory configuration",
+    async (bunVersion, status, directoryMode) => {
       // A recording `bun` on PATH crosses the real subprocess boundary without registry access.
       const root = await createTestTempDirectory("rea-update-bun-");
       const globalDirectory = join(root, "bun", "install", "global");
@@ -440,12 +441,21 @@ describe("Bun global installation update", () => {
         BUN_INSTALL: join(root, "bun"),
       };
       delete environment.BUN_INSTALL_GLOBAL_DIR;
+      if (directoryMode === "relative")
+        environment.BUN_INSTALL_GLOBAL_DIR = relative(root, globalDirectory);
 
-      const result = await runUpdate(
-        "3.2.1",
-        systemUpdateHost(packageRoot, home, environment),
-        "structured",
-      );
+      const callerDirectory = process.cwd();
+      let result: UpdateResult;
+      try {
+        process.chdir(root);
+        result = await runUpdate(
+          "3.2.1",
+          systemUpdateHost(packageRoot, home, environment),
+          "structured",
+        );
+      } finally {
+        process.chdir(callerDirectory);
+      }
 
       const invocations = (await readFile(logPath, "utf8"))
         .trim()

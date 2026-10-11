@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -413,17 +413,17 @@ describe("Bun installation ownership", () => {
   it("follows Bun's global directory precedence", () => {
     const home = { HOME: "/home/user" };
     expect(bunGlobalDirectory(home, "linux")).toBe(
-      join("/home/user", ".bun", "install", "global"),
+      resolve("/home/user", ".bun", "install", "global"),
     );
     expect(
       bunGlobalDirectory({ ...home, XDG_CACHE_HOME: "/cache" }, "linux"),
-    ).toBe(join("/cache", ".bun", "install", "global"));
+    ).toBe(resolve("/cache", ".bun", "install", "global"));
     expect(
       bunGlobalDirectory(
         { ...home, XDG_CACHE_HOME: "/cache", BUN_INSTALL: "/opt/bun" },
         "linux",
       ),
-    ).toBe(join("/opt/bun", "install", "global"));
+    ).toBe(resolve("/opt/bun", "install", "global"));
     expect(
       bunGlobalDirectory(
         {
@@ -433,12 +433,22 @@ describe("Bun installation ownership", () => {
         },
         "linux",
       ),
-    ).toBe("/srv/bun-global");
+    ).toBe(resolve("/srv/bun-global"));
+    const profile = resolve("profile");
     expect(
       bunGlobalDirectory(
-        { USERPROFILE: "C:\\Users\\user", HOME: "/c/Users/user" },
+        { USERPROFILE: profile, HOME: resolve("other-home") },
         "win32",
       ),
-    ).toBe(join("C:\\Users\\user", ".bun", "install", "global"));
+    ).toBe(join(profile, ".bun", "install", "global"));
+  });
+
+  it("resolves relative installation and cache roots before appending the global layout", () => {
+    expect(bunGlobalDirectory({ BUN_INSTALL: "bun" }, "linux")).toBe(
+      resolve("bun", "install", "global"),
+    );
+    expect(bunGlobalDirectory({ XDG_CACHE_HOME: "cache" }, "linux")).toBe(
+      resolve("cache", ".bun", "install", "global"),
+    );
   });
 });

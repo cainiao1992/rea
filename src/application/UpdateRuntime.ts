@@ -141,19 +141,21 @@ const nonemptyEnvironment = (value: string | undefined): string | undefined =>
  * Bun's global project directory for the selected environment, in Bun's precedence:
  * BUN_INSTALL_GLOBAL_DIR, then $BUN_INSTALL/install/global, then
  * $XDG_CACHE_HOME/.bun/install/global, then ~/.bun/install/global.
+ * Resolve against the caller's cwd before reusing the path as a subprocess cwd.
  */
 export const bunGlobalDirectory = (
   environment: Readonly<NodeJS.ProcessEnv>,
   platform: NodeJS.Platform,
 ): string => {
   const explicit = nonemptyEnvironment(environment.BUN_INSTALL_GLOBAL_DIR);
-  if (explicit !== undefined) return explicit;
+  if (explicit !== undefined) return resolve(explicit);
   const installRoot = nonemptyEnvironment(environment.BUN_INSTALL);
-  if (installRoot !== undefined) return join(installRoot, "install", "global");
+  if (installRoot !== undefined)
+    return resolve(installRoot, "install", "global");
   const cacheRoot =
     nonemptyEnvironment(environment.XDG_CACHE_HOME) ??
     homeDirectoryFromEnvironment(environment, platform);
-  return join(cacheRoot, ".bun", "install", "global");
+  return resolve(cacheRoot, ".bun", "install", "global");
 };
 
 /**

@@ -1,4 +1,5 @@
 import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
+import { binaryTargetSummary } from "./BinaryTargetSummary.js";
 import type { JsonValue } from "../../domain/jsonValue.js";
 import type { ProviderOperationHealth } from "../../domain/providerOperationHealth.js";
 import type {
@@ -92,11 +93,7 @@ export const binarySessionStatus = ({
     : {
         open: true,
         ...common,
-        path: target.path,
-        sha256: target.sha256,
-        format: target.format,
-        kind: target.kind,
-        architecture: target.architecture ?? null,
+        ...binaryTargetSummary(target),
       };
 };
 

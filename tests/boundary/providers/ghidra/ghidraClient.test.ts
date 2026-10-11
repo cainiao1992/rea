@@ -12,6 +12,7 @@ import type { ProgressUpdate } from "../../../../src/application/ProgressReporte
 
 import { ok } from "../../../../src/domain/result.js";
 import { GhidraClient } from "../../../../src/ghidra/GhidraClient.js";
+import { OwnedFileHandle } from "../../../../src/filesystem/OwnedFileHandle.js";
 import { GHIDRA_PROCESS_DIAGNOSTIC_BYTES } from "../../../../src/ghidra/GhidraDiagnostics.js";
 import { GhidraHeadlessLauncher } from "../../../../src/ghidra/GhidraLauncher.js";
 import type { GhidraDiagnostic } from "../../../../src/ghidra/GhidraClientTypes.js";
@@ -122,12 +123,14 @@ const clientFor = (
     readonly transport?: GhidraTransportKind;
     readonly runId?: string;
     readonly logger?: Logger;
+    readonly targetPath?: string;
+    readonly targetSha256?: string;
   } = {},
 ): GhidraClient => {
   const client = new GhidraClient({
     launcher,
-    targetPath: fixturePath,
-    targetSha256: TARGET_SHA256,
+    targetPath: options.targetPath ?? fixturePath,
+    targetSha256: options.targetSha256 ?? TARGET_SHA256,
     transport: options.transport ?? HOST_TRANSPORT,
     providerVersion: PROVIDER_VERSION,
     profileDigest: PROFILE_DIGEST,
@@ -223,6 +226,80 @@ it("keeps one shared startup despite a failed progress sink and stops reports af
 });
 
 describe("GhidraClient captured source snapshot", () => {
+  it("retains a snapshot descriptor whose close failed until session cleanup succeeds", async () => {
+    const client = clientFor(new FixtureLauncher());
+    const started = await client.start();
+    if (!started.ok) throw started.error;
+    const close = vi
+      .spyOn(OwnedFileHandle.prototype, "close")
+      .mockRejectedValueOnce(new Error("snapshot descriptor close failed"));
+    try {
+      await expect(client.hashTargetSnapshot()).resolves.toMatchObject({
+        ok: false,
+        error: { kind: "protocol" },
+      });
+      const owner = close.mock.contexts[0];
+      expect(owner).toBeInstanceOf(OwnedFileHandle);
+      const closed = await client.close();
+      if (!closed.ok) throw closed.error;
+      expect(
+        close.mock.contexts.filter((context) => context === owner),
+      ).toHaveLength(2);
+    } finally {
+      close.mockRestore();
+    }
+  });
+
+  it("hashes complete private snapshots with bounded chunks and abortable reads", async () => {
+    const root = await createTestTempDirectory("rea-ghidra-hash-");
+    const source = join(root, "firmware.bin");
+    const bytes = Buffer.alloc(512 * 1024 + 3, 0xa5);
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    await writeFile(source, bytes);
+    const client = clientFor(new FixtureLauncher(), {
+      targetPath: source,
+      targetSha256: sha256,
+    });
+    await expect(client.hashTargetSnapshot()).resolves.toMatchObject({
+      ok: false,
+      error: { kind: "protocol" },
+    });
+    const started = await client.start();
+    if (!started.ok) throw started.error;
+    // Observe the admitted private snapshot even if the original path changes.
+    await writeFile(source, "changed original");
+    const allocate = Buffer.allocUnsafe;
+    const allocations = vi.spyOn(Buffer, "allocUnsafe");
+    try {
+      const identity = await client.hashTargetSnapshot();
+      if (!identity.ok) throw identity.error;
+      expect(identity.value).toEqual({ sha256, bytes: bytes.length });
+      expect(allocations.mock.calls.length).toBeGreaterThan(1);
+      expect(
+        Math.max(...allocations.mock.calls.map(([size]) => size)),
+      ).toBeLessThan(bytes.length);
+      const controller = new AbortController();
+      allocations.mockImplementationOnce((size) => {
+        controller.abort();
+        return allocate(size);
+      });
+      await expect(
+        client.hashTargetSnapshot(controller.signal),
+      ).resolves.toMatchObject({ ok: false, error: { kind: "cancelled" } });
+    } finally {
+      allocations.mockRestore();
+    }
+    await expect(client.hashTargetSnapshot()).resolves.toMatchObject({
+      ok: true,
+      value: { sha256, bytes: bytes.length },
+    });
+    await client.close();
+    await expect(client.hashTargetSnapshot()).resolves.toMatchObject({
+      ok: false,
+      error: { kind: "protocol" },
+    });
+  });
+
   it("exposes the immutable import snapshot only during the live session", async () => {
     const client = clientFor(new FixtureLauncher());
     await expect(client.readTargetSnapshot()).resolves.toMatchObject({

@@ -793,6 +793,14 @@ truncation constraint, while leading-zero coordinates still resolve correctly.
 It has the same Ghidra/JDK prerequisites as the MZ lane. Neither lane claims DOS
 runtime or PC-98 device execution.
 
+`npm run verify:ghidra:raw` uses a generated ARM little-endian headerless image
+through the compiled CLI and stdio MCP server. With the same Ghidra/JDK
+prerequisites, it checks preparation and bridge startup, verified load mappings,
+instruction and byte readback, canonical-entry session reuse, replacement when
+the entry changes without `provider_id`, unchanged source bytes, and owned
+cleanup. Other raw CPU families remain covered by deterministic tests rather
+than this real-provider lane. See [raw binary analysis](raw-binary.md).
+
 ## Apple Interface Builder archives
 
 `npm run verify:interface-builder` compiles the source-owned AppKit XIB into a

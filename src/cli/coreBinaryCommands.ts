@@ -8,9 +8,8 @@ import { CLI_COMMANDS } from "../cliCommandNames.js";
 import { logCliCommand } from "../cliLogging.js";
 import type { Logger } from "pino";
 import {
-  directAnalysisOptions,
-  formatSelectionOption,
-  providerSelectionOption,
+  directAnalysisOptionsFromCli,
+  nativeOpenOptionFields,
 } from "./options.js";
 import type { CliInstance } from "./types.js";
 import { runCliJavaScriptApplicationAnalysis } from "./javascriptApplicationAnalysis.js";
@@ -43,8 +42,7 @@ const registerOverviewCommands = (
       .min(1)
       .optional()
       .describe("Load and update a local analysis snapshot"),
-    "target-format": formatSelectionOption,
-    provider: providerSelectionOption,
+    ...nativeOpenOptionFields,
   });
   cli.command(CLI_COMMANDS.analyze, {
     description: "Get an overview of an app",
@@ -75,12 +73,7 @@ const registerOverviewCommands = (
           args.path,
           "binary_overview",
           {},
-          directAnalysisOptions(
-            logger,
-            options.snapshot,
-            options.provider,
-            options["target-format"],
-          ),
+          directAnalysisOptionsFromCli(logger, options),
         ),
       );
     },
@@ -97,12 +90,7 @@ const registerOverviewCommands = (
           args.path,
           "binary_overview",
           {},
-          directAnalysisOptions(
-            logger,
-            options.snapshot,
-            options.provider,
-            options["target-format"],
-          ),
+          directAnalysisOptionsFromCli(logger, options),
         ),
       ),
   });
@@ -136,8 +124,7 @@ const registerDecompileCommand = (
         .min(1)
         .optional()
         .describe("Load and update a local analysis snapshot"),
-      "target-format": formatSelectionOption,
-      provider: providerSelectionOption,
+      ...nativeOpenOptionFields,
     }),
     run: ({ args, options }) =>
       logCliCommand(logger, "decompile", () =>
@@ -152,12 +139,7 @@ const registerDecompileCommand = (
               "procedure_pseudo_code",
             ),
           },
-          directAnalysisOptions(
-            logger,
-            options.snapshot,
-            options.provider,
-            options["target-format"],
-          ),
+          directAnalysisOptionsFromCli(logger, options),
         ),
       ),
   });
@@ -168,13 +150,17 @@ const routesToJavaScriptAnalysis = async (
   path: string,
   options: {
     readonly snapshot?: string | undefined;
-    readonly "target-format"?: "dos-com" | undefined;
+    readonly "target-format"?: "dos-com" | "raw-binary" | undefined;
+    readonly architecture?: string | undefined;
+    readonly "entry-point"?: string | undefined;
     readonly provider?: string | undefined;
   },
 ): Promise<boolean> =>
   options.provider === undefined &&
   options.snapshot === undefined &&
   options["target-format"] === undefined &&
+  options.architecture === undefined &&
+  options["entry-point"] === undefined &&
   (await isJavaScriptApplicationPath(path));
 
 const isJavaScriptApplicationPath = async (path: string): Promise<boolean> => {
@@ -215,8 +201,7 @@ const registerXrefsCommand = (
         .min(1)
         .optional()
         .describe("Load and update a local analysis snapshot"),
-      "target-format": formatSelectionOption,
-      provider: providerSelectionOption,
+      ...nativeOpenOptionFields,
     }),
     run: ({ args, options }) =>
       logCliCommand(logger, "xrefs", () =>
@@ -231,12 +216,7 @@ const registerXrefsCommand = (
               "xrefs",
             ),
           },
-          directAnalysisOptions(
-            logger,
-            options.snapshot,
-            options.provider,
-            options["target-format"],
-          ),
+          directAnalysisOptionsFromCli(logger, options),
         ),
       ),
   });
@@ -270,8 +250,7 @@ const registerTraceCommand = (
         .min(1)
         .optional()
         .describe("Load and update a local analysis snapshot"),
-      "target-format": formatSelectionOption,
-      provider: providerSelectionOption,
+      ...nativeOpenOptionFields,
     }),
     run: ({ args, options }) =>
       logCliCommand(logger, "trace", () =>
@@ -287,12 +266,7 @@ const registerTraceCommand = (
             ),
             case_sensitive: options.caseSensitive,
           },
-          directAnalysisOptions(
-            logger,
-            options.snapshot,
-            options.provider,
-            options["target-format"],
-          ),
+          directAnalysisOptionsFromCli(logger, options),
         ),
       ),
   });
@@ -326,8 +300,7 @@ const registerFunctionCommand = (
         .min(1)
         .optional()
         .describe("Load and update a local analysis snapshot"),
-      "target-format": formatSelectionOption,
-      provider: providerSelectionOption,
+      ...nativeOpenOptionFields,
     }),
     run: ({ args, options }) =>
       logCliCommand(logger, "function", () =>
@@ -342,12 +315,7 @@ const registerFunctionCommand = (
               "analyze_function",
             ),
           },
-          directAnalysisOptions(
-            logger,
-            options.snapshot,
-            options.provider,
-            options["target-format"],
-          ),
+          directAnalysisOptionsFromCli(logger, options),
         ),
       ),
   });
@@ -381,8 +349,7 @@ const registerInstructionsCommand = (
         .min(1)
         .optional()
         .describe("Load and update a local analysis snapshot"),
-      "target-format": formatSelectionOption,
-      provider: providerSelectionOption,
+      ...nativeOpenOptionFields,
     }),
     run: ({ args, options }) =>
       logCliCommand(logger, CLI_COMMANDS.instructions, () =>
@@ -397,12 +364,7 @@ const registerInstructionsCommand = (
               "read_function_instructions",
             ),
           },
-          directAnalysisOptions(
-            logger,
-            options.snapshot,
-            options.provider,
-            options["target-format"],
-          ),
+          directAnalysisOptionsFromCli(logger, options),
         ),
       ),
   });
@@ -448,8 +410,7 @@ const registerSearchCommand = (
         .min(1)
         .optional()
         .describe("Load and update a local analysis snapshot"),
-      "target-format": formatSelectionOption,
-      provider: providerSelectionOption,
+      ...nativeOpenOptionFields,
     }),
     run: ({ args, options }) =>
       logCliCommand(logger, "search", () =>
@@ -468,12 +429,7 @@ const registerSearchCommand = (
             mode: options.mode,
             case_sensitive: options.caseSensitive,
           },
-          directAnalysisOptions(
-            logger,
-            options.snapshot,
-            options.provider,
-            options["target-format"],
-          ),
+          directAnalysisOptionsFromCli(logger, options),
         ),
       ),
   });

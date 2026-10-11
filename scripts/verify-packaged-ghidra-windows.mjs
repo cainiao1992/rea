@@ -177,6 +177,7 @@ const scriptCollisions = [
   "ReaGhidraPrepareCom.java",
   "ReaGhidraApplySeeds.java",
   "ReaGhidraNoReturnFix.java",
+  "ReaGhidraPrepareRaw.java",
 ];
 await mkdir(callerDirectory);
 for (const name of scriptCollisions) await mkdir(join(callerDirectory, name));

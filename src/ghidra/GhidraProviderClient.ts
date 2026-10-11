@@ -87,12 +87,18 @@ import {
   windowsNativeAuthorityUnavailableReason,
   hasWindowsNativeAuthority,
 } from "../process/WindowsAuthority.js";
+import { ghidraRawBinaryLanguage } from "./GhidraRawBinaryLanguage.js";
 
 /** Production seam for exercising provider projection without a real process. */
 export type GhidraProviderClientFactory = (
   options: GhidraClientOptions,
 ) => Pick<GhidraClient, "start" | "callTool" | "close"> &
-  Partial<Pick<GhidraClient, "runtimeLineage" | "readTargetSnapshot">>;
+  Partial<
+    Pick<
+      GhidraClient,
+      "runtimeLineage" | "readTargetSnapshot" | "hashTargetSnapshot"
+    >
+  >;
 
 type GhidraProviderClientInstance = ReturnType<GhidraProviderClientFactory>;
 
@@ -440,11 +446,22 @@ export const createGhidraProviderClient = (input: {
   let extensionFailure: AnalysisError | undefined;
   // Replaced by the reported outcome once the session handshake is checked.
   const seedLimitations: string[] = [...ghidraSeedLimitations(seeds)];
+  const rawLanguage =
+    target.format === "raw-binary"
+      ? ghidraRawBinaryLanguage(target.architecture)
+      : undefined;
   const targetLimitations = [
     ...(target.format === "dos-mz"
       ? [
           "DOS MZ uses 16-bit x86 real mode with the Ghidra load segment 0x1000. Returned addresses are linear byte coordinates; they do not identify a unique segment:offset alias.",
           "Static DOS analysis does not emulate BIOS, DOS interrupts, device ports, or self-modifying unpacking code. Packed targets require a separately identified unpacked artifact for original-program analysis; appended overlays are not the initialized load module.",
+        ]
+      : []),
+    ...(target.format === "raw-binary"
+      ? [
+          "Headerless raw-binary analysis uses the caller-supplied architecture and entry address; file offset 0 is mapped at that address. Headers are not discovered from file bytes.",
+          "Little-endian generic Ghidra languages are used for x86, x86_64, arm, and arm64. Big-endian, Thumb-only, Cortex-M, and other processor variants are unsupported in this increment.",
+          "Static analysis does not emulate reset vectors, memory-mapped I/O, or firmware boot sequences.",
         ]
       : []),
     ...(target.kind === "executable" && target.architecture === "mips"
@@ -474,6 +491,15 @@ export const createGhidraProviderClient = (input: {
         : {}),
       ...(target.format === "dos-mz" ? { dosMz: true } : {}),
       ...(target.format === "dos-com" ? { dosCom: true } : {}),
+      ...(rawLanguage === undefined || target.format !== "raw-binary"
+        ? {}
+        : {
+            rawBinary: {
+              languageId: rawLanguage.languageId,
+              compilerSpecId: rawLanguage.compilerSpecId,
+              baseAddr: target.entryPoint,
+            },
+          }),
       ...(languageOverride === undefined ? {} : { languageOverride }),
       ...(seeds === undefined ? {} : { analysisSeeds: seeds }),
       platform: installation.platform,
@@ -495,13 +521,18 @@ export const createGhidraProviderClient = (input: {
           expectedLanguageId: "x86:LE:16:Real Mode",
           expectedCompilerSpecId: "default",
         }
-      : languageOverride === undefined
-        ? {}
+      : rawLanguage === undefined
+        ? languageOverride === undefined
+          ? {}
+          : {
+              expectedLanguageId: languageOverride.languageId,
+              ...(languageOverride.compilerSpecId === undefined
+                ? {}
+                : { expectedCompilerSpecId: languageOverride.compilerSpecId }),
+            }
         : {
-            expectedLanguageId: languageOverride.languageId,
-            ...(languageOverride.compilerSpecId === undefined
-              ? {}
-              : { expectedCompilerSpecId: languageOverride.compilerSpecId }),
+            expectedLanguageId: rawLanguage.languageId,
+            expectedCompilerSpecId: rawLanguage.compilerSpecId,
           }),
     ...(psp
       ? {

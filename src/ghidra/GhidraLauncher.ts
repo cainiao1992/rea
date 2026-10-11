@@ -101,6 +101,11 @@ export interface GhidraHeadlessLauncherOptions {
   /** Select the admitted 16-bit real-mode MZ import instead of auto-detection. */
   readonly dosMz?: true;
   readonly dosCom?: true;
+  readonly rawBinary?: {
+    readonly languageId: string;
+    readonly compilerSpecId: string;
+    readonly baseAddr: string;
+  };
   /** Explicit import language committed by the analysis profile. */
   readonly languageOverride?: GhidraLanguageOverride;
   /** Caller seeds committed by the analysis profile, applied before analysis. */
@@ -201,6 +206,9 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
         ...(this.options.dosMz === undefined
           ? {}
           : { dosMz: this.options.dosMz }),
+        ...(this.options.rawBinary === undefined
+          ? {}
+          : { rawBinary: this.options.rawBinary }),
         ...(this.options.languageOverride === undefined
           ? {}
           : { languageOverride: this.options.languageOverride }),
@@ -411,6 +419,11 @@ export interface GhidraHeadlessArgumentOptions {
   readonly psp?: true;
   readonly dosMz?: true;
   readonly dosCom?: true;
+  readonly rawBinary?: {
+    readonly languageId: string;
+    readonly compilerSpecId: string;
+    readonly baseAddr: string;
+  };
   readonly languageOverride?: GhidraLanguageOverride;
   /** Canonical seed snapshot passed to the pre-analysis seed script. */
   readonly seedPath?: string;
@@ -426,6 +439,7 @@ export const ghidraHeadlessArguments = (
     (options.platform ?? process.platform) === "win32" ? win32 : posix;
   const bridgeDirectory = scriptPath.dirname(options.bridgeScriptPath);
   const override = options.languageOverride;
+  const rawBinary = options.rawBinary;
   if (
     options.psp === true &&
     (options.dosMz === true ||
@@ -435,12 +449,27 @@ export const ghidraHeadlessArguments = (
     throw new Error(
       "A PSP ELF import cannot be combined with DOS or a generic Ghidra language override.",
     );
+  if (options.psp === true && rawBinary !== undefined)
+    throw new Error(
+      "A PSP ELF import cannot be combined with a raw-binary import.",
+    );
   if (
     override !== undefined &&
     (options.dosMz === true || options.dosCom === true)
   )
     throw new Error(
       "A Ghidra language override cannot be combined with a DOS import.",
+    );
+  if (override !== undefined && rawBinary !== undefined)
+    throw new Error(
+      "A Ghidra language override cannot be combined with a raw-binary import.",
+    );
+  if (
+    rawBinary !== undefined &&
+    (options.dosMz === true || options.dosCom === true)
+  )
+    throw new Error(
+      "A raw-binary import cannot be combined with a DOS import.",
     );
   return [
     options.projectRoot,
@@ -467,24 +496,35 @@ export const ghidraHeadlessArguments = (
             "-cspec",
             "default",
           ]
-        : options.psp === true
-          ? [
-              "-loader",
-              "PspElfLoader",
-              "-processor",
-              "Allegrex:LE:32:default",
-              "-cspec",
-              "default",
-            ]
-          : override !== undefined
+        : rawBinary === undefined
+          ? options.psp === true
             ? [
+                "-loader",
+                "PspElfLoader",
                 "-processor",
-                override.languageId,
-                ...(override.compilerSpecId === undefined
-                  ? []
-                  : ["-cspec", override.compilerSpecId]),
+                "Allegrex:LE:32:default",
+                "-cspec",
+                "default",
               ]
-            : []),
+            : override !== undefined
+              ? [
+                  "-processor",
+                  override.languageId,
+                  ...(override.compilerSpecId === undefined
+                    ? []
+                    : ["-cspec", override.compilerSpecId]),
+                ]
+              : []
+          : [
+              "-loader",
+              "BinaryLoader",
+              "-loader-baseAddr",
+              rawBinary.baseAddr,
+              "-processor",
+              rawBinary.languageId,
+              "-cspec",
+              rawBinary.compilerSpecId,
+            ]),
     "-readOnly",
     "-deleteProject",
     "-log",
@@ -499,6 +539,14 @@ export const ghidraHeadlessArguments = (
           scriptPath.join(bridgeDirectory, "ReaGhidraPrepareCom.java"),
         ]
       : []),
+    ...(rawBinary === undefined
+      ? []
+      : [
+          "-preScript",
+          scriptPath.join(bridgeDirectory, "ReaGhidraPrepareRaw.java"),
+          rawBinary.languageId,
+          rawBinary.baseAddr,
+        ]),
     // Seeds follow any loader preparation and precede default auto-analysis.
     ...(options.seedPath === undefined
       ? []

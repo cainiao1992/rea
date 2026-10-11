@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { fixtureDosLoadImage } from "./GhidraLoadImage.fixture.js";
+import { fixtureRawBinaryLoadImage } from "./GhidraRawBinaryLoadImage.fixture.js";
 import {
   nativeAotPeDigest,
   nativeAotPeFixture,
@@ -174,6 +175,50 @@ describe("Ghidra provider", () => {
       status: "unsupported",
       code: "target_kind_unsupported",
     });
+  });
+});
+
+describe("Ghidra raw-binary profile", () => {
+  it("commits BinaryLoader language and caller-supplied entry", async () => {
+    const ghidra = provider();
+    const target: BinaryTarget = {
+      path: "/tmp/ecu.bin",
+      sha256: "a".repeat(64),
+      kind: "executable",
+      format: "raw-binary",
+      architecture: "arm",
+      availableArchitectures: ["arm"],
+      entryPoint: "0x8000000",
+      entryPointSource: "0x08000000",
+    };
+    expect(ghidra.inspectTargetSupport(target).status).toBe("supported");
+    const resolved = await ghidra.resolveAnalysisProfile(target);
+    expect(resolved.ok && resolved.value).toMatchObject({
+      profile: {
+        parameters: {
+          target_format: "raw-binary",
+          architecture: "arm",
+          loader: "BinaryLoader",
+          language_id: "ARM:LE:32:v7",
+          compiler_spec_id: "default",
+          language_selection: "caller-supplied-v1",
+          entry_point: "0x8000000",
+        },
+      },
+    });
+    const shifted = await ghidra.resolveAnalysisProfile({
+      ...target,
+      entryPoint: "0x8001000",
+      entryPointSource: "0x8001000",
+    });
+    expect(resolved.ok && shifted.ok).toBe(true);
+    if (!resolved.ok || !shifted.ok || resolved.value.profile === null)
+      throw new Error("expected raw-binary profiles");
+    expect(shifted.value.profile?.digest).not.toBe(
+      resolved.value.profile.digest,
+    );
+    const windows = provider({ ...installationHost(), platform: "win32" });
+    expect(windows.inspectTargetSupport(target).status).toBe("unsupported");
   });
 });
 
@@ -718,6 +763,88 @@ describe("Ghidra result projection", () => {
 });
 
 describe("Ghidra measured load-image projection", () => {
+  it.each(["verified", "changed-snapshot", "cancelled"] as const)(
+    "streams raw snapshot identity and preserves %s outcomes",
+    async (state) => {
+      const fixture = fixtureRawBinaryLoadImage();
+      const controller = new AbortController();
+      const signals: (AbortSignal | undefined)[] = [];
+      const ghidra = provider(installationHost(), () => ({
+        start: () => Promise.resolve(ok(sessionInfo())),
+        callTool: (operation) => {
+          if (operation !== "inspect_native_load_image")
+            throw new Error(`unexpected operation ${operation}`);
+          return Promise.resolve(
+            ok(jsonValueSchema.parse(fixture.observation)),
+          );
+        },
+        readTargetSnapshot: () => {
+          throw new Error(
+            "raw verification must not capture the complete file",
+          );
+        },
+        hashTargetSnapshot: (signal) => {
+          signals.push(signal);
+          if (state === "cancelled") {
+            controller.abort();
+            return Promise.resolve(
+              err(
+                new GhidraSessionError(
+                  "cancelled",
+                  "Snapshot hashing cancelled",
+                ),
+              ),
+            );
+          }
+          return Promise.resolve(
+            ok({
+              ...fixture.snapshot,
+              ...(state === "changed-snapshot"
+                ? { sha256: "f".repeat(64) }
+                : {}),
+            }),
+          );
+        },
+        close: () => Promise.resolve(ok(null)),
+      }));
+      const resolved = await ghidra.resolveAnalysisProfile(fixture.target);
+      if (!resolved.ok) throw resolved.error;
+      if (resolved.value.profile === null)
+        throw new Error("expected raw profile");
+      const client = ghidra.createClient(
+        fixture.target,
+        resolved.value.profile,
+      );
+      try {
+        const result = await client.execute(
+          "inspect_native_load_image",
+          {},
+          { signal: controller.signal },
+        );
+        expect(signals).toEqual([controller.signal]);
+        if (state === "verified") {
+          if (!result.ok) throw result.error;
+          expect(result.value.result).toMatchObject({
+            status: "verified",
+            observations: fixture.observation,
+          });
+        } else {
+          expect(result).toMatchObject({
+            ok: false,
+            error: {
+              _tag:
+                state === "cancelled"
+                  ? "AnalysisCancelledError"
+                  : "ProviderAdapterError",
+            },
+          });
+        }
+      } finally {
+        await client.close();
+      }
+    },
+  );
+
   it.each([
     "verified",
     "mismatch",

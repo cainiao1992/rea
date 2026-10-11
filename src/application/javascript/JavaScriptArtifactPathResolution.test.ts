@@ -1464,6 +1464,159 @@ describe("contextual JavaScript module identity", () => {
   });
 });
 
+describe("TypeScript NodeNext emitted-extension resolution", () => {
+  const container = "container";
+
+  it.each([
+    ["./dep.js", "src/dep.ts"],
+    ["./ui/Button.js", "src/ui/Button.tsx"],
+    ["./cfg.mjs", "src/cfg.mts"],
+    ["./legacy.cjs", "src/legacy.cts"],
+  ] as const)(
+    "resolves %s to its TypeScript source counterpart",
+    (specifier, target) => {
+      const files = fileMap([
+        file("src/main.ts", container),
+        file(target, container, "export const value = 1;"),
+      ]);
+      expect(
+        resolve({
+          declaredPath: specifier,
+          sourcePath: "src/main.ts",
+          context: "module-specifier",
+          moduleKind: "import",
+          files,
+        }),
+      ).toMatchObject({ resolution_status: "resolved", resolved_path: target });
+    },
+  );
+
+  it.each([
+    ["./dep.js", "src/dep.d.ts"],
+    ["./cfg.mjs", "src/cfg.d.mts"],
+    ["./legacy.cjs", "src/legacy.d.cts"],
+  ] as const)(
+    "resolves %s to a declaration counterpart",
+    (specifier, target) => {
+      const files = fileMap([
+        file("src/main.ts", container),
+        file(target, container, "export const value = 1;"),
+      ]);
+      expect(
+        resolve({
+          declaredPath: specifier,
+          sourcePath: "src/main.ts",
+          context: "module-specifier",
+          moduleKind: "import",
+          files,
+        }),
+      ).toMatchObject({ resolution_status: "resolved", resolved_path: target });
+    },
+  );
+
+  it("prefers a present runtime file and keeps the fallback off for JS callers", () => {
+    const files = fileMap([
+      file("src/main.ts", container),
+      file("src/dep.js", container),
+      file("src/dep.ts", container),
+      file("src/js-main.js", container),
+    ]);
+    expect(
+      resolve({
+        declaredPath: "./dep.js",
+        sourcePath: "src/main.ts",
+        context: "module-specifier",
+        moduleKind: "import",
+        files,
+      }),
+    ).toMatchObject({
+      resolution_status: "resolved",
+      resolved_path: "src/dep.js",
+    });
+    expect(
+      resolve({
+        declaredPath: "./dep.js",
+        sourcePath: "src/js-main.js",
+        context: "module-specifier",
+        moduleKind: "import",
+        files: fileMap([
+          file("src/js-main.js", container),
+          file("src/dep.ts", container),
+        ]),
+      }),
+    ).toMatchObject({ resolution_status: "not-found", resolved_path: null });
+  });
+
+  it("does not apply the mapping to URL resources or package export targets", () => {
+    const urlFiles = fileMap([
+      file("src/main.ts", container),
+      file("src/asset.ts", container),
+    ]);
+    expect(
+      resolve({
+        declaredPath: "asset.js",
+        sourcePath: "src/main.ts",
+        context: "url-reference",
+        files: urlFiles,
+      }),
+    ).toMatchObject({ resolution_status: "not-found", resolved_path: null });
+
+    const packageFiles = fileMap([
+      file("src/main.ts", container),
+      file(
+        "src/node_modules/fixture/package.json",
+        container,
+        '{"exports":"./dep.js"}',
+      ),
+      file("src/node_modules/fixture/dep.ts", container),
+    ]);
+    expect(
+      resolve({
+        declaredPath: "fixture",
+        sourcePath: "src/main.ts",
+        context: "module-specifier",
+        moduleKind: "import",
+        files: packageFiles,
+      }),
+    ).toMatchObject({ resolution_status: "not-found", resolved_path: null });
+  });
+
+  it("does not substitute source counterparts for directory or index resolution", () => {
+    const files = fileMap([
+      file("src/main.ts", container),
+      file("src/lib/index.ts", container),
+    ]);
+    expect(
+      resolve({
+        declaredPath: "./lib.js",
+        sourcePath: "src/main.ts",
+        context: "module-specifier",
+        moduleKind: "import",
+        files,
+      }),
+    ).toMatchObject({ resolution_status: "not-found", resolved_path: null });
+  });
+
+  it("resolves an emitted dotfile name within its own directory", () => {
+    const files = fileMap([
+      file("src/main.ts", container),
+      file("src/.ts", container),
+    ]);
+    expect(
+      resolve({
+        declaredPath: "./.js",
+        sourcePath: "src/main.ts",
+        context: "module-specifier",
+        moduleKind: "import",
+        files,
+      }),
+    ).toMatchObject({
+      resolution_status: "resolved",
+      resolved_path: "src/.ts",
+    });
+  });
+});
+
 describe("url-reference JavaScript artifact path resolution", () => {
   it.each([
     "app%00.js.map",

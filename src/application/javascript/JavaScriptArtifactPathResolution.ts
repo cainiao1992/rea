@@ -19,6 +19,7 @@ import {
   classifyPackageImportTargetString,
   lookupExactPackageImport,
 } from "../../domain/javascript/javascriptPackageImportAliases.js";
+import { typescriptEmittedSourceCandidates } from "../TypeScriptEmittedSourceCandidates.js";
 
 type ArtifactPathResolutionContext =
   | "package-entrypoint"
@@ -128,7 +129,15 @@ const resolvePath = (input: ResolveArtifactPathInput): CandidateResolution => {
         `The exact HTML resource ${confined} was not found among the selected application files.`,
       ])
     );
-  return resolveCandidate(input, confined, new Set());
+  return resolveCandidate(
+    input,
+    confined,
+    new Set(),
+    input.context === "module-specifier" &&
+      (input.declaredPath.startsWith(".") || input.declaredPath.startsWith("/"))
+      ? typescriptEmittedSourceCandidates(input.sourcePath, confined)
+      : [],
+  );
 };
 
 const rejectDeclaration = (declared: string): CandidateResolution | null => {
@@ -669,8 +678,12 @@ const resolveCandidate = (
   input: ResolveArtifactPathInput,
   candidate: string,
   packageChain: ReadonlySet<string>,
+  emittedSourceCandidates: readonly string[] = [],
 ): CandidateResolution =>
-  resolveFileCandidates(input, fileCandidates(candidate)) ??
+  resolveFileCandidates(input, [
+    ...fileCandidates(candidate),
+    ...emittedSourceCandidates,
+  ]) ??
   resolveDirectory(
     input,
     candidate,

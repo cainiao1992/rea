@@ -11,6 +11,7 @@ import type {
   SessionProviderRoute,
   SessionProviderRouter,
 } from "./SessionProviderRouter.js";
+import { compareUnicodeCodePoints } from "../../domain/unicodeCodePointOrder.js";
 
 interface BinarySessionStatusInput {
   readonly target: BinaryTarget | undefined;
@@ -39,7 +40,9 @@ export const binarySessionStatus = ({
 }: BinarySessionStatusInput): JsonValue => {
   const capabilities = [...route.capabilities.values()]
     .filter(({ operation }) => operation !== "inventory_artifact")
-    .sort((left, right) => left.operation.localeCompare(right.operation))
+    .sort((left, right) =>
+      compareUnicodeCodePoints(left.operation, right.operation),
+    )
     .map((descriptor) => {
       const unavailable = runtimeUnavailability.get(descriptor.operation);
       return unavailable === undefined
@@ -69,7 +72,9 @@ export const binarySessionStatus = ({
       capabilities: candidate.capabilities
         .slice()
         .filter(({ operation }) => operation !== "inventory_artifact")
-        .sort((left, right) => left.operation.localeCompare(right.operation))
+        .sort((left, right) =>
+          compareUnicodeCodePoints(left.operation, right.operation),
+        )
         .map(capabilityStatus),
     }));
   const common = {
@@ -102,7 +107,9 @@ const requestActivityStatus = (
 ) => {
   const providers = snapshots
     .slice()
-    .sort((left, right) => left.provider.id.localeCompare(right.provider.id))
+    .sort((left, right) =>
+      compareUnicodeCodePoints(left.provider.id, right.provider.id),
+    )
     .map(({ provider, active, queuedRequests }) => ({
       provider: providerSummary(provider),
       active:
@@ -150,7 +157,7 @@ const processLineageStatus = (
         snapshots: snapshots
           .slice()
           .sort((left, right) =>
-            left.provider.id.localeCompare(right.provider.id),
+            compareUnicodeCodePoints(left.provider.id, right.provider.id),
           )
           .map(({ provider, observation }) => ({
             provider: providerSummary(provider),

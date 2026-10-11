@@ -8,6 +8,7 @@ import {
 import { launcherIdentityFailure } from "./ProcessOwnershipIdentity.js";
 import { descendantsOf, liveProcesses } from "./ProcessOwnershipProcessTree.js";
 import { readProcessRunTokens } from "./ProcessRunTokenObservations.js";
+import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -613,7 +614,7 @@ const cleanupValidationFailure = (
       counts.set(category, (counts.get(category) ?? 0) + 1);
     }
     const breakdown = [...counts]
-      .sort(([left], [right]) => left.localeCompare(right))
+      .sort(([left], [right]) => compareUnicodeCodePoints(left, right))
       .map(([category, count]) => `${category}=${String(count)}`)
       .join(", ");
     const candidates = unreadable
@@ -621,7 +622,7 @@ const cleanupValidationFailure = (
         ({ pid, diagnostic }) =>
           `${String(pid)}=${sanitizedTokenReadFailure(diagnostic)}`,
       )
-      .sort((left, right) => left.localeCompare(right));
+      .sort((left, right) => compareUnicodeCodePoints(left, right));
     return {
       cleaned: false,
       reason: `process ownership token could not be read for ${String(unreadable.length)} live process(es): ${breakdown}; live candidates ${candidates.join(", ")}`,

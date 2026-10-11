@@ -14,6 +14,24 @@ const flags = [
   "workflows",
   ...Object.keys(SCOPES),
 ];
+// Actionlint validates workflow syntax only. The semantic suite asserts these
+// workflows' release, publication and self-hosted runner safeguards.
+const GUARDED_WORKFLOWS = new Set([
+  ".github/workflows/release.yml",
+  ".github/workflows/real-ghidra-windows.yml",
+]);
+// Sources compiled by build-conformance-fixtures.mjs. The readiness journey
+// analyzes the built C fixture as well as its own applications.
+const FIXTURE_SOURCES = [
+  "tests/conformance/c/**",
+  "tests/conformance/napi/**",
+  "tests/conformance/objc/**",
+  "tests/conformance/swift/**",
+  "tests/conformance/versions/**",
+];
+const READINESS_SOURCES = ["tests/conformance/readiness/**"];
+const matchesAny = (file, patterns) =>
+  patterns.some((pattern) => matchesGlob(file, pattern));
 const selected = Object.fromEntries(flags.map((flag) => [flag, false]));
 const reasons = [];
 const full = (reason) => {
@@ -122,6 +140,7 @@ if (
       file === ".github/actionlint.yaml"
     ) {
       selected.workflows = true;
+      if (GUARDED_WORKFLOWS.has(file)) selected.code = true;
       if (file !== ".github/workflows/ci.yml") continue;
     }
     if (owners.length === 1 && owners[0] === "website") continue;
@@ -131,6 +150,11 @@ if (
       continue;
     }
     selected.code = true;
+    if (matchesAny(file, FIXTURE_SOURCES)) {
+      selected.fixtures = true;
+      selected.readiness = true;
+    }
+    if (matchesAny(file, READINESS_SOURCES)) selected.readiness = true;
     if (file.startsWith("tests/")) continue;
     if (
       /^(src\/process\/|src\/filesystem\/|src\/contracts\/tool|src\/server\/createServer|src\/cli\.ts|scripts\/ci\/)/.test(

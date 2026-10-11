@@ -368,6 +368,30 @@ it.each([
     { code: true, docs: true, evm: true, package: false },
   ],
   ["scripts/unknown-website-helper.mjs", { code: true, package: true }],
+  [
+    ".github/workflows/release.yml",
+    { workflows: true, code: true, package: false, website: false },
+  ],
+  [
+    ".github/workflows/real-ghidra-windows.yml",
+    { workflows: true, code: true, package: false, website: false },
+  ],
+  [
+    "tests/conformance/c/fixture.c",
+    { code: true, fixtures: true, readiness: true, package: false },
+  ],
+  [
+    "tests/conformance/swift/fixture.swift",
+    { code: true, fixtures: true, readiness: true, package: false },
+  ],
+  [
+    "tests/conformance/readiness/javascript-cli/package.json",
+    { code: true, fixtures: false, readiness: true, package: false },
+  ],
+  [
+    "tests/conformance/ghidra/no-return.c",
+    { code: true, fixtures: false, readiness: false, package: false },
+  ],
 ])("preserves scope boundaries for %s", async (path, expected) => {
   const { directory, base } = await fixture();
   const head = await change(directory, [path]);

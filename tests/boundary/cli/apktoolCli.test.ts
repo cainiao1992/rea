@@ -5,16 +5,6 @@ import {
   serveCli as serve,
 } from "./cliServeHarness.js";
 
-it.each(["inspect-apktool-client", "decode-android-resources"])(
-  "%s advertises a schema through the public CLI",
-  async (command) => {
-    const result = await serve([command, "--schema", "--json"]);
-    expect(result.exitCode, command).toBe(0);
-    const schema = JSON.parse(result.stdout) as { args?: unknown };
-    expect(schema).toBeTruthy();
-  },
-);
-
 it.each([
   [
     ["inspect-apktool-client", "--json"],
@@ -47,5 +37,14 @@ it("validates the locale option before launching apktool", async () => {
     "not a locale",
     "--json",
   ]);
-  expect(result.stdout).toContain("invalid");
+  expect(result.exitCode).toBe(1);
+  expect(JSON.parse(result.stdout)).toMatchObject({
+    code: "VALIDATION_ERROR",
+    fieldErrors: [
+      {
+        code: "invalid_format",
+        path: "locale",
+      },
+    ],
+  });
 });

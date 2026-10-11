@@ -8,8 +8,8 @@ import { writeOrderedZip } from "../../fixtures/artifactEntryOrder.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import { parseBinaryTarget } from "../../../src/application/BinaryTargetResolver.js";
-import { ArtifactProvider } from "../../../src/artifacts/ArtifactProvider.js";
 import { ZipArtifactReader } from "../../../src/artifacts/ZipArtifactReader.js";
+import { withArtifactClient } from "../../support/artifactClientScope.js";
 import { artifactInventoryResultSchema } from "../../../src/domain/artifactGraph.js";
 
 it("bounds a requested metadata read without rejecting the underlying valid ZIP", async () => {
@@ -139,15 +139,12 @@ it("retains duplicate ZIP members without replacing their source identities", as
 
   const target = await parseBinaryTarget(path);
   if (!target.ok) throw target.error;
-  const client = new ArtifactProvider(process.env).createClient(target.value);
-  try {
+  await withArtifactClient(target.value, async (client) => {
     expect(await client.execute("inventory_artifact", {})).toMatchObject({
       ok: false,
       error: { _tag: "ArtifactOperationError", reason: "path" },
     });
-  } finally {
-    await client.close();
-  }
+  });
 });
 
 it("can enumerate case-distinct ZIP members again without losing entry identity", async () => {
@@ -200,9 +197,9 @@ it("rejects overlapping ZIP member data ranges through artifact inventory", asyn
 
   const target = await parseBinaryTarget(path);
   if (!target.ok) throw target.error;
-  const result = await new ArtifactProvider(process.env)
-    .createClient(target.value)
-    .execute("inventory_artifact", {});
+  const result = await withArtifactClient(target.value, (client) =>
+    client.execute("inventory_artifact", {}),
+  );
 
   expect(result).toMatchObject({
     ok: false,
@@ -221,9 +218,10 @@ it("preserves encrypted-member and corrupt-CRC observations", async () => {
 
   const encryptedTarget = await parseBinaryTarget(encryptedPath);
   if (!encryptedTarget.ok) throw encryptedTarget.error;
-  const encryptedResult = await new ArtifactProvider(process.env)
-    .createClient(encryptedTarget.value)
-    .execute("inventory_artifact", {});
+  const encryptedResult = await withArtifactClient(
+    encryptedTarget.value,
+    (client) => client.execute("inventory_artifact", {}),
+  );
   if (!encryptedResult.ok) throw encryptedResult.error;
   const encryptedInventory = artifactInventoryResultSchema.parse(
     encryptedResult.value.result,
@@ -237,11 +235,10 @@ it("preserves encrypted-member and corrupt-CRC observations", async () => {
   );
   // REA does not decrypt entries, so complete extraction is unsupported.
   const extractionRoot = join(root, "encrypted-output");
-  expect(
-    await new ArtifactProvider(process.env)
-      .createClient(encryptedTarget.value)
-      .execute("extract_artifact", { output_root: extractionRoot }),
-  ).toMatchObject({
+  const extraction = await withArtifactClient(encryptedTarget.value, (client) =>
+    client.execute("extract_artifact", { output_root: extractionRoot }),
+  );
+  expect(extraction).toMatchObject({
     ok: false,
     error: {
       _tag: "AnalysisUnsupportedTargetError",
@@ -272,9 +269,10 @@ it("preserves encrypted-member and corrupt-CRC observations", async () => {
 
   const corruptTarget = await parseBinaryTarget(corruptPath);
   if (!corruptTarget.ok) throw corruptTarget.error;
-  const corruptResult = await new ArtifactProvider(process.env)
-    .createClient(corruptTarget.value)
-    .execute("inventory_artifact", {});
+  const corruptResult = await withArtifactClient(
+    corruptTarget.value,
+    (client) => client.execute("inventory_artifact", {}),
+  );
   expect(corruptResult).toMatchObject({
     ok: false,
     error: { _tag: "ArtifactOperationError", reason: "io" },
@@ -288,9 +286,9 @@ it("rejects a truncated ZIP through artifact inventory", async () => {
 
   const target = await parseBinaryTarget(path);
   if (!target.ok) throw target.error;
-  const result = await new ArtifactProvider(process.env)
-    .createClient(target.value)
-    .execute("inventory_artifact", {});
+  const result = await withArtifactClient(target.value, (client) =>
+    client.execute("inventory_artifact", {}),
+  );
 
   expect(result).toMatchObject({
     ok: false,

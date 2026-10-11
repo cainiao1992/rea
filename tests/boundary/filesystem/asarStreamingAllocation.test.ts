@@ -24,6 +24,7 @@ import { hashReadable } from "../../../src/artifacts/ArtifactHash.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 const memberBytes = 64 * 1024 * 1024;
+const maximumObservedChunkBytes = 1024 * 1024;
 const expectedSha256 = (): string => {
   const hash = createHash("sha256");
   const zeros = Buffer.alloc(64 * 1024);
@@ -727,7 +728,7 @@ describe("ASAR entry streaming", () => {
     ["packed", {}],
     ["unpacked", { unpack: "large.bin" }],
   ] as const)(
-    "opens a %s member without allocating its full contents",
+    "streams a %s member in bounded chunks with its complete digest",
     async (_kind, options) => {
       const root = await createTestTempDirectory("rea-asar-streaming-");
       const source = join(root, "source");
@@ -745,13 +746,21 @@ describe("ASAR entry streaming", () => {
         const entry = entries.find(({ path }) => path === "large.bin");
         if (entry === undefined) throw new Error("Expected large ASAR member");
 
-        const before = process.memoryUsage().arrayBuffers;
         const stream = await reader.open(entry);
-        const afterOpen = process.memoryUsage().arrayBuffers;
-        const observed = await hashReadable(stream);
-        const allocation = afterOpen - before;
+        let largestChunkBytes = 0;
+        const measuredStream = Readable.from(
+          (async function* () {
+            for await (const chunk of stream) {
+              largestChunkBytes = Math.max(largestChunkBytes, chunk.byteLength);
+              yield chunk;
+            }
+          })(),
+        );
+        const observed = await hashReadable(measuredStream);
 
-        expect(allocation).toBeLessThan(memberBytes / 2);
+        expect(largestChunkBytes).toBeLessThanOrEqual(
+          maximumObservedChunkBytes,
+        );
         expect(observed).toMatchObject({
           sha256: expectedSha256(),
           bytes: memberBytes,

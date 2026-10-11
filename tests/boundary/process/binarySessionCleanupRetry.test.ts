@@ -1,4 +1,4 @@
-import { access, mkdtemp, rm } from "node:fs/promises";
+import { access, mkdtemp, rmdir } from "node:fs/promises";
 import { expect, it, onTestFinished } from "vitest";
 
 import { createAnalysisExecution } from "../../../src/application/AnalysisProvider.js";
@@ -9,10 +9,7 @@ import type {
   BridgeSession,
 } from "../../../src/hopper/BridgeLauncher.js";
 import { HopperClient } from "../../../src/hopper/HopperClient.js";
-import {
-  acquireHopperTargetLease,
-  type HopperTargetLease,
-} from "../../../src/hopper/HopperTargetLease.js";
+import { acquireHopperTargetLease } from "../../../src/hopper/HopperTargetLease.js";
 import { cleanupOwnedProcessGroup } from "../../../src/process/ProcessOwnership.js";
 import { spawnOwnedProviderProcess } from "../../../src/process/ProviderProcess.js";
 import { hopperFixturePath } from "../providers/hopper/hopperClient.fixture.js";
@@ -21,11 +18,22 @@ import {
   createTestBinarySession,
 } from "../../fixtures/binarySession.js";
 
+const createShortLeaseDirectory = async (): Promise<string> => {
+  // A redirected TMPDIR can exceed macOS's Unix socket path limit once
+  // Hopper appends its lease key. Remove only an empty directory after the
+  // owning client has closed; recursive removal could hide a retained lease.
+  const directory = await mkdtemp("/tmp/rea-hl-");
+  onTestFinished(async () => {
+    await rmdir(directory);
+    await expect(access(directory)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+  return directory;
+};
+
 class RetryingHopperLauncher implements BridgeLauncher {
   cleanupAllowed = false;
   cleanupAttempts = 0;
   directory: string | undefined;
-  lease: HopperTargetLease | undefined;
 
   constructor(
     readonly leaseDirectory: string,
@@ -49,7 +57,6 @@ class RetryingHopperLauncher implements BridgeLauncher {
       return err(
         new HopperStartError({ userMessage: "fixture lease is held" }),
       );
-    this.lease = lease.lease;
     this.directory = session.directory;
     const started = await spawnOwnedProviderProcess({
       command: process.execPath,
@@ -83,8 +90,7 @@ class RetryingHopperLauncher implements BridgeLauncher {
 }
 
 it("retains Hopper process handles, private files, and lease until an actual session cleanup retry succeeds", async () => {
-  const leaseDirectory = await mkdtemp("/tmp/rea-hl-");
-  onTestFinished(() => rm(leaseDirectory, { recursive: true, force: true }));
+  const leaseDirectory = await createShortLeaseDirectory();
   const [first, second] = await createBinarySessionTargets();
   const launcher = new RetryingHopperLauncher(leaseDirectory, first);
   const hopper = new HopperClient({ launcher, startupTimeoutMs: 10_000 });
@@ -109,9 +115,10 @@ it("retains Hopper process handles, private files, and lease until an actual ses
   });
   onTestFinished(async () => {
     launcher.cleanupAllowed = true;
-    await session.close();
-    await hopper.close();
-    await launcher.lease?.release();
+    const sessionClosed = await session.close();
+    if (!sessionClosed.ok) throw sessionClosed.error;
+    const hopperClosed = await hopper.close();
+    if (!hopperClosed.ok) throw hopperClosed.error;
   });
   expect(await session.open(first)).toMatchObject({ ok: true });
   expect(await session.close()).toMatchObject({
@@ -144,15 +151,14 @@ it("retains Hopper process handles, private files, and lease until an actual ses
 });
 
 it("reports a direct Hopper close failure and retries the retained owned process", async () => {
-  const leaseDirectory = await mkdtemp("/tmp/rea-hl-");
-  onTestFinished(() => rm(leaseDirectory, { recursive: true, force: true }));
+  const leaseDirectory = await createShortLeaseDirectory();
   const [target] = await createBinarySessionTargets();
   const launcher = new RetryingHopperLauncher(leaseDirectory, target, true);
   const hopper = new HopperClient({ launcher, startupTimeoutMs: 10_000 });
   onTestFinished(async () => {
     launcher.cleanupAllowed = true;
-    await hopper.close();
-    await launcher.lease?.release();
+    const closed = await hopper.close();
+    if (!closed.ok) throw closed.error;
   });
   expect(await hopper.start()).toMatchObject({ ok: true });
   expect(await hopper.close()).toMatchObject({

@@ -304,6 +304,24 @@ describe("JavaScript semantic mutations through getter results (#1494)", () => {
       ),
     ).toEqual({ status: "literal", value: 1 });
   });
+
+  it("keeps a shared value known after an optional getter read or ordinary method read", () => {
+    expect(
+      resultValue("const shared = { value: 1 }; const box = { get value() { return shared; } }; const alias = box?.value; return shared.value;"),
+    ).toEqual({ status: "literal", value: 1 });
+    expect(
+      resultValue("const shared = { value: 1 }; const box = { value() { return shared; } }; const alias = box.value; return shared.value;"),
+    ).toEqual({ status: "literal", value: 1 });
+  });
+});
+
+it.each([
+  ["instance getter assignment", "const shared = { value: 1 }; class Box { get value() { return shared; } } const box = new Box(); box.value = {}; return shared.value;"],
+  ["instance getter deletion", "const shared = { value: 1 }; class Box { get value() { return shared; } } const box = new Box(); delete box.value; return shared.value;"],
+  ["static getter assignment", "const shared = { value: 1 }; class Box { static get value() { return shared; } } Box.value = {}; return shared.value;"],
+  ["static getter deletion", "const shared = { value: 1 }; class Box { static get value() { return shared; } } delete Box.value; return shared.value;"],
+])("does not follow a class getter for direct property replacement or deletion (%s)", (_name, body) => {
+  expect(resultValue(body)).toEqual({ status: "literal", value: 1 });
 });
 
 describe("JavaScript semantic values after mutable references escape", () => {

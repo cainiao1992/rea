@@ -635,6 +635,9 @@ const referencedValues = (
   if (t.isClass(node)) {
     const [key, ...remaining] = path;
     if (key === undefined) return [];
+    // Replacing or deleting the getter's property does not use the value it
+    // would return. Only a deeper path can mutate the returned object.
+    if (effect === "write" && remaining.length === 0) return [];
     return classGetterResults(
       node,
       key === null ? null : String(key),
@@ -646,6 +649,7 @@ const referencedValues = (
   if (t.isNewExpression(node)) {
     const [key, ...remaining] = path;
     if (key === undefined) return [];
+    if (effect === "write" && remaining.length === 0) return [];
     return classCandidates(node.callee, state).flatMap((klass) =>
       classGetterResults(
         klass,

@@ -77,6 +77,10 @@ const source = [
   "export function computedClassGetterOverride(){ const shared = {x: 1}; const key = getKey(); class Box { get value(){return {x: 2};} get [key](){return shared;} } new Box().value.x = 3; return shared.x; }",
   "export function aliasedClassGetter(){ const shared = {x: 1}; class Box { get value(){return shared;} } const Alias = Box; new Alias().value.x = 2; return shared.x; }",
   "export function inlineClassGetter(){ const shared = {x: 1}; new (class { get value(){return shared;} })().value.x = 2; return shared.x; }",
+  "export function instanceGetterAssignment(){ const shared = {x: 1}; class Box { get value(){return shared;} } const box = new Box(); try { box.value = {}; } catch {} return shared.x; }",
+  "export function instanceGetterDeletion(){ const shared = {x: 1}; class Box { get value(){return shared;} } const box = new Box(); delete box.value; return shared.x; }",
+  "export function staticGetterAssignment(){ const shared = {x: 1}; class Box { static get value(){return shared;} } try { Box.value = {}; } catch {} return shared.x; }",
+  "export function staticGetterDeletion(){ const shared = {x: 1}; class Box { static get value(){return shared;} } delete Box.value; return shared.x; }",
   "export function freshGetterRead(){ const box = {get value(){return {x: 1};}}; const first = box.value; first.x = 2; return box.value.x; }",
   "export function savedFreshGetter(){ const box = {get value(){return {x: 1};}}; const saved = box.value; saved.x = 2; return saved.x; }",
   "export function directSibling(){ const shared = {x: 1}; const parent = {shared, keep: 7}; const get = () => parent.shared; get().x = 2; return {x: shared.x, keep: parent.keep}; }",
@@ -112,6 +116,15 @@ const assertReturns = (fields: JavaScriptReturnFields): void => {
     "objectDataReplacesGetter",
   ])
     expect(fields(name)).toContainEqual(
+      expect.objectContaining({ path: "", state: "literal", value: 1 }),
+    );
+  for (const name of [
+    "instanceGetterAssignment",
+    "instanceGetterDeletion",
+    "staticGetterAssignment",
+    "staticGetterDeletion",
+  ])
+    expect(fields(name), name).toContainEqual(
       expect.objectContaining({ path: "", state: "literal", value: 1 }),
     );
   for (const name of [

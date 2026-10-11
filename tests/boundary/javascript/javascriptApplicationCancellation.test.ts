@@ -2,11 +2,11 @@ import { setImmediate } from "node:timers";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
-import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
-import { analyzeJavaScriptApplication } from "../../../tests/support/javascriptApplicationScope.js";
+import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
+import { analyzeJavaScriptApplication } from "../../support/javascriptApplicationScope.js";
 
-describe("JavaScript analysis cancellation before publication", () => {
+describe("JavaScript application cancellation", () => {
   it("interrupts semantic graph commitment before result validation", async () => {
     const root = await createTestTempDirectory("rea-js-cancel-semantic-");
     await writeFile(
@@ -33,7 +33,9 @@ describe("JavaScript analysis cancellation before publication", () => {
       },
     );
     if (result.ok)
-      throw new Error("Cancelled commitment must not publish Evidence");
+      throw new Error(
+        "Cancelled commitment must not publish a successful analysis",
+      );
     expect(projectAnalysisError(result.error)).toMatchObject({
       code: "cancelled",
       details: { reason: "cancelled" },
@@ -42,7 +44,7 @@ describe("JavaScript analysis cancellation before publication", () => {
     expect(phases).not.toContain("validate_javascript_application_result");
   });
 
-  it("handles control turns and cancellation inside one large source file (#1462)", async () => {
+  it("honors control turns and cancellation while preparing one large source for owned analysis (#1462)", async () => {
     const root = await createTestTempDirectory("rea-js-cancel-in-file-");
     await writeFile(
       join(root, "index.js"),
@@ -74,7 +76,7 @@ describe("JavaScript analysis cancellation before publication", () => {
         },
       },
     );
-    if (result.ok) throw new Error("Cancelled analysis must not publish");
+    if (result.ok) throw new Error("Cancelled analysis must not succeed");
     expect(projectAnalysisError(result.error)).toMatchObject({
       code: "cancelled",
     });
@@ -118,11 +120,21 @@ describe("JavaScript analysis cancellation before publication", () => {
       },
     );
     expect(requested).toBe(true);
-    if (result.ok)
-      throw new Error("Cancelled analysis must not publish Evidence");
-    expect(projectAnalysisError(result.error)).toMatchObject({
-      code: "cancelled",
-    });
+    if (result.ok) throw new Error("Cancelled analysis must return a failure");
+    const failure = projectAnalysisError(result.error);
+    expect(failure).toMatchObject({ code: "cancelled" });
+    if (phase === "parse_javascript_source")
+      expect(failure).toMatchObject({
+        details: {
+          operation: "analyze_javascript_application",
+          cleanup: "complete",
+          partial_observation: {
+            normalized_result: {
+              statistics: { relevant_files: 1, parse_failures: 0 },
+            },
+          },
+        },
+      });
     expect(terminal).toEqual([]);
   });
 

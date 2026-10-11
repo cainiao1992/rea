@@ -637,7 +637,9 @@ export class JavaScriptAnalysisWorker {
     // Ownership preparation is abortable before the worker deadline exists.
     if (
       deadline?.interruption === "cancelled" ||
-      (deadline === undefined && signal?.aborted === true)
+      (deadline === undefined &&
+        signal?.aborted === true &&
+        !(cause instanceof ProviderCleanupError))
     )
       return new AnalysisCancelledError(OPERATION, {
         capturedOutput: this.#captured(),

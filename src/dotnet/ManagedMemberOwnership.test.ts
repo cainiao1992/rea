@@ -81,7 +81,7 @@ describe("managed declaring type ownership", () => {
   );
 
   it("indexes large unordered member lists once per layout", () => {
-    const count = 40_000;
+    const count = 100_000;
     const bytes = buildManagedPeFixture({
       additionalEmptyTypes: count - 1,
       methodRowCount: count,
@@ -95,13 +95,17 @@ describe("managed declaring type ownership", () => {
       2 * layout.stringIndexSize +
       layout.codedIndexSize("TypeDefOrRef") +
       memberListIndexSize(layout, 4);
-    bytes.writeUInt16LE(2, methodOffset);
+    // The first reversed range forces first-match semantics, with the owner last.
+    // 100,000 MethodDef rows require a four-byte method-list index.
+    bytes.writeUInt32LE(2, methodOffset);
+    const start = performance.now();
     const lookup = memberDeclaringTypeRowLookup(bytes, layout, 6);
     expect(
       Array.from({ length: count }, (_, row) => lookup(row + 1)).every(
         (owner) => owner === count,
       ),
     ).toBe(true);
+    expect(performance.now() - start).toBeLessThan(2000);
     expect(memberDeclaringTypeRowLookup(bytes, layout, 6)).toBe(lookup);
     expect([lookup(0), lookup(count + 1)]).toEqual([0, 0]);
   });

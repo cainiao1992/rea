@@ -192,12 +192,7 @@ export class IdaSessionClient implements AnalysisClient {
         throw new AnalysisProtocolError(
           "IDA operation changed after validation.",
         );
-      const runner = new IdaOperationRunner(
-        this.connection,
-        this.config.mode === "attached" ? "legacy" : "modern",
-        this.#database,
-        options?.signal,
-      );
+      const runner = this.#runner(options);
       const result = await runner.run(operation, parameters);
       if (wasCancelled(options))
         return err(new AnalysisCancelledError(operation));
@@ -225,6 +220,16 @@ export class IdaSessionClient implements AnalysisClient {
     } catch (cause: unknown) {
       return this.#failure(operation, cause, options);
     }
+  }
+
+  #runner(options: ExecutionOptions | undefined): IdaOperationRunner {
+    return new IdaOperationRunner(
+      this.connection,
+      this.config.mode === "attached" ? "legacy" : "modern",
+      this.#database,
+      options?.signal,
+      options?.selectorOrigin,
+    );
   }
 
   #health(metadata: JsonValue) {

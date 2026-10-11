@@ -310,6 +310,13 @@ directly to `compare_functions`, and `inspect_artifact` Evidence to
 `compare_artifacts`. Use `get_evidence_bundle` when the task needs broader
 retained session history or an explicit bundle for transfer.
 
+`get_call_graph` keeps provider-limited relationship reads on their node as
+`limitations`, alongside any observed `calls`. An empty call list with such a
+limitation is incomplete coverage, not proof that the function has no calls.
+`trace_call_path` reports each limited expansion in `residual_unknowns` and
+sets `truncated: true`; any path already supported by observed edges remains
+visible. Tool errors remain in their existing error or failure fields.
+
 REA prepares complete MCP results within the pinned stdio client's 10 MiB
 receive-buffer budget, including both text and structured representations and
 room for the JSON-RPC envelope. Tool errors carry only their text

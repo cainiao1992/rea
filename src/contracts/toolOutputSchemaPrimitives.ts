@@ -505,6 +505,7 @@ export const graphNode = z.discriminatedUnion("status", [
     address: z.string(),
     status: z.literal("ok"),
     calls: z.array(z.string()),
+    limitations: z.array(z.string()).optional(),
   }),
   z.object({
     address: z.string(),

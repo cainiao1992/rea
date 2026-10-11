@@ -21,7 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Injects the reported analysis flags into real imported ELF functions; never executes ELF code. */
+/** Injects reported analysis flags into imported ELF/Mach-O functions; never executes target code. */
 public class ReaNoReturnProbe extends GhidraScript {
     private final JsonArray checks = new JsonArray();
     private final Map<Function, Address> originalEnds = new LinkedHashMap<>();
@@ -32,15 +32,21 @@ public class ReaNoReturnProbe extends GhidraScript {
         checks.add(name);
     }
 
+    private boolean matchesSymbol(Function function, String name) {
+        String observed = function.getName();
+        // Mach-O symbol names use a leading underscore for C-linkage names.
+        return observed.equals(name) || observed.equals("_" + name);
+    }
+
     private Function function(String name) {
         for (Function f : currentProgram.getFunctionManager().getFunctions(true))
-            if (!f.isThunk() && f.getName().equals(name)) return f;
+            if (!f.isThunk() && matchesSymbol(f, name)) return f;
         throw new IllegalStateException("Missing fixture function " + name);
     }
 
     private Function external(String name) {
         for (Function f : currentProgram.getFunctionManager().getExternalFunctions())
-            if (f.getName().equals(name)) return f;
+            if (matchesSymbol(f, name)) return f;
         throw new IllegalStateException("Missing imported function " + name);
     }
 
@@ -151,7 +157,7 @@ public class ReaNoReturnProbe extends GhidraScript {
         pseudocode.setAccessible(true);
         JsonObject query = new JsonObject();
         query.addProperty("document", currentProgram.getName());
-        query.addProperty("procedure", "rea_tls");
+        query.addProperty("procedure", function("rea_tls").getName());
         var field = bridge.getClass().getDeclaredField("decompiler");
         field.setAccessible(true);
         try {

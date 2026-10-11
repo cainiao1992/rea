@@ -23,8 +23,16 @@ import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
 
 const exec = promisify(execFile);
 const run = createVerifierRun();
-assert.equal(process.platform, "linux", "This regression lane requires Linux");
-assert.equal(process.arch, "x64", "This regression lane requires x86-64");
+const procedureName = (name) =>
+  process.platform === "darwin" ? `_${name}` : name;
+assert.ok(
+  process.platform === "linux" || process.platform === "darwin",
+  "This regression lane requires Linux or macOS",
+);
+assert.ok(
+  process.arch === "x64" || process.arch === "arm64",
+  "This regression lane requires x86-64 or arm64",
+);
 const config = parseConfig(process.env);
 if (!config.ok) throw config.error;
 const installation = inspectGhidraInstallation({
@@ -43,9 +51,22 @@ let cleaned = true;
 let report;
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 try {
-  const targetPath = join(workspace, "noreturn.so");
+  const targetPath = join(
+    workspace,
+    process.platform === "darwin" ? "noreturn.dylib" : "noreturn.so",
+  );
+  const targetOptions =
+    process.platform === "darwin"
+      ? [
+          "-dynamiclib",
+          "-undefined",
+          "dynamic_lookup",
+          "-U_FORTIFY_SOURCE",
+          "-D_FORTIFY_SOURCE=0",
+        ]
+      : ["-shared"];
   await exec(process.env.REA_CC ?? "cc", [
-    "-shared",
+    ...targetOptions,
     "-fPIC",
     "-O0",
     "-fno-builtin",
@@ -154,7 +175,7 @@ try {
       "analyze_function",
     ]) {
       const result = await client.execute(operation, {
-        procedure: "rea_abort",
+        procedure: procedureName("rea_abort"),
       });
       if (!result.ok) throw result.error;
       const warnings = result.value.limitations.filter((value) =>
@@ -169,7 +190,7 @@ try {
       observations.push({ operation, warnings });
     }
     const healthy = await client.execute("procedure_pseudo_code", {
-      procedure: "rea_tls",
+      procedure: procedureName("rea_tls"),
     });
     if (!healthy.ok) throw healthy.error;
     assert.ok(
@@ -192,7 +213,7 @@ try {
     probe,
     observations,
     scope:
-      "Real Ghidra ELF analysis with injected flags; real read-only TCP Evidence projection. No target execution; exact Amethyst artifact and Windows are unverified.",
+      "Real Ghidra ELF or Mach-O analysis with injected flags; real read-only TCP Evidence projection. No target execution; exact Amethyst artifact and Windows are unverified.",
   };
 } finally {
   if (cleaned) await rm(workspace, { recursive: true, force: true });

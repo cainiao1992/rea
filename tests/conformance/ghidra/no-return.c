@@ -3,6 +3,7 @@
 #include <errno.h>
 
 extern void *__tls_get_addr(void *);
+extern int *__errno_location(void);
 extern void rea_unknown_stop(void);
 extern void _Unwind_Resume(void *) __attribute__((noreturn));
 volatile unsigned long rea_after_call;

@@ -33,7 +33,7 @@ public final class ReaGhidraNoReturnFix extends GhidraScript {
     for (Function f : fm.getExternalFunctions()) {
       monitor.checkCancelled();
       // Do not apply import-name assumptions to local functions or to arbitrary externals.
-      if (!f.hasNoReturn() || !RETURNING_IMPORTS.contains(f.getName())) continue;
+      if (!f.hasNoReturn() || !RETURNING_IMPORTS.contains(externalAbiName(f))) continue;
       f.setNoReturn(false);
       enqueueReturning(f, cleared, pending);
     }
@@ -96,6 +96,14 @@ public final class ReaGhidraNoReturnFix extends GhidraScript {
     for (Address thunk : thunks) {
       if (cleared.add(thunk)) pending.addLast(thunk);
     }
+  }
+
+  private String externalAbiName(Function function) {
+    String name = function.getName();
+    // Mach-O stores C-linkage symbols with one object-format underscore prefix.
+    if (currentProgram.getExecutableFormat().contains("Mach-O") && name.startsWith("_"))
+      return name.substring(1);
+    return name;
   }
 
   private boolean clearDecodedReturn(Function function, Listing listing) throws Exception {

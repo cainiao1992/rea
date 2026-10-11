@@ -99,6 +99,14 @@ const scenarioFor = (browser, origin) =>
     capture: { after_each_step: ["dom"], at_end: ["dom"] },
   });
 
+const raceWithTimeout = (operation, timeoutMs, onTimeout = () => undefined) => {
+  const controller = new AbortController();
+  return Promise.race([
+    operation,
+    delay(timeoutMs, undefined, { signal: controller.signal }).then(onTimeout),
+  ]).finally(() => controller.abort());
+};
+
 const storagePage = (kind, port) => {
   if (kind === "main")
     return `<!doctype html><html><body><pre id="main-report"></pre><pre id="frame-report"></pre><iframe src="http://localhost:${port}/storage-frame"></iframe><script>
@@ -303,11 +311,10 @@ const verifyConnectedStorage = async (endpoint, targetId, origin) => {
     await verifyCallerDebuggerPause(observer, origin, scenario);
     await verifyCancelledStorage(observer, endpoint, targetId, scenario);
   } finally {
-    await Promise.race([
-      restoreTarget(observer, target.url),
-      delay(1_000),
-    ]).catch(() => undefined);
-    await Promise.race([observer.close(), delay(1_000)]).catch(() => undefined);
+    await raceWithTimeout(restoreTarget(observer, target.url), 1_000).catch(
+      () => undefined,
+    );
+    await raceWithTimeout(observer.close(), 1_000).catch(() => undefined);
   }
 };
 
@@ -500,14 +507,11 @@ const verifyCallerDebuggerPause = async (caller, origin, scenario) => {
       unsubscribe();
     });
   try {
-    const callFrameId = await Promise.race([
-      paused,
-      delay(10_000).then(() => {
-        throw new Error(
-          `Caller debugger pause was not observed at ${debuggerUrl}; settled=${String(settled)} events=${JSON.stringify(protocolTrace)}`,
-        );
-      }),
-    ]);
+    const callFrameId = await raceWithTimeout(paused, 10_000, () => {
+      throw new Error(
+        `Caller debugger pause was not observed at ${debuggerUrl}; settled=${String(settled)} events=${JSON.stringify(protocolTrace)}`,
+      );
+    });
     const pausedState = await caller.send("Debugger.evaluateOnCallFrame", {
       callFrameId,
       expression: "window.reaDebuggerAfter === true",
@@ -536,10 +540,10 @@ const verifyCallerDebuggerPause = async (caller, origin, scenario) => {
   } catch (cause) {
     if (!pauseObserved) controller.abort(cause);
     else await caller.send("Debugger.resume").catch(() => undefined);
-    const completion = await Promise.race([
+    const completion = await raceWithTimeout(
       pending.catch((pendingCause) => ({ ok: false, error: pendingCause })),
-      delay(5_000).then(() => undefined),
-    ]);
+      5_000,
+    );
     if (completion === undefined)
       throw new Error("Capture remained pending after cancellation", { cause });
     const completionError =
@@ -579,7 +583,7 @@ const verifyCallerDebuggerPause = async (caller, origin, scenario) => {
     });
   } finally {
     unsubscribe();
-    await Promise.race([caller.send("Debugger.disable"), delay(1_000)]).catch(
+    await raceWithTimeout(caller.send("Debugger.disable"), 1_000).catch(
       () => undefined,
     );
   }

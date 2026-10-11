@@ -694,11 +694,9 @@ describe("rest parameter semantic trace CLI", () => {
       root,
       "--json",
     ]);
-    const analyzed = await analyzeJavaScriptApplication({ input_path: root });
-    if (!analyzed.ok) throw analyzed.error;
-    const graph = javascriptApplicationAnalysisResultSchema.parse(
-      analyzed.value.normalized_result,
-    ).semantic_graph;
+    const graph = z
+      .object({ normalized_result: javascriptApplicationAnalysisResultSchema })
+      .parse(application).normalized_result.semantic_graph;
     for (const index of [1, 2]) {
       const argument = graph.nodes.find(
         ({ kind, label }) =>

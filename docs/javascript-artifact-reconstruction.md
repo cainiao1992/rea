@@ -452,8 +452,28 @@ such as `./web3:app.js` still names a local artifact.
 Package `exports` fallback arrays are supported both at the top level and under
 the root `"."` entry. The resolver selects targets in declared order using the
 same conditional and invalid-entry handling as nested exports arrays.
+Nonempty arrays containing only inactive conditions remain unmatched, allowing
+the enclosing condition object to continue to a later active condition.
+Empty arrays and explicit null targets keep their blocking outcome.
+Refusal evidence distinguishes those source values and retains condition names
+from unmatched nested targets rather than reporting array indices.
 For imports and requires, the active Node conditions include `module-sync`;
 earlier active conditions retain precedence over later ones.
+
+Exact package-private `#alias` specifiers resolve against the importer's
+enclosing `package.json` `imports` map — the nearest same-container package
+scope, stopping at a `node_modules` directory so a nested package cannot inherit
+an ancestor's aliases. Selected targets are package-local `./` files with no
+extension or index fallback, using the same condition, array, and null selection
+as exports subpaths. A missing key, explicit null, or out-of-scope alias keeps
+an unresolved edge with that reason. Wildcard keys (`#internal/*`), recursive
+`#` targets, and external-package import targets remain unresolved.
+
+Exact keys such as `#/x` are literal lookup identities. `#` and names ending
+in `/` are invalid. Imports arrays skip invalid parent-relative, absolute, and
+URL targets before selecting a later package-local file; an unsupported bare
+package or recursive alias keeps its unresolved outcome rather than selecting
+a later fallback.
 
 ESM relative module paths and selected package exports targets use URL suffix handling
 and one percent-decoding pass. CommonJS relative paths and legacy package main

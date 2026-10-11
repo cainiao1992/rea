@@ -742,6 +742,30 @@ describe("nested and array package export targets", () => {
   );
 });
 describe("unmatched package export conditions", () => {
+  it.each([
+    [[{ browser: "./default.cjs" }], "browser"],
+    [
+      [[{ browser: "./default.cjs" }, { "rea-inactive": "./node.cjs" }]],
+      "browser, rea-inactive",
+    ],
+    [{ node: [{ browser: "./default.cjs" }] }, "node, browser"],
+  ] as const)(
+    "preserves condition names in unmatched target %j",
+    async (target, declared) => {
+      for (const moduleKind of ["import", "require"] as const) {
+        const { node_error, outcome } = await compareWithNode(
+          target,
+          moduleKind,
+        );
+        expect(node_error).toBe("ERR_PACKAGE_PATH_NOT_EXPORTED");
+        expect(outcome).toMatchObject({
+          resolution_status: "external",
+          resolved_path: null,
+        });
+        expect(outcome.limitations[0]).toContain(`It declares ${declared}.`);
+      }
+    },
+  );
   it.each(["import", "require"] as const)(
     "names the declared conditions for %s",
     async (moduleKind) => {
@@ -767,6 +791,31 @@ describe("unmatched package export conditions", () => {
     expect(outcome.limitations[0]).toContain("exports target 7");
     expect(outcome.limitations[0]).not.toContain("not valid package JSON");
   });
+});
+
+describe("blocked package export provenance", () => {
+  it.each([
+    [[], "an empty exports target array"],
+    [{ node: [] }, "an empty exports target array"],
+    [[null, []], "an empty exports target array"],
+    [[[], null], "an explicit null exports target"],
+  ] as const)(
+    "preserves the blocking source value in %j",
+    async (target, limitation) => {
+      for (const moduleKind of ["import", "require"] as const) {
+        const { node_error, outcome } = await compareWithNode(
+          target,
+          moduleKind,
+        );
+        expect(node_error).toBe("ERR_PACKAGE_PATH_NOT_EXPORTED");
+        expect(outcome).toMatchObject({
+          resolution_status: "external",
+          resolved_path: null,
+        });
+        expect(outcome.limitations[0]).toContain(limitation);
+      }
+    },
+  );
 });
 
 describe("package exports fallback refusal reasons", () => {

@@ -529,7 +529,7 @@ const parseSourceMap = (
     void cause;
     return invalidSourceMap(file, "Source map is not valid JSON.");
   }
-  const maps = flattenSourceMaps(value);
+  const maps = flattenSourceMapLeaves(value);
   if (maps === undefined)
     return invalidSourceMap(file, "Source map is not a version 3 map.");
   return collectSourceMapOriginals(file, maps);
@@ -592,13 +592,6 @@ const unavailableSourceMap = (
     sources: [],
     limitation: "Source-map text could not be decoded as UTF-8.",
   };
-};
-
-const flattenSourceMaps = (
-  root: unknown,
-): Readonly<Record<string, unknown>>[] | undefined => {
-  const leaves = flattenSourceMapLeaves(root);
-  return leaves === undefined ? undefined : [...leaves];
 };
 
 const invalidSourceMap = (

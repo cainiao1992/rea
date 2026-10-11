@@ -194,9 +194,9 @@ const verifySessionAndComparisonTools = async (
     normalized_result: { overall_status: "unknown" },
   });
   const parsedCapture = webPageInspectionSchema.parse(capture);
-  const socket = parsedCapture.network.websocket_events.find(
-    (event) => event.payload_shape?.json_shape != null,
-  );
+  const socket = parsedCapture.network.websocket_connections
+    .flatMap((connection) => connection.events)
+    .find((event) => event.payload_shape?.json_shape != null);
   const payload = socket?.payload_shape;
   if (socket === undefined || payload == null || payload.json_shape === null)
     throw new Error("Missing deep WebSocket JSON shape fixture");
@@ -204,18 +204,27 @@ const verifySessionAndComparisonTools = async (
     ...parsedCapture,
     network: {
       ...parsedCapture.network,
-      websocket_events: [
-        {
-          ...socket,
-          payload_shape: {
-            ...payload,
-            json_shape: {
-              ...payload.json_shape,
-              properties: [{ path: "/event", types: [42], observations: 1 }],
-            },
-          },
-        },
-      ],
+      websocket_connections: parsedCapture.network.websocket_connections.map(
+        (connection) => ({
+          ...connection,
+          events: connection.events.map((event) =>
+            event === socket
+              ? {
+                  ...event,
+                  payload_shape: {
+                    ...payload,
+                    json_shape: {
+                      ...payload.json_shape,
+                      properties: [
+                        { path: "/event", types: [42], observations: 1 },
+                      ],
+                    },
+                  },
+                }
+              : event,
+          ),
+        }),
+      ),
     },
   };
   const malformedComparison = await connected.client.callTool({

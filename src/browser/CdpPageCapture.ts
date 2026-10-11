@@ -300,7 +300,7 @@ const normalizedInspection = (
   resources: [...captured.resources],
   network: {
     requests: [...state.events.network.values()],
-    websocket_events: [...state.events.websockets],
+    websocket_connections: [...state.events.webSocketConnectionsById.values()],
     coverage_started_at: state.startedAt,
     prior_activity_available: false,
   },

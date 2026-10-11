@@ -385,7 +385,7 @@ const captureBody = (source: BodySource, body: string): WebPageInspection => {
     resources: [],
     network: {
       requests: [...events.network.values()],
-      websocket_events: events.websockets,
+      websocket_connections: [...events.webSocketConnectionsById.values()],
       coverage_started_at: CAPTURE_TIME,
       prior_activity_available: false,
     },

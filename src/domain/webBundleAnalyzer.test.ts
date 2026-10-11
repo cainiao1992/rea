@@ -458,7 +458,7 @@ const inspection = (source: string) =>
     resources: [],
     network: {
       requests: [],
-      websocket_events: [],
+      websocket_connections: [],
       coverage_started_at: "2026-07-14T00:00:00.000Z",
       prior_activity_available: false,
     },

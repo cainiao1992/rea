@@ -60,6 +60,8 @@ import {
   GHIDRA_MIPS_SOFT_FLOAT_STORAGE,
   ghidraMipsSoftFloatFailure,
   ghidraMipsRelocatableLimitations,
+  ghidraMipsSharedLimitations,
+  ghidraMipsSharedLanguageOverride,
   ghidraMipsSoftFloatLimitations,
   isGhidraMipsSoftFloatTarget,
 } from "./GhidraMipsProfile.js";
@@ -444,7 +446,10 @@ export const createGhidraProviderClient = (input: {
     committedProfile.parameters,
   );
   if (
-    !sameGhidraLanguageOverride(languageOverride, config.ghidraLanguageOverride)
+    !sameGhidraLanguageOverride(
+      languageOverride,
+      config.ghidraLanguageOverride ?? ghidraMipsSharedLanguageOverride(target),
+    )
   )
     return unavailableClient(
       new ProviderAdapterError("ghidra", "open_binary", {
@@ -512,6 +517,7 @@ export const createGhidraProviderClient = (input: {
       ? (target.mips.limitations ?? [])
       : []),
     ...ghidraMipsRelocatableLimitations(target),
+    ...ghidraMipsSharedLimitations(target),
   ];
   const providerLimitations =
     installation.platform === "win32"

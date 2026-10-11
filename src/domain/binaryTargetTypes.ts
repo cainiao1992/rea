@@ -18,6 +18,15 @@ export interface MipsElfMetadata {
   readonly abiFlags?: MipsAbiFlags | null;
   /** Unavailable declaration sources; missing records there remain unknown. */
   readonly limitations?: readonly string[];
+  /** Complete dynamic REL declarations, or the reason they could not be inspected. */
+  readonly sharedLoad?:
+    | {
+        readonly status: "complete";
+        readonly relocationCount: number;
+        readonly relocationTypes: readonly number[];
+        readonly symbolRelativeCount: number;
+      }
+    | { readonly status: "unavailable"; readonly reason: string };
 }
 
 /** Declared fields of the 24-byte MIPS ABI flags record, not inferred semantics. */

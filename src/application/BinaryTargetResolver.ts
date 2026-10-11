@@ -17,7 +17,7 @@ import {
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { err, ok, type Result } from "../domain/result.js";
-import { readMipsElfAbiFlags } from "./MipsElfAbiFlags.js";
+import { readMipsElfMetadata } from "./MipsElfMetadata.js";
 import {
   resolveAppBundleExecutable,
   type ResolvedAppBundle,
@@ -430,18 +430,23 @@ const readExecutableMetadata = async (
     parsed.value.mips.elfClass !== 32
   )
     return parsed;
-  const abiFlags = await readMipsElfAbiFlags(handle, parsed.value.mips, () =>
-    throwIfTargetResolutionCancelled(signal),
+  const declarations = await readMipsElfMetadata(
+    handle,
+    parsed.value.mips,
+    () => throwIfTargetResolutionCancelled(signal),
   );
-  if (!abiFlags.ok) return abiFlags;
+  if (!declarations.ok) return declarations;
   return ok({
     ...parsed.value,
     mips: {
       ...parsed.value.mips,
-      abiFlags: abiFlags.value.abiFlags,
-      ...(abiFlags.value.limitations.length === 0
+      abiFlags: declarations.value.abiFlags,
+      ...(declarations.value.sharedLoad === undefined
         ? {}
-        : { limitations: abiFlags.value.limitations }),
+        : { sharedLoad: declarations.value.sharedLoad }),
+      ...(declarations.value.limitations.length === 0
+        ? {}
+        : { limitations: declarations.value.limitations }),
     },
   });
 };

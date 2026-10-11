@@ -13,7 +13,10 @@ import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import { err, ok, type Result } from "../domain/result.js";
 import type { GhidraInstallationInspection } from "./GhidraInstallation.js";
-import { ghidraMipsProfileParameters } from "./GhidraMipsProfile.js";
+import {
+  ghidraMipsProfileParameters,
+  ghidraMipsSharedLanguageOverride,
+} from "./GhidraMipsProfile.js";
 import { ghidraRawBinaryLanguage } from "./GhidraRawBinaryLanguage.js";
 
 import {
@@ -132,6 +135,22 @@ export const resolveGhidraAnalysisProfile = async (
   const dosMz = target.format === "dos-mz";
   const dosCom = target.format === "dos-com";
   const dos = dosMz || dosCom;
+  const mipsLanguage = ghidraMipsSharedLanguageOverride(target);
+  if (
+    mipsLanguage !== undefined &&
+    languageOverride !== undefined &&
+    (languageOverride.languageId !== mipsLanguage.languageId ||
+      (languageOverride.compilerSpecId !== undefined &&
+        languageOverride.compilerSpecId !== mipsLanguage.compilerSpecId))
+  )
+    return err(
+      new AnalysisUnsupportedTargetError(
+        "resolve_analysis_profile",
+        target.path,
+        "The caller-selected processor or compiler specification is outside the verified endian-matched MIPS32 shared-image profile. The requested override has not been changed.",
+      ),
+    );
+  const selectedLanguage = languageOverride ?? mipsLanguage;
   // DOS imports already force an admitted loader, language, and context.
   if (dos && languageOverride !== undefined)
     return Promise.resolve(
@@ -199,14 +218,16 @@ export const resolveGhidraAnalysisProfile = async (
             : "auto-from-header",
         language_id: dos
           ? "x86:LE:16:Real Mode"
-          : (languageOverride?.languageId ?? "auto-from-header"),
+          : (selectedLanguage?.languageId ?? "auto-from-header"),
         compiler_spec_id: dos
           ? "default"
-          : languageOverride === undefined
+          : selectedLanguage === undefined
             ? "auto-default"
-            : (languageOverride.compilerSpecId ?? "language-default"),
+            : (selectedLanguage.compilerSpecId ?? "language-default"),
         ...(languageOverride === undefined
-          ? {}
+          ? mipsLanguage === undefined
+            ? {}
+            : { language_selection: "provider-pinned-v1" }
           : { language_selection: "configured-v1" }),
         ...(dos
           ? {
@@ -246,7 +267,11 @@ export const resolveGhidraAnalysisProfile = async (
 export const ghidraProfileLanguageOverride = (
   parameters: Readonly<Record<string, unknown>>,
 ): GhidraLanguageOverride | undefined => {
-  if (parameters.language_selection !== "configured-v1") return undefined;
+  if (
+    parameters.language_selection !== "configured-v1" &&
+    parameters.language_selection !== "provider-pinned-v1"
+  )
+    return undefined;
   const languageId = parameters.language_id;
   const compilerSpecId = parameters.compiler_spec_id;
   if (typeof languageId !== "string" || typeof compilerSpecId !== "string")

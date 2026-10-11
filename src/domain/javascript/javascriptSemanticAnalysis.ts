@@ -143,7 +143,7 @@ export function* analyzeParsedJavaScriptSemanticsSteps(
   const parserPartial = file.errors.length > 0;
   const bindings = immutableSemanticBindings(state);
   yield;
-  const callables = collectSemanticReturns(file.program, state, parserPartial);
+  const callables = collectSemanticReturns(state, parserPartial);
   yield;
   const moduleLinks = resolveSemanticModuleCallables(state, callables);
   const derived = yield* collectJavaScriptDerivedSemanticsSteps(

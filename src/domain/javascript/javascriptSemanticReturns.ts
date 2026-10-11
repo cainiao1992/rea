@@ -26,7 +26,6 @@ import {
 import { evaluateSemanticExpression } from "./javascriptSemanticValues.js";
 import { range } from "./javascriptStaticAnalysisHelpers.js";
 import { semanticReturnCoverage } from "./javascriptSemanticCoverage.js";
-import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
 import { semanticCallableResultExpressions } from "./javascriptSemanticCallableResults.js";
 
 interface ReturnExpression {
@@ -36,13 +35,11 @@ interface ReturnExpression {
 
 /** Evaluate direct returns while excluding every nested callable. */
 export const collectSemanticReturns = (
-  program: t.Program,
   state: JavaScriptSemanticAnalysisState,
   parserPartial: boolean,
 ): JavaScriptSemanticCallable[] => {
-  const nodes = callableNodes(program);
   return state.callables.map((callable) => {
-    const node = nodes.get(callable.callableId);
+    const node = state.callableNodesById.get(callable.callableId);
     if (node === undefined)
       return {
         ...callable,
@@ -115,17 +112,6 @@ export const resolveSemanticModuleCallables = (
       callableId: resolved.length === 1 ? (resolved[0] ?? null) : null,
     };
   });
-};
-
-const callableNodes = (program: t.Program): Map<string, t.Node> => {
-  const output = new Map<string, t.Node>();
-  traverseJavaScriptAst(program, {
-    enter: (node) => {
-      const id = semanticCallableIdForNode(node);
-      if (id !== null) output.set(id, node);
-    },
-  });
-  return output;
 };
 
 const directReturnExpressions = (callable: t.Node): ReturnExpression[] =>

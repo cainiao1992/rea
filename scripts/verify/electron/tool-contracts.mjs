@@ -177,7 +177,8 @@ bridge.exposeInMainWorld("fixture", {
       1,
     );
     assert.equal(
-      staticAnalysis.normalized_result.summary.ipc.paired_renderer_transmissions,
+      staticAnalysis.normalized_result.summary.ipc
+        .paired_renderer_transmissions,
       1,
     );
     const reconciled = await call("reconcile_javascript_runtime", {

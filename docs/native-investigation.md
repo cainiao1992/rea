@@ -53,6 +53,10 @@ complete observation.
   classes are preserved. Select `root`, `offset` and `limit` explicitly.
   UID 0 cannot distinguish conditional nil from ordinary nil. Limits are
   64 MiB of input, 200,000 objects/references and 128 nesting levels.
+  XML dictionary entries decoded as `__proto__` are omitted with an explicit
+  count because REA results cannot represent that key. XML tag whitespace and
+  comments do not change that handling. Other values and the original archive
+  digest are preserved; key interpretation follows the pinned plist decoder.
 - `decode_interface_builder` / `rea decode-interface-builder <app>` reads
   compiled storyboard and nib resources into objects, outlets, actions,
   connections and controller/class names. `verify:interface-builder` compiles

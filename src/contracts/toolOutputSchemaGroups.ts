@@ -364,6 +364,7 @@ export const enhancedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
       segment_count: z.number().int().min(0),
       procedure_count: z.number().int().min(0),
       string_count: z.number().int().min(0),
+      image_base: z.string().min(1).optional(),
     }),
   ),
   analyze_function: functionDossierOutput,

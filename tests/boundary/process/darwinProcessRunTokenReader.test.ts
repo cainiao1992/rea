@@ -27,7 +27,11 @@ import {
   DarwinProcessOwnershipInspectionError,
 } from "../../../src/process/DarwinProcessRunTokenReader.js";
 import { execFileOutput } from "../../../src/process/ExecFileOutput.js";
-import { normalizeCaptureFailure } from "../../../src/process/capture/ProcessCaptureError.js";
+import {
+  normalizeCaptureFailure,
+  ProcessCaptureError,
+} from "../../../src/process/capture/ProcessCaptureError.js";
+import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
 import { PlaywrightElectronActiveProvider } from "../../../src/browser/PlaywrightElectronActiveProvider.js";
 import { electronActiveObservationInputSchema } from "../../../src/domain/javascript/electronActiveObservation.js";
 
@@ -191,14 +195,39 @@ it.skipIf(process.platform === "win32")(
     const executable = join(directory, "failing-xcrun");
     await writeFile(
       executable,
-      '#!/usr/bin/env node\nprocess.stderr.write("module cache is not writable\\n"); process.exitCode = 1;\n',
+      '#!/usr/bin/env node\nprocess.stderr.write("module cache is not writable\\n" + "x".repeat(12000)); process.exitCode = 1;\n',
     );
     await chmod(executable, 0o755);
     const reader = createDarwinProcessRunTokenReader({ xcrun: executable });
     try {
-      await expect(preparationFailure(reader)).resolves.toMatchObject({
-        message:
-          "macOS process ownership helper compilation failed via xcrun (compiler result: exit code 1): module cache is not writable",
+      const failure = await preparationFailure(reader);
+      expect(failure.compilerOutcome).toMatchObject({
+        outcome: "exited",
+        code: 1,
+        signal: null,
+        stderr: expect.stringMatching(/^module cache is not writable\n/u),
+        stderrTruncated: true,
+        killed: false,
+      });
+      expect(failure.message).toContain(
+        "(compiler result: exit code 1): module cache is not writable",
+      );
+      expect(failure.message).toContain("[diagnostics truncated]");
+      const normalized = normalizeCaptureFailure(failure, undefined);
+      if (!(normalized instanceof ProcessCaptureError))
+        throw new Error("Expected a normalized process capture error");
+      expect(projectAnalysisError(normalized)).toMatchObject({
+        code: "process_capture_failed",
+        details: {
+          execution_failure: expect.stringContaining(
+            "compiler result: exit code 1",
+          ),
+          captured_output: {
+            stderr: expect.stringContaining("module cache is not writable"),
+            exit_code: 1,
+            truncated: true,
+          },
+        },
       });
     } finally {
       await reader.close();
@@ -227,6 +256,11 @@ it.skipIf(process.platform === "win32")(
       await expect(preparationFailure(reader)).resolves.toMatchObject({
         message:
           "macOS process ownership helper compilation failed via xcrun (compiler result: timed out after 3000 ms): error: PCH was compiled with module cache path that differs",
+        compilerOutcome: {
+          outcome: "timed_out",
+          code: "ETIMEDOUT",
+          timeoutMs: 3_000,
+        },
       });
     } finally {
       await reader.close();
@@ -251,6 +285,11 @@ it.skipIf(process.platform === "win32")(
       await expect(preparationFailure(reader)).resolves.toMatchObject({
         message:
           "macOS process ownership helper compilation failed via xcrun (compiler result: stopped by signal SIGSEGV): fatal: segmentation fault during type checking",
+        compilerOutcome: {
+          outcome: "signaled",
+          code: null,
+          signal: "SIGSEGV",
+        },
       });
     } finally {
       await reader.close();
@@ -268,15 +307,24 @@ it.skipIf(process.platform === "win32")(
     const diagnostic = "x".repeat(600);
     await writeFile(
       executable,
-      `#!/usr/bin/env node\nprocess.stderr.write(${JSON.stringify(`${diagnostic}\\n`)}); process.exitCode = 1;\n`,
+      `#!/usr/bin/env node\nprocess.stderr.write(${JSON.stringify(`${diagnostic}\n`)}); process.exitCode = 1;\n`,
     );
     await chmod(executable, 0o755);
     const reader = createDarwinProcessRunTokenReader({ xcrun: executable });
     try {
       const failure = await preparationFailure(reader);
-      expect(failure.message).toContain("compiler result: exit code 1");
+      const outcome = failure.compilerOutcome;
+      if (outcome === undefined) throw new Error("Expected compiler outcome");
+      expect(outcome.stderrBytes).toBe(601);
+      expect(outcome.stderrTruncated).toBe(false);
       expect(failure.message).toContain(
         `: ${"x".repeat(512)}… [diagnostics truncated]`,
+      );
+      const excerpt = failure.message.split("): ")[1]?.split("…")[0];
+      expect(excerpt).toBe("x".repeat(512));
+      expect(Buffer.byteLength(excerpt ?? "", "utf8")).toBeLessThanOrEqual(512);
+      expect(Buffer.byteLength(outcome.stderr, "utf8")).toBeLessThanOrEqual(
+        8 * 1024,
       );
     } finally {
       await reader.close();

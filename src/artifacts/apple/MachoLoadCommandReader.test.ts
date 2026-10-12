@@ -26,6 +26,7 @@ import {
 } from "./MachoLoadCommandReader.js";
 import { traceDylibResolution } from "./DylibResolutionReader.js";
 import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
+import { javaClassFile } from "../../../tests/fixtures/javaClassFile.js";
 
 const read = (bytes: Uint8Array) =>
   readMachoImage(readerOf(bytes), bytes.length);
@@ -345,10 +346,13 @@ describe("Mach-O load command reader inputs", () => {
     expect(i386.status === "parsed" && i386.slices[0]?.architecture).toBe(
       "i386",
     );
-    // A Java class file shares the FAT magic; its version is not a slice count.
-    const javaClass = Uint8Array.from([0xca, 0xfe, 0xba, 0xbe, 0, 0, 0, 0x34]);
-    expect(hasMachoMagic(javaClass)).toBe(true);
-    expect(await read(javaClass)).toEqual({ status: "not-mach-o" });
+    // A Java class file shares the FAT magic; version fields are not a slice count.
+    const javaClasses = [javaClassFile(), javaClassFile(4000)];
+    expect(javaClasses.map(({ length }) => length)).toEqual([57, 4060]);
+    for (const javaClass of javaClasses) {
+      expect(hasMachoMagic(javaClass)).toBe(true);
+      expect(await read(javaClass)).toEqual({ status: "not-mach-o" });
+    }
     expect(await read(new TextEncoder().encode("#!/bin/sh\n"))).toEqual({
       status: "not-mach-o",
     });
@@ -487,6 +491,16 @@ describe("Mach-O load command reader failures", () => {
     expect(await read(fat.subarray(0, 4100))).toMatchObject({
       status: "malformed",
       reason: "FAT architecture 0 slice range extends beyond the file",
+    });
+  });
+
+  it("preserves unsupported status for an unsupported FAT alignment exponent", async () => {
+    const fat = fatImage([{ cpu: CPU.arm64, bytes: machoImage({}) }]);
+    new DataView(fat.buffer).setUint32(24, 53, false);
+
+    expect(await read(fat)).toMatchObject({
+      status: "unsupported",
+      reason: expect.stringContaining("alignment exponent 53 is unsupported"),
     });
   });
 });

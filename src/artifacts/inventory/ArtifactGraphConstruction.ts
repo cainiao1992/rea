@@ -22,6 +22,10 @@ import {
   observeMzWindowsHeader,
   parseDosMzHeader,
 } from "../../domain/dosMz.js";
+import {
+  classifyFatContainerIdentity,
+  readFatContainerHeader,
+} from "../../domain/apple/machoContainer.js";
 
 /** Mutable internal occurrence used until root-bound IDs are known. */
 export interface MutableOccurrence {
@@ -437,10 +441,10 @@ export const classifyArtifactBytes = (
 ): ArtifactNode["format"] => {
   if (hasZipSignature(prefix)) return "zip";
   if (prefix.subarray(0, 8).equals(Buffer.from("bplist00"))) return "plist";
+  const fatFormat = classifyFatArtifact(prefix, fileSize);
+  if (fatFormat !== null) return fatFormat;
   if (prefix.length >= 4) {
     const magic = prefix.readUInt32BE(0);
-    if ([0xcafebabe, 0xbebafeca, 0xcafebabf, 0xbfbafeca].includes(magic))
-      return "mach-o-universal";
     if ([0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe].includes(magic))
       return "mach-o";
     if (prefix.subarray(0, 4).equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46])))
@@ -469,6 +473,22 @@ export const classifyArtifactBytes = (
     return "unknown";
   }
   return "file";
+};
+
+const classifyFatArtifact = (
+  prefix: Buffer,
+  fileSize: number,
+): ArtifactNode["format"] | null => {
+  const fatHeader = readFatContainerHeader(prefix, fileSize);
+  if (fatHeader.state === "needs-data" || fatHeader.state === "malformed")
+    return "unknown";
+  if (fatHeader.state === "not-fat") return null;
+  const identity = classifyFatContainerIdentity(fatHeader, (offset) => {
+    if (offset >= prefix.length) return undefined;
+    if (offset + 4 > prefix.length) return null;
+    return prefix.readUInt32BE(offset);
+  });
+  return identity.state === "mach-o" ? "mach-o-universal" : "unknown";
 };
 
 const relationFor = (path: string): ArtifactEdge["relation"] => {

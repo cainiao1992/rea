@@ -176,42 +176,53 @@ describe("executable header completeness", () => {
     expect(reason(header, 132)).toBeNull();
   });
 
-  it("rejects a FAT file whose host slice extends past the file", () => {
+  it("rejects an invalid FAT slice even when another host slice is valid", () => {
     const bytes = fat([0x01000007, 0x0100000c]);
     bytes.writeUInt32BE(4096, 8 + 20 + 8);
     bytes.writeUInt32BE(64, 8 + 20 + 12);
 
     expect(reason(bytes, 4100)).toBe(
-      "truncated FAT slice: the arm64 slice ends at byte 4160; the file has 4100",
+      "FAT architecture 1 slice range extends beyond the file",
     );
     expect(reason(bytes, 4160)).toBeNull();
-    // Only the slice REA would analyze must be present.
-    expect(parseExecutableHeader(bytes, "x64", 4100).ok).toBe(true);
+    expect(parseExecutableHeader(bytes, "x64", 4100)).toMatchObject({
+      ok: false,
+      error: "FAT architecture 1 slice range extends beyond the file",
+    });
   });
 
   it.each([
     {
       label: "empty range",
-      corruptRange: (bytes: Buffer, wide: boolean, little: boolean) =>
-        setFatSliceRange(bytes, wide, little, "size", 0n),
-      error: "FAT slice for arm64 is shorter than its Mach-O header",
+      corruptRange: (bytes: Buffer, wide: boolean, littleEndian: boolean) =>
+        setFatSliceRange(bytes, {
+          wide,
+          littleEndian,
+          field: "size",
+          value: 0n,
+        }),
+      error: "FAT architecture 1 has an invalid slice range",
     },
     {
       label: "table overlap",
-      corruptRange: (bytes: Buffer, wide: boolean, little: boolean) =>
-        setFatSliceRange(
-          bytes,
+      corruptRange: (bytes: Buffer, wide: boolean, littleEndian: boolean) =>
+        setFatSliceRange(bytes, {
           wide,
-          little,
-          "offset",
-          BigInt(8 + 2 * (wide ? 32 : 20) - 1),
-        ),
-      error: "FAT slice for arm64 overlaps the architecture table",
+          littleEndian,
+          field: "offset",
+          value: BigInt(8 + 2 * (wide ? 32 : 20) - 1),
+        }),
+      error: "FAT architecture 1 has an invalid slice range",
     },
     {
       label: "undersized 64-bit header",
-      corruptRange: (bytes: Buffer, wide: boolean, little: boolean) =>
-        setFatSliceRange(bytes, wide, little, "size", 31n),
+      corruptRange: (bytes: Buffer, wide: boolean, littleEndian: boolean) =>
+        setFatSliceRange(bytes, {
+          wide,
+          littleEndian,
+          field: "size",
+          value: 31n,
+        }),
       error: "FAT slice for arm64 is shorter than its Mach-O header",
     },
   ])("rejects a selected FAT slice with $label", ({ corruptRange, error }) => {
@@ -234,11 +245,23 @@ describe("executable header completeness", () => {
 
   it("uses a 28-byte minimum for a selected 32-bit Mach-O header", () => {
     const exactHeader = fat([7]);
-    setFatSliceRange(exactHeader, false, false, "size", 28n, 0);
+    setFatSliceRange(exactHeader, {
+      wide: false,
+      littleEndian: false,
+      field: "size",
+      value: 28n,
+      index: 0,
+    });
     expect(parseExecutableHeader(exactHeader, "ia32").ok).toBe(true);
 
     const undersizedHeader = Buffer.from(exactHeader);
-    setFatSliceRange(undersizedHeader, false, false, "size", 27n, 0);
+    setFatSliceRange(undersizedHeader, {
+      wide: false,
+      littleEndian: false,
+      field: "size",
+      value: 27n,
+      index: 0,
+    });
 
     expect(parseExecutableHeader(undersizedHeader, "ia32")).toMatchObject({
       ok: false,
@@ -249,12 +272,16 @@ describe("executable header completeness", () => {
 
 const setFatSliceRange = (
   bytes: Buffer,
-  wide: boolean,
-  littleEndian: boolean,
-  field: "offset" | "size",
-  value: bigint,
-  index = 1,
+  options: {
+    readonly wide: boolean;
+    readonly littleEndian: boolean;
+    readonly field: "offset" | "size";
+    readonly value: bigint;
+    readonly index?: number;
+  },
 ): void => {
+  const { wide, littleEndian, field, value } = options;
+  const index = options.index ?? 1;
   const entry = 8 + index * (wide ? 32 : 20);
   const fieldOffset = entry + (field === "offset" ? 8 : wide ? 16 : 12);
   if (wide) {

@@ -22,7 +22,10 @@ import {
   createSystemProcessOwnershipHost,
   systemProcessOwnershipHost,
 } from "../../../src/process/ProcessOwnershipObservation.js";
-import { createDarwinProcessRunTokenReader } from "../../../src/process/DarwinProcessRunTokenReader.js";
+import {
+  createDarwinProcessRunTokenReader,
+  DarwinProcessOwnershipInspectionError,
+} from "../../../src/process/DarwinProcessRunTokenReader.js";
 import { execFileOutput } from "../../../src/process/ExecFileOutput.js";
 import { normalizeCaptureFailure } from "../../../src/process/capture/ProcessCaptureError.js";
 import { PlaywrightElectronActiveProvider } from "../../../src/browser/PlaywrightElectronActiveProvider.js";
@@ -168,8 +171,19 @@ it("reports an actionable missing Swift compiler without installing it", async (
   }
 });
 
+const preparationFailure = async (
+  reader: ReturnType<typeof createDarwinProcessRunTokenReader>,
+): Promise<DarwinProcessOwnershipInspectionError> => {
+  const cause = await reader.prepare().then(
+    () => undefined,
+    (failure: unknown) => failure,
+  );
+  expect(cause).toBeInstanceOf(DarwinProcessOwnershipInspectionError);
+  return cause as DarwinProcessOwnershipInspectionError;
+};
+
 it.skipIf(process.platform === "win32")(
-  "preserves compiler diagnostics when Swift preparation fails",
+  "reports the compiler exit code with its diagnostics when preparation fails",
   async () => {
     const directory = await createTestTempDirectory(
       "rea-process-token-compiler-failure-test-",
@@ -182,8 +196,87 @@ it.skipIf(process.platform === "win32")(
     await chmod(executable, 0o755);
     const reader = createDarwinProcessRunTokenReader({ xcrun: executable });
     try {
-      await expect(reader.prepare()).rejects.toThrow(
-        /compilation failed.*module cache is not writable/su,
+      await expect(preparationFailure(reader)).resolves.toMatchObject({
+        message:
+          "macOS process ownership helper compilation failed via xcrun (compiler result: exit code 1): module cache is not writable",
+      });
+    } finally {
+      await reader.close();
+    }
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "reports compiler diagnostics captured before the compilation deadline",
+  async () => {
+    const directory = await createTestTempDirectory(
+      "rea-process-token-compiler-timeout-test-",
+    );
+    const executable = join(directory, "hanging-xcrun");
+    await writeFile(
+      executable,
+      '#!/usr/bin/env node\nprocess.stderr.write("error: PCH was compiled with module cache path that differs\\n", () => { setInterval(() => {}, 1000); });\n',
+    );
+    await chmod(executable, 0o755);
+    const reader = createDarwinProcessRunTokenReader({
+      xcrun: executable,
+      // Headroom for the child interpreter's cold start under suite load.
+      compileTimeoutMs: 3_000,
+    });
+    try {
+      await expect(preparationFailure(reader)).resolves.toMatchObject({
+        message:
+          "macOS process ownership helper compilation failed via xcrun (compiler result: timed out after 3000 ms): error: PCH was compiled with module cache path that differs",
+      });
+    } finally {
+      await reader.close();
+    }
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "reports the stop signal when the compiler dies without an exit code",
+  async () => {
+    const directory = await createTestTempDirectory(
+      "rea-process-token-compiler-signal-test-",
+    );
+    const executable = join(directory, "segv-xcrun");
+    await writeFile(
+      executable,
+      '#!/usr/bin/env node\nprocess.stderr.write("fatal: segmentation fault during type checking\\n");\nprocess.kill(process.pid, "SIGSEGV");\n',
+    );
+    await chmod(executable, 0o755);
+    const reader = createDarwinProcessRunTokenReader({ xcrun: executable });
+    try {
+      await expect(preparationFailure(reader)).resolves.toMatchObject({
+        message:
+          "macOS process ownership helper compilation failed via xcrun (compiler result: stopped by signal SIGSEGV): fatal: segmentation fault during type checking",
+      });
+    } finally {
+      await reader.close();
+    }
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "bounds embedded compiler diagnostics and marks the truncation",
+  async () => {
+    const directory = await createTestTempDirectory(
+      "rea-process-token-compiler-verbose-test-",
+    );
+    const executable = join(directory, "verbose-xcrun");
+    const diagnostic = "x".repeat(600);
+    await writeFile(
+      executable,
+      `#!/usr/bin/env node\nprocess.stderr.write(${JSON.stringify(`${diagnostic}\\n`)}); process.exitCode = 1;\n`,
+    );
+    await chmod(executable, 0o755);
+    const reader = createDarwinProcessRunTokenReader({ xcrun: executable });
+    try {
+      const failure = await preparationFailure(reader);
+      expect(failure.message).toContain("compiler result: exit code 1");
+      expect(failure.message).toContain(
+        `: ${"x".repeat(512)}… [diagnostics truncated]`,
       );
     } finally {
       await reader.close();

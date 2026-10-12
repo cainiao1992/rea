@@ -6,7 +6,11 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
 import { safeParseJson } from "../domain/safeJson.js";
-import { execFileOutput } from "./ExecFileOutput.js";
+import {
+  execFileOutput,
+  execFileOutputFailure,
+  type ExecFileOutputFailure,
+} from "./ExecFileOutput.js";
 import type {
   ProcessIdentityObservation,
   ProcessRunTokenObservation,
@@ -72,6 +76,40 @@ const sourceFiles = [
  */
 export const SWIFTC_INTERRUPT = "SIGINT";
 
+/** Deadline for the one-shot helper compilation. */
+const COMPILER_TIMEOUT_MS = 60_000;
+
+/** Bound on compiler diagnostics embedded in the inspection failure text. */
+const STDERR_EXCERPT_LIMIT = 512;
+
+/** Name the observed compiler outcome without implying an exit code it lacks. */
+const compilerOutcome = (
+  code: string | number | null,
+  failure: ExecFileOutputFailure | undefined,
+  timeoutMs: number,
+): string => {
+  if (typeof code === "number") return `exit code ${String(code)}`;
+  if (code === "ETIMEDOUT") return `timed out after ${String(timeoutMs)} ms`;
+  if (code === null)
+    return typeof failure?.signal === "string"
+      ? `stopped by signal ${failure.signal}`
+      : "unknown";
+  return code;
+};
+
+const compilerDiagnostics = (
+  failure: ExecFileOutputFailure | undefined,
+  cause: unknown,
+): string => {
+  if (failure === undefined)
+    return cause instanceof Error ? cause.message : String(cause);
+  const diagnostics = failure.stderr.trim();
+  if (diagnostics === "") return "no compiler diagnostics were captured";
+  return diagnostics.length > STDERR_EXCERPT_LIMIT || failure.outputTruncated
+    ? `${diagnostics.slice(0, STDERR_EXCERPT_LIMIT)}… [diagnostics truncated]`
+    : diagnostics;
+};
+
 /** The native Darwin process-ownership reader could not be prepared. */
 export class DarwinProcessOwnershipInspectionError extends Error {
   constructor(message: string, options?: ErrorOptions) {
@@ -126,8 +164,13 @@ const waitForCompilation = async (
 
 /** Compile and retain the narrow Darwin sysctl reader for this REA process. */
 export const createDarwinProcessRunTokenReader = (
-  options: { readonly xcrun?: string } = {},
+  options: {
+    readonly xcrun?: string;
+    /** Deadline for the helper compilation; the default keeps verification fast. */
+    readonly compileTimeoutMs?: number;
+  } = {},
 ) => {
+  const compilerTimeoutMs = options.compileTimeoutMs ?? COMPILER_TIMEOUT_MS;
   let root: string | undefined;
   let executable: string | undefined;
   let compilation: ProcessReaderCompilation | undefined;
@@ -171,7 +214,7 @@ export const createDarwinProcessRunTokenReader = (
           options.xcrun ?? "/usr/bin/xcrun",
           ["swiftc", ...sourceFiles, "-o", output],
           {
-            timeout: 60_000,
+            timeout: compilerTimeoutMs,
             maxBuffer: 1024 * 1024,
             signal,
             stopSignal: SWIFTC_INTERRUPT,
@@ -180,14 +223,19 @@ export const createDarwinProcessRunTokenReader = (
         );
       } catch (cause: unknown) {
         if (isExpectedAbort(cause, signal)) throw cause;
+        const failure = execFileOutputFailure(cause);
+        // A parsed failure carries its own null code (a signaled compiler);
+        // only an unparsed cause falls back to the raw error property.
         const code =
-          cause instanceof Error && "code" in cause
-            ? String(cause.code)
-            : "unknown";
+          failure !== undefined
+            ? failure.code
+            : cause instanceof Error && "code" in cause
+              ? String(cause.code)
+              : "unknown";
         throw new DarwinProcessOwnershipInspectionError(
           code === "ENOENT"
-            ? `macOS process ownership inspection requires the Apple Swift compiler via xcrun (compiler result: ${code})`
-            : `macOS process ownership helper compilation failed via xcrun (compiler result: ${code}): ${cause instanceof Error ? cause.message : String(cause)}`,
+            ? `macOS process ownership inspection requires the Apple Swift compiler via xcrun (compiler result: ${String(code)})`
+            : `macOS process ownership helper compilation failed via xcrun (compiler result: ${compilerOutcome(code, failure, compilerTimeoutMs)}): ${compilerDiagnostics(failure, cause)}`,
           { cause },
         );
       }

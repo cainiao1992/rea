@@ -33,6 +33,10 @@ import { jsonValueSchema, type JsonValue } from "../../domain/jsonValue.js";
 import { compareUnicodeCodePoints } from "../../domain/unicodeCodePointOrder.js";
 
 import { decodeXmlPlistText } from "../../domain/propertyListXmlText.js";
+import {
+  hasBinaryPlistSignature,
+  hasNibArchiveSignature,
+} from "../../domain/apple/appleArchiveFormat.js";
 
 const MAX_AGGREGATE_INPUT_BYTES = 32 * 1024 * 1024;
 const MAX_AGGREGATE_DECODE_BYTES = 256 * 1024 * 1024;
@@ -94,8 +98,7 @@ export const analyzeInterfaceBuilderBundle = async (input: {
           remainingInputBytes,
         );
         aggregateInputBytes += bytes.length;
-        const isNibArchive =
-          bytes.subarray(0, 10).toString("ascii") === "NIBArchive";
+        const isNibArchive = hasNibArchiveSignature(bytes);
         let nib: ReturnType<typeof projectNibArchive> | null = null;
         let xmlText: string | undefined;
         let binaryPrototypeKeyObserved = false;
@@ -113,7 +116,7 @@ export const analyzeInterfaceBuilderBundle = async (input: {
             "NIBArchive representation exceeds the aggregate Interface Builder decode budget",
           );
         } else {
-          if (bytes.subarray(0, 8).toString("ascii") !== "bplist00")
+          if (!hasBinaryPlistSignature(bytes))
             xmlText = decodeXmlPlistText(bytes);
           const decodedReservation = preflightPropertyListDecode(
             bytes,
@@ -665,7 +668,7 @@ const decodePlist = (
   readonly value: JsonValue;
   readonly omittedPrototypeKeys: number | null;
 } => {
-  const binary = bytes.subarray(0, 8).toString("ascii") === "bplist00";
+  const binary = hasBinaryPlistSignature(bytes);
   const { value, omittedPrototypeKeys } = binary
     ? {
         value: parseBinary(bytes),

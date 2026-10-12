@@ -32,6 +32,7 @@ import {
 } from "../domain/rawBinary.js";
 import type { BinaryArchitecture } from "../domain/binaryTargetTypes.js";
 import { observeMzWindowsHeader } from "../domain/dosMz.js";
+import { hasBinaryPlistSignature } from "../domain/apple/appleArchiveFormat.js";
 import {
   hasZipSignature,
   isZipPackageFormat,
@@ -295,7 +296,7 @@ const detectArtifactFormat = async (
     return zipPackageFormatForPath(lower) ?? "zip";
   }
   // Binary plists, including keyed archives, often use other extensions.
-  if (observed.bytesRead === 8 && magic.equals(Buffer.from("bplist00")))
+  if (hasBinaryPlistSignature(magic.subarray(0, observed.bytesRead)))
     return "plist";
   const named = namedArtifactFormat(lower);
   if (named !== undefined) return named;

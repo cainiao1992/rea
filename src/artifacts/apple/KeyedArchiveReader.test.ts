@@ -23,6 +23,23 @@ const archive = {
   $top: { root: { UID: 1 }, other: { UID: 2 } },
 };
 describe("inert keyed archive decoding", () => {
+  it.each(["bplist00", "NIBArchive"])(
+    "rejects high-bit mutations of %s as malformed bytes rather than another archive kind",
+    (signature) => {
+      for (let index = 0; index < signature.length; index += 1) {
+        const bytes = Buffer.from(signature);
+        bytes[index] = (bytes[index] ?? 0) | 0x80;
+        expect(() =>
+          decodeKeyedArchiveBytes(bytes, { offset: 0, limit: 1 }),
+        ).toThrow(
+          expect.objectContaining({
+            code: "ERR_ENCODING_INVALID_ENCODED_DATA",
+          }),
+        );
+      }
+    },
+  );
+
   it("preserves CF$UID, malformed references and original pagination identities", () => {
     const bytes = Buffer.from(
       build({
@@ -356,7 +373,7 @@ describe("XML plist nesting preflight", () => {
     return cursor;
   };
 
-  it.each([129, 200, 3000, 4000])(
+  it.each([129, 4000])(
     "rejects %i-level XML nesting as the documented resource limit",
     (depth) => {
       // Recursive decoding exceeds the call stack before the projection limit

@@ -1,4 +1,5 @@
 import { decodeXmlPlistText } from "../../domain/propertyListXmlText.js";
+import { hasBinaryPlistSignature } from "../../domain/apple/appleArchiveFormat.js";
 
 /** Reason reported when an archive would exceed the shared decoding budget. */
 export type InterfaceBuilderBudgetReason = "aggregate_decode_budget_exhausted";
@@ -94,13 +95,12 @@ export const preflightPropertyListDecode = (
   maxBytes: number,
   xmlText?: string,
 ): PlistDecodePreflight => {
-  const expansion =
-    bytes.subarray(0, 8).toString("ascii") === "bplist00"
-      ? estimateBinaryPlistExpansion(bytes, maxBytes)
-      : {
-          estimatedBytes: estimateXmlPlistExpansion(bytes, maxBytes, xmlText),
-          binaryPrototypeKeyObserved: false,
-        };
+  const expansion = hasBinaryPlistSignature(bytes)
+    ? estimateBinaryPlistExpansion(bytes, maxBytes)
+    : {
+        estimatedBytes: estimateXmlPlistExpansion(bytes, maxBytes, xmlText),
+        binaryPrototypeKeyObserved: false,
+      };
   if (expansion.estimatedBytes > maxBytes)
     throw new InterfaceBuilderDecodeBudgetExceeded(
       "aggregate_decode_budget_exhausted",

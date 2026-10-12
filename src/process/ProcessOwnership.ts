@@ -642,6 +642,8 @@ const cleanupValidationFailure = (
 const sanitizedTokenReadFailure = (diagnostic: string | undefined): string => {
   if (diagnostic === "environment_unavailable") return diagnostic;
   if (diagnostic === "platform_binary_environment_withheld") return diagnostic;
+  if (diagnostic === "restricted_process_environment_withheld")
+    return diagnostic;
   const environmentErrno = /^(EACCES|EPERM|ENOENT|ESRCH):/u.exec(
     diagnostic ?? "",
   );

@@ -138,7 +138,10 @@ describe("opaque process neighbors during cleanup", () => {
     expect(signalGroup).not.toHaveBeenCalledWith(900, "SIGKILL");
   });
 
-  it("fails closed for an unrelated unreadable candidate the OS should expose", async () => {
+  it.each([
+    "environment_unavailable",
+    "restricted_process_environment_withheld",
+  ])("fails closed for an unrelated candidate with %s", async (diagnostic) => {
     const processes = [
       { pid: 100, parentPid: 1, processGroupId: 100, command: "capture" },
       {
@@ -171,7 +174,7 @@ describe("opaque process neighbors during cleanup", () => {
               pid === 900
                 ? {
                     state: "unavailable" as const,
-                    reason: "environment_unavailable",
+                    reason: diagnostic,
                   }
                 : { state: "readable" as const, runId: "run-token" },
             ]),
@@ -191,13 +194,11 @@ describe("opaque process neighbors during cleanup", () => {
 
     expect(result).toMatchObject({
       cleaned: false,
-      reason: expect.stringContaining("environment_unavailable=1"),
+      reason: expect.stringContaining(`${diagnostic}=1`),
     });
     if (result.cleaned)
       throw new Error("Expected unknown ownership to fail closed");
-    expect(result.reason).toContain(
-      "live candidates 900=environment_unavailable",
-    );
+    expect(result.reason).toContain(`live candidates 900=${diagnostic}`);
     expect(result.reason).not.toContain("unowned");
     expect(result.reason).not.toContain("run-token");
     expect(signalGroup.mock.calls).toEqual([[100, "SIGKILL"]]);

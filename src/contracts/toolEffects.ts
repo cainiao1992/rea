@@ -64,6 +64,11 @@ export const TOOL_EFFECTS: Readonly<Record<string, ToolEffects>> = {
     launchesProcess: true,
     writesFilesystem: true,
   }),
+  decode_signal_recording: effects({
+    mutatesSession: true,
+    launchesProcess: true,
+    writesFilesystem: true,
+  }),
   inspect_wasm_artifact: effects({
     mutatesSession: true,
     writesFilesystem: true,

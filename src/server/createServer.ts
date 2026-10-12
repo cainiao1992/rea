@@ -1,6 +1,9 @@
 import type { PacketCaptureService } from "../application/captures/PacketCaptureService.js";
 import { createPacketCaptureService } from "../composition/captures.js";
 import { registerCaptureTools } from "./registerCaptureTools.js";
+import type { SignalRecordingService } from "../application/signals/SignalRecordingService.js";
+import { createSignalRecordingService } from "../composition/signals.js";
+import { registerSignalTools } from "./registerSignalTools.js";
 import type { WasmArtifactService } from "../application/wasm/WasmArtifactService.js";
 import { wasmArtifactModule } from "../composition/wasm.js";
 import { registerWasmTools } from "./registerWasmTools.js";
@@ -123,6 +126,7 @@ export interface CreateServerOptions {
   readonly environment?: Readonly<NodeJS.ProcessEnv>;
   readonly delivery?: ToolResultDelivery;
   readonly packetCapture?: PacketCaptureService;
+  readonly signalRecording?: SignalRecordingService;
   readonly wasmArtifact?: WasmArtifactService;
   readonly evmInterface?: EvmInterfaceService;
   readonly sqliteDatabase?: SqliteDatabaseService;
@@ -168,6 +172,9 @@ const installSessionToolAvailability = (
       packetCaptureEnabled:
         options.packetCapture !== undefined ||
         (linux && isAbsolute(environment.REA_TSHARK_COMMAND ?? "")),
+      signalRecordingEnabled:
+        options.signalRecording !== undefined ||
+        (linux && isAbsolute(environment.REA_SIGROK_COMMAND ?? "")),
       wasmArtifactEnabled:
         options.wasmArtifact !== undefined ||
         isAbsolute(environment.REA_WABT_BIN_DIRECTORY ?? ""),
@@ -301,6 +308,8 @@ export const createServer = (
   );
   const packetCapture =
     options.packetCapture ?? createPacketCaptureService(environment);
+  const signalRecording =
+    options.signalRecording ?? createSignalRecordingService(environment);
   const apktool =
     options.apktoolAnalysis ??
     createApktoolResourceAnalysisProvider(environment);
@@ -314,6 +323,7 @@ export const createServer = (
       fridaInstrumentation.closeAll(),
       wasmArtifact.close(),
       packetCapture.close(),
+      signalRecording.close(),
       apktool.close(),
       jeb.close(),
       adbDevice.close(),
@@ -397,6 +407,13 @@ export const createServer = (
   registerCaptureTools(
     server,
     packetCapture,
+    toolLogger,
+    recordEvidence,
+    analysisAdmission,
+  );
+  registerSignalTools(
+    server,
+    signalRecording,
     toolLogger,
     recordEvidence,
     analysisAdmission,

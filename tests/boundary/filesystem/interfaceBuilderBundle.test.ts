@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -10,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { analyzeInterfaceBuilderBundle } from "../../../src/artifacts/apple/InterfaceBuilderAnalysis.js";
 import { encodeNibArchiveFixture } from "../../../src/artifacts/apple/NibArchive.fixture.js";
 import { thinMach } from "../../../src/domain/binaryTarget.fixture.js";
+import { xcodeIbtoolAvailable } from "../../fixtures/ibtool.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import { interfaceBuilderAnalysisSchema } from "../../../src/domain/apple/interfaceBuilderGraph.js";
@@ -913,7 +913,7 @@ describe("bounded Interface Builder archive decoding", () => {
     );
   });
 
-  it.skipIf(process.platform !== "darwin" || !existsSync("/usr/bin/ibtool"))(
+  it.skipIf(!xcodeIbtoolAvailable)(
     "decodes an Xcode-compiled storyboard NIB and recovers its UI routes",
     async () => {
       const root = await createTestTempDirectory("rea-ib-compiled-test-");

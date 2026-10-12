@@ -7,6 +7,10 @@ import type { ProgressReporter } from "../application/ProgressReporter.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
+import {
+  providerRetryAction,
+  type ProviderOperationHealth,
+} from "../domain/providerOperationHealth.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { silentLogger } from "../logger.js";
 import type { Logger } from "pino";
@@ -477,6 +481,32 @@ export class GhidraClient {
     });
   }
 
+  /** Observed failures that prevent a retained session from being reused. */
+  operationHealthSnapshot(): ProviderOperationHealth | undefined {
+    const exit = this.#process?.observedExit();
+    const state =
+      exit !== undefined
+        ? "exited"
+        : this.#socket?.destroyed === true
+          ? "unreachable"
+          : this.#startPromise === undefined &&
+              (this.#process !== undefined ||
+                this.#socket !== undefined ||
+                this.#runtimeRoot !== undefined ||
+                this.#socketRoot !== undefined ||
+                this.#snapshotOwners.size > 0)
+            ? "unknown"
+            : undefined;
+    if (state === undefined) return undefined;
+    return {
+      state,
+      stage: null,
+      retryAction: providerRetryAction(state),
+      exitCode: exit?.code ?? null,
+      requests: [],
+    };
+  }
+
   /** Latest bounded local diagnostics, with bearer material redacted. */
   diagnostics(): Readonly<Record<string, JsonValue>> {
     return structuredClone(this.#diagnostics());
@@ -633,7 +663,7 @@ export class GhidraClient {
       deadline,
       failure: this.#failure,
       isClosed: () => this.#closing,
-      processExited: () => this.#process?.snapshot().exitCode !== undefined,
+      processExited: () => this.#process?.observedExit() !== undefined,
       startupTimeoutMs: this.#options.startupTimeoutMs,
       handlers: {
         data: this.#onSocketData,

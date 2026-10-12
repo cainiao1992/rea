@@ -495,7 +495,7 @@ it("reads a bounded logcat dump with the caller count and buffer", async () => {
   const { binary } = await writeAdbStub(
     shellStub({
       logcat:
-        "08-10 13:00:00.000 I/Tag( 123): first\\n08-10 13:00:01.000 I/Tag( 123): second\\n",
+        "08-10 13:00:00.000 I/Tag( 123): first\n08-10 13:00:01.000 I/Tag( 123): second\n",
     }),
   );
   const result = await evidenceResult(providerOver(binary), {
@@ -903,7 +903,7 @@ it("resolves packages by case-insensitive substring", async () => {
   const { binary } = await writeAdbStub(
     shellStub({
       "pm:list":
-        "package:/data/app/x/base.apk=com.whatsapp\\npackage:/data/app/y/base.apk=com.whatsapp.w4b\\npackage:/data/app/z/base.apk=com.example\\n",
+        "package:/data/app/x/base.apk=com.whatsapp\npackage:/data/app/y/base.apk=com.whatsapp.w4b\npackage:/data/app/z/base.apk=com.example\n",
     }),
   );
   const result = await evidenceResult(providerOver(binary), {
@@ -1109,20 +1109,23 @@ exit 1`,
 
 it("quotes caller text before adb joins the remote shell command", async () => {
   const { binary, root } = await writeAdbStub(
-    (root) => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi
+    () => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi
 shift 3
 # Model adb's remote command joining, then execute the resulting shell string.
-printf '#!/bin/sh\nprintf "%%s" "$@" > "${join(root, "observed")}"\n' > "${join(root, "ls")}"
-chmod +x "${join(root, "ls")}"
-PATH="${root}:$PATH" sh -c "$*"
+sh -c "$*"
 `,
   );
-  const value = `/sdcard/a 'quoted'; touch ${join(root, "injected")}`;
-  await providerOver(binary).execute({
+  const value = join(root, `device 'quoted'; touch ${join(root, "injected")}`);
+  await mkdir(value, { recursive: true });
+  const result = await evidenceResult(providerOver(binary), {
     operation: "list_adb_directory",
     input: { serial: "device", device_path: value },
   });
-  expect(await readFile(join(root, "observed"), "utf8")).toContain(value);
+  expect(result).toMatchObject({
+    device_path: value,
+    entries: [],
+    coverage: "complete",
+  });
   await expect(readFile(join(root, "injected"))).rejects.toThrow();
 });
 

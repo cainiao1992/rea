@@ -108,7 +108,10 @@ export type GhidraProviderClientFactory = (
   Partial<
     Pick<
       GhidraClient,
-      "runtimeLineage" | "readTargetSnapshot" | "hashTargetSnapshot"
+      | "operationHealthSnapshot"
+      | "runtimeLineage"
+      | "readTargetSnapshot"
+      | "hashTargetSnapshot"
     >
   >;
 
@@ -840,6 +843,7 @@ export const createGhidraProviderClient = (input: {
         }),
       );
     },
+    operationHealthSnapshot: () => client.operationHealthSnapshot?.(),
     runtimeLineageSnapshots: () => {
       const observation = client.runtimeLineage?.() ?? null;
       return observation === null

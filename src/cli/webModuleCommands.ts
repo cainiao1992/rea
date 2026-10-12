@@ -32,13 +32,13 @@ export const registerWebModuleCommands = (
     options: z.object({
       importerUrl: webModuleTraceInputSchema.shape.importer_url,
       importMapPath: importMapInputSchema.shape.path
+        .optional()
         .describe(
           "Absolute local import-map JSON path; requires --import-map-base-url",
-        )
-        .optional(),
+        ),
       importMapBaseUrl: importMapInputSchema.shape.base_url
-        .describe("HTTP(S) import-map base URL; requires --import-map-path")
-        .optional(),
+        .optional()
+        .describe("HTTP(S) import-map base URL; requires --import-map-path"),
     }),
     run: ({ args, options }) =>
       withCommandCancellation(async (signal) => {

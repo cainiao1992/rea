@@ -77,7 +77,7 @@ jobs:
   static:
     name: Static checks
     needs: changes
-    if: ${{ always() }}
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Require successful change classification
@@ -212,7 +212,7 @@ jobs:
   test:
     name: Test (coverage + timing)
     needs: [changes, test-shard]
-    if: ${{ always() }}
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Require successful change classification
@@ -651,7 +651,7 @@ jobs:
 
   required:
     name: CI required
-    if: ${{ always() }}
+    if: ${{ !cancelled() }}
     needs:
       [
         changes,

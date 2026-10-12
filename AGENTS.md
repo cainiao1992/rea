@@ -28,6 +28,31 @@ Parse unknown boundary values and model expected failures with the tagged error 
 
 Validate advertised JSON Schemas after SDK conversion against their declared dialect and actual clients. Bind handlers to named contracts with exact types; catalog ordering must never select an operation or schema.
 
+## Performance
+
+Design analysis workflows and agent interfaces for efficiency from the first
+implementation. Correctness, useful answers, Evidence provenance, caller choices,
+compatibility and safe resource bounds remain required.
+
+Optimize in this order:
+
+1. Agent tokens and context. Return the smallest sufficient answer with
+   necessary provenance, coverage and limitations. Use task selection,
+   summaries, paging and retained Evidence where supported; honor requested
+   detail and keep complete Evidence accessible. Count the whole task,
+   including schemas, extra calls and retries.
+2. Analysis time. Reuse validated results and shared work. Cache keys must
+   cover result-affecting inputs; define invalidation and lifetime. Validate
+   freshness before reporting cached live state as current.
+3. CPU and memory. Avoid unnecessary work and copies; bound concurrency,
+   retained state and serialization growth.
+
+For changes affecting these costs, measure representative completed tasks and
+compare equivalent workflows before and after where available. Report token
+usage, elapsed time, CPU time and peak process-family memory. Separate cold
+and warm runs, label estimates, and state unmeasured costs. Fewer bytes alone
+do not establish fewer tokens or faster analysis.
+
 ## Development
 
 Use [.nvmrc](.nvmrc) and `package.json#packageManager` for the pinned toolchain. Cursor Cloud may place older Node.js first on `PATH`; environment setup installs the pinned toolchain under `/usr/local/bin`.

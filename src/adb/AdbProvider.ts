@@ -232,12 +232,17 @@ const runAdbCapture = async (
 /** Decode textual adb protocols after the shared byte capture and error boundary. */
 const runAdb = async (
   ...arguments_: Parameters<typeof runAdbCapture>
-): Promise<Result<{ stdout: string; stderr: string }, AnalysisError>> => {
+): Promise<
+  Result<{ stdout: string; stderr: string; stdoutBytes: number }, AnalysisError>
+> => {
   const captured = await runAdbCapture(...arguments_);
   if (!captured.ok) return captured;
   return ok({
     stdout: captured.value.stdout.toString("utf8"),
     stderr: captured.value.stderr.toString("utf8"),
+    // Byte count of the captured output before UTF-8 decoding, so malformed
+    // sequences replaced by U+FFFD still report their true captured size.
+    stdoutBytes: captured.value.stdout.byteLength,
   });
 };
 
@@ -815,7 +820,7 @@ export class AdbProvider {
               buffer: request.input.buffer,
               pid: request.input.pid ?? null,
               lines: bounded,
-              total_bytes: ran.value.stdout.length,
+              total_bytes: ran.value.stdoutBytes,
               coverage:
                 bounded.length !== lines.length ||
                 bounded.length === request.input.count

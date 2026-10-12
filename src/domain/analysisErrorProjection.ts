@@ -52,6 +52,9 @@ export const projectAnalysisError = (
   const primaryDetails = errorDetails(error);
   const details = {
     ...primaryDetails,
+    ...(error.diagnostics === undefined
+      ? {}
+      : { diagnostics: error.diagnostics }),
     ...(error.cleanupIncomplete
       ? {
           cleanup: "incomplete",
@@ -358,9 +361,6 @@ const providerErrorDetails = (
             resources: [...error.cleanupResources],
           }
         : {}),
-      ...(error.diagnostics === undefined
-        ? {}
-        : { diagnostics: error.diagnostics }),
     };
   if (error instanceof BrowserObservationError) {
     const primaryReason = primaryBrowserFailureReason(error);

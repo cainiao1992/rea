@@ -2,7 +2,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 
-import { inspectGhidraInstallation } from "../../../src/ghidra/GhidraInstallation.js";
+import {
+  inspectGhidraInstallation,
+  ghidraInstallationDiagnostics,
+} from "../../../src/ghidra/GhidraInstallation.js";
 import { SUPPORTED_GHIDRA_VERSION } from "../../../src/ghidra/GhidraInstallationPolicy.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
@@ -16,12 +19,12 @@ vi.mock("node:child_process", async (importOriginal) => ({
 afterEach(() => mockSpawnSync.mockReset());
 
 it.each([
-  { major: 17, fullJdk: true },
-  { major: 21, fullJdk: true },
-  { major: 21, fullJdk: false },
+  { major: 17, fullJdk: true, vmName: "Java HotSpot(TM) 64-Bit Server VM" },
+  { major: 21, fullJdk: true, vmName: "Eclipse OpenJ9 VM" },
+  { major: 21, fullJdk: false, vmName: undefined },
 ])(
   "preserves the reported Unicode Java home and classifies JDK $major (full JDK: $fullJdk)",
-  async ({ major, fullJdk }) => {
+  async ({ major, fullJdk, vmName }) => {
     const root = await createTestTempDirectory("rea-java-probe-");
     const configuredHome = join(root, "selected-jdk");
     const reportedHome = join(root, "Réa逆向", `JDK ${String(major)}`);
@@ -46,7 +49,7 @@ it.each([
     const version = `${String(major)}.0.11`;
     mockSpawnSync.mockReturnValue({
       stdout: "",
-      stderr: `    java.version = ${version}\n    java.home = ${reportedHome}\n    sun.arch.data.model = 64\n`,
+      stderr: `    java.version = ${version}\n    java.home = ${reportedHome}\n    sun.arch.data.model = 64\n${vmName === undefined ? "" : `    java.vm.name = ${vmName}\n`}`,
       status: 0,
     });
 
@@ -58,6 +61,10 @@ it.each([
 
     expect(inspection.javaHome).toBe(reportedHome);
     expect(inspection.javaVersion).toBe(version);
+    expect(inspection.javaVmName).toBe(vmName);
+    expect(ghidraInstallationDiagnostics(inspection).java_vm_name).toBe(
+      vmName ?? null,
+    );
     expect(inspection.checks.find(({ name }) => name === "java")).toMatchObject(
       {
         status: fullJdk ? "passed" : "failed",

@@ -403,25 +403,33 @@ describe("analysis error projection: provider failures", () => {
     });
   });
 
-  it("preserves detached, actionable provider diagnostics", () => {
-    const diagnostics = {
-      runtime_root: "/tmp/rea-ghidra-fixture",
-      profile_digest: "a".repeat(64),
-      exit_code: 1,
-    };
-    const error = new ProviderAdapterError("ghidra", "health", {
-      diagnostics,
-    });
+  it.each(["adapter", "cancelled", "timeout"])(
+    "preserves detached, actionable diagnostics for %s errors",
+    (kind) => {
+      const diagnostics = {
+        runtime_root: "/tmp/rea-ghidra-fixture",
+        profile_digest: "a".repeat(64),
+        exit_code: 1,
+      };
+      const error =
+        kind === "adapter"
+          ? new ProviderAdapterError("ghidra", "health", { diagnostics })
+          : kind === "cancelled"
+            ? new AnalysisCancelledError("health", { diagnostics })
+            : new AnalysisTimeoutError("health", 250, { diagnostics });
 
-    expect(error.diagnostics).not.toBe(diagnostics);
-    expect(projectAnalysisError(error)).toMatchObject({
-      details: {
-        provider_id: "ghidra",
-        operation: "health",
-        diagnostics,
-      },
-    });
-  });
+      expect(error.diagnostics).not.toBe(diagnostics);
+      expect(projectAnalysisError(error)).toMatchObject({
+        details: {
+          ...(kind === "adapter" ? { provider_id: "ghidra" } : {}),
+          operation: "health",
+          diagnostics,
+        },
+      });
+      diagnostics.exit_code = 2;
+      expect(error.diagnostics?.exit_code).toBe(1);
+    },
+  );
 
   it("maps the Linux startup compatibility exit codes without host internals", () => {
     const expected = [

@@ -21,6 +21,7 @@ import { registerManagedCommands } from "./cli/managedCommands.js";
 import { registerFirmwareCommands } from "./cli/firmwareCommands.js";
 import { registerAndroidCommands } from "./cli/androidCommands.js";
 import { registerApktoolCommands } from "./cli/apktoolCommands.js";
+import { registerFlutterCommands } from "./cli/flutterCommands.js";
 import { registerJebCommands } from "./cli/jebCommands.js";
 import { registerAdbCommands } from "./cli/adbCommands.js";
 import { registerEvidenceCommands } from "./cliEvidenceCommands.js";
@@ -98,6 +99,7 @@ export const createCli = (
   registerManagedCommands(cli, logger, analysis.runProviderAnalysis);
   registerAndroidCommands(cli, logger, environment);
   registerApktoolCommands(cli, logger, environment);
+  registerFlutterCommands(cli, logger);
   registerJebCommands(cli, logger, environment);
   registerAdbCommands(cli, logger, environment);
   registerFirmwareCommands(cli, logger, environment);

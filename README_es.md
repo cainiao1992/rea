@@ -274,7 +274,7 @@ Gracias a quienes usan REA, informan de errores, solicitan funciones, prueban co
 
 Consulta [DISCLAIMER.md](DISCLAIMER.md) para obtener orientación sobre el uso responsable.
 
-REA proporciona herramientas para la investigación, el análisis y la reconstrucción mediante ingeniería inversa conforme a la ley. Eres responsable de obtener las autorizaciones necesarias y cumplir las leyes aplicables. El proyecto no respalda usos ilegales ni no autorizados.
+REA está destinado a la investigación, la educación, la interoperabilidad, la preservación de software y el análisis de software propio o autorizado, dentro de la ley.
 
 ## Contribuir
 

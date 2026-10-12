@@ -130,7 +130,6 @@ describe("target route diagnostics", () => {
       },
     });
   });
-
   it("identifies the directory opening constraint and gives the direct analysis route", async () => {
     const directory = await createTestTempDirectory("rea-js-target-");
     await writeFile(join(directory, "index.js"), "export const answer = 42;\n");
@@ -200,4 +199,124 @@ describe("target route diagnostics", () => {
       }
     },
   );
+});
+
+describe("raw-binary load rejection diagnostics", () => {
+  const rawBinaryRejection = async (
+    options: Parameters<typeof parseBinaryTarget>[1],
+    bytes = Buffer.alloc(64),
+  ) => {
+    const directory = await createTestTempDirectory("rea-raw-load-");
+    const path = join(directory, "image.bin");
+    await writeFile(path, bytes);
+    const result = await parseBinaryTarget(path, options);
+    if (result.ok) throw new Error("invalid raw-binary load was admitted");
+    return projectAnalysisError(result.error);
+  };
+
+  it("projects a misaligned arm entry as caller input without path advice", async () => {
+    const projected = await rawBinaryRejection({
+      formatHint: "raw-binary",
+      architecture: "arm",
+      entryPoint: "0x1",
+    });
+    expect(projected).toMatchObject({
+      code: "invalid_request",
+      category: "invalid_input",
+      // invalid_request is retryable: correcting the load argument succeeds.
+      retryable: true,
+      message:
+        "Cannot open artifact: raw-binary arm entry_point 0x1 must be 4-byte aligned.",
+      details: {
+        reason: "raw-binary arm entry_point 0x1 must be 4-byte aligned",
+        constraint: "load_selection_rejected",
+      },
+      remediation: {
+        action:
+          "Correct the reported load argument (--target-format, --architecture, or --entry-point on the CLI; format, architecture, or entry_point through MCP) and retry.",
+      },
+    });
+    expect(projected.message).not.toContain("Check that the path");
+  });
+
+  it("projects an x86 entry beyond the address width as caller input", async () => {
+    const projected = await rawBinaryRejection({
+      formatHint: "raw-binary",
+      architecture: "x86",
+      entryPoint: "0xffffffffff",
+    });
+    expect(projected).toMatchObject({
+      code: "invalid_request",
+      category: "invalid_input",
+      details: { constraint: "load_selection_rejected" },
+    });
+    expect(projected.message).toContain("x86 address width");
+    expect(projected.message).not.toContain("Check that the path");
+  });
+
+  it("projects architecture and entry without raw-binary format as caller input", async () => {
+    const projected = await rawBinaryRejection({
+      architecture: "arm",
+      entryPoint: "0x0",
+    });
+    expect(projected).toMatchObject({
+      code: "invalid_request",
+      category: "invalid_input",
+      message:
+        "Cannot open artifact: architecture and entry_point apply only with format=raw-binary.",
+      details: { constraint: "load_selection_rejected" },
+    });
+    expect(projected.message).not.toContain("Check that the path");
+  });
+
+  it("keeps an empty raw-binary file a target refusal", async () => {
+    const projected = await rawBinaryRejection(
+      {
+        formatHint: "raw-binary",
+        architecture: "arm",
+        entryPoint: "0x8000000",
+      },
+      Buffer.alloc(0),
+    );
+    expect(projected).toMatchObject({
+      code: "target_unavailable",
+      category: "unsupported_target",
+      details: {
+        reason: "raw-binary requires at least one file byte",
+        constraint: "file_format_rejected",
+      },
+    });
+  });
+
+  it("projects the raw-binary target-kind pairing as caller input", async () => {
+    const projected = await rawBinaryRejection({
+      formatHint: "raw-binary",
+      targetKind: "database",
+      architecture: "x86",
+      entryPoint: "0x1000",
+    });
+    expect(projected).toMatchObject({
+      code: "invalid_request",
+      category: "invalid_input",
+      details: {
+        reason: "raw-binary format requires an executable target kind",
+        constraint: "load_selection_rejected",
+      },
+    });
+  });
+
+  it("projects the DOS COM target-kind pairing as caller input too", async () => {
+    const projected = await rawBinaryRejection({
+      formatHint: "dos-com",
+      targetKind: "database",
+    });
+    expect(projected).toMatchObject({
+      code: "invalid_request",
+      category: "invalid_input",
+      details: {
+        reason: "DOS COM format requires an executable target kind",
+        constraint: "load_selection_rejected",
+      },
+    });
+  });
 });

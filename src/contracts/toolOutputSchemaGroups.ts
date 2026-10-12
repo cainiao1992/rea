@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { artifactInventorySummaryViewResultSchema } from "../domain/analysisView/analysisView.js";
+import {
+  artifactInventorySummaryViewResultSchema,
+  managedArtifactSummaryViewResultSchema,
+} from "../domain/analysisView/analysisView.js";
 import { evidenceBundleSummarySchema } from "../domain/evidenceRecordSummary.js";
 import { BINARY_ARCHITECTURES } from "../domain/binaryTargetTypes.js";
 import {
@@ -402,7 +405,12 @@ export const artifactOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
 
 /** Exact Evidence schema for execution-free managed static analysis. */
 export const managedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
-  inspect_managed_artifact: evidenceResultOf(managedArtifactInspectionSchema),
+  inspect_managed_artifact: evidenceResultOf(
+    z.union([
+      managedArtifactInspectionSchema,
+      managedArtifactSummaryViewResultSchema,
+    ]),
+  ),
   inspect_managed_members: evidenceResultOf(managedMemberInspectionSchema),
   inspect_managed_native_boundaries: evidenceResultOf(
     managedNativeBoundaryInspectionSchema,

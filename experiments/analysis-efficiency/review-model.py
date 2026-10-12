@@ -39,6 +39,19 @@ def decode(result):
     return None
 
 
+def named_scope(value, names):
+    """Accept explicit equivalent scope labels; contradictory duplicates stay a failure."""
+    if not isinstance(value, dict):
+        return None
+    selected = {name: value[name] for name in names if name in value}
+    values = list(selected.values())
+    if not values:
+        return None
+    if all(entry == values[0] for entry in values):
+        return values[0]
+    return {'conflicting_reported_scopes': selected}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--domain', choices=['wasm', 'evm', 'android', 'managed', 'managed-nonempty', 'firmware', 'inventory', 'javascript', 'native', 'browser'], required=True)
@@ -120,8 +133,8 @@ def main():
             check(key, answer.get(key), n[key])
         for key in ['module_refs', 'pinvoke_imports']:
             check(key, answer.get('native_boundaries', {}).get(key), reference['boundaries'][key])
-        check('artifact_coverage', answer.get('coverage', {}).get('artifact'), n['coverage'])
-        check('native_boundaries_coverage', answer.get('coverage', {}).get('native_boundaries'), reference['boundaries']['coverage'])
+        check('artifact_coverage', named_scope(answer.get('coverage'), ['artifact', 'managed_artifact', 'managed_metadata']), n['coverage'])
+        check('native_boundaries_coverage', named_scope(answer.get('coverage'), ['native_boundaries', 'native_boundary_declarations']), reference['boundaries']['coverage'])
     elif domain == 'managed-nonempty':
         n = reference['boundaries']
         check('module_mvid', answer.get('module_mvid'), n['module']['mvid'])
@@ -280,6 +293,7 @@ def main():
                     status = str(event['status'])
                     statuses[status] = statuses.get(status, 0) + 1
             check('network_response_statuses', network['observed_response_statuses'], statuses)
+    factual_checks = dict(checks)
     scopes = [json.loads(line) for line in args.resource_log.read_text().splitlines() if line.startswith('{')]
     scope = next(value for value in reversed(scopes) if 'resource_scope' in value)
     checks['no_resource_abort'] = scope['abort'] is None
@@ -298,6 +312,7 @@ def main():
     report = {
         'review_source_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         'domain': domain, 'checks': checks, 'all_selected_checks_pass': all(checks.values()),
+        'factual_checks': factual_checks, 'all_factual_checks_pass': all(factual_checks.values()),
         'differences': differences, 'tool_errors': tool_errors, 'summary': summary,
         'fingerprints': {key: value for key, value in settings.items() if 'sha256' in key or key in ['runtime_revision', 'enabled_tools', 'authority']},
         'answer_file_sha256': hashlib.sha256((args.trial / 'answer.txt').read_bytes()).hexdigest(),

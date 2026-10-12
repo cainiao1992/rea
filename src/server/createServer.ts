@@ -709,7 +709,7 @@ const registerBinaryAnalysisTools = ({
   };
   registerEvidenceTools(server, NATIVE_TOOL_CONTRACTS, evidenceOptions);
   registerArtifactTools(server, { ...evidenceOptions, evidenceById });
-  registerManagedTools(server, evidenceOptions);
+  registerManagedTools(server, { ...evidenceOptions, evidenceById });
   if (session !== undefined)
     registerManagedWorkflowTools(server, {
       logger,

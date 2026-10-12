@@ -8,7 +8,10 @@ coverage and unknowns. The CLI and MCP use the same application workflows.
 
 `inspect_macho.selected_architecture` identifies the exact selected lipo slice
 and its `container_file_offset` in the input file. A thin Mach-O has a known
-offset of zero; an unknown universal-slice offset stays null. Architecture
+offset of zero; an unknown universal-slice offset stays null. The Evidence
+subject format describes the input container: `mach-o-universal` for FAT files,
+including those with one slice. The normalized result describes the selected
+Mach-O image. Architecture
 `file_offset` values are container-relative. Entrypoint, segment and section
 `file_offset` values retain their source meaning and are relative to the
 selected Mach-O slice. Raw load-command fields retain their original values.

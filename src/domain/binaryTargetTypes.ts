@@ -83,7 +83,12 @@ export type BinaryTarget =
       readonly managed?: never;
     })
   | (ExecutableTarget & {
-      readonly format: "mach-o" | "elf" | "dos-mz" | "dos-com";
+      readonly format:
+        | "mach-o"
+        | "mach-o-universal"
+        | "elf"
+        | "dos-mz"
+        | "dos-com";
       readonly executableRole?: never;
       readonly managed?: never;
     })
@@ -130,3 +135,9 @@ export type BinaryTarget =
         readonly kind: "artifact";
         readonly format: "plist" | "javascript" | "source-map";
       });
+
+/** Whether an executable target contains a thin or universal Mach-O image. */
+export const isMachOFormat = (
+  format: unknown,
+): format is "mach-o" | "mach-o-universal" =>
+  format === "mach-o" || format === "mach-o-universal";

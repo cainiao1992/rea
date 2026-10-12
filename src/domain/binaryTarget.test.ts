@@ -90,12 +90,27 @@ describe("executable header parsing", () => {
     const arm = parseExecutableHeader(bytes, "arm64");
     const intel = parseExecutableHeader(bytes, "x64");
     expect(arm.ok && arm.value).toMatchObject({
+      format: "mach-o-universal",
       architecture: "arm64",
       availableArchitectures: ["x86_64", "arm64"],
     });
     expect(intel.ok && intel.value).toMatchObject({
+      format: "mach-o-universal",
       architecture: "x86_64",
       availableArchitectures: ["x86_64", "arm64"],
+    });
+  });
+
+  it("classifies even a one-slice FAT table as a universal container", () => {
+    const result = parseExecutableHeader(fat([0x0100000c]), "arm64");
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        format: "mach-o-universal",
+        architecture: "arm64",
+        availableArchitectures: ["arm64"],
+      },
     });
   });
 
@@ -173,4 +188,111 @@ describe("executable header completeness", () => {
     // Only the slice REA would analyze must be present.
     expect(parseExecutableHeader(bytes, "x64", 4100).ok).toBe(true);
   });
+
+  it.each([
+    {
+      label: "empty range",
+      corruptRange: (bytes: Buffer, wide: boolean, little: boolean) =>
+        setFatSliceRange(bytes, wide, little, "size", 0n),
+      error: "FAT slice for arm64 is shorter than its Mach-O header",
+    },
+    {
+      label: "table overlap",
+      corruptRange: (bytes: Buffer, wide: boolean, little: boolean) =>
+        setFatSliceRange(
+          bytes,
+          wide,
+          little,
+          "offset",
+          BigInt(8 + 2 * (wide ? 32 : 20) - 1),
+        ),
+      error: "FAT slice for arm64 overlaps the architecture table",
+    },
+    {
+      label: "undersized 64-bit header",
+      corruptRange: (bytes: Buffer, wide: boolean, little: boolean) =>
+        setFatSliceRange(bytes, wide, little, "size", 31n),
+      error: "FAT slice for arm64 is shorter than its Mach-O header",
+    },
+  ])("rejects a selected FAT slice with $label", ({ corruptRange, error }) => {
+    for (const [wide, little] of [
+      [false, false],
+      [true, false],
+      [true, true],
+    ] as const) {
+      const bytes = wide
+        ? fat64([0x01000007, 0x0100000c], little)
+        : fat([0x01000007, 0x0100000c]);
+      expect(parseExecutableHeader(bytes, "arm64").ok).toBe(true);
+      corruptRange(bytes, wide, little);
+      expect(parseExecutableHeader(bytes, "arm64")).toMatchObject({
+        ok: false,
+        error,
+      });
+    }
+  });
+
+  it("uses a 28-byte minimum for a selected 32-bit Mach-O header", () => {
+    const exactHeader = fat([7]);
+    setFatSliceRange(exactHeader, false, false, "size", 28n, 0);
+    expect(parseExecutableHeader(exactHeader, "ia32").ok).toBe(true);
+
+    const undersizedHeader = Buffer.from(exactHeader);
+    setFatSliceRange(undersizedHeader, false, false, "size", 27n, 0);
+
+    expect(parseExecutableHeader(undersizedHeader, "ia32")).toMatchObject({
+      ok: false,
+      error: "FAT slice for x86 is shorter than its Mach-O header",
+    });
+  });
 });
+
+const setFatSliceRange = (
+  bytes: Buffer,
+  wide: boolean,
+  littleEndian: boolean,
+  field: "offset" | "size",
+  value: bigint,
+  index = 1,
+): void => {
+  const entry = 8 + index * (wide ? 32 : 20);
+  const fieldOffset = entry + (field === "offset" ? 8 : wide ? 16 : 12);
+  if (wide) {
+    if (littleEndian) bytes.writeBigUInt64LE(value, fieldOffset);
+    else bytes.writeBigUInt64BE(value, fieldOffset);
+  } else {
+    const numeric = Number(value);
+    if (littleEndian) bytes.writeUInt32LE(numeric, fieldOffset);
+    else bytes.writeUInt32BE(numeric, fieldOffset);
+  }
+};
+
+const fat64 = (cpus: readonly number[], littleEndian: boolean): Buffer => {
+  const tableEnd = 8 + cpus.length * 32;
+  const sliceStart = Math.ceil(tableEnd / 16) * 16;
+  const bytes = Buffer.alloc(sliceStart + cpus.length * 32);
+  if (littleEndian) {
+    bytes.writeUInt32LE(0xcafebabf, 0);
+    bytes.writeUInt32LE(cpus.length, 4);
+  } else {
+    bytes.writeUInt32BE(0xcafebabf, 0);
+    bytes.writeUInt32BE(cpus.length, 4);
+  }
+  cpus.forEach((cpu, index) => {
+    const entry = 8 + index * 32;
+    const sliceOffset = BigInt(sliceStart + index * 32);
+    if (littleEndian) {
+      bytes.writeUInt32LE(cpu, entry);
+      bytes.writeBigUInt64LE(sliceOffset, entry + 8);
+      bytes.writeBigUInt64LE(32n, entry + 16);
+      bytes.writeUInt32LE(4, entry + 24);
+    } else {
+      bytes.writeUInt32BE(cpu, entry);
+      bytes.writeBigUInt64BE(sliceOffset, entry + 8);
+      bytes.writeBigUInt64BE(32n, entry + 16);
+      bytes.writeUInt32BE(4, entry + 24);
+    }
+    thinMach(0xfeedfacf, cpu).copy(bytes, Number(sliceOffset));
+  });
+  return bytes;
+};

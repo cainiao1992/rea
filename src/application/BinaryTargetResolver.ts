@@ -250,6 +250,7 @@ const detectArtifactFormat = async (
       BinaryTarget["format"],
       | "analysis-database"
       | "mach-o"
+      | "mach-o-universal"
       | "elf"
       | "pe"
       | "dos-mz"
@@ -315,6 +316,7 @@ const isArchiveFormat = (
     BinaryTarget["format"],
     | "analysis-database"
     | "mach-o"
+    | "mach-o-universal"
     | "elf"
     | "pe"
     | "dos-mz"

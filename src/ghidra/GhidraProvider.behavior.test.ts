@@ -239,7 +239,7 @@ describe("Ghidra Mach-O slice support", () => {
       path: "/tmp/fixture",
       sha256: "a".repeat(64),
       kind: "executable",
-      format: "mach-o",
+      format: "mach-o-universal",
       architecture: "arm64",
       availableArchitectures: ["x86_64", "arm64"],
     };
@@ -255,6 +255,13 @@ describe("Ghidra Mach-O slice support", () => {
     });
     expect(
       ghidra.inspectTargetSupport(executableTarget("mach-o", "arm64")),
+    ).toMatchObject({ status: "supported" });
+
+    expect(
+      ghidra.inspectTargetSupport({
+        ...universal,
+        availableArchitectures: ["arm64"] as const,
+      }),
     ).toMatchObject({ status: "supported" });
   });
 });

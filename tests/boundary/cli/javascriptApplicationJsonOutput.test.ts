@@ -1,15 +1,15 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { Filter } from "incur";
 import { expect } from "vitest";
 import { z } from "zod";
 
+import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";
 import { analyzeJavaScriptApplication } from "../../support/javascriptApplicationScope.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
 
-const filter = "evidence_id,normalized_result.graph.nodes[0:1].node_id";
+const filter = "evidence_id,normalized_result.graph.nodes[0,1].node_id";
 
 for (const scenario of [
   {
@@ -34,6 +34,9 @@ for (const scenario of [
       await writeFile(join(root, "main.js"), "fetch('');\n");
       const direct = await analyzeJavaScriptApplication({ input_path: root });
       if (!direct.ok) throw direct.error;
+      const normalized = javascriptApplicationAnalysisResultSchema.parse(
+        direct.value.normalized_result,
+      );
       const output = await cli.run({
         arguments: [
           scenario.command,
@@ -61,9 +64,20 @@ for (const scenario of [
       }
       expect(data).toEqual(
         scenario.filtered
-          ? Filter.apply(direct.value, Filter.parse(filter))
+          ? {
+              evidence_id: direct.value.evidence_id,
+              normalized_result: {
+                graph: {
+                  nodes: normalized.graph.nodes
+                    .slice(0, 1)
+                    .map(({ node_id }) => ({ node_id })),
+                },
+              },
+            }
           : direct.value,
       );
+      if (scenario.filtered)
+        expect(normalized.graph.nodes.length).toBeGreaterThan(0);
     },
   );
 }

@@ -182,6 +182,10 @@ CI diagnosis. Packaging/setup/distribution changes additionally require
 `npm run verify:package` and `npm pack --dry-run`; provider changes require the
 matching real-provider lane. State which host/provider workflows ran.
 
+`check:pr` reuses build and static-check outputs while executing the test suite
+fresh, including the fast Python producer checks. `docs:check` also runs the
+onboarding example consistency suite for README-only changes.
+
 Pre-commit formats and lints staged files; pre-push runs `check:fast`.
 
 ### Generated files and command ownership

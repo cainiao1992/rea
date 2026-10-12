@@ -19,11 +19,12 @@ behavior, and complete CI evidence before merging.
 | `npm run test:boundary`           | Boundary, CLI boundary, MCP boundary, process boundary, and process-global projects                                     |
 | `npm run test:mcp`                | MCP boundary project                                                                                                    |
 | `npm run test:acceptance`         | Complete compiled CLI and MCP acceptance workflows                                                                      |
+| `npm run test:python`             | LLDB producer retention and launch contracts with a fake LLDB API; no native debugger required                          |
 | `npm run test:watch`              | Dirty source tests in watch mode, without build                                                                         |
 | `npm run test:watch:all`          | Changed tests from every project; builds at startup, so rebuild after production edits before relying on compiled tests |
 | `npm run check:changed`           | Cached typecheck/lint and branch-related source feedback                                                                |
 | `npm run check:pr`                | Opt-in complete local deterministic gate and generated-file checks                                                      |
-| `npm run docs:check`              | Generated-document validation from current source and build outputs                                                     |
+| `npm run docs:check`              | Generated-document validation and fresh onboarding example consistency checks                                           |
 
 For example:
 
@@ -97,6 +98,12 @@ runner. Preserve simultaneous launches where concurrency is itself under test.
 
 Build/documentation writers hold checkout-local output locks. Tests do not
 hold a broad command lock; `check:pr` finishes tests before document validation.
+Turbo caches deterministic preparation and static checks, but `test:run` always
+executes. Repository files do not fully describe installed tool contents or host
+state. A previous test pass therefore cannot replace current validation, even
+when the source tree is unchanged. `check:pr` also runs the fast Python producer
+suite; CI runs it in the static job for code changes. These producer tests do not
+establish real LLDB engine coverage.
 
 Vitest's persistent compile cache remains disabled. The `cliTest` fixture shares
 a temporary Node compile cache among its fresh CLI subprocesses. The worker
@@ -247,17 +254,25 @@ Coverage does not replace named boundary or real-provider scenarios.
 
 CI runs six native Vitest shards without retries. Each shard emits a blob
 report; the merge job produces aggregate coverage plus JUnit and JSON timing
-reports, uploads them together, and writes the slowest files to the workflow
-summary. Static checks, documentation, build, package verification, and
+reports even when a shard fails, uploads available diagnostics, and writes the
+slowest files to the workflow summary. Partial reports are marked diagnostic
+only. Failed, cancelled, or missing selected shards still fail the required gate,
+and aggregate coverage thresholds remain enforced by the merge command.
+Only successful complete merges publish the small `test-timings` artifact, with
+checkout-relative paths; the build job downloads that artifact for the sequencer
+instead of the coverage/JUnit bundle. Missing history falls back to native
+sharding. Static checks, documentation, build, package verification, and
 real-system lanes remain separate jobs so one kind of evidence cannot stand in
 for another.
 
 The build job saves portable Turbo outputs across runs. Eight Linux real-system
 lanes restore this cache without waiting for the build job. The shared action
 derives its key from `test:prepare --dry=json` task hashes, runner OS and
-architecture, and `.npmrc`; test-only changes can reuse compiled outputs. Every
+architecture, `.npmrc`, `.nvmrc`, and the lockfile; test-only changes can reuse compiled outputs. Every
 build and verification command still runs, so Turbo checks task inputs and
-rebuilds misses. There is no prefix fallback to accumulate older build outputs.
+rebuilds misses. A restore prefix with the same platform and toolchain permits
+partial task reuse when one generator's inputs change; Turbo still invalidates
+that generator's entry. Native outputs are not stored in this cache.
 
 Native package jobs, the Windows curated lane, and the Apple artifact lane reuse
 the same workflow's Turbo cache for portable compiled JavaScript, skills, and
@@ -266,9 +281,10 @@ commands, which restore matching outputs or rebuild on a cache miss. Native
 artifacts, dependency installs, package archives, and runtime verification remain
 host-local. Keep platform-dependent outputs out of this shared cache.
 
-The PR acceptance target is a median `npm run check:pr` wall time below three
-minutes across three warm-build runs on the benchmark host. Keep Vitest caches
-cold unless separately identified. A PR that touches packaging or real-system
+Record cold and warm preparation separately from fresh test execution when
+benchmarking the optional `npm run check:pr` gate. Compare multiple runs on the
+same host, including subprocess and queue costs; a cached pass is not a test
+runtime measurement. A PR that touches packaging or real-system
 behavior requires the applicable `verify:*` lanes; packaging and installation
 changes also require `npm run verify:package`. The full-gate benchmark measures
 that explicit lane, not the routine iteration requirement.
@@ -682,7 +698,8 @@ not make native host acceptance unavailable.
 Pull requests that change only root `README*.md` files, `docs/`, `AGENTS.md`,
 `CONTRIBUTING.md`, `CHANGELOG.md`, `SECURITY.md`, `native/windows/README.md`,
 or the GitHub issue and pull-request templates run formatting and
-generated-document validation without the source-test shards or native package
+generated-document validation, including the small onboarding example consistency
+suite, without the source-test shards or native package
 lanes. Classification compares the PR head with its merge base, so later
 base-branch changes do not expand that scope. Static and coverage aggregate jobs
 remain present and fail if classification fails. Every code change retains the

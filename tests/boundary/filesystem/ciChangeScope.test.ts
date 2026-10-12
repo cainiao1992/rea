@@ -313,6 +313,14 @@ it.each([
     { code: true, apple: true, package: false, runtime: false },
   ],
   [
+    "tests/boundary/cli/nativePlistCli.test.ts",
+    { code: true, apple: true, package: false, runtime: false },
+  ],
+  [
+    "tests/boundary/filesystem/windowsNpxRegistration.test.ts",
+    { code: true, package: true, runtime: true, apple: false },
+  ],
+  [
     "src/process/ProcessOwnership.test.ts",
     { code: true, package: true, apple: false, evm: false, browser: false },
   ],

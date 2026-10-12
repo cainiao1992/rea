@@ -3,6 +3,7 @@ import type {
   MachoImageFacts,
   MachoSlice,
 } from "../../domain/apple/dylibResolution.js";
+import { machoCpuSubtypeBase } from "../../domain/apple/machoCpuIdentity.js";
 import {
   classifyFatContainerIdentity,
   readFatContainerHeader,
@@ -482,13 +483,12 @@ const CPU_ARCH_ABI64 = 0x01000000;
 const CPU_ARCH_ABI64_32 = 0x02000000;
 const CPU_TYPE_X86 = 7;
 const CPU_TYPE_ARM = 12;
-const CPU_SUBTYPE_MASK = 0xff000000;
 const CPU_SUBTYPE_ARM64E = 2;
 const CPU_SUBTYPE_ARM64E_X1 = 12;
 const CPU_SUBTYPE_X86_64_H = 8;
 
 const architectureName = (cpuType: number, cpuSubtype: number): string => {
-  const subtype = cpuSubtype & ~CPU_SUBTYPE_MASK;
+  const subtype = machoCpuSubtypeBase(cpuSubtype);
   if (cpuType === (CPU_TYPE_ARM | CPU_ARCH_ABI64))
     // Both pointer-authentication subtypes belong to the arm64e family.
     return subtype === CPU_SUBTYPE_ARM64E || subtype === CPU_SUBTYPE_ARM64E_X1

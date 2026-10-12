@@ -1,7 +1,10 @@
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
 import { createAnalysisProfile } from "../domain/analysisProfile.js";
 import type { AnalysisProfileCommitment } from "../domain/analysisProfile.js";
-import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
+import {
+  isElfMetadataArchitecture,
+  type BinaryTarget,
+} from "../domain/binaryTargetTypes.js";
 import { err, ok } from "../domain/result.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import type {
@@ -101,12 +104,16 @@ export class IdaProvider implements AnalysisProviderCandidate {
       target_kind: target.kind,
       target_format: target.format,
     };
-    if (target.kind === "executable" && target.architecture === "mips")
+    if (
+      target.kind === "executable" &&
+      isElfMetadataArchitecture(target.architecture)
+    )
       return {
         status: "unsupported",
         code: "architecture_unsupported",
-        reason:
-          "REA's IDA adapter has no verified MIPS lane. Select a supported Ghidra profile instead.",
+        reason: `REA's IDA adapter has no verified ${
+          target.architecture === "mips" ? "MIPS" : "RISC-V"
+        } lane. Select a supported Ghidra profile instead.`,
         diagnostics,
       };
     if (target.kind !== "executable")

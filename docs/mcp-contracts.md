@@ -412,7 +412,7 @@ Ordinary responses keep their existing complete result contract.
 
 ## Retained application Evidence inputs
 
-`analyze_javascript_application` and `inspect_binary_layout` accept `detail`:
+`analyze_javascript_application`, `inspect_binary_layout`, and `inspect_artifact` accept `detail`:
 `complete` (default) returns the complete analysis Evidence; `summary` records
 that complete Evidence in the session and returns the derived
 `inspect_analysis_view` summary Evidence instead. Its
@@ -420,6 +420,9 @@ that complete Evidence in the session and returns the derived
 analysis, so later views and application workflows read it without repeating
 analysis or moving the complete record through the response. A server without
 session retention refuses summary detail with `capability_unavailable`.
+For `inspect_artifact`, omission also keeps the original request parameters and
+complete output shape. Delivery selection never reaches the inventory engine;
+the complete inspection and its atomic inventory Evidence remain retained.
 
 `inspect_analysis_view` also accepts `api-surface` for retained HAR capture Evidence,
 grouping request lines by method, origin and format-rule path template. Templated
@@ -445,6 +448,34 @@ recorded property values and source locations; summaries include parent
 application and semantic coverage. The result carries a digest of the selected
 facts. Actual serialized size determines MCP transport admission: reduce the
 page size or export retained Evidence if the view is too large.
+
+Completed `inspect_artifact` and atomic `inventory_artifact` Evidence also
+support summary and inventory views. A summary reports the manifest's expected
+counts separately from available record counts, observed entry kinds, inventory
+Evidence IDs and inspection coverage. An inventory view selects `nodes`,
+`occurrences`, `edges`, or `integrity_contradictions`, with `offset` and `limit`
+defaulting to 0 and 64. For occurrences, optional `logical_paths` matches exact
+recorded strings: omission selects all available records; `[]` selects none.
+These selectors do not reopen the artifact or resolve filesystem paths.
+`source_complete` records whether the available inventory passes the complete
+graph checks. Exhausting a page from a partial source does not establish that
+unreturned paths are absent. Views carry their own Evidence IDs and preserve
+links to the original parent; complete producer output and historical inline
+Evidence input parsing retain their existing shapes.
+
+Completed `inspect_wasm_artifact` Evidence supports a summary and
+`view: {kind: "wasm", facet: "exports", offset: 0, limit: 64}`. Other facets
+are `sections`, `imports`, `candidates`, `glue`, `wat`, `headers`, `details`, and
+the singleton `tool_profile` (offset 0). Arrays retain original WABT forms and
+records. Text facets page by UTF-16 code units and preserve complete Unicode
+characters. Summaries report the selected artifact's identity, validation,
+available counts, decoded WAT digest/length and exact tool profile. Runtime
+execution and network acquisition remain `not-performed`. A valid WAT digest
+is checked at the owning model boundary for current output and portable input.
+The original producer still returns complete Evidence by default. When its
+complete MCP reply exceeds the frame, use the exact reported retained
+reference with these views, or export the complete source. Views do not run
+WABT again and do not turn decoded WAT into original source.
 
 `trace_application_feature`, `trace_javascript_semantics`,
 `compare_application_versions`, `compare_source_to_bundle`, and
@@ -484,6 +515,10 @@ CLI application workflows continue to read portable inline Evidence from files
 and run the same analysis workflows; a standalone CLI invocation cannot resolve
 another MCP connection's retained records. No additional lookup call, provider
 selection, or approval step is required for a same-session follow-up.
+CLI `inspect-artifact` continues to return complete portable Evidence. Save that
+JSON to a file and use `inspect-analysis-view` with inline source Evidence for
+later inventory summaries or pages; a one-shot CLI session cannot retain a
+parent for another invocation.
 
 ## Aggregate native context
 

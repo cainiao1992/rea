@@ -25,6 +25,8 @@ const EXECUTION_WORDING_EXCEPTIONS: Readonly<Record<string, string>> = {
     "decodes bytecode in REA's bundled worker without executing it",
   inspect_wasm_artifact:
     "WABT validates and decompiles the module without executing it",
+  inspect_analysis_view:
+    "reports retained WASM execution/network states without performing execution",
   inspect_managed_artifact: "reads metadata without executing target code",
   inspect_managed_members: "reads metadata without executing target code",
   inspect_managed_native_boundaries:

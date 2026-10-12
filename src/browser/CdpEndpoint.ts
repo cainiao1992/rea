@@ -7,6 +7,7 @@ import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { BrowserObservationError } from "../domain/browserObservationError.js";
 import type { BrowserObservationOperation } from "../domain/browserObservationErrors.js";
 import { sanitizeBrowserUrl } from "../domain/browserObservation.js";
+import { urlDeclaresQueryOrFragment } from "../domain/urlComponents.js";
 import { safeParseJson } from "../domain/safeJson.js";
 
 const endpointVersionSchema = z.object({
@@ -230,8 +231,7 @@ const safeCdpWebSocketEndpoint = (
     parsed.port !== trustedEndpoint.port ||
     parsed.username !== "" ||
     parsed.password !== "" ||
-    parsed.search !== "" ||
-    parsed.hash !== "" ||
+    urlDeclaresQueryOrFragment(parsed) ||
     path === undefined
   )
     throw new BrowserObservationError(operation, "invalid_endpoint_response");

@@ -68,12 +68,20 @@ export interface ResolveArtifactPathInput {
 export const moduleKindForJavaScriptReference = (
   sourcePath: string,
   referenceKind: "static-import" | "dynamic-import" | "require",
+  resolutionMode?: "import" | "require",
 ): "import" | "require" =>
-  referenceKind === "require" ||
+  resolutionMode ??
+  (referenceKind === "require" ||
   (referenceKind === "static-import" &&
     posix.extname(sourcePath).toLowerCase() === ".cts")
     ? "require"
-    : "import";
+    : "import");
+
+/** Preserve an explicitly retained loader mode on graph relationships. */
+export const moduleResolutionModeProperties = (
+  mode: "import" | "require" | undefined,
+): Readonly<Record<string, "import" | "require">> =>
+  mode === undefined ? {} : { resolution_mode: mode };
 
 const EXTENSIONS = [
   ".js",

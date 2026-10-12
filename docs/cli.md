@@ -150,6 +150,10 @@ an exact result when the target bytes, operation, parameters, provider and
 settings match. Mutations and cursor-dependent calls are excluded from the
 cache. Snapshot files are local and use owner-only permissions.
 
+Dispatching a metadata write invalidates the active session's snapshot cache,
+even if its reply fails: the provider may already have applied the write.
+Close and reopen the target before importing or saving another snapshot.
+
 Snapshots retain eligible target-scoped question histories in full, including
 mutation Evidence recorded while another target was active. Observations and
 related questions must still belong to the saved target. If those dependencies

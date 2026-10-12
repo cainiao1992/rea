@@ -588,6 +588,9 @@ export class BinarySession
     if (!prepared.ok) return prepared;
     const { active, capability, profile, cacheable, cached } = prepared.value;
     if (cached !== undefined) return ok(cached);
+    // A failed reply cannot prove that a dispatched metadata write rolled back.
+    // Stop replay before dispatch, including reads overlapping the write.
+    if (capability.effects.mutatesArtifact) this.invalidateSnapshot();
     const call = active.client.execute(name, arguments_, options);
     const result = await call;
     const profiled = bindExecutionTarget(
@@ -645,8 +648,6 @@ export class BinarySession
         parameters: arguments_,
         execution: execution.value,
       });
-    } else if (profiled.ok && capability.effects.mutatesArtifact) {
-      this.invalidateSnapshot();
     }
     return execution;
   }

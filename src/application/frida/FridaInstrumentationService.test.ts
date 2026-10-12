@@ -1,3 +1,6 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { expect, it } from "vitest";
 
 import type { FridaInstrumentationPort } from "./FridaInstrumentationPort.js";
@@ -101,6 +104,66 @@ it.each(["startSession", "instrument"] as const)(
     expect(loads).toBe(0);
   },
 );
+
+it.each([
+  [join(tmpdir(), "rea-missing-frida-script.js"), "no file exists there"],
+  [tmpdir(), "it is not a regular file"],
+])(
+  "rejects the unreadable script file %s before starting Frida",
+  async (path, reason) => {
+    let starts = 0;
+    const provider = createProvider({
+      async startSession() {
+        starts += 1;
+        return { ok: true, value: createSession() };
+      },
+    });
+    const service = new FridaInstrumentationService(provider);
+
+    const result = await service.instrument({
+      mode: "spawn",
+      deviceId: "local",
+      program: "/tmp/fixture",
+      source: { sourceKind: "file", path },
+      durationMs: 1,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBeInstanceOf(AnalysisInputError);
+    expect((result.error as AnalysisInputError).issues).toEqual([
+      {
+        path: ["path"],
+        reason: "invalid_value",
+        message: `Cannot read Frida script file ${path}: ${reason}.`,
+      },
+    ]);
+    expect(starts).toBe(0);
+  },
+);
+
+it("reports cancellation before checking a file script source", async () => {
+  const service = new FridaInstrumentationService(createProvider());
+  const controller = new AbortController();
+  controller.abort(new Error("cancelled before call"));
+
+  const result = await service.instrument(
+    {
+      mode: "spawn",
+      deviceId: "local",
+      program: "/tmp/fixture",
+      source: {
+        sourceKind: "file",
+        path: join(tmpdir(), "rea-missing-frida-script.js"),
+      },
+      durationMs: 1,
+    },
+    controller.signal,
+  );
+
+  expect(result.ok).toBe(false);
+  if (!result.ok) expect(result.error._tag).toBe("AnalysisCancelledError");
+});
 
 it("does not resume a spawned target when cancellation arrives during script loading", async () => {
   const controller = new AbortController();

@@ -220,7 +220,18 @@ export const registerFridaCommands = (
             (options.scriptFile === undefined)
           )
             return projectAnalysisError(
-              new AnalysisInputError(CLI_COMMANDS.instrumentWithFrida),
+              new AnalysisInputError(
+                CLI_COMMANDS.instrumentWithFrida,
+                undefined,
+                [
+                  {
+                    path: ["script"],
+                    reason: "invalid_value",
+                    message:
+                      "Provide exactly one of --script or --script-file.",
+                  },
+                ],
+              ),
             );
           const remote = remoteFrom(options);
           const selected =
@@ -248,7 +259,17 @@ export const registerFridaCommands = (
                 };
           if (targetInput === undefined)
             return projectAnalysisError(
-              new AnalysisInputError(CLI_COMMANDS.instrumentWithFrida),
+              new AnalysisInputError(
+                CLI_COMMANDS.instrumentWithFrida,
+                undefined,
+                [
+                  {
+                    path: ["target"],
+                    reason: "invalid_value",
+                    message: "attach mode needs a positive integer process ID.",
+                  },
+                ],
+              ),
             );
           const result = await withProviderCleanup(() =>
             service.instrument(

@@ -31,6 +31,10 @@ import {
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { err, ok, type Result } from "../domain/result.js";
+import {
+  unknownFridaScript,
+  unknownFridaSession,
+} from "../application/frida/fridaInputErrors.js";
 
 const MAX_SESSION_CAPTURE_BYTES = 16 * 1024 * 1024;
 const MAX_MESSAGE_METADATA_BYTES = 128 * 1024;
@@ -334,7 +338,7 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
   ): Promise<Result<FridaScriptObservation, AnalysisError>> {
     const managed = this.#sessions.get(sessionId);
     if (managed === undefined || managed.state === "detached")
-      return err(new AnalysisInputError("load_frida_script"));
+      return err(unknownFridaSession("load_frida_script", sessionId));
 
     let scriptSource: string;
     try {
@@ -354,7 +358,13 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
               cause.code,
               { cause },
             )
-          : new AnalysisInputError("load_frida_script", { cause }),
+          : new AnalysisInputError("load_frida_script", { cause }, [
+              {
+                path: ["path"],
+                reason: "invalid_value",
+                message: `Cannot read Frida script file ${sourcePath ?? "<inline>"}.`,
+              },
+            ]),
       );
     }
 
@@ -419,7 +429,7 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
   ): Promise<Result<null, AnalysisError>> {
     const managed = this.#sessions.get(sessionId);
     if (managed === undefined || managed.state === "detached")
-      return err(new AnalysisInputError("resume_frida_session"));
+      return err(unknownFridaSession("resume_frida_session", sessionId));
     if (managed.mode !== "spawn" || managed.state !== "paused")
       return err(
         new AnalysisCapabilityUnavailableError(
@@ -454,8 +464,10 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
   ): Promise<Result<null, AnalysisError>> {
     const managed = this.#sessions.get(sessionId);
     const entry = managed?.scripts.get(scriptId);
-    if (managed === undefined || entry === undefined)
-      return err(new AnalysisInputError("unload_frida_script"));
+    if (managed === undefined)
+      return err(unknownFridaSession("unload_frida_script", sessionId));
+    if (entry === undefined)
+      return err(unknownFridaScript("unload_frida_script", scriptId));
     const cleanupReason = await this.#releaseScript(managed, entry);
     return cleanupReason === undefined
       ? ok(null)
@@ -536,7 +548,7 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
   > {
     const managed = this.#sessions.get(sessionId);
     if (managed === undefined)
-      return err(new AnalysisInputError("close_frida_session"));
+      return err(unknownFridaSession("close_frida_session", sessionId));
     const scriptFailures = new Map<string, string>();
     const cleanupFailures: string[] = [];
     let parentSessionReleased =

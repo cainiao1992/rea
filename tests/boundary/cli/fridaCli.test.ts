@@ -234,3 +234,43 @@ it("preserves observed devices when CLI provider cleanup fails", async () => {
     details: { diagnostics: { partial_observation: { devices } } },
   });
 });
+
+it.each([
+  [
+    ["attach", "abc", "--script", "send(1)"],
+    "target",
+    "attach mode needs a positive integer process ID.",
+  ],
+  [
+    ["attach", "71"],
+    "script",
+    "Provide exactly one of --script or --script-file.",
+  ],
+])(
+  "names the rejected instrument-with-frida argument for %j",
+  async (argv, path, message) => {
+    let starts = 0;
+    const provider = {
+      async startSession() {
+        starts += 1;
+        throw new Error("Frida must not start for invalid input");
+      },
+    } as unknown as FridaInstrumentationPort;
+    const cli = createCli({}, undefined, provider);
+    let stdout = "";
+    await cli.serve(["instrument-with-frida", ...argv, "--json"], {
+      env: {},
+      exit: () => undefined,
+      stdout: (text) => {
+        stdout += text;
+      },
+    });
+    expect(JSON.parse(stdout)).toMatchObject({
+      code: "invalid_request",
+      details: {
+        issues: [{ path: [path], reason: "invalid_value", message }],
+      },
+    });
+    expect(starts).toBe(0);
+  },
+);

@@ -12,6 +12,7 @@ import { jsonValueSchema } from "../domain/jsonValue.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 import type { ToolResultDelivery } from "./toolResult.js";
+import { unknownFridaSession } from "../application/frida/fridaInputErrors.js";
 
 /** Register Frida device discovery and persistent instrumentation operations. */
 export const registerFridaTools = (
@@ -199,7 +200,7 @@ export const registerFridaTools = (
         return delivery.toCallToolResult(
           {
             ok: false as const,
-            error: new AnalysisInputError(status.name),
+            error: unknownFridaSession(status.name, input.session_id),
           },
           status,
         );

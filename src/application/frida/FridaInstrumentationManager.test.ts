@@ -986,3 +986,39 @@ it("serializes script loading against concurrent close and unloads the loaded sc
   expect(bindings.device.session.scripts[0]?.isDestroyed).toBe(true);
   expect(bindings.device.session.isDetached()).toBe(true);
 });
+
+it("names the unknown session or script ID it rejects", async () => {
+  const { manager, started } = await startLocalAttachedSession();
+  if (!started.ok) throw started.error;
+  const missing = "00000000-0000-4000-8000-000000000009";
+  const sessionIssue = {
+    path: ["session_id"],
+    reason: "invalid_value",
+    message: `No open Frida session ${missing}; start one with start_frida_session.`,
+  };
+  for (const result of [
+    await manager.closeSession(missing),
+    await manager.resumeSession(missing),
+    await manager.loadScript(missing, { sourceKind: "inline", source: "" }),
+    await manager.unloadScript(missing, missing),
+  ])
+    expect(result).toMatchObject({
+      ok: false,
+      error: { _tag: "AnalysisInputError", issues: [sessionIssue] },
+    });
+  expect(
+    await manager.unloadScript(started.value.sessionId, missing),
+  ).toMatchObject({
+    ok: false,
+    error: {
+      issues: [
+        {
+          path: ["script_id"],
+          reason: "invalid_value",
+          message: `No loaded Frida script ${missing} in this session.`,
+        },
+      ],
+    },
+  });
+  await manager.closeAll();
+});

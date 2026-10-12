@@ -244,8 +244,10 @@ from the original file bytes. HI16/LO16 are checked as the effective address
 each LO16 forms with each HI16 it resolves, including several HI16s before one
 LO16, so a missing signed-low carry fails and a HI16 without a following LO16
 fails. The lane also requires matching Ghidra relocation entries and statuses,
-section file offsets and sizes, coverage of a shared HI16, a LO16 carry,
-external code and data and `R_MIPS_32` words, direct calls from the entry
+section file offsets and sizes, coverage of a shared HI16, a LO16 resolving
+several pending HI16s (from an assembly block, since Clang does not emit that
+from C), a LO16 carry, external code and data and `R_MIPS_32` words, direct
+calls from the entry
 function, the relocatable support lane in the snapshot profile, the
 relocatable limitation in Evidence and an unchanged source object. The fixture
 also calls `powf`, an external whose float prototype comes from Ghidra's C

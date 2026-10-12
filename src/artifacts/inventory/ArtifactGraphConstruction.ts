@@ -18,7 +18,10 @@ import {
   zipPackageFormatForPath,
   type ZipPackageFormat,
 } from "../../domain/zipPackageFormat.js";
-import { mzWindowsHeaderOffset, parseDosMzHeader } from "../../domain/dosMz.js";
+import {
+  observeMzWindowsHeader,
+  parseDosMzHeader,
+} from "../../domain/dosMz.js";
 
 /** Mutable internal occurrence used until root-bound IDs are known. */
 export interface MutableOccurrence {
@@ -450,17 +453,19 @@ export const classifyArtifactBytes = (
       prefix.length < Math.min(fileSize, 64)
     )
       return "unknown";
-    const windowsOffset = mzWindowsHeaderOffset(prefix);
-    if (windowsOffset !== null) {
+    const windowsHeader = observeMzWindowsHeader(prefix, fileSize);
+    if (windowsHeader.state === "signature-needed") return "unknown";
+    if (windowsHeader.state === "declared") {
+      const windowsOffset = windowsHeader.offset;
       if (
+        windowsHeader.signature === "PE" &&
         windowsOffset >= 64 &&
-        windowsOffset <= prefix.length - 4 &&
-        prefix
-          .subarray(windowsOffset, windowsOffset + 4)
-          .equals(Buffer.from([0x50, 0x45, 0, 0]))
+        windowsOffset <= prefix.length - 4
       )
         return "pe";
-    } else if (parseDosMzHeader(prefix, fileSize).ok) return "dos-mz";
+      return "unknown";
+    }
+    if (parseDosMzHeader(prefix, fileSize).ok) return "dos-mz";
     return "unknown";
   }
   return "file";

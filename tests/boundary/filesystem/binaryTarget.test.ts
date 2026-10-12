@@ -804,6 +804,32 @@ describe("binary Info.plist app bundle targets", () => {
 });
 
 describe("DOS binary target I/O", () => {
+  it("resolves a short-header PE signature beyond the bounded prefix", async () => {
+    const directory = await createTestTempDirectory(
+      "rea-short-stub-pe-target-",
+    );
+    const path = join(directory, "short-stub.dll");
+    const offset = 8192;
+    const stub = dosMz(64);
+    stub.writeUInt32LE(offset, 60);
+    const peRecord = pe(0x8664, offset, 0x2002).subarray(offset);
+    const bytes = Buffer.concat([
+      stub,
+      Buffer.alloc(offset - stub.length),
+      peRecord,
+    ]);
+    await writeFile(path, bytes);
+
+    expect(await parseBinaryTarget(path)).toMatchObject({
+      ok: true,
+      value: {
+        format: "pe",
+        architecture: "x86_64",
+        executableRole: "shared-library",
+      },
+    });
+  });
+
   it("validates a complete DOS file beyond the initial metadata probe", async () => {
     const directory = await createTestTempDirectory("rea-dos-target-");
     const path = join(directory, "legacy.exe");

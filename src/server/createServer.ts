@@ -270,7 +270,6 @@ export const createServer = (
       javascriptRecovery.close?.() ?? Promise.resolve(),
       artifactResources.close(),
       firmwareAnalysis.close(),
-      options.browserScenarioCapture?.close?.() ?? Promise.resolve(),
     ])
       .then((results) => {
         const failures = results.flatMap((result) =>

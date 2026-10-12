@@ -317,7 +317,7 @@ Report vulnerabilities through [SECURITY.md](SECURITY.md).
 
 ## Star history
 
-🎉 **90,000 GitHub stars — thank you!**
+🎉 **110,000 GitHub stars — thank you!**
 
 Thanks to everyone using REA, reporting bugs, requesting features, testing builds, and contributing fixes.
 

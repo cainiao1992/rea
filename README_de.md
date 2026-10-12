@@ -258,7 +258,7 @@ Melde Sicherheitslücken gemäß [SECURITY.md](SECURITY.md).
 
 ## Sternverlauf
 
-🎉 **90.000 GitHub-Sterne – vielen Dank!**
+🎉 **110.000 GitHub-Sterne – vielen Dank!**
 
 Danke an alle, die REA nutzen, Fehler melden, Funktionswünsche äußern, Builds testen und Fehlerbehebungen beitragen.
 

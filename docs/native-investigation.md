@@ -1,3 +1,5 @@
+<div id="native-ui-and-dispatch-investigation"></div>
+
 # Native binary investigation
 
 Use a native provider to discover functions, inspect instructions and pseudocode,

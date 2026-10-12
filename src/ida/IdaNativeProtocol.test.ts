@@ -223,11 +223,22 @@ describe("native IDA provider observations", () => {
           procedure: "main",
         });
         if (!dossier.ok) throw dossier.error;
-        expect(dossier.value.relationshipCoverage).toEqual({
+        expect(dossier.value.relationshipCoverage).toMatchObject({
           status: "unknown",
-          reason:
-            "Upstream xrefs do not establish direct caller relationships.",
+          reason: more
+            ? expect.stringContaining(
+                "Callees: Upstream callees capped results at 500; additional callees remain unknown.",
+              )
+            : expect.stringContaining(
+                "Callers: Upstream xrefs do not establish direct caller relationships.",
+              ),
         });
+        if (more)
+          expect(dossier.value.relationshipCoverage).toMatchObject({
+            reason: expect.stringContaining(
+              "Callers: Upstream xrefs do not establish direct caller relationships.",
+            ),
+          });
         expect(dossier.value.result).toMatchObject({
           callers: [],
           callees: [{ address: "0x2000", name: "puts" }],

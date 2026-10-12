@@ -350,6 +350,38 @@ const inspectWasmTarget = async () => {
   };
 };
 
+/** Identical complete interface question for pinned offline EVM carriers. */
+const inspectEvmTarget = async () => {
+  const info = await call("inspect_evm_interface", {
+    path: values.path,
+    encoding: "hex",
+  });
+  const n = normalized(info);
+  if (
+    n.evidence_kind !== "inferred" ||
+    n.discovery_completeness !== "unknown" ||
+    n.runtime_execution !== "not-performed" ||
+    ["kind", "hardfork", "deployment_authenticity"].some(
+      (key) => n.bytecode[key] !== "unknown",
+    ) ||
+    (artifact.decoded_sha256 !== undefined &&
+      n.bytecode.sha256 !== artifact.decoded_sha256) ||
+    (artifact.decoded_bytes !== undefined &&
+      n.bytecode.bytes !== artifact.decoded_bytes)
+  )
+    throw new Error("EVM interface identity or uncertainty changed");
+  return {
+    artifact_sha256: targetSha(info),
+    artifact: n.artifact,
+    bytecode: n.bytecode,
+    functions: n.functions,
+    discovery_completeness: n.discovery_completeness,
+    runtime_execution: n.runtime_execution,
+    limitations: n.limitations,
+    evidence_ids: [info.evidence_id],
+  };
+};
+
 const workflows = {
   "obsidian.asar": async () => {
     if (values["javascript-question"] === "selected") {
@@ -534,23 +566,9 @@ const workflows = {
   "sqlite.wasm": inspectWasmTarget,
   "vscode.tree-sitter.wasm": inspectWasmTarget,
   "vscode.tree-sitter-css.wasm": inspectWasmTarget,
-  "weth.hex": async () => {
-    const info = await call("inspect_evm_interface", {
-      path: values.path,
-      encoding: "hex",
-    });
-    const n = normalized(info);
-    return {
-      artifact_sha256: targetSha(info),
-      artifact: n.artifact,
-      bytecode: n.bytecode,
-      functions: n.functions,
-      discovery_completeness: n.discovery_completeness,
-      runtime_execution: n.runtime_execution,
-      limitations: n.limitations,
-      evidence_ids: [info.evidence_id],
-    };
-  },
+  "weth.hex": inspectEvmTarget,
+  "uniswap-v3.factory.hex": inspectEvmTarget,
+  "uniswap-v3.pool.hex": inspectEvmTarget,
   ...Object.fromEntries(
     NATIVE_ARTIFACTS.map((artifact) => [
       artifact,

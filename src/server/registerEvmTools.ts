@@ -2,7 +2,7 @@ import type { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 
 import type { EvmInterfaceService } from "../application/evm/EvmInterfaceService.js";
 import type { EvidenceWriter } from "../application/investigation/InvestigationRecordPort.js";
-import { toolContract } from "../contracts/toolContracts.js";
+import { evmInterfaceModule } from "../composition/evm.js";
 import type { Logger } from "pino";
 import type { WithAdmittedAnalysis } from "./analysisAdmission.js";
 import { createEvidenceToolHandler } from "./contractToolHandler.js";
@@ -16,7 +16,7 @@ export const registerEvmTools = (
   recordEvidence?: EvidenceWriter["recordEvidence"],
   withAdmittedAnalysis?: WithAdmittedAnalysis,
 ): void => {
-  const contract = toolContract("inspect_evm_interface");
+  const contract = evmInterfaceModule.contract;
   const handler = createEvidenceToolHandler(
     server,
     (input, options) => service.inspect(input, options),

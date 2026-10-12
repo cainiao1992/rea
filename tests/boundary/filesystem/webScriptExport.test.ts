@@ -74,6 +74,46 @@ const setup = async (capture: unknown = scriptCaptureEvidenceFixture()) => {
   return { root, input, resources };
 };
 
+describe("empty URL component publication", () => {
+  it("isolates empty query and fragment identities while retaining durable script bytes", async () => {
+    const scripts = [
+      {
+        url: "https://fixture.test/ordinary.js",
+        bytes: Buffer.from("export const ordinary = 1;"),
+      },
+      {
+        url: "https://fixture.test/query.js?",
+        bytes: Buffer.from("export const query = 2;"),
+      },
+      {
+        url: "https://fixture.test/fragment.js#",
+        bytes: Buffer.from("export const fragment = 3;"),
+      },
+    ];
+    const { input, resources } = await setup(scriptScenarioFixture(scripts));
+    const exported = await exportWebScripts(input, resources);
+    if (!exported.ok) throw exported.error;
+    const result = webScriptExportResultSchema.parse(
+      exported.value.normalized_result,
+    );
+    if (result.analysis_input === null)
+      throw new Error("Missing analysis input");
+    for (const [index, script] of result.scripts.entries()) {
+      if (script.content.state !== "exported")
+        throw new Error("Missing source bytes");
+      expect(script.url).toBe(scripts[index]?.url);
+      expect(script.content.layout).toBe(index === 0 ? "url-path" : "isolated");
+      expect(
+        await readFile(
+          join(result.analysis_input.input_path, script.content.relative_path),
+        ),
+      ).toEqual(scripts[index]?.bytes);
+    }
+    const manifest = JSON.parse(await readFile(result.manifest.path, "utf8"));
+    expect(manifest.scripts).toEqual(result.scripts);
+  });
+});
+
 describe("captured script publication boundary", () => {
   it("verifies durable bytes, manifest, capture identity, and existing module analysis", async () => {
     const capture = scriptScenarioFixture([

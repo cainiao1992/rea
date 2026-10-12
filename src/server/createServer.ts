@@ -7,6 +7,9 @@ import { registerPeResourcesTool } from "./registerPeResourcesTool.js";
 import type { EvmInterfaceService } from "../application/evm/EvmInterfaceService.js";
 import { evmInterfaceModule } from "../composition/evm.js";
 import { registerEvmTools } from "./registerEvmTools.js";
+import type { SqliteDatabaseService } from "../application/sqlite/SqliteDatabaseService.js";
+import { createSqliteDatabaseService } from "../composition/sqlite.js";
+import { registerSqliteTools } from "./registerSqliteTools.js";
 import { registerRecordedCrashTools } from "./registerRecordedCrashTools.js";
 import { createRecordedCrashService } from "../composition/binaryDiagnostics.js";
 import { createGoBinaryService } from "../composition/go.js";
@@ -118,6 +121,7 @@ export interface CreateServerOptions {
   readonly delivery?: ToolResultDelivery;
   readonly wasmArtifact?: WasmArtifactService;
   readonly evmInterface?: EvmInterfaceService;
+  readonly sqliteDatabase?: SqliteDatabaseService;
   readonly logger?: Logger;
   readonly binaryLayout?: BinaryLayoutService;
   readonly goBinary?: GoBinaryService;
@@ -243,6 +247,8 @@ export const createServer = (
   const delivery = selectToolResultDelivery(environment, options.delivery);
   const evmInterface =
     options.evmInterface ?? evmInterfaceModule.create(environment);
+  const sqliteDatabase =
+    options.sqliteDatabase ?? createSqliteDatabaseService(environment);
   const binaryLayout =
     options.binaryLayout ?? createBinaryLayoutService(environment);
   const recordedCrash =
@@ -262,6 +268,7 @@ export const createServer = (
     environment,
     delivery,
     evmInterface,
+    sqliteDatabase,
     binaryLayout,
     recordedCrash,
     webSourceLocation,
@@ -302,6 +309,7 @@ export const createServer = (
       adbDevice.close(),
       flutter.close(),
       evmInterface.close(),
+      sqliteDatabase.close(),
       binaryLayout.close(),
       recordedCrash.close(),
       webSourceLocation.close(),
@@ -516,6 +524,13 @@ const registerConfiguredAnalysisTools = (
   registerEvmTools(
     server,
     evmInterface,
+    toolLogger,
+    recordEvidence,
+    withAdmittedAnalysis,
+  );
+  registerSqliteTools(
+    server,
+    options.sqliteDatabase ?? createSqliteDatabaseService(environment),
     toolLogger,
     recordEvidence,
     withAdmittedAnalysis,

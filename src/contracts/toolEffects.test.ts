@@ -19,6 +19,8 @@ const EXECUTION_WORDING_EXCEPTIONS: Readonly<Record<string, string>> = {
   resolve_native_call_targets: "states that it does not execute code",
   inspect_pe_resources: "states that it does not execute the image",
   inspect_go_binary: "reads embedded metadata without executing the target",
+  inspect_sqlite_database:
+    "uses a trusted inspector worker without executing application code or caller SQL",
   inspect_binary_layout:
     "parses the binary offline with operator-configured pwntools",
   inspect_recorded_crash: "inspects a core file without launching its target",

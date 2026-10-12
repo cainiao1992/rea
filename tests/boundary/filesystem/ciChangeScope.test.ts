@@ -443,6 +443,10 @@ it("rejects skipped selected work while allowing unselected lanes to skip", asyn
 
 it.each([
   [
+    ".github/workflows/sqlite-runtime.yml",
+    { workflows: true, code: true, package: false, website: false },
+  ],
+  [
     ".github/workflows/real-termux.yml",
     { workflows: true, code: false, package: false, website: false },
   ],

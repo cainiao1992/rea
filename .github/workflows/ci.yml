@@ -209,6 +209,11 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  sqlite-runtime:
+    needs: [changes, build]
+    if: needs.changes.outputs.code == 'true'
+    uses: ./.github/workflows/sqlite-runtime.yml
+
   test:
     name: Test (coverage + timing)
     needs: [changes, test-shard]
@@ -659,6 +664,7 @@ jobs:
         static,
         build,
         test-shard,
+        sqlite-runtime,
         test,
         conformance-fixtures,
         windows-native-build,

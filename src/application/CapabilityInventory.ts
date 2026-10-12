@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sqliteDatabaseCapability } from "./sqlite/SqliteDatabaseCapability.js";
 import type {
   OptionalProviderLoadFailures,
   OptionalProviderLoadFailure,
@@ -341,6 +342,15 @@ const workflowAvailabilityFor = ({
 }: AvailabilityContext): Availability | null => {
   if (name === "inspect_go_binary")
     return { reason: "available", remediation: null };
+  if (name === "inspect_sqlite_database") {
+    const capability = sqliteDatabaseCapability(process.versions.node);
+    return capability.available
+      ? { reason: "available", remediation: null }
+      : {
+          reason: "provider_unavailable",
+          remediation: capability.reason,
+        };
+  }
   if (name === "trace_web_module_imports")
     return {
       reason: "available",

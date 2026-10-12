@@ -116,6 +116,40 @@ it("distinguishes unsupported target formats from unavailable provider capabilit
   expect(analysisErrorProjectionSchema.safeParse(projected).success).toBe(true);
 });
 
+it.each([false, true])(
+  "marks occupied capacity retryable only while cleanup is confirmed: %s",
+  (cleanupIncomplete) => {
+    const projected = projectAnalysisError(
+      new AnalysisResourceConstraintError(
+        "inspect_sqlite_database",
+        "capacity",
+        "Inspection slots are occupied",
+        { max_concurrent_inspections: 2 },
+        cleanupIncomplete
+          ? {
+              cleanup: {
+                reason: "Snapshot removal denied",
+                resources: ["/private/snapshot"],
+              },
+            }
+          : undefined,
+      ),
+    );
+    expect(projected.retryable).toBe(!cleanupIncomplete);
+    expect(projected.code).toBe(
+      cleanupIncomplete ? "cleanup_incomplete" : "resource_constraint",
+    );
+    expect(projected.details).toMatchObject({
+      resource: "capacity",
+      reported_limits: { max_concurrent_inspections: 2 },
+    });
+    expect(projected.remediation.action).toContain("Wait");
+    expect(analysisErrorProjectionSchema.safeParse(projected).success).toBe(
+      true,
+    );
+  },
+);
+
 it.each([
   ["memory", null],
   ["memory", { address_space_bytes: 67108864 }],

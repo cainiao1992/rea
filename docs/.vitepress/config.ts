@@ -43,6 +43,7 @@ export default defineConfig({
           { text: "Android applications", link: "/android-analysis" },
           { text: "Apple applications", link: "/apple-application-analysis" },
           { text: "Firmware", link: "/firmware-analysis" },
+          { text: "SQLite databases", link: "/sqlite-databases" },
         ],
       },
       {

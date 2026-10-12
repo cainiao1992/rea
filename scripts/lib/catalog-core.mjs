@@ -50,6 +50,8 @@ const SOURCE_PATHS = {
   wasmContracts: "dist/contracts/wasm/wasmToolContracts.js",
   wasmProvider: "dist/wasm/WabtRelease.js",
   evmContracts: "dist/contracts/evm/evmToolContracts.js",
+  sqliteContracts: "dist/contracts/sqlite/sqliteToolContracts.js",
+  sqliteDomain: "dist/domain/sqlite/sqliteDatabase.js",
   evmProvider: "dist/evm/EvmoleRelease.js",
   goContracts: "dist/contracts/go/goToolContracts.js",
   goProvider: "dist/go/GoBinaryProvider.js",

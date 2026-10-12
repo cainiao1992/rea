@@ -1,6 +1,7 @@
 /** Canonical names used by every one-shot CLI command registration. */
 export const CLI_COMMANDS = Object.freeze({
   inspectWasmArtifact: "inspect-wasm-artifact",
+  inspectSqliteDatabase: "inspect-sqlite-database",
   inspectEvmInterface: "inspect-evm-interface",
   inspectWebNetworkCapture: "inspect-web-network-capture",
   observeWebExecution: "observe-web-execution",

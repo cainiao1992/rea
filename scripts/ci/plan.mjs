@@ -24,6 +24,7 @@ const NATIVE_TEST_OWNERS = ["apple", "package"];
 const GUARDED_WORKFLOWS = new Set([
   ".github/workflows/release.yml",
   ".github/workflows/real-ghidra-windows.yml",
+  ".github/workflows/sqlite-runtime.yml",
 ]);
 // Sources compiled by build-conformance-fixtures.mjs. The readiness journey
 // analyzes the built C fixture as well as its own applications.

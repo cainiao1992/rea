@@ -15,6 +15,10 @@ Follow-up: [EVM descriptor and real-template controls](evm-descriptor.md) extend
 the offline corpus with digest-pinned Uniswap runtime templates and an independent
 published ABI selector oracle, preserving unknown deployment/immutable metadata.
 
+Follow-up: [EVM interface summary delivery](evm-interface-summary.md) records
+the opt-in retained view, old-client/Evidence migration checks and repeated SDK
+and real-model pairs, including mixed token/time results and strict-answer limits.
+
 The 12 detailed checkpoint receipts were archived byte-for-byte before removal
 from the final PR tree. The archive `review-receipts-00d51e0fc-20261012` is in the
 private experiment lab outside the checkout; its `archive-index.json` records

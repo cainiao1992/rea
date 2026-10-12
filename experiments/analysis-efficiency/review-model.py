@@ -98,8 +98,13 @@ def main():
             check('wabt_' + key, answer.get('wabt_' + key), reference['tool_profile'][key])
     elif domain == 'evm':
         n = producer_results['inspect_evm_interface'][-1]['normalized_result']
+        if n.get('kind') == 'summary':
+            check('evm_summary.parent_operation', n.get('parent_operation'), 'inspect_evm_interface')
+            checks['evm_summary.parent_reference_observed'] = n.get('parent_evidence_id') in observed_ids
+            n = n['summary']
         for key, expected in {'artifact_bytes': n['artifact']['bytes'], 'bytecode_sha256': n['bytecode']['sha256'], 'bytecode_bytes': n['bytecode']['bytes'], 'functions': n['functions'], 'evidence_kind': n['evidence_kind'], 'discovery_completeness': n['discovery_completeness'], 'runtime_execution': n['runtime_execution'], 'bytecode_kind': n['bytecode']['kind'], 'hardfork': n['bytecode']['hardfork'], 'deployment_authenticity': n['bytecode']['deployment_authenticity']}.items():
             check(key, answer.get(key), expected)
+        check('evm_original_limitations', answer.get('limitations'), n['limitations'])
     elif domain == 'android':
         for key in ['package_name', 'version_name', 'version_code', 'matches']:
             check(key, answer.get(key), reference[key])

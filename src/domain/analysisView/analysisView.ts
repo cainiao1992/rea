@@ -35,6 +35,12 @@ import {
   apiSurfaceViewSchema,
 } from "./webNetworkApiSurfaceView.js";
 import { projectNativeFunctionView } from "./nativeFunctionView.js";
+import {
+  projectEvmInterfaceView,
+  evmViewRequestSchema,
+  evmViewItemSchema,
+  evmSummarySchema,
+} from "./evmInterfaceView.js";
 import { projectArtifactInventoryView } from "./artifactInventoryView.js";
 import {
   projectWasmArtifactView,
@@ -154,6 +160,7 @@ export const analysisViewRequestSchema = z.discriminatedUnion("kind", [
   nativeViewSchema,
   inventoryViewSchema,
   wasmViewRequestSchema,
+  evmViewRequestSchema,
   apiSurfaceViewSchema,
 ]);
 
@@ -266,6 +273,7 @@ const viewResultBase = {
     "inspect_artifact",
     "inventory_artifact",
     "inspect_wasm_artifact",
+    "inspect_evm_interface",
   ]),
   parent_digest: digestSchema,
   view_digest: digestSchema,
@@ -309,6 +317,13 @@ export const wasmArtifactSummaryViewResultSchema = z.strictObject({
   summary: wasmSummarySchema,
 });
 
+/** Exact inferred-interface summary for EVM's caller-selected delivery. */
+export const evmInterfaceSummaryViewResultSchema = z.strictObject({
+  ...summaryViewResultBase,
+  parent_operation: z.literal("inspect_evm_interface"),
+  summary: evmSummarySchema,
+});
+
 /** Projected facts for one selected view of retained analysis Evidence. */
 export const analysisViewResultSchema = z.discriminatedUnion("kind", [
   z.strictObject({
@@ -329,6 +344,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
       javascriptSummarySchema,
       inventorySummarySchema,
       wasmSummarySchema,
+      evmSummarySchema,
     ]),
   }),
   z.strictObject({
@@ -361,6 +377,13 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     view: wasmViewRequestSchema,
     item: wasmViewItemSchema,
     ...viewResultBase,
+  }),
+  z.strictObject({
+    kind: z.literal("evm"),
+    view: evmViewRequestSchema,
+    item: evmViewItemSchema,
+    ...viewResultBase,
+    parent_operation: z.literal("inspect_evm_interface"),
   }),
   z.strictObject({
     kind: z.literal("inventory"),
@@ -427,7 +450,8 @@ export type UnsignedAnalysisView =
       Extract<AnalysisViewResult, { readonly kind: "inventory" }>,
       "view_digest"
     >
-  | Omit<Extract<AnalysisViewResult, { readonly kind: "wasm" }>, "view_digest">;
+  | Omit<Extract<AnalysisViewResult, { readonly kind: "wasm" }>, "view_digest">
+  | Omit<Extract<AnalysisViewResult, { readonly kind: "evm" }>, "view_digest">;
 
 /** Attach the content digest that must change when projected bytes change. */
 export const sealAnalysisView = (
@@ -569,6 +593,10 @@ export const projectAnalysisView = (
   }
   if (parent.operation === "inspect_wasm_artifact") {
     const projected = projectWasmArtifactView(parent, view);
+    return projected.ok ? ok(sealAnalysisView(projected.value)) : projected;
+  }
+  if (parent.operation === "inspect_evm_interface") {
+    const projected = projectEvmInterfaceView(parent, view);
     return projected.ok ? ok(sealAnalysisView(projected.value)) : projected;
   }
   if (

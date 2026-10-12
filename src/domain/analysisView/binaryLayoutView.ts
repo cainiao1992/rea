@@ -164,6 +164,10 @@ export const projectBinaryLayoutView = (
     return err(
       layoutIncompatible("WASM views require inspect_wasm_artifact Evidence."),
     );
+  if (view.kind === "evm")
+    return err(
+      layoutIncompatible("EVM views require inspect_evm_interface Evidence."),
+    );
   if (view.kind === "summary")
     return ok({
       kind: "summary",

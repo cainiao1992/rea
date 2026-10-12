@@ -24,6 +24,7 @@ const sameSettings = [
   "artifact",
   "artifact_sha256",
   "artifact_sha256_after",
+  "retained_verification",
   "native_question",
   "javascript_question",
   "provider_settings_sha256",

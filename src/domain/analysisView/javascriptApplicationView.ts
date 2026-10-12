@@ -253,6 +253,10 @@ export const projectJavaScriptApplicationView = (
     return err(
       jsIncompatible("WASM views require inspect_wasm_artifact Evidence."),
     );
+  if (view.kind === "evm")
+    return err(
+      jsIncompatible("EVM views require inspect_evm_interface Evidence."),
+    );
   if (view.kind === "summary")
     return ok({
       kind: "summary",

@@ -3,7 +3,7 @@ import { createReadStream } from "node:fs";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { parseArgs } from "node:util";
+import { isDeepStrictEqual, parseArgs } from "node:util";
 import {
   NATIVE_ARTIFACTS,
   measureNativeEntry,
@@ -23,6 +23,7 @@ const { values } = parseArgs({
     providers: { type: "string" },
     output: { type: "string" },
     delivery: { type: "string", default: "complete" },
+    "verify-retained": { type: "boolean", default: false },
     "native-question": { type: "string", default: "entry" },
     "javascript-question": { type: "string", default: "inventory" },
     schemas: { type: "string", default: "default" },
@@ -41,6 +42,10 @@ if (
   ) ||
   !["inventory", "selected"].includes(values["javascript-question"]) ||
   !["default", "selected"].includes(values.schemas) ||
+  (values["verify-retained"] &&
+    !["weth.hex", "uniswap-v3.factory.hex", "uniswap-v3.pool.hex"].includes(
+      values.artifact,
+    )) ||
   (!NATIVE_ARTIFACTS.includes(values.artifact) &&
     values["native-question"] !== "entry") ||
   (values.artifact !== "jq" &&
@@ -350,15 +355,44 @@ const inspectWasmTarget = async () => {
   };
 };
 
-/** Identical complete interface question for pinned offline EVM carriers. */
+/** Identical interface facts for complete delivery, selected summary or old-server fallback. */
 const inspectEvmTarget = async () => {
+  const definition = catalogDefinitions.get("inspect_evm_interface");
+  if (!definition) throw new Error("Missing advertised EVM definition");
+  const input = { path: values.path, encoding: "hex" };
+  const supportsSummary = new Ajv2020({
+    strict: false,
+    validateFormats: false,
+  }).compile(definition.inputSchema)({ ...input, detail: "summary" });
   const info = await call("inspect_evm_interface", {
-    path: values.path,
-    encoding: "hex",
+    ...input,
+    ...(values.delivery === "summary" && supportsSummary
+      ? { detail: "summary" }
+      : {}),
   });
-  const n = normalized(info);
+  const result = normalized(info);
+  const projected = result.kind === "summary";
+  const n = projected ? result.summary : result;
+  const references = [info.evidence_id];
+  if (projected) {
+    if (
+      result.parent_operation !== "inspect_evm_interface" ||
+      result.parent_evidence_id === info.evidence_id ||
+      !info.evidence_links.includes(result.parent_evidence_id) ||
+      "hex" in n.bytecode ||
+      "stdout" in n.diagnostics
+    )
+      throw new Error(
+        "EVM summary changed source provenance or precise delivery",
+      );
+    references.push(result.parent_evidence_id);
+  }
   if (
     n.evidence_kind !== "inferred" ||
+    n.artifact.path !== values.path ||
+    n.artifact.sha256 !== inputSha ||
+    n.artifact.bytes !== artifact.bytes ||
+    n.artifact.encoding !== "hex" ||
     n.discovery_completeness !== "unknown" ||
     n.runtime_execution !== "not-performed" ||
     ["kind", "hardfork", "deployment_authenticity"].some(
@@ -370,15 +404,69 @@ const inspectEvmTarget = async () => {
       n.bytecode.bytes !== artifact.decoded_bytes)
   )
     throw new Error("EVM interface identity or uncertainty changed");
+  if (values["verify-retained"]) {
+    if (!projected)
+      throw new Error(
+        "Retained verification requires supported selected summary",
+      );
+    const bundle = (await call("get_evidence_bundle", {})).result;
+    const parent = bundle.records.find(
+      (record) => record.evidence_id === result.parent_evidence_id,
+    );
+    if (
+      !parent ||
+      parent.operation !== "inspect_evm_interface" ||
+      parent.subject?.digest.sha256 !== inputSha ||
+      parent.parameters.path !== values.path ||
+      parent.parameters.encoding !== "hex" ||
+      "detail" in parent.parameters
+    )
+      throw new Error(
+        "Complete original EVM source was not retained unchanged",
+      );
+    const original = normalized(parent);
+    const { hex: _hex, ...identity } = original.bytecode;
+    const { stdout, ...diagnostics } = original.diagnostics;
+    const expected = {
+      ...original,
+      bytecode: identity,
+      diagnostics: { ...diagnostics, stdout_code_units: stdout.length },
+    };
+    if (!isDeepStrictEqual(expected, n))
+      throw new Error("EVM summary changed selected original facts");
+    for (const [facet, item] of [
+      ["functions", original.functions.slice(0, 64)],
+      [
+        "bytecode_hex",
+        { text: original.bytecode.hex.slice(0, 64), unit: "utf16-code-units" },
+      ],
+    ]) {
+      const page = await call("inspect_analysis_view", {
+        source: { kind: "retained-evidence", evidence_id: parent.evidence_id },
+        view: { kind: "evm", facet, offset: 0, limit: 64 },
+      });
+      const v = normalized(page);
+      if (
+        !isDeepStrictEqual(v.item, item) ||
+        v.parent_evidence_id !== parent.evidence_id ||
+        v.artifact.sha256 !== inputSha
+      )
+        throw new Error("EVM retained read changed source facts or identity");
+      if (references.includes(page.evidence_id))
+        throw new Error("EVM retained read reused an Evidence identity");
+      references.push(page.evidence_id);
+    }
+  }
+  const { hex: _hex, ...bytecode } = n.bytecode;
   return {
     artifact_sha256: targetSha(info),
     artifact: n.artifact,
-    bytecode: n.bytecode,
+    bytecode,
     functions: n.functions,
     discovery_completeness: n.discovery_completeness,
     runtime_execution: n.runtime_execution,
     limitations: n.limitations,
-    evidence_ids: [info.evidence_id],
+    evidence_ids: references,
   };
 };
 
@@ -672,6 +760,7 @@ const report = {
   artifact_sha256_after: finalInputSha,
   delivery: values.delivery,
   sdk_schema_mode: values.schemas,
+  retained_verification: values["verify-retained"],
   native_question: NATIVE_ARTIFACTS.includes(values.artifact)
     ? values["native-question"]
     : null,

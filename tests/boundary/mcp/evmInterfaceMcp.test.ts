@@ -8,7 +8,8 @@ import {
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
 } from "../../../src/domain/analysisErrorCore.js";
-import { parseEvidence } from "../../../src/domain/evidence.js";
+import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
+import { evmInterfaceSummaryViewResultSchema } from "../../../src/domain/analysisView/analysisView.js";
 import { err, ok } from "../../../src/domain/result.js";
 import { silentLogger } from "../../../src/logger.js";
 import { createServer } from "../../../src/server/createServer.js";
@@ -248,4 +249,245 @@ it("settles the admitted EVM operation after SDK cancellation and accepts a subs
   await harness.client.ping();
   expect((await harness.client.callTool(input)).isError).not.toBe(true);
   expect(invocations).toBe(2);
+});
+
+it("returns the exact inferred interface summary while preserving complete defaults and retained source", async () => {
+  const value = evmInterfaceFixture();
+  value.functions = [
+    {
+      selector: "0x11223344",
+      bytecode_offset: 0,
+      dispatch: "abi",
+      inferred_arguments: null,
+      inferred_state_mutability: null,
+    },
+    {
+      selector: "0xaabbccdd",
+      bytecode_offset: 4,
+      dispatch: "fallback",
+      inferred_arguments: "uint256",
+      inferred_state_mutability: "view",
+    },
+  ];
+  value.diagnostics = {
+    stdout: "exact producer JSON\n",
+    stderr: "source warning\n",
+    truncated: false,
+  };
+  const inspect = vi.fn(() =>
+    Promise.resolve(ok(evmInterfaceExecution(value))),
+  );
+  const harness = await createApplicationMcpHarness({
+    serverOptions: { evmInterface: new EvmInterfaceService({ inspect }) },
+  });
+  onTestFinished(harness.close);
+  const definition = (await harness.client.listTools()).tools.find(
+    (tool) => tool.name === "inspect_evm_interface",
+  );
+  if (definition?.outputSchema === undefined)
+    throw new Error("Missing EVM output schema");
+  const ajv = new Ajv2020({ strict: false, validateFormats: false });
+  const inputSchema: Record<string, unknown> = definition.inputSchema;
+  const outputSchema: Record<string, unknown> = definition.outputSchema;
+  expect(ajv.validateSchema(inputSchema)).toBe(true);
+  expect(ajv.validateSchema(outputSchema)).toBe(true);
+  const input = { path: value.artifact.path, encoding: "hex" };
+  let original;
+  for (const detail of [undefined, "complete"] as const) {
+    const response = await harness.client.callTool({
+      name: "inspect_evm_interface",
+      arguments: { ...input, ...(detail ? { detail } : {}) },
+    });
+    expect(response.isError).not.toBe(true);
+    expect(
+      ajv.validate(outputSchema, response.structuredContent),
+      JSON.stringify(ajv.errors),
+    ).toBe(true);
+    const evidence = parseEvidence(response.structuredContent);
+    expect(evidence.normalized_result).toEqual(value);
+    expect(evidence.parameters).toEqual(input);
+    original = evidence;
+  }
+  if (original === undefined) throw new Error("No complete control");
+  const response = await harness.client.callTool({
+    name: "inspect_evm_interface",
+    arguments: { ...input, detail: "summary" },
+  });
+  expect(response.isError).not.toBe(true);
+  expect(
+    ajv.validate(outputSchema, response.structuredContent),
+    JSON.stringify(ajv.errors),
+  ).toBe(true);
+  const derived = parseEvidence(response.structuredContent);
+  const view = evmInterfaceSummaryViewResultSchema.parse(
+    derived.normalized_result,
+  );
+  expect(derived.evidence_id).not.toBe(original.evidence_id);
+  expect(derived.evidence_links).toEqual([original.evidence_id]);
+  expect(derived.confidence).toBe("derived");
+  const { hex: _hex, ...bytecode } = value.bytecode;
+  expect(view).toMatchObject({
+    parent_operation: "inspect_evm_interface",
+    parent_evidence_id: original.evidence_id,
+    summary: {
+      artifact: value.artifact,
+      bytecode,
+      functions: value.functions,
+      evidence_kind: "inferred",
+      discovery_completeness: "unknown",
+      runtime_execution: "not-performed",
+      limitations: value.limitations,
+      diagnostics: {
+        stderr: value.diagnostics.stderr,
+        stdout_code_units: value.diagnostics.stdout.length,
+      },
+    },
+    coverage: { examined: 2, total: 2, exhausted: true },
+  });
+  expect(view.summary.bytecode).not.toHaveProperty("hex");
+  expect(view.summary.diagnostics).not.toHaveProperty("stdout");
+  expect(harness.session.evidenceById(original.evidence_id)).toEqual(original);
+  for (const [facet, offset, limit, item] of [
+    ["functions", 1, 1, [value.functions[1]]],
+    [
+      "bytecode_hex",
+      2,
+      4,
+      { text: value.bytecode.hex.slice(2, 6), unit: "utf16-code-units" },
+    ],
+    [
+      "stdout",
+      0,
+      128,
+      { text: value.diagnostics.stdout, unit: "utf16-code-units" },
+    ],
+  ] as const) {
+    const selected = await harness.client.callTool({
+      name: "inspect_analysis_view",
+      arguments: {
+        source: {
+          kind: "retained-evidence",
+          evidence_id: original.evidence_id,
+        },
+        view: { kind: "evm", facet, offset, limit },
+      },
+    });
+    expect(selected.isError).not.toBe(true);
+    const parsed = toolContract("inspect_analysis_view").outputSchema.parse(
+      selected.structuredContent,
+    );
+    expect(parsed.normalized_result).toMatchObject({
+      parent_evidence_id: original.evidence_id,
+      item,
+    });
+  }
+  expect(inspect).toHaveBeenCalledTimes(3);
+  for (const call of inspect.mock.calls)
+    expect(call).toEqual([input, expect.any(Object)]);
+  expect(harness.session.evidenceById(original.evidence_id)).toEqual(original);
+});
+
+it.each(["valid", "wrong-subject", "no-subject"])(
+  "preserves historical portable EVM Evidence and rejects incompatible identity: %s",
+  async (scenario) => {
+    const value = evmInterfaceFixture();
+    const source = createEvidence(
+      scenario === "no-subject"
+        ? undefined
+        : {
+            path: value.artifact.path,
+            sha256:
+              scenario === "wrong-subject"
+                ? "b".repeat(64)
+                : value.artifact.sha256,
+            format: "file",
+          },
+      { id: "historical-evm", name: "Original EVM producer", version: "1" },
+      {
+        operation: "inspect_evm_interface",
+        parameters: { path: value.artifact.path, encoding: "hex" },
+        result: value,
+        confidence: "inferred",
+        rawResult: { original: true },
+      },
+    );
+    const before = JSON.stringify(source);
+    const inspect = vi.fn(() => {
+      throw new Error("portable read must not rerun provider");
+    });
+    const harness = await createApplicationMcpHarness({
+      serverOptions: { evmInterface: new EvmInterfaceService({ inspect }) },
+    });
+    onTestFinished(harness.close);
+    const response = await harness.client.callTool({
+      name: "inspect_analysis_view",
+      arguments: {
+        source: { kind: "inline", evidence: source },
+        view: { kind: "summary" },
+      },
+    });
+    if (scenario === "valid") {
+      expect(response.isError).not.toBe(true);
+      const derived = parseEvidence(response.structuredContent);
+      const view = evmInterfaceSummaryViewResultSchema.parse(
+        derived.normalized_result,
+      );
+      expect(view.parent_evidence_id).toBe(source.evidence_id);
+      expect(view.summary.functions).toEqual([]);
+      expect(view.summary.discovery_completeness).toBe("unknown");
+      expect(view.coverage).toMatchObject({
+        total: 0,
+        examined: 0,
+        exhausted: true,
+      });
+      expect(derived.evidence_links).toEqual([source.evidence_id]);
+    } else
+      expect(parseMcpToolError(response).error.code).toBe("invalid_request");
+    expect(inspect).not.toHaveBeenCalled();
+    expect(JSON.stringify(source)).toBe(before);
+  },
+);
+
+it("rejects summary before provider work when retention is unavailable and preserves complete delivery", async () => {
+  const value = evmInterfaceFixture();
+  const inspect = vi.fn(() =>
+    Promise.resolve(ok(evmInterfaceExecution(value))),
+  );
+  const session = createTestBinarySession(() => {
+    throw new Error("deep provider must not start");
+  });
+  const server = createServer(
+    { kind: "fixed", analysis: session },
+    { evmInterface: new EvmInterfaceService({ inspect }) },
+  );
+  const client = new Client({ name: "evm-fixed-delivery", version: "1" });
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  try {
+    await server.connect(b);
+    await client.connect(a);
+    const summary = await client.callTool({
+      name: "inspect_evm_interface",
+      arguments: {
+        path: value.artifact.path,
+        encoding: "hex",
+        detail: "summary",
+      },
+    });
+    expect(parseMcpToolError(summary).error.code).toBe(
+      "capability_unavailable",
+    );
+    expect(inspect).not.toHaveBeenCalled();
+    const complete = await client.callTool({
+      name: "inspect_evm_interface",
+      arguments: { path: value.artifact.path, encoding: "hex" },
+    });
+    expect(complete.isError).not.toBe(true);
+    expect(parseEvidence(complete.structuredContent).normalized_result).toEqual(
+      value,
+    );
+  } finally {
+    await client.close();
+    await server.close();
+    await session.close();
+  }
 });

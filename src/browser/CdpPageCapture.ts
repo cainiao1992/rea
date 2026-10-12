@@ -84,6 +84,11 @@ export const capturePage = async (
       "Raw network headers, bodies, cookies, storage values, console objects, and WebSocket payloads are never retained; explicitly requested primitive console text is retained verbatim, while payload captures retain value-free shapes.",
       "Source maps are reported only as declarative URLs and are not fetched.",
       "URL-less scripts and console events without an allowed source URL are excluded because their origin cannot be proven.",
+      ...(context.target.attached === null
+        ? [
+            "CDP discovery omitted the target attachment state; attached is reported as unknown.",
+          ]
+        : []),
     ],
     startedAt: new Date().toISOString(),
   };

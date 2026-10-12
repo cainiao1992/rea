@@ -294,6 +294,19 @@ it("preserves duplicate class-name rows and reports lookup ambiguity", async () 
   expect(result.duplicate_names).toEqual([
     { name: "fixture.Target", occurrences: 2 },
   ]);
+  const full = await service.execute("search_android_classes", {
+    path: apk,
+    query: "",
+  });
+  if (!full.ok) throw full.error;
+  const fullResult = androidResultSchemas.search_android_classes.parse(
+    full.value.normalized_result,
+  );
+  expect(fullResult.total_classes).toBe(402);
+  expect(fullResult.matches).toHaveLength(402);
+  expect(fullResult.duplicate_names).toEqual([
+    { name: "fixture.Target", occurrences: 2 },
+  ]);
   await provider.close();
   await verifyCleanup(launches);
 });

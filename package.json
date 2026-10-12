@@ -69,6 +69,8 @@
     "scripts/prepare.mjs",
     "skills",
     "README.md",
+    "DISCLAIMER.md",
+    "THIRD_PARTY_NOTICES.md",
     "LICENSE",
     "native/windows/build/manifest.json",
     "native/windows/build/rea-windows-x64.node",
@@ -87,7 +89,7 @@
     "bridge/pwndbg/core_context.py",
     "third_party/pwndbg/README.md",
     "third_party/pwndbg/LICENSE.md",
-    "licenses/nativeaot-parser-MIT.txt"
+    "licenses"
   ],
   "scripts": {
     "release:notes": "node scripts/release-notes.mjs",

@@ -837,25 +837,42 @@ not make native host acceptance unavailable.
 ## Native platform baseline in CI
 
 Pull requests that change only root `README*.md` files, `docs/`, `AGENTS.md`,
-or `CONTRIBUTING.md` run formatting and generated-document validation without
-the source-test shards or native package lanes. Classification compares the PR
-head with its merge base, so later base-branch changes do not expand that scope.
-Static and coverage aggregate jobs remain present and fail if classification
-fails. Every code change retains the complete four-shard Linux suite; individual
-test files are not selected by imports or filenames.
+`CONTRIBUTING.md`, `CHANGELOG.md`, `SECURITY.md`, `native/windows/README.md`,
+or the GitHub issue and pull-request templates run formatting and
+generated-document validation without the source-test shards or native package
+lanes. Classification compares the PR head with its merge base, so later
+base-branch changes do not expand that scope. Static and coverage aggregate jobs
+remain present and fail if classification fails. Every code change retains the
+complete six-shard Linux suite; individual test files are not selected by
+imports or filenames.
 
 `scripts/ci/plan.mjs` selects lanes using the ownership table in
 `scripts/ci/scopes.mjs`. Provider implementation changes run their real-provider
-verifiers and the Linux x64 installed-package/Inspector baseline. Test-only
-changes run the Linux suite without native package verification. Website changes
-run website checks. Provider workflow changes validate the workflow and run that provider's verifier.
-Manual-provider/Android workflow changes run workflow validation only.
-Shared process/contract/CLI boundaries, dependencies, packaging inputs, unknown
-paths, and changes to the planner select the full baseline. Package script-only
-edits select their owning verifier when its entrypoint is identifiable; unknown
-or shared script changes select everything. Android build-script edits retain
-the Linux suite and workflow validation; real Android verification stays manual.
-Renames account for both paths.
+verifiers and the Linux x64 installed-package/Inspector baseline. The `apple`
+scope owns the Apple artifact lane; the `package` scope owns the multi-host
+package matrix and the Windows curated lane, including Windows native controls,
+Inspector, setup, configuration and packaging entrypoints. Runtime sources under
+`src/` or `bridge/` without an owner, and the authored skill, run the Linux suite
+and the Linux x64 installed-package/Inspector baseline only. Test-only changes
+run the Linux suite without native package verification, except test files that
+the Apple or Windows curated lanes invoke explicitly, which also select that
+lane. Edits to verifier entrypoints run only by manual, licensed or self-hosted
+workflows run static checks and the Linux suite. Website changes run website
+checks. Provider workflow changes validate the workflow and run that provider's
+verifier. Manual-provider/Android workflow changes run workflow validation only.
+Shared process/contract/CLI boundaries, dependencies, other packaging inputs,
+unknown paths, and changes to the planner select the full baseline. Package
+script-only edits select their owning verifier when its entrypoint is
+identifiable; unknown or shared script changes select everything. Android
+build-script edits retain the Linux suite and workflow validation; real Android
+verification stays manual. Renames account for both paths.
+
+This narrower selection trades PR-time coverage for runner capacity. A change to
+unowned shared runtime code that fails only on arm64, macOS, Windows, the Apple
+artifact lane, or a provider lane that does not own the file is not caught on
+the PR; the main-push full baseline reports it after merge. Ownership globs do
+not follow imports. Use the `ci:full` label when a change may have native-host
+or provider effects outside its owners.
 
 Main pushes and manual dispatch retain the full baseline, including all portable
 provider lanes and the native matrix below. A `ci:full` PR label selects the full
@@ -879,12 +896,16 @@ CI exercises the pinned Node.js runtime on native hosted runners:
 | Linux x64             | `ubuntu-latest`    | Installed package and real Node Inspector CLI/MCP                                        |
 | Linux arm64 (aarch64) | `ubuntu-24.04-arm` | Installed package and real Node Inspector CLI/MCP                                        |
 | macOS 15 arm64        | `macos-15`         | Installed package and real Node Inspector CLI/MCP                                        |
-| macOS 15 x64          | `macos-15-intel`   | Installed package and real Node Inspector CLI/MCP                                        |
+| macOS 15 x64          | `macos-15-intel`   | Installed package and real Node Inspector CLI/MCP (main, dispatch and `ci:full` only)    |
 | Windows x64           | `windows-latest`   | Curated capabilities, native controls, installed package and real Node Inspector CLI/MCP |
 
+macOS x64 is the slowest package host. Pull requests without the `ci:full` label
+omit it, so darwin x64 installed-package and Inspector regressions surface on
+the main-push full baseline rather than on the PR.
+
 Package lanes assert the actual Node platform/architecture before verification
-and record those values with the Node version. The four-host package matrix
-runs up to four jobs concurrently on independent hosted runners with explicit
+and record those values with the Node version. The package matrix runs up to
+four jobs concurrently on independent hosted runners with explicit
 timeouts and per-runner Node heap/thread limits; Windows retains its curated
 capability lane. Package checks cover installation, CLI/MCP discovery,
 target-free analysis, configuration backups/recovery, Evidence and owned
@@ -1077,7 +1098,7 @@ CI owns coverage; aggregate and domain/contract thresholds are maintained in
 `vitest.config.ts`. They are glob-specific and never updated automatically.
 Coverage does not replace named boundary or real-provider scenarios.
 
-CI runs four native Vitest shards without retries. Each shard emits a blob
+CI runs six native Vitest shards without retries. Each shard emits a blob
 report; the merge job produces aggregate coverage plus JUnit and JSON timing
 reports, uploads them together, and writes the slowest files to the workflow
 summary. Static checks, documentation, build, package verification, and
@@ -1091,8 +1112,9 @@ architecture, and `.npmrc`; test-only changes can reuse compiled outputs. Every
 build and verification command still runs, so Turbo checks task inputs and
 rebuilds misses. There is no prefix fallback to accumulate older build outputs.
 
-Native package jobs reuse the same workflow's Turbo cache for portable compiled
-JavaScript, skills, and catalogs. They retain the normal build and prepack
+Native package jobs, the Windows curated lane, and the Apple artifact lane reuse
+the same workflow's Turbo cache for portable compiled JavaScript, skills, and
+catalogs. The Windows lane relies on the Linux static job for typechecking. They retain the normal build and prepack
 commands, which restore matching outputs or rebuild on a cache miss. Native
 artifacts, dependency installs, package archives, and runtime verification remain
 host-local. Keep platform-dependent outputs out of this shared cache.

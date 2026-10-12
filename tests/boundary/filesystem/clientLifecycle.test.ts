@@ -21,6 +21,7 @@ import { PRODUCT_IDENTITY } from "../../../src/identity.js";
 
 import { readClientRegistrationStatuses } from "../../../src/application/ClientRegistrationStatus.js";
 import { configureClientConfiguration } from "../../../src/application/SetupClientConfiguration.js";
+import { readConfigurationFile } from "../../../src/application/ClientConfigurationFiles.js";
 import {
   detectClients,
   systemSetupHost,
@@ -1592,6 +1593,34 @@ describe("uninstall configuration preflight", () => {
     );
     expect(await readFile(config, "utf8")).toBe("not-json");
   });
+
+  it.each([
+    ['{"mcpServers": null}', '"mcpServers" must be an object'],
+    ["[]", "The configuration root must be an object"],
+  ])(
+    "names the structural problem in valid JSON %s",
+    async (content, problem) => {
+      const home = await createTestTempDirectory("rea-uninstall-shape-");
+      roots.push(home);
+      const config = join(home, ".cursor/mcp.json");
+      await mkdir(dirname(config), { recursive: true });
+      await writeFile(config, content);
+      expect(await readConfigurationFile(config, "json")).toMatchObject({
+        ok: false,
+        error: {
+          kind: "malformed",
+          detail: `Configuration ${config} is malformed: ${problem}`,
+        },
+      });
+      const result = await runUninstall(false, systemUninstallHost(home));
+      expect(result.items).toContainEqual({
+        name: "cursor",
+        status: "failed",
+        detail: `Configuration was not changed: ${problem}. Repair it, then rerun uninstall.`,
+      });
+      expect(await readFile(config, "utf8")).toBe(content);
+    },
+  );
 
   it("stops before any removal when one client configuration is malformed", async () => {
     const home = await createTestTempDirectory("rea-uninstall-stop-");

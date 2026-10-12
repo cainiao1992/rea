@@ -128,6 +128,20 @@ const parseDocument = (
   return objectSchema.parse(document);
 };
 
+/** A parsed configuration whose structure, not its syntax, cannot hold MCP servers. */
+export class ClientConfigurationShapeError extends TypeError {}
+
+const requireObject = (
+  value: unknown,
+  description: string,
+): Record<string, unknown> => {
+  const parsed = objectSchema.safeParse(value);
+  if (parsed.success) return parsed.data;
+  throw new ClientConfigurationShapeError(`${description} must be an object`, {
+    cause: parsed.error,
+  });
+};
+
 /** Members of OpenCode V2's `mcp` object that are not server names. */
 const OPENCODE_V2_MCP_SETTINGS = new Set(["servers", "timeout"]);
 
@@ -140,10 +154,21 @@ export const parseClientConfiguration = (
     throw new TypeError("client does not have a supported MCP config format");
   // DeepSeek Harness stores a Cordis patch list, not a server table.
   if (format === "dsh") return parseDshCordisDocument(text);
-  const document = parseDocument(text, format);
+  let document: Record<string, unknown>;
+  try {
+    document = parseDocument(text, format);
+  } catch (cause: unknown) {
+    if (cause instanceof z.ZodError)
+      throw new ClientConfigurationShapeError(
+        "The configuration root must be an object",
+        { cause },
+      );
+    throw cause;
+  }
   const serversKey = clientConfigurationServersKey(format);
   const value = document[serversKey];
-  const servers = value === undefined ? {} : objectSchema.parse(value);
+  const servers =
+    value === undefined ? {} : requireObject(value, `"${serversKey}"`);
   const native = servers.servers;
   // A V1 server named `servers` has a string `type` discriminator; the V2
   // table may instead hold a server object named `type`.
@@ -164,7 +189,7 @@ export const parseClientConfiguration = (
     };
   return {
     document,
-    servers: objectSchema.parse(native),
+    servers: requireObject(native, `"${serversKey}.servers"`),
     serversPath: [serversKey, "servers"],
     dialect: "opencode_v2",
     legacyServers: Object.fromEntries(

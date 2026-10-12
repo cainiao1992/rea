@@ -1,4 +1,5 @@
 import {
+  ClientConfigurationShapeError,
   parseClientConfiguration,
   serializeClientConfiguration,
   clientServerPath,
@@ -279,12 +280,13 @@ const readClientConfiguration = async (
     const parsed = parseClientConfiguration(original, client.format);
     return { kind: "configuration", transactionPath, original, parsed };
   } catch (cause: unknown) {
-    void cause;
     return itemRead(
       item(
         client.name,
         "failed",
-        `Configuration is not valid ${client.format === "toml" || client.format === "grok" ? "TOML" : client.format === "opencode" ? "JSONC" : "JSON"} and was not changed. Repair it, then rerun uninstall.`,
+        cause instanceof ClientConfigurationShapeError
+          ? `Configuration was not changed: ${cause.message}. Repair it, then rerun uninstall.`
+          : `Configuration is not valid ${client.format === "toml" || client.format === "grok" ? "TOML" : client.format === "opencode" ? "JSONC" : "JSON"} and was not changed. Repair it, then rerun uninstall.`,
       ),
     );
   }

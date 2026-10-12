@@ -576,6 +576,27 @@ describe("contextual JavaScript artifact path resolution", () => {
   });
 });
 
+describe("CommonJS file URL resolution", () => {
+  it("keeps file URL resolution specific to the import loader", () => {
+    const files = fileMap([file("entry.cjs", "root"), file("dep.cjs", "root")]);
+    const input = {
+      declaredPath: "file:///dep.cjs",
+      sourcePath: "entry.cjs",
+      context: "module-specifier" as const,
+      files,
+    };
+
+    expect(resolve({ ...input, moduleKind: "require" })).toMatchObject({
+      resolution_status: "external",
+      resolved_path: null,
+    });
+    expect(resolve({ ...input, moduleKind: "import" })).toMatchObject({
+      resolution_status: "resolved",
+      resolved_path: "dep.cjs",
+    });
+  });
+});
+
 describe("contextual JavaScript package path resolution", () => {
   it("follows package entrypoints beyond the former recursion ceiling", () => {
     const files = fileMap([

@@ -137,3 +137,67 @@ cliTest(
     expect(output.json).toEqual({});
   },
 );
+
+cliTest(
+  "honors caller-selected semantic node limits across files and records them in Evidence",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-js-node-budgets-");
+    await writeFile(join(root, "first.js"), "external;\n".repeat(40));
+    await writeFile(join(root, "second.js"), "another;\n".repeat(40));
+    const output = await cli.run({
+      arguments: [
+        "analyze-javascript-application",
+        root,
+        "--format",
+        "json",
+        "--max-semantic-nodes",
+        "50",
+        "--max-semantic-nodes-per-file",
+        "30",
+      ],
+    });
+    expect(output.exitCode).toBe(0);
+    const result = z
+      .object({
+        parameters: z.object({
+          max_semantic_nodes: z.number(),
+          max_semantic_nodes_per_file: z.number(),
+        }),
+        normalized_result: z.object({
+          semantic_graph: z.object({
+            nodes: z.array(
+              z.object({ identity: z.object({ module_path: z.string() }) }),
+            ),
+            coverage: z.object({
+              truncated: z.boolean(),
+              omitted_nodes: z.number().nullable(),
+              limits: z.array(
+                z.object({ name: z.string(), value: z.number() }),
+              ),
+            }),
+          }),
+        }),
+      })
+      .parse(output.json);
+    expect(result.parameters).toEqual({
+      max_semantic_nodes: 50,
+      max_semantic_nodes_per_file: 30,
+    });
+    const graph = result.normalized_result.semantic_graph;
+    expect(graph.nodes).toHaveLength(50);
+    expect(
+      graph.nodes.filter((node) => node.identity.module_path === "first.js"),
+    ).toHaveLength(30);
+    expect(
+      graph.nodes.filter((node) => node.identity.module_path === "second.js"),
+    ).toHaveLength(20);
+    expect(graph.coverage.truncated).toBe(true);
+    expect(graph.coverage.omitted_nodes).toBeNull();
+    expect(graph.coverage.limits).toEqual(
+      expect.arrayContaining([
+        { name: "semantic_graph_node_ceiling", value: 50 },
+        { name: "semantic_graph_file_node_ceiling", value: 30 },
+      ]),
+    );
+  },
+);

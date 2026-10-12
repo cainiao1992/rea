@@ -3,6 +3,53 @@ import { expect, it } from "vitest";
 import { JavaScriptModuleRangeIndex } from "./javascriptStaticAnalysisFindings.js";
 import { analyzeJavaScriptStaticSource } from "./javascriptStaticAnalysis.js";
 
+it.each(["direct", "call"])(
+  "recovers standalone module factories dispatched with %s",
+  (style) => {
+    const dispatch =
+      style === "call"
+        ? "modules[id].call(module.exports, module, module.exports, load)"
+        : "modules[id](module, module.exports, load)";
+    const source = `(() => {
+    const modules = {
+      17(module, exports, req) { exports.read = req(23); },
+      23(module) { module.exports = require("electron"); }
+    };
+    const cache = {};
+    function load(id) {
+      if (cache[id]) return cache[id].exports;
+      const module = cache[id] = { exports: {} };
+      ${dispatch};
+      return module.exports;
+    }
+    load(17);
+  })();`;
+    const analysis = analyzeJavaScriptStaticSource(source);
+    expect(analysis.bundler_registrations).toMatchObject([
+      {
+        bundler: "webpack",
+        entry_module_keys: ["17"],
+        modules: [{ module_key: "17" }, { module_key: "23" }],
+      },
+    ]);
+    expect(analysis.references).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ specifier: "23", module_key: "17" }),
+        expect.objectContaining({ specifier: "electron", module_key: "23" }),
+      ]),
+    );
+  },
+);
+
+it("does not infer a bootstrap from a function table without a matching loader", () => {
+  const analysis = analyzeJavaScriptStaticSource(`(() => {
+    const handlers = { 17(module) { module.exports = require("electron"); } };
+    function load(id) { return handlers[id](userInput); }
+    load(17);
+  })();`);
+  expect(analysis.bundler_registrations).toEqual([]);
+});
+
 it("preserves first insertion precedence and inclusive interval bounds", () => {
   const nested = new JavaScriptModuleRangeIndex(100);
   expect(nested.find(0)).toBeUndefined();

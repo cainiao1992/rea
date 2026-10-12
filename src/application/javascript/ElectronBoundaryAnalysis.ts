@@ -221,4 +221,4 @@ const resolvesToFile = (input: ResolveToFileInput): boolean => {
 };
 
 const ipcRecordKey = (path: string, finding: ElectronIpcFinding): string =>
-  `${path}\0${String(finding.location.start.line)}:${String(finding.location.start.column)}\0${finding.side}\0${finding.operation}`;
+  `${path}\0${String(finding.location.start.line)}:${String(finding.location.start.column)}\0${finding.side}\0${finding.operation}\0${finding.channel ?? finding.channel_expression}\0${JSON.stringify(finding.handler_location)}`;

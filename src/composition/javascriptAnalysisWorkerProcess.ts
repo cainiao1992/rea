@@ -67,7 +67,12 @@ const analyze: JavaScriptSourceWorkerAnalyzer = async (
     );
   await callbacks.phase("projection");
   const projection = await completeJavaScriptAnalysisSteps(
-    projectJavaScriptSemanticFileSteps(file, ir, nodeBudget),
+    projectJavaScriptSemanticFileSteps(
+      file,
+      ir,
+      nodeBudget,
+      facts.electron.call_paths,
+    ),
   );
   return { module, projection };
 };

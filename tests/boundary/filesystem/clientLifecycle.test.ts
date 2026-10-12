@@ -1,5 +1,6 @@
 import { constants as fsConstants } from "node:fs";
 import {
+  chmod,
   copyFile,
   lstat,
   mkdir,
@@ -1526,6 +1527,68 @@ describe("client configuration filesystem removal", () => {
       "complete",
     );
   });
+
+  it("removes emptied skill directories and keeps ones with user files", async () => {
+    const home = await createTestTempDirectory("rea-uninstall-skill-dirs-");
+    roots.push(home);
+    const shared = join(home, ".agents/skills/reverse-engineer-anything");
+    const claude = join(home, ".claude/skills/reverse-engineer-anything");
+    for (const root of [shared, claude]) {
+      await mkdir(join(root, "references"), { recursive: true });
+      await writeFile(join(root, "SKILL.md"), ownedSkillManifest);
+      await writeFile(
+        join(root, "references/evidence-workflows.md"),
+        "managed",
+      );
+    }
+    await writeFile(join(claude, "notes.md"), "user");
+
+    const result = await runUninstall(
+      false,
+      systemUninstallHost(home, undefined, {
+        HOME: home,
+        CLAUDE_CONFIG_DIR: join(home, ".claude"),
+      }),
+    );
+
+    expect(result.status).toBe("complete");
+    await expect(lstat(shared)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(lstat(join(claude, "references"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    expect(await readFile(join(claude, "notes.md"), "utf8")).toBe("user");
+  });
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "reports an emptied skill directory that cannot be removed",
+    async () => {
+      const home = await createTestTempDirectory("rea-uninstall-skill-perm-");
+      roots.push(home);
+      const parent = join(home, ".agents/skills");
+      const root = join(parent, "reverse-engineer-anything");
+      await mkdir(join(root, "references"), { recursive: true });
+      await writeFile(join(root, "SKILL.md"), ownedSkillManifest);
+      await chmod(parent, 0o555);
+      try {
+        const result = await runUninstall(
+          false,
+          systemUninstallHost(home, undefined, { HOME: home }),
+        );
+        expect(result.status).toBe("failed");
+        expect(result.items).toContainEqual(
+          expect.objectContaining({
+            name: "skill",
+            status: "failed",
+            detail: expect.stringContaining(
+              `Managed skill directory could not be removed: ${root}.`,
+            ),
+          }),
+        );
+      } finally {
+        await chmod(parent, 0o755);
+      }
+    },
+  );
 
   it("removes an owned entry through a symlink without replacing it", async () => {
     const home = await createTestTempDirectory("rea-uninstall-symlink-");

@@ -240,16 +240,21 @@ export const collectElectronWrappedCallPaths = (
                 handler_location: null,
                 ...findingContext,
               };
+    // A fully observed transmission stays one source fact when its callback is
+    // traced. Registrations retain invocation identity because handlers compete.
     const duplicate = accumulator.ipc.some(
       ({ value }) =>
         value.side === finding.side &&
         value.operation === finding.operation &&
         value.channel === channel &&
         JSON.stringify(value.location) === JSON.stringify(location) &&
-        JSON.stringify(value.invocation_location) ===
-          JSON.stringify(invocationLocation),
+        ((value.resolution_basis === undefined &&
+          (value.mode === "send" || value.mode === "invoke")) ||
+          JSON.stringify(value.invocation_location) ===
+            JSON.stringify(invocationLocation)),
     );
-    const findingGuarded = hasConditions(first) || guardedDispatch;
+    const findingGuarded =
+      context.conditions.length > 0 || hasConditions(first) || guardedDispatch;
     if (!duplicate && !findingGuarded) {
       accumulator.ipc.push({
         offset: node.start ?? -1,
@@ -315,7 +320,11 @@ export const collectElectronWrappedCallPaths = (
     // cannot be recorded as an unconditional exposure fact.
     const guardedKey = hasConditions(key);
     const guardedObject = hasConditions(object);
-    const guarded = guardedKey || guardedObject || guardedDispatch;
+    const guarded =
+      context.conditions.length > 0 ||
+      guardedKey ||
+      guardedObject ||
+      guardedDispatch;
     if (guarded) accumulator.unknownFindings += 1;
     // Existing entries are raw syntax observations and remain valid even when
     // symbolic substitution can only describe this call under a predicate.

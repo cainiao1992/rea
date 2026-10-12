@@ -139,6 +139,7 @@ for (const surface of ["CLI", "stdio MCP"] as const) {
           choose:choose(),
           ambiguous:()=>e.ipcRenderer.send("test:ambiguous"),
           competing:()=>e.ipcRenderer.send("test:competing"),
+          conditional:()=>e.ipcRenderer.send("test:conditional"),
           fallback:()=>e.ipcRenderer.send("test:fallback"),
         });`,
         "main.js": `const e=require("electron");
@@ -148,6 +149,7 @@ for (const surface of ["CLI", "stdio MCP"] as const) {
         register("test:ambiguous",flag?copy:cut);
         register("test:competing",copy);
         register("test:competing",flag?copy:unknownHandler);
+        if(flag) register("test:conditional",copy);
         register("test:fallback",event=>{false ?? event.sender.copy()});`,
       });
       const { graph } = await analyzeJavaScriptDirectory(surface, cli, root);

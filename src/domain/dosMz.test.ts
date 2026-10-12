@@ -170,18 +170,26 @@ describe("MZ Windows header observations", () => {
     });
   });
 
-  it("keeps a complete non-Windows signature candidate as DOS", () => {
-    const bytes = dosMz(64);
-    const offset = 32;
-    bytes.writeUInt32LE(offset, 60);
-    bytes.write("PEZZ", offset, "ascii");
+  it.each(["PEZZ", "NE", "LE", "LX", "PE"])(
+    "keeps a non-Windows %s signature candidate as DOS",
+    (signature) => {
+      const bytes = dosMz(64);
+      const offset = 32;
+      bytes.writeUInt32LE(offset, 60);
+      const candidate = Buffer.from(
+        [...Buffer.from(signature)].map((byte) =>
+          signature === "PEZZ" ? byte : byte | 0x80,
+        ),
+      );
+      bytes.set(candidate, offset);
 
-    expect(observeMzWindowsHeader(bytes)).toEqual({ state: "absent" });
-    expect(parseExecutableHeader(bytes, "x64")).toMatchObject({
-      ok: true,
-      value: { format: "dos-mz", architecture: "x86" },
-    });
-  });
+      expect(observeMzWindowsHeader(bytes)).toEqual({ state: "absent" });
+      expect(parseExecutableHeader(bytes, "x64")).toMatchObject({
+        ok: true,
+        value: { format: "dos-mz", architecture: "x86" },
+      });
+    },
+  );
 
   it("accepts a short-header candidate only when it points at a Windows signature", () => {
     const stub = dosMz(64);

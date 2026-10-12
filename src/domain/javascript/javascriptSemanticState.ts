@@ -1,6 +1,9 @@
 import * as t from "@babel/types";
 
-import type { JavaScriptSemanticPropertyPath } from "./javascriptSemanticPropertyPaths.js";
+import type {
+  JavaScriptSemanticPropertyPath,
+  SemanticPropertyPathCoverage,
+} from "./javascriptSemanticPropertyPaths.js";
 
 import type {
   JavaScriptModuleOrigin,
@@ -43,6 +46,8 @@ export interface JavaScriptSemanticBindingState {
   readonly initializers: JavaScriptSemanticInitializer[];
   readonly referenceInitializers: JavaScriptSemanticReferenceInitializer[];
   readonly directOrigins: JavaScriptModuleOrigin[];
+  /** An ECMAScript import that exists at runtime, excluding type-only and import-equals syntax. */
+  runtimeImport: boolean;
 }
 
 /** Mutable lexical-scope state used only during AST recovery. */
@@ -75,6 +80,8 @@ export interface JavaScriptSemanticAnalysisState {
     JavaScriptSemanticBindingState
   >;
   readonly conditionalInitializers: WeakSet<t.Node>;
+  /** Source-local writes, tagged by global-object or import.meta identity. */
+  readonly ambientWrites: SemanticPropertyPathCoverage;
 }
 
 /**

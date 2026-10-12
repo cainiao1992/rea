@@ -153,17 +153,15 @@ const resolvePath = (input: ResolveArtifactPathInput): CandidateResolution => {
     input.declaredPath.startsWith("#")
   )
     return resolvePackageImportAlias(input, input.declaredPath);
-  const rejected = rejectDeclaration(input.declaredPath);
-  if (rejected !== null) return rejected;
   const candidate = contextualCandidate(input);
   if (typeof candidate !== "string") return candidate;
   const confined = confineCandidate(candidate);
   if (typeof confined !== "string") return confined;
-  if (input.context === "html-reference")
+  if (input.context === "html-reference" || input.context === "url-reference")
     return (
       resolveFileCandidates(input, [confined]) ??
       unresolvedCandidate("not-found", [
-        `The exact HTML resource ${confined} was not found among the selected application files.`,
+        `The exact ${input.context === "html-reference" ? "HTML" : "URL"} resource ${confined} was not found among the selected application files.`,
       ])
     );
   const isModuleUrlPath =
@@ -201,10 +199,14 @@ const contextualCandidate = (
   input: ResolveArtifactPathInput,
 ): string | CandidateResolution => {
   const { context } = input;
+  // URL suffixes are evidence, not pathname bytes. Admit only the path while
+  // retaining the complete declaration on the resolution result.
   let declared =
-    context === "html-reference" || context === "url-reference"
+    context === "url-reference"
       ? stripQueryAndFragment(input.declaredPath)
       : input.declaredPath;
+  const rejected = rejectDeclaration(declared);
+  if (rejected !== null) return rejected;
   if (context === "html-reference") return htmlCandidate(input);
   if (context === "module-specifier") {
     const fileUrl = fileUrlPath(declared);
@@ -230,12 +232,39 @@ const contextualCandidate = (
       "URL schemes and protocol-relative URLs are outside this local artifact path context.",
     ]);
   if (context === "url-reference") {
+    // A file base gives raw drive-letter segments special meaning, including
+    // after dot segments reach the root. Parse before percent decoding so an
+    // encoded drive-like filename stays literal. The synthetic base establishes
+    // only this ambiguity; it does not establish the source's runtime scheme.
+    const sourceUrlPath = input.sourcePath
+      .split("/")
+      .map(encodeURIComponent)
+      .join("/");
+    const fileReference = URL.parse(declared, `file:///${sourceUrlPath}`);
+    if (fileReference === null)
+      return unresolvedCandidate("rejected", [
+        "The URL reference cannot be parsed as a URL.",
+      ]);
+    if (/^\/[A-Za-z]:(?:\/|$)/u.test(fileReference.pathname))
+      return unresolvedCandidate("unavailable", [
+        "Drive-letter URL paths cannot be mapped without the source URL scheme and filesystem root.",
+      ]);
     const decoded = percentDecodeUrlPath(declared);
     if (decoded === null)
       return unresolvedCandidate("rejected", [
         "The URL reference path percent-decodes to NUL or to bytes that are not UTF-8.",
       ]);
-    declared = decoded;
+    // Empty URL segments are significant; canonical filesystem paths cannot
+    // preserve them, including their interaction with following dot segments.
+    if (decoded.includes("//"))
+      return unresolvedCandidate("unavailable", [
+        "Repeated URL path separators cannot be mapped to an exact canonical artifact file.",
+      ]);
+    return exactUrlPathCandidate(
+      decoded,
+      relativeCandidate(input.sourcePath, decoded),
+      "URL",
+    );
   }
   return relativeCandidate(input.sourcePath, declared);
 };
@@ -689,37 +718,34 @@ const htmlCandidate = (
   const basePath = decodedBase.startsWith("/")
     ? decodedBase.slice(1)
     : posix.join(posix.dirname(input.sourcePath), decodedBase);
-  if (declaredPath === "") return emptyHtmlReference(decodedBase, basePath);
+  if (declaredPath === "")
+    return exactUrlPathCandidate(decodedBase, basePath, "HTML");
   return posix.join(htmlBaseDirectory(decodedBase, basePath), declaredPath);
 };
 
-const emptyHtmlReference = (
-  base: string,
-  basePath: string,
+const exactUrlPathCandidate = (
+  declared: string,
+  candidate: string,
+  kind: "HTML" | "URL",
 ): string | CandidateResolution => {
-  if (!htmlBaseIsDirectory(base)) return basePath;
-  const confined = confineCandidate(basePath);
+  if (!urlPathIsDirectory(declared)) return candidate;
+  const confined = confineCandidate(candidate);
   if (typeof confined !== "string") return confined;
   return unresolvedCandidate("not-found", [
-    `The HTML reference resolves to directory ${confined || "."}, not an exact selected application file.`,
+    `The ${kind} reference resolves to directory ${confined || "."}, not an exact selected application file.`,
   ]);
 };
 
-/**
- * The directory a relative HTML reference resolves against. A base path
- * ending in "/" or in a "." or ".." segment is already a directory, because a
- * relative reference resolves against the base URL's directory and those
- * segments are dropped rather than stepped through.
- */
-const htmlBaseIsDirectory = (base: string): boolean =>
-  base.endsWith("/") ||
-  base.endsWith("/.") ||
-  base.endsWith("/..") ||
-  base === "." ||
-  base === "..";
+/** Whether a URL path retains directory form after dot-segment normalization. */
+const urlPathIsDirectory = (path: string): boolean =>
+  path.endsWith("/") ||
+  path.endsWith("/.") ||
+  path.endsWith("/..") ||
+  path === "." ||
+  path === "..";
 
 const htmlBaseDirectory = (base: string, basePath: string): string =>
-  htmlBaseIsDirectory(base) ? basePath : posix.dirname(basePath);
+  urlPathIsDirectory(base) ? basePath : posix.dirname(basePath);
 
 const confineCandidate = (candidate: string): string | CandidateResolution => {
   const normalized = normalizeJoinedLogicalPath(candidate);
@@ -862,8 +888,6 @@ const resolveDirectory = (
     files: input.files,
     ...(input.moduleKind === undefined ? {} : { moduleKind: input.moduleKind }),
   };
-  const rejected = rejectDeclaration(entryInput.declaredPath);
-  if (rejected !== null) return rejected;
   const candidate = contextualCandidate(entryInput);
   if (typeof candidate !== "string") return candidate;
   const confined = confineCandidate(candidate);

@@ -235,10 +235,11 @@ const inspectNode = (
     inspectBundlerBootstrap(source, node, accumulator, bindings);
     inspectBundlerRegistration(source, node, accumulator, bindings);
     inspectEsbuildWrapper(source, node, accumulator, bindings);
-    inspectCall(source, node, findings);
+    inspectCall(source, node, findings, bindings);
   } else if (t.isOptionalCallExpression(node)) {
-    inspectCall(source, node, findings);
-  } else if (t.isNewExpression(node)) inspectCall(source, node, findings);
+    inspectCall(source, node, findings, bindings);
+  } else if (t.isNewExpression(node))
+    inspectCall(source, node, findings, bindings);
   if (t.isTSImportEqualsDeclaration(node)) {
     const specifier = semanticImportEqualsSpecifier(node);
     if (specifier !== null)

@@ -1979,15 +1979,143 @@ describe("TypeScript NodeNext emitted-extension resolution", () => {
   });
 });
 
+describe("url-reference directory and empty-segment semantics", () => {
+  it.each([
+    "./worker.js/.",
+    "./worker.js/child/..",
+    "./worker.js/",
+    "/dist/worker.js/.",
+    "./worker.js/.?cache=1#entry",
+  ])("keeps directory-form URLs distinct from files: %s", (declaredPath) => {
+    expect(
+      resolve({
+        declaredPath,
+        sourcePath: "dist/app.mjs",
+        context: "url-reference",
+        files: fileMap([file("dist/worker.js", "root")]),
+      }),
+    ).toMatchObject({
+      declared_path: declaredPath,
+      resolution_status: "not-found",
+      resolved_path: null,
+    });
+  });
+
+  it.each(["./nested//worker.js", "./nested//../worker.js"])(
+    "does not collapse empty URL path segments: %s",
+    (declaredPath) => {
+      expect(
+        resolve({
+          declaredPath,
+          sourcePath: "dist/app.mjs",
+          context: "url-reference",
+          files: fileMap([
+            file("dist/worker.js", "root"),
+            file("dist/nested/worker.js", "root"),
+          ]),
+        }),
+      ).toMatchObject({ resolved_path: null });
+    },
+  );
+
+  it.each([
+    ["./nested/.././worker.js?cache=1#entry", "dist/worker.js"],
+    ["./.worker.js", "dist/.worker.js"],
+  ])("resolves exact file URLs with dots: %s", (declaredPath, resolvedPath) => {
+    expect(
+      resolve({
+        declaredPath,
+        sourcePath: "dist/app.mjs",
+        context: "url-reference",
+        files: fileMap([file(resolvedPath, "root")]),
+      }),
+    ).toMatchObject({
+      resolution_status: "resolved",
+      resolved_path: resolvedPath,
+    });
+  });
+});
+
 describe("url-reference JavaScript artifact path resolution", () => {
   it.each([
+    ["C|?cache=1#entry", "dist/C|"],
+    ["/c:/worker.js", "c:/worker.js"],
+    ["/./c|/worker.js", "c|/worker.js"],
+    ["../c|/worker.js", "c|/worker.js"],
+    ["/nested/../c|/worker.js", "c|/worker.js"],
+    ["c|/../worker.js", "dist/worker.js"],
+  ])("leaves drive-letter URL paths unresolved: %s", (declaredPath, decoy) => {
+    const resolution = resolve({
+      declaredPath,
+      sourcePath: "dist/app.mjs",
+      context: "url-reference",
+      files: fileMap([file(decoy, "root")]),
+    });
+    expect(resolution).toMatchObject({
+      declared_path: declaredPath,
+      resolution_status: "unavailable",
+      resolved_path: null,
+    });
+    expect(resolution.limitations.length).toBeGreaterThan(0);
+  });
+
+  it.each([
+    ["./c|/worker.js", "dist/c|/worker.js"],
+    ["c|name/worker.js", "dist/c|name/worker.js"],
+    ["/%63|/worker.js", "c|/worker.js"],
+    ["/c%3A/worker.js", "c:/worker.js"],
+  ])(
+    "retains non-drive URL path identities: %s",
+    (declaredPath, resolvedPath) => {
+      expect(
+        resolve({
+          declaredPath,
+          sourcePath: "dist/app.mjs",
+          context: "url-reference",
+          files: fileMap([file(resolvedPath, "root")]),
+        }),
+      ).toMatchObject({
+        declared_path: declaredPath,
+        resolution_status: "resolved",
+        resolved_path: resolvedPath,
+      });
+    },
+  );
+
+  it.each(["?value=", "#value="])(
+    "admits the pathname independently of its %s suffix",
+    (suffix) => {
+      for (const value of ["%2F", "%2E", "%5C", "%00", "%FF", "\\", "\0"]) {
+        const declaredPath = `./worker.js${suffix}${value}`;
+        expect(
+          resolve({
+            declaredPath,
+            sourcePath: "dist/app.js",
+            context: "url-reference",
+            files: fileMap([file("dist/worker.js", "root")]),
+          }),
+          declaredPath,
+        ).toMatchObject({
+          declared_path: declaredPath,
+          resolution_status: "resolved",
+          resolved_path: "dist/worker.js",
+        });
+      }
+    },
+  );
+
+  it.each([
+    "app\0.js.map?valid=1",
+    "nested\\worker.js#valid",
     "app%00.js.map",
     "app%FF.js.map",
     "app%C0%AF.js.map",
     "app%2ejs.map",
     "nested%2fworker.js",
     "nested%5cworker.js",
+    "h\nttp://[",
     "../../outside.js.map",
+    "../../outside/.",
   ])("rejects an inadmissible URL path: %s", (declaredPath) => {
     const resolution = resolve({
       declaredPath,

@@ -1,6 +1,11 @@
 import * as t from "@babel/types";
 
 import {
+  SemanticDependencyProofs,
+  type SemanticDependencyProof,
+} from "./javascriptSemanticDependencies.js";
+
+import {
   semanticCapturePosition,
   semanticEscapeFollowsCapture,
   semanticBindingPrecedesCapture,
@@ -51,6 +56,39 @@ import {
   semanticResourceLimitReason,
 } from "./javascriptSemanticResourceLimits.js";
 
+interface MemoizedEvaluation<T> {
+  readonly value: T;
+  readonly dependencies: SemanticDependencyProof;
+}
+
+/** Provenance lives for one query; live values belong to the effects-aware state. */
+interface EvaluationMemo {
+  readonly provenance: Map<
+    string,
+    Map<number, MemoizedEvaluation<JavaScriptBindingProvenance>>
+  >;
+  readonly dependencyFrames: { proof: SemanticDependencyProof }[];
+  readonly dependencies: SemanticDependencyProofs;
+}
+
+// Indexing owns stable binding identities; effects invalidate values, not this
+// identity-only layout. No query result or dependency closure is retained here.
+const dependencyProofsByState = new WeakMap<
+  JavaScriptSemanticAnalysisState,
+  SemanticDependencyProofs
+>();
+
+const createEvaluationMemo = (
+  state: JavaScriptSemanticAnalysisState,
+): EvaluationMemo => {
+  let dependencies = dependencyProofsByState.get(state);
+  if (dependencies === undefined) {
+    dependencies = new SemanticDependencyProofs(state.bindingsById.keys());
+    dependencyProofsByState.set(state, dependencies);
+  }
+  return { provenance: new Map(), dependencyFrames: [], dependencies };
+};
+
 interface EvaluationContext {
   readonly state: JavaScriptSemanticAnalysisState;
   /** Bindings under evaluation, by their position on the active stack. */
@@ -59,6 +97,7 @@ interface EvaluationContext {
   readonly capturePoint?: t.Node;
   readonly primitiveBindingValues: Map<string, JavaScriptSemanticValue>;
   readonly dependence: EvaluationDependence;
+  readonly memo: EvaluationMemo;
 }
 
 /**
@@ -76,8 +115,7 @@ const CALLER_INDEPENDENT = Number.POSITIVE_INFINITY;
 const EVERY_CALLER = -1;
 
 /** A value no caller changes, and the deepest evaluation known to yield it. */
-interface CallerIndependentBindingValue {
-  readonly value: JavaScriptSemanticValue;
+interface CallerIndependentBindingValue extends MemoizedEvaluation<JavaScriptSemanticValue> {
   readonly expressionDepth: number;
 }
 
@@ -101,8 +139,8 @@ const capturedBindingValuesByState = new WeakMap<
   WeakMap<t.Node, Map<string, JavaScriptSemanticValue>>
 >();
 
-/** Discard primitive projections evaluated before mutation collection finished. */
-export const clearSemanticPrimitiveBindingValues = (
+/** Discard every state-owned value derived before the effects boundary changed. */
+export const clearSemanticValueCaches = (
   state: JavaScriptSemanticAnalysisState,
 ): void => {
   primitiveBindingValuesByState.delete(state);
@@ -151,6 +189,7 @@ export const evaluateSemanticBinding = (
     expressionDepth: 0,
     primitiveBindingValues: primitiveBindingValuesFor(state),
     dependence: { lowest: CALLER_INDEPENDENT },
+    memo: createEvaluationMemo(state),
   });
 
 /** Evaluate an inert expression, optionally at an earlier reference capture. */
@@ -165,6 +204,7 @@ export const evaluateSemanticExpression = (
     expressionDepth: 0,
     primitiveBindingValues: primitiveBindingValuesFor(state),
     dependence: { lowest: CALLER_INDEPENDENT },
+    memo: createEvaluationMemo(state),
   };
   return evaluateExpression(
     node,
@@ -185,12 +225,60 @@ export const evaluateSemanticProvenance = (
     expressionDepth: 0,
     primitiveBindingValues: primitiveBindingValuesFor(state),
     dependence: { lowest: CALLER_INDEPENDENT },
+    memo: createEvaluationMemo(state),
   });
+
+const readMemoizedEvaluation = <T>(
+  entry: MemoizedEvaluation<T> | undefined,
+  context: EvaluationContext,
+): T | undefined => {
+  if (
+    entry === undefined ||
+    context.memo.dependencies.intersects(entry.dependencies, context.bindings)
+  )
+    return undefined;
+  retainDependencyProof(entry.dependencies, context);
+  return entry.value;
+};
+
+const retainDependencyProof = (
+  proof: SemanticDependencyProof,
+  context: EvaluationContext,
+): void => {
+  const parent = context.memo.dependencyFrames.at(-1);
+  if (parent !== undefined)
+    parent.proof = context.memo.dependencies.union(parent.proof, proof);
+};
+
+const recordBindingDependency = (
+  binding: JavaScriptSemanticBindingState,
+  context: EvaluationContext,
+): void =>
+  retainDependencyProof(
+    context.memo.dependencies.binding(binding.bindingId),
+    context,
+  );
+
+const collectEvaluationDependencies = <T>(
+  binding: JavaScriptSemanticBindingState,
+  context: EvaluationContext,
+  evaluate: () => T,
+): MemoizedEvaluation<T> => {
+  const frame = { proof: context.memo.dependencies.binding(binding.bindingId) };
+  context.memo.dependencyFrames.push(frame);
+  try {
+    return { value: evaluate(), dependencies: frame.proof };
+  } finally {
+    context.memo.dependencyFrames.pop();
+    retainDependencyProof(frame.proof, context);
+  }
+};
 
 const evaluateBinding = (
   binding: JavaScriptSemanticBindingState,
   context: EvaluationContext,
 ): JavaScriptSemanticValue => {
+  recordBindingDependency(binding, context);
   const cycleHead = context.bindings.get(binding.bindingId);
   if (cycleHead !== undefined) {
     context.dependence.lowest = Math.min(context.dependence.lowest, cycleHead);
@@ -224,8 +312,10 @@ const evaluateBinding = (
   if (
     retained !== undefined &&
     context.expressionDepth <= retained.expressionDepth
-  )
-    return retained.value;
+  ) {
+    const reusable = readMemoizedEvaluation(retained, context);
+    if (reusable !== undefined) return reusable;
+  }
   if (binding.initializers.length === 0)
     return {
       status: "unknown",
@@ -260,22 +350,30 @@ const evaluateBinding = (
   context.bindings.set(binding.bindingId, position);
   let value: JavaScriptSemanticValue;
   let callerIndependent = false;
+  let evaluated: MemoizedEvaluation<JavaScriptSemanticValue>;
   try {
-    const nested = nestedContext(context);
-    value = projectValue(
-      evaluateExpression(initializer.node, nested),
-      initializer.projection,
-    );
-    if (!isPrimitive(value)) {
-      const captureContext = primitiveCaptureContext(initializer.node, nested);
-      if (captureContext !== undefined) {
-        const captured = projectValue(
-          evaluateExpression(initializer.node, captureContext),
-          initializer.projection,
+    evaluated = collectEvaluationDependencies(binding, context, () => {
+      const nested = nestedContext(context);
+      let value = projectValue(
+        evaluateExpression(initializer.node, nested),
+        initializer.projection,
+      );
+      if (!isPrimitive(value)) {
+        const captureContext = primitiveCaptureContext(
+          initializer.node,
+          nested,
         );
-        if (isPrimitive(captured)) value = captured;
+        if (captureContext !== undefined) {
+          const captured = projectValue(
+            evaluateExpression(initializer.node, captureContext),
+            initializer.projection,
+          );
+          if (isPrimitive(captured)) value = captured;
+        }
       }
-    }
+      return value;
+    });
+    value = evaluated.value;
     // A cycle among bindings this one reads is part of its value. A cycle
     // through this binding is cut elsewhere when a caller holds another member.
     callerIndependent = context.dependence.lowest > position;
@@ -309,6 +407,7 @@ const evaluateBinding = (
   )
     independent.set(binding.bindingId, {
       value: projected,
+      dependencies: evaluated.dependencies,
       expressionDepth: context.expressionDepth,
     });
   // Point-local memoization also bounds failed speculative captures. Only a
@@ -650,6 +749,50 @@ const provenanceForBinding = (
   binding: JavaScriptSemanticBindingState,
   context: EvaluationContext,
 ): JavaScriptBindingProvenance => {
+  recordBindingDependency(binding, context);
+  const cycleHead = context.bindings.get(binding.bindingId);
+  if (cycleHead !== undefined) {
+    context.dependence.lowest = Math.min(context.dependence.lowest, cycleHead);
+    return semanticUnresolvedProvenance(
+      "cycle",
+      `Alias cycle at ${binding.name}.`,
+    );
+  }
+  let depths = context.memo.provenance.get(binding.bindingId);
+  const prior = readMemoizedEvaluation(
+    depths?.get(context.expressionDepth),
+    context,
+  );
+  if (prior !== undefined) return prior;
+  const position = context.bindings.size;
+  const callerDependence = context.dependence.lowest;
+  context.dependence.lowest = CALLER_INDEPENDENT;
+  let result: MemoizedEvaluation<JavaScriptBindingProvenance>;
+  let callerIndependent = false;
+  try {
+    result = collectEvaluationDependencies(binding, context, () =>
+      provenanceForBindingUncached(binding, context),
+    );
+    callerIndependent = context.dependence.lowest > position;
+  } finally {
+    context.dependence.lowest = callerIndependent
+      ? callerDependence
+      : Math.min(callerDependence, context.dependence.lowest);
+  }
+  if (callerIndependent) {
+    if (depths === undefined) {
+      depths = new Map();
+      context.memo.provenance.set(binding.bindingId, depths);
+    }
+    depths.set(context.expressionDepth, result);
+  }
+  return result.value;
+};
+
+const provenanceForBindingUncached = (
+  binding: JavaScriptSemanticBindingState,
+  context: EvaluationContext,
+): JavaScriptBindingProvenance => {
   const provenance = provenanceForBindingValue(binding, context);
   const assigned = binding.definitions.some(
     ({ kind }) => kind === "assignment",
@@ -674,11 +817,6 @@ const provenanceForBindingValue = (
   binding: JavaScriptSemanticBindingState,
   context: EvaluationContext,
 ): JavaScriptBindingProvenance => {
-  if (context.bindings.has(binding.bindingId))
-    return semanticUnresolvedProvenance(
-      "cycle",
-      `Alias cycle at ${binding.name}.`,
-    );
   if (binding.directOrigins.length > 0)
     return semanticOriginsProvenance(binding.directOrigins);
   if (binding.initializers.length === 0) return semanticLocalProvenance();
@@ -725,21 +863,25 @@ const provenanceForExpression = (
   node: t.Node,
   context: EvaluationContext,
 ): JavaScriptBindingProvenance => {
-  if (context.expressionDepth > SEMANTIC_EXPRESSION_DEPTH_LIMIT)
+  if (context.expressionDepth > SEMANTIC_EXPRESSION_DEPTH_LIMIT) {
+    context.dependence.lowest = EVERY_CALLER;
     return semanticUnresolvedProvenance(
       "unknown",
       semanticResourceLimitReason("expression-depth"),
     );
+  }
   const unwrapped = unwrapJavaScriptExpression(node);
   if (unwrapped.depth > 0) {
     if (
       context.expressionDepth + unwrapped.depth >
       SEMANTIC_EXPRESSION_DEPTH_LIMIT
-    )
+    ) {
+      context.dependence.lowest = EVERY_CALLER;
       return semanticUnresolvedProvenance(
         "unknown",
         semanticResourceLimitReason("expression-depth"),
       );
+    }
     return provenanceForExpression(unwrapped.node, {
       ...context,
       expressionDepth: context.expressionDepth + unwrapped.depth,
@@ -846,6 +988,7 @@ const nestedContext = (context: EvaluationContext): EvaluationContext => ({
   expressionDepth: context.expressionDepth + 1,
   bindings: context.bindings,
   dependence: context.dependence,
+  memo: context.memo,
 });
 
 const isPrimitive = (value: JavaScriptSemanticValue): boolean =>

@@ -21,6 +21,10 @@ const createModuleLookupFixture = async () => {
       'import "./exact.js";',
       'import fallback from "empty-main";',
       'import "nested-main";',
+      'import "file-only";',
+      'import "ancestor-empty";',
+      'import "ancestor-blocked";',
+      'import "ancestor-sub/parser";',
       "void fallback;",
     ].join("\n"),
     "esm/extensionless.js": "module.exports = 1;",
@@ -36,6 +40,10 @@ const createModuleLookupFixture = async () => {
       'require("./default-node");',
       'require("empty-main");',
       'require("nested-main");',
+      'require("file-only");',
+      'require("ancestor-empty");',
+      'require("ancestor-blocked");',
+      'require("ancestor-sub/parser");',
     ].join("\n"),
     "cjs/extensionless.cjs": "module.exports = 1;",
     "cjs/feature.cjs": "module.exports = 2;",
@@ -50,8 +58,12 @@ const createModuleLookupFixture = async () => {
       main: "other",
     }),
     "node_modules/nested-main/sub/other.js": "module.exports = 99;",
-    "runtime-control.mjs": [
-      'const specifiers = ["./esm/extensionless", "./esm/directory", "./esm/explicit.js", "./esm/exact.js", "empty-main", "nested-main"];',
+    "node_modules/file-only.js": "module.exports = 7;",
+    "node_modules/ancestor-empty/index.js": "module.exports = 8;",
+    "node_modules/ancestor-blocked/index.js": "module.exports = 9;",
+    "node_modules/ancestor-sub/parser.js": "module.exports = 10;",
+    "esm/runtime-control.mjs": [
+      'const specifiers = ["./extensionless", "./directory", "./explicit.js", "./exact.js", "empty-main", "nested-main", "file-only", "ancestor-empty", "ancestor-blocked", "ancestor-sub/parser"];',
       "const results = [];",
       "for (const specifier of specifiers) {",
       "  try { await import(specifier); results.push({ specifier, ok: true }); }",
@@ -59,8 +71,8 @@ const createModuleLookupFixture = async () => {
       "}",
       "console.log(JSON.stringify(results));",
     ].join("\n"),
-    "runtime-control.cjs": [
-      'const specifiers = ["./cjs/extensionless", "./cjs/feature", "./cjs/feature.cjs", "./cjs/default-js", "./cjs/default-json", "empty-main", "nested-main"];',
+    "cjs/runtime-control.cjs": [
+      'const specifiers = ["./extensionless", "./feature", "./feature.cjs", "./default-js", "./default-json", "empty-main", "nested-main", "file-only", "ancestor-empty", "ancestor-blocked", "ancestor-sub/parser"];',
       "const results = [];",
       "for (const specifier of specifiers) {",
       "  try { require(specifier); results.push({ specifier, ok: true }); }",
@@ -69,6 +81,15 @@ const createModuleLookupFixture = async () => {
       "console.log(JSON.stringify(results));",
     ].join("\n"),
   });
+  for (const directory of ["esm", "cjs"])
+    await writeFixtureFiles(root, {
+      [`${directory}/node_modules/ancestor-empty/package.json`]: JSON.stringify(
+        { main: "" },
+      ),
+      [`${directory}/node_modules/ancestor-blocked/package.json`]:
+        JSON.stringify({ main: "missing" }),
+      [`${directory}/node_modules/ancestor-sub/package.json`]: "{}",
+    });
   return root;
 };
 
@@ -77,11 +98,11 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
   async (surface, { cli }) => {
     const root = await createModuleLookupFixture();
     const [esmControl, cjsControl] = await Promise.all([
-      execute(process.execPath, ["runtime-control.mjs"], {
+      execute(process.execPath, ["esm/runtime-control.mjs"], {
         cwd: root,
         timeout: 5_000,
       }),
-      execute(process.execPath, ["runtime-control.cjs"], {
+      execute(process.execPath, ["cjs/runtime-control.cjs"], {
         cwd: root,
         timeout: 5_000,
       }),
@@ -98,40 +119,56 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
     }>;
     expect(esmResults).toEqual([
       {
-        specifier: "./esm/extensionless",
+        specifier: "./extensionless",
         ok: false,
         code: "ERR_MODULE_NOT_FOUND",
       },
       {
-        specifier: "./esm/directory",
+        specifier: "./directory",
         ok: false,
         code: "ERR_UNSUPPORTED_DIR_IMPORT",
       },
       {
-        specifier: "./esm/explicit.js",
+        specifier: "./explicit.js",
         ok: false,
         code: "ERR_MODULE_NOT_FOUND",
       },
-      { specifier: "./esm/exact.js", ok: true },
+      { specifier: "./exact.js", ok: true },
       { specifier: "empty-main", ok: true },
       { specifier: "nested-main", ok: false, code: "ERR_MODULE_NOT_FOUND" },
+      { specifier: "file-only", ok: false, code: "ERR_MODULE_NOT_FOUND" },
+      { specifier: "ancestor-empty", ok: false, code: "ERR_MODULE_NOT_FOUND" },
+      {
+        specifier: "ancestor-blocked",
+        ok: false,
+        code: "ERR_MODULE_NOT_FOUND",
+      },
+      {
+        specifier: "ancestor-sub/parser",
+        ok: false,
+        code: "ERR_MODULE_NOT_FOUND",
+      },
     ]);
     expect(cjsResults).toEqual([
       {
-        specifier: "./cjs/extensionless",
+        specifier: "./extensionless",
         ok: false,
         code: "MODULE_NOT_FOUND",
       },
       {
-        specifier: "./cjs/feature",
+        specifier: "./feature",
         ok: false,
         code: "MODULE_NOT_FOUND",
       },
-      { specifier: "./cjs/feature.cjs", ok: true },
-      { specifier: "./cjs/default-js", ok: true },
-      { specifier: "./cjs/default-json", ok: true },
+      { specifier: "./feature.cjs", ok: true },
+      { specifier: "./default-js", ok: true },
+      { specifier: "./default-json", ok: true },
       { specifier: "empty-main", ok: true },
       { specifier: "nested-main", ok: false, code: "MODULE_NOT_FOUND" },
+      { specifier: "file-only", ok: true },
+      { specifier: "ancestor-empty", ok: true },
+      { specifier: "ancestor-blocked", ok: false, code: "MODULE_NOT_FOUND" },
+      { specifier: "ancestor-sub/parser", ok: true },
     ]);
 
     const { graph } = await analyzeJavaScriptDirectory(surface, cli, root);
@@ -142,6 +179,10 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
       ["import", "./exact.js", "esm/exact.js", "resolved"],
       ["import", "empty-main", "node_modules/empty-main/index.js", "resolved"],
       ["import", "nested-main", null, "not-found"],
+      ["import", "file-only", null, "external"],
+      ["import", "ancestor-empty", null, "not-found"],
+      ["import", "ancestor-blocked", null, "not-found"],
+      ["import", "ancestor-sub/parser", null, "not-found"],
       ["require", "./extensionless", null, "not-found"],
       ["require", "./feature", null, "not-found"],
       ["require", "./feature.cjs", "cjs/feature.cjs", "resolved"],
@@ -150,6 +191,20 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
       ["require", "./default-node", "cjs/default-node.node", "resolved"],
       ["require", "empty-main", "node_modules/empty-main/index.js", "resolved"],
       ["require", "nested-main", null, "not-found"],
+      ["require", "file-only", "node_modules/file-only.js", "resolved"],
+      [
+        "require",
+        "ancestor-empty",
+        "node_modules/ancestor-empty/index.js",
+        "resolved",
+      ],
+      ["require", "ancestor-blocked", null, "not-found"],
+      [
+        "require",
+        "ancestor-sub/parser",
+        "node_modules/ancestor-sub/parser.js",
+        "resolved",
+      ],
     ] as const;
 
     for (const [kind, specifier, resolvedPath, status] of expectations)

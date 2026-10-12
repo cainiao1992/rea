@@ -232,8 +232,8 @@ const inspectNode = (
   inspectElectronStaticNode(node, findings);
   if (t.isCallExpression(node)) {
     inspectBundlerBootstrap(source, node, accumulator, bindings);
-    inspectBundlerRegistration(source, node, accumulator);
-    inspectEsbuildWrapper(source, node, accumulator);
+    inspectBundlerRegistration(source, node, accumulator, bindings);
+    inspectEsbuildWrapper(source, node, accumulator, bindings);
     inspectCall(source, node, findings);
   } else if (t.isOptionalCallExpression(node)) {
     inspectCall(source, node, findings);

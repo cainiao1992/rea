@@ -107,18 +107,21 @@ const parseDocument = (
   format: ClientConfigurationFormat,
 ): Record<string, unknown> => {
   if (format === "toml" || format === "grok")
-    return objectSchema.parse(parseToml(text));
+    return requireObject(parseToml(text), "The configuration root");
   // Pi loads `mcp.json` with a strict `JSON.parse` and no BOM tolerance, so
   // comments, trailing commas, a BOM, or an empty existing file must be
   // rejected instead of registering into a document Pi cannot load.
-  if (format === "pi") return objectSchema.parse(JSON.parse(text));
+  if (format === "pi")
+    return requireObject(JSON.parse(text), "The configuration root");
   // An empty file, which some clients create before any server is added,
   // holds no settings to preserve.
   if (isEmptyClientConfigurationText(text)) return {};
   // Hermes stores MCP servers in `mcp_servers` inside a YAML document.
-  if (format === "hermes") return objectSchema.parse(parseYaml(text));
+  if (format === "hermes")
+    return requireObject(parseYaml(text), "The configuration root");
   // ZCode loads nonempty native files with strict JSON.parse.
-  if (format === "zcode") return objectSchema.parse(JSON.parse(text));
+  if (format === "zcode")
+    return requireObject(JSON.parse(text), "The configuration root");
   const errors: ParseError[] = [];
   // Accept a UTF-8 BOM without shifting diagnostics or editing the original text.
   const jsonText = text.startsWith("\uFEFF") ? ` ${text.slice(1)}` : text;
@@ -128,12 +131,13 @@ const parseDocument = (
     throw new SyntaxError(
       `Invalid JSON/JSONC at offset ${firstError.offset}: ${printParseErrorCode(firstError.error)}`,
     );
-  return objectSchema.parse(document);
+  return requireObject(document, "The configuration root");
 };
 
 /** A parsed configuration whose structure, not its syntax, cannot hold MCP servers. */
 export class ClientConfigurationShapeError extends TypeError {}
 
+/** Validate and copy own properties, excluding non-record YAML values and parser-injected prototypes. */
 const requireObject = (
   value: unknown,
   description: string,
@@ -174,17 +178,7 @@ export const parseClientConfiguration = (
     throw new TypeError("client does not have a supported MCP config format");
   // DeepSeek Harness stores a Cordis patch list, not a server table.
   if (format === "dsh") return parseDshCordisDocument(text);
-  let document: Record<string, unknown>;
-  try {
-    document = parseDocument(text, format);
-  } catch (cause: unknown) {
-    if (cause instanceof z.ZodError)
-      throw new ClientConfigurationShapeError(
-        "The configuration root must be an object",
-        { cause },
-      );
-    throw cause;
-  }
+  const document = parseDocument(text, format);
   const serversKey = clientConfigurationServersKey(format);
   const value = document[serversKey];
   const servers =

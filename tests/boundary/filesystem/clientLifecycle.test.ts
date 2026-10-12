@@ -1661,8 +1661,9 @@ describe("uninstall configuration preflight", () => {
   });
 
   it.each([
-    ['{"mcpServers": null}', '"mcpServers" must be an object'],
+    ['{"mcpServers":null,"keep":1}', '"mcpServers" must be an object'],
     ["[]", "The configuration root must be an object"],
+    ['{"mcpServers":"x"}', '"mcpServers" must be an object'],
   ])(
     "names the structural problem in valid JSON %s",
     async (content, problem) => {
@@ -1679,12 +1680,14 @@ describe("uninstall configuration preflight", () => {
         },
       });
       const result = await runUninstall(false, systemUninstallHost(home));
+      expect(result.status).toBe("failed");
       expect(result.items).toContainEqual({
         name: "cursor",
         status: "failed",
         detail: `Configuration was not changed: ${problem}. Repair it, then rerun uninstall.`,
       });
       expect(await readFile(config, "utf8")).toBe(content);
+      await expect(readFile(`${config}.rea.backup`, "utf8")).rejects.toThrow();
     },
   );
 

@@ -4,22 +4,38 @@ import {
   unwrapJavaScriptExpression,
 } from "./javascriptAstValues.js";
 import { javascriptBootstrapAt } from "./javascriptBootstrap.js";
+import {
+  collectJavaScriptIdentityWritesSteps,
+  ELECTRON_MODULE,
+  electronMemberPath,
+  electronExportPath,
+} from "./javascriptElectronMemberWrites.js";
+import { createSemanticModuleInterop } from "./javascriptModuleInterop.js";
+import { SemanticPropertyPathCoverage } from "./javascriptSemanticPropertyPaths.js";
+import { semanticRequireOrigin } from "./javascriptSemanticRequireOrigin.js";
 import { symbolicLogicalRight } from "./javascriptSymbolicControlFlow.js";
 import {
   moduleFactory,
   modulePropertyName,
 } from "./javascriptStaticAnalysisHelpers.js";
-import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
+import {
+  childNodes,
+  completeSemanticSteps,
+  traverseJavaScriptAst,
+} from "./javascriptSemanticTraversal.js";
 import {
   resolveSemanticBindingState,
   semanticResolutionBlocked,
   type JavaScriptSemanticAnalysisState,
 } from "./javascriptSemanticState.js";
 import {
+  symbolicCondition,
   symbolicUnion,
   symbolicUnknown,
   symbolicVariants,
+  symbolicConditionsUnresolved,
   symbolicTruth,
+  type SymbolicCondition,
   type SymbolicValue,
   type SymbolicEnvironment,
   type SymbolicFunction,
@@ -50,17 +66,30 @@ export class JavaScriptSymbolicBindings {
   readonly #moduleBindings = new Set<string>();
   readonly #replacements = new Map<string, t.Node>();
   readonly #propertyActive = new WeakMap<object, Set<string>>();
+  readonly #literalPropertyIndex = new WeakMap<
+    t.ObjectExpression,
+    ReadonlyMap<string, t.ObjectMethod | t.ObjectProperty> | null
+  >();
   readonly #mutated = new Set<string>();
+  readonly #electronWrites = new SemanticPropertyPathCoverage();
   readonly #namespaceOwners = new Map<string, t.Function>();
   readonly #unsafeExports = new Set<string>();
+  readonly #aliasesByBinding = new Map<string, string[]>();
+  readonly #bootstrapTables: Array<{
+    readonly tableAliases: ReadonlySet<string>;
+    readonly modules: Map<string, SymbolicValue>;
+  }> = [];
   #remainingEvaluations = 1_000_000;
   #depth = 0;
   truncated = false;
+  unresolved = false;
 
   constructor(
     readonly state: JavaScriptSemanticAnalysisState,
     program: t.Program,
   ) {
+    this.#indexElectronWrites(program);
+    this.#indexBindingAliases();
     traverseJavaScriptAst(program, {
       enter: (node) => {
         if (t.isCallExpression(node)) this.#indexBootstrap(node);
@@ -70,6 +99,10 @@ export class JavaScriptSymbolicBindings {
       enter: (node) => {
         if (t.isAssignmentExpression(node))
           this.#indexWrite(node.left, node.right, node);
+        if (t.isUpdateExpression(node))
+          this.#indexWrite(node.argument, node, node);
+        if (t.isUnaryExpression(node, { operator: "delete" }))
+          this.#indexWrite(node.argument, node, node);
         if (
           t.isCallExpression(node) &&
           t.isMemberExpression(node.callee) &&
@@ -97,6 +130,8 @@ export class JavaScriptSymbolicBindings {
         }
       },
     });
+    for (const table of this.#bootstrapTables)
+      this.#invalidateBootstrapTable(table.tableAliases, table.modules);
   }
 
   environmentAt(node: t.Node): SymbolicEnvironment {
@@ -138,22 +173,42 @@ export class JavaScriptSymbolicBindings {
   }
 
   property(value: SymbolicValue, key: string): SymbolicValue {
+    let result: SymbolicValue;
+    if (value.kind === "union")
+      result = symbolicUnion(
+        value.values.map((variant) => this.property(variant, key)),
+      );
+    else result = this.#property(value, key);
+    for (const condition of value.conditions ?? [])
+      result = symbolicCondition(result, condition);
+    if (value.conditionUnresolved)
+      result = symbolicConditionsUnresolved(result);
+    return result;
+  }
+
+  #property(value: SymbolicValue, key: string): SymbolicValue {
     const active = this.#propertyActive.get(value) ?? new Set<string>();
     if (active.has(key)) return symbolicUnknown("cyclic property");
     active.add(key);
     this.#propertyActive.set(value, active);
     try {
-      return this.#property(value, key);
+      return this.#propertyValue(value, key);
     } finally {
       active.delete(key);
     }
   }
 
-  #property(value: SymbolicValue, key: string): SymbolicValue {
-    if (value.kind === "union")
-      return symbolicUnion(value.values.map((v) => this.property(v, key)));
-    if (value.kind === "external")
-      return { kind: "external", path: [...value.path, key] };
+  #propertyValue(value: SymbolicValue, key: string): SymbolicValue {
+    if (value.kind === "external") {
+      const path = [...value.path, key];
+      if (
+        path[0] === "electron" &&
+        this.#electronWrites.covers(path.slice(1))
+      ) {
+        return symbolicUnknown("overwritten Electron API member");
+      }
+      return { kind: "external", path };
+    }
     if (value.kind === "record")
       return value.values.get(key) ?? symbolicUnknown("missing property");
     if (value.kind === "namespace") {
@@ -177,6 +232,28 @@ export class JavaScriptSymbolicBindings {
         : symbolicUnknown("unresolved module export");
     }
     if (value.kind === "object") {
+      let index = this.#literalPropertyIndex.get(value.node);
+      if (index === undefined) {
+        const properties = new Map<string, t.ObjectMethod | t.ObjectProperty>();
+        index = properties;
+        for (const property of value.node.properties) {
+          const name = t.isSpreadElement(property)
+            ? null
+            : semanticStaticPropertyKey(property.key, property.computed);
+          if (name === null || t.isSpreadElement(property)) {
+            index = null;
+            break;
+          }
+          properties.set(name, property);
+        }
+        this.#literalPropertyIndex.set(value.node, index);
+      }
+      if (index !== null) {
+        const property = index.get(key);
+        return property === undefined
+          ? symbolicUnknown("missing property")
+          : this.#objectPropertyValue(property, value.environment);
+      }
       for (const p of [...value.node.properties].reverse()) {
         if (t.isSpreadElement(p)) {
           const spread = this.evaluate(p.argument, value.environment);
@@ -188,12 +265,7 @@ export class JavaScriptSymbolicBindings {
           )
             return found;
         } else if (semanticStaticPropertyKey(p.key, p.computed) === key) {
-          return t.isObjectMethod(p) && p.kind !== "method"
-            ? symbolicUnknown("accessor property")
-            : this.evaluate(
-                t.isObjectProperty(p) ? p.value : p,
-                value.environment,
-              );
+          return this.#objectPropertyValue(p, value.environment);
         } else if (semanticStaticPropertyKey(p.key, p.computed) === null)
           return symbolicUnknown("dynamic property overwrite");
       }
@@ -201,6 +273,18 @@ export class JavaScriptSymbolicBindings {
     if (value.kind === "array" && /^\d+$/u.test(key))
       return value.values[Number(key)] ?? symbolicUnknown("missing argument");
     return symbolicUnknown("unresolved property");
+  }
+
+  #objectPropertyValue(
+    property: t.ObjectMethod | t.ObjectProperty,
+    environment: SymbolicEnvironment,
+  ): SymbolicValue {
+    return t.isObjectMethod(property) && property.kind !== "method"
+      ? symbolicUnknown("accessor property")
+      : this.evaluate(
+          t.isObjectProperty(property) ? property.value : property,
+          environment,
+        );
   }
 
   members(
@@ -277,6 +361,7 @@ export class JavaScriptSymbolicBindings {
   bind(
     fn: SymbolicFunction,
     args: readonly SymbolicValue[],
+    invocationNode?: t.Node,
   ): SymbolicEnvironment {
     const values = new Map<string, SymbolicValue>();
     fn.node.params.forEach((param, index) => {
@@ -295,7 +380,16 @@ export class JavaScriptSymbolicBindings {
             : (args[index] ?? symbolicUnknown("runtime parameter")),
         );
     });
-    return { values, parent: fn.environment };
+    const scopeId =
+      this.state.scopeByNode.get(fn.node)?.scopeId ??
+      this.state.scopeByNode.get(fn.node.body)?.scopeId;
+    return {
+      values,
+      parent: fn.environment,
+      point: invocationNode ?? fn.node,
+      scopeNode: fn.node,
+      ...(scopeId === undefined ? {} : { scopeId }),
+    };
   }
 
   arguments(
@@ -346,8 +440,14 @@ export class JavaScriptSymbolicBindings {
       const truth = symbolicTruth(this.evaluate(node.test, env));
       return truth === undefined
         ? symbolicUnion([
-            this.evaluate(node.consequent, env),
-            this.evaluate(node.alternate, env),
+            symbolicCondition(this.evaluate(node.consequent, env), {
+              node: node.test,
+              positive: true,
+            }),
+            symbolicCondition(this.evaluate(node.alternate, env), {
+              node: node.test,
+              positive: false,
+            }),
           ])
         : this.evaluate(truth ? node.consequent : node.alternate, env);
     }
@@ -356,7 +456,28 @@ export class JavaScriptSymbolicBindings {
       const right = symbolicLogicalRight(node.operator, left);
       if (right !== undefined)
         return right ? this.evaluate(node.right, env) : left;
-      return symbolicUnion([left, this.evaluate(node.right, env)]);
+      const leftCondition: SymbolicCondition = {
+        node: node.left,
+        positive:
+          node.operator === "&&"
+            ? false
+            : node.operator === "||"
+              ? true
+              : "not-nullish",
+      };
+      const rightCondition: SymbolicCondition = {
+        node: node.left,
+        positive:
+          node.operator === "&&"
+            ? true
+            : node.operator === "||"
+              ? false
+              : "nullish",
+      };
+      return symbolicUnion([
+        symbolicCondition(left, leftCondition),
+        symbolicCondition(this.evaluate(node.right, env), rightCondition),
+      ]);
     }
     if (t.isCallExpression(node) || t.isOptionalCallExpression(node))
       return this.#call(node, env);
@@ -390,6 +511,17 @@ export class JavaScriptSymbolicBindings {
       binding.initializers.length === 1 ? binding.initializers[0] : undefined;
     if (!initializer)
       return symbolicUnknown("missing or ambiguous initializer");
+    const point = this.#initializerReadPoint(binding.scopeId, env, node);
+    if (
+      !initializer.entryBody &&
+      !binding.definitions.every(({ kind }) => kind === "function") &&
+      (initializer.node.end == null ||
+        point == null ||
+        initializer.node.end > point)
+    ) {
+      this.unresolved = true;
+      return symbolicUnknown("initializer not available at this read");
+    }
     if (this.state.conditionalInitializers.has(initializer.node))
       return symbolicUnknown("conditional initializer");
     let value = this.evaluate(initializer.node, env);
@@ -400,6 +532,100 @@ export class JavaScriptSymbolicBindings {
     return value;
   }
 
+  #initializerReadPoint(
+    bindingScopeId: string,
+    environment: SymbolicEnvironment,
+    readNode: t.Node,
+  ): number | undefined {
+    let current: SymbolicEnvironment | undefined = environment;
+    let child: SymbolicEnvironment | undefined;
+    while (current) {
+      if (this.#scopeContains(bindingScopeId, current.scopeId)) {
+        const point = child?.point ?? readNode;
+        if (current.completedAt !== undefined)
+          return current.completedAt.end ?? undefined;
+        if (current.scopeNode && !this.#nodeWithin(point, current.scopeNode))
+          return undefined;
+        return point.start ?? undefined;
+      }
+      child = current;
+      current = current.parent;
+    }
+    let outermost = environment;
+    while (outermost.parent) outermost = outermost.parent;
+    const point = outermost.point ?? environment.point ?? readNode;
+    return point.start ?? undefined;
+  }
+
+  #scopeContains(bindingScopeId: string, environmentScopeId?: string): boolean {
+    let scopeId: string | null = bindingScopeId;
+    while (scopeId !== null) {
+      if (scopeId === environmentScopeId) return true;
+      scopeId = this.state.scopesById.get(scopeId)?.parentScopeId ?? null;
+    }
+    return false;
+  }
+
+  #nodeWithin(node: t.Node, ancestor?: t.Node): boolean {
+    if (!ancestor) return false;
+    let current: t.Node | undefined = node;
+    while (current) {
+      if (current === ancestor) return true;
+      current = this.state.parentsByNode.get(current);
+    }
+    return false;
+  }
+
+  #completedEnvironment(
+    environment: SymbolicEnvironment,
+    activation: SymbolicEnvironment,
+    returnPoint: t.Node,
+  ): SymbolicEnvironment | undefined {
+    if (environment === activation)
+      return { ...environment, completedAt: returnPoint };
+    if (environment.parent === undefined) return undefined;
+    const parent = this.#completedEnvironment(
+      environment.parent,
+      activation,
+      returnPoint,
+    );
+    return parent === undefined ? undefined : { ...environment, parent };
+  }
+
+  #completeReturnedFunction(
+    value: SymbolicFunction,
+    activation: SymbolicEnvironment,
+    returnPoint: t.Node,
+  ): SymbolicFunction {
+    const environment = this.#completedEnvironment(
+      value.environment,
+      activation,
+      returnPoint,
+    );
+    if (environment === undefined) return value;
+    const { returnPoint: _returnPoint, ...returned } = value;
+    return { ...returned, environment };
+  }
+
+  #moduleCompletionPoint(factory: t.Function): t.Node {
+    let earliestReturn: t.ReturnStatement | undefined;
+    const pending: t.Node[] = [factory.body];
+    while (pending.length > 0) {
+      const node = pending.pop();
+      if (!node) continue;
+      if (node !== factory.body && (t.isFunction(node) || t.isClass(node)))
+        continue;
+      if (
+        t.isReturnStatement(node) &&
+        (earliestReturn === undefined ||
+          (node.start ?? Infinity) < (earliestReturn.start ?? Infinity))
+      )
+        earliestReturn = node;
+      pending.push(...childNodes(node));
+    }
+    return earliestReturn ?? factory.body;
+  }
+
   #call(
     node: t.CallExpression | t.OptionalCallExpression,
     env: SymbolicEnvironment,
@@ -408,37 +634,71 @@ export class JavaScriptSymbolicBindings {
     const args = this.arguments(node, env);
     return symbolicUnion(
       symbolicVariants(callee).map((value) => {
+        let result: SymbolicValue;
         if (value.kind === "loader") {
           const key = args[0];
-          return key?.kind === "literal"
-            ? (value.modules.get(String(key.value)) ??
+          const loaded =
+            key?.kind === "literal"
+              ? (value.modules.get(String(key.value)) ??
                 symbolicUnknown("missing module"))
-            : symbolicUnknown("dynamic module");
-        }
-        if (value.kind === "external" && value.path.join(".") === "require") {
+              : symbolicUnknown("dynamic module");
+          if (loaded.kind === "namespace") {
+            const factory = this.#namespaceOwners.get(loaded.bindingId);
+            result =
+              factory === undefined
+                ? loaded
+                : {
+                    ...loaded,
+                    environment: {
+                      ...loaded.environment,
+                      completedAt: this.#moduleCompletionPoint(factory),
+                    },
+                  };
+          } else result = loaded;
+        } else if (
+          value.kind === "external" &&
+          value.path.join(".") === "require"
+        ) {
           const spec = args[0];
-          return spec?.kind === "literal" && typeof spec.value === "string"
-            ? { kind: "external", path: [spec.value] }
-            : symbolicUnknown("dynamic require");
+          result =
+            spec?.kind === "literal" && typeof spec.value === "string"
+              ? { kind: "external", path: [spec.value] }
+              : symbolicUnknown("dynamic require");
+        } else if (
+          value.kind !== "function" ||
+          this.#activeFunctions.has(value.node)
+        ) {
+          result = symbolicUnknown("unresolved or recursive call");
+        } else {
+          this.#activeFunctions.add(value.node);
+          try {
+            const bound = this.bind(value, args, node);
+            const returned = t.isBlockStatement(value.node.body)
+              ? this.#returns(value.node.body.body, bound)
+              : this.evaluate(value.node.body, bound);
+            result = symbolicUnion(
+              symbolicVariants(returned).map((v) =>
+                v.kind === "function"
+                  ? {
+                      ...this.#completeReturnedFunction(
+                        v,
+                        bound,
+                        v.returnPoint ?? value.node.body,
+                      ),
+                      origins: [...value.origins, node, ...v.origins],
+                    }
+                  : v,
+              ),
+            );
+          } finally {
+            this.#activeFunctions.delete(value.node);
+          }
         }
-        if (value.kind !== "function" || this.#activeFunctions.has(value.node))
-          return symbolicUnknown("unresolved or recursive call");
-        this.#activeFunctions.add(value.node);
-        try {
-          const bound = this.bind(value, args);
-          const result = t.isBlockStatement(value.node.body)
-            ? this.#returns(value.node.body.body, bound)
-            : this.evaluate(value.node.body, bound);
-          return symbolicUnion(
-            symbolicVariants(result).map((v) =>
-              v.kind === "function"
-                ? { ...v, origins: [...value.origins, node, ...v.origins] }
-                : v,
-            ),
-          );
-        } finally {
-          this.#activeFunctions.delete(value.node);
-        }
+        for (const condition of value.conditions ?? [])
+          result = symbolicCondition(result, condition);
+        if (value.conditionUnresolved)
+          result = symbolicConditionsUnresolved(result);
+        return result;
       }),
     );
   }
@@ -462,6 +722,16 @@ export class JavaScriptSymbolicBindings {
     depth = 0,
   ): SymbolicReturnFlow {
     const possible: SymbolicValue[] = [];
+    let unresolvedFallthrough = false;
+    const continuationConditions: SymbolicCondition[] = [];
+    const guardCurrentPath = (value: SymbolicValue): SymbolicValue => {
+      let guarded = value;
+      for (const condition of continuationConditions)
+        guarded = symbolicCondition(guarded, condition);
+      return unresolvedFallthrough
+        ? symbolicConditionsUnresolved(guarded)
+        : guarded;
+    };
     for (const statement of statements) {
       if (--this.#remainingEvaluations < 0 || depth >= 128) {
         this.truncated = true;
@@ -475,14 +745,23 @@ export class JavaScriptSymbolicBindings {
           values: [...possible, symbolicUnknown("wrapper exits by throwing")],
           fallsThrough: false,
         };
-      if (t.isReturnStatement(statement))
+      if (t.isReturnStatement(statement)) {
+        const value = this.evaluate(statement.argument, env);
+        const returned = symbolicUnion(
+          symbolicVariants(value).map((variant) =>
+            variant.kind === "function"
+              ? { ...variant, returnPoint: statement }
+              : variant,
+          ),
+        );
         return {
-          values: [...possible, this.evaluate(statement.argument, env)],
+          values: [...possible, guardCurrentPath(returned)],
           fallsThrough: false,
         };
+      }
       if (t.isBlockStatement(statement)) {
         const flow = this.#returnFlow(statement.body, env, depth + 1);
-        possible.push(...flow.values);
+        possible.push(...flow.values.map(guardCurrentPath));
         if (!flow.fallsThrough)
           return { values: possible, fallsThrough: false };
       }
@@ -495,23 +774,72 @@ export class JavaScriptSymbolicBindings {
         const flows = branches.map((branch) =>
           this.#returnFlow(branch ? [branch] : [], env, depth + 1),
         );
-        possible.push(...flows.flatMap((flow) => flow.values));
+        possible.push(
+          ...flows.flatMap((flow, index) =>
+            flow.values.map((value) => {
+              const guarded = guardCurrentPath(value);
+              return truth === undefined
+                ? symbolicCondition(guarded, {
+                    node: statement.test,
+                    positive: index === 0,
+                  })
+                : guarded;
+            }),
+          ),
+        );
         if (flows.every((flow) => !flow.fallsThrough))
           return { values: possible, fallsThrough: false };
+        if (truth === undefined) {
+          const fallthrough = flows.flatMap((flow, index) =>
+            flow.fallsThrough ? [{ flow, index }] : [],
+          );
+          if (
+            fallthrough.length === 1 &&
+            fallthrough[0]?.flow.values.length === 0
+          )
+            continuationConditions.push({
+              node: statement.test,
+              positive: fallthrough[0].index === 0,
+            });
+          else if (
+            fallthrough.length > 0 &&
+            (fallthrough.length < flows.length ||
+              fallthrough.some(({ flow }) => flow.values.length > 0))
+          )
+            unresolvedFallthrough = true;
+        }
       }
     }
     return { values: possible, fallsThrough: true };
   }
 
   #indexBootstrap(call: t.CallExpression): void {
-    const bootstrap = javascriptBootstrapAt(call);
+    const bootstrap = javascriptBootstrapAt(call, this.state);
     if (!bootstrap) return;
     const modules = new Map<string, SymbolicValue>();
+    const tableAliases = new Set([bootstrap.tableBindingId]);
+    const pendingAliases = [bootstrap.tableBindingId];
+    while (pendingAliases.length > 0) {
+      const source = pendingAliases.pop()!;
+      for (const alias of this.#aliasesByBinding.get(source) ?? [])
+        if (!tableAliases.has(alias)) {
+          tableAliases.add(alias);
+          pendingAliases.push(alias);
+        }
+    }
     for (const property of bootstrap.table.properties) {
       const factory = moduleFactory(property);
       if (!factory) continue;
+      const moduleKey = modulePropertyName(property);
       const values = new Map<string, SymbolicValue>();
-      const environment = { values };
+      const environment: SymbolicEnvironment = {
+        values,
+        point: factory.body,
+        scopeNode: factory,
+        ...(this.state.scopeByNode.get(factory)?.scopeId === undefined
+          ? {}
+          : { scopeId: this.state.scopeByNode.get(factory)!.scopeId }),
+      };
       const first = factory.params[0];
       const second = factory.params[1];
       const third = factory.params[2];
@@ -543,8 +871,153 @@ export class JavaScriptSymbolicBindings {
       }
       if (loaderId) values.set(loaderId, { kind: "loader", modules });
       this.#environments.set(factory, environment);
-      modules.set(modulePropertyName(property), namespace);
+      modules.set(moduleKey, namespace);
     }
+    this.#bootstrapTables.push({ tableAliases, modules });
+  }
+
+  #indexBindingAliases(): void {
+    for (const binding of this.state.bindingsById.values()) {
+      const initializer = binding.initializers[0];
+      if (
+        !initializer ||
+        initializer.entryBody !== undefined ||
+        initializer.projection.length !== 0 ||
+        !t.isIdentifier(initializer.node)
+      )
+        continue;
+      const source = resolveSemanticBindingState(
+        this.state,
+        initializer.node,
+        initializer.node.name,
+      );
+      if (!source) continue;
+      const aliases = this.#aliasesByBinding.get(source.bindingId) ?? [];
+      aliases.push(binding.bindingId);
+      this.#aliasesByBinding.set(source.bindingId, aliases);
+    }
+  }
+
+  #indexElectronWrites(program: t.Program): void {
+    const interop = createSemanticModuleInterop(this.state);
+    const pathsByBinding = new Map<string, readonly string[] | null>();
+    const retainPath = (
+      bindingId: string,
+      path: readonly string[] | undefined,
+    ): readonly string[] | undefined => {
+      pathsByBinding.set(bindingId, path ?? null);
+      return path;
+    };
+    const bindingPath = (
+      binding: ReturnType<typeof resolveSemanticBindingState>,
+      visited = new Set<string>(),
+    ): readonly string[] | undefined => {
+      if (!binding || visited.has(binding.bindingId)) return undefined;
+      const cached = pathsByBinding.get(binding.bindingId);
+      if (cached !== undefined) return cached ?? undefined;
+      visited.add(binding.bindingId);
+      const converted = interop.origin(binding)?.origin;
+      const direct =
+        converted ??
+        (binding.directOrigins.length === 1
+          ? binding.directOrigins[0]
+          : undefined);
+      if (direct && ELECTRON_MODULE.test(direct.specifier))
+        return retainPath(binding.bindingId, [
+          "electron",
+          ...electronExportPath(direct.importedPath),
+        ]);
+      const initializer =
+        binding.initializers.length === 1 ? binding.initializers[0] : undefined;
+      if (
+        !initializer ||
+        !initializer.projection.every(
+          (segment): segment is string => typeof segment === "string",
+        )
+      )
+        return retainPath(binding.bindingId, undefined);
+      const required = semanticRequireOrigin(
+        initializer.node,
+        this.state,
+      )?.origin;
+      if (required && ELECTRON_MODULE.test(required.specifier))
+        return retainPath(binding.bindingId, [
+          "electron",
+          ...electronExportPath([
+            ...required.importedPath,
+            ...initializer.projection.map(String),
+          ]),
+        ]);
+      const member = electronMemberPath(initializer.node);
+      if (
+        !t.isIdentifier(member.root) ||
+        !member.members.every(
+          (segment): segment is string => typeof segment === "string",
+        )
+      )
+        return retainPath(binding.bindingId, undefined);
+      const source = resolveSemanticBindingState(
+        this.state,
+        member.root,
+        member.root.name,
+      );
+      const sourcePath = bindingPath(source, visited);
+      return retainPath(
+        binding.bindingId,
+        sourcePath === undefined
+          ? undefined
+          : [
+              ...sourcePath,
+              ...member.members,
+              ...initializer.projection.map(String),
+            ],
+      );
+    };
+    const rootPath = (root: t.Node): readonly string[] | undefined => {
+      const direct = semanticRequireOrigin(root, this.state)?.origin;
+      if (direct && ELECTRON_MODULE.test(direct.specifier))
+        return ["electron", ...electronExportPath(direct.importedPath)];
+      if (!t.isIdentifier(root)) return undefined;
+      const binding = resolveSemanticBindingState(this.state, root, root.name);
+      return bindingPath(binding);
+    };
+    completeSemanticSteps(
+      collectJavaScriptIdentityWritesSteps(
+        program,
+        (root, kind) => {
+          if (kind === "opaque-call") return interop.opaqueMutationPath(root);
+          return rootPath(root) ?? interop.intrinsicPath(root);
+        },
+        interop.intrinsicInvocation,
+        interop.staticString,
+        interop.isFreshObject,
+        (_node, path) => {
+          if (path[0] === "electron") {
+            this.#electronWrites.retain(path.slice(1));
+          }
+        },
+      ),
+    );
+  }
+
+  #invalidateBootstrapTable(
+    tableAliases: ReadonlySet<string>,
+    modules: Map<string, SymbolicValue>,
+  ): void {
+    let invalidateAll = false;
+    const invalidSlots = new Set<string>();
+    for (const bindingId of tableAliases) {
+      if (this.#mutated.has(bindingId)) invalidateAll = true;
+      for (const definition of this.state.bindingsById.get(bindingId)
+        ?.definitions ?? [])
+        if (definition.kind === "assignment") invalidateAll = true;
+      for (const write of this.#writes.get(bindingId) ?? []) {
+        if (write.path.length === 0) invalidateAll = true;
+        else invalidSlots.add(write.path[0]!);
+      }
+    }
+    if (invalidateAll) modules.clear();
+    else for (const key of invalidSlots) modules.delete(key);
   }
 
   #indexWrite(target: t.Node, value: t.Node, site: t.Node): void {

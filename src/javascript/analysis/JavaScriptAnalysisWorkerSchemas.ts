@@ -68,6 +68,7 @@ const ipcChannel = <Shape extends z.ZodRawShape>(shape: Shape) =>
   z.union([
     z.strictObject({
       ...findingContext,
+      invocation_location: range.optional(),
       resolution_basis: z.literal("wrapper-substitution").optional(),
       ...shape,
       channel: z.string(),
@@ -75,6 +76,7 @@ const ipcChannel = <Shape extends z.ZodRawShape>(shape: Shape) =>
     }),
     z.strictObject({
       ...findingContext,
+      invocation_location: range.optional(),
       resolution_basis: z.literal("wrapper-substitution").optional(),
       ...shape,
       channel: z.null(),
@@ -121,11 +123,13 @@ const ipc = z
     }),
   ])
   .transform((value) => {
-    const { module_runtime, resolution_basis, ...rest } = value;
+    const { module_runtime, resolution_basis, invocation_location, ...rest } =
+      value;
     return {
       ...rest,
       ...(module_runtime === undefined ? {} : { module_runtime }),
       ...(resolution_basis === undefined ? {} : { resolution_basis }),
+      ...(invocation_location === undefined ? {} : { invocation_location }),
     };
   });
 const windowShape = {

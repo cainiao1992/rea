@@ -119,6 +119,8 @@ interface ElectronIpcFindingContext {
   /** Recovered factory runtime; absent in older or unbundled findings. */
   readonly module_runtime?: string;
   readonly location: JavaScriptSourceRange;
+  /** Outer syntax invocation when a wrapper produced this underlying IPC call. */
+  readonly invocation_location?: JavaScriptSourceRange;
 }
 
 /** One statically visible Electron IPC send, invocation, listener, or handler. */

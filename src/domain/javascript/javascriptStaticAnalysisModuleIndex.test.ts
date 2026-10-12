@@ -50,6 +50,51 @@ it("does not infer a bootstrap from a function table without a matching loader",
   expect(analysis.bundler_registrations).toEqual([]);
 });
 
+it("does not confuse a shadowed dispatch table with the outer module table", () => {
+  const analysis = analyzeJavaScriptStaticSource(`(() => {
+    const modules = { 17(module) { module.exports = require("electron"); } };
+    function load(id) {
+      const modules = userInput;
+      const module = { exports: {} };
+      modules[id](module, module.exports, load);
+      return module.exports;
+    }
+    load(17);
+  })();`);
+  expect(analysis.bundler_registrations).toEqual([]);
+});
+
+it("retains a stable var module table without treating declaration mutability as a write", () => {
+  const analysis = analyzeJavaScriptStaticSource(`(() => {
+    var modules = { 17(module) { module.exports = require("electron"); } };
+    function load(id) {
+      const module = { exports: {} };
+      modules[id](module, module.exports, load);
+      return module.exports;
+    }
+    load(17);
+  })();`);
+  expect(analysis.bundler_registrations).toMatchObject([
+    { entry_module_keys: ["17"], modules: [{ module_key: "17" }] },
+  ]);
+});
+
+it("only attributes bootstrap entries to the recovered loader binding", () => {
+  const analysis = analyzeJavaScriptStaticSource(`(() => {
+    const modules = { 17(module) { module.exports = require("electron"); } };
+    function load(id) {
+      const module = { exports: {} };
+      modules[id](module, module.exports, load);
+      return module.exports;
+    }
+    { const load = userInput; load(99); }
+    load(17);
+  })();`);
+  expect(analysis.bundler_registrations).toMatchObject([
+    { entry_module_keys: ["17"] },
+  ]);
+});
+
 it("preserves first insertion precedence and inclusive interval bounds", () => {
   const nested = new JavaScriptModuleRangeIndex(100);
   expect(nested.find(0)).toBeUndefined();

@@ -169,11 +169,25 @@ export const addElectronCallPaths = (
 const matches = (
   projected: ProjectedPath,
   record: ElectronIpcRecord,
-): boolean =>
-  projected.file.path === record.file.path &&
-  projected.path.channel === record.finding.channel &&
-  projected.path.steps.some(
-    (step) =>
-      electronRangeKey(step.location) ===
-      electronRangeKey(record.finding.location),
+): boolean => {
+  const { path } = projected;
+  const { finding } = record;
+  const invocation = finding.invocation_location;
+  const sourceStepKind =
+    finding.mode === "send" || finding.mode === "invoke" ? "terminal" : "ipc";
+  return (
+    projected.file.path === record.file.path &&
+    path.channel === finding.channel &&
+    path.steps.some(
+      (step) =>
+        step.kind === sourceStepKind &&
+        electronRangeKey(step.location) === electronRangeKey(finding.location),
+    ) &&
+    (invocation === undefined ||
+      path.steps.some(
+        (step) =>
+          (step.kind === "call" || step.kind === "exposure") &&
+          electronRangeKey(step.location) === electronRangeKey(invocation),
+      ))
   );
+};

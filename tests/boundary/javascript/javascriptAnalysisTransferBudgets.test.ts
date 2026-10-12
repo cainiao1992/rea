@@ -9,6 +9,7 @@ import { completeJavaScriptAnalysisSteps } from "../../../src/application/javasc
 import { projectJavaScriptSemanticFileSteps } from "../../../src/application/javascript/JavaScriptSemanticGraphBuilder.js";
 import {
   javaScriptTransferByteBudget,
+  measureJavaScriptModuleTransfer,
   writeJavaScriptAnalysisTransfer,
   readJavaScriptAnalysisTransfer,
 } from "../../../src/javascript/analysis/JavaScriptAnalysisTransfer.js";
@@ -44,6 +45,27 @@ it("enforces the offered complete-file byte budget while preserving authenticate
     module,
     projection,
   );
+  const measured = measureJavaScriptModuleTransfer(module);
+  expect(measured).toMatchObject({
+    bytes: observed.module_bytes,
+    records: observed.module_records,
+  });
+  expect(measureJavaScriptModuleTransfer(module, measured.bytes)).toEqual(
+    measured,
+  );
+  expect(() =>
+    measureJavaScriptModuleTransfer(module, measured.bytes - 1),
+  ).toThrowError(
+    expect.objectContaining({
+      resource: "transport",
+      reportedLimits: expect.objectContaining({
+        transfer_file_bytes: measured.bytes - 1,
+      }),
+    }),
+  );
+  expect(() =>
+    measureJavaScriptModuleTransfer(module, 2 ** 31 + 1),
+  ).toThrowError(RangeError);
   const exactPath = join(root, "exact");
   const exact = await writeJavaScriptAnalysisTransfer(
     exactPath,

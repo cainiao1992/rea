@@ -145,6 +145,9 @@ const addChannelNode = (
           channel: finding.channel,
           channel_expression: finding.channel_expression,
           resolution: finding.channel === null ? "dynamic" : "literal",
+          ...(finding.invocation_location === undefined
+            ? {}
+            : { invocation_location: finding.invocation_location }),
         },
         evidence: (finding.resolution_basis === "wrapper-substitution"
           ? staticInferenceEvidence
@@ -192,6 +195,9 @@ const addHandlerNode = (input: IpcHandlerInput): ApplicationNode => {
           channel_expression: finding.channel_expression,
           handler_kind: finding.handler_kind,
           handler_location: finding.handler_location,
+          ...(finding.invocation_location === undefined
+            ? {}
+            : { invocation_location: finding.invocation_location }),
         },
         evidence: (finding.resolution_basis === "wrapper-substitution"
           ? staticInferenceEvidence
@@ -227,6 +233,9 @@ const addHandlerNode = (input: IpcHandlerInput): ApplicationNode => {
       channel: finding.channel,
       channel_expression: finding.channel_expression,
       resolution: finding.channel === null ? "dynamic" : "literal",
+      ...(finding.invocation_location === undefined
+        ? {}
+        : { invocation_location: finding.invocation_location }),
     },
   });
   return handler;

@@ -129,6 +129,7 @@ for (const surface of ["CLI", "stdio MCP"] as const) {
       const root = await createTestTempDirectory("rea-electron-branch-paths-");
       await writeFixtureFiles(root, {
         "preload.js": `const e=require("electron");
+        e.contextBridge.exposeInMainWorld("empty", {});
         function choose(){
           if(flag)return ()=>e.ipcRenderer.send("test:copy");
           else return ()=>e.ipcRenderer.send("test:cut");
@@ -150,6 +151,19 @@ for (const surface of ["CLI", "stdio MCP"] as const) {
         register("test:fallback",event=>{false ?? event.sender.copy()});`,
       });
       const { graph } = await analyzeJavaScriptDirectory(surface, cli, root);
+      const empty = graph.nodes
+        .filter((node) => node.kind === "context-bridge-api")
+        .flatMap((node) => node.observations)
+        .find((observation) => observation.properties.api_key === "empty");
+      expect(empty).toMatchObject({
+        properties: {
+          api_status: "object-literal",
+          members: [],
+          unknown_members: 0,
+          resolution_basis: "direct-syntax",
+        },
+        evidence: { state: "observed" },
+      });
       const joins = graph.edges.filter(
         (edge) =>
           edge.evidence.extractor.operation === "join-electron-wrapper-paths",
@@ -172,6 +186,17 @@ for (const surface of ["CLI", "stdio MCP"] as const) {
           ),
         ].sort(),
       ).toEqual(["test:copy", "test:cut"]);
+      for (const [channel, expression] of [
+        ["test:copy", "flag"],
+        ["test:cut", "!(flag)"],
+      ])
+        expect(
+          steps.find(
+            (step) =>
+              step.properties.entry === "desktop.choose" &&
+              step.properties.channel === channel,
+          )?.properties.conditions,
+        ).toEqual([expect.objectContaining({ expression })]);
       expect(
         steps.some(
           (step) =>

@@ -62,6 +62,17 @@ export const javaScriptTransferByteBudget = (
     Math.max(TRANSFER_BYTES, Math.floor(resultBudgetBytes / 8)),
   );
 
+const assertTransferByteBudget = (transferBytes: number): void => {
+  if (
+    !Number.isSafeInteger(transferBytes) ||
+    transferBytes < 1 ||
+    transferBytes > MAX_TRANSFER_BYTES
+  )
+    throw new RangeError(
+      "JavaScript transfer requires a valid complete-file byte budget",
+    );
+};
+
 const encodeTransferRecord = (
   input: unknown,
   previousBytes: number,
@@ -103,11 +114,13 @@ function* moduleTransferRecords(
 /** Measure actual validated module rows before allocating an unadmittable graph. */
 export const measureJavaScriptModuleTransfer = (
   module: JavaScriptModuleSemanticIr,
+  transferBytes = TRANSFER_BYTES,
 ) => {
+  assertTransferByteBudget(transferBytes);
   let bytes = 0;
   let records = 0;
   for (const record of moduleTransferRecords(module)) {
-    bytes += encodeTransferRecord(record, bytes).size;
+    bytes += encodeTransferRecord(record, bytes, transferBytes).size;
     records += 1;
   }
   return {
@@ -124,14 +137,7 @@ export const writeJavaScriptAnalysisTransfer = async (
   projection: JavaScriptSemanticFileProjection,
   transferBytes = TRANSFER_BYTES,
 ): Promise<Descriptor> => {
-  if (
-    !Number.isSafeInteger(transferBytes) ||
-    transferBytes < 1 ||
-    transferBytes > MAX_TRANSFER_BYTES
-  )
-    throw new RangeError(
-      "JavaScript transfer requires a valid complete-file byte budget",
-    );
+  assertTransferByteBudget(transferBytes);
   const output = await open(path, "wx", 0o600);
   const digest = createHash("sha256");
   let bytes = 0;

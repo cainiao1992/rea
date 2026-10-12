@@ -3,17 +3,25 @@ import * as t from "@babel/types";
 import { semanticStaticPropertyKey } from "./javascriptAstValues.js";
 import { moduleFactory } from "./javascriptStaticAnalysisHelpers.js";
 import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
+import {
+  resolveSemanticBindingState,
+  semanticStableInitializer,
+  type JavaScriptSemanticAnalysisState,
+} from "./javascriptSemanticState.js";
 
 /** A literal module table dispatched by a standalone CommonJS-style runtime. */
 interface JavaScriptBootstrap {
   readonly body: t.BlockStatement;
   readonly table: t.ObjectExpression;
   readonly loaderName: string;
+  readonly loaderBindingId: string;
+  readonly tableBindingId: string;
 }
 
 /** Recognize syntax, never invoke a bootstrap or infer it from variable names. */
 export const javascriptBootstrapAt = (
   call: t.CallExpression,
+  state: JavaScriptSemanticAnalysisState,
 ): JavaScriptBootstrap | undefined => {
   if (
     (!t.isFunctionExpression(call.callee) &&
@@ -35,8 +43,18 @@ export const javascriptBootstrapAt = (
         declaration.init.properties.every(
           (property) => moduleFactory(property) !== undefined,
         )
-      )
-        tables.set(declaration.id.name, declaration.init);
+      ) {
+        const binding = resolveSemanticBindingState(
+          state,
+          declaration.id,
+          declaration.id.name,
+        );
+        if (
+          binding !== undefined &&
+          semanticStableInitializer(binding, state)?.node === declaration.init
+        )
+          tables.set(binding.bindingId, declaration.init);
+      }
     }
   }
   if (tables.size === 0) return undefined;
@@ -51,7 +69,11 @@ export const javascriptBootstrapAt = (
     const parameter = loader.params[0];
     if (!t.isIdentifier(parameter)) continue;
     const loaderName = loader.id.name;
-    let tableName: string | undefined;
+    const loaderBindingId = bindingId(state, loader.id);
+    const parameterBindingId = bindingId(state, parameter);
+    if (loaderBindingId === undefined || parameterBindingId === undefined)
+      continue;
+    let tableBindingId: string | undefined;
     traverseJavaScriptAst(loader.body, {
       enter: (node, _parent, ancestors) => {
         if (
@@ -59,22 +81,29 @@ export const javascriptBootstrapAt = (
           ancestors().some((node) => t.isFunction(node))
         )
           return;
-        const candidate = dispatchedTableName(node, loaderName, parameter.name);
+        const candidate = dispatchedTableBinding(
+          node,
+          loaderBindingId,
+          parameterBindingId,
+          state,
+        );
         if (candidate !== undefined && tables.has(candidate))
-          tableName = candidate;
+          tableBindingId = candidate;
       },
     });
-    const table = tableName === undefined ? undefined : tables.get(tableName);
-    if (table !== undefined && tableName !== undefined)
-      return { body, table, loaderName };
+    const table =
+      tableBindingId === undefined ? undefined : tables.get(tableBindingId);
+    if (table !== undefined && tableBindingId !== undefined)
+      return { body, table, loaderName, loaderBindingId, tableBindingId };
   }
   return undefined;
 };
 
-const dispatchedTableName = (
+const dispatchedTableBinding = (
   call: t.CallExpression,
-  loaderName: string,
-  keyName: string,
+  loaderBindingId: string,
+  keyBindingId: string,
+  state: JavaScriptSemanticAnalysisState,
 ): string | undefined => {
   const member = call.callee;
   const viaCall =
@@ -86,7 +115,8 @@ const dispatchedTableName = (
     !t.isMemberExpression(dispatch) ||
     !dispatch.computed ||
     !t.isIdentifier(dispatch.object) ||
-    !t.isIdentifier(dispatch.property, { name: keyName })
+    !t.isIdentifier(dispatch.property) ||
+    bindingId(state, dispatch.property) !== keyBindingId
   )
     return undefined;
   const args = viaCall ? call.arguments.slice(1) : call.arguments;
@@ -94,11 +124,14 @@ const dispatchedTableName = (
   if (
     args.length !== 3 ||
     !t.isIdentifier(module) ||
+    bindingId(state, module) === undefined ||
     !t.isMemberExpression(exports) ||
-    !t.isIdentifier(exports.object, { name: module.name }) ||
+    !t.isIdentifier(exports.object) ||
+    bindingId(state, exports.object) !== bindingId(state, module) ||
     semanticStaticPropertyKey(exports.property, exports.computed) !==
       "exports" ||
-    !t.isIdentifier(require, { name: loaderName })
+    !t.isIdentifier(require) ||
+    bindingId(state, require) !== loaderBindingId
   )
     return undefined;
   if (
@@ -107,5 +140,11 @@ const dispatchedTableName = (
       !t.isNodesEquivalent(call.arguments[0], exports))
   )
     return undefined;
-  return dispatch.object.name;
+  return bindingId(state, dispatch.object);
 };
+
+const bindingId = (
+  state: JavaScriptSemanticAnalysisState,
+  identifier: t.Identifier,
+): string | undefined =>
+  resolveSemanticBindingState(state, identifier, identifier.name)?.bindingId;

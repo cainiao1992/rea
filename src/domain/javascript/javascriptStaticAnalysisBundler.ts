@@ -1,5 +1,9 @@
 import * as t from "@babel/types";
 import { javascriptBootstrapAt } from "./javascriptBootstrap.js";
+import {
+  resolveSemanticBindingState,
+  type JavaScriptSemanticAnalysisState,
+} from "./javascriptSemanticState.js";
 
 import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
 
@@ -83,8 +87,9 @@ export const inspectBundlerBootstrap = (
   source: string,
   call: t.CallExpression,
   accumulator: AnalysisAccumulator,
+  bindings: JavaScriptSemanticAnalysisState,
 ): void => {
-  const bootstrap = javascriptBootstrapAt(call);
+  const bootstrap = javascriptBootstrapAt(call, bindings);
   if (bootstrap === undefined) return;
   const runtime = `webpack-bootstrap@${String(call.start ?? 0)}`;
   const recovered = recoverBundlerModules(
@@ -100,7 +105,9 @@ export const inspectBundlerBootstrap = (
       if (
         !t.isCallExpression(node) ||
         ancestors().some((node) => t.isFunction(node)) ||
-        !t.isIdentifier(node.callee, { name: bootstrap.loaderName })
+        !t.isIdentifier(node.callee) ||
+        resolveSemanticBindingState(bindings, node.callee, node.callee.name)
+          ?.bindingId !== bootstrap.loaderBindingId
       )
         return;
       const value = argumentValue(node.arguments[0]);

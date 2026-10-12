@@ -1,337 +1,12 @@
 # MCP runtime contracts
 
-## Generated catalog
-
-Run `npm run docs:generate` in a source checkout to generate the machine-readable
-catalog at `docs/public/product-catalog.json`. Documentation deployments serve
-the same file at [/rea/product-catalog.json](/rea/product-catalog.json). PR CI retains it with the packaged
-skill and portable conformance projections in the `generated-docs` artifact.
-These outputs describe the exact source revision being built; they are not
-checked-in snapshots. For a running server, `binary_session` remains the
-authoritative source of catalog identity and tool availability.
-
-## Identity and discovery
-
-`binary_session` reports the active package, server, SDK, and negotiated
-protocol details. `rea doctor` separately inspects supported JSON/TOML client
-registrations, reports their command vectors as aligned, stale, missing, or
-invalid, and keeps live-server state `unknown` unless the active connection
-supplies identity.
-
-`tools/list` returns the complete canonical tool inventory, including tools that
-are currently unavailable. Opening or closing a target or observing a provider
-health transition leaves that catalog unchanged and does not emit
-`notifications/tools/list_changed`.
-
-Advertised input and output schemas contain no reachable recursive references.
-Schemas share repeated definitions through schema-local references while
-preserving complete nested fields and validation rules. Input properties retain
-their descriptions and literal examples.
-
-Hosts forward input schemas to the model with every request, so advertised
-examples never copy complete producer Evidence. An embedded Evidence record is
-shown as its exact `{"kind":"retained-evidence","evidence_id":"ev_..."}`
-reference where the tool accepts one. An example that can only carry inline
-Evidence stays in the canonical contract and its executable tests, but is not
-advertised. Every advertised example is a distinct valid canonical input.
-
-Root object unions are presented as
-one object without root `anyOf`, `oneOf`, or `allOf` for model API compatibility.
-The projection merges properties, retains shared required fields and
-group-specific field dependencies, and describes the accepted input groups.
-Canonical runtime validation enforces the exact union, including exclusions
-that the advertised projection does not express. Tests validate the schemas
-after SDK conversion and check advertised validation and actual calls.
-Individual model APIs can impose additional nesting limits; complete producer
-captures can exceed ten structural levels.
-
-### Compact input schema profile
-
-Some function-calling providers reject a request while any single tool's
-`parameters` schema exceeds a literal serialized size cap; Moonshot clients
-such as kimi-cli fail every request while the default catalog is attached
-([#1484](https://github.com/morluto/rea/issues/1484)). Setting the server's
-`REA_MCP_INPUT_SCHEMA_PROFILE` environment variable to `compact` renders every
-advertised input schema within a 13,312-byte budget, measured to sit below
-Moonshot's observed cap (community measurements: a 13.7 KB schema is accepted
-while a ~15 KB one is rejected). The setting is read at startup; restart the
-server to apply changes, as with `REA_MCP_MAX_RESPONSE_BYTES`. The default
-value `full` keeps the complete advertisement unchanged.
-
-The compact profile renders the same tool set, output schemas, annotations,
-and canonical server-side validation. It changes only the advertised input
-JSON Schema:
-
-- Annotation prose leaves the advertised form: nested property descriptions,
-  literal examples, defaults, and titles are dropped. The root keeps its
-  description because it states the accepted input groups.
-- Schema-local references are inlined within the budget. Kimi Code expands
-  references before sending provider requests, so sharing definitions cannot
-  establish the provider-facing size. Expansion stops at the budget before
-  allocating an oversized presentation. Unconstrained JSON fields advertise
-  all JSON value types explicitly so Kimi cannot infer string for Evidence
-  objects or arrays.
-- The few schemas whose validation structure alone exceeds the budget
-  (`compare_web_captures`, `build_reconstruction_obligation_ledger`,
-  `evaluate_reconstruction_coverage`, `project_managed_application_graph`,
-  `compare_application_versions`, `capture_browser_scenario`) are advertised
-  in a reduced form: property names, reference-resolved types (including union
-  alternatives), first-level guidance, and the root's required-field constraints,
-  with nested validation detail elided. The
-  canonical schema still rejects malformed calls server-side, so callers
-  following the reduced advertisement receive the canonical typed error
-  instead of silent acceptance.
-
-Boundary tests pin every advertised compact schema to the budget, keep them
-valid JSON Schema that still accepts every canonical example, and hold the
-set of six reduced presentations as contracts evolve. Client verification
-also checks provider-facing sizes and canonical examples after conversion by
-the actual Kimi Code CLI; local captures do not establish Moonshot acceptance.
-
-Self-contained output schemas advertise a content-bound `$id`, including their
-declared dialect. SDK validators can reuse compiled schemas across complete
-catalog refreshes and equivalent tool outputs; changing the schema changes its
-identity. Explicit schema IDs and relative external reference bases are
-preserved. This keeps every tool and validation rule in discovery and does not
-change the SDK's catalog invalidation or availability checks.
-
-`compare_web_captures` accepts exactly one of two input shapes:
-
-- Passive: `before` and `after` each contain `inspection`, the complete
-  `normalized_result` from `inspect_web_page`. Each may also contain `webmcp`,
-  the complete `normalized_result` from `discover_webmcp_tools`, or null.
-- Scenario: `before_scenario` and `after_scenario` contain complete
-  `normalized_result` objects from `capture_browser_scenario`. Optional
-  `normalization` defaults to `{ "rules": [] }`.
-
-The advertised schema includes complete nested capture fields and rejects
-incomplete pairs and structurally malformed captures. Mixed comparison families
-can pass advertised validation; the SDK rejects them against the canonical
-input schema before invoking the handler. Domain validation additionally checks
-relationships such as event sequence references and retained counts; JSON
-Schema does not express those cross-field invariants.
-
-Call `binary_session` with `{}` and read `result.tool_availability` to choose a
-callable operation for the current target, provider, host, and negotiated client
-capabilities. The default result contains the complete inventory in groups that
-share status facts. `tool_availability.client_requirements` is the baseline for
-each group; a group's optional `client_requirements` replaces that baseline for
-the group's tools. Expand each group's `names` into one tool entry, carrying its
-surface, availability, reason, remediation, default-mode status, modes, and
-client requirements. Compare the union of group names with `tools/list` when
-checking that a client received the full catalog. An operation absent from all
-groups is missing from the complete inventory; it is not an implicit
-unavailable entry.
-
-The `effects` and `annotations` arrays list the true members of their fixed
-vocabularies. A known member omitted from either array is false. This applies
-only to these closed flag sets; it does not make an omitted tool, provider, mode,
-or limitation false. Keep availability reasons, remediation, client-feature
-requirements, and mode facts inline with the grouped tool names. The optional
-inputs `expected_package_version`, `expected_catalog_digest`, and
-`expected_server_path` compare the live session with the caller's expectations.
-
-`server_identity.catalog` contains catalog counts and schema digests. Grouped
-tool availability carries the name set and current per-tool facts; `tools/list`
-is the canonical source for complete tool definitions, including input and
-output schemas. Clients that previously read `server_identity.catalog.tools`
-should expand `tool_availability.groups` and use `tools/list` for schemas. The
-same catalog identity summary is returned by CLI `capabilities` and `providers`;
-MCP tool definitions remain available through `tools/list`.
-
-Provider capabilities are grouped by provider identity and shared facts. In each
-set, `shared_limitations` is the ordered common prefix; append a group's ordered
-`limitations` suffix to recover each operation's exact limitations. Group
-`effects` arrays use the same true-only closed-vocabulary rule as tool
-availability. Expand every group operation while retaining its provider
-identity, availability, reason, rejection code, effects, and ordered
-limitations.
-
-`binary_session.analysis_provider_candidates` is authoritative for deep-engine
-discovery. Each candidate's capability sets describe that possible provider;
-they do not select it. The top-level `capabilities` describe the current route,
-while `analysis_provider_binding` identifies the concrete selected route. These
-fields are not interchangeable. Target-free discovery is sorted by provider ID,
-reports host availability and `unknown` target support, and does not create an
-analysis client. `open_binary.provider_id` accepts a concrete provider ID or
-`auto`; it uses the same parser and selection policy as CLI `--provider` and
-`REA_ANALYSIS_PROVIDER`. A successful deep open exposes one immutable provider,
-concrete version, selection source, and complete analysis profile through
-`analysis_provider_binding`. Ambiguity and unknown, unavailable, or unsupported
-choices return typed selection details. A selected provider is never replaced
-automatically after a runtime failure.
-
-Every successful target transition allocates `binary_session.analysis_run.run_id`
-before any provider startup. `process_lineage` is `not_observed` until a dynamic
-provider starts, then becomes `snapshots` with every started provider's identity
-and retained ownership observation. Each observation records `observed_at` and
-is `unavailable` with a reason when ownership could not be revalidated, or
-`verified` with launcher PID, parent PID, process group, and descendants observed
-at that bounded check. These are historical snapshots, not live process
-inventories, and do not claim that no short-lived descendant existed.
-
-## Progress and cancellation
-
-Tool execution failures return `isError: true` and the complete canonical
-`{ "error": ... }` diagnostic as JSON in text `content`. Read that diagnostic
-for the error code, target details, partial observations, and remediation.
-Failures omit `structuredContent`, since each advertised `outputSchema`
-describes successful results. Successful replies retain their schema-validated
-structured data and matching text projection. Oversized errors are retained
-as Evidence before delivery of a bounded diagnostic with an export reference;
-if retention is unavailable or fails, the diagnostic reports that reason.
-
-REA accepts ordinary `tools/call` progress tokens. The numeric `progress` counts
-emitted status observations and strictly increases, including when a waiting
-phase has completed no additional work. Updates are rate-bounded to at most one
-intermediate update per 100 ms and always allow a terminal update. `total` is
-omitted because the number of future status observations is unknown. Read
-`message` for the phase and observed work; REA does not fabricate percentages.
-`capture_process_scenario` uses that boundary only when the client supplies a
-progress token. Notifications put the lifecycle phase, elapsed time, and final
-cleanup status in `message`. A client
-that does not send a progress token receives no progress notifications. The
-tool result is unchanged either way.
-Provider calls receive the request cancellation signal. Artifact traversal,
-hashing, version comparisons, Hopper requests, and process capture
-check the same signal. Cancellation is distinct from timeout. A cleanup failure
-uses `cleanup_incomplete` and lists only the owned resource kinds that remain.
-An atomic Evidence bundle or snapshot write can publish its complete output
-before staging cleanup fails. In that case, `details.published: true`,
-`details.published_path`, and `details.bytes` retain the publication receipt.
-Use that receipt to distinguish completed publication from a write that never
-committed. Staging resources remain owned until cleanup is verified.
-Native call tracing and process capture retain available observations in
-`details.partial_observation` on failure, including when cleanup succeeds.
-The observation reports its partial coverage; cleanup details describe host
-state separately from the execution failure.
-A process capture that fails during a finalization interval keeps every signal
-attempt and its delivery result in `details.partial_observation`, with
-`elapsed_ms` and `exit_code` null when no exit was observed.
-Derived comparisons and reconstruction verification yield before computation
-and before publication, so cancellation cannot race with successful Evidence.
-
-`analyze_javascript_application` also yields between reconstruction phases and
-during graph/result sealing, cross-graph binding checks, Evidence JSON validation,
-and canonical hashing. Its final result validation reuses exact graphs whose
-owned constructors validated and completely sealed them; imported graphs still
-receive full schema and commitment checks.
-Cancellation observed before completion returns `cancelled` and prevents the
-provisional result from entering the session ledger; prior Evidence stays usable.
-Single-file parsing, graph construction, and validation of imported graphs
-still run synchronously, so control messages can wait for those
-phases to release the event loop. A rejected client promise alone does not
-establish that the server has stopped its work.
-
-Direct CLI analysis calls work without a progress token and translate SIGINT or
-SIGTERM into the same AbortSignal used by providers. Signal guards remain active
-through provider cleanup, including repeated delivery by package runners.
-Existing controlled-process cleanup and provider shutdown rules still apply;
-REA never kills a process it cannot prove it owns.
-
-## Ghidra first-query deadlines and recovery
-
-A successful MCP initialize handshake establishes the REA connection.
-`open_binary` then selects a target and provider binding; it does not establish
-that Ghidra has finished importing the target. The first Ghidra-backed query,
-such as `binary_overview`, starts the engine and waits for import, default
-auto-analysis, bridge connection, and health readiness before returning analysis.
-
-These deadlines have different owners:
-
-| Deadline             | Owner and effect                                                                                                                                                                                                                    |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| MCP initialize       | The client bounds transport/REA connection startup, before any target query.                                                                                                                                                        |
-| Hopper startup       | REA allows 120,000 ms by default; `REA_HOPPER_STARTUP_TIMEOUT_MS` accepts decimal integers from 1–2,147,483,647 ms. Invalid values fail configuration validation. Startup failure is reported by the first provider query.          |
-| Ghidra startup       | REA allows 330,000 ms by default; `REA_GHIDRA_STARTUP_TIMEOUT_MS` accepts decimal integers from 1–2,147,483,647 ms. Invalid supplied values fail configuration validation. Startup failure is reported by the first provider query. |
-| Individual tool call | The client bounds its wait, including cold engine startup. The pinned client SDK 2.3.1 defaults to 60,000 ms and can cancel earlier than REA's startup deadline.                                                                    |
-
-For an already connected client using the pinned SDK, request options are the
-**second** argument of `callTool`:
-
-```js
-const overview = await client.callTool(
-  { name: "binary_overview", arguments: {} },
-  {
-    timeout: 240000,
-    onprogress: ({ progress, total, message }) => {
-      console.error({ progress, total, message });
-    },
-  },
-);
-```
-
-The SDK's `onprogress` option supplies a progress token and handles matching
-notifications. A raw MCP client can instead send `_meta.progressToken` in the
-request and handle `notifications/progress`. Progress reports do not establish
-engine readiness or a percentage of Ghidra auto-analysis. A longer server
-startup allowance does not extend the client's deadline; progress also does not
-extend it unless the client explicitly implements that policy.
-
-While Ghidra startup is pending, REA sends a waiting notification every ten
-seconds when the request has a progress token. Its message gives elapsed waiting
-time; import, auto-analysis and bridge readiness may all still be pending.
-Waiting notifications stop when startup settles or the caller cancels. They do
-not measure engine work completed.
-
-The pinned SDK can reset the request's inactivity timeout on progress with
-`resetTimeoutOnProgress: true`. Also set `maxTotalTimeout` to bound the complete
-request; the provider's startup deadline still applies. These options belong in
-the same second argument of `callTool`. Without that explicit client policy, the
-default 60-second request deadline still expires despite waiting notifications.
-
-The 240-second setting is a measured example, not a universal timeout: a
-controlled Linux x64/WSL2 fixture took about 64 seconds for its first overview
-with Ghidra 12.1.4 on a mounted NTFS installation, native JDK 21, two CPUs, and a
-512 MiB Java heap. Target size, storage, and analysis work can change that time.
-Configure the deadline in the caller's existing request settings; it is not a
-tool argument, setup grant, or server-side automatic extension. CLI analysis has
-no MCP client request deadline, but keeps the provider startup deadline and
-SIGINT cancellation.
-
-If the client timed out or cancelled during startup, the pending query may have
-been interrupted. Reissuing `open_binary` for the same active target can reuse
-the current client, so it is not a fresh-start recovery. On the same connection:
-
-1. Keep any useful inline Evidence, or export a bundle before closing if retained
-   records are needed. `binary_session` can show the selected binding and its
-   recorded state; target selection alone does not prove engine readiness.
-2. Call `close_binary` and check its result. It drains owned work, closes the
-   provider, and clears retained session records. A `cleanup_incomplete` result
-   must be addressed according to its reported owned resources before retrying.
-3. Call `open_binary` with the same caller-selected path and
-   `provider_id: "ghidra"`, then retry the first query with an appropriate client
-   deadline. The connection and selected provider do not need to change.
-
-This close/reopen flow was exercised on one real Linux stdio connection after a
-controlled startup timeout, followed by a successful overview and function
-analysis. A separate Windows x64 stdio run with Ghidra 12.1.4, JDK 21 and Node
-22.19.0 exercised the same connection and caller-selected native PE: the default
-60-second client request timed out, close succeeded, and reopening before a
-240-second request completed the cold overview in about 163 seconds. The next
-overview took about 19 ms. The cold and warm overviews reported two procedures
-and two segments; the input digest was unchanged and no owned runtime root or
-observed process-family member remained after final close. This was a small
-1,024-byte fixture, so the longer request setting remains an example, not a
-guarantee for larger targets. No macOS cold-start recovery was exercised.
-
-With a supplied progress token, that earlier Windows run received an operation-start
-notification before timeout and start/completion notifications for the
-successful retry, before startup waiting notifications were added. It received
-no intermediate import or auto-analysis progress.
-These operation markers do not measure analysis work completed or extend the
-client's deadline. Each new provider session still imports the target into a
-fresh temporary project.
-
-REA cleans only resources it owns and never switches to another provider
-automatically. A provider timeout, installation failure, or host permission
-denial needs its own reported recovery; increasing a client deadline alone does
-not fix those failures.
+Use this reference to call REA tools and interpret their replies on one MCP
+connection. Start with [tool results](#tool-results), [retained Evidence](#retained-application-evidence-inputs),
+and [session discovery](#identity-and-discovery). See [cancellation](#progress-and-cancellation)
+for partial-result recovery and [first-query deadlines](#ghidra-first-query-deadlines-and-recovery)
+when a cold provider exceeds the client's wait.
 
 ## Tool results
-
-Custom clients upgrading from 6.1 should follow the
-[6.2 migration guide](migration-6.2.md#mcp-results-and-evidence).
 
 Evidence-producing tools return the complete canonical Evidence record in both
 text and structured content. Read `structuredContent.normalized_result` for the
@@ -345,6 +20,15 @@ directly to a compatible comparison tool: `analyze_function` Evidence can be pas
 directly to `compare_functions`, and `inspect_artifact` Evidence to
 `compare_artifacts`. Use `get_evidence_bundle` when the task needs broader
 retained session history or an explicit bundle for transfer.
+
+Tool execution failures return `isError: true` and the complete canonical
+`{ "error": ... }` diagnostic as JSON in text `content`. Read that diagnostic
+for the error code, target details, partial observations, and remediation.
+Failures omit `structuredContent`, since each advertised `outputSchema`
+describes successful results. Successful replies retain their schema-validated
+structured data and matching text projection. Oversized errors are retained
+as Evidence before delivery of a bounded diagnostic with an export reference;
+if retention is unavailable or fails, the diagnostic reports that reason.
 
 `get_call_graph` returns a `graph` keyed by traversal depth and a top-level
 `limitations` array with deduplicated execution caveats. Each node keeps its
@@ -526,18 +210,132 @@ JSON to a file and use `inspect-analysis-view` with inline source Evidence for
 later inventory summaries or pages; a one-shot CLI session cannot retain a
 parent for another invocation.
 
-## Aggregate native context
+## Identity and discovery
 
-`get_navigation_context` composes the selected document, current address, and
-current/containing procedure. Its capability inventory exposes a
-`current_selection` mode and an `explicit_document` mode; the latter works when
-the caller supplies `document` and the provider lacks `current_document`. A
-cursor outside a procedure is represented as
-`procedure: null`. `inspect_address_context` requires an explicit address and
-returns name, procedure, comment, inline-comment, and bookmark facets;
-unsupported facets are local `unavailable` outcomes. Use `current_document`,
-`current_address`, and `current_procedure` for direct single-field lookups; use
-the aggregate tools when you need related context together.
+`binary_session` reports the active package, server, SDK, and negotiated
+protocol details. `rea doctor` separately inspects supported JSON/TOML client
+registrations, reports their command vectors as aligned, stale, missing, or
+invalid, and keeps live-server state `unknown` unless the active connection
+supplies identity.
+
+`tools/list` returns the complete canonical tool inventory, including tools that
+are currently unavailable. Opening or closing a target or observing a provider
+health transition leaves that catalog unchanged and does not emit
+`notifications/tools/list_changed`.
+
+Call `binary_session` with `{}` and read `result.tool_availability` to choose a
+callable operation for the current target, provider, host, and negotiated client
+capabilities. The default result contains the complete inventory in groups that
+share status facts. `tool_availability.client_requirements` is the baseline for
+each group; a group's optional `client_requirements` replaces that baseline for
+the group's tools. Expand each group's `names` into one tool entry, carrying its
+surface, availability, reason, remediation, default-mode status, modes, and
+client requirements. Compare the union of group names with `tools/list` when
+checking that a client received the full catalog. An operation absent from all
+groups is missing from the complete inventory; it is not an implicit
+unavailable entry.
+
+The `effects` and `annotations` arrays list the true members of their fixed
+vocabularies. A known member omitted from either array is false. This applies
+only to these closed flag sets; it does not make an omitted tool, provider, mode,
+or limitation false. Keep availability reasons, remediation, client-feature
+requirements, and mode facts inline with the grouped tool names. The optional
+inputs `expected_package_version`, `expected_catalog_digest`, and
+`expected_server_path` compare the live session with the caller's expectations.
+
+`server_identity.catalog` contains catalog counts and schema digests. Grouped
+tool availability carries the name set and current per-tool facts; `tools/list`
+is the canonical source for complete tool definitions, including input and
+output schemas. Clients that previously read `server_identity.catalog.tools`
+should expand `tool_availability.groups` and use `tools/list` for schemas. The
+same catalog identity summary is returned by CLI `capabilities` and `providers`;
+MCP tool definitions remain available through `tools/list`.
+
+Provider capabilities are grouped by provider identity and shared facts. In each
+set, `shared_limitations` is the ordered common prefix; append a group's ordered
+`limitations` suffix to recover each operation's exact limitations. Group
+`effects` arrays use the same true-only closed-vocabulary rule as tool
+availability. Expand every group operation while retaining its provider
+identity, availability, reason, rejection code, effects, and ordered
+limitations.
+
+`binary_session.analysis_provider_candidates` is authoritative for deep-engine
+discovery. Each candidate's capability sets describe that possible provider;
+they do not select it. The top-level `capabilities` describe the current route,
+while `analysis_provider_binding` identifies the concrete selected route. These
+fields are not interchangeable. Target-free discovery is sorted by provider ID,
+reports host availability and `unknown` target support, and does not create an
+analysis client. `open_binary.provider_id` accepts a concrete provider ID or
+`auto`; it uses the same parser and selection policy as CLI `--provider` and
+`REA_ANALYSIS_PROVIDER`. A successful deep open exposes one immutable provider,
+concrete version, selection source, and complete analysis profile through
+`analysis_provider_binding`. Ambiguity and unknown, unavailable, or unsupported
+choices return typed selection details. A selected provider is never replaced
+automatically after a runtime failure.
+
+Every successful target transition allocates `binary_session.analysis_run.run_id`
+before any provider startup. `process_lineage` is `not_observed` until a dynamic
+provider starts, then becomes `snapshots` with every started provider's identity
+and retained ownership observation. Each observation records `observed_at` and
+is `unavailable` with a reason when ownership could not be revalidated, or
+`verified` with launcher PID, parent PID, process group, and descendants observed
+at that bounded check. These are historical snapshots, not live process
+inventories, and do not claim that no short-lived descendant existed.
+
+## Progress and cancellation
+
+REA accepts ordinary `tools/call` progress tokens. The numeric `progress` counts
+emitted status observations and strictly increases, including when a waiting
+phase has completed no additional work. Updates are rate-bounded to at most one
+intermediate update per 100 ms and always allow a terminal update. `total` is
+omitted because the number of future status observations is unknown. Read
+`message` for the phase and observed work; REA does not fabricate percentages.
+`capture_process_scenario` uses that boundary only when the client supplies a
+progress token. Notifications put the lifecycle phase, elapsed time, and final
+cleanup status in `message`. A client
+that does not send a progress token receives no progress notifications. The
+tool result is unchanged either way.
+Provider calls receive the request cancellation signal. Artifact traversal,
+hashing, version comparisons, Hopper requests, and process capture
+check the same signal. Cancellation is distinct from timeout. A cleanup failure
+uses `cleanup_incomplete` and lists only the owned resource kinds that remain.
+An atomic Evidence bundle or snapshot write can publish its complete output
+before staging cleanup fails. In that case, `details.published: true`,
+`details.published_path`, and `details.bytes` retain the publication receipt.
+Use that receipt to distinguish completed publication from a write that never
+committed. Staging resources remain owned until cleanup is verified.
+Native call tracing and process capture retain available observations in
+`details.partial_observation` on failure, including when cleanup succeeds.
+The observation reports its partial coverage; cleanup details describe host
+state separately from the execution failure.
+A process capture that fails during a finalization interval keeps every signal
+attempt and its delivery result in `details.partial_observation`, with
+`elapsed_ms` and `exit_code` null when no exit was observed.
+Derived comparisons and reconstruction verification yield before computation
+and before publication, so cancellation cannot race with successful Evidence.
+
+`analyze_javascript_application` also yields between reconstruction phases and
+during graph/result sealing, cross-graph binding checks, Evidence JSON validation,
+and canonical hashing. Its final result validation reuses exact graphs whose
+owned constructors validated and completely sealed them; imported graphs still
+receive full schema and commitment checks.
+Cancellation before completion returns `cancelled` instead of a successful
+result. Completed facts can be retained as new partial Evidence; prior Evidence
+also stays usable. Read the error's `partial_observation` reference on the same
+MCP connection. If the SDK stopped waiting before that reply arrived, use
+`get_evidence_bundle` with `detail: "summary"` and an operation filter to find
+the partial record, then open it with `inspect_analysis_view`. Cancellation
+before any facts are completed may leave no partial record.
+Single-file parsing, graph construction, and validation of imported graphs
+still run synchronously, so control messages can wait for those
+phases to release the event loop. A rejected client promise alone does not
+establish that the server has stopped its work.
+
+Direct CLI analysis calls work without a progress token and translate SIGINT or
+SIGTERM into the same AbortSignal used by providers. Signal guards remain active
+through provider cleanup, including repeated delivery by package runners.
+Existing controlled-process cleanup and provider shutdown rules still apply;
+REA never kills a process it cannot prove it owns.
 
 ## Request scope and local effects
 
@@ -581,6 +379,118 @@ files into a fresh REA-chosen temporary directory and reports its path.
 `analyze_javascript_application` reads the supplied local directory or ASAR path
 and returns its result and Evidence inline.
 
+## Ghidra first-query deadlines and recovery
+
+A successful MCP initialize handshake establishes the REA connection.
+`open_binary` then selects a target and provider binding; it does not establish
+that Ghidra has finished importing the target. The first Ghidra-backed query,
+such as `binary_overview`, starts the engine and waits for import, default
+auto-analysis, bridge connection, and health readiness before returning analysis.
+
+These deadlines have different owners:
+
+| Deadline             | Owner and effect                                                                                                                                                                                                                    |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MCP initialize       | The client bounds transport/REA connection startup, before any target query.                                                                                                                                                        |
+| Hopper startup       | REA allows 120,000 ms by default; `REA_HOPPER_STARTUP_TIMEOUT_MS` accepts decimal integers from 1–2,147,483,647 ms. Invalid values fail configuration validation. Startup failure is reported by the first provider query.          |
+| Ghidra startup       | REA allows 330,000 ms by default; `REA_GHIDRA_STARTUP_TIMEOUT_MS` accepts decimal integers from 1–2,147,483,647 ms. Invalid supplied values fail configuration validation. Startup failure is reported by the first provider query. |
+| Individual tool call | The client bounds its wait, including cold engine startup. The pinned client SDK 2.3.1 defaults to 60,000 ms and can cancel earlier than REA's startup deadline.                                                                    |
+
+For an already connected client using the pinned SDK, request options are the
+**second** argument of `callTool`:
+
+```js
+const overview = await client.callTool(
+  { name: "binary_overview", arguments: {} },
+  {
+    timeout: 240000,
+    onprogress: ({ progress, total, message }) => {
+      console.error({ progress, total, message });
+    },
+  },
+);
+```
+
+The SDK's `onprogress` option supplies a progress token and handles matching
+notifications. A raw MCP client can instead send `_meta.progressToken` in the
+request and handle `notifications/progress`. Progress reports do not establish
+engine readiness or a percentage of Ghidra auto-analysis. A longer server
+startup allowance does not extend the client's deadline; progress also does not
+extend it unless the client explicitly implements that policy.
+
+While Ghidra startup is pending, REA sends a waiting notification every ten
+seconds when the request has a progress token. Its message gives elapsed waiting
+time; import, auto-analysis and bridge readiness may all still be pending.
+Waiting notifications stop when startup settles or the caller cancels. They do
+not measure engine work completed.
+
+The pinned SDK can reset the request's inactivity timeout on progress with
+`resetTimeoutOnProgress: true`. Also set `maxTotalTimeout` to bound the complete
+request; the provider's startup deadline still applies. These options belong in
+the same second argument of `callTool`. Without that explicit client policy, the
+default 60-second request deadline still expires despite waiting notifications.
+
+The 240-second setting is a measured example, not a universal timeout: a
+controlled Linux x64/WSL2 fixture took about 64 seconds for its first overview
+with Ghidra 12.1.4 on a mounted NTFS installation, native JDK 21, two CPUs, and a
+512 MiB Java heap. Target size, storage, and analysis work can change that time.
+Configure the deadline in the caller's existing request settings; it is not a
+tool argument, setup grant, or server-side automatic extension. CLI analysis has
+no MCP client request deadline, but keeps the provider startup deadline and
+SIGINT cancellation.
+
+If the client timed out or cancelled during startup, the pending query may have
+been interrupted. Reissuing `open_binary` for the same active target can reuse
+the current client, so it is not a fresh-start recovery. On the same connection:
+
+1. Keep any useful inline Evidence, or export a bundle before closing if retained
+   records are needed. `binary_session` can show the selected binding and its
+   recorded state; target selection alone does not prove engine readiness.
+2. Call `close_binary` and check its result. It drains owned work, closes the
+   provider, and clears retained session records. A `cleanup_incomplete` result
+   must be addressed according to its reported owned resources before retrying.
+3. Call `open_binary` with the same caller-selected path and
+   `provider_id: "ghidra"`, then retry the first query with an appropriate client
+   deadline. The connection and selected provider do not need to change.
+
+This close/reopen flow was exercised on one real Linux stdio connection after a
+controlled startup timeout, followed by a successful overview and function
+analysis. A separate Windows x64 stdio run with Ghidra 12.1.4, JDK 21 and Node
+22.19.0 exercised the same connection and caller-selected native PE: the default
+60-second client request timed out, close succeeded, and reopening before a
+240-second request completed the cold overview in about 163 seconds. The next
+overview took about 19 ms. The cold and warm overviews reported two procedures
+and two segments; the input digest was unchanged and no owned runtime root or
+observed process-family member remained after final close. This was a small
+1,024-byte fixture, so the longer request setting remains an example, not a
+guarantee for larger targets. No macOS cold-start recovery was exercised.
+
+With a supplied progress token, that earlier Windows run received an operation-start
+notification before timeout and start/completion notifications for the
+successful retry, before startup waiting notifications were added. It received
+no intermediate import or auto-analysis progress.
+These operation markers do not measure analysis work completed or extend the
+client's deadline. Each new provider session still imports the target into a
+fresh temporary project.
+
+REA cleans only resources it owns and never switches to another provider
+automatically. A provider timeout, installation failure, or host permission
+denial needs its own reported recovery; increasing a client deadline alone does
+not fix those failures.
+
+## Aggregate native context
+
+`get_navigation_context` composes the selected document, current address, and
+current/containing procedure. Its capability inventory exposes a
+`current_selection` mode and an `explicit_document` mode; the latter works when
+the caller supplies `document` and the provider lacks `current_document`. A
+cursor outside a procedure is represented as
+`procedure: null`. `inspect_address_context` requires an explicit address and
+returns name, procedure, comment, inline-comment, and bookmark facets;
+unsupported facets are local `unavailable` outcomes. Use `current_document`,
+`current_address`, and `current_procedure` for direct single-field lookups; use
+the aggregate tools when you need related context together.
+
 ## Integrity record-and-continue
 
 Artifact integrity fails closed by default. A request can explicitly select
@@ -609,3 +519,110 @@ writing the archive header, so their declared hashes no longer match. Electron
 does not check unpacked companions against those hashes at runtime. Integrity
 failures for such entries name this cause and the operation to rerun with
 `record-and-continue`; REA does not exempt unpacked entries silently.
+
+## Schema advertisement
+
+Advertised input and output schemas contain no reachable recursive references.
+Schemas share repeated definitions through schema-local references while
+preserving complete nested fields and validation rules. Input properties retain
+their descriptions and literal examples.
+
+When a host forwards input schemas to the model, their examples consume context.
+REA's advertised examples therefore never copy complete producer Evidence.
+An embedded Evidence record is shown as its exact `{"kind":"retained-evidence","evidence_id":"ev_..."}`
+reference where the tool accepts one. An example that can only carry inline
+Evidence stays in the canonical contract and its executable tests, but is not
+advertised. Every advertised example is a distinct valid canonical input.
+
+Root object unions are presented as
+one object without root `anyOf`, `oneOf`, or `allOf` for model API compatibility.
+The projection merges properties, retains shared required fields and
+group-specific field dependencies, and describes the accepted input groups.
+Canonical runtime validation enforces the exact union, including exclusions
+that the advertised projection does not express. Tests validate the schemas
+after SDK conversion and check advertised validation and actual calls.
+Individual model APIs can impose additional nesting limits; complete producer
+captures can exceed ten structural levels.
+
+### Compact input schema profile
+
+Some function-calling providers reject a request while any single tool's
+`parameters` schema exceeds a literal serialized size cap; Moonshot clients
+such as kimi-cli fail every request while the default catalog is attached
+([#1484](https://github.com/morluto/rea/issues/1484)). Setting the server's
+`REA_MCP_INPUT_SCHEMA_PROFILE` environment variable to `compact` renders every
+advertised input schema within a 13,312-byte budget, measured to sit below
+Moonshot's observed cap (community measurements: a 13.7 KB schema is accepted
+while a ~15 KB one is rejected). The setting is read at startup; restart the
+server to apply changes, as with `REA_MCP_MAX_RESPONSE_BYTES`. The default
+value `full` keeps the complete advertisement unchanged.
+
+The compact profile renders the same tool set, output schemas, annotations,
+and canonical server-side validation. It changes only the advertised input
+JSON Schema:
+
+- Annotation prose leaves the advertised form: nested property descriptions,
+  literal examples, defaults, and titles are dropped. The root keeps its
+  description because it states the accepted input groups.
+- Schema-local references are inlined within the budget. Kimi Code expands
+  references before sending provider requests, so sharing definitions cannot
+  establish the provider-facing size. Expansion stops at the budget before
+  allocating an oversized presentation. Unconstrained JSON fields advertise
+  all JSON value types explicitly so Kimi cannot infer string for Evidence
+  objects or arrays.
+- The few schemas whose validation structure alone exceeds the budget
+  (`compare_web_captures`, `build_reconstruction_obligation_ledger`,
+  `evaluate_reconstruction_coverage`, `project_managed_application_graph`,
+  `compare_application_versions`, `capture_browser_scenario`) are advertised
+  in a reduced form: property names, reference-resolved types (including union
+  alternatives), first-level guidance, and the root's required-field constraints,
+  with nested validation detail elided. The
+  canonical schema still rejects malformed calls server-side, so callers
+  following the reduced advertisement receive the canonical typed error
+  instead of silent acceptance.
+
+Boundary tests pin every advertised compact schema to the budget, keep them
+valid JSON Schema that still accepts every canonical example, and hold the
+set of six reduced presentations as contracts evolve. Client verification
+also checks provider-facing sizes and canonical examples after conversion by
+the actual Kimi Code CLI; local captures do not establish Moonshot acceptance.
+
+### Output schemas
+
+Self-contained output schemas advertise a content-bound `$id`, including their
+declared dialect. SDK validators can reuse compiled schemas across complete
+catalog refreshes and equivalent tool outputs; changing the schema changes its
+identity. Explicit schema IDs and relative external reference bases are
+preserved. This keeps every tool and validation rule in discovery and does not
+change the SDK's catalog invalidation or availability checks.
+
+### Comparison input shapes
+
+`compare_web_captures` accepts exactly one of two input shapes:
+
+- Passive: `before` and `after` each contain `inspection`, the complete
+  `normalized_result` from `inspect_web_page`. Each may also contain `webmcp`,
+  the complete `normalized_result` from `discover_webmcp_tools`, or null.
+- Scenario: `before_scenario` and `after_scenario` contain complete
+  `normalized_result` objects from `capture_browser_scenario`. Optional
+  `normalization` defaults to `{ "rules": [] }`.
+
+The advertised schema includes complete nested capture fields and rejects
+incomplete pairs and structurally malformed captures. Mixed comparison families
+can pass advertised validation; the SDK rejects them against the canonical
+input schema before invoking the handler. Domain validation additionally checks
+relationships such as event sequence references and retained counts; JSON
+Schema does not express those cross-field invariants.
+
+## Generated catalog
+
+Custom clients upgrading from 6.1 should follow the
+[6.2 migration guide](migration-6.2.md#mcp-results-and-evidence).
+
+Run `npm run docs:generate` in a source checkout to generate the machine-readable
+catalog at `docs/public/product-catalog.json`. Documentation deployments serve
+the same file at [/rea/product-catalog.json](/rea/product-catalog.json). PR CI retains it with the packaged
+skill and portable conformance projections in the `generated-docs` artifact.
+These outputs describe the exact source revision being built; they are not
+checked-in snapshots. For a running server, `binary_session` remains the
+authoritative source of catalog identity and tool availability.

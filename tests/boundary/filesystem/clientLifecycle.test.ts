@@ -70,6 +70,7 @@ describe("client configuration filesystem lifecycle", () => {
       "omp",
       "pi",
       "hermes",
+      "qoder",
       "zcode",
       "dsh",
       "grok_bot",

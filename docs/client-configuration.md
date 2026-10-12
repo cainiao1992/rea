@@ -145,6 +145,15 @@ REA follows `HERMES_HOME` whitespace trimming, environment-variable expansion,
 and home expansion before resolving that profile. Setup previews the resolved
 configuration and skill destinations; doctor and uninstall use those same paths.
 
+## Qoder CLI
+
+For [Qoder](https://docs.qoder.com/cli/mcp-reference), setup writes
+`mcpServers.rea` into the user-level `~/.qoder/settings.json` (the
+`QODER_CONFIG_DIR` override is honored). Entries carry `command`, `args`, and
+`env`; stdio is the default transport. Qoder CLI discovers personal skills
+from `~/.qoder/skills` (following `QODER_CONFIG_DIR` when set), so setup
+installs its skill copy there.
+
 ## Trae
 
 For [Trae](https://docs.trae.ai/ide/add-mcp-servers), setup writes

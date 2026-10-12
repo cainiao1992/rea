@@ -128,6 +128,9 @@ const claudeCodeMarkerDirectory = ({ home, env }: ClientPathContext): string =>
 const codexDirectory = ({ home, env }: ClientPathContext): string =>
   env.CODEX_HOME || join(home, ".codex");
 
+const qoderDirectory = ({ home, env }: ClientPathContext): string =>
+  env.QODER_CONFIG_DIR || join(home, ".qoder");
+
 /** Match Qwen Code's home override, including tilde and cwd-relative paths. */
 const qwenCodeDirectory = ({ home, env }: ClientPathContext): string => {
   const override = env.QWEN_HOME;
@@ -527,6 +530,16 @@ export const SUPPORTED_CLIENT_DEFINITIONS = [
       join(hermesDirectory(context), "config.yaml"),
     markerPath: hermesDirectory,
     format: "hermes",
+  },
+  {
+    name: "qoder",
+    displayName: "Qoder",
+    skillPath: (context: ClientPathContext) =>
+      join(qoderDirectory(context), "skills"),
+    configPath: (context: ClientPathContext) =>
+      join(qoderDirectory(context), "settings.json"),
+    markerPath: qoderDirectory,
+    format: "json",
   },
   {
     name: "zcode",

@@ -32,7 +32,11 @@ import { SafeOutputTreeCreationFailure } from "../../../src/artifacts/SafeOutput
 import { selectScriptCapture } from "../../../src/browser/assets/ScriptCaptureAdapters.js";
 import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
-import { webScriptExportResultSchema } from "../../../src/domain/webScriptExport.js";
+import { PLAYWRIGHT_RESPONSE_BODY_PROVENANCE_LIMITATION } from "../../../src/domain/browserNetworkEvidence.js";
+import {
+  webScriptExportManifestSchema,
+  webScriptExportResultSchema,
+} from "../../../src/domain/webScriptExport.js";
 import { readWithoutFifoWriter } from "../../fixtures/fifoInput.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import {
@@ -137,43 +141,72 @@ describe("captured script publication boundary", () => {
     );
   });
 
-  it("links authenticated input Evidence and preserves binary and empty source bytes", async () => {
+  it("links authenticated input Evidence", async () => {
     const { input, resources } = await setup();
     const result = await exportWebScripts(input, resources);
     if (!result.ok) throw result.error;
     expect(result.value.evidence_links).toEqual([
       scriptCaptureEvidenceFixture().evidence_id,
     ]);
-    const binary = Buffer.from([255, 0, 254, 1]);
-    const { input: binaryInput, resources: binaryResources } = await setup(
-      scriptScenarioFixture([
+  });
+
+  it.each([
+    "playwright-response-body-bytes",
+    "browser-decoded-response-bytes",
+  ] as const)(
+    "preserves binary and empty response bytes and provenance for %s",
+    async (representation) => {
+      const binary = Buffer.from([255, 0, 254, 1]);
+      const capture = scriptScenarioFixture([
         { url: "https://fixture.test/binary.js", bytes: binary },
         { url: "https://fixture.test/empty.js", bytes: Buffer.alloc(0) },
-      ]),
-    );
-    const binaryExport = await exportWebScripts(binaryInput, binaryResources);
-    if (!binaryExport.ok) throw binaryExport.error;
-    const parsed = webScriptExportResultSchema.parse(
-      binaryExport.value.normalized_result,
-    );
-    const [first, second] = parsed.scripts;
-    if (
-      first?.content.state !== "exported" ||
-      second?.content.state !== "exported" ||
-      parsed.analysis_input === null
-    )
-      throw new Error("Missing exported bytes");
-    expect(
-      await readFile(
-        join(parsed.analysis_input.input_path, first.content.relative_path),
-      ),
-    ).toEqual(binary);
-    expect(
-      await readFile(
-        join(parsed.analysis_input.input_path, second.content.relative_path),
-      ),
-    ).toHaveLength(0);
-  });
+      ]);
+      for (const event of capture.events.items) {
+        if (event.kind === "network-content" && event.body.state === "captured")
+          event.body.representation = representation;
+      }
+      const { input: binaryInput, resources: binaryResources } =
+        await setup(capture);
+      const binaryExport = await exportWebScripts(binaryInput, binaryResources);
+      if (!binaryExport.ok) throw binaryExport.error;
+      const parsed = webScriptExportResultSchema.parse(
+        binaryExport.value.normalized_result,
+      );
+      const [first, second] = parsed.scripts;
+      if (
+        first?.content.state !== "exported" ||
+        second?.content.state !== "exported" ||
+        parsed.analysis_input === null
+      )
+        throw new Error("Missing exported bytes");
+      expect(first.content.representation).toBe(representation);
+      expect(second.content.representation).toBe(representation);
+      expect(parsed.limitations).toContain(
+        PLAYWRIGHT_RESPONSE_BODY_PROVENANCE_LIMITATION,
+      );
+      const persisted = webScriptExportManifestSchema.parse(
+        JSON.parse(await readFile(parsed.manifest.path, "utf8")),
+      );
+      expect(
+        persisted.scripts.map(({ content }) =>
+          content.state === "exported" ? content.representation : undefined,
+        ),
+      ).toEqual([representation, representation]);
+      expect(persisted.limitations).toContain(
+        PLAYWRIGHT_RESPONSE_BODY_PROVENANCE_LIMITATION,
+      );
+      expect(
+        await readFile(
+          join(parsed.analysis_input.input_path, first.content.relative_path),
+        ),
+      ).toEqual(binary);
+      expect(
+        await readFile(
+          join(parsed.analysis_input.input_path, second.content.relative_path),
+        ),
+      ).toHaveLength(0);
+    },
+  );
 
   it("retains missing sources in a manifest without inventing an analysis directory", async () => {
     const capture = scriptScenarioFixture();

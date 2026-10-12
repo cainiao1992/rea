@@ -310,6 +310,15 @@ const removeClient = async (
   // still belongs to that id, and so does a direct patch that projects no row.
   const carriesDshEntry =
     parsed.dialect === "dsh" && dshDocument(parsed.document).carriesEntry;
+  if (
+    parsed.dialect === "dsh" &&
+    dshDocument(parsed.document).hasUnknownStructure
+  )
+    return item(
+      client.name,
+      "retained",
+      "A Cordis expression may produce registration rows, so the patch was retained without changes.",
+    );
   if (!hasNative && legacyPath === undefined && !carriesDshEntry)
     return item(client.name, "skipped", "REA registration is absent.");
   const removeNative =

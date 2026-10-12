@@ -37,6 +37,31 @@ module page. See
 [JavaScript application workflows](javascript-application-workflows.md) for
 views, feature traces and comparisons that take the same saved Evidence.
 
+## Managed assemblies (.NET)
+
+For a .NET PE/CLI assembly, inspect its identity and deployment form before
+inspecting members. These commands read metadata and Common Intermediate
+Language (CIL) without loading or executing the assembly and require no native
+analysis engine:
+
+```bash
+rea inspect-managed-artifact /absolute/path/Assembly.dll --json
+rea inspect-managed-members /absolute/path/Assembly.dll --json
+rea inspect-managed-members /absolute/path/Assembly.dll --type Example.Parser --json
+```
+
+Replace `Example.Parser` with an exact `full_name` from the member inspection,
+or a declaring type name you already know. Omit `--type` to inspect all members,
+or repeat it to select several types.
+Selection limits decoding to the selected types; member references remain an
+assembly-wide inventory, so the output can still be large.
+
+Choose the workflow from the artifact's contents rather than its `.exe` or
+`.dll` extension. The managed parser requires PE/CLI metadata; it does not
+unpack .NET single-file hosts or decode IL2CPP metadata. NativeAOT method bodies
+require native analysis. See the [managed-code guide](managed-code-analysis.md)
+for supported deployment forms, selection semantics, and coverage limits.
+
 ## Native analysis
 
 Inspect embedded Go build metadata without installing Go or configuring a

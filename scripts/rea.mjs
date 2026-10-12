@@ -37,7 +37,7 @@ const runtimeFiles = isMcpMode
     : [
         "dist/cli-runtime/cli.js",
         "dist/cli-runtime/cliOutput.js",
-        "dist/cli-runtime/streamedJsonOutput.js",
+        "dist/cli-runtime/cliResultOutput.js",
       ];
 
 if (!(await compiledRuntimeExists(runtimeFiles))) {
@@ -60,8 +60,8 @@ if (!(await compiledRuntimeExists(runtimeFiles))) {
 } else {
   const { cliConfigurationError, createCli } =
     await import("../dist/cli-runtime/cli.js");
-  const { createStreamedCliJsonOutput } =
-    await import("../dist/cli-runtime/streamedJsonOutput.js");
+  const { createCliResultOutput } =
+    await import("../dist/cli-runtime/cliResultOutput.js");
   const {
     renderCliOutputArgumentError,
     renderEmptyFilteredCliOutput,
@@ -77,7 +77,7 @@ if (!(await compiledRuntimeExists(runtimeFiles))) {
     process.exitCode = 1;
   } else {
     let wroteOutput = false;
-    const resultOutput = createStreamedCliJsonOutput(args, process.stdout);
+    const resultOutput = createCliResultOutput(args, process.stdout);
     await createCli(process.env, resultOutput).serve(args, {
       stdout: (output) => {
         if (resultOutput?.handled) {

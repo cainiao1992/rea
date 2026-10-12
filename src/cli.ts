@@ -44,7 +44,7 @@ import type { CliInstance } from "./cli/types.js";
 import {
   streamCliCommandResults,
   type CliResultOutput,
-} from "./cli/streamedJsonOutput.js";
+} from "./cli/cliResultOutput.js";
 
 /** Describe CLI settings that are invalid before any command runs, as MCP does. */
 export const cliConfigurationError = (

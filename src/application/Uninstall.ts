@@ -289,7 +289,7 @@ const readClientConfiguration = async (
         "failed",
         cause instanceof ClientConfigurationShapeError
           ? `Configuration was not changed: ${cause.message}. Repair it, then rerun uninstall.`
-          : `Configuration is not valid ${client.format === "toml" || client.format === "grok" ? "TOML" : client.format === "opencode" ? "JSONC" : "JSON"} and was not changed. Repair it, then rerun uninstall.`,
+          : `Configuration is not valid ${client.format === "toml" || client.format === "grok" ? "TOML" : client.format === "opencode" ? "JSONC" : client.format === "hermes" || client.format === "dsh" ? "YAML" : "JSON"} and was not changed. Repair it, then rerun uninstall.`,
       ),
     );
   }

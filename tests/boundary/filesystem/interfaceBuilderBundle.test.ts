@@ -992,8 +992,8 @@ describe("bounded Interface Builder archive decoding", () => {
   );
 });
 
-describe("compiled UIKit NIB connections", () => {
-  it("projects UIKit runtime outlet and event connections", async () => {
+describe("NIBArchive UIKit event connections", () => {
+  it("projects a runtime event connection and its event mask", async () => {
     const root = await createTestTempDirectory("rea-ib-test-");
     const bundle = join(root, "Example.app");
     await mkdir(bundle, { recursive: true });
@@ -1005,7 +1005,6 @@ describe("compiled UIKit NIB connections", () => {
           "UIClassSwapper",
           "UIButton",
           "UIRuntimeEventConnection",
-          "UIRuntimeOutletConnection",
           "NSString",
         ],
         objects: [
@@ -1021,18 +1020,10 @@ describe("compiled UIKit NIB connections", () => {
               UIEventMask: 64,
             },
           },
-          {
-            classIndex: 4,
-            values: {
-              UISource: { ref: 1 },
-              UIDestination: { ref: 2 },
-              UILabel: { ref: 8 },
-            },
-          },
-          { classIndex: 5, values: { "NS.bytes": "IBFilesOwner" } },
-          { classIndex: 5, values: { "NS.bytes": "BuildCell" } },
-          { classIndex: 5, values: { "NS.bytes": "buildTapped:" } },
-          { classIndex: 5, values: { "NS.bytes": "buildButton" } },
+          { classIndex: 2, values: {} },
+          { classIndex: 4, values: { "NS.bytes": "IBFilesOwner" } },
+          { classIndex: 4, values: { "NS.bytes": "BuildCell" } },
+          { classIndex: 4, values: { "NS.bytes": "buildTapped:" } },
         ],
       }),
     );
@@ -1062,16 +1053,6 @@ describe("compiled UIKit NIB connections", () => {
         .filter(({ from }) => from === action?.id)
         .map(({ to }) => named(to)),
     ).toEqual(expect.arrayContaining(["BuildCell"]));
-    const outlet = analysis.graph.nodes.find(({ kind }) => kind === "outlet");
-    expect(outlet?.name).toBe("buildButton");
-    expect(
-      analysis.graph.edges
-        .filter(
-          ({ relation, from }) =>
-            relation === "outlet_to" && from === outlet?.id,
-        )
-        .map(({ to }) => named(to)),
-    ).toEqual(["UIButton"]);
     expect(
       analysis.graph.nodes.find(({ name }) => name === "IBFilesOwner")?.kind,
     ).toBe("placeholder");

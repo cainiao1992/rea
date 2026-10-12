@@ -30,6 +30,7 @@ const sameSettings = [
   "provider_search_path_sha256",
   "provider_environment_policy_sha256",
   "measure_source_sha256",
+  "native_workflow_source_sha256",
   "package_lock_sha256",
   "node_version",
   "sdk_client_version",
@@ -40,7 +41,9 @@ const sameSettings = [
 const settingDifferences = sameSettings.filter(
   (key) =>
     !isDeepStrictEqual(left[key], right[key]) ||
-    (key === "provider_search_path_sha256" &&
+    ((key === "provider_search_path_sha256" ||
+      (key === "native_workflow_source_sha256" &&
+        typeof left.native_question === "string")) &&
       !/^[a-f0-9]{64}$/.test(left[key] ?? "")),
 );
 // Producer/view IDs identify different delivery observations; a named recovery
@@ -54,6 +57,17 @@ const facts = (answer) =>
 const a = facts(leftAnswer);
 const b = facts(rightAnswer);
 const runSpecific = [];
+for (const [side, answer] of [
+  ["left", leftAnswer],
+  ["right", rightAnswer],
+]) {
+  if (Object.hasOwn(answer, "evidence_ids"))
+    runSpecific.push({
+      side,
+      path: ["evidence_ids"],
+      value: answer.evidence_ids,
+    });
+}
 // Binwalk assigns a new opaque region UUID in each invocation. Preserve both
 // original lookup values in this report; compare the observed region facts
 // separately. The product and original replies retain those IDs unchanged.

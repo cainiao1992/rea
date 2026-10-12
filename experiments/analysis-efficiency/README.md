@@ -7,6 +7,10 @@ JSON measurements belong outside the checkout. This document keeps the measured
 findings, verification scope and revision references; the scripts and `corpus.json`
 keep the reproduction inputs. Generated `results/` is ignored.
 
+Follow-up: [native PE/DOS entry views and real model verification](native-entry-views.md)
+records the post-merge native continuation, including a small-function case where
+four selected replies cost more bytes than the complete dossier.
+
 The 12 detailed checkpoint receipts were archived byte-for-byte before removal
 from the final PR tree. The archive `review-receipts-00d51e0fc-20261012` is in the
 private experiment lab outside the checkout; its `archive-index.json` records

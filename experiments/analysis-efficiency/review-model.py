@@ -182,18 +182,61 @@ def main():
         } for row in rows], key=lambda row: row['node_id'])
         check('all_selected_module_identities', select(answer.get('modules', [])), select(reference['modules']))
     elif domain == 'native':
-        for key in ['entry_address', 'pseudocode_prefix', 'caller_count', 'callee_count']:
+        for key in ['entry_address', 'caller_count', 'callee_count']:
             check(key, answer.get(key), reference[key])
-        containing = answer['containing_procedure']
+        prefix = answer.get('pseudocode_prefix')
+        if isinstance(prefix, dict) and prefix.get('unit') == 'utf16-code-units':
+            text = prefix.get('text')
+            if 'requested' in prefix:
+                check('pseudocode_prefix.requested', prefix['requested'], 512)
+            if 'returned' in prefix:
+                check('pseudocode_prefix.returned', prefix['returned'], len(reference['pseudocode_prefix'].encode('utf-16-le')) // 2)
+            prefix = text
+        check('pseudocode_prefix', prefix, reference['pseudocode_prefix'])
+        containing = answer.get('containing_procedure')
         expected_containing = reference['containing_procedure']['procedure']
-        for key in ['address', 'name']:
-            check('containing_procedure.' + key, containing.get(key, containing.get('procedure', {}).get(key)), expected_containing[key])
-        procedure = answer['procedure']
+        if isinstance(containing, str):
+            # Compare the explicitly reported display to the known source;
+            # never parse a display name into a canonical lookup identity.
+            check('containing_procedure.display', containing,
+                  expected_containing['name'] + ' @ ' + expected_containing['address'])
+        else:
+            containing = containing if isinstance(containing, dict) else {}
+            nested = containing.get('procedure')
+            nested = nested if isinstance(nested, dict) else {}
+            for key in ['address', 'name']:
+                check('containing_procedure.' + key, containing.get(key, nested.get(key)), expected_containing[key])
+        procedure = answer.get('procedure')
+        procedure = procedure if isinstance(procedure, dict) else {}
         expected = reference['procedure']
         for key in ['address', 'name', 'classification', 'signature', 'locals']:
             check('procedure.' + key, procedure.get(key), expected[key])
-        check('procedure.body_ranges', procedure.get('body_ranges', procedure.get('body', {}).get('ranges')), expected['body']['ranges'])
-        check('procedure.total_bytes', procedure.get('total_bytes', procedure.get('body', {}).get('total_bytes')), expected['body']['total_bytes'])
+        body = procedure.get('body')
+        body = body if isinstance(body, dict) else {}
+        check('procedure.body_ranges', procedure.get('body_ranges', body.get('ranges', body.get('ranges_inclusive'))), expected['body']['ranges'])
+        check('procedure.total_bytes', procedure.get('total_bytes', body.get('total_bytes')), expected['body']['total_bytes'])
+        if 'load_image' in reference:
+            sources = [source for source in producer_results.get('inspect_native_load_image', [])
+                       if isinstance(source, dict)
+                       and source.get('operation') == 'inspect_native_load_image'
+                       and isinstance(source.get('evidence_id'), str)
+                       and source.get('evidence_id') in reported_ids
+                       and isinstance(source.get('normalized_result'), dict)]
+            checks['load_image_source_observed_and_referenced'] = bool(sources)
+            load = sources[-1]['normalized_result'] if sources else {}
+            entry = load.get('entry')
+            entry = entry if isinstance(entry, dict) else {}
+            check('load_image.target_sha256', load.get('target_sha256'), reference['artifact_sha256'])
+            check('load_image.source_status', load.get('status'), reference['load_image']['status'])
+            check('load_image.source_entry', entry.get('linear_address'), reference['entry_address'])
+            status = answer.get('load_image_status')
+            check('load_image_status', status.get('status') if isinstance(status, dict) else status, load.get('status'))
+            if isinstance(status, dict):
+                for key in ['format', 'load_segment', 'header_bytes', 'module_bytes', 'overlay_bytes']:
+                    if key in status:
+                        check('load_image.' + key, status[key], load.get(key))
+                if 'entry_linear_address' in status:
+                    check('load_image.entry_linear_address', status['entry_linear_address'], entry.get('linear_address'))
         calls = summary['completed_mcp_calls']
         checks['default_analysis_not_disabled'] = all(not call['arguments'].get('skip_auto_analysis', False) for call in calls if call['tool'] == 'open_binary')
         checks['session_close_completed'] = any(call['tool'] == 'close_binary' and call['status'] == 'completed' for call in calls)
@@ -248,6 +291,7 @@ def main():
         and events['memory.events'].get('high') == 0
     )
     report = {
+        'review_source_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         'domain': domain, 'checks': checks, 'all_selected_checks_pass': all(checks.values()),
         'differences': differences, 'tool_errors': tool_errors, 'summary': summary,
         'fingerprints': {key: value for key, value in settings.items() if 'sha256' in key or key in ['runtime_revision', 'enabled_tools', 'authority']},

@@ -117,6 +117,36 @@
       }
     },
     {
+      "id": "sharex.exe",
+      "file": "ShareX.exe",
+      "bytes": 198656,
+      "sha256": "46af1ccc514b395cb703633abb5a505a771942b7db9b1915f31aeea541b3685f",
+      "provenance": {
+        "project": "ShareX native executable component",
+        "version": "19.0.2",
+        "upstreamFile": "ShareX-19.0.2-portable.zip",
+        "url": "https://github.com/ShareX/ShareX/releases/download/v19.0.2/ShareX-19.0.2-portable.zip",
+        "transport_sha256": "967b5d838df5ce25fb5fd7cbd16f1bd797427e2df16907b022b74a4bc0fb9d54",
+        "transport_bytes": 168796487,
+        "derivation": "selected regular ZIP member ShareX.exe; PE32+ x86-64 with no CLR directory; no target execution"
+      }
+    },
+    {
+      "id": "freedos.edlin.exe",
+      "file": "EDLIN.EXE",
+      "bytes": 31492,
+      "sha256": "96b2b6d543e2d8bdc83e313756444e103339eb5ee2c1229abe3607539b31ad6e",
+      "provenance": {
+        "project": "FreeDOS EDLIN",
+        "version": "2.24",
+        "upstreamFile": "edlin.zip",
+        "url": "https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/repositories/1.4/base/edlin.zip",
+        "transport_sha256": "9db8a0b50bc4be5c2358cd0fa1fb6fc77342c6d5175a6b1084547c370e428f8a",
+        "transport_bytes": 377009,
+        "derivation": "selected regular ZIP member BIN/EDLIN.EXE; original UPX-compressed DOS MZ; APPINFO/EDLIN.LSM reports version; no execution or unpacking"
+      }
+    },
+    {
       "id": "vscode.tree-sitter.wasm",
       "file": "tree-sitter.wasm",
       "bytes": 206218,

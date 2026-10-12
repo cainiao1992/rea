@@ -1,16 +1,14 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import {
-  mkdir,
-  open,
-  readFile,
-  readdir,
-  stat,
-  writeFile,
-} from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
+import {
+  NATIVE_ARTIFACTS,
+  measureNativeEntry,
+  nativeEntrySeed,
+} from "./native-entry.mjs";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { Ajv2020 } from "ajv/dist/2020.js";
@@ -38,10 +36,15 @@ if (
   !isAbsolute(values.path) ||
   !isAbsolute(values.output) ||
   !["complete", "summary"].includes(values.delivery) ||
-  !["entry", "entry-and-main"].includes(values["native-question"]) ||
+  !["entry", "entry-and-main", "entry-views"].includes(
+    values["native-question"],
+  ) ||
   !["inventory", "selected"].includes(values["javascript-question"]) ||
   !["default", "selected"].includes(values.schemas) ||
-  (values.artifact !== "jq" && values["native-question"] !== "entry") ||
+  (!NATIVE_ARTIFACTS.includes(values.artifact) &&
+    values["native-question"] !== "entry") ||
+  (values.artifact !== "jq" &&
+    values["native-question"] === "entry-and-main") ||
   (values.artifact !== "obsidian.asar" &&
     values["javascript-question"] !== "inventory")
 )
@@ -118,6 +121,9 @@ await writeFile(
 );
 const fingerprints = {
   measure_source_sha256: await fileSha(fileURLToPath(import.meta.url)),
+  native_workflow_source_sha256: await fileSha(
+    fileURLToPath(new URL("./native-entry.mjs", import.meta.url)),
+  ),
   runtime_files_sha256: sha(JSON.stringify(runtimeFiles)),
   runtime_dispatcher_sha256: await fileSha(
     resolve(values["runtime-root"], "scripts/rea.mjs"),
@@ -545,111 +551,19 @@ const workflows = {
       evidence_ids: [info.evidence_id],
     };
   },
-  jq: async () => {
-    const file = await open(values.path, "r");
-    let header;
-    try {
-      header = (await file.read(Buffer.alloc(32), 0, 32, 0)).buffer;
-    } finally {
-      await file.close();
-    }
-    if (header.subarray(0, 6).toString("hex") !== "7f454c460201")
-      throw new Error("Expected ELF64 little endian entry seed");
-    const address = `0x${header.readBigUInt64LE(24).toString(16)}`;
-    await call("open_binary", { path: values.path, provider_id: "ghidra" });
-    try {
-      const containing = await call("resolve_containing_procedure", {
-        address,
-      });
-      const info = await call("analyze_function", { procedure: address });
-      const n = normalized(info);
-      // This exact application entry is materialized in the pinned jq entry's
-      // observed MOV RDI, 0x401f00 instruction, not an original-source claim.
-      let main;
-      const mainEvidenceIds = [];
-      if (values["native-question"] === "entry-and-main") {
-        let sourceId;
-        try {
-          const completed = await call("analyze_function", {
-            procedure: "0x401f00",
-          });
-          sourceId = completed.evidence_id;
-        } catch (error) {
-          const reference =
-            error instanceof ToolFailure &&
-            error.value?.error?.code === "resource_constraint"
-              ? error.value.error.details?.reported_limits?.evidence_reference
-              : undefined;
-          if (reference?.kind !== "retained-evidence") throw error;
-          sourceId = reference.evidence_id;
-        }
-        mainEvidenceIds.push(sourceId);
-        main = {};
-        for (const facet of [
-          "procedure",
-          "pseudocode",
-          "referenced_strings",
-          "callees",
-          "callers",
-          "basic_blocks",
-        ]) {
-          let offset = 0;
-          const items = [];
-          const pages = [];
-          do {
-            const selected = await call("inspect_analysis_view", {
-              source: { kind: "retained-evidence", evidence_id: sourceId },
-              view: {
-                kind: "native",
-                facet,
-                offset,
-                limit:
-                  facet === "pseudocode"
-                    ? 65536
-                    : facet === "basic_blocks"
-                      ? 1
-                      : 64,
-              },
-            });
-            mainEvidenceIds.push(selected.evidence_id);
-            const v = normalized(selected);
-            items.push(v.item);
-            pages.push({
-              coverage: v.coverage,
-              limitations: v.limitations,
-              unknowns: v.unknowns,
-            });
-            if (v.coverage.exhausted || facet === "basic_blocks") break;
-            if (
-              v.coverage.next_offset === null ||
-              v.coverage.next_offset <= offset
-            )
-              throw new Error("Native view did not advance");
-            offset = v.coverage.next_offset;
-          } while (true);
-          main[facet] = { items, pages };
-        }
-      }
-      return {
-        artifact_sha256: targetSha(info),
-        entry_address: address,
-        containing_procedure: normalized(containing),
-        procedure: n.procedure,
-        pseudocode_prefix: n.pseudocode.slice(0, 512),
-        caller_count: n.callers.length,
-        callee_count: n.callees.length,
-        ...(main === undefined ? {} : { main }),
-        analysis_profile: info.analysis_profile,
-        evidence_ids: [
-          containing.evidence_id,
-          info.evidence_id,
-          ...mainEvidenceIds,
-        ],
-      };
-    } finally {
-      await call("close_binary", {});
-    }
-  },
+  ...Object.fromEntries(
+    NATIVE_ARTIFACTS.map((artifact) => [
+      artifact,
+      async () =>
+        measureNativeEntry({
+          seed: await nativeEntrySeed(artifact, values.path),
+          values,
+          call,
+          inputSha,
+          ToolFailure,
+        }),
+    ]),
+  ),
 };
 
 try {
@@ -740,7 +654,9 @@ const report = {
   artifact_sha256_after: finalInputSha,
   delivery: values.delivery,
   sdk_schema_mode: values.schemas,
-  native_question: values.artifact === "jq" ? values["native-question"] : null,
+  native_question: NATIVE_ARTIFACTS.includes(values.artifact)
+    ? values["native-question"]
+    : null,
   javascript_question:
     values.artifact === "obsidian.asar" ? values["javascript-question"] : null,
   provider_settings_sha256: sha(JSON.stringify(selectedProviders)),

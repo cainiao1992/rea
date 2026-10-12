@@ -352,6 +352,7 @@ const completeScenarioCapture = () => {
         response_body: false,
         header_values: false,
       },
+      event_families: [],
     },
     duration_ms: 1,
     steps: [

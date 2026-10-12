@@ -115,6 +115,40 @@
         "transport_bytes": 168796487,
         "derivation": "selected regular ZIP member ShareX.HelpersLib.dll; no target execution"
       }
+    },
+    {
+      "id": "vscode.tree-sitter.wasm",
+      "file": "tree-sitter.wasm",
+      "bytes": 206218,
+      "sha256": "3a31af706ffdf4a7116b064cdd4988df6791823298615009fc5b6bccbd42909b",
+      "provenance": {
+        "project": "VS Code Tree-sitter published WASM package",
+        "version": "0.3.1",
+        "project_url": "https://github.com/microsoft/vscode-tree-sitter-wasm",
+        "upstreamFile": "tree-sitter-wasm-0.3.1.tgz",
+        "url": "https://registry.npmjs.org/@vscode/tree-sitter-wasm/-/tree-sitter-wasm-0.3.1.tgz",
+        "transport_sha256": "985684b2cfbe5e8f90499a9f36e37519887c7d4e2697d0457d0f1e923ce5184c",
+        "transport_bytes": 2053205,
+        "transport_integrity": "sha512-RJFoomET6FajjG511fmQxeBQfU6M24a0aFZPqpid+ttIxanWf1VGytBG0UmsGjt07qmIPJS8U31D+aecuCucsQ==",
+        "derivation": "selected regular tar member package/wasm/tree-sitter.wasm; no target execution"
+      }
+    },
+    {
+      "id": "vscode.tree-sitter-css.wasm",
+      "file": "tree-sitter-css.wasm",
+      "bytes": 128668,
+      "sha256": "8a23977fe271357cce6f254ef88c9bebf3854602d8046605aef6a45c02135c59",
+      "provenance": {
+        "project": "VS Code Tree-sitter published WASM package",
+        "version": "0.3.1",
+        "project_url": "https://github.com/microsoft/vscode-tree-sitter-wasm",
+        "upstreamFile": "tree-sitter-wasm-0.3.1.tgz",
+        "url": "https://registry.npmjs.org/@vscode/tree-sitter-wasm/-/tree-sitter-wasm-0.3.1.tgz",
+        "transport_sha256": "985684b2cfbe5e8f90499a9f36e37519887c7d4e2697d0457d0f1e923ce5184c",
+        "transport_bytes": 2053205,
+        "transport_integrity": "sha512-RJFoomET6FajjG511fmQxeBQfU6M24a0aFZPqpid+ttIxanWf1VGytBG0UmsGjt07qmIPJS8U31D+aecuCucsQ==",
+        "derivation": "selected regular tar member package/wasm/tree-sitter-css.wasm; no target execution"
+      }
     }
   ]
 }

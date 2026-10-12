@@ -302,6 +302,13 @@ export const artifactInventorySummaryViewResultSchema = z.strictObject({
   summary: inventorySummarySchema,
 });
 
+/** Exact summary carrier for WASM inspection's optional delivery contract. */
+export const wasmArtifactSummaryViewResultSchema = z.strictObject({
+  ...summaryViewResultBase,
+  parent_operation: z.literal("inspect_wasm_artifact"),
+  summary: wasmSummarySchema,
+});
+
 /** Projected facts for one selected view of retained analysis Evidence. */
 export const analysisViewResultSchema = z.discriminatedUnion("kind", [
   z.strictObject({

@@ -412,7 +412,8 @@ Ordinary responses keep their existing complete result contract.
 
 ## Retained application Evidence inputs
 
-`analyze_javascript_application`, `inspect_binary_layout`, and `inspect_artifact` accept `detail`:
+`analyze_javascript_application`, `inspect_binary_layout`, `inspect_artifact`, and
+`inspect_wasm_artifact` accept `detail`:
 `complete` (default) returns the complete analysis Evidence; `summary` records
 that complete Evidence in the session and returns the derived
 `inspect_analysis_view` summary Evidence instead. Its
@@ -476,6 +477,11 @@ The original producer still returns complete Evidence by default. When its
 complete MCP reply exceeds the frame, use the exact reported retained
 reference with these views, or export the complete source. Views do not run
 WABT again and do not turn decoded WAT into original source.
+For counts, validation and WAT identity, select `detail: "summary"` on the first
+`inspect_wasm_artifact` call. It retains the original complete source without
+attempting oversized delivery, and returns the same summary with an exact
+`parent_evidence_id` for later export or facet reads. Delivery detail does not
+reach WABT or change the original source Evidence ID.
 
 `trace_application_feature`, `trace_javascript_semantics`,
 `compare_application_versions`, `compare_source_to_bundle`, and

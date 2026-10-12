@@ -13,7 +13,6 @@ import {
 } from "./artifactInventoryEvidence.js";
 import { prefixedDigestSchema } from "./../domain/digests.js";
 import { canonicalJson } from "./comparisonSemantics.js";
-import { ZIP_NON_ENTRY_TAIL_LIMITATION } from "./zipPackageFormat.js";
 
 const evidenceIdSchema = prefixedDigestSchema("ev");
 const comparisonStatusSchema = z.enum([
@@ -105,9 +104,9 @@ export const compareArtifacts = (
   const leftComplete = left.inventory.complete;
   const rightComplete = right.inventory.complete;
   const leftCovered =
-    leftComplete && !hasCoverageLimitation(left.inventory.limitations);
+    leftComplete && left.inventory.coverage_status === "complete";
   const rightCovered =
-    rightComplete && !hasCoverageLimitation(right.inventory.limitations);
+    rightComplete && right.inventory.coverage_status === "complete";
   const limitations = [
     ...left.inventory.limitations.map((item) => `Left: ${item}`),
     ...right.inventory.limitations.map((item) => `Right: ${item}`),
@@ -432,13 +431,6 @@ const summarize = (
         ),
   };
 };
-
-const hasCoverageLimitation = (limitations: readonly string[]): boolean =>
-  limitations.some(
-    (limitation) =>
-      limitation !== ZIP_NON_ENTRY_TAIL_LIMITATION &&
-      !/integrity contradiction\(s\) were recorded/u.test(limitation),
-  );
 
 // Differing manifest root digests prove a root content change even when node
 // details are unavailable. Fold that fact into an existing root row so one

@@ -525,7 +525,7 @@ it("rejects bytes changed after target admission without launching an engine", a
 });
 
 it("retains an uncertain workspace and blocks later launches after cleanup cannot be verified", async () => {
-  const { service, apk, launches, provider } = await setup("cleanup-failure");
+  const { service, apk, launches } = await setup("cleanup-failure");
   const outcome = await service.execute("inspect_android_package", {
     path: apk,
   });

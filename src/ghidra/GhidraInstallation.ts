@@ -28,7 +28,6 @@ import {
   ghidraReleaseCompatibility,
   ghidraReleaseLine,
   ghidraVersionDetail,
-  SUPPORTED_GHIDRA_JAVA_MAJOR,
   SUPPORTED_GHIDRA_VERSION,
   type GhidraApplicationProperties,
   type GhidraJavaRequirement,

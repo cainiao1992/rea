@@ -46,7 +46,6 @@ import {
   CAPABILITIES,
   windowsP0Capabilities,
   GHIDRA_PROVIDER_IDENTITY,
-  GHIDRA_OPERATIONS,
 } from "./GhidraProviderCapabilities.js";
 import {
   createGhidraProviderClient,

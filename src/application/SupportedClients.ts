@@ -91,6 +91,22 @@ const vscodeUserDirectory = ({
   return join(env.XDG_CONFIG_HOME ?? join(home, ".config"), "Code", "User");
 };
 
+const traeUserDirectory = ({
+  home,
+  platform,
+  env,
+}: ClientPathContext): string => {
+  if (platform === "win32")
+    return join(
+      env.APPDATA ?? join(home, "AppData", "Roaming"),
+      "Trae",
+      "User",
+    );
+  if (platform === "darwin")
+    return join(home, "Library", "Application Support", "Trae", "User");
+  return join(env.XDG_CONFIG_HOME ?? join(home, ".config"), "Trae", "User");
+};
+
 const claudeDesktopDirectory = ({
   home,
   platform,
@@ -463,6 +479,15 @@ export const SUPPORTED_CLIENT_DEFINITIONS = [
       join(vscodeUserDirectory(context), "mcp.json"),
     markerPath: vscodeUserDirectory,
     format: "vscode",
+  },
+  {
+    name: "trae",
+    displayName: "Trae",
+    skillPath: [".trae", "skills"],
+    configPath: (context: ClientPathContext) =>
+      join(traeUserDirectory(context), "mcp.json"),
+    markerPath: traeUserDirectory,
+    format: "json",
   },
   {
     name: "grok_build",

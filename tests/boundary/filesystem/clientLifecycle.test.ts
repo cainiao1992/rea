@@ -65,6 +65,7 @@ describe("client configuration filesystem lifecycle", () => {
       "commandcode",
       "qwen_code",
       "vscode",
+      "trae",
       "grok_build",
       "omp",
       "pi",

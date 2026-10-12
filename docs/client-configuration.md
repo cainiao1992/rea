@@ -145,6 +145,21 @@ REA follows `HERMES_HOME` whitespace trimming, environment-variable expansion,
 and home expansion before resolving that profile. Setup previews the resolved
 configuration and skill destinations; doctor and uninstall use those same paths.
 
+## Trae
+
+For [Trae](https://docs.trae.ai/ide/add-mcp-servers), setup writes
+`mcpServers.rea` into the user-scope `mcp.json` under Trae's VS Code-style
+user directory (`%APPDATA%\Trae\User` on Windows,
+`~/Library/Application Support/Trae/User` on macOS, and
+`~/.config/Trae/User` elsewhere). Entries carry `command`, `args`, and
+`env`; stdio is the default transport. Trae discovers personal skills from
+`~/.trae/skills` (`%userprofile%\.trae\skills` on Windows), so setup
+installs its skill copy there.
+
+The user-level MCP paths follow the editor's VS Code layout. Trae's official
+documentation describes the raw JSON editor without specifying those paths;
+loading this registration in Trae remains unverified.
+
 ## ZCode
 
 For [ZCode](https://zcode.z.ai/en/docs/mcp-services), setup registers `rea` in the nested `mcp.servers` table of the

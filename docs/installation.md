@@ -280,6 +280,7 @@ hosted connector; see [its configuration](client-configuration.md#other-client-s
 | OMP                | `omp`            |
 | Pi                 | `pi`             |
 | Hermes             | `hermes`         |
+| Trae               | `trae`           |
 | ZCode              | `zcode`          |
 | DeepSeek Harness   | `dsh`            |
 

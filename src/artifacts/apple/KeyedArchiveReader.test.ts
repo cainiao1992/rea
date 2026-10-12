@@ -219,6 +219,37 @@ const keyedRoot = (payload: readonly Buffer[]): Buffer =>
 describe("binary plist reference preflight", () => {
   const selection = { offset: 0, limit: 10 };
 
+  it("rejects an array key that coerces to __proto__ before parsing", () => {
+    expect(() =>
+      decodeKeyedArchiveBytes(
+        keyedRoot([
+          plistArray([9]),
+          Buffer.from([0xd1, 0, 10, 0, 11]),
+          plistArray([12]),
+          Buffer.from([0xd1, 0, 13, 0, 14]),
+          plistString("__proto__"),
+          plistString("lost"),
+          plistString("value"),
+        ]),
+        selection,
+      ),
+    ).toThrow("binary plist dictionary key is not a string");
+  });
+
+  it("rejects binary data dictionary keys", () => {
+    expect(() =>
+      decodeKeyedArchiveBytes(
+        keyedRoot([
+          plistArray([9]),
+          Buffer.from([0xd1, 0, 10, 0, 11]),
+          Buffer.from([0x41, 0xab]),
+          plistString("value"),
+        ]),
+        selection,
+      ),
+    ).toThrow("binary plist dictionary key is not a string");
+  });
+
   it("reports a reference cycle as malformed, not as an oversized archive", () => {
     expect(() =>
       decodeKeyedArchiveBytes(keyedRoot([plistArray([8])]), selection),

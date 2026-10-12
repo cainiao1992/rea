@@ -53,11 +53,38 @@ import {
 
 interface EvaluationContext {
   readonly state: JavaScriptSemanticAnalysisState;
-  readonly bindings: Set<string>;
+  /** Bindings under evaluation, by their position on the active stack. */
+  readonly bindings: Map<string, number>;
   readonly expressionDepth: number;
   readonly capturePoint?: t.Node;
   readonly primitiveBindingValues: Map<string, JavaScriptSemanticValue>;
+  readonly dependence: EvaluationDependence;
 }
+
+/**
+ * How far up the active stack the value being evaluated depends on its
+ * caller. An alias cycle depends on the position of its head; the expression
+ * depth budget depends on every caller. A binding whose value depends only on
+ * positions pushed after its own evaluates to that value from any caller
+ * with at least as much of the depth budget left.
+ */
+interface EvaluationDependence {
+  lowest: number;
+}
+
+const CALLER_INDEPENDENT = Number.POSITIVE_INFINITY;
+const EVERY_CALLER = -1;
+
+/** A value no caller changes, and the deepest evaluation known to yield it. */
+interface CallerIndependentBindingValue {
+  readonly value: JavaScriptSemanticValue;
+  readonly expressionDepth: number;
+}
+
+const callerIndependentBindingValuesByState = new WeakMap<
+  JavaScriptSemanticAnalysisState,
+  Map<string, CallerIndependentBindingValue>
+>();
 
 const primitiveBindingValuesByState = new WeakMap<
   JavaScriptSemanticAnalysisState,
@@ -81,6 +108,17 @@ export const clearSemanticPrimitiveBindingValues = (
   primitiveBindingValuesByState.delete(state);
   capturedBindingValuesByState.delete(state);
   primitiveExpressionValuesByState.delete(state);
+  callerIndependentBindingValuesByState.delete(state);
+};
+
+const callerIndependentBindingValuesFor = (
+  state: JavaScriptSemanticAnalysisState,
+): Map<string, CallerIndependentBindingValue> => {
+  const existing = callerIndependentBindingValuesByState.get(state);
+  if (existing !== undefined) return existing;
+  const values = new Map<string, CallerIndependentBindingValue>();
+  callerIndependentBindingValuesByState.set(state, values);
+  return values;
 };
 
 const primitiveBindingValuesFor = (
@@ -109,9 +147,10 @@ export const evaluateSemanticBinding = (
 ): JavaScriptSemanticValue =>
   evaluateBinding(binding, {
     state,
-    bindings: new Set(),
+    bindings: new Map(),
     expressionDepth: 0,
     primitiveBindingValues: primitiveBindingValuesFor(state),
+    dependence: { lowest: CALLER_INDEPENDENT },
   });
 
 /** Evaluate an inert expression, optionally at an earlier reference capture. */
@@ -122,9 +161,10 @@ export const evaluateSemanticExpression = (
 ): JavaScriptSemanticValue => {
   const context: EvaluationContext = {
     state,
-    bindings: new Set(),
+    bindings: new Map(),
     expressionDepth: 0,
     primitiveBindingValues: primitiveBindingValuesFor(state),
+    dependence: { lowest: CALLER_INDEPENDENT },
   };
   return evaluateExpression(
     node,
@@ -141,17 +181,21 @@ export const evaluateSemanticProvenance = (
 ): JavaScriptBindingProvenance =>
   provenanceForBinding(binding, {
     state,
-    bindings: new Set(),
+    bindings: new Map(),
     expressionDepth: 0,
     primitiveBindingValues: primitiveBindingValuesFor(state),
+    dependence: { lowest: CALLER_INDEPENDENT },
   });
 
 const evaluateBinding = (
   binding: JavaScriptSemanticBindingState,
   context: EvaluationContext,
 ): JavaScriptSemanticValue => {
-  if (context.bindings.has(binding.bindingId))
+  const cycleHead = context.bindings.get(binding.bindingId);
+  if (cycleHead !== undefined) {
+    context.dependence.lowest = Math.min(context.dependence.lowest, cycleHead);
     return { status: "cycle", reason: `Alias cycle at ${binding.name}.` };
+  }
   if (
     context.capturePoint !== undefined &&
     !semanticBindingPrecedesCapture(
@@ -168,6 +212,20 @@ const evaluateBinding = (
   }
   const cached = context.primitiveBindingValues.get(binding.bindingId);
   if (cached !== undefined) return cached;
+  // Each closure that aliases an outer binding evaluates it both live and at
+  // its capture point, so re-deriving it doubles the work at every level of
+  // nesting. A deeper reader derives it again: the retained value would carry
+  // more nesting than the remaining depth budget allows it to observe.
+  const independent =
+    context.capturePoint === undefined
+      ? callerIndependentBindingValuesFor(context.state)
+      : undefined;
+  const retained = independent?.get(binding.bindingId);
+  if (
+    retained !== undefined &&
+    context.expressionDepth <= retained.expressionDepth
+  )
+    return retained.value;
   if (binding.initializers.length === 0)
     return {
       status: "unknown",
@@ -196,8 +254,12 @@ const evaluateBinding = (
   const initializer = binding.initializers[0];
   if (initializer === undefined)
     return { status: "unknown", reason: "Missing binding initializer." };
-  context.bindings.add(binding.bindingId);
+  const position = context.bindings.size;
+  const callerDependence = context.dependence.lowest;
+  context.dependence.lowest = CALLER_INDEPENDENT;
+  context.bindings.set(binding.bindingId, position);
   let value: JavaScriptSemanticValue;
+  let callerIndependent = false;
   try {
     const nested = nestedContext(context);
     value = projectValue(
@@ -214,8 +276,14 @@ const evaluateBinding = (
         if (isPrimitive(captured)) value = captured;
       }
     }
+    // A cycle among bindings this one reads is part of its value. A cycle
+    // through this binding is cut elsewhere when a caller holds another member.
+    callerIndependent = context.dependence.lowest > position;
   } finally {
     context.bindings.delete(binding.bindingId);
+    context.dependence.lowest = callerIndependent
+      ? callerDependence
+      : Math.min(callerDependence, context.dependence.lowest);
   }
   let projected = invalidateSemanticMutationPaths(value, binding.mutatedPaths);
   for (const escape of binding.escapedPaths) {
@@ -233,6 +301,16 @@ const evaluateBinding = (
       continue;
     projected = invalidateSemanticEscapedPath(projected, escape.path);
   }
+  if (
+    callerIndependent &&
+    independent !== undefined &&
+    (retained === undefined ||
+      retained.expressionDepth < context.expressionDepth)
+  )
+    independent.set(binding.bindingId, {
+      value: projected,
+      expressionDepth: context.expressionDepth,
+    });
   // Point-local memoization also bounds failed speculative captures. Only a
   // primitive result is allowed back into ordinary value evaluation.
   if (
@@ -251,15 +329,19 @@ const evaluateExpression = (
   node: t.Node,
   context: EvaluationContext,
 ): JavaScriptSemanticValue => {
-  if (context.expressionDepth > SEMANTIC_EXPRESSION_DEPTH_LIMIT)
+  if (context.expressionDepth > SEMANTIC_EXPRESSION_DEPTH_LIMIT) {
+    context.dependence.lowest = EVERY_CALLER;
     return semanticResourceLimitUnknown("expression-depth");
+  }
   const unwrapped = unwrapJavaScriptExpression(node);
   if (unwrapped.depth > 0) {
     if (
       context.expressionDepth + unwrapped.depth >
       SEMANTIC_EXPRESSION_DEPTH_LIMIT
-    )
+    ) {
+      context.dependence.lowest = EVERY_CALLER;
       return semanticResourceLimitUnknown("expression-depth");
+    }
     return evaluateExpression(unwrapped.node, {
       ...context,
       expressionDepth: context.expressionDepth + unwrapped.depth,
@@ -616,7 +698,7 @@ const provenanceForBindingValue = (
       "unknown",
       "Dynamic provenance projection.",
     );
-  context.bindings.add(binding.bindingId);
+  context.bindings.set(binding.bindingId, context.bindings.size);
   let resolved: JavaScriptBindingProvenance;
   try {
     resolved = provenanceForExpression(
@@ -763,6 +845,7 @@ const nestedContext = (context: EvaluationContext): EvaluationContext => ({
     : { capturePoint: context.capturePoint }),
   expressionDepth: context.expressionDepth + 1,
   bindings: context.bindings,
+  dependence: context.dependence,
 });
 
 const isPrimitive = (value: JavaScriptSemanticValue): boolean =>

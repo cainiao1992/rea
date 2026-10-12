@@ -4,6 +4,7 @@ import type {
 } from "./binaryTargetTypes.js";
 import { err, ok, type Result } from "./result.js";
 import { mzWindowsHeaderOffset, parseDosMzHeader } from "./dosMz.js";
+import { decodePeMachine } from "./peMachine.js";
 
 /** Format and architecture facts recovered from an executable header. */
 export type ExecutableMetadata =
@@ -216,14 +217,17 @@ export const parsePeRecord = (
     record.toString("binary", 0, 4) !== "PE\u0000\u0000"
   )
     return err("invalid or truncated PE header");
-  const architecture = peArchitecture(record.readUInt16LE(4));
-  if (architecture === undefined) return err("unsupported PE architecture");
+  const machine = decodePeMachine(record.readUInt16LE(4));
+  if (machine === undefined) return err("unsupported PE architecture");
+  const { architecture } = machine;
   const optionalHeaderSize = record.readUInt16LE(20);
   if (optionalHeaderSize > 4096 || record.length < 24 + optionalHeaderSize)
     return err("invalid or truncated PE optional header");
   const optionalHeader = record.subarray(24, 24 + optionalHeaderSize);
   const managed = peManagedStatus(optionalHeader, architecture);
   if (!managed.ok) return managed;
+  if (machine.nativeOsOverride && !managed.value)
+    return err("unsupported PE architecture");
   const characteristics = record.readUInt16LE(22);
   return ok({
     format: "pe",
@@ -295,24 +299,6 @@ const elfArchitecture = (machine: number): BinaryArchitecture | undefined => {
     case 40:
       return "arm";
     case 183:
-      return "arm64";
-  }
-  return undefined;
-};
-
-const peArchitecture = (
-  machine: number,
-): Exclude<BinaryArchitecture, "mips"> | undefined => {
-  switch (machine) {
-    case 0x14c:
-      return "x86";
-    case 0x8664:
-      return "x86_64";
-    case 0x1c0:
-    case 0x1c2:
-    case 0x1c4:
-      return "arm";
-    case 0xaa64:
       return "arm64";
   }
   return undefined;

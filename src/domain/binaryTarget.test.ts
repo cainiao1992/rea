@@ -50,6 +50,41 @@ describe("executable header parsing", () => {
     });
   });
 
+  it.each([
+    ["Linux x86_64", 0x8664 ^ 0x7b79, "x86_64"],
+    ["Linux arm64", 0xaa64 ^ 0x7b79, "arm64"],
+    ["Apple x86_64", 0x8664 ^ 0x4644, "x86_64"],
+    ["Apple arm64", 0xaa64 ^ 0x4644, "arm64"],
+    ["FreeBSD x86_64", 0x8664 ^ 0xadc4, "x86_64"],
+    ["OpenBSD x86_64", 0x8664 ^ 0xadc5, "x86_64"],
+    ["NetBSD x86_64", 0x8664 ^ 0x1993, "x86_64"],
+    ["SunOS x86_64", 0x8664 ^ 0x1992, "x86_64"],
+  ] as const)(
+    "decodes the %s ReadyToRun OS-override machine on a managed image",
+    (_label, machine, architecture) => {
+      const result = parseExecutableHeader(
+        pe(machine, 64, 0x2002, true),
+        "x64",
+      );
+      expect(result.ok && result.value).toMatchObject({
+        format: "pe",
+        architecture,
+        managed: true,
+      });
+    },
+  );
+
+  it("rejects an OS-override machine on a native image", () => {
+    const result = parseExecutableHeader(
+      pe(0x8664 ^ 0x7b79, 64, 0x2002),
+      "x64",
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: "unsupported PE architecture",
+    });
+  });
+
   it("selects the host architecture from a FAT table", () => {
     const bytes = fat([0x01000007, 0x0100000c]);
     const arm = parseExecutableHeader(bytes, "arm64");

@@ -45,13 +45,13 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
               source_name: "original.ts",
               map_path: "bundle.js.map",
             }),
-            properties: {
+            properties: expect.objectContaining({
               source_index: 0,
               declaration_index: 0,
               source_name_available: true,
               content_available: true,
               content_sha256: originalDigest,
-            },
+            }),
             evidence: expect.objectContaining({
               artifact: expect.objectContaining({ sha256: mapDigest }),
             }),

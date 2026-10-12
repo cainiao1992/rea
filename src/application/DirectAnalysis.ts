@@ -560,13 +560,8 @@ const analysisProfileForRoute = (
 const providerIdentityForRoute = (
   route: SessionProviderRoute,
   operation: string,
-): ProviderIdentity => {
-  const selected =
-    route.capabilities?.get(operation)?.provider ?? route.identity;
-  return route.profile?.provider.id === selected.id
-    ? route.profile.provider
-    : selected;
-};
+): ProviderIdentity =>
+  route.capabilities?.get(operation)?.provider ?? route.identity;
 
 const analysisProfileForEvidence = (
   session: BinarySession,

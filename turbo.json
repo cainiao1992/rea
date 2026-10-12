@@ -141,7 +141,7 @@
         "!docs/public/product-catalog.json",
         "!docs/verification/managed-conformance-*.json",
         ".agents/skills/reverse-engineer-anything/**",
-        "README.md",
+        "README*.md",
         {
           "mode": "dependencyOutputs",
           "globs": [

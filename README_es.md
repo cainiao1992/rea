@@ -272,6 +272,8 @@ Gracias a quienes usan REA, informan de errores, solicitan funciones, prueban co
 
 ## Aviso legal
 
+Consulta [DISCLAIMER.md](DISCLAIMER.md) para obtener orientación sobre el uso responsable.
+
 REA proporciona herramientas para la investigación, el análisis y la reconstrucción mediante ingeniería inversa conforme a la ley. Eres responsable de obtener las autorizaciones necesarias y cumplir las leyes aplicables. El proyecto no respalda usos ilegales ni no autorizados.
 
 ## Contribuir

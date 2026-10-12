@@ -274,6 +274,8 @@ npx rea-agents@latest setup
 
 ## 免责声明
 
+负责任使用的相关指引请见 [DISCLAIMER.md](DISCLAIMER.md)。
+
 REA 为合法的逆向工程研究、分析和重建提供工具。你有责任取得所需授权并遵守适用法律。项目不支持非法或未经授权的使用。
 
 ## 参与贡献

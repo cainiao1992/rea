@@ -276,6 +276,8 @@ Merci à toutes les personnes qui utilisent REA, signalent des bugs, proposent d
 
 ## Avertissement
 
+Consultez [DISCLAIMER.md](DISCLAIMER.md) pour les consignes d'utilisation responsable.
+
 REA fournit des outils destinés à la recherche, à l'analyse et à la reconstruction légales en rétro-ingénierie. Il vous appartient d'obtenir toute autorisation nécessaire et de respecter les lois applicables. Le projet n'encourage aucune utilisation illégale ou non autorisée.
 
 ## Contribuer

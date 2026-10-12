@@ -297,6 +297,8 @@ Terima kasih kepada semua orang yang menggunakan REA, melaporkan bug, meminta fi
 
 ## Penafian
 
+Lihat [DISCLAIMER.md](DISCLAIMER.md) untuk panduan penggunaan yang bertanggung jawab.
+
 REA menyediakan alat untuk penelitian, analisis, dan rekonstruksi rekayasa balik yang sah. Anda bertanggung jawab untuk memperoleh otorisasi yang diperlukan dan mematuhi hukum yang berlaku. Proyek ini tidak mendukung penggunaan ilegal atau tanpa izin.
 
 REA adalah proyek perangkat lunak sumber terbuka. Kami tidak menerbitkan atau mendukung mata uang kripto maupun token apa pun. Token yang menggunakan nama REA tidak berafiliasi dengan proyek ini.

@@ -272,6 +272,8 @@ REA'yı kullanan, hata bildiren, özellik talep eden, derlemeleri test eden ve d
 
 ## Sorumluluk reddi
 
+Sorumlu kullanım yönergeleri için [DISCLAIMER.md](DISCLAIMER.md) dosyasına bakın.
+
 REA, yasal tersine mühendislik araştırması, analizi ve yeniden oluşturma için araçlar sağlar. Gerekli izinleri almak ve geçerli yasalara uymak sizin sorumluluğunuzdadır. Proje yasa dışı veya yetkisiz kullanımı desteklemez.
 
 ## Katkıda bulunma

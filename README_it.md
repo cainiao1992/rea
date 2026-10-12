@@ -276,6 +276,8 @@ Grazie a tutti coloro che usano REA, segnalano bug, propongono funzionalità, te
 
 ## Disclaimer
 
+Consulta [DISCLAIMER.md](DISCLAIMER.md) per le indicazioni sull'uso responsabile.
+
 REA fornisce strumenti per la ricerca, l'analisi e la ricostruzione di ingegneria inversa lecita. Sei responsabile di ottenere le eventuali autorizzazioni richieste e di rispettare le leggi applicabili. Il progetto non approva l'uso illegale o non autorizzato.
 
 REA è un progetto software open-source. Non abbiamo emesso né approvato alcuna criptovaluta o token. I token che usano il nome REA non sono affiliati al progetto.

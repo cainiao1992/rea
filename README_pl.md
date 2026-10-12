@@ -272,6 +272,8 @@ Dziękujemy wszystkim, którzy używają REA, zgłaszają błędy, proponują no
 
 ## Zastrzeżenie
 
+Wskazówki dotyczące odpowiedzialnego korzystania znajdziesz w [DISCLAIMER.md](DISCLAIMER.md).
+
 REA dostarcza narzędzia do zgodnych z prawem badań z zakresu inżynierii wstecznej, analizy i odtwarzania. Odpowiadasz za uzyskanie wymaganych zezwoleń i przestrzeganie obowiązującego prawa. Projekt nie popiera działań nielegalnych ani nieautoryzowanych.
 
 ## Współtworzenie

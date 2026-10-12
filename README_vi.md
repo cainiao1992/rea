@@ -272,6 +272,8 @@ Cảm ơn mọi người đã sử dụng REA, báo lỗi, đề xuất tính n�
 
 ## Miễn trừ trách nhiệm
 
+Xem [DISCLAIMER.md](DISCLAIMER.md) để biết hướng dẫn sử dụng có trách nhiệm.
+
 REA cung cấp công cụ cho nghiên cứu dịch ngược, phân tích và tái tạo hợp pháp. Bạn có trách nhiệm có được các quyền cho phép cần thiết và tuân thủ luật áp dụng. Dự án không ủng hộ việc sử dụng trái pháp luật hoặc không được cho phép.
 
 ## Đóng góp

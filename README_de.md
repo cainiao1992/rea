@@ -272,6 +272,8 @@ Danke an alle, die REA nutzen, Fehler melden, Funktionswünsche äußern, Builds
 
 ## Haftungsausschluss
 
+Hinweise zur verantwortungsvollen Nutzung findest du in [DISCLAIMER.md](DISCLAIMER.md).
+
 REA stellt Werkzeuge für rechtmäßige Reverse-Engineering-Forschung, Analyse und Rekonstruktion bereit. Du bist dafür verantwortlich, erforderliche Genehmigungen einzuholen und geltendes Recht einzuhalten. Das Projekt unterstützt keine rechtswidrige oder unbefugte Nutzung.
 
 ## Mitwirken

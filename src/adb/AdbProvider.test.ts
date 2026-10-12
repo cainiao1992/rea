@@ -1086,10 +1086,10 @@ it("rejects mistyped intent extras before touching the device", async () => {
 
 it("collects a device bugreport archive with its digest", async () => {
   const { binary, root } = await writeAdbStub(
-    (root) => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi
+    () => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi
 if [ "$1" = "-s" ] && [ "$3" = "bugreport" ]; then
-  printf 'bugreport-bytes' > "${join(root, "bugreport test.zip")}"
-  printf 'Bug report copied to ${join(root, "bugreport test.zip")}\\n'
+  printf 'bugreport-bytes' > "$4/bugreport test.zip"
+  printf 'Bug report copied to %s/bugreport test.zip\\n' "$4"
   exit 0
 fi
 exit 1`,
@@ -1103,7 +1103,7 @@ exit 1`,
     local_path: join(root, "bugreport test.zip"),
     bytes: 15,
     sha256: digest,
-    adb_reported_path: join(root, "bugreport test.zip"),
+    adb_reported_path: expect.stringContaining(".rea-bugreport-"),
   });
 });
 

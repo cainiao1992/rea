@@ -40,7 +40,8 @@ export class NoBinaryOpenError extends AnalysisError {
 export interface BinaryTargetErrorOptions extends AnalysisErrorOptions {
   readonly constraint?:
     | "directory_requires_file"
-    | "wasm_requires_static_inspection";
+    | "wasm_requires_static_inspection"
+    | "file_format_rejected";
 }
 
 /** A supplied target path could not be safely opened as a supported app or binary. */

@@ -586,6 +586,7 @@ describe("Ghidra client projection", () => {
     expect(resolved.value.profile.parameters).toMatchObject({
       language_id: "auto-from-header",
       compiler_spec_id: "auto-default",
+      call_relationship_coverage: "resolved-call-reference-diagnostics-v1",
     });
 
     const result = await ghidra
@@ -788,8 +789,11 @@ describe("Ghidra relationship coverage", () => {
     if (!execution.ok) throw execution.error;
     expect(execution.value.relationshipCoverage).toEqual({
       status: "complete",
+      diagnostics: [
+        "Only resolved Ghidra call references are returned; unresolved computed or indirect calls remain unknown, while function classifications distinguish thunks and externals.",
+      ],
     });
-    expect(execution.value.limitations).toContain(
+    expect(execution.value.limitations).not.toContain(
       "Only resolved Ghidra call references are returned; unresolved computed or indirect calls remain unknown, while function classifications distinguish thunks and externals.",
     );
     await client.close();

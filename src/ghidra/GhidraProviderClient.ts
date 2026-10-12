@@ -85,6 +85,7 @@ import {
   healthLimitations,
   windowsP0Limitations,
   limitationsFor,
+  relationshipCoverageFor,
 } from "./GhidraProviderCapabilities.js";
 import type { GhidraSessionError } from "./GhidraSessionError.js";
 import type { GhidraSessionInfo } from "./GhidraSessionValues.js";
@@ -823,14 +824,14 @@ export const createGhidraProviderClient = (input: {
         if (!attested.ok) return attested;
         normalized = attested.value;
       }
+      const relationshipCoverage = relationshipCoverageFor(operation);
       return ok(
         createAnalysisExecution(normalized, committedProfile.provider, {
           rawResult: called.value,
           analysisProfile: committedProfile,
-          ...(operation === "procedure_callers" ||
-          operation === "procedure_callees"
-            ? { relationshipCoverage: { status: "complete" as const } }
-            : {}),
+          ...(relationshipCoverage === undefined
+            ? {}
+            : { relationshipCoverage }),
           limitations: [
             ...limitationsFor(operation),
             ...observationLimitations,

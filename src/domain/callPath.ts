@@ -244,6 +244,10 @@ const inspectSearch = ({
           limitations.push(limitation);
       else if (coverage?.status === "unknown")
         limitations.push(coverage.reason);
+      for (const diagnostic of coverage !== null && "diagnostics" in coverage
+        ? coverage.diagnostics
+        : [])
+        limitations.push(diagnostic);
       // The requested goal is a terminal for this search. Its outgoing edges
       // cannot add a path to the goal, so its dossier limits are contextual
       // but do not make the searched start-to-goal closure incomplete.

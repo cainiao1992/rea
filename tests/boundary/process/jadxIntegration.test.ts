@@ -277,7 +277,7 @@ it("fetches all class pages rather than silently retaining the first upstream pa
   await verifyCleanup(launches);
 });
 
-it("preserves duplicate class-name rows and reports lookup ambiguity", async () => {
+it("preserves duplicate class-name rows and occurrence counts", async () => {
   const { service, apk, launches, provider } = await setup(
     "duplicate-class-name",
   );

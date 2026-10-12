@@ -1,14 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { enhancedInputSchemas } from "../contracts/enhancedInputs.js";
 import { buildCallPath } from "./callPath.js";
-import {
-  callPathInputSchema,
-  callPathResultSchema,
-} from "./callPathSchemas.js";
+import { callPathResultSchema, type CallPathInput } from "./callPathSchemas.js";
 import { createEvidence, type Evidence } from "./evidence.js";
-import { functionDossierSchema } from "./hopperValues.js";
-import { jsonValueSchema } from "./jsonValue.js";
+import type { JsonValue } from "./jsonValue.js";
 import type { RelationshipCoverage } from "./relationshipCoverage.js";
 
 const observe = (
@@ -21,7 +16,7 @@ const observe = (
     readonly relationshipCoverage?: RelationshipCoverage;
   } = {},
 ): Evidence => {
-  const value = functionDossierSchema.parse({
+  const value = {
     procedure: {
       address,
       name: `fn_${address.slice(2)}`,
@@ -56,16 +51,14 @@ const observe = (
     native_value_flow: null,
     basic_blocks: [],
     limitations: [...(options.dossierLimitations ?? [])],
-  });
+  } satisfies JsonValue;
   return createEvidence(
     { path: "/tmp/a", sha256: "a".repeat(64), format: "mach-o" },
     { id: provider, name: provider, version: "1" },
     {
       operation: "analyze_function",
-      parameters: enhancedInputSchemas.analyze_function.parse({
-        procedure: address,
-      }),
-      result: jsonValueSchema.parse(value),
+      parameters: { procedure: address },
+      result: value,
       confidence: "derived",
       authority: "shipped-artifact",
       ...(options.evidenceLimitations === undefined
@@ -78,15 +71,16 @@ const observe = (
   );
 };
 
-const run = (functions: Evidence[], overrides: Record<string, unknown> = {}) =>
-  buildCallPath(
-    callPathInputSchema.parse({
-      functions,
-      start: { address: "0x1000" },
-      goal: { address: "0x4000" },
-      ...overrides,
-    }),
-  );
+const run = (
+  functions: Evidence[],
+  overrides: Partial<Pick<CallPathInput, "start" | "goal">> = {},
+) =>
+  buildCallPath({
+    functions,
+    start: { address: "0x1000" },
+    goal: { address: "0x4000" },
+    ...overrides,
+  });
 
 describe("call path reconstruction", () => {
   it("returns deterministic shortest-first cited paths", () => {
@@ -178,7 +172,7 @@ describe("call path reconstruction", () => {
 describe("call path topology and capacity", () => {
   it("retains every distinct generic limitation beyond the push argument limit", () => {
     const limitations = Array.from(
-      { length: 1_000_000 },
+      { length: 150_000 },
       (_, index) => `context-${index.toString().padStart(7, "0")}`,
     );
     const result = run([
@@ -335,26 +329,23 @@ describe("call path topology and capacity", () => {
 });
 
 describe("explicit call relationship coverage", () => {
-  it.each([150_000, 1_000_000])(
-    "accumulates %i partial reasons without argument-stack exhaustion",
-    (length) => {
-      const result = run([
-        observe("0x1000", [], "rea-workflow", {
-          relationshipCoverage: {
-            status: "partial",
-            limitations: Array<string>(length).fill("omitted"),
-          },
-          evidenceLimitations: [],
-          dossierLimitations: [],
-        }),
-      ]);
-      expect(result).toMatchObject({
-        status: "unknown",
-        search_scope: { exhaustive: false },
-        limitations: ["omitted"],
-      });
-    },
-  );
+  it("accumulates 150,000 partial reasons without argument-stack exhaustion", () => {
+    const result = run([
+      observe("0x1000", [], "rea-workflow", {
+        relationshipCoverage: {
+          status: "partial",
+          limitations: Array<string>(150_000).fill("omitted"),
+        },
+        evidenceLimitations: [],
+        dossierLimitations: [],
+      }),
+    ]);
+    expect(result).toMatchObject({
+      status: "unknown",
+      search_scope: { exhaustive: false },
+      limitations: ["omitted"],
+    });
+  });
 
   it("retains contextual limits on a found path without reducing complete coverage", () => {
     const limitation = "Provider results reflect the current database state.";

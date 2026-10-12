@@ -243,6 +243,10 @@ export const createServer = (
   const delivery = selectToolResultDelivery(environment, options.delivery);
   const evmInterface =
     options.evmInterface ?? evmInterfaceModule.create(environment);
+  const binaryLayout =
+    options.binaryLayout ?? createBinaryLayoutService(environment);
+  const recordedCrash =
+    options.recordedCrash ?? createRecordedCrashService(environment);
   const webSourceLocation =
     options.webSourceLocation ?? createWebSourceLocationService(environment);
   const webModuleTrace =
@@ -258,6 +262,8 @@ export const createServer = (
     environment,
     delivery,
     evmInterface,
+    binaryLayout,
+    recordedCrash,
     webSourceLocation,
     webModuleTrace,
     javascriptRecovery,
@@ -296,6 +302,8 @@ export const createServer = (
       adbDevice.close(),
       flutter.close(),
       evmInterface.close(),
+      binaryLayout.close(),
+      recordedCrash.close(),
       webSourceLocation.close(),
       webModuleTrace.close(),
       javascriptRecovery.close?.() ?? Promise.resolve(),

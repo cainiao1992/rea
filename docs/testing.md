@@ -627,11 +627,12 @@ or upgrade Java, Ghidra, .NET or native toolchains. See
 `npm run verify:ida -- --target /absolute/path/to/program --procedure main`
 uses the existing `REA_IDA_MCP_CONFIG` registration. It installs no engine,
 Python package, or compiler. The target must already be open in the GUI for
-the legacy attached profile; the database-supervisor headless profile opens
+the legacy or native attached profile; the database-supervisor headless profile opens
 a digest-verified private copy. A caller-supplied fixture keeps prerequisites
 limited to the selected engine and host. `tests/conformance/ida/inventory.c`
-provides an optional small native fixture source with an exported
-`rea_fixture_add` function.
+provides an optional small native fixture source with exported
+`rea_fixture_add` and `rea_fixture_subtract` functions. For their switching check,
+use `--second-procedure rea_fixture_subtract --second-marker='- 13'`.
 
 The lane invokes the production CLI dispatcher and connects the pinned MCP
 client SDK to the production REA server. It verifies function Evidence and
@@ -658,6 +659,10 @@ the transient `busy` health a worker can report right after opening, that lane
 failed intermittently on that host. Linux headless, modern attached GUI tools,
 other engine versions and architectures remain unverified; see the
 [provider guide](ida-provider.md).
+
+Native IDA MCP verification uses `"protocol": "native"` with an already-running native plugin and requires `--second-procedure other_function --second-marker unique_second_body_text` to exercise GUI function switching and a return to the first function. These options remain optional for other profiles. The literal marker must appear in the second function's pseudocode and be absent from the first. Native cloud/widget failures are reported without hidden retries.
+
+The initial Linux x64 IDA Free 9.4 run used native MCP 1.1.2 with a local navigation correction. Windows x64 verification uses **IDA Pro 9.3**, the two-function public fixture, and the shipped Windows `whoami.exe` application. The native plugin was built from upstream `c9d15d98e8a143fc74f6e14037c48f63889b6d6c`, including the merged navigation fix, with a local loopback-listener change. Production CLI/MCP parity, switching, identity and cleanup passed. Correctness and performance measurements are recorded in the [Windows native verification notes](https://github.com/morluto/rea/blob/main/experiments/analysis-efficiency/ida-native-windows.md). Stock 1.1.2 switching, native macOS, and Windows IDA Free remain unverified. See the [native bridge prerequisites](ida-provider.md#optional-native-ida-mcp-bridge).
 
 ## DOS Ghidra analysis
 

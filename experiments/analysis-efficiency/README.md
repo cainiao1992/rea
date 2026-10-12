@@ -19,6 +19,10 @@ Follow-up: [EVM interface summary delivery](evm-interface-summary.md) records
 the opt-in retained view, old-client/Evidence migration checks and repeated SDK
 and real-model pairs, including mixed token/time results and strict-answer limits.
 
+Follow-up: [task-scoped preset lifecycle verification](preset-lifecycle.md) checks
+real Ghidra profile/snapshot boundaries, startup cancellation and retained cleanup
+retry while preserving defaults and distinguishing verification from performance.
+
 The 12 detailed checkpoint receipts were archived byte-for-byte before removal
 from the final PR tree. The archive `review-receipts-00d51e0fc-20261012` is in the
 private experiment lab outside the checkout; its `archive-index.json` records

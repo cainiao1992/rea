@@ -31,8 +31,8 @@ export const registerBundleComparisonTool = (
         context.mcpReq.signal,
         async () => {
           const [left, right] = await Promise.all([
-            readEvidenceBundle(input.left_bundle_path),
-            readEvidenceBundle(input.right_bundle_path),
+            readEvidenceBundle(input.left_bundle_path, context.mcpReq.signal),
+            readEvidenceBundle(input.right_bundle_path, context.mcpReq.signal),
           ]);
           if (!left.ok) return server.delivery.toCallToolResult(left, contract);
           if (!right.ok)

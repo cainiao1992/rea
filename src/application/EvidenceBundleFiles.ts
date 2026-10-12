@@ -36,8 +36,9 @@ type EvidenceWriteFailure =
 /** Read and validate an evidence bundle at the caller-supplied path. */
 export const readEvidenceBundle = (
   path: string,
+  signal?: AbortSignal,
 ): Promise<Result<EvidenceBundle, EvidenceReadFailure>> =>
-  readBundle(path, parseEvidenceBundle);
+  readBundle(path, parseEvidenceBundle, signal);
 
 /** Read an authenticated immutable snapshot for a subsequent session import. */
 export const readImmutableEvidenceBundle = (

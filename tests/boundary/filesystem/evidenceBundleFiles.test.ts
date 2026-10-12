@@ -39,24 +39,27 @@ const bundle = (result = true) =>
     ),
   ]);
 
-it("returns import cancellation before inspecting a selected path", async () => {
-  const root = await createTestTempDirectory("rea-import-pre-cancel-");
-  const controller = new AbortController();
-  controller.abort(new Error("cancel before import"));
-  expect(
-    await readImmutableEvidenceBundle(
-      join(root, "missing.json"),
-      controller.signal,
-    ),
-  ).toMatchObject({
-    ok: false,
-    error: {
-      _tag: "AnalysisCancelledError",
-      operation: "import_evidence_bundle",
-    },
-  });
-  expect(await readdir(root)).toEqual([]);
-});
+it.each([
+  ["immutable", readImmutableEvidenceBundle],
+  ["mutable", readEvidenceBundle],
+] as const)(
+  "cancels a %s bundle read before opening its selected path",
+  async (_, read) => {
+    const root = await createTestTempDirectory("rea-bundle-pre-cancel-");
+    const controller = new AbortController();
+    controller.abort(new Error("cancel before bundle read"));
+    expect(
+      await read(join(root, "missing.json"), controller.signal),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        _tag: "AnalysisCancelledError",
+        operation: "import_evidence_bundle",
+      },
+    });
+    expect(await readdir(root)).toEqual([]);
+  },
+);
 
 it("preserves the failed-close owner when import is also cancelled", async () => {
   const root = await createTestTempDirectory("rea-import-cancel-cleanup-");

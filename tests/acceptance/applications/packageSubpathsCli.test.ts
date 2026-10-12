@@ -35,7 +35,7 @@ const createPackageSubpathFixture = async () => {
   const selfSource = 'const self = require("fi%xture"); module.exports = self;';
   const importSource = [
     'import literal from "fi%xture";',
-    'import uri from "file:///src/uri-dep.cjs";',
+    'import uri from "FILE:///src/uri-dep.cjs?token=%2F#entry";',
   ].join("\n");
   const files = {
     "src/main.cjs": source,
@@ -181,7 +181,7 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
         relation: "imports",
         properties: expect.objectContaining({
           module_link_kind: "import",
-          specifier: "file:///src/uri-dep.cjs",
+          specifier: "FILE:///src/uri-dep.cjs?token=%2F#entry",
           resolved_path: "src/uri-dep.cjs",
           resolution_status: "resolved",
         }),

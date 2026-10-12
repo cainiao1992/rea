@@ -509,17 +509,6 @@ describe("contextual JavaScript artifact path resolution", () => {
       resolution_status: "resolved",
       resolved_path: "renderer/local.js",
     });
-    expect(
-      resolve({
-        declaredPath: "file:///assets/app.js#entry",
-        sourcePath: "main.js",
-        context: "module-specifier",
-        files,
-      }),
-    ).toMatchObject({
-      resolution_status: "resolved",
-      resolved_path: "assets/app.js",
-    });
   });
 
   it.each(["node:fs", "electron", "../../escape.js", "%2e%2e/escape.js"])(
@@ -573,6 +562,55 @@ describe("contextual JavaScript artifact path resolution", () => {
       resolved_path: expectedPath,
       limitations: [],
     });
+  });
+});
+
+describe("JavaScript file URL resolution", () => {
+  it("resolves file URL paths without interpreting query bytes as path syntax", () => {
+    const files = fileMap([file("assets/app.js", "root")]);
+    for (const declaredPath of [
+      "file:///assets/app.js#entry",
+      "FILE:///assets/app.js?token=%2F#entry",
+    ]) {
+      expect(
+        resolve({
+          declaredPath,
+          sourcePath: "main.js",
+          context: "module-specifier",
+          moduleKind: "import",
+          files,
+        }),
+      ).toMatchObject({
+        declared_path: declaredPath,
+        resolution_status: "resolved",
+        resolved_path: "assets/app.js",
+      });
+    }
+
+    for (const declaredPath of [
+      "file:///assets%2Fapp.js",
+      "file:///assets%2\nFapp.js",
+    ]) {
+      expect(
+        resolve({
+          declaredPath,
+          sourcePath: "main.js",
+          context: "module-specifier",
+          moduleKind: "import",
+          files,
+        }),
+      ).toMatchObject({ resolution_status: "rejected", resolved_path: null });
+    }
+
+    expect(
+      resolve({
+        declaredPath: "file:/assets/app.js",
+        sourcePath: "main.js",
+        context: "module-specifier",
+        moduleKind: "import",
+        files,
+      }),
+    ).toMatchObject({ resolution_status: "external", resolved_path: null });
   });
 });
 

@@ -205,17 +205,26 @@ const contextualCandidate = (
     context === "url-reference"
       ? stripQueryAndFragment(input.declaredPath)
       : input.declaredPath;
-  const rejected = rejectDeclaration(declared);
-  if (rejected !== null) return rejected;
-  if (context === "html-reference") return htmlCandidate(input);
-  if (context === "module-specifier") {
+  if (context === "module-specifier" && /^file:/iu.test(declared)) {
     const fileUrl = fileUrlPath(declared);
+    if (fileUrl === null)
+      return unresolvedCandidate("rejected", [
+        "The file URL path contains syntax that cannot identify a canonical artifact path.",
+      ]);
     if (fileUrl !== undefined)
       return input.moduleKind === "require"
         ? unresolvedCandidate("external", [
             "Node CommonJS require specifiers do not resolve file URLs as local artifacts.",
           ])
         : fileUrl;
+    return unresolvedCandidate("external", [
+      "File URL authorities or invalid file URL forms cannot be mapped to artifact-local paths.",
+    ]);
+  }
+  const rejected = rejectDeclaration(declared);
+  if (rejected !== null) return rejected;
+  if (context === "html-reference") return htmlCandidate(input);
+  if (context === "module-specifier") {
     if (hasScheme(declared))
       return unresolvedCandidate("external", [
         "URL and Node builtin schemes are outside static artifact module resolution.",
@@ -1194,12 +1203,26 @@ const exactPackageTargetNotFound = (
   ],
 });
 
-const fileUrlPath = (value: string): string | undefined => {
-  if (!value.startsWith("file://")) return undefined;
+const fileUrlPath = (value: string): string | null | undefined => {
+  if (!/^file:\/\//iu.test(value)) return undefined;
+  // URL parsing removes tabs and newlines and normalizes encoded dot segments.
+  // Check the raw path first, excluding URL identity suffixes, then check the
+  // parsed pathname so parser normalization cannot introduce a separator.
+  const rawPath = stripQueryAndFragment(value);
+  if (
+    value.includes("\0") ||
+    value.includes("\\") ||
+    /[\t\n\r]/u.test(rawPath) ||
+    !admitsCanonicalPathSyntax(rawPath)
+  )
+    return null;
   try {
     const url = new URL(value);
     if (url.protocol !== "file:" || url.hostname !== "") return undefined;
-    return decodeURIComponent(url.pathname).replace(/^\/+/, "");
+    if (!admitsCanonicalPathSyntax(url.pathname)) return null;
+    const decoded = decodeURIComponent(url.pathname);
+    if (decoded.includes("\0")) return null;
+    return decoded.replace(/^\/+/, "");
   } catch (cause: unknown) {
     // Unparseable file URLs have no path to resolve.
     void cause;

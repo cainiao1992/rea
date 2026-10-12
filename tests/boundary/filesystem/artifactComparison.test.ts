@@ -172,6 +172,9 @@ describe("artifact inventory coverage", () => {
         authority: "shipped-artifact",
       },
     );
+    expect(parseArtifactInventoryEvidence(partial).inventory.complete).toBe(
+      true,
+    );
     expect(compareArtifacts(partial, partial)).toMatchObject({
       status: "unknown",
       summary: { unchanged: 0, unknown: 1 },

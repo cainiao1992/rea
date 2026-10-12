@@ -68,6 +68,16 @@ correctness. Select relevant boundary files and real-provider lanes explicitly.
 Source projects also contain large capacity regressions; `test:fast` promises
 no compiled-runtime prerequisite, not a fixed time budget.
 
+`npm run lint` prints errors and a warning summary; `npm run jscpd` prints
+duplication statistics. Complete reports remain in `.cache/static-checks/` and
+CI uploads them as `static-check-reports`, including after a failed static gate.
+Use `npm run lint:details` or `npm run jscpd:details` for all console diagnostics.
+Both duplicate commands scan production and test code with the same 3% limit;
+the summary commands preserve checker failures and restore reports from cached
+static tasks. Both lint caches include the website, documentation configuration,
+and experiment code scanned by the checker; a regression compares the actual
+lint inventory with Turbo's resolved inputs.
+
 Routine iterations and rebases need focused regressions and relevant checks.
 Before handing off a PR, run `npm run check` and generated-document checks when
 applicable; CI owns the full suite and coverage. Use the full local gate for

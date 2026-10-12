@@ -99,6 +99,15 @@ jobs:
         run: npm run test:python
       - if: needs.changes.outputs.code != 'true'
         run: npm run format:check
+      - name: Upload complete static diagnostics
+        if: always() && needs.changes.outputs.code == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-check-reports
+          path: .cache/static-checks/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
 
   test-shard:
     name: Test shard (${{ matrix.shard }})

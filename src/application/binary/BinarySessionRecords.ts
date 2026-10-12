@@ -11,6 +11,7 @@ import {
   AnalysisSnapshotMismatchError,
 } from "../../domain/evidenceErrors.js";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
+import type { AnalysisInputError } from "../../domain/analysisErrorCore.js";
 import type { UnknownRegistryError } from "../../domain/unknownRegistryError.js";
 import type {
   RecordUnknownInput,
@@ -129,7 +130,7 @@ export abstract class BinarySessionRecords {
 
   importEvidenceBundle(
     bundle: unknown,
-  ): Result<number, EvidenceIntegrityError> {
+  ): Result<number, EvidenceIntegrityError | AnalysisInputError> {
     const imported = this.#records.mergeEvidenceBundle(bundle);
     if (!imported.ok) return imported;
     if (imported.value.metadataChanged) this.invalidateSnapshot();

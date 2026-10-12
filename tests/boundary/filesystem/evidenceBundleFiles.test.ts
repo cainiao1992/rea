@@ -434,21 +434,8 @@ describe("evidence bundle filesystem adapter", () => {
     },
   );
 
-  it("names the failed bundle constraint for a single record or schema mismatch", async () => {
+  it("names schema mismatches that prevent bundle parsing", async () => {
     const directory = await createTestTempDirectory("rea-evidence-");
-    const record = bundle().records[0];
-    const single = join(directory, "record.json");
-    await writeFile(single, JSON.stringify(record));
-    expect(await readEvidenceBundle(single)).toMatchObject({
-      ok: false,
-      error: {
-        _tag: "EvidenceIntegrityError",
-        userMessage: expect.stringContaining(
-          `this JSON is one Evidence record (${String(record?.evidence_id)})`,
-        ),
-      },
-    });
-
     const partial = join(directory, "partial.json");
     await writeFile(partial, JSON.stringify({ evidence_id: "typo" }));
     const rejected = await readEvidenceBundle(partial);
@@ -472,6 +459,41 @@ describe("evidence bundle filesystem adapter", () => {
         _tag: "EvidenceIntegrityError",
         userMessage: expect.stringContaining(
           "does not match the bundle schema at records:",
+        ),
+      },
+    });
+  });
+});
+
+describe("standalone Evidence bundle inputs", () => {
+  it("classifies a record only after authenticating it", async () => {
+    const directory = await createTestTempDirectory("rea-evidence-");
+    const record = bundle().records[0];
+    const single = join(directory, "record.json");
+    await writeFile(single, JSON.stringify(record));
+    expect(await readEvidenceBundle(single)).toMatchObject({
+      ok: false,
+      error: {
+        _tag: "EvidenceFileError",
+        reason: "wrong-kind",
+        path: single,
+        userMessage: expect.stringContaining(
+          `this JSON is one Evidence record (${String(record?.evidence_id)})`,
+        ),
+      },
+    });
+
+    const tamperedRecord = join(directory, "tampered-record.json");
+    await writeFile(
+      tamperedRecord,
+      JSON.stringify({ ...record, normalized_result: "changed" }),
+    );
+    expect(await readEvidenceBundle(tamperedRecord)).toMatchObject({
+      ok: false,
+      error: {
+        _tag: "EvidenceIntegrityError",
+        userMessage: expect.stringContaining(
+          "does not match the bundle schema",
         ),
       },
     });

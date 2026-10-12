@@ -145,6 +145,26 @@ REA follows `HERMES_HOME` whitespace trimming, environment-variable expansion,
 and home expansion before resolving that profile. Setup previews the resolved
 configuration and skill destinations; doctor and uninstall use those same paths.
 
+## ZCode
+
+For [ZCode](https://zcode.z.ai/en/docs/mcp-services), setup registers `rea` in the nested `mcp.servers` table of the
+user-level `~/.zcode/cli/config.json`. Entries carry `command`, `args`, and
+`env` without a transport discriminator. ZCode discovers personal skills from
+`~/.zcode/skills` rather than the shared directory, so setup installs its
+skill copy there.
+
+ZCode reads the user-scope `~/.agents/mcp.json` fallback only while the native
+`.zcode` config defines no servers at all, with no merging. When setup writes
+the first native server into an empty table, it copies the fallback's
+`mcpServers` entries into the native table so they keep loading, and leaves
+the fallback file untouched. Existing REA environment overrides are preserved
+when refreshing its command. A malformed or unreadable fallback file fails setup instead of
+being silently suppressed; repair or remove it and rerun. ZCode disables a
+server with `enable: false` on its entry; doctor reports such a registration
+as stale, and rerunning setup removes the flag to repair it. Native configuration
+uses strict JSON; setup refuses comments, trailing commas and a BOM rather than
+writing a registration ZCode cannot load.
+
 ## DeepSeek Harness
 
 DeepSeek Harness registers MCP clients through a Cordis YAML patch sequence

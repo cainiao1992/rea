@@ -69,6 +69,7 @@ describe("client configuration filesystem lifecycle", () => {
       "omp",
       "pi",
       "hermes",
+      "zcode",
       "dsh",
       "grok_bot",
     ]);

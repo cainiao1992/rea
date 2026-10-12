@@ -26,6 +26,8 @@ export interface SetupClient {
   };
   /** Unresolved path evidence only; consumers must not perform I/O on it. */
   readonly configPathError?: string;
+  /** Same-scope fallback ZCode stops loading after its first native server. */
+  readonly zcodeFallbackPath?: string;
   readonly markerPath?: string;
   readonly format?:
     | "json"
@@ -38,6 +40,7 @@ export interface SetupClient {
     | "omp"
     | "pi"
     | "hermes"
+    | "zcode"
     | "dsh"
     | "unsupported";
 }
@@ -64,6 +67,7 @@ interface ClientDefinition {
   readonly configPath: ClientPath;
   readonly markerPath: ClientPath;
   readonly format: NonNullable<SetupClient["format"]>;
+  readonly zcodeFallbackPath?: (context: ClientPathContext) => string;
   readonly skillPath?: ClientPath;
   readonly configPaths?: (context: ClientPathContext) => readonly string[];
   readonly geminiSettings?: (
@@ -500,6 +504,16 @@ export const SUPPORTED_CLIENT_DEFINITIONS = [
     format: "hermes",
   },
   {
+    name: "zcode",
+    zcodeFallbackPath: ({ home }: ClientPathContext) =>
+      join(home, ".agents", "mcp.json"),
+    displayName: "ZCode",
+    configPath: [".zcode", "cli", "config.json"],
+    markerPath: [".zcode", "cli"],
+    skillPath: [".zcode", "skills"],
+    format: "zcode",
+  },
+  {
     name: "dsh",
     displayName: "DeepSeek Harness",
     // The home Cordis patch applies to every profile; the skill directory is
@@ -590,6 +604,9 @@ export const supportedClients = (
                 ...new Set([...definition.configPaths(context), configPath]),
               ],
             }),
+        ...(definition.zcodeFallbackPath === undefined
+          ? {}
+          : { zcodeFallbackPath: definition.zcodeFallbackPath(context) }),
         markerPath: marker.value,
         format: definition.format,
       };

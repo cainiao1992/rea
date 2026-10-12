@@ -43,6 +43,7 @@ import {
   sameIdaHostPath,
 } from "./IdaWorkspace.js";
 import { parseIdaInput } from "./IdaInput.js";
+import { createEvidence } from "../domain/evidence.js";
 
 const legacyTools = [
   "get_metadata",
@@ -74,6 +75,14 @@ const isIdaOperation = (operation: string): operation is IdaOperation =>
   operationSet.has(operation);
 const wasCancelled = (options: ExecutionOptions | undefined): boolean =>
   options?.signal?.aborted === true;
+
+interface IdaOperationFailureContext {
+  runner: IdaOperationRunner | undefined;
+  metadataBefore: JsonValue | undefined;
+  metadataAfter: JsonValue | undefined;
+  postOperationIdentityCheck: "not_attempted" | "started" | "verified";
+  parameters: Readonly<Record<string, JsonValue>>;
+}
 
 /** A failed cleanup retains its private workspace and reports the remaining resource. */
 class IdaCleanupError extends ProviderAdapterError {
@@ -185,23 +194,34 @@ export class IdaSessionClient implements AnalysisClient {
           },
         ]),
       );
+    const failureContext: IdaOperationFailureContext = {
+      runner: undefined,
+      metadataBefore: undefined,
+      metadataAfter: undefined,
+      postOperationIdentityCheck: "not_attempted",
+      parameters,
+    };
     try {
       await this.#start();
       const before = await this.#observe(options);
-      if (wasCancelled(options))
-        return err(new AnalysisCancelledError(operation));
+      failureContext.metadataBefore = before;
+      if (wasCancelled(options)) throw new AnalysisCancelledError(operation);
       if (operation === "health") return this.#health(before);
       if (!isIdaOperation(operation))
         throw new AnalysisProtocolError(
           "IDA operation changed after validation.",
         );
       const runner = this.#runner(options);
+      failureContext.runner = runner;
       const result = await runner.run(operation, parameters);
-      if (wasCancelled(options))
-        return err(new AnalysisCancelledError(operation));
-      const after = await this.#observe(options);
-      if (wasCancelled(options))
-        return err(new AnalysisCancelledError(operation));
+      if (wasCancelled(options)) throw new AnalysisCancelledError(operation);
+      failureContext.postOperationIdentityCheck = "started";
+      const after = await this.#observe(
+        options,
+        (observed) => (failureContext.metadataAfter = observed),
+      );
+      failureContext.postOperationIdentityCheck = "verified";
+      if (wasCancelled(options)) throw new AnalysisCancelledError(operation);
       return ok(
         createAnalysisExecution(result, IDA_PROVIDER_IDENTITY, {
           rawResult: {
@@ -224,7 +244,7 @@ export class IdaSessionClient implements AnalysisClient {
         }),
       );
     } catch (cause: unknown) {
-      return this.#failure(operation, cause, options);
+      return this.#failure(operation, cause, options, failureContext);
     }
   }
 
@@ -268,20 +288,27 @@ export class IdaSessionClient implements AnalysisClient {
     operation: string,
     cause: unknown,
     options: ExecutionOptions | undefined,
+    context: IdaOperationFailureContext,
   ) {
-    if (wasCancelled(options))
-      return err(new AnalysisCancelledError(operation));
-    if (cause instanceof AnalysisError) return err(cause);
-    if (cause instanceof z.ZodError)
-      return err(
-        new AnalysisOutputError(
-          operation,
-          `IDA MCP returned malformed or unsupported producer data: ${cause.issues.map((issue) => `${issue.path.join(".") || "$"}: ${issue.message}`).join("; ")}`,
-          { cause },
-        ),
+    let failure: AnalysisError;
+    if (
+      cause instanceof AnalysisError &&
+      (cause.partialObservation !== undefined ||
+        cause.cleanupIncomplete ||
+        cause.capturedOutput !== undefined)
+    )
+      failure = cause;
+    else if (wasCancelled(options))
+      failure = new AnalysisCancelledError(operation);
+    else if (cause instanceof AnalysisError) failure = cause;
+    else if (cause instanceof z.ZodError)
+      failure = new AnalysisOutputError(
+        operation,
+        `IDA MCP returned malformed or unsupported producer data: ${cause.issues.map((issue) => `${issue.path.join(".") || "$"}: ${issue.message}`).join("; ")}`,
+        { cause },
       );
-    return err(
-      new ProviderAdapterError("ida", operation, {
+    else
+      failure = new ProviderAdapterError("ida", operation, {
         cause,
         diagnostics: {
           reason:
@@ -289,8 +316,68 @@ export class IdaSessionClient implements AnalysisClient {
           recovery:
             "Check the configured upstream MCP registration and selected target; see docs/ida-provider.md.",
         },
-      }),
-    );
+      });
+    // Only operation calls made after target identity/readiness validation can
+    // become partial Evidence. The failing call itself is absent from `raw`
+    // when its transport or MCP envelope could not be decoded.
+    const { runner, metadataBefore, metadataAfter } = context;
+    if (
+      runner !== undefined &&
+      runner.raw.length > 0 &&
+      metadataBefore !== undefined
+    ) {
+      const observations = jsonValueSchema.parse(runner.raw);
+      const upstream = this.connection.serverInfo();
+      const binding =
+        context.postOperationIdentityCheck !== "verified"
+          ? {
+              status: "not_verified",
+              reason:
+                cause instanceof Error
+                  ? cause.message
+                  : "Post-operation target identity was not observed.",
+            }
+          : { status: "verified" };
+      failure.retainPartialObservation(
+        createEvidence(this.target, IDA_PROVIDER_IDENTITY, {
+          predicateType: "analysis-observation",
+          operation,
+          parameters: context.parameters,
+          result: {
+            status: "partial",
+            failed_operation: operation,
+            observations,
+            metadata_before: metadataBefore,
+            target_binding: binding,
+            ...(metadataAfter === undefined
+              ? {}
+              : { metadata_after: metadataAfter }),
+          },
+          rawResult: {
+            upstream,
+            observations,
+            metadata_before: metadataBefore,
+            ...(metadataAfter === undefined
+              ? {}
+              : { metadata_after: metadataAfter }),
+            post_operation_identity_check: context.postOperationIdentityCheck,
+          },
+          confidence: "observed",
+          authority: "external-service",
+          limitations: [
+            ...IDA_LIMITATIONS,
+            ...runner.limitations,
+            "The requested IDA operation failed after these completed upstream replies; the partial Evidence does not establish a complete result.",
+            "Replies are bound to the selected target only by the pre-operation identity check unless post_operation_identity_check is verified.",
+          ],
+          locations: [
+            { kind: "artifact-path", path: this.target.path },
+            ...runner.locations,
+          ],
+        }),
+      );
+    }
+    return err(failure);
   }
 
   #start(): Promise<void> {
@@ -356,11 +443,16 @@ export class IdaSessionClient implements AnalysisClient {
     }
   }
 
-  async #observe(options?: ExecutionOptions): Promise<JsonValue> {
+  async #observe(
+    options?: ExecutionOptions,
+    onObserved?: (metadata: JsonValue) => void,
+  ): Promise<JsonValue> {
     let identity: string;
     if (this.config.mode === "attached") {
       const raw = await this.connection.call("get_metadata", {});
       const metadata = legacyMetadataSchema.parse(raw);
+      this.#metadata = raw;
+      onObserved?.(raw);
       if (metadata.sha256.toLowerCase() !== this.target.sha256.toLowerCase())
         throw new AnalysisProtocolError(
           `The attached IDA input SHA-256 does not match the selected target ${this.target.path}; open that target in IDA or use headless mode.`,
@@ -370,7 +462,6 @@ export class IdaSessionClient implements AnalysisClient {
         metadata.sha256.toLowerCase(),
         metadata.base,
       ]);
-      this.#metadata = raw;
     } else {
       if (this.#database === undefined || this.#workspace === undefined)
         throw new AnalysisProtocolError(
@@ -382,6 +473,8 @@ export class IdaSessionClient implements AnalysisClient {
         signal: options?.signal,
       });
       const metadata = modernHealthSchema.parse(raw);
+      this.#metadata = raw;
+      onObserved?.(raw);
       if (
         !sameIdaHostPath(metadata.input_path, this.#workspace.inputPath) ||
         (await idaFileDigest(this.#workspace.inputPath)) !== this.target.sha256
@@ -399,7 +492,6 @@ export class IdaSessionClient implements AnalysisClient {
         metadata.idb_path,
         metadata.imagebase,
       ]);
-      this.#metadata = raw;
     }
     if (
       this.#initialIdentity !== undefined &&

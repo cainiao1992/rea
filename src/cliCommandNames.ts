@@ -39,6 +39,7 @@ export const CLI_COMMANDS = Object.freeze({
   inspectNativeDataType: "inspect-native-data-type",
   inspectNativeLoadImage: "inspect-native-load-image",
   readBytes: "read-bytes",
+  searchBytes: "search-bytes",
   addressToFileOffset: "address-to-file-offset",
   traceNativeValues: "trace-native-values",
   inspectNativeInstruction: "inspect-native-instruction",

@@ -199,6 +199,49 @@ const testAnalysis = (
 });
 
 describe("native UI action trace", () => {
+  it("retains Hopper targetless call evidence alongside fallback callee routes", async () => {
+    const result = await new EnhancedTools(
+      testAnalysis({
+        procedure_address: () => execution("procedure_address", "0x1000"),
+        procedure_references: (parameters) =>
+          ok(
+            createAnalysisExecution(
+              {
+                reference_kinds_available: false,
+                references: [],
+                unresolved_calls:
+                  parameters.procedure === "0x1000"
+                    ? [{ address: "0x1008", reason: "No static target" }]
+                    : [],
+              },
+              { id: "hopper", name: "Hopper", version: "fixture" },
+            ),
+          ),
+      }),
+    ).execute("trace_native_ui_action", { action: "0x1000" });
+    if (!result.ok) throw result.error;
+    const trace = nativeInvestigationTraceSchema.parse(result.value);
+    expect(trace.edges).toContainEqual(
+      expect.objectContaining({
+        relation: "provider_call",
+        to: "native:function:0x2000",
+      }),
+    );
+    expect(trace.unresolved).toContainEqual(
+      expect.objectContaining({
+        from: "native:function:0x1000",
+        to: null,
+        reason: "No static target",
+        evidence: [
+          expect.objectContaining({
+            description: "Hopper reported an unresolved call: No static target",
+            location: { address: "0x1008", file_offset: null },
+            artifact_sha256: target,
+          }),
+        ],
+      }),
+    );
+  });
   it("accepts an explicit native seed without an authored UI connection", async () => {
     const result = await new EnhancedTools(
       testAnalysis({

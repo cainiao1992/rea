@@ -776,7 +776,10 @@ should require this aggregate, `Static checks`, and `Portable tests`. Fast runs
 cancel superseded feedback for the same PR or main branch. Scheduled/manual
 qualification has a separate concurrency group: active work finishes and only
 the latest pending run is retained. Release qualification is grouped by its
-exact source SHA and cannot be cancelled by newer main pushes. Publication
+exact source SHA and cannot be cancelled by newer main pushes. Provider and
+website lanes inherit their caller's scheduling; reusable
+workflows have no independent cancellation group. Direct manual lane dispatches
+run independently on disposable hosted runners. Publication
 requires that qualification to succeed and consumes its exact verified tarball,
 checking source SHA, workflow run, run attempt, package/Node version and SHA-256
 before npm publication. Earlier attempts from the same workflow run are accepted

@@ -64,6 +64,29 @@ it("makes the required gate wait for every CI lane, including future additions",
   );
 });
 
+it("leaves cancellation ownership with CI so child lanes cannot cancel another tier", async () => {
+  const { jobs } = await workflow();
+  const children = Object.values(jobs).flatMap((job) =>
+    typeof job.uses === "string" && job.uses.startsWith("./.github/workflows/")
+      ? [job.uses]
+      : [],
+  );
+  expect(children.length).toBeGreaterThan(0);
+  for (const path of children) {
+    const child = z
+      .object({ concurrency: z.unknown().optional() })
+      .parse(
+        parse(
+          await readFile(new URL(`../../../${path}`, import.meta.url), "utf8"),
+        ),
+      );
+    expect(
+      child.concurrency,
+      `${path} must use caller scheduling`,
+    ).toBeUndefined();
+  }
+});
+
 it("keeps fast feedback separate from complete qualification and release proof", async () => {
   const ci = z
     .object({

@@ -44,6 +44,16 @@ const dossier = (
     referenced_names: [],
     native_api: null,
     native_value_flow: null,
+    facet_availability: {
+      pseudocode: { available: true },
+      assembly: { available: true },
+      comments: { available: true },
+      callers: { available: true },
+      callees: { available: true },
+      references: { available: true },
+      strings_names: { available: true },
+      cfg: { available: true },
+    },
     basic_blocks: [
       {
         start: base,
@@ -119,6 +129,78 @@ const observe = (
   );
 
 describe("function comparison normalized identity", () => {
+  it("retains unresolved call details alongside missing facet coverage", () => {
+    const value: Record<string, unknown> = {
+      ...dossier("return 0;", "0x1000"),
+      unresolved_calls: [{ address: "0x1010", reason: "Unknown indirect target" }],
+    };
+    delete value.facet_availability;
+    const legacy = observe("a", functionDossierSchema.parse(value), "ida");
+    const calls = compareFunctions(legacy, legacy).dimensions.find(
+      ({ dimension }) => dimension === "calls",
+    );
+    expect(calls).toMatchObject({
+      status: "unknown",
+      limitations: expect.arrayContaining([
+        "Left: Unresolved call at 0x1010: Unknown indirect target",
+        "Left: callers: Provider did not declare coverage for this empty facet.",
+      ]),
+    });
+  });
+  it("keeps empty legacy facets without coverage declarations unknown", () => {
+    const value: Record<string, unknown> = {
+      ...dossier("return 0;", "0x1000"),
+      basic_blocks: [],
+    };
+    delete value.facet_availability;
+    const legacy = observe("a", functionDossierSchema.parse(value), "ida");
+    const result = compareFunctions(legacy, legacy);
+    for (const dimension of [
+      "comments",
+      "references",
+      "strings_names",
+      "cfg",
+      "calls",
+    ]) {
+      expect(
+        result.dimensions.find((item) => item.dimension === dimension),
+      ).toMatchObject({ status: "unknown" });
+    }
+  });
+  it("keeps unavailable facets unknown even when one side supplies values", () => {
+    const left = observe(
+      "a",
+      functionDossierSchema.parse({
+        ...dossier("return 0;", "0x1000"),
+        facet_availability: {
+          comments: { available: false, reason: "Not collected" },
+        },
+        comments: [
+          { address: "0x1000", kind: "comment", text: "partial record" },
+        ],
+      }),
+    );
+    const right = observe("b", dossier("return 0;", "0x2000"));
+    expect(
+      compareFunctions(left, right).dimensions.find(
+        ({ dimension }) => dimension === "comments",
+      ),
+    ).toMatchObject({ status: "unknown", left_count: null, right_count: null });
+  });
+  it("rejects malformed facet availability instead of treating it as absence", () => {
+    expect(
+      functionDossierSchema.safeParse({
+        ...dossier("return 0;", "0x1000"),
+        facet_availability: { cfg: { available: false, reason: "" } },
+      }).success,
+    ).toBe(false);
+    expect(
+      functionDossierSchema.safeParse({
+        ...dossier("return 0;", "0x1000"),
+        facet_availability: { cfg: undefined },
+      }).success,
+    ).toBe(false);
+  });
   it("keeps differing generated names ambiguous and stable names mismatched", () => {
     const named = (base: "0x1000" | "0x2000", name: string) =>
       functionDossierSchema.parse({

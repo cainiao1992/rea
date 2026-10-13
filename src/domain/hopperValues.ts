@@ -371,6 +371,11 @@ export const referenceEdgeSchema = z
       .exactOptional(),
   })
   .strict();
+const facetAvailabilitySchema = z.discriminatedUnion("available", [
+  z.object({ available: z.literal(true) }).strict(),
+  z.object({ available: z.literal(false), reason: z.string().min(1) }).strict(),
+]);
+
 export const functionDossierSchema = z
   .object({
     procedure: procedureIdentitySchema.safeExtend({
@@ -428,6 +433,19 @@ export const functionDossierSchema = z
     ),
     native_api: nativeApiBoundarySchema.nullable(),
     native_value_flow: nativeValueFlowSchema.nullable(),
+    facet_availability: z
+      .object({
+        pseudocode: facetAvailabilitySchema.exactOptional(),
+        assembly: facetAvailabilitySchema.exactOptional(),
+        comments: facetAvailabilitySchema.exactOptional(),
+        callers: facetAvailabilitySchema.exactOptional(),
+        callees: facetAvailabilitySchema.exactOptional(),
+        references: facetAvailabilitySchema.exactOptional(),
+        strings_names: facetAvailabilitySchema.exactOptional(),
+        cfg: facetAvailabilitySchema.exactOptional(),
+      })
+      .strict()
+      .exactOptional(),
     limitations: z.array(z.string()),
   })
   .strict();

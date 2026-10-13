@@ -110,6 +110,22 @@ export const projectNativeFunctionView = (
       ]),
     );
   const common = parentFields(parent, dossier, artifact);
+  const availabilityKeys: Readonly<Record<string, string>> = {
+    incoming_references: "references",
+    outgoing_references: "references",
+    referenced_strings: "strings_names",
+    referenced_names: "strings_names",
+    basic_blocks: "cfg",
+  };
+  const availabilityKey = availabilityKeys[view.facet] ?? view.facet;
+  const availability =
+    dossier.facet_availability?.[
+      availabilityKey as keyof NonNullable<
+        FunctionDossier["facet_availability"]
+      >
+    ];
+  if (availability?.available === false)
+    common.unknowns = uniqueSorted([...common.unknowns, availability.reason]);
   const singleton = (item: unknown): UnsignedAnalysisView => ({
     kind: "native",
     view,
@@ -117,6 +133,7 @@ export const projectNativeFunctionView = (
     coverage: completeWithinViewCoverage(1, 1),
     ...common,
   });
+  if (availability?.available === false) return ok(singleton(availability));
   const flow = dossier.native_value_flow;
   if (
     view.facet === "procedure" ||

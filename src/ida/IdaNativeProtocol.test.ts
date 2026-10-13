@@ -243,6 +243,10 @@ describe("native IDA provider observations", () => {
         expect(dossier.value.result).toMatchObject({
           callers: [],
           callees: [{ address: "0x2000", name: "puts" }],
+          facet_availability: {
+            callers: { available: false },
+            callees: { available: true },
+          },
         });
         if (more)
           expect(dossier.value.limitations).toContain(

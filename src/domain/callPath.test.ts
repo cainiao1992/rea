@@ -15,6 +15,7 @@ const observe = (
     readonly evidenceLimitations?: readonly string[];
     readonly dossierLimitations?: readonly string[];
     readonly relationshipCoverage?: RelationshipCoverage;
+    readonly calleeUnavailable?: string;
   } = {},
 ): Evidence => {
   const value = {
@@ -52,6 +53,13 @@ const observe = (
     native_value_flow: null,
     basic_blocks: [],
     limitations: [...(options.dossierLimitations ?? [])],
+    ...(options.calleeUnavailable === undefined
+      ? {}
+      : {
+          facet_availability: {
+            callees: { available: false, reason: options.calleeUnavailable },
+          },
+        }),
   } satisfies JsonValue;
   return createEvidence(
     { path: "/tmp/a", sha256: "a".repeat(64), format: "mach-o" },
@@ -540,4 +548,14 @@ describe("call path evidence admission", () => {
       /supplied for start 0x1000/u,
     );
   });
+});
+
+it("keeps an absent path unknown when only callee facet availability is declared", () => {
+  const result = run([
+    observe("0x1000", [], "rea-workflow", {
+      calleeUnavailable: "Graph callees unavailable",
+    }),
+  ]);
+  expect(result.status).toBe("unknown");
+  expect(result.limitations).toContain("Graph callees unavailable");
 });

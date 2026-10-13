@@ -52,7 +52,67 @@ export const compareDimensions = (
     compareReferences(left, right, context),
     compareStringsAndNames(left, right, context),
     compareCfg(left, right, context),
-  ];
+  ].map((result) => {
+    const limitations = [
+      ...facetLimitations(left, result.dimension).map(
+        (reason) => `Left: ${reason}`,
+      ),
+      ...facetLimitations(right, result.dimension).map(
+        (reason) => `Right: ${reason}`,
+      ),
+    ];
+    return limitations.length === 0
+      ? result
+      : unresolvedDimension({
+          dimension: result.dimension,
+          links: context.links,
+          leftCount: null,
+          rightCount: null,
+          limitations: [...result.limitations, ...limitations],
+        });
+  });
+};
+
+/** An empty undeclared facet is not evidence of observed absence. */
+const facetLimitations = (
+  snapshot: FunctionSnapshot,
+  dimension: DimensionName,
+): string[] => {
+  const { dossier } = snapshot;
+  const fields = {
+    identity: [],
+    pseudocode: [["pseudocode", dossier.pseudocode.length]],
+    assembly: [["assembly", dossier.assembly.length]],
+    comments: [["comments", dossier.comments.length]],
+    calls: [
+      ["callers", dossier.callers.length],
+      ["callees", dossier.callees.length],
+    ],
+    references: [
+      [
+        "references",
+        dossier.incoming_references.length + dossier.outgoing_references.length,
+      ],
+    ],
+    strings_names: [
+      [
+        "strings_names",
+        dossier.referenced_strings.length + dossier.referenced_names.length,
+      ],
+    ],
+    cfg: [["cfg", dossier.basic_blocks.length]],
+  } satisfies Record<
+    DimensionName,
+    [keyof NonNullable<typeof dossier.facet_availability>, number][]
+  >;
+  return fields[dimension].flatMap(([field, count]) => {
+    const availability = dossier.facet_availability?.[field];
+    if (availability?.available === false)
+      return [`${field}: ${availability.reason}`];
+    return availability === undefined && count === 0
+      ? [`${field}: Provider did not declare coverage for this empty facet.`]
+      : [];
+  });
 };
 
 const compareText = (

@@ -253,6 +253,11 @@ const inspectSearch = ({
       // cannot add a path to the goal, so its dossier limits are contextual
       // but do not make the searched start-to-goal closure incomplete.
       if (node === goal) continue;
+      const callees = snapshot.dossier.facet_availability?.callees;
+      if (callees?.available === false) {
+        limitations.push(callees.reason);
+        incompleteExpandedCoverage = true;
+      }
       // Explicit, Evidence-bound relationship coverage owns completeness;
       // generic provider/dossier limitations remain contextual. Legacy Evidence
       // without that metadata retains its conservative limitation-based rule.

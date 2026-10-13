@@ -792,3 +792,29 @@ it("rejects unsupported parent operations and incompatible collections", () => {
     error: { _tag: "AnalysisInputError" },
   });
 });
+
+it("preserves selected native facet unavailability instead of an exhausted empty page", () => {
+  const parent = nativeParent({
+    ...ghidraFunctionDossier(),
+    facet_availability: {
+      comments: { available: false, reason: "Typed comments unavailable" },
+      references: { available: false, reason: "Typed references unavailable" },
+    },
+  });
+  for (const [facet, reason] of [
+    ["comments", "Typed comments unavailable"],
+    ["incoming_references", "Typed references unavailable"],
+  ] as const) {
+    const result = projectAnalysisView(parent, {
+      kind: "native",
+      facet,
+      offset: 0,
+      limit: 8,
+    });
+    if (!result.ok) throw result.error;
+    expect(result.value).toMatchObject({
+      item: { available: false, reason },
+      unknowns: expect.arrayContaining([reason]),
+    });
+  }
+});

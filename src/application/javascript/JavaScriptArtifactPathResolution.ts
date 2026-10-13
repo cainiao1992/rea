@@ -378,6 +378,7 @@ const resolveRuntimeSourceCandidates = (
 
 const rejectDeclaration = (
   declared: string,
+  literalPercent = false,
   allowEmptyPath = false,
 ): CandidateResolution | null => {
   if (declared.length === 0 && !allowEmptyPath)
@@ -386,12 +387,22 @@ const rejectDeclaration = (
     return unresolvedCandidate("rejected", [
       "NUL and backslash path syntax are not admitted for canonical artifact paths.",
     ]);
-  if (!admitsCanonicalPathSyntax(declared))
+  if (!literalPercent && !admitsCanonicalPathSyntax(declared))
     return unresolvedCandidate("rejected", [
       "Encoded dot or separator bytes are rejected before artifact path resolution.",
     ]);
   return null;
 };
+
+/**
+ * Node's CommonJS loader never percent-decodes a request or a legacy package
+ * main, so `%2e` and `%2f` there are literal filename bytes, not encoded dots
+ * or separators. Root confinement still applies to the joined candidate.
+ */
+const declaresLiteralPercent = (input: ResolveArtifactPathInput): boolean =>
+  input.moduleKind === "require" &&
+  (input.context === "module-specifier" ||
+    input.context === "package-entrypoint");
 
 const contextualCandidate = (
   input: ResolveArtifactPathInput,
@@ -428,7 +439,7 @@ const contextualCandidate = (
       "File URL authorities or invalid file URL forms cannot be mapped to artifact-local paths.",
     ]);
   }
-  const rejected = rejectDeclaration(declared);
+  const rejected = rejectDeclaration(declared, declaresLiteralPercent(input));
   if (rejected !== null) return rejected;
   if (context === "module-specifier") {
     if (hasScheme(declared))
@@ -831,7 +842,8 @@ const resolveExportTarget = (
   const encodedPath = target.url.pathname.slice(
     PACKAGE_ARTIFACT_ROOT_URL.pathname.length,
   );
-  const rejected = rejectDeclaration(encodedPath);
+  // Package targets are URLs for both loaders, so their percent bytes encode.
+  const rejected = rejectDeclaration(encodedPath, false);
   if (rejected !== null) return withTargetSource(rejected);
   const decoded = decodeModuleUrlPath(encodedPath);
   if (typeof decoded !== "string") return withTargetSource(decoded);
@@ -912,7 +924,12 @@ const htmlCandidate = (
   const declared = stripQueryAndFragment(htmlUrlText(input.declaredPath));
   // HTML owns URL-text normalization and pathname admission. A nonempty URL
   // reference may have no pathname; suffix bytes remain declaration evidence.
-  const rejected = rejectDeclaration(declared, input.declaredPath !== "");
+  // HTML references are URL text, so percent bytes still encode.
+  const rejected = rejectDeclaration(
+    declared,
+    false,
+    input.declaredPath !== "",
+  );
   if (rejected !== null) return rejected;
   if (looksExternal(declared))
     return unresolvedCandidate("external", [

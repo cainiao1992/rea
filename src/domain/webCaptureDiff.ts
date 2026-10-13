@@ -70,9 +70,11 @@ const compareDimension = (
   after: ReadonlyMap<string, string>,
   complete: boolean,
   reason: string,
+  inventoryComplete = complete,
 ): Dimension => {
+  // Membership evidence can be complete even when selected content is unknown.
   const all = compareIdentities(before, after).filter(
-    ({ change }) => complete || change === "modified",
+    ({ change }) => inventoryComplete || change === "modified",
   );
   if (all.length > 0)
     return {
@@ -160,6 +162,7 @@ const storageDimension = (
     ),
     storageComparable(before, after, keysComplete, usageComplete),
     "Storage fingerprints, inventories, usage, or quota were unavailable or truncated in at least one observation.",
+    keysComplete,
   );
 };
 

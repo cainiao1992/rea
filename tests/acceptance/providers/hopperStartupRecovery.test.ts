@@ -282,6 +282,8 @@ test.for(["handoff", "not-found"] as const)(
     const status = z.object({
       result: z.object({
         provider_operation_health: z.object({
+          // A timeout observes incomplete startup; a failed launcher without
+          // confirmed ownership leaves the provider's state unknown.
           state: z.literal(
             launchMode === "handoff" ? "not_started" : "unknown",
           ),

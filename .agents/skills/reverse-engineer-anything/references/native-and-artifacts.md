@@ -175,7 +175,9 @@ additional evidence only when the provider accepts and matches them.
 REA has a built-in read-only snapshot parser for x64 PE targets with .NET 8 RTR
 9.1 metadata. An optional headless Ghidra adapter adds database annotations and
 broader metadata recovery on Linux; it requires an explicitly configured
-NativeAOT JAR. These are separate routes. See the
+NativeAOT JAR. These are separate routes. The built-in parser also runs on
+Windows Ghidra P0; read frozen literals from its report, because
+`search_strings` does not include them. See the
 [NativeAOT guide](https://github.com/morluto/rea/blob/main/docs/ghidra-nativeaot.md)
 for setup, supported layouts, and host restrictions. Preserve binary identity
 and distinguish derived metadata from Ghidra database observations. Recovered

@@ -131,9 +131,10 @@ overview merely because its source artifact is unchanged.
 
 Function extents and instruction completeness refer to Ghidra's analyzed body.
 An inferred no-return call can terminate that body before subsequent bytes.
-Pseudocode, assembly, procedure info, instruction windows, and dossiers report
-observed terminal call sites in Evidence limitations, including resolved callee
-names, addresses, and FunctionManager flags when available. Instruction windows
+Pseudocode, assembly, procedure info, instruction windows, callee and caller
+reads, and dossiers report observed terminal call sites in Evidence limitations,
+including resolved callee names, addresses, and FunctionManager flags when
+available. Instruction windows
 and dossiers also retain these warnings in their result limitations. An
 unresolved callee or unestablished terminal-flow basis remains explicit. These
 observations qualify the analysis; they do not prove that a no-return flag is

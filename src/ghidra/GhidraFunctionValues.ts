@@ -409,6 +409,8 @@ const functionBoundaryObservationOperations: ReadonlySet<GhidraFunctionOperation
   new Set([
     "analyze_function",
     "procedure_assembly",
+    "procedure_callees",
+    "procedure_callers",
     "procedure_info",
     "procedure_pseudo_code",
     "read_function_instructions",

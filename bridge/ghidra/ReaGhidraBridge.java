@@ -812,7 +812,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         return functionObservation(result, boundaryLimitations);
     }
 
-    private JsonArray procedureCalls(JsonObject params, boolean callers) throws Exception {
+    private JsonObject procedureCalls(JsonObject params, boolean callers) throws Exception {
         requireKeys(params, Set.of("document", "procedure"));
         requireDocument(params);
         Function function = resolveProcedure(requireString(params, "procedure"));
@@ -825,7 +825,12 @@ public final class ReaGhidraBridge extends HeadlessScript {
         for (Function item : ordered) {
             result.add(canonicalAddress(item.getEntryPoint()));
         }
-        return result;
+        return functionObservation(
+            result,
+            noReturnCallLimitations(
+                currentProgram.getListing().getInstructions(function.getBody(), true)
+            )
+        );
     }
 
     private JsonObject procedureInfo(JsonObject params) throws Exception {

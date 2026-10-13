@@ -828,7 +828,11 @@ describe("Ghidra relationship coverage", () => {
       start: () => Promise.resolve(ok(sessionInfo())),
       callTool: (operation) =>
         Promise.resolve(
-          ok(operation === "procedure_callees" ? ["0x2000"] : []),
+          ok(
+            operation === "procedure_callees"
+              ? { value: ["0x2000"], limitations: [] }
+              : { value: [], limitations: [] },
+          ),
         ),
       close: () => Promise.resolve(ok(null)),
     }));

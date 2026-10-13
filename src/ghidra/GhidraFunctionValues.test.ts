@@ -23,6 +23,8 @@ import {
 const observationOperations: ReadonlySet<GhidraFunctionOperation> = new Set([
   "analyze_function",
   "procedure_assembly",
+  "procedure_callees",
+  "procedure_callers",
   "procedure_info",
   "procedure_pseudo_code",
   "read_function_instructions",
@@ -92,6 +94,29 @@ describe("Ghidra function-analysis result values", () => {
       value: { value: "void f() {}", limitations: [limitation] },
     });
   });
+
+  it.each(["procedure_callees", "procedure_callers"] as const)(
+    "requires the function-observation envelope to carry terminal-call limitations for %s",
+    (operation) => {
+      // A bare address list is the pre-fix bridge shape; without the envelope
+      // a truncated function body reports no warning, so it must be rejected.
+      expect(parseGhidraFunctionResult(operation, ["0x2000"])).toMatchObject({
+        ok: false,
+        error: { _tag: "AnalysisOutputError" },
+      });
+      const limitation =
+        "Ghidra Listing reports a terminal call at 0x401000 to 0x402000 abort; fallthrough is excluded by Ghidra's flow model.";
+      expect(
+        parseGhidraFunctionResult(operation, {
+          value: ["0x2000"],
+          limitations: [limitation],
+        }),
+      ).toEqual({
+        ok: true,
+        value: { value: ["0x2000"], limitations: [limitation] },
+      });
+    },
+  );
 
   it.each(["reference_kinds_available", "unresolved_calls"])(
     "rejects omitted %s instead of inventing complete reference observations",

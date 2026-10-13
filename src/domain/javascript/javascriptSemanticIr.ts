@@ -13,7 +13,10 @@ export interface JavaScriptModuleOrigin {
   readonly importedPath: readonly string[];
 }
 
-/** Fail-closed provenance classification for one binding. */
+/**
+ * Fail-closed module-alias provenance for one binding, not transitive data flow.
+ * Locally constructed values may contain or derive from imported values.
+ */
 export type JavaScriptBindingProvenance =
   | {
       readonly status: "module";

@@ -101,6 +101,11 @@ Setup and doctor follow Qwen Code's tilde and working-directory-relative home
 overrides. Qwen Code also discovers personal skills in `~/.agents/skills`,
 where setup installs the bundled workflow.
 
+## Antigravity
+
+Antigravity 2.0 discovers personal skills in `~/.gemini/config/skills`.
+Setup installs its selected skill copy there.
+
 ## Gemini CLI
 
 Gemini CLI uses `$GEMINI_CLI_HOME/.gemini/settings.json` when that home override

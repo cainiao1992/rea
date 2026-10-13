@@ -69,6 +69,12 @@ const connect = async (
 
 it("discovers an oversized native dossier by exact metadata and reads its retained view", async () => {
   const { client, session } = await connect();
+  const advertised = (await client.listTools()).tools.find(
+    (tool) => tool.name === "inspect_analysis_view",
+  );
+  expect(advertised?.description).toContain(
+    'Native function Evidence requires kind native: view: {kind: "native", facet: "procedure"}',
+  );
   const provider = { id: "ghidra", name: "Ghidra", version: "12.1.4" };
   const profile = createAnalysisProfile(provider, { language: "fixture" });
   const parent = createEvidence(
@@ -98,6 +104,24 @@ it("discovers an oversized native dossier by exact metadata and reads its retain
     const retained = session.recordEvidence(record);
     if (!retained.ok) throw retained.error;
   }
+  const unsupportedSummary = await client.callTool({
+    name: "inspect_analysis_view",
+    arguments: {
+      source: { kind: "retained-evidence", evidence_id: parent.evidence_id },
+      view: { kind: "summary" },
+    },
+  });
+  expect(parseMcpToolError(unsupportedSummary).error).toMatchObject({
+    code: "invalid_request",
+    details: {
+      issues: [
+        {
+          path: ["view"],
+          message: "analyze_function Evidence requires a native view.",
+        },
+      ],
+    },
+  });
   const broad = await client.callTool({
     name: "get_evidence_bundle",
     arguments: {},

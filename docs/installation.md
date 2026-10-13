@@ -101,13 +101,11 @@ rea setup --yes --all-detected --install-hopper --json
 
 ### Skill destinations
 
-The bundled skill is installed where each selected client discovers personal
-skills: Claude Code uses `~/.claude/skills` (or
-`$CLAUDE_CONFIG_DIR/skills` when configured). Gemini CLI uses `.agents/skills`
-under its selected home; Antigravity 2.0 uses `~/.gemini/config/skills`.
-Other integrations, including Qwen Code, use `~/.agents/skills`.
-A mixed selection plans each distinct destination. Selecting the skill without a client uses the shared
-directory. Setup leaves existing skill copies in other locations untouched.
+The bundled skill is installed in each selected client's personal skill directory.
+See [client configuration](client-configuration.md) for client-specific roots,
+profiles, and environment overrides. A mixed selection plans each distinct
+destination. Selecting the skill without a client uses `~/.agents/skills`.
+Setup leaves existing skill copies in other locations untouched.
 
 `rea setup --skill-client claude_code --yes --json` refreshes and verifies the
 selected skill destination independently of MCP registration selection. The

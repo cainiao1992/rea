@@ -236,7 +236,7 @@
     "docs:preview": "vitepress preview docs",
     "docs:generate": "node scripts/check-dependency-install.mjs && node scripts/run-exclusive.mjs artifacts npm run docs:prepare",
     "docs:check": "node scripts/check-dependency-install.mjs && node scripts/run-exclusive.mjs artifacts turbo run docs:check:built && npm run test:local -- tests/conformance/readmeConsistency.test.ts",
-    "docs:check:built": "node scripts/generate-package-metadata.mjs --check && node scripts/generate-skill-metadata.mjs --check && node scripts/generate-product-catalog.mjs --check && node scripts/generate-completion-ledger.mjs --check && node scripts/check-doc-facts.mjs && node scripts/generate-error-schema.mjs --check",
+    "docs:check:built": "node scripts/generate-package-metadata.mjs --check && node scripts/generate-skill-metadata.mjs --check && node scripts/generate-product-catalog.mjs --check && node scripts/generate-completion-ledger.mjs --check && node scripts/check-doc-facts.mjs && node scripts/generate-error-schema.mjs --check && npm run licenses:check",
     "docs:error-schema": "node scripts/check-dependency-install.mjs && node scripts/run-exclusive.mjs artifacts turbo run artifacts:error-schema",
     "prepack": "node scripts/prepack.mjs",
     "prepare": "node scripts/prepare.mjs",
@@ -279,7 +279,9 @@
     "test:prepare": "node scripts/check-dependency-install.mjs && node scripts/run-exclusive.mjs artifacts turbo run artifacts:mcp-catalog artifacts:product-catalog artifacts:managed-evidence",
     "evidence:check:built": "node scripts/generate-completion-ledger.mjs --check",
     "docs:prepare": "node scripts/generate-package-metadata.mjs && turbo run artifacts:product-catalog artifacts:managed-evidence artifacts:error-schema",
-    "verify:web:qlog": "npm run build:cached && node scripts/verify-qlog-captures.mjs"
+    "verify:web:qlog": "npm run build:cached && node scripts/verify-qlog-captures.mjs",
+    "licenses:generate": "node scripts/generate-third-party-inventory.mjs",
+    "licenses:check": "node scripts/generate-third-party-inventory.mjs --check"
   },
   "lint-staged": {
     "*.{cjs,cts,js,jsx,mjs,mts,ts,tsx}": [

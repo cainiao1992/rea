@@ -218,6 +218,15 @@ release baseline and can propose an already-published version again.
 After publication, open a PR from the release branch back to main. Preserve
 main's later implementation changes and regenerate ignored build outputs from
 the combined contracts with the released package version.
+Before merging, check whether GitHub permits merge commits:
+
+```bash
+gh api repos/morluto/rea --jq .allow_merge_commit
+```
+
+If disabled, a maintainer must arrange an approved ancestry-preserving merge
+path before synchronization can finish. Squash and rebase merges do not put the
+released tag in main's ancestry. Do not substitute them for this step.
 Review and test this synchronization PR, then use a merge commit so the release
 tag remains in main's ancestry. Keep the released tag unchanged.
 

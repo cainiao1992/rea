@@ -81,7 +81,9 @@ export class MachOSliceArtifactReader implements ArtifactReader {
     if (!captured.ok)
       throw new ArtifactReaderFailure(
         captured.error.reason === "cancelled" ? "cancelled" : "unavailable",
-        "lipo could not enumerate universal Mach-O slices",
+        captured.error.detail === null
+          ? "lipo could not enumerate universal Mach-O slices"
+          : `lipo could not enumerate universal Mach-O slices: ${captured.error.detail}`,
         {
           cause: captured.error,
           ...(captured.error.cleanupFailure === null &&

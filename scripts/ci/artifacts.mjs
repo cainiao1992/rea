@@ -87,10 +87,13 @@ export function classifyFailure({
       "unknown",
       "main_run_does_not_contain_the_same_structured_diagnostic",
     );
-  if (!sameBlobEvidence(diagnostics, blobs))
+  const blobStatus = blobIdentityStatus(diagnostics, blobs);
+  if (blobStatus !== "identical")
     return outcome(
       "unknown",
-      "diagnostic_source_content_not_identical_at_main_and_tested_base",
+      blobStatus === "different"
+        ? "diagnostic_source_content_not_identical_at_main_and_tested_base"
+        : "diagnostic_source_blob_identity_unavailable",
     );
   return outcome(
     "matching-main-diagnostics",
@@ -366,9 +369,12 @@ function diagnosticKey(item) {
     return JSON.stringify([item.kind, ...[...item.paths].sort()]);
   return null;
 }
-function sameBlobEvidence(diagnostics, blobs) {
+function blobIdentityStatus(diagnostics, blobs) {
   const paths = [...new Set(diagnostics.flatMap(diagnosticPaths))];
-  return paths.length > 0 && paths.every((path) => blobs?.[path] === true);
+  if (paths.some((path) => blobs?.[path] === false)) return "different";
+  return paths.length > 0 && paths.every((path) => blobs?.[path] === true)
+    ? "identical"
+    : "unavailable";
 }
 function sameTaskHashes(diagnostics, left, right) {
   return diagnostics.every((diagnostic) => {

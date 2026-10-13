@@ -153,16 +153,21 @@ async function analyzeFailedRun({
     ];
   const failures = [];
   for (const job of failedJobs) {
-    const evidence = await api.getStaticEvidence(repository, run, job);
-    const classification = await attributeToMain({
-      repository,
-      defaultBranch,
-      run,
-      job,
-      evidence,
-      mainCandidates,
-      api,
-    });
+    let classification;
+    try {
+      const evidence = await api.getStaticEvidence(repository, run, job);
+      classification = await attributeToMain({
+        repository,
+        defaultBranch,
+        run,
+        job,
+        evidence,
+        mainCandidates,
+        api,
+      });
+    } catch (error) {
+      classification = outcome("unknown", errorCode(error));
+    }
     failures.push({
       runId: entry.id,
       runAttempt: entry.runAttempt,
@@ -415,26 +420,25 @@ export function createGitHubApi({
       for (const path of paths) {
         if (!validRepoPath(path)) continue;
         const [left, right] = await Promise.all([
-          getContent(repository, ancestor, path, request),
-          getContent(repository, descendant, path, request),
+          getContentBlobSha(repository, ancestor, path, request),
+          getContentBlobSha(repository, descendant, path, request),
         ]);
-        result[path] = left !== null && left === right;
+        result[path] = left === right;
       }
       return result;
     },
   };
 }
 
-async function getContent(repository, ref, path, request) {
-  try {
-    const encodedPath = path.split("/").map(encodeURIComponent).join("/");
-    const value = await request(
-      `repos/${repository}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`,
-    );
-    return typeof value.sha === "string" ? value.sha : null;
-  } catch {
-    return null;
-  }
+async function getContentBlobSha(repository, ref, path, request) {
+  const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+  const value = await request(
+    `repos/${repository}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`,
+  );
+  const sha = safeSha(value?.sha);
+  if (value?.type !== "file" || sha === null)
+    throw new Error("github_content_blob_identity_unavailable");
+  return sha;
 }
 
 function outcome(classification, reason) {

@@ -120,6 +120,22 @@ it.each([
   expect(result.classification).toBe("unknown");
 });
 
+it.each([
+  [{}, "diagnostic_source_blob_identity_unavailable"],
+  [
+    { "src/example.ts": false },
+    "diagnostic_source_content_not_identical_at_main_and_tested_base",
+  ],
+] as const)(
+  "distinguishes unavailable blob identity from verified differences (%s)",
+  (blobs, reason) => {
+    expect(classifyFailure({ ...comparison(), blobs })).toEqual({
+      classification: "unknown",
+      reason,
+    });
+  },
+);
+
 it("writes informational JSON and Markdown from the supplied manifest using only read API calls", async () => {
   const directory = await createTestTempDirectory("rea-ci-failure-test-");
   const calls: string[] = [];

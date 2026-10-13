@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import {
   reportCiFailures,
+  createGitHubApi,
   type CiRun,
   type FailureReportApi,
   type StaticDiagnostic,
@@ -235,6 +236,10 @@ it.each([1, 51])(
     expect(result.failures[0]!.classification).toBe(
       count === 1 ? "matching-main-diagnostics" : "unknown",
     );
+    if (count > 50)
+      expect(result.failures[0]!.reason).toBe(
+        "diagnostic_source_blob_identity_unavailable",
+      );
   },
 );
 
@@ -286,5 +291,117 @@ it.each(["jobs", "artifact", "comparison"])(
       failure === "jobs" ? 0 : 1,
     );
     expect(input.artifacts.filter((id) => id === 21)).toHaveLength(1);
+  },
+);
+
+it.each([0, 1, 2])(
+  "preserves every failed job when artifact analysis fails at position %s",
+  async (position) => {
+    const input = fixture([20], 1);
+    const jobs = [
+      { name: "Python producer", conclusion: "failure" },
+      { name: "Test shard (1)", conclusion: "timed_out" },
+    ];
+    jobs.splice(position, 0, { name: "Static checks", conclusion: "failure" });
+    input.api.getJobs = async (_repository, id, attempt) =>
+      jobs.map((job) => ({
+        ...job,
+        status: "completed",
+        run_id: Number(id),
+        run_attempt: attempt,
+      }));
+    input.api.getStaticEvidence = async (_repository, _run, job) => {
+      if (job.name === "Static checks")
+        throw new Error("static_artifact_unavailable");
+      return null;
+    };
+    const result = await report(input);
+    expect(result.counts.unknown).toBe(3);
+    expect(result.failures).toEqual(
+      jobs.map((job) => ({
+        runId: 100,
+        runAttempt: 1,
+        runHead: prSha,
+        event: "pull_request",
+        job: job.name,
+        conclusion: job.conclusion,
+        classification: "unknown",
+        reason:
+          job.name === "Static checks"
+            ? "static_artifact_unavailable"
+            : "no_matching_verified_main_failure",
+      })),
+    );
+  },
+);
+
+it("keeps unavailable job inventories at run scope", async () => {
+  const input = fixture([], 1);
+  input.api.getJobs = async () => {
+    throw new Error("job_inventory_unavailable");
+  };
+  expect((await report(input)).failures).toEqual([
+    {
+      runId: 100,
+      runAttempt: 1,
+      classification: "unknown",
+      reason: "job_inventory_unavailable",
+    },
+  ]);
+});
+
+it.each([
+  ["request", "github_api_temporarily_unavailable"],
+  ["budget", "github_api_request_budget_exhausted"],
+  ["missing sha", "github_content_blob_identity_unavailable"],
+  ["invalid sha", "github_content_blob_identity_unavailable"],
+  ["directory", "github_content_blob_identity_unavailable"],
+] as const)(
+  "retains unavailable blob evidence as a comparison error: %s",
+  async (failure, reason) => {
+    const input = fixture([20], 1);
+    const contentApi = createGitHubApi({
+      token: "fixture-token",
+      apiRequest: async () => {
+        if (failure === "request") throw new Error(reason);
+        if (failure === "missing sha") return { type: "file" };
+        if (failure === "invalid sha")
+          return { type: "file", sha: "not-a-sha" };
+        if (failure === "directory") return [];
+        return { type: "file", sha: "e".repeat(40) };
+      },
+    });
+    if (failure === "budget") {
+      for (let id = 1; id <= 250; id++) await contentApi.getRun(repository, id);
+    }
+    input.api.getBlobIdentity = contentApi.getBlobIdentity;
+    const result = await report(input);
+    expect(result.failures).toMatchObject([
+      {
+        job: "Static checks",
+        classification: "unknown",
+        reason: "no_matching_verified_main_failure",
+        candidateFailures: [{ runId: 20, runAttempt: 1, reason }],
+      },
+    ]);
+  },
+);
+
+it.each([true, false])(
+  "reports blob equality only from verified file SHAs (equal: %s)",
+  async (equal) => {
+    const api = createGitHubApi({
+      token: "fixture-token",
+      apiRequest: async (_method, endpoint) => ({
+        type: "file",
+        sha:
+          equal || endpoint.includes(`ref=${mainSha}`)
+            ? "e".repeat(40)
+            : "f".repeat(40),
+      }),
+    });
+    expect(
+      await api.getBlobIdentity(repository, mainSha, prSha, ["src/example.ts"]),
+    ).toEqual({ "src/example.ts": equal });
   },
 );

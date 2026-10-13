@@ -78,6 +78,12 @@ unknown metadata. Missing omission counts remain null. Summary output carries
 every matching record; actual transport admission still applies. Omitted
 `detail` preserves complete canonical bundle delivery; filters require summary.
 
+`list_unknowns` returns every matching current head by default. For a smaller
+inline response, supply `offset` and `limit`, then follow `next_offset` until it
+is null. `total` counts all matching heads; each page preserves complete records
+in stable unknown ID order. Filters apply before paging. Pages reflect current
+session state, so keep the unknown ledger unchanged while traversing it.
+
 For a portable exported bundle, the CLI shares this projection:
 `rea inspect-evidence-bundle '{"path":"/tmp/evidence.json","detail":"summary","filters":{"operation":"analyze_function"}}' --format json`.
 The CLI validates and materializes that local bundle under its existing memory

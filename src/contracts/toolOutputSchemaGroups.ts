@@ -555,6 +555,8 @@ export const sessionOutputSchemas = {
     z.object({
       items: z.array(residualUnknownSchema),
       total: z.number().int().min(0),
+      offset: z.number().int().min(0),
+      next_offset: z.number().int().min(0).nullable(),
     }),
   ),
   record_unknown: lifecycleResultOf(residualUnknownSchema),

@@ -547,6 +547,63 @@ describe("managed fixture data layout", () => {
   });
 });
 
+describe("managed implementation classification", () => {
+  it("classifies crossgen2 ReadyToRun output without ILONLY as modern .NET", () => {
+    // crossgen2 writes IL_LIBRARY | STRONGNAMESIGNED and clears ILONLY.
+    const bytes = buildManagedPeFixture({ readyToRun: true, cliFlags: 0xc });
+    const result = inspectManagedArtifactBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.classification).toMatchObject({
+      runtime_family: "modern-dotnet",
+      implementation: "cil-and-ready-to-run",
+    });
+    expect(result.classification.evidence).toContainEqual(
+      expect.objectContaining({ code: "ready-to-run-signature-observed" }),
+    );
+    expect(result.classification.evidence).not.toContainEqual(
+      expect.objectContaining({ code: "cli-il-only-clear" }),
+    );
+  });
+
+  it("preserves ReadyToRun runtime identity after metadata capacity is exhausted", () => {
+    const bytes = buildManagedPeFixture({
+      readyToRun: true,
+      cliFlags: 0xc,
+      references: ["x".repeat(12 * 1024 * 1024)],
+    });
+    const result = inspectManagedArtifactBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+    expect(result.classification).toMatchObject({
+      status: "managed",
+      runtime_family: "modern-dotnet",
+    });
+    expect(result.coverage.issues).toContainEqual(
+      expect.objectContaining({ code: "resource-limit" }),
+    );
+  });
+
+  it("keeps a clear ILONLY flag without ReadyToRun as mixed CLR/native", () => {
+    const bytes = buildManagedPeFixture({ cliFlags: 0 });
+    const result = inspectManagedArtifactBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.classification).toMatchObject({
+      runtime_family: "mixed-clr-native",
+      implementation: "cpp-cli-mixed",
+    });
+    expect(result.classification.evidence).toContainEqual(
+      expect.objectContaining({ code: "cli-il-only-clear" }),
+    );
+  });
+});
+
 describe("managed artifact metadata identity", () => {
   it("accepts CLI metadata GUIDs without RFC UUID version or variant bits", () => {
     const bytes = buildManagedPeFixture({

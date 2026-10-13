@@ -44,7 +44,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y sigrok-cli util-linux python3
       - run: npm ci
       - run: npm run build:cached
-      - run: npm run test:focused -- src/process/LinuxResourceLimits.test.ts src/domain/signals/annotationTextWindow.test.ts tests/boundary/signals/recordingProvider.test.ts tests/boundary/signals/recordingDescriptorCleanup.test.ts tests/boundary/signals/resourceLimits.test.ts tests/boundary/mcp/signalRecordingMcp.test.ts tests/boundary/cli/signalCleanup.test.ts
+      - run: npm run test:focused -- tests/boundary/signals/decoderDiscovery.test.ts src/process/LinuxResourceLimits.test.ts src/domain/signals/annotationTextWindow.test.ts tests/boundary/signals/recordingProvider.test.ts tests/boundary/signals/recordingDescriptorCleanup.test.ts tests/boundary/signals/resourceLimits.test.ts tests/boundary/mcp/signalRecordingMcp.test.ts tests/boundary/cli/signalCleanup.test.ts
       - run: node scripts/verify-signal-recording.mjs
         env:
           REA_SIGROK_COMMAND: /usr/bin/sigrok-cli

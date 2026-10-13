@@ -32,6 +32,9 @@ it.each([false, true])(
       silentLogger,
       {},
       {
+        inspectFields: async () => {
+          throw new Error("Unexpected field discovery call");
+        },
         inspect: async () => err(original),
         close: async () => {
           await Promise.resolve();
@@ -87,6 +90,9 @@ it("rejects an oversized selector budget before the CLI invokes its service", as
     silentLogger,
     {},
     {
+      inspectFields: async () => {
+        throw new Error("Unexpected field discovery call");
+      },
       inspect: async () => {
         called = true;
         throw new Error("Must not inspect");
@@ -125,6 +131,9 @@ it("rejects conflicting output options before the CLI invokes its service", asyn
     silentLogger,
     {},
     {
+      inspectFields: async () => {
+        throw new Error("Unexpected field discovery call");
+      },
       inspect: async () => {
         called = true;
         throw new Error("Must not inspect");

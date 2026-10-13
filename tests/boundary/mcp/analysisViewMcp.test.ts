@@ -278,6 +278,39 @@ it("advertises exact schemas and projects one layout section from retained Evide
   );
 });
 
+it("points omitted inline messages to the caller's parent without promising session recovery", async () => {
+  const { client, session } = await connect();
+  const messages = Array.from(
+    { length: 65 },
+    (_, index) => `Limitation ${String(index).padStart(2, "0")}`,
+  ).concat("z".repeat(300_000));
+  const parent = analysisViewLayoutEvidence({
+    ...analysisViewLayoutFixture(),
+    limitations: messages,
+  });
+  expect(session.evidenceById(parent.evidence_id)).toBeUndefined();
+  const response = await client.callTool({
+    name: "inspect_analysis_view",
+    arguments: {
+      source: { kind: "inline", evidence: parent },
+      view: { kind: "summary" },
+    },
+  });
+  expect(response.isError).not.toBe(true);
+  const view = toolContract("inspect_analysis_view").outputSchema.parse(
+    response.structuredContent,
+  );
+  const projected = z
+    .object({ limitations: z.array(z.string()) })
+    .parse(view.normalized_result);
+  expect(projected.limitations).toEqual([
+    ...messages.slice(0, 65),
+    `1 additional limitations omitted from this view; consult source parent Evidence ${parent.evidence_id} for the complete list (the caller-supplied record, or its retaining session).`,
+  ]);
+  expect(session.evidenceById(parent.evidence_id)).toBeUndefined();
+  expect(session.evidenceById(view.evidence_id)).toEqual(parseEvidence(view));
+});
+
 it("reports a tampered inline Evidence ID at its full MCP source path", async () => {
   const { client } = await connect();
   const parent = analysisViewLayoutEvidence();

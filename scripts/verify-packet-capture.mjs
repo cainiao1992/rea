@@ -236,6 +236,52 @@ try {
   const hci = await inspect({ path: bluetooth, fields: ["bthci_cmd.opcode"] });
   assert.deepEqual(hci.packets[0]["bthci_cmd.opcode"], ["0x0c03"]);
   assert.deepEqual(await readFile(path), source);
+  // Exercise the incremental summary workflow against the same owned bytes
+  // using real installed Wireshark tools; these inputs are format fixtures.
+  const pcapTool = (await client.listTools()).tools.find(
+    (t) => t.name === "inspect_pcap_capture",
+  );
+  assert.ok(pcapTool?.outputSchema);
+  const pcapAjv = new Ajv2020({ strict: false, validateFormats: false });
+  assert.ok(pcapAjv.validateSchema(pcapTool.inputSchema));
+  assert.ok(pcapAjv.validateSchema(pcapTool.outputSchema));
+  for (const capturePath of [path, bluetooth]) {
+    const response = await client.callTool({
+      name: pcapTool.name,
+      arguments: { path: capturePath, detail: "summary" },
+    });
+    assert.notEqual(response.isError, true, JSON.stringify(response));
+    assert.ok(
+      pcapAjv.validate(pcapTool.outputSchema, response.structuredContent),
+      pcapAjv.errorsText(),
+    );
+    const summary = parseEvidence(response.structuredContent).normalized_result;
+    assert.equal(
+      summary.summary.target.sha256,
+      createHash("sha256")
+        .update(await readFile(capturePath))
+        .digest("hex"),
+    );
+    const source = {
+      kind: "retained-evidence",
+      evidence_id: summary.parent_evidence_id,
+    };
+    const page = await client.callTool({
+      name: "inspect_analysis_view",
+      arguments: {
+        source,
+        view: { kind: "pcap", facet: "protocols", limit: 10 },
+      },
+    });
+    assert.notEqual(page.isError, true, JSON.stringify(page));
+    assert.equal(
+      parseEvidence(page.structuredContent).normalized_result
+        .parent_evidence_id,
+      source.evidence_id,
+    );
+    cases++;
+  }
+
   assert.deepEqual(await readFile(bluetooth), bluetoothSource);
   for (const input of [
     { path, fields: ["frame.number"], display_filter: "this is not a filter" },

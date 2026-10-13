@@ -7,6 +7,13 @@ on:
       - "tests/boundary/cli/captureCleanup.test.ts"
       - "tests/boundary/mcp/packetCaptureMcp.test.ts"
       - "src/captures/**"
+      - "src/pcap/**"
+      - "src/domain/pcap/**"
+      - "src/domain/analysisView/pcapCaptureView.ts"
+      - "src/application/pcap/**"
+      - "src/contracts/pcap/**"
+      - "src/server/registerPcapTools.ts"
+      - "tests/boundary/pcap/**"
       - "src/domain/captures/**"
       - "src/application/captures/**"
       - "src/contracts/captures/**"
@@ -48,3 +55,4 @@ jobs:
       - run: node scripts/verify-packet-capture.mjs
         env:
           REA_TSHARK_COMMAND: /usr/bin/tshark
+          REA_CAPINFOS_COMMAND: /usr/bin/capinfos

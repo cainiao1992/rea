@@ -83,6 +83,12 @@ explicit path or endpoint and do not need it.
   frames; use `match_offset` / `match_limit` for later pages, or explicit null
   limit for complete matching output. Preserve the source digest across pages.
   This does not perform live capture.
+  For address/DNS/SNI/protocol summaries use `inspect_pcap_capture` with MCP
+  detail summary, then retained kind pcap pages. Requires Wireshark 4.x tshark
+  and capinfos, with Linux prlimit or Windows Job Objects; see
+  [packet summaries](https://github.com/morluto/rea/blob/main/docs/pcap-analysis.md).
+  Select an exact DNS question for address pages; page exhaustion does not prove
+  network completeness. This reads recordings and does not acquire traffic.
 - Recorded logic/signal traces: `decode_signal_recording` with explicit decoder,
   channel and protocol settings. On Linux with util-linux prlimit, supply sigrok-cli 0.7.2 through
   `REA_SIGROK_COMMAND`; see [recording guide](https://github.com/morluto/rea/blob/main/docs/signal-recordings.md).

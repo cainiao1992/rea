@@ -22,11 +22,11 @@
 
 [Швидкий старт](#швидкий-старт) · [Як працює REA](#як-працює-rea) · [Що можна аналізувати](#що-можна-аналізувати) · [Приклади](#приклади) · [Поширені запитання](#поширені-запитання) · [Інструменти GNU objdump і Rizin](../reverse-engineering-tools.md) · [Документація](#документація)
 
+<code>npx rea-agents setup</code>
+
 > [!IMPORTANT]
 > Офіційні джерела REA: [morluto/rea](https://github.com/morluto/rea), [rea.tools](https://rea.tools/), [rea-agents](https://www.npmjs.com/package/rea-agents) (npm).
 > Користуйтеся посиланнями на встановлення та випуски з цих офіційних джерел. Схожа назва репозиторію або скопійований README не підтверджують, що завантажуваний файл є офіційним.
-
-<code>npx rea-agents setup</code>
 
 <br />
 

@@ -14,7 +14,6 @@ import {
 } from "./ghidraMcpHarness.js";
 import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { GhidraClient } from "../../../src/ghidra/GhidraClient.js";

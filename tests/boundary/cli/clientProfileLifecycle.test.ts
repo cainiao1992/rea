@@ -290,7 +290,7 @@ cliTest("uninstall names each retained skill directory", async ({ cli }) => {
   for (const [client, directory] of [
     ["shared", shared],
     ["claude_code", claude],
-  ]) {
+  ] as const) {
     expect(skill?.detail).toContain(
       `${client} (${directory}): retained (Skill manifest is not REA-owned.)`,
     );

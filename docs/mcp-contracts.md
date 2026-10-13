@@ -271,9 +271,11 @@ Evidence remain complete inline, and both input forms pass the same semantic,
 identity, authority, and provenance checks without running the producer again.
 
 References belong to the current connection's Evidence ledger. Opening another
-target preserves retained records; `close_binary` clears them, even when no
-binary is active. A fresh connection has its own ledger. A missing reference
-reports its exact ID and `details.reason: "missing"`; the server cannot infer
+target or restarting the current target preserves retained records, including
+when provider cleanup fails; records remain available for export and retry.
+`close_binary` clears them, even when no binary is active. A fresh connection
+has its own ledger. A missing reference reports its exact ID and
+`details.reason: "missing"`; the server cannot infer
 whether it was never recorded, cleared, or retained by another connection.
 Supply complete inline Evidence, repeat its producer, or import an exported
 Evidence bundle before referencing that imported record. Export a bundle before

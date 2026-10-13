@@ -78,10 +78,7 @@ import {
   parseNativeAotPe,
   type NativeAotPeResult,
 } from "../domain/native/nativeAotPe.js";
-import {
-  ABORTED,
-  waitForAbortable,
-} from "../application/binary/AbortablePromise.js";
+import { ABORTED, waitForAbortable } from "../process/AbortablePromise.js";
 import { nativeLoadImageObservationSchema } from "../domain/native/nativeLoadImage.js";
 import {
   GHIDRA_PROVIDER_IDENTITY,

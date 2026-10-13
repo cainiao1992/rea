@@ -121,6 +121,52 @@ fi`,
   ]);
 });
 
+it("refuses device listings with an invalid state token", async () => {
+  const malformedLine = "serial deviceXYZ  ";
+  const { binary } = await writeAdbStub(
+    () => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi
+if [ "$1" = "devices" ]; then
+  printf 'List of devices attached\\n${malformedLine}\\n'
+  exit 0
+fi`,
+  );
+  const result = await providerOver(binary).execute({
+    operation: "list_adb_devices",
+    input: {},
+  });
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(result.error._tag).toBe("AnalysisProtocolError");
+  expect(result.error.message).toContain(malformedLine);
+});
+
+it("lists rescue and detached transports alongside online devices", async () => {
+  const { binary } = await writeAdbStub(
+    () => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi
+if [ "$1" = "devices" ]; then
+  printf 'List of devices attached\\n'
+  printf 'serial-online          device transport_id:1\\n'
+  printf 'serial-rescue          rescue transport_id:2\\n'
+  printf 'serial-detached        detached transport_id:3\\n'
+  exit 0
+fi`,
+  );
+  const result = await evidenceResult(providerOver(binary), {
+    operation: "list_adb_devices",
+    input: {},
+  });
+  expect(result.devices).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ serial: "serial-online", state: "device" }),
+      expect.objectContaining({ serial: "serial-rescue", state: "rescue" }),
+      expect.objectContaining({
+        serial: "serial-detached",
+        state: "detached",
+      }),
+    ]),
+  );
+});
+
 it("inspects a device through the getprop whitelist", async () => {
   const { binary } = await writeAdbStub(
     () => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi

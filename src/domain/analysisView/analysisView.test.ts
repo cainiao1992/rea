@@ -957,7 +957,7 @@ it("keeps the complete unique set when it fits the byte budget", () => {
 it("does not impose a message-count cutoff below the byte budget", () => {
   const messages = Array.from(
     { length: 100 },
-    (_, index) => `message ${index}`,
+    (_, index) => `message ${String(index).padStart(2, "0")}`,
   );
   expect(
     boundedViewMessages(messages, `ev_${"a".repeat(64)}`, "limitations"),

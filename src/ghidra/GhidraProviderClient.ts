@@ -88,7 +88,10 @@ import {
   relationshipCoverageFor,
 } from "./GhidraProviderCapabilities.js";
 import type { GhidraSessionError } from "./GhidraSessionError.js";
-import type { GhidraSessionInfo } from "./GhidraSessionValues.js";
+import {
+  ghidraPdbLimitations,
+  type GhidraSessionInfo,
+} from "./GhidraSessionValues.js";
 import { ghidraExtensionFailure } from "./extensions/GhidraExtensionFailures.js";
 import {
   ghidraExtensionSchema,
@@ -526,6 +529,7 @@ export const createGhidraProviderClient = (input: {
   let extensionFailure: AnalysisError | undefined;
   // Replaced by the reported outcome once the session handshake is checked.
   const seedLimitations: string[] = [...ghidraSeedLimitations(seeds)];
+  const pdbLimitations: string[] = [];
   // Replaced by the reported storage outcome once the handshake is checked.
   const softFloatLimitations: string[] = [
     ...ghidraMipsSoftFloatLimitations(softFloat),
@@ -646,10 +650,16 @@ export const createGhidraProviderClient = (input: {
     ...(context === undefined ? {} : { runId: context.runId }),
     logger: logger.child({ layer: "ghidra-bridge" }),
   });
-  const checkExtensions = async (
+  const checkSessionObservations = async (
     operation: AnalysisOperation,
     info: GhidraSessionInfo,
   ): Promise<AnalysisError | undefined> => {
+    if (target.format === "pe")
+      pdbLimitations.splice(
+        0,
+        pdbLimitations.length,
+        ...ghidraPdbLimitations(info.pdb),
+      );
     const softFloatReason = ghidraMipsSoftFloatFailure(
       softFloat,
       info.mips_soft_float_storage,
@@ -701,6 +711,7 @@ export const createGhidraProviderClient = (input: {
     ...softFloatLimitations,
     ...ghidraExtensionLimitations(extensions),
     ...seedLimitations,
+    ...pdbLimitations,
     ...(releaseLimitation === undefined ? [] : [releaseLimitation]),
   ];
   const nativeAotOwner =
@@ -772,7 +783,7 @@ export const createGhidraProviderClient = (input: {
               config.ghidraStartupTimeoutMs,
             ),
           );
-        const failed = await checkExtensions(operation, started.value);
+        const failed = await checkSessionObservations(operation, started.value);
         if (failed !== undefined) return err(failed);
         return ok(
           createAnalysisExecution(started.value, committedProfile.provider, {
@@ -785,7 +796,12 @@ export const createGhidraProviderClient = (input: {
         ? parseGhidraFunctionInput(operation, parameters)
         : parseGhidraInventoryInput(operation, parameters);
       if (!input.ok) return input;
-      if (extensions.length > 0 || seeds !== undefined || softFloat) {
+      if (
+        target.format === "pe" ||
+        extensions.length > 0 ||
+        seeds !== undefined ||
+        softFloat
+      ) {
         const started = await client.start(options?.signal, options?.progress);
         if (!started.ok)
           return err(
@@ -795,7 +811,7 @@ export const createGhidraProviderClient = (input: {
               config.ghidraStartupTimeoutMs,
             ),
           );
-        const failed = await checkExtensions(operation, started.value);
+        const failed = await checkSessionObservations(operation, started.value);
         if (failed !== undefined) return err(failed);
       }
       const called = await client.callTool(operation, input.value, {

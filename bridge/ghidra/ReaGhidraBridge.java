@@ -56,6 +56,8 @@ import ghidra.app.decompiler.DecompiledFunction;
 import ghidra.app.decompiler.ClangCaseToken;
 import ghidra.app.decompiler.ClangNode;
 import ghidra.framework.Application;
+import ghidra.app.util.bin.format.pdb.PdbParserConstants;
+import ghidra.framework.options.Options;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.address.AddressIterator;
 import ghidra.program.model.address.AddressSet;
@@ -110,6 +112,8 @@ import ghidra.program.util.SymbolicPropogator;
 import ghidra.program.util.VarnodeContext;
 
 public final class ReaGhidraBridge extends HeadlessScript {
+    // At most 24 KiB after worst-case JSON escaping (six bytes per UTF-16 unit).
+    private static final int PDB_ATTRIBUTE_UTF16_BUDGET = 4096;
     private static final int MAX_HIGH_PCODE_OPS = 3000;
     private static final int MAX_HIGH_PCODE_INPUTS_PER_OP = 64;
     private static final int MAX_HIGH_PCODE_DEF_USE_EDGES = 12000;
@@ -454,6 +458,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
                 .toArray(String[]::new)
         ));
         result.add("target", target);
+        result.add("pdb", pdbObservation());
         JsonArray extensions = analysisExtensions.reports();
         if (extensions.size() > 0) result.add("analysis_extensions", extensions);
         // Written by ReaGhidraApplySeeds before auto-analysis; REA checks it
@@ -467,6 +472,41 @@ public final class ReaGhidraBridge extends HeadlessScript {
             .getString("REA MIPS soft-float storage", null);
         if (softFloat != null) result.add("mips_soft_float_storage", JsonParser.parseString(softFloat));
         return result;
+    }
+
+    /** Read loader/analyzer-owned facts without searching for or applying companions. */
+    private JsonObject pdbObservation() {
+        Options info = currentProgram.getOptions(ghidra.program.model.listing.Program.PROGRAM_INFO);
+        JsonObject pdb = new JsonObject();
+        String[] names = {"file", "guid", "age", "signature", "version"};
+        String[] attributes = {
+            PdbParserConstants.PDB_FILE, PdbParserConstants.PDB_GUID,
+            PdbParserConstants.PDB_AGE, PdbParserConstants.PDB_SIGNATURE,
+            PdbParserConstants.PDB_VERSION
+        };
+        int remaining = PDB_ATTRIBUTE_UTF16_BUDGET;
+        JsonArray omitted = new JsonArray();
+        for (int index = 0; index < names.length; index++) {
+            String value = info.getString(attributes[index], null);
+            if (value != null && value.length() > remaining) {
+                omitted.add(names[index]);
+                pdb.add(names[index], JsonNull.INSTANCE);
+            } else {
+                pdb.addProperty(names[index], value);
+                if (value != null) remaining -= value.length();
+            }
+        }
+        if (omitted.size() > 0) {
+            JsonObject limit = new JsonObject();
+            limit.addProperty("utf16_budget", PDB_ATTRIBUTE_UTF16_BUDGET);
+            limit.add("omitted_attributes", omitted);
+            pdb.add("resource_limit", limit);
+        }
+        if (info.contains(PdbParserConstants.PDB_LOADED))
+            pdb.addProperty("loaded", info.getBoolean(PdbParserConstants.PDB_LOADED, false));
+        else
+            pdb.add("loaded", JsonNull.INSTANCE);
+        return pdb;
     }
 
     private static String bytesHex(byte[] bytes) {

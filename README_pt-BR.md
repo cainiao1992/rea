@@ -262,7 +262,7 @@ Relate vulnerabilidades conforme [SECURITY.md](SECURITY.md).
 
 ## Histórico de estrelas
 
-🎉 **110.000 estrelas no GitHub — muito obrigado!**
+🎉 **170.000 estrelas no GitHub — muito obrigado!**
 
 Obrigado a todos que usam o REA, relatam bugs, sugerem funcionalidades, testam builds e contribuem com correções.
 

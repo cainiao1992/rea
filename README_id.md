@@ -287,7 +287,7 @@ Laporkan kerentanan melalui [SECURITY.md](SECURITY.md).
 
 ## Riwayat Bintang
 
-🎉 **110.000 bintang GitHub, terima kasih!**
+🎉 **170.000 bintang GitHub, terima kasih!**
 
 Terima kasih kepada semua orang yang menggunakan REA, melaporkan bug, meminta fitur, menguji build, dan berkontribusi dalam perbaikan.
 

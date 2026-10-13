@@ -266,7 +266,7 @@ Segnala vulnerabilità tramite [SECURITY.md](SECURITY.md).
 
 ## Cronologia delle stelle
 
-🎉 **110.000 stelle su GitHub — grazie!**
+🎉 **170.000 stelle su GitHub — grazie!**
 
 Grazie a tutti coloro che usano REA, segnalano bug, propongono funzionalità, testano le build e contribuiscono con correzioni.
 

@@ -3,6 +3,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { runInNewContext } from "node:vm";
 
 import { expect, it } from "vitest";
 import { parse } from "yaml";
@@ -48,9 +49,7 @@ const workflow = async () =>
 it("merges available failed-shard diagnostics and skips unavailable shard reports", async () => {
   const steps = (await workflow()).test!.steps;
   const download = steps.find(
-    (step) =>
-      step.uses?.includes("actions/download-artifact") &&
-      step.with?.pattern === "vitest-report-*",
+    (step) => step.with?.pattern === "vitest-report-*",
   );
   const merge = steps.findIndex((step) => step.run?.includes("test:ci:merge"));
   const upload = steps.findIndex((step) => step.with?.name === "test-results");
@@ -59,8 +58,7 @@ it("merges available failed-shard diagnostics and skips unavailable shard report
   );
   expect(merge).toBeGreaterThan(0);
   expect(download?.if).toContain("!cancelled()");
-  expect(download?.if).toContain("needs.test-shard.result == 'success'");
-  expect(download?.if).toContain("needs.test-shard.result == 'failure'");
+
   expect(upload).toBeGreaterThan(merge);
   expect(gate).toBeGreaterThan(upload);
   const merges = steps.filter((step) => step.run?.includes("--reporter=json"));
@@ -70,8 +68,6 @@ it("merges available failed-shard diagnostics and skips unavailable shard report
       "--reporter=./scripts/ci/test-timing-reporter.mjs",
     );
     expect(step.if).toContain("!cancelled()");
-    expect(step.if).toContain("needs.test-shard.result == 'success'");
-    expect(step.if).toContain("needs.test-shard.result == 'failure'");
   }
   expect(steps[upload]?.with?.path).toContain("test-timings.json");
   expect(steps[upload]?.with).toMatchObject({ "include-hidden-files": true });
@@ -86,18 +82,103 @@ it("merges available failed-shard diagnostics and skips unavailable shard report
   );
   const command = steps[gate]?.run;
   if (command === undefined) throw new Error("Missing shard result gate");
-  for (const result of ["failure", "cancelled", "skipped", ""]) {
-    await expect(
-      execute("bash", ["-c", command], {
-        env: { ...process.env, CODE_REQUIRED: "true", SHARD_RESULT: result },
-      }),
-    ).rejects.toMatchObject({ code: 1 });
+  for (const tier of ["fast", "full"]) {
+    for (const shard of ["success", "failure", "cancelled", "skipped", ""]) {
+      for (const source of ["success", "failure", "cancelled", "skipped", ""]) {
+        const check = execute("bash", ["-c", command], {
+          env: {
+            ...process.env,
+            CODE_REQUIRED: "true",
+            SHARD_RESULT: shard,
+            SOURCE_REQUIRED: String(tier === "fast"),
+            SOURCE_RESULT: source,
+          },
+        });
+        if (shard === "success" && (tier !== "fast" || source === "success"))
+          await expect(check).resolves.toMatchObject({ stderr: "" });
+        else await expect(check).rejects.toMatchObject({ code: 1 });
+      }
+    }
   }
   await expect(
     execute("bash", ["-c", command], {
       env: { ...process.env, CODE_REQUIRED: "false", SHARD_RESULT: "skipped" },
     }),
   ).resolves.toMatchObject({ stderr: "" });
+});
+
+// These workflow conditions use the shared boolean/string expression subset.
+// Evaluate the checked-in expressions so failure-state coverage cannot drift
+// into a separate test implementation of the collection policy.
+function conditionValue(
+  condition: string | undefined,
+  needs: Record<string, unknown>,
+  canceled: boolean,
+) {
+  if (!condition) throw new Error("Missing report collection condition");
+  return runInNewContext(
+    condition
+      .replaceAll("needs.test-shard", 'needs["test-shard"]')
+      .replaceAll("needs.test-source", 'needs["test-source"]'),
+    { needs, cancelled: () => canceled },
+    { timeout: 1_000 },
+  );
+}
+
+it("collects either fast test group while keeping full reports tied to full shards", async () => {
+  const steps = (await workflow()).test.steps;
+  const download = steps.find(
+    (step) => step.with?.pattern === "vitest-report-*",
+  );
+  const fast = steps.find(
+    (step) => step.name === "Merge fast-suite JUnit and timing reports",
+  );
+  const full = steps.find(
+    (step) => step.name === "Merge coverage, JUnit, and timing reports",
+  );
+  for (const tier of ["fast", "full"]) {
+    for (const shard of ["success", "failure", "cancelled", "skipped", ""]) {
+      for (const source of ["success", "failure", "cancelled", "skipped", ""]) {
+        for (const [code, canceled] of [
+          ["true", false],
+          ["true", true],
+          ["false", false],
+          ["false", true],
+        ] as const) {
+          const needs = {
+            changes: { outputs: { code, tier } },
+            "test-shard": { result: shard },
+            "test-source": { result: source },
+          };
+          const builtAvailable = ["success", "failure"].includes(shard);
+          const sourceAvailable = ["success", "failure"].includes(source);
+          const enabled = code === "true" && !canceled;
+          const available =
+            builtAvailable || (tier === "fast" && sourceAvailable);
+          const expected = enabled
+            ? {
+                download: available,
+                fast: tier === "fast" && available,
+                full: tier === "full" && builtAvailable,
+              }
+            : { download: false, fast: false, full: false };
+          expect(conditionValue(download?.if, needs, canceled)).toBe(
+            expected.download,
+          );
+          expect(conditionValue(fast?.if, needs, canceled)).toBe(expected.fast);
+          expect(conditionValue(full?.if, needs, canceled)).toBe(expected.full);
+        }
+      }
+    }
+  }
+  const summary = steps.find((step) =>
+    step.run?.includes("scripts/ci/test-report.mjs"),
+  );
+  expect(summary?.env?.SHARD_RESULT).toBe("${{ needs.test-shard.result }}");
+  expect(summary?.env?.SOURCE_RESULT).toBe("${{ needs.test-source.result }}");
+  expect(summary?.env?.SOURCE_REQUIRED).toBe(
+    "${{ needs.changes.outputs.tier == 'fast' }}",
+  );
 });
 
 it("keeps diagnosis available after merge failure and publishes only complete successful history", async () => {
@@ -220,7 +301,12 @@ it("exports portable timing history and removes it on a failed, partial, or inva
       { name: join(root, "tests/fast.test.ts"), durationMs: 10 },
     ],
   };
-  const run = async (value: unknown, shards = "success", merge = "success") => {
+  const run = async (
+    value: unknown,
+    shards = "success",
+    merge = "success",
+    source?: string,
+  ) => {
     await writeFile(join(root, "test-timings.json"), JSON.stringify(value));
     await writeFile(summary, "");
     return execute(process.execPath, [fileURLToPath(script)], {
@@ -229,6 +315,8 @@ it("exports portable timing history and removes it on a failed, partial, or inva
         ...process.env,
         GITHUB_STEP_SUMMARY: summary,
         SHARD_RESULT: shards,
+        SOURCE_REQUIRED: String(source !== undefined),
+        SOURCE_RESULT: source ?? "",
         MERGE_RESULT: merge,
       },
     });
@@ -255,6 +343,24 @@ it("exports portable timing history and removes it on a failed, partial, or inva
     await run(value, shards, merge);
     await expect(readFile(history)).rejects.toMatchObject({ code: "ENOENT" });
     expect(await readFile(summary, "utf8")).toContain("diagnostic only");
+  }
+  await run(report, "success", "success", "success");
+  expect(await readFile(history, "utf8")).toContain('"success":true');
+  for (const [shards, source] of [
+    ["skipped", "success"],
+    ["success", "skipped"],
+    ["success", "cancelled"],
+    ["success", "failure"],
+    ["success", ""],
+  ]) {
+    await run(report);
+    await run(report, shards, "success", source);
+    await expect(readFile(history)).rejects.toMatchObject({ code: "ENOENT" });
+    const text = await readFile(summary, "utf8");
+    expect(text).toContain(`Source result: ${source}.`);
+    expect(text).toContain("diagnostic only");
+    if (shards === "skipped" || source !== "failure")
+      expect(text).toContain("Partial test diagnostics");
   }
   await run(report);
   await expect(
@@ -352,6 +458,21 @@ it("recovers complete module costs from real blob reports without executing test
   expect(file.durationMs).toBeCloseTo(
     Object.values(file.phases).reduce((sum, value) => sum + value, 0),
   );
+  const partial = await execute(process.execPath, [fileURLToPath(script)], {
+    cwd: root,
+    env: {
+      ...process.env,
+      SHARD_RESULT: "skipped",
+      SOURCE_REQUIRED: "true",
+      SOURCE_RESULT: "success",
+      MERGE_RESULT: "success",
+    },
+  });
+  expect(partial.stdout).toContain("Partial test diagnostics");
+  expect(partial.stdout).toContain("sample.test.js");
+  await expect(
+    readFile(join(root, ".cache/ci-test-history/test-results.json")),
+  ).rejects.toMatchObject({ code: "ENOENT" });
   await execute(process.execPath, [fileURLToPath(script)], {
     cwd: root,
     env: { ...process.env, SHARD_RESULT: "success", MERGE_RESULT: "success" },
@@ -420,13 +541,15 @@ it("records failed omissions from full reports without treating partial or unhan
       state: index === 1 ? "failed" : "passed",
     })),
   };
-  const run = async (report: unknown) => {
+  const run = async (report: unknown, source = "failure") => {
     await writeFile(join(root, "test-timings.json"), JSON.stringify(report));
     await execute(process.execPath, [fileURLToPath(script)], {
       cwd: root,
       env: {
         ...process.env,
         SHARD_RESULT: "failure",
+        SOURCE_REQUIRED: "true",
+        SOURCE_RESULT: source,
         MERGE_RESULT: "failure",
         CI_VERIFY_TEST_INVENTORY: "true",
         CI_TEST_SELECTION: JSON.stringify(
@@ -458,6 +581,8 @@ it("records failed omissions from full reports without treating partial or unhan
     { ...timing, reason: "interrupted" },
   ])
     expect(await run(report)).toMatchObject({ complete: false });
+  for (const source of ["skipped", "cancelled", ""])
+    expect(await run(timing, source)).toMatchObject({ complete: false });
   await expect(run({ ...timing, files: "invalid" })).rejects.toMatchObject({
     code: 1,
   });

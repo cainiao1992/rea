@@ -139,6 +139,12 @@ jobs:
       - name: Validate workflow syntax and expressions
         if: needs.changes.outputs.workflows == 'true'
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= -pyflakes=
+      - name: Record static task source and execution identity
+        continue-on-error: true
+        if: needs.changes.outputs.code == 'true'
+        env:
+          CI_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: npm run ci:static-context
       - if: needs.changes.outputs.code == 'true'
         run: npm run check:ci
       - if: needs.changes.outputs.code == 'true'
@@ -167,6 +173,34 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  test-source:
+    name: Source tests
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.tier == 'fast'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+      - name: Cache npm package downloads
+        id: npm-cache
+        uses: ./.github/actions/npm-cache
+      - run: npm ci
+      - name: Run source tests without waiting for build
+        run: npm run test:fast -- --reporter=default --reporter=blob
+        env:
+          VITEST_BLOB_LABEL: source
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() }}
+        with:
+          name: vitest-report-source
+          path: .vitest/blob/*
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
   test-shard:
     name: Test shard (${{ matrix.shard }})
     needs: [changes, build]
@@ -178,7 +212,9 @@ jobs:
       # every shard's diagnostics and coverage. Passing PRs run the full suite.
       fail-fast: ${{ github.event_name == 'pull_request' && needs.changes.outputs.tier == 'fast' }}
       matrix:
-        shard: [1/6, 2/6, 3/6, 4/6, 5/6, 6/6]
+        # Fast feedback spends the same six test jobs on one source group and
+        # five built groups; full qualification retains six complete shards.
+        shard: ${{ fromJSON(needs.changes.outputs.tier == 'fast' && '["1/5","2/5","3/5","4/5","5/5"]' || '["1/6","2/6","3/6","4/6","5/6","6/6"]') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -197,15 +233,16 @@ jobs:
         run: npm run test:ci:shard:run -- --shard=${{ matrix.shard }}
         env:
           REA_CI_TEST_HISTORY: .cache/ci-test-history/test-results.json
-      - name: Run complete portable suite for fast feedback
+      - name: Run built-dependent tests for fast feedback
         if: needs.changes.outputs.tier == 'fast'
-        run: npm run test:run -- --reporter=default --reporter=blob --shard=${{ matrix.shard }}
+        run: npm run test:built -- --reporter=default --reporter=blob --shard=${{ matrix.shard }}
         env:
+          VITEST_BLOB_LABEL: built
           REA_CI_TEST_HISTORY: .cache/ci-test-history/test-results.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() }}
         with:
-          name: vitest-report-${{ strategy.job-index }}
+          name: vitest-report-built-${{ strategy.job-index }}
           path: .vitest/blob/*
           include-hidden-files: true
           if-no-files-found: error
@@ -219,11 +256,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
-          cache: npm
+      - name: Cache npm package downloads
+        id: npm-cache
+        uses: ./.github/actions/npm-cache
       - run: npm ci
       - name: Run reverse tools tests with coverage
         run: npm run test:coverage:reverse-tools
@@ -316,7 +355,7 @@ jobs:
 
   test:
     name: Portable tests
-    needs: [changes, test-shard]
+    needs: [changes, test-source, test-shard]
     if: ${{ !cancelled() && needs.changes.outputs.tier != 'reused' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -340,7 +379,9 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         if: >-
           !cancelled() && needs.changes.outputs.code == 'true' &&
-          (needs.test-shard.result == 'success' || needs.test-shard.result == 'failure')
+          (needs.test-shard.result == 'success' || needs.test-shard.result == 'failure' ||
+           (needs.changes.outputs.tier == 'fast' &&
+            (needs.test-source.result == 'success' || needs.test-source.result == 'failure')))
         with:
           path: .vitest/blob
           pattern: vitest-report-*
@@ -368,7 +409,8 @@ jobs:
         if: >-
           !cancelled() && needs.changes.outputs.code == 'true' &&
           needs.changes.outputs.tier == 'fast' &&
-          (needs.test-shard.result == 'success' || needs.test-shard.result == 'failure')
+          (needs.test-shard.result == 'success' || needs.test-shard.result == 'failure' ||
+           needs.test-source.result == 'success' || needs.test-source.result == 'failure')
         run: >-
           npm exec -- vitest --merge-reports
           --reporter=default
@@ -381,6 +423,8 @@ jobs:
         if: needs.changes.outputs.code == 'true' && !cancelled() && hashFiles('test-timings.json') != ''
         env:
           SHARD_RESULT: ${{ needs.test-shard.result }}
+          SOURCE_REQUIRED: ${{ needs.changes.outputs.tier == 'fast' }}
+          SOURCE_RESULT: ${{ needs.test-source.result }}
           MERGE_RESULT: ${{ needs.changes.outputs.tier == 'full' && steps.merge.outcome || steps.merge-fast.outcome }}
           CI_VERIFY_TEST_INVENTORY: "true"
           CI_TEST_SELECTION: ${{ needs.changes.outputs.test_selection }}
@@ -413,7 +457,13 @@ jobs:
         env:
           CODE_REQUIRED: ${{ needs.changes.outputs.code }}
           SHARD_RESULT: ${{ needs.test-shard.result }}
-        run: test "${CODE_REQUIRED}" != "true" || test "${SHARD_RESULT}" = "success"
+          SOURCE_REQUIRED: ${{ needs.changes.outputs.tier == 'fast' }}
+          SOURCE_RESULT: ${{ needs.test-source.result }}
+        run: |
+          if [ "${CODE_REQUIRED}" = "true" ]; then
+            test "${SHARD_RESULT}" = "success" || exit 1
+            test "${SOURCE_REQUIRED}" != "true" || test "${SOURCE_RESULT}" = "success"
+          fi
 
   conformance-fixtures:
     name: Source-built conformance fixtures
@@ -847,6 +897,7 @@ jobs:
         build,
         reverse-tools-quality,
         test-shard,
+        test-source,
         sqlite-runtime,
         test,
         conformance-fixtures,

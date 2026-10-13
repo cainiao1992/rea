@@ -1,7 +1,8 @@
 # General models and specialist models: article evidence
 
 Supporting record for `public/blog/reverse-engineering-models/index.html`.
-The article is an English draft for review and remains `noindex`.
+The article is published from the English source and translated through the
+website's gettext catalogs.
 
 ## Research scope
 

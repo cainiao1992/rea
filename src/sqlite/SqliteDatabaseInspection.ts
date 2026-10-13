@@ -394,7 +394,7 @@ const readRows = (
   for (const name of columns)
     if (!available.has(name))
       throw new SqliteInspectionFailure(
-        "selection",
+        "column-selection",
         `Selected column does not exist with that exact name in table ${input.table}: ${name}`,
       );
   const projection = columns

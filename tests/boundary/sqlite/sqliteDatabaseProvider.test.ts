@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { expect, it as nativeTest, onTestFinished } from "vitest";
+import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
 import { SqliteDatabaseProvider } from "../../../src/sqlite/SqliteDatabaseProvider.js";
 import { spawnOwnedProviderProcess } from "../../../src/process/ProviderProcess.js";
 import { PrivateRuntimeRoot } from "../../../src/process/PrivateRuntimeRoot.js";
@@ -354,6 +355,49 @@ it("does not execute views when selecting rows", async () => {
     ok: false,
     error: { _tag: "AnalysisInputError" },
   });
+});
+
+it("attributes table and column selection failures to their own arguments", async () => {
+  const { database } = await createFixture();
+  const provider = createProvider();
+  onTestFinished(() => provider.close());
+  const projection = async (selection: {
+    table: string;
+    columns?: string[];
+  }) => {
+    const result = await provider.inspect({
+      path: database.path,
+      row_limit: 1,
+      ...selection,
+    });
+    if (result.ok) throw new Error("Expected a rejected selection");
+    return projectAnalysisError(result.error);
+  };
+  expect(
+    await projection({ table: "records", columns: ["nope"] }),
+  ).toMatchObject({
+    details: {
+      issues: [
+        {
+          path: ["columns"],
+          reason: "invalid_format",
+          message:
+            "Selected column does not exist with that exact name in table records: nope",
+        },
+      ],
+    },
+  });
+  expect(await projection({ table: "absent" })).toMatchObject({
+    details: { issues: [{ path: ["table"] }] },
+  });
+  const selected = await provider.inspect({
+    path: database.path,
+    table: "records",
+    columns: ["id"],
+    row_limit: 1,
+  });
+  if (!selected.ok) throw selected.error;
+  expect(selected.value.result).toMatchObject({ rows: { columns: ["id"] } });
 });
 
 it("rejects malformed databases without altering the selected file", async () => {

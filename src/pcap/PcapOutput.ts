@@ -4,6 +4,7 @@ import {
   AnalysisResourceConstraintError,
 } from "../domain/analysisErrorCore.js";
 import { parseRecordedTransportUrl } from "../domain/recordedTransportUrl.js";
+import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
 
 const OPERATION = "inspect_pcap_capture";
 /** Bounds JSON decoding plus its expanded object graph before JSON.parse. */
@@ -284,7 +285,7 @@ export const parseTsharkJsonOutput = async (
   signal?.throwIfAborted();
   return {
     endpoints: [...endpoints]
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .sort((a, b) => b[1] - a[1] || compareUnicodeCodePoints(a[0], b[0]))
       .map(([address, packet_count]) => ({
         address,
         port: null,
@@ -300,7 +301,7 @@ export const parseTsharkJsonOutput = async (
     tlsSniValues: [...sni],
     tlsSniCount: sni.size,
     protocolDistribution: [...protocols]
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .sort((a, b) => b[1] - a[1] || compareUnicodeCodePoints(a[0], b[0]))
       .map(([protocol, packet_count]) => ({ protocol, packet_count })),
     protocolCount: protocols.size,
     httpRequestUris: [...uris],

@@ -50,7 +50,42 @@ test(
       });
       const mcp = new Client({ name: "hopper-literal-boundary", version: "1" });
       let runtime: string | undefined;
-      onTestFinished(async () => {
+      try {
+        await mcp.connect(transport);
+        const call = (name: string, arguments_: Record<string, string> = {}) =>
+          mcp.callTool({ name, arguments: arguments_ });
+        expect((await call("open_binary", { path: target })).isError).not.toBe(
+          true,
+        );
+        const first = parseMcpToolError(await call("current_document"));
+        runtime = dirname(await readFile(receipt, "utf8"));
+        expect(first.error).toMatchObject({
+          code: "cleanup_incomplete",
+          details: {
+            diagnostics: {
+              primary_error: {
+                code: "provider_unavailable",
+                details: {
+                  launcher: {
+                    exit_code: 2,
+                    stderr: {
+                      text: expect.stringContaining(
+                        "Not authorized to send Apple events",
+                      ),
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
+        await access(`${receipt}.document-created`);
+        await access(runtime);
+        expect(parseMcpToolError(await call("list_procedures"))).toEqual(first);
+        expect(parseMcpToolError(await call("close_binary")).error.code).toBe(
+          "cleanup_incomplete",
+        );
+      } finally {
         // SDK close can return immediately after SIGKILL. Wait for its actual
         // child-close event before recovering this process's retained lease.
         let serverExited: Promise<void> | undefined;
@@ -77,41 +112,7 @@ test(
         });
         if (!acquired.acquired) throw new Error("Fixture lease remained live");
         await acquired.lease.release();
-      });
-      await mcp.connect(transport);
-      const call = (name: string, arguments_: Record<string, string> = {}) =>
-        mcp.callTool({ name, arguments: arguments_ });
-      expect((await call("open_binary", { path: target })).isError).not.toBe(
-        true,
-      );
-      const first = parseMcpToolError(await call("current_document"));
-      runtime = dirname(await readFile(receipt, "utf8"));
-      expect(first.error).toMatchObject({
-        code: "cleanup_incomplete",
-        details: {
-          diagnostics: {
-            primary_error: {
-              code: "provider_unavailable",
-              details: {
-                launcher: {
-                  exit_code: 2,
-                  stderr: {
-                    text: expect.stringContaining(
-                      "Not authorized to send Apple events",
-                    ),
-                  },
-                },
-              },
-            },
-          },
-        },
-      });
-      await access(`${receipt}.document-created`);
-      await access(runtime);
-      expect(parseMcpToolError(await call("list_procedures"))).toEqual(first);
-      expect(parseMcpToolError(await call("close_binary")).error.code).toBe(
-        "cleanup_incomplete",
-      );
+      }
     }
   },
 );
@@ -201,7 +202,7 @@ test("recovers a denied Hopper launch through the same stdio MCP session and CLI
   ).toBe(false);
 });
 
-test.each(["handoff", "not-found"] as const)(
+test.for(["handoff", "not-found"] as const)(
   "preserves an unconfirmed %s handoff and closes only a late bridge with matching run identity",
   { timeout: 60_000 },
   async (launchMode, { workspace }) => {
@@ -269,17 +270,21 @@ test.each(["handoff", "not-found"] as const)(
         },
       },
     });
-    if (launchMode === "not-found")
+    if (launchMode === "not-found") {
+      await access(`${receipt}.document-created`);
       expect(initial.error.details).toMatchObject({
         diagnostics: {
           primary_error: { message: expect.stringContaining("Spotlight") },
         },
       });
+    }
     expect(parseMcpToolError(await call("list_procedures"))).toEqual(initial);
     const status = z.object({
       result: z.object({
         provider_operation_health: z.object({
-          state: z.literal("not_started"),
+          state: z.literal(
+            launchMode === "handoff" ? "not_started" : "unknown",
+          ),
           stage: z.literal("launch"),
         }),
       }),

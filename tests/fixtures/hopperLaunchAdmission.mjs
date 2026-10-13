@@ -20,7 +20,8 @@ if (mode === "denied" || mode === "denied-after-handoff") {
     },
   );
 } else if (mode === "not-found") {
-  // The native helper's Spotlight lookup fails before any Apple event.
+  // A custom wrapper can forward the native diagnostic after a handoff.
+  await writeFile(`${receiptPath}.document-created`, "unconfirmed");
   process.stderr.write(
     "Hopper has not been found.\nPlease make sure that Spotlight is active in order for this tool to find Hopper's executable.\n",
     () => process.exit(3),

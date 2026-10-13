@@ -770,6 +770,10 @@ export class HopperClient {
       });
     }
     if (hopperLauncherReportedApplicationNotFound(launcherFailure)) {
+      // Only the verified native helper's Spotlight exit precedes any target
+      // handoff. Wrappers can forward the same message after opening a document.
+      if (this.#resources.launch?.nativeHelperVerified === true)
+        this.#resources.shutdownConfirmed = true;
       return new HopperStartError({
         userMessage:
           "Hopper's launcher could not find Hopper because it relies on Spotlight. Enable Spotlight indexing for the volume that contains Hopper (for example: sudo mdutil -i on /System/Volumes/Data), wait for indexing to finish, then retry opening the target.",

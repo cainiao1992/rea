@@ -86,7 +86,7 @@ export const fetchWebSourceMaps = async (
   signal?.addEventListener("abort", abortFromCaller, { once: true });
   const operationSignal = operationController.signal;
   const deadlineAt =
-    Date.now() + (host.timeoutMs ?? SOURCE_MAP_FETCH_TIMEOUT_MS);
+    performance.now() + (host.timeoutMs ?? SOURCE_MAP_FETCH_TIMEOUT_MS);
   const budget = {
     retainedBytes: 0,
     deadlineAt,
@@ -110,7 +110,7 @@ export const fetchWebSourceMaps = async (
       }
       const expandedBytesBeforeItem = budget.decodedRecords.expandedBytes;
       budget.decodedRecords.expandedBytes += reservation;
-      if (operationSignal.aborted || Date.now() >= deadlineAt) {
+      if (operationSignal.aborted || performance.now() >= deadlineAt) {
         items.push(
           emptySourceMapItem(
             request,
@@ -789,7 +789,7 @@ const checkOperation = (
 ): void => {
   if (callerSignal?.aborted === true) throw callerSignal.reason;
   if (operationSignal?.aborted === true) throw operationSignal.reason;
-  if (Date.now() >= deadlineAt) throw new SourceMapDeadlineError();
+  if (performance.now() >= deadlineAt) throw new SourceMapDeadlineError();
 };
 
 const approvedUrl = (

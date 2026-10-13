@@ -110,6 +110,7 @@ try {
     HOME: home,
     USERPROFILE: home,
     APPDATA: join(home, "AppData", "Roaming"),
+    LOCALAPPDATA: join(home, "AppData", "Local"),
     CLAUDE_CONFIG_DIR: home,
     CODEX_HOME: join(home, ".codex"),
     XDG_CONFIG_HOME: join(home, ".config"),

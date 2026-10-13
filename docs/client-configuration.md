@@ -33,6 +33,71 @@ schema constraints; REA still validates complete canonical inputs. Full-profile
 `gpt-5.4` metadata is also verified locally. Live model API acceptance and
 Windows remain unverified; see [native client verification](testing.md).
 
+## Claude Desktop
+
+Setup registers `mcpServers.rea` in `claude_desktop_config.json`: under
+`~/Library/Application Support/Claude` on macOS, under
+`$XDG_CONFIG_HOME/Claude` (default `~/.config/Claude`) on Linux, and on Windows
+in the file the installed app reads:
+
+- Without Claude Desktop's MSIX package storage, setup uses
+  `%APPDATA%\Claude\claude_desktop_config.json`.
+- The MSIX build (package family `Claude_pzs8sxrjxfjjc`, installed under
+  `C:\Program Files\WindowsApps\Claude_<version>_x64__pzs8sxrjxfjjc`)
+  virtualizes AppData writes. Once it has saved its configuration, it reads
+  the package-private copy
+  `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\claude_desktop_config.json`
+  and ignores the `%APPDATA%` file. Setup, doctor and uninstall use that
+  private copy when it exists. Before the package has saved one, they use the
+  `%APPDATA%` file it still reads; with neither file, setup creates the
+  private copy.
+- If `%LOCALAPPDATA%\Packages` holds a `Claude_<publisher ID>` package from
+  another publisher, or cannot be read, REA cannot establish which file Claude
+  Desktop reads. Setup, doctor and uninstall report that instead of falling
+  back to `%APPDATA%`. Doctor then reports `claude_desktop` as invalid, and
+  uninstall stops before removing anything for any client.
+
+Quit Claude Desktop fully before approving setup; closing its window is not
+enough. A running Claude Desktop can rewrite its configuration from memory and
+drop the registration. This was observed with the Windows MSIX build. Start
+Claude Desktop again after setup. If the package saves its private copy after
+setup planned to write the `%APPDATA%` file, setup makes no change and asks you
+to rerun it.
+
+A process that the MSIX app started, such as a terminal in Claude Desktop's
+Code tab, sees the package's private files at their `%APPDATA%` paths even
+though it reports no package identity. Setup compares one of those files at
+both paths. When it finds that redirected view, the app is running, so setup
+and uninstall refuse to change Claude Desktop's configuration; rerun them from
+a terminal that Claude Desktop did not start. If the package has no private
+file to compare, setup and uninstall cannot rule that out and also refuse; open
+Claude Desktop once if it has never run, quit it fully, then rerun. Doctor
+reads the same file from either kind of process.
+
+The same process also writes everything under `%APPDATA%` and
+`%LOCALAPPDATA%` into the package's private storage, where other apps never
+read it. From that redirected view, setup and uninstall refuse to change other
+clients' files there (VS Code, Trae, Devin and Hermes) and skill directories
+there. `npm install -g` run from such a process installs into the package's
+`LocalCache\Roaming\npm`, which other processes cannot see at the `%APPDATA%`
+path. Setup refuses to register a launcher stored in any MSIX package's
+private storage. Install REA from an ordinary terminal and rerun setup there.
+
+Uninstall removes REA's entry from both the private copy and the `%APPDATA%`
+file, including registrations that earlier releases wrote to `%APPDATA%`.
+
+REA recognizes only the MSIX package. A non-MSIX Claude Desktop installed
+beside it, which would read the `%APPDATA%` file, is not detected.
+
+The package identity, both file locations, the redirected view, and these
+setup and doctor results were observed on Windows 11 with the MSIX build
+2.31226.1.0, using read-only `doctor` and `setup --dry-run` runs both inside
+and outside the app. On that host, setup run from an ordinary terminal with
+the app quit wrote the package-private copy; after the app restarted, the
+entry was still present, doctor reported it aligned, and Claude Desktop's MCP
+log showed REA starting and answering `tools/list`. Uninstall against the real
+app is unverified.
+
 ## Claude Code
 
 Claude Code normally defers MCP tool definitions through tool search. It

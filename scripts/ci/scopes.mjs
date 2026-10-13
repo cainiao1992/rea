@@ -349,6 +349,7 @@ export const SCOPES = {
   nativeaot: [
     "bridge/nativeaot/**",
     "scripts/generate-nativeaot-fixtures.mjs",
+    "scripts/lib/nativeaot-build.*",
     "tests/fixtures/nativeaot/**",
     ".github/workflows/nativeaot-fixtures.yml",
   ],

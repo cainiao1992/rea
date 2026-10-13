@@ -436,6 +436,8 @@ jobs:
           name: windows-native-controls
           path: native/windows/build/
       - run: npm run verify:windows-native:artifact
+      - name: Verify NativeAOT diagnostic applicability on this host
+        run: npm run test:focused -- tests/evaluation/package/nativeAotDiagnostics.test.ts
       - name: Resolve npm cache before verifier HOME isolation
         id: npm-cache
         run: |

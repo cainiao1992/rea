@@ -721,6 +721,44 @@ specifications, independent mappings, unchanged bytes, and decompilation of a
 known return value. AArch64 remains covered by deterministic tests rather than
 this real-provider lane. See [raw binary analysis](raw-binary.md).
 
+`npm run verify:ghidra:address-context` runs on Linux with a caller-installed
+Ghidra, full JDK, and an x86-64 ELF GCC toolchain (`CC` selects another compatible
+compiler). It builds
+`tests/conformance/c/pie-address-context.c` as a PIE ELF without executing it.
+The compiled CLI and real stdio MCP workflow must expose the measured image
+base, retain segment address spaces, agree on the overview, resolve explicit and
+numeric file offsets, and reject unmapped analysis addresses with actionable
+guidance. It checks the reverse `address-to-file-offset` mapping, file-coordinate
+Evidence locations, and the suggested CLI search and load-image commands.
+The verifier compares mapped bytes with the source file and checks source
+identity, session preservation after failed lookup, owned runtime cleanup, and
+verified empty process lineage. This lane does not establish Windows or macOS
+real-provider coverage.
+
+For source-identity boundaries that a normal single-file import cannot create,
+`tests/conformance/ghidra/ReaFileOffsetSourceProbe.java` exercises the production
+bridge against real Ghidra `FileBytes`. It rejects auxiliary and partial sources,
+checks the original target's round trip, and retains ambiguity when duplicate
+target bytes have distinct loaded mappings. Injected decompiler failures and
+cancellation verify that completed source/function resolution facts and backend
+failure codes survive; these injections do not establish natural engine failures.
+On Windows, after creating the
+source-owned PE fixture, run from the repository root:
+
+```powershell
+node scripts/create-ghidra-windows-fixture.mjs
+$proofRoot = Join-Path $env:TEMP 'rea-file-offset-source-proof'
+New-Item -ItemType Directory -Path $proofRoot -Force | Out-Null
+Copy-Item bridge/ghidra/ReaGhidraBridge.java, bridge/ghidra/ReaGhidraExtensions.java, tests/conformance/ghidra/ReaFileOffsetSourceProbe.java -Destination $proofRoot
+& "$env:GHIDRA_INSTALL_DIR/support/analyzeHeadless.bat" $proofRoot source-proof -import "$PWD/build/fixtures/rea-ghidra-windows.exe" -scriptPath $proofRoot -postScript ReaFileOffsetSourceProbe.java -deleteProject
+```
+
+Require the `REA_FILE_OFFSET_SOURCE_OK` marker and no script errors; Ghidra may
+exit successfully even when a post-script fails. The probe edits only its
+temporary analysis database and does not execute the fixture. This producer
+regression supplements public CLI/MCP coverage and does not establish Linux
+host behavior or native process-supervision controls.
+
 ## Apple Interface Builder archives
 
 `npm run verify:interface-builder` compiles the source-owned AppKit XIB into a

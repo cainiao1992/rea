@@ -64,6 +64,7 @@ describe("client configuration filesystem lifecycle", () => {
       "copilot_cli",
       "commandcode",
       "qwen_code",
+      "kimi",
       "vscode",
       "trae",
       "grok_build",

@@ -376,8 +376,11 @@ const resolveRuntimeSourceCandidates = (
   return null;
 };
 
-const rejectDeclaration = (declared: string): CandidateResolution | null => {
-  if (declared.length === 0)
+const rejectDeclaration = (
+  declared: string,
+  allowEmptyPath = false,
+): CandidateResolution | null => {
+  if (declared.length === 0 && !allowEmptyPath)
     return unresolvedCandidate("rejected", ["The declared path is empty."]);
   if (declared.includes("\0") || declared.includes("\\"))
     return unresolvedCandidate("rejected", [
@@ -394,6 +397,7 @@ const contextualCandidate = (
   input: ResolveArtifactPathInput,
 ): string | CandidateResolution => {
   const { context } = input;
+  if (context === "html-reference") return htmlCandidate(input);
   // URL suffixes are evidence, not pathname bytes. Admit only the path while
   // retaining the complete declaration on the resolution result.
   let declared =
@@ -426,7 +430,6 @@ const contextualCandidate = (
   }
   const rejected = rejectDeclaration(declared);
   if (rejected !== null) return rejected;
-  if (context === "html-reference") return htmlCandidate(input);
   if (context === "module-specifier") {
     if (hasScheme(declared))
       return unresolvedCandidate("external", [
@@ -907,6 +910,10 @@ const htmlCandidate = (
   input: ResolveArtifactPathInput,
 ): string | CandidateResolution => {
   const declared = stripQueryAndFragment(htmlUrlText(input.declaredPath));
+  // HTML owns URL-text normalization and pathname admission. A nonempty URL
+  // reference may have no pathname; suffix bytes remain declaration evidence.
+  const rejected = rejectDeclaration(declared, input.declaredPath !== "");
+  if (rejected !== null) return rejected;
   if (looksExternal(declared))
     return unresolvedCandidate("external", [
       "External HTML references are not mapped to local artifact assets.",
@@ -919,12 +926,6 @@ const htmlCandidate = (
   if (base !== undefined && base !== null && looksExternal(base))
     return unresolvedCandidate("external", [
       "The document base href is external, so its script reference is not a local artifact path.",
-    ]);
-  // Removing URL tabs and newlines can join an encoded dot or separator that
-  // the raw declaration split, so admit the parsed URL text again.
-  if (!admitsCanonicalPathSyntax(declared))
-    return unresolvedCandidate("rejected", [
-      "Encoded dot or separator bytes are rejected before artifact path resolution.",
     ]);
   const declaredPath = percentDecodeUrlPath(declared);
   if (declaredPath === null)

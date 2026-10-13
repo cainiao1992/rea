@@ -165,6 +165,14 @@ For [Qoder](https://docs.qoder.com/cli/mcp-reference), setup writes
 from `~/.qoder/skills` (following `QODER_CONFIG_DIR` when set), so setup
 installs its skill copy there.
 
+## Factory Droid
+
+For [Factory Droid](https://docs.factory.com/harness/mcp), setup writes
+`mcpServers.rea` into the user-level `~/.factory/mcp.json`. Entries carry
+`command`, `args`, and `env`. Droid discovers personal skills from
+`~/.factory/skills` ([skills](https://docs.factory.com/harness/skills)), so
+setup installs its skill copy there.
+
 ## Trae
 
 For [Trae](https://docs.trae.ai/ide/add-mcp-servers), setup writes

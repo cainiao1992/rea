@@ -135,6 +135,9 @@ const codexDirectory = ({ home, env }: ClientPathContext): string =>
 const qoderDirectory = ({ home, env }: ClientPathContext): string =>
   env.QODER_CONFIG_DIR || join(home, ".qoder");
 
+const factoryDirectory = ({ home }: ClientPathContext): string =>
+  join(home, ".factory");
+
 /** Match Qwen Code's home override, including tilde and cwd-relative paths. */
 const qwenCodeDirectory = ({ home, env }: ClientPathContext): string => {
   const override = env.QWEN_HOME;
@@ -556,6 +559,16 @@ export const SUPPORTED_CLIENT_DEFINITIONS = [
     configPath: (context: ClientPathContext) =>
       join(qoderDirectory(context), "settings.json"),
     markerPath: qoderDirectory,
+    format: "json",
+  },
+  {
+    name: "droid",
+    displayName: "Factory Droid",
+    skillPath: (context: ClientPathContext) =>
+      join(factoryDirectory(context), "skills"),
+    configPath: (context: ClientPathContext) =>
+      join(factoryDirectory(context), "mcp.json"),
+    markerPath: factoryDirectory,
     format: "json",
   },
   {

@@ -43,7 +43,7 @@ export class PcapSnapshot {
           "pcap",
           OPERATION,
           cause.message,
-          { cause },
+          { cause, retryable: cause.retryable },
         );
       throw new AnalysisResourceConstraintError(
         OPERATION,

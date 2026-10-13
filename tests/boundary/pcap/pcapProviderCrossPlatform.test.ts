@@ -141,9 +141,13 @@ it.runIf(!hasNativeBound)(
       input: { path: "/not-opened/capture.pcap" },
     });
     expect(result.ok).toBe(false);
-    if (!result.ok)
-      expect(projectAnalysisError(result.error)).toMatchObject({
-        code: "capability_unavailable",
-      });
+    if (result.ok) return;
+    const projected = projectAnalysisError(result.error);
+    expect(projected.code).toBe("capability_unavailable");
+    // The refusal concerns this host, so it must not suggest another target.
+    expect(projected.message).toContain(
+      "Linux with util-linux prlimit, or Windows with owned Job Objects",
+    );
+    expect(projected.remediation.action).toBe(projected.message);
   },
 );

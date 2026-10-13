@@ -518,6 +518,13 @@ export class PwntoolsDecoder<
         [
           pending.process.launch.ownership?.runId ?? "owned-decoder",
           ...(pending.root === undefined ? [] : [pending.root.path]),
+          // The retained group may still be live; name it as OwnedCommand does.
+          ...(pending.process.launch.ownership === undefined
+            ? []
+            : [
+                `pid:${pending.process.launch.ownership.leaderPid}`,
+                `process-group:${pending.process.launch.ownership.processGroupId}`,
+              ]),
         ],
         {
           reason: stopped.reason,

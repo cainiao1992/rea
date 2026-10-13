@@ -357,6 +357,30 @@ it("does not execute views when selecting rows", async () => {
   });
 });
 
+nativeTest.each(["absent.db", "absent-parent/absent.db"])(
+  "classifies a missing %s as an invalid value",
+  async (name) => {
+    const workspace = await createTestWorkspace("rea-sqlite-missing-");
+    onTestFinished(() => removeTestWorkspace(workspace.root));
+    const path = workspace.path(name);
+    const provider = createProvider();
+    onTestFinished(() => provider.close());
+    const result = await provider.inspect({ path });
+    if (result.ok) throw new Error("Expected a missing database rejection");
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      details: {
+        issues: [
+          {
+            path: ["path"],
+            reason: "invalid_value",
+            message: `Selected SQLite database does not exist: ${path}`,
+          },
+        ],
+      },
+    });
+  },
+);
+
 it("attributes table and column selection failures to their own arguments", async () => {
   const { database } = await createFixture();
   const provider = createProvider();

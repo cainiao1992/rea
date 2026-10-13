@@ -62,6 +62,7 @@ import {
   NATIVE_COMMAND_OUTPUT_BUDGET_BYTES,
   NativeCommandFailure,
   XcrunCommandRunner,
+  failureCapture,
   type NativeCommandCleanupFailure,
   type NativeCommandCapture,
   type NativeCommandRunner,
@@ -997,15 +998,8 @@ const translateCodeSignExitFailure = (
       "nonzero-exit",
       capture.exitCode,
       undefined,
-      {
-        stdout: capture.stdout,
-        stderr: capture.stderr,
-        stdoutBytes: capture.stdoutBytes,
-        stderrBytes: capture.stderrBytes,
-        exitCode: capture.exitCode,
-        signal: capture.signal,
-        truncated: false,
-      },
+      // Accepted output stays complete until the provider decides it failed.
+      failureCapture(capture, false),
     ),
   );
 

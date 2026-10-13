@@ -12,6 +12,7 @@ import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js
 import { NativeMacOSProvider } from "../../../../src/native/NativeMacOSProvider.js";
 import {
   NATIVE_COMMAND_OUTPUT_BUDGET_BYTES,
+  NATIVE_FAILURE_DIAGNOSTIC_BYTES,
   NativeCommandFailure,
   XcrunCommandRunner,
   type NativeCommandRunner,
@@ -381,6 +382,36 @@ describe("native command failure capture and limits", () => {
     });
   });
 
+  it("bounds both failure streams at a UTF-8 boundary while keeping their totals", async () => {
+    const runner = new XcrunCommandRunner({}, () =>
+      Promise.resolve(ok({ path: process.execPath, sha256: "a".repeat(64) })),
+    );
+    // "é" is two bytes and straddles the excerpt boundary, so it is dropped whole.
+    const stdout = `${"x".repeat(NATIVE_FAILURE_DIAGNOSTIC_BYTES - 1)}é${"y".repeat(1024)}`;
+    const stderr = "z".repeat(NATIVE_FAILURE_DIAGNOSTIC_BYTES + 1024);
+    // Build the output in the child: one Linux argument is limited to 128 KiB.
+    const result = await runner.run(
+      "file",
+      [
+        "-e",
+        `const stdout = "x".repeat(${String(NATIVE_FAILURE_DIAGNOSTIC_BYTES - 1)}) + "\u00e9" + "y".repeat(1024); const stderr = "z".repeat(${String(NATIVE_FAILURE_DIAGNOSTIC_BYTES + 1024)}); process.stdout.write(stdout, () => process.stderr.write(stderr, () => process.exit(3)));`,
+      ],
+      {},
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.reason).toBe("nonzero-exit");
+    expect(result.error.capture).toMatchObject({
+      stdout: "x".repeat(NATIVE_FAILURE_DIAGNOSTIC_BYTES - 1),
+      stderr: "z".repeat(NATIVE_FAILURE_DIAGNOSTIC_BYTES),
+      stdoutBytes: Buffer.byteLength(stdout),
+      stderrBytes: Buffer.byteLength(stderr),
+      exitCode: 3,
+      truncated: true,
+    });
+  });
+
   it("rejects output beyond the complete native-command budget", async () => {
     const runner = new XcrunCommandRunner({}, () =>
       Promise.resolve(ok({ path: process.execPath, sha256: "a".repeat(64) })),
@@ -404,6 +435,13 @@ describe("native command failure capture and limits", () => {
       (result.error.capture?.stdoutBytes ?? 0) +
         (result.error.capture?.stderrBytes ?? 0),
     ).toBeLessThanOrEqual(NATIVE_COMMAND_OUTPUT_BUDGET_BYTES);
+    // The failure carries an excerpt, not the whole retained output budget.
+    expect(result.error.capture?.stdout.length).toBe(
+      NATIVE_FAILURE_DIAGNOSTIC_BYTES,
+    );
+    expect(result.error.capture?.stdoutBytes).toBeGreaterThan(
+      NATIVE_FAILURE_DIAGNOSTIC_BYTES,
+    );
   });
 });
 
@@ -831,6 +869,43 @@ describe("native signature entitlements", () => {
     expect(signature.value.limitations).toContain(
       "Entitlements: 1 dictionary entry keyed __proto__ was omitted because REA results cannot represent that key.",
     );
+  });
+});
+
+/** Fail every codesign call nonzero after writing more than one excerpt. */
+class VerboseCodeSignFailureRunner extends FixtureRunner {
+  override async run(tool: string, arguments_: readonly string[]) {
+    const result = await super.run(tool, arguments_);
+    if (!result.ok || tool !== "codesign") return result;
+    const stderr = "e".repeat(NATIVE_FAILURE_DIAGNOSTIC_BYTES * 2);
+    return ok({
+      ...result.value,
+      stderr,
+      stderrBytes: Buffer.byteLength(stderr),
+      exitCode: 1,
+    });
+  }
+}
+
+describe("native signature failure diagnostics", () => {
+  it("bounds accepted nonzero codesign output once it becomes a failure", async () => {
+    directory = await createTestTempDirectory("rea-signature-failure-");
+    const executable = join(directory, "fixture");
+    await writeFile(executable, "fixture");
+    const client = new NativeMacOSProvider(
+      {},
+      new VerboseCodeSignFailureRunner(),
+      "darwin",
+    ).createClient(await nativeMachoTargetForFile(executable));
+
+    const signature = await client.execute("inspect_signature", {});
+
+    if (signature.ok) throw new Error("A failed codesign run must fail");
+    expect(signature.error.capturedOutput).toMatchObject({
+      stderr: "e".repeat(NATIVE_FAILURE_DIAGNOSTIC_BYTES),
+      stderr_bytes: NATIVE_FAILURE_DIAGNOSTIC_BYTES * 2,
+      truncated: true,
+    });
   });
 });
 

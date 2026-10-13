@@ -62,8 +62,9 @@ assert.equal(first.retryable,true);
 assert.match(first.reason,/Delete owned object by handle failed.*Win32 5/s);
 const [name,...extra]=readdirSync(temp);assert.ok(name);assert.equal(extra.length,0);
 const path=join(temp,name);const identity=statSync(path,{bigint:true});
-assert.throws(()=>renameSync(path,path+'-replacement'));
-assert.equal(statSync(path,{bigint:true}).ino,identity.ino);
+// Ownership follows the retained NTFS handle even when the directory moves.
+const moved=path+'-renamed';renameSync(path,moved);
+assert.equal(statSync(moved,{bigint:true}).ino,identity.ino);
 if(process.argv[2]!=='teardown'){
  const second=systemWindowsNativeAuthority();assert.equal(second.available,true);
  assert.equal(readdirSync(temp).length,0);

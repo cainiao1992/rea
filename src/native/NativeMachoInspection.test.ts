@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
+import {
+  AnalysisCancelledError,
+  AnalysisOutputError,
+} from "../domain/analysisErrorCore.js";
 import { err, ok } from "../domain/result.js";
 import type { NativeCommandCapture } from "./CommandRunner.js";
 import { inspectNativeMacho } from "./NativeMachoInspection.js";
@@ -184,5 +187,66 @@ describe("Mach-O UUID reconciliation", () => {
     expect(result.value.limitations).toContain(
       "dwarfdump --uuid returned conflicting UUIDs for selected architecture arm64",
     );
+  });
+});
+
+describe("Mach-O slice command scheduling", () => {
+  const SLICE_TOOLS = ["otool", "nm", "dyld_info", "dyld_info", "dwarfdump"];
+
+  /** Finish later-launched slice commands first and record overlap. */
+  const reorderingRunner = (failing: ReadonlySet<string> = new Set()) => {
+    const fixtures = new NativeFixtureRunner();
+    let inFlight = 0;
+    let maxInFlight = 0;
+    let launched = 0;
+    const run = async (tool: string, args: readonly string[]) => {
+      if (tool === "file" || tool === "lipo") return fixtures.run(tool, args);
+      const order = launched++;
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      for (let turn = 0; turn < 12 - order * 2; turn += 1)
+        await new Promise((resolve) => setImmediate(resolve));
+      inFlight -= 1;
+      if (failing.has(tool))
+        return err(new AnalysisOutputError("inspect_macho", `${tool} failed`));
+      return fixtures.run(tool, args);
+    };
+    return { run, maxInFlight: () => maxInFlight };
+  };
+
+  const inspectWith = (run: ReturnType<typeof reorderingRunner>["run"]) =>
+    inspectNativeMacho({
+      target: nativeMachoTarget("/fixture/app"),
+      run,
+      invocation: (capture) => ({
+        tool: capture.tool,
+        command: [capture.executable, ...capture.arguments],
+        tool_version: capture.toolVersion,
+        version_reason: capture.versionReason,
+        executable_sha256: capture.executableSha256,
+        exit: { code: capture.exitCode, signal: capture.signal },
+        stdout_bytes: capture.stdoutBytes,
+        stderr_bytes: capture.stderrBytes,
+      }),
+    });
+
+  it("runs independent slice commands together and keeps provenance in declared order", async () => {
+    const runner = reorderingRunner();
+    const result = await inspectWith(runner.run);
+    if (!result.ok) throw result.error;
+    expect(runner.maxInFlight()).toBe(SLICE_TOOLS.length + 1);
+    expect(result.value.result).toMatchObject({
+      provenance: ["file", "lipo", ...SLICE_TOOLS, "vtool"].map((tool) => ({
+        tool,
+      })),
+    });
+  });
+
+  it("reports the first failing slice command in declared order", async () => {
+    const runner = reorderingRunner(new Set(["nm", "dwarfdump"]));
+    const result = await inspectWith(runner.run);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ reason: "nm failed" });
   });
 });

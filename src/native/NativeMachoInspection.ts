@@ -79,8 +79,11 @@ export const inspectNativeMacho = async (
     );
   const selectedArchitecture =
     selection.status === "selected" ? selection.architecture : null;
-  for (const [tool, prefix] of REQUIRED_SLICE_COMMANDS) {
-    const captured = await context.run(
+  const runSliceCommand = ([tool, prefix]: readonly [
+    string,
+    readonly string[],
+  ]) =>
+    context.run(
       tool,
       [
         ...prefix,
@@ -89,20 +92,18 @@ export const inspectNativeMacho = async (
       ],
       context.signal,
     );
+  // Slice commands only read the selected artifact, so launch them together.
+  // Every launch settles before return; declared order fixes provenance and
+  // which failure is reported.
+  const [required, optional] = await Promise.all([
+    Promise.all(REQUIRED_SLICE_COMMANDS.map(runSliceCommand)),
+    runSliceCommand(OPTIONAL_VTOOL_COMMAND),
+  ]);
+  for (const captured of required) {
     if (!captured.ok) return err(captured.error);
     captures.push(captured.value);
   }
   const limitations: string[] = [];
-  const [tool, prefix] = OPTIONAL_VTOOL_COMMAND;
-  const optional = await context.run(
-    tool,
-    [
-      ...prefix,
-      ...selectedArchitectureArguments(tool, selectedArchitecture),
-      context.target.path,
-    ],
-    context.signal,
-  );
   if (optional.ok) captures.push(optional.value);
   else if (optional.error._tag === "AnalysisCapabilityUnavailableError")
     limitations.push(VTOOL_UNAVAILABLE_LIMITATION);

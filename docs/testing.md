@@ -292,6 +292,12 @@ coverage. This ordering reduces peak demand on invalid revisions but can add
 static-check waiting to otherwise passing runs; it is not a measured reduction
 in end-to-end latency.
 
+Core jobs have execution limits of five minutes for classification, ten minutes
+for static checks, builds, docs, and report merging, and thirty minutes per
+portable test shard. These limits leave headroom for cold setup and full coverage
+while preventing a hung job from holding the active main run for hours. They do
+not bound runner queue waiting. Timeouts still fail the required gate.
+
 The separate `CI timings` workflow batches recent completed CI and Release runs
 hourly or on manual dispatch. It uploads `ci-job-timings-batch` with raw API pages and
 a normalized point-in-time report for each collected workflow attempt, plus a

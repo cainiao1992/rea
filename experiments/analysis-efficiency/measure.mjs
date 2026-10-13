@@ -28,6 +28,7 @@ const { values } = parseArgs({
     "javascript-question": { type: "string", default: "inventory" },
     "managed-question": { type: "string", default: "inventory" },
     schemas: { type: "string", default: "default" },
+    "sqlite-selection": { type: "string", default: "all" },
   },
 });
 if (
@@ -43,6 +44,11 @@ if (
   ) ||
   !["inventory", "selected"].includes(values["javascript-question"]) ||
   !["default", "selected"].includes(values.schemas) ||
+  !["all", "columns"].includes(values["sqlite-selection"]) ||
+  (values.artifact !== "qgis-world-map.gpkg" &&
+    values["sqlite-selection"] !== "all") ||
+  (values.artifact === "qgis-world-map.gpkg" &&
+    values.delivery !== "complete") ||
   !["inventory", "identity"].includes(values["managed-question"]) ||
   (!["sharex.dll", "sharex.helpers.dll"].includes(values.artifact) &&
     values["managed-question"] !== "inventory") ||
@@ -518,6 +524,54 @@ const inspectEvmTarget = async () => {
 };
 
 const workflows = {
+  "qgis-world-map.gpkg": async () => {
+    const columns = ["fid", "NAME", "ISO_A3"];
+    const input = {
+      path: values.path,
+      table: "countries",
+      row_limit: 1,
+      ...(values["sqlite-selection"] === "columns" ? { columns } : {}),
+    };
+    const definition = catalogDefinitions.get("inspect_sqlite_database");
+    if (
+      definition === undefined ||
+      !new Ajv2020({ strict: false, validateFormats: false }).validate(
+        definition.inputSchema,
+        input,
+      )
+    )
+      throw new Error(
+        "Selected SQLite request is not advertised by this runtime",
+      );
+    const inspected = await call("inspect_sqlite_database", input);
+    const report = normalized(inspected);
+    if (report.rows === null || report.rows.table !== "countries")
+      throw new Error("Runtime returned no selected country sample");
+    const indexes = columns.map((column) => {
+      const index = report.rows.columns.indexOf(column);
+      if (index < 0)
+        throw new Error(`Missing requested SQLite column ${column}`);
+      return index;
+    });
+    return {
+      artifact_sha256: targetSha(inspected),
+      artifact: report.artifact,
+      wal: report.wal,
+      engine: report.engine,
+      database_encoding: report.database_encoding,
+      schema: report.schema,
+      rows: {
+        ...report.rows,
+        columns,
+        values: report.rows.values.map((row) =>
+          indexes.map((index) => row[index]),
+        ),
+      },
+      producer_limitations: report.limitations,
+      limitations: inspected.limitations,
+      evidence_ids: [inspected.evidence_id],
+    };
+  },
   "obsidian.asar": async () => {
     if (values["javascript-question"] === "selected") {
       const inspected = await call("analyze_javascript_application", {
@@ -902,6 +956,10 @@ const report = {
   )
     ? values["managed-question"]
     : null,
+  sqlite_selection:
+    values.artifact === "qgis-world-map.gpkg"
+      ? values["sqlite-selection"]
+      : null,
   provider_settings_sha256: sha(JSON.stringify(selectedProviders)),
   provider_search_path_sha256: sha(
     selectedProviders.PATH ?? process.env.PATH ?? "",

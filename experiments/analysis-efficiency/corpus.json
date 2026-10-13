@@ -250,6 +250,19 @@
         "transport_bytes": 46558706,
         "derivation": "Official arm64 release APK, compared with GitHub release asset digest; byte-only analysis without execution"
       }
+    },
+    {
+      "id": "qgis-world-map.gpkg",
+      "file": "qgis-world-map.gpkg",
+      "bytes": 12914688,
+      "sha256": "01d293159d1b77bd9212b5252587853f61aa9e25b2387135f34afaba8d057190",
+      "provenance": {
+        "project": "QGIS bundled world map",
+        "source_commit": "e1223b8e9e71fc50ee995ed556f711c54ccc101b",
+        "git_blob_sha1": "c9ff80228dff0de93c9acdef16a97545ba360244",
+        "url": "https://raw.githubusercontent.com/qgis/QGIS/e1223b8e9e71fc50ee995ed556f711c54ccc101b/resources/data/world_map.gpkg",
+        "derivation": "unmodified official resource file; streaming Git blob and SHA-256 verification"
+      }
     }
   ]
 }

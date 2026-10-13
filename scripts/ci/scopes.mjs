@@ -56,6 +56,8 @@ export const SCOPES = {
     "tests/boundary/filesystem/setupUnavailableProvider.test.ts",
     "tests/boundary/filesystem/windowsNpxRegistration.test.ts",
     "tests/acceptance/setup/homeDirectoryFallback.test.ts",
+    "tests/boundary/filesystem/javascriptApplicationWorkflows.test.ts",
+    "src/domain/javascript/javascriptRuntimeStaticCandidates.ts",
     "tests/boundary/filesystem/webScriptManifestPaths.test.ts",
     "tests/boundary/process/ProcessEvidence.host.test.ts",
     "tests/acceptance/webModuleCli.test.ts",

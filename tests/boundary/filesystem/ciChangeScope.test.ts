@@ -515,6 +515,10 @@ it.each([
     "src/windows/Example.ts",
     { code: true, runtime: true, package: true, apple: false, evm: false },
   ],
+  [
+    "src/domain/javascript/javascriptRuntimeStaticCandidates.ts",
+    { code: true, runtime: true, package: true, javascript_recovery: true },
+  ],
   ["install.sh", { code: true, runtime: true, package: true, evm: false }],
   [
     ".agents/skills/reverse-engineer-anything/SKILL.md",

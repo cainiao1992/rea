@@ -1413,7 +1413,7 @@ it("binds retained transport diagnostics to the requested operation and recovery
   const { producer, client } = await fixture("attached");
   await client.execute("health", {});
   producer.beforeCall = async (name) => {
-    if (name === "list_funcs")
+    if (name === "list_functions")
       throw new ProviderAdapterError("ida", "transport", {
         diagnostics: { reason: "upstream closed" },
         capturedOutput: {
@@ -1443,7 +1443,7 @@ it("retains transport diagnostics on a cancellation regardless of stderr", async
   await client.execute("health", {});
   const controller = new AbortController();
   producer.beforeCall = async (name) => {
-    if (name === "list_funcs") {
+    if (name === "list_functions") {
       controller.abort();
       throw new ProviderAdapterError("ida", "transport", {
         diagnostics: { reason: "upstream closed after cancellation" },

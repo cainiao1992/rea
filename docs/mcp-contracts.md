@@ -21,6 +21,12 @@ directly to `compare_functions`, and `inspect_artifact` Evidence to
 `compare_artifacts`. Use `get_evidence_bundle` when the task needs broader
 retained session history or an explicit bundle for transfer.
 
+Evidence and bundle imports reject unsupported fields in their envelopes,
+identities, manifests and other fixed metadata before authentication. Imports
+leave retained session state unchanged when validation fails. Keep application
+metadata in the supported JSON payloads (`parameters`, `raw_result`,
+`normalized_result`, or analysis-profile parameters), where keys are preserved.
+
 Tool execution failures return `isError: true` and the complete canonical
 `{ "error": ... }` diagnostic as JSON in text `content`. Read that diagnostic
 for the error code, target details, partial observations, and remediation.

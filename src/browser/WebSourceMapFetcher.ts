@@ -2,7 +2,6 @@ import * as t from "@babel/types";
 import {
   decodeValidatedSourceMapLeaves,
   isBeforeSourceMapLeafStop,
-  resolveSourceMapSource,
 } from "../javascript/sourceMaps/DecodedSourceMap.js";
 
 import { sanitizeBrowserUrl } from "../domain/browserObservation.js";
@@ -21,6 +20,7 @@ import { webSourceMapsSchema } from "../domain/webBundleAnalysis.js";
 import { createWebTextArtifact } from "../domain/webContentArtifact.js";
 import { safeParseJson } from "../domain/safeJson.js";
 import { sourceMapJsonText } from "../domain/sourceMapEnvelope.js";
+import { resolveJavaScriptSourceMapUrl } from "../domain/javascript/javascriptSourceMapPaths.js";
 import { jsonParts } from "../domain/jsonSerialization.js";
 import {
   inspectSourceMapValue,
@@ -867,7 +867,11 @@ const preflightResolvedSourceBytes = (
       const sourceKey = source;
       let resolved = sourcesForRoot.get(sourceKey);
       if (resolved === undefined)
-        resolved = resolveSourceMapSource(source, map.sourceRoot, mapUrl);
+        resolved = resolveJavaScriptSourceMapUrl(
+          source,
+          map.sourceRoot,
+          mapUrl,
+        );
       const bytes = Buffer.byteLength(resolved, "utf8");
       if (bytes > SOURCE_MAP_RESPONSE_BYTES - resolvedBytes)
         throw resolvedSourceLimitFailure();

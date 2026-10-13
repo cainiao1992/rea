@@ -156,9 +156,12 @@ to the comparison Evidence in a live session.
 `compare_source_to_bundle` compares one cryptographically committed
 `HistoricalSourceGraph` with authenticated application-graph Evidence. The
 stable scoring model reports every admitted signal and weight: exact source
-digest, source-map original path, exact current path, path suffix, basename, and
-language extension. Exact digest wins over location inference; weak basename
-or extension evidence never forces a mapping.
+digest, source-map original path, exact current path, path suffix, Unicode-
+equivalent path, basename, and language extension. Exact digest wins over
+location inference; weak basename, extension, and Unicode-equivalence evidence
+never forces a mapping. Unicode-equivalent spellings are candidate evidence
+only because distinct filesystem paths can preserve those spellings as separate
+files; multiple canonical-equivalent candidates remain unknown.
 
 Each historical source file is classified as `unchanged`, `modified`,
 `removed`, `split`, `merged`, `duplicated`, or `unknown`. Multiple equally

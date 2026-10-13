@@ -9,7 +9,16 @@ import {
   processObservationSourceSchema,
 } from "./processObservation.js";
 
-const identifierSchema = z.string().regex(IDENTIFIER_PATTERN);
+/**
+ * A declared trace, event or variant identifier. The specification owns this
+ * vocabulary and the comparison result echoes those identifiers verbatim, so
+ * the result module must reuse this schema rather than restate the pattern:
+ * two bounds on the same identifier would reject the result of an accepted
+ * specification.
+ */
+export const processTraceIdentifierSchema = z
+  .string()
+  .regex(IDENTIFIER_PATTERN);
 
 const cardinalitySchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("required") }),
@@ -31,7 +40,7 @@ const cardinalitySchema = z.discriminatedUnion("kind", [
 ]);
 
 const eventDeclarationSchema = z.strictObject({
-  id: identifierSchema,
+  id: processTraceIdentifierSchema,
   source: processObservationSourceSchema,
   exact: jsonValueSchema,
   ignore_fields: z
@@ -56,29 +65,31 @@ const partialOrderLanguageSchema = z.strictObject({
   happens_before: z
     .array(
       z.strictObject({
-        before: identifierSchema,
-        after: identifierSchema,
+        before: processTraceIdentifierSchema,
+        after: processTraceIdentifierSchema,
       }),
     )
     .default([]),
   not_before: z
     .array(
       z.strictObject({
-        event: identifierSchema,
-        anchor: identifierSchema,
+        event: processTraceIdentifierSchema,
+        anchor: processTraceIdentifierSchema,
       }),
     )
     .default([]),
   unordered_groups: z
-    .array(z.strictObject({ events: z.array(identifierSchema).min(2) }))
+    .array(
+      z.strictObject({ events: z.array(processTraceIdentifierSchema).min(2) }),
+    )
     .default([]),
-  prefix: z.array(identifierSchema).default([]),
-  suffix: z.array(identifierSchema).default([]),
+  prefix: z.array(processTraceIdentifierSchema).default([]),
+  suffix: z.array(processTraceIdentifierSchema).default([]),
 });
 
 const finiteTraceTokenSchema = z.union([
-  identifierSchema,
-  z.strictObject({ unordered: z.array(identifierSchema).min(2) }),
+  processTraceIdentifierSchema,
+  z.strictObject({ unordered: z.array(processTraceIdentifierSchema).min(2) }),
 ]);
 
 const finiteTraceLanguageSchema = z.strictObject({
@@ -86,7 +97,7 @@ const finiteTraceLanguageSchema = z.strictObject({
   variants: z
     .array(
       z.strictObject({
-        id: identifierSchema,
+        id: processTraceIdentifierSchema,
         trace: z.array(finiteTraceTokenSchema),
       }),
     )

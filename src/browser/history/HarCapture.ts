@@ -144,7 +144,8 @@ const projectHar = (
             (literal) =>
               item.includes(literal) ||
               contentBase64.includes(literal) ||
-              sha256.includes(literal),
+              sha256.includes(literal) ||
+              String(bytes.length).includes(literal),
           );
         binary_fields.push(
           hidden

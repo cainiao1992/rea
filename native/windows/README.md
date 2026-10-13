@@ -69,10 +69,22 @@ without this lane reports Windows native controls as unavailable.
   limits only for its JavaScript helpers when running on Bun, which ignores
   their V8 heap flags; Node.js launches are unchanged.
 - Only the suspended child's default file owner is normalized. Caller token
-  privileges and ownership remain unchanged. Caller CPU affinity and process
-  priority are preserved in the child. Environment names are sorted and
-  deduplicated using Windows ordinal comparison, preserving their native Unicode
-  semantics and caller-selected values.
+  privileges and ownership remain unchanged. Caller process priority is
+  preserved in the child, and caller CPU affinity whenever both occupy the same
+  processor group. Windows chooses a new process's group itself and rejects a
+  mask belonging to another group, so a child placed elsewhere keeps that
+  group's default when the caller asked for no bound of its own. A caller
+  deliberately pinned to fewer processors than its group holds is a constraint
+  such a child cannot express, and is refused rather than widened to that
+  group's default. A mask covering its group's whole active set does not
+  distinguish a caller Windows placed in that group from one that selected the
+  group deliberately, so such a child can still be placed elsewhere: its
+  processor count stays bounded, its group placement is not preserved, and
+  neither that case nor the refusal above has a verification lane, because both
+  need a host whose processors span more than one group.
+  Environment names are sorted and deduplicated using Windows
+  ordinal comparison, preserving their native Unicode semantics and
+  caller-selected values.
 - Cleanup walks locked directory objects, removes files by handle, and unlinks
   reparse entries without traversing their targets. Failed removal retains the
   root and ancestor leases for retry; a partially removed runtime accepts only

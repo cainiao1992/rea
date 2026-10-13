@@ -83,6 +83,24 @@ it("counts IPv6 endpoints once per packet and preserves every examined fact", as
   expect(result.partial).toBe(false);
 });
 
+it("orders equal-count endpoints and protocols by code point, not host locale", async () => {
+  // Locale collation puts "fe80::1" first and, under da-DK, "aarp" after "zz".
+  const result = await parseTsharkJsonOutput(
+    capture([
+      { "ipv6.src": ["fe80::1"], "frame.protocols": ["eth:llc:zz"] },
+      { "ipv6.src": ["fe80:1::1"], "frame.protocols": ["eth:llc:aarp"] },
+    ]),
+  );
+  expect(result.endpoints.map(({ address }) => address)).toEqual([
+    "fe80:1::1",
+    "fe80::1",
+  ]);
+  expect(result.protocolDistribution.map(({ protocol }) => protocol)).toEqual([
+    "eth:llc:aarp",
+    "eth:llc:zz",
+  ]);
+});
+
 it("preserves all DNS addresses and their exact examined count", async () => {
   const result = await parseTsharkJsonOutput(
     capture(

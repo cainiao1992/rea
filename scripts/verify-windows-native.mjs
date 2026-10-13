@@ -662,6 +662,42 @@ setInterval(()=>{},1000);\n`,
       unicodeNamesPreserved: true,
     });
     report.processes.windowsEnvironmentSemantics = true;
+    // Observed through this process's own id: a separate probe process would
+    // get its own processor group, so it cannot stand in for the process that
+    // spawns the child.
+    const callerAffinity = JSON.parse(
+      execFileSync(boundaryFixture, ["affinity", String(process.pid)], {
+        encoding: "utf8",
+      }),
+    );
+    const affinityChild = native.call("process_spawn", [
+      boundaryFixture,
+      `${quote(boundaryFixture)} affinity`,
+      workspace,
+      environment,
+    ]);
+    const observedAffinity = await wait(affinityChild);
+    native.call("process_close", [affinityChild.handle]);
+    assert.equal(observedAffinity.exitCode, 0);
+    const childAffinity = JSON.parse(observedAffinity.output);
+    // Masks cross as hexadecimal strings because a mask can exceed the
+    // safe-integer range. Sharing one processor group makes the caller's mask
+    // applicable, so it must be inherited exactly. Windows placing the child in
+    // another group is only permitted when the caller asked for no bound of its
+    // own, which its group's whole active set establishes; a narrower mask has
+    // to fail the spawn rather than widen to that group's default.
+    const sharedGroup =
+      callerAffinity.singleProcessorGroup &&
+      childAffinity.singleProcessorGroup &&
+      callerAffinity.processorGroup === childAffinity.processorGroup;
+    if (sharedGroup)
+      assert.equal(childAffinity.affinityMask, callerAffinity.affinityMask);
+    else assert.equal(callerAffinity.affinityMask, callerAffinity.systemMask);
+    report.processes.callerAffinityBoundsOwnedProcessOrRefusesToWiden = true;
+    report.callerAffinity = {
+      ...callerAffinity,
+      sharedGroupWithChild: sharedGroup,
+    };
   }
   const ownerFixture = join(workspace, "owner.mjs");
   const ownerPidFile = join(workspace, "crash-child.pid");

@@ -33,6 +33,7 @@ import {
   IDA_LIMITATIONS,
   IDA_OPERATIONS,
   IDA_PROVIDER_IDENTITY,
+  idaProfileAdmits,
   type IdaOperation,
 } from "./IdaProviderCapabilities.js";
 import {
@@ -122,6 +123,7 @@ export class IdaSessionClient implements AnalysisClient {
   #openAttempted = false;
   #openCompleted = false;
   #callGraphAdvertised = false;
+  #surveyAdvertised = false;
   #initialIdentity: string | undefined;
   #metadata: JsonValue = null;
   #lifecycle: JsonValue[] = [];
@@ -192,6 +194,17 @@ export class IdaSessionClient implements AnalysisClient {
           "ida",
           operation,
           "This integration admits read-only analysis operations only.",
+        ),
+      );
+    if (
+      operation !== "health" &&
+      !idaProfileAdmits(operation, this.config.mode)
+    )
+      return err(
+        new AnalysisCapabilityUnavailableError(
+          "ida",
+          operation,
+          "This operation is available for the modern headless profile only.",
         ),
       );
     if (
@@ -269,6 +282,9 @@ export class IdaSessionClient implements AnalysisClient {
           ...(runner.relationshipCoverage === undefined
             ? {}
             : { relationshipCoverage: runner.relationshipCoverage }),
+          ...(runner.referencesTruncated !== undefined
+            ? { referencesTruncated: runner.referencesTruncated }
+            : {}),
           locations: [
             { kind: "artifact-path", path: this.target.path },
             ...runner.locations,
@@ -293,6 +309,8 @@ export class IdaSessionClient implements AnalysisClient {
         selectorOrigin: options?.selectorOrigin,
         x86Only: isX86OnlyTarget(this.target),
         callGraphAvailable: this.#callGraphAdvertised,
+        surveyAvailable: this.#surveyAdvertised,
+        admittedDocument: this.target.path,
       },
     );
   }
@@ -423,6 +441,7 @@ export class IdaSessionClient implements AnalysisClient {
   async #initialize(): Promise<void> {
     const tools = new Set(await this.connection.connect());
     this.#callGraphAdvertised = tools.has("callgraph");
+    this.#surveyAdvertised = tools.has("survey_binary");
     const expected =
       this.config.protocol === "native"
         ? nativeTools

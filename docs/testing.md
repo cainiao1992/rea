@@ -682,7 +682,9 @@ use `--second-procedure rea_fixture_subtract --second-marker='- 13'`.
 The lane invokes the production CLI dispatcher and connects the pinned MCP
 client SDK to the production REA server. It verifies function Evidence and
 CLI/MCP parity, inventory/search, pseudocode, instructions, xrefs, malformed
-input, original-input preservation, and lifecycle cleanup. For headless
+input, original-input preservation, and lifecycle cleanup. The headless
+profile also checks containing procedures, the admitted program as the
+document, address context, and feature tracing. For headless
 analysis it confirms that the owned database IDs disappear from upstream
 discovery and private workspaces are removed. For attached analysis it confirms
 the existing GUI target remains reachable with the same input identity.

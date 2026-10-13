@@ -57,6 +57,7 @@ const modernNames = [
   "callees",
   "xrefs_to",
   "callgraph",
+  "survey_binary",
 ];
 
 /** Stateful producer fixture at the real connection seam; no module mocking. */

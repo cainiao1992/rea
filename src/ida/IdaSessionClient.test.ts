@@ -515,7 +515,7 @@ describe("headless IDA transient busy health", () => {
   });
 
   it.each([
-    ["free-form text", "token=abc123 /private/home/user secret"],
+    ["free-form text", "token=abc123 /private<home> secret"],
     ["an over-long name", "x".repeat(200)],
   ])(
     "reports %s from the worker as unknown instead of echoing it",
@@ -899,6 +899,85 @@ describe("headless IDA reaped worker cleanup", () => {
   });
 });
 
+/** A completed open response is not proof that its private Worker was ever released. */
+describe("headless IDA unresolved successful-open ownership", () => {
+  it.each(["matching", "foreign-input", "malformed"] as const)(
+    "retains the private input after %s success with incomplete initial discovery",
+    async (kind) => {
+      const { producer, client, root } = await fixture("headless");
+      let hidden = true;
+      let ownedId: string | undefined;
+      let privateInput: string | undefined;
+      producer.beforeCall = async (name, args) => {
+        if (name !== "idb_open") return;
+        ownedId = z.string().parse(args.preferred_session_id);
+        privateInput = z.string().parse(args.input_path);
+        producer.database = ownedId;
+        producer.inputPath = privateInput;
+      };
+      producer.overrideCall = (name) => {
+        if (name === "idb_open") {
+          const originalId = z.string().parse(ownedId);
+          const originalInput = z.string().parse(privateInput);
+          if (kind === "foreign-input")
+            return {
+              success: true,
+              session: {
+                session_id: "foreign-session",
+                input_path: "/foreign/input",
+              },
+            };
+          if (kind === "malformed")
+            return { success: true, session: { session_id: originalId } };
+          return {
+            success: true,
+            session: { session_id: originalId, input_path: originalInput },
+          };
+        }
+        if (name === "idb_list" && hidden) return { sessions: [] };
+        return undefined;
+      };
+
+      expect((await client.execute("health", {})).ok).toBe(false);
+      const incomplete = await client.close();
+      expect(incomplete.ok).toBe(false);
+      if (!incomplete.ok) expect(incomplete.error.cleanupIncomplete).toBe(true);
+      expect(producer.closes).toBe(0);
+      expect(producer.database).toBe(ownedId);
+      expect(
+        (await readdir(root)).some((name) => name.startsWith("rea-ida-")),
+      ).toBe(true);
+      expect(producer.calls.some(({ name }) => name === "idb_close")).toBe(
+        false,
+      );
+
+      // A later positive private ownership record permits ordinary save=false
+      // cleanup, without ever adopting the foreign open-response identity.
+      hidden = false;
+      expect((await client.close()).ok).toBe(true);
+      expect(producer.calls.filter(({ name }) => name === "idb_close")).toEqual(
+        [{ name: "idb_close", args: { database: ownedId, save: false } }],
+      );
+      expect(producer.closes).toBe(1);
+      expect(await readdir(root)).toEqual(["target.elf"]);
+    },
+  );
+
+  it("preserves cleanup after a completed, explicit idb_open rejection", async () => {
+    const { producer, client, root } = await fixture("headless");
+    producer.overrideCall = (name) =>
+      name === "idb_open"
+        ? { error: "Input was rejected before creating a session" }
+        : undefined;
+
+    expect((await client.execute("health", {})).ok).toBe(false);
+    expect((await client.close()).ok).toBe(true);
+    expect(producer.calls.some(({ name }) => name === "idb_close")).toBe(false);
+    expect(producer.closes).toBe(1);
+    expect(await readdir(root)).toEqual(["target.elf"]);
+  });
+});
+
 describe("headless IDA cleanup verification", () => {
   it("retries failed worker release through the retained connection before removing its workspace", async () => {
     const { producer, client, root } = await fixture("headless");
@@ -941,23 +1020,6 @@ describe("headless IDA cleanup verification", () => {
     expect(
       producer.calls.filter(({ name }) => name === "idb_close"),
     ).toHaveLength(1);
-    expect(await readdir(root)).toEqual(["target.elf"]);
-  });
-  it("never closes an unrelated database when startup returns a different input identity", async () => {
-    const { producer, client, root } = await fixture("headless");
-    producer.overrideCall = (name) =>
-      name === "idb_open"
-        ? {
-            success: true,
-            session: {
-              session_id: "user-database",
-              input_path: "/unrelated/input",
-            },
-          }
-        : undefined;
-    expect((await client.execute("health", {})).ok).toBe(false);
-    expect((await client.close()).ok).toBe(true);
-    expect(producer.calls.some(({ name }) => name === "idb_close")).toBe(false);
     expect(await readdir(root)).toEqual(["target.elf"]);
   });
   it("releases a privately owned worker after malformed open output using verified session inventory", async () => {

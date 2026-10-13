@@ -218,6 +218,14 @@ export const openDatabaseSchema = z
       .passthrough(),
   })
   .passthrough();
+/** Only an explicit completed rejection preserves legacy no-worker cleanup. */
+export const rejectedOpenDatabaseSchema = z
+  .object({
+    error: z.string().min(1),
+    success: z.never().optional(),
+  })
+  .passthrough();
+
 export const databaseListSchema = z
   .object({
     sessions: z.array(

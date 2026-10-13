@@ -88,6 +88,8 @@ REA copies the admitted binary into a private temporary directory, checks its di
 
 One REA session owns one database. Stdio registrations default `IDA_MCP_MAX_WORKERS` to `1`; the explicit upstream `--max-workers 1` also bounds a supervisor. Database size and engine memory depend on the target and upstream; REA does not impose an engine memory limit. The original binary is never executed or overwritten. Optional `workspaceRoot` selects an existing absolute temporary-directory parent on the REA host. Ensure it has space for the input copy and IDA working files.
 
+When a completed `idb_open` response reports success or is otherwise ambiguous, but no active owned private worker can be verified, REA retains the private workspace even if `idb_list` appears empty. A later close can retry verification if the original owned worker becomes discoverable. A completed explicit `idb_open` rejection retains the existing no-worker cleanup path. This is a local admission/ownership safeguard and **does not** provide a process-termination receipt or change the legacy reaped-worker protocol.
+
 Headless cleanup uses the upstream database lifecycle. Abruptly terminating REA, its proxy, or the supervisor does not establish worker release. Prefer `close_binary` for MCP sessions; after an interrupted process, inspect upstream session inventory and retained workspace diagnostics before removing working files. This adapter does not claim Windows Job Object containment for the upstream detached workers.
 
 ## Connect an agent once

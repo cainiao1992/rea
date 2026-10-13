@@ -2,22 +2,31 @@ import { CI_FLAGS } from "./scopes.mjs";
 import { recordQualification } from "./qualification.mjs";
 
 const jobs = JSON.parse(process.env.CI_JOBS);
-const outputs = jobs.changes.outputs;
+const outputs = jobs?.changes?.outputs;
+if (!["fast", "full", "reused"].includes(outputs?.tier))
+  throw new Error(
+    "CI classification requires a valid tier: fast, full, or reused",
+  );
+const invalidFlags = CI_FLAGS.filter(
+  (flag) => outputs[flag] !== "true" && outputs[flag] !== "false",
+);
+if (invalidFlags.length)
+  throw new Error(
+    `CI classification requires explicit true/false scope outputs: ${invalidFlags.join(", ")}`,
+  );
+const selectedScopes = CI_FLAGS.filter((flag) => outputs[flag] === "true");
 const reused = outputs.tier === "reused";
 if (
   reused &&
   (process.env.GITHUB_EVENT_NAME !== "schedule" ||
     !/^[1-9]\d*$/.test(outputs.qualification_run_id ?? "") ||
     !Number.isSafeInteger(Number(outputs.qualification_run_id)) ||
-    CI_FLAGS.some((flag) => outputs[flag] !== "false"))
+    selectedScopes.length !== 0)
 )
   throw new Error(
     "Reused qualification requires a scheduled admission receipt and no selected lanes",
   );
-if (
-  outputs.tier === "full" &&
-  CI_FLAGS.some((flag) => outputs[flag] !== "true")
-)
+if (outputs.tier === "full" && selectedScopes.length !== CI_FLAGS.length)
   throw new Error("Full qualification requires every canonical CI scope");
 const required = reused ? ["changes"] : ["changes", "static", "test"];
 const lanes = {
@@ -31,9 +40,7 @@ const lanes = {
   docs: ["docs"],
   workflows: ["static"],
 };
-for (const [scope, value] of Object.entries(outputs)) {
-  if (value === "true") required.push(...(lanes[scope] ?? [scope]));
-}
+for (const scope of selectedScopes) required.push(...(lanes[scope] ?? [scope]));
 const failed = [...new Set(required)].filter(
   (name) => jobs[name]?.result !== "success",
 );

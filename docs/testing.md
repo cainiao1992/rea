@@ -874,7 +874,10 @@ summary. Representative Git-diff cases live in
 `tests/boundary/filesystem/ciChangeScope.test.ts`.
 
 `CI required` always runs and checks classification and every selected lane,
-rejecting failed, cancelled, or unexpectedly skipped work. Branch protection
+rejecting failed, cancelled, or unexpectedly skipped work. It rejects missing or
+unknown tiers and requires every canonical scope to be explicitly `true` or
+`false`; incomplete classification cannot silently omit verification lanes.
+Branch protection
 should require this aggregate, `Static checks`, `Portable tests`, and
 `Conventional PR title`. Title validation runs separately on PR opening,
 reopening, commits, and edits; correcting a title refreshes only this lightweight

@@ -26,6 +26,15 @@ const workflow = async (filename = "ci.yml") =>
       ),
     );
 
+const scopeFlags = async () =>
+  z
+    .object({ CI_FLAGS: z.array(z.string()) })
+    .parse(
+      await import(
+        new URL("../../../scripts/ci/scopes.mjs", import.meta.url).href
+      ),
+    ).CI_FLAGS;
+
 it("binds SQLite compatibility jobs to the build's prepared runtime artifact and root layout", async () => {
   expect((await workflow()).jobs["sqlite-runtime"]?.if).toBe(
     "needs.changes.outputs.sqlite == 'true'",
@@ -57,13 +66,7 @@ it("binds SQLite compatibility jobs to the build's prepared runtime artifact and
 
 it("exports every canonical scope with read authority for admission and keeps telemetry outside the gate", async () => {
   const { jobs } = await workflow();
-  const { CI_FLAGS } = z
-    .object({ CI_FLAGS: z.array(z.string()) })
-    .parse(
-      await import(
-        new URL("../../../scripts/ci/scopes.mjs", import.meta.url).href
-      ),
-    );
+  const CI_FLAGS = await scopeFlags();
   const outputs = z.record(z.string(), z.string()).parse(jobs.changes?.outputs);
   expect(jobs.changes?.permissions).toEqual({
     contents: "read",
@@ -294,7 +297,14 @@ it.each([
       );
       needs.changes = {
         result: "success",
-        outputs: { code: "true", [scope]: selected },
+        outputs: {
+          ...Object.fromEntries(
+            (await scopeFlags()).map((flag) => [flag, "false"]),
+          ),
+          tier: "fast",
+          code: "true",
+          [scope]: selected,
+        },
       };
       if (result === "missing") delete needs[lane];
       else needs[lane] = { result };
@@ -319,3 +329,69 @@ it.each([
     }
   },
 );
+
+it("rejects incomplete or malformed classification even when available jobs succeeded", async () => {
+  const flags = await scopeFlags();
+  const valid = {
+    ...Object.fromEntries(flags.map((flag) => [flag, "false"])),
+    tier: "fast",
+  };
+  const run = (outputs: unknown) =>
+    executeWorkflowFixture(
+      process.execPath,
+      [
+        fileURLToPath(
+          new URL("../../../scripts/ci/required.mjs", import.meta.url),
+        ),
+      ],
+      {
+        env: {
+          ...process.env,
+          CI_JOBS: JSON.stringify({
+            changes: { result: "success", outputs },
+            static: { result: "success" },
+            test: { result: "success" },
+          }),
+          CI_QUALIFICATION_DIRECTORY: "",
+        },
+      },
+    );
+  await expect(run(valid)).resolves.toMatchObject({ stderr: "" });
+  // Metadata is not a scope, even when its string happens to be "true".
+  await expect(
+    run({ ...valid, qualification_run_id: "true" }),
+  ).resolves.toMatchObject({ stderr: "" });
+  for (const outputs of [
+    undefined,
+    null,
+    {},
+    { ...valid, tier: undefined },
+    { ...valid, tier: "" },
+    { ...valid, tier: "unknown" },
+  ]) {
+    await expect(run(outputs)).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining("valid tier"),
+    });
+  }
+  for (const flag of flags) {
+    await expect(run({ ...valid, [flag]: undefined })).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining(`scope outputs: ${flag}`),
+    });
+  }
+  for (const value of ["", "TRUE", "yes", true, false, 0, null, [], {}]) {
+    await expect(run({ ...valid, sqlite: value })).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining("scope outputs: sqlite"),
+    });
+  }
+  for (const tier of ["full", "reused"]) {
+    await expect(
+      run({ ...valid, tier, sqlite: undefined }),
+    ).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining("scope outputs: sqlite"),
+    });
+  }
+});

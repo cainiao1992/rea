@@ -662,8 +662,16 @@ it("rejects skipped selected work while allowing unselected lanes to skip", asyn
   const command = fileURLToPath(
     new URL("../../../scripts/ci/required.mjs", import.meta.url),
   );
+  const { CI_FLAGS } = await loadScopes();
   const jobs = {
-    changes: { result: "success", outputs: { evm: "true" } },
+    changes: {
+      result: "success",
+      outputs: {
+        ...Object.fromEntries(CI_FLAGS.map((flag) => [flag, "false"])),
+        tier: "fast",
+        evm: "true",
+      },
+    },
     static: { result: "success" },
     test: { result: "success" },
     evm: { result: "success" },

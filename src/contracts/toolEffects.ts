@@ -182,6 +182,16 @@ export const TOOL_EFFECTS: Readonly<Record<string, ToolEffects>> = {
     launchesProcess: true,
     writesFilesystem: true,
   }),
+  inspect_pcap_client: effects({
+    mutatesSession: true,
+    launchesProcess: true,
+    writesFilesystem: true,
+  }),
+  inspect_pcap_capture: effects({
+    mutatesSession: true,
+    launchesProcess: true,
+    writesFilesystem: true,
+  }),
   identify_flutter_build: effects({
     mutatesSession: true,
     writesFilesystem: true,

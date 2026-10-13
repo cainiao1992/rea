@@ -849,6 +849,14 @@ establish passing Android coverage; inspect its execution receipt.
 The `termux-browser-diagnostics` artifact retains the Termux command log, exit
 status, and Android logcat on success or failure. The emulator is disposable.
 
+## Packet capture analysis
+
+`npm run verify:pcap -- --pcap PATH` exercises caller-supplied tshark and
+capinfos against a saved capture. Linux verification uses Wireshark 4.6.6
+and captures containing DNS, TLS and HTTP traffic. Native Windows and macOS
+engine behavior remains unverified; process fixtures do not establish it.
+See [Packet capture analysis](pcap-analysis.md) for contracts and budgets.
+
 ## Apple native metadata and UI
 
 `npm run verify:apple-dispatch` compiles the Objective-C fixture (classes,

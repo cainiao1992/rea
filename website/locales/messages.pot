@@ -155,7 +155,7 @@ msgid "By N0zoM1z0 · 10 October 2026"
 msgstr ""
 
 #: website/public/blog/index.html:236
-#: website/public/blog/reverse-engineering-models/index.html:868
+#: website/public/blog/reverse-engineering-models/index.html:875
 #: website/public/blog/touhou-reconstruction/index.html:1072
 #: website/public/examples/dino-lab/index.html:467 website/public/faq/index.html:565
 #: website/public/first-investigation/index.html:515
@@ -173,7 +173,7 @@ msgid "Source"
 msgstr ""
 
 #: website/public/blog/index.html:237
-#: website/public/blog/reverse-engineering-models/index.html:869
+#: website/public/blog/reverse-engineering-models/index.html:876
 #: website/public/blog/touhou-reconstruction/index.html:1073
 #: website/public/examples/dino-lab/index.html:468 website/public/faq/index.html:566
 #: website/public/first-investigation/index.html:516
@@ -191,7 +191,7 @@ msgid "MIT license"
 msgstr ""
 
 #: website/public/blog/index.html:238
-#: website/public/blog/reverse-engineering-models/index.html:870
+#: website/public/blog/reverse-engineering-models/index.html:877
 #: website/public/blog/touhou-reconstruction/index.html:1074
 #: website/public/examples/dino-lab/index.html:469 website/public/faq/index.html:567
 #: website/public/first-investigation/index.html:517
@@ -209,7 +209,7 @@ msgid "Join the community"
 msgstr ""
 
 #: website/public/blog/index.html:239
-#: website/public/blog/reverse-engineering-models/index.html:871
+#: website/public/blog/reverse-engineering-models/index.html:878
 #: website/public/blog/touhou-reconstruction/index.html:1075
 #: website/public/examples/dino-lab/index.html:470 website/public/faq/index.html:568
 #: website/public/first-investigation/index.html:518
@@ -229,7 +229,7 @@ msgstr ""
 #. {ph0}: <span aria-hidden="true">
 #. {ph1}: </span>
 #: website/public/blog/index.html:244
-#: website/public/blog/reverse-engineering-models/index.html:876
+#: website/public/blog/reverse-engineering-models/index.html:883
 #: website/public/blog/touhou-reconstruction/index.html:1080
 #: website/public/examples/dino-lab/index.html:475 website/public/faq/index.html:573
 #: website/public/first-investigation/index.html:523
@@ -1222,7 +1222,18 @@ msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid "Evidence and model attribution"
 msgstr ""
 
+#. {ph0}: <a href="https://github.com/morluto/rea/blob/main/website/evidence/reverse-
+#. engineering-models.md" >
+#. {ph1}: </a >
 #: website/public/blog/reverse-engineering-models/index.html:776
+#, python-brace-format
+msgctxt "page:blog/reverse-engineering-models/index.html"
+msgid ""
+"{ph0}Detailed evidence notes{ph1} include the recorded comparisons and experiment "
+"context."
+msgstr ""
+
+#: website/public/blog/reverse-engineering-models/index.html:783
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
 "The examples describe historical function-level comparisons recorded in the linked "
@@ -1232,7 +1243,7 @@ msgstr ""
 
 #. {ph0}: <code>gpt-dots</code>
 #. {ph1}: <code>gpt-web</code>
-#: website/public/blog/reverse-engineering-models/index.html:782
+#: website/public/blog/reverse-engineering-models/index.html:789
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -1252,7 +1263,7 @@ msgstr ""
 #. href="https://github.com/N0zoM1z0/th09/commit/52929ed7c299f1a5f29cc13964e22510145fd616"
 #. >
 #. {ph5}: </a >
-#: website/public/blog/reverse-engineering-models/index.html:791
+#: website/public/blog/reverse-engineering-models/index.html:798
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -1274,7 +1285,7 @@ msgstr ""
 #. href="https://github.com/N0zoM1z0/th09/commit/5f825b28a862f8e1a6d4aea2f78a42f04c09a1c0"
 #. >
 #. {ph7}: </a >
-#: website/public/blog/reverse-engineering-models/index.html:803
+#: website/public/blog/reverse-engineering-models/index.html:810
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -1296,7 +1307,7 @@ msgstr ""
 #. href="https://github.com/N0zoM1z0/th09/commit/1eb843383941d00065622a9e353146c4bb96979e"
 #. >
 #. {ph7}: </a >
-#: website/public/blog/reverse-engineering-models/index.html:819
+#: website/public/blog/reverse-engineering-models/index.html:826
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -1318,7 +1329,7 @@ msgstr ""
 #. href="https://github.com/N0zoM1z0/th09/commit/ab72fd77728293fc0beacfc656ca701b0e266016"
 #. >
 #. {ph7}: </a >
-#: website/public/blog/reverse-engineering-models/index.html:835
+#: website/public/blog/reverse-engineering-models/index.html:842
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -1326,7 +1337,7 @@ msgid ""
 "numerical investigation{ph5} and {ph6}TH09 replay-save reconstruction{ph7}."
 msgstr ""
 
-#: website/public/blog/reverse-engineering-models/index.html:852
+#: website/public/blog/reverse-engineering-models/index.html:859
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
 "The proposed specialist and RL comparisons are future experiments. The project "
@@ -1360,7 +1371,7 @@ msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid "Selected reconstruction experiments"
 msgstr ""
 
-#: website/public/blog/reverse-engineering-models/index.html:876
+#: website/public/blog/reverse-engineering-models/index.html:883
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid "Back to top"
 msgstr ""

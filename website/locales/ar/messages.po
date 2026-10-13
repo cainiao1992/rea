@@ -65,7 +65,7 @@ msgstr "بواسطة N0zoM1z0 * 10 أكتوبر 2026"
 #. {ph0}: <span aria-hidden="true">
 #. {ph1}: </span>
 #: website/public/blog/index.html:244
-#: website/public/blog/reverse-engineering-models/index.html:876
+#: website/public/blog/reverse-engineering-models/index.html:883
 #: website/public/blog/touhou-reconstruction/index.html:1080
 #: website/public/examples/dino-lab/index.html:475
 #: website/public/faq/index.html:573
@@ -11476,7 +11476,7 @@ msgid "Guides"
 msgstr "الأدلة"
 
 #: website/public/blog/index.html:236
-#: website/public/blog/reverse-engineering-models/index.html:868
+#: website/public/blog/reverse-engineering-models/index.html:875
 #: website/public/blog/touhou-reconstruction/index.html:1072
 #: website/public/examples/dino-lab/index.html:467
 #: website/public/faq/index.html:565
@@ -11497,7 +11497,7 @@ msgid "Source"
 msgstr "الكود المصدري"
 
 #: website/public/blog/index.html:237
-#: website/public/blog/reverse-engineering-models/index.html:869
+#: website/public/blog/reverse-engineering-models/index.html:876
 #: website/public/blog/touhou-reconstruction/index.html:1073
 #: website/public/examples/dino-lab/index.html:468
 #: website/public/faq/index.html:566
@@ -11518,7 +11518,7 @@ msgid "MIT license"
 msgstr "رخصة MIT"
 
 #: website/public/blog/index.html:238
-#: website/public/blog/reverse-engineering-models/index.html:870
+#: website/public/blog/reverse-engineering-models/index.html:877
 #: website/public/blog/touhou-reconstruction/index.html:1074
 #: website/public/examples/dino-lab/index.html:469
 #: website/public/faq/index.html:567
@@ -11539,7 +11539,7 @@ msgid "Join the community"
 msgstr "انضم إلى المجتمع"
 
 #: website/public/blog/index.html:239
-#: website/public/blog/reverse-engineering-models/index.html:871
+#: website/public/blog/reverse-engineering-models/index.html:878
 #: website/public/blog/touhou-reconstruction/index.html:1075
 #: website/public/examples/dino-lab/index.html:470
 #: website/public/faq/index.html:568
@@ -12844,10 +12844,10 @@ msgid ""
 "complete function matched, and a {ph2}separate rebuild check confirmed "
 "it{ph3}."
 msgstr ""
-"{ph0}GPT-6-Astra غيّر الرسم البياني لتدفق التحكم المحيط{ph1}. أدت المسارات "
-"الرئيسية الآن إلى التحديث النهائي المشترك والعودة. في تلك البنية المصدرية، "
-"قام المترجم بدمج الفروع بنفس طريقة الأصل. تمت مطابقة الوظيفة الكاملة، وأكدها"
-" فحص إعادة البناء المنفصل {ph2}{ph3}."
+"{ph0}غيّر GPT-6-Astra الرسم البياني المحيط لتدفق التحكم{ph1}. أصبحت المسارات"
+" الرئيسية تؤدي إلى تحديث أخير وعودة مشتركين. بهذه البنية، دمج المترجم "
+"البرمجي الفروع كما في الأصل. تطابقت الدالة كاملة، وأكد ذلك {ph2}فحص مستقل "
+"لإعادة البناء{ph3}."
 
 #. {ph0}: <strong >
 #. {ph1}: </strong >
@@ -13020,10 +13020,10 @@ msgid ""
 "memory includes compiler lessons, along with the source and failed "
 "experiments that made them useful."
 msgstr ""
-"قبل أن أقرر تدريس تلك الأنماط من خلال التدريب النموذجي، أود أن ألقي نظرة على"
-" المعرفة التي نحتفظ بها بالفعل في المستودع. في {ph0}المقال السابق{ph1}، كتبت"
-" عن أنها أصبحت الذاكرة العاملة للمشروع. تتضمن تلك الذاكرة دروسًا مترجمة، "
-"بالإضافة إلى المصدر والتجارب الفاشلة التي جعلتها مفيدة."
+"قبل أن أقرر تعليم هذه الأنماط للنموذج، سأراجع المعرفة التي نحفظها بالفعل في "
+"المستودع. في {ph0}المقال السابق{ph1} كتبت عن المستودع وهو يصبح الذاكرة "
+"العاملة للمشروع. تتضمن هذه الذاكرة ما تعلمناه عن سلوك المترجم البرمجي، مع "
+"الشيفرة والتجارب الفاشلة التي جعلت تلك المعرفة مفيدة."
 
 #: website/public/blog/reverse-engineering-models/index.html:441
 msgctxt "page:blog/reverse-engineering-models/index.html"
@@ -13069,11 +13069,11 @@ msgid ""
 "candidate fails, the model must decide what the result means for its next "
 "attempt. Knowing the relevant pattern is only the beginning of that process."
 msgstr ""
-"{ph0}\"النموذج لم يعرف أن المترجم غريب\" و\"النموذج لا يمكنه استخدامه\" "
-"مشكلتان مختلفتان.{ph1} قد يحل الاسترجاع المشكلة الأولى، لكن تحويل هذه "
-"الحقيقة إلى مرشح مفيد لا يزال يتطلب جهدًا. وإذا فشل الكود المصدري المرشح، "
-"فيجب أن يقرر النموذج معنى النتيجة لمحاولته التالية. إن معرفة النمط ذي الصلة "
-"ليست سوى بداية تلك العملية."
+"{ph0}\"النموذج لم يكن يعرف هذه الخاصية المحددة للمترجم البرمجي\" و\"النموذج "
+"لم يستطع استخدامها\" مشكلتان مختلفتان.{ph1} قد يحل استرجاع المعرفة المشكلة "
+"الأولى، لكن تحويلها إلى شيفرة مرشحة مفيدة يحتاج إلى عمل. وإذا فشلت الشيفرة "
+"المرشحة، فعلى النموذج أن يقرر ما تعنيه النتيجة لمحاولته التالية. معرفة النمط"
+" المناسب هي بداية العملية فقط."
 
 #: website/public/blog/reverse-engineering-models/index.html:468
 msgctxt "page:blog/reverse-engineering-models/index.html"
@@ -13288,10 +13288,10 @@ msgid ""
 "useful correction, it had to work out what to measure."
 msgstr ""
 "للوصول إلى مثل هذه المهمة المحددة جيدًا، قد نحتاج أولاً إلى تحديد الموارد "
-"التي تمتلكها الوظيفة أو ابتكار قياس جديد لوقت التشغيل. في TH08، على سبيل "
-"المثال، {ph0}أدى اختلاف التصادم إلى كيفية تعامل البرنامج الأصلي مع حسابات "
-"الفاصلة العائمة{ph1}. قبل أن يتمكن الوكيل من اختبار تصحيح مفيد، كان عليه أن "
-"يحدد ما يجب قياسه."
+"التي تمتلكها الوظيفة أو ابتكار طريقة جديدة لملاحظة سلوك البرنامج أثناء "
+"تشغيله. في TH08، على سبيل المثال، {ph0}أدى اختلاف التصادم إلى كيفية تعامل "
+"البرنامج الأصلي مع حسابات الفاصلة العائمة{ph1}. قبل أن يتمكن الوكيل من "
+"اختبار تصحيح مفيد، كان عليه أن يحدد ما يجب قياسه."
 
 #: website/public/blog/reverse-engineering-models/index.html:595
 msgctxt "page:blog/reverse-engineering-models/index.html"
@@ -13619,7 +13619,7 @@ msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid "Evidence and model attribution"
 msgstr "الأدلة وإسناد النموذج"
 
-#: website/public/blog/reverse-engineering-models/index.html:776
+#: website/public/blog/reverse-engineering-models/index.html:783
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
 "The examples describe historical function-level comparisons recorded in the "
@@ -13632,7 +13632,7 @@ msgstr ""
 
 #. {ph0}: <code>gpt-dots</code>
 #. {ph1}: <code>gpt-web</code>
-#: website/public/blog/reverse-engineering-models/index.html:782
+#: website/public/blog/reverse-engineering-models/index.html:789
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -13657,7 +13657,7 @@ msgstr ""
 #. href="https://github.com/N0zoM1z0/th09/commit/52929ed7c299f1a5f29cc13964e22510145fd616"
 #. >
 #. {ph5}: </a >
-#: website/public/blog/reverse-engineering-models/index.html:791
+#: website/public/blog/reverse-engineering-models/index.html:798
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -13682,7 +13682,7 @@ msgstr ""
 #. href="https://github.com/N0zoM1z0/th09/commit/5f825b28a862f8e1a6d4aea2f78a42f04c09a1c0"
 #. >
 #. {ph7}: </a >
-#: website/public/blog/reverse-engineering-models/index.html:803
+#: website/public/blog/reverse-engineering-models/index.html:810
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -13707,7 +13707,7 @@ msgstr ""
 #. href="https://github.com/N0zoM1z0/th09/commit/1eb843383941d00065622a9e353146c4bb96979e"
 #. >
 #. {ph7}: </a >
-#: website/public/blog/reverse-engineering-models/index.html:819
+#: website/public/blog/reverse-engineering-models/index.html:826
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -13733,7 +13733,7 @@ msgstr ""
 #. href="https://github.com/N0zoM1z0/th09/commit/ab72fd77728293fc0beacfc656ca701b0e266016"
 #. >
 #. {ph7}: </a >
-#: website/public/blog/reverse-engineering-models/index.html:835
+#: website/public/blog/reverse-engineering-models/index.html:842
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -13745,7 +13745,7 @@ msgstr ""
 "العائمة{ph3}، و{ph4}TH08 التحقيق الرقمي{ph5} و{ph6}TH09 إعادة البناء مع "
 "توفير إعادة التشغيل{ph7}."
 
-#: website/public/blog/reverse-engineering-models/index.html:852
+#: website/public/blog/reverse-engineering-models/index.html:859
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
 "The proposed specialist and RL comparisons are future experiments. The "
@@ -13784,10 +13784,23 @@ msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid "Selected reconstruction experiments"
 msgstr "تجارب إعادة بناء الشيفرة المختارة"
 
-#: website/public/blog/reverse-engineering-models/index.html:876
+#: website/public/blog/reverse-engineering-models/index.html:883
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid "Back to top"
 msgstr "العودة للأعلى"
+
+#. {ph0}: <a
+#. href="https://github.com/morluto/rea/blob/main/website/evidence/reverse-
+#. engineering-models.md" >
+#. {ph1}: </a >
+#: website/public/blog/reverse-engineering-models/index.html:776
+#, python-brace-format
+msgctxt "page:blog/reverse-engineering-models/index.html"
+msgid ""
+"{ph0}Detailed evidence notes{ph1} include the recorded comparisons and "
+"experiment context."
+msgstr ""
+"تتضمن {ph0}ملاحظات الأدلة التفصيلية{ph1} المقارنات المسجلة وسياق التجارب."
 
 #~ msgctxt "page:blog/index.html"
 #~ msgid "By N0zoM1z0 · 13 October 2026 · Draft for review"

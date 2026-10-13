@@ -65,7 +65,7 @@ msgstr "Автор: N0zoM1z0 · 10 октября 2026"
 #. {ph0}: <span aria-hidden="true">
 #. {ph1}: </span>
 #: website/public/blog/index.html:244
-#: website/public/blog/reverse-engineering-models/index.html:876
+#: website/public/blog/reverse-engineering-models/index.html:883
 #: website/public/blog/touhou-reconstruction/index.html:1080
 #: website/public/examples/dino-lab/index.html:475
 #: website/public/faq/index.html:573
@@ -11824,7 +11824,7 @@ msgid "Guides"
 msgstr "Руководства"
 
 #: website/public/blog/index.html:236
-#: website/public/blog/reverse-engineering-models/index.html:868
+#: website/public/blog/reverse-engineering-models/index.html:875
 #: website/public/blog/touhou-reconstruction/index.html:1072
 #: website/public/examples/dino-lab/index.html:467
 #: website/public/faq/index.html:565
@@ -11845,7 +11845,7 @@ msgid "Source"
 msgstr "Исходный код"
 
 #: website/public/blog/index.html:237
-#: website/public/blog/reverse-engineering-models/index.html:869
+#: website/public/blog/reverse-engineering-models/index.html:876
 #: website/public/blog/touhou-reconstruction/index.html:1073
 #: website/public/examples/dino-lab/index.html:468
 #: website/public/faq/index.html:566
@@ -11866,7 +11866,7 @@ msgid "MIT license"
 msgstr "Лицензия MIT"
 
 #: website/public/blog/index.html:238
-#: website/public/blog/reverse-engineering-models/index.html:870
+#: website/public/blog/reverse-engineering-models/index.html:877
 #: website/public/blog/touhou-reconstruction/index.html:1074
 #: website/public/examples/dino-lab/index.html:469
 #: website/public/faq/index.html:567
@@ -11887,7 +11887,7 @@ msgid "Join the community"
 msgstr "Вступить в сообщество"
 
 #: website/public/blog/index.html:239
-#: website/public/blog/reverse-engineering-models/index.html:871
+#: website/public/blog/reverse-engineering-models/index.html:878
 #: website/public/blog/touhou-reconstruction/index.html:1075
 #: website/public/examples/dino-lab/index.html:470
 #: website/public/faq/index.html:568
@@ -13688,11 +13688,11 @@ msgid ""
 "useful correction, it had to work out what to measure."
 msgstr ""
 "Однако для решения такой четко определенной задачи нам, возможно, сначала "
-"придется установить, какими ресурсами владеет функция, или разработать новое"
-" измерение времени выполнения. Например, в TH08 {ph0}разность коллизий "
-"привела к тому, как исходная программа обрабатывала вычисления с плавающей "
-"запятой{ph1}. Прежде чем агент смог протестировать полезную поправку, он "
-"должен был решить, что именно измерять."
+"придется установить, какими ресурсами владеет функция, или разработать новый"
+" способ наблюдения за поведением программы во время выполнения. Например, в "
+"TH08 {ph0}разность коллизий привела к тому, как исходная программа "
+"обрабатывала вычисления с плавающей запятой{ph1}. Прежде чем агент смог "
+"протестировать полезную поправку, он должен был решить, что именно измерять."
 
 #: website/public/blog/reverse-engineering-models/index.html:595
 msgctxt "page:blog/reverse-engineering-models/index.html"
@@ -14042,7 +14042,7 @@ msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid "Evidence and model attribution"
 msgstr "Доказательства и атрибуция моделей"
 
-#: website/public/blog/reverse-engineering-models/index.html:776
+#: website/public/blog/reverse-engineering-models/index.html:783
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
 "The examples describe historical function-level comparisons recorded in the "
@@ -14056,7 +14056,7 @@ msgstr ""
 
 #. {ph0}: <code>gpt-dots</code>
 #. {ph1}: <code>gpt-web</code>
-#: website/public/blog/reverse-engineering-models/index.html:782
+#: website/public/blog/reverse-engineering-models/index.html:789
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -14083,7 +14083,7 @@ msgstr ""
 #. href="https://github.com/N0zoM1z0/th09/commit/52929ed7c299f1a5f29cc13964e22510145fd616"
 #. >
 #. {ph5}: </a >
-#: website/public/blog/reverse-engineering-models/index.html:791
+#: website/public/blog/reverse-engineering-models/index.html:798
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -14108,7 +14108,7 @@ msgstr ""
 #. href="https://github.com/N0zoM1z0/th09/commit/5f825b28a862f8e1a6d4aea2f78a42f04c09a1c0"
 #. >
 #. {ph7}: </a >
-#: website/public/blog/reverse-engineering-models/index.html:803
+#: website/public/blog/reverse-engineering-models/index.html:810
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -14133,7 +14133,7 @@ msgstr ""
 #. href="https://github.com/N0zoM1z0/th09/commit/1eb843383941d00065622a9e353146c4bb96979e"
 #. >
 #. {ph7}: </a >
-#: website/public/blog/reverse-engineering-models/index.html:819
+#: website/public/blog/reverse-engineering-models/index.html:826
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -14160,7 +14160,7 @@ msgstr ""
 #. href="https://github.com/N0zoM1z0/th09/commit/ab72fd77728293fc0beacfc656ca701b0e266016"
 #. >
 #. {ph7}: </a >
-#: website/public/blog/reverse-engineering-models/index.html:835
+#: website/public/blog/reverse-engineering-models/index.html:842
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -14172,7 +14172,7 @@ msgstr ""
 "запятой{ph3}, {ph4}TH08 численное исследование{ph5} и {ph6}TH09 "
 "реконструкция с сохранением повторов{ph7}."
 
-#: website/public/blog/reverse-engineering-models/index.html:852
+#: website/public/blog/reverse-engineering-models/index.html:859
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
 "The proposed specialist and RL comparisons are future experiments. The "
@@ -14212,10 +14212,24 @@ msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid "Selected reconstruction experiments"
 msgstr "Избранные эксперименты по реконструкции"
 
-#: website/public/blog/reverse-engineering-models/index.html:876
+#: website/public/blog/reverse-engineering-models/index.html:883
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid "Back to top"
 msgstr "Наверх"
+
+#. {ph0}: <a
+#. href="https://github.com/morluto/rea/blob/main/website/evidence/reverse-
+#. engineering-models.md" >
+#. {ph1}: </a >
+#: website/public/blog/reverse-engineering-models/index.html:776
+#, python-brace-format
+msgctxt "page:blog/reverse-engineering-models/index.html"
+msgid ""
+"{ph0}Detailed evidence notes{ph1} include the recorded comparisons and "
+"experiment context."
+msgstr ""
+"{ph0}Подробные записи о доказательствах{ph1} содержат результаты сравнений и"
+" контекст экспериментов."
 
 #~ msgctxt "page:blog/index.html"
 #~ msgid "By N0zoM1z0 · 13 October 2026 · Draft for review"

@@ -63,7 +63,7 @@ msgstr "通过N0zoM1z0*10十月2026"
 #. {ph0}: <span aria-hidden="true">
 #. {ph1}: </span>
 #: website/public/blog/index.html:244
-#: website/public/blog/reverse-engineering-models/index.html:876
+#: website/public/blog/reverse-engineering-models/index.html:883
 #: website/public/blog/touhou-reconstruction/index.html:1080
 #: website/public/examples/dino-lab/index.html:475
 #: website/public/faq/index.html:573
@@ -10707,7 +10707,7 @@ msgid "Guides"
 msgstr "指南"
 
 #: website/public/blog/index.html:236
-#: website/public/blog/reverse-engineering-models/index.html:868
+#: website/public/blog/reverse-engineering-models/index.html:875
 #: website/public/blog/touhou-reconstruction/index.html:1072
 #: website/public/examples/dino-lab/index.html:467
 #: website/public/faq/index.html:565
@@ -10728,7 +10728,7 @@ msgid "Source"
 msgstr "源代码"
 
 #: website/public/blog/index.html:237
-#: website/public/blog/reverse-engineering-models/index.html:869
+#: website/public/blog/reverse-engineering-models/index.html:876
 #: website/public/blog/touhou-reconstruction/index.html:1073
 #: website/public/examples/dino-lab/index.html:468
 #: website/public/faq/index.html:566
@@ -10749,7 +10749,7 @@ msgid "MIT license"
 msgstr "MIT 许可证"
 
 #: website/public/blog/index.html:238
-#: website/public/blog/reverse-engineering-models/index.html:870
+#: website/public/blog/reverse-engineering-models/index.html:877
 #: website/public/blog/touhou-reconstruction/index.html:1074
 #: website/public/examples/dino-lab/index.html:469
 #: website/public/faq/index.html:567
@@ -10770,7 +10770,7 @@ msgid "Join the community"
 msgstr "加入社区"
 
 #: website/public/blog/index.html:239
-#: website/public/blog/reverse-engineering-models/index.html:871
+#: website/public/blog/reverse-engineering-models/index.html:878
 #: website/public/blog/touhou-reconstruction/index.html:1075
 #: website/public/examples/dino-lab/index.html:470
 #: website/public/faq/index.html:568
@@ -12394,7 +12394,7 @@ msgid ""
 "handled floating-point calculations{ph1}. Before the agent could test a "
 "useful correction, it had to work out what to measure."
 msgstr ""
-"不过，要得到这样一个定义明确的任务，有时得先确定函数负责哪些资源，或者设计新的运行时测量。在 TH08 "
+"不过，要得到这样一个定义明确的任务，有时得先确定函数负责哪些资源，或者设计新的方法观察程序运行时的行为。在 TH08 "
 "中，{ph0}一次碰撞差异最终追溯到原版处理浮点计算的方式{ph1}。agent 必须先弄清楚该测量什么，才能验证有价值的修正。"
 
 #: website/public/blog/reverse-engineering-models/index.html:595
@@ -12665,7 +12665,7 @@ msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid "Evidence and model attribution"
 msgstr "证据与模型归属"
 
-#: website/public/blog/reverse-engineering-models/index.html:776
+#: website/public/blog/reverse-engineering-models/index.html:783
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
 "The examples describe historical function-level comparisons recorded in the "
@@ -12676,7 +12676,7 @@ msgstr ""
 
 #. {ph0}: <code>gpt-dots</code>
 #. {ph1}: <code>gpt-web</code>
-#: website/public/blog/reverse-engineering-models/index.html:782
+#: website/public/blog/reverse-engineering-models/index.html:789
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -12699,7 +12699,7 @@ msgstr ""
 #. href="https://github.com/N0zoM1z0/th09/commit/52929ed7c299f1a5f29cc13964e22510145fd616"
 #. >
 #. {ph5}: </a >
-#: website/public/blog/reverse-engineering-models/index.html:791
+#: website/public/blog/reverse-engineering-models/index.html:798
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -12721,7 +12721,7 @@ msgstr "{ph0}TH09 临时值生命周期：{ph1}{ph2}早期上下文检查{ph3}�
 #. href="https://github.com/N0zoM1z0/th09/commit/5f825b28a862f8e1a6d4aea2f78a42f04c09a1c0"
 #. >
 #. {ph7}: </a >
-#: website/public/blog/reverse-engineering-models/index.html:803
+#: website/public/blog/reverse-engineering-models/index.html:810
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -12745,7 +12745,7 @@ msgstr ""
 #. href="https://github.com/N0zoM1z0/th09/commit/1eb843383941d00065622a9e353146c4bb96979e"
 #. >
 #. {ph7}: </a >
-#: website/public/blog/reverse-engineering-models/index.html:819
+#: website/public/blog/reverse-engineering-models/index.html:826
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -12770,7 +12770,7 @@ msgstr ""
 #. href="https://github.com/N0zoM1z0/th09/commit/ab72fd77728293fc0beacfc656ca701b0e266016"
 #. >
 #. {ph7}: </a >
-#: website/public/blog/reverse-engineering-models/index.html:835
+#: website/public/blog/reverse-engineering-models/index.html:842
 #, python-brace-format
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
@@ -12781,7 +12781,7 @@ msgstr ""
 "{ph0}检查与诊断：{ph1}{ph2}TH08 浮点常量审计{ph3}、{ph4}TH08 数值问题调查{ph5}、{ph6}TH09 "
 "录像保存重建{ph7}。"
 
-#: website/public/blog/reverse-engineering-models/index.html:852
+#: website/public/blog/reverse-engineering-models/index.html:859
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
 "The proposed specialist and RL comparisons are future experiments. The "
@@ -12816,10 +12816,22 @@ msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid "Selected reconstruction experiments"
 msgstr "重建实验选例"
 
-#: website/public/blog/reverse-engineering-models/index.html:876
+#: website/public/blog/reverse-engineering-models/index.html:883
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid "Back to top"
 msgstr "回到顶部"
+
+#. {ph0}: <a
+#. href="https://github.com/morluto/rea/blob/main/website/evidence/reverse-
+#. engineering-models.md" >
+#. {ph1}: </a >
+#: website/public/blog/reverse-engineering-models/index.html:776
+#, python-brace-format
+msgctxt "page:blog/reverse-engineering-models/index.html"
+msgid ""
+"{ph0}Detailed evidence notes{ph1} include the recorded comparisons and "
+"experiment context."
+msgstr "{ph0}详细证据记录{ph1}包含历史比较结果与实验背景。"
 
 #~ msgctxt "page:blog/index.html"
 #~ msgid "By N0zoM1z0 · 13 October 2026 · Draft for review"

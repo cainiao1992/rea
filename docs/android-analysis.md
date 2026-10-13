@@ -226,9 +226,11 @@ REA never writes to the original APK or launches target code.
 
 On Windows, stdin writes preserve stream backpressure and run outside the Node
 event loop. Cancellation terminates the retained job, including descendants,
-before workspace cleanup. An abrupt CLI/server process termination closes the
-job and stops Java, but cannot run JavaScript workspace cleanup; temporary
-workspace files can remain after that forced exit.
+before workspace cleanup. On Windows, a detached REA helper owns the private
+workspace's native directory handle. An abrupt CLI/server owner termination
+closes the Java job and the helper's input pipe; the helper then removes the
+workspace by handle. The real Windows lane checks both effects. If the helper
+also dies or the host loses power before it finishes, private files can remain.
 
 If Java cannot start the bridge, REA reports the selected executable and retained
 startup diagnostics. Select a full JDK through `JAVA_HOME` or `PATH`, and use
@@ -291,9 +293,11 @@ The original APK and host Java configuration remain unchanged.
 
 The same lane runs on Windows x64 with the bundled native controls and a full
 JDK. It checks CLI/MCP results, real MCP cancellation and disconnect, and Java
-exit after abrupt CLI owner termination. Windows forced termination is checked
-separately from the POSIX CLI SIGTERM handler; it does not claim a structured
-cancellation result or workspace removal after the owner is forcibly killed.
+exit and workspace removal after abrupt CLI owner termination. Windows forced
+termination is checked separately from the POSIX CLI SIGTERM handler. A
+synthetic two-owner test confirms that one owner's exit does not remove the
+other owner's workspace. The lane does not claim a structured cancellation
+result or power-loss recovery.
 
 The download script verifies fixed SHA-256 values, reuses matching files and
 refuses to overwrite a different existing file. APK/JAR files live under ignored

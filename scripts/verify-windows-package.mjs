@@ -52,8 +52,10 @@ try {
     "bridge/ghidra/ReaGhidraBridge.java",
     "native/windows/build/manifest.json",
     "native/windows/build/rea-windows-x64.node",
+    "dist/android/JadxWorkspaceRoot.js",
     "dist/main.js",
     "dist/cli.js",
+    "scripts/rea-android-workspace-guardian.mjs",
     "scripts/rea.mjs",
   ])
     if (!packagedPaths.has(required))

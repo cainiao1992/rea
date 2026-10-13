@@ -308,3 +308,8 @@ if (process.env.REA_ANDROID_REPORT !== undefined)
     JSON.stringify(report, null, 2) + "\n",
   );
 console.log(JSON.stringify(report, null, 2));
+assert.notEqual(
+  windowsLifecycle?.cli_abrupt_owner_exit_workspace_cleanup,
+  false,
+  "Android workspace remained after abrupt owner exit",
+);

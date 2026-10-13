@@ -12,6 +12,7 @@ const PREFIX_OPCODES = new Set([
   "tail.",
   "constrained.",
   "readonly.",
+  "no.",
 ]);
 
 const OPCODES = new Map<
@@ -232,6 +233,7 @@ const OPCODES = new Map<
   [0xfe16, { name: "constrained.", operand: "type" }],
   [0xfe17, { name: "cpblk", operand: "none" }],
   [0xfe18, { name: "initblk", operand: "none" }],
+  [0xfe19, { name: "no.", operand: "short-i" }],
   [0xfe1a, { name: "rethrow", operand: "none" }],
   [0xfe1c, { name: "sizeof", operand: "type" }],
   [0xfe1d, { name: "refanytype", operand: "none" }],

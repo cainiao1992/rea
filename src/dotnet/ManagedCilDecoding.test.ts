@@ -345,6 +345,31 @@ describe("managed exception region prefix boundaries", () => {
     });
   });
 
+  it("decodes the no. prefix and keeps it with its opcode", () => {
+    // ldarg.0; no. nullcheck; ldfld 0x04000001; pop; ret
+    const il = Buffer.from([2, 0xfe, 0x19, 4, 0x7b, 1, 0, 0, 4, 0x26, 0x2a]);
+    expect(
+      managedBodyWithRegion({ il, tryLength: 10, handlerOffset: 10 }),
+    ).toMatchObject({
+      status: "present",
+      issue: null,
+      decoded_instruction_count: 5,
+      opcode_counts: { "ldarg.0": 1, "no.": 1, ldfld: 1, pop: 1, ret: 1 },
+    });
+    expect(
+      managedBodyWithRegion({
+        il,
+        tryOffset: 4,
+        tryLength: 5,
+        handlerOffset: 10,
+      }),
+    ).toMatchObject({
+      status: "malformed",
+      issue:
+        "Exception clause try range does not align with CIL instruction boundaries",
+    });
+  });
+
   it.each([
     ["start", { tryOffset: 5, tryLength: 1, handlerOffset: 6 }],
     [

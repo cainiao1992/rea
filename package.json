@@ -21,7 +21,7 @@
     "mcp-server",
     "model-context-protocol",
     "static-analysis",
-    "disassembler",
+    "rea",
     "decompiler",
     "mcp",
     "hopper"

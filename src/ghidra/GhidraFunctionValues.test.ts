@@ -117,7 +117,9 @@ describe("Ghidra function-analysis result values", () => {
       });
     },
   );
+});
 
+describe("Ghidra reference and value-flow completeness", () => {
   it.each(["reference_kinds_available", "unresolved_calls"])(
     "rejects omitted %s instead of inventing complete reference observations",
     (field) => {

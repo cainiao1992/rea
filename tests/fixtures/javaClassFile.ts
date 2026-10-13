@@ -1,5 +1,8 @@
 /** Build a valid minimal JVM class file, optionally with an unused UTF-8 constant. */
-export const javaClassFile = (extraUtf8Bytes = 0, fatCpuLookalike = false): Buffer => {
+export const javaClassFile = (
+  extraUtf8Bytes = 0,
+  fatCpuLookalike = false,
+): Buffer => {
   const utf8 = (value: string): Buffer => {
     const bytes = Buffer.from(value, "utf8");
     const entry = Buffer.alloc(3 + bytes.length);

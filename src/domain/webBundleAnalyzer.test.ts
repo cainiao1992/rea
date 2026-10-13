@@ -320,7 +320,9 @@ describe("web bundle API classification parity", () => {
       "users",
     ]);
   });
+});
 
+describe("web bundle configuration and navigation parity", () => {
   it("keeps configuration setting reads out of endpoints in both analyzers", () => {
     const source = `
       import vscodeDefault from "vscode";

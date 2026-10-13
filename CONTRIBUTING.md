@@ -202,6 +202,10 @@ CI diagnosis. Packaging/setup/distribution changes additionally require
 `npm run verify:package` and `npm pack --dry-run`; provider changes require the
 matching real-provider lane. State which host/provider workflows ran.
 
+For CI/test correctness, drift, or performance investigations, use the
+[`rea-ci-tests-audit` contributor skill](.agents/skills/rea-ci-tests-audit/SKILL.md).
+It guides reproduction and comparable measurements before changing checks.
+
 `check:pr` reuses build and static-check outputs while executing the test suite
 fresh, including the fast Python producer checks. `docs:check` also runs the
 onboarding example consistency suite for README-only changes.

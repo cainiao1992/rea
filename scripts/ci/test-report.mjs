@@ -4,25 +4,33 @@ import { isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { z } from "zod";
 
+import { compareTestSelection } from "./test-selection.mjs";
+
 const root = process.cwd();
 const historyDirectory = join(root, ".cache/ci-test-history");
 const historyPath = join(historyDirectory, "test-results.json");
+const selectionDirectory = join(root, ".cache/ci-test-selection");
+const selectionPath = join(selectionDirectory, "report.json");
 // Never let a failed or partial rerun leave a previous successful history file.
 await rm(historyPath, { force: true });
+await rm(selectionPath, { force: true });
 const report = z
   .object({
     version: z.literal(1),
     success: z.boolean(),
+    reason: z.string().optional(),
+    unhandledErrors: z.number().int().nonnegative().optional(),
     files: z.array(
       z.object({
         name: z.string().min(1),
         durationMs: z.number().finite().nonnegative(),
+        state: z.string().optional(),
       }),
     ),
   })
   .parse(JSON.parse(await readFile("test-timings.json", "utf8")));
 
-const files = report.files.map(({ name, durationMs }) => {
+const files = report.files.map(({ name, durationMs, state }) => {
   const path = relative(root, resolve(root, name));
   if (
     path === "" ||
@@ -31,21 +39,47 @@ const files = report.files.map(({ name, durationMs }) => {
     isAbsolute(path)
   )
     throw new Error(`Test report path is outside the checkout: ${name}`);
-  return { name: path.split(sep).join("/"), durationMs };
+  return { name: path.split(sep).join("/"), durationMs, state };
 });
 const complete = process.env.SHARD_RESULT === "success";
 const passed =
   complete && process.env.MERGE_RESULT === "success" && report.success;
 // Successful shards and merged reports must account for the complete portable
 // inventory. Coverage thresholds alone cannot prove that every file ran.
-if (passed && process.env.CI_VERIFY_TEST_INVENTORY === "true") {
-  const expected = execFileSync(
-    "git",
-    ["ls-files", "-z", "--", "src", "tests"],
-    { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 },
-  )
-    .split("\0")
-    .filter((path) => path.endsWith(".test.ts"));
+const verifyInventory = process.env.CI_VERIFY_TEST_INVENTORY === "true";
+const expected =
+  verifyInventory || process.env.CI_TEST_SELECTION
+    ? execFileSync("git", ["ls-files", "-z", "--", "src", "tests"], {
+        encoding: "utf8",
+        maxBuffer: 8 * 1024 * 1024,
+      })
+        .split("\0")
+        .filter((path) => path.endsWith(".test.ts"))
+    : [];
+let selection;
+if (process.env.CI_TEST_SELECTION) {
+  const comparison = compareTestSelection(
+    JSON.parse(process.env.CI_TEST_SELECTION),
+    expected,
+    files,
+  );
+  selection = {
+    ...comparison,
+    complete:
+      comparison.complete &&
+      report.unhandledErrors === 0 &&
+      ["passed", "failed"].includes(report.reason) &&
+      ["success", "failure"].includes(process.env.SHARD_RESULT) &&
+      ["success", "failure"].includes(process.env.MERGE_RESULT),
+    executionSha: process.env.GITHUB_SHA ?? null,
+    prHeadSha: process.env.CI_PR_HEAD_SHA ?? null,
+    runId: process.env.GITHUB_RUN_ID ?? null,
+    runAttempt: process.env.GITHUB_RUN_ATTEMPT ?? null,
+  };
+  await mkdir(selectionDirectory, { recursive: true });
+  await writeFile(selectionPath, JSON.stringify(selection));
+}
+if (passed && verifyInventory) {
   const actual = files.map(({ name }) => name);
   const expectedSet = new Set(expected);
   const actualSet = new Set(actual);
@@ -59,6 +93,16 @@ if (passed && process.env.CI_VERIFY_TEST_INVENTORY === "true") {
 const summary = [
   complete ? "## Merged test diagnostics" : "## Partial test diagnostics",
   "",
+  ...(selection
+    ? [
+        "### Observational PR test selection",
+        "",
+        `Plan: ${selection.plan.mode}. Proposed files: ${selection.selected.length}; omitted: ${selection.omitted.length}.`,
+        `Full-run comparison: ${selection.complete ? "complete" : "incomplete"}; failures outside proposed selection: ${selection.missedFailures.length}.`,
+        "The complete suite still ran. This report cannot enable omissions or qualify a revision. Skipped, missing, and interrupted observations do not establish parity.",
+        "",
+      ]
+    : []),
   `Shard result: ${process.env.SHARD_RESULT ?? "unknown"}; merge result: ${process.env.MERGE_RESULT ?? "unknown"}.`,
   passed
     ? "Successful timing history is available."
@@ -85,6 +129,10 @@ if (passed) {
   await mkdir(historyDirectory, { recursive: true });
   await writeFile(
     historyPath,
-    JSON.stringify({ version: 1, success: true, files }),
+    JSON.stringify({
+      version: 1,
+      success: true,
+      files: files.map(({ name, durationMs }) => ({ name, durationMs })),
+    }),
   );
 }

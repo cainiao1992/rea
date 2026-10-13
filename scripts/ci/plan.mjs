@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { matchesGlob } from "node:path";
 import { CI_FLAGS as flags, MANUAL_VERIFIERS, SCOPES } from "./scopes.mjs";
+import { planTestSelection } from "./test-selection.mjs";
 
 // Test files select the host/runtime lanes that execute their focused suites.
 const HOST_TEST_OWNERS = ["apple", "package", "sqlite"];
@@ -250,11 +251,17 @@ const matrix = {
       ]
     : [linux],
 };
-const plan = { ...selected, tier, matrix, files, reasons };
+const testSelection = planTestSelection(files, event, tier);
+const plan = { ...selected, tier, matrix, files, reasons, testSelection };
 if (process.env.GITHUB_OUTPUT)
   appendFileSync(
     process.env.GITHUB_OUTPUT,
-    Object.entries({ ...selected, tier, matrix: JSON.stringify(matrix) })
+    Object.entries({
+      ...selected,
+      tier,
+      matrix: JSON.stringify(matrix),
+      test_selection: JSON.stringify(testSelection),
+    })
       .map(([key, value]) => `${key}=${value}\n`)
       .join(""),
   );

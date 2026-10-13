@@ -178,6 +178,23 @@ it("keeps unknown CI scripts on complete qualification", async () => {
   for (const flag of CI_FLAGS) expect(plan[flag]).toBe(true);
 });
 
+it("emits an observational owner proposal without changing ordinary or full portable execution", async () => {
+  const { directory, base } = await fixture();
+  const head = await change(directory, ["src/evm/Example.ts"]);
+  expect(await classify(directory, base, head)).toMatchObject({
+    code: true,
+    testSelection: { mode: "candidate", owners: ["evm"] },
+  });
+  expect(
+    await classify(directory, base, head, "pull_request", true),
+  ).toMatchObject({
+    code: true,
+    testSelection: { mode: "full", owners: [] },
+  });
+  const output = await readFile(join(directory, "scope-output"), "utf8");
+  expect(output).toContain('test_selection={"version":1,"mode":"full"');
+});
+
 it("does not charge a documentation PR for unrelated implementation updates on main", async () => {
   const { directory, base } = await fixture();
   await git(directory, ["switch", "-c", "docs/change"]);

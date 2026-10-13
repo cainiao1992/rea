@@ -21,6 +21,7 @@ export default class TestTimingReporter {
       };
       return {
         name: module.moduleId,
+        state: module.state(),
         durationMs: Object.values(phases).reduce(
           (total, value) => total + value,
           0,
@@ -33,6 +34,8 @@ export default class TestTimingReporter {
       JSON.stringify({
         version: 1,
         success: reason === "passed" && errors.length === 0,
+        reason,
+        unhandledErrors: errors.length,
         files,
       }),
     );

@@ -61,6 +61,7 @@ jobs:
       nativeaot: ${{ steps.plan.outputs.nativeaot }}
       website: ${{ steps.plan.outputs.website }}
       matrix: ${{ steps.plan.outputs.matrix }}
+      test_selection: ${{ steps.plan.outputs.test_selection }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -315,6 +316,8 @@ jobs:
           SHARD_RESULT: ${{ needs.test-shard.result }}
           MERGE_RESULT: ${{ needs.changes.outputs.tier == 'full' && steps.merge.outcome || steps.merge-fast.outcome }}
           CI_VERIFY_TEST_INVENTORY: "true"
+          CI_TEST_SELECTION: ${{ needs.changes.outputs.test_selection }}
+          CI_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node scripts/ci/test-report.mjs
       - uses: actions/upload-artifact@v4
         if: needs.changes.outputs.code == 'true' && !cancelled() && hashFiles('test-results.json') != ''
@@ -325,6 +328,8 @@ jobs:
             test-results.json
             test-timings.json
             coverage/
+            .cache/ci-test-selection/report.json
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 30
       - name: Publish successful timing history

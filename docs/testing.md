@@ -805,6 +805,27 @@ remain present and fail if classification fails. Every code change retains the
 complete six-shard Linux suite; individual test files are not selected by
 imports or filenames.
 
+Ordinary PRs also produce an **observational** test-selection plan. The candidate
+leaf-adapter ownership table lives in `scripts/ci/test-selection.mjs`, separately
+from provider-job scopes. It proposes keeping affected owners plus every unowned
+test, including all CLI/MCP, acceptance, composition, conformance, and process
+tests. Shared inputs, unknown paths, missing owner tests, and removed tests fall
+back to the complete inventory. Renames account for both paths. Main, scheduled,
+manual, and `ci:full` runs always propose the full suite.
+
+All six shards still execute the complete suite. The existing report merge
+compares the proposal with actual module outcomes and retains
+`.cache/ci-test-selection/report.json` in `test-results`, including selected and
+omitted paths, changed input paths, missed failures, unobserved files, scheduling weights, PR head and
+executed merge SHA. This adds no test reruns or runner jobs. Missing, duplicate,
+skipped, interrupted, or unhandled results cannot establish a complete comparison;
+even a complete passing comparison is not proof of ownership completeness.
+Before enabling omissions, review representative full-run comparisons and
+cross-owner consumers, including failures, and measure completed CI feedback and
+runner demand. There is no automatic promotion or switch to skip tests. The
+initial proposal measures only leaf producer-test omissions; it does not promise
+the savings of a broader affected-test planner.
+
 `scripts/ci/plan.mjs` selects lanes using the ownership table in
 `scripts/ci/scopes.mjs`. Provider implementation changes run their real-provider
 verifiers and the Linux x64 installed-package/Inspector baseline. The `apple`

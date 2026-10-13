@@ -8,6 +8,8 @@ import { expect, it } from "vitest";
 import { parse } from "yaml";
 import { z } from "zod";
 
+import { planTestSelection } from "../../../scripts/ci/test-selection.mjs";
+
 import { parseTestDurations } from "../../ciTestSequencer.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { workflowGit } from "../../support/workflowGit.js";
@@ -61,6 +63,16 @@ it("collects failed-shard diagnostics before enforcing the shard result", async 
       "--reporter=./scripts/ci/test-timing-reporter.mjs",
     );
   expect(steps[upload]?.with?.path).toContain("test-timings.json");
+  expect(steps[upload]?.with).toMatchObject({ "include-hidden-files": true });
+  expect(steps[upload]?.with?.path).toContain(
+    ".cache/ci-test-selection/report.json",
+  );
+  const summary = steps.find((step) =>
+    step.run?.includes("scripts/ci/test-report.mjs"),
+  );
+  expect(summary?.env?.CI_TEST_SELECTION).toBe(
+    "${{ needs.changes.outputs.test_selection }}",
+  );
   const command = steps[gate]?.run;
   if (command === undefined) throw new Error("Missing shard result gate");
   for (const result of ["failure", "cancelled", "skipped", ""]) {
@@ -304,6 +316,13 @@ it("recovers complete module costs from real blob reports without executing test
       ),
     })
     .parse(JSON.parse(await readFile(join(root, "test-timings.json"), "utf8")));
+  expect(
+    JSON.parse(await readFile(join(root, "test-timings.json"), "utf8")),
+  ).toMatchObject({
+    reason: "passed",
+    unhandledErrors: 0,
+    files: [{ state: "passed" }],
+  });
   expect(report.files).toHaveLength(1);
   const file = report.files[0]!;
   const json = z
@@ -349,12 +368,91 @@ it("recovers complete module costs from real blob reports without executing test
   const failed = JSON.parse(
     await readFile(join(root, "test-timings.json"), "utf8"),
   ) as unknown;
-  expect(failed).toMatchObject({ version: 1, success: false });
+  expect(failed).toMatchObject({
+    version: 1,
+    success: false,
+    reason: "failed",
+    unhandledErrors: 0,
+    files: [{ state: "failed" }],
+  });
   // Even a caller accidentally marking the merge successful cannot publish this report.
   await execute(process.execPath, [fileURLToPath(script)], {
     cwd: root,
     env: { ...process.env, SHARD_RESULT: "success", MERGE_RESULT: "success" },
   });
+  await expect(
+    readFile(join(root, ".cache/ci-test-history/test-results.json")),
+  ).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("records failed omissions from full reports without treating partial or unhandled outcomes as parity", async () => {
+  const root = await createTestTempDirectory("rea-ci-selection-report-");
+  await workflowGit(root, ["init"]);
+  const paths = [
+    "src/sqlite/provider.test.ts",
+    "src/evm/provider.test.ts",
+    "tests/boundary/mcp/workflow.test.ts",
+  ];
+  for (const path of paths) {
+    await mkdir(join(root, path, ".."), { recursive: true });
+    await writeFile(join(root, path), "// fixture\n");
+  }
+  await workflowGit(root, ["add", "src", "tests"]);
+  const timing = {
+    version: 1,
+    success: false,
+    reason: "failed",
+    unhandledErrors: 0,
+    files: paths.map((name, index) => ({
+      name,
+      durationMs: 10,
+      state: index === 1 ? "failed" : "passed",
+    })),
+  };
+  const run = async (report: unknown) => {
+    await writeFile(join(root, "test-timings.json"), JSON.stringify(report));
+    await execute(process.execPath, [fileURLToPath(script)], {
+      cwd: root,
+      env: {
+        ...process.env,
+        SHARD_RESULT: "failure",
+        MERGE_RESULT: "failure",
+        CI_VERIFY_TEST_INVENTORY: "true",
+        CI_TEST_SELECTION: JSON.stringify(
+          planTestSelection(["src/sqlite/Provider.ts"], "pull_request", "fast"),
+        ),
+        GITHUB_SHA: "merge-sha",
+        CI_PR_HEAD_SHA: "pr-head-sha",
+      },
+    });
+    return JSON.parse(
+      await readFile(
+        join(root, ".cache/ci-test-selection/report.json"),
+        "utf8",
+      ),
+    ) as unknown;
+  };
+  expect(await run(timing)).toMatchObject({
+    observational: true,
+    complete: true,
+    selected: [paths[0], paths[2]],
+    omitted: [paths[1]],
+    missedFailures: [paths[1]],
+    executionSha: "merge-sha",
+    prHeadSha: "pr-head-sha",
+  });
+  for (const report of [
+    { ...timing, files: timing.files.slice(0, 1) },
+    { ...timing, unhandledErrors: 1 },
+    { ...timing, reason: "interrupted" },
+  ])
+    expect(await run(report)).toMatchObject({ complete: false });
+  await expect(run({ ...timing, files: "invalid" })).rejects.toMatchObject({
+    code: 1,
+  });
+  await expect(
+    readFile(join(root, ".cache/ci-test-selection/report.json")),
+  ).rejects.toMatchObject({ code: "ENOENT" });
   await expect(
     readFile(join(root, ".cache/ci-test-history/test-results.json")),
   ).rejects.toMatchObject({ code: "ENOENT" });

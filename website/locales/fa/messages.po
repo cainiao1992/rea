@@ -32,18 +32,18 @@ msgid "Thoughts on reverse engineering."
 msgstr "افکار در مهندسی معکوس."
 
 #. {ph0}: <br />
-#: website/public/blog/index.html:200
+#: website/public/blog/index.html:216
 #, python-brace-format
 msgctxt "page:blog/index.html"
 msgid "Game reconstruction{ph0}Essay"
 msgstr "بازسازی بازی{ph0}مقاله"
 
-#: website/public/blog/index.html:202
+#: website/public/blog/index.html:218
 msgctxt "page:blog/index.html"
 msgid "The industrial revolution in reverse engineering"
 msgstr "انقلاب صنعتی در مهندسی معکوس"
 
-#: website/public/blog/index.html:203
+#: website/public/blog/index.html:219
 msgctxt "page:blog/index.html"
 msgid ""
 "What manual RE and reconstructing TH08, TH095 and TH04 taught me about "
@@ -52,19 +52,19 @@ msgstr ""
 "چه دستی دوباره و بازسازی TH08, TH095 و TH04 به من آموخت در مورد عوامل, تأیید"
 " و دانش است که ترکیبات در سراسر پروژه."
 
-#: website/public/blog/index.html:208
+#: website/public/blog/index.html:207 website/public/blog/index.html:224
 msgctxt "page:blog/index.html"
 msgid "Read the article"
 msgstr "مقاله را بخوانید"
 
-#: website/public/blog/index.html:211
+#: website/public/blog/index.html:227
 msgctxt "page:blog/index.html"
 msgid "By N0zoM1z0 · 10 October 2026"
 msgstr "توسط N0zoM1z0 * 10 اکتبر 2026"
 
 #. {ph0}: <span aria-hidden="true">
 #. {ph1}: </span>
-#: website/public/blog/index.html:230
+#: website/public/blog/index.html:246
 #: website/public/blog/touhou-reconstruction/index.html:1080
 #: website/public/examples/dino-lab/index.html:475
 #: website/public/faq/index.html:573
@@ -234,7 +234,7 @@ msgctxt "shared"
 msgid "Follow REA on X"
 msgstr "REA را در X دنبال کنید"
 
-#: website/public/blog/index.html:230
+#: website/public/blog/index.html:246
 msgctxt "page:blog/index.html"
 msgid "Back to top"
 msgstr "بازگشت به بالا"
@@ -11558,7 +11558,7 @@ msgctxt "shared"
 msgid "Guides"
 msgstr "راهنماها"
 
-#: website/public/blog/index.html:222
+#: website/public/blog/index.html:238
 #: website/public/blog/touhou-reconstruction/index.html:1072
 #: website/public/examples/dino-lab/index.html:467
 #: website/public/faq/index.html:565
@@ -11578,7 +11578,7 @@ msgctxt "shared"
 msgid "Source"
 msgstr "کد منبع"
 
-#: website/public/blog/index.html:223
+#: website/public/blog/index.html:239
 #: website/public/blog/touhou-reconstruction/index.html:1073
 #: website/public/examples/dino-lab/index.html:468
 #: website/public/faq/index.html:566
@@ -11598,7 +11598,7 @@ msgctxt "shared"
 msgid "MIT license"
 msgstr "مجوز MIT"
 
-#: website/public/blog/index.html:224
+#: website/public/blog/index.html:240
 #: website/public/blog/touhou-reconstruction/index.html:1074
 #: website/public/examples/dino-lab/index.html:469
 #: website/public/faq/index.html:567
@@ -11618,7 +11618,7 @@ msgctxt "shared"
 msgid "Join the community"
 msgstr "به جامعه بپیوندید"
 
-#: website/public/blog/index.html:225
+#: website/public/blog/index.html:241
 #: website/public/blog/touhou-reconstruction/index.html:1075
 #: website/public/examples/dino-lab/index.html:470
 #: website/public/faq/index.html:568
@@ -12579,6 +12579,32 @@ msgstr ""
 "ضبط‌های SAZ، سرور MCP و مهارت‌های عمومی{ph1} استفاده کنید. برای Evidence ضبط"
 " در REA به‌صورت آفلاین، خروجی SAZ ?? HAR 1.2 بگیرید، یا سرور MCP نرم‌افزار "
 "Everywhere را متصل کنید تا ترافیک ضبط‌شده را با عامل خود بررسی کنید."
+
+#. {ph0}: <br />
+#: website/public/blog/index.html:200
+#, python-brace-format
+msgctxt "page:blog/index.html"
+msgid "Model specialization{ph0}Essay"
+msgstr "مدل‌های تخصصی{ph0}یادداشت"
+
+#: website/public/blog/index.html:202
+msgctxt "page:blog/index.html"
+msgid "Does reverse engineering need a bigger model?"
+msgstr "آیا مهندسی معکوس به مدل بزرگ‌تری نیاز دارد؟"
+
+#: website/public/blog/index.html:203
+msgctxt "page:blog/index.html"
+msgid ""
+"What Touhou reconstruction suggests about general models, specialist models "
+"and learning from compiler feedback."
+msgstr ""
+"تأملاتی بر پایهٔ بازسازی Touhou دربارهٔ مدل‌های عمومی، مدل‌های تخصصی و "
+"یادگیری از بازخورد کامپایلر."
+
+#: website/public/blog/index.html:210
+msgctxt "page:blog/index.html"
+msgid "By N0zoM1z0 · 13 October 2026 · Draft for review"
+msgstr "نویسنده: N0zoM1z0 · ۱۳ اکتبر ۲۰۲۶ · پیش‌نویس برای بازبینی"
 
 #~ msgctxt "page:index.html"
 #~ msgid "Setup guide"

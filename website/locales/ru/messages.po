@@ -32,18 +32,18 @@ msgid "Thoughts on reverse engineering."
 msgstr "Мысли о реверс-инжиниринге."
 
 #. {ph0}: <br />
-#: website/public/blog/index.html:200
+#: website/public/blog/index.html:216
 #, python-brace-format
 msgctxt "page:blog/index.html"
 msgid "Game reconstruction{ph0}Essay"
 msgstr "Реконструкция игры{ph0}Сочинение"
 
-#: website/public/blog/index.html:202
+#: website/public/blog/index.html:218
 msgctxt "page:blog/index.html"
 msgid "The industrial revolution in reverse engineering"
 msgstr "Промышленная революция в области реверс-инжиниринга"
 
-#: website/public/blog/index.html:203
+#: website/public/blog/index.html:219
 msgctxt "page:blog/index.html"
 msgid ""
 "What manual RE and reconstructing TH08, TH095 and TH04 taught me about "
@@ -52,19 +52,19 @@ msgstr ""
 "Чему меня научило руководство по обновлению и реконструкции TH08, TH095 и "
 "TH04 об агентах, проверке и знаниях, которые используются в разных проектах."
 
-#: website/public/blog/index.html:208
+#: website/public/blog/index.html:207 website/public/blog/index.html:224
 msgctxt "page:blog/index.html"
 msgid "Read the article"
 msgstr "Прочтите статью"
 
-#: website/public/blog/index.html:211
+#: website/public/blog/index.html:227
 msgctxt "page:blog/index.html"
 msgid "By N0zoM1z0 · 10 October 2026"
 msgstr "Автор: N0zoM1z0 · 10 октября 2026"
 
 #. {ph0}: <span aria-hidden="true">
 #. {ph1}: </span>
-#: website/public/blog/index.html:230
+#: website/public/blog/index.html:246
 #: website/public/blog/touhou-reconstruction/index.html:1080
 #: website/public/examples/dino-lab/index.html:475
 #: website/public/faq/index.html:573
@@ -235,7 +235,7 @@ msgctxt "shared"
 msgid "Follow REA on X"
 msgstr "Подписаться на REA в X"
 
-#: website/public/blog/index.html:230
+#: website/public/blog/index.html:246
 msgctxt "page:blog/index.html"
 msgid "Back to top"
 msgstr "Наверх"
@@ -11811,7 +11811,7 @@ msgctxt "shared"
 msgid "Guides"
 msgstr "Руководства"
 
-#: website/public/blog/index.html:222
+#: website/public/blog/index.html:238
 #: website/public/blog/touhou-reconstruction/index.html:1072
 #: website/public/examples/dino-lab/index.html:467
 #: website/public/faq/index.html:565
@@ -11831,7 +11831,7 @@ msgctxt "shared"
 msgid "Source"
 msgstr "Исходный код"
 
-#: website/public/blog/index.html:223
+#: website/public/blog/index.html:239
 #: website/public/blog/touhou-reconstruction/index.html:1073
 #: website/public/examples/dino-lab/index.html:468
 #: website/public/faq/index.html:566
@@ -11851,7 +11851,7 @@ msgctxt "shared"
 msgid "MIT license"
 msgstr "Лицензия MIT"
 
-#: website/public/blog/index.html:224
+#: website/public/blog/index.html:240
 #: website/public/blog/touhou-reconstruction/index.html:1074
 #: website/public/examples/dino-lab/index.html:469
 #: website/public/faq/index.html:567
@@ -11871,7 +11871,7 @@ msgctxt "shared"
 msgid "Join the community"
 msgstr "Вступить в сообщество"
 
-#: website/public/blog/index.html:225
+#: website/public/blog/index.html:241
 #: website/public/blog/touhou-reconstruction/index.html:1075
 #: website/public/examples/dino-lab/index.html:470
 #: website/public/faq/index.html:568
@@ -12839,6 +12839,32 @@ msgstr ""
 "??? HAR 1.2 для получения Evidence захвата в REA без подключения к сети или "
 "подключите MCP-сервер Everywhere, чтобы исследовать записанный трафик вместе"
 " с агентом."
+
+#. {ph0}: <br />
+#: website/public/blog/index.html:200
+#, python-brace-format
+msgctxt "page:blog/index.html"
+msgid "Model specialization{ph0}Essay"
+msgstr "Специализация моделей{ph0}Эссе"
+
+#: website/public/blog/index.html:202
+msgctxt "page:blog/index.html"
+msgid "Does reverse engineering need a bigger model?"
+msgstr "Нужна ли для обратной разработки более крупная модель?"
+
+#: website/public/blog/index.html:203
+msgctxt "page:blog/index.html"
+msgid ""
+"What Touhou reconstruction suggests about general models, specialist models "
+"and learning from compiler feedback."
+msgstr ""
+"Что реконструкция Touhou помогает понять об универсальных и "
+"специализированных моделях и обучении на обратной связи от компилятора."
+
+#: website/public/blog/index.html:210
+msgctxt "page:blog/index.html"
+msgid "By N0zoM1z0 · 13 October 2026 · Draft for review"
+msgstr "Автор: N0zoM1z0 · 13 октября 2026 г. · Черновик для обсуждения"
 
 #~ msgctxt "page:index.html"
 #~ msgid "Setup guide"

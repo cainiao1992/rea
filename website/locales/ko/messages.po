@@ -32,37 +32,37 @@ msgid "Thoughts on reverse engineering."
 msgstr "리버스 엔지니어링에 대한 생각."
 
 #. {ph0}: <br />
-#: website/public/blog/index.html:200
+#: website/public/blog/index.html:216
 #, python-brace-format
 msgctxt "page:blog/index.html"
 msgid "Game reconstruction{ph0}Essay"
 msgstr "게임 재구성{ph0}에세이"
 
-#: website/public/blog/index.html:202
+#: website/public/blog/index.html:218
 msgctxt "page:blog/index.html"
 msgid "The industrial revolution in reverse engineering"
 msgstr "리버스 엔지니어링의 산업 혁명"
 
-#: website/public/blog/index.html:203
+#: website/public/blog/index.html:219
 msgctxt "page:blog/index.html"
 msgid ""
 "What manual RE and reconstructing TH08, TH095 and TH04 taught me about "
 "agents, verification and knowledge that compounds across projects."
 msgstr "어떤 매뉴얼 다시고 재구성TH08,TH095및TH04에 대해 가르쳐 에이전트,검증 및 지는 화합물에 걸쳐 프로젝트입니다."
 
-#: website/public/blog/index.html:208
+#: website/public/blog/index.html:207 website/public/blog/index.html:224
 msgctxt "page:blog/index.html"
 msgid "Read the article"
 msgstr "기사 읽기"
 
-#: website/public/blog/index.html:211
+#: website/public/blog/index.html:227
 msgctxt "page:blog/index.html"
 msgid "By N0zoM1z0 · 10 October 2026"
 msgstr "여N0zoM1z0·10 월 2026"
 
 #. {ph0}: <span aria-hidden="true">
 #. {ph1}: </span>
-#: website/public/blog/index.html:230
+#: website/public/blog/index.html:246
 #: website/public/blog/touhou-reconstruction/index.html:1080
 #: website/public/examples/dino-lab/index.html:475
 #: website/public/faq/index.html:573
@@ -229,7 +229,7 @@ msgctxt "shared"
 msgid "Follow REA on X"
 msgstr "X에서 REA 팔로우"
 
-#: website/public/blog/index.html:230
+#: website/public/blog/index.html:246
 msgctxt "page:blog/index.html"
 msgid "Back to top"
 msgstr "맨 위로"
@@ -10931,7 +10931,7 @@ msgctxt "shared"
 msgid "Guides"
 msgstr "가이드"
 
-#: website/public/blog/index.html:222
+#: website/public/blog/index.html:238
 #: website/public/blog/touhou-reconstruction/index.html:1072
 #: website/public/examples/dino-lab/index.html:467
 #: website/public/faq/index.html:565
@@ -10951,7 +10951,7 @@ msgctxt "shared"
 msgid "Source"
 msgstr "소스 코드"
 
-#: website/public/blog/index.html:223
+#: website/public/blog/index.html:239
 #: website/public/blog/touhou-reconstruction/index.html:1073
 #: website/public/examples/dino-lab/index.html:468
 #: website/public/faq/index.html:566
@@ -10971,7 +10971,7 @@ msgctxt "shared"
 msgid "MIT license"
 msgstr "MIT 라이선스"
 
-#: website/public/blog/index.html:224
+#: website/public/blog/index.html:240
 #: website/public/blog/touhou-reconstruction/index.html:1074
 #: website/public/examples/dino-lab/index.html:469
 #: website/public/faq/index.html:567
@@ -10991,7 +10991,7 @@ msgctxt "shared"
 msgid "Join the community"
 msgstr "커뮤니티 참여"
 
-#: website/public/blog/index.html:225
+#: website/public/blog/index.html:241
 #: website/public/blog/touhou-reconstruction/index.html:1075
 #: website/public/examples/dino-lab/index.html:470
 #: website/public/faq/index.html:568
@@ -11926,6 +11926,30 @@ msgstr ""
 "HTTP 요청과 응답 본문을 살펴보려면 {ph0}Fiddler Everywhere: SAZ 캡처, MCP 및 공개 스킬{ph1}을 "
 "사용하세요. SAZ ?? HAR 1.2로 내보내면 REA에서 오프라인 캡처 Evidence를 얻을 수 있으며, Everywhere의 "
 "MCP 서버를 연결하여 에이전트와 함께 캡처된 트래픽을 살펴볼 수도 있습니다."
+
+#. {ph0}: <br />
+#: website/public/blog/index.html:200
+#, python-brace-format
+msgctxt "page:blog/index.html"
+msgid "Model specialization{ph0}Essay"
+msgstr "전문 모델{ph0}에세이"
+
+#: website/public/blog/index.html:202
+msgctxt "page:blog/index.html"
+msgid "Does reverse engineering need a bigger model?"
+msgstr "리버스 엔지니어링에는 더 큰 모델이 필요할까?"
+
+#: website/public/blog/index.html:203
+msgctxt "page:blog/index.html"
+msgid ""
+"What Touhou reconstruction suggests about general models, specialist models "
+"and learning from compiler feedback."
+msgstr "Touhou 재구축 경험을 바탕으로 범용 모델, 전문 모델, 컴파일러 피드백을 통한 학습을 생각해 봅니다."
+
+#: website/public/blog/index.html:210
+msgctxt "page:blog/index.html"
+msgid "By N0zoM1z0 · 13 October 2026 · Draft for review"
+msgstr "작성: N0zoM1z0 · 2026년 10월 13일 · 검토용 초안"
 
 #~ msgctxt "page:index.html"
 #~ msgid "Setup guide"

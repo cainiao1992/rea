@@ -1,0 +1,810 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Does reverse engineering need a bigger model? | REA</title>
+    <meta
+      name="description"
+      content="What Touhou reconstruction taught me about general models, specialist models and learning to propose better hypotheses from compiler feedback."
+    />
+    <meta name="robots" content="noindex" />
+    <!-- website:sharing:start -->
+    <!-- prettier-ignore -->
+    <link rel="canonical" href="https://rea.tools/blog/reverse-engineering-models/" />
+    <!-- website:languages:start -->
+
+    <!-- website:languages:end -->
+    <!-- prettier-ignore -->
+    <meta property="og:type" content="website" />
+    <!-- prettier-ignore -->
+    <meta property="og:site_name" content="REA" />
+    <!-- prettier-ignore -->
+    <meta property="og:title" content="Does reverse engineering need a bigger model? | REA" />
+    <!-- prettier-ignore -->
+    <meta property="og:description" content="What Touhou reconstruction taught me about general models, specialist models and learning to propose better hypotheses from compiler feedback." />
+    <!-- prettier-ignore -->
+    <meta property="og:url" content="https://rea.tools/blog/reverse-engineering-models/" />
+    <!-- prettier-ignore -->
+    <meta property="og:image" content="https://rea.tools/assets/social-card.png" />
+    <!-- prettier-ignore -->
+    <meta property="og:image:type" content="image/png" />
+    <!-- prettier-ignore -->
+    <meta property="og:image:width" content="1200" />
+    <!-- prettier-ignore -->
+    <meta property="og:image:height" content="630" />
+    <!-- prettier-ignore -->
+    <meta
+      property="og:image:alt"
+      content="REA — Find out how software works. Reverse engineering with your coding agent."
+    />
+    <!-- prettier-ignore -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <!-- prettier-ignore -->
+    <meta name="twitter:title" content="Does reverse engineering need a bigger model? | REA" />
+    <!-- prettier-ignore -->
+    <meta name="twitter:description" content="What Touhou reconstruction taught me about general models, specialist models and learning to propose better hypotheses from compiler feedback." />
+    <!-- prettier-ignore -->
+    <meta name="twitter:image" content="https://rea.tools/assets/social-card.png" />
+    <!-- prettier-ignore -->
+    <meta
+      name="twitter:image:alt"
+      content="REA — Find out how software works. Reverse engineering with your coding agent."
+    />
+    <!-- website:sharing:end -->
+    <!-- website:theme:start -->
+    <meta name="theme-color" content="#ffffff" />
+    <!-- Apply the saved theme before styles load, to avoid a flash on navigation. -->
+    <script src="../../assets/theme.js"></script>
+    <!-- website:theme:end -->
+    <link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="../../assets/styles.css" />
+    <script src="../../assets/main.js" defer></script>
+  </head>
+  <body id="top">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <!-- website:header:start -->
+    <!-- prettier-ignore -->
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="../../" aria-label="REA home"
+          ><span class="brand-name">REA</span
+          ><span class="brand-caption" data-i18n-skip>Reverse Engineer Anything</span></a
+        >
+        <nav class="navigation" aria-label="Main navigation">
+          <a href="../../get-started/" class="nav-start">Get started</a>
+          <a href="../../showcase/">Showcases</a>
+          <a href="../../blog/" aria-current="page">Blog</a>
+          <a href="../../guides/">Guides</a>
+          <a href="../../faq/">FAQ</a>
+        </nav>
+        <div class="header-social">
+      
+          <button class="theme-toggle" type="button" data-theme-toggle hidden>
+            <svg class="theme-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <path d="M20.9 13a9 9 0 0 1-9.9-9.9A9 9 0 1 0 20.9 13Z" />
+            </svg>
+            <svg class="theme-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" focusable="false">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" />
+            </svg>
+          </button>
+          <a
+            class="nav-github"
+            href="https://github.com/morluto/rea"
+            aria-label="REA on GitHub"
+            title="REA on GitHub"
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 16 16"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path
+                fill="currentColor"
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+              />
+            </svg>
+            <span class="nav-github-count" hidden aria-hidden="true"></span>
+          </a>
+          <a
+            class="nav-discord"
+            href="https://discord.gg/GkcryMnJDM"
+            aria-label="Join REA on Discord"
+            title="Join REA on Discord"
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path
+                fill="currentColor"
+                d="M20.317 4.3698a19.7913 19.7913 0 0 0-4.8851-1.5152.0741.0741 0 0 0-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 0 0-.0785-.037 19.7363 19.7363 0 0 0-4.8852 1.515.0699.0699 0 0 0-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 0 0 .0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 0 0 .0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 0 0-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 0 1-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 0 1 .0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 0 1 .0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 0 1-.0066.1276 12.2986 12.2986 0 0 1-1.873.8914.0766.0766 0 0 0-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 0 0 .0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 0 0 .0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 0 0-.0312-.0286ZM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189Zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"
+              />
+            </svg>
+          </a>
+          <a
+            class="nav-x"
+            href="https://x.com/reatools"
+            aria-label="Follow REA on X"
+            title="Follow REA on X"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path
+                fill="currentColor"
+                d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"
+              />
+            </svg>
+          </a>
+        </div>
+      </div>
+    </header>
+    <!-- website:header:end -->
+    <main id="main" class="container">
+      <div class="page-heading">
+        <p class="breadcrumb">
+          <a href="../../">Home</a> / <a href="../">Blog</a> / Models and RE
+        </p>
+        <p class="eyebrow">Essay · Draft for review</p>
+        <h1>Does reverse engineering need a bigger model?</h1>
+        <p class="page-meta">By N0zoM1z0 · 13 October 2026</p>
+        <div class="blog-takeaway">
+          <p class="eyebrow">Takeaway</p>
+          <ul>
+            <li>
+              <strong
+                >Model capability changes the hypotheses an agent can
+                find.</strong
+              >
+              Later sessions have opened functions that earlier work left
+              unresolved.
+            </li>
+            <li>
+              <strong
+                >A familiar compiler gives specialization something concrete to
+                learn.</strong
+              >
+              Some exact matches depend on narrow, reusable source patterns.
+            </li>
+            <li>
+              <strong>Give repository knowledge a fair comparison.</strong>
+              A smaller model with good retrieval may already know enough to
+              make progress.
+            </li>
+            <li>
+              <strong
+                >Train the next useful experiment, and test its oracle.</strong
+              >
+              The value of feedback depends on what the checker actually
+              verifies.
+            </li>
+            <li>
+              <strong
+                >Measure accepted reconstruction against time and cost.</strong
+              >
+              That is the result I want from the whole agent.
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="article-layout">
+        <nav class="contents" aria-label="On this page">
+          <p>In this article</p>
+          <ul>
+            <li><a href="#model-capability">What better models changed</a></li>
+            <li><a href="#specialization">Why specialize?</a></li>
+            <li><a href="#repository-knowledge">Where experience lives</a></li>
+            <li><a href="#learning-search">Learning the next experiment</a></li>
+            <li><a href="#re-and-rl">RE and reinforcement learning</a></li>
+            <li><a href="#oracle">When the oracle is wrong</a></li>
+            <li><a href="#comparison">A comparison worth running</a></li>
+            <li><a href="#future-agent">What kind of agent?</a></li>
+          </ul>
+        </nav>
+        <article
+          class="article"
+          aria-label="Models and reverse engineering essay"
+        >
+          <section class="article-section" id="model-capability">
+            <h2>What better models changed</h2>
+            <p>
+              Since August 2026, I have been exploring how much reverse
+              engineering an agent can carry out with access to a program and a
+              way to check its work. Most of my experience comes from
+              reconstructing games, especially Touhou. The projects have also
+              become a record of what different models could make progress on.
+            </p>
+            <p>
+              Looking back through that record, there are functions that later
+              models closed after earlier sessions had left them unresolved. The
+              source changes make those breakthroughs more interesting than a
+              progress percentage does.
+            </p>
+            <h3>The temporary values had to stay alive together</h3>
+            <p>
+              One TH09 attack function was a byte short. Much of the logic was
+              already in place. The stack frame had the right size. But three
+              temporary vectors occupied different slots from the original, and
+              the compiled function still did not match.
+            </p>
+            <p>
+              A
+              <a
+                href="https://github.com/N0zoM1z0/th09/commit/de63c0f9121963f3a6b1ab5471c4878625fd3425"
+                >GPT-6-Sol checkpoint</a
+              >
+              recorded that residual after testing several ordinary source
+              arrangements. Later,
+              <a
+                href="https://github.com/N0zoM1z0/th09/commit/52929ed7c299f1a5f29cc13964e22510145fd616"
+                >GPT-6.1-Sol found a useful lifetime hypothesis</a
+              >.
+            </p>
+            <p>
+              The function calculated three vectors and copied each into an
+              animation's position. C++ keeps a returned temporary alive until
+              the end of the expression using it. Expressing the real operations
+              together kept those values alive together. The compiler could no
+              longer reuse the same storage for all three.
+            </p>
+            <p>
+              A separate, real collision workspace also needed to keep its own
+              storage. With that source arrangement, the seventh targeted
+              candidate in the closing session matched. A cold build confirmed
+              <strong
+                >the complete 1,436-byte function and all 44 encoded
+                fields</strong
+              >. Here, an exact reconstruction means that the maintained source,
+              compiled under the pinned historical toolchain, reproduces the
+              checked target function.
+            </p>
+            <p>
+              It was a useful discovery followed by several targeted tests. The
+              final result depended on both.
+            </p>
+            <h3>A different control-flow graph</h3>
+            <p>
+              Another TH09 function had a different obstacle.
+              <a
+                href="https://github.com/N0zoM1z0/th09/commit/f8d12d72aaf02212ee1b585a8f3f86d7ed000269"
+                >GPT-6.1-Sol's earlier work</a
+              >
+              reproduced two diagnostic regions, but the complete candidate was
+              1,510 bytes against a 1,491-byte target. The way its branches
+              shared a continuation still differed.
+            </p>
+            <p>
+              <a
+                href="https://github.com/N0zoM1z0/th09/commit/da33a646221198ceb7f3df2b96e2ca0e9b2f705f"
+                >GPT-6-Astra changed the surrounding control-flow graph</a
+              >. Completion and frame processing became complementary branches,
+              followed by one common frame increment and return. In that
+              context, the compiler produced the required block sharing. The
+              entire 1,491-byte function matched, and a
+              <a
+                href="https://github.com/N0zoM1z0/th09/commit/5f825b28a862f8e1a6d4aea2f78a42f04c09a1c0"
+                >recompile replay was accepted</a
+              >.
+            </p>
+            <p>
+              <strong
+                >A different representation made a different result
+                possible.</strong
+              >
+              That is one reason I take general model capability seriously. An
+              agent can spend a long time trying variations within a source
+              structure that is keeping it stuck.
+            </p>
+            <p>
+              These histories also contain accumulated work. Later sessions
+              inherited source and recorded failed experiments. They show the
+              discoveries and how we checked them. A controlled comparison would
+              tell us how much came from changing the model.
+            </p>
+            <p>
+              Even so, the cases leave me with a question. How much of this work
+              needs a model with broad reasoning ability? How much could a model
+              learn from repeated experience with this particular kind of code?
+            </p>
+          </section>
+          <section class="article-section" id="specialization">
+            <h2>Why might a specialist do well?</h2>
+            <p>
+              Touhou is an interesting place to ask. Much of the game code comes
+              from the same author, ZUN. That gives us a reasonable expectation
+              of recurring habits. The repositories contain more concrete
+              examples: related loops, helper functions and source arrangements
+              have supplied useful hypotheses across games.
+            </p>
+            <p>
+              The compiler contributes its own habits. Under a particular
+              version and set of options, small differences in source can
+              produce repeatable differences in machine code.
+            </p>
+            <p>
+              TH095 gave us a wonderfully awkward example:
+              <strong
+                >even the identifier backing a real local variable could change
+                where VC7.1 put it on the stack</strong
+              >. Moving the declaration alone did not solve the layout. An
+              earlier background function had already exposed the relevant
+              identifier bucket, and that experience became useful in
+              <a
+                href="https://github.com/N0zoM1z0/th095/commit/26bb64bdb093a13f73abd0ee8ae7ce199ee4658f"
+                >the reconstruction of <code>Supervisor::LoadDat</code></a
+              >.
+            </p>
+            <p>
+              Selecting the known backing identifier for the real file-size
+              variable put it and the character buffer in the required homes.
+              The buffer remained its genuine 128 bytes. All 151 bytes of the
+              function and its 15 relocations matched.
+            </p>
+            <p>
+              That is narrow knowledge. A general model has little reason to
+              arrive with a detailed repertoire of one old compiler's local
+              allocation behavior. A specialist could encounter it repeatedly.
+              It could learn which source variations are worth testing first.
+            </p>
+            <p>
+              In many of these final matching problems, we already understand
+              the behavior. The remaining question is which ordinary source form
+              this compiler turns into these instructions. That gives
+              specialization a specific job: propose plausible forms, then let
+              the target decide which survive.
+            </p>
+            <p>
+              There are limits to how narrowly we can define the repertoire.
+              TH08 uses VC7. TH095 and TH09 use VC7.1. TH04 uses Turbo C++ in a
+              segmented DOS environment. Its
+              <a
+                href="https://github.com/N0zoM1z0/th04/commit/6dce0a79d5b931f0e2a08475b90e0c33d2321b98"
+                >player reconstruction</a
+              >
+              needed another set of source-lifetime and linker-order hypotheses.
+              Shared authorship gives us a prior; each target tells us whether
+              that prior applies.
+            </p>
+          </section>
+          <section class="article-section" id="repository-knowledge">
+            <h2>Where should that experience live?</h2>
+            <p>
+              Before training anything, there is an obvious place to look: the
+              repository. In the
+              <a href="../touhou-reconstruction/">previous essay</a>, I wrote
+              about it becoming the project's working memory. Compiler lessons
+              belong there too.
+            </p>
+            <p>
+              An agent can retrieve a known result. It can inspect the source
+              that produced it and read which alternatives failed. That changes
+              its starting point without changing its weights.
+            </p>
+            <p>
+              A TH09
+              <a
+                href="https://github.com/N0zoM1z0/th09/commit/1eb843383941d00065622a9e353146c4bb96979e"
+                >GPT-6-Luna-max checkpoint</a
+              >
+              makes this worth taking seriously. It closed a 373-byte
+              enemy-spawn function using an ordinary loop with branch-local
+              failure handling. TH08's corresponding source family supplied the
+              hypothesis. TH09's own evidence established its bounds and calls,
+              and two cold builds confirmed the complete match.
+            </p>
+            <p>
+              <strong
+                >“The model did not know that compiler quirk” and “the model
+                could not use it” are different problems.</strong
+              >
+              Supplying a fact may solve the first. Generating a useful source
+              candidate with that fact may still need practice. Choosing what to
+              try after a failed compile is another skill again.
+            </p>
+            <p>
+              I would want a smaller general model with good retrieval in any
+              comparison. Otherwise, we might credit fine-tuning for an
+              advantage that came from giving one model a better library of
+              experience.
+            </p>
+          </section>
+          <section class="article-section" id="learning-search">
+            <h2>Learning the next useful experiment</h2>
+            <p>
+              In agentic reconstruction, the model proposes an explanation. The
+              program and its checks determine whether that explanation
+              survives. A failed candidate can be useful when it helps
+              distinguish the remaining possibilities.
+            </p>
+            <p>
+              This makes the temporary-vector example especially interesting to
+              me. The final source contains the successful arrangement. It does
+              not contain everything the search taught us.
+            </p>
+            <div class="evidence-table-wrap">
+              <table
+                class="evidence-table"
+                aria-label="Selected reconstruction experiments"
+              >
+                <thead>
+                  <tr>
+                    <th scope="col">Experiment</th>
+                    <th scope="col">What its result taught us</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Use a typed position assignment</td>
+                    <td>
+                      The copy behavior improves, but the compiled source still
+                      differs.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Consume the returned vectors directly</td>
+                    <td>
+                      The function reaches the target size. Temporary storage
+                      remains wrong.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Group the real operations into one full expression</td>
+                    <td>The returned values remain alive together.</td>
+                  </tr>
+                  <tr>
+                    <td>Keep the real collision workspace separate</td>
+                    <td>The complete function matches in a cold build.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="caption">
+              Selected steps from the recorded Type18/24 search. The closing
+              session tested seven candidates; this table groups the lessons.
+            </p>
+            <p>
+              A useful training record would preserve the proposed change and
+              the result. It would also preserve why the result justified the
+              next experiment. An ineffective variation is part of that
+              experience, especially if a later agent would otherwise repeat it.
+            </p>
+            <p>
+              <strong
+                >I would want the model to learn how to use feedback.</strong
+              >
+              It should recognize when a change has no effect. It should notice
+              when a new mismatch points to a different cause. It should be able
+              to leave an unproductive source representation and inspect the
+              evidence again.
+            </p>
+            <p>
+              That also means keeping autonomy. The agent may need another
+              caller, a compiler experiment or an earlier project's source. A
+              rigid sequence of required rewrites would prevent some of the
+              decisions we want it to learn.
+            </p>
+          </section>
+          <section class="article-section" id="re-and-rl">
+            <h2>Why RE is interesting for reinforcement learning</h2>
+            <p>
+              A bounded reconstruction problem has an attractive property. With
+              the target and compiler pinned, many experiments produce quick,
+              repeatable feedback. Compile a candidate. Inspect what differs.
+              Decide what to try next.
+            </p>
+            <p>
+              Reinforcement learning could use that feedback to train the
+              decisions an agent makes during reconstruction. There is a
+              concrete result to optimize: a candidate accepted by a defined
+              check. We can also observe how much work it took to get there.
+            </p>
+            <p>
+              This direction already has research behind it.
+              <a href="https://aclanthology.org/2024.emnlp-main.203/"
+                >LLM4Decompile</a
+              >
+              studies models specialized for decompilation.
+              <a href="https://arxiv.org/html/2606.16162v1">AutoDecompiler</a>
+              trains multi-turn refinement using compiler and execution
+              feedback. Those results make the idea worth investigating. Their
+              functional recovery tasks differ from matching code emitted by a
+              particular historical compiler.
+            </p>
+            <p>
+              The experiment I have in mind would train a policy for that
+              narrower search. Given what we have learned so far, which source
+              hypothesis is worth testing next?
+            </p>
+            <p>
+              Other parts of RE are harder to package into a cheap loop. We may
+              still be establishing what a function owns. We may need a new
+              runtime measurement. In TH08, a
+              <a
+                href="https://github.com/N0zoM1z0/th08/commit/af9cb1d3e839b15a78b47ac1701506083cc82847"
+                >later collision divergence led back to a one-ULP numerical
+                difference</a
+              >
+              and the old x87 behavior. The productive hypothesis there was
+              partly about what to measure.
+            </p>
+            <p>
+              That is another plausible place for a broad model's strength.
+              First make the problem checkable. Then ask how much a learned
+              search policy can do with that check.
+            </p>
+          </section>
+          <section class="article-section" id="oracle">
+            <h2>When the oracle is wrong</h2>
+            <p>
+              An oracle is the reference or checker we use to accept a result.
+              Its answer can be repeatable while its coverage is incomplete.
+            </p>
+            <p>
+              TH08 already gave us an example. Some reconstructed functions had
+              passed their exact comparisons with wrong floating constants. The
+              instruction check accounted for relocated addresses, but checking
+              the literal payload depended on optional explicit attestation.
+              That left references whose values were never checked.
+            </p>
+            <p>
+              A
+              <a
+                href="https://github.com/N0zoM1z0/th08/commit/a393f400786e4cc6cbb1000af0dad3276da12c78"
+                >wider audit</a
+              >
+              examined all 1,548 floating-literal references and corrected
+              twelve stale rows across five accepted functions. In one case, the
+              bullet-spread increment was <code>1.0f</code> where the target
+              required <code>32.0f</code>.
+            </p>
+            <p>
+              <strong
+                >A learner rewarded by the old check could learn to produce the
+                wrong reconstruction.</strong
+              >
+              That is a consequence worth considering when we design an RL
+              environment. The observed problem here was an oracle defect; we
+              had not trained an RL model against it.
+            </p>
+            <p>
+              Functional checks need the same attention.
+              <a href="https://arxiv.org/html/2609.05370v1"
+                >Differential-fuzzing research on LLM decompilers</a
+              >
+              has found behavior differences beyond the supplied tests. An
+              accepted test result tells us something about the cases the test
+              actually exercises.
+            </p>
+            <p>
+              Before using a comparator as a reward, I would give it deliberate
+              failures to reject. The final acceptance check should stay outside
+              the candidate's editable source. A byte array copied from the
+              target may satisfy a naive score while teaching us nothing about
+              reconstructing the source.
+            </p>
+            <p>
+              <strong
+                >Improving the learner and improving its oracle belong to the
+                same research problem.</strong
+              >
+              Greater ability to optimize a check makes understanding that check
+              more important.
+            </p>
+          </section>
+          <section class="article-section" id="comparison">
+            <h2>A comparison worth running</h2>
+            <p>
+              I would start with a fixed VC7.1 task family. A strong general
+              model would be one baseline. A smaller general model would be
+              another. Then I would give the smaller model the relevant
+              repository knowledge and compare that with supervised
+              specialization, followed by an RL-trained version.
+            </p>
+            <p>
+              Each would get the same target evidence and tools. The
+              training-specific comparisons would use the same base model and
+              available knowledge. I would repeat the trials, since one lucky
+              candidate is a poor description of a search policy.
+            </p>
+            <p>
+              The starting point matters. Reconstructing a function from its
+              instructions and closing the last four differences in maintained
+              source are two useful tasks. I would measure both separately. A
+              specialist might be excellent at the second while a general model
+              does much of the work needed to reach it.
+            </p>
+            <p>
+              The test set also needs care. Related Touhou games share engine
+              code. Holding out a game's name would not be enough if nearly
+              identical functions had appeared in training. I would hold out
+              source families and keep their accepted answers out of both
+              training and retrieval.
+            </p>
+            <p>
+              For the outcome, I would count complete, independently validated
+              matches. One view would give every model the same candidate or
+              compile budget. Another would measure time and total cost to an
+              accepted result, including compilation. Training costs would need
+              their own accounting too.
+            </p>
+            <p>
+              A cheaper proposal can become an expensive workflow if it causes
+              more uninformative compiles. A slower model may pay for itself by
+              finding the right experiment sooner. Those are outcomes we can
+              measure.
+            </p>
+            <p>
+              I would also be cautious with a reward for “getting closer.” One
+              TH09
+              <a
+                href="https://github.com/N0zoM1z0/th09/commit/ab72fd77728293fc0beacfc656ca701b0e266016"
+                >replay-save candidate</a
+              >
+              already had the target's 1,825-byte length while 467 byte
+              positions differed. A shorter mismatch list can also move abruptly
+              when a branch encoding changes. Diagnostics help choose an
+              experiment; the full acceptance check decides whether it worked.
+            </p>
+            <p>
+              That experiment could produce an answer with conditions. A
+              specialist might win within a familiar compiler family. A general
+              model might win when the toolchain changes. Retrieval might
+              account for much of the apparent benefit of training. Each result
+              would tell us something useful about where to invest next.
+            </p>
+          </section>
+          <section class="article-section" id="future-agent">
+            <h2>What kind of agent does this suggest?</h2>
+            <p>
+              Perhaps the useful arrangement is a broad agent with access to a
+              specialist. It can decide when the task has become a familiar
+              compiler search, and ask the specialist for candidates. It can
+              still inspect the target or question the measurement when the
+              results stop making sense.
+            </p>
+            <p>
+              That would make specialization a tool the agent can choose. It
+              would preserve the freedom that made these investigations
+              productive in the first place.
+            </p>
+            <p>
+              In the previous essay, I described an industrial shift in how
+              reconstruction work can be organized. This question follows from
+              it. Once we can run many more experiments, we need to understand
+              which decisions require broad judgment and which improve through
+              repeated experience with a particular craft.
+            </p>
+            <p>
+              The strongest general model has earned its place in my workflow.
+              It has opened problems I had left unresolved. What I want to find
+              out next is how much of that work requires its breadth, and how
+              much could be handled by a model that has learned this particular
+              kind of reconstruction.
+            </p>
+            <p>
+              <strong
+                >The repositories give us a way to test the question.</strong
+              >
+              That is where I would like to take it next.
+            </p>
+          </section>
+          <section class="article-section" id="sources">
+            <details class="native-details">
+              <summary>Evidence and model attribution</summary>
+              <p>
+                The examples describe historical reconstruction checks recorded
+                in public commits. Their byte counts apply to the stated
+                functions, not whole-game runtime correctness. Source and
+                matching records were reviewed on 13 October 2026.
+              </p>
+              <p>
+                The TH09 label <code>gpt-dots</code> identifies GPT-6-Astra.
+                <code>gpt-web</code> changed with the model used at the time, so
+                that label alone does not identify an individual run. Explicit
+                model names in the other cited commits establish their recorded
+                attribution; the histories do not contain uniform per-run cost
+                or effort measurements.
+              </p>
+              <ul>
+                <li>
+                  <strong>TH09 temporary lifetimes:</strong> the
+                  <a
+                    href="https://github.com/N0zoM1z0/th09/commit/de63c0f9121963f3a6b1ab5471c4878625fd3425"
+                    >earlier context review</a
+                  >
+                  and
+                  <a
+                    href="https://github.com/N0zoM1z0/th09/commit/52929ed7c299f1a5f29cc13964e22510145fd616"
+                    >complete cold reconstruction</a
+                  >.
+                </li>
+                <li>
+                  <strong>TH09 Front callback:</strong>
+                  <a
+                    href="https://github.com/N0zoM1z0/th09/commit/f8d12d72aaf02212ee1b585a8f3f86d7ed000269"
+                    >non-exact diagnostic regions</a
+                  >,
+                  <a
+                    href="https://github.com/N0zoM1z0/th09/commit/da33a646221198ceb7f3df2b96e2ca0e9b2f705f"
+                    >Astra's new graph</a
+                  >
+                  and its
+                  <a
+                    href="https://github.com/N0zoM1z0/th09/commit/5f825b28a862f8e1a6d4aea2f78a42f04c09a1c0"
+                    >accepted recompile replay</a
+                  >.
+                </li>
+                <li>
+                  <strong>Compiler knowledge:</strong>
+                  <a
+                    href="https://github.com/N0zoM1z0/th095/commit/26bb64bdb093a13f73abd0ee8ae7ce199ee4658f"
+                    >TH095 identifier-bucket reuse</a
+                  >,
+                  <a
+                    href="https://github.com/N0zoM1z0/th04/commit/6dce0a79d5b931f0e2a08475b90e0c33d2321b98"
+                    >TH04 player source and linker order</a
+                  >
+                  and
+                  <a
+                    href="https://github.com/N0zoM1z0/th09/commit/1eb843383941d00065622a9e353146c4bb96979e"
+                    >Luna's TH09 enemy-spawn closure</a
+                  >.
+                </li>
+                <li>
+                  <strong>Checks and diagnostics:</strong>
+                  <a
+                    href="https://github.com/N0zoM1z0/th08/commit/a393f400786e4cc6cbb1000af0dad3276da12c78"
+                    >TH08 floating-literal audit</a
+                  >,
+                  <a
+                    href="https://github.com/N0zoM1z0/th08/commit/af9cb1d3e839b15a78b47ac1701506083cc82847"
+                    >TH08 numerical investigation</a
+                  >
+                  and
+                  <a
+                    href="https://github.com/N0zoM1z0/th09/commit/ab72fd77728293fc0beacfc656ca701b0e266016"
+                    >TH09 replay-save reconstruction</a
+                  >.
+                </li>
+              </ul>
+              <p>
+                The proposed specialist and RL comparisons are future
+                experiments. The project histories motivate them; no trained
+                specialist was evaluated for this essay.
+              </p>
+            </details>
+          </section>
+        </article>
+      </div>
+    </main>
+    <!-- website:footer:start -->
+    <!-- prettier-ignore -->
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>REA · Reverse Engineer Anything</p>
+        <div class="footer-links">
+          <a href="https://github.com/morluto/rea">Source</a
+          ><a href="https://github.com/morluto/rea/blob/main/LICENSE">MIT license</a
+          ><a href="https://discord.gg/GkcryMnJDM">Join the community</a
+          ><a href="https://x.com/reatools">Follow us on X</a>
+        </div>
+      </div>
+    </footer>
+    <p class="sr-only" id="copy-status" role="status" aria-live="polite"></p>
+    <a class="back-to-top" href="#top" aria-label="Back to top">
+      <span aria-hidden="true">↑</span> Top
+    </a>
+    <!-- website:footer:end -->
+  </body>
+</html>

@@ -17,6 +17,7 @@ import {
   semanticStaticPropertyName,
   unwrapJavaScriptExpression,
 } from "./javascriptAstValues.js";
+import type { JavaScriptOpenReceiverFact } from "./javascriptSemanticAnalysis.js";
 import {
   compareUnicodeCodePoints,
   compositeKey,
@@ -470,13 +471,7 @@ const xhrOpenUrl = (
   name: string,
   methodNode: t.Node | null | undefined,
   urlNode: t.Node | null | undefined,
-  receiverFact?:
-    | "window"
-    | "indexed-db"
-    | "cache-storage"
-    | "local"
-    | "local-indexed-db"
-    | "local-cache-storage",
+  receiverFact?: JavaScriptOpenReceiverFact,
 ): string | undefined => {
   const url = stringValue(urlNode);
   if (url === undefined) return undefined;
@@ -555,13 +550,7 @@ export const endpointArgument = (
     | t.ArgumentPlaceholder
   )[],
   callee: t.Node,
-  receiverFact?:
-    | "window"
-    | "indexed-db"
-    | "cache-storage"
-    | "local"
-    | "local-indexed-db"
-    | "local-cache-storage",
+  receiverFact?: JavaScriptOpenReceiverFact,
 ): string | undefined => {
   if (receiverFact === "window") return undefined;
   if (name === "fetch" || name.endsWith(".fetch") || name === "WebSocket")
@@ -575,10 +564,12 @@ export const endpointArgument = (
     const value = stringValue(args[0]);
     // Only get and delete also belong to the keyed-collection APIs, whose
     // keys are header, field, and parameter names rather than URLs or paths.
+    // Configuration `get` reads setting keys.
     return value !== undefined &&
       (method === "get" || method === "delete") &&
       !isRequestUrlLiteral(value) &&
-      isKeyedCollectionReceiver(callee)
+      (isKeyedCollectionReceiver(callee) ||
+        (method === "get" && receiverFact === "configuration"))
       ? undefined
       : value;
   }

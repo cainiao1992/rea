@@ -683,16 +683,17 @@ const storageMap = (
       }),
     ],
   ]);
-  if (!includeKeys) return map;
   const add = (kind: string, keys: readonly string[]) => {
     for (const key of keys) {
       map.set(`storage:${kind}:${key}`, digestCanonicalValue(key));
     }
   };
-  add("local_storage", storage.local_storage_keys);
-  add("session_storage", storage.session_storage_keys);
-  add("indexed_db", storage.indexed_db_names);
-  add("cache", storage.cache_names);
+  if (includeKeys) {
+    add("local_storage", storage.local_storage_keys);
+    add("session_storage", storage.session_storage_keys);
+    add("indexed_db", storage.indexed_db_names);
+    add("cache", storage.cache_names);
+  }
   for (const fingerprint of storage.content_fingerprints) {
     const identity = `${fingerprint.scope}:${fingerprint.identity_sha256}`;
     if (!fingerprintIdentities.has(identity)) continue;

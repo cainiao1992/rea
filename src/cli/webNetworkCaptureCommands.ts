@@ -17,7 +17,7 @@ export const registerWebNetworkCaptureCommands = (
   const service = createWebNetworkCaptureService(environment);
   cli.command(CLI_COMMANDS.inspectWebNetworkCapture, {
     description:
-      "Inspect retained HAR, native mitmproxy, or Fiddler SAZ records without fetching recorded URLs",
+      "Inspect retained HAR, native mitmproxy, Fiddler SAZ or aioquic qlog records without fetching recorded URLs",
     args: z.object({
       capturePath: z.string().describe("Absolute local capture path"),
       format: z

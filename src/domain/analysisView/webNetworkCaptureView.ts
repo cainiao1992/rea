@@ -7,7 +7,11 @@ import {
   webNetworkCaptureRecordSchema,
   webNetworkCaptureBinaryDescriptorSchema,
   webNetworkCaptureSchema,
+  webNetworkCaptureArtifactSchema,
+  webNetworkCaptureDecoderSchema,
+  WEB_NETWORK_CAPTURE_FORMATS,
   type WebNetworkCaptureRecord,
+  type WebNetworkCapture,
 } from "../webNetworkCapture.js";
 import {
   analysisViewInputError,
@@ -19,6 +23,11 @@ import {
   completeWithinViewCoverage,
   pageViewCoverage,
 } from "./analysisViewCoverage.js";
+import {
+  qlogSummarySchema,
+  summarizeQlogCapture,
+  projectQlogCapturePage,
+} from "./qlogCaptureView.js";
 
 /** Offsets page the parent's retained record order, preserving producer ordinals. */
 export const captureViewRequestSchema = z.strictObject({
@@ -37,12 +46,13 @@ export const captureViewItemsSchema = z.array(
 
 /** Count/identity overview; bodies and the archive member inventory stay in the parent. */
 export const captureSummarySchema = z.strictObject({
-  artifact: webNetworkCaptureSchema.shape.artifact,
-  decoder: webNetworkCaptureSchema.shape.decoder,
-  format: webNetworkCaptureSchema.shape.format,
+  artifact: webNetworkCaptureArtifactSchema,
+  decoder: webNetworkCaptureDecoderSchema,
+  format: z.enum(WEB_NETWORK_CAPTURE_FORMATS),
   total_records: z.number().int().nonnegative(),
   retained_records: z.number().int().nonnegative(),
   runtime_attribution: z.literal("unknown"),
+  qlog: qlogSummarySchema.optional(),
 });
 
 const object = (
@@ -104,22 +114,10 @@ const preview = (record: WebNetworkCaptureRecord) => {
   };
 };
 
-/** Page immutable retained facts; no capture file, provider or network is consulted. */
-export const projectWebNetworkCaptureView = (
+/** Authenticate the retained report and its subject at one owning boundary. */
+const parseCaptureParent = (
   parent: AnalysisViewParent,
-  view: AnalysisViewRequest,
-): Result<UnsignedAnalysisView, AnalysisError> => {
-  if (view.kind !== "summary" && view.kind !== "capture")
-    return err(
-      analysisViewInputError([
-        {
-          path: ["view"],
-          reason: "invalid_value",
-          message:
-            "Historical captures support summary, capture record pages, and admitted api-surface views.",
-        },
-      ]),
-    );
+): Result<WebNetworkCapture, AnalysisError> => {
   const parsed = webNetworkCaptureSchema.safeParse(parent.normalizedResult);
   if (!parsed.success)
     return err(
@@ -150,6 +148,32 @@ export const projectWebNetworkCaptureView = (
         },
       ]),
     );
+  return ok(report);
+};
+
+/** Page immutable retained facts; no capture file, provider or network is consulted. */
+export const projectWebNetworkCaptureView = (
+  parent: AnalysisViewParent,
+  view: AnalysisViewRequest,
+): Result<UnsignedAnalysisView, AnalysisError> => {
+  if (
+    view.kind !== "summary" &&
+    view.kind !== "capture" &&
+    view.kind !== "qlog"
+  )
+    return err(
+      analysisViewInputError([
+        {
+          path: ["view"],
+          reason: "invalid_value",
+          message:
+            "Historical captures support summary, capture record pages, qlog fact pages and admitted api-surface views.",
+        },
+      ]),
+    );
+  const parsed = parseCaptureParent(parent);
+  if (!parsed.ok) return parsed;
+  const report = parsed.value;
   const shared = {
     parent_evidence_id: parent.evidenceId,
     parent_operation: "inspect_web_network_capture" as const,
@@ -159,7 +183,7 @@ export const projectWebNetworkCaptureView = (
       ...new Set([
         ...parent.limitations,
         ...report.limitations,
-        "Pages cover the records selected into the parent Evidence, in that selected order; total_records counts the original decoded capture.",
+        "Capture record pages cover the records selected into the parent Evidence, in that selected order; total_records counts the original decoded capture.",
       ]),
     ],
     unknowns: [
@@ -181,12 +205,40 @@ export const projectWebNetworkCaptureView = (
         total_records: report.total_records,
         retained_records: report.records.length,
         runtime_attribution: report.runtime_attribution,
+        ...(report.format === "qlog"
+          ? { qlog: summarizeQlogCapture(report.qlog) }
+          : {}),
       },
       coverage: completeWithinViewCoverage(
         report.records.length,
         report.records.length,
       ),
     });
+  if (view.kind === "qlog") {
+    if (report.format !== "qlog")
+      return err(
+        analysisViewInputError([
+          {
+            path: ["view", "kind"],
+            reason: "invalid_value",
+            message: "Qlog fact views require retained qlog Evidence.",
+          },
+        ]),
+      );
+    const projected = projectQlogCapturePage(report.qlog, view);
+    return projected.ok
+      ? ok({
+          kind: "qlog",
+          view,
+          ...shared,
+          ...projected.value,
+          limitations: [
+            ...shared.limitations,
+            "Qlog fact pages retain all-recorded-events-before-selection scope. Exhausting a page does not establish network completeness, body recovery, retransmission or actual loss.",
+          ],
+        })
+      : projected;
+  }
   const records = report.records.slice(view.offset, view.offset + view.limit);
   return ok({
     kind: "capture",

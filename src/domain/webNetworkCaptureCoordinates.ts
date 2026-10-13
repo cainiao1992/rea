@@ -53,8 +53,30 @@ export const excludeCaptureCoordinates = (
     numeric_literals: sidecars(value.container.numeric_literals),
     redactions: sidecars(value.container.redactions),
   };
+  const qlog =
+    value.format === "qlog"
+      ? {
+          ...value.qlog,
+          traces: value.qlog.traces.map((trace) => {
+            if (
+              trace.location.kind !== "json-pointer" ||
+              !sensitive(trace.location.pointer)
+            )
+              return trace;
+            excluded = true;
+            return {
+              ...trace,
+              location: {
+                kind: "unknown" as const,
+                reason: "explicit-sensitive-value" as const,
+              },
+            };
+          }),
+        }
+      : undefined;
   return {
     ...value,
+    ...(qlog === undefined ? {} : { qlog }),
     container,
     records,
     limitations: excluded

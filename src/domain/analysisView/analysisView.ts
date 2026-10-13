@@ -63,6 +63,11 @@ import {
 } from "./webNetworkCaptureView.js";
 import type { WebNetworkApiSurfaceAccumulator } from "./WebNetworkApiSurfaceAccumulator.js";
 import {
+  qlogViewRequestSchema,
+  qlogViewPageSchema,
+  qlogViewContextSchema,
+} from "./qlogCaptureView.js";
+import {
   projectAndroidPackageView,
   androidPackageSummarySchema,
   androidViewRequestSchema,
@@ -184,6 +189,7 @@ export const analysisViewRequestSchema = z.discriminatedUnion("kind", [
   androidViewRequestSchema,
   apiSurfaceViewSchema,
   captureViewRequestSchema,
+  qlogViewRequestSchema,
 ]);
 
 // The application owns admission and authenticated Evidence parsing. SDK and
@@ -404,6 +410,14 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     parent_operation: z.literal("inspect_web_network_capture"),
   }),
   z.strictObject({
+    kind: z.literal("qlog"),
+    view: qlogViewRequestSchema,
+    page: qlogViewPageSchema,
+    context: qlogViewContextSchema,
+    ...viewResultBase,
+    parent_operation: z.literal("inspect_web_network_capture"),
+  }),
+  z.strictObject({
     kind: z.literal("facet"),
     view: facetViewSchema,
     facet: jsonValueSchema,
@@ -523,6 +537,7 @@ export type UnsignedAnalysisView =
     >
   | Omit<Extract<AnalysisViewResult, { readonly kind: "wasm" }>, "view_digest">
   | Omit<Extract<AnalysisViewResult, { readonly kind: "evm" }>, "view_digest">
+  | Omit<Extract<AnalysisViewResult, { readonly kind: "qlog" }>, "view_digest">
   | Omit<
       Extract<AnalysisViewResult, { readonly kind: "capture" }>,
       "view_digest"

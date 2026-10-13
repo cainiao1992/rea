@@ -35,3 +35,11 @@ export const SAZ_CAPTURE_PROVIDER_IDENTITY = {
   name: "REA Fiddler SAZ capture adapter",
   version: "1;zip.js@2.15.0;xmldom@0.9.12",
 } as const;
+
+/** Fixed offline interpretation profile, not an authenticated producer claim. */
+export const QLOG_CAPTURE_PROVIDER_IDENTITY = {
+  id: "aioquic-qlog-json",
+  name: "REA aioquic qlog capture adapter",
+  version:
+    "aioquic-profile@1.5.0;qlog@0.3;jsonc-parser@3.3.1;lossless-json@4.3.1",
+} as const;

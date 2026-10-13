@@ -12,6 +12,7 @@ export const createWebNetworkCaptureService = (
       [
         new NodeCaptureAdapter("har"),
         new NodeCaptureAdapter("saz"),
+        new NodeCaptureAdapter("qlog"),
         new MitmproxyCaptureAdapter(environment),
       ],
       environment,

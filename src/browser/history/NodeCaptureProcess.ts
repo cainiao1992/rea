@@ -12,22 +12,25 @@ const requestSchema = z.strictObject({
 
 /** Parse untrusted captures in an owned heap and return one complete bounded reply. */
 const main = async (): Promise<void> => {
-  const format = z.enum(["har", "saz"]).parse(process.argv[3]);
+  const format = z.enum(["har", "saz", "qlog"]).parse(process.argv[3]);
   const request = requestSchema.parse(
     JSON.parse(await readFile(process.argv[2] ?? "", "utf8")),
   );
   let reply: unknown;
   try {
     let value;
-    if (format === "har") {
-      const { decodeHarCapture, decodeHarText } =
-        await import("./HarCapture.js");
+    if (format !== "saz") {
+      const { decodeCaptureText } = await import("./CaptureJson.js");
+      const decoder =
+        format === "har"
+          ? (await import("./HarCapture.js")).decodeHarCapture
+          : (await import("./QlogCapture.js")).decodeQlogCapture;
       const snapshot = await readStableArtifact(
         request.snapshot_path,
         WEB_NETWORK_CAPTURE_LIMITS.inputBytes,
       );
-      value = decodeHarCapture(
-        decodeHarText(snapshot.bytes),
+      value = decoder(
+        decodeCaptureText(snapshot.bytes, format === "har" ? "HAR" : "qlog"),
         request.sensitive_values,
       );
     } else {

@@ -8,8 +8,11 @@ vi.mock("./CaptureRelease.js", async (original) => ({
   NODE_CAPTURE_PROCESS_MEMORY_LIMIT_BYTES: null,
 }));
 
-it("refuses a SAZ worker when the runtime has no enforceable memory bound", async () => {
-  await expect(
-    new NodeCaptureAdapter("saz").command("/owned/request.json"),
-  ).rejects.toBeInstanceOf(AnalysisCapabilityUnavailableError);
-});
+it.each(["saz", "qlog"] as const)(
+  "refuses a %s worker when the runtime has no enforceable memory bound",
+  async (format) => {
+    await expect(
+      new NodeCaptureAdapter(format).command("/owned/request.json"),
+    ).rejects.toBeInstanceOf(AnalysisCapabilityUnavailableError);
+  },
+);

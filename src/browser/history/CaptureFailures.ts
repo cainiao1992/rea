@@ -86,7 +86,7 @@ export const historicalCaptureFailure = (
     )
       return captureMemoryFailure(
         input,
-        "The HAR decoder exhausted its fixed V8 heap",
+        `The ${input.format} decoder exhausted its fixed V8 heap`,
         cause,
       );
   }

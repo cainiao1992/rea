@@ -255,7 +255,7 @@ response fields, including HAR's `status: 0` and an empty `mimeType`, remain
 unknown, not invented statuses or MIME types.
 
 The view makes no handler-identity, schema or causality claim. It performs no
-network activity. Native mitmproxy and SAZ captures return a typed unsupported error.
+network activity. Native mitmproxy, SAZ and qlog captures return a typed unsupported error.
 Parents inspected with `sensitive_values`, or whose Evidence does not record
 `sensitive_value_count`, return a typed unsupported error whose reason is the
 canonical token `sensitive_values_unretained`. The view would write path
@@ -291,14 +291,15 @@ Complete evidence has a 32 MiB input, 96 MiB decoder reply and 64-level nesting
 budget. Exceeding a budget returns no partial success.
 Oversized selected captures return an input error identifying `capture_path`
 and the byte budget; owned reply/output failures remain output or provider errors.
-HAR and SAZ run in an owned
+HAR, SAZ and qlog run in an owned
 192 MiB Node old-generation heap with one V8 worker. Mitmproxy decoding applies
 Linux limits of 768 MiB address space, 30 seconds CPU and 96 MiB file output;
 both commands have a 30-second wall deadline and independently supervised
 process cleanup. Owned decoder diagnostics retain at most 1 MiB across stdout
 and stderr; the collector drops overflow as it arrives, reports the limit
 failure and verifies cleanup. Heap limits alone do not establish aggregate RSS limits.
-When REA runs on Bun, the HAR/SAZ decoder runs on Bun, which ignores these V8 heap
+SAZ and qlog refuse decoding when neither a Node heap limit nor a Windows Job Object bound can be enforced. Existing HAR availability is preserved.
+When REA runs on Bun, the HAR/SAZ/qlog decoder runs on Bun, which ignores these V8 heap
 flags; its limitations and resource failures then omit the heap sizes. On
 Windows, the decoder's owned Job Object instead limits its committed memory to
 704 MiB, the 192 MiB budget plus a 512 MiB reserve for Bun itself. The
@@ -306,7 +307,7 @@ limitations state that limit, and reaching it returns `resource_constraint`
 with `process_memory_limit_bytes`, whatever exit status Bun reports.
 
 Observed decoder memory exhaustion returns `resource_constraint`, with the
-selected capture, applicable limits and retained process diagnostics. HAR/SAZ's
+selected capture, applicable limits and retained process diagnostics. HAR/SAZ/qlog's
 old-generation heap is fixed; inherited `NODE_OPTIONS` cannot raise it.
 Record selection happens after complete decoding and does not reduce that
 workload. Use a smaller capture exported by its producer or another decoder
@@ -333,3 +334,108 @@ Command cleanup failures retain the original status and both diagnostic streams;
 the decoder's ownership preparation receives the same cancellation signal.
 
 MCP advertises the same strict named input contract used by the application. Historical inspection delegates argument validation to that shared application boundary so accepted explicit-sensitive declarations also cover invalid argument names and other correction details. The SDK receives raw arguments through its Standard Schema interface; malformed inputs still fail before decoder or filesystem effects and return the normal structured REA error. Protocol-envelope validation remains owned by MCP.
+
+## Retained aioquic qlog
+
+Select `format: "qlog"` through `inspect_web_network_capture`, or:
+
+```bash
+rea inspect-web-network-capture /absolute/origin.qlog qlog --json
+rea inspect-web-network-capture /absolute/origin.qlog qlog --record 95 --record 0 --json
+```
+
+The initial profile is **aioquic 1.5.0, JSON qlog 0.3**: one JSON object with
+`qlog_format: "JSON"`, `qlog_version: "0.3"`, `traces` containing object events
+with `name`, finite numeric `time` and object `data`. JSON-SEQ, JSONL, columnar
+array events and other versions are unsupported. Duplicate JSON members,
+malformed UTF-8, invalid interpreted QUIC integers and excessive nesting fail
+without partial success, including in events outside the selected ordinals.
+Well-formed event subsets and missing frame metadata remain inspectable.
+Unknown extensions are retained; this is not validation of every qlog schema.
+
+Choosing the format selects the interpretation profile; the file does not
+necessarily report or authenticate an aioquic version. The profile's clock
+uses Unix-epoch milliseconds, verified in aioquic 1.5.0's `QuicLoggerTrace`
+`log_event`/`encode_time`. The `qlog.clock.basis` and Evidence analysis profile
+state that assumption explicitly. Numeric lexemes survive independently of
+safe JSON-number projections; decimal spelling does not establish physical
+clock precision or monotonicity.
+
+Every event has a global ordinal from trace/event source traversal and its
+original `/traces/T/events/E` pointer. This order is not a global time sort.
+Trace index and the selected artifact identify a connection observation;
+reported ODCID is preserved without claiming global uniqueness. Streams are
+scoped by trace, stream ID and sent/received direction. Control/QPACK streams
+are retained, so counting streams does not count HTTP requests.
+
+`qlog` is a typed facet required exactly for this format. Its scope is
+`all-recorded-events-before-selection`: selection changes returned event
+records while facts cite the original ordinals across the entire recorded
+file. The container retains trace metadata with each events array replaced
+by null; there is no single events pointer shared by all traces.
+
+| Fact                                | Basis and limits                                                                                                                                                                                                                                                              |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Original event and loss declaration | Observed endpoint report; `recovery:packet_lost` does not prove actual network loss. Missing packet number/type remains unknown.                                                                                                                                              |
+| STREAM ranges and byte totals       | Derived per trace and direction from reported offsets and lengths using exact integer arithmetic. `unique_bytes` unions intervals; `frame_length_sum` includes overlaps; `repeated_bytes` is their difference. Overlap alone does not prove retransmission or equal contents. |
+| FIN final sizes                     | Reported offset plus length where FIN is true; multiple conflicting sizes remain visible. A final size does not establish complete coverage or a received body.                                                                                                               |
+| Incomplete fact records             | Ordinals with omitted/redacted interpretable frame metadata; usable fields in other records survive. An empty list does not establish complete logging or capture.                                                                                                            |
+| HTTP bodies and causality           | `body_bytes: "not-reported"`; lengths and headers are metadata, with no reconstructed body, hash, timing causality or live process attribution.                                                                                                                               |
+
+QUIC integer fields interpreted here accept exact nonnegative JSON integer
+values through `2^62 - 1`, including equivalent exponent notation. Offsets plus
+lengths must fit that range. Derived sums are decimal strings and are not
+rounded to JavaScript numbers. A missing offset is unknown, never defaulted to
+zero. Ranges can start above zero or contain gaps. Packet headers, HTTP events,
+raw lengths and unknown extensions remain producer evidence rather than being
+normalized into invented HAR requests.
+
+The adapter excludes authorization/proxy authorization/cookie/set-cookie
+values in known HTTP frame events, reset tokens in transport parameters and
+NEW_CONNECTION_ID frames, and NEW_TOKEN frame tokens. Known URL header userinfo
+and explicit sensitive values follow the shared exclusions. Ordinary extension
+fields and token-looking query text remain retained. Explicit declarations also
+cover normalized numeric projections, derived totals and trace pointers; facts
+that cannot be safely shown are omitted with incomplete-record coordinates.
+No keylog, PCAP, live URL or recorded target is opened by the qlog decoder.
+
+To repeat the real-provider lane with **local caller-supplied evidence** from
+the educational aioquic 1.5.0 experiment (one origin trace, known 32,803-byte
+stream coverage and one 1,169-byte repeated range in the loss case):
+
+```bash
+npm run verify:web:qlog -- /absolute/control/origin.qlog /absolute/loss/origin.qlog /absolute/new-report.json
+```
+
+This lane checks built CLI/stdio MCP parity, SDK-converted JSON Schemas,
+artifact digests, original event count, selection scope, retained parent lookup,
+credential exclusions and the known control/loss facts. The report is created
+exclusively and contains no keys or captured credential values. It is a
+fixture-specific verification, not a general loss detector. CI uses synthetic
+format inputs for malformed cases and limits; those tests do not establish
+producer provenance. PCAP parsing and correlation remain outside this stage.
+
+### Focused qlog views
+
+Use MCP `inspect_web_network_capture` with `format: "qlog", detail: "summary"`
+for identity, profile, scope and retained-fact counts. Then pass its
+`normalized_result.parent_evidence_id` to `inspect_analysis_view` as a
+`retained-evidence` source.
+
+```json
+{"kind":"qlog","facet":"traces","offset":0,"limit":10}
+{"kind":"qlog","facet":"streams","trace_index":0,"offset":0,"limit":10}
+{"kind":"qlog","facet":"contributions","trace_index":0,"stream_id":"0","direction":"sent","offset":0,"limit":20}
+```
+
+Trace pages omit nested lists and give their counts. Stream pages preserve
+exact byte totals but omit contributions, ranges and final-size lists. For
+those lists select `contributions`, `ranges` or `final-sizes` with all three
+stream selectors. `loss-declarations` and `incomplete-records` need only
+`trace_index`. Offsets count rows in that retained facet; defaults are 0 and 64. Missing or ambiguous selectors fail rather than choosing a connection.
+
+These views page already interpreted facts without decoding again or opening
+the source, and work after its deletion. Facts still cover all recorded events
+before parent record selection. Their exhaustion does not prove logging or
+network completeness. Event preview/complete pages remain available through
+kind `capture`, with original numeric lexemes and producer ordinals preserved.

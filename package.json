@@ -278,7 +278,8 @@
     "artifacts:error-schema": "node scripts/generate-error-schema.mjs",
     "test:prepare": "node scripts/check-dependency-install.mjs && node scripts/run-exclusive.mjs artifacts turbo run artifacts:mcp-catalog artifacts:product-catalog artifacts:managed-evidence",
     "evidence:check:built": "node scripts/generate-completion-ledger.mjs --check",
-    "docs:prepare": "node scripts/generate-package-metadata.mjs && turbo run artifacts:product-catalog artifacts:managed-evidence artifacts:error-schema"
+    "docs:prepare": "node scripts/generate-package-metadata.mjs && turbo run artifacts:product-catalog artifacts:managed-evidence artifacts:error-schema",
+    "verify:web:qlog": "npm run build:cached && node scripts/verify-qlog-captures.mjs"
   },
   "lint-staged": {
     "*.{cjs,cts,js,jsx,mjs,mts,ts,tsx}": [

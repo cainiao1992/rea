@@ -65,11 +65,16 @@ explicit path or endpoint and do not need it.
   [Fiddler workflow](references/runtime-observation.md#fiddler-everywhere-traffic-debugging).
   Inspect saved SAZ with `inspect_web_network_capture` and `format: "saz"`;
   connect Everywhere's separate MCP server for live traffic.
-- Retained HAR/SAZ/native mitmproxy capture: `inspect_web_network_capture`. Select
+- Retained HAR/SAZ/native mitmproxy/aioquic qlog capture: `inspect_web_network_capture`. Select
   original record ordinals when useful; inspect producer fields and byte/number
   sidecars without fetching recorded URLs or claiming live attribution. See
   [historical captures](https://github.com/morluto/rea/blob/main/docs/web-network-captures.md) for the exact upstream
-  profile and credential exclusions.
+  profile and credential exclusions. Qlog support starts with aioquic 1.5.0
+  JSON 0.3; stream coverage and endpoint loss declarations do not recover bodies
+  or establish network loss. Prefer detail summary, then kind qlog trace/stream
+  pages; select one trace, stream ID and direction for contribution/range pages.
+  Facts retain all-recorded-events-before-selection scope. Other qlog layouts
+  and PCAP correlation are unsupported.
 - User-owned Electron runtime already open: `list_electron_targets`.
 - Recorded packet captures: `inspect_packet_capture` with selected TShark fields,
   display filters and decode-as rules. Requires Linux, util-linux prlimit and `REA_TSHARK_COMMAND`; see

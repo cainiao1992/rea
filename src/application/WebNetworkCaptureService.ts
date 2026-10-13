@@ -10,6 +10,7 @@ import {
   AnalysisInputError,
   AnalysisOutputError,
 } from "../domain/analysisErrorCore.js";
+import { createAnalysisProfile } from "../domain/analysisProfile.js";
 import { createEvidence, type Evidence } from "../domain/evidence.js";
 import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
 import { jsonObjectSchema } from "../domain/jsonValue.js";
@@ -175,6 +176,15 @@ export class WebNetworkCaptureService {
                 ? [...limitations, subjectUnavailableReason]
                 : limitations,
           },
+          ...(safeValue.format !== "qlog"
+            ? {}
+            : {
+                analysisProfile: createAnalysisProfile(value.decoder, {
+                  qlog_profile: safeValue.qlog.profile,
+                  clock: safeValue.qlog.clock,
+                  scope: safeValue.qlog.scope,
+                }),
+              }),
           confidence: "observed",
           authority: "historical-reference",
           limitations,

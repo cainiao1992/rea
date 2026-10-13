@@ -37,6 +37,11 @@ raw MCP replies from observed client execution/discovery and usage. Optional
 trial capture retains tool/usage items while excluding account and ambient state;
 existing ephemeral trials keep their default behavior.
 
+Follow-up: [Android package delivery and retained manifest](android-package-summary.md)
+records real NewPipe SDK pairs, unchanged old requests/Evidence, exact retained
+text, and actual Codex outcomes including client errors and a failed discovery.
+Reply bytes fall; model-token/time gains are not established.
+
 Follow-up: [resource counters at payload completion](resource-counters.md) adds
 optional owned counter observations while preserving unknown whole-scope final
 counters, default receipt shape and the unchanged CPU/memory safeguards.

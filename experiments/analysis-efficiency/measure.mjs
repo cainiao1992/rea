@@ -666,7 +666,40 @@ const workflows = {
     }
   },
   "newpipe.apk": async () => {
-    const pkg = await call("inspect_android_package", { path: values.path });
+    const packageInput = {
+      path: values.path,
+      ...(values.delivery === "summary" ? { detail: "summary" } : {}),
+    };
+    const definition = catalogDefinitions.get("inspect_android_package");
+    if (
+      definition === undefined ||
+      !new Ajv2020({ strict: false, validateFormats: false }).validate(
+        definition.inputSchema,
+        packageInput,
+      )
+    )
+      throw new Error(
+        "Selected Android delivery is not advertised by this runtime",
+      );
+    const pkg = await call("inspect_android_package", packageInput);
+    const result = normalized(pkg);
+    const report = values.delivery === "summary" ? result.summary : result;
+    if (
+      values.delivery === "summary" &&
+      (result.kind !== "summary" ||
+        result.parent_operation !== "inspect_android_package")
+    )
+      throw new Error("Runtime returned no retained Android package summary");
+    const { manifest, ...declarations } = report;
+    const manifestObservation =
+      values.delivery === "summary"
+        ? manifest
+        : {
+            status: manifest.status,
+            reported_total_bytes: manifest.reported_total_bytes,
+            text_code_units: manifest.text.length,
+            text_included: false,
+          };
     const found = await call("search_android_classes", {
       path: values.path,
       query: "MainActivity",
@@ -677,9 +710,12 @@ const workflows = {
     });
     return {
       artifact_sha256: targetSha(pkg),
-      package_name: normalized(pkg).package_name,
-      version_name: normalized(pkg).version_name,
-      version_code: normalized(pkg).version_code,
+      package_name: report.package_name,
+      version_name: report.version_name,
+      version_code: report.version_code,
+      package_declarations: declarations,
+      manifest_observation: manifestObservation,
+      package_limitations: pkg.limitations,
       matches: normalized(found).matches,
       coverage: normalized(found).coverage,
       onCreate: normalized(cls).methods.filter(

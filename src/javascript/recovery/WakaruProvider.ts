@@ -9,7 +9,11 @@ import type {
 import { SafeOutputTree } from "../../artifacts/SafeOutputTree.js";
 import { SafeOutputTreeCreationFailure } from "../../artifacts/SafeOutputTreeCreationFailure.js";
 import { AnalysisError } from "../../domain/analysisErrorBase.js";
-import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
+import {
+  AnalysisCancelledError,
+  AnalysisOutputError,
+} from "../../domain/analysisErrorCore.js";
+import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import {
   javascriptRecoveryResultSchema,
   type JavaScriptRecoveryInput,
@@ -144,7 +148,11 @@ export class WakaruProvider implements JavaScriptRecoveryPort {
       failed = { cause };
     }
     if (failed !== undefined) {
-      const failure = failed.cause;
+      const failure =
+        failed.cause instanceof ArtifactReaderFailure &&
+        failed.cause.reason === "cancelled"
+          ? new AnalysisCancelledError(OPERATION, { cause: failed.cause })
+          : failed.cause;
       const residuals: string[] = [];
       const cleanupFailures: { resource: string; reason: string }[] = [];
       const cleanupOwner =

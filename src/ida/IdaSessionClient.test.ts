@@ -1077,6 +1077,7 @@ describe("headless IDA cleanup diagnostics", () => {
           backend: "worker",
           owned: false,
           input_path: producer.inputPath,
+          is_active: false,
         },
       ),
     );
@@ -1367,6 +1368,62 @@ describe("headless IDA cleanup verification", () => {
     expect(await readdir(root)).toEqual(["target.elf"]);
   });
 });
+
+it("retains a conflicting requested session ID during pre-close recovery", async () => {
+  const { producer, client, root } = await fixture("headless");
+  producer.overrideCall = (name) =>
+    name === "idb_list"
+      ? {
+          sessions: [
+            {
+              session_id: String(producer.database),
+              input_path: "/conflicting/input",
+              owned: true,
+              backend: "worker",
+              is_active: false,
+            },
+          ],
+        }
+      : undefined;
+  expect((await client.execute("health", {})).ok).toBe(false);
+  const requested = String(producer.database);
+  const result = await client.close();
+  expect(result).toMatchObject(
+    reportsSessions({
+      session_id: requested,
+      input_path: "/conflicting/input",
+      owned: true,
+      backend: "worker",
+      is_active: false,
+    }),
+  );
+  expect(producer.calls.some(({ name }) => name === "idb_close")).toBe(false);
+  expect(
+    (await readdir(root)).some((name) => name.startsWith("rea-ida-")),
+  ).toBe(true);
+});
+
+it.each(["unavailable", "malformed"] as const)(
+  "does not invent a worker after explicit rejection and %s inventory",
+  async (kind) => {
+    const { producer, client } = await fixture("headless");
+    producer.overrideCall = (name) =>
+      name === "idb_open"
+        ? { error: "rejected before worker creation" }
+        : name === "idb_list" && kind === "malformed"
+          ? {}
+          : undefined;
+    expect((await client.execute("health", {})).ok).toBe(false);
+    producer.beforeCall = async (name) => {
+      if (name === "idb_list" && kind === "unavailable")
+        throw new Error("inventory unavailable");
+    };
+    const result = await client.close();
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected retained cleanup");
+    expect(result.error).not.toHaveProperty("diagnostics.upstream_sessions");
+  },
+);
 
 it.each(["idb_close", "idb_list", "connection_close"])(
   "preserves transport stderr through cleanup at %s",

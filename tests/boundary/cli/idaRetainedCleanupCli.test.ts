@@ -79,6 +79,7 @@ describe("headless IDA timeout through the one-shot CLI", () => {
                       backend: "worker",
                       owned: null,
                       input_path: null,
+                      is_active: null,
                     },
                   ],
                 },

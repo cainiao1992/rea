@@ -272,7 +272,8 @@ export class HopperProvider implements AnalysisProviderCandidate {
         rawResult,
         ...(profile === undefined ? {} : { analysisProfile: profile }),
         ...(operation === "procedure_callers" ||
-        operation === "procedure_callees"
+        operation === "procedure_callees" ||
+        operation === "analyze_function"
           ? { relationshipCoverage: { status: "complete" as const } }
           : {}),
         limitations: [

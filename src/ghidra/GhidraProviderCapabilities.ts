@@ -51,7 +51,9 @@ const resolvedCallReferenceLimitation =
 export const relationshipCoverageFor = (
   operation: string,
 ): RelationshipCoverage | undefined =>
-  operation === "procedure_callers" || operation === "procedure_callees"
+  operation === "procedure_callers" ||
+  operation === "procedure_callees" ||
+  operation === "analyze_function"
     ? {
         status: "complete",
         diagnostics: [resolvedCallReferenceLimitation],

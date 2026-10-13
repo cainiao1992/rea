@@ -1490,9 +1490,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
         InstructionScan scan = scanInstructions(function, Integer.MAX_VALUE);
         DecompileResults decompilation = decompile(function);
         String pseudocode = decompiledText(decompilation);
-        if (pseudocode == null) {
-            pseudocode = "";
-        }
         List<Reference> incomingReferences = collectReferences(function, "incoming")
             .stream()
             .filter(reference -> !function.getBody().contains(reference.getFromAddress()))
@@ -1514,7 +1511,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         procedure.add("locals", functionLocals(function));
         JsonObject result = new JsonObject();
         result.add("procedure", procedure);
-        result.addProperty("pseudocode", pseudocode);
+        result.addProperty("pseudocode", pseudocode == null ? "" : pseudocode);
         result.add("assembly", assembly);
         result.add("comments", comments);
         result.add("callers", callers);
@@ -1523,6 +1520,20 @@ public final class ReaGhidraBridge extends HeadlessScript {
         result.add("outgoing_references", outgoing);
         result.add("referenced_strings", referencedStrings);
         result.add("referenced_names", referencedNames);
+        JsonObject facets = new JsonObject();
+        JsonObject pseudocodeAvailability = new JsonObject();
+        pseudocodeAvailability.addProperty("available", pseudocode != null);
+        if (pseudocode == null) {
+            pseudocodeAvailability.addProperty("reason", "Ghidra did not supply pseudocode.");
+        }
+        facets.add("pseudocode", pseudocodeAvailability);
+        for (String facet : List.of("assembly", "comments", "callers", "callees",
+                "references", "strings_names", "cfg")) {
+            JsonObject available = new JsonObject();
+            available.addProperty("available", true);
+            facets.add(facet, available);
+        }
+        result.add("facet_availability", facets);
         boolean swift = swiftProgram();
         boolean aarch64 = currentProgram.getLanguageID().getIdAsString().startsWith("AARCH64:");
         SwiftStringLiteralDecode swiftLiterals = swift && aarch64 ? swiftStringLiterals(function) : null;

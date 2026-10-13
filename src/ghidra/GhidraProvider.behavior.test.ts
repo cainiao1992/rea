@@ -628,6 +628,7 @@ describe("Ghidra client projection", () => {
       language_id: "auto-from-header",
       compiler_spec_id: "auto-default",
       call_relationship_coverage: "resolved-call-reference-diagnostics-v1",
+      function_dossier_coverage: "observed-facets-and-call-relationships-v1",
     });
 
     const result = await ghidra

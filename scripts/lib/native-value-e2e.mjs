@@ -235,7 +235,11 @@ async function verifyNativeValueAdapters(
     );
     assert.notEqual(comparison.isError, true, JSON.stringify(comparison));
     const comparisonEvidence = parseEvidence(comparison.structuredContent);
-    assert.equal(comparisonEvidence.normalized_result.status, "unchanged");
+    assert.equal(
+      comparisonEvidence.normalized_result.status,
+      "unchanged",
+      JSON.stringify(comparisonEvidence.normalized_result.dimensions),
+    );
     assert.deepEqual(
       comparisonEvidence.normalized_result,
       comparison.structuredContent?.normalized_result,

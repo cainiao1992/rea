@@ -246,10 +246,7 @@ const resultBuilders = new Map<GhidraOperation, GhidraResultBuilder>([
     }),
   ],
   ["xrefs", () => ["0x401001"]],
-  [
-    "analyze_function",
-    (input) => ghidraFunctionDossier(input.include_assembly === true),
-  ],
+  ["analyze_function", () => ghidraFunctionDossier()],
 ]);
 
 const resultFor = (

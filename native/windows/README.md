@@ -85,6 +85,17 @@ Windows failures retain their constraint, requested coordinate, Win32 code,
 and system message. Unsupported filesystems and reparse paths are distinct
 from OS access denial and missing packaged controls.
 
+A failed runtime-parent admission additionally reports
+`runtimeAllocation: "not-started"`: no runtime directory was created. The
+Windows adapter uses that fact with numeric sharing/lock codes 32/33 to retain
+a retryable private-runtime failure, including after successful native
+authority caching. Missing allocation evidence, other codes, and opaque error
+text do not establish a safe retry. Analysis errors propagate the producer's
+retry disposition through JavaScript, source-map and WABT workflows; transient
+failures report `category: unavailable` and retain the original reason.
+Incomplete cleanup blocks an operation retry until its owned resources settle.
+REA adds no automatic retry loop or new analysis cache for this behavior.
+
 Ordinary drive-absolute paths accept backslashes, forward slashes, or mixed
 separators. File identity retains the original requested spelling. Separator
 translation does not resolve dot components, repeated separators, or extend

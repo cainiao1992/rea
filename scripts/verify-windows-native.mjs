@@ -11,6 +11,7 @@ import {
   mkdtemp,
   readFile,
   rename,
+  readdir,
   rm,
   symlink,
   writeFile,
@@ -36,6 +37,14 @@ const { WindowsPrivateRuntime, windowsPrivateRuntime } = await import(
 );
 const { ghidraSessionRoot } = await import(
   pathToFileURL(join(packageRoot, "dist/ghidra/GhidraSessionRoot.js"))
+);
+const { PrivateRuntimeRoot } = await import(
+  pathToFileURL(join(packageRoot, "dist/process/PrivateRuntimeRoot.js"))
+);
+const { PrivateRuntimeRootUnavailableError } = await import(
+  pathToFileURL(
+    join(packageRoot, "dist/process/PrivateRuntimeRootUnavailableError.js"),
+  )
 );
 const workspace = await mkdtemp(join(tmpdir(), "rea-native-conformance-"));
 const environment = Object.entries(process.env)
@@ -140,6 +149,30 @@ process.stdout.write(JSON.stringify({executable:basename(process.execPath),abiVe
   ])
     assert.throws(() => native.call("open", [rejected]));
   report.controls.ordinaryDriveSeparatorsAndRequestedIdentity = true;
+  // An owned runtime's DELETE lease conflicts with a fresh parent admission.
+  // This produces a genuine sharing failure after successful authority caching,
+  // without another executable, and proves that no child runtime was created.
+  const sharingParent = WindowsPrivateRuntime.create(
+    workspace,
+    "rea-sharing-parent-",
+  );
+  try {
+    await assert.rejects(
+      PrivateRuntimeRoot.create({ parent: sharingParent.observation.path }),
+      (failure) => {
+        assert.ok(failure instanceof PrivateRuntimeRootUnavailableError);
+        assert.equal(failure.retryable, true);
+        assert.ok(failure.cause instanceof Error);
+        assert.equal(failure.cause.win32Code, 32);
+        assert.equal(failure.cause.runtimeAllocation, "not-started");
+        return true;
+      },
+    );
+    assert.deepEqual(await readdir(sharingParent.observation.path), []);
+    report.controls.transientRuntimeAdmissionBeforeAllocation = true;
+  } finally {
+    await sharingParent.close();
+  }
   const driveRoot = parse(workspace).root;
   const runtimeParent = ghidraSessionRoot({
     base: join(driveRoot, ".Tmp", "scratch"),

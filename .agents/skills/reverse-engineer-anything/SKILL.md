@@ -76,6 +76,9 @@ explicit path or endpoint and do not need it.
   Facts retain all-recorded-events-before-selection scope. Other qlog layouts
   and PCAP correlation are unsupported.
 - User-owned Electron runtime already open: `list_electron_targets`.
+- Packet-field discovery: `inspect_packet_fields` searches installed protocols
+  and field names/types before choosing fields for `inspect_packet_capture`.
+  Query/page the relevant records; registrations do not establish observed traffic.
 - Recorded packet captures: `inspect_packet_capture` with selected TShark fields,
   display filters and decode-as rules. Requires Linux, util-linux prlimit and `REA_TSHARK_COMMAND`; see
   [capture guide](https://github.com/morluto/rea/blob/main/docs/packet-captures.md).

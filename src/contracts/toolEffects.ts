@@ -59,6 +59,11 @@ export const TOOL_EFFECTS: Readonly<Record<string, ToolEffects>> = {
     writesFilesystem: true,
     launchesProcess: true,
   }),
+  inspect_packet_fields: effects({
+    mutatesSession: true,
+    launchesProcess: true,
+    writesFilesystem: true,
+  }),
   inspect_packet_capture: effects({
     mutatesSession: true,
     launchesProcess: true,

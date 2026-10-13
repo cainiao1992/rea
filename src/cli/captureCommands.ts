@@ -1,3 +1,4 @@
+import { inspectPacketFieldsInputSchema } from "../domain/captures/packetFields.js";
 import { z } from "incur";
 import type { PacketCaptureService } from "../application/captures/PacketCaptureService.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
@@ -22,9 +23,73 @@ export const registerCaptureCommands = (
   environment: Readonly<NodeJS.ProcessEnv>,
   service: Pick<
     PacketCaptureService,
-    "inspect" | "close"
+    "inspect" | "inspectFields" | "close"
   > = createPacketCaptureService(environment),
 ): void => {
+  const finish = async (
+    result: Awaited<ReturnType<PacketCaptureService["inspect"]>>,
+    operation: string,
+  ) => {
+    // A one-shot command must retry retained cleanup before discarding its owner.
+    try {
+      await service.close();
+    } catch (cause) {
+      const cleanup =
+        cause instanceof AnalysisError
+          ? cause
+          : new ProviderCleanupError(
+              "tshark-capture",
+              [],
+              { reason: String(cause) },
+              { cause, operation: operation },
+            );
+      if (result.ok) cleanup.retainPartialObservation(result.value);
+      return projectAnalysisError(
+        result.ok
+          ? cleanup
+          : analysisErrorWithCleanupFailure(result.error, cleanup, operation),
+      );
+    }
+    return result.ok ? result.value : projectAnalysisError(result.error);
+  };
+  cli.command(CLI_COMMANDS.inspectPacketFields, {
+    description: "Search installed TShark protocol and field definitions",
+    options: z
+      .object({
+        ...inspectPacketFieldsInputSchema.shape,
+        limit: z
+          .number()
+          .int()
+          .positive()
+          .max(Number.MAX_SAFE_INTEGER)
+          .optional()
+          .describe("Maximum matching records to return; defaults to 50"),
+        all: z
+          .boolean()
+          .default(false)
+          .describe("Return all remaining matches within resource limits"),
+      })
+      .superRefine((options, context) => {
+        if (options.all && options.limit !== undefined)
+          context.addIssue({
+            code: "custom",
+            path: ["all"],
+            message: "all and limit are mutually exclusive",
+          });
+      }),
+    run: ({ options: { all, ...options } }) =>
+      withCommandCancellation((signal) =>
+        logCliCommand(logger, CLI_COMMANDS.inspectPacketFields, async () =>
+          finish(
+            await service.inspectFields(
+              { ...options, ...(all ? { limit: null } : {}) },
+              { signal },
+            ),
+            "inspect_packet_fields",
+          ),
+        ),
+      ),
+  });
   cli.command(CLI_COMMANDS.inspectPacketCapture, {
     description:
       "Inspect an existing packet capture with caller-supplied TShark",
@@ -68,31 +133,7 @@ export const registerCaptureCommands = (
             },
             { signal },
           );
-          // A one-shot command must retry retained cleanup before discarding its owner.
-          try {
-            await service.close();
-          } catch (cause) {
-            const cleanup =
-              cause instanceof AnalysisError
-                ? cause
-                : new ProviderCleanupError(
-                    "tshark-capture",
-                    [],
-                    { reason: String(cause) },
-                    { cause, operation: "inspect_packet_capture" },
-                  );
-            if (result.ok) cleanup.retainPartialObservation(result.value);
-            return projectAnalysisError(
-              result.ok
-                ? cleanup
-                : analysisErrorWithCleanupFailure(
-                    result.error,
-                    cleanup,
-                    "inspect_packet_capture",
-                  ),
-            );
-          }
-          return result.ok ? result.value : projectAnalysisError(result.error);
+          return finish(result, "inspect_packet_capture");
         }),
       ),
   });

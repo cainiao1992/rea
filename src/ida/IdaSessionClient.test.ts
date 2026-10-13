@@ -1459,7 +1459,7 @@ it.each(["idb_close", "idb_list", "connection_close"])(
       });
       expect(result.error.cleanupIncomplete).toBe(true);
     } finally {
-      producer.beforeCall = undefined;
+      delete producer.beforeCall;
       producer.close = originalClose;
       await client.close();
     }

@@ -795,7 +795,7 @@ it("rejects unsupported parent operations and incompatible collections", () => {
 
 it("preserves selected native facet unavailability instead of an exhausted empty page", () => {
   const parent = nativeParent({
-    ...ghidraFunctionDossier(),
+    ...functionDossierSchema.parse(ghidraFunctionDossier()),
     facet_availability: {
       comments: { available: false, reason: "Typed comments unavailable" },
       references: { available: false, reason: "Typed references unavailable" },

@@ -128,6 +128,49 @@ const observe = (
     },
   );
 
+const rejectsMalformedFacetAvailability = (): void => {
+  expect(
+    functionDossierSchema.safeParse({
+      ...dossier("return 0;", "0x1000"),
+      facet_availability: { cfg: { available: false, reason: "" } },
+    }).success,
+  ).toBe(false);
+  expect(
+    functionDossierSchema.safeParse({
+      ...dossier("return 0;", "0x1000"),
+      facet_availability: { cfg: undefined },
+    }).success,
+  ).toBe(false);
+};
+
+const keepsGeneratedNamesAmbiguous = (): void => {
+  const named = (base: "0x1000" | "0x2000", name: string) =>
+    functionDossierSchema.parse({
+      ...dossier("return 0;", base),
+      procedure: {
+        ...procedure(base, name),
+        signature: "int helper(void)",
+        locals: [],
+      },
+    });
+  const generated = compareFunctions(
+    observe("1", named("0x1000", "sub_1000")),
+    observe("2", named("0x2000", "sub_2000")),
+  );
+  expect(generated.function_match.status).toBe("ambiguous");
+  expect(generated.status).toBe("unknown");
+  expect(
+    generated.dimensions.find(({ dimension }) => dimension === "identity"),
+  ).toMatchObject({ status: "unknown" });
+
+  const stable = compareFunctions(
+    observe("3", named("0x1000", "firstFunction")),
+    observe("4", named("0x2000", "secondFunction")),
+  );
+  expect(stable.function_match.status).toBe("mismatched");
+  expect(stable.status).toBe("changed");
+};
+
 describe("function comparison normalized identity", () => {
   it("retains unresolved call details alongside missing facet coverage", () => {
     const value: Record<string, unknown> = {
@@ -187,47 +230,14 @@ describe("function comparison normalized identity", () => {
       ),
     ).toMatchObject({ status: "unknown", left_count: null, right_count: null });
   });
-  it("rejects malformed facet availability instead of treating it as absence", () => {
-    expect(
-      functionDossierSchema.safeParse({
-        ...dossier("return 0;", "0x1000"),
-        facet_availability: { cfg: { available: false, reason: "" } },
-      }).success,
-    ).toBe(false);
-    expect(
-      functionDossierSchema.safeParse({
-        ...dossier("return 0;", "0x1000"),
-        facet_availability: { cfg: undefined },
-      }).success,
-    ).toBe(false);
-  });
-  it("keeps differing generated names ambiguous and stable names mismatched", () => {
-    const named = (base: "0x1000" | "0x2000", name: string) =>
-      functionDossierSchema.parse({
-        ...dossier("return 0;", base),
-        procedure: {
-          ...procedure(base, name),
-          signature: "int helper(void)",
-          locals: [],
-        },
-      });
-    const generated = compareFunctions(
-      observe("1", named("0x1000", "sub_1000")),
-      observe("2", named("0x2000", "sub_2000")),
-    );
-    expect(generated.function_match.status).toBe("ambiguous");
-    expect(generated.status).toBe("unknown");
-    expect(
-      generated.dimensions.find(({ dimension }) => dimension === "identity"),
-    ).toMatchObject({ status: "unknown" });
-
-    const stable = compareFunctions(
-      observe("3", named("0x1000", "firstFunction")),
-      observe("4", named("0x2000", "secondFunction")),
-    );
-    expect(stable.function_match.status).toBe("mismatched");
-    expect(stable.status).toBe("changed");
-  });
+  it(
+    "rejects malformed facet availability instead of treating it as absence",
+    rejectsMalformedFacetAvailability,
+  );
+  it(
+    "keeps differing generated names ambiguous and stable names mismatched",
+    keepsGeneratedNamesAmbiguous,
+  );
 
   it.each(["sub_deallocate", "sub_deadbeef_handler", "fcn.dispatch"])(
     "recognizes the explicit symbol %s without a generated-name prefix false positive",

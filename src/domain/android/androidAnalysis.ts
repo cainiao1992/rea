@@ -188,7 +188,7 @@ export const androidResultSchemas = {
         source_line: z.null(),
         dex_offset: z.null(),
         /** false means transport-bounded instruction evidence; null/omitted is unknown. */
-        direct_invokes_exhaustive: z.boolean().nullable().optional(),
+        direct_invokes_exhaustive: z.boolean().nullable().default(null),
         /** Raw direct invoke instructions inside this using node, when available. */
         direct_invokes: z
           .array(

@@ -83,6 +83,14 @@ names, the native API record, and value-flow summaries. Pseudocode offsets and l
 code units; use the returned `next_offset` for continuation. Provider limitations
 and unavailable facts remain explicit; the complete parent Evidence is retained.
 
+`inspect_macho` on a large framework returns megabytes of imports and exports.
+Select `detail: "summary"` for slice identity, UUID and per-collection counts,
+then page rows with `view: {kind: "macho", facet: "exports", offset: 0, limit: 64}`
+and `normalized_result.parent_evidence_id`. Facets are entrypoints,
+architectures, build_metadata, load_commands, dependencies, imports, exports,
+segments and provenance. `source_exhaustive: false` means unreturned symbols
+may exist.
+
 To see which functions or Objective-C methods a Mach-O actually calls in one
 run, use `observe_native_calls` with explicit breakpoints and a bounded
 `duration_ms`/`max_events`. It launches a new process under LLDB, so the target

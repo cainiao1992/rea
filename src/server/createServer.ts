@@ -54,6 +54,7 @@ import { silentLogger } from "../logger.js";
 import type { Logger } from "pino";
 import { registerApplicationTools } from "./registerApplicationTools.js";
 import { registerArtifactTools } from "./registerArtifactTools.js";
+import { registerNativeTools } from "./registerNativeTools.js";
 import { registerBrowserScenarioTool } from "./registerBrowserScenarioTool.js";
 import { registerBrowserTools } from "./registerBrowserTools.js";
 import { registerWebScriptTool } from "./registerWebScriptTool.js";
@@ -107,8 +108,6 @@ import type { AdbDeviceAnalysisPort } from "../application/adb/AdbDeviceAnalysis
 import { AdbDeviceAnalysisService } from "../application/adb/AdbDeviceAnalysisService.js";
 import { createAdbDeviceAnalysisProvider } from "../composition/adb.js";
 import { registerManagedWorkflowTools } from "./registerManagedWorkflowTools.js";
-import { NATIVE_TOOL_CONTRACTS } from "../contracts/native/nativeToolContracts.js";
-import { registerEvidenceTools } from "./registerEvidenceTools.js";
 import { registerOfficialTools } from "./registerOfficialTools.js";
 import { registerGuidedPrompts } from "./registerPrompts.js";
 import { registerSessionTools } from "./registerSessionTools.js";
@@ -725,7 +724,7 @@ const registerBinaryAnalysisTools = ({
     recordEvidence,
     withAdmittedAnalysis,
   };
-  registerEvidenceTools(server, NATIVE_TOOL_CONTRACTS, evidenceOptions);
+  registerNativeTools(server, { ...evidenceOptions, evidenceById });
   registerArtifactTools(server, { ...evidenceOptions, evidenceById });
   registerManagedTools(server, { ...evidenceOptions, evidenceById });
   if (session !== undefined)

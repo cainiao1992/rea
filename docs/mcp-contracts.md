@@ -147,8 +147,8 @@ after target content was read.
 
 ## Retained application Evidence inputs
 
-`analyze_javascript_application`, `inspect_binary_layout`, `inspect_artifact`, and
-`inspect_wasm_artifact` accept `detail`:
+`analyze_javascript_application`, `inspect_binary_layout`, `inspect_artifact`,
+`inspect_wasm_artifact`, and `inspect_macho` accept `detail`:
 `complete` (default) returns the complete analysis Evidence; `summary` records
 that complete Evidence in the session and returns the derived
 `inspect_analysis_view` summary Evidence instead. Its
@@ -217,6 +217,19 @@ For counts, validation and WAT identity, select `detail: "summary"` on the first
 attempting oversized delivery, and returns the same summary with an exact
 `parent_evidence_id` for later export or facet reads. Delivery detail does not
 reach WABT or change the original source Evidence ID.
+
+Completed `inspect_macho` Evidence supports a summary and
+`view: {kind: "macho", facet: "exports", offset: 0, limit: 64}`. Facets are
+`entrypoints`, `architectures`, `build_metadata`, `load_commands`,
+`dependencies`, `imports`, `exports`, `segments`, and `provenance`; pages return
+the original rows. The summary keeps the selected slice, header fields and UUID,
+and replaces each collection with its returned count, reported total and
+`exhaustive` flag. Each page repeats the paged collection's `source_total` and
+`source_exhaustive`; exhausting a non-exhaustive collection does not establish
+that unreturned symbols are absent. Large frameworks return megabytes of
+symbols (Electron Framework: 2.5 MB of imports and exports, 3.3 KB as a
+summary), so select `detail: "summary"` on the first call. Delivery detail
+never reaches the native tools or changes the source Evidence ID.
 
 `trace_application_feature`, `trace_javascript_semantics`,
 `compare_application_versions`, `compare_source_to_bundle`, and

@@ -90,11 +90,8 @@ it.each([
       text: `${notFound.stderr.text}another failure\n`,
     },
   },
-])(
-  "rejects other not-found diagnostic shapes: %j",
-  (change) => {
-    expect(
-      hopperLauncherReportedApplicationNotFound({ ...notFound, ...change }),
-    ).toBe(false);
-  },
-);
+])("rejects other not-found diagnostic shapes: %j", (change) => {
+  expect(
+    hopperLauncherReportedApplicationNotFound({ ...notFound, ...change }),
+  ).toBe(false);
+});

@@ -39,27 +39,61 @@ const specification = (): ProcessTraceSpecification => ({
 });
 
 describe("process trace specification", () => {
-  it("summarizes an incomplete language with its exact missing pair count", () => {
-    const events = Array.from({ length: 200 }, (_, index) => ({
-      id: `e${String(index)}`,
-      source: "lifecycle" as const,
-      exact: { fixture: index },
-      cardinality: { kind: "optional" as const },
-    }));
+  it("reports independent declaration errors alongside a cycle", () => {
+    const base = specification();
     const result = processTraceSpecificationSchema.safeParse({
-      events,
-      language: { kind: "partial_order" },
+      ...base,
+      language: {
+        ...base.language,
+        happens_before: [
+          { before: "ready", after: "worker" },
+          { before: "worker", after: "ready" },
+        ],
+        not_before: [{ event: "missing", anchor: "ready" }],
+        unordered_groups: [{ events: ["missing", "missing"] }],
+        prefix: ["missing"],
+        suffix: ["missing"],
+      },
     });
-    expect(result.success).toBe(false);
-    if (result.success)
-      throw new Error("Expected incomplete pair declarations");
-    expect(result.error.issues).toEqual([
-      expect.objectContaining({
-        path: ["language"],
-        message:
-          "19900 event pairs must be explicitly ordered or unordered; first undeclared pair: e0/e1",
-      }),
-    ]);
+    if (result.success) throw new Error("Expected invalid trace declarations");
+    expect(result.error.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: "happens-before graph must be acyclic",
+        }),
+        expect.objectContaining({
+          path: ["language", "not_before", 0, "event"],
+        }),
+        expect.objectContaining({
+          path: ["language", "unordered_groups", 0, "events"],
+        }),
+        expect.objectContaining({ path: ["language", "prefix", 0] }),
+        expect.objectContaining({ path: ["language", "suffix", 0] }),
+      ]),
+    );
+  });
+
+  it("accepts an acyclic order with shared successors and explicit unordered peers", () => {
+    const result = processTraceSpecificationSchema.parse({
+      events: ["a", "b", "c", "d"].map((id) => ({
+        id,
+        source: "lifecycle",
+        exact: { marker: id },
+      })),
+      language: {
+        kind: "partial_order",
+        happens_before: [
+          { before: "a", after: "b" },
+          { before: "a", after: "c" },
+          { before: "b", after: "d" },
+          { before: "c", after: "d" },
+        ],
+        unordered_groups: [{ events: ["b", "c"] }],
+        prefix: ["a"],
+        suffix: ["d"],
+      },
+    });
+    expect(result.language.kind).toBe("partial_order");
   });
 
   it("counts only undeclared pairs after transitive, not-before and unordered relations", () => {
@@ -91,7 +125,7 @@ describe("process trace specification", () => {
     ]);
   });
 
-  it("retains duplicate unordered-pair diagnostics for reversed declarations", () => {
+  it("reports one duplicate-pair diagnostic per overlapping group", () => {
     const result = processTraceSpecificationSchema.safeParse({
       events: ["z", "a", "b"].map((id) => ({
         id,
@@ -101,7 +135,10 @@ describe("process trace specification", () => {
       })),
       language: {
         kind: "partial_order",
-        unordered_groups: [{ events: ["z", "a", "b"] }, { events: ["a", "z"] }],
+        unordered_groups: [
+          { events: ["z", "a", "b"] },
+          { events: ["b", "a", "z"] },
+        ],
       },
     });
     expect(result.success).toBe(false);
@@ -114,26 +151,8 @@ describe("process trace specification", () => {
     ]);
   });
 
-  it("rejects cycles, implicit ordering gaps, invalid ignores, and unsatisfiable variants", () => {
+  it("rejects invalid ignores and unsatisfiable variants", () => {
     const base = specification();
-    expect(
-      processTraceSpecificationSchema.safeParse({
-        ...base,
-        language: {
-          kind: "partial_order",
-          happens_before: [
-            { before: "ready", after: "worker" },
-            { before: "worker", after: "ready" },
-          ],
-        },
-      }).success,
-    ).toBe(false);
-    expect(
-      processTraceSpecificationSchema.safeParse({
-        ...base,
-        language: { kind: "partial_order" },
-      }).success,
-    ).toBe(false);
     expect(
       processTraceSpecificationSchema.safeParse({
         events: [

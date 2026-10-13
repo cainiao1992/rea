@@ -249,3 +249,9 @@ resolution is explicit; missing references and size mismatch remain visible.
 Other payloads are opaque, and this operation does not decode images or simulate
 Windows resource loading. Consult the budgets and supported tree profile in
 [offline binary diagnostics](https://github.com/morluto/rea/blob/main/docs/binary-diagnostics.md).
+
+For exact core-module import/export differences, use `compare_wasm_interfaces`
+with two complete inspection Evidence records (or current-session retained
+references) and explicit scope. Preserve unknown types/duplicate names; static
+interface equality is not runtime compatibility. CLI accepts complete inline
+Evidence in `rea compare-wasm-interfaces input.json --json`.

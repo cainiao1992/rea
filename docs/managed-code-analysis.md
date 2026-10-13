@@ -139,13 +139,39 @@ The result preserves the requested names in `selection.type_names` and reports
 unmatched names separately. If metadata names are unreadable, limitations retain
 that uncertainty. With no selection, `selection` is null and whole-assembly
 inspection keeps its existing resource policy. Selection restricts types,
-fields, methods, call edges and field accesses; member references remain an
-assembly-wide inventory, so output size is not guaranteed to be small.
+fields, methods, call edges, field accesses and user strings; member references
+remain an assembly-wide inventory, so output size is not guaranteed to be small.
 
 Coverage describes the selected members. Comparisons leave members outside the
 opposite observation's selection unknown, and application graphs report their
 selected scope as partial. Neither makes an absence claim about the whole
 assembly. Older member Evidence without `selection` remains readable.
+
+### User strings
+
+`ldstr` anchors keep their build-local `0x70` tokens. `user_strings.literals`
+lists each distinct token loaded by an inspected method body once, in token
+order, with its `#US` file offset and decoded value. Values keep their stored
+UTF-16 code units, including unpaired surrogates. Token `0x70000000` names the
+heap's empty entry at offset 0 and reads as `""`; any other item there is
+malformed. The terminal flag is checked against ECMA-335 II.24.2.4, and the
+length prefix against the width II.23.2 assigns. A difference is reported with
+its byte offset as a user-string issue while preserving the readable literal.
+Toolchain conventions can differ; this conformance observation does not
+establish runtime rejection. A missing `#US` stream is one stream-level issue;
+a malformed item is reported against its token. User strings carry their own
+coverage: any of these makes `user_strings.state` partial and lists the issue
+in `user_strings.issues`, while the member `coverage` and `metadata.status` are
+unaffected, and readable literals remain. The state is also partial when an
+inspected method's CIL was not fully decoded (a malformed exception section
+alone does not count) or a method that may belong to the inspected types was
+not inspected (its row could not be read, or its type's name could not be read
+under a `type_names` selection), because `ldstr` instructions there were not
+observed. Normalized CIL digests do not include decoded values.
+`compare_managed_members` does not decode or compare literals: an unchanged
+method does not establish unchanged strings, and the comparison says so in its
+limitations. Older member Evidence without `user_strings` reads as `null`: not
+examined.
 
 ### Edge target declaring types
 

@@ -313,6 +313,30 @@ describe("managed member comparison uncertainty", () => {
   });
 });
 
+describe("managed member comparison beside user strings", () => {
+  it("keeps member deltas and coverage when only #US literals are nonconforming", () => {
+    // The method loads "ok", stored with flag 1 where ECMA-335 expects 0.
+    const options = {
+      ilBody: Buffer.from([(7 << 2) | 2, 0x72, 1, 0, 0, 0x70, 0x26, 0x2a]),
+      userStringHeap: Buffer.from([0, 5, 0x6f, 0, 0x6b, 0, 1]),
+    };
+    const left = inspect(buildManagedPeFixture(options), "/tmp/left-us.dll");
+    const right = inspect(buildManagedPeFixture(options), "/tmp/right-us.dll");
+    const result = compareManagedMembers(
+      { evidenceId: left.evidenceId, result: { ...left.result, fields: [] } },
+      {
+        evidenceId: right.evidenceId,
+        result: { ...right.result, methods: [] },
+      },
+    );
+
+    expect(left.result.metadata.status).toBe("complete");
+    expect(left.result.coverage.state).toBe("complete");
+    expect(left.result.user_strings?.state).toBe("partial");
+    expect(result.summary).toMatchObject({ added: 1, removed: 1, unknown: 0 });
+  });
+});
+
 describe("managed member comparison of undecoded signatures", () => {
   it("remaps renamed methods only when raw signatures and complete normalized IL match", () => {
     const signature = Buffer.from([0x00, 0x00, 0x7f]);

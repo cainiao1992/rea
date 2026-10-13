@@ -9,6 +9,7 @@ import {
   type ManagedParseIssue,
 } from "../domain/managed/managedArtifact.js";
 import {
+  managedCli32BitRequirement,
   readManagedPeLayout,
   type ManagedCliHeader,
   type ManagedPeLayout,
@@ -249,9 +250,9 @@ const managedArchitectureFor = (
 ): ManagedArtifactInspection["classification"]["managed_architecture"] => {
   if (layout.architecture !== "x86" || (cli.flags & 1) === 0)
     return layout.architecture;
-  if ((cli.flags & 0x0000_0002) !== 0) return "x86";
-  if ((cli.flags & 0x0002_0000) !== 0) return "anycpu-prefer-32";
-  return "anycpu";
+  const requirement = managedCli32BitRequirement(cli.flags);
+  if (requirement === "required") return "x86";
+  return requirement === "preferred" ? "anycpu-prefer-32" : "anycpu";
 };
 
 const runtimeClassification = ({

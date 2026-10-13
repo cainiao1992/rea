@@ -292,6 +292,30 @@ describe("managed artifact inventory", () => {
     ]);
     expect(result.coverage).toMatchObject({ state: "complete", issues: [] });
   });
+
+  // dotnet/runtime corhdr.h: 32BITREQUIRED and 32BITPREFERRED form one
+  // two-bit field, so neither bit can be read on its own.
+  it.each([
+    ["neither bit", 0x0000_0001, "anycpu", false],
+    ["32BITREQUIRED alone", 0x0000_0003, "x86", true],
+    ["both bits", 0x0002_0003, "anycpu-prefer-32", false],
+    ["the reserved 32BITPREFERRED alone", 0x0002_0001, "anycpu", false],
+  ] as const)(
+    "reads %s as one 32-bit requirement",
+    (_label, cliFlags, architecture, requires32Bit) => {
+      const bytes = buildManagedPeFixture({ cliFlags });
+      const target = managedPeFixtureTarget(bytes);
+
+      expect(
+        inspectManagedArtifactBytes(bytes, target).classification
+          .managed_architecture,
+      ).toBe(architecture);
+      expect(
+        inspectManagedNativeBoundariesBytes(bytes, target).cli_native
+          ?.requires_32bit,
+      ).toBe(requires32Bit);
+    },
+  );
 });
 
 describe("managed artifact coded indexes", () => {

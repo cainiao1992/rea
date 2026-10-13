@@ -444,6 +444,7 @@ export const createServer = (
     toolLogger,
     recordEvidence,
     analysisAdmission,
+    evidenceById,
   );
   registerApktoolTools(
     server,

@@ -726,6 +726,54 @@ const workflows = {
   },
   "sharex.dll": inspectManagedTarget,
   "sharex.helpers.dll": inspectManagedTarget,
+  "localsend-arm64.apk": async () => {
+    const input = {
+      path: values.path,
+      ...(values.delivery === "summary" ? { detail: "summary" } : {}),
+    };
+    const definition = catalogDefinitions.get("inspect_dart_aot");
+    if (
+      definition === undefined ||
+      !new Ajv2020({ strict: false, validateFormats: false }).validate(
+        definition.inputSchema,
+        input,
+      )
+    )
+      throw new Error(
+        "Selected Dart AOT delivery is not advertised by this runtime",
+      );
+    const inspected = await call("inspect_dart_aot", input);
+    const result = normalized(inspected);
+    if (
+      values.delivery === "summary" &&
+      (result.kind !== "summary" ||
+        result.parent_operation !== "inspect_dart_aot")
+    )
+      throw new Error("Runtime returned no retained Dart AOT summary");
+    const report = values.delivery === "summary" ? result.summary : result;
+    const { package_uris, dart_uris, class_like_tokens, ...pool } =
+      report.string_pool;
+    return {
+      artifact_sha256: targetSha(inspected),
+      target: report.target,
+      abi: report.abi,
+      libapp: report.libapp,
+      string_pool:
+        values.delivery === "summary"
+          ? pool
+          : {
+              ...pool,
+              returned_counts: {
+                package_uris: package_uris.length,
+                dart_uris: dart_uris.length,
+                class_like_tokens: class_like_tokens.length,
+              },
+            },
+      coverage: report.coverage,
+      limitations: inspected.limitations,
+      evidence_ids: [inspected.evidence_id],
+    };
+  },
   "openwrt.bin": async () => {
     const info = await call("inspect_firmware_regions", { path: values.path });
     return {

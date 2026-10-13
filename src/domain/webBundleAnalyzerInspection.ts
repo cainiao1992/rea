@@ -293,19 +293,18 @@ const addWebMcpDeclaration = (
           : [],
       )
     : [];
+  const metadata = {
+    name: name ?? null,
+    description: description ?? null,
+    schema_property_names: [...new Set(schemaPropertyNames)].sort(),
+  };
+  // Deduplicate the metadata we return, preserving omission and descriptions.
   // Property names are a variable-length source-derived list: NUL-joins
   // would collapse ["a\0b"] with ["a", "b"] and drop a declaration.
-  const key = compositeKey([
-    "webmcp",
-    script.script_key,
-    name ?? "",
-    schemaPropertyNames,
-  ]);
+  const key = compositeKey(["webmcp", script.script_key, metadata]);
   addUnique(accumulator, key, () =>
     accumulator.webMcp.push({
-      name: name ?? null,
-      description: description ?? null,
-      schema_property_names: [...new Set(schemaPropertyNames)].sort(),
+      ...metadata,
       trust: "page-declared-untrusted",
       location: location(script.script_key, node),
     }),

@@ -714,3 +714,54 @@ it("keeps RPC lexical identity and bundled factory recognition in captured scrip
   ]);
   expect(result.completeness.status).toBe("complete");
 });
+
+it("retains distinct WebMCP descriptions and names while deduplicating equivalent properties", () => {
+  const result = analyzeCapturedWebBundle(
+    inspection(`
+      document.modelContext.registerTool({ name: "lookup", description: "first", inputSchema: { properties: { alpha: {} } } });
+      document.modelContext.registerTool({ name: "lookup", description: "second", inputSchema: { properties: { alpha: {} } } });
+      document.modelContext.registerTool({ name: "equivalent", inputSchema: { properties: { alpha: {}, beta: {} } } });
+      document.modelContext.registerTool({ name: "equivalent", inputSchema: { properties: { beta: {}, alpha: {}, alpha: {} } } });
+      document.modelContext.registerTool({ description: "unnamed" });
+      document.modelContext.registerTool({ name: "", description: "unnamed" });
+    `),
+  );
+
+  expect(
+    result.observations.webmcp_declarations.map(
+      ({ name, description, schema_property_names }) => ({
+        name,
+        description,
+        schema_property_names,
+      }),
+    ),
+  ).toEqual([
+    {
+      name: "lookup",
+      description: "first",
+      schema_property_names: ["alpha"],
+    },
+    {
+      name: "lookup",
+      description: "second",
+      schema_property_names: ["alpha"],
+    },
+    {
+      name: "equivalent",
+      description: null,
+      schema_property_names: ["alpha", "beta"],
+    },
+    { name: null, description: "unnamed", schema_property_names: [] },
+    { name: "", description: "unnamed", schema_property_names: [] },
+  ]);
+  expect(result.observations.webmcp_declarations[2]?.location).toEqual({
+    script_key: `scr_${"1".repeat(64)}`,
+    line: 4,
+    column: 6,
+  });
+  expect(
+    result.observations.webmcp_declarations.every(
+      ({ trust }) => trust === "page-declared-untrusted",
+    ),
+  ).toBe(true);
+});

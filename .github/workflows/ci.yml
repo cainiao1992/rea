@@ -33,7 +33,7 @@ env:
 jobs:
   changes:
     name: Classify changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -777,7 +777,8 @@ jobs:
 
   required:
     name: CI required
-    if: ${{ always() }}
+    # Report failed dependencies, but release superseded PR concurrency slots.
+    if: ${{ !cancelled() }}
     needs:
       [
         changes,
@@ -804,7 +805,7 @@ jobs:
         nativeaot,
         website,
       ]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0

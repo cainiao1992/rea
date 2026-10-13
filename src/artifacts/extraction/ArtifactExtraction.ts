@@ -249,7 +249,7 @@ const materializeSelection = async ({
       compareUnicodeCodePoints(left.relative_path, right.relative_path),
     );
     completed = createExtractionResult(input, inventory, selected, extracted);
-    await output.commit();
+    await output.commit(signal);
     return completed;
   } catch (cause: unknown) {
     const cleanupFailures = await releaseExtractionOwners(

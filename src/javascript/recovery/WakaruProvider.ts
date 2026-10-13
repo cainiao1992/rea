@@ -139,7 +139,7 @@ export class WakaruProvider implements JavaScriptRecoveryPort {
       await rm(root, { recursive: true, force: true });
       root = undefined;
       checkRecoveryDeadline(deadline, options?.signal);
-      await tree.commit();
+      await tree.commit(options?.signal);
     } catch (cause: unknown) {
       failed = { cause };
     }

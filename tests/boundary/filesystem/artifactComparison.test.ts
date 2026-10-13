@@ -77,7 +77,11 @@ describe("leaf artifact comparison", () => {
     // Persisted inventory Evidence predates coverage_status. The known leaf
     // notice remains complete when normalized at the inventory boundary.
     const parsed = artifactInventoryResultSchema.parse(left.normalized_result);
-    const { coverage_status: _coverageStatus, ...legacyInventory } = parsed;
+    const {
+      coverage: _coverage,
+      coverage_status: _coverageStatus,
+      ...legacyInventory
+    } = parsed;
     const legacy = createEvidence(
       {
         path: left.subject!.local_path,
@@ -157,7 +161,7 @@ describe("artifact inventory coverage", () => {
     const graph = artifactInventoryResultSchema.parse(
       complete.normalized_result,
     );
-    const partial = createEvidence(
+    const contradictory = createEvidence(
       {
         path: complete.subject!.local_path,
         sha256: complete.subject!.digest.sha256,
@@ -168,6 +172,29 @@ describe("artifact inventory coverage", () => {
         operation: "inventory_artifact",
         parameters: {},
         result: jsonValueSchema.parse({ ...graph, coverage_status: "partial" }),
+        confidence: "derived",
+        authority: "shipped-artifact",
+      },
+    );
+    expect(() => parseArtifactInventoryEvidence(contradictory)).toThrow(
+      "Artifact inventory has conflicting coverage declarations",
+    );
+
+    const { coverage: _coverage, ...legacyStatusGraph } = graph;
+    const partial = createEvidence(
+      {
+        path: complete.subject!.local_path,
+        sha256: complete.subject!.digest.sha256,
+        format: complete.subject!.format,
+      },
+      PROVIDER,
+      {
+        operation: "inventory_artifact",
+        parameters: {},
+        result: jsonValueSchema.parse({
+          ...legacyStatusGraph,
+          coverage_status: "partial",
+        }),
         confidence: "observed",
         authority: "shipped-artifact",
       },
@@ -180,7 +207,8 @@ describe("artifact inventory coverage", () => {
       summary: { unchanged: 0, unknown: 1 },
     });
 
-    const { coverage_status: _coverageStatus, ...legacyGraph } = graph;
+    const { coverage_status: _coverageStatus, ...legacyGraph } =
+      legacyStatusGraph;
     const unknownLegacy = createEvidence(
       {
         path: complete.subject!.local_path,
@@ -219,6 +247,7 @@ describe("artifact inventory coverage", () => {
     const fragmentGraph = artifactInventoryResultSchema.parse(
       fragment.normalized_result,
     );
+    const { coverage: _coverage, ...legacyFragmentGraph } = fragmentGraph;
     const mixed = createEvidence(
       {
         path: fragment.subject!.local_path,
@@ -230,7 +259,7 @@ describe("artifact inventory coverage", () => {
         operation: "inventory_artifact",
         parameters: fragment.parameters,
         result: jsonValueSchema.parse({
-          ...fragmentGraph,
+          ...legacyFragmentGraph,
           coverage_status: "partial",
         }),
         confidence: "derived",
@@ -239,7 +268,7 @@ describe("artifact inventory coverage", () => {
     );
     expect(() =>
       parseArtifactInventoryEvidence([firstFragment, mixed]),
-    ).toThrow("Artifact inventory pages disagree on coverage status");
+    ).toThrow("Artifact inventory pages do not share one coverage declaration");
   });
 });
 
@@ -314,6 +343,61 @@ describe("artifact comparison", () => {
 });
 
 describe("artifact comparison completeness", () => {
+  it("does not infer child changes from root-only coverage", async () => {
+    const root = await createTestTempDirectory("rea-artifact-root-coverage-");
+    const leftPath = join(root, "left.app");
+    const rightPath = join(root, "right.app");
+    await Promise.all([mkdir(leftPath), mkdir(rightPath)]);
+    await Promise.all([
+      writeFile(join(leftPath, "left-only.txt"), "left"),
+      writeFile(join(rightPath, "right-only.txt"), "right"),
+    ]);
+    const [left, right] = await Promise.all([
+      observe(leftPath),
+      observe(rightPath),
+    ]);
+    const rootOnly = (evidence: Awaited<ReturnType<typeof observe>>) => {
+      const inventory = artifactInventoryResultSchema.parse(
+        evidence.normalized_result,
+      );
+      return createEvidence(
+        {
+          path: evidence.subject?.local_path ?? "",
+          sha256: inventory.manifest.root_sha256,
+          format: inventory.manifest.root_format,
+        },
+        PROVIDER,
+        {
+          operation: "inventory_artifact",
+          parameters: {},
+          result: jsonValueSchema.parse({
+            ...inventory,
+            coverage: { scope: "root", status: "complete" },
+          }),
+          confidence: "derived",
+          authority: "shipped-artifact",
+        },
+      );
+    };
+    const compared = compareArtifacts(rootOnly(left), rootOnly(right));
+    expect(compared.status).toBe("unknown");
+    expect(compared.summary).toMatchObject({ added: 0, removed: 0 });
+    expect(
+      compared.changes
+        .filter(({ logical_path }) => logical_path !== ".")
+        .map(({ logical_path, classification }) => ({
+          logical_path,
+          classification,
+        })),
+    ).toEqual([
+      { logical_path: "left-only.txt", classification: "unknown" },
+      { logical_path: "right-only.txt", classification: "unknown" },
+    ]);
+    expect(compared.limitations).toContain(
+      "Container entry coverage is unavailable for child paths.",
+    );
+  });
+
   it("compares every graph member for inventories larger than 500 entries", async () => {
     const root = await createTestTempDirectory("rea-artifact-pages-");
     const entryCount = 501;
@@ -415,6 +499,30 @@ describe("artifact comparison completeness", () => {
         evidence_links: citations,
       })),
     });
+    const fragment = leftFragments[0];
+    if (fragment === undefined) throw new Error("Expected inventory fragments");
+    const conflictingScope = createEvidence(
+      {
+        path: leftPath,
+        sha256: left.subject?.digest.sha256 ?? "",
+        format: "directory",
+      },
+      PROVIDER,
+      {
+        operation: "inventory_artifact",
+        parameters: {},
+        result: jsonValueSchema.parse({
+          ...artifactInventoryResultSchema.parse(fragment.normalized_result),
+          coverage: { scope: "root", status: "complete" },
+        }),
+      },
+    );
+    expect(() =>
+      compareArtifacts(
+        [conflictingScope, ...leftFragments.slice(1)],
+        rightFragments,
+      ),
+    ).toThrow(/coverage declaration/u);
   }, 15_000);
 
   it("rejects non-inventory and tampered Evidence", async () => {

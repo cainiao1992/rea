@@ -21,6 +21,31 @@ directly to `compare_functions`, and `inspect_artifact` Evidence to
 `compare_artifacts`. Use `get_evidence_bundle` when the task needs broader
 retained session history or an explicit bundle for transfer.
 
+Artifact inventories declare `coverage.scope` (`root` or `container-entries`)
+and `coverage.status` (`complete` or `unknown`) independently of diagnostic
+wording. Comparison requires matching scopes, complete graph members and complete
+traversal coverage before concluding equality. A fully observed root without
+container children can be `unchanged`; its scope notice stays in `limitations`
+without creating a gap. Content and executable metadata changes still produce
+root deltas. Missing graph members yield `truncated`; unknown traversal coverage
+or unavailable occurrence hashes retain uncertainty. Integrity mismatches remain
+contradictions. Static artifact equality does not establish unchanged runtime
+behavior.
+
+Exhausted traversals with deliberately omitted filesystem entries retain
+`unknown` coverage and identify each omitted path/type in `limitations`; FIFO,
+socket and device entries are not opened. Case-distinct archive members remain
+separate observations. Their case-insensitive materialization diagnostic does
+not reduce traversal coverage when both spellings were read.
+
+Current output also retains `coverage_status` (`complete` or `partial`) for existing clients, derived from the scoped traversal status. The owning parser normalizes retained `coverage_status` records to scoped coverage and rejects conflicting declarations.
+
+The coverage field is optional when reading older retained Evidence. The owning
+inventory parser recognizes historical REA scope notices for compatibility;
+unfamiliar legacy limitations remain conservative. Typed records do not derive
+coverage from limitation text. Pages from one inventory must carry the same
+coverage declaration.
+
 Function dossiers can declare per-facet coverage in the optional
 `normalized_result.facet_availability` map. Each supplied facet is either
 `{ "available": true }` or `{ "available": false, "reason": "..." }`.

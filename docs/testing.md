@@ -887,8 +887,13 @@ successful ancestor push run of this CI workflow, rather than the preceding
 push: changes from failed or cancelled intermediate runs remain in scope.
 Missing, untrusted, or non-ancestor history selects every lane. The lookup is
 bounded to the last 100 successful push runs; lookup failures broaden selection.
-Every code change still runs all six portable shards, without coverage
-instrumentation in this fast tier. This deliberately avoids relying on an
+Every code change still selects all six portable shards, without coverage
+instrumentation in this fast tier. Ordinary PR matrices cancel remaining
+shards after the first failure; passing PRs execute the complete suite. Main,
+`ci:full`, scheduled, manual, and release qualification retain every shard's
+results after a failure. Available failed-shard reports remain diagnostic only:
+failed, cancelled, skipped, or missing selected shards cannot pass the gate or
+publish successful timing history. This deliberately avoids relying on an
 import graph for generated files, filesystem inputs, subprocesses, or bridges.
 
 Scheduled qualification is admitted hourly at minute 23. A forced full run at
@@ -916,10 +921,11 @@ classification job records its selection and broad-fallback reasons in the run
 summary. Representative Git-diff cases live in
 `tests/boundary/filesystem/ciChangeScope.test.ts`.
 
-`CI required` always runs and checks classification and every selected lane,
+`CI required` checks classification and every selected lane,
 rejecting failed, cancelled, or unexpectedly skipped work. It rejects missing or
 unknown tiers and requires every canonical scope to be explicitly `true` or
 `false`; incomplete classification cannot silently omit verification lanes.
+The aggregate remains cancellable so superseded runs release their slots.
 Branch protection
 should require this aggregate, `Static checks`, `Portable tests`, and
 `Conventional PR title`. Title validation runs separately on PR opening,
@@ -968,7 +974,7 @@ filename cases.
 
 POSIX package verification resolves the runner's configured npm cache before
 creating disposable client homes and passes that location to its child installs.
-This reuses the download cache restored by `setup-node` while keeping client
+This reuses the download cache restored by the shared npm-cache action while keeping client
 configuration isolated. Installs retain their existing registry and integrity
 checks.
 
@@ -998,7 +1004,24 @@ thresholds remain enforced in full qualification.
 Missing or unusable history falls back to Vitest's default assignment. Only
 timing data is reused; live provider results are never cached. Turbo outputs are
 restored by task hash, with trusted default-branch runs as cache writers and PRs
-as restore-only consumers. npm caches hold downloads, not `node_modules`.
+as restore-only consumers. The static job also restores its Turbo snapshot;
+each task revalidates its own input hash before reusing outputs or diagnostics.
+The Node pin and npm install settings are global hash inputs. Knip includes its ignore rules and VitePress
+entry, so changes to those inputs cannot reuse an older successful check.
+
+The shared npm-cache action caches downloads, not `node_modules`, and every
+consumer still runs `npm ci`. Keys cover the runner OS, actual Node architecture,
+root lockfiles, and `.npmrc`. Only push, schedule, and manual events on the
+repository's default branch may save shared npm caches; PRs restore only.
+Static snapshots use the same write authority and are saved only after the
+static job's validation succeeds. Main warms the new cache namespace after
+merge; a cold cache or changed lockfile falls back to the normal install.
+This prevents each PR from saving another branch-scoped copy of the same
+download cache. It does not remove runner assignment waits.
+
+Portable owner-based test selection remains observational. Its reports compare
+proposed omissions with the full run; incomplete or skipped observations do not
+establish that fewer tests would preserve regression detection.
 
 The eight automatic browser, binary-layout, EVM, JavaScript-recovery,
 recorded-crash, and web provider lanes download `rea-build-cache` from their own

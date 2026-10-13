@@ -443,7 +443,9 @@ describe("artifact comparison completeness", () => {
       changes: [],
     });
   }, 15_000);
+});
 
+describe("artifact comparison fragment integrity", () => {
   it("assembles real inventory fragments and retains every citation", async () => {
     const parent = await createTestTempDirectory("rea-artifact-fragments-");
     const leftPath = join(parent, "left.app");

@@ -25,7 +25,10 @@ const execution = (failure: unknown, status = 1) => ({
   stdout: JSON.stringify(failure),
 });
 
-const overview = (procedure_count?: unknown, operation = "binary_overview") => ({
+const overview = (
+  procedure_count?: unknown,
+  operation = "binary_overview",
+) => ({
   operation,
   ...(procedure_count === undefined
     ? {}

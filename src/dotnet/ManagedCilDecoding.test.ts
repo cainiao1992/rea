@@ -331,7 +331,9 @@ describe("managed operand extent diagnostics", () => {
       });
     },
   );
+});
 
+describe("managed complete operand decoding", () => {
   // The extent check must also reject nothing that fits, so every multi-byte
   // width is exercised at exactly its own size with a known value. Each body
   // ends at its operand, so a width declared too large turns a valid operand

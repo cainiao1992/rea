@@ -343,9 +343,7 @@ describe("overview document identity through MCP", () => {
       details: {
         provider_id: "fixture",
         operation: "list_documents",
-        reason: expect.stringContaining(
-          "provider lacks document selection",
-        ),
+        reason: expect.stringContaining("provider lacks document selection"),
       },
     });
   });

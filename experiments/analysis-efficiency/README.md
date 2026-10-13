@@ -15,6 +15,10 @@ Follow-up: [Dart AOT summary and retained string pools](flutter-aot-summary.md)
 records real LocalSend delivery pairs and old Evidence continuation, preserving
 ABI selection, snapshot identity, original lower bounds and partial coverage.
 
+Follow-up: [SQLite existing-control measurements](sqlite-existing-controls.md)
+tests QGIS's shipped GeoPackage through the existing column selection, preserving
+full selected-table schema and typed cells before considering another API.
+
 Follow-up: [native PE/DOS entry views and real model verification](native-entry-views.md)
 records the post-merge native continuation, including a small-function case where
 four selected replies cost more bytes than the complete dossier.

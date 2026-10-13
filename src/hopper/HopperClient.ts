@@ -59,6 +59,7 @@ import {
 import { connectHopperSocketOnce } from "./HopperSocketConnection.js";
 import {
   hopperLauncherFailureDiagnostic,
+  hopperLauncherReportedApplicationNotFound,
   nativeHopperLaunchWasDenied,
 } from "./HopperProcessDiagnostic.js";
 import { DEFAULT_HOPPER_STARTUP_TIMEOUT_MS } from "../config/providerStartupTimeout.js";
@@ -765,6 +766,13 @@ export class HopperClient {
       return new HopperStartError({
         userMessage:
           "macOS denied permission to send Apple Events to Hopper. Allow the application that starts REA under System Settings > Privacy & Security > Automation, then retry opening the target.",
+        launcherFailure,
+      });
+    }
+    if (hopperLauncherReportedApplicationNotFound(launcherFailure)) {
+      return new HopperStartError({
+        userMessage:
+          "Hopper's launcher could not find Hopper because it relies on Spotlight. Enable Spotlight indexing for the volume that contains Hopper (for example: sudo mdutil -i on /System/Volumes/Data), wait for indexing to finish, then retry opening the target.",
         launcherFailure,
       });
     }

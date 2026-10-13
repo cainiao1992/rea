@@ -201,13 +201,13 @@ test("recovers a denied Hopper launch through the same stdio MCP session and CLI
   ).toBe(false);
 });
 
-test(
-  "preserves a timed-out handoff and closes only a late bridge with matching run identity",
+test.each(["handoff", "not-found"] as const)(
+  "preserves an unconfirmed %s handoff and closes only a late bridge with matching run identity",
   { timeout: 60_000 },
-  async ({ workspace }) => {
+  async (launchMode, { workspace }) => {
     const target = workspace.path("target");
     await copyFile("/usr/bin/true", target);
-    const mode = await workspace.write("mode", "handoff");
+    const mode = await workspace.write("mode", launchMode);
     const receipt = workspace.path("bootstrap-path");
     const transport = new StdioClientTransport({
       command: process.execPath,
@@ -257,12 +257,24 @@ test(
       details: {
         diagnostics: {
           primary_error: {
-            code: "provider_timeout",
-            details: { timeout_ms: 2000, launcher: { exit_code: 0 } },
+            code:
+              launchMode === "handoff"
+                ? "provider_timeout"
+                : "provider_unavailable",
+            details:
+              launchMode === "handoff"
+                ? { timeout_ms: 2000, launcher: { exit_code: 0 } }
+                : { stage: "launch", launcher: { exit_code: 3 } },
           },
         },
       },
     });
+    if (launchMode === "not-found")
+      expect(initial.error.details).toMatchObject({
+        diagnostics: {
+          primary_error: { message: expect.stringContaining("Spotlight") },
+        },
+      });
     expect(parseMcpToolError(await call("list_procedures"))).toEqual(initial);
     const status = z.object({
       result: z.object({

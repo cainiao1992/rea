@@ -19,6 +19,12 @@ if (mode === "denied" || mode === "denied-after-handoff") {
       process.exit(2);
     },
   );
+} else if (mode === "not-found") {
+  // The native helper's Spotlight lookup fails before any Apple event.
+  process.stderr.write(
+    "Hopper has not been found.\nPlease make sure that Spotlight is active in order for this tool to find Hopper's executable.\n",
+    () => process.exit(3),
+  );
 } else if (mode === "handoff") {
   process.exit(0);
 } else if (mode === "bridge") {

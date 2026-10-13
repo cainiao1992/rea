@@ -15,6 +15,60 @@ import {
 } from "../../../support/javascriptApplicationFixture.js";
 
 describe("TypeScript source module loader semantics", () => {
+  it("keeps whole type-only declarations out of runtime module relationships", async () => {
+    const root = await createTestTempDirectory("rea-type-module-links-");
+    await writeFixtureFiles(root, {
+      "main.ts": `
+        import type { Whole } from "./whole";
+        export type { Remote } from "./remote";
+        import { type Inline } from "./inline";
+        export type LocalType = string;
+        export interface LocalInterface { value: string }
+      `,
+      "whole.ts": "export interface Whole { value: string }",
+      "remote.ts": "export interface Remote { value: string }",
+      "inline.ts": "export interface Inline { value: string }",
+    });
+
+    const { graph } = await reconstructJavaScriptFixture(root);
+    const source = findSourceModule(graph, "main.ts");
+    const sourceProperties = source?.observations.find(
+      ({ properties }) => properties.semantic_role === "source-module",
+    )?.properties;
+
+    expect(sourceProperties).toMatchObject({
+      import_relationships: 0,
+      type_relationships: 5,
+      export_names: [],
+      type_export_names: ["LocalInterface", "LocalType", "Remote"],
+    });
+    expect(
+      graph.edges.filter(
+        ({ relation, properties }) =>
+          relation === "imports" &&
+          ["./whole", "./remote"].includes(String(properties.specifier)),
+      ),
+    ).toEqual([]);
+    expect(
+      graph.edges.find(
+        ({ source_node_id, relation, properties }) =>
+          source_node_id === source?.node_id &&
+          relation === "imports" &&
+          properties.kind === "static-import" &&
+          properties.specifier === "./inline",
+      ),
+    ).toBeDefined();
+    expect(
+      source?.observations
+        .flatMap(({ evidence }) => evidence.limitations)
+        .join(" "),
+    ).toContain(
+      "inline type-only imports or re-exports may preserve a module side-effect dependency",
+    );
+    expect(findExportNode(graph, "main.ts", "LocalType")).toBeUndefined();
+    expect(findExportNode(graph, "main.ts", "LocalInterface")).toBeUndefined();
+  });
+
   it("uses emitted TypeScript loader semantics without changing dynamic imports", async () => {
     const root = await createTestTempDirectory("rea-cts-module-loader-");
     await writeFixtureFiles(root, {

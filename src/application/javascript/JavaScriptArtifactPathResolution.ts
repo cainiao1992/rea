@@ -20,6 +20,7 @@ import {
   lookupExactPackageImport,
 } from "../../domain/javascript/javascriptPackageImportAliases.js";
 import { typescriptEmittedSourceCandidates } from "../TypeScriptEmittedSourceCandidates.js";
+import { isRelativeJavaScriptModuleSpecifier } from "../../domain/javascript/javascriptModuleSpecifier.js";
 
 type ArtifactPathResolutionContext =
   | "package-entrypoint"
@@ -166,7 +167,7 @@ const resolvePath = (input: ResolveArtifactPathInput): CandidateResolution => {
     );
   const isModuleUrlPath =
     input.context === "module-specifier" &&
-    (input.declaredPath.startsWith(".") ||
+    (isRelativeJavaScriptModuleSpecifier(input.declaredPath) ||
       input.declaredPath.startsWith("/") ||
       fileUrlPath(input.declaredPath) !== undefined);
   const emittedSourceCandidates =
@@ -229,7 +230,10 @@ const contextualCandidate = (
       return unresolvedCandidate("external", [
         "URL and Node builtin schemes are outside static artifact module resolution.",
       ]);
-    if (!declared.startsWith(".") && !declared.startsWith("/"))
+    if (
+      !isRelativeJavaScriptModuleSpecifier(declared) &&
+      !declared.startsWith("/")
+    )
       return bareModuleCandidate(input);
     if (input.moduleKind !== "require") {
       const decoded = decodeModuleUrlPath(stripQueryAndFragment(declared));
@@ -275,7 +279,10 @@ const contextualCandidate = (
       "URL",
     );
   }
-  return relativeCandidate(input.sourcePath, declared);
+  const candidate = relativeCandidate(input.sourcePath, declared);
+  return context === "module-specifier" && input.moduleKind === "import"
+    ? exactUrlPathCandidate(declared, candidate, "module URL")
+    : candidate;
 };
 
 const decodeModuleUrlPath = (
@@ -310,9 +317,12 @@ const bareModuleCandidate = (
     return unresolvedCandidate("external", [
       "The bare specifier is a Node builtin or invalid package name.",
     ]);
-  if (input.moduleKind === "import" && request.packageName.includes("%"))
+  if (
+    input.moduleKind === "import" &&
+    (request.packageName.startsWith(".") || request.packageName.includes("%"))
+  )
     return unresolvedCandidate("rejected", [
-      "Percent signs are not admitted in ES module package names.",
+      "ES module package names cannot start with a dot or contain percent signs.",
     ]);
   const self = packageSelfCandidate(input, request);
   if (self !== null) return self;
@@ -735,7 +745,7 @@ const htmlCandidate = (
 const exactUrlPathCandidate = (
   declared: string,
   candidate: string,
-  kind: "HTML" | "URL",
+  kind: "HTML" | "URL" | "module URL",
 ): string | CandidateResolution => {
   if (!urlPathIsDirectory(declared)) return candidate;
   const confined = confineCandidate(candidate);

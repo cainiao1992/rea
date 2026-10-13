@@ -23,6 +23,14 @@ artifact digest and structural graph ID. Semantic tracing requires the semantic
 relation graph and reports when it is unavailable rather than treating missing
 data as an empty graph.
 
+Explicit TypeScript `import type` and `export type` declarations remain source
+facts and do not create runtime import or export relationships. Type export names
+are reported separately from value export names. Inline `type` specifiers can
+leave an empty import or re-export with side effects under
+[`verbatimModuleSyntax`](https://www.typescriptlang.org/tsconfig/verbatimModuleSyntax.html);
+REA retains those dependency candidates and reports the unavailable compiler
+options rather than assuming the dependency is erased.
+
 The semantic graph wire format stores shared non-location provenance once in
 its required `evidence_contexts` table. Each node, relation, fingerprint, and
 unknown retains its exact `evidence.location` and names the owning context with

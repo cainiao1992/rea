@@ -43,6 +43,7 @@ import {
 import { semanticRequireOrigin } from "./javascriptSemanticRequireOrigin.js";
 import { collectSemanticMemberMutationsSteps } from "./javascriptSemanticMemberMutations.js";
 import { indexJavaScriptAmbientWritesSteps } from "./javascriptSemanticAmbientWrites.js";
+import { hasUncertainTypeOnlyModuleSideEffect } from "./javascriptModuleDeclaration.js";
 import {
   collectSemanticReturns,
   resolveSemanticModuleCallables,
@@ -198,6 +199,11 @@ export function* analyzeParsedJavaScriptSemanticsSteps(
       ...(parserPartial
         ? [
             "The parser recovered from syntax errors; affected bindings are partial.",
+          ]
+        : []),
+      ...(hasUncertainTypeOnlyModuleSideEffect(file.program)
+        ? [
+            "Compiler options are unavailable; inline type-only imports or re-exports may preserve a module side-effect dependency.",
           ]
         : []),
       "Values and aliases were recovered from inert syntax only; no JavaScript was executed.",

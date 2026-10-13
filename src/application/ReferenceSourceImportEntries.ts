@@ -12,12 +12,14 @@ import {
   detectReferenceSourceLanguage,
 } from "../domain/referenceSourceClassification.js";
 import type { HistoricalSourceGraphInput } from "../domain/referenceSourceGraph.js";
-import { parseReferenceSourceImports } from "../domain/referenceSourceImportParsing.js";
+import {
+  parseReferenceSourceImports,
+  PARSEABLE_REFERENCE_SOURCE_LANGUAGES,
+} from "../domain/referenceSourceImportParsing.js";
 import type {
   ReferenceSourceEntry,
   ReferenceSourceRead,
 } from "../reference/ReferenceSourceReaderTypes.js";
-import { PARSEABLE_REFERENCE_SOURCE_LANGUAGES } from "./ReferenceSourceImportTypes.js";
 import { typescriptEmittedSourceCandidates } from "./TypeScriptEmittedSourceCandidates.js";
 
 export interface ParsedReferenceSourceEntries {

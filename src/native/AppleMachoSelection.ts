@@ -1,9 +1,9 @@
 import type { FixupCommands } from "./AppleMachoFixups.js";
 import {
   MACHO_ARCHITECTURE_POLICIES,
-  baseMachoCpuSubtype,
   machoSubtypeRank,
 } from "./MachoArchitectureSelection.js";
+import { machoCpuSubtypeBase } from "../domain/apple/machoCpuIdentity.js";
 import {
   readFatSliceDeclarations,
   validateFatSlice,
@@ -117,8 +117,8 @@ export const selectMachoSlice = (
       // Equal ranks keep FAT table order unless the slices share a subtype.
       if (
         rank === bestRank &&
-        baseMachoCpuSubtype(declaration.cpuSubtype) ===
-          baseMachoCpuSubtype(best.cpuSubtype)
+        machoCpuSubtypeBase(declaration.cpuSubtype) ===
+          machoCpuSubtypeBase(best.cpuSubtype)
       )
         ambiguous = true;
       continue;

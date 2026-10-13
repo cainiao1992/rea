@@ -94,6 +94,8 @@ describe("Mach-O tool architecture selection", () => {
     { names: ["arm64v8"], selected: "arm64v8" },
     { names: ["arm64v8", "arm64e.x1"], selected: "arm64v8" },
     { names: ["arm64e.x1", "arm64v8"], selected: "arm64v8" },
+    { names: ["arm64v8", "arm64e.v1"], selected: "arm64e.v1" },
+    { names: ["arm64e.v1", "arm64v8"], selected: "arm64e.v1" },
   ] as const)(
     "keeps inspection and dispatch on $selected for FAT order $names",
     async ({ names, selected }) => {
@@ -102,6 +104,7 @@ describe("Mach-O tool architecture selection", () => {
         arm64v8: { type: CPU.arm64.type, subtype: 1 },
         arm64e: CPU.arm64e,
         "arm64e.x1": { type: CPU.arm64.type, subtype: 0x8000000c },
+        "arm64e.v1": { type: CPU.arm64.type, subtype: 0x81000002 },
       };
       const slices = names.map((name) => {
         const cpu = cpus[name];
@@ -125,9 +128,12 @@ describe("Mach-O tool architecture selection", () => {
         "-h",
         "-l",
         "-arch",
-        selected,
+        selected.split(".")[0],
         "/fixture/app",
       ]);
+      expect(commands.find(({ tool }) => tool === "dyld_info")?.args).toContain(
+        selected,
+      );
       expect(selectMachoSlice(fat, "arm64").slice).toBe(
         (names.findIndex((name) => name === selected) + 1) * 4096,
       );

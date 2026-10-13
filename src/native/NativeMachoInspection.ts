@@ -14,7 +14,10 @@ import {
   selectMachoArchitectureName,
 } from "./MachoArchitectureSelection.js";
 import { parseDyldSymbols } from "./parsers/dyldInfo.js";
-import { parseLipoArchitectures } from "./parsers/lipo.js";
+import {
+  parseLipoArchitectures,
+  type LipoArchitecture,
+} from "./parsers/lipo.js";
 import { withoutEchoedPathHeader } from "./parsers/echoedPath.js";
 import { parseOtoolLoadCommands } from "./parsers/otool.js";
 import { reconcileMachoUuid } from "./parsers/machoUuid.js";
@@ -72,8 +75,7 @@ export const inspectNativeMacho = async (
   const lipo = captures.find(({ tool }) => tool === "lipo");
   if (lipo === undefined) throw new TypeError("Missing lipo capture");
   const architectures = parseLipoArchitectures(lipo.stdout);
-  const availableArchitectures = architectures.map(({ name }) => name);
-  const selection = selectArchitecture(context.target, availableArchitectures);
+  const selection = selectArchitecture(context.target, architectures);
   if (selection.status === "absent")
     return err(
       new AnalysisOutputError(
@@ -401,7 +403,7 @@ type ArchitectureSelection =
 
 const selectArchitecture = (
   target: BinaryTarget,
-  available: readonly string[],
+  available: readonly LipoArchitecture[],
 ): ArchitectureSelection => {
   // BinaryTarget lists CPU families and lipo lists slices. A universal file
   // can hold several slices of one family (arm64e and arm64e.x1), and slice
@@ -416,7 +418,7 @@ const selectArchitecture = (
   const policy = MACHO_ARCHITECTURE_POLICIES[target.architecture];
   const selected =
     policy === undefined
-      ? available.find((name) => name === normalized)
+      ? available.find(({ name }) => name === normalized)?.name
       : selectMachoArchitectureName(policy, available);
   if (selected !== undefined)
     return { status: "selected", architecture: selected };

@@ -1,3 +1,6 @@
+import { machoCpuSubtypeBase } from "../domain/apple/machoCpuIdentity.js";
+import type { LipoArchitecture } from "./parsers/lipo.js";
+
 interface MachoArchitecturePolicy {
   readonly cpuType: number;
   readonly subtypes: readonly {
@@ -28,17 +31,13 @@ export const MACHO_ARCHITECTURE_POLICIES: Readonly<
   },
 };
 
-/** High subtype bits carry capabilities, such as the arm64e PAC ABI version. */
-export const baseMachoCpuSubtype = (subtype: number): number =>
-  subtype & 0x00ffffff;
-
 /** Unlisted subtypes follow the preferred slices in FAT table order. */
 export const machoSubtypeRank = (
   policy: MachoArchitecturePolicy,
   subtype: number,
 ): number => {
   const rank = policy.subtypes.findIndex(
-    (candidate) => candidate.subtype === baseMachoCpuSubtype(subtype),
+    (candidate) => candidate.subtype === machoCpuSubtypeBase(subtype),
   );
   return rank < 0 ? policy.subtypes.length : rank;
 };
@@ -46,9 +45,36 @@ export const machoSubtypeRank = (
 /** Select a tool spelling using the same preference order as FAT selection. */
 export const selectMachoArchitectureName = (
   policy: MachoArchitecturePolicy,
-  available: readonly string[],
+  available: readonly LipoArchitecture[],
 ): string | undefined => {
-  for (const { name } of policy.subtypes)
-    if (available.includes(name)) return name;
-  return available.find((name) => policy.variantName?.test(name));
+  let selected: string | undefined;
+  let bestRank = Number.POSITIVE_INFINITY;
+  for (const architecture of available) {
+    if (
+      architecture.cpu_type_code !== null &&
+      architecture.cpu_type_code !== policy.cpuType
+    )
+      continue;
+    const namedSubtype = policy.subtypes.find(
+      ({ name }) => name === architecture.name,
+    );
+    const recognizedName =
+      namedSubtype !== undefined || policy.variantName?.test(architecture.name);
+    if (
+      !recognizedName &&
+      (architecture.cpu_type_code === null ||
+        architecture.cpu_subtype_base === null)
+    )
+      continue;
+    // Parsed identity is authoritative. Names support thin/partial lipo records.
+    const subtype = architecture.cpu_subtype_base ?? namedSubtype?.subtype;
+    const rank =
+      subtype === undefined
+        ? policy.subtypes.length
+        : machoSubtypeRank(policy, subtype);
+    if (rank >= bestRank) continue;
+    selected = architecture.name;
+    bestRank = rank;
+  }
+  return selected;
 };

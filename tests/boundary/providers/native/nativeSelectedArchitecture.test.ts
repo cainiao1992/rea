@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { CPU } from "../../../../src/artifacts/apple/MachoImage.fixture.js";
 import { inspectMachoSchema } from "../../../../src/domain/native/nativeInspection.js";
 import { err } from "../../../../src/domain/result.js";
 import {
@@ -90,18 +91,39 @@ it.each([
     selected: "arm64e",
     dyldArchitecture: "arm64e.v1",
   },
-])(
+  {
+    architectures: ["arm64v8", "arm64e.v1"],
+    selected: "arm64e",
+    dyldArchitecture: "arm64e.v1",
+  },
+  {
+    architectures: ["arm64e.v1", "arm64v8"],
+    selected: "arm64e",
+    dyldArchitecture: "arm64e.v1",
+  },
+] as const)(
   "selects the $dyldArchitecture slice of a universal arm64e target",
   async ({ architectures, selected, dyldArchitecture }) => {
     const calls: {
       readonly tool: string;
       readonly arguments_: readonly string[];
     }[] = [];
+    const cpus = {
+      x86_64: CPU.x86_64,
+      arm64e: CPU.arm64e,
+      arm64v8: { type: CPU.arm64.type, subtype: 1 },
+      "arm64e.x1": { type: CPU.arm64.type, subtype: 0x8000000c },
+      "arm64e.v1": { type: CPU.arm64.type, subtype: 0x81000002 },
+    };
     const lipo = architectures
-      .map(
-        (architecture, index) =>
-          `architecture ${architecture}\n    cputype 16777228\n    cpusubtype 2\n    offset ${index * 16384}\n    size 8192\n    align 2^14 (16384)`,
-      )
+      .map((architecture, index) => {
+        const cpu = cpus[architecture];
+        const subtype =
+          architecture === "arm64e.v1"
+            ? "CPU_SUBTYPE_ARM64E\n    capabilities PTR_AUTH_VERSION USERSPACE 1"
+            : String(cpu.subtype);
+        return `architecture ${architecture}\n    cputype ${cpu.type}\n    cpusubtype ${subtype}\n    offset ${index * 16384}\n    size 8192\n    align 2^14 (16384)`;
+      })
       .join("\n");
     const fixtures = new NativeFixtureRunner({
       lipo,
@@ -118,6 +140,11 @@ it.each([
     if (!result.ok) throw result.error;
     expect(result.value.result).toMatchObject({
       uuid: "01234567-89AB-CDEF-0123-456789ABCDEF",
+      selected_architecture: {
+        name: dyldArchitecture,
+        container_file_offset:
+          architectures.findIndex((name) => name === dyldArchitecture) * 16384,
+      },
       architectures: {
         items: architectures.map((name) => ({ name })),
       },

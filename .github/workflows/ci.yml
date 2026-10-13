@@ -42,6 +42,7 @@ jobs:
       tier: ${{ steps.plan.outputs.tier }}
       qualification_run_id: ${{ steps.qualification.outputs.run_id }}
       code: ${{ steps.plan.outputs.code }}
+      reverse_tools: ${{ steps.plan.outputs.reverse_tools }}
       sqlite: ${{ steps.plan.outputs.sqlite }}
       runtime: ${{ steps.plan.outputs.runtime }}
       package: ${{ steps.plan.outputs.package }}
@@ -210,6 +211,24 @@ jobs:
           if-no-files-found: error
           overwrite: true
           retention-days: 7
+
+  reverse-tools-quality:
+    name: Reverse tools coverage and mutation
+    needs: [changes, static]
+    if: needs.changes.outputs.reverse_tools == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Run reverse tools tests with coverage
+        run: npm run test:coverage:reverse-tools
+      - name: Report reverse tools mutation results
+        run: npm run test:mutation:reverse-tools
 
   build:
     name: Build package
@@ -826,6 +845,7 @@ jobs:
         changes,
         static,
         build,
+        reverse-tools-quality,
         test-shard,
         sqlite-runtime,
         test,

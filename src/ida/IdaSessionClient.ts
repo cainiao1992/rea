@@ -111,10 +111,18 @@ class IdaCleanupError extends ProviderAdapterError {
   ) {
     super("ida", "close", {
       cause,
+      capturedOutput:
+        cause instanceof AnalysisError ? cause.capturedOutput : undefined,
       diagnostics: {
+        ...(cause instanceof AnalysisError ? cause.diagnostics : undefined),
         reason:
           "IDA cleanup could not be verified; the remaining connection or private workspace is retained for retry.",
-        failure_reason: cause instanceof Error ? cause.message : String(cause),
+        failure_reason:
+          cause instanceof AnalysisError
+            ? (cause.diagnostics?.reason ?? cause.message)
+            : cause instanceof Error
+              ? cause.message
+              : String(cause),
         workspace: path,
         ...(sessions === undefined
           ? {}
@@ -375,15 +383,47 @@ export class IdaSessionClient implements AnalysisClient {
     context: IdaOperationFailureContext,
   ) {
     let failure: AnalysisError;
-    if (
+    if (wasCancelled(options))
+      failure = new AnalysisCancelledError(operation, {
+        cause,
+        ...(cause instanceof AnalysisError
+          ? {
+              capturedOutput: cause.capturedOutput,
+              diagnostics: cause.diagnostics,
+              partialObservation: cause.partialObservation,
+              cleanup:
+                cause.cleanup ??
+                (cause.cleanupIncomplete
+                  ? {
+                      reason: cause.message,
+                      resources: cause.cleanupResources,
+                    }
+                  : undefined),
+            }
+          : {}),
+      });
+    else if (
+      cause instanceof ProviderAdapterError &&
+      cause.operation === "transport"
+    )
+      failure = new ProviderAdapterError("ida", operation, {
+        cause,
+        capturedOutput: cause.capturedOutput,
+        partialObservation: cause.partialObservation,
+        cleanup: cause.cleanup,
+        diagnostics: {
+          ...cause.diagnostics,
+          recovery:
+            "Check the configured upstream MCP registration and selected target; see docs/ida-provider.md.",
+        },
+      });
+    else if (
       cause instanceof AnalysisError &&
       (cause.partialObservation !== undefined ||
         cause.cleanupIncomplete ||
         cause.capturedOutput !== undefined)
     )
       failure = cause;
-    else if (wasCancelled(options))
-      failure = new AnalysisCancelledError(operation);
     else if (cause instanceof AnalysisError) failure = cause;
     else if (cause instanceof z.ZodError)
       failure = new AnalysisOutputError(

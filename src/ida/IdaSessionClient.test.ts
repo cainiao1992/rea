@@ -9,6 +9,7 @@ import {
 import { IdaSessionClient } from "./IdaSessionClient.js";
 import { functionDossierSchema } from "../domain/hopperValues.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
+import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 
 const roots: string[] = [];
@@ -1365,4 +1366,107 @@ describe("headless IDA cleanup verification", () => {
     ).toMatch(/^rea-/u);
     expect(await readdir(root)).toEqual(["target.elf"]);
   });
+});
+
+it.each(["idb_close", "idb_list", "connection_close"])(
+  "preserves transport stderr through cleanup at %s",
+  async (stage) => {
+    const { producer, client } = await fixture("headless");
+    expect((await client.execute("health", {})).ok).toBe(true);
+    const failure = new ProviderAdapterError("ida", "transport", {
+      diagnostics: {
+        reason: "upstream transport closed",
+      },
+      capturedOutput: {
+        stdout: "",
+        stderr: "IDA shutdown diagnostic",
+        truncated: false,
+      },
+    });
+    const originalClose = producer.close.bind(producer);
+    producer.beforeCall = async (name) => {
+      if (name === stage) throw failure;
+    };
+    if (stage === "connection_close")
+      producer.close = async () => {
+        throw failure;
+      };
+    try {
+      const result = await client.close();
+      if (result.ok) throw new Error("expected cleanup failure");
+      expect(result.error.capturedOutput?.stderr).toBe(
+        "IDA shutdown diagnostic",
+      );
+      expect(result.error.diagnostics).toMatchObject({
+        failure_reason: "upstream transport closed",
+      });
+      expect(result.error.cleanupIncomplete).toBe(true);
+    } finally {
+      producer.beforeCall = undefined;
+      producer.close = originalClose;
+      await client.close();
+    }
+  },
+);
+
+it("binds retained transport diagnostics to the requested operation and recovery", async () => {
+  const { producer, client } = await fixture("attached");
+  await client.execute("health", {});
+  producer.beforeCall = async (name) => {
+    if (name === "list_funcs")
+      throw new ProviderAdapterError("ida", "transport", {
+        diagnostics: { reason: "upstream closed" },
+        capturedOutput: {
+          stdout: "",
+          stderr: "IDA diagnostic",
+          truncated: false,
+        },
+      });
+  };
+  const result = await client.execute("list_procedures", {});
+  if (result.ok) throw new Error("expected upstream failure");
+  expect(projectAnalysisError(result.error)).toMatchObject({
+    details: {
+      operation: "list_procedures",
+      diagnostics: {
+        reason: "upstream closed",
+        recovery: expect.stringContaining("docs/ida-provider.md"),
+      },
+      captured_output: { stderr: "IDA diagnostic" },
+    },
+  });
+  await client.close();
+});
+
+it("retains transport diagnostics on a cancellation regardless of stderr", async () => {
+  const { producer, client } = await fixture("attached");
+  await client.execute("health", {});
+  const controller = new AbortController();
+  producer.beforeCall = async (name) => {
+    if (name === "list_funcs") {
+      controller.abort();
+      throw new ProviderAdapterError("ida", "transport", {
+        diagnostics: { reason: "upstream closed after cancellation" },
+        capturedOutput: {
+          stdout: "",
+          stderr: "shutdown diagnostic",
+          truncated: false,
+        },
+      });
+    }
+  };
+  const result = await client.execute(
+    "list_procedures",
+    {},
+    { signal: controller.signal },
+  );
+  if (result.ok) throw new Error("expected cancellation");
+  expect(projectAnalysisError(result.error)).toMatchObject({
+    code: "cancelled",
+    details: {
+      diagnostics: { reason: "upstream closed after cancellation" },
+      captured_output: { stderr: "shutdown diagnostic" },
+    },
+  });
+  await client.close();
 });

@@ -12,7 +12,7 @@ on:
   workflow_call:
     inputs:
       source_sha:
-        description: Exact release source; must match the caller revision.
+        description: Exact qualification source; must match the caller revision.
         required: true
         type: string
 
@@ -22,7 +22,7 @@ permissions:
 concurrency:
   # Complete qualification finishes even while main receives more pushes.
   # Scheduled/manual main runs coalesce to one active and the latest pending;
-  # release qualification has its own exact-revision group.
+  # release and label-triggered qualification use exact-revision groups.
   group: ci-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || inputs.source_sha != '' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'qualification' || 'feedback' }}-${{ inputs.source_sha || github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name != 'schedule' && github.event_name != 'workflow_dispatch' && inputs.source_sha == '' && !contains(github.event.pull_request.labels.*.name, 'ci:full') }}
 
@@ -30,22 +30,6 @@ env:
   HUSKY: "0"
 
 jobs:
-  pr-title:
-    name: Conventional PR title
-    if: github.event_name == 'pull_request' && inputs.source_sha == ''
-    runs-on: ubuntu-latest
-    steps:
-      - name: Validate title for Release Please
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-        run: >-
-          node -e 'const title = process.env.PR_TITLE ?? "";
-          const conventional = /^(?:feat|fix|docs|refactor|perf|test|build|ci|chore|revert)(?:\([a-z0-9._/-]+\))?!?: .+/u;
-          if (!conventional.test(title)) {
-            console.error("PR title must use Conventional Commits, for example: feat: add historical source import");
-            process.exit(1);
-          }'
-
   changes:
     name: Classify changes
     runs-on: ubuntu-latest
@@ -83,7 +67,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-      - name: Bind release qualification to the caller revision
+      - name: Bind qualification to the caller revision
         if: inputs.source_sha != ''
         env:
           SOURCE_SHA: ${{ inputs.source_sha }}
@@ -262,7 +246,9 @@ jobs:
           retention-days: 7
 
   sqlite-runtime:
-    needs: [changes, build]
+    # Preserve all selected coverage, but admit expensive host/provider work
+    # only after static validation. Portable tests still provide early feedback.
+    needs: [changes, static, build]
     if: needs.changes.outputs.sqlite == 'true'
     uses: ./.github/workflows/sqlite-runtime.yml
 
@@ -350,7 +336,7 @@ jobs:
 
   conformance-fixtures:
     name: Source-built conformance fixtures
-    needs: changes
+    needs: [changes, static]
     if: needs.changes.outputs.fixtures == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -361,7 +347,7 @@ jobs:
 
   windows-native-build:
     name: Build bundled Windows x64 native controls
-    needs: changes
+    needs: [changes, static]
     if: needs.changes.outputs.runtime == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -397,7 +383,7 @@ jobs:
 
   package-e2e:
     name: Native package baseline (${{ matrix.platform }} ${{ matrix.architecture }})
-    needs: [changes, build, windows-native-build]
+    needs: [changes, static, build, windows-native-build]
     if: needs.changes.outputs.runtime == 'true'
     strategy:
       fail-fast: false
@@ -463,7 +449,7 @@ jobs:
 
   apple-artifacts:
     name: Real Apple artifact CLI/MCP E2E
-    needs: [changes, build]
+    needs: [changes, static, build]
     if: needs.changes.outputs.apple == 'true'
     runs-on: macos-15
     timeout-minutes: 15
@@ -511,7 +497,7 @@ jobs:
 
   reconstruction-readiness:
     name: Reconstruction readiness
-    needs: changes
+    needs: [changes, static]
     if: needs.changes.outputs.readiness == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -540,7 +526,7 @@ jobs:
 
   windows-curated:
     name: Windows capability and package lane
-    needs: [changes, build, windows-native-build]
+    needs: [changes, static, build, windows-native-build]
     if: needs.changes.outputs.package == 'true'
     runs-on: windows-latest
     timeout-minutes: 25
@@ -672,52 +658,52 @@ jobs:
           if-no-files-found: error
 
   browser:
-    needs: changes
+    needs: [changes, static]
     if: needs.changes.outputs.browser == 'true'
     uses: ./.github/workflows/real-browser.yml
 
   binary_layout:
-    needs: changes
+    needs: [changes, static]
     if: needs.changes.outputs.binary_layout == 'true'
     uses: ./.github/workflows/real-binary-layout.yml
 
   evm:
-    needs: changes
+    needs: [changes, static]
     if: needs.changes.outputs.evm == 'true'
     uses: ./.github/workflows/real-evm-interface.yml
 
   javascript_recovery:
-    needs: changes
+    needs: [changes, static]
     if: needs.changes.outputs.javascript_recovery == 'true'
     uses: ./.github/workflows/real-javascript-recovery.yml
 
   recorded_crash:
-    needs: changes
+    needs: [changes, static]
     if: needs.changes.outputs.recorded_crash == 'true'
     uses: ./.github/workflows/real-recorded-crash.yml
 
   web_network:
-    needs: changes
+    needs: [changes, static]
     if: needs.changes.outputs.web_network == 'true'
     uses: ./.github/workflows/real-web-network-captures.yml
 
   web_runtime:
-    needs: changes
+    needs: [changes, static]
     if: needs.changes.outputs.web_runtime == 'true'
     uses: ./.github/workflows/real-web-runtime.yml
 
   web_source_map:
-    needs: changes
+    needs: [changes, static]
     if: needs.changes.outputs.web_source_map == 'true'
     uses: ./.github/workflows/real-web-source-map.yml
 
   nativeaot:
-    needs: changes
+    needs: [changes, static]
     if: needs.changes.outputs.nativeaot == 'true'
     uses: ./.github/workflows/nativeaot-fixtures.yml
 
   website:
-    needs: changes
+    needs: [changes, static]
     if: needs.changes.outputs.website == 'true'
     uses: ./.github/workflows/website-check.yml
 
@@ -727,7 +713,6 @@ jobs:
     needs:
       [
         changes,
-        pr-title,
         static,
         build,
         test-shard,

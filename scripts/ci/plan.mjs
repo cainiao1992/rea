@@ -8,6 +8,8 @@ const HOST_TEST_OWNERS = ["apple", "package", "sqlite"];
 // Actionlint validates workflow syntax only. The semantic suite asserts these
 // workflows' release, publication and self-hosted runner safeguards.
 const GUARDED_WORKFLOWS = new Set([
+  ".github/workflows/pr-title.yml",
+  ".github/workflows/ci-full-pr.yml",
   ".github/workflows/release.yml",
   ".github/workflows/real-ghidra-windows.yml",
   ".github/workflows/sqlite-runtime.yml",

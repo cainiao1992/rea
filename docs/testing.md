@@ -276,6 +276,15 @@ sharding. Static checks, documentation, build, package verification, and
 real-system lanes remain separate jobs so one kind of evidence cannot stand in
 for another. Workflow syntax and expression validation runs inside the required
 static-check job when workflow changes select it, avoiding a separate runner.
+Native, provider, fixture, SQLite compatibility, and website lanes wait for
+static checks to succeed before allocating their runners. This avoids spending
+those runner slots on revisions that already fail static validation. Portable
+test shards and documentation checks remain independent of static results, so
+they can still provide diagnostic feedback. The required gate rejects skipped
+selected lanes when static checks fail; passing revisions retain all selected
+coverage. This ordering reduces peak demand on invalid revisions but can add
+static-check waiting to otherwise passing runs; it is not a measured reduction
+in end-to-end latency.
 
 The separate `CI timings` workflow batches recent completed CI and Release runs
 hourly or on manual dispatch. It uploads `ci-job-timings-batch` with raw API pages and
@@ -841,9 +850,12 @@ observation. Manual dispatch, `ci:full`, and exact release qualification always
 run full validation.
 
 Full qualification includes aggregate coverage,
-every portable provider lane, and all native hosts below. A `ci:full` PR label
-selects full qualification on the next PR run; manual dispatch can request it
-immediately. Fast-tier broad fallbacks retain all owner lanes and the three-host
+every portable provider lane, and all native hosts below. Adding `ci:full`
+immediately starts the separate `Full PR qualification` workflow against the
+label event's merge revision; subsequent PR revisions also select the full tier
+in normal CI while that label remains. Unrelated labels do not start validation
+jobs or replace the main CI checks. Manual dispatch also requests full validation.
+Fast-tier broad fallbacks retain all owner lanes and the three-host
 package matrix; Intel macOS and coverage remain full-tier obligations. Each
 classification job records its selection and broad-fallback reasons in the run
 summary. Representative Git-diff cases live in
@@ -851,7 +863,12 @@ summary. Representative Git-diff cases live in
 
 `CI required` always runs and checks classification and every selected lane,
 rejecting failed, cancelled, or unexpectedly skipped work. Branch protection
-should require this aggregate, `Static checks`, and `Portable tests`. Fast runs
+should require this aggregate, `Static checks`, `Portable tests`, and
+`Conventional PR title`. Title validation runs separately on PR opening,
+reopening, commits, and edits; correcting a title refreshes only this lightweight
+check. It reads title text through an environment variable, executes no PR code,
+and has no token permissions. Its separate concurrency group cannot cancel
+test runs. Fast runs
 cancel superseded feedback for the same PR or main branch. Scheduled/manual
 qualification has a separate concurrency group: active work finishes and only
 the latest pending run is retained. Release qualification is grouped by its

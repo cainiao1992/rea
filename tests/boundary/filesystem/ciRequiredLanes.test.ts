@@ -144,6 +144,27 @@ it("makes the required gate wait for every CI lane, including future additions",
   );
 });
 
+it("holds native and provider fan-out behind static validation while portable feedback stays independent", async () => {
+  const { jobs } = await workflow();
+  const earlyJobs = new Set([
+    "changes",
+    "static",
+    "build",
+    "test-shard",
+    "test",
+    "docs",
+    "required",
+  ]);
+  for (const [name, job] of Object.entries(jobs)) {
+    if (earlyJobs.has(name)) continue;
+    expect(job.needs, `${name} must wait for static validation`).toContain(
+      "static",
+    );
+    expect(job.if).not.toMatch(/always\(|cancelled\(/u);
+  }
+  expect(jobs["test-shard"]?.needs).not.toContain("static");
+});
+
 it("runs workflow validation inside required static checks when selected", async () => {
   const { jobs } = await workflow();
   const steps = z

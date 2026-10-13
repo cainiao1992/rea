@@ -1123,11 +1123,16 @@ it.each(["identify_flutter_build", "inspect_dart_aot"] as const)(
     if (result.ok) throw new Error("Duplicate libraries must be refused");
     expect(projectAnalysisError(result.error)).toMatchObject({
       code: "invalid_request",
+      details: {
+        issues: [
+          {
+            message: expect.stringContaining(
+              `duplicate Flutter library members: ${path}:`,
+            ),
+          },
+        ],
+      },
     });
-    expect(JSON.stringify(projectAnalysisError(result.error))).toContain(
-      "duplicate Flutter library members",
-    );
-    expect(JSON.stringify(projectAnalysisError(result.error))).toContain(path);
     expect(extract).not.toHaveBeenCalled();
   },
 );

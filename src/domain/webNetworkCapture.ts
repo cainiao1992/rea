@@ -10,12 +10,14 @@ export const WEB_NETWORK_CAPTURE_LIMITS = {
   depth: 64,
 } as const;
 
+export const WEB_NETWORK_CAPTURE_FORMATS = ["har", "mitmproxy", "saz"] as const;
+
 /** Inspect an explicit retained capture without contacting its recorded destinations. */
 export const inspectWebNetworkCaptureInputSchema = z.strictObject({
   capture_path: localPathStringSchema.describe(
-    "Absolute local HAR or mitmproxy capture path.",
+    "Absolute local HAR, mitmproxy, or Fiddler SAZ capture path.",
   ),
-  format: z.enum(["har", "mitmproxy"]),
+  format: z.enum(WEB_NETWORK_CAPTURE_FORMATS),
   record_ordinals: z
     .array(z.number().int().nonnegative())
     .min(1)
@@ -30,6 +32,21 @@ export const inspectWebNetworkCaptureInputSchema = z.strictObject({
       "Literal text excluded from capture payloads, byte/numeric projections, producer coordinates, artifact paths/digests and diagnostic text. Declaration strings are never persisted in Evidence parameters. Canonical contract keys, enums and provider identities remain intact.",
     ),
 });
+
+/** Read declarations through their owning schema for service and adapter failures. */
+export const captureSensitiveValues = (
+  rawInput: unknown,
+): readonly string[] => {
+  const parsed =
+    inspectWebNetworkCaptureInputSchema.shape.sensitive_values.safeParse(
+      typeof rawInput === "object" &&
+        rawInput !== null &&
+        "sensitive_values" in rawInput
+        ? rawInput.sensitive_values
+        : undefined,
+    );
+  return parsed.success ? parsed.data : [];
+};
 
 const pointerSchema = z
   .string()
@@ -53,21 +70,26 @@ const binaryBase = {
   pointer: pointerSchema,
   representation: z.enum(["producer-bytes", "har-base64-content"]),
 };
+const retainedBinaryDescriptorSchema = z.strictObject({
+  ...binaryBase,
+  state: z.literal("retained"),
+  bytes: z.number().int().nonnegative(),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+});
+const redactedBinaryDescriptorSchema = z.strictObject({
+  ...binaryBase,
+  state: z.literal("redacted"),
+  bytes: z.null(),
+  sha256: z.null(),
+});
+/** Exact byte facts shared by complete records and previews that omit content. */
+export const webNetworkCaptureBinaryDescriptorSchema = z.discriminatedUnion(
+  "state",
+  [retainedBinaryDescriptorSchema, redactedBinaryDescriptorSchema],
+);
 const binarySchema = z.discriminatedUnion("state", [
-  z.strictObject({
-    ...binaryBase,
-    state: z.literal("retained"),
-    content_base64: z.string(),
-    bytes: z.number().int().nonnegative(),
-    sha256: z.string().regex(/^[0-9a-f]{64}$/),
-  }),
-  z.strictObject({
-    ...binaryBase,
-    state: z.literal("redacted"),
-    content_base64: z.null(),
-    bytes: z.null(),
-    sha256: z.null(),
-  }),
+  retainedBinaryDescriptorSchema.extend({ content_base64: z.string() }),
+  redactedBinaryDescriptorSchema.extend({ content_base64: z.null() }),
 ]);
 const numberSchema = z.strictObject({
   pointer: pointerSchema,
@@ -84,6 +106,10 @@ export const webNetworkCaptureRecordSchema = z.strictObject({
       reason: z.literal("explicit-sensitive-value"),
     }),
     z.strictObject({ kind: z.literal("json-pointer"), pointer: pointerSchema }),
+    z.strictObject({
+      kind: z.literal("archive-members"),
+      members: z.array(z.string()).min(1),
+    }),
     z.strictObject({
       kind: z.literal("byte-range"),
       offset: z.number().int().nonnegative(),
@@ -156,7 +182,7 @@ export const webNetworkCaptureSchema =
         ),
       bytes: z.number().int().nonnegative(),
     }),
-    format: z.enum(["har", "mitmproxy"]),
+    format: z.enum(WEB_NETWORK_CAPTURE_FORMATS),
     runtime_attribution: z.literal("unknown"),
     limitations: z.array(z.string()),
   });

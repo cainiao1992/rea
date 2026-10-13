@@ -16,6 +16,7 @@ import { jsonObjectSchema } from "../domain/jsonValue.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
   inspectWebNetworkCaptureInputSchema,
+  captureSensitiveValues,
   webNetworkCaptureSchema,
 } from "../domain/webNetworkCapture.js";
 
@@ -32,21 +33,8 @@ export class WebNetworkCaptureService {
   ): Promise<Result<Evidence, AnalysisError>> {
     if (options?.signal?.aborted)
       return err(new AnalysisCancelledError(OPERATION));
-    const declarations =
-      inspectWebNetworkCaptureInputSchema.shape.sensitive_values.safeParse(
-        typeof rawInput === "object" &&
-          rawInput !== null &&
-          "sensitive_values" in rawInput
-          ? rawInput.sensitive_values
-          : undefined,
-      );
     const failure = (error: AnalysisError): Result<never, AnalysisError> =>
-      err(
-        redactExplicitFailure(
-          error,
-          declarations.success ? declarations.data : [],
-        ),
-      );
+      err(redactExplicitFailure(error, captureSensitiveValues(rawInput)));
     const parsed = inspectWebNetworkCaptureInputSchema.safeParse(rawInput);
     if (!parsed.success)
       return failure(

@@ -4,7 +4,7 @@
 in an existing capture. Network, USB or Bluetooth recordings can use the same
 field/filter interface when the installed TShark supports their encapsulation
 and dissectors. This tool does not acquire traffic, open an interface or control
-a device. HAR/mitmproxy web-capture workflows remain separate.
+a device. HAR/SAZ/mitmproxy web-capture workflows remain separate.
 
 Supply an existing TShark 4.x installation **on Linux**, with util-linux
 `prlimit` available at `/usr/bin/prlimit`. Override its absolute path with

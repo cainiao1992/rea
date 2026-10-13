@@ -55,6 +55,12 @@ import {
   wasmViewItemSchema,
   wasmSummarySchema,
 } from "./wasmArtifactView.js";
+import {
+  projectWebNetworkCaptureView,
+  captureViewRequestSchema,
+  captureViewItemsSchema,
+  captureSummarySchema,
+} from "./webNetworkCaptureView.js";
 import type { WebNetworkApiSurfaceAccumulator } from "./WebNetworkApiSurfaceAccumulator.js";
 import {
   projectAndroidPackageView,
@@ -177,6 +183,7 @@ export const analysisViewRequestSchema = z.discriminatedUnion("kind", [
   managedViewRequestSchema,
   androidViewRequestSchema,
   apiSurfaceViewSchema,
+  captureViewRequestSchema,
 ]);
 
 // The application owns admission and authenticated Evidence parsing. SDK and
@@ -216,7 +223,7 @@ const artifactSchema = z.strictObject({
   path: z
     .string()
     .describe("Exact recorded artifact path, including an empty string."),
-  sha256: digestSchema,
+  sha256: digestSchema.nullable(),
 });
 
 const layoutSummarySchema = z.strictObject({
@@ -290,6 +297,7 @@ const viewResultBase = {
     "inspect_wasm_artifact",
     "inspect_evm_interface",
     "inspect_managed_artifact",
+    "inspect_web_network_capture",
     "inspect_android_package",
   ]),
   parent_digest: digestSchema,
@@ -348,6 +356,13 @@ export const managedArtifactSummaryViewResultSchema = z.strictObject({
   summary: managedSummarySchema,
 });
 
+/** Exact historical capture summary, with no body or member-inventory payload. */
+export const webNetworkCaptureSummaryViewResultSchema = z.strictObject({
+  ...summaryViewResultBase,
+  parent_operation: z.literal("inspect_web_network_capture"),
+  summary: captureSummarySchema,
+});
+
 /** Exact package declarations with retained decoded manifest text. */
 export const androidPackageSummaryViewResultSchema = z.strictObject({
   ...summaryViewResultBase,
@@ -377,8 +392,16 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
       wasmSummarySchema,
       evmSummarySchema,
       managedSummarySchema,
+      captureSummarySchema,
       androidPackageSummarySchema,
     ]),
+  }),
+  z.strictObject({
+    kind: z.literal("capture"),
+    view: captureViewRequestSchema,
+    items: captureViewItemsSchema,
+    ...viewResultBase,
+    parent_operation: z.literal("inspect_web_network_capture"),
   }),
   z.strictObject({
     kind: z.literal("facet"),
@@ -501,6 +524,10 @@ export type UnsignedAnalysisView =
   | Omit<Extract<AnalysisViewResult, { readonly kind: "wasm" }>, "view_digest">
   | Omit<Extract<AnalysisViewResult, { readonly kind: "evm" }>, "view_digest">
   | Omit<
+      Extract<AnalysisViewResult, { readonly kind: "capture" }>,
+      "view_digest"
+    >
+  | Omit<
       Extract<AnalysisViewResult, { readonly kind: "managed" }>,
       "view_digest"
     >
@@ -603,15 +630,16 @@ export const projectAnalysisView = (
         },
       ]),
     );
-  if (
-    view.kind === "api-surface" ||
-    parent.operation === "inspect_web_network_capture"
-  ) {
+  if (view.kind === "api-surface") {
     const projected = projectWebNetworkApiSurfaceView(
       parent,
       view,
       apiSurfaceAccumulator,
     );
+    return projected.ok ? ok(sealAnalysisView(projected.value)) : projected;
+  }
+  if (parent.operation === "inspect_web_network_capture") {
+    const projected = projectWebNetworkCaptureView(parent, view);
     return projected.ok ? ok(sealAnalysisView(projected.value)) : projected;
   }
   if (parent.operation === "inspect_binary_layout") {

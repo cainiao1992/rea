@@ -273,6 +273,11 @@ export const providerCatalog = (sources) => {
         sources.webNetworkCaptureContracts.WEB_NETWORK_CAPTURE_TOOL_CONTRACTS,
     },
     {
+      identity: sources.webNetworkCaptureProvider.SAZ_CAPTURE_PROVIDER_IDENTITY,
+      contracts:
+        sources.webNetworkCaptureContracts.WEB_NETWORK_CAPTURE_TOOL_CONTRACTS,
+    },
+    {
       identity:
         sources.webNetworkCaptureProvider.MITMPROXY_CAPTURE_PROVIDER_IDENTITY,
       contracts:

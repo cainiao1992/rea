@@ -25,6 +25,36 @@ and original zero-based producer ordinals; duplicate or out-of-range selections
 are input errors. Every record is validated before selection, so selecting one
 entry does not hide a malformed entry elsewhere.
 
+For agent discovery over MCP, request `detail: "summary"`. REA retains the
+complete selected Evidence in the session and returns identity and counts.
+Use `normalized_result.parent_evidence_id` with `inspect_analysis_view`:
+
+```json
+{
+  "source": {
+    "kind": "retained-evidence",
+    "evidence_id": "<parent_evidence_id>"
+  },
+  "view": { "kind": "capture", "detail": "preview", "offset": 0, "limit": 20 }
+}
+```
+
+Preview pages select recorded HTTP headline fields, event names/times when
+present, original locations and byte descriptors; they omit headers, XML and
+payload content. Choose `detail: "complete"` in that view for exact record
+pages, including all sidecars. Offsets follow the parent's selected record
+order; producer ordinals remain unchanged. `total_records` counts the original
+capture while `retained_records` and page coverage count records in the parent.
+An exhausted page does not establish absence from unselected records.
+
+Views do not reopen the file or rerun its decoder. They remain historical
+Evidence if the source changes or disappears; inspect the capture again to
+observe new bytes. The inspection tool's default `detail: "complete"` preserves
+existing inline delivery. For CLI use, save complete inspection JSON and pass
+it as inline Evidence to `inspect-analysis-view`; the same summary and capture
+page contracts apply. Large complete records can still exceed MCP's response
+budget; export the retained Evidence when a single record cannot fit.
+
 ## Formats and upstream profiles
 
 HAR uses unchanged `har-schema@2.0.0` draft-06 schemas, `ajv@8.20.0`,
@@ -57,11 +87,80 @@ tested upstream source is tag `v12.2.3`, commit
 an explicit unsupported-profile diagnostic. Non-Linux native decoding is not
 supported by this adapter.
 
+## Reading Fiddler captures (`.saz`)
+
+Fiddler Everywhere saves traffic in **Session Archive Zip (`.saz`)** files.
+Inspect native SAZ directly, without installing Fiddler or converting to HAR:
+
+```sh
+rea inspect-web-network-capture /absolute/session.saz saz --json
+rea inspect-web-network-capture /absolute/session.saz saz --record 0 --json
+```
+
+MCP uses the same `capture_path`, `format: "saz"`, and optional
+`record_ordinals` fields as the examples above. REA pairs `raw/<id>_c.txt`
+requests, `_s.txt` responses, and `_m.xml` metadata by filename stem. Archive
+member names identify the source; zero-based ordinals follow each session's
+first member in ZIP directory order, not its numeric ID or capture time.
+
+HTTP fields and ordered duplicate headers are retained, with stored body bytes
+in binary sidecars. Bodies are not dechunked or decompressed. Metadata is an
+XML node tree; optional `_w.txt` and `_g.txt` files retain opaque WebSocket and
+gRPC message bytes. Missing members remain null, distinct from empty bodies.
+See Telerik's [SAZ format reference](https://www.telerik.com/fiddler/fiddler-everywhere/documentation/knowledge-base/fiddler-archives).
+
+The existing ZIP reader verifies read members; expanded archive contents are
+limited to 32 MiB in addition to the input/output budgets below. Encrypted
+archives and unrecognized raw session members are unsupported. SAZ requires an
+enforced decoder memory bound: Node's fixed heap, or the Windows Job Object
+commit limit. Bun on hosts without that Job Object limit returns capability
+unavailable before starting the SAZ decoder. Non-session
+members are inventoried without decoding their content. Original files remain
+unchanged. Linux verification includes independently checked public recorded
+Mattermost captures from [FOREST](https://github.com/dfrc-korea/FOREST/tree/405c9154658a128ea203a6c10040cec55111ed03/api-results/dataset)
+and the Fiddler author's [encoding corpus](https://github.com/ericlaw1979/Clearinet/blob/b6faf78cde1e72042980364f180ceb34b77d1434/Test/data/Encodings.saz),
+plus synthetic malformed/limit fixtures. Their exporting product versions are
+not authenticated. An interactive export from a current Fiddler Everywhere
+installation and its live MCP server remain unverified. Support here is the
+bounded documented raw HTTP/XML SAZ layout, not every product/version profile.
+
+For visual inspection, use Everywhere's **Import Snapshot**, then **Inspectors**
+and **Overview**. HAR remains an alternative: select sessions, choose
+**Export > HTTPArchive**, and confirm `log.version` is `"1.2"`. Preserve the
+original SAZ when exporting. See the [import/export instructions](https://www.telerik.com/fiddler/fiddler-everywhere/documentation/collaboration/exporting-and-importing).
+
+## Fiddler Everywhere MCP and public skills
+
+For agent-driven traffic debugging, connect Everywhere's MCP server separately
+from REA. Run a current Everywhere release with MCP access (Trial, Pro, or
+higher), internet access, and a compatible MCP client. Use
+**Settings > MCP Server > Coding agent**, or **Manual setup** with the generated
+API key. The default endpoint is `http://localhost:8868/mcp`. See Telerik's
+[MCP setup guide](https://www.telerik.com/fiddler/fiddler-everywhere/documentation/agent-tools/fiddler-mcp-server)
+and [agent-skills prerequisites](https://www.telerik.com/fiddler/fiddler-everywhere/documentation/agent-tools/agent-skills).
+
+Telerik's [public skills](https://github.com/telerik/fiddler-agent-tools) cover
+installation (`fiddler-download-setup`), connection setup, and traffic analysis:
+
+```sh
+npx skills add telerik/fiddler-agent-tools --skill fiddler-mcp-setup
+npx skills add telerik/fiddler-agent-tools --skill fiddler-traffic-debugging
+```
+
+After setup, reload the agent client and use the connected server's advertised
+tool names and schemas. Check status, list sessions, then inspect relevant
+session IDs. Set `sessionsSource` to `LiveTraffic` for HTTP(S) traffic or
+`AgentCalls` for enriched LLM calls; active filters affect the session list.
+For an existing run, skip the skill's pre-capture steps that replace process
+filters and clear sessions. The documented MCP session sources do not provide
+a saved-snapshot selector; use the SAZ workflow above for saved files. REA does
+not register or wrap the Fiddler MCP server.
+
 ## Reading the evidence
 
 - `artifact` identifies the caller-selected file and stable snapshot digest.
-- `records` preserve producer order/ordinals and original JSON pointers or byte
-  ranges. No live browser transaction or scenario IDs are invented.
+- `records` preserve producer order/ordinals and original JSON pointers, byte
+  ranges, or SAZ member names. No live browser transaction or scenario IDs are invented.
 - `reported` retains the producer's fields. HAR container metadata is returned
   separately, with `log.entries` replaced by `null` and `records_pointer`
   identifying the record collection. This is an inspection representation,
@@ -156,7 +255,7 @@ response fields, including HAR's `status: 0` and an empty `mimeType`, remain
 unknown, not invented statuses or MIME types.
 
 The view makes no handler-identity, schema or causality claim. It performs no
-network activity. Native mitmproxy captures return a typed unsupported error.
+network activity. Native mitmproxy and SAZ captures return a typed unsupported error.
 Parents inspected with `sensitive_values`, or whose Evidence does not record
 `sensitive_value_count`, return a typed unsupported error whose reason is the
 canonical token `sensitive_values_unretained`. The view would write path
@@ -192,14 +291,14 @@ Complete evidence has a 32 MiB input, 96 MiB decoder reply and 64-level nesting
 budget. Exceeding a budget returns no partial success.
 Oversized selected captures return an input error identifying `capture_path`
 and the byte budget; owned reply/output failures remain output or provider errors.
-HAR runs in an owned
-192 MiB Node old-generation heap with one V8 worker. Native decoding applies
+HAR and SAZ run in an owned
+192 MiB Node old-generation heap with one V8 worker. Mitmproxy decoding applies
 Linux limits of 768 MiB address space, 30 seconds CPU and 96 MiB file output;
 both commands have a 30-second wall deadline and independently supervised
 process cleanup. Owned decoder diagnostics retain at most 1 MiB across stdout
 and stderr; the collector drops overflow as it arrives, reports the limit
 failure and verifies cleanup. Heap limits alone do not establish aggregate RSS limits.
-When REA runs on Bun, the HAR decoder runs on Bun, which ignores these V8 heap
+When REA runs on Bun, the HAR/SAZ decoder runs on Bun, which ignores these V8 heap
 flags; its limitations and resource failures then omit the heap sizes. On
 Windows, the decoder's owned Job Object instead limits its committed memory to
 704 MiB, the 192 MiB budget plus a 512 MiB reserve for Bun itself. The
@@ -207,7 +306,7 @@ limitations state that limit, and reaching it returns `resource_constraint`
 with `process_memory_limit_bytes`, whatever exit status Bun reports.
 
 Observed decoder memory exhaustion returns `resource_constraint`, with the
-selected capture, applicable limits and retained process diagnostics. HAR's
+selected capture, applicable limits and retained process diagnostics. HAR/SAZ's
 old-generation heap is fixed; inherited `NODE_OPTIONS` cannot raise it.
 Record selection happens after complete decoding and does not reduce that
 workload. Use a smaller capture exported by its producer or another decoder

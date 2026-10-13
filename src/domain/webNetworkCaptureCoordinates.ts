@@ -22,6 +22,8 @@ export const excludeCaptureCoordinates = (
     const location =
       (record.location.kind === "json-pointer" &&
         sensitive(record.location.pointer)) ||
+      (record.location.kind === "archive-members" &&
+        record.location.members.some(sensitive)) ||
       (record.location.kind === "byte-range" &&
         (sensitive(String(record.location.offset)) ||
           sensitive(String(record.location.bytes))))

@@ -2,7 +2,7 @@
 name: reverse-engineer-anything
 description: Reverse engineer native, managed, Electron/JavaScript, packaged, firmware, and browser targets with REA. Use shipped-artifact or requested runtime evidence to explain features, compare versions, decompile code, or guide a reconstruction. Skip REA for ordinary source-repository architecture analysis.
 metadata:
-  version: "40"
+  version: "41"
 ---
 
 # REA
@@ -61,7 +61,11 @@ explicit path or endpoint and do not need it.
   consult the NativeAOT workflow in `references/native-and-artifacts.md` for
   optional metadata recovery and its supported host/layout boundary.
 - User-owned browser page already open: `list_browser_targets`.
-- Retained HAR/native mitmproxy capture: `inspect_web_network_capture`. Select
+- Fiddler Everywhere traffic or a native `.saz` capture: read the
+  [Fiddler workflow](references/runtime-observation.md#fiddler-everywhere-traffic-debugging).
+  Inspect saved SAZ with `inspect_web_network_capture` and `format: "saz"`;
+  connect Everywhere's separate MCP server for live traffic.
+- Retained HAR/SAZ/native mitmproxy capture: `inspect_web_network_capture`. Select
   original record ordinals when useful; inspect producer fields and byte/number
   sidecars without fetching recorded URLs or claiming live attribution. See
   [historical captures](https://github.com/morluto/rea/blob/main/docs/web-network-captures.md) for the exact upstream

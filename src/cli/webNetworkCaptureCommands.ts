@@ -1,4 +1,5 @@
 import { z } from "incur";
+import { WEB_NETWORK_CAPTURE_FORMATS } from "../domain/webNetworkCapture.js";
 import { createWebNetworkCaptureService } from "../composition/webNetworkCaptures.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
 import { logCliCommand } from "../cliLogging.js";
@@ -16,10 +17,12 @@ export const registerWebNetworkCaptureCommands = (
   const service = createWebNetworkCaptureService(environment);
   cli.command(CLI_COMMANDS.inspectWebNetworkCapture, {
     description:
-      "Inspect retained HAR or native mitmproxy records without fetching recorded URLs",
+      "Inspect retained HAR, native mitmproxy, or Fiddler SAZ records without fetching recorded URLs",
     args: z.object({
       capturePath: z.string().describe("Absolute local capture path"),
-      format: z.enum(["har", "mitmproxy"]).describe("Producer capture format"),
+      format: z
+        .enum(WEB_NETWORK_CAPTURE_FORMATS)
+        .describe("Producer capture format"),
     }),
     options: z.object({
       record: z

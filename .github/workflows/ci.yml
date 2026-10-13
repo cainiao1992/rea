@@ -5,16 +5,25 @@ on:
     branches: [main]
   pull_request:
     branches: [main, "release/*"]
+  schedule:
+    - cron: "23 * * * *"
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      source_sha:
+        description: Exact release source; must match the caller revision.
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
-  # The latest main push verifies the full tree, including earlier changes.
-  # Publication uses its own release workflow and concurrency group.
-  cancel-in-progress: true
+  # Complete qualification finishes even while main receives more pushes.
+  # Scheduled/manual main runs coalesce to one active and the latest pending;
+  # release qualification has its own exact-revision group.
+  group: ci-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || inputs.source_sha != '' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'qualification' || 'feedback' }}-${{ inputs.source_sha || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' && github.event_name != 'workflow_dispatch' && inputs.source_sha == '' && !contains(github.event.pull_request.labels.*.name, 'ci:full') }}
 
 env:
   HUSKY: "0"
@@ -22,7 +31,7 @@ env:
 jobs:
   pr-title:
     name: Conventional PR title
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && inputs.source_sha == ''
     runs-on: ubuntu-latest
     steps:
       - name: Validate title for Release Please
@@ -39,7 +48,11 @@ jobs:
   changes:
     name: Classify changes
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     outputs:
+      tier: ${{ steps.plan.outputs.tier }}
       code: ${{ steps.plan.outputs.code }}
       runtime: ${{ steps.plan.outputs.runtime }}
       package: ${{ steps.plan.outputs.package }}
@@ -62,16 +75,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.source_sha || github.sha }}
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
+      - name: Bind release qualification to the caller revision
+        if: inputs.source_sha != ''
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          test "${SOURCE_SHA}" = "${GITHUB_SHA}"
+          test "${SOURCE_SHA}" = "$(git rev-parse HEAD)"
+      - name: Find a verified ancestor for push selection
+        id: baseline
+        if: github.event_name == 'push' && inputs.source_sha == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.sha }}
+          CI_REPOSITORY: ${{ github.repository }}
+          CI_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: node scripts/ci/baseline.mjs
       - name: Select verification lanes
         id: plan
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          CI_FULL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:full') }}
+          BASE_SHA: ${{ steps.baseline.outputs.base || github.event.pull_request.base.sha }}
+          BASELINE_REASON: ${{ steps.baseline.outputs.reason }}
+          HEAD_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          CI_FULL: ${{ inputs.source_sha != '' || contains(github.event.pull_request.labels.*.name, 'ci:full') }}
         run: node scripts/ci/plan.mjs
 
   static:
@@ -129,7 +160,14 @@ jobs:
         with:
           name: rea-test-runtime
           path: .
-      - run: npm run test:ci:shard:run -- --shard=${{ matrix.shard }}
+      - name: Run complete portable suite with coverage
+        if: needs.changes.outputs.tier == 'full'
+        run: npm run test:ci:shard:run -- --shard=${{ matrix.shard }}
+        env:
+          REA_CI_TEST_HISTORY: .cache/ci-test-history/test-results.json
+      - name: Run complete portable suite for fast feedback
+        if: needs.changes.outputs.tier == 'fast'
+        run: npm run test:run -- --reporter=default --reporter=blob --shard=${{ matrix.shard }}
         env:
           REA_CI_TEST_HISTORY: .cache/ci-test-history/test-results.json
       - uses: actions/upload-artifact@v4
@@ -160,7 +198,7 @@ jobs:
       - name: Reuse portable build outputs across runs
         uses: ./.github/actions/portable-build-cache
         with:
-          save: "true"
+          save: ${{ github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
       - run: npm run test:prepare
       - name: Find successful default-branch timing history
         id: history
@@ -172,7 +210,7 @@ jobs:
         run: |
           run_id="$(gh api --method GET \
             "repos/${CI_REPOSITORY}/actions/workflows/ci.yml/runs" \
-            -f branch="${CI_DEFAULT_BRANCH}" -f event=push -f status=success -f per_page=1 \
+            -f branch="${CI_DEFAULT_BRANCH}" -f event=schedule -f status=success -f per_page=1 \
             --jq '.workflow_runs[0].id // empty')"
           echo "run-id=${run_id}" >> "${GITHUB_OUTPUT}"
       - name: Download previous timing report
@@ -215,7 +253,7 @@ jobs:
     uses: ./.github/workflows/sqlite-runtime.yml
 
   test:
-    name: Test (coverage + timing)
+    name: Portable tests
     needs: [changes, test-shard]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
@@ -241,7 +279,7 @@ jobs:
           merge-multiple: true
       - name: Merge coverage, JUnit, and timing reports
         id: merge
-        if: needs.changes.outputs.code == 'true' && success()
+        if: needs.changes.outputs.code == 'true' && needs.changes.outputs.tier == 'full' && success()
         run: >-
           npm run test:ci:merge --
           --coverage.reportsDirectory=coverage
@@ -253,11 +291,22 @@ jobs:
           --reporter=json
           --outputFile.junit=test-results.xml
           --outputFile.json=test-results.json
+      - name: Merge fast-suite JUnit and timing reports
+        id: merge-fast
+        if: needs.changes.outputs.code == 'true' && needs.changes.outputs.tier == 'fast' && success()
+        run: >-
+          npm exec -- vitest --merge-reports
+          --reporter=default
+          --reporter=junit
+          --reporter=json
+          --outputFile.junit=test-results.xml
+          --outputFile.json=test-results.json
       - name: Summarize slowest test files
         if: needs.changes.outputs.code == 'true' && !cancelled() && hashFiles('test-results.json') != ''
         env:
           SHARD_RESULT: ${{ needs.test-shard.result }}
-          MERGE_RESULT: ${{ steps.merge.outcome }}
+          MERGE_RESULT: ${{ needs.changes.outputs.tier == 'full' && steps.merge.outcome || steps.merge-fast.outcome }}
+          CI_VERIFY_TEST_INVENTORY: "true"
         run: node scripts/ci/test-report.mjs
       - uses: actions/upload-artifact@v4
         if: needs.changes.outputs.code == 'true' && !cancelled() && hashFiles('test-results.json') != ''
@@ -270,7 +319,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Publish successful timing history
-        if: needs.changes.outputs.code == 'true' && success() && needs.test-shard.result == 'success'
+        if: needs.changes.outputs.code == 'true' && needs.changes.outputs.tier == 'full' && success() && needs.test-shard.result == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: test-timings
@@ -381,9 +430,20 @@ jobs:
       - run: npm run verify:package
         env:
           npm_config_cache: ${{ steps.npm-cache.outputs.path }}
+          REA_VERIFIED_PACKAGE_DIRECTORY: ${{ needs.changes.outputs.tier == 'full' && matrix.platform == 'linux' && matrix.architecture == 'x64' && '.cache/verified-package' || '' }}
       - name: Verify real Node Inspector discovery and observation
         timeout-minutes: 10
         run: npm run verify:inspector
+      - name: Retain the exact qualified release package
+        if: needs.changes.outputs.tier == 'full' && matrix.platform == 'linux' && matrix.architecture == 'x64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-release-package
+          path: .cache/verified-package/
+          include-hidden-files: true
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
 
   apple-artifacts:
     name: Real Apple artifact CLI/MCP E2E
@@ -657,7 +717,7 @@ jobs:
 
   required:
     name: CI required
-    if: ${{ !cancelled() }}
+    if: ${{ always() }}
     needs:
       [
         changes,
@@ -687,6 +747,7 @@ jobs:
         website,
       ]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

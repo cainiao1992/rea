@@ -22,6 +22,16 @@ export const combineFunctionRelationshipCoverage = (
     ),
   );
   const details = diagnostics.length > 0 ? { diagnostics } : {};
+  const callersLimited = callers?.status !== "complete";
+  const calleesLimited = callees?.status !== "complete";
+  const limited_directions: Extract<
+    RelationshipCoverage,
+    { status: "partial" }
+  >["limited_directions"] = callersLimited
+    ? calleesLimited
+      ? ["callers", "callees"]
+      : ["callers"]
+    : ["callees"];
   const reasons = reads.flatMap(({ direction, coverage }) => {
     const label =
       direction === "callers" ? callerCoveragePrefix : calleeCoveragePrefix;
@@ -43,30 +53,37 @@ export const combineFunctionRelationshipCoverage = (
     return {
       status: "unknown",
       reason: uniqueSorted(reasons).join(" "),
+      limited_directions,
       ...details,
     };
   if (reasons.length > 0)
     return {
       status: "partial",
       limitations: uniqueSorted(reasons),
+      limited_directions,
       ...details,
     };
   return { status: "complete", ...details };
 };
 
 /**
- * Whether combined relationship coverage is unknown only on the caller side.
- * The combine helper above prefixes each direction's reasons, so a reason
- * that carries the caller prefix and no callee prefix records observed
- * callees with unobservable callers. Forward (callee-edge) searches stay
- * exhaustive under that caveat; the caller reason remains a limitation.
+ * Forward searches depend on callee coverage. Preserve the historical
+ * unknown-reason encoding when reading observations without explicit directions.
  */
-export const isCallerOnlyUnknownCoverage = (
+export const isCallerOnlyIncompleteCoverage = (
   coverage: RelationshipCoverage,
-): boolean =>
-  coverage.status === "unknown" &&
-  coverage.reason.startsWith(callerCoveragePrefix) &&
-  !coverage.reason.includes(calleeCoveragePrefix);
+): boolean => {
+  if (coverage.status === "complete") return false;
+  if (coverage.limited_directions !== undefined)
+    return !coverage.limited_directions.some(
+      (direction) => direction === "callees",
+    );
+  return (
+    coverage.status === "unknown" &&
+    coverage.reason.startsWith(callerCoveragePrefix) &&
+    !coverage.reason.includes(calleeCoveragePrefix)
+  );
+};
 
 /** Explain why two resolved call sets cannot establish call-set equality. */
 export const functionCallCoverageLimitations = (

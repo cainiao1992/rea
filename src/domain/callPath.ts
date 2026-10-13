@@ -10,7 +10,7 @@ import {
   parseFunctionEvidence,
   type FunctionSnapshot,
 } from "./functionDossierEvidence.js";
-import { isCallerOnlyUnknownCoverage } from "./functionCallCoverage.js";
+import { isCallerOnlyIncompleteCoverage } from "./functionCallCoverage.js";
 import { compareUnicodeCodePoints } from "./unicodeCodePointOrder.js";
 
 /** Minimal directed caller-to-callee adjacency for call-path search. */
@@ -268,7 +268,7 @@ const inspectSearch = ({
         coverage === null
           ? snapshot.limitations.length > 0
           : coverage.status !== "complete" &&
-            !isCallerOnlyUnknownCoverage(coverage)
+            !isCallerOnlyIncompleteCoverage(coverage)
       )
         incompleteExpandedCoverage = true;
     } else if (node === goal) {

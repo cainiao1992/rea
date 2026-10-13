@@ -633,7 +633,7 @@ describe("Ghidra client projection", () => {
     expect(resolved.value.profile.parameters).toMatchObject({
       language_id: "auto-from-header",
       compiler_spec_id: "auto-default",
-      call_relationship_coverage: "resolved-call-reference-diagnostics-v1",
+      call_relationship_coverage: "function-body-call-coverage-v5",
       function_dossier_coverage: "observed-facets-and-call-relationships-v1",
     });
 
@@ -870,7 +870,16 @@ describe("Ghidra relationship coverage", () => {
         Promise.resolve(
           ok(
             operation === "procedure_callees"
-              ? { value: ["0x2000"], limitations: [] }
+              ? {
+                  value: ["0x2000"],
+                  limitations: [],
+                  relationship_coverage: {
+                    status: "complete",
+                    diagnostics: [
+                      "Only resolved Ghidra call references are returned; unresolved computed or indirect calls remain unknown, while function classifications distinguish thunks and externals.",
+                    ],
+                  },
+                }
               : { value: [], limitations: [] },
           ),
         ),

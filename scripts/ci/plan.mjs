@@ -25,6 +25,15 @@ const FIXTURE_SOURCES = [
   "tests/conformance/versions/**",
 ];
 const READINESS_SOURCES = ["tests/conformance/readiness/**"];
+// These reporters affect CI output only; they do not select a host or provider
+// verification lane when changed on their own.
+const PORTABLE_CI_REPORTERS = new Set([
+  "scripts/ci/job-timings.mjs",
+  "scripts/ci/job-timings-batch.mjs",
+  "scripts/ci/test-report.mjs",
+  "scripts/ci/test-timing-reporter.mjs",
+  "scripts/ci/test-history.mjs",
+]);
 const matchesAny = (file, patterns) =>
   patterns.some((pattern) => matchesGlob(file, pattern));
 const selected = Object.fromEntries(flags.map((flag) => [flag, false]));
@@ -200,6 +209,7 @@ if (tier === "reused") {
       }
       if (matchesAny(file, READINESS_SOURCES)) selected.readiness = true;
       if (file.startsWith("tests/")) continue;
+      if (PORTABLE_CI_REPORTERS.has(file)) continue;
       if (
         /^(src\/process\/|src\/filesystem\/|src\/contracts\/tool|src\/server\/createServer|src\/cli\.ts|scripts\/ci\/)/.test(
           file,

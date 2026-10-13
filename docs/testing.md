@@ -826,8 +826,12 @@ scripts also select it. Unrelated code edits retain the complete portable suite
 on the pinned Node version without starting four additional compatibility jobs.
 Full qualification retains every SQLite version.
 Shared process/contract/CLI boundaries, dependencies, other packaging inputs,
-unknown paths, and changes to the planner select the full baseline. Package
-script-only edits select their owning verifier when its entrypoint is
+unknown paths, and changes to the planner select the full baseline.
+CI timing collection, timing history, and test-report helper edits retain static
+checks and the complete portable suite without selecting unrelated host/provider
+lanes. Classification, qualification, gate, release receipt, and unknown CI
+scripts keep the broad fallback.
+Package script-only edits select their owning verifier when its entrypoint is
 identifiable; unknown or shared script changes select everything. Android
 build-script edits retain the Linux suite and workflow validation; real Android
 verification stays manual. Renames account for both paths.

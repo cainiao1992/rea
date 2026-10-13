@@ -137,6 +137,47 @@ it("keeps every translated root README and authored guide on the documentation l
   });
 });
 
+it.each([
+  "job-timings.mjs",
+  "job-timings-batch.mjs",
+  "test-report.mjs",
+  "test-timing-reporter.mjs",
+  "test-history.mjs",
+])(
+  "keeps portable CI reporter %s on static checks and portable tests",
+  async (name) => {
+    const { directory, base } = await fixture();
+    const head = await change(directory, [`scripts/ci/${name}`]);
+    const plan = await classify(directory, base, head);
+    const { CI_FLAGS } = await loadScopes();
+    expect(plan.code).toBe(true);
+    for (const flag of CI_FLAGS)
+      if (flag !== "code") expect(plan[flag]).toBe(false);
+  },
+);
+
+it("preserves a provider lane when a portable CI reporter changes with provider source", async () => {
+  const { directory, base } = await fixture();
+  const head = await change(directory, [
+    "scripts/ci/test-report.mjs",
+    "src/evm/Example.ts",
+  ]);
+  expect(await classify(directory, base, head)).toMatchObject({
+    code: true,
+    evm: true,
+    browser: false,
+    package: false,
+  });
+});
+
+it("keeps unknown CI scripts on complete qualification", async () => {
+  const { directory, base } = await fixture();
+  const head = await change(directory, ["scripts/ci/new-qualification.mjs"]);
+  const plan = await classify(directory, base, head);
+  const { CI_FLAGS } = await loadScopes();
+  for (const flag of CI_FLAGS) expect(plan[flag]).toBe(true);
+});
+
 it("does not charge a documentation PR for unrelated implementation updates on main", async () => {
   const { directory, base } = await fixture();
   await git(directory, ["switch", "-c", "docs/change"]);

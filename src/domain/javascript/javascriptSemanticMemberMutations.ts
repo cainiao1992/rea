@@ -10,10 +10,7 @@ import {
   evaluateSemanticBinding,
   evaluateSemanticExpression,
 } from "./javascriptSemanticValues.js";
-import {
-  semanticContainer,
-  semanticSlotAtPath,
-} from "./javascriptSemanticSlots.js";
+import { semanticContainer } from "./javascriptSemanticSlots.js";
 import {
   semanticClassCandidates,
   semanticClassPropertyReferences,
@@ -24,6 +21,10 @@ import { semanticIterationSources } from "./javascriptSemanticIterationSources.j
 import { semanticCallableResultExpressions } from "./javascriptSemanticCallableResults.js";
 import { createSemanticReturnedReferences } from "./javascriptSemanticReturnedReferences.js";
 import { semanticMutationInitializers } from "./javascriptSemanticMutationInitializers.js";
+import {
+  semanticReferenceSourcesInactive,
+  semanticSelectedReferenceSlot,
+} from "./javascriptSemanticReferenceSources.js";
 import {
   semanticArrayIndex,
   SemanticPropertyPathCoverage,
@@ -329,7 +330,17 @@ export function* collectSemanticMemberMutationsSteps(
         for (const value of effect === "escape"
           ? escapedReferenceLeaves(expression, current.path)
           : expandedValues(expression, current.path, effect)) {
-          if (value.iterableFallbackPath !== undefined)
+          if (value.escapes && effect !== "escape")
+            markValue(
+              value.node,
+              value.path,
+              new Set(),
+              "escape",
+              mutation,
+              current.originAt,
+              value.ownerInitializer,
+            );
+          else if (value.iterableFallbackPath !== undefined)
             deferIterable({
               node: value.node,
               projection: [],
@@ -504,7 +515,7 @@ export function* collectSemanticMemberMutationsSteps(
     for (const [index, reference] of pendingReferences.splice(0).entries()) {
       if (index % 64 === 0) yield;
       const { initializer } = reference;
-      if (referenceSourcesInactive(initializer, state))
+      if (semanticReferenceSourcesInactive(initializer, state))
         pendingReferences.push(reference);
       else if (t.isForOfStatement(initializer.node))
         deferIterable({
@@ -549,7 +560,7 @@ export function* collectSemanticMemberMutationsSteps(
     }
     for (const [index, reference] of [...iterableReferences].entries()) {
       if (index % 64 === 0) yield;
-      if (referenceSourcesInactive(reference, state)) continue;
+      if (semanticReferenceSourcesInactive(reference, state)) continue;
       if (reference.iterationOnly) {
         const expanded = expandedIterationReferences(reference, state);
         if (expanded !== null) {
@@ -557,7 +568,7 @@ export function* collectSemanticMemberMutationsSteps(
           continue;
         }
       }
-      const slot = selectedReferenceSlot(reference, state);
+      const slot = semanticSelectedReferenceSlot(reference, state);
       // Custom iteration can yield the iterable itself as well as any child.
       // Treat its root as escaped, including writes through yielded references.
       const knownArray =
@@ -610,27 +621,6 @@ interface IterableReference extends ReferencedValue {
   }[];
 }
 
-const referenceSourcesInactive = (
-  reference: Pick<IterableReference, "requiredSources" | "fallbackSources">,
-  state: JavaScriptSemanticAnalysisState,
-): boolean =>
-  reference.requiredSources?.some(
-    (source) =>
-      selectedReferenceSlot(source, state, source.node)?.presence === "absent",
-  ) === true ||
-  reference.fallbackSources?.some((source) => {
-    // Selection precedes effects through the chosen reference. A later escape
-    // cannot make a fallback that was excluded at destructuring reachable.
-    const slot = selectedReferenceSlot(source, state, source.node);
-    return (
-      slot?.presence === "present" &&
-      (slot.value.status === "literal" ||
-        slot.value.status === "union" ||
-        slot.value.status === "object" ||
-        slot.value.status === "array")
-    );
-  }) === true;
-
 const expandedIterationReferences = (
   reference: IterableReference,
   state: JavaScriptSemanticAnalysisState,
@@ -645,7 +635,10 @@ const expandedIterationReferences = (
     ...(reference.fallbackSources ?? []),
   ].find((source) => source.node === iterable && source.projection[0] === null);
   if (source === undefined) return null;
-  const slot = selectedReferenceSlot({ node: iterable, projection: [] }, state);
+  const slot = semanticSelectedReferenceSlot(
+    { node: iterable, projection: [] },
+    state,
+  );
   const container = slot === undefined ? null : semanticContainer(slot.value);
   if (container?.coverage.status !== "complete") return null;
   const select = (
@@ -1140,20 +1133,4 @@ const copiedReferencePath = (
     else if (excludedKeys.includes(String(key))) return null;
   }
   return [...initializer.projection.slice(0, offset), key, ...remaining];
-};
-
-const selectedReferenceSlot = (
-  source: { readonly node: t.Node; readonly projection: PropertyPath },
-  state: JavaScriptSemanticAnalysisState,
-  capturePoint?: t.Node,
-) => {
-  const path: string[] = [];
-  for (const key of source.projection) {
-    if (key === null || typeof key === "object") return undefined;
-    path.push(String(key));
-  }
-  return semanticSlotAtPath(
-    evaluateSemanticExpression(source.node, state, capturePoint),
-    path,
-  );
 };

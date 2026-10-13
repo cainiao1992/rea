@@ -208,6 +208,18 @@ arrays, and later explicit data properties and methods replace earlier object
 spread references. A known array prefix does not expose values from a following
 spread. Accessors, custom or uncertain iteration, unknown computed keys, and
 unknown spread lengths retain conservative uncertainty.
+Getter-local aliases of `this`, including direct destructuring and assignments,
+retain their receiver when a returned shared reference is written. These writes
+invalidate the earlier literal instead of claiming the getter executed or the
+new value is known. Straight-line alias reads retain their capture order;
+uncertain control flow remains conservative. A binding outside the getter or
+`this` in a nested ordinary function is not attributed to the getter's receiver.
+Private reads keep receiver projections separate from the private value's path.
+Receiver projections follow known data fields initialized from `this` or earlier
+self-referencing fields; static fields retain their declaring class identity.
+An alias cycle that repeatedly selects deeper children retains escape uncertainty
+at its recovered roots rather than claiming a fixed number of loop iterations.
+
 Writes through an object getter's returned receiver retain that uncertainty
 when the object is an array element, nested inside mixed object/array
 containers, or assigned to a previously declared identifier. Saving the getter

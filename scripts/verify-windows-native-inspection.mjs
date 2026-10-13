@@ -5,7 +5,9 @@ import {
   mkdir,
   mkdtemp,
   readdir,
+  rmdir,
   rm,
+  stat,
   symlink,
   writeFile,
 } from "node:fs/promises";
@@ -52,7 +54,7 @@ try {
     join(workspace, "dist", "windows", "WindowsNativeLoader.js"),
   ).href;
   const source = `import assert from 'node:assert/strict';
-import {readdirSync,renameSync,statSync} from 'node:fs';
+import {existsSync,mkdirSync,readdirSync,renameSync,statSync} from 'node:fs';
 import {join} from 'node:path';
 import {systemWindowsNativeAuthority} from ${JSON.stringify(loader)};
 const temp=process.env.TEMP;
@@ -63,14 +65,19 @@ assert.match(first.reason,/Delete owned object by handle failed.*Win32 5/s);
 const [name,...extra]=readdirSync(temp);assert.ok(name);assert.equal(extra.length,0);
 const path=join(temp,name);const identity=statSync(path,{bigint:true});
 // Ownership follows the retained NTFS handle even when the directory moves.
+// A replacement at its old pathname must remain caller-owned.
 const moved=path+'-renamed';renameSync(path,moved);
 assert.equal(statSync(moved,{bigint:true}).ino,identity.ino);
+mkdirSync(path);const replacement=statSync(path,{bigint:true});
+assert.notEqual(replacement.ino,identity.ino);
 if(process.argv[2]!=='teardown'){
  const second=systemWindowsNativeAuthority();assert.equal(second.available,true);
- assert.equal(readdirSync(temp).length,0);
+ assert.equal(existsSync(moved),false);
+ assert.deepEqual(readdirSync(temp),[name]);
+ assert.equal(statSync(path,{bigint:true}).ino,replacement.ino);
  assert.equal(systemWindowsNativeAuthority(),second);
 }
-console.log(JSON.stringify({mode:process.argv[2],firstFailed:true,retainedOwner:true,inode:identity.ino.toString()}));
+console.log(JSON.stringify({mode:process.argv[2],firstFailed:true,retainedOwner:true,inode:identity.ino.toString(),replacementName:name,replacementInode:replacement.ino.toString()}));
 `;
   const fixture = join(workspace, "probe.mjs");
   await writeFile(fixture, source);
@@ -86,10 +93,17 @@ console.log(JSON.stringify({mode:process.argv[2],firstFailed:true,retainedOwner:
       }),
     );
     assert.equal(observed.retainedOwner, true);
+    assert.deepEqual(await readdir(temp), [observed.replacementName]);
+    const replacement = join(temp, observed.replacementName);
+    assert.equal(
+      (await stat(replacement, { bigint: true })).ino.toString(),
+      observed.replacementInode,
+    );
+    await rmdir(replacement);
     assert.deepEqual(await readdir(temp), []);
   }
   process.stdout.write(
-    `${JSON.stringify({ ok: true, controlledDispositionFailure: true, retainedOwner: true, retryRecovers: true, successfulAdmissionCached: true, environmentTeardownCleansProbe: true, issue1701HostCauseReproduced: false })}\n`,
+    `${JSON.stringify({ ok: true, controlledDispositionFailure: true, retainedOwner: true, renamedOwnerCleanup: true, replacementPreserved: true, retryRecovers: true, successfulAdmissionCached: true, environmentTeardownCleansProbe: true, issue1701HostCauseReproduced: false })}\n`,
   );
 } finally {
   await rm(workspace, { recursive: true, force: true });

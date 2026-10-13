@@ -16,7 +16,7 @@ import {
   ghidraProfileLanguageOverride,
 } from "./GhidraAnalysisProfile.js";
 import { GhidraProvider } from "./GhidraProvider.js";
-import type { GhidraInstallationHost } from "./GhidraInstallation.js";
+import { ghidraProfileInstallationHost as host } from "./GhidraInstallation.fixture.js";
 
 // Abbreviated from Ghidra 12.1.4 Processors/PowerPC/data/languages/ppc.ldefs.
 const PPC_LDEFS = `<?xml version="1.0" encoding="UTF-8"?>
@@ -32,20 +32,6 @@ const PPC_LDEFS = `<?xml version="1.0" encoding="UTF-8"?>
 </language_definitions>
 `;
 
-// Fake installation inspection tests admission/profile contracts, not Ghidra.
-const host: GhidraInstallationHost = {
-  platform: "linux",
-  architecture: "x64",
-  readText: () => "application.version=12.1.4\n",
-  executable: () => true,
-  probeJava: () => ({
-    version: "21.0.11",
-    major: 21,
-    home: "/jdk-21",
-    bits: 64,
-    runtime: "jdk",
-  }),
-};
 const configFor = (environment: NodeJS.ProcessEnv) => {
   const parsed = parseConfig({ GHIDRA_INSTALL_DIR: "/ghidra", ...environment });
   if (!parsed.ok) throw parsed.error;
@@ -65,6 +51,7 @@ const target = (change: Partial<PowerPcElfMetadata> = {}): BinaryTarget => ({
 describe("bounded Ghidra PowerPC admission", () => {
   it("binds the generic language instead of the loader's e500 choice", async () => {
     const ghidra = new GhidraProvider(config, silentLogger, {}, host);
+    expect(ghidra.inspectAvailability()).toMatchObject({ status: "available" });
     expect(ghidra.inspectTargetSupport(target()).status).toBe("supported");
     const resolved = await ghidra.resolveAnalysisProfile(target());
     if (!resolved.ok) throw resolved.error;
@@ -152,7 +139,13 @@ describe("bounded Ghidra PowerPC admission", () => {
         reason: expect.stringContaining(reason),
       });
       const resolved = await ghidra.resolveAnalysisProfile(value);
-      expect(resolved.ok).toBe(false);
+      expect(resolved).toMatchObject({
+        ok: false,
+        error: {
+          _tag: "AnalysisUnsupportedTargetError",
+          reason: expect.stringContaining(reason),
+        },
+      });
     },
   );
 

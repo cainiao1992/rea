@@ -17,6 +17,32 @@ import { workflowGit } from "../../support/workflowGit.js";
 
 const execute = promisify(execFile);
 const script = new URL("../../../scripts/ci/test-report.mjs", import.meta.url);
+
+// Each report invocation owns its CI state and summary destination. Inherited
+// workflow flags must not change fixture outcomes or append to the real job.
+const executeTimingReport = async (
+  root: string,
+  environment: NodeJS.ProcessEnv = {},
+) => {
+  const summary = join(root, "summary.md");
+  await writeFile(summary, "");
+  const output = await execute(process.execPath, [fileURLToPath(script)], {
+    cwd: root,
+    env: {
+      ...process.env,
+      SHARD_RESULT: "success",
+      MERGE_RESULT: "success",
+      SOURCE_REQUIRED: "false",
+      SOURCE_RESULT: "",
+      CI_VERIFY_TEST_INVENTORY: "false",
+      CI_TEST_SELECTION: "",
+      ...environment,
+      GITHUB_STEP_SUMMARY: summary,
+    },
+  });
+  return { ...output, summary: await readFile(summary, "utf8") };
+};
+
 const stepsSchema = z.array(
   z.object({
     name: z.string().optional(),
@@ -225,14 +251,8 @@ it("rejects successful shard reports with missing or duplicate portable files", 
         files: names.map((name) => ({ name, durationMs: 1 })),
       }),
     );
-    return execute(process.execPath, [fileURLToPath(script)], {
-      cwd: root,
-      env: {
-        ...process.env,
-        SHARD_RESULT: "success",
-        MERGE_RESULT: "success",
-        CI_VERIFY_TEST_INVENTORY: "true",
-      },
+    return executeTimingReport(root, {
+      CI_VERIFY_TEST_INVENTORY: "true",
     });
   };
   await expect(
@@ -308,17 +328,11 @@ it("exports portable timing history and removes it on a failed, partial, or inva
     source?: string,
   ) => {
     await writeFile(join(root, "test-timings.json"), JSON.stringify(value));
-    await writeFile(summary, "");
-    return execute(process.execPath, [fileURLToPath(script)], {
-      cwd: root,
-      env: {
-        ...process.env,
-        GITHUB_STEP_SUMMARY: summary,
-        SHARD_RESULT: shards,
-        SOURCE_REQUIRED: String(source !== undefined),
-        SOURCE_RESULT: source ?? "",
-        MERGE_RESULT: merge,
-      },
+    return executeTimingReport(root, {
+      SHARD_RESULT: shards,
+      SOURCE_REQUIRED: String(source !== undefined),
+      SOURCE_RESULT: source ?? "",
+      MERGE_RESULT: merge,
     });
   };
   await run(report);
@@ -458,25 +472,17 @@ it("recovers complete module costs from real blob reports without executing test
   expect(file.durationMs).toBeCloseTo(
     Object.values(file.phases).reduce((sum, value) => sum + value, 0),
   );
-  const partial = await execute(process.execPath, [fileURLToPath(script)], {
-    cwd: root,
-    env: {
-      ...process.env,
-      SHARD_RESULT: "skipped",
-      SOURCE_REQUIRED: "true",
-      SOURCE_RESULT: "success",
-      MERGE_RESULT: "success",
-    },
+  const partial = await executeTimingReport(root, {
+    SHARD_RESULT: "skipped",
+    SOURCE_REQUIRED: "true",
+    SOURCE_RESULT: "success",
   });
-  expect(partial.stdout).toContain("Partial test diagnostics");
-  expect(partial.stdout).toContain("sample.test.js");
+  expect(partial.summary).toContain("Partial test diagnostics");
+  expect(partial.summary).toContain("sample.test.js");
   await expect(
     readFile(join(root, ".cache/ci-test-history/test-results.json")),
   ).rejects.toMatchObject({ code: "ENOENT" });
-  await execute(process.execPath, [fileURLToPath(script)], {
-    cwd: root,
-    env: { ...process.env, SHARD_RESULT: "success", MERGE_RESULT: "success" },
-  });
+  await executeTimingReport(root);
   expect(
     parseTestDurations(
       await readFile(
@@ -508,10 +514,7 @@ it("recovers complete module costs from real blob reports without executing test
     files: [{ state: "failed" }],
   });
   // Even a caller accidentally marking the merge successful cannot publish this report.
-  await execute(process.execPath, [fileURLToPath(script)], {
-    cwd: root,
-    env: { ...process.env, SHARD_RESULT: "success", MERGE_RESULT: "success" },
-  });
+  await executeTimingReport(root);
   await expect(
     readFile(join(root, ".cache/ci-test-history/test-results.json")),
   ).rejects.toMatchObject({ code: "ENOENT" });
@@ -543,21 +546,17 @@ it("records failed omissions from full reports without treating partial or unhan
   };
   const run = async (report: unknown, source = "failure") => {
     await writeFile(join(root, "test-timings.json"), JSON.stringify(report));
-    await execute(process.execPath, [fileURLToPath(script)], {
-      cwd: root,
-      env: {
-        ...process.env,
-        SHARD_RESULT: "failure",
-        SOURCE_REQUIRED: "true",
-        SOURCE_RESULT: source,
-        MERGE_RESULT: "failure",
-        CI_VERIFY_TEST_INVENTORY: "true",
-        CI_TEST_SELECTION: JSON.stringify(
-          planTestSelection(["src/sqlite/Provider.ts"], "pull_request", "fast"),
-        ),
-        GITHUB_SHA: "merge-sha",
-        CI_PR_HEAD_SHA: "pr-head-sha",
-      },
+    await executeTimingReport(root, {
+      SHARD_RESULT: "failure",
+      SOURCE_REQUIRED: "true",
+      SOURCE_RESULT: source,
+      MERGE_RESULT: "failure",
+      CI_VERIFY_TEST_INVENTORY: "true",
+      CI_TEST_SELECTION: JSON.stringify(
+        planTestSelection(["src/sqlite/Provider.ts"], "pull_request", "fast"),
+      ),
+      GITHUB_SHA: "merge-sha",
+      CI_PR_HEAD_SHA: "pr-head-sha",
     });
     return JSON.parse(
       await readFile(

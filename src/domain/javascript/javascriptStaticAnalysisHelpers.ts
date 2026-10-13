@@ -13,6 +13,7 @@ import type {
 } from "./javascriptStaticAnalysisTypes.js";
 import {
   readExactJavaScriptLiteral,
+  runtimeFunctionParameters,
   semanticStaticPropertyKey,
   semanticStaticPropertyName,
   unwrapJavaScriptExpression,
@@ -147,7 +148,7 @@ export const modulePropertyName = (
 export const factoryRequireName = (
   factory: t.FunctionExpression | t.ArrowFunctionExpression | t.ObjectMethod,
 ): string | null => {
-  const parameter = factory.params[2];
+  const parameter = runtimeFunctionParameters(factory)[2];
   return t.isIdentifier(parameter) ? parameter.name : null;
 };
 

@@ -8,6 +8,8 @@ import { PrivateRuntimeRootUnavailableError } from "../process/PrivateRuntimeRoo
 import { spawnOwnedProviderProcess } from "../process/ProviderProcess.js";
 import { OwnedCommandFailure } from "../process/OwnedCommand.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
+import { WABT_LIMITS } from "./WabtRelease.js";
+import { wabtFailure } from "./WabtFailures.js";
 
 const fileCloseFailure = vi.hoisted(() => ({
   selectedPath: "",
@@ -390,4 +392,158 @@ it.each([
     const pid = acquiredPid;
     expect(() => process.kill(pid, 0)).toThrow();
   }
+});
+const outputLimitFailure = ({
+  stdout = "(module",
+  stderr = "",
+  cleanupFailure = null,
+}: {
+  readonly stdout?: string;
+  readonly stderr?: string;
+  readonly cleanupFailure?: string | null;
+} = {}) =>
+  new OwnedCommandFailure(
+    "output-limit",
+    "Command diagnostic output exceeded its complete-output budget.",
+    {
+      diagnosticTruncated: true,
+      // Observed sizes differ from retained sizes, as after a real overflow.
+      stdout: {
+        text: stdout,
+        bytes: Buffer.byteLength(stdout),
+        observedBytes: Buffer.byteLength(stdout) + 1000,
+      },
+      stderr: {
+        text: stderr,
+        bytes: Buffer.byteLength(stderr),
+        observedBytes: Buffer.byteLength(stderr) + 1000,
+      },
+      exitCode: null,
+      signal: "SIGKILL",
+    },
+    cleanupFailure,
+    undefined,
+    cleanupFailure === null ? [] : ["/owned/runtime"],
+  );
+it("reports WABT output beyond the budget as a resource constraint with a bounded excerpt", async () => {
+  const selectedRoot = await createTestTempDirectory("rea-wabt-budget-");
+  const path = join(selectedRoot, "selected.wasm");
+  await writeFile(path, Buffer.alloc(76, 1));
+  for (const tool of ["wasm-validate", "wasm-objdump", "wasm2wat"])
+    await writeFile(
+      join(selectedRoot, tool + (process.platform === "win32" ? ".exe" : "")),
+      "source-owned executable seam",
+      { mode: 0o700 },
+    );
+  const dump = await readFile(
+    new URL("../../tests/fixtures/wasm/objdump.txt", import.meta.url),
+    "utf8",
+  );
+  const provider = new WabtArtifactProvider(
+    { REA_WABT_BIN_DIRECTORY: selectedRoot },
+    (input) => {
+      const version = input.arguments[0] === "--version";
+      if (!version && input.command.includes("wasm2wat"))
+        throw outputLimitFailure({ stdout: "(module" + "a".repeat(5000) });
+      const script = version
+        ? 'process.stdout.write("1.0.42\\n")'
+        : input.command.includes("objdump")
+          ? `process.stdout.write(${JSON.stringify(dump)})`
+          : "";
+      return spawnOwnedProviderProcess({
+        ...input,
+        command: process.execPath,
+        arguments: ["-e", script],
+        expectedCommand: null,
+      });
+    },
+  );
+  const result = await provider.inspect({
+    path,
+    glue_paths: [],
+    candidate_paths: [],
+  });
+  if (result.ok) throw new Error("Expected the output budget to fail");
+  expect(result.error).toMatchObject({
+    _tag: "AnalysisResourceConstraintError",
+    resource: "memory",
+    reportedLimits: { max_output_bytes: WABT_LIMITS.outputBytes },
+  });
+  const projection = projectAnalysisError(result.error);
+  expect(projection).toMatchObject({
+    code: "resource_constraint",
+    message: expect.stringContaining(
+      `${String(WABT_LIMITS.outputBytes)}-byte output budget`,
+    ),
+    remediation: {
+      action: expect.stringContaining("retrying with the same input"),
+    },
+  });
+  expect(projection.details?.captured_output).toEqual({
+    stdout: "(module" + "a".repeat(4089),
+    stderr: "",
+    truncated: true,
+    stdout_bytes: 5007,
+    stderr_bytes: 0,
+    exit_code: null,
+    signal: "SIGKILL",
+  });
+});
+it("bounds an oversized stderr to an excerpt", () => {
+  expect(
+    projectAnalysisError(
+      wabtFailure(
+        outputLimitFailure({ stderr: "w".repeat(5000) }),
+        "producer",
+        "/module.wasm",
+      ),
+    ).details?.captured_output,
+  ).toEqual({
+    stdout: "(module",
+    stderr: "w".repeat(4096),
+    truncated: true,
+    stdout_bytes: 7,
+    stderr_bytes: 5000,
+    exit_code: null,
+    signal: "SIGKILL",
+  });
+});
+it("cuts the excerpt on a code point boundary", () => {
+  const failure = wabtFailure(
+    outputLimitFailure({ stdout: "a".repeat(4095) + "\u{1F600}b" }),
+    "producer",
+    "/module.wasm",
+  );
+  expect(failure.capturedOutput?.stdout).toBe("a".repeat(4095));
+});
+it("bounds the excerpt when cleanup also fails after the output budget", () => {
+  expect(
+    projectAnalysisError(
+      wabtFailure(
+        outputLimitFailure({
+          stderr: "w".repeat(5000),
+          cleanupFailure: "Source-owned cleanup uncertainty",
+        }),
+        "producer",
+        "/module.wasm",
+      ),
+    ),
+  ).toMatchObject({
+    code: "cleanup_incomplete",
+    details: {
+      diagnostics: {
+        previous_error: {
+          failure_kind: "output-limit",
+          message: `WABT output exceeded the ${String(WABT_LIMITS.outputBytes)}-byte output budget`,
+          max_output_bytes: WABT_LIMITS.outputBytes,
+        },
+        captured_output: { stdout: "(module", stderr: "w".repeat(4096) },
+      },
+    },
+  });
+});
+it("does not blame the input when a version probe exceeds the budget", () => {
+  expect(
+    wabtFailure(outputLimitFailure(), "configuration", "/module.wasm"),
+  ).toMatchObject({ _tag: "AnalysisOutputError" });
 });

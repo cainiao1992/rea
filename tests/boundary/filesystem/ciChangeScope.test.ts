@@ -79,6 +79,7 @@ async function classify(
   head: string,
   event = "pull_request",
   full = false,
+  skipFull = false,
 ) {
   const output = join(directory, "scope-output");
   await writeFile(output, "");
@@ -93,12 +94,28 @@ async function classify(
         HEAD_SHA: head,
         GITHUB_EVENT_NAME: event,
         CI_FULL: String(full),
+        CI_SKIP_FULL: String(skipFull),
         GITHUB_OUTPUT: output,
       },
     },
   );
   return z.record(z.string(), z.unknown()).parse(JSON.parse(result.stdout));
 }
+
+it("reuses only scheduled qualification and preserves every explicit full request", async () => {
+  const { directory, base } = await fixture();
+  const reused = await classify(directory, base, base, "schedule", false, true);
+  expect(reused.tier).toBe("reused");
+  const { CI_FLAGS } = await loadScopes();
+  for (const flag of CI_FLAGS) expect(reused[flag]).toBe(false);
+  for (const event of ["workflow_dispatch", "pull_request", "schedule"])
+    expect(
+      (await classify(directory, base, base, event, true, true)).tier,
+    ).toBe("full");
+  expect(
+    (await classify(directory, base, base, "push", false, true)).tier,
+  ).toBe("fast");
+});
 
 it("keeps every translated root README and authored guide on the documentation lane", async () => {
   const { directory, base } = await fixture();
@@ -205,18 +222,8 @@ it.each(["", "not-a-commit"])(
       browser: true,
       reasons: expect.arrayContaining([expect.stringContaining("baseline")]),
     });
-    const { SCOPES } = await loadScopes();
-    for (const flag of [
-      "code",
-      "runtime",
-      "package",
-      "fixtures",
-      "readiness",
-      "docs",
-      "workflows",
-      ...Object.keys(SCOPES),
-    ])
-      expect(plan[flag]).toBe(true);
+    const { CI_FLAGS } = await loadScopes();
+    for (const flag of CI_FLAGS) expect(plan[flag]).toBe(true);
   },
 );
 
@@ -374,7 +381,14 @@ it("retains native Inspector verification on every documented package host", asy
 it.each([
   [
     "src/evm/client.ts",
-    { code: true, runtime: true, evm: true, browser: false, package: false },
+    {
+      code: true,
+      runtime: true,
+      evm: true,
+      browser: false,
+      package: false,
+      sqlite: false,
+    },
   ],
   [
     "src/browser/execution/evaluate.ts",
@@ -471,6 +485,38 @@ it.each([
     "src/process/ProcessOwnership.test.ts",
     { code: true, package: true, apple: false, evm: false, browser: false },
   ],
+  [
+    "src/sqlite/SqliteDatabaseProvider.ts",
+    { code: true, sqlite: true, runtime: true, package: false },
+  ],
+  [
+    "src/application/sqlite/SqliteDatabaseService.test.ts",
+    { code: true, sqlite: true, runtime: false },
+  ],
+  [
+    "tests/boundary/sqlite/sqliteDatabaseProvider.test.ts",
+    { code: true, sqlite: true, runtime: false },
+  ],
+  [
+    "tests/fixtures/sqlite/database.ts",
+    { code: true, sqlite: true, runtime: false },
+  ],
+  ["tests/acceptance/sqliteDatabaseCli.test.ts", { code: true, sqlite: true }],
+  [
+    "tests/boundary/mcp/serverLifecycleMcp.test.ts",
+    { code: true, sqlite: true },
+  ],
+  ["src/process/OwnedCommand.ts", { code: true, sqlite: true, runtime: true }],
+  ["src/server/createServer.ts", { code: true, sqlite: true, runtime: true }],
+  [
+    "src/contracts/toolContracts.ts",
+    { code: true, sqlite: true, runtime: true },
+  ],
+  [
+    "src/domain/analysisErrorProjection.ts",
+    { code: true, sqlite: true, runtime: true },
+  ],
+  ["src/domain/javascript/example.ts", { code: true, sqlite: false }],
 ])("selects the appropriate lanes for %s", async (path, expected) => {
   const { directory, base } = await fixture();
   const head = await change(directory, [path]);
@@ -510,6 +556,52 @@ it("scopes package script edits while retaining broad dependency checks", async 
     code: true,
     browser: true,
     package: true,
+  });
+});
+
+it.each(["test:sqlite", "test:sqlite:run"])(
+  "routes %s script changes to the SQLite runtime matrix",
+  async (script) => {
+    const { directory } = await fixture();
+    const base = await change(
+      directory,
+      ["package.json"],
+      JSON.stringify({ scripts: { [script]: "vitest run" } }),
+    );
+    const head = await change(
+      directory,
+      ["package.json"],
+      JSON.stringify({
+        scripts: { [script]: "vitest run --reporter=default" },
+      }),
+    );
+    expect(await classify(directory, base, head)).toMatchObject({
+      code: true,
+      sqlite: true,
+      evm: false,
+      package: false,
+    });
+  },
+);
+
+it("keeps unrelated test script changes off the SQLite runtime matrix", async () => {
+  const { directory } = await fixture();
+  const base = await change(
+    directory,
+    ["package.json"],
+    JSON.stringify({ scripts: { "test:domain": "vitest run src/domain" } }),
+  );
+  const head = await change(
+    directory,
+    ["package.json"],
+    JSON.stringify({
+      scripts: { "test:domain": "vitest run src/domain --reporter=default" },
+    }),
+  );
+  expect(await classify(directory, base, head)).toMatchObject({
+    code: true,
+    sqlite: false,
+    evm: false,
   });
 });
 
@@ -605,7 +697,10 @@ it.each([
     "src/process/capture/example.test.ts",
     { code: true, runtime: false, browser: false, package: false },
   ],
-  [".nvmrc", { code: true, package: true, browser: true, evm: true }],
+  [
+    ".nvmrc",
+    { code: true, package: true, browser: true, evm: true, sqlite: true },
+  ],
   [
     "tsconfig.build.json",
     { code: true, package: true, browser: true, evm: true },
@@ -745,6 +840,7 @@ it.each(["workflow_dispatch", "schedule"])(
       tier: "full",
       code: true,
       package: true,
+      sqlite: true,
       evm: true,
       browser: true,
     });
@@ -762,6 +858,7 @@ it("honors ci:full for successive PR revisions", async () => {
       tier: "full",
       code: true,
       package: true,
+      sqlite: true,
       evm: true,
       browser: true,
     });
@@ -829,6 +926,7 @@ const workflowFile = async (name: string): Promise<unknown> =>
   );
 
 const scopesSchema = z.object({
+  CI_FLAGS: z.array(z.string()),
   SCOPES: z.record(z.string(), z.array(z.string())),
   MANUAL_VERIFIERS: z.array(z.string()),
 });

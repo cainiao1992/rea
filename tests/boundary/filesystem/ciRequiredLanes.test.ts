@@ -27,6 +27,9 @@ const workflow = async (filename = "ci.yml") =>
     );
 
 it("binds SQLite compatibility jobs to the build's prepared runtime artifact and root layout", async () => {
+  expect((await workflow()).jobs["sqlite-runtime"]?.if).toBe(
+    "needs.changes.outputs.sqlite == 'true'",
+  );
   const steps = z.array(
     z.object({
       uses: z.string().optional(),
@@ -50,6 +53,91 @@ it("binds SQLite compatibility jobs to the build's prepared runtime artifact and
     .filter((step) => step.uses?.startsWith("actions/download-artifact@"));
   expect(downloads).toHaveLength(1);
   expect(downloads[0]?.with).toEqual({ name, path: "." });
+});
+
+it("exports every canonical scope with read authority for admission and keeps telemetry outside the gate", async () => {
+  const { jobs } = await workflow();
+  const { CI_FLAGS } = z
+    .object({ CI_FLAGS: z.array(z.string()) })
+    .parse(
+      await import(
+        new URL("../../../scripts/ci/scopes.mjs", import.meta.url).href
+      ),
+    );
+  const outputs = z.record(z.string(), z.string()).parse(jobs.changes?.outputs);
+  expect(jobs.changes?.permissions).toEqual({
+    contents: "read",
+    actions: "read",
+  });
+  expect(jobs.build?.permissions).toEqual({
+    contents: "read",
+    actions: "read",
+  });
+  for (const flag of CI_FLAGS)
+    expect(outputs[flag]).toBe(`\${{ steps.plan.outputs.${flag} }}`);
+  const steps = z
+    .array(
+      z.object({
+        run: z.string().optional(),
+        if: z.string().optional(),
+      }),
+    )
+    .parse(jobs.required?.steps);
+  const telemetry = steps.find((step) =>
+    step.run?.includes("scripts/ci/job-timings.mjs"),
+  );
+  expect(telemetry).toBeUndefined();
+  const timings = z
+    .object({
+      on: z.object({
+        workflow_run: z.object({
+          workflows: z.array(z.string()),
+          types: z.array(z.string()),
+        }),
+      }),
+      permissions: z.record(z.string(), z.string()),
+      jobs: z.object({
+        report: z.object({
+          steps: z.array(
+            z.object({
+              uses: z.string().optional(),
+              run: z.string().optional(),
+              with: z.record(z.string(), z.unknown()).optional(),
+              env: z.record(z.string(), z.unknown()).optional(),
+            }),
+          ),
+        }),
+      }),
+    })
+    .parse(
+      parse(
+        await readFile(
+          new URL("../../../.github/workflows/ci-timings.yml", import.meta.url),
+          "utf8",
+        ),
+      ),
+    );
+  expect(timings.on.workflow_run).toEqual({
+    workflows: ["CI", "Release"],
+    types: ["completed"],
+  });
+  expect(timings.permissions).toEqual({ contents: "read", actions: "read" });
+  const checkout = timings.jobs.report.steps.find((step) =>
+    step.uses?.startsWith("actions/checkout@"),
+  );
+  expect(checkout?.with).toEqual({
+    ref: "${{ github.event.repository.default_branch }}",
+    "persist-credentials": false,
+  });
+  const report = timings.jobs.report.steps.find((step) =>
+    step.run?.includes("scripts/ci/job-timings.mjs"),
+  );
+  expect(report?.env?.CI_TIMING_RUN_ID).toBe(
+    "${{ github.event.workflow_run.id }}",
+  );
+  expect(report?.env?.CI_TIMING_RUN_ATTEMPT).toBe(
+    "${{ github.event.workflow_run.run_attempt }}",
+  );
 });
 
 const requiredNeeds = async () => {
@@ -131,7 +219,10 @@ it("keeps fast feedback separate from complete qualification and release proof",
         ),
       ),
     );
-  expect(ci.on.schedule).toEqual([{ cron: "23 * * * *" }]);
+  expect(ci.on.schedule).toEqual([
+    { cron: "23 0-2,4-23 * * *" },
+    { cron: "23 3 * * *" },
+  ]);
   expect(ci.concurrency.group).toContain("'qualification' || 'feedback'");
   expect(ci.concurrency.group).toContain("inputs.source_sha ||");
   for (const fullEvent of ["schedule", "workflow_dispatch"])
@@ -164,9 +255,10 @@ it.each([
   ["true", "skipped", false],
   ["true", "missing", false],
   ["false", "skipped", true],
+  ["false", "failure", false],
 ] as const)(
-  "enforces the SQLite required gate for code=%s and result=%s",
-  async (code, result, passes) => {
+  "enforces the SQLite required gate for sqlite=%s and result=%s",
+  async (sqlite, result, passes) => {
     const workflow = await requiredNeeds();
     // GitHub exposes only direct dependencies in the required job's needs context.
     const needs: Record<
@@ -175,7 +267,7 @@ it.each([
     > = Object.fromEntries(
       workflow.needs.map((name) => [name, { result: "success" }]),
     );
-    needs.changes = { result: "success", outputs: { code } };
+    needs.changes = { result: "success", outputs: { code: "true", sqlite } };
     if (result === "missing") delete needs["sqlite-runtime"];
     else if ("sqlite-runtime" in needs) needs["sqlite-runtime"] = { result };
     const execution = executeWorkflowFixture(

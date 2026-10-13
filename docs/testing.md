@@ -276,6 +276,21 @@ sharding. Static checks, documentation, build, package verification, and
 real-system lanes remain separate jobs so one kind of evidence cannot stand in
 for another.
 
+The separate `CI timings` workflow runs after CI or Release completes and uploads
+`ci-job-timings` with raw API pages and a normalized point-in-time report for that
+workflow attempt. It runs the reporter from the trusted default branch with
+read-only permissions, treating the triggering run as API data. Its summary separates queue
+waiting (`created_at` to `started_at`) from completed execution and reports
+percentiles plus matched `npm ci` and artifact-step durations.
+Queue excludes dependency waiting before job creation and does not establish
+whether account concurrency or runner availability caused the wait. Queued jobs with
+placeholder start times, skipped jobs, and missing or invalid timestamps remain
+unknown. The reporter targets the triggering run and attempt explicitly.
+Summed job elapsed time is parallel work, not workflow wall time, CPU time,
+memory usage, or billing. Step names identify samples, not complete transfer
+costs. Its queue, execution, and failures are independent of the required gate
+and publication. CPU time and peak process-family memory are not measured by this API.
+
 The build job saves portable Turbo outputs across runs. Eight Linux real-system
 lanes restore this cache without waiting for the build job. The shared action
 derives its key from `test:prepare --dry=json` task hashes, runner OS and
@@ -737,6 +752,12 @@ lane. Edits to verifier entrypoints run only by manual, licensed or self-hosted
 workflows run static checks and the Linux suite. Website changes run website
 checks. Provider workflow changes validate the workflow and run that provider's
 verifier. Manual-provider/Android workflow changes run workflow validation only.
+The four-version SQLite compatibility matrix has its own `sqlite` scope for
+SQLite implementation, contracts, CLI/MCP registration, fixtures, and shared
+runtime boundaries. SQLite and server-lifecycle test edits and the SQLite npm
+scripts also select it. Unrelated code edits retain the complete portable suite
+on the pinned Node version without starting four additional compatibility jobs.
+Full qualification retains every SQLite version.
 Shared process/contract/CLI boundaries, dependencies, other packaging inputs,
 unknown paths, and changes to the planner select the full baseline. Package
 script-only edits select their owning verifier when its entrypoint is
@@ -760,8 +781,20 @@ Every code change still runs all six portable shards, without coverage
 instrumentation in this fast tier. This deliberately avoids relying on an
 import graph for generated files, filesystem inputs, subprocesses, or bridges.
 
-Full qualification runs hourly at minute 23, on manual dispatch, and for the
-exact release revision before publication. It includes aggregate coverage,
+Scheduled qualification is admitted hourly at minute 23. A forced full run at
+03:23 UTC refreshes runner and dependency drift every day. Other hourly runs
+can reuse a successful full-qualification receipt for the exact source SHA
+from the same repository's trusted CI workflow on its default branch. Both the
+receipt and original workflow run must be less than 24 hours old, so retrying an
+old gate cannot renew stale proof. Missing, expired, failed, foreign, or uncertain proof runs full
+validation; API lookup failure also runs full. Lookups examine at most 100 named
+receipts and three candidate runs within a 20-second budget. Reused runs select
+no validation lanes, identify the original run, and produce no new receipt, so
+reuse cannot indefinitely extend proof freshness. They make no fresh provider
+observation. Manual dispatch, `ci:full`, and exact release qualification always
+run full validation.
+
+Full qualification includes aggregate coverage,
 every portable provider lane, and all native hosts below. A `ci:full` PR label
 selects full qualification on the next PR run; manual dispatch can request it
 immediately. Fast-tier broad fallbacks retain all owner lanes and the three-host

@@ -6,7 +6,8 @@ on:
   pull_request:
     branches: [main, "release/*"]
   schedule:
-    - cron: "23 * * * *"
+    - cron: "23 0-2,4-23 * * *"
+    - cron: "23 3 * * *"
   workflow_dispatch:
   workflow_call:
     inputs:
@@ -53,7 +54,9 @@ jobs:
       actions: read
     outputs:
       tier: ${{ steps.plan.outputs.tier }}
+      qualification_run_id: ${{ steps.qualification.outputs.run_id }}
       code: ${{ steps.plan.outputs.code }}
+      sqlite: ${{ steps.plan.outputs.sqlite }}
       runtime: ${{ steps.plan.outputs.runtime }}
       package: ${{ steps.plan.outputs.package }}
       apple: ${{ steps.plan.outputs.apple }}
@@ -96,6 +99,17 @@ jobs:
           CI_REPOSITORY: ${{ github.repository }}
           CI_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: node scripts/ci/baseline.mjs
+      - name: Admit scheduled full qualification
+        id: qualification
+        if: github.event_name == 'schedule' && inputs.source_sha == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.sha }}
+          CI_REPOSITORY: ${{ github.repository }}
+          CI_REPOSITORY_ID: ${{ github.repository_id }}
+          CI_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          CI_FORCE_FULL: ${{ github.event.schedule == '23 3 * * *' }}
+        run: node scripts/ci/qualification.mjs
       - name: Select verification lanes
         id: plan
         env:
@@ -103,12 +117,13 @@ jobs:
           BASELINE_REASON: ${{ steps.baseline.outputs.reason }}
           HEAD_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           CI_FULL: ${{ inputs.source_sha != '' || contains(github.event.pull_request.labels.*.name, 'ci:full') }}
+          CI_SKIP_FULL: ${{ steps.qualification.outputs.run_full == 'false' }}
         run: node scripts/ci/plan.mjs
 
   static:
     name: Static checks
     needs: changes
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && needs.changes.outputs.tier != 'reused' }}
     runs-on: ubuntu-latest
     steps:
       - name: Require successful change classification
@@ -249,13 +264,13 @@ jobs:
 
   sqlite-runtime:
     needs: [changes, build]
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.sqlite == 'true'
     uses: ./.github/workflows/sqlite-runtime.yml
 
   test:
     name: Portable tests
     needs: [changes, test-shard]
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && needs.changes.outputs.tier != 'reused' }}
     runs-on: ubuntu-latest
     steps:
       - name: Require successful change classification
@@ -754,6 +769,17 @@ jobs:
         with:
           node-version-file: .nvmrc
       - name: Require every selected lane to pass
+        id: gate
         env:
           CI_JOBS: ${{ toJSON(needs) }}
+          CI_QUALIFICATION_DIRECTORY: .cache/ci-qualification
         run: node scripts/ci/required.mjs
+      - name: Upload full qualification receipt artifact
+        if: needs.changes.outputs.tier == 'full' && success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.gate.outputs.receipt_name }}
+          path: ${{ steps.gate.outputs.receipt_path }}
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7

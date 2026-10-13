@@ -222,21 +222,25 @@
               Since August 2026, I have been exploring how much reverse
               engineering an agent can carry out with access to a program and a
               way to check its work. Most of my experience comes from
-              reconstructing games, especially Touhou. The projects have also
-              become a record of what different models could make progress on.
+              reconstructing games, especially Touhou. As I have changed models,
+              the repositories have kept a record of what each session managed
+              to recover.
             </p>
             <p>
-              Looking back through that record, there are functions that later
-              models closed after earlier sessions had left them unresolved. The
-              source changes make those breakthroughs more interesting than a
-              progress percentage does.
+              Much of that work aims at exact reconstruction: we compile the
+              maintained source under a pinned historical toolchain and check
+              whether it reproduces the target function. That gives us something
+              concrete to examine when a later model closes a function that
+              earlier work left unresolved. The source changes show what made
+              the breakthrough possible.
             </p>
             <h3>The temporary values had to stay alive together</h3>
             <p>
-              One TH09 attack function was a byte short. Much of the logic was
-              already in place. The stack frame had the right size. But three
-              temporary vectors occupied different slots from the original, and
-              the compiled function still did not match.
+              In one TH09 attack function, much of the logic was already in
+              place, but the compiled candidate remained a byte short. Although
+              its stack frame had the right size, three temporary vectors
+              occupied different slots from the original. Matching the overall
+              size of the workspace had concealed a difference inside it.
             </p>
             <p>
               A
@@ -244,54 +248,61 @@
                 href="https://github.com/N0zoM1z0/th09/commit/de63c0f9121963f3a6b1ab5471c4878625fd3425"
                 >GPT-6-Sol checkpoint</a
               >
-              recorded that residual after testing several ordinary source
-              arrangements. Later,
+              recorded this mismatch after testing several ordinary source
+              arrangements. When
               <a
                 href="https://github.com/N0zoM1z0/th09/commit/52929ed7c299f1a5f29cc13964e22510145fd616"
-                >GPT-6.1-Sol found a useful lifetime hypothesis</a
-              >.
+                >GPT-6.1-Sol returned to the problem</a
+              >, it found a useful hypothesis about how long those temporary
+              values needed to stay alive.
             </p>
             <p>
-              The function calculated three vectors and copied each into an
-              animation's position. C++ keeps a returned temporary alive until
-              the end of the expression using it. Expressing the real operations
-              together kept those values alive together. The compiler could no
-              longer reuse the same storage for all three.
+              Each vector was returned from a calculation and copied into an
+              animation's position. Because C++ keeps a returned temporary alive
+              until the end of the expression using it, grouping the real
+              operations into one expression kept the three values alive
+              together. The compiler could no longer reuse the same storage for
+              all of them.
             </p>
             <p>
-              A separate, real collision workspace also needed to keep its own
-              storage. With that source arrangement, the seventh targeted
-              candidate in the closing session matched. A cold build confirmed
+              That recovered the distinct temporary slots, but one still shared
+              storage with a real collision workspace used later. Keeping that
+              workspace at function scope separated it from the returned values.
+              With both changes in place, the seventh targeted candidate in the
+              closing session matched. A cold build confirmed
               <strong
                 >the complete 1,436-byte function and all 44 encoded
                 fields</strong
-              >. Here, an exact reconstruction means that the maintained source,
-              compiled under the pinned historical toolchain, reproduces the
-              checked target function.
+              >.
             </p>
             <p>
-              It was a useful discovery followed by several targeted tests. The
-              final result depended on both.
+              What interests me is how the discovery and the tests worked
+              together. The lifetime hypothesis gave the agent a new direction;
+              compiler feedback helped it refine that hypothesis into a source
+              arrangement that matched.
             </p>
             <h3>A different control-flow graph</h3>
             <p>
-              Another TH09 function had a different obstacle.
+              A second TH09 function shows why that new direction can matter.
+              Here, the obstacle was how several branches shared their final
+              work.
               <a
                 href="https://github.com/N0zoM1z0/th09/commit/f8d12d72aaf02212ee1b585a8f3f86d7ed000269"
                 >GPT-6.1-Sol's earlier work</a
               >
-              reproduced two diagnostic regions, but the complete candidate was
-              1,510 bytes against a 1,491-byte target. The way its branches
-              shared a continuation still differed.
+              reproduced two diagnostic regions, yet the complete candidate
+              remained 1,510 bytes against a 1,491-byte target. Those matching
+              regions did not resolve the way the branches joined up.
             </p>
             <p>
               <a
                 href="https://github.com/N0zoM1z0/th09/commit/da33a646221198ceb7f3df2b96e2ca0e9b2f705f"
                 >GPT-6-Astra changed the surrounding control-flow graph</a
-              >. Completion and frame processing became complementary branches,
-              followed by one common frame increment and return. In that
-              context, the compiler produced the required block sharing. The
-              entire 1,491-byte function matched, and a
+              >, making completion and frame processing complementary branches
+              followed by one common frame increment and return. Once the
+              compiler saw the branches in that context, it produced the
+              required block sharing. The entire 1,491-byte function matched,
+              and a
               <a
                 href="https://github.com/N0zoM1z0/th09/commit/5f825b28a862f8e1a6d4aea2f78a42f04c09a1c0"
                 >recompile replay was accepted</a
@@ -299,138 +310,151 @@
             </p>
             <p>
               <strong
-                >A different representation made a different result
-                possible.</strong
+                >Changing the representation opened a more productive search
+                space.</strong
               >
-              That is one reason I take general model capability seriously. An
-              agent can spend a long time trying variations within a source
-              structure that is keeping it stuck.
+              Both cases give me a reason to take general model capability
+              seriously: an agent can keep trying local variations for a long
+              time before finding a better way to express the surrounding work.
             </p>
             <p>
-              These histories also contain accumulated work. Later sessions
-              inherited source and recorded failed experiments. They show the
-              discoveries and how we checked them. A controlled comparison would
-              tell us how much came from changing the model.
+              At the same time, the later sessions started with earlier source
+              and recorded failures. That accumulated work was part of their
+              advantage. The history lets us inspect the discoveries and their
+              checks; a controlled comparison would help separate the effect of
+              the model from the experience it inherited.
             </p>
             <p>
-              Even so, the cases leave me with a question. How much of this work
-              needs a model with broad reasoning ability? How much could a model
-              learn from repeated experience with this particular kind of code?
+              This is where the question becomes interesting to me. Some of the
+              progress came from finding a new representation, while much of the
+              remaining work involved testing source forms against a familiar
+              compiler. How much needs broad reasoning ability, and how much
+              could a model learn through repeated experience with that compiler
+              and code?
             </p>
           </section>
           <section class="article-section" id="specialization">
             <h2>Why might a specialist do well?</h2>
             <p>
-              Touhou is an interesting place to ask. Much of the game code comes
-              from the same author, ZUN. That gives us a reasonable expectation
-              of recurring habits. The repositories contain more concrete
-              examples: related loops, helper functions and source arrangements
-              have supplied useful hypotheses across games.
+              Touhou gives us a concrete reason to expect that experience to
+              help. Much of the game code comes from the same author, ZUN, so
+              recurring habits are a reasonable starting assumption. The
+              repositories back that up with useful examples: related loops and
+              helper arrangements have supplied hypotheses across games.
             </p>
             <p>
-              The compiler contributes its own habits. Under a particular
-              version and set of options, small differences in source can
-              produce repeatable differences in machine code.
+              Those source patterns become more specific when we include the
+              compiler. Under a particular version and set of options, small
+              changes in source can produce repeatable differences in machine
+              code. Some of those differences are surprisingly obscure.
             </p>
             <p>
-              TH095 gave us a wonderfully awkward example:
+              In TH095, for example,
               <strong
                 >even the identifier backing a real local variable could change
                 where VC7.1 put it on the stack</strong
-              >. Moving the declaration alone did not solve the layout. An
-              earlier background function had already exposed the relevant
-              identifier bucket, and that experience became useful in
+              >. Moving the declaration alone did not solve the layout, but an
+              earlier background function had exposed a useful identifier
+              bucket. That gave us a more promising hypothesis for
               <a
                 href="https://github.com/N0zoM1z0/th095/commit/26bb64bdb093a13f73abd0ee8ae7ce199ee4658f"
                 >the reconstruction of <code>Supervisor::LoadDat</code></a
               >.
             </p>
             <p>
-              Selecting the known backing identifier for the real file-size
-              variable put it and the character buffer in the required homes.
-              The buffer remained its genuine 128 bytes. All 151 bytes of the
-              function and its 15 relocations matched.
+              Reusing the known backing identifier for the real file-size
+              variable put it and the character buffer in the required homes,
+              without changing the buffer's genuine 128-byte size. With that
+              layout, all 151 bytes of the function and its 15 relocations
+              matched.
             </p>
             <p>
-              That is narrow knowledge. A general model has little reason to
-              arrive with a detailed repertoire of one old compiler's local
-              allocation behavior. A specialist could encounter it repeatedly.
-              It could learn which source variations are worth testing first.
+              This is the sort of narrow detail a general model may not know
+              when it arrives. A specialist trained on this compiler could
+              encounter many such cases and learn which source variations are
+              worth testing first.
             </p>
             <p>
-              In many of these final matching problems, we already understand
-              the behavior. The remaining question is which ordinary source form
-              this compiler turns into these instructions. That gives
-              specialization a specific job: propose plausible forms, then let
-              the target decide which survive.
+              The opportunity is especially clear in final matching problems
+              where we already understand the behavior. We are then asking which
+              ordinary source form this compiler turns into the observed
+              instructions. Specialization could help the model propose those
+              forms more efficiently, while the target still determines which
+              hypotheses survive.
             </p>
             <p>
-              There are limits to how narrowly we can define the repertoire.
-              TH08 uses VC7. TH095 and TH09 use VC7.1. TH04 uses Turbo C++ in a
-              segmented DOS environment. Its
+              The useful patterns would have to retain their context, though.
+              TH08 uses VC7, while TH095 and TH09 use VC7.1. TH04's segmented
+              DOS environment uses Turbo C++, and its
               <a
                 href="https://github.com/N0zoM1z0/th04/commit/6dce0a79d5b931f0e2a08475b90e0c33d2321b98"
                 >player reconstruction</a
               >
-              needed another set of source-lifetime and linker-order hypotheses.
-              Shared authorship gives us a prior; each target tells us whether
-              that prior applies.
+              needed a different set of lifetime and linker-order hypotheses.
+              Shared authorship gives us a prior, but each target tells us
+              whether it applies. Distinguishing those contexts is part of what
+              a specialist would need to learn.
             </p>
           </section>
           <section class="article-section" id="repository-knowledge">
             <h2>Where should that experience live?</h2>
             <p>
-              Before training anything, there is an obvious place to look: the
-              repository. In the
+              Before deciding to teach those patterns through model training, I
+              would look at the knowledge we already keep in the repository. In
+              the
               <a href="../touhou-reconstruction/">previous essay</a>, I wrote
-              about it becoming the project's working memory. Compiler lessons
-              belong there too.
+              about it becoming the project's working memory. That memory
+              includes compiler lessons, along with the source and failed
+              experiments that made them useful.
             </p>
             <p>
-              An agent can retrieve a known result. It can inspect the source
-              that produced it and read which alternatives failed. That changes
-              its starting point without changing its weights.
+              By retrieving that record, an agent can start with a known result
+              and inspect how we reached it. It can also avoid alternatives that
+              have already failed in the same context. The starting point
+              improves without changing the model's weights.
             </p>
             <p>
-              A TH09
+              For the 373-byte TH09 enemy-spawn function, a
               <a
                 href="https://github.com/N0zoM1z0/th09/commit/1eb843383941d00065622a9e353146c4bb96979e"
-                >GPT-6-Luna-max checkpoint</a
+                >GPT-6-Luna-max session</a
               >
-              makes this worth taking seriously. It closed a 373-byte
-              enemy-spawn function using an ordinary loop with branch-local
-              failure handling. TH08's corresponding source family supplied the
-              hypothesis. TH09's own evidence established its bounds and calls,
-              and two cold builds confirmed the complete match.
+              drew a hypothesis from TH08's corresponding source family. That
+              earlier source suggested an ordinary loop with branch-local
+              failure handling. TH09's own evidence supplied the bounds and
+              calls, and two cold builds confirmed the complete match.
             </p>
             <p>
               <strong
                 >“The model did not know that compiler quirk” and “the model
                 could not use it” are different problems.</strong
               >
-              Supplying a fact may solve the first. Generating a useful source
-              candidate with that fact may still need practice. Choosing what to
-              try after a failed compile is another skill again.
+              Retrieval may solve the first, but turning that fact into a useful
+              candidate still takes work. And if the candidate fails, the model
+              must decide what the result means for its next attempt. Knowing
+              the relevant pattern is only the beginning of that process.
             </p>
             <p>
-              I would want a smaller general model with good retrieval in any
-              comparison. Otherwise, we might credit fine-tuning for an
-              advantage that came from giving one model a better library of
-              experience.
+              For that reason, I would include a smaller general model with good
+              retrieval in any comparison. Giving it the same library of
+              experience would help us identify what training adds: better
+              candidate generation, better decisions after feedback, or both.
             </p>
           </section>
           <section class="article-section" id="learning-search">
             <h2>Learning the next useful experiment</h2>
             <p>
-              In agentic reconstruction, the model proposes an explanation. The
-              program and its checks determine whether that explanation
-              survives. A failed candidate can be useful when it helps
-              distinguish the remaining possibilities.
+              Those decisions after feedback are what I would most like to
+              study. In agentic reconstruction, the model proposes an
+              explanation and tests it against the program. Even when the
+              candidate fails, the result can narrow the remaining possibilities
+              and suggest a more useful next experiment.
             </p>
             <p>
-              This makes the temporary-vector example especially interesting to
-              me. The final source contains the successful arrangement. It does
-              not contain everything the search taught us.
+              Consider the temporary-vector example again. Its final source
+              shows the arrangement that worked, but the route to that source
+              contains more information. Each of the following experiments
+              helped identify what still needed to change.
             </p>
             <div class="evidence-table-wrap">
               <table
@@ -474,98 +498,101 @@
               session tested seven candidates; this table groups the lessons.
             </p>
             <p>
-              A useful training record would preserve the proposed change and
-              the result. It would also preserve why the result justified the
-              next experiment. An ineffective variation is part of that
-              experience, especially if a later agent would otherwise repeat it.
+              A training record that keeps this sequence can teach more than the
+              final source alone. It connects each proposed change to an
+              observed result and the next decision. Keeping ineffective
+              variations matters too: they tell a later agent which hypotheses
+              have already been tested in that context.
             </p>
             <p>
               <strong
                 >I would want the model to learn how to use feedback.</strong
               >
-              It should recognize when a change has no effect. It should notice
-              when a new mismatch points to a different cause. It should be able
-              to leave an unproductive source representation and inspect the
-              evidence again.
+              A neutral result is a reason to reconsider the variation; a
+              changed mismatch may point to another cause. When local edits stop
+              being informative, the agent should be able to revisit the source
+              representation or inspect the evidence again.
             </p>
             <p>
-              That also means keeping autonomy. The agent may need another
-              caller, a compiler experiment or an earlier project's source. A
-              rigid sequence of required rewrites would prevent some of the
-              decisions we want it to learn.
+              Learning to make those choices requires autonomy. Sometimes the
+              useful next step is inspecting another caller rather than
+              compiling another edit. A rigid sequence of required rewrites
+              would remove that choice, along with part of the behavior we want
+              the model to learn.
             </p>
           </section>
           <section class="article-section" id="re-and-rl">
             <h2>Why RE is interesting for reinforcement learning</h2>
             <p>
-              A bounded reconstruction problem has an attractive property. With
-              the target and compiler pinned, many experiments produce quick,
-              repeatable feedback. Compile a candidate. Inspect what differs.
-              Decide what to try next.
+              Bounded reconstruction gives us a practical environment for
+              studying these choices. Once the target and compiler are pinned,
+              many source experiments produce quick, repeatable feedback. The
+              agent can compile a candidate, inspect the mismatch and use that
+              observation to choose its next step.
             </p>
             <p>
-              Reinforcement learning could use that feedback to train the
-              decisions an agent makes during reconstruction. There is a
-              concrete result to optimize: a candidate accepted by a defined
-              check. We can also observe how much work it took to get there.
+              Reinforcement learning could train that decision-making process
+              through the feedback it receives. A candidate accepted by a
+              defined check gives us a concrete outcome, while the sequence of
+              attempts lets us observe how much work it took to reach it.
             </p>
             <p>
-              This direction already has research behind it.
+              There is already research supporting this direction.
               <a href="https://aclanthology.org/2024.emnlp-main.203/"
                 >LLM4Decompile</a
               >
               studies models specialized for decompilation.
               <a href="https://arxiv.org/html/2606.16162v1">AutoDecompiler</a>
               trains multi-turn refinement using compiler and execution
-              feedback. Those results make the idea worth investigating. Their
-              functional recovery tasks differ from matching code emitted by a
-              particular historical compiler.
+              feedback. Their studies focus on functional recovery. For this
+              work, I would use them as a starting point for the related task of
+              finding source that matches a historical compiler's output.
             </p>
             <p>
-              The experiment I have in mind would train a policy for that
-              narrower search. Given what we have learned so far, which source
-              hypothesis is worth testing next?
-            </p>
-            <p>
-              Other parts of RE are harder to package into a cheap loop. We may
-              still be establishing what a function owns. We may need a new
-              runtime measurement. In TH08, a
+              To reach such a well-defined task, though, we may first need to
+              establish what a function owns or devise a new runtime
+              measurement. In TH08, for example, a
               <a
                 href="https://github.com/N0zoM1z0/th08/commit/af9cb1d3e839b15a78b47ac1701506083cc82847"
                 >later collision divergence led back to a one-ULP numerical
                 difference</a
               >
-              and the old x87 behavior. The productive hypothesis there was
-              partly about what to measure.
+              and the old x87 behavior. Before the agent could test a useful
+              correction, it had to work out what to measure.
             </p>
             <p>
-              That is another plausible place for a broad model's strength.
-              First make the problem checkable. Then ask how much a learned
-              search policy can do with that check.
+              This suggests another role for a broadly capable model: helping
+              make the problem checkable in the first place. Once that check
+              exists, we can investigate how far a learned search policy can get
+              with it.
             </p>
           </section>
           <section class="article-section" id="oracle">
             <h2>When the oracle is wrong</h2>
             <p>
-              An oracle is the reference or checker we use to accept a result.
-              Its answer can be repeatable while its coverage is incomplete.
+              Once we train against that check, its coverage becomes part of
+              what the model learns. I call the reference or checker an oracle.
+              Even if it gives a repeatable answer, we still need to understand
+              what that answer covers.
             </p>
             <p>
-              TH08 already gave us an example. Some reconstructed functions had
-              passed their exact comparisons with wrong floating constants. The
-              instruction check accounted for relocated addresses, but checking
-              the literal payload depended on optional explicit attestation.
-              That left references whose values were never checked.
+              TH08 showed how much can hide outside that coverage. Some
+              reconstructed functions passed their exact comparisons with wrong
+              floating constants. The comparator adjusted relocated addresses
+              before checking instructions, but it checked the values behind
+              those addresses only when they had been explicitly recorded for
+              verification. Other literal references could pass without their
+              values being examined.
             </p>
             <p>
-              A
+              To close that gap, a
               <a
                 href="https://github.com/N0zoM1z0/th08/commit/a393f400786e4cc6cbb1000af0dad3276da12c78"
                 >wider audit</a
               >
-              examined all 1,548 floating-literal references and corrected
-              twelve stale rows across five accepted functions. In one case, the
-              bullet-spread increment was <code>1.0f</code> where the target
+              examined all 1,548 floating-literal references. It corrected
+              twelve stale rows across five accepted functions, including a
+              bullet-spread increment of <code>1.0f</code> where the target
               required <code>32.0f</code>.
             </p>
             <p>
@@ -573,130 +600,141 @@
                 >A learner rewarded by the old check could learn to produce the
                 wrong reconstruction.</strong
               >
-              That is a consequence worth considering when we design an RL
-              environment. The observed problem here was an oracle defect; we
-              had not trained an RL model against it.
+              We had not trained an RL model against this oracle; the observed
+              failure was in the check itself. But using that check as a reward
+              would have made the same blind spot part of the learning
+              environment.
             </p>
             <p>
-              Functional checks need the same attention.
+              A functional test can have a similar blind spot.
               <a href="https://arxiv.org/html/2609.05370v1"
                 >Differential-fuzzing research on LLM decompilers</a
               >
-              has found behavior differences beyond the supplied tests. An
-              accepted test result tells us something about the cases the test
-              actually exercises.
+              has found behavior differences beyond the supplied tests. Passing
+              those tests therefore needs to be read in terms of the cases they
+              exercise, just as an instruction match needs to be read in terms
+              of the bytes and data it checks.
             </p>
             <p>
-              Before using a comparator as a reward, I would give it deliberate
-              failures to reject. The final acceptance check should stay outside
-              the candidate's editable source. A byte array copied from the
-              target may satisfy a naive score while teaching us nothing about
-              reconstructing the source.
+              Before using either kind of check as a reward, I would test it
+              with deliberate failures. I would also keep final acceptance
+              outside the candidate's editable source, so the model has to
+              satisfy the check through its reconstruction. Otherwise, something
+              like a byte array copied from the target could satisfy a naive
+              score without recovering useful source.
             </p>
             <p>
               <strong
                 >Improving the learner and improving its oracle belong to the
                 same research problem.</strong
               >
-              Greater ability to optimize a check makes understanding that check
-              more important.
+              As the learner gets better at optimizing the feedback we give it,
+              understanding that feedback becomes more important too.
             </p>
           </section>
           <section class="article-section" id="comparison">
             <h2>A comparison worth running</h2>
             <p>
-              I would start with a fixed VC7.1 task family. A strong general
-              model would be one baseline. A smaller general model would be
-              another. Then I would give the smaller model the relevant
-              repository knowledge and compare that with supervised
-              specialization, followed by an RL-trained version.
+              With those checks in place, I would start the comparison on a
+              fixed VC7.1 task family. First, I would establish baselines for a
+              strong general model and a smaller one. Adding repository
+              knowledge to the smaller model would show what retrieval changes.
+              From there, supervised specialization and an RL-trained version
+              would let us examine what training adds.
             </p>
             <p>
-              Each would get the same target evidence and tools. The
-              training-specific comparisons would use the same base model and
-              available knowledge. I would repeat the trials, since one lucky
-              candidate is a poor description of a search policy.
+              To make those comparisons informative, each model would receive
+              the same target evidence and tools. For the training-specific
+              comparisons, I would keep the base model and available knowledge
+              fixed as well. Repeated trials would help distinguish a reliable
+              search strategy from a lucky candidate.
             </p>
             <p>
-              The starting point matters. Reconstructing a function from its
-              instructions and closing the last four differences in maintained
-              source are two useful tasks. I would measure both separately. A
-              specialist might be excellent at the second while a general model
-              does much of the work needed to reach it.
+              I would then separate two starting conditions: reconstructing a
+              function from its instructions, and closing the last few
+              differences in maintained source. A specialist might be excellent
+              at the second task while a general model does much of the work
+              needed to reach it. Measuring them separately would reveal that
+              division of work.
             </p>
             <p>
-              The test set also needs care. Related Touhou games share engine
-              code. Holding out a game's name would not be enough if nearly
-              identical functions had appeared in training. I would hold out
-              source families and keep their accepted answers out of both
-              training and retrieval.
+              Both tasks need genuinely held-out examples. Because related
+              Touhou games share engine code, holding out a game's name would
+              still allow nearly identical functions to appear in training. I
+              would instead hold out source families and keep their accepted
+              answers out of both training and retrieval.
             </p>
             <p>
-              For the outcome, I would count complete, independently validated
-              matches. One view would give every model the same candidate or
-              compile budget. Another would measure time and total cost to an
-              accepted result, including compilation. Training costs would need
+              On those examples, the outcome would be complete, independently
+              validated matches. Giving each model the same candidate or compile
+              budget would help compare search quality. Measuring elapsed time
+              and total cost, including compilation, would tell us whether that
+              quality produces an efficient workflow. Training costs would need
               their own accounting too.
             </p>
             <p>
-              A cheaper proposal can become an expensive workflow if it causes
-              more uninformative compiles. A slower model may pay for itself by
-              finding the right experiment sooner. Those are outcomes we can
-              measure.
+              Both views matter because a cheaper proposal can become an
+              expensive workflow if it causes more uninformative compiles.
+              Conversely, a slower model may pay for itself by finding a useful
+              experiment sooner. The comparison should capture those costs.
             </p>
             <p>
-              I would also be cautious with a reward for “getting closer.” One
-              TH09
+              Counting accepted results also keeps intermediate progress in
+              perspective. One TH09
               <a
                 href="https://github.com/N0zoM1z0/th09/commit/ab72fd77728293fc0beacfc656ca701b0e266016"
                 >replay-save candidate</a
               >
-              already had the target's 1,825-byte length while 467 byte
-              positions differed. A shorter mismatch list can also move abruptly
-              when a branch encoding changes. Diagnostics help choose an
-              experiment; the full acceptance check decides whether it worked.
+              already had the target's 1,825-byte length, yet 467 byte positions
+              differed. Even a byte-difference count can change abruptly when a
+              branch encoding changes. Such diagnostics can guide the next
+              experiment, but I would validate any reward for “getting closer”
+              against the full acceptance check.
             </p>
             <p>
-              That experiment could produce an answer with conditions. A
-              specialist might win within a familiar compiler family. A general
-              model might win when the toolchain changes. Retrieval might
-              account for much of the apparent benefit of training. Each result
-              would tell us something useful about where to invest next.
+              I would be interested in the pattern across these results. If a
+              specialist does well within a familiar compiler family, does that
+              advantage survive a toolchain change? And once both models have
+              good retrieval, how much does training still add? The answers
+              would help us decide where each kind of model is most useful.
             </p>
           </section>
           <section class="article-section" id="future-agent">
             <h2>What kind of agent does this suggest?</h2>
             <p>
-              Perhaps the useful arrangement is a broad agent with access to a
-              specialist. It can decide when the task has become a familiar
-              compiler search, and ask the specialist for candidates. It can
-              still inspect the target or question the measurement when the
-              results stop making sense.
+              If the models turn out to help at different stages, a useful
+              arrangement might be a broad agent with access to a specialist.
+              Once a task becomes a familiar compiler search, it could ask the
+              specialist for candidates. If the results stop making sense, the
+              broader agent could return to the target evidence or investigate
+              the measurement itself.
             </p>
             <p>
-              That would make specialization a tool the agent can choose. It
-              would preserve the freedom that made these investigations
-              productive in the first place.
+              In that arrangement, specialization becomes a tool the agent can
+              choose as the investigation develops. The agent keeps the freedom
+              to change direction that made the earlier breakthroughs possible.
             </p>
             <p>
-              In the previous essay, I described an industrial shift in how
-              reconstruction work can be organized. This question follows from
-              it. Once we can run many more experiments, we need to understand
-              which decisions require broad judgment and which improve through
+              This follows naturally from the industrial shift I described in
+              the previous essay. Being able to run many more experiments
+              changes how we organize the work. It also gives us a reason to ask
+              which decisions need broad judgment and which improve through
               repeated experience with a particular craft.
             </p>
             <p>
-              The strongest general model has earned its place in my workflow.
-              It has opened problems I had left unresolved. What I want to find
-              out next is how much of that work requires its breadth, and how
-              much could be handled by a model that has learned this particular
-              kind of reconstruction.
+              For now, the strongest general model has earned its place in my
+              workflow by opening problems I had left unresolved. Those
+              successes are what make me want to examine the work more closely:
+              how much depended on the model's breadth, and how much could be
+              handled by a model trained in this particular kind of
+              reconstruction?
             </p>
             <p>
               <strong
                 >The repositories give us a way to test the question.</strong
               >
-              That is where I would like to take it next.
+              I would like to use that record to build the comparison and see
+              what we learn.
             </p>
           </section>
           <section class="article-section" id="sources">

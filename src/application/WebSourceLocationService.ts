@@ -1,3 +1,4 @@
+import { closeOwnedWebResources } from "./closeOwnedWebResources.js";
 import { createHash } from "node:crypto";
 import { isAbsolute } from "node:path";
 import { z } from "zod";
@@ -181,20 +182,6 @@ export class WebSourceLocationService {
   }
 }
 
-const closeOwnedWebResources = async (
-  close: readonly ((() => Promise<void>) | undefined)[],
-  message: string,
-): Promise<void> => {
-  const results = await Promise.allSettled(
-    close.flatMap((owner) =>
-      owner === undefined ? [] : [Promise.resolve().then(owner)],
-    ),
-  );
-  const failures = results.flatMap((result) =>
-    result.status === "rejected" ? [result.reason] : [],
-  );
-  if (failures.length > 0) throw new AggregateError(failures, message);
-};
 const invalidOutput = (message: string): Result<never, AnalysisError> =>
   err(new AnalysisOutputError(OPERATION, message));
 const invalid = (

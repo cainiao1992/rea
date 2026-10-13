@@ -1,3 +1,4 @@
+import { closeOwnedWebResources } from "./closeOwnedWebResources.js";
 import { isAbsolute } from "node:path";
 import { z } from "zod";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
@@ -270,21 +271,6 @@ export class WebModuleTraceService {
     );
   }
 }
-
-const closeOwnedWebResources = async (
-  close: readonly ((() => Promise<void>) | undefined)[],
-  message: string,
-): Promise<void> => {
-  const results = await Promise.allSettled(
-    close.flatMap((owner) =>
-      owner === undefined ? [] : [Promise.resolve().then(owner)],
-    ),
-  );
-  const failures = results.flatMap((result) =>
-    result.status === "rejected" ? [result.reason] : [],
-  );
-  if (failures.length > 0) throw new AggregateError(failures, message);
-};
 
 const admitContext = (
   value: string,

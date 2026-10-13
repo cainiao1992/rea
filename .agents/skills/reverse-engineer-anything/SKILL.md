@@ -122,6 +122,14 @@ explicit path or endpoint and do not need it.
   absent metadata does not prove a binary is not Go, and unparsed text records
   remain explicit. See the
   [Go binary guide](https://github.com/morluto/rea/blob/main/docs/go-binaries.md).
+- Embedded cargo-auditable Rust dependency metadata: `inspect_rust_binary`
+  with the explicit local ELF, PE, or thin Mach-O file. This built-in
+  target-free inspection requires no Rust installation or disassembler. Preserve
+  package order, dependency indices, and the section file range. A missing
+  `.dep-v0` section is null metadata, not proof the binary has no dependencies.
+  A rustc commit hash is an inference from a read-only `/rustc/<40-hex>/` path.
+  See the
+  [Rust binary guide](https://github.com/morluto/rea/blob/main/docs/rust-binaries.md).
 
 - Explicit local SQLite database snapshot: `inspect_sqlite_database`. Inspect
   with Node.js 24.x >=24.15 or 26+ providing native SQLite limits. Read schema

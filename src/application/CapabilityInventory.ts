@@ -343,7 +343,7 @@ const workflowAvailabilityFor = ({
   kind,
   policy,
 }: AvailabilityContext): Availability | null => {
-  if (name === "inspect_go_binary")
+  if (name === "inspect_go_binary" || name === "inspect_rust_binary")
     return { reason: "available", remediation: null };
   if (name === "inspect_sqlite_database") {
     const capability = sqliteDatabaseCapability(process.versions.node);

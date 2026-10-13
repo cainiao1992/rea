@@ -290,14 +290,19 @@ jobs:
       - if: needs.changes.outputs.code == 'true' && success()
         run: npm ci
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: needs.changes.outputs.code == 'true' && success()
+        if: >-
+          !cancelled() && needs.changes.outputs.code == 'true' &&
+          (needs.test-shard.result == 'success' || needs.test-shard.result == 'failure')
         with:
           path: .vitest/blob
           pattern: vitest-report-*
           merge-multiple: true
       - name: Merge coverage, JUnit, and timing reports
         id: merge
-        if: needs.changes.outputs.code == 'true' && needs.changes.outputs.tier == 'full' && success()
+        if: >-
+          !cancelled() && needs.changes.outputs.code == 'true' &&
+          needs.changes.outputs.tier == 'full' &&
+          (needs.test-shard.result == 'success' || needs.test-shard.result == 'failure')
         run: >-
           npm run test:ci:merge --
           --coverage.reportsDirectory=coverage
@@ -312,7 +317,10 @@ jobs:
           --outputFile.json=test-results.json
       - name: Merge fast-suite JUnit and timing reports
         id: merge-fast
-        if: needs.changes.outputs.code == 'true' && needs.changes.outputs.tier == 'fast' && success()
+        if: >-
+          !cancelled() && needs.changes.outputs.code == 'true' &&
+          needs.changes.outputs.tier == 'fast' &&
+          (needs.test-shard.result == 'success' || needs.test-shard.result == 'failure')
         run: >-
           npm exec -- vitest --merge-reports
           --reporter=default

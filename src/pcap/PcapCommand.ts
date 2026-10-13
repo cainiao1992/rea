@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import {
   AnalysisCancelledError,
-  AnalysisCapabilityUnavailableError,
   AnalysisProtocolError,
   AnalysisResourceConstraintError,
   AnalysisTimeoutError,
@@ -19,6 +18,7 @@ import {
   windowsBatchCommand,
   WindowsBatchCommandError,
 } from "../process/WindowsBatchCommand.js";
+import { pcapToolUnavailable } from "./PcapConfiguration.js";
 
 export interface PcapCommandLimits {
   readonly timeoutMs: number;
@@ -168,8 +168,7 @@ export const runPcapCommand = async (options: {
         "code" in cause &&
         (cause.code === "ENOENT" || cause.code === "EACCES"))
     )
-      throw new AnalysisCapabilityUnavailableError(
-        "pcap",
+      throw pcapToolUnavailable(
         operation,
         `Cannot run selected tool ${command}: ${cause.message}`,
         details,
@@ -181,8 +180,7 @@ export const runPcapCommand = async (options: {
           ? cause.message
           : String(cause);
     if (options.inputPath === undefined)
-      throw new AnalysisCapabilityUnavailableError(
-        "pcap",
+      throw pcapToolUnavailable(
         operation,
         `The selected tool ${command} cannot report its version: ${diagnostic}`,
         details,

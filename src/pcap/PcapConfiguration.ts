@@ -2,11 +2,30 @@ import { isAbsolute } from "node:path";
 
 import type { ProviderAvailability } from "../application/AnalysisProvider.js";
 import type { ProviderRejectionCode } from "../contracts/providerSelection.js";
+import type { AnalysisErrorOptions } from "../domain/analysisErrorBase.js";
+import { AnalysisCapabilityUnavailableError } from "../domain/analysisErrorCore.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 
 /** Environment keys selecting the caller's tshark and capinfos binaries. */
 export const TSHARK_COMMAND_ENV = "REA_TSHARK_COMMAND";
 export const CAPINFOS_COMMAND_ENV = "REA_CAPINFOS_COMMAND";
+
+const TOOL_REMEDIATION = `Supply Wireshark 4.x tshark and capinfos on PATH or through absolute ${TSHARK_COMMAND_ENV} and ${CAPINFOS_COMMAND_ENV}; REA does not install them.`;
+
+/**
+ * Host-tool refusals concern the caller's Wireshark installation, not the
+ * target, so they carry their own guidance instead of the generic advice to
+ * choose another target.
+ */
+export const pcapToolUnavailable = (
+  operation: string,
+  reason: string,
+  options?: AnalysisErrorOptions,
+): AnalysisCapabilityUnavailableError =>
+  new AnalysisCapabilityUnavailableError("pcap", operation, reason, {
+    ...options,
+    userMessage: `${/[.!?]$/u.test(reason) ? reason : `${reason}.`} ${TOOL_REMEDIATION}`,
+  });
 
 /** How each tool was selected for this provider instance. */
 export interface PcapToolSelection {

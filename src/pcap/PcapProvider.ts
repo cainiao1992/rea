@@ -25,6 +25,7 @@ import {
   inspectPcapClient,
   resolvePcapTools,
   pcapConfigurationAvailability,
+  pcapToolUnavailable,
   type PcapToolSelection,
 } from "./PcapConfiguration.js";
 import {
@@ -346,12 +347,9 @@ export class PcapProvider {
           : signal?.aborted
             ? new AnalysisCancelledError(request.operation, { cause })
             : cause instanceof PcapConfigurationFailure
-              ? new AnalysisCapabilityUnavailableError(
-                  "pcap",
-                  request.operation,
-                  cause.message,
-                  { cause },
-                )
+              ? pcapToolUnavailable(request.operation, cause.message, {
+                  cause,
+                })
               : new AnalysisProtocolError(
                   `Packet-capture analysis failed: ${cause instanceof Error ? cause.message : String(cause)}`,
                   { cause },

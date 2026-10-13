@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 
-import { serveCli } from "./cliServeHarness.js";
+import { expectConfigurationRefusal, serveCli } from "./cliServeHarness.js";
 
 it.each(["inspect-pcap-client", "inspect-pcap-capture"])(
   "%s advertises a schema through the public CLI",
@@ -11,13 +11,27 @@ it.each(["inspect-pcap-client", "inspect-pcap-capture"])(
   },
 );
 
-it("reports missing tools with a capability refusal", async () => {
-  const result = await serveCli(
-    ["inspect-pcap-capture", "/nonexistent/capture.pcap", "--json"],
-    {
-      REA_TSHARK_COMMAND: "/nonexistent/tshark",
-      REA_CAPINFOS_COMMAND: "/nonexistent/capinfos",
-    },
+it.each([
+  ["inspect-pcap-client"],
+  ["inspect-pcap-capture", "/nonexistent/capture.pcap"],
+])("%s names the missing Wireshark tool to configure", async (...argv) => {
+  const result = await serveCli([...argv, "--json"], {
+    REA_TSHARK_COMMAND: "/nonexistent/tshark",
+    REA_CAPINFOS_COMMAND: "/nonexistent/capinfos",
+  });
+  expectConfigurationRefusal(
+    result,
+    "Cannot run selected tool /nonexistent/tshark",
   );
-  expect(result.stdout).toContain("capability_unavailable");
+  expectConfigurationRefusal(result, "through absolute REA_TSHARK_COMMAND");
+});
+
+it("names a relative tool selection as configuration to fix", async () => {
+  const result = await serveCli(["inspect-pcap-client", "--json"], {
+    REA_TSHARK_COMMAND: "tshark",
+  });
+  expectConfigurationRefusal(
+    result,
+    "REA_TSHARK_COMMAND must be an absolute path to the tshark binary",
+  );
 });

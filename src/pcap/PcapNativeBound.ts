@@ -6,6 +6,8 @@ import { AnalysisCapabilityUnavailableError } from "../domain/analysisErrorCore.
 import type { ArtifactAnalysisResources } from "../process/ArtifactAnalysisResources.js";
 import type { runPcapCommand } from "./PcapCommand.js";
 
+const PRLIMIT_COMMAND_ENV = "REA_TSHARK_PRLIMIT_COMMAND";
+
 /** Own native capture admission and the exact enforced resource profile. */
 export const preparePcapNativeBound = async (
   environment: Readonly<Record<string, string | undefined>>,
@@ -22,17 +24,20 @@ export const preparePcapNativeBound = async (
       ],
     };
   }
-  if (process.platform !== "linux")
+  if (process.platform !== "linux") {
+    const reason =
+      "Packet summaries require an enforceable native memory bound: Linux with util-linux prlimit, or Windows with owned Job Objects. This host's capture boundary remains unsupported.";
     throw new AnalysisCapabilityUnavailableError(
       "pcap",
       "inspect_pcap_capture",
-      "Packet summaries require an enforceable native memory bound: Linux with util-linux prlimit, or Windows with owned Job Objects. This host's capture boundary remains unsupported.",
+      reason,
+      { userMessage: reason },
     );
-  const configured =
-    environment.REA_TSHARK_PRLIMIT_COMMAND ?? "/usr/bin/prlimit";
+  }
+  const configured = environment[PRLIMIT_COMMAND_ENV] ?? "/usr/bin/prlimit";
   try {
     if (!isAbsolute(configured))
-      throw new Error("REA_TSHARK_PRLIMIT_COMMAND must be absolute.");
+      throw new Error(`${PRLIMIT_COMMAND_ENV} must be absolute.`);
     const limiter = await realpath(configured);
     await access(limiter, constants.X_OK);
     const limits = await resources.readLimits({
@@ -58,11 +63,16 @@ export const preparePcapNativeBound = async (
     return { nativeBound, limitations };
   } catch (cause) {
     if (cause instanceof AnalysisError) throw cause;
+    const reason =
+      "Cannot establish the selected Linux resource limiter before processing capture bytes.";
     throw new AnalysisCapabilityUnavailableError(
       "pcap",
       "inspect_pcap_capture",
-      "Cannot establish the selected Linux resource limiter before processing capture bytes.",
-      { cause },
+      reason,
+      {
+        cause,
+        userMessage: `${reason} (${cause instanceof Error ? cause.message : String(cause)}) Check that ${PRLIMIT_COMMAND_ENV} (default /usr/bin/prlimit) names an absolute, executable util-linux prlimit.`,
+      },
     );
   }
 };

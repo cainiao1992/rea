@@ -87,17 +87,22 @@ it.runIf(hasNativeBound)(
   },
 );
 
-it("rejects a path that is not a readable file", async () => {
-  const result = await providerOver().execute({
-    operation: "inspect_pcap_capture",
-    input: { path: "/nonexistent/definitely-missing.pcap" },
-  });
-  expect(result.ok).toBe(false);
-  if (result.ok) return;
-  expect(projectAnalysisError(result.error)).toMatchObject({
-    code: "invalid_request",
-  });
-});
+// Hosts without a native bound refuse before touching the path; that order
+// is pinned by the unsupported-boundary test below.
+it.runIf(hasNativeBound)(
+  "rejects a path that is not a readable file",
+  async () => {
+    const result = await providerOver().execute({
+      operation: "inspect_pcap_capture",
+      input: { path: "/nonexistent/definitely-missing.pcap" },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "invalid_request",
+    });
+  },
+);
 
 it("reports a missing binary as a capability gap", async () => {
   const provider = new PcapProvider({
@@ -136,9 +141,13 @@ it.runIf(!hasNativeBound)(
       input: { path: "/not-opened/capture.pcap" },
     });
     expect(result.ok).toBe(false);
-    if (!result.ok)
-      expect(projectAnalysisError(result.error)).toMatchObject({
-        code: "capability_unavailable",
-      });
+    if (result.ok) return;
+    const projected = projectAnalysisError(result.error);
+    expect(projected.code).toBe("capability_unavailable");
+    // The refusal concerns this host, so it must not suggest another target.
+    expect(projected.message).toContain(
+      "Linux with util-linux prlimit, or Windows with owned Job Objects",
+    );
+    expect(projected.remediation.action).toBe(projected.message);
   },
 );

@@ -1,13 +1,45 @@
 import { expect, it } from "vitest";
 import { inspectMachoSchema } from "../../../../src/domain/native/nativeInspection.js";
 import { err } from "../../../../src/domain/result.js";
-import { NativeCommandFailure } from "../../../../src/native/CommandRunner.js";
+import {
+  NativeCommandFailure,
+  type NativeCommandRunner,
+} from "../../../../src/native/CommandRunner.js";
 import { NativeMacOSProvider } from "../../../../src/native/NativeMacOSProvider.js";
 import {
   NativeFixtureRunner,
   nativeFixture,
   nativeMachoTarget,
 } from "../../../fixtures/nativeCommands.js";
+
+/** Replay fixtures, failing any slice command that does not name the expected slice. */
+const sliceSelectingRunner = (
+  fixtures: NativeFixtureRunner,
+  selected: string,
+  dyldArchitecture: string,
+  calls: {
+    readonly tool: string;
+    readonly arguments_: readonly string[];
+  }[] = [],
+): NativeCommandRunner => ({
+  run(tool, arguments_) {
+    calls.push({ tool, arguments_ });
+    const expected = tool === "dyld_info" ? dyldArchitecture : selected;
+    if (
+      !["file", "lipo"].includes(tool) &&
+      !arguments_.some(
+        (argument, index) =>
+          argument === expected ||
+          argument === `--arch=${expected}` ||
+          (argument === "-arch" && arguments_[index + 1] === expected),
+      )
+    )
+      return Promise.resolve(
+        err(new NativeCommandFailure(tool, "nonzero-exit", 1)),
+      );
+    return fixtures.run(tool, arguments_);
+  },
+});
 
 it("does not attribute the first universal slice's UUID and segments to the selected target", async () => {
   const singleSlice = await nativeFixture("otool-load.txt");
@@ -77,25 +109,7 @@ it.each([
     });
     const client = new NativeMacOSProvider(
       {},
-      {
-        run(tool, arguments_) {
-          calls.push({ tool, arguments_ });
-          const expected = tool === "dyld_info" ? dyldArchitecture : selected;
-          if (
-            !["file", "lipo"].includes(tool) &&
-            !arguments_.some(
-              (argument, index) =>
-                argument === expected ||
-                argument === `--arch=${expected}` ||
-                (argument === "-arch" && arguments_[index + 1] === expected),
-            )
-          )
-            return Promise.resolve(
-              err(new NativeCommandFailure(tool, "nonzero-exit", 1)),
-            );
-          return fixtures.run(tool, arguments_);
-        },
-      },
+      sliceSelectingRunner(fixtures, selected, dyldArchitecture, calls),
       "darwin",
     ).createClient(nativeMachoTarget("/owned/universal"));
 
@@ -113,6 +127,36 @@ it.each([
         .filter(({ tool }) => tool === "dyld_info")
         .every(({ arguments_ }) => arguments_.includes(dyldArchitecture)),
     ).toBe(true);
+  },
+);
+
+it.each([
+  { capture: "calculator.txt", selected: "arm64e" },
+  { capture: "shortcut-droplet.txt", selected: "arm64" },
+])(
+  "selects one slice when every universal slice has the target's CPU type ($capture)",
+  async ({ capture, selected }) => {
+    const base = nativeMachoTarget("/owned/universal");
+    if (base.kind !== "executable")
+      throw new Error("Expected executable fixture");
+    // Admission names arm64, arm64e and arm64e.x1 slices by one CPU family.
+    const target = { ...base, availableArchitectures: ["arm64"] as const };
+    const fixtures = new NativeFixtureRunner({
+      lipo: await nativeFixture(`lipo-same-cpu/${capture}`),
+    });
+    const result = await new NativeMacOSProvider(
+      {},
+      sliceSelectingRunner(fixtures, selected, selected),
+      "darwin",
+    )
+      .createClient(target)
+      .execute("inspect_macho", {});
+
+    if (!result.ok) throw result.error;
+    expect(result.value.result).toMatchObject({
+      selected_architecture: { name: selected, container_file_offset: 16384 },
+      architectures: { total: 2 },
+    });
   },
 );
 

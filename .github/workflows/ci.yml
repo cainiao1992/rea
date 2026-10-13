@@ -400,6 +400,21 @@ jobs:
           name: windows-native-inspection-fixture
           path: .cache/windows-native-inspection-fixture/
           if-no-files-found: error
+      # The process boundary observations are independent of the addon: they
+      # report the caller's and child's own token, environment and breakaway
+      # results from a separate executable. Cross-build it in the lane that
+      # already has MinGW so the Windows job can observe them too.
+      - name: Build Windows process boundary fixture
+        run: |
+          mkdir -p .cache/windows-process-boundary
+          x86_64-w64-mingw32-g++ -municode -std=c++17 -O2 -static -Wall -Wextra \
+            -o .cache/windows-process-boundary/process-boundary.exe \
+            tests/fixtures/windows/processBoundary.cc -ladvapi32
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-process-boundary-fixture
+          path: .cache/windows-process-boundary/
+          if-no-files-found: error
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: windows-native-controls
@@ -622,7 +637,16 @@ jobs:
           src/application/Update.test.ts
           tests/process-global/updateMaintenance.test.ts
           tests/conformance/providers/ghidra/realGhidraWindowsWorkflow.test.ts
-      - run: npm run verify:windows-native
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: windows-process-boundary-fixture
+          path: .cache/windows-process-boundary/
+      # Passing the fixture adds the breakaway, caller/child token, environment
+      # semantics and ancestor reparse observations, which the lane skips
+      # entirely when it is absent.
+      - run: >-
+          npm run verify:windows-native -- .
+          "${{ github.workspace }}\.cache\windows-process-boundary\process-boundary.exe"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: windows-native-inspection-fixture

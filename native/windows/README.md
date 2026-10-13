@@ -163,9 +163,14 @@ V8 heap flags cannot bound (limit notification, peak commit at the limit, all
 members settled, with the notification present in the first native exit report
 and the wrapper's exit event), and a control under the same limit that
 completes normally.
-An optional independently built
-`tests/fixtures/windows/processBoundary.cc` executable adds breakaway and
-caller/child token observations and an in-place ancestor reparse attempt:
+A separately built `tests/fixtures/windows/processBoundary.cc` executable adds
+breakaway, caller/child token and environment semantics observations and an
+in-place ancestor reparse attempt. The lane skips all of them when the
+executable is absent, so both Windows workflows cross-build it in the same
+MinGW job that builds their artifact and pass it: the capability and package
+lane in `.github/workflows/ci.yml`, and the real Ghidra proof run in
+`.github/workflows/real-ghidra-windows.yml`. Build it locally with any Windows
+C++ compiler, or the same way they do, and pass its path:
 
 ```powershell
 node scripts/verify-windows-native.mjs . C:\fixtures\process-boundary.exe

@@ -510,3 +510,41 @@ describe("managed exception section decoding", () => {
     });
   });
 });
+
+describe("managed CIL truncated operands", () => {
+  const tinyBody = (il: readonly number[]) => {
+    const bytes = buildManagedPeFixture({
+      ilBody: Buffer.from([(il.length << 2) | 0x02, ...il]),
+    });
+    const inspection = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+    return { body: inspection.methods[0]?.body, coverage: inspection.coverage };
+  };
+
+  it.each([
+    [[0x20], 0, "Instruction ldc.i4 at IL offset 0 leaves method body"],
+    [
+      [0x00, 0x20, 0x01],
+      1,
+      "Instruction ldc.i4 at IL offset 1 leaves method body",
+    ],
+    [[0x2b], 0, "Instruction br.s at IL offset 0 leaves method body"],
+    [[0x45, 0x02], 0, "Instruction switch at IL offset 0 leaves method body"],
+    [
+      [0xfe, 0x09, 0x00],
+      0,
+      "Instruction ldarg at IL offset 0 leaves method body",
+    ],
+    [[0x00, 0xfe], 1, "Two-byte CIL opcode at IL offset 1 leaves method body"],
+  ])("names the instruction and IL offset for IL %j", (il, decoded, issue) => {
+    const { body, coverage } = tinyBody(il);
+    expect(body).toMatchObject({
+      status: "malformed",
+      decoded_instruction_count: decoded,
+      issue,
+    });
+    expect(coverage.state).toBe("partial");
+  });
+});

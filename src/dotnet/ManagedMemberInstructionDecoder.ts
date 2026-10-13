@@ -384,6 +384,22 @@ const readOperand = (
   return { next: offset, anchorKind: "unknown", value: null };
 };
 
+/** An operand cut off by the end of the IL body has no decodable value. */
+const readOperandWithin = (
+  il: Buffer,
+  offset: number,
+  kind: string,
+): OperandResult | undefined => {
+  try {
+    return readOperand(il, offset, kind);
+  } catch (cause: unknown) {
+    // Buffer reads past the IL body throw RangeError; report it as the
+    // instruction leaving the method body rather than as a Buffer message.
+    if (cause instanceof RangeError) return undefined;
+    throw cause;
+  }
+};
+
 export const decodeInstructions = (
   il: Buffer,
   admitInstruction?: (offset: number) => void,
@@ -404,14 +420,22 @@ export const decodeInstructions = (
       const start = offset;
       const first = il.readUInt8(offset);
       offset += 1;
+      if (first === 0xfe && offset >= il.length) {
+        issue = `Two-byte CIL opcode at IL offset ${String(start)} leaves method body`;
+        break;
+      }
       const code = first === 0xfe ? 0xfe00 + il.readUInt8(offset++) : first;
       const descriptor = OPCODES.get(code);
       if (descriptor === undefined) {
         issue = `Unsupported CIL opcode 0x${code.toString(16)} at IL offset ${String(start)}`;
         break;
       }
-      const operand = readOperand(il, offset, descriptor.operand);
-      if (operand.next < offset || operand.next > il.length) {
+      const operand = readOperandWithin(il, offset, descriptor.operand);
+      if (
+        operand === undefined ||
+        operand.next < offset ||
+        operand.next > il.length
+      ) {
         issue = `Instruction ${descriptor.name} at IL offset ${String(start)} leaves method body`;
         break;
       }

@@ -33,3 +33,20 @@ it("aborts a bounded wait when its real monotonic deadline expires", async () =>
     deadline.dispose();
   }
 });
+
+it("reports no remaining time once its timer fires before the monotonic deadline", () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const now = vi.spyOn(performance, "now").mockReturnValue(1_000);
+  const deadline = new ProviderStartupDeadline(40);
+  try {
+    // Timers may fire while the monotonic clock is still just short of the deadline.
+    now.mockReturnValue(1_039.6);
+    vi.advanceTimersByTime(40);
+    expect(deadline.signal.aborted).toBe(true);
+    expect(deadline.interruption).toBe("timeout");
+    expect(deadline.remainingMs()).toBe(0);
+  } finally {
+    deadline.dispose();
+    vi.useRealTimers();
+  }
+});

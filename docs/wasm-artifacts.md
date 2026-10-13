@@ -13,6 +13,11 @@ Check `binary_session` for configured capability availability. A recognized
 header is not validation of the complete module; missing WABT is reported
 separately as an unavailable capability, not as missing native engine support.
 
+The recognized WASM header is checked before automatic database routing from a
+.hop filename. Renaming a module to .hop therefore keeps the static-inspection
+diagnostic. An explicit database selection or raw/COM format selection retains
+the caller's requested interpretation; ordinary .hop database routing is unchanged.
+
 Set `REA_WABT_BIN_DIRECTORY` to an absolute directory containing executable
 `wasm-validate`, `wasm-objdump` and `wasm2wat` (with `.exe` on Windows). Missing
 executables, unsupported banners and inaccessible tools produce actionable

@@ -405,7 +405,7 @@ const workflowAvailabilityFor = ({
           remediation:
             "On Linux, supply TShark 4.x via absolute REA_TSHARK_COMMAND and util-linux prlimit (REA_TSHARK_PRLIMIT_COMMAND, default /usr/bin/prlimit). No active binary target or hardware is required; the tool is checked at execution.",
         };
-  if (name === "decode_signal_recording")
+  if (name === "decode_signal_recording" || name === "inspect_signal_decoders")
     return policy.signalRecordingEnabled === true
       ? { reason: "available", remediation: null }
       : {

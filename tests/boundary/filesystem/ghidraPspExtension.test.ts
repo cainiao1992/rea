@@ -189,14 +189,41 @@ describe.skipIf(process.platform === "win32")(
     });
 
     it.each([
+      {
+        form: "escaped key and value with colon separator",
+        properties: "n\\u0061me : ghidra-allegrex\nver\\u0073ion=12.1.3\n",
+      },
+      {
+        form: "continued key and value lines",
+        properties: "name=ghidra-\\\n allegrex\nversion=12.1.\\\n 3\n",
+      },
+      {
+        form: "duplicate keys use the last value",
+        properties:
+          "name=wrong\nname=ghidra-allegrex\nversion=12.1.4\nversion=12.1.3\n",
+      },
+    ])(
+      "accepts Java Properties $form and hashes raw bytes",
+      async ({ properties }) => {
+        const { root } = await installation();
+        const canonical = await inspectGhidraPspExtension(root, "12.1.3");
+        const latin1Properties = Buffer.from(
+          `${properties}author=caf\u00e9\n`,
+          "latin1",
+        );
+        await writeFile(join(root, "extension.properties"), latin1Properties);
+        const extension = await inspectGhidraPspExtension(root, "12.1.3");
+        expect(extension.id).toBe("ghidra-allegrex");
+        expect(extension.sha256).not.toBe(canonical.sha256);
+      },
+    );
+
+    it.each([
       ["name=other\nversion=12.1.3\n", "does not match"],
       ["name=ghidra-allegrex\nversion=12.1.4\n", "does not match"],
-      [
-        "name=ghidra-allegrex\nversion=12.1.3\nversion=12.1.3\n",
-        "exactly one version",
-      ],
+      ["name=ghidra-allegrex\nversion=12.1.\\uZZZZ\n", "Unicode escape"],
     ])(
-      "rejects incompatible or ambiguous extension metadata %s",
+      "rejects mismatched or malformed extension metadata %s",
       async (properties, reason) => {
         const { root } = await installation();
         await writeFile(join(root, "extension.properties"), properties);

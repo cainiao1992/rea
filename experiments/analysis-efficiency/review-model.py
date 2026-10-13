@@ -52,6 +52,21 @@ def named_scope(value, names):
     return {'conflicting_reported_scopes': selected}
 
 
+def scope_with_verified_counts(value, expected_scope, returned_counts):
+    """Validate explicit extra row counts; never erase unknown or conflicting facts."""
+    if not isinstance(value, dict):
+        return value, {}
+    scope = dict(value)
+    checks = {}
+    for name, expected in returned_counts.items():
+        if name in scope:
+            reported = scope[name]
+            checks[name] = type(reported) is int and reported == expected
+            if name not in expected_scope:
+                del scope[name]
+    return scope, checks
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--domain', choices=['wasm', 'evm', 'android', 'managed', 'managed-nonempty', 'firmware', 'inventory', 'javascript', 'native', 'browser'], required=True)
@@ -134,7 +149,13 @@ def main():
         for key in ['module_refs', 'pinvoke_imports']:
             check(key, answer.get('native_boundaries', {}).get(key), reference['boundaries'][key])
         check('artifact_coverage', named_scope(answer.get('coverage'), ['artifact', 'managed_artifact', 'managed_metadata']), n['coverage'])
-        check('native_boundaries_coverage', named_scope(answer.get('coverage'), ['native_boundaries', 'native_boundary_declarations']), reference['boundaries']['coverage'])
+        boundary_scope, counts = scope_with_verified_counts(
+            named_scope(answer.get('coverage'), ['native_boundaries', 'native_boundary_declarations']),
+            reference['boundaries']['coverage'],
+            {'module_ref_count': len(reference['boundaries']['module_refs']),
+             'pinvoke_import_count': len(reference['boundaries']['pinvoke_imports'])})
+        check('native_boundaries_coverage', boundary_scope, reference['boundaries']['coverage'])
+        checks.update({'native_coverage_' + name: valid for name, valid in counts.items()})
     elif domain == 'managed-nonempty':
         n = reference['boundaries']
         check('module_mvid', answer.get('module_mvid'), n['module']['mvid'])

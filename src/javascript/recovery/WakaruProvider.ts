@@ -100,7 +100,7 @@ export class WakaruProvider implements JavaScriptRecoveryPort {
     let tree: SafeOutputTree | undefined;
     let failed: { readonly cause: unknown } | undefined;
     let execution: AnalysisExecution | undefined;
-    const deadline = Date.now() + RECOVERY_LIMITS.timeoutMs;
+    const deadline = performance.now() + RECOVERY_LIMITS.timeoutMs;
     try {
       checkRecoveryCancellation(options?.signal);
       const engine = await resolveWakaruCommand(this.environment);

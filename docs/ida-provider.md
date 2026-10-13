@@ -4,6 +4,15 @@ REA adapts an existing IDA MCP server into its native analysis tools. Existing I
 
 Choose one lifecycle mode in an upstream MCP JSON registration. Set `REA_IDA_MCP_CONFIG` to that file, then select `ida` once through `REA_ANALYSIS_PROVIDER`, the CLI's `--provider ida`, or MCP's `open_binary.provider_id`. No provider startup occurs during discovery.
 
+## Supported upstream versions
+
+Each mode accepts one upstream tool profile, checked against `tools/list` before any analysis runs. Upstream's `main` branch has since moved to 2.0.0, which renamed the GUI tools and dropped `idb_close`, so it serves neither profile. Installing from that branch fails at startup with the missing tool names in the error diagnostics.
+
+| Mode     | Upstream profile    | Known working                                          |
+| -------- | ------------------- | ------------------------------------------------------ |
+| attached | legacy GUI tools    | 1.4.0                                                  |
+| headless | database supervisor | builds serving `idb_open`, `idb_list`, and `idb_close` |
+
 ## Analyze an already-open GUI target
 
 The attached profile supports upstream **1.4.0 legacy tools**, including `get_metadata`, `list_functions`, and `decompile_function`. Copy the upstream registration's `command`, `args`, and optional `env` into a JSON file. An existing `mcpServers` object with an `ida-pro-mcp` entry is also accepted. For example:

@@ -31,6 +31,7 @@ const LIVE_PEER = {
 const fixture = async (
   mode: "attached" | "headless" = "attached",
   timeoutMs = 1000,
+  protocol?: "native",
 ) => {
   const { root, target } = await createIdaTarget();
   roots.push(root);
@@ -41,6 +42,7 @@ const fixture = async (
       args: [],
       env: {},
       mode,
+      ...(protocol === undefined ? {} : { protocol }),
       timeoutMs,
       workspaceRoot: root,
     },
@@ -706,6 +708,74 @@ describe("headless IDA non-busy health payloads", () => {
       "exactly the busy read and the bad read",
     ).toBe(2);
     await expectCleanClose(producer, client);
+  });
+});
+
+describe("IDA compatibility profile mismatch", () => {
+  it("reports the native profile for an incompatible catalog", async () => {
+    const { producer, client } = await fixture("attached", 1000, "native");
+    producer.tools = [];
+    const result = await client.execute("health", {});
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected incompatible native catalog");
+    expect(projectAnalysisError(result.error).details).toMatchObject({
+      diagnostics: {
+        mode: "attached",
+        expected_profile: "native",
+        missing_tools: expect.arrayContaining(["decompile"]),
+      },
+    });
+    expect(producer.calls).toEqual([]);
+    expect((await client.close()).ok).toBe(true);
+  });
+
+  it("names every missing tool so the caller can identify the upstream profile", async () => {
+    const { producer, client } = await fixture("headless");
+    producer.tools = [
+      "idb_open",
+      "idb_list",
+      "server_health",
+      "list_funcs",
+      "lookup_funcs",
+      "find_regex",
+      "decompile",
+      "disasm",
+      "callees",
+      "xrefs_to",
+    ];
+    const result = await client.execute("health", {});
+    expect(result.ok, "an incomplete profile cannot serve analysis").toBe(
+      false,
+    );
+    if (result.ok) return;
+    const projected = projectAnalysisError(result.error);
+    expect(
+      projected.details,
+      "the absent tool and the expected profile are both reported",
+    ).toMatchObject({
+      provider_id: "ida",
+      diagnostics: {
+        mode: "headless",
+        expected_profile: "database-supervisor",
+        missing_tools: ["idb_close"],
+      },
+    });
+  });
+
+  it("reports the legacy profile when an attached producer serves modern tools", async () => {
+    const { producer, client } = await fixture("attached");
+    producer.tools = ["server_health", "lookup_funcs", "decompile", "disasm"];
+    const result = await client.execute("health", {});
+    expect(result.ok, "an incomplete profile cannot serve analysis").toBe(
+      false,
+    );
+    if (result.ok) return;
+    expect(
+      projectAnalysisError(result.error).details,
+      "attached mode names the legacy profile it expected",
+    ).toMatchObject({
+      diagnostics: { mode: "attached", expected_profile: "legacy-1.4" },
+    });
   });
 });
 

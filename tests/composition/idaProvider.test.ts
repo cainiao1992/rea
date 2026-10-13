@@ -1,6 +1,7 @@
 import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { projectAnalysisError } from "../../src/domain/analysisErrorProjection.js";
 import { IdaProvider } from "../../src/ida/IdaProvider.js";
 import { createIdaTarget, RecordingIdaMcp } from "../fixtures/idaMcp.js";
 import { createTestBinarySession } from "../fixtures/binarySession.js";
@@ -157,10 +158,19 @@ describe("IDA provider composition", () => {
     expect(analyzed).toMatchObject({
       ok: false,
       error: {
-        _tag: "AnalysisProtocolError",
-        message: expect.stringContaining(
+        _tag: "ProviderAdapterError",
+        userMessage: expect.stringContaining(
           "headless compatibility profile is missing tools: idb_open",
         ),
+      },
+    });
+    if (analyzed.ok) throw new Error("Expected incompatible IDA profile");
+    expect(projectAnalysisError(analyzed.error).details).toMatchObject({
+      provider_id: "ida",
+      diagnostics: {
+        mode: "headless",
+        expected_profile: "database-supervisor",
+        missing_tools: expect.arrayContaining(["idb_open"]),
       },
     });
     expect(producer.connects).toBe(1);

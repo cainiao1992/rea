@@ -21,6 +21,10 @@
 
 [快速開始](#快速開始) · [REA 的工作原理](#rea-的工作原理) · [可以分析什麼](#可以分析什麼) · [案例](#案例) · [常見問題](#常見問題) · [文件](#文件)
 
+> [!IMPORTANT]
+> REA 官方來源： [morluto/rea](https://github.com/morluto/rea), [rea.tools](https://rea.tools/), [rea-agents](https://www.npmjs.com/package/rea-agents) (npm).
+> 請透過這些官方來源提供的安裝與發布連結取得 REA。相似的儲存庫名稱或複製的 README 不能證明下載內容來自官方。
+
 <code>npx rea-agents setup</code>
 
 <br />

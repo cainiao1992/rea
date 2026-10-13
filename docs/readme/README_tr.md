@@ -21,6 +21,10 @@
 
 [Hızlı başlangıç](#hızlı-başlangıç) · [REA nasıl çalışır](#rea-nasıl-çalışır) · [Neleri analiz edebilirsiniz](#neleri-analiz-edebilirsiniz) · [Örnek çalışmalar](#örnek-çalışmalar) · [Sık sorulan sorular](#sık-sorulan-sorular) · [Belgeler](#belgeler)
 
+> [!IMPORTANT]
+> REA’nın resmî kaynakları: [morluto/rea](https://github.com/morluto/rea), [rea.tools](https://rea.tools/), [rea-agents](https://www.npmjs.com/package/rea-agents) (npm).
+> Kurulum ve sürüm bağlantılarını bu resmî kaynaklardan takip edin. Benzer bir depo adı veya kopyalanmış bir README, indirilen dosyanın resmî olduğunu kanıtlamaz.
+
 <code>npx rea-agents setup</code>
 
 <br />

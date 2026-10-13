@@ -21,6 +21,10 @@
 
 [Bắt đầu nhanh](#bắt-đầu-nhanh) · [Cách REA hoạt động](#cách-rea-hoạt-động) · [Những gì bạn có thể phân tích](#những-gì-bạn-có-thể-phân-tích) · [Các nghiên cứu điển hình](#các-nghiên-cứu-điển-hình) · [Câu hỏi thường gặp](#câu-hỏi-thường-gặp) · [Tài liệu](#tài-liệu)
 
+> [!IMPORTANT]
+> Các nguồn chính thức của REA: [morluto/rea](https://github.com/morluto/rea), [rea.tools](https://rea.tools/), [rea-agents](https://www.npmjs.com/package/rea-agents) (npm).
+> Hãy dùng các liên kết cài đặt và bản phát hành từ những nguồn chính thức này. Tên kho mã tương tự hoặc README được sao chép không chứng minh rằng tệp tải xuống là bản chính thức.
+
 <code>npx rea-agents setup</code>
 
 <br />

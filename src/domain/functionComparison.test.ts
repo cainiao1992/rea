@@ -999,3 +999,51 @@ const expectFunctionDimensionAlgebra = (
     }).success,
   ).toBe(false);
 };
+
+it.each([
+  { match: "mismatched", changedDimensions: false, expected: "changed" },
+  { match: "ambiguous", changedDimensions: false, expected: "unknown" },
+  { match: "ambiguous", changedDimensions: true, expected: "unknown" },
+] as const)(
+  "validates $match match precedence with changed dimensions=$changedDimensions",
+  ({ match, changedDimensions, expected }) => {
+    const result = compareFunctions(
+      FUNCTION_COMPARISON_EXAMPLE.left,
+      changedDimensions
+        ? FUNCTION_COMPARISON_EXAMPLE.right
+        : FUNCTION_COMPARISON_EXAMPLE.left,
+    );
+    const candidate = {
+      ...result,
+      function_match: {
+        status: match,
+        method: "explicit",
+        left_name: "main",
+        right_name: "other",
+      },
+    };
+    expect(
+      functionComparisonResultSchema.safeParse({
+        ...candidate,
+        status: expected,
+      }).success,
+    ).toBe(true);
+    for (const status of ["unchanged", "changed", "unknown"] as const) {
+      if (status === expected) continue;
+      const parsed = functionComparisonResultSchema.safeParse({
+        ...candidate,
+        status,
+      });
+      expect(parsed.success).toBe(false);
+      if (!parsed.success)
+        expect(parsed.error.issues).toMatchObject([
+          {
+            path: ["status"],
+            code: "custom",
+            message:
+              "Function comparison status contradicts its dimensions or function match.",
+          },
+        ]);
+    }
+  },
+);

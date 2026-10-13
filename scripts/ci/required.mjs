@@ -29,6 +29,7 @@ const lanes = {
   fixtures: ["conformance-fixtures"],
   readiness: ["reconstruction-readiness"],
   docs: ["docs"],
+  workflows: ["static"],
 };
 for (const [scope, value] of Object.entries(outputs)) {
   if (value === "true") required.push(...(lanes[scope] ?? [scope]));

@@ -80,10 +80,22 @@ it("keeps diagnosis available after merge failure and publishes only complete su
   expect(history?.if).toContain("needs.test-shard.result == 'success'");
   expect(history?.if).toContain("needs.changes.outputs.tier == 'full'");
   expect(history?.with?.path).toBe(".cache/ci-test-history/test-results.json");
-  const download = (await workflow()).build!.steps.find(
+  const buildSteps = (await workflow()).build!.steps;
+  const lookup = buildSteps.find((step) =>
+    step.run?.includes("test-history.mjs"),
+  );
+  expect(lookup?.env).toMatchObject({
+    CI_REPOSITORY: "${{ github.repository }}",
+    CI_REPOSITORY_ID: "${{ github.repository_id }}",
+    CI_DEFAULT_BRANCH: "${{ github.event.repository.default_branch }}",
+  });
+  const download = buildSteps.find(
     (step) => step.name === "Download previous timing report",
   );
   expect(download?.with?.name).toBe(history?.with?.name);
+  expect(download?.with?.["run-id"]).toBe(
+    "${{ steps.history.outputs.run-id }}",
+  );
 });
 
 it("rejects successful shard reports with missing or duplicate portable files", async () => {

@@ -136,6 +136,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - name: Validate workflow syntax and expressions
+        if: needs.changes.outputs.workflows == 'true'
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= -pyflakes=
       - if: needs.changes.outputs.code == 'true'
         run: npm run check:ci
       - if: needs.changes.outputs.code == 'true'
@@ -215,19 +218,15 @@ jobs:
         with:
           save: ${{ github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
       - run: npm run test:prepare
-      - name: Find successful default-branch timing history
+      - name: Find available trusted full-suite timing history
         id: history
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           CI_REPOSITORY: ${{ github.repository }}
+          CI_REPOSITORY_ID: ${{ github.repository_id }}
           CI_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          run_id="$(gh api --method GET \
-            "repos/${CI_REPOSITORY}/actions/workflows/ci.yml/runs" \
-            -f branch="${CI_DEFAULT_BRANCH}" -f event=schedule -f status=success -f per_page=1 \
-            --jq '.workflow_runs[0].id // empty')"
-          echo "run-id=${run_id}" >> "${GITHUB_OUTPUT}"
+        run: node scripts/ci/test-history.mjs
       - name: Download previous timing report
         if: steps.history.outputs.run-id != ''
         continue-on-error: true
@@ -670,16 +669,6 @@ jobs:
             skills/reverse-engineer-anything
           if-no-files-found: error
 
-  workflows:
-    name: Validate workflows
-    needs: changes
-    if: needs.changes.outputs.workflows == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate workflow syntax and expressions
-        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= -pyflakes=
-
   browser:
     needs: changes
     if: needs.changes.outputs.browser == 'true'
@@ -749,7 +738,6 @@ jobs:
         reconstruction-readiness,
         windows-curated,
         docs,
-        workflows,
         browser,
         binary_layout,
         evm,

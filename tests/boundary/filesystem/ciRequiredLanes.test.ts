@@ -90,10 +90,9 @@ it("exports every canonical scope with read authority for admission and keeps te
   const timings = z
     .object({
       on: z.object({
-        workflow_run: z.object({
-          workflows: z.array(z.string()),
-          types: z.array(z.string()),
-        }),
+        schedule: z.array(z.object({ cron: z.string() })),
+        workflow_dispatch: z.unknown(),
+        workflow_run: z.unknown().optional(),
       }),
       permissions: z.record(z.string(), z.string()),
       jobs: z.object({
@@ -117,10 +116,8 @@ it("exports every canonical scope with read authority for admission and keeps te
         ),
       ),
     );
-  expect(timings.on.workflow_run).toEqual({
-    workflows: ["CI", "Release"],
-    types: ["completed"],
-  });
+  expect(timings.on.workflow_run).toBeUndefined();
+  expect(timings.on.schedule).toHaveLength(1);
   expect(timings.permissions).toEqual({ contents: "read", actions: "read" });
   const checkout = timings.jobs.report.steps.find((step) =>
     step.uses?.startsWith("actions/checkout@"),
@@ -130,14 +127,9 @@ it("exports every canonical scope with read authority for admission and keeps te
     "persist-credentials": false,
   });
   const report = timings.jobs.report.steps.find((step) =>
-    step.run?.includes("scripts/ci/job-timings.mjs"),
+    step.run?.includes("scripts/ci/job-timings-batch.mjs"),
   );
-  expect(report?.env?.CI_TIMING_RUN_ID).toBe(
-    "${{ github.event.workflow_run.id }}",
-  );
-  expect(report?.env?.CI_TIMING_RUN_ATTEMPT).toBe(
-    "${{ github.event.workflow_run.run_attempt }}",
-  );
+  expect(report?.env?.CI_REPOSITORY).toBe("${{ github.repository }}");
 });
 
 const requiredNeeds = async () => {
@@ -150,6 +142,17 @@ it("makes the required gate wait for every CI lane, including future additions",
   expect(new Set(needs)).toEqual(
     new Set(Object.keys(jobs).filter((name) => name !== "required")),
   );
+});
+
+it("runs workflow validation inside required static checks when selected", async () => {
+  const { jobs } = await workflow();
+  const steps = z
+    .array(z.object({ run: z.string().optional(), if: z.string().optional() }))
+    .parse(jobs.static?.steps);
+  const validation = steps.filter((step) => step.run?.includes("actionlint"));
+  expect(validation).toHaveLength(1);
+  expect(validation[0]?.if).toBe("needs.changes.outputs.workflows == 'true'");
+  expect(jobs.workflows).toBeUndefined();
 });
 
 it("leaves cancellation ownership with CI so child lanes cannot cancel another tier", async () => {
@@ -257,33 +260,44 @@ it.each([
   ["false", "skipped", true],
   ["false", "failure", false],
 ] as const)(
-  "enforces the SQLite required gate for sqlite=%s and result=%s",
-  async (sqlite, result, passes) => {
+  "enforces mapped required scopes for selected=%s and result=%s",
+  async (selected, result, passes) => {
     const workflow = await requiredNeeds();
-    // GitHub exposes only direct dependencies in the required job's needs context.
-    const needs: Record<
-      string,
-      { result: string; outputs?: Record<string, string> }
-    > = Object.fromEntries(
-      workflow.needs.map((name) => [name, { result: "success" }]),
-    );
-    needs.changes = { result: "success", outputs: { code: "true", sqlite } };
-    if (result === "missing") delete needs["sqlite-runtime"];
-    else if ("sqlite-runtime" in needs) needs["sqlite-runtime"] = { result };
-    const execution = executeWorkflowFixture(
-      process.execPath,
-      [
-        fileURLToPath(
-          new URL("../../../scripts/ci/required.mjs", import.meta.url),
-        ),
-      ],
-      { env: { ...process.env, CI_JOBS: JSON.stringify(needs) } },
-    );
-    if (passes) await expect(execution).resolves.toMatchObject({ stderr: "" });
-    else
-      await expect(execution).rejects.toMatchObject({
-        code: 1,
-        stderr: expect.stringContaining("sqlite-runtime"),
-      });
+    for (const [scope, lane] of [
+      ["sqlite", "sqlite-runtime"],
+      ["workflows", "static"],
+    ] as const) {
+      // GitHub exposes only direct dependencies in the required job's needs context.
+      const needs: Record<
+        string,
+        { result: string; outputs?: Record<string, string> }
+      > = Object.fromEntries(
+        workflow.needs.map((name) => [name, { result: "success" }]),
+      );
+      needs.changes = {
+        result: "success",
+        outputs: { code: "true", [scope]: selected },
+      };
+      if (result === "missing") delete needs[lane];
+      else needs[lane] = { result };
+      const execution = executeWorkflowFixture(
+        process.execPath,
+        [
+          fileURLToPath(
+            new URL("../../../scripts/ci/required.mjs", import.meta.url),
+          ),
+        ],
+        { env: { ...process.env, CI_JOBS: JSON.stringify(needs) } },
+      );
+      // Static checks remain required even without workflow edits.
+      const expected = passes && !(lane === "static" && result !== "success");
+      if (expected)
+        await expect(execution).resolves.toMatchObject({ stderr: "" });
+      else
+        await expect(execution).rejects.toMatchObject({
+          code: 1,
+          stderr: expect.stringContaining(lane),
+        });
+    }
   },
 );

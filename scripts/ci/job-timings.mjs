@@ -15,7 +15,7 @@ const STEP_COSTS = [
 ];
 
 /** Fetch and summarize one workflow attempt without turning telemetry into a gate. */
-async function collectJobTimings({
+export async function collectJobTimings({
   repository,
   runId,
   runAttempt,
@@ -23,13 +23,14 @@ async function collectJobTimings({
   summaryPath,
   observedAt = new Date().toISOString(),
   env = process.env,
+  timeoutMs = TIMEOUT_MS,
 }) {
   const identity = validateIdentity({ repository, runId, runAttempt });
   const endpoint = `repos/${identity.repository}/actions/runs/${identity.runId}/attempts/${identity.runAttempt}/jobs?per_page=100`;
   const { stdout } = await execFileAsync(
     "gh",
     ["api", "--paginate", "--slurp", endpoint],
-    { env, encoding: "utf8", maxBuffer: MAX_BUFFER, timeout: TIMEOUT_MS },
+    { env, encoding: "utf8", maxBuffer: MAX_BUFFER, timeout: timeoutMs },
   );
   const rawPath = join(outputDirectory, "jobs.json");
   const reportPath = join(outputDirectory, "report.json");

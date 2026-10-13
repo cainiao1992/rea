@@ -274,18 +274,26 @@ checkout-relative paths; the build job downloads that artifact for the sequencer
 instead of the coverage/JUnit bundle. Missing history falls back to native
 sharding. Static checks, documentation, build, package verification, and
 real-system lanes remain separate jobs so one kind of evidence cannot stand in
-for another.
+for another. Workflow syntax and expression validation runs inside the required
+static-check job when workflow changes select it, avoiding a separate runner.
 
-The separate `CI timings` workflow runs after CI or Release completes and uploads
-`ci-job-timings` with raw API pages and a normalized point-in-time report for that
-workflow attempt. It runs the reporter from the trusted default branch with
-read-only permissions, treating the triggering run as API data. Its summary separates queue
-waiting (`created_at` to `started_at`) from completed execution and reports
+The separate `CI timings` workflow batches recent completed CI and Release runs
+hourly or on manual dispatch. It uploads `ci-job-timings-batch` with raw API pages and
+a normalized point-in-time report for each collected workflow attempt, plus a
+batch manifest describing examined coverage, failures, and limits. Overlapping
+lookback windows may collect an attempt again; identify records by run ID and
+attempt. Each batch examines at most 100 completed runs per workflow created in
+the preceding 24 hours, with a four-minute API collection budget. It collects the
+latest attempt of each selected run and does not claim an exhaustive archive.
+It runs the reporter from the trusted default branch with read-only permissions,
+treating workflow runs as API data. It does not allocate a new reporter job for
+every completed, cancelled, or skipped workflow. Reports separate queue
+waiting (`created_at` to `started_at`) from completed execution and report
 percentiles plus matched `npm ci` and artifact-step durations.
 Queue excludes dependency waiting before job creation and does not establish
 whether account concurrency or runner availability caused the wait. Queued jobs with
 placeholder start times, skipped jobs, and missing or invalid timestamps remain
-unknown. The reporter targets the triggering run and attempt explicitly.
+unknown. The reporter targets each selected run and attempt explicitly.
 Summed job elapsed time is parallel work, not workflow wall time, CPU time,
 memory usage, or billing. Step names identify samples, not complete transfer
 costs. Its queue, execution, and failures are independent of the required gate
@@ -863,8 +871,11 @@ catalog, and managed-conformance metadata. Each shard still installs the locked
 dependencies and runs its assigned tests; full qualification enables coverage. It no longer
 regenerates the same metadata independently.
 
-The build job also retrieves the merged timing report from the last successful
-default-branch scheduled qualification and includes that same report in each shard's snapshot.
+The build job also finds an available `test-timings` artifact from a successful
+trusted default-branch scheduled or manual qualification and includes that same
+report in each shard's snapshot. The bounded lookup verifies the artifact's
+producer; newer schedules that reuse qualification without producing timings do
+not hide the last full run's artifact.
 CI assigns discovered files by historical duration, with a deterministic
 fallback weight for new files, rather than dividing only by file count. Every
 discovered file still belongs to exactly one shard; worker limits and project

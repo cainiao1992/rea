@@ -1,10 +1,8 @@
+import { err, ok, type Result } from "../domain/result.js";
+
 /** Ghidra build whose bridge behavior this REA release verifies. */
 export const SUPPORTED_GHIDRA_VERSION = "12.1.4";
-/**
- * JDK major used when an installation omits `application.java.min`.
- * Admission uses that installation's `application.java.min` and
- * `application.java.max`. An empty maximum means the release sets no upper bound.
- */
+/** Verified JDK major; admission uses the installation's declared bounds. */
 export const SUPPORTED_GHIDRA_JAVA_MAJOR = 21;
 
 /** Numeric Ghidra release read from `application.version`. */
@@ -40,30 +38,49 @@ type GhidraJavaBound =
   | { readonly status: "unresolved"; readonly raw: string };
 
 /** JDK majors this installation admits, after reading its own properties. */
-export interface GhidraJavaRequirement {
-  readonly minimumMajor: number;
-  readonly maximumMajor: number | null;
-  readonly unresolved: string | null;
-}
+export type GhidraJavaRequirement =
+  | {
+      readonly minimumMajor: number;
+      readonly maximumMajor: number | null;
+      readonly unresolved: null;
+    }
+  | { readonly unresolved: string };
 
 /** Version and Java bounds read from one `application.properties` file. */
 export interface GhidraApplicationProperties {
   readonly providerVersion: string | null;
   readonly javaMinimum: GhidraJavaBound;
   readonly javaMaximum: GhidraJavaBound;
+  /** A malformed Java properties escape invalidates the entire file. */
+  readonly parseError: string | null;
 }
 
 const GHIDRA_RELEASE_PATTERN = /^(\d+)\.(\d+)(?:\.(\d+))?([-+].*)?$/u;
-const JAVA_MAJOR_PATTERN = /^(\d+)(?:\.\d+)*$/u;
 
 /** Read the version and Java bounds Ghidra publishes for one installation. */
 export const ghidraApplicationProperties = (
   content: string,
-): GhidraApplicationProperties => ({
-  providerVersion: propertyValue(content, "application.version"),
-  javaMinimum: parseJavaBound(propertyValue(content, "application.java.min")),
-  javaMaximum: parseJavaBound(propertyValue(content, "application.java.max")),
-});
+): GhidraApplicationProperties => {
+  const parsed = parseJavaProperties(content);
+  if (!parsed.ok)
+    return {
+      providerVersion: null,
+      javaMinimum: { status: "unresolved", raw: parsed.error },
+      javaMaximum: { status: "unresolved", raw: parsed.error },
+      parseError: parsed.error,
+    };
+  const providerVersion = parsed.value.get("application.version");
+  const minimum = parsed.value.get("application.java.min");
+  const maximum = parsed.value.get("application.java.max");
+  return {
+    providerVersion: providerVersion ?? null,
+    javaMinimum:
+      minimum === undefined ? { status: "absent" } : parseJavaBound(minimum),
+    // Ghidra uses an explicitly empty maximum to mean no upper bound.
+    javaMaximum: parseJavaMaximum(maximum),
+    parseError: null,
+  };
+};
 
 /** Classify `application.version` against the verified release line. */
 export const ghidraReleaseCompatibility = (
@@ -130,14 +147,21 @@ export const ghidraReleaseAccepted = (
 export const ghidraJavaRequirement = (
   properties: GhidraApplicationProperties | undefined,
 ): GhidraJavaRequirement => {
-  const minimum = properties?.javaMinimum ?? { status: "absent" };
-  const maximum = properties?.javaMaximum ?? { status: "absent" };
+  if (properties?.parseError !== null && properties?.parseError !== undefined)
+    return unresolvedJavaRequirement(
+      `application.properties parse failed: ${properties.parseError}`,
+    );
+  if (properties === undefined)
+    return unresolvedJavaRequirement("application.properties is unavailable");
+  const minimum = properties.javaMinimum;
+  const maximum = properties.javaMaximum;
   if (minimum.status === "unresolved")
     return unresolvedJavaRequirement(`application.java.min=${minimum.raw}`);
+  if (minimum.status === "absent")
+    return unresolvedJavaRequirement("application.java.min is missing");
   if (maximum.status === "unresolved")
     return unresolvedJavaRequirement(`application.java.max=${maximum.raw}`);
-  const minimumMajor =
-    minimum.status === "major" ? minimum.major : SUPPORTED_GHIDRA_JAVA_MAJOR;
+  const minimumMajor = minimum.major;
   const maximumMajor = maximum.status === "major" ? maximum.major : null;
   if (maximumMajor !== null && maximumMajor < minimumMajor)
     return unresolvedJavaRequirement(
@@ -187,12 +211,54 @@ const parseGhidraRelease = (raw: string): GhidraReleaseVersion | undefined => {
   return patch === undefined ? undefined : { major, minor, patch };
 };
 
-const parseJavaBound = (raw: string | null): GhidraJavaBound => {
-  if (raw === null) return { status: "absent" };
-  const major = integerGroup(JAVA_MAJOR_PATTERN.exec(raw)?.[1]);
+const parseJavaBound = (raw: string): GhidraJavaBound => {
+  const major = parseJavaInteger(raw);
   return major === undefined
     ? { status: "unresolved", raw }
     : { status: "major", major };
+};
+
+const parseJavaMaximum = (raw: string | undefined): GhidraJavaBound => {
+  if (raw === undefined || raw === "") return { status: "absent" };
+  const bound = parseJavaBound(raw);
+  return bound.status === "major" && bound.major === 0
+    ? { status: "absent" }
+    : bound;
+};
+
+const parseJavaInteger = (raw: string): number | undefined => {
+  let index = 0;
+  let sign = 1;
+  if (raw[index] === "+" || raw[index] === "-") {
+    if (raw[index] === "-") sign = -1;
+    index += 1;
+  }
+  if (index === raw.length) return undefined;
+  const limit = sign < 0 ? 2_147_483_648 : 2_147_483_647;
+  let value = 0;
+  for (; index < raw.length; index += 1) {
+    const character = raw[index];
+    if (character === undefined) return undefined;
+    const digit = javaDecimalDigit(character);
+    if (digit === undefined) return undefined;
+    if (value > Math.floor((limit - digit) / 10)) return undefined;
+    value = value * 10 + digit;
+  }
+  return sign * value;
+};
+
+/** Match Integer.parseInt(charAt) for BMP Decimal_Number characters. */
+const javaDecimalDigit = (character: string): number | undefined => {
+  const code = character.charCodeAt(0);
+  if (code >= 48 && code <= 57) return code - 48;
+  if (!/^\p{Decimal_Number}$/u.test(character)) return undefined;
+  let blockStart = code;
+  while (
+    blockStart > 0 &&
+    /^\p{Decimal_Number}$/u.test(String.fromCharCode(blockStart - 1))
+  )
+    blockStart -= 1;
+  return (code - blockStart) % 10;
 };
 
 const integerGroup = (value: string | undefined): number | undefined => {
@@ -204,17 +270,119 @@ const integerGroup = (value: string | undefined): number | undefined => {
 const unresolvedJavaRequirement = (
   unresolved: string,
 ): GhidraJavaRequirement => ({
-  minimumMajor: SUPPORTED_GHIDRA_JAVA_MAJOR,
-  maximumMajor: null,
   unresolved,
 });
 
-const propertyValue = (content: string, name: string): string | null => {
-  for (const line of content.split(/\r?\n/u)) {
-    const separator = line.indexOf("=");
-    if (separator < 0 || line.slice(0, separator).trim() !== name) continue;
-    const value = line.slice(separator + 1).trim();
-    return value.length === 0 ? null : value;
+/** Parse Java Properties.load(InputStream) syntax from its ISO-8859-1 text. */
+const parseJavaProperties = (
+  content: string,
+): Result<ReadonlyMap<string, string>, string> => {
+  const values = new Map<string, string>();
+  for (const line of logicalPropertyLines(content)) {
+    let start = 0;
+    while (isPropertyWhitespace(line[start])) start += 1;
+    if (start === line.length || line[start] === "#" || line[start] === "!")
+      continue;
+    let end = start;
+    let escaped = false;
+    while (end < line.length) {
+      const character = line[end];
+      if (
+        !escaped &&
+        (character === "=" ||
+          character === ":" ||
+          isPropertyWhitespace(character))
+      )
+        break;
+      if (character === "\\") escaped = !escaped;
+      else escaped = false;
+      end += 1;
+    }
+    let valueStart = end;
+    while (isPropertyWhitespace(line[valueStart])) valueStart += 1;
+    if (line[valueStart] === "=" || line[valueStart] === ":") valueStart += 1;
+    while (isPropertyWhitespace(line[valueStart])) valueStart += 1;
+    const key = decodePropertyEscapes(line.slice(start, end));
+    if (!key.ok) return err(key.error);
+    const value = decodePropertyEscapes(line.slice(valueStart));
+    if (!value.ok) return err(value.error);
+    values.set(key.value, value.value);
   }
-  return null;
+  return ok(values);
+};
+
+const isPropertyWhitespace = (value: string | undefined): boolean =>
+  value === " " || value === "\t" || value === "\f";
+
+/** Join odd-backslash continuations while stripping leading continuation space. */
+function* logicalPropertyLines(content: string): Generator<string> {
+  let physicalStart = 0;
+  let logical = "";
+  let continuing = false;
+  while (physicalStart <= content.length) {
+    let physicalEnd = physicalStart;
+    while (
+      physicalEnd < content.length &&
+      content[physicalEnd] !== "\n" &&
+      content[physicalEnd] !== "\r"
+    )
+      physicalEnd += 1;
+    let line = content.slice(physicalStart, physicalEnd);
+    let leading = 0;
+    while (isPropertyWhitespace(line[leading])) leading += 1;
+    const comment =
+      !continuing && (line[leading] === "#" || line[leading] === "!");
+    if (continuing) line = line.slice(leading);
+    let continued = false;
+    if (!comment) {
+      let slashes = 0;
+      for (
+        let index = line.length - 1;
+        index >= 0 && line[index] === "\\";
+        index -= 1
+      )
+        slashes += 1;
+      continued = slashes % 2 === 1;
+      logical += continued ? line.slice(0, -1) : line;
+    }
+    if (!continued) {
+      yield logical;
+      logical = "";
+    }
+    continuing = continued;
+    if (physicalEnd === content.length) break;
+    physicalStart =
+      content[physicalEnd] === "\r" && content[physicalEnd + 1] === "\n"
+        ? physicalEnd + 2
+        : physicalEnd + 1;
+  }
+  // Properties.load still consumes the accumulated line when EOF follows a
+  // continuation marker; the marker itself was already removed above.
+  if (continuing) yield logical;
+}
+
+const decodePropertyEscapes = (value: string): Result<string, string> => {
+  let result = "";
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (character !== "\\") {
+      result += character;
+      continue;
+    }
+    const escaped = value[++index];
+    if (escaped === undefined)
+      return err("Trailing escape in Java properties value");
+    if (escaped === "t") result += "\t";
+    else if (escaped === "n") result += "\n";
+    else if (escaped === "r") result += "\r";
+    else if (escaped === "f") result += "\f";
+    else if (escaped === "u") {
+      const digits = value.slice(index + 1, index + 5);
+      if (digits.length !== 4 || !/^[0-9a-f]{4}$/iu.test(digits))
+        return err("Malformed Unicode escape in Java properties file");
+      result += String.fromCharCode(Number.parseInt(digits, 16));
+      index += 4;
+    } else result += escaped;
+  }
+  return ok(result);
 };

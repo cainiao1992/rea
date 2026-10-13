@@ -290,6 +290,70 @@ export const unresolvedCallSchema = z.strictObject({
   reason: z.string(),
 });
 
+const swiftStringLiteralFields = {
+  source_address: z
+    .string()
+    .describe(
+      "Instruction that consumes both words: a call, tail call, return, or paired store.",
+    ),
+  value: z
+    .string()
+    .describe("Decoded UTF-8 text, including the canonical empty string."),
+  registers: z.tuple([z.string(), z.string()]),
+  words: z
+    .tuple([z.string(), z.string()])
+    .describe("Observed constant register values, in register order."),
+};
+
+/** A Swift String literal decoded from the two words of its ABI value, not a data reference. */
+export const swiftStringLiteralSchema = z.discriminatedUnion("representation", [
+  z.strictObject({
+    ...swiftStringLiteralFields,
+    representation: z
+      .literal("small")
+      .describe("The UTF-8 bytes are inside the two words."),
+    address: z.null().describe("A small literal has no storage of its own."),
+  }),
+  z.strictObject({
+    ...swiftStringLiteralFields,
+    representation: z
+      .literal("large")
+      .describe(
+        "An immortal literal whose words hold its count and a pointer to its bytes.",
+      ),
+    address: z.string().describe("Address of a large literal's bytes."),
+  }),
+]);
+
+const swiftStringLiteralOmissionFields = {
+  source_address: swiftStringLiteralFields.source_address,
+  byte_length: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  reason: z
+    .literal("capacity")
+    .describe(
+      "The record did not fit the provider's memory budget for this dossier; decoding stopped here, so later use sites were not examined.",
+    ),
+  registers: swiftStringLiteralFields.registers,
+  words: swiftStringLiteralFields.words,
+};
+
+/** A Swift literal whose layout matched but whose record did not fit; decoding stopped there. */
+export const swiftStringLiteralOmissionSchema = z.discriminatedUnion(
+  "representation",
+  [
+    z.strictObject({
+      ...swiftStringLiteralOmissionFields,
+      representation: z.literal("small"),
+      address: z.null(),
+    }),
+    z.strictObject({
+      ...swiftStringLiteralOmissionFields,
+      representation: z.literal("large"),
+      address: z.string().describe("Address of the literal's bytes."),
+    }),
+  ],
+);
+
 /** Observed endpoints with complete or partial reference classification evidence. */
 export const referenceEdgeSchema = z
   .object({
@@ -341,6 +405,18 @@ export const functionDossierSchema = z
         })
         .strict(),
     ),
+    swift_string_literals: z
+      .array(swiftStringLiteralSchema)
+      .exactOptional()
+      .describe(
+        "Swift String literals decoded from constant register values. Absent when the provider does not decode them for this target.",
+      ),
+    swift_string_literal_omissions: z
+      .array(swiftStringLiteralOmissionSchema)
+      .exactOptional()
+      .describe(
+        "The literal at which decoding stopped for capacity. Present exactly when swift_string_literals is present; empty when decoding examined every use site.",
+      ),
     basic_blocks: z.array(
       z
         .object({

@@ -35,6 +35,20 @@ const shellExamples = (content: string): string[] =>
   );
 
 describe("onboarding documentation product facts", () => {
+  it.each([
+    ["docs/native-investigation.md", "raw-binary.md#nmos-6502"],
+    ["docs/ghidra-riscv.md", "raw-binary.md"],
+  ])(
+    "routes raw admission guidance in %s to the owning guide",
+    async (path, target) => {
+      const content = await readFile(resolve(path), "utf8");
+      const links = [...content.matchAll(/\]\(([^)\s]+)\)/gu)].map(
+        (match) => match[1],
+      );
+      expect(links, path).toContain(target);
+    },
+  );
+
   it("keeps the installation MCP example aligned with the package registration command", async () => {
     const content = await readFile(resolve("docs/installation.md"), "utf8");
     expect(jsonExamples(content)).toContainEqual(

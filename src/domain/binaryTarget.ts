@@ -351,7 +351,9 @@ const machArchitecture = (cpu: number): HeaderArchitecture | undefined => {
   return undefined;
 };
 
-const elfArchitecture = (machine: number): BinaryArchitecture | undefined => {
+const elfArchitecture = (
+  machine: number,
+): Exclude<BinaryArchitecture, "6502"> | undefined => {
   switch (machine) {
     case 3:
       return "x86";

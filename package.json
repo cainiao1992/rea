@@ -174,6 +174,7 @@
     "verify:ghidra:seeds": "npm run build:cached && node scripts/verify/ghidra/seeds.mjs",
     "verify:ghidra:mips": "npm run build:cached && node scripts/verify-real-ghidra-mips.mjs",
     "verify:ghidra:riscv": "npm run build:cached && node scripts/verify-real-ghidra-riscv.mjs",
+    "verify:ghidra:6502": "npm run build:cached && node scripts/verify-real-ghidra-6502.mjs",
     "verify:ghidra:mips-shared": "npm run build:cached && node scripts/verify-real-ghidra-mips-shared.mjs",
     "verify:ghidra:mips-relocatable": "npm run build:cached && node scripts/verify-real-ghidra-mips-relocatable.mjs",
     "verify:ghidra:swift": "npm run build:cached && node scripts/verify-real-ghidra-swift.mjs",

@@ -6,10 +6,12 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import {
   createAnalysisExecution,
-  type AnalysisExecution,
   type ExecutionOptions,
 } from "../application/AnalysisProvider.js";
-import type { EvmInterfacePort } from "../application/evm/EvmInterfacePort.js";
+import type {
+  EvmInterfaceExecution,
+  EvmInterfacePort,
+} from "../application/evm/EvmInterfacePort.js";
 import { readStableArtifact } from "../artifacts/readStableArtifact.js";
 import { OwnedCommandFailure } from "../process/OwnedCommand.js";
 import type {
@@ -98,7 +100,7 @@ export class EvmoleInterfaceProvider implements EvmInterfacePort {
   inspect(
     input: InspectEvmInterfaceInput,
     options?: ExecutionOptions,
-  ): Promise<Result<AnalysisExecution, AnalysisError>> {
+  ): Promise<Result<EvmInterfaceExecution, AnalysisError>> {
     if (this.#closing) return Promise.resolve(err(this.#closedError()));
     const operation = this.#tail.then(() =>
       this.#closing ? err(this.#closedError()) : this.#inspect(input, options),
@@ -113,7 +115,7 @@ export class EvmoleInterfaceProvider implements EvmInterfacePort {
   async #inspect(
     input: InspectEvmInterfaceInput,
     options?: ExecutionOptions,
-  ): Promise<Result<AnalysisExecution, AnalysisError>> {
+  ): Promise<Result<EvmInterfaceExecution, AnalysisError>> {
     const pending = await this.#retire();
     if (pending !== undefined) return err(pending);
     let root: Pick<PrivateRuntimeRoot, "path" | "close"> | undefined;
@@ -123,7 +125,7 @@ export class EvmoleInterfaceProvider implements EvmInterfacePort {
     let workerLimits: EvmWorkerLimits | undefined;
     const limiter =
       this.environment.REA_EVM_PRLIMIT_COMMAND ?? "/usr/bin/prlimit";
-    let result: Result<AnalysisExecution, AnalysisError>;
+    let result: Result<EvmInterfaceExecution, AnalysisError>;
     try {
       if (options?.signal?.aborted) throw new AnalysisCancelledError(OPERATION);
       if (process.platform !== "linux" || process.arch !== "x64")

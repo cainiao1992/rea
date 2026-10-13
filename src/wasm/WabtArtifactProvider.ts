@@ -2,12 +2,12 @@ import { randomUUID, createHash } from "node:crypto";
 import { access, realpath, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { isAbsolute, join } from "node:path";
-import type {
-  AnalysisExecution,
-  ExecutionOptions,
-} from "../application/AnalysisProvider.js";
+import type { ExecutionOptions } from "../application/AnalysisProvider.js";
 import { createAnalysisExecution } from "../application/AnalysisProvider.js";
-import type { WasmArtifactPort } from "../application/wasm/WasmArtifactPort.js";
+import type {
+  WasmArtifactExecution,
+  WasmArtifactPort,
+} from "../application/wasm/WasmArtifactPort.js";
 import { readStableArtifact } from "../artifacts/readStableArtifact.js";
 import type {
   AnalysisError,
@@ -76,10 +76,10 @@ export class WabtArtifactProvider implements WasmArtifactPort {
   async inspect(
     input: InspectWasmArtifactInput,
     options?: ExecutionOptions,
-  ): Promise<Result<AnalysisExecution, AnalysisError>> {
+  ): Promise<Result<WasmArtifactExecution, AnalysisError>> {
     let root: Pick<PrivateRuntimeRoot, "path" | "close"> | undefined;
     let phase: "configuration" | "artifact" | "producer" = "configuration";
-    let result: Result<AnalysisExecution, AnalysisError>;
+    let result: Result<WasmArtifactExecution, AnalysisError>;
     let capturedOutput: AnalysisCapturedOutput | undefined;
     try {
       if (options?.signal?.aborted) throw new AnalysisCancelledError(OPERATION);

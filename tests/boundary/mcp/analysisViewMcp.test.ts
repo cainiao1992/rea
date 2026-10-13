@@ -39,6 +39,8 @@ import {
 } from "../../fixtures/analysisView.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { BINARY_LAYOUT_TEST_PROVIDER } from "../../fixtures/binaryDiagnostics/layout.js";
+import { wasmArtifactFixture } from "../../fixtures/wasm/artifact.js";
+import { evmInterfaceFixture } from "../../fixtures/evm/interface.js";
 
 const connect = async (
   binaryLayout?: BinaryLayoutService,
@@ -308,6 +310,65 @@ it("reports a tampered inline Evidence ID at its full MCP source path", async ()
       ],
     },
   });
+});
+
+it("rejects self-contained WASM and EVM Evidence views when the subject format differs", async () => {
+  const { client } = await connect();
+  const wasm = wasmArtifactFixture();
+  const evm = evmInterfaceFixture();
+  const cases = [
+    {
+      evidence: createEvidence(
+        {
+          path: wasm.artifact.path,
+          format: "elf",
+          sha256: wasm.artifact.sha256,
+        },
+        { id: "fixture-wabt", name: "WABT", version: "1" },
+        {
+          operation: "inspect_wasm_artifact",
+          parameters: { path: wasm.artifact.path },
+          result: wasm,
+        },
+      ),
+    },
+    {
+      evidence: createEvidence(
+        {
+          path: evm.artifact.path,
+          format: "elf",
+          sha256: evm.artifact.sha256,
+        },
+        { id: "fixture-evm", name: "EVMole", version: "1" },
+        {
+          operation: "inspect_evm_interface",
+          parameters: { path: evm.artifact.path, encoding: "hex" },
+          result: evm,
+        },
+      ),
+    },
+  ] as const;
+
+  for (const { evidence } of cases) {
+    const response = await client.callTool({
+      name: "inspect_analysis_view",
+      arguments: {
+        source: { kind: "inline", evidence },
+        view: { kind: "summary" },
+      },
+    });
+    expect(parseMcpToolError(response).error).toMatchObject({
+      code: "invalid_request",
+      details: {
+        issues: [
+          expect.objectContaining({
+            path: ["source", "subject"],
+            reason: "invalid_value",
+          }),
+        ],
+      },
+    });
+  }
 });
 
 it("admits portable captures before SDK Evidence parsing and preserves capture caveats", async () => {

@@ -11,19 +11,18 @@ const historyPath = join(historyDirectory, "test-results.json");
 await rm(historyPath, { force: true });
 const report = z
   .object({
+    version: z.literal(1),
     success: z.boolean(),
-    numFailedTests: z.number().int().nonnegative(),
-    testResults: z.array(
+    files: z.array(
       z.object({
         name: z.string().min(1),
-        startTime: z.number().finite(),
-        endTime: z.number().finite(),
+        durationMs: z.number().finite().nonnegative(),
       }),
     ),
   })
-  .parse(JSON.parse(await readFile("test-results.json", "utf8")));
+  .parse(JSON.parse(await readFile("test-timings.json", "utf8")));
 
-const files = report.testResults.map(({ name, startTime, endTime }) => {
+const files = report.files.map(({ name, durationMs }) => {
   const path = relative(root, resolve(root, name));
   if (
     path === "" ||
@@ -32,17 +31,11 @@ const files = report.testResults.map(({ name, startTime, endTime }) => {
     isAbsolute(path)
   )
     throw new Error(`Test report path is outside the checkout: ${name}`);
-  const duration = endTime - startTime;
-  if (!Number.isFinite(duration) || duration < 0)
-    throw new Error(`Test report has an invalid duration: ${name}`);
-  return { name: path.split(sep).join("/"), startTime: 0, endTime: duration };
+  return { name: path.split(sep).join("/"), durationMs };
 });
 const complete = process.env.SHARD_RESULT === "success";
 const passed =
-  complete &&
-  process.env.MERGE_RESULT === "success" &&
-  report.success &&
-  report.numFailedTests === 0;
+  complete && process.env.MERGE_RESULT === "success" && report.success;
 // Successful shards and merged reports must account for the complete portable
 // inventory. Coverage thresholds alone cannot prove that every file ran.
 if (passed && process.env.CI_VERIFY_TEST_INVENTORY === "true") {
@@ -71,13 +64,16 @@ const summary = [
     ? "Successful timing history is available."
     : "This report is diagnostic only and is not a successful timing baseline.",
   "",
+  "Durations include tests and hooks, worker preparation, environment, imports, and setup. They are scheduling weights, not summed workflow wall time.",
+  "",
   "| Slowest file | Duration (ms) |",
   "| --- | ---: |",
   ...files
-    .toSorted((left, right) => right.endTime - left.endTime)
+    .toSorted((left, right) => right.durationMs - left.durationMs)
     .slice(0, 20)
     .map(
-      ({ name, endTime }) => `| ${name.replaceAll("|", "\\|")} | ${endTime} |`,
+      ({ name, durationMs }) =>
+        `| ${name.replaceAll("|", "\\|")} | ${durationMs} |`,
     ),
   "",
 ].join("\n");
@@ -89,6 +85,6 @@ if (passed) {
   await mkdir(historyDirectory, { recursive: true });
   await writeFile(
     historyPath,
-    JSON.stringify({ success: true, numFailedTests: 0, testResults: files }),
+    JSON.stringify({ version: 1, success: true, files }),
   );
 }

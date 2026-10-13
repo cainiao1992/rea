@@ -263,15 +263,21 @@ CI owns coverage; aggregate and domain/contract thresholds are maintained in
 Coverage does not replace named boundary or real-provider scenarios.
 
 CI runs six native Vitest shards without retries. Each shard emits a blob
-report; the merge job produces JUnit and JSON timing reports, plus aggregate
-coverage during full qualification. It retains available
+report; the merge job produces JUnit and JSON diagnostics, a module timing
+report, plus aggregate coverage during full qualification. It retains available
 reports even when a shard fails, uploads available diagnostics, and writes the
 slowest files to the workflow summary. Partial reports are marked diagnostic
 only. Failed, cancelled, or missing selected shards still fail the required gate,
 and aggregate coverage thresholds remain enforced in full qualification.
 Only successful complete full-tier merges publish the small `test-timings` artifact, with
 checkout-relative paths; the build job downloads that artifact for the sequencer
-instead of the coverage/JUnit bundle. Missing history falls back to native
+instead of the coverage/JUnit bundle. Timing weights come from Vitest module
+diagnostics and include tests and hooks, worker preparation, environment,
+imports, and setup. Import timings already include transform waits, which are
+not added again. The weights describe file costs under the measured worker and
+coverage settings; their sum is not workflow elapsed time. The diagnostic
+artifact retains the phase breakdown, while shard history keeps only each
+file's total. Legacy test-body-only history and missing history fall back to native
 sharding. Static checks, documentation, build, package verification, and
 real-system lanes remain separate jobs so one kind of evidence cannot stand in
 for another. Workflow syntax and expression validation runs inside the required
@@ -868,11 +874,11 @@ should require this aggregate, `Static checks`, `Portable tests`, and
 reopening, commits, and edits; correcting a title refreshes only this lightweight
 check. It reads title text through an environment variable, executes no PR code,
 and has no token permissions. Its separate concurrency group cannot cancel
-test runs. Fast runs
-cancel superseded feedback for the same PR or main branch. Scheduled/manual
-qualification has a separate concurrency group: active work finishes and only
-the latest pending run is retained. Release qualification is grouped by its
-exact source SHA and cannot be cancelled by newer main pushes. Provider and
+test runs. Fast PR runs cancel superseded feedback for the same PR. Main push
+runs keep one active run and the latest pending run for that branch.
+Scheduled/manual qualification has a separate concurrency group: active work
+finishes and only the latest pending run is retained. Release qualification uses
+its exact source SHA and cannot be cancelled by newer main pushes. Provider and
 website lanes inherit their caller's scheduling; reusable
 workflows have no independent cancellation group. Direct manual lane dispatches
 run independently on disposable hosted runners. Publication

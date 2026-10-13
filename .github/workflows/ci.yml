@@ -21,10 +21,11 @@ permissions:
 
 concurrency:
   # Complete qualification finishes even while main receives more pushes.
+  # Main feedback also finishes, coalescing newer pushes to one pending run.
   # Scheduled/manual main runs coalesce to one active and the latest pending;
   # release and label-triggered qualification use exact-revision groups.
   group: ci-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || inputs.source_sha != '' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'qualification' || 'feedback' }}-${{ inputs.source_sha || github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'schedule' && github.event_name != 'workflow_dispatch' && inputs.source_sha == '' && !contains(github.event.pull_request.labels.*.name, 'ci:full') }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && inputs.source_sha == '' && !contains(github.event.pull_request.labels.*.name, 'ci:full') }}
 
 env:
   HUSKY: "0"
@@ -289,6 +290,7 @@ jobs:
           --reporter=default
           --reporter=junit
           --reporter=json
+          --reporter=./scripts/ci/test-timing-reporter.mjs
           --outputFile.junit=test-results.xml
           --outputFile.json=test-results.json
       - name: Merge fast-suite JUnit and timing reports
@@ -299,10 +301,11 @@ jobs:
           --reporter=default
           --reporter=junit
           --reporter=json
+          --reporter=./scripts/ci/test-timing-reporter.mjs
           --outputFile.junit=test-results.xml
           --outputFile.json=test-results.json
       - name: Summarize slowest test files
-        if: needs.changes.outputs.code == 'true' && !cancelled() && hashFiles('test-results.json') != ''
+        if: needs.changes.outputs.code == 'true' && !cancelled() && hashFiles('test-timings.json') != ''
         env:
           SHARD_RESULT: ${{ needs.test-shard.result }}
           MERGE_RESULT: ${{ needs.changes.outputs.tier == 'full' && steps.merge.outcome || steps.merge-fast.outcome }}
@@ -315,6 +318,7 @@ jobs:
           path: |
             test-results.xml
             test-results.json
+            test-timings.json
             coverage/
           if-no-files-found: error
           retention-days: 30

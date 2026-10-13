@@ -249,12 +249,9 @@ it("keeps fast feedback separate from complete qualification and release proof",
   ]);
   expect(ci.concurrency.group).toContain("'qualification' || 'feedback'");
   expect(ci.concurrency.group).toContain("inputs.source_sha ||");
-  for (const fullEvent of ["schedule", "workflow_dispatch"])
-    expect(ci.concurrency["cancel-in-progress"]).toContain(
-      `github.event_name != '${fullEvent}'`,
-    );
-  expect(ci.concurrency["cancel-in-progress"]).toContain(
-    "inputs.source_sha == ''",
+  expect(ci.concurrency.group).toContain("github.ref");
+  expect(ci.concurrency["cancel-in-progress"]).toBe(
+    "${{ github.event_name == 'pull_request' && inputs.source_sha == '' && !contains(github.event.pull_request.labels.*.name, 'ci:full') }}",
   );
   expect(ci.jobs.required?.if).toBe("${{ always() }}");
   const shards = ci.jobs["test-shard"]?.steps ?? [];

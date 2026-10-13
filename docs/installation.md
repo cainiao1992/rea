@@ -317,8 +317,8 @@ The Hopper launcher action used by REA creates a document from an executable;
 its supported command-line interface does not attach to an already-open
 document. While another live REA session owns the same target and loader
 profile, a second session reports the owning run ID instead of opening a
-duplicate document. Closing the owning REA session releases this guard; Hopper
-keeps its document open. A later REA session can therefore open another
+duplicate document. On macOS, closing the owning REA session releases this guard;
+Hopper keeps its document open. A later REA session can therefore open another
 document for the same target. REA does not currently identify, focus, or reuse
 that existing GUI document, and the supported launcher exposes no attach or
 reuse action for it.
@@ -341,8 +341,14 @@ Hopper application per user across cooperating REA processes. A competing
 CLI or MCP session receives the owning session ID before Hopper is launched,
 for both the same target and a different target. Switch targets through that
 MCP session, or close it before starting another session. Closing the owner
-releases the reservation. This does not attach to or claim ownership of
-manually opened Hopper applications.
+releases the reservation and stops REA's owned demo application and private
+display; the headless Linux demo does not retain documents after MCP shutdown.
+Its helper watches a private lifetime pipe, so an owner crash or SIGKILL also
+stops those children, without relying on a reusable PID or a process-name scan.
+A later session recovers the dead owner's stale lease after child cleanup;
+private runtime files can remain when REA itself was killed. This does not attach to
+or claim ownership of manually opened Hopper applications. An application left
+running by an older REA version must still be closed before starting a new session.
 
 Stale lease recovery is serialized. If an interrupted recovery leaves its
 reservation directory, the diagnostic identifies that exact path. Stop REA
@@ -435,8 +441,9 @@ For cursor navigation, string decoding, symbol-name limits, and regex matching,
 see [Hopper analysis behavior](native-investigation.md#hopper-analysis-behavior).
 
 Closing or switching a target closes its bound Hopper document, shuts down REA's
-bridge and removes its temporary socket directory while preserving the Hopper
-application and unrelated documents. A `cleanup_incomplete`
+bridge and removes its temporary socket directory. The macOS Hopper application
+and unrelated documents remain open; the owned Linux demo application stops.
+A `cleanup_incomplete`
 result identifies resources whose cleanup could not be verified.
 REA retains unresolved cleanup ownership and any confirmed shutdown phases.
 After addressing the reported failure, retry `close_binary` on the same

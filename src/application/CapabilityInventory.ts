@@ -141,6 +141,7 @@ const FRIDA_OPERATION_NAMES: ReadonlySet<string> = new Set(
 
 /** Native contracts defined only for an active Mach-O executable. */
 const MACHO_TARGET_OPERATIONS: ReadonlySet<string> = new Set([
+  "inspect_signature",
   "inspect_macho",
   "list_architectures",
   "observe_native_calls",

@@ -564,6 +564,19 @@ class NativeMacOSClient implements AnalysisClient {
   async #inspectSignature(
     signal?: AbortSignal,
   ): Promise<Result<NativeObservation, AnalysisError>> {
+    // This provider's signature inspection covers Mach-O code signatures
+    // only. On another container, codesign's "not signed" verdict cannot
+    // see a format-level signature such as a xar pkg signature, so
+    // reporting it would claim unsigned for a layer that was never
+    // evaluated.
+    if (this.target.kind !== "executable" || !isMachOFormat(this.target.format))
+      return err(
+        new AnalysisCapabilityUnavailableError(
+          IDENTITY.id,
+          "inspect_signature",
+          "Active artifact is not Mach-O; its container-level signature layer is not evaluated by codesign.",
+        ),
+      );
     return withSignatureTarget(
       this.target,
       this.#signatureResources,

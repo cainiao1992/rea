@@ -12,5 +12,7 @@ export const ghidraProfileInstallationHost: GhidraInstallationHost = {
     home: "/jdk-21",
     bits: 64,
     runtime: "jdk",
+    osArch: "amd64",
+    osName: "Linux",
   }),
 };

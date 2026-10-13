@@ -71,7 +71,13 @@ export class WebSourceLocationService {
   ) {}
 
   close(): Promise<void> {
-    return this.decoder.close?.() ?? Promise.resolve();
+    return closeOwnedWebResources(
+      [
+        this.artifacts.close?.bind(this.artifacts),
+        this.decoder.close?.bind(this.decoder),
+      ],
+      "Web source-location cleanup failed",
+    );
   }
 
   /** Shared CLI/MCP workflow preserves raw declarations and every equal-position match. */
@@ -174,6 +180,21 @@ export class WebSourceLocationService {
     );
   }
 }
+
+const closeOwnedWebResources = async (
+  close: readonly ((() => Promise<void>) | undefined)[],
+  message: string,
+): Promise<void> => {
+  const results = await Promise.allSettled(
+    close.flatMap((owner) =>
+      owner === undefined ? [] : [Promise.resolve().then(owner)],
+    ),
+  );
+  const failures = results.flatMap((result) =>
+    result.status === "rejected" ? [result.reason] : [],
+  );
+  if (failures.length > 0) throw new AggregateError(failures, message);
+};
 const invalidOutput = (message: string): Result<never, AnalysisError> =>
   err(new AnalysisOutputError(OPERATION, message));
 const invalid = (

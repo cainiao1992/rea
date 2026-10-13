@@ -70,7 +70,13 @@ export class WebModuleTraceService {
   ) {}
 
   close(): Promise<void> {
-    return this.resolver.close?.() ?? Promise.resolve();
+    return closeOwnedWebResources(
+      [
+        this.artifacts.close?.bind(this.artifacts),
+        this.resolver.close?.bind(this.resolver),
+      ],
+      "Web module trace cleanup failed",
+    );
   }
 
   async trace(
@@ -264,6 +270,21 @@ export class WebModuleTraceService {
     );
   }
 }
+
+const closeOwnedWebResources = async (
+  close: readonly ((() => Promise<void>) | undefined)[],
+  message: string,
+): Promise<void> => {
+  const results = await Promise.allSettled(
+    close.flatMap((owner) =>
+      owner === undefined ? [] : [Promise.resolve().then(owner)],
+    ),
+  );
+  const failures = results.flatMap((result) =>
+    result.status === "rejected" ? [result.reason] : [],
+  );
+  if (failures.length > 0) throw new AggregateError(failures, message);
+};
 
 const admitContext = (
   value: string,

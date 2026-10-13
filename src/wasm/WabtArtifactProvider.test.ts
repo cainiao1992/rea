@@ -1,8 +1,10 @@
+import { createHash } from "node:crypto";
 import { access, chmod, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory.js";
 import { WabtArtifactProvider } from "./WabtArtifactProvider.js";
+import { wasmArtifactSchema } from "../domain/wasm/wasmArtifact.js";
 import { PrivateRuntimeRoot } from "../process/PrivateRuntimeRoot.js";
 import { PrivateRuntimeRootUnavailableError } from "../process/PrivateRuntimeRootUnavailableError.js";
 import { spawnOwnedProviderProcess } from "../process/ProviderProcess.js";
@@ -271,6 +273,35 @@ it.each([false, true])(
     });
   },
 );
+const assertGlueObservations = (
+  value: unknown,
+  inputs: readonly { readonly path: string; readonly source: string }[],
+  selectedPath: string,
+): void => {
+  const glue = wasmArtifactSchema.parse(value).glue;
+  expect(glue).toHaveLength(inputs.length);
+  for (const [index, { path, source }] of inputs.entries()) {
+    expect(glue[index]).toMatchObject({
+      artifact: {
+        path,
+        sha256: createHash("sha256").update(source).digest("hex"),
+        bytes: Buffer.byteLength(source),
+      },
+      parse_status: "complete",
+      references: [
+        {
+          value: "./selected.wasm",
+          line: source.includes("\n") ? 2 : 1,
+          column: source.startsWith("\uFEFFfetch") ? 7 : 6,
+          candidate_paths: [selectedPath],
+          association: "local-path-candidate",
+          evidence_kind: "static-literal",
+        },
+      ],
+    });
+  }
+};
+
 it.each([
   "success",
   "invalid",
@@ -371,10 +402,34 @@ it.each([
       };
     },
   );
+  const literal = 'fetch("./selected.wasm");';
+  const glueInputs = (
+    mode === "success"
+      ? [
+          literal,
+          `\uFEFF${literal}`,
+          `\uFEFF\n${literal}`,
+          `#!/usr/bin/env node\n${literal}`,
+          `\uFEFF#!/usr/bin/env node\n${literal}`,
+        ]
+      : []
+  ).map((source, index) => ({
+    path: join(selectedRoot, `glue-${index}.js`),
+    source,
+  }));
+  await Promise.all(
+    glueInputs.map(({ path, source }) => writeFile(path, source)),
+  );
   const result = await provider.inspect(
-    { path, glue_paths: [], candidate_paths: [] },
+    {
+      path,
+      glue_paths: glueInputs.map(({ path }) => path),
+      candidate_paths: [],
+    },
     { signal: controller.signal },
   );
+  if (mode === "success" && result.ok)
+    assertGlueObservations(result.value.result, glueInputs, path);
   assertModeOutcome(mode, result, path);
   if (mode === "cleanup") {
     await assertCleanupRecovery({

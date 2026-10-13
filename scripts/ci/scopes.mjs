@@ -218,6 +218,7 @@ export const SCOPES = {
     "src/artifacts/readStableArtifact*.ts",
     "src/artifacts/ArtifactReader.ts",
     "scripts/verify-evm-interface.mjs",
+    "scripts/verify-solidity-metadata.mjs",
     "scripts/fixtures/evm-interface.sol",
     "third_party/evmole/**",
   ],

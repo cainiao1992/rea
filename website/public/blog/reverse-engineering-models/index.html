@@ -167,7 +167,7 @@
                 >Model capability changes the hypotheses an agent can
                 find.</strong
               >
-              Later sessions have opened functions that earlier work left
+              Later sessions have solved problems that earlier work left
               unresolved.
             </li>
             <li>
@@ -229,18 +229,17 @@
             <p>
               Much of that work aims at exact reconstruction: we compile the
               maintained source under a pinned historical toolchain and check
-              whether it reproduces the target function. That gives us something
-              concrete to examine when a later model closes a function that
-              earlier work left unresolved. The source changes show what made
-              the breakthrough possible.
+              whether it reproduces the target function. When a later model
+              succeeds where earlier work stalled, the source changes show what
+              made that progress possible.
             </p>
             <h3>The temporary values had to stay alive together</h3>
             <p>
-              In one TH09 attack function, much of the logic was already in
-              place, but the compiled candidate remained a byte short. Although
-              its stack frame had the right size, three temporary vectors
-              occupied different slots from the original. Matching the overall
-              size of the workspace had concealed a difference inside it.
+              Much of a TH09 attack function's logic had already been
+              reconstructed, but the compiler still stored temporary results
+              differently from the original. The remaining problem was how long
+              those results needed to stay alive and when their storage could be
+              reused.
             </p>
             <p>
               A
@@ -257,22 +256,19 @@
               values needed to stay alive.
             </p>
             <p>
-              Each vector was returned from a calculation and copied into an
-              animation's position. Because C++ keeps a returned temporary alive
-              until the end of the expression using it, grouping the real
-              operations into one expression kept the three values alive
-              together. The compiler could no longer reuse the same storage for
-              all of them.
+              The function produced temporary results and copied them into
+              animation positions. In C++, a temporary result stays alive until
+              the expression using it finishes. Grouping the real operations
+              into one expression kept those results alive together, so the
+              compiler could no longer reuse the same storage for all of them.
             </p>
             <p>
-              That recovered the distinct temporary slots, but one still shared
-              storage with a real collision workspace used later. Keeping that
-              workspace at function scope separated it from the returned values.
-              With both changes in place, the seventh targeted candidate in the
-              closing session matched. A cold build confirmed
+              One result still shared storage with a value used later for
+              collision checks. Giving that value its own lifetime resolved the
+              remaining overlap. After several targeted experiments,
               <strong
-                >the complete 1,436-byte function and all 44 encoded
-                fields</strong
+                >a clean rebuild confirmed that the full function
+                matched</strong
               >.
             </p>
             <p>
@@ -290,22 +286,19 @@
                 href="https://github.com/N0zoM1z0/th09/commit/f8d12d72aaf02212ee1b585a8f3f86d7ed000269"
                 >GPT-6.1-Sol's earlier work</a
               >
-              reproduced two diagnostic regions, yet the complete candidate
-              remained 1,510 bytes against a 1,491-byte target. Those matching
-              regions did not resolve the way the branches joined up.
+              got parts of the function to match, but the branches still joined
+              up differently from the original.
             </p>
             <p>
               <a
                 href="https://github.com/N0zoM1z0/th09/commit/da33a646221198ceb7f3df2b96e2ca0e9b2f705f"
                 >GPT-6-Astra changed the surrounding control-flow graph</a
-              >, making completion and frame processing complementary branches
-              followed by one common frame increment and return. Once the
-              compiler saw the branches in that context, it produced the
-              required block sharing. The entire 1,491-byte function matched,
-              and a
+              >. The main paths now led to a shared final update and return. In
+              that source structure, the compiler combined the branches in the
+              same way as the original. The complete function matched, and a
               <a
                 href="https://github.com/N0zoM1z0/th09/commit/5f825b28a862f8e1a6d4aea2f78a42f04c09a1c0"
-                >recompile replay was accepted</a
+                >separate rebuild check confirmed it</a
               >.
             </p>
             <p>
@@ -351,21 +344,20 @@
             <p>
               In TH095, for example,
               <strong
-                >even the identifier backing a real local variable could change
-                where VC7.1 put it on the stack</strong
+                >even the name used for a local variable could change where
+                VC7.1 stored it</strong
               >. Moving the declaration alone did not solve the layout, but an
-              earlier background function had exposed a useful identifier
-              bucket. That gave us a more promising hypothesis for
+              earlier background function had revealed a naming pattern that
+              affected the compiler's choice. That gave us a more promising
+              hypothesis for
               <a
                 href="https://github.com/N0zoM1z0/th095/commit/26bb64bdb093a13f73abd0ee8ae7ce199ee4658f"
                 >the reconstruction of <code>Supervisor::LoadDat</code></a
               >.
             </p>
             <p>
-              Reusing the known backing identifier for the real file-size
-              variable put it and the character buffer in the required homes,
-              without changing the buffer's genuine 128-byte size. With that
-              layout, all 151 bytes of the function and its 15 relocations
+              Reusing that pattern for the file-size variable produced the
+              required layout without adding storage. The full function then
               matched.
             </p>
             <p>
@@ -384,16 +376,17 @@
             </p>
             <p>
               The useful patterns would have to retain their context, though.
-              TH08 uses VC7, while TH095 and TH09 use VC7.1. TH04's segmented
-              DOS environment uses Turbo C++, and its
+              TH08 uses an earlier Visual C++ version than TH095 and TH09. TH04
+              uses a different DOS-era compiler, and its
               <a
                 href="https://github.com/N0zoM1z0/th04/commit/6dce0a79d5b931f0e2a08475b90e0c33d2321b98"
                 >player reconstruction</a
               >
-              needed a different set of lifetime and linker-order hypotheses.
-              Shared authorship gives us a prior, but each target tells us
-              whether it applies. Distinguishing those contexts is part of what
-              a specialist would need to learn.
+              needed different hypotheses about source patterns and how the
+              compiled code was combined into an executable. Shared authorship
+              gives us a prior, but each target tells us whether it applies.
+              Distinguishing those contexts is part of what a specialist would
+              need to learn.
             </p>
           </section>
           <section class="article-section" id="repository-knowledge">
@@ -414,15 +407,15 @@
               improves without changing the model's weights.
             </p>
             <p>
-              For the 373-byte TH09 enemy-spawn function, a
+              When reconstructing TH09's enemy-spawn function, a
               <a
                 href="https://github.com/N0zoM1z0/th09/commit/1eb843383941d00065622a9e353146c4bb96979e"
                 >GPT-6-Luna-max session</a
               >
               drew a hypothesis from TH08's corresponding source family. That
-              earlier source suggested an ordinary loop with branch-local
-              failure handling. TH09's own evidence supplied the bounds and
-              calls, and two cold builds confirmed the complete match.
+              earlier source suggested how to structure the loop and handle
+              failures within it. TH09's own evidence supplied the game-specific
+              details, and clean rebuilds confirmed the complete match.
             </p>
             <p>
               <strong
@@ -451,7 +444,7 @@
               and suggest a more useful next experiment.
             </p>
             <p>
-              Consider the temporary-vector example again. Its final source
+              Consider the temporary-results example again. Its final source
               shows the arrangement that worked, but the route to that source
               contains more information. Each of the following experiments
               helped identify what still needed to change.
@@ -469,33 +462,35 @@
                 </thead>
                 <tbody>
                   <tr>
-                    <td>Use a typed position assignment</td>
+                    <td>Try a different way to copy the results</td>
                     <td>
-                      The copy behavior improves, but the compiled source still
-                      differs.
+                      The copy code changes, but the function still differs.
                     </td>
                   </tr>
                   <tr>
-                    <td>Consume the returned vectors directly</td>
+                    <td>Use the returned values directly</td>
                     <td>
-                      The function reaches the target size. Temporary storage
-                      remains wrong.
+                      Copying follows the original pattern, but temporary
+                      storage still differs.
                     </td>
                   </tr>
                   <tr>
-                    <td>Group the real operations into one full expression</td>
-                    <td>The returned values remain alive together.</td>
+                    <td>Keep the temporary results alive together</td>
+                    <td>
+                      They get separate storage, but one still overlaps a value
+                      used later for collision checks.
+                    </td>
                   </tr>
                   <tr>
-                    <td>Keep the real collision workspace separate</td>
-                    <td>The complete function matches in a cold build.</td>
+                    <td>Keep the collision-check value separate</td>
+                    <td>A clean rebuild confirms the complete match.</td>
                   </tr>
                 </tbody>
               </table>
             </div>
             <p class="caption">
-              Selected steps from the recorded Type18/24 search. The closing
-              session tested seven candidates; this table groups the lessons.
+              Selected experiments from the attack-function reconstruction
+              above, grouped by what they taught us.
             </p>
             <p>
               A training record that keeps this sequence can teach more than the
@@ -554,11 +549,10 @@
               measurement. In TH08, for example, a
               <a
                 href="https://github.com/N0zoM1z0/th08/commit/af9cb1d3e839b15a78b47ac1701506083cc82847"
-                >later collision divergence led back to a one-ULP numerical
-                difference</a
-              >
-              and the old x87 behavior. Before the agent could test a useful
-              correction, it had to work out what to measure.
+                >collision difference led back to how the original program
+                handled floating-point calculations</a
+              >. Before the agent could test a useful correction, it had to work
+              out what to measure.
             </p>
             <p>
               This suggests another role for a broadly capable model: helping
@@ -590,10 +584,9 @@
                 href="https://github.com/N0zoM1z0/th08/commit/a393f400786e4cc6cbb1000af0dad3276da12c78"
                 >wider audit</a
               >
-              examined all 1,548 floating-literal references. It corrected
-              twelve stale rows across five accepted functions, including a
-              bullet-spread increment of <code>1.0f</code> where the target
-              required <code>32.0f</code>.
+              found incorrect constants in functions that had already been
+              accepted. In one calculation, the reconstructed source added
+              <code>1.0f</code> where the original added <code>32.0f</code>.
             </p>
             <p>
               <strong
@@ -685,11 +678,13 @@
                 href="https://github.com/N0zoM1z0/th09/commit/ab72fd77728293fc0beacfc656ca701b0e266016"
                 >replay-save candidate</a
               >
-              already had the target's 1,825-byte length, yet 467 byte positions
-              differed. Even a byte-difference count can change abruptly when a
-              branch encoding changes. Such diagnostics can guide the next
-              experiment, but I would validate any reward for "getting closer"
-              against the full acceptance check.
+              looked promising because the compiled function had the expected
+              size, but a full comparison still found substantial differences.
+              Changes in how the compiler arranges instructions can also make a
+              candidate look closer without resolving the underlying problem.
+              Such diagnostics can guide the next experiment, but I would
+              validate any reward for "getting closer" against the full
+              acceptance check.
             </p>
             <p>
               I would be interested in the pattern across these results. If a
@@ -741,10 +736,10 @@
             <details class="native-details">
               <summary>Evidence and model attribution</summary>
               <p>
-                The examples describe historical reconstruction checks recorded
-                in public commits. Their byte counts apply to the stated
-                functions, not whole-game runtime correctness. Source and
-                matching records were reviewed on 13 October 2026.
+                The examples describe historical function-level comparisons
+                recorded in the linked commits. Whole-game runtime checks are
+                separate milestones. Source and matching records were reviewed
+                on 13 October 2026.
               </p>
               <p>
                 The TH09 label <code>gpt-dots</code> identifies GPT-6-Astra.

@@ -20,6 +20,7 @@ import {
 } from "../../../src/application/AppBundleExecutable.js";
 import {
   dosMz,
+  elf,
   fat,
   pe,
   thinMach,
@@ -846,3 +847,40 @@ describe("DOS binary target I/O", () => {
     });
   });
 });
+
+it.each([
+  [
+    "EI_VERSION",
+    (bytes: Buffer) => {
+      bytes[6] = 0;
+    },
+  ],
+  [
+    "e_version",
+    (bytes: Buffer) => {
+      bytes.writeUInt32LE(0, 20);
+    },
+  ],
+  [
+    "e_ehsize",
+    (bytes: Buffer) => {
+      bytes.writeUInt16LE(51, 40);
+    },
+  ],
+])(
+  "rejects an ELF with malformed %s during public target opening",
+  async (_name, corrupt) => {
+    const directory = await createTestTempDirectory("rea-invalid-elf-header-");
+    const path = join(directory, "invalid.elf");
+    const bytes = elf(1, 1, 3);
+    corrupt(bytes);
+    await writeFile(path, bytes);
+    expect(await parseBinaryTarget(path)).toMatchObject({
+      ok: false,
+      error: {
+        _tag: "BinaryTargetError",
+        constraint: "file_format_rejected",
+      },
+    });
+  },
+);

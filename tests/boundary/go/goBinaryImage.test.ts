@@ -227,11 +227,6 @@ it("rejects ELF header tables overlapping the native header", () => {
   expect(() => readGoBinaryImage(fixture.bytes)).toThrowError(
     /header|overlap/i,
   );
-  const declaredSize = createGoBinaryFixture();
-  declaredSize.bytes.writeUInt16LE(8192, 52);
-  expect(() => readGoBinaryImage(declaredSize.bytes)).toThrowError(
-    /truncated|range/i,
-  );
 });
 
 it("rejects contradictory aliases when a metadata address maps to different file bytes", () => {

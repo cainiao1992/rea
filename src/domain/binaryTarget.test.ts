@@ -26,6 +26,13 @@ describe("executable header parsing", () => {
     expect(result.ok && result.value).toMatchObject({ format, architecture });
   });
 
+  it("retains ELF32 x86-64 identity for the x32 ABI", () => {
+    expect(parseExecutableHeader(elf(1, 1, 62), "x64")).toMatchObject({
+      ok: true,
+      value: { format: "elf", architecture: "x86_64" },
+    });
+  });
+
   it("distinguishes native PE applications, DLLs, and managed assemblies", () => {
     const application = parseExecutableHeader(pe(0x8664), "x64");
     const library = parseExecutableHeader(pe(0x8664, 64, 0x2002), "x64");

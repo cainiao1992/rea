@@ -209,9 +209,11 @@ native/runtime questions retain their own authority and coverage.
 Names and semantic labels do not establish durable member identity. Comparison
 preserves observed differences, structural inferences, and unknowns separately.
 
-Cross-version matching first prefers exact CIL/signature identity. When that
-does not match, it pairs an exact declared type, method name, and raw signature
-before trying structural body shape. The exact-signature key uses names only
+Cross-version matching first prefers exact raw CIL/signature identity, with
+equal decoded fingerprints. Equal decoded fingerprints alone cannot establish
+an exact match: they omit switch targets and collapse distinct NaN encodings.
+When that does not match, it pairs an exact declared type, method name, and raw
+signature before trying structural body shape. The exact-signature key uses names only
 as part of that full tuple; names alone never select a pair. Duplicate tuples
 remain ambiguous rather than being paired by token order. Fields follow the
 same exact tiers. The raw signature is exact whether or not REA decoded it, so
@@ -222,8 +224,11 @@ unpaired member, one-sided or ambiguous, with the same declared type and name
 whose signature was not decoded.
 
 For a matched method, an unavailable or partial body makes body-shape facets
-unknown while preserving observed signature differences. Structural identity
-compares normalized signatures, the limited decoded-CIL tuple fingerprint,
+unknown while preserving observed signature differences. For complete bodies,
+a difference in either the raw CIL digest or the decoded fingerprint is reported
+in the `cil` dimension, including reordered switch targets with equal decoded
+fingerprints. Structural identity compares normalized signatures, the limited
+decoded-CIL tuple fingerprint,
 constants, and bounded shape context. It reports all candidates at the winning
 score and remains ambiguous when the evidence does not distinguish them. The
 digest does not itself remap metadata tokens.
@@ -360,8 +365,8 @@ Opcode names retain short/long forms and prefix opcodes. This makes the value a
 reproducible decoded-tuple fingerprint, not a canonical semantic CIL identity:
 it does not resolve tokens across MVIDs, does not commit full control flow or
 exception semantics, and does not replace the raw CIL digest. Cross-build
-comparison uses the value only as one unique-only structural tier and reports
-ambiguity when that evidence is insufficient.
+comparison requires equal raw CIL digests as well for exact CIL/signature
+matches and reports ambiguity when structural evidence is insufficient.
 
 For example, a decoded `nop; ret` body serializes exactly as
 `[["nop","none",null],["ret","none",null]]` and has digest

@@ -17,7 +17,7 @@ import {
   type NativeCommandRunner,
 } from "../../../../src/native/CommandRunner.js";
 import { err, ok } from "../../../../src/domain/result.js";
-import { parseLipoArchitectures } from "../../../../src/native/parsers/lipo.js";
+import { parseLipoOutput } from "../../../../src/native/parsers/lipo.js";
 import { parseCodeSignature } from "../../../../src/native/parsers/codesign.js";
 import { prepareProcessOwnershipInspection } from "../../../../src/process/ProcessOwnershipObservation.js";
 import { projectAnalysisError } from "../../../../src/domain/analysisErrorProjection.js";
@@ -960,15 +960,17 @@ describe("native macOS provider failures and parsing", () => {
   });
 
   it("parses thin and universal lipo fixtures", async () => {
-    expect(
-      parseLipoArchitectures(await fixture("lipo-thin.txt")),
-    ).toMatchObject([{ name: "arm64" }]);
-    expect(parseLipoArchitectures(await fixture("lipo-fat.txt"))).toMatchObject(
-      [
+    expect(parseLipoOutput(await fixture("lipo-thin.txt"))).toMatchObject({
+      format: "thin",
+      architectures: [{ name: "arm64" }],
+    });
+    expect(parseLipoOutput(await fixture("lipo-fat.txt"))).toMatchObject({
+      format: "fat",
+      architectures: [
         { name: "x86_64", file_offset: 16384, size: 4096 },
         { name: "arm64", file_offset: 32768, size: 8192 },
       ],
-    );
+    });
   });
 
   it("rejects trailing text in lipo numeric fields instead of truncating", () => {
@@ -980,7 +982,7 @@ describe("native macOS provider failures and parsing", () => {
       "    size 0x10",
       "    align 2^14 (16384)",
     ].join("\n");
-    expect(parseLipoArchitectures(output)).toMatchObject([
+    expect(parseLipoOutput(output).architectures).toMatchObject([
       { name: "arm64", file_offset: null, size: null, alignment: 16384 },
     ]);
   });
@@ -993,10 +995,11 @@ describe("native macOS provider failures and parsing", () => {
       "    align 2^14 (16384)",
     ].join("\n");
     expect(
-      parseLipoArchitectures(output.replace("(16384)", "(8192)"))[0]?.alignment,
+      parseLipoOutput(output.replace("(16384)", "(8192)")).architectures[0]
+        ?.alignment,
     ).toBeNull();
     expect(
-      parseLipoArchitectures(output.replace("2^14 (16384)", "2^14"))[0]
+      parseLipoOutput(output.replace("2^14 (16384)", "2^14")).architectures[0]
         ?.alignment,
     ).toBe(16384);
   });

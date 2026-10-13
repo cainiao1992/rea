@@ -73,7 +73,7 @@ import {
 } from "./SignatureTargetBinding.js";
 import { parseCodeSignature } from "./parsers/codesign.js";
 import { parseDemangledSymbols } from "./parsers/demangle.js";
-import { parseLipoArchitectures } from "./parsers/lipo.js";
+import { parseLipoOutput } from "./parsers/lipo.js";
 import {
   parsePlistJson,
   parsePlistXml,
@@ -507,7 +507,10 @@ class NativeMacOSClient implements AnalysisClient {
     );
     if (!capture.ok) return capture;
     const provenance = [invocation(capture.value, this.target.path)];
-    const architectures = parseLipoArchitectures(capture.value.stdout);
+    const { architectures } = parseLipoOutput(
+      capture.value.stdout,
+      this.target.path,
+    );
     const result = listArchitecturesSchema.parse({
       architectures: {
         items: architectures,

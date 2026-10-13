@@ -190,7 +190,18 @@ jobs:
   build:
     name: Build package
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    # Reusable provider workflows consume this run's portable build artifact,
+    # even when a workflow-only edit selects the lane without portable tests.
+    if: >-
+      needs.changes.outputs.code == 'true' ||
+      needs.changes.outputs.browser == 'true' ||
+      needs.changes.outputs.binary_layout == 'true' ||
+      needs.changes.outputs.evm == 'true' ||
+      needs.changes.outputs.javascript_recovery == 'true' ||
+      needs.changes.outputs.recorded_crash == 'true' ||
+      needs.changes.outputs.web_network == 'true' ||
+      needs.changes.outputs.web_runtime == 'true' ||
+      needs.changes.outputs.web_source_map == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -673,44 +684,60 @@ jobs:
           if-no-files-found: error
 
   browser:
-    needs: [changes, static]
+    needs: [changes, static, build]
     if: needs.changes.outputs.browser == 'true'
     uses: ./.github/workflows/real-browser.yml
+    with:
+      build_cache_artifact: rea-build-cache
 
   binary_layout:
-    needs: [changes, static]
+    needs: [changes, static, build]
     if: needs.changes.outputs.binary_layout == 'true'
     uses: ./.github/workflows/real-binary-layout.yml
+    with:
+      build_cache_artifact: rea-build-cache
 
   evm:
-    needs: [changes, static]
+    needs: [changes, static, build]
     if: needs.changes.outputs.evm == 'true'
     uses: ./.github/workflows/real-evm-interface.yml
+    with:
+      build_cache_artifact: rea-build-cache
 
   javascript_recovery:
-    needs: [changes, static]
+    needs: [changes, static, build]
     if: needs.changes.outputs.javascript_recovery == 'true'
     uses: ./.github/workflows/real-javascript-recovery.yml
+    with:
+      build_cache_artifact: rea-build-cache
 
   recorded_crash:
-    needs: [changes, static]
+    needs: [changes, static, build]
     if: needs.changes.outputs.recorded_crash == 'true'
     uses: ./.github/workflows/real-recorded-crash.yml
+    with:
+      build_cache_artifact: rea-build-cache
 
   web_network:
-    needs: [changes, static]
+    needs: [changes, static, build]
     if: needs.changes.outputs.web_network == 'true'
     uses: ./.github/workflows/real-web-network-captures.yml
+    with:
+      build_cache_artifact: rea-build-cache
 
   web_runtime:
-    needs: [changes, static]
+    needs: [changes, static, build]
     if: needs.changes.outputs.web_runtime == 'true'
     uses: ./.github/workflows/real-web-runtime.yml
+    with:
+      build_cache_artifact: rea-build-cache
 
   web_source_map:
-    needs: [changes, static]
+    needs: [changes, static, build]
     if: needs.changes.outputs.web_source_map == 'true'
     uses: ./.github/workflows/real-web-source-map.yml
+    with:
+      build_cache_artifact: rea-build-cache
 
   nativeaot:
     needs: [changes, static]

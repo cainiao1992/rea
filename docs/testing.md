@@ -982,6 +982,16 @@ timing data is reused; live provider results are never cached. Turbo outputs are
 restored by task hash, with trusted default-branch runs as cache writers and PRs
 as restore-only consumers. npm caches hold downloads, not `node_modules`.
 
+The eight automatic browser, binary-layout, EVM, JavaScript-recovery,
+recorded-crash, and web provider lanes download `rea-build-cache` from their own
+run after the build and static jobs succeed. Their existing build commands still
+validate task hashes and rebuild mismatched inputs; provider observations always
+run. Provider-workflow-only edits also admit the build without enabling source
+test shards. Direct provider dispatches retain the cross-run restore-only cache.
+This removes repeated compilation on fresh source revisions, but adds the build
+as a prerequisite: a delayed build can delay provider admission. Compare queue
+and execution times before claiming an end-to-end speedup.
+
 These native baseline checks complement the Linux source-test shards and the
 separate Apple-artifact and real-provider lanes. Actual Hopper, Ghidra, IDA,
 browser and managed-tool claims require their corresponding verification lanes.

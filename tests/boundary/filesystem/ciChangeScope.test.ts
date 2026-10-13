@@ -680,7 +680,9 @@ it.each([
   async (scope, name) => {
     const workflow = z
       .object({
-        on: z.object({ workflow_call: z.null() }).passthrough(),
+        on: z
+          .object({ workflow_call: z.object({}).passthrough().nullable() })
+          .passthrough(),
       })
       .parse(
         parse(

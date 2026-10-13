@@ -168,6 +168,115 @@ it("holds native and provider fan-out behind static validation while portable fe
   expect(jobs["test-shard"]?.needs).not.toContain("static");
 });
 
+it("binds provider build reuse to the current run while keeping standalone dispatches independent", async () => {
+  const { jobs } = await workflow();
+  const consumers = [
+    "browser",
+    "binary_layout",
+    "evm",
+    "javascript_recovery",
+    "recorded_crash",
+    "web_network",
+    "web_runtime",
+    "web_source_map",
+  ];
+  const buildTerms = z
+    .string()
+    .parse(jobs.build?.if)
+    .split("||")
+    .map((term) => term.trim());
+  // Provider workflow edits select their lane without code=true. The build
+  // producer must still run, without selecting the portable test shards.
+  expect(new Set(buildTerms)).toEqual(
+    new Set(
+      ["code", ...consumers].map(
+        (scope) => `needs.changes.outputs.${scope} == 'true'`,
+      ),
+    ),
+  );
+  expect(jobs["test-shard"]?.if).toBe("needs.changes.outputs.code == 'true'");
+  for (const name of consumers) {
+    const caller = jobs[name];
+    expect(caller?.needs).toContain("build");
+    expect(caller?.with).toEqual({ build_cache_artifact: "rea-build-cache" });
+    const path = z.string().parse(caller?.uses);
+    const called = z
+      .object({
+        on: z.object({
+          workflow_call: z.object({
+            inputs: z.record(z.string(), z.unknown()),
+          }),
+          workflow_dispatch: z.unknown(),
+        }),
+        jobs: z.record(
+          z.string(),
+          z.object({
+            steps: z.array(
+              z.object({
+                uses: z.string().optional(),
+                with: z.record(z.string(), z.unknown()).optional(),
+              }),
+            ),
+          }),
+        ),
+      })
+      .parse(
+        parse(
+          await readFile(new URL(`../../../${path}`, import.meta.url), "utf8"),
+        ),
+      );
+    expect(called.on.workflow_call.inputs.build_cache_artifact).toMatchObject({
+      type: "string",
+      default: "",
+    });
+    expect(Object.hasOwn(called.on, "workflow_dispatch")).toBe(true);
+    for (const job of Object.values(called.jobs))
+      expect(
+        job.steps.find(
+          (step) => step.uses === "./.github/actions/portable-build-cache",
+        )?.with,
+      ).toEqual({ build_cache_artifact: "${{ inputs.build_cache_artifact }}" });
+  }
+  const action = z
+    .object({
+      runs: z.object({
+        steps: z.array(
+          z.object({
+            id: z.string().optional(),
+            uses: z.string().optional(),
+            if: z.string().optional(),
+            with: z.record(z.string(), z.unknown()).optional(),
+            "continue-on-error": z.boolean().optional(),
+          }),
+        ),
+      }),
+    })
+    .parse(
+      parse(
+        await readFile(
+          new URL(
+            "../../../.github/actions/portable-build-cache/action.yml",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      ),
+    );
+  const download = action.runs.steps.find(
+    (step) => step.uses === "actions/download-artifact@v4",
+  );
+  expect(download?.with).toEqual({
+    name: "${{ inputs.build_cache_artifact }}",
+    path: ".turbo/cache/",
+  });
+  expect(download?.if).toBe("inputs.build_cache_artifact != ''");
+  expect(download?.["continue-on-error"]).not.toBe(true);
+  for (const step of action.runs.steps.filter(
+    (step) => step.id === "plan" || step.uses?.startsWith("actions/cache"),
+  ))
+    expect(step.if).toContain("inputs.build_cache_artifact == ''");
+});
+
 it("runs workflow validation inside required static checks when selected", async () => {
   const { jobs } = await workflow();
   const steps = z

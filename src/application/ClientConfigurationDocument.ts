@@ -1520,12 +1520,25 @@ export const parseGeminiMcpPolicy = (parsed: ClientConfigurationDocument) =>
     .passthrough()
     .parse(parsed.document.mcp ?? {});
 
+/** One server-name comparison for the exclusion, intersection and membership rules below. */
+const normalizeGeminiServerName = (name: string): string =>
+  name.toLowerCase().trim();
+
 /** Gemini consolidates excludes by union and allowlists by normalized intersection. */
 export const geminiServerPolicyBlock = (
   policies: readonly ReturnType<typeof parseGeminiMcpPolicy>[],
   serverKey: string,
 ): string | undefined => {
-  if (policies.some(({ excluded }) => excluded?.includes(serverKey)))
+  // Hand-authored settings cannot be assumed to spell the product key exactly,
+  // so every rule compares normalized names. Testing the consolidated list
+  // against the raw key instead would make the outcome depend on which policy
+  // supplied the spelling that survived the intersection.
+  const key = normalizeGeminiServerName(serverKey);
+  if (
+    policies.some(({ excluded }) =>
+      excluded?.some((name) => normalizeGeminiServerName(name) === key),
+    )
+  )
     return `Gemini mcp.excluded blocks ${serverKey}. Review the selected settings policies before rerunning setup.`;
   const allowlists = policies.flatMap(({ allowed }) =>
     allowed === undefined ? [] : [allowed],
@@ -1533,11 +1546,9 @@ export const geminiServerPolicyBlock = (
   const allowed = allowlists.reduce<string[] | undefined>(
     (previous, current) => {
       if (previous === undefined) return current;
-      const normalized = new Set(
-        current.map((name) => name.toLowerCase().trim()),
-      );
+      const normalized = new Set(current.map(normalizeGeminiServerName));
       return previous.filter((name) =>
-        normalized.has(name.toLowerCase().trim()),
+        normalized.has(normalizeGeminiServerName(name)),
       );
     },
     undefined,
@@ -1546,7 +1557,7 @@ export const geminiServerPolicyBlock = (
   if (
     allowed !== undefined &&
     allowed.length > 0 &&
-    !allowed.includes(serverKey)
+    !allowed.some((name) => normalizeGeminiServerName(name) === key)
   )
     return `Gemini mcp.allowed does not include ${serverKey}. Review the selected settings policies before rerunning setup.`;
   return undefined;

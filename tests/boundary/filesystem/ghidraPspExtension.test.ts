@@ -52,7 +52,7 @@ const target = {
 const host: GhidraInstallationHost = {
   platform: "linux",
   architecture: "x64",
-  readText: () => "application.version=12.1.3\n",
+  readText: () => "application.version=12.1.3\napplication.java.min=21\n",
   executable: () => true,
   probeJava: () => ({
     version: "21.0.12",

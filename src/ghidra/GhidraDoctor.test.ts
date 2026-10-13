@@ -111,7 +111,9 @@ describe("Ghidra doctor integration", () => {
       "wrong version",
       inspection(
         { installDir: INSTALL },
-        { readText: () => "application.version=11.4\napplication.java.min=21\n" },
+        {
+          readText: () => "application.version=11.4\napplication.java.min=21\n",
+        },
       ),
       "ghidra-version",
     ],

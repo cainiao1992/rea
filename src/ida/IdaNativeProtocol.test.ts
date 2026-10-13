@@ -375,6 +375,42 @@ describe("native IDA query identity", () => {
   );
 });
 
+describe("native IDA callee truncation", () => {
+  it("rejects native successes without an explicit truncation marker and preserves upstream failures", async () => {
+    const { client, producer } = await fixture();
+    const previous = producer.overrideCall;
+    try {
+      producer.overrideCall = (name, args) =>
+        name === "callees"
+          ? [{ callees: [], error: null }]
+          : previous?.(name, args);
+      for (const operation of [
+        "procedure_callees",
+        "analyze_function",
+      ] as const) {
+        const result = await client.execute(operation, { procedure: "main" });
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(AnalysisProtocolError);
+          expect(result.error.message).toContain("truncation marker");
+        }
+      }
+      producer.overrideCall = (name, args) =>
+        name === "callees"
+          ? [{ callees: null, error: "callee database failure" }]
+          : previous?.(name, args);
+      const result = await client.execute("procedure_callees", {
+        procedure: "main",
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok)
+        expect(result.error.message).toContain("callee database failure");
+    } finally {
+      await client.close();
+    }
+  });
+});
+
 describe("native IDA callee lookup batches", () => {
   it("batches unique callees and binds reordered replies to their source queries", async () => {
     const { client, producer } = await fixture();

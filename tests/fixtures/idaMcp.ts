@@ -68,6 +68,7 @@ export class RecordingIdaMcp implements IdaMcpConnection {
   }[] = [];
   connects = 0;
   closes = 0;
+  detaches = 0;
   inputSha256: string;
   inputPath: string;
   imageBase = "0x1000";
@@ -103,6 +104,9 @@ export class RecordingIdaMcp implements IdaMcpConnection {
   }
   async close() {
     this.closes += 1;
+  }
+  detach() {
+    this.detaches += 1;
   }
   async call(
     name: string,

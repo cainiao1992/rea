@@ -90,6 +90,7 @@ const fixture = async () => {
     },
     serverInfo: () => producer.serverInfo(),
     close: () => producer.close(),
+    detach: () => producer.detach(),
   };
   const client = new IdaSessionClient(
     {

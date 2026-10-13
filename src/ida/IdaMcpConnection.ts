@@ -1,3 +1,5 @@
+import { ChildProcess } from "node:child_process";
+import { Socket } from "node:net";
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
 import {
   Client,
@@ -22,6 +24,12 @@ export interface IdaMcpConnection {
   readResource?(uri: string): Promise<JsonValue>;
   serverInfo(): JsonValue;
   close(): Promise<void>;
+  /**
+   * Keep a connection retained after failed cleanup from holding the host
+   * process open. A long-lived MCP server can still retry through it; a
+   * one-shot CLI exits, and the upstream proxy observes end of input.
+   */
+  detach(): void;
 }
 
 const toolResultSchema = z.object({
@@ -205,5 +213,14 @@ export const createIdaMcpConnection = (
     },
     serverInfo: () => jsonValueSchema.parse(client.getServerVersion() ?? null),
     close: () => client.close().catch(transportFailure),
+    detach() {
+      if (!(transport instanceof StdioClientTransport)) return;
+      // The SDK exposes only the child's pid, not the handles it holds.
+      const child: unknown = Reflect.get(transport, "_process");
+      if (!(child instanceof ChildProcess)) return;
+      child.unref();
+      for (const stream of [child.stdin, child.stdout, child.stderr])
+        if (stream instanceof Socket) stream.unref();
+    },
   };
 };

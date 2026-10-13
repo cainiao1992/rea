@@ -2,6 +2,7 @@ import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { TextReader, Uint8ArrayWriter, ZipWriter } from "@zip.js/zip.js";
 
 import { fragmentInventoryEvidence } from "../../fixtures/artifactEvidence.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
@@ -551,5 +552,92 @@ describe("artifact comparison completeness", () => {
     expect(() => compareArtifacts(mismatchedSubject, evidence)).toThrow(
       /root digest/u,
     );
+  });
+});
+
+describe("ZIP non-entry coverage", () => {
+  it("retains pre-directory APK block changes and compares historical scope descriptions", async () => {
+    const root = await createTestTempDirectory("rea-apk-block-compare-");
+    const writer = new ZipWriter(new Uint8ArrayWriter());
+    await writer.add("classes.dex", new TextReader("unchanged entry"));
+    const zip = Buffer.from(await writer.close());
+    const eocd = zip.length - 22;
+    expect(zip.readUInt32LE(eocd)).toBe(0x06054b50);
+    const directory = zip.readUInt32LE(eocd + 16);
+    // APK Signing Block framing with one opaque padding pair, not a verified signature.
+    // https://source.android.com/docs/security/features/apksigning/v2#apk-signing-block
+    const block = Buffer.alloc(48);
+    block.writeBigUInt64LE(40n, 0);
+    block.writeBigUInt64LE(8n, 8);
+    block.writeUInt32LE(0x42726577, 16);
+    block.writeBigUInt64LE(40n, 24);
+    block.write("APK Sig Block 42", 32, "ascii");
+    const paths = [join(root, "before.apk"), join(root, "after.apk")];
+    for (const [index, path] of paths.entries()) {
+      block.writeUInt32LE(index, 20);
+      const apk = Buffer.concat([
+        zip.subarray(0, directory),
+        block,
+        zip.subarray(directory),
+      ]);
+      apk.writeUInt32LE(directory + block.length, eocd + block.length + 16);
+      await writeFile(path, apk);
+    }
+    const left = await observe(paths[0]!);
+    const right = await observe(paths[1]!);
+    const inventory = artifactInventoryResultSchema.parse(
+      left.normalized_result,
+    );
+    expect(inventory.limitations).toContain(
+      "ZIP inventory lists central-directory entries only. Non-entry bytes, including an APK Signing Block before the central directory or a ZIP comment after it, are not occurrences.",
+    );
+    expect(
+      inventory.occurrences.map(({ logical_path }) => logical_path).sort(),
+    ).toEqual([".", "classes.dex"]);
+    expect(compareArtifacts(left, right)).toMatchObject({
+      status: "changed",
+      summary: { changed: 1, unchanged: 1, unknown: 0 },
+      changes: [
+        expect.objectContaining({ logical_path: ".", dimensions: ["content"] }),
+      ],
+    });
+    const {
+      coverage: _coverage,
+      coverage_status: _coverageStatus,
+      ...legacyInventory
+    } = inventory;
+    const withLimitation = (limitation: string) =>
+      createEvidence(
+        {
+          path: paths[0]!,
+          sha256: inventory.manifest.root_sha256,
+          format: "apk",
+        },
+        PROVIDER,
+        {
+          operation: "inventory_artifact",
+          parameters: {},
+          result: jsonValueSchema.parse({
+            ...legacyInventory,
+            limitations: [limitation],
+          }),
+          confidence: "observed",
+          authority: "shipped-artifact",
+        },
+      );
+    const historical = withLimitation(
+      "ZIP inventory lists central-directory entries only. Bytes after the central directory, including an APK Signing Block or a ZIP comment, are not occurrences.",
+    );
+    expect(compareArtifacts(historical, left)).toMatchObject({
+      status: "unchanged",
+      summary: { unchanged: 2, unknown: 0 },
+      changes: [],
+    });
+    expect(
+      compareArtifacts(
+        withLimitation("ZIP entry bytes could not be read."),
+        left,
+      ).status,
+    ).toBe("unknown");
   });
 });

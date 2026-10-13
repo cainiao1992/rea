@@ -13,7 +13,7 @@ import type {
 } from "../../domain/artifactGraph.js";
 import {
   isZipPackageFormat,
-  ZIP_NON_ENTRY_TAIL_LIMITATION,
+  ZIP_NON_ENTRY_LIMITATION,
 } from "../../domain/zipPackageFormat.js";
 import type { StableRegularFileDescriptor } from "../../filesystem/RegularFile.js";
 
@@ -56,7 +56,7 @@ export const inventoryCoverage = (
       coverage: { scope: "container-entries", status: traversal.status },
       limitations: [
         ...(isZipPackageFormat(reader.format)
-          ? [ZIP_NON_ENTRY_TAIL_LIMITATION]
+          ? [ZIP_NON_ENTRY_LIMITATION]
           : []),
         ...traversal.limitations,
       ],

@@ -20,7 +20,7 @@ import { parseEvidence, type Evidence } from "./evidence.js";
 import { artifactInspectionResultSchema } from "./artifactInspection.js";
 import {
   isZipPackageFormat,
-  ZIP_NON_ENTRY_TAIL_LIMITATION,
+  isZipInventoryScopeLimitation,
 } from "./zipPackageFormat.js";
 
 /** Complete or partially assembled inventory used by comparison workflows. */
@@ -279,7 +279,7 @@ const legacyInventoryCoverage = (
   status: limitations.some(
     (limitation) =>
       limitation !== "Artifact has no child container entries." &&
-      limitation !== ZIP_NON_ENTRY_TAIL_LIMITATION &&
+      !isZipInventoryScopeLimitation(limitation) &&
       !(
         contradictionCount > 0 &&
         limitation ===

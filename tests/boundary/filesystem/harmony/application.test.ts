@@ -20,7 +20,7 @@ import { artifactInventoryResultSchema } from "../../../../src/domain/artifactGr
 import { parseBinaryTarget } from "../../../../src/application/BinaryTargetResolver.js";
 import {
   ZIP_PACKAGE_FORMATS,
-  ZIP_NON_ENTRY_TAIL_LIMITATION,
+  ZIP_NON_ENTRY_LIMITATION,
 } from "../../../../src/domain/zipPackageFormat.js";
 
 const { runProviderAnalysis } = createDirectAnalysis({});
@@ -264,7 +264,7 @@ describe("HarmonyOS inventory coverage", () => {
         artifact_kind: "container",
         artifact_format: format,
       });
-      expect(inventory.limitations).toContain(ZIP_NON_ENTRY_TAIL_LIMITATION);
+      expect(inventory.limitations).toContain(ZIP_NON_ENTRY_LIMITATION);
     },
   );
 

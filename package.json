@@ -24,7 +24,11 @@
     "rea",
     "decompiler",
     "mcp",
-    "hopper"
+    "hopper",
+    "electron",
+    "javascript-analysis",
+    "ghidra",
+    "ida"
   ],
   "publishConfig": {
     "access": "public"

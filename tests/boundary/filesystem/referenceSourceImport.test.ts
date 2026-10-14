@@ -167,10 +167,21 @@ describe("reference source symlink import", () => {
       policy: { secretPatterns: [] },
       excludePaths: ["secret.txt"],
     });
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error.code).toBe("parse");
-    expect(result.error.message).toMatch(/recorded exclusion/u);
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.value.inventory_state).toBe("partial");
+    expect(
+      result.value.entries.find(({ path }) => path === "alias"),
+    ).toMatchObject({
+      kind: "symlink",
+      target: "secret.txt/child",
+      target_state: "missing",
+    });
+    expect(result.value.exclusions).toContainEqual({
+      path: "secret.txt",
+      entry_kind: "file",
+      reason: "caller-excluded",
+      pattern: "secret.txt",
+    });
   });
 
   it("preserves an unreadable target as unknown instead of a synthetic path", () => {

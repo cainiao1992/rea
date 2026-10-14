@@ -617,6 +617,10 @@ it.each([
   ],
   ["website/src/index.ts", { code: false, website: true, package: false }],
   [
+    "website/public/examples/notes-electron/preload.js",
+    { code: true, website: true, package: false },
+  ],
+  [
     "website/locales/zh-CN/messages.po",
     { code: false, website: true, package: false },
   ],

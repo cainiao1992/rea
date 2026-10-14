@@ -873,8 +873,9 @@ describe("rest parameter semantic trace CLI", () => {
           kind === "expression" && label === `argument ${String(index)}`,
       );
       if (argument === undefined) throw new Error("Missing argument node");
-      const traced = await runCli([
-        "trace-javascript-semantics",
+      const requestPath = join(root, `trace-request-${index}.json`);
+      await writeFile(
+        requestPath,
         JSON.stringify({
           application,
           query: {
@@ -884,6 +885,10 @@ describe("rest parameter semantic trace CLI", () => {
             expected: { role: "sink", classes: ["parameter"] },
           },
         }),
+      );
+      const traced = await runCli([
+        "trace-javascript-semantics",
+        requestPath,
         "--json",
       ]);
       expect(traced).toMatchObject({

@@ -202,6 +202,9 @@ if (tier === "reused") {
         if (GUARDED_WORKFLOWS.has(file)) selected.code = true;
         if (file !== ".github/workflows/ci.yml") continue;
       }
+      // The Notes example is also the source-owned agent evaluation fixture.
+      if (file.startsWith("website/public/examples/notes-electron/"))
+        selected.code = true;
       if (owners.length === 1 && owners[0] === "website") continue;
       if (/^src\/(contracts|domain)\//.test(file)) selected.docs = true;
       if (file === "package.json") {

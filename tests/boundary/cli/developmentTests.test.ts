@@ -1,5 +1,6 @@
 import {
   copyFile,
+  lstat,
   mkdir,
   readFile,
   symlink,
@@ -44,6 +45,7 @@ const fixture = async () => {
   await mkdir(join(root, "src"));
   for (const path of [
     "scripts/run-development-tests.mjs",
+    "scripts/run-exact-tests.mjs",
     "scripts/lib/development-tests.mjs",
     "scripts/lib/test-projects.mjs",
   ])
@@ -75,6 +77,135 @@ const testCommand = (root: string, ...arguments_: string[]) =>
     "scripts/run-development-tests.mjs",
     ...arguments_,
   ]);
+
+describe("development test runner exact selection", () => {
+  it("matches selected path casing to the host filesystem", async () => {
+    const root = await fixture();
+    try {
+      await lstat(join(root, "src/VALUE.test.ts"));
+    } catch (cause) {
+      if (
+        !(cause instanceof Error) ||
+        !("code" in cause) ||
+        cause.code !== "ENOENT"
+      )
+        throw cause;
+      await expect(
+        testCommand(root, "focused", "src/VALUE.test.ts"),
+      ).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining("ENOENT"),
+      });
+      return;
+    }
+    await testCommand(root, "focused", "src/VALUE.test.ts");
+    expect(await readFile(join(root, "selected.txt"), "utf8")).toBe("1");
+  });
+
+  it("matches Unicode-normalized aliases by filesystem identity", async () => {
+    const root = await fixture();
+    const composed = "caf\u00e9.test.ts";
+    const decomposed = composed.normalize("NFD");
+    await writeFile(
+      join(root, "src", composed),
+      'import { it } from "vitest"; it("checks the selected Unicode path", () => {});\n',
+    );
+    const selected = join(root, "src", decomposed);
+    try {
+      await lstat(selected);
+    } catch (cause) {
+      if (
+        !(cause instanceof Error) ||
+        !("code" in cause) ||
+        cause.code !== "ENOENT"
+      )
+        throw cause;
+      await expect(
+        testCommand(root, "focused", `src/${decomposed}`),
+      ).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining("ENOENT"),
+      });
+      return;
+    }
+    const result = await testCommand(root, "focused", `src/${decomposed}`);
+    expect(result.stdout).toContain("1 passed");
+  });
+
+  it.each(["local", "focused"])(
+    "runs only the exact selected file in %s mode",
+    async (mode) => {
+      const root = await fixture();
+      await mkdir(join(root, "src", "nested", "src"), { recursive: true });
+      await writeFile(
+        join(root, "src", "nested", "src", "value.test.ts"),
+        'import { it } from "vitest"; it("must not run", () => { throw new Error("unselected nested test ran"); });\n',
+      );
+      const result = await testCommand(root, mode, "src/value.test.ts");
+      expect(result.stdout).toContain("1 passed");
+      expect(result.stdout).not.toContain("nested/src/value.test.ts");
+      expect(await readFile(join(root, "selected.txt"), "utf8")).toBe("1");
+    },
+  );
+
+  it("fails when any selected existing test file is excluded from discovery", async () => {
+    const root = await fixture();
+    await writeFile(
+      join(root, "src", "excluded.test.ts"),
+      'import { it } from "vitest"; it("excluded", () => {});\n',
+    );
+    await writeFile(
+      join(root, "vitest.config.mjs"),
+      'export default { test: { projects: [{ test: { name: "domain", include: ["src/value.test.ts"] } }] } };\n',
+    );
+    await expect(
+      testCommand(root, "focused", "src/value.test.ts", "src/excluded.test.ts"),
+    ).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining(
+        "Selected test files were not discovered: src/excluded.test.ts",
+      ),
+    });
+  });
+
+  it("runs every selected file and preserves selected test failures", async () => {
+    const root = await fixture();
+    await writeFile(
+      join(root, "src", "failure.test.ts"),
+      'import { it } from "vitest"; it("selected failure", () => { throw new Error("selected regression"); });\n',
+    );
+    await expect(
+      testCommand(root, "focused", "src/value.test.ts", "src/failure.test.ts"),
+    ).rejects.toMatchObject({
+      code: 1,
+      stdout: expect.stringContaining("1 failed | 1 passed"),
+      stderr: expect.stringContaining("selected regression"),
+    });
+    expect(await readFile(join(root, "selected.txt"), "utf8")).toBe("1");
+  });
+
+  it("preserves all configured projects for an exact file", async () => {
+    const root = await fixture();
+    await writeFile(
+      join(root, "vitest.config.mjs"),
+      'export default { test: { projects: ["domain", "evaluation"].map(name => ({ test: { name, include: ["src/value.test.ts"] } })) } };\n',
+    );
+    const result = await testCommand(root, "focused", "src/value.test.ts");
+    expect(result.stdout).toMatch(/Test Files\s+2 passed/u);
+  });
+
+  it("fails an exact file with no tests even when another selected file passes", async () => {
+    const root = await fixture();
+    await writeFile(join(root, "src", "empty.test.ts"), "export {};\n");
+    await expect(
+      testCommand(root, "focused", "src/value.test.ts", "src/empty.test.ts"),
+    ).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining("No test suite found"),
+    });
+    expect(await readFile(join(root, "selected.txt"), "utf8")).toBe("1");
+  });
+});
 
 describe("development test runner public CLI", () => {
   it("runs an explicitly selected source test on a clean tree without build artifacts", async () => {

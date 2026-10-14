@@ -77,7 +77,7 @@ try {
             throw cause;
           }
           if (
-            !(await hasCaseMismatchedSymlinkComponent(absolute, candidate)) &&
+            !(await hasMismatchedSymlinkComponent(absolute, candidate)) &&
             (await realpath(candidate)) === canonical
           )
             matches = [...matches, ...specifications];
@@ -99,13 +99,14 @@ try {
 if (shutdownSignal !== undefined)
   process.exitCode = signalExitCodes[shutdownSignal];
 
-async function hasCaseMismatchedSymlinkComponent(selected, candidate) {
+async function hasMismatchedSymlinkComponent(selected, candidate) {
   const selectedAbsolute = resolve(selected);
   const candidateAbsolute = resolve(candidate);
   const root = parse(selectedAbsolute).root;
   if (root !== parse(candidateAbsolute).root) return true;
   const selectedParts = relative(root, selectedAbsolute).split(sep);
   const candidateParts = relative(root, candidateAbsolute).split(sep);
+  if (selectedParts.length !== candidateParts.length) return true;
   let selectedPath = root;
   let candidatePath = root;
   for (let index = 0; index < selectedParts.length; index += 1) {
@@ -118,14 +119,12 @@ async function hasCaseMismatchedSymlinkComponent(selected, candidate) {
     candidatePath = candidatePath
       ? resolve(candidatePath, candidatePart)
       : candidatePart;
-    if (
-      selectedPart !== candidatePart &&
-      selectedPart.toLowerCase() === candidatePart.toLowerCase()
-    ) {
+    if (selectedPart !== candidatePart) {
       const [selectedEntry, candidateEntry] = await Promise.all([
         lstat(selectedPath),
         lstat(candidatePath),
       ]);
+      // Matching inode/realpath does not make an excluded symlink a discovered path.
       if (selectedEntry.isSymbolicLink() || candidateEntry.isSymbolicLink())
         return true;
     }

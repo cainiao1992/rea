@@ -88,6 +88,76 @@ const testCommand = (root: string, ...arguments_: string[]) =>
     { ...process.env, NO_COLOR: "1" },
   );
 
+describe("development test runner symlink aliases", () => {
+  it("rejects excluded file and directory aliases without running their targets", async ({
+    skip,
+  }) => {
+    for (const { kind, mode } of [
+      { kind: "file", mode: "focused" },
+      { kind: "directory", mode: "local" },
+      { kind: "directory", mode: "focused" },
+    ] as const) {
+      const root = await fixture();
+      const included =
+        kind === "file" ? join(root, "src") : join(root, "src", "domain");
+      const includedTest = join(included, "value.test.ts");
+      const alias =
+        kind === "file"
+          ? join(root, "src", "excluded.test.ts")
+          : join(root, "src", "contracts");
+      if (kind === "directory") {
+        await mkdir(included);
+        for (const name of ["value.ts", "value.test.ts"])
+          await copyFile(join(root, "src", name), join(included, name));
+      }
+      try {
+        await symlink(
+          kind === "file" ? includedTest : included,
+          alias,
+          kind === "directory"
+            ? process.platform === "win32"
+              ? "junction"
+              : "dir"
+            : undefined,
+        );
+      } catch (cause) {
+        if (
+          process.platform === "win32" &&
+          cause instanceof Error &&
+          "code" in cause &&
+          (cause.code === "EPERM" || cause.code === "EACCES")
+        )
+          skip("Windows symlink creation requires unavailable privileges");
+        throw cause;
+      }
+      const selectedAlias =
+        kind === "file"
+          ? "src/excluded.test.ts"
+          : "src/contracts/value.test.ts";
+      const includedSelection =
+        kind === "file" ? "src/value.test.ts" : "src/domain/value.test.ts";
+      await writeFile(
+        join(root, "vitest.config.mjs"),
+        `export default { test: { projects: [{ test: { name: "domain", include: ["${includedSelection}"] } }] } };\n`,
+      );
+
+      await expect(
+        testCommand(root, mode, selectedAlias),
+      ).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining(
+          `Selected test files were not discovered: ${selectedAlias}`,
+        ),
+      });
+      await expect(
+        readFile(join(root, "selected.txt"), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      await testCommand(root, mode, includedSelection);
+      expect(await readFile(join(root, "selected.txt"), "utf8")).toBe("1");
+    }
+  });
+});
+
 describe("development test runner exact selection", () => {
   it("matches selected path casing to the host filesystem", async () => {
     const root = await fixture();

@@ -78,6 +78,17 @@ For test changes or provider claims, use [docs/testing.md](docs/testing.md). Pre
 
 Use Conventional Commit subjects and PR titles. Mark breaking changes with `!` or a `BREAKING CHANGE:` footer. Describe behavior changes, relevant validation, and real-provider verification scope.
 
+## Issue Reports
+
+Follow [issue reporting guidance](CONTRIBUTING.md#reporting-issues) and the matching
+issue form. Keep reports concise and cite the smallest useful evidence.
+Distinguish observed results, source-derived reasoning, hypotheses, and proposed
+checks. Never claim runtime reproduction or measurements you did not perform.
+Use `NOT_ENOUGH_INFO` with an explanation for missing narrative answers or evidence.
+Incomplete reports, source-only findings, and early feature or design ideas are
+welcome when their limitations are explicit; a completed diagnosis or fix is not
+required to open an issue.
+
 ## Pull Request Readiness
 
 Follow [human ownership and readiness](CONTRIBUTING.md#pull-request-ownership-and-readiness)

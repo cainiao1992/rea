@@ -24,6 +24,27 @@ costs change.
 
 When adding or changing an MCP tool, follow the [tool design guide](docs/tool-design.md) and preserve the canonical contracts and generated catalog.
 
+## Reporting issues
+
+Use the issue form that fits the report and keep it concise. For bugs, include
+the actual result, the shortest reproduction you ran, the tested version and
+environment, and the smallest useful output, artifact, screenshot, or source
+reference. Ground expected behavior in documentation, source, or a known-good
+version when available. State observed impact and frequency; keep untested scope
+and suspected causes explicit.
+
+Incomplete reports and intermittent failures are welcome. If a narrative answer
+or supporting evidence is unavailable, write `NOT_ENOUGH_INFO` and explain the
+gap. Clearly label source-only findings and proposed checks; do not claim runtime
+reproduction or results you did not observe. A root-cause analysis or fix is not
+required to report a problem. Documentation reports should identify the relevant
+passage or missing guidance and explain the correction or confusion.
+
+Feature and design proposals can start with a problem and desired outcome.
+Examples, prior art, and measurements help when available; ideas without them
+are welcome. Maintainers can investigate reports and help resolve open questions.
+Human ownership and readiness declarations apply to PRs as described below.
+
 ## Pull request ownership and readiness
 
 AI-assisted contributions are welcome. Every PR must have a human owner who

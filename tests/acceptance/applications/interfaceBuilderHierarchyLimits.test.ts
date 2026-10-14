@@ -2,13 +2,50 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { build } from "plist";
-import { expect } from "vitest";
+import { expect, onTestFinished } from "vitest";
 
 import { interfaceBuilderAnalysisSchema } from "../../../src/domain/apple/interfaceBuilderGraph.js";
 import { thinMach } from "../../../src/domain/binaryTarget.fixture.js";
 import { parseEvidence } from "../../../src/domain/evidence.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
+import { createTestMcp } from "../../support/mcp/mcpFixture.js";
+import { openArtifactTarget } from "../../support/mcp/artifactSession.js";
+
+const verifyMcpParity = async (
+  app: string,
+  expected: ReturnType<typeof interfaceBuilderAnalysisSchema.parse>,
+): Promise<void> => {
+  const mcp = createTestMcp();
+  onTestFinished(async () => mcp.close());
+  const client = await openArtifactTarget(mcp, onTestFinished, app);
+  const complete = await client.callTool({
+    name: "decode_interface_builder",
+    arguments: { max_objects: 2 },
+  });
+  expect(complete.isError, JSON.stringify(complete)).not.toBe(true);
+  const evidence = parseEvidence(complete.structuredContent);
+  expect(
+    interfaceBuilderAnalysisSchema.parse(evidence.normalized_result),
+  ).toEqual(expected);
+
+  const summarized = await client.callTool({
+    name: "decode_interface_builder",
+    arguments: { max_objects: 2, detail: "summary" },
+  });
+  expect(summarized.isError, JSON.stringify(summarized)).not.toBe(true);
+  expect(
+    parseEvidence(summarized.structuredContent).normalized_result,
+  ).toMatchObject({
+    kind: "summary",
+    parent_evidence_id: evidence.evidence_id,
+    summary: {
+      documents: expected.documents,
+      truncated: true,
+      coverage_statuses: { partial: expect.any(Number) },
+    },
+  });
+};
 
 const archive = (objects: readonly string[], hierarchy: readonly string[]) =>
   build({
@@ -82,6 +119,7 @@ cliTest.for(cases)(
     const report = interfaceBuilderAnalysisSchema.parse(
       evidence.normalized_result,
     );
+    await verifyMcpParity(app, report);
     expect(
       report.documents.map(({ hierarchy_complete }) => hierarchy_complete),
     ).toEqual(hierarchyComplete);

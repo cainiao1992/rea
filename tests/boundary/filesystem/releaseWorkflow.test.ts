@@ -664,7 +664,7 @@ it("requires qualified package validation before publishing and retains the regi
     .object({
       jobs: z.object({
         publish: z.object({
-          steps: z.array(z.object({ run: z.string().optional() })),
+          steps: z.array(stepSchema),
         }),
       }),
     })
@@ -685,6 +685,16 @@ it("requires qualified package validation before publishing and retains the regi
   );
   expect(verify).toBeGreaterThanOrEqual(0);
   expect(publish).toBeGreaterThan(verify);
+  const steps = workflow.jobs.publish.steps;
+  const runtime = steps.findIndex(
+    (step) => step.with?.name === "rea-test-runtime",
+  );
+  expect(runtime).toBeGreaterThan(verify);
+  expect(runtime).toBeLessThan(publish);
+  expect(steps[runtime]?.uses).toBe(
+    "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+  );
+  expect(steps[runtime]?.with).toEqual({ name: "rea-test-runtime", path: "." });
   expect(
     commands
       .slice(publish + 1)

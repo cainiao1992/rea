@@ -30,6 +30,12 @@ export interface SessionStatusToolOptions {
   readonly androidAnalysisAvailability: (
     signal: AbortSignal,
   ) => Promise<ProviderAvailability>;
+  readonly adbAnalysisAvailability?: (
+    signal: AbortSignal,
+  ) => Promise<ProviderAvailability>;
+  readonly apktoolAnalysisAvailability?: (
+    signal: AbortSignal,
+  ) => Promise<ProviderAvailability>;
 }
 
 /** Register the read-only provider and target status operation. */
@@ -43,6 +49,8 @@ export const registerSessionStatusTool = (
     startedAt,
     availabilityPolicy,
     androidAnalysisAvailability,
+    adbAnalysisAvailability,
+    apktoolAnalysisAvailability,
   } = options;
   server.registerTool(
     contract.name,
@@ -53,10 +61,17 @@ export const registerSessionStatusTool = (
         server.server,
       );
       let androidAvailability: ProviderAvailability;
+      let adbAvailability: ProviderAvailability | undefined;
+      let apktoolAvailability: ProviderAvailability | undefined;
       try {
-        androidAvailability = await androidAnalysisAvailability(
-          context.mcpReq.signal,
-        );
+        const [android, adb, apktool] = await Promise.all([
+          androidAnalysisAvailability(context.mcpReq.signal),
+          adbAnalysisAvailability?.(context.mcpReq.signal) ?? undefined,
+          apktoolAnalysisAvailability?.(context.mcpReq.signal) ?? undefined,
+        ] as const);
+        androidAvailability = android;
+        adbAvailability = adb;
+        apktoolAvailability = apktool;
       } catch (cause) {
         if (!context.mcpReq.signal.aborted) throw cause;
         return server.delivery.toCallToolResult(
@@ -71,6 +86,12 @@ export const registerSessionStatusTool = (
         {
           ...availabilityPolicy(),
           androidAnalysisAvailability: androidAvailability,
+          ...(adbAvailability === undefined
+            ? {}
+            : { adbAnalysisAvailability: adbAvailability }),
+          ...(apktoolAvailability === undefined
+            ? {}
+            : { apktoolAnalysisAvailability: apktoolAvailability }),
         },
         clientFeatures,
       );

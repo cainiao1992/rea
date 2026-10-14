@@ -91,6 +91,36 @@ it("inspects the adb client without contacting the server", async () => {
   expect(result.contacted_adb_server).toBe(false);
 });
 
+it("fails closed when adb exits successfully without a recognized version", async () => {
+  const stdout = `unexpected adb output ${"x".repeat(700)}\n`;
+  const stderr = `probe stderr ${"y".repeat(700)}\n`;
+  const { binary } = await writeAdbStub(
+    () => `printf '%s' '${stdout}'; printf '%s' '${stderr}' >&2; exit 0`,
+  );
+  await expect(
+    providerOver(binary).inspectAvailability(),
+  ).resolves.toMatchObject({
+    status: "unavailable",
+    code: "version_unresolved",
+    diagnostics: {
+      version_probe: "unrecognized_output",
+      stdout,
+      stderr,
+    },
+  });
+});
+
+it("accepts adb's recognized protocol version when the build version is absent", async () => {
+  const { binary } = await writeAdbStub(
+    () => `printf 'Android Debug Bridge version 1.0.41\\n'`,
+  );
+  await expect(
+    providerOver(binary).inspectAvailability(),
+  ).resolves.toMatchObject({
+    status: "available",
+  });
+});
+
 it("lists devices with inferred kinds and observed daemon startup", async () => {
   const { binary } = await writeAdbStub(
     () => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi

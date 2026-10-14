@@ -26,6 +26,9 @@ Readiness is `rea inspect-adb-client`: it runs `adb version` and reports the
 resolved binary, its version, and where it was selected from. A missing
 binary reports `capability_unavailable` with the `REA_ADB_PATH` remediation
 rather than attempting an installation.
+The `binary_session` inventory uses the same bounded client-version probe; it
+does not query devices, start the adb server, or establish that a requested
+serial is reachable. Device state is checked by each device operation.
 
 ## Answer an analyst question
 

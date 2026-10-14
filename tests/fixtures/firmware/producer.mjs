@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import {
   chmod,
   mkdir,
@@ -140,9 +141,10 @@ if (args.includes("--version")) {
       // accept it even though the unknown chunk's range is small.
       const oversized = 128 * 1024 * 1024 + 1;
       await truncate(child, oversized);
-      const oversizedHash = createHash("sha256")
-        .update(await readFile(child))
-        .digest("hex");
+      const oversizedDigest = createHash("sha256");
+      for await (const chunk of createReadStream(child))
+        oversizedDigest.update(chunk);
+      const oversizedHash = oversizedDigest.digest("hex");
       const nestedUnknownRecords = [
         {
           task: childTask,

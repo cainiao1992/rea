@@ -45,7 +45,10 @@ import {
   RegularFileCleanupFailure,
   retryRegularFileCleanup,
 } from "./RegularFileRead.js";
-import { providerRegistrationEnvironment } from "./SetupRegistrationEnvironment.js";
+import {
+  explicitSetupRegistrationEnvironment,
+  providerRegistrationEnvironment,
+} from "./SetupRegistrationEnvironment.js";
 import {
   msixPackagesDirectory,
   packagePrivateLauncherBlocker,
@@ -180,6 +183,7 @@ export const systemSetupHost = (
             diagnosis.providerInspections ?? [],
           ),
           ...doctorHost.providerRegistrationEnvironment?.(),
+          ...explicitSetupRegistrationEnvironment(environment),
           ...(diagnosis.hopperPath === undefined
             ? {}
             : { HOPPER_LAUNCHER_PATH: diagnosis.hopperPath }),

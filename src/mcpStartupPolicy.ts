@@ -18,7 +18,7 @@ export const MCP_STARTUP_POLICY = {
   doctorStderrBytes: 64 * 1024,
 } as const;
 
-/** Parsed provider deadlines that affect a client-side total tool deadline. */
+/** Parsed startup and upstream request budgets affecting a client's tool deadline. */
 export interface McpToolTimeoutInputs {
   readonly analysisProvider: AnalysisProviderSelector;
   readonly ghidraStartupTimeoutMs: number;
@@ -26,8 +26,8 @@ export interface McpToolTimeoutInputs {
   readonly jebMcpTimeoutMs?: number;
 }
 
-/** Conservative known startup allowance for clients with a total call deadline. */
-export const mcpProviderStartupAllowanceMs = (
+/** Allow for known startup phases and caller-selected upstream request budgets. */
+export const mcpProviderDeadlineAllowanceMs = (
   inputs: McpToolTimeoutInputs,
 ): number => {
   const selectedProvider = inputs.analysisProvider;
@@ -43,11 +43,11 @@ export const mcpProviderStartupAllowanceMs = (
   return Math.max(selectedTimeout, inputs.jebMcpTimeoutMs ?? 0);
 };
 
-/** Add operation headroom to the parsed provider startup allowance. */
+/** Add operation headroom to the parsed provider deadline allowance. */
 export const recommendedMcpToolTimeoutMs = (
   inputs: McpToolTimeoutInputs,
 ): number =>
-  mcpProviderStartupAllowanceMs(inputs) +
+  mcpProviderDeadlineAllowanceMs(inputs) +
   MCP_STARTUP_POLICY.toolOperationHeadroomMs;
 
 /** Round up so Codex's whole-second deadline still covers the millisecond budget. */

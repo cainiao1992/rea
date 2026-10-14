@@ -142,16 +142,19 @@ Setup registers `rea` in `~/.kimi-code/mcp.json`, or
 creating a `.rea.backup` before updating an existing file. Kimi Code infers
 stdio from the `command` entry, so setup does not add a `type` field. New
 registrations include `startupTimeoutMs = 30000` and a `toolTimeoutMs` derived
-from REA's known provider startup allowance plus 120 seconds of operation
+from REA's known provider allowance plus 120 seconds of operation
 headroom. The default is 450000 ms, covering the default 330-second Ghidra
 startup; an explicit Ghidra startup timeout of 2700000 ms produces a 2820000 ms
 tool timeout. The startup allowance follows an explicitly selected Ghidra or
 Hopper provider, and otherwise uses the larger known Ghidra/Hopper deadline.
+An explicit `REA_JEB_MCP_TIMEOUT_MS` request budget also contributes to that
+maximum. Setup forwards these explicitly selected REA deadlines and the input
+schema profile into the registration; unrelated process values are omitted.
 This headroom is a practical default, not a guarantee for every analysis
 duration. Setup preserves positive timeout values already in the `rea` entry.
 You can edit `startupTimeoutMs` and `toolTimeoutMs` there; doctor keeps positive
 caller-selected values aligned and reports a non-blocking advisory when a tool
-timeout is shorter than the known provider startup allowance.
+timeout is shorter than the known provider allowance.
 Setup selects the compact input-schema advertisement for new or refreshed Kimi
 registrations unless their stored configuration or setup environment explicitly
 selects `REA_MCP_INPUT_SCHEMA_PROFILE=full` or `compact`. This keeps REA's
@@ -232,12 +235,13 @@ standalone CLI check.
 Codex treats an unset or empty `CODEX_HOME` as `~/.codex`. Its MCP server
 registration supports `startup_timeout_sec` for connection initialization and
 `tool_timeout_sec` for each tool call. New REA registrations use a 30-second
-startup timeout and a tool timeout derived from the known provider startup
+startup timeout and a tool timeout derived from the known provider
 allowance plus 120 seconds of operation headroom. This yields 450 seconds for
 the default Ghidra allowance; an explicit Ghidra startup timeout of 2700
 seconds yields 2820 seconds. Setup preserves positive caller-selected timeout
 values in the REA entry, and doctor reports a non-blocking advisory when a tool
-timeout is shorter than the known provider startup allowance. These values are
+timeout is shorter than the known provider allowance. An explicitly selected
+JEB request budget also contributes to the allowance. These values are
 client-side deadlines, so increase them in `~/.codex/config.toml` if a
 workload needs more time. Devin honors `XDG_CONFIG_HOME` for its
 `devin/mcp_config.json` on non-Windows systems.

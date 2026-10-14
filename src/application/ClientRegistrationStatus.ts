@@ -16,7 +16,7 @@ import { PRODUCT_IDENTITY } from "../identity.js";
 import { CURRENT_ENTRYPOINT_PATH } from "../process/CurrentEntrypointPath.js";
 import {
   MCP_STARTUP_POLICY,
-  mcpProviderStartupAllowanceMs,
+  mcpProviderDeadlineAllowanceMs,
   recommendedMcpToolTimeoutMs,
   recommendedMcpToolTimeoutSeconds,
   type McpToolTimeoutInputs,
@@ -512,10 +512,10 @@ const timeoutAdvisory = (
         ? registration.tool_timeout_sec
         : undefined;
   if (toolTimeout === undefined) return undefined;
-  const startupAllowance = mcpProviderStartupAllowanceMs(timeoutInputs);
+  const providerAllowance = mcpProviderDeadlineAllowanceMs(timeoutInputs);
   const isKimi = client.name === "kimi";
   const toolTimeoutMs = isKimi ? toolTimeout : toolTimeout * 1000;
-  if (toolTimeoutMs >= startupAllowance) return undefined;
+  if (toolTimeoutMs >= providerAllowance) return undefined;
   const setting = isKimi ? "toolTimeoutMs" : "tool_timeout_sec";
   const currentValue = isKimi
     ? `${String(toolTimeout)} ms`
@@ -526,7 +526,7 @@ const timeoutAdvisory = (
   const headroom = isKimi
     ? `${String(MCP_STARTUP_POLICY.toolOperationHeadroomMs)} ms`
     : `${String(MCP_STARTUP_POLICY.toolOperationHeadroomMs / 1000)} seconds`;
-  return `The configured ${setting} (${currentValue}) is shorter than REA's known provider startup allowance (${String(startupAllowance)} ms), so first-use startup may exceed this client deadline. REA recommends ${setting} = ${recommendedValue} to cover known startup plus ${headroom} of operation headroom; this additional headroom is a recommendation, not a guarantee for every analysis.`;
+  return `The configured ${setting} (${currentValue}) is shorter than REA's known provider allowance (${String(providerAllowance)} ms), so provider startup or an upstream request may exceed this client deadline. REA recommends ${setting} = ${recommendedValue} to cover that allowance plus ${headroom} of operation headroom; this additional headroom is a recommendation, not a guarantee for every analysis.`;
 };
 
 const exactRegisteredPackageVersion = (

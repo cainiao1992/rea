@@ -83,6 +83,11 @@ callee bodies and built-ins such as `Object.assign`, `Reflect.set`, and
 values. This uncertainty does not prove that a call actually mutated a value.
 Interprocedural aliasing beyond the supported call-site references remains
 outside this mutation pass.
+For process configuration, only known environment value slots and canonical
+argument indexes are treated as primitive when passed to calls. Unknown or
+inherited selections can expose a mutable prototype, so later reads of that
+configuration container retain uncertainty; earlier top-level reads and unrelated
+configuration containers remain independent.
 
 Function fingerprints commit normalized syntax, control-flow shape, relation
 shape, literal sets, arity, and detected effects without using local names or

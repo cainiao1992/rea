@@ -664,10 +664,14 @@ advertised. Every advertised example is a distinct valid canonical input.
 
 Root object unions are presented as
 one object without root `anyOf`, `oneOf`, or `allOf` for model API compatibility.
-The projection merges properties, retains shared required fields and
-group-specific field dependencies, and describes the accepted input groups.
-Canonical runtime validation enforces the exact union, including exclusions
-that the advertised projection does not express. Tests validate the schemas
+The projection merges properties, retains shared required fields, and
+describes the accepted input groups. Which fields belong together is guidance
+in that description rather than a `dependentRequired` or `dependencies`
+keyword, because Gemini function declarations reject both and one unknown
+keyword fails the client's whole tool catalog. Canonical runtime validation
+enforces the exact union, including partner fields and exclusions that the
+advertised projection does not express, so a client must not rely on the
+advertised schema to reject an incomplete group. Tests validate the schemas
 after SDK conversion and check advertised validation and actual calls.
 Individual model APIs can impose additional nesting limits; complete producer
 captures can exceed ten structural levels.
@@ -773,9 +777,10 @@ identities remains unknown.
   `normalization` defaults to `{ "rules": [] }`.
 
 The advertised schema includes complete nested capture fields and rejects
-incomplete pairs and structurally malformed captures. Mixed comparison families
-can pass advertised validation; the SDK rejects them against the canonical
-input schema before invoking the handler. Domain validation additionally checks
+incomplete pairs and structurally malformed captures. Mixed comparison families,
+and `normalization` without both scenario captures, can pass advertised
+validation; the SDK rejects them against the canonical input schema before
+invoking the handler. Domain validation additionally checks
 relationships such as event sequence references and retained counts; JSON
 Schema does not express those cross-field invariants.
 

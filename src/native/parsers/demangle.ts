@@ -6,6 +6,8 @@ const resultSchema = z.object({
   status: z.enum(["demangled", "unchanged", "invalid"]),
 });
 
+export type DemangledSymbol = z.infer<typeof resultSchema>;
+
 /**
  * Preserve input ordering while parsing `swift-demangle --compact` lines.
  * The demangler ends each record with LF, so a carriage return belongs to the
@@ -14,7 +16,11 @@ const resultSchema = z.object({
 export const parseDemangledSymbols = (
   inputs: readonly string[],
   output: string,
-) => {
+): DemangledSymbol[] => {
+  if (inputs.length === 0) {
+    if (output === "" || output === "\n") return [];
+    throw new TypeError("swift-demangle emitted output for an empty input");
+  }
   const lines = output.replace(/\n$/u, "").split("\n");
   if (lines.length !== inputs.length)
     throw new TypeError("swift-demangle output count does not match input");

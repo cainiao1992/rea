@@ -1,15 +1,12 @@
-import { silentLogger } from "../../../src/logger.js";
 import { copyFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect } from "vitest";
 import { z } from "zod";
 
-import { createBinarySession } from "../../../src/composition/binary.js";
-import { parseConfig } from "../../../src/config/parseConfig.js";
-import { createServer } from "../../../src/server/createServer.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { mcpTest } from "../../support/mcp/mcpFixture.js";
+import { openProductionTarget } from "../../support/mcp/productionSession.js";
 
 const demangledSchema = z.object({
   normalized_result: z.object({
@@ -30,24 +27,7 @@ describe.skipIf(process.platform !== "darwin")(
           "tool",
         );
         await copyFile("/usr/bin/true", target);
-        const configured = parseConfig({ REA_ANALYSIS_PROVIDER: "auto" });
-        if (!configured.ok) throw configured.error;
-        const session = createBinarySession(
-          configured.value,
-          silentLogger,
-          process.env,
-        );
-        onTestFinished(async () => {
-          await session.close();
-        });
-        const client = await mcp.connect(
-          createServer({ kind: "session", session }),
-        );
-        const opened = await client.callTool({
-          name: "open_binary",
-          arguments: { path: target },
-        });
-        expect(opened.isError, JSON.stringify(opened.content)).not.toBe(true);
+        const client = await openProductionTarget(mcp, onTestFinished, target);
 
         const called = await client.callTool({
           name: "demangle_swift",

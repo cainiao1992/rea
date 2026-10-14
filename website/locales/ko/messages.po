@@ -2073,7 +2073,7 @@ msgstr "맨 위로"
 #: website/public/faq/index.html:105
 msgctxt "page:faq/index.html"
 msgid "Skip to content"
-msgstr "개인정보보호정책"
+msgstr "본문으로 건너뛰기"
 
 #. {ph0}: <a href="../">
 #. {ph1}: </a>
@@ -2081,17 +2081,17 @@ msgstr "개인정보보호정책"
 #, python-brace-format
 msgctxt "page:faq/index.html"
 msgid "{ph0}Home{ph1} / FAQ"
-msgstr "{ph0}홈{ph1} /자주하는 질문"
+msgstr "{ph0}홈{ph1} / 자주 묻는 질문"
 
 #: website/public/faq/index.html:197
 msgctxt "page:faq/index.html"
 msgid "REA FAQ."
-msgstr "REA자주 묻는 질문에 있습니다."
+msgstr "REA 자주 묻는 질문."
 
 #: website/public/faq/index.html:198
 msgctxt "page:faq/index.html"
 msgid "Setup, updates, analysis and troubleshooting."
-msgstr "설정,업데이트,분석 및 문제 해결."
+msgstr "설정, 업데이트, 분석, 문제 해결."
 
 #: website/public/faq/index.html:202
 msgctxt "page:faq/index.html"
@@ -2143,7 +2143,7 @@ msgstr "REA는 어떻게 설치하나요?"
 #: website/public/faq/index.html:227
 msgctxt "page:faq/index.html"
 msgid "Terminal · agent setup"
-msgstr "터미널*에이전트 설정"
+msgstr "터미널 · 에이전트 설정"
 
 #: website/public/faq/index.html:228 website/public/faq/index.html:269
 #: website/public/faq/index.html:287 website/public/faq/index.html:371
@@ -2171,7 +2171,7 @@ msgstr ""
 #: website/public/faq/index.html:248
 msgctxt "page:faq/index.html"
 msgid "Which coding agents can use REA?"
-msgstr "어떤 코딩 에이전트가 사용할 수 있습니까 REA?"
+msgstr "어떤 코딩 에이전트에서 REA를 사용할 수 있나요?"
 
 # Reviewed for readable instructions and accurate software terminology.
 #: website/public/faq/index.html:249
@@ -2205,12 +2205,12 @@ msgctxt "page:faq/index.html"
 msgid ""
 "REA releases frequently, including bug fixes. If you installed the CLI with "
 "npm:"
-msgstr "REA 버그 수정을 포함하여 자주 출시됩니다. 당신이 설치 한 경우 CLI 함께 npm:"
+msgstr "REA는 버그 수정을 포함해 자주 릴리스됩니다. npm으로 CLI를 설치했다면 다음 명령을 실행하세요:"
 
 #: website/public/faq/index.html:268
 msgctxt "page:faq/index.html"
 msgid "Terminal · installed CLI"
-msgstr "터미널·설치CLI"
+msgstr "터미널 · 설치된 CLI"
 
 # Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <code>npx</code>
@@ -2225,7 +2225,7 @@ msgstr "업데이트가 출력하는 설정 갱신 명령을 실행하세요. {p
 #: website/public/faq/index.html:286
 msgctxt "page:faq/index.html"
 msgid "Terminal · refresh agent setup"
-msgstr "터미널*에이전트 설정 새로 고침"
+msgstr "터미널 · 에이전트 설정 갱신"
 
 # Reviewed for readable setup and analysis terminology.
 #. {ph0}: <code>npx -y rea-agents@latest</code>
@@ -2243,7 +2243,7 @@ msgstr ""
 #: website/public/faq/index.html:306
 msgctxt "page:faq/index.html"
 msgid "Is installing the skill from skills.sh enough?"
-msgstr "에서 기술을 설치 skills.sh 충분히?"
+msgstr "skills.sh에서 스킬만 설치하면 되나요?"
 
 # Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="#install">
@@ -2267,12 +2267,12 @@ msgstr "분석"
 #: website/public/faq/index.html:323
 msgctxt "page:faq/index.html"
 msgid "What can I analyze with REA?"
-msgstr "무엇을 분석 할 수 있습니까 REA?"
+msgstr "REA로 무엇을 분석할 수 있나요?"
 
 #: website/public/faq/index.html:324
 msgctxt "page:faq/index.html"
 msgid "Start with the kind of software you have:"
-msgstr "당신이 가지고있는 소프트웨어의 종류로 시작:"
+msgstr "가지고 있는 소프트웨어 종류에 맞춰 시작하세요:"
 
 # Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../guides/native/" >
@@ -2293,7 +2293,7 @@ msgctxt "page:faq/index.html"
 msgid ""
 "{ph0}JavaScript and Electron apps{ph1}: modules, imports, IPC and source "
 "locations."
-msgstr "{ph0}JavaScript 그리고 Electron 앱{ph1}:모듈,수입,아이피씨 및 소스 위치."
+msgstr "{ph0}JavaScript와 Electron 앱{ph1}: 모듈, 임포트, IPC, 소스 위치."
 
 #. {ph0}: <a href="../guides/browser/">
 #. {ph1}: </a>
@@ -2301,7 +2301,7 @@ msgstr "{ph0}JavaScript 그리고 Electron 앱{ph1}:모듈,수입,아이피씨 �
 #, python-brace-format
 msgctxt "page:faq/index.html"
 msgid "{ph0}Browser pages{ph1}: scripts, requests and runtime observations."
-msgstr "{ph0}브라우저 페이지{ph1}:스크립트,요청 및 런타임 관찰."
+msgstr "{ph0}브라우저 페이지{ph1}: 스크립트, 요청, 런타임 관찰 결과."
 
 # Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../showcase/">
@@ -2320,7 +2320,7 @@ msgstr ""
 #: website/public/faq/index.html:349
 msgctxt "page:faq/index.html"
 msgid "Do I need Hopper, Ghidra or IDA?"
-msgstr "내가 필요합니까 Hopper, Ghidra 또는 IDA?"
+msgstr "Hopper, Ghidra 또는 IDA가 필요한가요?"
 
 # Reviewed for readable instructions and accurate software terminology.
 #: website/public/faq/index.html:350
@@ -2349,7 +2349,7 @@ msgstr ""
 #: website/public/faq/index.html:363
 msgctxt "page:faq/index.html"
 msgid "Can I use REA without a coding agent?"
-msgstr "내가 사용할 수 있습니까 REA 코딩 에이전트가 없다면?"
+msgstr "코딩 에이전트 없이도 REA를 사용할 수 있나요?"
 
 # Reviewed for readable instructions and accurate software terminology.
 #: website/public/faq/index.html:364
@@ -2362,7 +2362,7 @@ msgstr "네. CLI에서도 같은 분석 흐름을 사용합니다. 로컬 JavaSc
 #: website/public/faq/index.html:370
 msgctxt "page:faq/index.html"
 msgid "Terminal · static application analysis"
-msgstr "터미널*정적 애플리케이션 분석"
+msgstr "터미널 · 정적 애플리케이션 분석"
 
 # Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../get-started/#terminal">
@@ -2455,7 +2455,7 @@ msgstr "문제 해결"
 #: website/public/faq/index.html:450
 msgctxt "page:faq/index.html"
 msgid "Why can't my agent see the REA tools?"
-msgstr "왜 내 에이전트가 볼 수 없습니까 REA 도구?"
+msgstr "왜 에이전트에서 REA 도구가 보이지 않나요?"
 
 # Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <code>doctor</code>
@@ -2470,7 +2470,7 @@ msgstr "설정 후 에이전트를 다시 시작하거나 다시 연결하세요
 #: website/public/faq/index.html:457
 msgctxt "page:faq/index.html"
 msgid "Terminal · check one client"
-msgstr "터미널*하나의 클라이언트 확인"
+msgstr "터미널 · 특정 클라이언트 확인"
 
 # Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <code>codex</code>
@@ -2489,7 +2489,7 @@ msgstr ""
 #: website/public/faq/index.html:477
 msgctxt "page:faq/index.html"
 msgid "Terminal · repair one client's setup"
-msgstr "터미널*한 클라이언트의 설정을 복구"
+msgstr "터미널 · 특정 클라이언트 설정 복구"
 
 # Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../get-started/#help">
@@ -2508,7 +2508,7 @@ msgstr ""
 #: website/public/faq/index.html:497
 msgctxt "page:faq/index.html"
 msgid "Do I need to start Hopper first?"
-msgstr "내가 시작해야합니까 Hopper 먼저?"
+msgstr "Hopper를 먼저 실행해야 하나요?"
 
 # Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="../get-started/#native">
@@ -2564,7 +2564,7 @@ msgstr "데이터 및 공유"
 #: website/public/faq/index.html:529
 msgctxt "page:faq/index.html"
 msgid "Does REA upload my app?"
-msgstr "않습니다 REA 내 앱을 업로드 하시겠습니까?"
+msgstr "REA가 내 앱을 업로드하나요?"
 
 # Reviewed for readable instructions and accurate software terminology.
 #: website/public/faq/index.html:530
@@ -2577,7 +2577,7 @@ msgstr "REA는 사용자의 컴퓨터에서 대상을 분석합니다. 결과는
 #: website/public/faq/index.html:537
 msgctxt "page:faq/index.html"
 msgid "How can I share an example or contribute?"
-msgstr "예를 공유하거나 기여할 수 있는 방법은 무엇입니까?"
+msgstr "사례를 공유하거나 기여하려면 어떻게 하나요?"
 
 # Reviewed for readable instructions and accurate software terminology.
 #. {ph0}: <a href="https://github.com/morluto/rea/issues/new/choose" >
@@ -2610,7 +2610,7 @@ msgstr "버그 보고, 기능 요청, 문서와 코드 개선도 환영합니다
 #: website/public/faq/index.html:6
 msgctxt "page:faq/index.html"
 msgid "REA FAQ: Setup, Updates and Troubleshooting"
-msgstr "REAFAQ 설치,업데이트 문제 해결"
+msgstr "REA 자주 묻는 질문: 설정, 업데이트, 문제 해결"
 
 # Reviewed for readable instructions and accurate software terminology.
 #: website/public/faq/index.html:7
@@ -2623,32 +2623,32 @@ msgstr "REA의 설치, 업데이트, 분석 도구, 코딩 에이전트, 문제 
 #: website/public/faq/index.html:201
 msgctxt "page:faq/index.html"
 msgid "On this page"
-msgstr "이 페이지에"
+msgstr "이 페이지 목차"
 
 #: website/public/faq/index.html:210
 msgctxt "page:faq/index.html"
 msgid "Frequently asked questions about REA"
-msgstr "자주 묻는 질문들에 대한REA"
+msgstr "REA에 관한 자주 묻는 질문"
 
 #: website/public/faq/index.html:228
 msgctxt "page:faq/index.html"
 msgid "Copy REA setup command"
-msgstr "복사REA설정 명령"
+msgstr "REA 설정 명령 복사"
 
 #: website/public/faq/index.html:269
 msgctxt "page:faq/index.html"
 msgid "Copy REA update command"
-msgstr "복사REAupdate 명령"
+msgstr "REA 업데이트 명령 복사"
 
 #: website/public/faq/index.html:287
 msgctxt "page:faq/index.html"
 msgid "Copy agent setup refresh command"
-msgstr "에이전트 설치 복사 새로 고침 명령"
+msgstr "에이전트 설정 갱신 명령 복사"
 
 #: website/public/faq/index.html:371
 msgctxt "page:faq/index.html"
 msgid "Copy REA CLI analysis command"
-msgstr "복사REACLI분석 명령"
+msgstr "REA CLI 분석 명령 복사"
 
 #: website/public/faq/index.html:418
 msgctxt "page:faq/index.html"
@@ -2658,12 +2658,12 @@ msgstr "예제 분석 프롬프트 복사"
 #: website/public/faq/index.html:458
 msgctxt "page:faq/index.html"
 msgid "Copy client diagnosis command"
-msgstr "클라이언트 진단 복사 명령"
+msgstr "클라이언트 진단 명령 복사"
 
 #: website/public/faq/index.html:478
 msgctxt "page:faq/index.html"
 msgid "Copy scoped setup command"
-msgstr "범위 설정 복사 명령"
+msgstr "특정 클라이언트 설정 명령 복사"
 
 #: website/public/faq/index.html:575
 msgctxt "page:faq/index.html"

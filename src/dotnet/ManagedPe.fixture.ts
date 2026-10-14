@@ -826,6 +826,9 @@ const fixtureMetadataRows = ({
     indexes,
     heapSizes,
   });
+  const nestedRows = new Set(
+    (options.nestedTypes ?? []).map(([nested]) => nested),
+  );
   const rows = new Map<number, readonly Buffer[]>([
     [
       0,
@@ -836,9 +839,10 @@ const fixtureMetadataRows = ({
     typeRefTable(options, indexes, heapSizes, widths),
     [
       2,
-      [...indexes.additionalTypeNames, indexes.typeName].map((name) =>
+      [...indexes.additionalTypeNames, indexes.typeName].map((name, index) =>
         typeDefRow({
           name,
+          flags: nestedRows.has(index + 1) ? 0x0010_0002 : 0x0010_0001,
           namespace: indexes.typeNamespace,
           fieldList: 1,
           methodList: 1,
@@ -1319,6 +1323,133 @@ export const buildManagedMemberPointerFixture = (
       },
       options.streamName ?? "#-",
     );
+  });
+  // The shared PE shell defaults to an executable; this fixture is a DLL.
+  image.writeUInt16LE(image.readUInt16LE(0x84 + 18) | 0x2000, 0x84 + 18);
+  image.writeUInt32LE(0, 0x0200 + 20);
+  return image;
+};
+
+/**
+ * Two top-level types A and B, each enclosing a nested type named Inner with
+ * one method M and one field F; the first Inner also encloses Leaf with a
+ * method M. Every method shares the fixture body. Swapping the enclosing
+ * types keeps every row but moves each Inner, with its Leaf, under the other
+ * top-level type. NestedClass rows pair a nested TypeDef row with its
+ * enclosing row and may be replaced to exercise malformed metadata.
+ */
+export const buildManagedNestedTypeFixture = ({
+  swapEnclosing = false,
+  nestedClassRows,
+  literalTopLevelName,
+  topLevelTypes = false,
+}: {
+  readonly swapEnclosing?: boolean;
+  readonly nestedClassRows?: readonly (readonly [number, number])[];
+  readonly literalTopLevelName?: string;
+  readonly topLevelTypes?: boolean;
+} = {}): Buffer => {
+  const image = buildManagedFixtureImage({}, (methodRva) => {
+    const strings = new StringHeap();
+    const blobs = new BlobHeap();
+    const moduleName = strings.add("Nested.dll");
+    const assemblyName = strings.add("Fixture.Nested");
+    const namespace = strings.add("Fixture");
+    const typeNames = [
+      "<Module>",
+      "A",
+      "B",
+      "Inner",
+      literalTopLevelName ?? (topLevelTypes ? "OtherInner" : "Inner"),
+      "Leaf",
+    ].map((name) => strings.add(name));
+    const methodName = strings.add("M");
+    const fieldName = strings.add("F");
+    const objectName = strings.add("Object");
+    const systemNamespace = strings.add("System");
+    const runtimeName = strings.add("System.Runtime");
+    const methodSignature = blobs.add(Buffer.from([0x20, 0, 0x08]));
+    const fieldSignature = blobs.add(Buffer.from([0x06, 0x08]));
+    // TypeDef rows 4 and 5 own one method and one field each; row 6 owns a method.
+    const memberList = [1, 1, 1, 1, 2, 3];
+    const rows = new Map<number, readonly Buffer[]>([
+      [0, [moduleRow(moduleName, 2, 2)]],
+      [
+        1,
+        [
+          Buffer.concat([
+            u16((1 << 2) | 2),
+            u16(objectName),
+            u16(systemNamespace),
+          ]),
+        ],
+      ],
+      [
+        2,
+        typeNames.map((name, index) =>
+          typeDefRow({
+            name,
+            namespace: index === 1 || index === 2 ? namespace : 0,
+            fieldList: Math.min(memberList[index] ?? 1, 3),
+            methodList: memberList[index] ?? 1,
+            stringSize: 2,
+            typeDefOrRefSize: 2,
+            fieldListSize: 2,
+            methodListSize: 2,
+            extendsRaw: index === 0 ? 0 : (1 << 2) | 1,
+            flags:
+              index <= 2 ||
+              topLevelTypes ||
+              (index === 4 && literalTopLevelName !== undefined)
+                ? 0x0010_0001
+                : 0x0010_0002,
+          }),
+        ),
+      ],
+      [4, [1, 2].map(() => fieldRow(fieldName, fieldSignature, 2, 2))],
+      [
+        6,
+        [1, 2, 3].map(() =>
+          methodDefRow({
+            name: methodName,
+            signature: methodSignature,
+            stringSize: 2,
+            blobSize: 2,
+            parameterSize: 2,
+            parameterList: 1,
+            rva: methodRva,
+            flags: 0x0086,
+          }),
+        ),
+      ],
+      [
+        41,
+        (
+          nestedClassRows ??
+          (topLevelTypes
+            ? []
+            : [
+                [4, swapEnclosing ? 3 : 2],
+                [5, swapEnclosing ? 2 : 3],
+                [6, 4],
+              ])
+        )
+          .filter(
+            ([nested]) => literalTopLevelName === undefined || nested !== 5,
+          )
+          .map(([nested, enclosing]) =>
+            Buffer.concat([u16(nested), u16(enclosing)]),
+          ),
+      ],
+      [32, [assemblyRow(assemblyName, 2, 2)]],
+      [35, [assemblyRefRow(runtimeName, 0, false, 2, 2)]],
+    ]);
+    return metadataRoot({
+      tables: tablesStream(rows, 0n, 0),
+      strings: strings.toBuffer(),
+      guid: guidHeap(),
+      blob: blobs.toBuffer(),
+    });
   });
   // The shared PE shell defaults to an executable; this fixture is a DLL.
   image.writeUInt16LE(image.readUInt16LE(0x84 + 18) | 0x2000, 0x84 + 18);

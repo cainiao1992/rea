@@ -167,7 +167,14 @@ MCP uses `inspect_managed_members` with
 Repeat `--type` or supply multiple unique `type_names` for several types.
 Names match the reported `full_name` exactly. Top-level names are namespace
 qualified; nested types currently report bare names, which can select several
-types with that name.
+types with that name. Each type's `enclosing_type_token` records its enclosing
+TypeDef. `nesting_read` distinguishes complete source rows (true), incomplete
+current rows (false), and historical Evidence (null). A null enclosing token
+alone does not establish that a type is top-level.
+Each selected type also retains `name_sha256`, a framed digest of its namespace,
+name and enclosing names. It uses the same bounded, cached owner as signature
+type operands and remains available when selection omits the enclosing types.
+It adds one fixed-size digest per returned type rather than repeated name paths.
 
 The result preserves the requested names in `selection.type_names` and reports
 unmatched names separately. If metadata names are unreadable, limitations retain
@@ -243,7 +250,14 @@ native/runtime questions retain their own authority and coverage.
 Names and semantic labels do not establish durable member identity. Comparison
 preserves observed differences, structural inferences, and unknowns separately.
 
-Cross-version matching first pairs members of the same declared type and name:
+Cross-version matching first pairs members of the same declared type and name.
+A current declared type uses its observed `name_sha256`, so same-named nested
+types in different enclosing types stay distinct even in selected inventories.
+Malformed, missing, contradictory, cyclic or over-deep enclosing identity remains unknown;
+the comparison preserves display names without using them to repair that gap.
+Historical observations retain an explicitly limited bare-name mode when either
+side predates the identity facts. A known current identity gap still remains
+unknown beside a historical observation. Matching then pairs
 methods by exact CIL/signature identity, then by signature, then by
 structural body shape; fields by signature. Exact CIL/signature identity
 requires equal raw CIL digests and decoded fingerprints. Equal decoded
@@ -253,10 +267,11 @@ renamed or moved member across declared types or names: a method by exact
 CIL/signature identity or structural body shape, a field by exact decoded
 signature. A remap never takes a member whose own declared type and name remain
 unpaired on the other side, so a member is never taken from its own changed
-counterpart. A member whose declaring type is unresolved could belong to any
-type, so it pairs by name only when no other member shares its exact
-CIL/signature key, never by structural shape alone, and any remap group it
-joins stays ambiguous. The exact-signature key uses names only as part of that
+counterpart. A member whose declared identity is unresolved could belong to any type. It
+never makes a declared-identity pair, and any remap group it joins stays
+ambiguous. Unresolved same-named counterparts prevent definitive added/removed
+claims, while observed names and tokens remain available in the result.
+The exact-signature key uses names only as part of that
 full tuple; names alone never select a pair. Duplicate tuples remain ambiguous
 rather than being paired by token order. Every round compares signatures by
 `resolved_sha256`: the raw signature with each TypeDef or TypeRef operand

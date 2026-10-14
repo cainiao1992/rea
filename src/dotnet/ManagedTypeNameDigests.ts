@@ -137,11 +137,11 @@ export const nestedTypeDigests = (
  * the same nominal name, and a TypeRef's resolution scope assembly is not part of its
  * name, so a type forwarded between assemblies keeps its name. A TypeSpec, an
  * unreadable row, cyclic nesting, or nesting deeper than the cap has no name,
- * so its signature has no resolved digest; an unreadable row's failure is
+ * so its declaration and signature operands have no resolved digest; an unreadable row's failure is
  * retained in `issues`, once per row. Each coded index and each row is
  * named and digested once, so repeated operands cost a lookup.
  */
-export const signatureTypeNames = (
+export const managedTypeNameDigests = (
   layout: ManagedMetadataLayout,
   issues: ManagedParseIssue[],
   parsedTypes: Pick<ReturnType<typeof parseTypes>, "types" | "nesting">,
@@ -168,10 +168,27 @@ export const signatureTypeNames = (
       return null;
     }
     if (type === undefined) return null;
+    const enclosingRow = parsedTypes.nesting.enclosing.get(row) ?? null;
+    // ECMA-335 TypeAttributes.VisibilityMask: 0/1 are top-level, 2..7 nested.
+    const nested = (type.flags & 0x7) >= 2;
+    if (nested !== (enclosingRow !== null)) {
+      managedDecodeBudget(layout).reserve(512, type.row_offset);
+      readManagedValue(() => {
+        throw managedFailure(
+          "invalid-row",
+          `metadata.TypeDef:${type.token}`,
+          nested
+            ? `Nested TypeDef ${type.token} has no NestedClass enclosing entry`
+            : `Top-level TypeDef ${type.token} has a NestedClass enclosing entry`,
+          type.row_offset,
+        );
+      }, issues);
+      return null;
+    }
     return {
       namespace: type.namespace,
       name: type.name,
-      enclosingRow: parsedTypes.nesting.enclosing.get(row) ?? null,
+      enclosingRow,
     };
   }, retain);
   const references = nestedTypeDigests((row) => {

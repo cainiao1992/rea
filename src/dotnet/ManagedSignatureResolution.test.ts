@@ -21,11 +21,11 @@ import {
   managedPeFixtureTarget,
 } from "./ManagedPe.fixture.js";
 import { readManagedPeLayout } from "./ManagedPeReader.js";
-import { signatureTypeNames } from "./ManagedSignatureTypeNames.js";
+import { managedTypeNameDigests } from "./ManagedTypeNameDigests.js";
 import { managedTypeReferences } from "./ManagedTypeReferences.js";
 import { readTypeMemberListFacts } from "./ManagedTypeMemberLists.js";
 
-// A top-level type's name digest, as ManagedSignatureTypeNames forms it.
+// A top-level type's name digest, as ManagedTypeNameDigests forms it.
 const nameDigest = (name: string): Buffer => {
   const dot = name.lastIndexOf(".");
   return createHash("sha256")
@@ -127,7 +127,7 @@ describe("resolved member signature digests", () => {
     const layout = metadataLayout(bytes);
     const budget = new ManagedDecodeBudget();
     attachManagedDecodeBudget(layout, budget);
-    const typeName = signatureTypeNames(
+    const typeName = managedTypeNameDigests(
       layout,
       [],
       {
@@ -176,7 +176,7 @@ describe("resolved member signature digests", () => {
       layout,
       typeRanges(bytes, layout, issues, readTypeMemberListFacts(bytes, layout)),
     );
-    const resolve = signatureTypeNames(
+    const resolve = managedTypeNameDigests(
       layout,
       issues,
       parsedTypes,

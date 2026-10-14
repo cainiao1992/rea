@@ -29,7 +29,7 @@ import {
   type TypeRange,
 } from "./ManagedMemberInspectorCore.js";
 import { edgeTargets } from "./ManagedMethodSpecs.js";
-import { signatureTypeNames } from "./ManagedSignatureTypeNames.js";
+import { managedTypeNameDigests } from "./ManagedTypeNameDigests.js";
 import { typeNameLookup } from "./ManagedTypeNames.js";
 import { managedTypeReferences } from "./ManagedTypeReferences.js";
 import { parseUserStrings } from "./ManagedUserStrings.js";
@@ -75,6 +75,7 @@ const unavailable = (
       },
       types: [],
       signature_resolution: "type-names-v1",
+      nesting_read: false,
       exported_types: null,
       user_strings: null,
       fields: [],
@@ -208,7 +209,7 @@ export const inspectManagedMembersBytes = (
     const exportedTypes = parseExportedTypes(bytes, layout);
     appendManagedParseIssues(issues, exportedTypes.issues);
     const typeReferences = managedTypeReferences(bytes, layout, issues);
-    const signatureTypeName = signatureTypeNames(
+    const signatureTypeName = managedTypeNameDigests(
       layout,
       issues,
       parsedTypes,
@@ -251,7 +252,6 @@ export const inspectManagedMembersBytes = (
       methods.core,
     ]);
     appendManagedParseIssues(issues, targets.issues);
-    const coverageIssues = uniqueManagedParseIssues(issues);
     const incompleteMembers =
       [...fields.fields, ...memberRefs.refs, ...methods.methods].some(
         (member) => member.signature.parse_status !== "decoded",
@@ -266,6 +266,23 @@ export const inspectManagedMembersBytes = (
       targets.members,
       managedDecodeBudget(layout),
     );
+    const types = parsedTypes.types
+      .filter((type) => selected === null || selected.has(type.token))
+      .map((type) => {
+        managedDecodeBudget(layout).reserve(512, type.row_offset);
+        return {
+          ...type,
+          name_sha256:
+            signatureTypeName(
+              Number.parseInt(type.token.slice(4), 16) * 4,
+            )?.toString("hex") ?? null,
+        };
+      });
+    const unnamedTypes = types.reduce(
+      (count, type) => count + Number(type.name_sha256 === null),
+      0,
+    );
+    const coverageIssues = uniqueManagedParseIssues(issues);
     return managedMemberInspectionSchema.parse(
       admitManagedProjection(
         {
@@ -286,11 +303,9 @@ export const inspectManagedMembersBytes = (
             requires_artifact_sha256: target.sha256,
             requires_mvid: inventory.module?.mvid ?? null,
           },
-          types:
-            selected === null
-              ? parsedTypes.types
-              : parsedTypes.types.filter((type) => selected.has(type.token)),
+          types,
           signature_resolution: "type-names-v1",
+          nesting_read: parsedTypes.nesting.complete,
           exported_types: exportedTypes.exportedTypes,
           fields: fields.fields,
           methods: methods.methods,
@@ -307,6 +322,11 @@ export const inspectManagedMembersBytes = (
             issues: coverageIssues,
           },
           limitations: [
+            ...(unnamedTypes === 0
+              ? []
+              : [
+                  `${String(unnamedTypes)} returned TypeDef name identity(s) remain unresolved; incomplete, missing, contradictory, cyclic or over-deep enclosing facts cannot be repaired by bare display names.`,
+                ]),
             "Metadata tokens are build-local coordinates and are only meaningful with the reported artifact SHA-256 and MVID.",
             "CIL instruction anchors are decoded from file-backed method bodies only; no target assembly is loaded or executed.",
             "Exported types are reported from ExportedType rows as declared; forwarded types are not resolved in their implementing assemblies.",

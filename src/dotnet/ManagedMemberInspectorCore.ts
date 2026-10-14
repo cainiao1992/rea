@@ -157,6 +157,10 @@ export const typeRanges = (
   return ranges;
 };
 
+/**
+ * Enclosing TypeDef row of each nested TypeDef row, from the NestedClass
+ * table. Nesting is complete only when every row was read and valid.
+ */
 export const parseTypes = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
@@ -216,6 +220,7 @@ export const parseTypes = (
           offset: extendsOffset,
           detail: `TypeDef Extends coded index 0x${extendsRaw.toString(16)} is invalid: ${extendsReason}`,
         });
+      const enclosingRow = nesting.enclosing.get(row);
       items.push({
         token: metadataToken(2, row),
         row_offset: cursor.start,
@@ -229,6 +234,9 @@ export const parseTypes = (
           [2, 1, 27],
           layout.rowCounts,
         ),
+        enclosing_type_token:
+          enclosingRow === undefined ? null : metadataToken(2, enclosingRow),
+        name_sha256: null,
         field_list: {
           first_row: fieldRange.first,
           last_row: fieldRange.last,

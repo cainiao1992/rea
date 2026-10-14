@@ -986,6 +986,10 @@ describe("managed member comparison of unresolved and held identities", () => {
       ...base,
       result: {
         ...base.result,
+        types: [
+          ...base.result.types,
+          namedTypeFact("Twin", "Other", "0x02000003"),
+        ],
         methods: [
           { ...method, declaring_type: null, declaring_type_token: null },
           {
@@ -1120,6 +1124,12 @@ describe("managed member comparison of consumed ownerless ambiguity", () => {
     );
     const [method] = base.result.methods;
     if (method === undefined) throw new Error("Expected a fixture method");
+    const ownerTypes = new Map(
+      ["T", "D", "U"].map((name, index) => [
+        name,
+        namedTypeFact(name, "", `0x0200000${String(index + 3)}`),
+      ]),
+    );
     const candidate = (
       raw: string,
       token: string,
@@ -1130,7 +1140,8 @@ describe("managed member comparison of consumed ownerless ambiguity", () => {
       ...method,
       token,
       declaring_type: owner,
-      declaring_type_token: owner === null ? null : method.declaring_type_token,
+      declaring_type_token:
+        owner === null ? null : ownerTypes.get(owner)!.token,
       name,
       // An operand-free signature: its resolved digest is the raw one.
       signature: {
@@ -1148,6 +1159,7 @@ describe("managed member comparison of consumed ownerless ambiguity", () => {
       ...base,
       result: {
         ...base.result,
+        types: [...base.result.types, ...ownerTypes.values()],
         fields: [],
         methods: [
           candidate("a", "0x06000001", "T", "M", 1),
@@ -1160,6 +1172,7 @@ describe("managed member comparison of consumed ownerless ambiguity", () => {
       ...base,
       result: {
         ...base.result,
+        types: [...base.result.types, ...ownerTypes.values()],
         fields: [],
         methods: [
           candidate("c", "0x06000001", "U", "N", 1),
@@ -1210,6 +1223,10 @@ describe("managed member comparison of retained ownership contention", () => {
       ...base,
       result: {
         ...base.result,
+        types: [
+          ...base.result.types,
+          namedTypeFact("Twin", "Other", "0x02000003"),
+        ],
         fields: [],
         methods: [
           { ...method, body: body("c", 3) },
@@ -1217,6 +1234,7 @@ describe("managed member comparison of retained ownership contention", () => {
             ...method,
             token: "0x06000002",
             declaring_type: "Other.Twin",
+            declaring_type_token: "0x02000003",
             name: "Copy",
             body: ownerless.body,
           },
@@ -1309,6 +1327,45 @@ describe("managed member comparison of ownerless structural competitors", () => 
   });
 });
 
+it("keeps a lone ownerless member unknown despite an identical payload", () => {
+  const base = inspect(buildManagedPeFixture(), "/tmp/ownerless-lone.dll");
+  const [method] = base.result.methods;
+  if (method === undefined) throw new Error("Expected a fixture method");
+  const ownerless = {
+    ...method,
+    declaring_type: null,
+    declaring_type_token: null,
+  };
+  const side = {
+    ...base,
+    result: { ...base.result, methods: [ownerless], fields: [] },
+  };
+
+  const result = compareManagedMembers(side, side);
+
+  expect(result.matching.ambiguous).toBe(1);
+  expect(
+    result.methods.filter(({ match }) => match.status === "matched"),
+  ).toHaveLength(0);
+  expect(result.methods[0]).toMatchObject({
+    status: "unknown",
+    match: {
+      status: "ambiguous",
+      candidate_left_tokens: [ownerless.token],
+      candidate_right_tokens: [ownerless.token],
+    },
+    limitations: [
+      expect.stringContaining("Declared type identity remains unresolved"),
+    ],
+  });
+  expect(result.summary).toMatchObject({
+    unchanged: 0,
+    added: 0,
+    removed: 0,
+    unknown: 1,
+  });
+});
+
 describe("managed member comparison of ownerless members", () => {
   it("keeps an ownerless member ambiguous beside a resolved copy, as main does", () => {
     const base = inspect(buildManagedPeFixture(), "/tmp/ownerless-copy.dll");
@@ -1344,28 +1401,6 @@ describe("managed member comparison of ownerless members", () => {
       ).toEqual([]);
       expect(result.summary).toMatchObject({ added: 0, removed: 0 });
     }
-  });
-
-  it("still pairs a lone ownerless member with its lone counterpart", () => {
-    const base = inspect(buildManagedPeFixture(), "/tmp/ownerless-lone.dll");
-    const [method] = base.result.methods;
-    if (method === undefined) throw new Error("Expected a fixture method");
-    const ownerless = {
-      ...method,
-      declaring_type: null,
-      declaring_type_token: null,
-    };
-    const side = {
-      ...base,
-      result: { ...base.result, methods: [ownerless], fields: [] },
-    };
-
-    const result = compareManagedMembers(side, side);
-
-    expect(result.matching.ambiguous).toBe(0);
-    expect(
-      result.methods.filter(({ match }) => match.status === "matched"),
-    ).toHaveLength(1);
   });
 
   it("keeps a resolved copy out of the declared round when an ownerless competitor is on the left, as main does", () => {
@@ -1536,6 +1571,10 @@ describe("managed member comparison of unresolved owners", () => {
       ...held,
       result: {
         ...held.result,
+        types: [
+          ...held.result.types,
+          namedTypeFact("Twin", "Other", "0x02000003"),
+        ],
         methods: [
           undecodedMethod,
           { ...undecodedMethod, token: "0x06000002" },
@@ -1576,8 +1615,17 @@ describe("managed member comparison of unresolved owners", () => {
       ...base,
       result: {
         ...base.result,
+        types: [
+          ...base.result.types,
+          namedTypeFact("Twin", "Other", "0x02000003"),
+        ],
         methods: [
-          { ...method, declaring_type: "Other.Twin", token: "0x06000002" },
+          {
+            ...method,
+            declaring_type: "Other.Twin",
+            declaring_type_token: "0x02000003",
+            token: "0x06000002",
+          },
         ],
         fields: [],
       },
@@ -2152,6 +2200,22 @@ describe("managed member comparison of resolved-signature contention", () => {
  * type, to an inspection. The copies come from `source`, so they can carry
  * the bytes of a different build than the inspection they join.
  */
+const namedTypeFact = (
+  typeName: string,
+  typeNamespace: string,
+  token: string,
+) => {
+  const type = inspect(
+    buildManagedPeFixture({ typeName, typeNamespace }),
+    `/fixture/${typeNamespace}/${typeName}.dll`,
+  ).result.types.find(
+    (type) => type.name === typeName && type.namespace === typeNamespace,
+  );
+  if (type === undefined || type.name_sha256 === null)
+    throw new Error("Expected a named fixture TypeDef");
+  return { ...type, token };
+};
+
 const withTwin = (
   inspected: ReturnType<typeof inspect>,
   source: ReturnType<typeof inspect> = inspected,
@@ -2162,14 +2226,25 @@ const withTwin = (
   if (method === undefined || field === undefined)
     throw new Error("Expected a fixture method and field");
   const rows = Array.from({ length: count }, (_, index) => index + 2);
+  // This consumer fixture needs matching TypeDef facts as well as member
+  // facts. Obtain nominal digests from the production metadata owner; copying
+  // only display names leaves declaring_type_token pointing at a missing row.
+  const types = rows.map((row) =>
+    namedTypeFact(
+      row === 2 ? "Twin" : `Twin${String(row)}`,
+      "Other",
+      `0x0200000${String(row + 1)}`,
+    ),
+  );
   const twin = (row: number) => ({
-    declaring_type: row === 2 ? "Other.Twin" : `Other.Twin${String(row)}`,
-    declaring_type_token: `0x0200000${String(row + 1)}`,
+    declaring_type: types[row - 2]!.full_name,
+    declaring_type_token: types[row - 2]!.token,
   });
   return {
     ...inspected,
     result: {
       ...inspected.result,
+      types: [...inspected.result.types, ...types],
       methods: [
         ...inspected.result.methods,
         ...rows.map((row) => ({

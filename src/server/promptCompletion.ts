@@ -8,7 +8,6 @@ import type { BinarySessionPort } from "../application/binary/BinarySessionPort.
 import type { PromptCompletionKind } from "../contracts/promptContracts.js";
 import { currentMcpRequestSignal } from "./EvidenceMcpServer.js";
 import { parseArtifactInventoryEvidence } from "../domain/artifactInventoryEvidence.js";
-import { artifactInspectionResultSchema } from "../domain/artifactInspection.js";
 import { EvidenceIntegrityError } from "../domain/evidenceErrors.js";
 import { parseProcessCapture } from "../domain/process/processCaptureParsing.js";
 
@@ -181,17 +180,11 @@ const evidenceValues = (
   if (kind === "evidence") return [evidence.evidence_id];
   if (kind === "capture")
     return isProcessCaptureEvidence(evidence) ? [evidence.evidence_id] : [];
-  if (evidence.operation === "inventory_artifact")
+  if (
+    evidence.operation === "inventory_artifact" ||
+    evidence.operation === "inspect_artifact"
+  )
     return artifactInventoryValues(kind, evidence);
-  if (evidence.operation === "inspect_artifact") {
-    const inspection = artifactInspectionResultSchema.safeParse(
-      evidence.normalized_result,
-    );
-    if (!inspection.success) return [];
-    return inspection.data.substeps.flatMap(({ evidence: inventoryEvidence }) =>
-      artifactInventoryValues(kind, inventoryEvidence),
-    );
-  }
   return [];
 };
 

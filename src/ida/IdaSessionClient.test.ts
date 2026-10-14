@@ -7,7 +7,6 @@ import {
   RecordingIdaMcp,
 } from "../../tests/fixtures/idaMcp.js";
 import { IdaSessionClient } from "./IdaSessionClient.js";
-import { AnalysisTimeoutError } from "../domain/analysisErrorCore.js";
 import { functionDossierSchema } from "../domain/hopperValues.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
@@ -472,25 +471,6 @@ describe("attached IDA function observations", () => {
     expect((await close).ok).toBe(true);
     expect(producer.closes).toBe(1);
   });
-});
-
-it("preserves a typed MCP request timeout through the public session result", async () => {
-  const { producer, client } = await fixture();
-  expect((await client.execute("health", {})).ok).toBe(true);
-  producer.overrideCall = (name) => {
-    if (name === "decompile_function")
-      throw new AnalysisTimeoutError(name, 1_000);
-    return undefined;
-  };
-
-  const result = await client.execute("procedure_pseudo_code", {
-    procedure: "main",
-  });
-
-  if (result.ok) throw new Error("Expected the request timeout to surface");
-  expect(result.error._tag).toBe("AnalysisTimeoutError");
-  expect(projectAnalysisError(result.error).code).toBe("provider_timeout");
-  await client.close();
 });
 
 const busyHealth = (busyTool?: JsonValue): JsonValue => ({

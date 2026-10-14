@@ -217,6 +217,33 @@ describe("public provider availability", () => {
   });
 });
 
+describe("target-free MCP fixture host isolation", () => {
+  it("uses fixed unavailable ports instead of probing installed Android tools", async () => {
+    directory = await createTestTempDirectory("rea-mcp-host-isolation-");
+    const { mcp } = await createSessionMcpHarness(
+      directory,
+      provider,
+      resources,
+    );
+
+    const status = structured(
+      await mcp.callTool({ name: "binary_session", arguments: {} }),
+    );
+    const availability = toolAvailabilityInventory.parse(
+      (status.result as { tool_availability: unknown }).tool_availability,
+    );
+    for (const name of [
+      "inspect_android_package",
+      "inspect_adb_client",
+      "inspect_apktool_client",
+    ]) {
+      expect(
+        availability.groups.find((group) => group.names.includes(name)),
+      ).toMatchObject({ available: false, reason: "provider_missing" });
+    }
+  });
+});
+
 describe("target-free MCP lifecycle", () => {
   it("takes the session snapshot after Android readiness inspection completes", async () => {
     directory = await createTestTempDirectory("rea-mcp-status-readiness-");

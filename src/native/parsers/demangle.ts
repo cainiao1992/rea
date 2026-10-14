@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { isSwiftMangledSymbolName } from "../../domain/swiftSymbolClassification.js";
+
 const resultSchema = z.object({
   input: z.string(),
   output: z.string(),
@@ -7,22 +9,6 @@ const resultSchema = z.object({
 });
 
 export type DemangledSymbol = z.infer<typeof resultSchema>;
-
-/**
- * Prefixes the Swift demangler accepts as mangled names (Swift 4, 4.x, 5+,
- * macro file names and Embedded Swift). Legacy `_T` is omitted because it is
- * also an ordinary C symbol spelling such as `_Tprintf`.
- */
-const SWIFT_MANGLING_PREFIXES = [
-  "_T0",
-  "$S",
-  "_$S",
-  "$s",
-  "_$s",
-  "@__swiftmacro_",
-  "$e",
-  "_$e",
-] as const;
 
 /**
  * Preserve input ordering while parsing `swift-demangle --compact` lines.
@@ -49,7 +35,7 @@ export const parseDemangledSymbols = (
       output: value,
       status:
         value === input
-          ? SWIFT_MANGLING_PREFIXES.some((prefix) => input.startsWith(prefix))
+          ? isSwiftMangledSymbolName(input)
             ? "invalid"
             : "unchanged"
           : "demangled",

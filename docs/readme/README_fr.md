@@ -272,7 +272,7 @@ Signalez les vulnérabilités via [SECURITY.md](../../SECURITY.md).
 
 ## Historique des étoiles
 
-🎉 **170 000 étoiles GitHub — merci !**
+🎉 **200 000 étoiles GitHub — merci !**
 
 Merci à toutes les personnes qui utilisent REA, signalent des bugs, proposent des fonctionnalités, testent les builds et contribuent des correctifs.
 

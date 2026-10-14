@@ -7,6 +7,8 @@ Executable bytes remain unchanged.
 
 Use [installation](installation.md#ghidra) for supported hosts, prerequisites,
 configuration, startup deadlines, resource controls, and cleanup recovery.
+[Linux Ghidra launches](installation.md#linux-owned-process-prerequisite) also
+require a procps-compatible `ps` on REA's `PATH` for process ownership checks.
 [Windows P0](windows-ghidra-p0.md) has its own admission and lifecycle boundary;
 [NativeAOT observations](ghidra-nativeaot.md) include a built-in read-only PE
 snapshot parser and a separate optional annotation extension. Check the

@@ -88,6 +88,7 @@ import {
 } from "./toolOutputSchemaPrimitives.js";
 
 import { processCaptureSchema } from "../domain/process/processCapture.js";
+import { electronFuseReportSchema } from "../domain/electron/electronFuses.js";
 const contextFacetSchema = z.discriminatedUnion("state", [
   z.object({ state: z.literal("available"), value: jsonValueSchema }),
   z.object({
@@ -584,3 +585,8 @@ export const sessionOutputSchemas = {
     }),
   ),
 } satisfies Readonly<Record<string, z.ZodObject>>;
+
+/** Exact Evidence schema for read-only Electron fuse inspection. */
+export const electronFuseOutputSchemas = {
+  inspect_electron_fuses: evidenceResultOf(electronFuseReportSchema),
+};

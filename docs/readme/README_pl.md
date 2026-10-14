@@ -268,7 +268,7 @@ Zgłaszaj podatności zgodnie z [SECURITY.md](../../SECURITY.md).
 
 ## Historia gwiazdek
 
-🎉 **170 000 gwiazdek na GitHubie — dziękujemy!**
+🎉 **200 000 gwiazdek na GitHubie — dziękujemy!**
 
 Dziękujemy wszystkim, którzy używają REA, zgłaszają błędy, proponują nowe funkcje, testują kompilacje i przesyłają poprawki.
 

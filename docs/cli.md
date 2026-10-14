@@ -292,6 +292,7 @@ Choose the guide for the target and intended interaction:
 - [Browser observation](browser-observation.md): inspect a selected page through CDP.
 - [Browser scenarios](browser-scenario-contract.md): run declared interactions and capture their results.
 - [Electron observation](electron-observation.md): inspect an Electron renderer or capture an application scenario.
+- [Electron fuses](electron-fuses.md): read packaged fuse bytes before expecting `--inspect` to reach an Electron main process.
 - [Node/Electron Inspector](javascript-runtime-observation.md): record script locations and execution contexts.
 - [Process capture](process-capture.md): run an executable and compare terminal, exit and filesystem observations.
 

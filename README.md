@@ -64,6 +64,11 @@ Setup registers REA with your agent and installs matching workflow instructions.
 
 ## Quick start
 
+On Linux, Ghidra, JADX, firmware tool launches and static JavaScript/Electron
+analysis require a procps-compatible `ps` on REA's `PATH` for process ownership
+checks. Recovery steps are in `docs/installation.md` under
+"Linux owned-process prerequisite".
+
 ### Set up your agent
 
 With Node.js and npm installed, run:
@@ -156,8 +161,6 @@ CLI commands use the same workflows.
 
 REA requires Node.js 22.x (>=22.19), 24.x (>=24.11), or 26+, plus npm.
 Additional tools and host support depend on the target:
-Linux supervised analysis also requires a procps-compatible `ps` on REA's
-`PATH`; distributions provide it through `procps` or `procps-ng`.
 
 | Target                 | What REA returns                                                                     | Requirements and guide                                                                                                                |
 | ---------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
@@ -169,7 +172,7 @@ Linux supervised analysis also requires a procps-compatible `ps` on REA's
 | EVM bytecode           | Dispatch selectors, byte offsets, inferred arguments and mutability                  | Local raw/hex carrier on Linux x64; [offline EVM guide](docs/evm-bytecode.md)                                                         |
 | SQLite databases       | Tables, columns, indexes, views, triggers and selected ordinary-table rows           | Local database/WAL snapshot; Node.js 24.x >=24.15 or 26+ with native SQLite limits                                                    |
 | Recorded Linux crashes | Raw notes, every recorded thread's registers/signals and optional mapping candidates | Caller-supplied pwntools on Linux x64; optional GDB/pwndbg; [recorded crashes](docs/recorded-crashes.md)                              |
-| JavaScript / Electron  | Modules, imports, source maps, routes, IPC and native add-on relationships           | Node.js and npm; [application analysis](docs/javascript-application-workflows.md)                                                     |
+| JavaScript / Electron  | Modules, imports, source maps, routes, IPC and native add-on relationships           | Node.js and npm; Linux: procps-compatible `ps`; [application analysis](docs/javascript-application-workflows.md)                      |
 | Websites               | Page structure, scripts, network observations and requested screenshots              | A Chrome-family browser; [browser analysis](docs/browser-observation.md)                                                              |
 | Saved network captures | Requests, responses, exposed payloads and source locations                           | HAR or Fiddler Everywhere SAZ; mitmdump on Linux for native mitmproxy; [capture guide](docs/web-network-captures.md)                  |
 | .NET assemblies        | Metadata, CIL instructions, declared native dependencies and build comparisons       | None (static only); [managed-code guide](docs/managed-code-analysis.md)                                                               |
@@ -337,7 +340,7 @@ Report vulnerabilities through [SECURITY.md](SECURITY.md).
 
 ## Star history
 
-🎉 **180,000 GitHub stars — thank you!**
+🎉 **200,000 GitHub stars — thank you!**
 
 Thanks to everyone using REA, reporting bugs, requesting features, testing builds, and contributing fixes.
 

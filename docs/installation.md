@@ -28,11 +28,6 @@ For the latest published release, use `npx rea-agents@latest setup`.
 [Package-runner and global-installation options](#package-runners-and-global-installation)
 cover explicit versions, Bun, runtime requirements, and the curl wrapper.
 
-On Linux, supervised analysis requires a procps-compatible `ps` on REA's
-`PATH` so REA can inspect process ownership before launching a child. Install
-the `procps` or `procps-ng` package provided by your distribution. This
-prerequisite also applies to JavaScript and Electron workflows.
-
 ## Review setup changes
 
 `rea setup` first offers the supported agents in a multi-select. Existing REA
@@ -324,6 +319,21 @@ on `open_binary`. A `capability_unavailable` failure carries
 `details.selection_reason`: `ambiguous` asks you to choose from
 `details.candidate_ids`, while `provider_unavailable` asks you to repair the
 selected engine. See [provider selection](cli.md#choose-a-provider).
+
+### Linux owned-process prerequisite
+
+On Linux, REA's shared process supervisor requires a procps-compatible `ps`
+on REA's `PATH` for ownership checks before launching a child. Ghidra, JADX,
+firmware tools and static JavaScript/Electron analysis use these checks.
+Install your distribution's `procps` or `procps-ng` package, or put another
+procps-compatible `ps` on `PATH` before
+running those workflows. A missing or incompatible command causes a refusal
+before the supervised child starts.
+
+The public error code varies by caller: `capability_unavailable`,
+`provider_unavailable` or `execution_failure`. Some provider adapters report
+only a generic startup error. Check this prerequisite before following
+provider-specific recovery advice.
 
 ## Diagnose, update, and remove
 

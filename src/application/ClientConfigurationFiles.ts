@@ -172,3 +172,47 @@ export const effectiveClientConfiguration = (
   }
   return { ...last, servers, legacyServers: {} };
 };
+
+/** Read the configuration ZCode will load, preserving its same-scope fallback rule. */
+export const readEffectiveClientRegistrationConfiguration = async (
+  client: SetupClient,
+  resources?: ArtifactResourceScope,
+): Promise<
+  Result<
+    {
+      readonly document: ClientConfigurationDocument | undefined;
+      readonly configPath: string;
+    },
+    ClientConfigurationFileError
+  >
+> => {
+  const nativeSources = await readClientConfigurationFiles(client, resources);
+  if (!nativeSources.ok) return nativeSources;
+  const nativeDocument = effectiveClientConfiguration(nativeSources.value);
+  const fallbackPath =
+    client.format === "zcode" ? client.zcodeFallbackPath : undefined;
+  if (
+    fallbackPath === undefined ||
+    (nativeDocument !== undefined &&
+      Object.keys(nativeDocument.servers).length > 0)
+  )
+    return ok({ document: nativeDocument, configPath: client.configPath });
+
+  const fallbackClient: SetupClient = {
+    ...client,
+    configPath: fallbackPath,
+    configPaths: [fallbackPath],
+    format: "zcode_fallback",
+  };
+  const fallbackSources = await readClientConfigurationFiles(
+    fallbackClient,
+    resources,
+  );
+  if (!fallbackSources.ok) return fallbackSources;
+  const fallbackDocument = effectiveClientConfiguration(fallbackSources.value);
+  return ok(
+    fallbackDocument === undefined
+      ? { document: nativeDocument, configPath: client.configPath }
+      : { document: fallbackDocument, configPath: fallbackPath },
+  );
+};

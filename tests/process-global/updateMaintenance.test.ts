@@ -146,6 +146,22 @@ describe("maintenance activation and layered configuration", () => {
     expect(await readFile(configPath, "utf8")).toBe(original);
   });
 
+  it("selects a ZCode registration loaded from the same-scope fallback", async () => {
+    await writeClient("zcode", JSON.stringify({ mcp: { servers: {} } }));
+    const fallbackPath = join(home, ".agents", "mcp.json");
+    await mkdir(join(home, ".agents"), { recursive: true });
+    await writeFile(
+      fallbackPath,
+      JSON.stringify({
+        mcpServers: { rea: { command: entryPoint, args: ["mcp"] } },
+      }),
+    );
+
+    await expect(
+      existingMaintenanceScope(home, entryPoint, process.env),
+    ).resolves.toMatchObject({ clients: ["zcode"] });
+  });
+
   it("selects an enabled registration inherited through layered OpenCode files", async () => {
     const directory = join(home, ".config", "opencode");
     await mkdir(directory, { recursive: true });

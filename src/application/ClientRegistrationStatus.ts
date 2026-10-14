@@ -1,8 +1,5 @@
 import { readClientPolicyBlock } from "./GeminiClientSettings.js";
-import {
-  effectiveClientConfiguration,
-  readClientConfigurationFiles,
-} from "./ClientConfigurationFiles.js";
+import { readEffectiveClientRegistrationConfiguration } from "./ClientConfigurationFiles.js";
 import {
   clientServerForcedEnabled,
   clientServerListedDisabled,
@@ -144,24 +141,26 @@ export const readClientRegistrationInspections = async (
         });
       continue;
     }
+    let selectedConfigPath = client.configPath;
     try {
-      const files = await readClientConfigurationFiles(
+      const configuration = await readEffectiveClientRegistrationConfiguration(
         client,
         options.resources,
       );
-      if (!files.ok) {
+      if (!configuration.ok) {
         record({
           client: client.name,
-          config_path: client.configPath,
+          config_path: configuration.error.path,
           command: [],
           state: "invalid",
-          remediation: files.error.detail,
+          remediation: configuration.error.detail,
         });
         continue;
       }
-      const parsed = effectiveClientConfiguration(files.value);
+      const { document: parsed, configPath } = configuration.value;
+      selectedConfigPath = configPath;
       if (parsed === undefined) {
-        record(unavailableStatus(client, "missing"));
+        record(unavailableStatus(client, "missing", configPath));
         continue;
       }
       const policy = await readClientPolicyBlock(
@@ -173,7 +172,7 @@ export const readClientRegistrationInspections = async (
       if (!policy.ok) {
         record({
           client: client.name,
-          config_path: client.configPath,
+          config_path: configPath,
           command: [],
           state: "invalid",
           remediation: policy.error.detail,
@@ -190,17 +189,26 @@ export const readClientRegistrationInspections = async (
         if (editabilityError !== undefined) {
           record({
             client: client.name,
-            config_path: client.configPath,
+            config_path: configPath,
             command: [],
             state: "invalid",
             remediation: editabilityError.message,
           });
           continue;
         }
-        record(unavailableStatus(client, "missing"));
+        record(unavailableStatus(client, "missing", configPath));
         continue;
       }
-      const registration = parseRegistration(raw, client);
+      const effectiveClient: SetupClient =
+        parsed.dialect === "zcode_fallback"
+          ? {
+              ...client,
+              configPath,
+              configPaths: [configPath],
+              format: "zcode_fallback",
+            }
+          : client;
+      const registration = parseRegistration(raw, effectiveClient);
       const command: RegistrationCommand = [
         registration.command,
         ...registration.args,
@@ -213,13 +221,13 @@ export const readClientRegistrationInspections = async (
         packageVersion !== PRODUCT_IDENTITY.packageVersion;
       record(
         configuredStatus(
-          client,
+          effectiveClient,
           command,
           activation === "enabled" &&
             !packageVersionDrift &&
             registrationAligned(
               registration,
-              client,
+              effectiveClient,
               currentCommandPath,
               options.platform ?? process.platform,
             ) &&
@@ -237,7 +245,11 @@ export const readClientRegistrationInspections = async (
       );
     } catch (cause: unknown) {
       record(
-        unavailableStatus(client, isMissing(cause) ? "missing" : "invalid"),
+        unavailableStatus(
+          client,
+          isMissing(cause) ? "missing" : "invalid",
+          selectedConfigPath,
+        ),
       );
     }
   }
@@ -254,7 +266,8 @@ const registrationActivation = (
   (client.format !== "grok" && registration.disabled === true) ||
   (registration.enabled === false &&
     !clientServerForcedEnabled(parsed, PRODUCT_IDENTITY.mcpServerKey)) ||
-  (client.format === "zcode" && registration.enable === false) ||
+  ((parsed.dialect === "zcode" || parsed.dialect === "zcode_fallback") &&
+    registration.enable === false) ||
   clientServerListedDisabled(parsed, PRODUCT_IDENTITY.mcpServerKey)
     ? "disabled"
     : "enabled";
@@ -435,9 +448,10 @@ const packageVersionRemediation = (
 const unavailableStatus = (
   client: SetupClient,
   state: "missing" | "invalid",
+  configPath: string = client.configPath,
 ): ClientRegistrationStatus => ({
   client: client.name,
-  config_path: client.configPath,
+  config_path: configPath,
   command: [],
   state,
   remediation: remediation(client),

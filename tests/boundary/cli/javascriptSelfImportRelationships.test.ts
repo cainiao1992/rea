@@ -1,8 +1,12 @@
+import { rm } from "node:fs/promises";
+import { join } from "node:path";
+
 import { expect } from "vitest";
 
 import { parseEvidence } from "../../../src/domain/evidence.js";
 import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { createStrippedAsarAddon } from "../../fixtures/strippedAsarAddon.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
 import {
   findExportNode,
@@ -10,6 +14,75 @@ import {
   findSourceModule,
   writeFixtureFiles,
 } from "../../support/javascriptApplicationFixture.js";
+
+cliTest(
+  "resolves ESM specifiers containing whitespace using URL text semantics",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-esm-whitespace-path-");
+    const rawSpecifier = "./feature\tname.js";
+    const encodedSpecifier = "./feature%09name.js";
+    await writeFixtureFiles(root, {
+      "main.mjs": `import ${JSON.stringify(rawSpecifier)};\nimport ${JSON.stringify(encodedSpecifier)};\n`,
+      "featurename.js": "export const plain = 1;\n",
+      "feature\tname.js": "export const value = 1;\n",
+    });
+    const output = await cli.run({
+      arguments: ["analyze-javascript-application", root, "--json"],
+    });
+    expect(output.exitCode, output.stderr).toBe(0);
+    const result = javascriptApplicationAnalysisResultSchema.parse(
+      parseEvidence(output.json).normalized_result,
+    );
+    expect(
+      findGraphEdge(
+        result.graph,
+        findSourceModule(result.graph, "main.mjs"),
+        findSourceModule(result.graph, "featurename.js"),
+        "imports",
+      )?.properties,
+    ).toMatchObject({
+      specifier: rawSpecifier,
+      resolved_path: "featurename.js",
+    });
+    expect(
+      findGraphEdge(
+        result.graph,
+        findSourceModule(result.graph, "main.mjs"),
+        findSourceModule(result.graph, "feature\tname.js"),
+        "imports",
+      )?.properties,
+    ).toMatchObject({
+      specifier: encodedSpecifier,
+      resolved_path: "feature\tname.js",
+    });
+  },
+);
+
+cliTest(
+  "retains an inventoried native addon when its ASAR companion is missing",
+  async ({ cli }) => {
+    const { archive, addon } = await createStrippedAsarAddon();
+    await rm(join(`${archive}.unpacked`, addon));
+    const output = await cli.run({
+      arguments: ["analyze-javascript-application", archive, "--json"],
+    });
+    expect(output.exitCode, output.stderr).toBe(0);
+    const result = javascriptApplicationAnalysisResultSchema.parse(
+      parseEvidence(output.json).normalized_result,
+    );
+    expect(result.graph.coverage.status).toBe("partial");
+    expect(
+      result.graph.nodes.some(
+        (node) =>
+          node.kind === "native-addon" &&
+          node.observations.some(
+            ({ label, properties }) =>
+              label === addon && properties.availability === "unavailable",
+          ),
+      ),
+    ).toBe(true);
+  },
+);
 
 cliTest(
   "resolves emitted module imports without substituting Electron runtime paths",

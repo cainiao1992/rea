@@ -5,6 +5,7 @@ import { BUILTIN_RESOURCE_METHODS } from "./javascriptBuiltinResourceMethods.js"
 import type { JavaScriptModuleOrigin } from "./javascriptSemanticIr.js";
 import {
   resolveSemanticBindingState,
+  isUnmodifiedCommonJsWrapperBinding,
   semanticResolutionBlocked,
   semanticStableInitializer,
   type JavaScriptSemanticAnalysisState,
@@ -46,13 +47,7 @@ export const semanticRequireLoaderAt = (
     return binding.initializers.length === 0 ? "factory-loader" : "unknown";
   if (isWrapperRequireInitializerCall(binding, node, state))
     return "commonjs-loader";
-  const scope = state.scopesById.get(binding.scopeId);
-  if (
-    scope?.kind === "program" &&
-    binding.declarationKinds.size > 0 &&
-    [...binding.declarationKinds].every((kind) => kind === "var") &&
-    binding.initializers.length === 0
-  )
+  if (isUnmodifiedCommonJsWrapperBinding(node.callee, "require", state))
     return "commonjs-loader";
   if (isSemanticCreateRequireBinding(binding, state)) return "create-require";
   const initializer = semanticStableInitializer(binding, state)?.node;
@@ -214,10 +209,9 @@ const writesModuleRequire = (
     const value = unwrapJavaScriptExpression(node).node;
     if (!t.isIdentifier(value)) return false;
     if (value.name === "module")
-      return (
-        resolveSemanticBindingState(state, value, "module") === undefined &&
-        !semanticResolutionBlocked(state, value, "module")
-      );
+      return resolveSemanticBindingState(state, value, "module") === undefined
+        ? !semanticResolutionBlocked(state, value, "module")
+        : isUnmodifiedCommonJsWrapperBinding(value, "module", state);
     const binding = resolveSemanticBindingState(state, value, value.name);
     if (binding === undefined || visited.has(binding.bindingId)) return false;
     const next = new Set(visited).add(binding.bindingId);
@@ -453,10 +447,17 @@ export const semanticRequireOrigin = (
     )
   )
     return undefined;
+  const requireBinding = resolveSemanticBindingState(
+    state,
+    current.callee,
+    "require",
+  );
   if (
-    resolveSemanticBindingState(state, current.callee, "require") !==
-      undefined ||
-    semanticResolutionBlocked(state, current.callee, "require") ||
+    (requireBinding !== undefined &&
+      !isUnmodifiedCommonJsWrapperBinding(current.callee, "require", state) &&
+      !isWrapperRequireInitializerCall(requireBinding, current, state)) ||
+    (requireBinding === undefined &&
+      semanticResolutionBlocked(state, current.callee, "require")) ||
     (state.ambientBindingWrites.get("require") ?? []).some(
       (write) =>
         !semanticTopLevelEffectFollowsCapture(

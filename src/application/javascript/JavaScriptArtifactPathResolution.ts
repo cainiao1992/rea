@@ -499,6 +499,7 @@ const contextualCandidate = (
   }
   const hasUrlPathSemantics =
     context === "module-specifier" && input.moduleKind === "import";
+  if (hasUrlPathSemantics) declared = htmlUrlText(declared);
   const rejected = rejectDeclaration(
     declared,
     declaresLiteralPercent(input) || hasUrlPathSemantics,
@@ -1400,7 +1401,9 @@ const findFileCandidate = (
       candidatePath: path,
       limitations: [
         ...(unanalyzed.limitations ?? []),
-        `${path} exists in the inventoried artifact container (sha256 ${unanalyzed.sha256 ?? "unknown"}, ${unanalyzed.bytes === null ? "unknown size" : `${String(unanalyzed.bytes)} bytes`}) but is not a JavaScript, JSON, HTML, source map, or native add-on file; its contents were not analyzed.`,
+        unanalyzed.kind === undefined
+          ? `${path} exists in the inventoried artifact container (sha256 ${unanalyzed.sha256 ?? "unknown"}, ${unanalyzed.bytes === null ? "unknown size" : `${String(unanalyzed.bytes)} bytes`}) but is not a JavaScript, JSON, HTML, source map, or native add-on file; its contents were not analyzed.`
+          : `${path} is an inventoried ${unanalyzed.kind} file, but its bytes are unavailable (hash status ${unanalyzed.hash_status ?? "unknown"}); resolution cannot be confirmed.`,
       ],
     };
   return null;

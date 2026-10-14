@@ -68,6 +68,56 @@ describe("artifact-local graph identity", () => {
 });
 
 describe("loader-owned path lookup", () => {
+  it("applies URL whitespace handling only to ESM lookup and retains declarations", () => {
+    const tab = "\t";
+    const files = fileMap([
+      file("app/entry.mjs", "root"),
+      file("app/feature.js", "root"),
+      file(`app/tab${tab}name.js`, "root"),
+    ]);
+    for (const whitespace of ["\t", "\n", "\r"]) {
+      const raw = `./fea${whitespace}ture.js`;
+      expect(
+        resolve({
+          declaredPath: raw,
+          sourcePath: "app/entry.mjs",
+          context: "module-specifier",
+          moduleKind: "import",
+          files,
+        }),
+      ).toMatchObject({ declared_path: raw, resolved_path: "app/feature.js" });
+    }
+    expect(
+      resolve({
+        declaredPath: `./tab${tab}name.js`,
+        sourcePath: "app/entry.mjs",
+        context: "module-specifier",
+        moduleKind: "import",
+        files,
+      }),
+    ).toMatchObject({ resolved_path: null });
+    expect(
+      resolve({
+        declaredPath: `./tab${tab}name.js`,
+        sourcePath: "app/entry.cjs",
+        context: "module-specifier",
+        moduleKind: "require",
+        files,
+      }),
+    ).toMatchObject({ resolved_path: "app/tab\tname.js" });
+    expect(
+      resolve({
+        declaredPath: "./tab%09name.js",
+        sourcePath: "app/entry.mjs",
+        context: "module-specifier",
+        moduleKind: "import",
+        files,
+      }),
+    ).toMatchObject({ resolved_path: "app/tab\tname.js" });
+  });
+});
+
+describe("loader-specific module suffix lookup", () => {
   it("keeps relative ESM imports exact", () => {
     const files = fileMap([
       file("app/entry.mjs", "root"),
@@ -183,6 +233,42 @@ describe("loader-owned path lookup", () => {
         },
       }),
     ).toMatchObject({ resolution_status: "not-found", resolved_path: null });
+  });
+});
+
+describe("unavailable inventoried native add-ons", () => {
+  it("retains an inventoried native add-on whose bytes are unavailable", () => {
+    const unavailable = {
+      path: "app/addon.node",
+      container_sha256: file("app/entry.cjs", "root").container_sha256,
+      sha256: null,
+      bytes: 8192,
+      inventory_artifact_id: null,
+      inventory_occurrence_id: "missing-addon-occurrence",
+      kind: "native-addon" as const,
+      hash_status: "unavailable" as const,
+      limitations: ["unpacked companion is missing"],
+    };
+    const result = resolve({
+      declaredPath: "./addon.node",
+      sourcePath: "app/entry.cjs",
+      context: "module-specifier",
+      moduleKind: "require",
+      files: fileMap([file("app/entry.cjs", "root")]),
+      unanalyzedFiles: {
+        get: (path) => (path === unavailable.path ? unavailable : undefined),
+        hasDirectory: () => false,
+      },
+    });
+    expect(result).toMatchObject({
+      declared_path: "./addon.node",
+      resolution_status: "unavailable",
+      candidate_path: "app/addon.node",
+      limitations: [
+        "unpacked companion is missing",
+        expect.stringContaining("inventoried native-addon file"),
+      ],
+    });
   });
 });
 

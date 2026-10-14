@@ -934,7 +934,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
             String value = decompiledText(decompile(function));
             JsonObject result = functionObservation(
                 value == null ? JsonNull.INSTANCE : GSON.toJsonTree(value),
-                noReturnCallLimitations(
+                functionBoundaryLimitations(
                     function,
                     currentProgram.getListing().getInstructions(function.getBody(), true)
                 )
@@ -1027,7 +1027,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         InstructionScan scan = scanInstructions(function, Integer.MAX_VALUE);
         return functionObservation(
             GSON.toJsonTree(renderAssembly(scan.instructions)),
-            noReturnCallLimitations(function, scan.instructions)
+            functionBoundaryLimitations(function, scan.instructions)
         );
     }
 
@@ -1046,7 +1046,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         limitations.add(
             "The fast path does not invoke the decompiler or scan whole-program names and strings."
         );
-        List<String> boundaryLimitations = noReturnCallLimitations(function, scan.instructions);
+        List<String> boundaryLimitations = functionBoundaryLimitations(function, scan.instructions);
         for (String limitation : boundaryLimitations) limitations.add(limitation);
         JsonObject result = new JsonObject();
         result.add("procedure", procedureIdentity(function));
@@ -1069,7 +1069,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
             result.add(canonicalAddress(item.getEntryPoint()));
         }
         if (callers) {
-            JsonObject observation = functionObservation(result, noReturnCallLimitations(function,
+            JsonObject observation = functionObservation(result, functionBoundaryLimitations(function,
                 currentProgram.getListing().getInstructions(function.getBody(), true)
             ));
             observation.add("relationship_coverage", callRelationshipCoverage(null,
@@ -1099,7 +1099,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         result.add("classification", functionClassification(function));
         return functionObservation(
             result,
-            noReturnCallLimitations(
+            functionBoundaryLimitations(
                 function,
                 currentProgram.getListing().getInstructions(function.getBody(), true)
             )
@@ -1140,7 +1140,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
             unresolvedCalls = calls.unresolvedCalls();
             limitations = calls.limitations();
         } else {
-            limitations = noReturnCallLimitations(
+            limitations = functionBoundaryLimitations(
                 function,
                 currentProgram.getListing().getInstructions(function.getBody(), true)
             );
@@ -3441,51 +3441,27 @@ public final class ReaGhidraBridge extends HeadlessScript {
         return omitted[0];
     }
 
-    private List<String> noReturnCallLimitations(
+    private List<String> functionBoundaryLimitations(
             Function function, Iterable<Instruction> instructions)
             throws Exception {
-        List<String> limitations = new ArrayList<>();
-        Instruction beforePrevious = null;
-        Instruction previous = null;
-        for (Instruction instruction : instructions) {
-            monitor.checkCancelled();
-            String limitation = terminalCallLimitation(instruction);
-            if (limitation != null) limitations.add(limitation);
-            if (beforePrevious != null && previous != null) {
-                String seh = borlandSehHandlerLimitation(
-                    function, beforePrevious, previous, instruction);
-                if (seh != null) limitations.add(seh);
-            }
-            beforePrevious = previous;
-            previous = instruction;
-        }
-        return limitations;
+        FunctionBoundaryLimitations boundary = new FunctionBoundaryLimitations(function);
+        for (Instruction instruction : instructions) boundary.observe(instruction);
+        return boundary.values();
     }
 
     private CallBoundaryObservation callBoundaryObservation(
             Function function, Iterable<Instruction> instructions, Set<Function> returnedCallees,
             boolean includeUnresolvedSites, List<Reference> observedReferences)
             throws Exception {
-        List<String> limitations = new ArrayList<>();
+        FunctionBoundaryLimitations boundary = new FunctionBoundaryLimitations(function);
         CallBoundaryReferences calls = new CallBoundaryReferences(returnedCallees, includeUnresolvedSites);
-        Instruction beforePrevious = null;
-        Instruction previous = null;
         if (observedReferences == null) visitReferences(function, "outgoing", calls::observe);
         else for (Reference reference : observedReferences) {
             monitor.checkCancelled();
             calls.observe(reference);
         }
         for (Instruction instruction : instructions) {
-            monitor.checkCancelled();
-            String limitation = terminalCallLimitation(instruction);
-            if (limitation != null) limitations.add(limitation);
-            if (beforePrevious != null && previous != null) {
-                String seh = borlandSehHandlerLimitation(
-                    function, beforePrevious, previous, instruction);
-                if (seh != null) limitations.add(seh);
-            }
-            beforePrevious = previous;
-            previous = instruction;
+            boundary.observe(instruction);
             if (!instruction.getFlowType().isCall()) continue;
             boolean destination = false;
             for (Reference reference : instruction.getReferencesFrom()) {
@@ -3499,8 +3475,36 @@ public final class ReaGhidraBridge extends HeadlessScript {
                     "Instruction decoder identifies a call but ReferenceManager supplies no call destination");
             }
         }
-        return new CallBoundaryObservation(List.copyOf(limitations),
+        return new CallBoundaryObservation(boundary.values(),
             returnedCallees == null ? null : calls.unrepresented, calls.unresolvedCalls());
+    }
+
+    private final class FunctionBoundaryLimitations {
+        private final Function function;
+        private final List<String> limitations = new ArrayList<>();
+        private Instruction beforePrevious;
+        private Instruction previous;
+
+        private FunctionBoundaryLimitations(Function function) {
+            this.function = function;
+        }
+
+        private void observe(Instruction instruction) throws Exception {
+            monitor.checkCancelled();
+            String limitation = terminalCallLimitation(instruction);
+            if (limitation != null) limitations.add(limitation);
+            if (beforePrevious != null && previous != null) {
+                String seh = borlandSehHandlerLimitation(
+                    function, beforePrevious, previous, instruction);
+                if (seh != null) limitations.add(seh);
+            }
+            beforePrevious = previous;
+            previous = instruction;
+        }
+
+        private List<String> values() {
+            return List.copyOf(limitations);
+        }
     }
 
     private String borlandSehHandlerLimitation(

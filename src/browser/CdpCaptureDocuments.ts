@@ -561,7 +561,7 @@ interface DomMetadataOptions {
   readonly nodeName: string;
   readonly allowedOrigins: ReadonlySet<string>;
   readonly svgElement: boolean;
-  readonly xmlDocument: boolean;
+  readonly xmlDocument: boolean | undefined;
   readonly xlinkHref: string | undefined;
 }
 

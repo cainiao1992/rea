@@ -73,6 +73,23 @@ const ownership = {
   expectedParentPid: 1,
 } satisfies OwnedProcessGroup;
 
+const emptyHookSnapshot = () => ({
+  events: [],
+  retention_budget_bytes: 0,
+  estimated_retained_bytes: 0,
+  event_serialized_byte_upper_bound: 0,
+  retained: 0,
+  dropped: 0,
+  dropped_ipc: 0,
+  dropped_runtime: 0,
+  dropped_event_families: [],
+  dropped_event_roles: [],
+  observed: 0,
+  observed_ipc: 0,
+  observed_runtime: 0,
+  hook_error: false,
+});
+
 it("does not signal a Windows Electron PID when lineage is unavailable", async () => {
   const terminateTree = vi.fn(async () => ({
     cleaned: true as const,
@@ -138,27 +155,11 @@ it("retains the partial capture without taskkill when Windows lineage is unavail
   const terminateTree = vi
     .spyOn(processOwnership, "cleanupWindowsProcessTree")
     .mockResolvedValue({ cleaned: true, signaled: true });
-  const hookSnapshot = {
-    events: [],
-    retention_budget_bytes: 0,
-    estimated_retained_bytes: 0,
-    event_serialized_byte_upper_bound: 0,
-    retained: 0,
-    dropped: 0,
-    dropped_ipc: 0,
-    dropped_runtime: 0,
-    dropped_event_families: [],
-    dropped_event_roles: [],
-    observed: 0,
-    observed_ipc: 0,
-    observed_runtime: 0,
-    hook_error: false,
-  };
   vi.spyOn(electronActions, "readApplicationState").mockResolvedValue({
     windows: [],
     metrics: [],
     electronVersion: "44.0.0",
-    hookSnapshot,
+    hookSnapshot: emptyHookSnapshot(),
   });
   const application = {
     process: () => ({ pid: 424242 }),
@@ -205,4 +206,50 @@ it("retains the partial capture without taskkill when Windows lineage is unavail
     if (originalPlatform !== undefined)
       Object.defineProperty(process, "platform", originalPlatform);
   }
+});
+
+it("retains the initial snapshot when the final state read fails", async () => {
+  const initialState = {
+    windows: [],
+    metrics: [],
+    electronVersion: "44.0.0",
+    hookSnapshot: emptyHookSnapshot(),
+  };
+  vi.spyOn(electronActions, "readApplicationState")
+    .mockResolvedValueOnce(initialState)
+    .mockRejectedValueOnce(new Error("final renderer state unavailable"));
+  const application = {
+    process: () => ({ pid: 424242 }),
+    close: vi.fn(async () => undefined),
+    windows: () => [],
+  };
+  const provider = new PlaywrightElectronActiveProvider(
+    {},
+    async () =>
+      application as unknown as Awaited<
+        ReturnType<typeof import("playwright-core")._electron.launch>
+      >,
+  );
+
+  const result = await provider.capture({
+    ...electronActiveObservationInputSchema.parse({
+      executable_path: process.execPath,
+      application_path: process.execPath,
+      actions: [],
+    }),
+    application_root: dirname(process.execPath),
+  });
+
+  expect(result.ok).toBe(false);
+  if (result.ok) throw new Error("Expected final state capture to fail");
+  const partialObservation = result.error.partialObservation;
+  expect(partialObservation).toMatchObject({
+    kind: "electron-active-observation",
+    capture: {
+      application: { electron_version: "44.0.0" },
+      limitations: expect.arrayContaining([
+        expect.stringContaining("initial pre-action snapshot"),
+      ]),
+    },
+  });
 });

@@ -684,6 +684,44 @@ describe("web capture WebSocket payload byte coverage", () => {
 });
 
 describe("web capture diff", () => {
+  it("reports request membership changes when selected body shapes are unavailable", async () => {
+    const browser = await startFakeCdpBrowser();
+    browsers.push(browser);
+    const captured = await new CdpBrowserProvider().inspectPage(
+      inspectWebPageInputSchema.parse({
+        cdp_endpoint: browser.endpoint,
+        allowed_origins: [browser.allowedOrigin],
+        target_id: "allowed-page",
+        observation_ms: 0,
+      }),
+    );
+    if (!captured.ok) throw captured.error;
+    const before = structuredClone(captured.value);
+    const after = structuredClone(captured.value);
+    const original = before.network.requests[0];
+    if (original === undefined) throw new Error("Missing request fixture");
+    after.network.requests.push({
+      ...structuredClone(original),
+      request_id: `${original.request_id}-added`,
+      url: `${browser.allowedOrigin}/added`,
+    });
+    for (const inspection of [before, after]) {
+      markSectionsComplete(inspection, [
+        "network_requests",
+        "websocket_connections",
+        "websocket_frames",
+      ]);
+      for (const request of inspection.network.requests)
+        request.body_shapes.status = "unavailable";
+    }
+
+    expect(compareNetwork(before, after)).toMatchObject({
+      status: "changed",
+      total_changes: 1,
+      changes: [expect.objectContaining({ change: "added" })],
+    });
+  });
+
   it.each(["status", "mime_type"] as const)(
     "keeps an independently unavailable HTTP %s unknown",
     async (field) => {

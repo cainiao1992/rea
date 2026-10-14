@@ -333,6 +333,13 @@ const networkDimension = (
   );
   const beforeWebSockets = webSocketGroups(before);
   const afterWebSockets = webSocketGroups(after);
+  const inventoryComplete = [before, after].every((inspection) =>
+    sectionsComplete(inspection, [
+      "network_requests",
+      "websocket_connections",
+      "websocket_frames",
+    ]),
+  );
   const [beforeWebSocketPayload, afterWebSocketPayload] = webSocketPayloadMaps(
     beforeWebSockets,
     afterWebSockets,
@@ -349,17 +356,12 @@ const networkDimension = (
       ...webSocketMetadataMap(afterWebSockets),
       ...afterWebSocketPayload,
     ]),
-    [before, after].every((inspection) =>
-      sectionsComplete(inspection, [
-        "network_requests",
-        "websocket_connections",
-        "websocket_frames",
-      ]),
-    ) &&
+    inventoryComplete &&
       shapesComplete &&
       webSocketPayloadBytesComplete &&
       webSocketShapesComplete,
     "Network capture or selected HTTP/WebSocket payload-shape coverage is attach-window limited, unavailable, or incomplete.",
+    inventoryComplete,
   );
   return compared.status === "unchanged" && !responseFieldsComplete
     ? {

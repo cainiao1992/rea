@@ -113,6 +113,18 @@ const createCoverage = (hookSnapshot: ElectronHookSnapshot) => {
   } as const;
 };
 
+const hasObservedPreloadConfiguration = (
+  hookSnapshot: ElectronHookSnapshot,
+): boolean =>
+  hookSnapshot.events.some(
+    ({ kind, process_type }) =>
+      kind === "preload" &&
+      (process_type === "main" || process_type === "browser"),
+  ) ||
+  hookSnapshot.dropped_event_families.some(
+    ({ family, count }) => family === "preload-configuration" && count > 0,
+  );
+
 /** Project one provider hook snapshot into the canonical public result. */
 export const projectElectronActiveCapture = (
   paths: ElectronCapturePaths,
@@ -166,7 +178,7 @@ export const projectElectronActiveCapture = (
       "IPC direction and sender/receiver identifiers are observed only where Electron exposes them at the hooked boundary.",
       "The runtime timeline records lifecycle, navigation, shell, permission, popup, download, protocol, preload, native-addon, process, and IPC events; activity before hook installation is unavailable.",
       "The preload and renderer process contexts are not instrumented by the main-process -r hook; preload configuration and contextBridge API-shape events are main-boundary observations, not proof of renderer-side execution.",
-      ...(!hookSnapshot.events.some(({ kind }) => kind === "preload")
+      ...(!hasObservedPreloadConfiguration(hookSnapshot)
         ? [
             "Preload configuration was not exposed by the observed Electron window metadata. Preload paths and execution remain unavailable.",
           ]

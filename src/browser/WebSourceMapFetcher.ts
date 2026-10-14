@@ -11,6 +11,10 @@ import { isUrlLikeModuleSpecifier } from "../domain/webBundleAnalyzerAst.js";
 import { analyzeParsedJavaScriptReferences } from "../domain/javascript/javascriptSemanticAnalysis.js";
 import { traverseJavaScriptAst } from "../domain/javascript/javascriptSemanticTraversal.js";
 import { parseJavaScriptSource } from "../domain/javascript/javascriptSourceParser.js";
+import {
+  isTypeOnlyExportDeclaration,
+  isTypeOnlyImportDeclaration,
+} from "../domain/javascript/javascriptModuleDeclaration.js";
 import { stringValue } from "../domain/javascript/javascriptStaticAnalysisHelpers.js";
 import type {
   AnalyzeWebBundleInput,
@@ -1061,7 +1065,11 @@ const originalDependency = (
     t.isExportAllDeclaration(node) ||
     t.isExportNamedDeclaration(node)
   )
-    return node.source === null || node.source === undefined
+    return node.source === null ||
+      node.source === undefined ||
+      (t.isImportDeclaration(node)
+        ? isTypeOnlyImportDeclaration(node)
+        : isTypeOnlyExportDeclaration(node))
       ? null
       : { kind: "static_import", specifier: node.source.value };
   if (t.isImportExpression(node)) {

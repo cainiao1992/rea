@@ -68,8 +68,8 @@ const eventFamily = (
   return ipcEventKinds.has(kind) ? "ipc" : kind;
 };
 
-const createCoverage = (hookSnapshot: ElectronHookSnapshot) => {
-  const observedEventFamilies: string[] = [
+const normalizeObservations = (hookSnapshot: ElectronHookSnapshot) => {
+  const observedEventFamilies = [
     ...new Set([
       ...hookSnapshot.events.map(({ kind, process_type }) =>
         eventFamily(kind, process_type),
@@ -77,11 +77,6 @@ const createCoverage = (hookSnapshot: ElectronHookSnapshot) => {
       ...hookSnapshot.dropped_event_families.map(({ family }) => family),
     ]),
   ].sort();
-  const unavailableEventFamilies = new Set<string>(
-    observableEventFamilies.filter(
-      (family) => !observedEventFamilies.includes(family),
-    ),
-  );
   const observedRoles = [
     ...new Set([
       ...hookSnapshot.events.flatMap(({ process_type, kind }) => [
@@ -100,6 +95,19 @@ const createCoverage = (hookSnapshot: ElectronHookSnapshot) => {
       ...hookSnapshot.dropped_event_roles.map(({ role }) => role),
     ]),
   ].sort();
+  return { observedEventFamilies, observedRoles };
+};
+
+const createCoverage = (
+  hookSnapshot: ElectronHookSnapshot,
+  observations: ReturnType<typeof normalizeObservations>,
+) => {
+  const { observedEventFamilies, observedRoles } = observations;
+  const unavailableEventFamilies = new Set<string>(
+    observableEventFamilies.filter(
+      (family) => !observedEventFamilies.includes(family),
+    ),
+  );
   if (!observedRoles.includes("preload"))
     unavailableEventFamilies.add("preload");
   if (!observedRoles.includes("renderer"))
@@ -113,17 +121,17 @@ const createCoverage = (hookSnapshot: ElectronHookSnapshot) => {
   } as const;
 };
 
-const hasObservedPreloadConfiguration = (
+const hasUnattributedDroppedPreloadFamily = (
   hookSnapshot: ElectronHookSnapshot,
 ): boolean =>
-  hookSnapshot.events.some(
-    ({ kind, process_type }) =>
-      kind === "preload" &&
-      (process_type === "main" || process_type === "browser"),
-  ) ||
   hookSnapshot.dropped_event_families.some(
-    ({ family, count }) => family === "preload-configuration" && count > 0,
+    ({ family, count }) => family === "preload" && count > 0,
   );
+
+const hasObservedPreloadConfiguration = (
+  observations: ReturnType<typeof normalizeObservations>,
+): boolean =>
+  observations.observedEventFamilies.includes("preload-configuration");
 
 /** Project one provider hook snapshot into the canonical public result. */
 export const projectElectronActiveCapture = (
@@ -132,6 +140,7 @@ export const projectElectronActiveCapture = (
   state: ElectronCaptureState,
 ): ElectronActiveObservationResult => {
   const { hookSnapshot } = state;
+  const observations = normalizeObservations(hookSnapshot);
   const ipcEvents = hookSnapshot.events.filter(({ kind }) =>
     ipcEventKinds.has(kind),
   );
@@ -172,15 +181,20 @@ export const projectElectronActiveCapture = (
       observed_runtime: hookSnapshot.observed_runtime,
       dropped_runtime: hookSnapshot.dropped_runtime,
     },
-    coverage: createCoverage(hookSnapshot),
+    coverage: createCoverage(hookSnapshot, observations),
     limitations: [
       "IPC payloads are represented by value shapes; payload values are never retained.",
       "IPC direction and sender/receiver identifiers are observed only where Electron exposes them at the hooked boundary.",
       "The runtime timeline records lifecycle, navigation, shell, permission, popup, download, protocol, preload, native-addon, process, and IPC events; activity before hook installation is unavailable.",
       "The preload and renderer process contexts are not instrumented by the main-process -r hook; preload configuration and contextBridge API-shape events are main-boundary observations, not proof of renderer-side execution.",
-      ...(!hasObservedPreloadConfiguration(hookSnapshot)
+      ...(!hasObservedPreloadConfiguration(observations)
         ? [
             "Preload configuration was not exposed by the observed Electron window metadata. Preload paths and execution remain unavailable.",
+          ]
+        : []),
+      ...(hasUnattributedDroppedPreloadFamily(hookSnapshot)
+        ? [
+            "Dropped preload-family events were not attributed to preload configuration; independently aggregated event families and roles cannot establish that relationship.",
           ]
         : []),
       "Process metrics are an Electron API snapshot and do not prove hostile-local-user isolation.",

@@ -6,8 +6,8 @@ import { expect } from "vitest";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
 
-cliTest.skipIf(process.platform === "win32")(
-  "preserves a configured Hopper launcher through public CLI doctor without launching it",
+cliTest.skipIf(!["darwin", "linux"].includes(process.platform))(
+  "retains a configured Hopper path in host diagnostics without launching it",
   async ({ cli }) => {
     const home = await createTestTempDirectory("rea-doctor-hopper-home-");
     const launcher = `${home}/bin/../bin/hopper`;
@@ -27,20 +27,31 @@ cliTest.skipIf(process.platform === "win32")(
         USERPROFILE: home,
         HOPPER_LAUNCHER_PATH: launcher,
         REA_HOPPER_TEST_MARKER: launchMarker,
+        GHIDRA_INSTALL_DIR: join(home, "missing-ghidra"),
       },
       timeoutMs: 20_000,
     });
 
+    const executableOnHost = process.platform === "darwin";
+    expect(result.signal).toBeNull();
+    expect(result.exitCode).toBe(executableOnHost ? 0 : 1);
     expect(result.json).toMatchObject({
-      hopperPath: launcher,
+      healthy: executableOnHost,
+      environment_healthy: false,
+      ...(executableOnHost ? { hopperPath: launcher } : {}),
       checks: expect.arrayContaining([
         expect.objectContaining({
           name: "hopper",
-          ok: true,
+          ok: executableOnHost,
           detail: launcher,
+          classification: executableOnHost ? "healthy" : "config_drift",
+          ...(executableOnHost
+            ? {}
+            : { remediation: expect.stringContaining("HOPPER_LAUNCHER_PATH") }),
         }),
       ]),
     });
+    if (!executableOnHost) expect(result.json).not.toHaveProperty("hopperPath");
     await expect(access(launchMarker)).rejects.toMatchObject({
       code: "ENOENT",
     });

@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 import { Cli, z } from "incur";
 
 import { logCliCommand } from "../cliLogging.js";
@@ -12,6 +14,7 @@ import { projectInputIssues } from "../domain/inputIssueProjection.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import type { Logger } from "pino";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
+import { createElectronFuseService } from "../composition/electronFuses.js";
 import { parseCliJsonInput, resolveCliJsonPaths } from "../cliJsonInput.js";
 import {
   electronPageInspectionOptions,
@@ -27,9 +30,38 @@ export const registerElectronCommands = (
   environment: Readonly<Record<string, string | undefined>>,
 ): void => {
   registerElectronObservationCommands(cli, logger);
+  registerElectronFuseCommand(cli, logger);
   registerElectronActiveCommand(cli, logger, environment);
   registerJavaScriptApplicationCommand(cli, logger);
   registerJavaScriptRuntimeReconciliationCommand(cli, logger);
+};
+
+const registerElectronFuseCommand = (
+  cli: ReturnType<typeof Cli.create>,
+  logger: Logger,
+): void => {
+  const service = createElectronFuseService();
+  cli.command(CLI_COMMANDS.inspectElectronFuses, {
+    description:
+      "Inspect packaged Electron fuse bytes without launching the application",
+    args: z.object({
+      path: z
+        .string()
+        .describe(
+          "Local Electron .app, Electron Framework binary, PE executable, or ELF executable",
+        ),
+    }),
+    run: ({ args }) =>
+      withCommandCancellation((signal) =>
+        logCliCommand(logger, CLI_COMMANDS.inspectElectronFuses, async () => {
+          const result = await service.inspect(
+            { path: resolve(args.path) },
+            { signal },
+          );
+          return result.ok ? result.value : projectAnalysisError(result.error);
+        }),
+      ),
+  });
 };
 
 const registerElectronActiveCommand = (

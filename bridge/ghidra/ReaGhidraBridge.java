@@ -1131,12 +1131,22 @@ public final class ReaGhidraBridge extends HeadlessScript {
         result.addProperty("direction", direction);
         result.add("references", edges);
         result.addProperty("reference_kinds_available", true);
-        JsonArray unresolvedCalls = direction.equals("outgoing")
-            ? callBoundaryObservation(
+        List<String> limitations;
+        JsonArray unresolvedCalls = new JsonArray();
+        if (direction.equals("outgoing")) {
+            CallBoundaryObservation calls = callBoundaryObservation(
                 function, currentProgram.getListing().getInstructions(function.getBody(), true), null, true, references
-            ).unresolvedCalls() : new JsonArray();
+            );
+            unresolvedCalls = calls.unresolvedCalls();
+            limitations = calls.limitations();
+        } else {
+            limitations = noReturnCallLimitations(
+                function,
+                currentProgram.getListing().getInstructions(function.getBody(), true)
+            );
+        }
         result.add("unresolved_calls", unresolvedCalls);
-        return result;
+        return functionObservation(result, limitations);
     }
 
     private JsonObject inspectNativeDataType(JsonObject params) throws Exception {

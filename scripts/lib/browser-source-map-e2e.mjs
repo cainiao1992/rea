@@ -12,7 +12,7 @@ import { parseEvidence } from "../../dist/domain/evidence.js";
 import { webSourceLocationResultSchema } from "../../dist/domain/webSourceLocation.js";
 import { startBrowserSourceMapSite } from "../fixtures/browser-source-map-site.mjs";
 import { mcpTextValue } from "./mcp-verifier-results.mjs";
-import { closeRuntimeFixtureResources } from "./browser-runtime-fixture-lifecycle.mjs";
+import { closeVerifierResources } from "./verifier-cleanup.mjs";
 
 /** Verify real Chrome capture → export → original compiler point through packaged CLI/MCP. */
 export async function verifyBrowserSourceMap(
@@ -142,7 +142,7 @@ export async function verifyBrowserSourceMap(
     if (site !== undefined) cleanup.push(() => site.close());
     if (root !== undefined)
       cleanup.push(() => rm(root, { recursive: true, force: true }));
-    await closeRuntimeFixtureResources(cleanup, primaryError);
+    await closeVerifierResources(cleanup, primaryError);
   }
 }
 function assertPoint(evidence, { site, input, capture, identity }) {

@@ -16,10 +16,8 @@ import { webEventListenersSchema } from "../../dist/domain/webEventListeners.js"
 import { startBrowserRuntimeSite } from "../fixtures/browser-runtime-site.mjs";
 import { requireOrdinaryWindowsVerifierCaller } from "./windows-ordinary-user-verifier.mjs";
 import { mcpTextValue } from "./mcp-verifier-results.mjs";
-import {
-  startRuntimeFixtureBrowser,
-  closeRuntimeFixtureResources,
-} from "./browser-runtime-fixture-lifecycle.mjs";
+import { startRuntimeFixtureBrowser } from "./browser-runtime-fixture-lifecycle.mjs";
+import { closeVerifierResources } from "./verifier-cleanup.mjs";
 import { verifyRuntimeTargetTermination } from "./browser-runtime-termination-e2e.mjs";
 import { verifyRuntimeInvalidSelectors } from "./browser-runtime-selector-e2e.mjs";
 import {
@@ -182,7 +180,7 @@ export async function verifyBrowserRuntime(
     primaryError = cause;
     throw cause;
   } finally {
-    await closeRuntimeFixtureResources(
+    await closeVerifierResources(
       [
         () => client?.close(),
         () => action?.close(),

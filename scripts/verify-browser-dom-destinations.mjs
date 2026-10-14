@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { startBrowserVerifierSite } from "./fixtures/browser-verifier-site.mjs";
 import { verifyBrowserDomDestinations } from "./lib/browser-dom-destinations-e2e.mjs";
-import { closeRuntimeFixtureResources } from "./lib/browser-runtime-fixture-lifecycle.mjs";
+import { closeVerifierResources } from "./lib/verifier-cleanup.mjs";
 import { requireOrdinaryWindowsVerifierCaller } from "./lib/windows-ordinary-user-verifier.mjs";
 
 const executable = process.env.REA_BROWSER_EXECUTABLE;
@@ -65,6 +65,6 @@ try {
   if (site !== undefined) cleanup.push(() => site.close());
   if (profile !== undefined)
     cleanup.push(() => rm(profile, { recursive: true, force: true }));
-  await closeRuntimeFixtureResources(cleanup, primaryError);
+  await closeVerifierResources(cleanup, primaryError);
 }
 process.stdout.write(`${JSON.stringify(report)}\n`);

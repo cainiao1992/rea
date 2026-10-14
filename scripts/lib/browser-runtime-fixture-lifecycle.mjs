@@ -153,20 +153,3 @@ async function stopOwnedBrowser(owned, profile) {
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
 }
-
-/** Attempt every owned cleanup and retain the original verification failure if cleanup also fails. */
-export async function closeRuntimeFixtureResources(tasks, primaryError) {
-  const failures = [];
-  for (const task of tasks) {
-    try {
-      await task();
-    } catch (cause) {
-      failures.push(cause);
-    }
-  }
-  if (failures.length > 0)
-    throw new AggregateError(
-      primaryError === undefined ? failures : [primaryError, ...failures],
-      "Runtime fixture cleanup failed",
-    );
-}

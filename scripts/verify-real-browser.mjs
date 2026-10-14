@@ -39,7 +39,7 @@ import {
   verifyScenarioFailureEvidence,
 } from "./lib/browser-scenario-verifier.mjs";
 import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
-import { closeRuntimeFixtureResources } from "./lib/browser-runtime-fixture-lifecycle.mjs";
+import { closeVerifierResources } from "./lib/verifier-cleanup.mjs";
 import { requireOrdinaryWindowsVerifierCaller } from "./lib/windows-ordinary-user-verifier.mjs";
 import { verifyLargeScreenshotE2e } from "./lib/browser-screenshot-e2e.mjs";
 import { verifyPopupEventCoverage } from "./lib/browser-popup-e2e.mjs";
@@ -447,7 +447,7 @@ try {
         retryDelay: 100,
       }),
     );
-  await closeRuntimeFixtureResources(cleanup, verificationError);
+  await closeVerifierResources(cleanup, verificationError);
 }
 process.stdout.write(
   `${JSON.stringify({

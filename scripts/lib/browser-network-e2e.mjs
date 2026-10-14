@@ -14,7 +14,7 @@ import {
 } from "../fixtures/browser-network-site.mjs";
 import { assertBrowserNetworkEvidence } from "./browser-network-assertions.mjs";
 import { scenarioProfiles } from "./browser-scenario-verifier.mjs";
-import { closeRuntimeFixtureResources } from "./browser-runtime-fixture-lifecycle.mjs";
+import { closeVerifierResources } from "./verifier-cleanup.mjs";
 
 /** Exercise selected network content through real CLI and stdio MCP, one browser at a time. */
 export async function verifyBrowserNetworkEvidence(
@@ -186,6 +186,6 @@ export async function verifyBrowserNetworkEvidence(
     if (client !== undefined) cleanup.push(() => client.close());
     if (transport !== undefined) cleanup.push(() => transport.close());
     if (site !== undefined) cleanup.push(() => site.close());
-    await closeRuntimeFixtureResources(cleanup, primaryError);
+    await closeVerifierResources(cleanup, primaryError);
   }
 }

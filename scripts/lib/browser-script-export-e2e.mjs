@@ -15,7 +15,7 @@ import {
   assertExportedScriptAnalysis,
 } from "./browser-script-export-assertions.mjs";
 import { mcpTextValue } from "./mcp-verifier-results.mjs";
-import { closeRuntimeFixtureResources } from "./browser-runtime-fixture-lifecycle.mjs";
+import { closeVerifierResources } from "./verifier-cleanup.mjs";
 
 /** Verify capture → export → existing analysis through real CLI and stdio MCP. */
 export async function verifyBrowserScriptExport(
@@ -119,7 +119,7 @@ export async function verifyBrowserScriptExport(
     if (site !== undefined) cleanup.push(() => site.close());
     if (root !== undefined)
       cleanup.push(() => rm(root, { recursive: true, force: true }));
-    await closeRuntimeFixtureResources(cleanup, primaryError);
+    await closeVerifierResources(cleanup, primaryError);
   }
 }
 

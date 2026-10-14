@@ -14,7 +14,7 @@ import { webModuleTraceResultSchema } from "../../dist/domain/webModuleTrace.js"
 import { NativeModuleResolver } from "../../dist/browser/modules/NativeModuleResolver.js";
 import { startBrowserModuleSite } from "../fixtures/browser-module-site.mjs";
 import { mcpTextValue } from "./mcp-verifier-results.mjs";
-import { closeRuntimeFixtureResources } from "./browser-runtime-fixture-lifecycle.mjs";
+import { closeVerifierResources } from "./verifier-cleanup.mjs";
 
 /** Check native URL resolution against an independently loaded module graph through CLI/MCP. */
 export async function verifyBrowserModules(
@@ -314,7 +314,7 @@ export async function verifyBrowserModules(
     if (site !== undefined) cleanup.push(() => site.close());
     if (root !== undefined)
       cleanup.push(() => rm(root, { recursive: true, force: true }));
-    await closeRuntimeFixtureResources(cleanup, primaryError);
+    await closeVerifierResources(cleanup, primaryError);
   }
 }
 

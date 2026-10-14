@@ -9,18 +9,13 @@ import {
   referenceKindSchema,
 } from "../../domain/hopperValues.js";
 import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
-
-export interface NativeCallRouteLimitation {
-  readonly provider: ProviderIdentity;
-  readonly operation: "procedure_references" | "procedure_callees";
-  readonly limitation: string;
-}
+import type { SourceLimitation } from "../SourceLimitations.js";
 
 const limitationsFrom = (
-  operation: NativeCallRouteLimitation["operation"],
+  operation: SourceLimitation["operation"],
   provider: ProviderIdentity,
   limitations: readonly string[],
-): NativeCallRouteLimitation[] =>
+): SourceLimitation[] =>
   limitations.map((limitation) => ({ provider, operation, limitation }));
 
 const referencesSchema = z.object({
@@ -85,7 +80,7 @@ export const readNativeCallRoutes = async (
     reason: string;
     provider: ProviderIdentity;
   }> = [];
-  let limitations: NativeCallRouteLimitation[] = [];
+  let limitations: SourceLimitation[] = [];
   if (execution.ok) {
     limitations = limitationsFrom(
       "procedure_references",

@@ -13,10 +13,11 @@ import {
 import { nativeDispatchMetadataResultSchema } from "../../domain/native/objcSwiftMetadata.js";
 import { inspectNativeDispatch } from "./NativeDispatchMetadataInspection.js";
 import { jsonValueSchema } from "../../domain/jsonValue.js";
+import { readNativeCallRoutes } from "./NativeCallRoutes.js";
 import {
-  readNativeCallRoutes,
-  type NativeCallRouteLimitation,
-} from "./NativeCallRoutes.js";
+  renderSourceLimitations,
+  type SourceLimitation,
+} from "../SourceLimitations.js";
 import { err, ok } from "../../domain/result.js";
 import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
 import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
@@ -405,7 +406,7 @@ const addDirectCallees = async (input: {
   let examined = 0;
   let omitted = 0;
   let truncated = false;
-  const sourceLimitations: NativeCallRouteLimitation[] = [];
+  const sourceLimitations: SourceLimitation[] = [];
   while (queueIndex < queue.length) {
     const current = queue[queueIndex++];
     if (current === undefined || visited.has(current.address)) continue;
@@ -552,29 +553,6 @@ const addDirectCallees = async (input: {
     truncated,
     limitations: sourceLimitations,
   };
-};
-
-const renderSourceLimitations = (
-  limitations: readonly NativeCallRouteLimitation[],
-): string[] => {
-  const seen = new Set<string>();
-  const rendered: string[] = [];
-  for (const { provider, operation, limitation } of limitations) {
-    const provenance = JSON.stringify([
-      provider.id,
-      provider.name,
-      provider.version,
-      operation,
-      limitation,
-    ]);
-    if (seen.has(provenance)) continue;
-    seen.add(provenance);
-    const version = provider.version === null ? "" : ` ${provider.version}`;
-    rendered.push(
-      `${provider.name} (${provider.id}${version}) ${operation}: ${limitation}`,
-    );
-  }
-  return rendered;
 };
 
 const graphNodeDepths = (

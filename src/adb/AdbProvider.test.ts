@@ -121,6 +121,36 @@ fi`,
   ]);
 });
 
+it("observes daemon startup when notices are printed to stderr", async () => {
+  const { binary } = await writeAdbStub(
+    () => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi
+if [ "$1" = "devices" ]; then
+  printf '* daemon not running; starting now at tcp:5037\\n* daemon started successfully\\n' >&2
+  printf 'List of devices attached\\n'
+  printf 'emulator-5554          device product:sdk_gphone64_x86_64 model:sdk_gphone64_x86_64 device:emu64xa transport_id:1\\n'
+  exit 0
+fi`,
+  );
+  const result = await evidenceResult(providerOver(binary), {
+    operation: "list_adb_devices",
+    input: {},
+  });
+  expect(result.may_have_started_adb_server).toBe(true);
+  expect(result.devices).toEqual([
+    {
+      serial: "emulator-5554",
+      state: "device",
+      transport: "tcp",
+      product: "sdk_gphone64_x86_64",
+      model: "sdk_gphone64_x86_64",
+      device: "emu64xa",
+      transport_id: 1,
+      kind: "emulator",
+      kind_basis: "emulator_serial_prefix",
+    },
+  ]);
+});
+
 it("refuses device listings with an invalid state token", async () => {
   const malformedLine = "serial deviceXYZ  ";
   const { binary } = await writeAdbStub(

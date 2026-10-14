@@ -755,6 +755,7 @@ export class AdbProvider {
         if (!ran.ok) return ran;
         const { devices, unparsedLines, daemonStarted } = parseAdbDevicesOutput(
           ran.value.stdout,
+          ran.value.stderr,
         );
         if (unparsedLines.length > 0)
           return err(

@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
   chmod,
+  mkdir,
   mkdtemp,
   readFile,
   rm,
@@ -10,7 +11,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -1216,8 +1217,18 @@ describe("CutterBridgeClient: bridge paths and native descriptor reads", () => {
     directory = undefined;
   });
 
-  it("expands a tilde bridge directory before discovering its live producer", async () => {
-    directory = await mkdtemp(join(homedir(), ".rea-cutter-tilde-"));
+  it("uses the selected caller home for tilde and default bridge discovery", async () => {
+    directory = await mkdtemp(join(tmpdir(), "rea-cutter-selected-home-"));
+    const selectedHome = join(directory, "selected-home");
+    const tildeDirectory = join(selectedHome, "bridge");
+    const defaultDirectory = join(
+      selectedHome,
+      ".cache",
+      "rea",
+      "cutter-bridge",
+    );
+    await mkdir(tildeDirectory, { recursive: true, mode: 0o700 });
+    await mkdir(defaultDirectory, { recursive: true, mode: 0o700 });
     const sessionId = "27d3e3f1-f1e5-49ae-91ec-95af1f343a5a";
     const token = "synthetic-cutter-bridge-token-for-tilde-test";
     server = authenticatedServer(token, sessionId, (request, respond) => {
@@ -1231,18 +1242,22 @@ describe("CutterBridgeClient: bridge paths and native descriptor reads", () => {
       });
     });
     const port = await listen(server);
-    await writeDescriptor(directory, sessionId, port, token, {
+    await writeDescriptor(tildeDirectory, sessionId, port, token, {
+      currentFile: "/fixture/sample",
+      documentGeneration: 3,
+    });
+    await writeDescriptor(defaultDirectory, sessionId, port, token, {
       currentFile: "/fixture/sample",
       documentGeneration: 3,
     });
 
-    const configured = `~/${relative(homedir(), directory)}`;
-    const result = await createClient({
-      REA_CUTTER_BRIDGE_DIR: configured,
+    const tildeResult = await createClient({
+      HOME: selectedHome,
+      REA_CUTTER_BRIDGE_DIR: "~/bridge",
     }).listSessions();
 
-    expect(result).toMatchObject({
-      bridge_directory: directory,
+    expect(tildeResult).toMatchObject({
+      bridge_directory: tildeDirectory,
       discovery_status: "sessions_found",
       sessions: [
         {
@@ -1252,6 +1267,37 @@ describe("CutterBridgeClient: bridge paths and native descriptor reads", () => {
         },
       ],
     });
+
+    const defaultResult = await createClient({
+      HOME: selectedHome,
+    }).listSessions();
+    expect(defaultResult).toMatchObject({
+      bridge_directory: defaultDirectory,
+      discovery_status: "sessions_found",
+      sessions: [{ session_id: sessionId }],
+    });
+  });
+
+  it("prefers Windows USERPROFILE over HOME when expanding a bridge path", async () => {
+    const selectedHome = join(tmpdir(), "rea-cutter-userprofile-home");
+    const ambientHome = join(tmpdir(), "rea-cutter-ambient-home");
+    const result = await new CutterBridgeClient(
+      {
+        HOME: ambientHome,
+        USERPROFILE: selectedHome,
+        REA_CUTTER_BRIDGE_DIR: "~\\bridge",
+      },
+      {
+        platform: "win32",
+        windowsPrivateReader: {
+          verifyDirectory: () => true,
+          readDescriptor: () => Buffer.from("{}"),
+        },
+      },
+    ).listSessions();
+
+    expect(result.bridge_directory).toBe(join(selectedHome, "bridge"));
+    expect(result.discovery_status).toBe("no_live_bridge_found");
   });
 
   it("uses the packaged Windows authority for descriptor verification and reads", async () => {

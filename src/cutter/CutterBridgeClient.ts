@@ -3,7 +3,6 @@ import { constants as fsConstants } from "node:fs";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createConnection } from "node:net";
 import { lstat, open, opendir } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 
@@ -16,6 +15,7 @@ import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { requireWindowsNativeAuthority } from "../windows/WindowsNativeLoader.js";
 import { readBoundedFileBytes } from "../process/BoundedFileBytes.js";
+import { homeDirectoryFromEnvironment } from "../config/homeDirectory.js";
 
 const descriptorSchema = z.object({
   session_id: z.string().uuid(),
@@ -282,6 +282,7 @@ export class CutterBridgeClient {
       configured,
       this.#platform,
       localAppData,
+      homeDirectoryFromEnvironment(environment, this.#platform),
     );
   }
 
@@ -894,16 +895,17 @@ const resolveBridgeDirectory = (
   configured: string | undefined,
   platform: NodeJS.Platform,
   localAppData: string | undefined,
+  homeDirectory: string,
 ): string => {
   if (configured !== undefined && configured !== "") {
-    if (configured === "~") return homedir();
+    if (configured === "~") return homeDirectory;
     if (configured.startsWith("~/"))
-      return join(homedir(), configured.slice(2));
+      return join(homeDirectory, configured.slice(2));
     if (platform === "win32" && configured.startsWith("~\\"))
-      return join(homedir(), configured.slice(2));
+      return join(homeDirectory, configured.slice(2));
     return configured;
   }
   return platform === "win32" && localAppData
     ? join(localAppData, "REA", "CutterBridge")
-    : join(homedir(), ".cache", "rea", "cutter-bridge");
+    : join(homeDirectory, ".cache", "rea", "cutter-bridge");
 };

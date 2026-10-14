@@ -65,6 +65,20 @@ it("projects closure and direct interprocedural flow without execution", () => {
   );
 });
 
+it("projects a destructuring assignment member target as a property write", () => {
+  const graph = graphFor(`
+    const source = { count: 1 };
+    [source.count] = [2];
+  `);
+  const operations = graph.nodes.filter(
+    ({ properties }) => properties.operation_kind !== undefined,
+  );
+  expect(operations.map(({ label }) => label)).toEqual(["write:/count"]);
+  expect(graph.relations).not.toContainEqual(
+    expect.objectContaining({ relation: "reads-property" }),
+  );
+});
+
 it("keeps dynamic calls explicit and returns complete deterministic results", () => {
   const graph = graphFor(`
       const handlers = { ready() { return 1; } };

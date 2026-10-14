@@ -170,3 +170,39 @@ describe("JavaScript semantic analysis: native bindings 2", () => {
     );
   });
 });
+
+describe("JavaScript semantic analysis: child-process signals", () => {
+  it("keeps unresolved kill signals distinct from default and literal signals", () => {
+    const ir = analyzeJavaScriptSemantics(`
+      import { spawn } from "node:child_process";
+      function run(signal) {
+        const child = spawn("/bin/tool");
+        child.kill(signal);
+        child.kill();
+        child.kill("SIGINT");
+        child.kill(undefined);
+        child.kill(undefined as NodeJS.Signals | undefined);
+        child.kill(void 0);
+        child.kill(void signal);
+      }
+      function shadowed(undefined) {
+        const child = spawn("/bin/tool");
+        child.kill(undefined);
+      }
+    `);
+
+    expect(ir.childProcessSpawns).toHaveLength(2);
+    expect(
+      ir.childProcessInteractions.map(({ signalName }) => signalName),
+    ).toEqual([
+      null,
+      "SIGTERM",
+      "SIGINT",
+      "SIGTERM",
+      "SIGTERM",
+      "SIGTERM",
+      "SIGTERM",
+      null,
+    ]);
+  });
+});

@@ -191,6 +191,11 @@ describe("Ghidra relationship coverage replay", () => {
 describe("Ghidra snapshot profile admission", () => {
   it.each([
     {
+      parameter: "function_boundary_observations",
+      current: "ghidra-function-boundary-limitations-v4",
+      legacy: "ghidra-function-boundary-limitations-v3",
+    },
+    {
       parameter: "instruction_references",
       current: "exact-address-incoming-without-synthetic-entry-v2",
       legacy: "exact-address-incoming-v1",

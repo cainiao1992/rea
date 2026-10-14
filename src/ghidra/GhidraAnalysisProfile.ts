@@ -42,6 +42,7 @@ import {
 } from "../domain/native/nativeAotPe.js";
 
 const callRelationshipCoverage = "function-body-call-coverage-v5";
+const functionBoundaryObservations = "ghidra-function-boundary-limitations-v4";
 const instructionReferenceCoverage =
   "exact-address-incoming-without-synthetic-entry-v2";
 
@@ -139,8 +140,7 @@ export const resolveGhidraAnalysisProfile = async (
             "address-first-unique-target-source-mapping-v2",
           instruction_flow_evidence: "decoded-return-pcode-v1",
           instruction_references: instructionReferenceCoverage,
-          function_boundary_observations:
-            "ghidra-function-boundary-limitations-v3",
+          function_boundary_observations: functionBoundaryObservations,
           no_return_repair:
             installation.platform === "win32"
               ? "disabled-windows-p0"
@@ -239,8 +239,7 @@ export const resolveGhidraAnalysisProfile = async (
           "address-first-unique-target-source-mapping-v2",
         instruction_flow_evidence: "decoded-return-pcode-v1",
         instruction_references: instructionReferenceCoverage,
-        function_boundary_observations:
-          "ghidra-function-boundary-limitations-v3",
+        function_boundary_observations: functionBoundaryObservations,
         no_return_repair:
           installation.platform === "win32"
             ? "disabled-windows-p0"

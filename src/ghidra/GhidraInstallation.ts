@@ -8,9 +8,10 @@ import {
   openSync,
   readFileSync,
   readSync,
+  realpathSync,
   statSync,
 } from "node:fs";
-import { posix, win32 } from "node:path";
+import { delimiter as pathDelimiter, dirname, posix, win32 } from "node:path";
 
 import type { ProviderRejectionCode } from "../contracts/providerSelection.js";
 import {
@@ -295,6 +296,11 @@ export interface GhidraInstallationHost {
     command: string,
     environment: NodeJS.ProcessEnv,
   ): GhidraJavaObservation | undefined;
+  /** Resolve a PATH launcher to a validated installation without executing it. */
+  discoverInstallDirOnPath?(
+    environment: Readonly<NodeJS.ProcessEnv>,
+    platform: NodeJS.Platform,
+  ): string | undefined;
 }
 
 interface GhidraInstallationCoordinates {
@@ -405,7 +411,12 @@ const installationCoordinates = (
   host: GhidraInstallationHost,
 ): GhidraInstallationCoordinates => {
   const path = platform === "win32" ? win32 : posix;
-  const installDir = options.installDir ?? null;
+  // An explicit setting remains authoritative even when malformed or stale;
+  // automatic discovery is only a fallback when the caller supplied none.
+  const installDir =
+    options.installDir ??
+    host.discoverInstallDirOnPath?.(options.environment, platform) ??
+    null;
   const applicationPropertiesPath =
     installDir === null
       ? null
@@ -958,12 +969,56 @@ const systemGhidraInstallationHost = (): GhidraInstallationHost => ({
         : "jre",
     };
   },
+  discoverInstallDirOnPath: discoverGhidraInstallationOnPath,
 });
+
+/** Find a PATH launcher whose real target is inside a complete Ghidra tree. */
+export const discoverGhidraInstallationOnPath = (
+  environment: Readonly<NodeJS.ProcessEnv>,
+  platform: NodeJS.Platform,
+): string | undefined => {
+  if (platform !== process.platform) return undefined;
+  const path = platform === "win32" ? win32 : posix;
+  const pathValue = environment.PATH;
+  if (pathValue === undefined || pathValue.length === 0) return undefined;
+  const launchers =
+    platform === "win32"
+      ? ["ghidra.bat", "ghidraRun.bat", "ghidra.exe", "ghidraRun.exe"]
+      : ["ghidra", "ghidraRun"];
+  for (const directory of pathValue.split(pathDelimiter)) {
+    if (directory.length === 0) continue;
+    for (const launcher of launchers) {
+      let resolved: string;
+      try {
+        const candidate = path.resolve(directory, launcher);
+        if (!executablePath(candidate)) continue;
+        resolved = realpathSync(candidate);
+      } catch (cause: unknown) {
+        void cause;
+        continue;
+      }
+      const root = dirname(resolved);
+      const properties = path.join(root, "Ghidra", "application.properties");
+      const headless = path.join(
+        root,
+        "support",
+        platform === "win32" ? "analyzeHeadless.bat" : "analyzeHeadless",
+      );
+      try {
+        if (statSync(properties).isFile() && executablePath(headless))
+          return root;
+      } catch (cause: unknown) {
+        void cause;
+      }
+    }
+  }
+  return undefined;
+};
 
 const executablePath = (path: string): boolean => {
   try {
     accessSync(path, constants.X_OK);
-    return true;
+    return statSync(path).isFile();
   } catch (cause: unknown) {
     // best-effort cleanup: optional executable probing; failure means missing.
     void cause;

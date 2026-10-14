@@ -290,6 +290,15 @@ configuration without changing them. Without options, it audits every detected
 registration, the installed skill and optional analysis engines; its overall
 `healthy` value can be false while your chosen workflow works.
 
+Doctor's `providerInspections` are host-level engine and registration checks,
+not a readiness row for every advertised MCP adapter surface. `tools/list`
+remains the complete stable catalog. Call `binary_session` with `{}` before
+choosing an operation; it works before a target is opened, and
+`result.tool_availability` reports per-operation availability, reasons and
+client requirements for the current session state. It does not guarantee that
+a particular caller-supplied input will be valid. See
+[MCP discovery](mcp-contracts.md#identity-and-discovery).
+
 Select the part you want to check:
 
 | Task                                | Readiness check                                                          |
@@ -735,6 +744,14 @@ script; package-runner registrations use the pinned `npx` or `bunx` command. Hop
 installation remains unavailable on Windows. Setup never installs Ghidra,
 Java, or Python. It preserves valid detected Ghidra/JDK settings in agent
 registrations. See [Windows Ghidra P0](windows-ghidra-p0.md) for provider diagnostics.
+
+When `GHIDRA_INSTALL_DIR` is unset, doctor and the Ghidra provider also search
+`PATH` for `ghidra` or `ghidraRun`, resolve the selected launcher through its
+real path, and accept it only when that location belongs to a Ghidra tree with
+the application metadata and headless launcher. An explicitly supplied
+`GHIDRA_INSTALL_DIR` always takes precedence, including when it is invalid;
+REA reports that error instead of silently selecting another installation.
+This discovery is read-only and does not execute the Ghidra launcher.
 
 Doctor validates the platform, architecture, Ghidra 12.1.x application version,
 `support/analyzeHeadless` or `support/analyzeHeadless.bat`, the installation's

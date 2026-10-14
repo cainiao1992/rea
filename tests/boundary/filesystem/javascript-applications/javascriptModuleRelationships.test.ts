@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -15,6 +16,22 @@ import {
 } from "../../../support/javascriptApplicationFixture.js";
 
 describe("TypeScript source module loader semantics", () => {
+  it("publishes each source module's own content digest", async () => {
+    const root = await createTestTempDirectory("rea-source-module-digest-");
+    const source = "module.exports = 42;\n";
+    await writeFixtureFiles(root, { "main.js": source });
+
+    const { graph } = await reconstructJavaScriptFixture(root);
+    const sourceModule = findSourceModule(graph, "main.js");
+    const digest = createHash("sha256").update(source).digest("hex");
+
+    expect(
+      sourceModule?.observations.find(
+        ({ properties }) => properties.semantic_role === "source-module",
+      )?.properties,
+    ).toMatchObject({ source_sha256: digest });
+  });
+
   it("keeps whole type-only declarations out of runtime module relationships", async () => {
     const root = await createTestTempDirectory("rea-type-module-links-");
     await writeFixtureFiles(root, {

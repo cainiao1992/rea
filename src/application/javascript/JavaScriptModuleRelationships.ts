@@ -105,6 +105,7 @@ export const addJavaScriptSourceModules = (
           label: file.path,
           properties: {
             semantic_role: "source-module",
+            source_sha256: file.sha256,
             path: file.path,
             container_sha256: file.container_sha256,
             logical_module_key: file.path,

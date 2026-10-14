@@ -309,9 +309,7 @@ describe("function comparison address-derived call names", () => {
       const calling = (base: "0x1000" | "0x2000") =>
         functionDossierSchema.parse({
           ...dossier("return helper();", base),
-          callees: [
-            procedure(base === "0x1000" ? "0x1010" : "0x2010", name),
-          ],
+          callees: [procedure(base === "0x1000" ? "0x1010" : "0x2010", name)],
         });
       const result = compareFunctions(
         observe("6", calling("0x1000")),

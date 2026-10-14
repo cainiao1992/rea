@@ -516,9 +516,7 @@ const createRelationshipCoverageSnapshot = (
       analysisProfile: ANALYSIS_SNAPSHOT_PROFILE,
       rawResult: ["0x2000"],
       subject: ANALYSIS_SNAPSHOT_TARGET,
-      ...(relationshipCoverage === undefined
-        ? {}
-        : { relationshipCoverage }),
+      ...(relationshipCoverage === undefined ? {} : { relationshipCoverage }),
     },
   );
   cache.record({
@@ -537,9 +535,7 @@ const createRelationshipCoverageSnapshot = (
       result: ["0x2000"],
       rawResult: ["0x2000"],
       analysisProfile: ANALYSIS_SNAPSHOT_PROFILE,
-      ...(relationshipCoverage === undefined
-        ? {}
-        : { relationshipCoverage }),
+      ...(relationshipCoverage === undefined ? {} : { relationshipCoverage }),
     },
   );
   const exported = cache.export(
@@ -603,7 +599,9 @@ describe("relationship coverage snapshot replay", () => {
     const { operation, parameters, snapshot } =
       createRelationshipCoverageSnapshot();
     expect(snapshot.entries[0]?.execution.relationship_coverage).toBeNull();
-    expect(snapshot.evidence_bundle.records[0]?.relationship_coverage).toBeNull();
+    expect(
+      snapshot.evidence_bundle.records[0]?.relationship_coverage,
+    ).toBeNull();
 
     const replayCache = new AnalysisSnapshotCache();
     expect(replayCache.import(snapshot, undefined, () => ok(0)).ok).toBe(true);

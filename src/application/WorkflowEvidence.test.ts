@@ -122,10 +122,9 @@ it("retains unique upstream limits in canonical order across concurrent observat
     ok({
       result: { count: 0 },
       limitations: [
+        "Fixture (fixture 1) list_procedures, list_strings: shared",
         "Fixture (fixture 1) list_procedures: second",
-        "Fixture (fixture 1) list_procedures: shared",
         "Fixture (fixture 1) list_strings: first",
-        "Fixture (fixture 1) list_strings: shared",
       ],
     }),
   );
@@ -158,8 +157,7 @@ it("deduplicates exact source caveats without merging providers or operations", 
     ok({
       result: { count: 0 },
       limitations: [
-        "First (first 1) list_procedures: same source caveat",
-        "First (first 1) list_strings: same source caveat",
+        "First (first 1) list_procedures, list_strings: same source caveat",
         "Second (second 1) list_strings: same source caveat",
       ],
     }),

@@ -29,18 +29,34 @@ export const sourceLimitationKey = ({
 export const renderSourceLimitations = (
   limitations: readonly SourceLimitation[],
 ): string[] => {
-  const rendered = new Map<string, string>();
+  const groups = new Map<
+    string,
+    {
+      readonly provider: ProviderIdentity;
+      readonly limitation: string;
+      readonly operations: Set<AnalysisOperation>;
+    }
+  >();
   for (const { provider, operation, limitation } of limitations) {
-    const provenance = sourceLimitationKey({
-      provider,
-      operation,
+    const key = JSON.stringify([
+      provider.id,
+      provider.name,
+      provider.version,
       limitation,
-    });
-    const version = provider.version === null ? "" : ` ${provider.version}`;
-    rendered.set(
-      provenance,
-      `${provider.name} (${provider.id}${version}) ${operation}: ${limitation}`,
-    );
+    ]);
+    const group = groups.get(key) ?? {
+      provider,
+      limitation,
+      operations: new Set<AnalysisOperation>(),
+    };
+    group.operations.add(operation);
+    groups.set(key, group);
   }
-  return [...rendered.values()].sort(compareUnicodeCodePoints);
+  return [...groups.values()]
+    .map(({ provider, limitation, operations }) => {
+      const version = provider.version === null ? "" : ` ${provider.version}`;
+      const operationList = [...operations].sort(compareUnicodeCodePoints);
+      return `${provider.name} (${provider.id}${version}) ${operationList.join(", ")}: ${limitation}`;
+    })
+    .sort(compareUnicodeCodePoints);
 };

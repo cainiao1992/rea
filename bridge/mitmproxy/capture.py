@@ -6,11 +6,13 @@ The containing mitmdump process and its configuration directory are REA-owned.
 
 import base64
 import hashlib
+import ipaddress
 import json
 import math
 import re
 import resource
 from pathlib import Path
+from urllib.parse import unquote_to_bytes
 
 from mitmproxy import ctx, version
 from mitmproxy.io import tnetstring
@@ -46,6 +48,8 @@ SCHEME_PREFIX = r"^[\x00-\x20]*([a-z][a-z0-9+.-]*):"
 NETWORK_PREFIX = r"^[\x00-\x20]*[/\\]{2}"
 URL_IGNORABLE_CONTROLS = "\t\n\r"
 URL_CONTROL_TRANSLATION = {ord(char): None for char in URL_IGNORABLE_CONTROLS}
+C0_CONTROL_OR_SPACE = "".join(chr(code) for code in range(0x21))
+FORBIDDEN_DOMAIN_CODE_POINTS = set(C0_CONTROL_OR_SPACE) | set("#%/:<>?@[\\]^|\x7f")
 
 
 def authority_start(text, base_scheme=None):
@@ -54,11 +58,14 @@ def authority_start(text, base_scheme=None):
     Follows WHATWG URL parsing as src/domain/recordedTransportUrl.ts does:
     special schemes (and scheme-relative references) skip every leading "/"
     or "\\" before the authority, so `https://\\user:pass@host` still has
-    userinfo. File URLs carry no userinfo and keep their "//" boundary.
+    userinfo. File URLs never carry userinfo: an "@" in a file host makes
+    WHATWG reject the whole URL, so there are no credentials to remove.
     """
     scheme = re.match(SCHEME_PREFIX, text, flags=re.I)
     name = scheme.group(1).lower() if scheme is not None else None
-    if name is not None and name in SPECIAL_SCHEMES and name != "file":
+    if name == "file" or (name is None and base_scheme == "file"):
+        return None
+    if name is not None and name in SPECIAL_SCHEMES:
         # A same-scheme Location without two slash-equivalent separators is
         # relative to the recorded request, so its @ belongs to the path.
         following = text[scheme.end():scheme.end() + 2]
@@ -69,7 +76,7 @@ def authority_start(text, base_scheme=None):
         if scheme is not None:
             if text[scheme.end():scheme.end() + 2] != "//":
                 return None
-            return scheme.end() + 2, name in SPECIAL_SCHEMES
+            return scheme.end() + 2, False
         # A non-special base treats backslashes as authority data and only
         # recognizes two forward slashes as a network reference.
         if base_scheme is not None and base_scheme not in SPECIAL_SCHEMES:
@@ -79,11 +86,85 @@ def authority_start(text, base_scheme=None):
         if prefix is None:
             return None
         start = prefix.end()
-        if base_scheme == "file":
-            return start, True
     while start < len(text) and text[start] in "/\\":
         start += 1
     return start, True
+
+
+IPV4_DIGITS = {8: "01234567", 10: "0123456789", 16: "0123456789abcdefABCDEF"}
+
+
+def ipv4_number(part):
+    """WHATWG IPv4 number parser: decimal, 0x hex or 0-prefixed octal, else None."""
+    if part == "":
+        return None
+    radix, digits = 10, part
+    if part[:2] in ("0x", "0X"):
+        radix, digits = 16, part[2:]
+    elif len(part) > 1 and part[0] == "0":
+        radix, digits = 8, part[1:]
+    if digits == "":
+        return 0
+    if any(char not in IPV4_DIGITS[radix] for char in digits):
+        return None
+    # Bound decimal text before int(): Python limits decimal conversions to
+    # 4300 digits, and anything past 10 significant digits exceeds IPv4.
+    significant = digits.lstrip("0")
+    if radix == 10 and len(significant) > 10:
+        return 2**32
+    return int(digits, radix)
+
+
+def domain_parses(domain):
+    """Apply WHATWG's ends-in-a-number check and IPv4 parser to a domain."""
+    parts = domain.split(".")
+    if parts[-1] == "" and len(parts) > 1:
+        parts.pop()
+    last = parts[-1]
+    if not ((last != "" and last.isascii() and last.isdigit()) or ipv4_number(last) is not None):
+        return True
+    numbers = [ipv4_number(part) for part in parts]
+    if len(parts) > 4 or any(number is None for number in numbers):
+        return False
+    return all(number <= 255 for number in numbers[:-1]) and numbers[-1] < 256 ** (5 - len(numbers))
+
+
+def special_host_parses(host_port):
+    """Whether WHATWG could accept a special authority's host and port.
+
+    A rejected host fails the whole URL, so it has no credentials to remove.
+    This mirrors the forbidden-code-point, empty-host, IPv4, IPv6 and port
+    rules for ASCII hosts. UTS #46 mapping is not modeled: a non-ASCII host
+    may map to an accepted one (fullwidth digits, ideographic full stops,
+    ignored code points), so it is treated as accepted and still redacts.
+    """
+    if host_port.startswith("["):
+        host_end = host_port.find("]") + 1
+        literal = host_port[1 : host_end - 1]
+        if host_end == 0 or "%" in literal:
+            return False
+        try:
+            ipaddress.IPv6Address(literal)
+        except ValueError:
+            return False
+    else:
+        colon = host_port.find(":")
+        host_end = len(host_port) if colon < 0 else colon
+        host = unquote_to_bytes(host_port[:host_end]).decode("utf-8", errors="replace")
+        # Mapping never removes ASCII, so these rejections hold either way.
+        if host == "" or any(char in FORBIDDEN_DOMAIN_CODE_POINTS for char in host):
+            return False
+        if host.isascii() and not domain_parses(host.lower()):
+            return False
+    port = host_port[host_end:]
+    if port == "":
+        return True
+    digits = port[1:]
+    if port[0] != ":" or not (digits == "" or (digits.isascii() and digits.isdigit())):
+        return False
+    # Bound the text first: int() refuses decimal strings over 4300 digits.
+    significant = digits.lstrip("0")
+    return len(significant) <= 5 and int(significant or "0") <= 65535
 
 
 def without_userinfo(value, base_scheme=None):
@@ -96,7 +177,8 @@ def without_userinfo(value, base_scheme=None):
     text = value.decode("latin-1") if binary else value
     # WHATWG removes these controls before interpreting scheme/separators.
     # Keep that parse view separate from the exact source spelling and bytes.
-    parsed_text = text.translate(URL_CONTROL_TRANSLATION)
+    # It also drops trailing C0 controls and spaces; offsets are unchanged.
+    parsed_text = text.translate(URL_CONTROL_TRANSLATION).rstrip(C0_CONTROL_OR_SPACE)
     located = authority_start(parsed_text, base_scheme)
     if located is None:
         return value
@@ -106,7 +188,7 @@ def without_userinfo(value, base_scheme=None):
     while end < len(parsed_text) and parsed_text[end] not in terminators:
         end += 1
     at = parsed_text.rfind("@", start, end)
-    if at < start:
+    if at < start or (special and not special_host_parses(parsed_text[at + 1 : end])):
         return value
     parsed_offset = 0
     raw_start = 0

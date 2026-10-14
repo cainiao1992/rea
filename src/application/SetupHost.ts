@@ -244,7 +244,10 @@ export const systemSetupHost = (
     detectedClients: () => detectClients(homeDirectory, platform, environment),
     supportedClients: () =>
       Promise.resolve(supportedClients(homeDirectory, platform, environment)),
-    ...clientConfigurationOperations(resources),
+    ...clientConfigurationOperations(
+      resources,
+      doctorHost.resolveProviderRequestBudget,
+    ),
     skillNeedsInstall: (clientIds) =>
       canonicalSkillNeedsInstall(
         homeDirectory,
@@ -288,7 +291,10 @@ const setupInstallerDiagnostic = (
     : `${normalized.slice(0, 397).trimEnd()}...`;
 };
 
-const clientConfigurationOperations = (resources: ArtifactResourceScope) => ({
+const clientConfigurationOperations = (
+  resources: ArtifactResourceScope,
+  resolveProviderRequestBudget: DoctorHost["resolveProviderRequestBudget"],
+) => ({
   configureClient: (
     client: SetupClient,
     providerEnvironment: SetupProviderEnvironment,
@@ -297,7 +303,12 @@ const clientConfigurationOperations = (resources: ArtifactResourceScope) => ({
     runClientConfigurationOperation(resources, async () =>
       client.format === "unsupported"
         ? { status: "skipped" as const }
-        : configureClientConfiguration(client, providerEnvironment, command),
+        : configureClientConfiguration(
+            client,
+            providerEnvironment,
+            command,
+            resolveProviderRequestBudget,
+          ),
     ),
   clientNeedsConfigure: (
     client: SetupClient,
@@ -311,6 +322,7 @@ const clientConfigurationOperations = (resources: ArtifactResourceScope) => ({
             client,
             providerEnvironment,
             command,
+            resolveProviderRequestBudget,
           )),
     ),
   inspectClientConfiguration: (
@@ -319,7 +331,12 @@ const clientConfigurationOperations = (resources: ArtifactResourceScope) => ({
     command: readonly string[],
   ) =>
     runClientConfigurationOperation(resources, () =>
-      inspectClientConfiguration(client, providerEnvironment, command),
+      inspectClientConfiguration(
+        client,
+        providerEnvironment,
+        command,
+        resolveProviderRequestBudget,
+      ),
     ),
 });
 

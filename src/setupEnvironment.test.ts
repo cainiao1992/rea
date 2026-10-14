@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { createDoctorHostFixture } from "./application/Doctor.fixture.js";
+import * as macHopperInstaller from "./application/MacHopper.js";
 import { runSetup } from "./application/Setup.js";
 import { options } from "./application/Setup.fixture.js";
 import { systemSetupHost } from "./application/SetupHost.js";
@@ -90,6 +91,35 @@ it("composes provider diagnostics from selected configuration rather than ambien
   expect(JSON.stringify(inspections)).toContain("/selected/ghidra");
   expect(JSON.stringify(inspections)).toContain("/selected/ida.json");
   expect(JSON.stringify(inspections)).not.toContain("/ambient/");
+});
+
+it("includes the macOS Hopper installer diagnostic in setup remediation", async () => {
+  const install = vi
+    .spyOn(macHopperInstaller, "installMacHopper")
+    .mockResolvedValue({
+      status: "failed",
+      reason: "mount",
+      diagnostic: "hdiutil attach exited 1:\n\u001b[31mresource busy\u001b[0m",
+    });
+  const host = systemSetupHost(
+    createDoctorHostFixture({ platform: "darwin" }),
+    { HOME: "/fixture/home", USERPROFILE: "/fixture/home" },
+  );
+  try {
+    const result = await host.installHopper(false);
+    expect(result).toMatchObject({
+      status: "failed",
+      code: "mount_failed",
+      remediation: expect.stringContaining(
+        "Installer detail: hdiutil attach exited 1: resource busy",
+      ),
+    });
+    if (result.status !== "failed") throw new Error("expected setup failure");
+    expect(result.remediation).not.toContain("\u001b");
+  } finally {
+    await host.close?.();
+    install.mockRestore();
+  }
 });
 
 it("preserves a validated selected JEB endpoint in setup registrations without claiming live readiness", async () => {

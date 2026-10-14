@@ -6,6 +6,7 @@ import {
   decodeIdaToolResult,
 } from "./IdaMcpConnection.js";
 import { createIdaDiagnosticRedactor } from "./IdaDiagnosticRedactor.js";
+import { AnalysisTimeoutError } from "../domain/analysisErrorCore.js";
 
 describe("upstream IDA tool result decoding", () => {
   it("leaves successful legacy, structured, and native evidence unchanged", () => {
@@ -142,6 +143,86 @@ const failingHttpConnection = (
     {},
   );
 };
+
+it("preserves the SDK request timeout as a typed IDA timeout", async () => {
+  const timeoutMs = 40;
+  const pendingCall = vi.fn();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const message = JSON.parse(String(init?.body ?? "")) as {
+        readonly id?: string | number;
+        readonly method: string;
+        readonly params?: Record<string, unknown>;
+      };
+      const json = (value: unknown) =>
+        new Response(JSON.stringify(value), {
+          headers: { "Content-Type": "application/json" },
+        });
+      if (message.method === "initialize")
+        return json({
+          jsonrpc: "2.0",
+          id: message.id,
+          result: {
+            protocolVersion: message.params?.protocolVersion,
+            capabilities: { tools: {} },
+            serverInfo: { name: "ida-timeout-fixture", version: "1" },
+          },
+        });
+      if (
+        message.method === "notifications/initialized" ||
+        message.method === "notifications/cancelled"
+      )
+        return new Response(null, { status: 202 });
+      if (message.method === "tools/list")
+        return json({
+          jsonrpc: "2.0",
+          id: message.id,
+          result: { tools: [] },
+        });
+      if (message.method !== "tools/call")
+        throw new Error(`Unexpected fixture request: ${message.method}`);
+      pendingCall();
+      return new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal;
+        if (signal?.aborted === true) {
+          reject(signal.reason);
+          return;
+        }
+        signal?.addEventListener(
+          "abort",
+          () =>
+            reject(new DOMException("The request was aborted", "AbortError")),
+          { once: true },
+        );
+      });
+    }),
+  );
+  const connection = createIdaMcpConnection(
+    {
+      url: "http://127.0.0.1:12345/mcp",
+      headers: { Authorization: "Bearer fixture-secret" },
+      mode: "attached",
+      timeoutMs,
+    },
+    {},
+  );
+  try {
+    await expect(connection.connect()).resolves.toEqual([]);
+    const failure = await connection
+      .call("decompile", {})
+      .catch((cause: unknown) => cause);
+    expect(pendingCall).toHaveBeenCalledOnce();
+    expect(failure).toBeInstanceOf(AnalysisTimeoutError);
+    expect(failure).toMatchObject({ operation: "decompile", timeoutMs });
+    if (!(failure instanceof AnalysisTimeoutError))
+      throw new Error("Expected a typed IDA request timeout");
+    expect(failure.cause).toBeInstanceOf(Error);
+    expect(inspectRetainedError(failure)).not.toContain("fixture-secret");
+  } finally {
+    await connection.close();
+  }
+});
 
 const inspectRetainedError = (error: unknown): string =>
   inspect(error, { depth: null, maxStringLength: null, breakLength: Infinity });

@@ -116,9 +116,7 @@ describe("BinarySession open liveness", () => {
     expect(deep.created).toHaveLength(2);
   });
 
-  it("falls back to the health probe when the child reports no operation health", async () => {
-    // Without an operation-health hook there is no child-liveness signal,
-    // so the probe keeps the previous `health` admission behavior.
+  it("probes instantiated children through health when snapshots are absent", async () => {
     const { session, deep } = openSession({ operationHealth: false });
     expect((await session.open(process.execPath)).ok).toBe(true);
     expect((await session.execute("address_name", {})).ok).toBe(true);
@@ -126,9 +124,33 @@ describe("BinarySession open liveness", () => {
 
     const second = await session.open(process.execPath);
     expect(second.ok).toBe(true);
-    // The composite's `health` answers ok, so the live client is reused.
+    // The composite probes this already-instantiated child rather than
+    // answering health without contacting it.
     expect(deep.created).toHaveLength(1);
     expect(deep.created[0]?.closeCalled).toBe(false);
+    expect(deep.created[0]?.healthCalls).toBe(1);
+  });
+
+  it("retires a dead no-snapshot child after its health probe fails", async () => {
+    const { session, deep } = openSession({ operationHealth: false });
+    expect((await session.open(process.execPath)).ok).toBe(true);
+    expect((await session.execute("address_name", {})).ok).toBe(true);
+    const dead = deep.created[0];
+    dead?.kill();
+
+    expect((await session.open(process.execPath)).ok).toBe(true);
+    expect(dead?.healthCalls).toBe(1);
+    expect(dead?.closeCalled).toBe(true);
+    expect(deep.created).toHaveLength(1);
+    expect((await session.execute("address_name", {})).ok).toBe(true);
+    expect(deep.created).toHaveLength(2);
+  });
+
+  it("does not instantiate a child to answer health before first use", async () => {
+    const { session, deep } = openSession({ operationHealth: false });
+    expect((await session.open(process.execPath)).ok).toBe(true);
+    expect((await session.open(process.execPath)).ok).toBe(true);
+    expect(deep.created).toEqual([]);
   });
 
   it("reports cancellation without touching the session when aborted mid-probe", async () => {
@@ -167,6 +189,7 @@ describe("BinarySession open liveness", () => {
 interface KillableChild extends AnalysisClient {
   kill(state?: "exited" | "unreachable" | "unknown" | "not_started"): void;
   closeCalled: boolean;
+  healthCalls: number;
 }
 
 const deepIdentity: ProviderIdentity = {
@@ -269,10 +292,12 @@ const killableDeepProvider = (options: {
     createClient: (): KillableChild => {
       let alive = true;
       let closeCalled = false;
+      let healthCalls = 0;
       let deadState: "exited" | "unreachable" | "unknown" | "not_started" =
         "exited";
       const client: KillableChild = {
         execute: (operation) => {
+          if (operation === "health") healthCalls += 1;
           return alive
             ? Promise.resolve(
                 ok(
@@ -312,6 +337,9 @@ const killableDeepProvider = (options: {
         },
         get closeCalled() {
           return closeCalled;
+        },
+        get healthCalls() {
+          return healthCalls;
         },
         kill: (
           state:

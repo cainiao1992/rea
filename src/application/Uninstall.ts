@@ -23,6 +23,7 @@ import {
   skillDestinations,
 } from "./SetupSkill.js";
 import { isOwnedClientRegistrationCommand } from "./ClientRegistrationIdentity.js";
+import { CURRENT_ENTRYPOINT_PATH } from "../process/CurrentEntrypointPath.js";
 import { dshDocument } from "./DshCordisPatch.js";
 import { resolveClientConfigTransactionPath } from "./ClientConfigPath.js";
 import {
@@ -562,12 +563,15 @@ const isOwnedRegistration = (value: unknown, client: SetupClient): boolean => {
       .safeParse(value);
     if (!parsed.success) return false;
     const command = parsed.data.command;
-    return isOwnedClientRegistrationCommand(command);
+    return isOwnedClientRegistrationCommand(command, CURRENT_ENTRYPOINT_PATH);
   }
   const parsed = registrationSchema.safeParse(value);
   if (!parsed.success) return false;
   const { command, args } = parsed.data;
-  return isOwnedClientRegistrationCommand([command, ...args]);
+  return isOwnedClientRegistrationCommand(
+    [command, ...args],
+    CURRENT_ENTRYPOINT_PATH,
+  );
 };
 
 const purgeManagedData = async (

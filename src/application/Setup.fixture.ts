@@ -16,6 +16,7 @@ import { PRODUCT_IDENTITY, SDK_IDENTITY } from "../identity.js";
 import { CATALOG_IDENTITY } from "../catalogIdentity.js";
 import type { ClientRegistrationStatus } from "./ClientRegistrationStatus.js";
 import { setupRegistrationCommand } from "./SetupHost.js";
+import { CURRENT_ENTRYPOINT_PATH } from "../process/CurrentEntrypointPath.js";
 
 /** Recording setup host for service-level planning and recovery tests. */
 export class FakeSetupHost implements SetupHost {
@@ -24,7 +25,7 @@ export class FakeSetupHost implements SetupHost {
   skillDestinations(clientIds: readonly string[]) {
     return skillDestinations(this.homeDirectory, clientIds);
   }
-  readonly registrationCommand: readonly string[];
+  registrationCommand: readonly string[];
   registrationCommandBlocker?: string;
   nodeVersion = "24.18.0";
   version: string | undefined = "14.5";
@@ -57,7 +58,11 @@ export class FakeSetupHost implements SetupHost {
 
   constructor(platform: NodeJS.Platform = "darwin") {
     this.platform = platform;
-    this.registrationCommand = setupRegistrationCommand(platform, undefined);
+    this.registrationCommand = setupRegistrationCommand(
+      platform,
+      undefined,
+      CURRENT_ENTRYPOINT_PATH,
+    );
   }
 
   macosVersion = (): Promise<string | undefined> =>

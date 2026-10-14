@@ -330,7 +330,7 @@ describe("doctor scoped readiness", () => {
         client: "cursor",
         config_path: "/home/user/.cursor/mcp.json",
         command: ["/old/rea", "mcp"],
-        state: "stale",
+        state: "unknown",
         remediation: "Run rea setup to refresh this registration.",
       },
     ];
@@ -349,7 +349,11 @@ describe("doctor scoped readiness", () => {
       expect.objectContaining({ name: "registration:codex", ok: true }),
     );
     expect(scoped.informational_checks).toContainEqual(
-      expect.objectContaining({ name: "registration:cursor", ok: false }),
+      expect.objectContaining({
+        name: "registration:cursor",
+        ok: false,
+        classification: "unknown",
+      }),
     );
 
     const staleSelected = await runDoctor(

@@ -21,7 +21,11 @@ import {
 } from "@modelcontextprotocol/server";
 
 import { analysisErrorProjectionSchema } from "../contracts/errorSchemas.js";
-import { compactAdvertisedInputSchema } from "../contracts/compactInputSchema.js";
+import {
+  presentAdvertisedInputSchema,
+  type CompactInputSchemaPresentation,
+} from "../contracts/compactInputSchema.js";
+import { CATALOG_IDENTITY, createCatalogIdentity } from "../catalogIdentity.js";
 import { transformAdvertisedInputJsonSchema } from "../contracts/toolSchemaMetadata.js";
 import type { EvidenceWriter } from "../application/investigation/InvestigationRecordPort.js";
 import { AnalysisResourceConstraintError } from "../domain/analysisErrorCore.js";
@@ -36,10 +40,7 @@ import {
   TARGET_CONTENT_RESULT_META,
 } from "./toolResultEncoding.js";
 
-/** Compact advertised input schemas within this per-schema byte budget. */
-export interface CompactInputSchemaPresentation {
-  readonly budgetBytes: number;
-}
+export type { CompactInputSchemaPresentation } from "../contracts/compactInputSchema.js";
 
 const currentRequestSignal = new AsyncLocalStorage<AbortSignal>();
 
@@ -103,6 +104,11 @@ export const forgetPendingMcpRequest = (
 
 /** Bind oversized MCP error recovery to this server's Evidence ledger. */
 export class EvidenceMcpServer extends McpServer {
+  readonly catalogIdentity: ReturnType<typeof createCatalogIdentity>;
+  private readonly compactPresentation:
+    | CompactInputSchemaPresentation
+    | undefined;
+
   constructor(
     info: Implementation,
     options: McpServerOptions,
@@ -110,12 +116,18 @@ export class EvidenceMcpServer extends McpServer {
       | EvidenceWriter["recordEvidence"]
       | undefined,
     readonly delivery: ToolResultDelivery,
-    private readonly compactPresentation:
-      | CompactInputSchemaPresentation
-      | undefined = undefined,
+    compactPresentation: CompactInputSchemaPresentation | undefined = undefined,
     private readonly omitOutputSchemas = false,
   ) {
     super(info, options);
+    this.compactPresentation =
+      compactPresentation === undefined
+        ? undefined
+        : { budgetBytes: compactPresentation.budgetBytes };
+    this.catalogIdentity =
+      this.compactPresentation === undefined
+        ? CATALOG_IDENTITY
+        : createCatalogIdentity(this.compactPresentation);
   }
 
   /**
@@ -152,7 +164,7 @@ export class EvidenceMcpServer extends McpServer {
               typeof transformAdvertisedInputJsonSchema
             >[0],
             (projected) =>
-              compactAdvertisedInputSchema(projected, budget).schema,
+              presentAdvertisedInputSchema(projected, { budgetBytes: budget }),
           )
         : undefined;
     const registeredConfig =

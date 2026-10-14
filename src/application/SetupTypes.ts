@@ -67,7 +67,7 @@ export interface SetupHost {
   readonly homeDirectory: string;
   skillDestinations(clientIds: readonly string[]): readonly SkillDestination[];
   readonly registrationCommand: readonly string[];
-  /** Why no client may be registered with `registrationCommand` from this host. */
+  /** Why client registration cannot proceed from this host. */
   readonly registrationCommandBlocker?: string;
   readonly nodeVersion: string;
   macosVersion(): Promise<string | undefined>;
@@ -157,7 +157,12 @@ export interface SetupClientState {
   readonly client: SetupClient;
   readonly detected: boolean;
   readonly configured: boolean;
-  readonly status: "configured" | "missing" | "needs_configuration" | "invalid";
+  readonly status:
+    | "configured"
+    | "missing"
+    | "needs_configuration"
+    | "invalid"
+    | "unknown";
 }
 
 /** One concrete setup mutation disclosed before approval. */

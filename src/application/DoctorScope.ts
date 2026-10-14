@@ -174,7 +174,7 @@ const registrationCheck = (
 ): DoctorCheck => ({
   name: `registration:${status.client}`,
   ok: false,
-  classification: "config_drift",
+  classification: status.state === "unknown" ? "unknown" : "config_drift",
   detail: status.config_path,
   remediation: status.remediation,
 });

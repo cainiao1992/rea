@@ -53,6 +53,7 @@ export interface DoctorCheck {
     | "unsupported_host"
     | "unsupported_target"
     | "missing_analysis_engine"
+    | "unknown"
     | "config_drift";
   readonly detail?: string;
   readonly details?: Readonly<Record<string, JsonValue>>;
@@ -385,7 +386,7 @@ const registrationCheck = (
 ): DoctorCheck => ({
   name: `registration:${registration.client}`,
   ok: false,
-  classification: "config_drift",
+  classification: registration.state === "unknown" ? "unknown" : "config_drift",
   detail: registration.config_path,
   remediation: registration.remediation,
 });

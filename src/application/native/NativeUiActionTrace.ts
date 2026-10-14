@@ -13,7 +13,10 @@ import {
 import { nativeDispatchMetadataResultSchema } from "../../domain/native/objcSwiftMetadata.js";
 import { inspectNativeDispatch } from "./NativeDispatchMetadataInspection.js";
 import { jsonValueSchema } from "../../domain/jsonValue.js";
-import { readNativeCallRoutes } from "./NativeCallRoutes.js";
+import {
+  readNativeCallRoutes,
+  type NativeCallRouteLimitation,
+} from "./NativeCallRoutes.js";
 import { err, ok } from "../../domain/result.js";
 import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
 import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
@@ -244,6 +247,10 @@ export const traceNativeUiAction = async (
             : graph.truncated && trace.reason === null
               ? "native_trace_output_bound_reached"
               : trace.reason,
+        limitations: [
+          ...trace.limitations,
+          ...renderSourceLimitations(expanded.limitations),
+        ],
       }),
     ),
   );
@@ -398,6 +405,7 @@ const addDirectCallees = async (input: {
   let examined = 0;
   let omitted = 0;
   let truncated = false;
+  const sourceLimitations: NativeCallRouteLimitation[] = [];
   while (queueIndex < queue.length) {
     const current = queue[queueIndex++];
     if (current === undefined || visited.has(current.address)) continue;
@@ -419,6 +427,9 @@ const addDirectCallees = async (input: {
       "provider",
     );
     examined += 1;
+    sourceLimitations.push(
+      ...(execution.ok ? execution.value.limitations : execution.limitations),
+    );
     if (!execution.ok && execution.error._tag === "AnalysisCancelledError")
       return { error: execution.error };
     const unknowns = execution.ok
@@ -539,7 +550,31 @@ const addDirectCallees = async (input: {
     examined,
     omitted,
     truncated,
+    limitations: sourceLimitations,
   };
+};
+
+const renderSourceLimitations = (
+  limitations: readonly NativeCallRouteLimitation[],
+): string[] => {
+  const seen = new Set<string>();
+  const rendered: string[] = [];
+  for (const { provider, operation, limitation } of limitations) {
+    const provenance = JSON.stringify([
+      provider.id,
+      provider.name,
+      provider.version,
+      operation,
+      limitation,
+    ]);
+    if (seen.has(provenance)) continue;
+    seen.add(provenance);
+    const version = provider.version === null ? "" : ` ${provider.version}`;
+    rendered.push(
+      `${provider.name} (${provider.id}${version}) ${operation}: ${limitation}`,
+    );
+  }
+  return rendered;
 };
 
 const graphNodeDepths = (

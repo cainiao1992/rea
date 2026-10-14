@@ -61,6 +61,7 @@ describe("artifact graph path and provenance fields", () => {
           effects: ["read"],
         },
       ],
+      coverage: { scope: "container-entries", status: "complete" },
       integrity_contradictions: [],
       limitations: [],
     });
@@ -68,5 +69,36 @@ describe("artifact graph path and provenance fields", () => {
     expect(parsed.occurrences[0]?.logical_path).toBe(path);
     expect(parsed.provenance[0]?.arguments).toHaveLength(1_025);
     expect(parsed.provenance[0]?.arguments[0]).toBe(arguments_[0]);
+  });
+
+  it("requires current scoped coverage and rejects the obsolete status alias", () => {
+    const inventory = {
+      manifest: {
+        manifest_id: `agm_${"b".repeat(64)}`,
+        root_artifact_id: `art_${"a".repeat(64)}`,
+        root_sha256: "c".repeat(64),
+        root_format: "plist",
+        graph_sha256: "d".repeat(64),
+        node_count: 1,
+        occurrence_count: 1,
+        edge_count: 0,
+      },
+      nodes: [],
+      occurrences: [],
+      edges: [],
+      provenance: [],
+      integrity_contradictions: [],
+      limitations: [],
+    };
+
+    expect(artifactInventoryResultSchema.safeParse(inventory).success).toBe(
+      false,
+    );
+    expect(
+      artifactInventoryResultSchema.safeParse({
+        ...inventory,
+        coverage_status: "complete",
+      }).success,
+    ).toBe(false);
   });
 });

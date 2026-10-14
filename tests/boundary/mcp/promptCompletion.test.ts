@@ -15,7 +15,10 @@ import { ARTIFACT_COMPARISON_EXAMPLE } from "../../../src/contracts/artifactComp
 import { PROCESS_CAPTURE_REFERENCE } from "../../../src/contracts/investigationExamples.js";
 import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "../../../src/domain/process/processCaptureExample.js";
 import { createEvidence } from "../../../src/domain/evidence.js";
-import { createArtifactInspection } from "../../../src/domain/artifactInspection.js";
+import {
+  artifactInspectionResultSchema,
+  createArtifactInspection,
+} from "../../../src/domain/artifactInspection.js";
 import { artifactInventoryResultSchema } from "../../../src/domain/artifactGraph.js";
 import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
 import { createPromptCompletionSource } from "../../../src/server/promptCompletion.js";
@@ -203,6 +206,65 @@ describe("guided prompt completion from investigation records", () => {
 
     await session.close();
     expect(await completion.complete("evidence", "ev_")).toEqual([]);
+  });
+});
+
+describe("guided prompt completion from retained records", () => {
+  it("offers identifiers from every retained inspection inventory substep", async () => {
+    const session = createTestBinarySession(() => client([]));
+    const leftInspection = createArtifactInspection(
+      ARTIFACT_COMPARISON_EXAMPLE.left,
+    );
+    const rightInspection = createArtifactInspection(
+      ARTIFACT_COMPARISON_EXAMPLE.right,
+    );
+    const inspection = artifactInspectionResultSchema.parse({
+      ...leftInspection,
+      substeps: [...leftInspection.substeps, ...rightInspection.substeps],
+      evidence_links: [
+        ...leftInspection.evidence_links,
+        ...rightInspection.evidence_links,
+      ],
+    });
+    const inspectionEvidence = createEvidence(undefined, fixtureProvider, {
+      operation: "inspect_artifact",
+      parameters: {},
+      result: jsonValueSchema.parse(inspection),
+      confidence: "observed",
+      authority: "shipped-artifact",
+      evidenceLinks: inspection.evidence_links,
+    });
+    expect(session.recordEvidence(inspectionEvidence).ok).toBe(true);
+    const completion = createPromptCompletionSource(session, session);
+    const expectedManifests = [
+      ARTIFACT_COMPARISON_EXAMPLE.left,
+      ARTIFACT_COMPARISON_EXAMPLE.right,
+    ]
+      .map(
+        ({ normalized_result }) =>
+          artifactInventoryResultSchema.parse(normalized_result).manifest
+            .manifest_id,
+      )
+      .sort();
+    const expectedOccurrences = [
+      ARTIFACT_COMPARISON_EXAMPLE.left,
+      ARTIFACT_COMPARISON_EXAMPLE.right,
+    ]
+      .flatMap(({ normalized_result }) =>
+        artifactInventoryResultSchema
+          .parse(normalized_result)
+          .occurrences.map(({ occurrence_id }) => occurrence_id),
+      )
+      .sort();
+
+    expect(await completion.complete("manifest", "agm_")).toEqual(
+      expectedManifests,
+    );
+    expect(await completion.complete("occurrence", "occ_")).toEqual(
+      expectedOccurrences,
+    );
+
+    await session.close();
   });
 
   it("deduplicates, case-folds, and returns deterministic live evidence IDs", async () => {

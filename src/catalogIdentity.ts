@@ -4,6 +4,7 @@ import canonicalize from "canonicalize";
 import { z } from "zod";
 
 import { PROMPT_CONTRACTS } from "./contracts/promptContracts.js";
+import type { PromptContract } from "./contracts/promptContracts.js";
 import { TOOL_CONTRACTS } from "./contracts/toolContracts.js";
 import type { ToolContract } from "./contracts/toolContractTypes.js";
 import { CLI_COMMAND_NAMES } from "./cliCommandNames.js";
@@ -43,13 +44,19 @@ const createToolCatalog = (contracts: readonly ToolContract[]) =>
     },
   }));
 
-const promptCatalog = PROMPT_CONTRACTS.map((contract) => ({
-  name: contract.name,
-  title: contract.title,
-  description: contract.description,
-  arguments: contract.arguments,
-  steps: contract.steps,
-})).sort((left, right) => compareUnicodeCodePoints(left.name, right.name));
+const createPromptCatalog = (contracts: readonly PromptContract[]) =>
+  contracts
+    .map((contract) => ({
+      name: contract.name,
+      title: contract.title,
+      description: contract.description,
+      objective: contract.objective,
+      arguments: contract.arguments,
+      steps: contract.steps,
+    }))
+    .sort((left, right) => compareUnicodeCodePoints(left.name, right.name));
+
+const promptCatalog = createPromptCatalog(PROMPT_CONTRACTS);
 
 const digest = (value: unknown): string => {
   const encoded = canonicalize(value);
@@ -65,15 +72,17 @@ const digest = (value: unknown): string => {
  */
 export const createCatalogDigests = (
   contracts: readonly ToolContract[] = TOOL_CONTRACTS,
+  promptContracts: readonly PromptContract[] = PROMPT_CONTRACTS,
 ) => {
   const tools = createToolCatalog(sortByName(contracts));
+  const prompts = createPromptCatalog(promptContracts);
   return {
     tools_sha256: digest(tools),
-    prompts_sha256: digest(promptCatalog),
+    prompts_sha256: digest(prompts),
     combined_sha256: digest({
       cli: CLI_COMMAND_NAMES,
       tools,
-      prompts: promptCatalog,
+      prompts,
     }),
   } as const;
 };

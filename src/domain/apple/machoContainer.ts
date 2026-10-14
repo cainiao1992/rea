@@ -262,4 +262,3 @@ export const validateFatSliceIdentity = (
 const safeNumber = (value: bigint): number | null =>
   value > BigInt(Number.MAX_SAFE_INTEGER) ? null : Number(value);
 
-export { isJvmClassFile } from "./jvmClassFile.js";

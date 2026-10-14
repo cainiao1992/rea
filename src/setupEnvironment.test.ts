@@ -213,11 +213,30 @@ it.each([
   },
 );
 
-it("prioritizes overridden package runner environment variables over ambient keys with differing case on Windows", () => {
-  const environment = {
-    NPM_COMMAND: "run",
-    npm_command: "exec",
+it("registers the selected Windows package runner after canonicalizing environment aliases", async () => {
+  const environment = snapshotEnvironment(
+    {
+      NPM_COMMAND: "run",
+      npm_command: "exec",
+      NPM_CONFIG_USER_AGENT: "npm/10.9.0 node/v24.11.0 win32 x64",
+    },
+    "win32",
+  );
+  expect(environment).toEqual({
+    NPM_COMMAND: "exec",
     NPM_CONFIG_USER_AGENT: "npm/10.9.0 node/v24.11.0 win32 x64",
-  };
+  });
   expect(invokingPackageRunner(environment, "win32")).toBe("npx");
+
+  const host = systemSetupHost(
+    createDoctorHostFixture({ platform: "win32" }),
+    environment,
+  );
+  try {
+    expect(host.registrationCommand).toEqual(
+      packageRunnerRegistrationCommand("npx", "win32"),
+    );
+  } finally {
+    await host.close?.();
+  }
 });

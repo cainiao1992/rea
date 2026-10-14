@@ -711,9 +711,9 @@ JSON Schema:
   in a reduced form: property names, reference-resolved types (including union
   alternatives), first-level guidance, and the root's required-field constraints,
   with nested validation detail elided. The
-  canonical schema still rejects malformed calls server-side, so callers
-  following the reduced advertisement receive the canonical typed error
-  instead of silent acceptance.
+  registered canonical schema still rejects malformed calls before invoking a
+  handler. That rejection can use the MCP SDK's input-validation diagnostic;
+  it does not guarantee the application's typed input error.
 - Schemas deeper than ten nodes use the same reduced projection, with
   root-property names, types, guidance, and required fields retained. The
   server continues to enforce the full canonical input contract.
@@ -731,6 +731,11 @@ catalog refreshes and equivalent tool outputs; changing the schema changes its
 identity. Explicit schema IDs and relative external reference bases are
 preserved. This keeps every tool and validation rule in discovery and does not
 change the SDK's catalog invalidation or availability checks.
+
+The server identity's tool-schema digest includes both the canonical output
+contracts and the selected output-schema profile. `full` and `off` therefore
+have distinct identities even though `off` keeps the same canonical output
+validation on the server.
 
 Some stdio hosts reject a complete `tools/list` frame before they load any
 tools. The opt-in `REA_MCP_OUTPUT_SCHEMA_PROFILE=off` setting omits `outputSchema`

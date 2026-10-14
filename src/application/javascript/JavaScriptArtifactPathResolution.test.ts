@@ -272,6 +272,147 @@ describe("unavailable inventoried native add-ons", () => {
   });
 });
 
+describe("unavailable package metadata", () => {
+  it("blocks directory fallback until same-container manifests are readable", () => {
+    const manifest = {
+      path: "app/relative/package.json",
+      container_sha256: file("app/main.cjs", "root").container_sha256,
+      sha256: null,
+      bytes: 28,
+      inventory_artifact_id: null,
+      inventory_occurrence_id: "missing-relative-manifest",
+      kind: "package-json" as const,
+      hash_status: "unavailable" as const,
+      limitations: ["unpacked manifest companion is missing"],
+    };
+    const files = fileMap([
+      file("app/main.cjs", "root"),
+      file("app/main.mjs", "root"),
+      file("app/relative/index.js", "root"),
+    ]);
+    const requestedPaths: string[] = [];
+    const lookup = {
+      get: (path: string) => {
+        requestedPaths.push(path);
+        return path === manifest.path ? manifest : undefined;
+      },
+      hasDirectory: () => false,
+    };
+    const relativeRequire = resolve({
+      declaredPath: "./relative",
+      sourcePath: "app/main.cjs",
+      context: "module-specifier",
+      moduleKind: "require",
+      files,
+      unanalyzedFiles: lookup,
+    });
+    expect(requestedPaths).toContain(manifest.path);
+    expect(relativeRequire).toMatchObject({
+      resolution_status: "unavailable",
+      resolved_path: null,
+      limitations: ["unpacked manifest companion is missing"],
+    });
+    expect(
+      resolve({
+        declaredPath: "./relative",
+        sourcePath: "app/main.mjs",
+        context: "module-specifier",
+        moduleKind: "import",
+        files,
+        unanalyzedFiles: lookup,
+      }),
+    ).toMatchObject({ resolution_status: "not-found", resolved_path: null });
+
+    const restoredFiles = fileMap([
+      ...files.values(),
+      file("app/relative/package.json", "root", '{"main":"public.js"}'),
+      file("app/relative/public.js", "root"),
+    ]);
+    expect(
+      resolve({
+        declaredPath: "./relative",
+        sourcePath: "app/main.cjs",
+        context: "module-specifier",
+        moduleKind: "require",
+        files: restoredFiles,
+        unanalyzedFiles: lookup,
+      }),
+    ).toMatchObject({
+      resolution_status: "resolved",
+      resolved_path: "app/relative/public.js",
+    });
+  });
+
+  it("keeps bare package exports unknown while its manifest is unavailable", () => {
+    const containerSha256 = file("app/main.mjs", "root").container_sha256;
+    const manifest = {
+      path: "app/node_modules/fixture/package.json",
+      container_sha256: containerSha256,
+      sha256: null,
+      bytes: 47,
+      inventory_artifact_id: null,
+      kind: "package-json" as const,
+      hash_status: "unavailable" as const,
+      limitations: ["unpacked exports manifest is missing"],
+    };
+    const files = fileMap([
+      file("app/main.cjs", "root"),
+      file("app/main.mjs", "root"),
+      file("app/node_modules/fixture/index.js", "root"),
+      file("app/node_modules/fixture/import.js", "root"),
+      file("app/node_modules/fixture/require.js", "root"),
+    ]);
+    const lookup = {
+      get: (path: string) => (path === manifest.path ? manifest : undefined),
+      hasDirectory: () => false,
+    };
+    for (const [sourcePath, moduleKind] of [
+      ["app/main.cjs", "require"],
+      ["app/main.mjs", "import"],
+    ] as const)
+      expect(
+        resolve({
+          declaredPath: "fixture",
+          sourcePath,
+          context: "module-specifier",
+          moduleKind,
+          files,
+          unanalyzedFiles: lookup,
+        }),
+      ).toMatchObject({
+        resolution_status: "unavailable",
+        resolved_path: null,
+        limitations: ["unpacked exports manifest is missing"],
+      });
+
+    const restoredFiles = fileMap([
+      ...files.values(),
+      file(
+        manifest.path,
+        "root",
+        '{"exports":{"import":"./import.js","require":"./require.js"}}',
+      ),
+    ]);
+    for (const [sourcePath, moduleKind, target] of [
+      ["app/main.cjs", "require", "app/node_modules/fixture/require.js"],
+      ["app/main.mjs", "import", "app/node_modules/fixture/import.js"],
+    ] as const)
+      expect(
+        resolve({
+          declaredPath: "fixture",
+          sourcePath,
+          context: "module-specifier",
+          moduleKind,
+          files: restoredFiles,
+          unanalyzedFiles: lookup,
+        }),
+      ).toMatchObject({
+        resolution_status: "resolved",
+        resolved_path: target,
+      });
+  });
+});
+
 describe("bare package root file lookup", () => {
   it("uses loader-specific bare package roots when only a sibling .js file exists", () => {
     const absentDirectory = fileMap([

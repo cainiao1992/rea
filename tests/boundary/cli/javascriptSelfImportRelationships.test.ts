@@ -1,4 +1,5 @@
-import { rm } from "node:fs/promises";
+import { createPackageWithOptions } from "@electron/asar";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { expect } from "vitest";
@@ -14,6 +15,92 @@ import {
   findSourceModule,
   writeFixtureFiles,
 } from "../../support/javascriptApplicationFixture.js";
+
+cliTest(
+  "keeps missing same-container package manifests unavailable until restored",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory(
+      "rea-missing-package-manifests-",
+    );
+    const sourceRoot = join(root, "source");
+    const archive = join(root, "app.asar");
+    const relativeManifest = '{"main":"public.js"}';
+    const exportsManifest =
+      '{"exports":{"import":"./import.js","require":"./require.js"}}';
+    await writeFixtureFiles(sourceRoot, {
+      "main.cjs": 'require("./relative");\nrequire("fixture");\n',
+      "main.mjs": 'import "fixture";\n',
+      "relative/package.json": relativeManifest,
+      "relative/index.js": "export const fallback = true;\n",
+      "relative/public.js": "export const publicEntry = true;\n",
+      "node_modules/fixture/package.json": exportsManifest,
+      "node_modules/fixture/index.js": "export const fallback = true;\n",
+      "node_modules/fixture/import.js": "export const imported = true;\n",
+      "node_modules/fixture/require.js": "module.exports = true;\n",
+    });
+    await createPackageWithOptions(sourceRoot, archive, {
+      unpack: "package.json",
+    });
+    const unpacked = `${archive}.unpacked`;
+    const relativeManifestPath = join(unpacked, "relative/package.json");
+    const exportsManifestPath = join(
+      unpacked,
+      "node_modules/fixture/package.json",
+    );
+    await Promise.all([rm(relativeManifestPath), rm(exportsManifestPath)]);
+
+    const analyze = async () => {
+      const output = await cli.run({
+        arguments: ["analyze-javascript-application", archive, "--json"],
+      });
+      expect(output.exitCode, output.stderr).toBe(0);
+      return javascriptApplicationAnalysisResultSchema.parse(
+        parseEvidence(output.json).normalized_result,
+      );
+    };
+    const unavailable = await analyze();
+    const cjs = findSourceModule(unavailable.graph, "main.cjs");
+    const mjs = findSourceModule(unavailable.graph, "main.mjs");
+    for (const [source, specifier] of [
+      [cjs, "./relative"],
+      [cjs, "fixture"],
+      [mjs, "fixture"],
+    ] as const)
+      expect(
+        unavailable.graph.edges.find(
+          (edge) =>
+            edge.source_node_id === source?.node_id &&
+            edge.properties.specifier === specifier,
+        )?.properties,
+      ).toMatchObject({
+        resolution_status: "unavailable",
+        resolved_path: null,
+      });
+    expect(unavailable.graph.coverage.status).toBe("partial");
+
+    await Promise.all([
+      writeFile(relativeManifestPath, relativeManifest),
+      writeFile(exportsManifestPath, exportsManifest),
+    ]);
+    const restored = await analyze();
+    for (const [sourcePath, specifier, target] of [
+      ["main.cjs", "./relative", "relative/public.js"],
+      ["main.cjs", "fixture", "node_modules/fixture/require.js"],
+      ["main.mjs", "fixture", "node_modules/fixture/import.js"],
+    ] as const)
+      expect(
+        restored.graph.edges.find(
+          (edge) =>
+            edge.source_node_id ===
+              findSourceModule(restored.graph, sourcePath)?.node_id &&
+            edge.properties.specifier === specifier,
+        )?.properties,
+      ).toMatchObject({
+        resolution_status: "resolved",
+        resolved_path: target,
+      });
+  },
+);
 
 cliTest(
   "resolves ESM specifiers containing whitespace using URL text semantics",

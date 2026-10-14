@@ -1144,10 +1144,21 @@ const readPackageMetadata = (
   const path = posix.join(directory, "package.json");
   const file = input.files.get(path);
   const source = input.files.get(input.sourcePath);
-  if (
-    file === undefined ||
-    (source !== undefined && file.container_sha256 !== source.container_sha256)
-  )
+  if (file === undefined) {
+    const unavailable = input.unanalyzedFiles?.get(path);
+    if (
+      source !== undefined &&
+      unavailable?.container_sha256 === source.container_sha256
+    )
+      return {
+        kind: "unavailable",
+        limitation:
+          unavailable.limitations?.[0] ??
+          `Directory package metadata ${path} was inventoried but its bytes are unavailable.`,
+      };
+    return { kind: "absent" };
+  }
+  if (source !== undefined && file.container_sha256 !== source.container_sha256)
     return { kind: "absent" };
   if (!file.text.included)
     return {

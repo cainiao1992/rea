@@ -29,33 +29,58 @@ const serverEnvironment = {
   npm_config_cache: join(canaryRoot, "npm-cache"),
 };
 delete serverEnvironment.HOPPER_TARGET_PATH;
-const transport = new StdioClientTransport({
-  command: "npm",
-  args: [
-    "exec",
-    "--yes",
-    `--package=rea-agents@${version}`,
-    "--",
-    "rea",
-    "mcp",
-  ],
-  cwd: canaryRoot,
-  env: serverEnvironment,
-  stderr: "pipe",
-});
 const client = new Client({
   name: "published-package-canary",
   version: "1",
 });
 let stderr = "";
-transport.stderr?.on("data", (chunk) => {
-  if (stderr.length < 16_384) stderr += chunk.toString("utf8");
-});
+let transport;
 
 let publishedToolCount = 0;
 let update;
 
 try {
+  // Registry installation has its own lifetime; it must finish before the
+  // MCP handshake deadline starts. Reuse this exact installation for update.
+  const publishedPrefix = join(canaryRoot, "published");
+  await execFileAsync(
+    "npm",
+    [
+      "install",
+      "--ignore-scripts",
+      "--no-save",
+      "--no-package-lock",
+      "--prefix",
+      publishedPrefix,
+      `rea-agents@${version}`,
+    ],
+    { cwd: canaryRoot, env: serverEnvironment, maxBuffer: 16 * 1024 * 1024 },
+  );
+  const publishedRoot = join(publishedPrefix, "node_modules", "rea-agents");
+  const installed = JSON.parse(
+    await readFile(join(publishedRoot, "package.json"), "utf8"),
+  );
+  if (installed.version !== version)
+    throw new Error(
+      `Published installation is ${installed.version}, expected ${version}`,
+    );
+  const launcher = join(publishedRoot, "scripts", "rea.mjs");
+  for (const option of ["--help", "--llms"])
+    await execFileAsync(process.execPath, [launcher, option], {
+      cwd: canaryRoot,
+      env: serverEnvironment,
+      maxBuffer: 16 * 1024 * 1024,
+    });
+  transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [launcher, "mcp"],
+    cwd: canaryRoot,
+    env: serverEnvironment,
+    stderr: "pipe",
+  });
+  transport.stderr?.on("data", (chunk) => {
+    if (stderr.length < 16_384) stderr += chunk.toString("utf8");
+  });
   await client.connect(transport);
   const tools = await client.listTools();
   const toolNames = tools.tools.map(({ name }) => name);
@@ -92,7 +117,11 @@ try {
     throw new Error(
       "Published binary_session omitted canonical tool availability",
     );
-  update = await verifyPublishedUpdate({ version, canaryRoot });
+  update = await verifyPublishedUpdate({
+    version,
+    canaryRoot,
+    updaterRoot: publishedRoot,
+  });
 } catch (cause) {
   throw new Error(`Published package verification failed: ${stderr}`, {
     cause,
@@ -100,7 +129,7 @@ try {
 } finally {
   try {
     await client.close();
-    await transport.close();
+    await transport?.close();
   } finally {
     await rm(canaryRoot, { recursive: true, force: true });
   }
@@ -110,7 +139,11 @@ process.stdout.write(
   `${JSON.stringify({ verifier_run: await completeVerifierRun(verifierRun), package: "rea-agents", version, mcpTools: publishedToolCount, canonicalMcpTools: CATALOG_IDENTITY.counts.mcp_tools, update })}\n`,
 );
 
-async function verifyPublishedUpdate({ version: targetVersion, canaryRoot }) {
+async function verifyPublishedUpdate({
+  version: targetVersion,
+  canaryRoot,
+  updaterRoot,
+}) {
   const prefix = join(canaryRoot, "update-prefix");
   const home = join(canaryRoot, "update-home");
   const environment = {
@@ -130,7 +163,7 @@ async function verifyPublishedUpdate({ version: targetVersion, canaryRoot }) {
     PI_PROFILE: undefined,
     XDG_CONFIG_HOME: join(home, ".config"),
     OPENCODE_CONFIG: join(home, ".config", "opencode", "opencode.json"),
-    npm_config_cache: join(canaryRoot, "update-cache"),
+    npm_config_cache: join(canaryRoot, "npm-cache"),
     npm_config_prefix: prefix,
     PATH: `${join(prefix, "bin")}${delimiter}${process.env.PATH ?? ""}`,
   };
@@ -161,21 +194,6 @@ async function verifyPublishedUpdate({ version: targetVersion, canaryRoot }) {
   ).stdout.trim();
   // Older releases may predate the update command. Exercise the new published
   // updater's production workflow against that real previous installation.
-  const updaterPrefix = join(canaryRoot, "updater");
-  await execFileAsync(
-    "npm",
-    [
-      "install",
-      "--ignore-scripts",
-      "--no-save",
-      "--no-package-lock",
-      "--prefix",
-      updaterPrefix,
-      `rea-agents@${targetVersion}`,
-    ],
-    { cwd: canaryRoot, env: environment, maxBuffer: 16 * 1024 * 1024 },
-  );
-  const updaterRoot = join(updaterPrefix, "node_modules", "rea-agents");
   const harness = join(canaryRoot, "update.mjs");
   await writeFile(
     harness,

@@ -135,7 +135,7 @@ const completeOverviewPort: AnalysisOperationPort = {
   },
 };
 
-describe("enhanced MCP tools", () => {
+describe("enhanced MCP binary overview", () => {
   it("returns the complete overview inline with exhaustive totals", async () => {
     const client = await connect(completeOverviewPort);
     const result = jsonResult(
@@ -210,7 +210,9 @@ describe("enhanced MCP tools", () => {
       string_count: 0,
     });
   });
+});
 
+describe("enhanced MCP inventory validation", () => {
   it("rejects paginated provider output", async () => {
     const client = await connect({
       execute: () =>
@@ -260,6 +262,38 @@ describe("enhanced MCP tools", () => {
     expect(result.content).toContainEqual({
       type: "text",
       text: JSON.stringify(parseMcpToolError(result)),
+    });
+  });
+
+  it("preserves unknown length for malformed segment coordinates", async () => {
+    const client = await connect({
+      execute: (name) => {
+        if (name === "list_segments")
+          return Promise.resolve(
+            ok([
+              {
+                name: "__TEXT",
+                start: "unparsed-start",
+                end: "0x2000",
+                readable: null,
+                writable: null,
+                executable: null,
+              },
+            ]),
+          );
+        if (name === "current_document") return Promise.resolve(ok("fixture"));
+        if (name === "list_procedures" || name === "list_strings")
+          return Promise.resolve(ok([]));
+        throw new Error(`Unexpected analysis operation: ${name}`);
+      },
+    });
+    expect(
+      jsonResult(
+        await client.callTool({ name: "binary_overview", arguments: {} }),
+      ),
+    ).toMatchObject({
+      segments: [{ name: "__TEXT", start: "unparsed-start", length: null }],
+      segment_count: 1,
     });
   });
 });

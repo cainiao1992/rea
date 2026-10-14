@@ -153,7 +153,28 @@ describe("headless IDA producer pagination", () => {
   });
 });
 
-describe("attached IDA observation semantics", () => {
+describe("attached IDA readiness and queued cancellation", () => {
+  it("allows ready-only work after an attached provider has initialized", async () => {
+    const { producer, client } = await fixture("attached");
+    await expect(client.executeIfReady("list_procedures", {})).resolves.toBe(
+      undefined,
+    );
+
+    const startup = await client.execute("list_procedures", {});
+    if (!startup.ok) throw startup.error;
+    const result = await client.executeIfReady("list_procedures", {});
+    if (result === undefined)
+      throw new Error("expected ready attached IDA dispatch");
+    if (!result.ok) throw result.error;
+    expect(result.value.result).toEqual([
+      expect.objectContaining({ address: "0x1000", value: "main" }),
+    ]);
+    expect(
+      producer.calls.filter(({ name }) => name === "idb_open"),
+    ).toHaveLength(0);
+    await client.close();
+  });
+
   it("returns cold and pending startup calls immediately, then cancels queued work before dispatch", async () => {
     const { producer, client } = await fixture("headless");
     await expect(client.executeIfReady("list_procedures", {})).resolves.toBe(
@@ -233,7 +254,9 @@ describe("attached IDA observation semantics", () => {
     );
     await client.close();
   });
+});
 
+describe("attached IDA input identity and validation", () => {
   it("accepts a normalized spelling of the bound document path", async () => {
     const { target, producer, client } = await fixture();
     const equivalent =

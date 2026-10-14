@@ -367,7 +367,7 @@ export const enhancedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
             name: z.string(),
             start: z.string(),
             end: z.string(),
-            length: z.number().min(0),
+            length: z.number().min(0).nullable(),
             image_base: z.string().exactOptional(),
             address_space: z.string().exactOptional(),
           }),

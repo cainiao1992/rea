@@ -1,6 +1,6 @@
 import type { BigIntStats } from "node:fs";
 import { lstat, readlink } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, sep } from "node:path";
+import { basename, dirname, isAbsolute, sep } from "node:path";
 
 import { isPathWithinRoot } from "../domain/localPath.js";
 
@@ -56,9 +56,13 @@ export const resolveElectronFuseTarget = async (
       frameworkRootOf(selectedPath) === null
         ? { path: selectedPath, metadata, nodes: [] }
         : await resolveFrameworkSymlink(selectedPath, signal);
-  else if (metadata.isDirectory())
+  else if (metadata.isDirectory()) {
     file = await resolveBundleBinary(selectedPath, signal);
-  else
+    file = {
+      ...file,
+      nodes: [{ path: selectedPath, metadata }, ...file.nodes],
+    };
+  } else
     throw new ElectronFusePathFailure(
       "invalid_format",
       `Expected a regular file or Electron app bundle: ${selectedPath}`,
@@ -94,20 +98,58 @@ const resolveBundleBinary = async (
   selectedPath: string,
   signal?: AbortSignal,
 ): Promise<ResolvedElectronFuseFile> => {
-  const name = basename(selectedPath);
+  const directory = await resolveDirectorySuffix(selectedPath, signal);
+  const name = basename(directory.path);
+  let file: ResolvedElectronFuseFile;
   if (name === FRAMEWORK_NAME)
-    return resolveKnownBinary(selectedPath, selectedPath, signal);
-  if (name.endsWith(".app")) {
-    return resolveKnownBinary(
-      join(selectedPath, "Contents", "Frameworks", FRAMEWORK_NAME),
+    file = await resolveKnownBinary(directory.path, selectedPath, signal);
+  else if (name.endsWith(".app"))
+    file = await resolveKnownBinary(
+      appendPath(directory.path, "Contents", "Frameworks", FRAMEWORK_NAME),
       selectedPath,
       signal,
     );
+  else
+    throw new ElectronFusePathFailure(
+      "invalid_format",
+      `Expected an Electron .app bundle, ${FRAMEWORK_NAME} directory, or executable file: ${selectedPath}`,
+    );
+  return { ...file, nodes: [...directory.nodes, ...file.nodes] };
+};
+
+/** Reduce directory suffixes only when doing so preserves filesystem selection. */
+const resolveDirectorySuffix = async (
+  selectedPath: string,
+  signal?: AbortSignal,
+): Promise<{
+  readonly path: string;
+  readonly nodes: readonly ElectronFusePathNode[];
+}> => {
+  let path = selectedPath;
+  const pending: string[] = [];
+  const nodes: ElectronFusePathNode[] = [];
+  while (true) {
+    signal?.throwIfAborted();
+    const name = basename(path);
+    // lstat("link/") follows a link; inspect the named component itself.
+    if (name !== "") while (path.endsWith(sep)) path = path.slice(0, -1);
+    if (name === "." || name === "..") {
+      pending.push(name);
+      path = dirname(path);
+      continue;
+    }
+    const component = pending.pop();
+    if (component === undefined) return { path, nodes };
+    if (component === ".") continue;
+    const metadata = await lstat(path, { bigint: true });
+    if (!metadata.isDirectory() || metadata.isSymbolicLink())
+      throw new ElectronFusePathFailure(
+        "invalid_value",
+        `A bundle path ending in '..' requires a real directory before each parent segment: ${selectedPath}`,
+      );
+    nodes.push({ path, metadata });
+    path = dirname(path);
   }
-  throw new ElectronFusePathFailure(
-    "invalid_format",
-    `Expected an Electron .app bundle, ${FRAMEWORK_NAME} directory, or executable file: ${selectedPath}`,
-  );
 };
 
 /** `root` is the framework directory for both an `.app` and a framework selection. */
@@ -154,7 +196,7 @@ const resolveInside = async (
       last = "directory";
       continue;
     }
-    const absolute = join(root, ...resolved, segment);
+    const absolute = appendPath(root, ...resolved, segment);
     if (!isPathWithinRoot(root, absolute)) return { kind: "escapes" };
     let metadata;
     try {
@@ -185,7 +227,7 @@ const resolveInside = async (
   }
   if (last !== "file" || fileMetadata === undefined)
     return { kind: "not-file" };
-  const path = join(root, ...resolved);
+  const path = appendPath(root, ...resolved);
   return isPathWithinRoot(root, path)
     ? { kind: "file", path, metadata: fileMetadata, nodes }
     : { kind: "escapes" };
@@ -229,7 +271,7 @@ const requireRealDirectories = async (
   let current = anchor;
   const nodes: ElectronFusePathNode[] = [];
   for (const segment of segments) {
-    current = join(current, segment);
+    current = appendPath(current, segment);
     let metadata;
     try {
       metadata = await lstat(current, { bigint: true });
@@ -300,6 +342,10 @@ const relativeInside = (root: string, path: string): string | null => {
   const value = path.slice(prefix.length);
   return value === "" ? null : value.split(sep).join("/");
 };
+
+/** Append known components without normalizing a caller-selected parent path. */
+const appendPath = (parent: string, ...segments: readonly string[]): string =>
+  `${parent}${parent.endsWith(sep) ? "" : sep}${segments.join(sep)}`;
 
 const isMissing = (cause: unknown): boolean =>
   cause instanceof Error &&

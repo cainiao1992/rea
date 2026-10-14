@@ -626,27 +626,32 @@ nativeTest(
     const controller = new AbortController();
     let ownedRoot = "";
     let pid: number | undefined;
-    const provider = new SqliteDatabaseProvider({}, async (spawn) => {
-      ownedRoot = spawn.cwd ?? "";
-      const requestPath = spawn.arguments[2];
-      if (requestPath === undefined)
-        throw new Error("SQLite worker arguments missing");
-      const launched = await spawnOwnedProviderProcess({
-        ...spawn,
-        arguments: [
-          "--input-type=module",
-          "-e",
-          `await import(${JSON.stringify(workerUrl.href)}); process.stdout.write('ready\\n'); setInterval(() => {}, 1000);`,
-          "sqlite-worker-test",
-          requestPath,
-        ],
-      });
-      pid = launched.process.pid;
-      await waitForProviderProcessReady(launched.process);
-      await access(`${ownedRoot}/reply.json`);
-      setImmediate(() => controller.abort());
-      return launched;
-    });
+    const provider = new SqliteDatabaseProvider(
+      process.platform === "win32" && process.env.SystemRoot !== undefined
+        ? { SystemRoot: process.env.SystemRoot }
+        : {},
+      async (spawn) => {
+        ownedRoot = spawn.cwd ?? "";
+        const requestPath = spawn.arguments[2];
+        if (requestPath === undefined)
+          throw new Error("SQLite worker arguments missing");
+        const launched = await spawnOwnedProviderProcess({
+          ...spawn,
+          arguments: [
+            "--input-type=module",
+            "-e",
+            `await import(${JSON.stringify(workerUrl.href)}); process.stdout.write('ready\\n'); setInterval(() => {}, 1000);`,
+            "sqlite-worker-test",
+            requestPath,
+          ],
+        });
+        pid = launched.process.pid;
+        await waitForProviderProcessReady(launched.process);
+        await access(`${ownedRoot}/reply.json`);
+        setImmediate(() => controller.abort());
+        return launched;
+      },
+    );
     const result = await provider.inspect(
       { path: database.path, table: "records" },
       { signal: controller.signal },

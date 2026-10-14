@@ -56,26 +56,34 @@ cliTest.skipIf(!["darwin", "linux"].includes(process.platform))(
       timeoutMs: 20_000,
     });
 
-    const executableOnHost = process.platform === "darwin";
+    const hopperReady = process.platform === "darwin";
     expect(result.signal).toBeNull();
-    expect(result.exitCode).toBe(executableOnHost ? 0 : 1);
+    expect(result.exitCode).toBe(hopperReady ? 0 : 1);
     expect(result.json).toMatchObject({
-      healthy: executableOnHost,
+      healthy: hopperReady,
       environment_healthy: false,
-      ...(executableOnHost ? { hopperPath: launcher } : {}),
+      ...(hopperReady ? { hopperPath: launcher } : {}),
       checks: expect.arrayContaining([
         expect.objectContaining({
           name: "hopper",
-          ok: executableOnHost,
+          ok: true,
           detail: launcher,
-          classification: executableOnHost ? "healthy" : "config_drift",
-          ...(executableOnHost
-            ? {}
-            : { remediation: expect.stringContaining("HOPPER_LAUNCHER_PATH") }),
+          classification: "healthy",
         }),
+        ...(process.platform === "linux"
+          ? [
+              expect.objectContaining({
+                name: "hopper-version",
+                ok: false,
+                detail: launcher,
+                classification: "config_drift",
+                remediation: expect.stringContaining("HOPPER_LAUNCHER_PATH"),
+              }),
+            ]
+          : []),
       ]),
     });
-    if (!executableOnHost) expect(result.json).not.toHaveProperty("hopperPath");
+    if (!hopperReady) expect(result.json).not.toHaveProperty("hopperPath");
     await expect(access(launchMarker)).rejects.toMatchObject({
       code: "ENOENT",
     });

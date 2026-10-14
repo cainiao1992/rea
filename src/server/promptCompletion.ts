@@ -7,8 +7,9 @@ import type { AnalysisOperationPort } from "../application/AnalysisProvider.js";
 import type { BinarySessionPort } from "../application/binary/BinarySessionPort.js";
 import type { PromptCompletionKind } from "../contracts/promptContracts.js";
 import { currentMcpRequestSignal } from "./EvidenceMcpServer.js";
-import { artifactInventoryResultSchema } from "../domain/artifactGraph.js";
+import { parseArtifactInventoryEvidence } from "../domain/artifactInventoryEvidence.js";
 import { artifactInspectionResultSchema } from "../domain/artifactInspection.js";
+import { EvidenceIntegrityError } from "../domain/evidenceErrors.js";
 import { parseProcessCapture } from "../domain/process/processCaptureParsing.js";
 
 const documentListSchema = z.array(z.string().min(1));
@@ -180,29 +181,38 @@ const evidenceValues = (
   if (kind === "evidence") return [evidence.evidence_id];
   if (kind === "capture")
     return isProcessCaptureEvidence(evidence) ? [evidence.evidence_id] : [];
-  let inventoryResults: readonly unknown[];
   if (evidence.operation === "inventory_artifact")
-    inventoryResults = [evidence.normalized_result];
-  else if (evidence.operation === "inspect_artifact") {
+    return artifactInventoryValues(kind, evidence);
+  if (evidence.operation === "inspect_artifact") {
     const inspection = artifactInspectionResultSchema.safeParse(
       evidence.normalized_result,
     );
     if (!inspection.success) return [];
-    inventoryResults = inspection.data.substeps.map(
-      ({ evidence: inventoryEvidence }) => inventoryEvidence.normalized_result,
+    return inspection.data.substeps.flatMap(({ evidence: inventoryEvidence }) =>
+      artifactInventoryValues(kind, inventoryEvidence),
     );
-  } else return [];
-  const values: string[] = [];
-  for (const inventoryResult of inventoryResults) {
-    const inventory = artifactInventoryResultSchema.safeParse(inventoryResult);
-    if (!inventory.success) continue;
-    if (kind === "manifest") values.push(inventory.data.manifest.manifest_id);
-    else
-      values.push(
-        ...inventory.data.occurrences.map(({ occurrence_id: id }) => id),
-      );
   }
-  return values;
+  return [];
+};
+
+const artifactInventoryValues = (
+  kind: "manifest" | "occurrence",
+  evidence: unknown,
+): readonly string[] => {
+  try {
+    const { inventory } = parseArtifactInventoryEvidence(evidence);
+    return kind === "manifest"
+      ? [inventory.manifest.manifest_id]
+      : inventory.occurrences.map(({ occurrence_id: id }) => id);
+  } catch (cause: unknown) {
+    if (
+      cause instanceof TypeError ||
+      cause instanceof z.ZodError ||
+      cause instanceof EvidenceIntegrityError
+    )
+      return [];
+    throw cause;
+  }
 };
 
 const isProcessCaptureEvidence = (evidence: LedgerEvidence): boolean => {

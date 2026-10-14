@@ -14,7 +14,7 @@ import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { ARTIFACT_COMPARISON_EXAMPLE } from "../../../src/contracts/artifactComparisonExample.js";
 import { PROCESS_CAPTURE_REFERENCE } from "../../../src/contracts/investigationExamples.js";
 import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "../../../src/domain/process/processCaptureExample.js";
-import { createEvidence } from "../../../src/domain/evidence.js";
+import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
 import {
   artifactInspectionResultSchema,
   createArtifactInspection,
@@ -212,28 +212,7 @@ describe("guided prompt completion from investigation records", () => {
 describe("guided prompt completion from retained records", () => {
   it("offers identifiers from every retained inspection inventory substep", async () => {
     const session = createTestBinarySession(() => client([]));
-    const leftInspection = createArtifactInspection(
-      ARTIFACT_COMPARISON_EXAMPLE.left,
-    );
-    const rightInspection = createArtifactInspection(
-      ARTIFACT_COMPARISON_EXAMPLE.right,
-    );
-    const inspection = artifactInspectionResultSchema.parse({
-      ...leftInspection,
-      substeps: [...leftInspection.substeps, ...rightInspection.substeps],
-      evidence_links: [
-        ...leftInspection.evidence_links,
-        ...rightInspection.evidence_links,
-      ],
-    });
-    const inspectionEvidence = createEvidence(undefined, fixtureProvider, {
-      operation: "inspect_artifact",
-      parameters: {},
-      result: jsonValueSchema.parse(inspection),
-      confidence: "observed",
-      authority: "shipped-artifact",
-      evidenceLinks: inspection.evidence_links,
-    });
+    const inspectionEvidence = createCompositeInspectionEvidence();
     expect(session.recordEvidence(inspectionEvidence).ok).toBe(true);
     const completion = createPromptCompletionSource(session, session);
     const expectedManifests = [
@@ -262,6 +241,38 @@ describe("guided prompt completion from retained records", () => {
     );
     expect(await completion.complete("occurrence", "occ_")).toEqual(
       expectedOccurrences,
+    );
+
+    await session.close();
+  });
+
+  it("skips an inner inventory whose payload no longer matches its Evidence ID", async () => {
+    const session = createTestBinarySession(() => client([]));
+    const inspectionEvidence = createCompositeInspectionEvidence(true);
+    const corruptedInner = artifactInspectionResultSchema.parse(
+      inspectionEvidence.normalized_result,
+    ).substeps[1]?.evidence;
+    if (corruptedInner === undefined)
+      throw new Error("composite fixture must contain a second inventory");
+    expect(corruptedInner.evidence_id).toBe(
+      ARTIFACT_COMPARISON_EXAMPLE.right.evidence_id,
+    );
+    expect(
+      artifactInventoryResultSchema.safeParse(corruptedInner.normalized_result)
+        .success,
+    ).toBe(true);
+    expect(() => parseEvidence(corruptedInner)).toThrow();
+    expect(session.recordEvidence(inspectionEvidence).ok).toBe(true);
+    const completion = createPromptCompletionSource(session, session);
+    const firstInventory = artifactInventoryResultSchema.parse(
+      ARTIFACT_COMPARISON_EXAMPLE.left.normalized_result,
+    );
+
+    expect(await completion.complete("manifest", "agm_")).toEqual([
+      firstInventory.manifest.manifest_id,
+    ]);
+    expect(await completion.complete("occurrence", "occ_")).toEqual(
+      firstInventory.occurrences.map(({ occurrence_id }) => occurrence_id),
     );
 
     await session.close();
@@ -338,6 +349,54 @@ const fixtureEnvironment = {
   platform: "linux",
   architecture: "x86_64",
   isolation: "process" as const,
+};
+
+const createCompositeInspectionEvidence = (corruptSecondInventory = false) => {
+  const leftInspection = createArtifactInspection(
+    ARTIFACT_COMPARISON_EXAMPLE.left,
+  );
+  const rightInspection = createArtifactInspection(
+    ARTIFACT_COMPARISON_EXAMPLE.right,
+  );
+  const substeps = [...leftInspection.substeps, ...rightInspection.substeps];
+  if (corruptSecondInventory) {
+    const secondSubstep = substeps[1];
+    if (secondSubstep === undefined)
+      throw new Error("composite fixture must contain a second inventory");
+    const inventory = artifactInventoryResultSchema.parse(
+      secondSubstep.evidence.normalized_result,
+    );
+    substeps[1] = {
+      ...secondSubstep,
+      evidence: {
+        ...secondSubstep.evidence,
+        normalized_result: {
+          ...inventory,
+          coverage: { ...inventory.coverage, status: "unknown" },
+        },
+      },
+    };
+  }
+  const inspection = artifactInspectionResultSchema.parse({
+    ...leftInspection,
+    substeps,
+    evidence_links: [
+      ...leftInspection.evidence_links,
+      ...rightInspection.evidence_links,
+    ],
+    coverage: {
+      ...leftInspection.coverage,
+      substeps_completed: substeps.length,
+    },
+  });
+  return createEvidence(undefined, fixtureProvider, {
+    operation: "inspect_artifact",
+    parameters: {},
+    result: jsonValueSchema.parse(inspection),
+    confidence: "observed",
+    authority: "shipped-artifact",
+    evidenceLinks: inspection.evidence_links,
+  });
 };
 
 const client = (

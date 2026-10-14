@@ -297,6 +297,44 @@ describe("GraphQL operation recognition", () => {
     ]);
   });
 
+  it.each([
+    ["query", "query # header\nGetUser { user }"],
+    ["mutation", "mutation,# header\r\nGetUser { user }"],
+    ["subscription", "subscription# header\rGetUser { user }"],
+    ["query", "query GetUser # selection\n{ user }"],
+    ["query", "query GetUser { # field\nuser }"],
+    ["query", "query GetUser( # variable\n$id: ID!) { user }"],
+    ["query", "query GetUser # directive\n@skip(if: false) { user }"],
+    ["query", "query GetUser @ # directive name\nkeep { user }"],
+    [
+      "query",
+      "# prefix\nquery # one\n, # two\nGetUser # three\n{ # four\nuser }",
+    ],
+  ])("recognizes %s header comments in %s", (type, text) => {
+    const expected = [
+      { kind: "network", value: "GetUser", mechanism: `graphql:${type}` },
+    ];
+    expect(rpcEndpoints(`const doc = ${JSON.stringify(text)};`)).toEqual(
+      expected,
+    );
+    expect(rpcEndpoints("const doc = gql`" + text + "`; ")).toEqual(expected);
+  });
+
+  it.each([
+    "query # GetUser { user }",
+    "query GetUser # { user }",
+    "query GetUser { # user }",
+    "query # anonymous\n{ user }",
+    "query GetUser # prose\nparameters",
+    "query Get# split name\nUser { user }",
+    "query GetUser @ # missing directive name",
+    "query GetUser { # fragment\n...UserFields }",
+    "query\u00a0GetUser { user }",
+    "query\vGetUser { user }",
+  ])("keeps incomplete or unsupported header text unknown: %s", (text) => {
+    expect(rpcEndpoints(`const doc = ${JSON.stringify(text)};`)).toEqual([]);
+  });
+
   it("retains operations after long ignored prefixes and long headers", () => {
     const name = "Operation" + "x".repeat(512);
     const text =

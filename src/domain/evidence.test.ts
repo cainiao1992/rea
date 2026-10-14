@@ -488,6 +488,20 @@ describe("evidence parameter depth bound", () => {
       ),
     ).toBe(true);
   });
+
+  it("stops semantic authentication when normalized JSON exceeds its depth bound", () => {
+    const evidence = createEvidence(TARGET, PROVIDER, {
+      operation: "health",
+      parameters: {},
+      result: true,
+    });
+    let value: unknown = 1;
+    for (let index = 0; index < 10_000; index += 1) value = { nested: value };
+
+    expect(() =>
+      parseEvidence({ ...evidence, normalized_result: value }),
+    ).toThrow(/maximum nesting depth/u);
+  });
 });
 
 it("preserves prototype-named raw and normalized results with aligned identity", () => {

@@ -9,6 +9,10 @@ No device, root privilege, mount, emulation or execution of extracted programs
 is needed. Arbitrary firmware bytes do not pass native executable admission;
 select a returned ELF separately for supported Ghidra analysis.
 
+On Linux, Binwalk and Unblob run as REA-owned processes and require a
+procps-compatible `ps` on REA's `PATH`; see the shared
+[Linux process prerequisite](installation.md#linux-owned-process-prerequisite).
+
 ## Caller-supplied tools
 
 Provide existing tools using absolute executable paths, scoped to your shell:

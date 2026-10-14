@@ -43,7 +43,10 @@ import {
   type WebScreenshotDiff,
 } from "../domain/webScreenshot.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
-import { AnalysisInputError } from "../domain/analysisErrorCore.js";
+import {
+  AnalysisCancelledError,
+  AnalysisInputError,
+} from "../domain/analysisErrorCore.js";
 import { BrowserObservationError } from "../domain/browserObservationError.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import type { BrowserObservationOperation } from "../domain/browserObservationErrors.js";
@@ -119,7 +122,7 @@ export class CdpBrowserProvider implements BrowserObservationPort {
         }),
       );
     } catch (cause: unknown) {
-      return err(providerError(cause, "list_browser_targets"));
+      return err(providerError(cause, "list_browser_targets", options.signal));
     }
   }
 
@@ -131,7 +134,7 @@ export class CdpBrowserProvider implements BrowserObservationPort {
       const captured = await this.#capture(input, options, "inspect_web_page");
       return ok(webPageInspectionSchema.parse(captured.inspection));
     } catch (cause: unknown) {
-      return err(providerError(cause, "inspect_web_page"));
+      return err(providerError(cause, "inspect_web_page", options.signal));
     }
   }
 
@@ -164,7 +167,7 @@ export class CdpBrowserProvider implements BrowserObservationPort {
         ),
       );
     } catch (cause: unknown) {
-      return err(providerError(cause, "analyze_web_bundle"));
+      return err(providerError(cause, "analyze_web_bundle", options.signal));
     }
   }
 
@@ -184,7 +187,7 @@ export class CdpBrowserProvider implements BrowserObservationPort {
         ),
       );
     } catch (cause: unknown) {
-      return err(providerError(cause, "observe_web_session"));
+      return err(providerError(cause, "observe_web_session", options.signal));
     }
   }
 
@@ -204,7 +207,7 @@ export class CdpBrowserProvider implements BrowserObservationPort {
         ),
       );
     } catch (cause: unknown) {
-      return err(providerError(cause, "discover_webmcp_tools"));
+      return err(providerError(cause, "discover_webmcp_tools", options.signal));
     }
   }
 
@@ -236,7 +239,9 @@ export class CdpBrowserProvider implements BrowserObservationPort {
         ),
       );
     } catch (cause: unknown) {
-      return err(providerError(cause, "capture_web_screenshot"));
+      return err(
+        providerError(cause, "capture_web_screenshot", options.signal),
+      );
     }
   }
 
@@ -413,11 +418,18 @@ const scopeToTargetOrigin = <T extends { allowed_origins: readonly string[] }>(
 const providerError = (
   cause: unknown,
   operation: BrowserObservationOperation,
+  signal?: AbortSignal,
 ): AnalysisError =>
   cause instanceof BrowserObservationError && cause.operation !== operation
     ? new BrowserObservationError(operation, cause.reason, { cause })
     : cause instanceof AnalysisError
       ? cause
-      : new ProviderAdapterError(CDP_BROWSER_PROVIDER_IDENTITY.id, operation, {
-          cause,
-        });
+      : signal?.aborted === true
+        ? new AnalysisCancelledError(operation, { cause })
+        : new ProviderAdapterError(
+            CDP_BROWSER_PROVIDER_IDENTITY.id,
+            operation,
+            {
+              cause,
+            },
+          );

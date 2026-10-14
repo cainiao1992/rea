@@ -729,7 +729,10 @@ const originalModuleEdges = (
       );
       continue;
     }
-    const parsed = parseJavaScriptSource(source.artifact.text);
+    const parsed = parseJavaScriptSource(
+      source.artifact.text,
+      sourceParserPath(sourceName),
+    );
     check();
     if (parsed === null) {
       incomplete.push(sourceName);
@@ -781,6 +784,17 @@ const originalModuleEdges = (
     });
   }
   return { edges, incomplete };
+};
+
+/** Select parser semantics from the source URL path, excluding query/fragment. */
+const sourceParserPath = (source: string): string => {
+  try {
+    return new URL(source).pathname;
+  } catch (cause: unknown) {
+    // Unresolved source identities can still carry a useful relative path.
+    void cause;
+    return source;
+  }
 };
 
 const checkOperation = (

@@ -8,6 +8,7 @@ import type { OwnedProcessGroup } from "../process/ProcessOwnership.js";
 import {
   cleanupElectronProcesses,
   PlaywrightElectronActiveProvider,
+  safeElectronEnvironment,
 } from "./PlaywrightElectronActiveProvider.js";
 
 afterEach(() => {
@@ -42,6 +43,26 @@ it("passes the selected environment and ownership token to Electron launch", asy
     LANG: "selected-language",
     PATH: "/selected/bin",
     REA_PROCESS_RUN_ID: expect.any(String),
+  });
+});
+
+it("passes required Windows runtime variables without inheriting unrelated values", () => {
+  expect(
+    safeElectronEnvironment(
+      {
+        SYSTEMROOT: "C:\\Windows",
+        LOCALAPPDATA: "C:\\Users\\analyst\\AppData\\Local",
+        USERPROFILE: "C:\\Users\\analyst",
+        APP_SECRET: "must-not-pass",
+      },
+      "run-id",
+      "win32",
+    ),
+  ).toEqual({
+    SYSTEMROOT: "C:\\Windows",
+    LOCALAPPDATA: "C:\\Users\\analyst\\AppData\\Local",
+    USERPROFILE: "C:\\Users\\analyst",
+    REA_PROCESS_RUN_ID: "run-id",
   });
 });
 

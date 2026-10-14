@@ -358,9 +358,10 @@ export const cleanupElectronProcesses = async (
   };
 };
 
-const safeElectronEnvironment = (
+export const safeElectronEnvironment = (
   environment: Readonly<Record<string, string | undefined>>,
   runId: string,
+  platform = process.platform,
 ): Record<string, string> =>
   Object.fromEntries([
     ...[
@@ -372,6 +373,23 @@ const safeElectronEnvironment = (
       "USER",
       "DISPLAY",
       "WAYLAND_DISPLAY",
+      ...(platform === "win32"
+        ? [
+            "SYSTEMROOT",
+            "TEMP",
+            "APPDATA",
+            "LOCALAPPDATA",
+            "USERPROFILE",
+            "COMSPEC",
+            "PATHEXT",
+            "PROGRAMDATA",
+            "ALLUSERSPROFILE",
+            "USERNAME",
+            "SYSTEMDRIVE",
+            "HOMEDRIVE",
+            "HOMEPATH",
+          ]
+        : []),
     ]
       .map((name) => [name, environment[name]] as const)
       .filter(

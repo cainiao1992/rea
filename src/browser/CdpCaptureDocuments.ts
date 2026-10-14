@@ -556,7 +556,8 @@ const domMetadata = (
   }
   const rel = (pairs.get("rel") ?? "")
     .toLowerCase()
-    .split(/\s+/u)
+    // HTML link type tokens are separated by ASCII whitespace only.
+    .split(/[\t\n\f\r ]+/u)
     .filter((value) => agentRelValues.includes(value));
   const href = urls.find(({ attribute }) => attribute === "href")?.url ?? null;
   const agentHints =

@@ -207,12 +207,7 @@ const compareWebCaptureDimensions = (
         sectionsComplete(after, ["metadata"]),
       "Safe metadata capture was incomplete in at least one observation.",
     ),
-    webmcp: compareDimension(
-      webMcpMap(input.before.webmcp),
-      webMcpMap(input.after.webmcp),
-      webMcpComplete(input.before.webmcp) && webMcpComplete(input.after.webmcp),
-      "WebMCP discovery was unavailable or incomplete in at least one capture.",
-    ),
+    webmcp: webMcpDimension(input.before.webmcp, input.after.webmcp),
     accessibility: accessibilityDimension(before, after),
     storage: storageDimension(before, after),
   };
@@ -532,12 +527,51 @@ const webSocketPayloadMaps = (
   return [left, right];
 };
 
-const webMcpMap = (
-  discovery: WebMcpDiscovery | null,
-): ReadonlyMap<string, string> =>
-  discovery === null
-    ? new Map()
-    : keyed(discovery.tools.items, (tool) => tool.tool_key);
+const webMcpDimension = (
+  before: WebMcpDiscovery | null,
+  after: WebMcpDiscovery | null,
+): Dimension => {
+  const afterTools = new Map(
+    after?.tools.items.map((tool) => [tool.tool_key, tool]),
+  );
+  const unknownHints = new Set(
+    (before?.tools.items ?? [])
+      .filter((tool) => {
+        const other = afterTools.get(tool.tool_key);
+        return (
+          other !== undefined &&
+          (tool.annotations.consequential === undefined ||
+            other.annotations.consequential === undefined)
+        );
+      })
+      .map((tool) => tool.tool_key),
+  );
+  const project = (
+    discovery: WebMcpDiscovery | null,
+  ): ReadonlyMap<string, string> =>
+    keyed(
+      (discovery?.tools.items ?? []).map((tool) => {
+        if (!unknownHints.has(tool.tool_key)) return tool;
+        const { consequential: _unknown, ...annotations } = tool.annotations;
+        return { ...tool, annotations };
+      }),
+      (tool) => tool.tool_key,
+    );
+  const result = compareDimension(
+    project(before),
+    project(after),
+    webMcpComplete(before) && webMcpComplete(after),
+    "WebMCP discovery was unavailable or incomplete in at least one capture.",
+  );
+  return result.status === "unchanged" && unknownHints.size > 0
+    ? {
+        ...result,
+        status: "unknown",
+        reason:
+          "Consequential annotations were not recorded or were invalid in at least one capture.",
+      }
+    : result;
+};
 
 const webMcpComplete = (discovery: WebMcpDiscovery | null): boolean =>
   discovery !== null &&

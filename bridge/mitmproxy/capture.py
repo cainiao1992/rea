@@ -41,6 +41,87 @@ class BoundedReader:
         return self.handle.read(count)
 
 
+SPECIAL_SCHEMES = {"ftp", "file", "http", "https", "ws", "wss"}
+SCHEME_PREFIX = r"^[\x00-\x20]*([a-z][a-z0-9+.-]*):"
+NETWORK_PREFIX = r"^[\x00-\x20]*[/\\]{2}"
+URL_IGNORABLE_CONTROLS = "\t\n\r"
+URL_CONTROL_TRANSLATION = {ord(char): None for char in URL_IGNORABLE_CONTROLS}
+
+
+def authority_start(text, base_scheme=None):
+    """Return where an authority begins and whether it is special, or None.
+
+    Follows WHATWG URL parsing as src/domain/recordedTransportUrl.ts does:
+    special schemes (and scheme-relative references) skip every leading "/"
+    or "\\" before the authority, so `https://\\user:pass@host` still has
+    userinfo. File URLs carry no userinfo and keep their "//" boundary.
+    """
+    scheme = re.match(SCHEME_PREFIX, text, flags=re.I)
+    name = scheme.group(1).lower() if scheme is not None else None
+    if name is not None and name in SPECIAL_SCHEMES and name != "file":
+        # A same-scheme Location without two slash-equivalent separators is
+        # relative to the recorded request, so its @ belongs to the path.
+        following = text[scheme.end():scheme.end() + 2]
+        if name == base_scheme and (len(following) < 2 or any(char not in "/\\" for char in following)):
+            return None
+        start = scheme.end()
+    else:
+        if scheme is not None:
+            if text[scheme.end():scheme.end() + 2] != "//":
+                return None
+            return scheme.end() + 2, name in SPECIAL_SCHEMES
+        # A non-special base treats backslashes as authority data and only
+        # recognizes two forward slashes as a network reference.
+        if base_scheme is not None and base_scheme not in SPECIAL_SCHEMES:
+            prefix = re.match(r"^[\x00-\x20]*//", text)
+            return None if prefix is None else (prefix.end(), False)
+        prefix = re.match(NETWORK_PREFIX, text)
+        if prefix is None:
+            return None
+        start = prefix.end()
+        if base_scheme == "file":
+            return start, True
+    while start < len(text) and text[start] in "/\\":
+        start += 1
+    return start, True
+
+
+def without_userinfo(value, base_scheme=None):
+    """Remove an authority's userinfo using the WHATWG authority boundary.
+
+    Special schemes and scheme-relative references also end the authority
+    at a backslash, so later path text containing "@" is not userinfo.
+    """
+    binary = isinstance(value, bytes)
+    text = value.decode("latin-1") if binary else value
+    # WHATWG removes these controls before interpreting scheme/separators.
+    # Keep that parse view separate from the exact source spelling and bytes.
+    parsed_text = text.translate(URL_CONTROL_TRANSLATION)
+    located = authority_start(parsed_text, base_scheme)
+    if located is None:
+        return value
+    start, special = located
+    terminators = "/?#\\" if special else "/?#"
+    end = start
+    while end < len(parsed_text) and parsed_text[end] not in terminators:
+        end += 1
+    at = parsed_text.rfind("@", start, end)
+    if at < start:
+        return value
+    parsed_offset = 0
+    raw_start = 0
+    for raw_offset, char in enumerate(text):
+        if char in URL_IGNORABLE_CONTROLS:
+            continue
+        if parsed_offset == start:
+            raw_start = raw_offset
+        if parsed_offset == at:
+            safe = text[:raw_start] + text[raw_offset + 1 :]
+            return safe.encode("latin-1") if binary else safe
+        parsed_offset += 1
+    raise CaptureFailure("decoder", "Normalized URL authority could not be bound to its source.")
+
+
 def project_record(state, secrets):
     binaries, numbers, redactions = [], [], []
     byte_secrets = []
@@ -58,16 +139,23 @@ def project_record(state, secrets):
             return None
         return text
 
-    def transport_value(value, path, transport_url):
+    def transport_value(value, path, transport_url, base_scheme):
         if not (transport_url or re.fullmatch(r"/(?:backup/)*request/(?:path|authority)", path)):
             return value, False
         binary = isinstance(value, bytes)
-        pattern = rb"^([\x00-\x20]*(?:[a-z][a-z0-9+.-]*:)?//)[^/?#]*@" if binary else r"^([\x00-\x20]*(?:[a-z][a-z0-9+.-]*:)?//)[^/?#]*@"
-        replacement = rb"\1" if binary else r"\1"
         separator = b"@" if binary else "@"
-        safe_url = re.sub(pattern, replacement, value, flags=re.I)
-        if path.endswith("/authority") and separator in safe_url:
-            safe_url = safe_url.rsplit(separator, 1)[1]
+        if transport_url:
+            safe_url = without_userinfo(value, base_scheme)
+        elif path.endswith("/authority"):
+            safe_url = value.rsplit(separator, 1)[-1]
+        else:
+            # Native request.path is origin-form unless it explicitly carries
+            # a scheme (absolute-form). Leading separators are path evidence,
+            # not a header URL reference's network authority.
+            text = value.decode("latin-1") if binary else value
+            safe_url = without_userinfo(value) if re.match(
+                SCHEME_PREFIX, text.translate(URL_CONTROL_TRANSLATION), flags=re.I
+            ) else value
         changed = safe_url != value
         if changed:
             redactions.append({"pointer": path, "reason": "transport-credential"})
@@ -80,7 +168,7 @@ def project_record(state, secrets):
         del numbers[before[1]:]
         del redactions[before[2]:]
 
-    def visit(value, path, depth=0, credential=False, transport_url=False):
+    def visit(value, path, depth=0, credential=False, transport_url=False, base_scheme=None):
         if depth > 64:
             raise CaptureFailure("input-limit", "Native capture exceeds the 64-level evidence nesting budget.", path)
         if credential:
@@ -90,7 +178,7 @@ def project_record(state, secrets):
                 binaries.append({"pointer": path, "representation": "producer-bytes", "state": "redacted", "content_base64": None, "bytes": None, "sha256": None})
             return None
         if isinstance(value, bytes):
-            safe_bytes, credential_url = transport_value(value, path, transport_url)
+            safe_bytes, credential_url = transport_value(value, path, transport_url, base_scheme)
             content_base64 = base64.b64encode(value).decode("ascii")
             digest = hashlib.sha256(value).hexdigest()
             hidden = any(secret in value or secret in safe_bytes for secret in byte_secrets) or any(secret in content_base64 or secret in digest or secret in str(len(value)) for secret in secrets)
@@ -107,7 +195,7 @@ def project_record(state, secrets):
                 return None
             return safe_text
         if isinstance(value, str):
-            safe_text, _ = transport_value(value, path, transport_url)
+            safe_text, _ = transport_value(value, path, transport_url, base_scheme)
             return redact(safe_text, path, value)
         if isinstance(value, bool) or value is None:
             return value
@@ -125,10 +213,16 @@ def project_record(state, secrets):
                 for index, field in enumerate(value):
                     if not isinstance(field, (list, tuple)) or len(field) != 2 or not isinstance(field[0], bytes):
                         raise CaptureFailure("format", "Native header/trailer is not an ordered byte pair.", pointer(path, index))
-                    result.append([visit(field[0], pointer(pointer(path, index), 0), depth + 2), visit(field[1], pointer(pointer(path, index), 1), depth + 2, field[0].lower() in CREDENTIALS, field[0].lower() in {b"location", b"referer", b"origin"})])
+                    result.append([visit(field[0], pointer(pointer(path, index), 0), depth + 2), visit(field[1], pointer(pointer(path, index), 1), depth + 2, field[0].lower() in CREDENTIALS, field[0].lower() in {b"location", b"referer", b"origin"}, base_scheme if field[0].lower() == b"location" else None)])
                 return result
-            return [visit(item, pointer(path, index), depth + 1) for index, item in enumerate(value)]
+            return [visit(item, pointer(path, index), depth + 1, base_scheme=base_scheme) for index, item in enumerate(value)]
         if isinstance(value, dict):
+            if path == "" or re.fullmatch(r"/backup(?:/backup)*", path):
+                request = value.get("request")
+                scheme = request.get("scheme") if isinstance(request, dict) else None
+                if isinstance(scheme, bytes):
+                    scheme = scheme.decode("latin-1")
+                base_scheme = scheme.lower() if isinstance(scheme, str) and re.fullmatch(r"[a-z][a-z0-9+.-]*", scheme, flags=re.I) else None
             result = {}
             for key, item in value.items():
                 if not isinstance(key, str):
@@ -139,7 +233,7 @@ def project_record(state, secrets):
                     validate_omitted(item, pointer(path, key), depth + 1)
                     redactions.append({"pointer": path, "reason": "explicit-sensitive-value", "scope": "property-name"})
                     continue
-                result[key] = visit(item, pointer(path, key), depth + 1)
+                result[key] = visit(item, pointer(path, key), depth + 1, base_scheme=base_scheme)
             return result
         raise CaptureFailure("decoder", "Native parser returned an unexpected value type: " + type(value).__name__ + ".", path)
 

@@ -25,7 +25,15 @@ export const decodeSazMetadata = (bytes: Buffer): JsonValue => {
   try {
     document = new DOMParser({
       normalizeLineEndings: (source) => source,
-      onError: () => {
+      onError: (level, message) => {
+        // The parser warns whenever the source contains U+FFFD. It is a legal
+        // XML Char, and the fatal decoder above already rejected invalid
+        // source bytes, so only that warning is not a well-formedness failure.
+        if (
+          level === "warning" &&
+          message.startsWith("Unicode replacement character detected")
+        )
+          return;
         parseFailed = true;
       },
     }).parseFromString(xml, "application/xml");

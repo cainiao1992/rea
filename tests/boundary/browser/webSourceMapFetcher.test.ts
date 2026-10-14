@@ -1115,6 +1115,34 @@ describe("source-map dependency coverage of hard-to-parse sources", () => {
     ).toEqual(expected);
   });
 
+  it("selects parser mode from the original source URL pathname", async () => {
+    const result = await fetchWebSourceMaps([request], input(), undefined, {
+      fetch: () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              version: 3,
+              names: [],
+              sources: ["main.ts?revision=2#view.tsx"],
+              sourcesContent: [`import "./dep.ts"; const value = <number>1;`],
+              mappings: "AAAA",
+            }),
+          ),
+        ),
+    });
+    expect(result.items[0]?.status).toBe("included");
+    expect(result.items[0]?.limitation).toBeNull();
+    expect(result.items[0]?.original_sources[0]?.source).toBe(
+      `${origin}/assets/main.ts?revision=2#view.tsx`,
+    );
+    expect(result.items[0]?.original_module_edges).toEqual([
+      expect.objectContaining({
+        specifier: "./dep.ts",
+        resolved_source: `${origin}/assets/dep.ts`,
+      }),
+    ]);
+  });
+
   it("keeps recovered edges from a partly recovered source and reports them as partial", async () => {
     const result = await fetchWithSources([
       'with (scope) { require("./c.js"); }\nrequire("./b.js");\nimport "./a.js";',

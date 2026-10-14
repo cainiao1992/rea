@@ -18,7 +18,7 @@ const relativePathSchema = z
   .refine(
     (path) =>
       !path.startsWith("/") &&
-      !path.includes("\\") &&
+      !path.includes("\0") &&
       path
         .split("/")
         .every((part) => part !== "" && part !== "." && part !== ".."),
@@ -85,10 +85,9 @@ const symlinkTargetSchema = z
   .min(1)
   .refine(
     (target) =>
-      isPortableAbsoluteReferenceTarget(target) ||
-      (!target.startsWith("/") &&
-        !target.includes("\\") &&
-        posix.normalize(target) === target),
+      !target.includes("\0") &&
+      (isPortableAbsoluteReferenceTarget(target) ||
+        (!target.startsWith("/") && posix.normalize(target) === target)),
     "Expected a normalized POSIX symlink target",
   );
 
@@ -130,6 +129,9 @@ const parseFailureSchema = z.strictObject({
 const exclusionSchema = z.discriminatedUnion("reason", [
   z.strictObject({
     path: relativePathSchema,
+    entry_kind: z
+      .enum(["file", "directory", "symlink", "other"])
+      .exactOptional(),
     reason: z.enum([
       "configured-secret",
       "project-ignored",
@@ -140,6 +142,9 @@ const exclusionSchema = z.discriminatedUnion("reason", [
   }),
   z.strictObject({
     path: relativePathSchema,
+    entry_kind: z
+      .enum(["file", "directory", "symlink", "other"])
+      .exactOptional(),
     reason: z.enum(["symlink-escape", "unreadable"]),
   }),
 ]);
@@ -320,10 +325,50 @@ const checkSymlinks = (
   context: z.RefinementCtx,
 ): void => {
   const lookupPath = createReferenceSourcePathLookup(paths);
+  const excludedPaths = createReferenceSourcePathLookup(
+    graph.exclusions.map(({ path }) => path),
+  );
+  const excludedKinds = new Map<
+    string,
+    Set<"file" | "directory" | "symlink" | "other" | undefined>
+  >();
+  for (const { path, entry_kind } of graph.exclusions) {
+    const kinds = excludedKinds.get(path) ?? new Set();
+    kinds.add(entry_kind);
+    excludedKinds.set(path, kinds);
+  }
   for (const [index, entry] of graph.entries.entries()) {
     if (entry.kind !== "symlink") continue;
     if (entry.target === null) continue;
-    const absolute = isPortableAbsoluteReferenceTarget(entry.target);
+    const resolved = posix.normalize(
+      posix.join(posix.dirname(entry.path), entry.target),
+    );
+    const escapesRoot = resolved.startsWith("../") || resolved === "..";
+    // The root is implicit; every other internal target needs an exact or
+    // uniquely Unicode-equivalent recorded inventory identity.
+    const inventoried =
+      resolved === "." || lookupPath.resolve(resolved) !== undefined;
+    const exactExcluded = excludedPaths.resolve(resolved);
+    let excluded = exactExcluded !== undefined;
+    for (
+      let candidate = posix.dirname(resolved);
+      candidate !== "." && candidate !== "/";
+      candidate = posix.dirname(candidate)
+    ) {
+      const excludedAncestor = excludedPaths.resolve(candidate);
+      if (excludedAncestor === undefined) continue;
+      const kinds = excludedKinds.get(excludedAncestor);
+      if (kinds?.size !== 1 || !kinds.has("directory")) {
+        excluded = false;
+        break;
+      }
+      excluded = true;
+    }
+    const ownedRelativeTarget =
+      !entry.target.startsWith("/") && !escapesRoot && inventoried;
+    const absolute =
+      isPortableAbsoluteReferenceTarget(entry.target) &&
+      !(entry.target_state === "internal" && ownedRelativeTarget);
     if (
       (entry.target_state === "external" && !absolute) ||
       (entry.target_state === "internal" && absolute)
@@ -334,18 +379,11 @@ const checkSymlinks = (
         path: ["entries", index, "target"],
       });
     if (entry.target_state !== "internal") continue;
-    const resolved = posix.normalize(
-      posix.join(posix.dirname(entry.path), entry.target),
-    );
-    if (
-      resolved.startsWith("../") ||
-      resolved === ".." ||
-      // The inventory root is implicit rather than an entry with path ".".
-      (resolved !== "." && lookupPath.resolve(resolved) === undefined)
-    )
+    if (escapesRoot || (!inventoried && !excluded))
       context.addIssue({
         code: "custom",
-        message: "Internal symlink target must resolve to an inventoried entry",
+        message:
+          "Internal symlink target must resolve to an inventoried entry or a recorded exclusion",
         path: ["entries", index, "target"],
       });
   }

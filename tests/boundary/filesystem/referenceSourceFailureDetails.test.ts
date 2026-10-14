@@ -117,6 +117,7 @@ describe("reference import native entry failure details", () => {
       ).toBeUndefined();
       expect(imported.value.exclusions).toContainEqual({
         path: "secret-events.pipe",
+        entry_kind: "other",
         reason: "configured-secret",
         pattern: "*secret*",
       });
@@ -132,4 +133,63 @@ describe("reference import native entry failure details", () => {
       imported.value.entries.find(({ path }) => path === "main.ts"),
     ).toMatchObject({ kind: "file", content_state: "hashed", limitations: [] });
   });
+});
+
+describe("reference import paths beyond the platform limit", () => {
+  it.skipIf(process.platform === "win32")(
+    "reports an entry beyond the absolute path limit as an I/O failure",
+    async () => {
+      const root = await createTestTempDirectory("rea-import-deep-path-");
+      await writeFile(join(root, "kept.txt"), "k");
+      // Relative creation lets the tree exceed PATH_MAX (1024 on macOS, 4096
+      // on Linux) while each 200-byte component stays below NAME_MAX.
+      const deepTree = (action: "create" | "remove") =>
+        promisify(execFile)(process.execPath, [
+          "-e",
+          `const fs = require("node:fs");
+          const names = Array.from({ length: 24 }, (_, i) => "d" + String(i).padStart(2, "0") + "x".repeat(197));
+          process.chdir(${JSON.stringify(root)});
+          if (${JSON.stringify(action)} === "create") {
+            for (const name of names) { fs.mkdirSync(name); process.chdir(name); }
+            fs.writeFileSync("deep.txt", "d");
+          } else {
+            for (const name of names) process.chdir(name);
+            fs.rmSync("deep.txt");
+            for (const name of [...names].reverse()) { process.chdir(".."); fs.rmdirSync(name); }
+          }`,
+        ]);
+      await deepTree("create");
+      try {
+        const read = await readReferenceSource(root);
+        if (!read.ok) throw new Error(read.error.message);
+        expect(read.value.entries).toContainEqual(
+          expect.objectContaining({ path: "kept.txt", status: "read" }),
+        );
+        const failed = read.value.entries.find(
+          (entry) => entry.status === "failed",
+        );
+        expect(failed).toMatchObject({
+          status: "failed",
+          code: "io",
+          message: expect.stringContaining("ENAMETOOLONG"),
+        });
+        const imported = await importTree(root);
+        if (!imported.ok) throw new Error(imported.error.message);
+        expect(imported.value.entries).toContainEqual(
+          expect.objectContaining({
+            path: "kept.txt",
+            content_state: "hashed",
+          }),
+        );
+        const deep = imported.value.entries.find(
+          (entry) => entry.path === failed?.path,
+        );
+        expect(deep?.limitations.join(" ")).toContain(
+          failed?.status === "failed" ? failed.message : "missing failure",
+        );
+      } finally {
+        await deepTree("remove");
+      }
+    },
+  );
 });

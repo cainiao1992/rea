@@ -195,7 +195,7 @@ describe("Interface Builder parser bounds", () => {
   });
 });
 
-describe("keyed archive decoding and graph limits", () => {
+describe("keyed archive identity decoding", () => {
   it("preserves keyed archive UID identities, arrays, and control actions", () => {
     const parsed = parseInterfaceBuilderRecords({
       $archiver: "NSKeyedArchiver",
@@ -245,7 +245,9 @@ describe("keyed archive decoding and graph limits", () => {
       }),
     );
   });
+});
 
+describe("Interface Builder graph limits", () => {
   it("reports records omitted by the parser's hard object ceiling", () => {
     const objects = Object.fromEntries(
       Array.from({ length: 20_001 }, (_, index) => [
@@ -313,6 +315,46 @@ describe("keyed archive decoding and graph limits", () => {
         facet: `connections:${relativePath}`,
         status: "complete",
         omitted: 0,
+      }),
+    );
+  });
+
+  it("keeps a later document complete when an earlier hierarchy hits the limit", () => {
+    const document = (
+      relativePath: string,
+      objectId: string,
+      references: number,
+    ) => ({
+      relativePath,
+      archiveSha256: hash,
+      documentKind: "nib" as const,
+      raw: {
+        "com.apple.ibtool.document.objects": {
+          [objectId]: { class: "UIView" },
+        },
+        "com.apple.ibtool.document.hierarchy": Array.from(
+          { length: references },
+          () => ({ objectID: objectId }),
+        ),
+      },
+    });
+    const result = buildInterfaceBuilderAnalysis({
+      targetSha256: hash,
+      toolVersion: "test",
+      documents: [
+        document("First.nib", "first", 5),
+        document("Second.nib", "second", 1),
+      ],
+      limits: interfaceBuilderLimitsSchema.parse({ max_objects: 4 }),
+    });
+
+    expect(
+      result.documents.map(({ hierarchy_complete }) => hierarchy_complete),
+    ).toEqual([false, true]);
+    expect(result.graph.coverage).toContainEqual(
+      expect.objectContaining({
+        facet: "hierarchy:Second.nib",
+        status: "complete",
       }),
     );
   });

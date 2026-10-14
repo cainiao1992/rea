@@ -29,6 +29,9 @@ const FILESYSTEM_ERROR_CODES = new Set([
   "EISDIR",
   "ELOOP",
   "EMFILE",
+  // A traversed child can exceed the platform's absolute path limit even
+  // though the selected root and every component are valid.
+  "ENAMETOOLONG",
   "ENFILE",
   "ENOENT",
   "ENOTDIR",

@@ -1,4 +1,4 @@
-import { writeFile, type FileHandle } from "node:fs/promises";
+import { mkdir, rename, writeFile, type FileHandle } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -47,6 +47,30 @@ afterEach(() => {
 });
 
 describe("DirectoryArtifactReader resource ownership", () => {
+  it("rejects descendants after the selected root directory is replaced", async () => {
+    const { root, reader } = await makeFixture();
+    const subdirectory = join(root, "sub");
+    await mkdir(subdirectory);
+    await writeFile(join(subdirectory, "old.txt"), "original tree\n");
+    const movedRoot = `${root}-original`;
+    try {
+      const entries = reader.entries()[Symbol.asyncIterator]();
+      expect((await entries.next()).value?.path).toBe("sub");
+      expect((await entries.next()).value?.path).toBe("sample.txt");
+
+      await rename(root, movedRoot);
+      await mkdir(root);
+      await mkdir(subdirectory);
+      await writeFile(join(subdirectory, "new.txt"), "replacement tree\n");
+      await expect(entries.next()).rejects.toMatchObject({
+        reason: "path",
+        message: "Directory traversal escaped or changed its artifact root",
+      });
+    } finally {
+      await reader.close();
+    }
+  });
+
   it("closes the exact directory owner on early iterator return", async () => {
     const { reader } = await makeFixture();
     let closeCalls = 0;

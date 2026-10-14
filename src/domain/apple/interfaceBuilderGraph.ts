@@ -432,7 +432,7 @@ export const buildInterfaceBuilderAnalysis = (input: {
         parsed.unresolvedConnections,
       hierarchy_complete:
         parsed.hierarchy.length > 0 &&
-        !truncated &&
+        !hierarchyTruncated &&
         parserOmittedHierarchyReferences === 0,
     });
     coverage.push(

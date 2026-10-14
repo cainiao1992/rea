@@ -64,11 +64,21 @@ preserves a verified `.rea.backup.<sha256>.recovery` copy of the current bytes.
 Both snapshots remain available; a failed rollback reports the current recovery
 copy's path and the restore failure.
 Setup also retains valid environment overrides in REA's existing server entry,
-such as `REA_MCP_INPUT_SCHEMA_PROFILE` and `REA_MCP_MAX_RESPONSE_BYTES`.
+such as `REA_MCP_INPUT_SCHEMA_PROFILE`, `REA_MCP_OUTPUT_SCHEMA_PROFILE`, and
+`REA_MCP_MAX_RESPONSE_BYTES`.
 Detected provider settings replace only matching environment keys.
 Setup and doctor report a malformed REA environment map or invalid runtime
 setting before setup writes files. Repair the named setting in the client
 configuration; setup does not silently discard the rest of the map.
+This includes malformed loader/exclusion JSON arrays and a Ghidra compiler
+specification without its required language identifier. Valid overrides keep
+their original strings, including empty Hopper arguments. DeepSeek Harness
+`!!js` environment expressions remain unevaluated and preserved; registration
+alignment does not verify the runtime values those expressions will produce.
+For layered OpenCode files, each file's values are checked before merging, while
+setting dependencies are checked against the effective merged environment.
+Setup preserves each layer's overrides instead of copying inherited settings
+into the file it updates.
 
 After setup, REA reports which agents, analysis tools, and workflow files passed
 its final checks. Restart any agent named in the completion message, then begin
@@ -334,6 +344,20 @@ document for the same target. REA does not currently identify, focus, or reuse
 that existing GUI document, and the supported launcher exposes no attach or
 reuse action for it.
 
+REA currently declines saved Hopper database (`.hop`) targets on macOS because
+the native `open database` launch route does not run REA's bridge script. To
+analyze that program with REA, select its original executable as the target and
+open it through Hopper; this starts the supported bridge route. This does not
+recover database-only annotations or analysis changes. Saved-database analysis
+on Linux continues to use its supported demo-launch route.
+
+Hopper lease directories must be readable and owned by the current user.
+REA validates and secures an opened directory before reserving a lease. If
+directory access fails, the error identifies the path and recovery steps;
+REA leaves its permissions unchanged. Check ownership and parent-directory
+access, then restore owner-only read, write, and search permissions (`0700`)
+on a directory you own before retrying.
+
 On supported Linux distributions, approved setup verifies Hopper's official
 `.deb`, `.rpm`, or Arch package before invoking the native package manager.
 REA runs the supported demo build on a private Xvfb display and selects Hopper's
@@ -345,6 +369,13 @@ mount namespace with a private mode-1777 tmpfs over that directory only. The
 host mount and the rest of `/tmp` remain unchanged; this fallback never invokes
 `sudo`. `rea doctor --provider hopper --json` reports the selected
 strategy and both host and effective mount facts.
+
+When the package-manager step fails, setup reports the failing command and its
+captured output, so a package conflict is distinguishable from an authorization
+failure. On CachyOS, an unversioned compatibility package such as
+`zlib-ng-compat` may conflict with Hopper's versioned `zlib` dependency. Resolve
+the package conflict yourself or install Hopper's official package manually,
+then rerun `rea setup`.
 
 The supported Linux demo forwards additional launches into its existing
 application, even across private displays. REA therefore reserves one Linux
@@ -370,8 +401,9 @@ sessions before removing that recovery directory and retrying.
 On macOS, REA uses
 `/Applications/Hopper Disassembler.app/Contents/MacOS/hopper` by default.
 On Linux, it prefers executable `/opt/hopper/bin/Hopper`, then executable
-`~/.local/share/rea/hopper/bin/Hopper`; if neither exists, the former remains
-the diagnostic fallback. `HOPPER_LAUNCHER_PATH` overrides those choices:
+`~/.local/share/rea/hopper/bin/Hopper`, followed by `/opt/hopper-v4/bin/hopper`
+and `/usr/bin/hopper`; if none exists, the former remains the diagnostic
+fallback. `HOPPER_LAUNCHER_PATH` overrides those choices:
 
 ```bash
 export HOPPER_LAUNCHER_PATH=/absolute/path/to/Hopper
@@ -511,7 +543,7 @@ reported as incompatible instead of being admitted from its directory name, and
 a header that cannot be read or recognized is reported as unknown. REA does not
 build or install native tools, or change Gatekeeper quarantine settings.
 
-The adapter exposes 25 read-only operations: thirteen inventory/name/search
+The adapter exposes 26 read-only operations: fourteen inventory/name/search
 operations and twelve function-analysis operations. These cover metadata,
 decompilation, assembly, resolved calls, typed references, xrefs, function
 dossiers, instructions, recovered data types, measured load mappings, loaded
@@ -799,7 +831,7 @@ On a controlled Windows x64 runner, use
 `npm run verify:ghidra:windows`. The verifier generates a deterministic native
 PE fixture from source bytes and requires the Windows native authority before
 opening the provider. The controls are implemented on main; see the
-[release boundary](#released-package-and-main). The lane verifies all 25 admitted
+[release boundary](#released-package-and-main). The lane verifies all 26 admitted
 read-only operations, digest identity, and runtime cleanup. The separate
 `verify:ghidra:windows:package` lane checks the packed CLI/MCP boundary with an
 ordinary user. It requires the built Windows native bundle and an existing

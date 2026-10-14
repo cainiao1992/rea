@@ -129,6 +129,12 @@ and Claude Code reports that autocompact is thrashing. To avoid this:
 The sizes above come from REA's own `tools/list`. A live Claude Code session
 against DeepSeek's API is unverified.
 
+For a client whose stdio reader rejects the complete catalog frame, add
+`"REA_MCP_OUTPUT_SCHEMA_PROFILE": "off"` to REA's `env` object and restart the
+client. This omits only advertised output schemas; REA still validates complete
+structured results against its canonical contracts. See [MCP output schema
+profiles](mcp-contracts.md#output-schemas).
+
 ## Kimi Code
 
 Setup registers `rea` in `~/.kimi-code/mcp.json`, or
@@ -279,7 +285,11 @@ the first native server into an empty table, it copies the fallback's
 `mcpServers` entries into the native table so they keep loading, and leaves
 the fallback file untouched. Existing REA environment overrides are preserved
 when refreshing its command. A malformed or unreadable fallback file fails setup instead of
-being silently suppressed; repair or remove it and rerun. ZCode disables a
+being silently suppressed; repair or remove it and rerun. Uninstall removes an
+REA-owned `rea` entry from both the native table and the fallback, backing up
+each changed file, so an emptied native table cannot load a leftover fallback
+registration; other fallback servers, settings and a foreign `rea` entry are
+kept. ZCode disables a
 server with `enable: false` on its entry; doctor reports such a registration
 as stale, and rerunning setup removes the flag to repair it. Native configuration
 uses strict JSON; setup refuses comments, trailing commas and a BOM rather than

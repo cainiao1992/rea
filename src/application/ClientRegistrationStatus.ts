@@ -13,10 +13,12 @@ import { access } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { z } from "zod";
+import { valid } from "semver";
 
 import { PRODUCT_IDENTITY } from "../identity.js";
 import { MCP_STARTUP_POLICY } from "../mcpStartupPolicy.js";
 import {
+  clientRegistrationPackageReference,
   isOwnedClientRegistrationCommand,
   packageRunnerRegistrationCommand,
 } from "./ClientRegistrationIdentity.js";
@@ -33,6 +35,8 @@ import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.j
 interface ClientRegistrationStatusBase {
   readonly client: string;
   readonly config_path: string;
+  /** Exact package reference requested by npx/bunx, when registration uses one. */
+  readonly package_reference?: string;
 }
 
 type RegistrationCommand = readonly [string, ...string[]];
@@ -201,12 +205,18 @@ export const readClientRegistrationInspections = async (
         registration.command,
         ...registration.args,
       ];
+      const packageReference = clientRegistrationPackageReference(command);
       const activation = registrationActivation(registration, client, parsed);
+      const packageVersion = exactRegisteredPackageVersion(packageReference);
+      const packageVersionDrift =
+        packageVersion !== undefined &&
+        packageVersion !== PRODUCT_IDENTITY.packageVersion;
       record(
         configuredStatus(
           client,
           command,
           activation === "enabled" &&
+            !packageVersionDrift &&
             registrationAligned(
               registration,
               client,
@@ -217,7 +227,11 @@ export const readClientRegistrationInspections = async (
             policyBlock === undefined
             ? "aligned"
             : "stale",
-          policyBlock,
+          policyBlock ??
+            (packageVersionDrift
+              ? packageVersionRemediation(packageReference ?? "", client)
+              : undefined),
+          packageReference,
         ),
         activation,
       );
@@ -378,12 +392,16 @@ const configuredStatus = (
   command: RegistrationCommand,
   state: "aligned" | "stale",
   policyRemediation?: string,
+  packageReference?: string,
 ): ClientRegistrationStatus =>
   state === "aligned"
     ? {
         client: client.name,
         config_path: client.configPath,
         command,
+        ...(packageReference === undefined
+          ? {}
+          : { package_reference: packageReference }),
         state,
         remediation: null,
       }
@@ -391,9 +409,28 @@ const configuredStatus = (
         client: client.name,
         config_path: client.configPath,
         command,
+        ...(packageReference === undefined
+          ? {}
+          : { package_reference: packageReference }),
         state,
         remediation: policyRemediation ?? remediation(client),
       };
+
+const exactRegisteredPackageVersion = (
+  packageReference: string | undefined,
+): string | undefined => {
+  if (packageReference === undefined) return undefined;
+  const prefix = `${PRODUCT_IDENTITY.packageName}@`;
+  if (!packageReference.startsWith(prefix)) return undefined;
+  const version = packageReference.slice(prefix.length);
+  return valid(version) === version ? version : undefined;
+};
+
+const packageVersionRemediation = (
+  packageReference: string,
+  client: SetupClient,
+): string =>
+  `This registration requests ${packageReference}, while the current REA CLI package is ${PRODUCT_IDENTITY.packageVersion}. REA does not resolve package-runner requests during doctor; update the registration with rea setup --client ${client.name}, then restart the client.`;
 
 const unavailableStatus = (
   client: SetupClient,

@@ -48,6 +48,7 @@ export interface DoctorCheck {
   readonly classification:
     | "healthy"
     | "missing_dependency"
+    | "runtime_failure"
     | "unsupported_host"
     | "unsupported_target"
     | "missing_analysis_engine"
@@ -65,6 +66,7 @@ export interface DoctorProviderCheck {
   readonly detail: string;
   readonly remediation: string | null;
   readonly classification: Exclude<DoctorCheck["classification"], "healthy">;
+  readonly details?: Readonly<Record<string, JsonValue>>;
 }
 
 /** Read-only provider inspection supplied by an outer composition adapter. */

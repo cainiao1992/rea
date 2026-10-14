@@ -99,6 +99,8 @@ export interface DoctorHost {
   brewHopperPath(): Promise<string | undefined>;
   manualHopperPaths(): Promise<readonly string[]>;
   providerInspections?(): Promise<readonly DoctorProviderInspection[]>;
+  /** Validated provider settings preserved by setup, independent of readiness. */
+  providerRegistrationEnvironment?(): Readonly<Record<string, string>>;
   installationPaths?(): Promise<readonly string[]>;
   installedSkillIdentity?(
     clientIds: readonly string[],
@@ -368,6 +370,9 @@ export interface SystemDoctorHostOptions {
   readonly providerInspections?: () => Promise<
     readonly DoctorProviderInspection[]
   >;
+  readonly providerRegistrationEnvironment?: () => Readonly<
+    Record<string, string>
+  >;
   readonly linuxDemoRuntimeCheck?: () => Promise<DoctorCheck>;
 }
 
@@ -478,6 +483,12 @@ export const systemDoctorHost = (
     ...(options.providerInspections === undefined
       ? {}
       : { providerInspections: options.providerInspections }),
+    ...(options.providerRegistrationEnvironment === undefined
+      ? {}
+      : {
+          providerRegistrationEnvironment:
+            options.providerRegistrationEnvironment,
+        }),
     async ilspyCmdVersion(path) {
       try {
         await access(path, constants.X_OK);

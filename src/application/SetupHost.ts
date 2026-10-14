@@ -175,6 +175,7 @@ export const systemSetupHost = (
           ...providerRegistrationEnvironment(
             diagnosis.providerInspections ?? [],
           ),
+          ...doctorHost.providerRegistrationEnvironment?.(),
           ...(diagnosis.hopperPath === undefined
             ? {}
             : { HOPPER_LAUNCHER_PATH: diagnosis.hopperPath }),

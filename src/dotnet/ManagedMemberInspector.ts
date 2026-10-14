@@ -29,7 +29,9 @@ import {
   type TypeRange,
 } from "./ManagedMemberInspectorCore.js";
 import { edgeTargets } from "./ManagedMethodSpecs.js";
+import { signatureTypeNames } from "./ManagedSignatureTypeNames.js";
 import { typeNameLookup } from "./ManagedTypeNames.js";
+import { managedTypeReferences } from "./ManagedTypeReferences.js";
 import { parseUserStrings } from "./ManagedUserStrings.js";
 import { readTypeMemberListFacts } from "./ManagedTypeMemberLists.js";
 import {
@@ -72,6 +74,7 @@ const unavailable = (
         requires_mvid: null,
       },
       types: [],
+      signature_resolution: "type-names-v1",
       exported_types: null,
       user_strings: null,
       fields: [],
@@ -204,11 +207,22 @@ export const inspectManagedMembersBytes = (
     appendManagedParseIssues(issues, parsedTypes.issues);
     const exportedTypes = parseExportedTypes(bytes, layout);
     appendManagedParseIssues(issues, exportedTypes.issues);
-    const fields = parseFields(bytes, layout, ranges, memberLists, selected);
+    const typeReferences = managedTypeReferences(bytes, layout, issues);
+    const signatureTypeName = signatureTypeNames(
+      layout,
+      issues,
+      parsedTypes,
+      typeReferences,
+    );
+    const fields = parseFields(bytes, layout, ranges, memberLists, {
+      signatureTypeName,
+      selected,
+    });
     const memberRefs = parseMemberRefs(
       bytes,
       layout,
-      typeNameLookup(bytes, layout, ranges, issues),
+      typeNameLookup(bytes, layout, ranges, issues, typeReferences),
+      signatureTypeName,
     );
     appendManagedParseIssues(issues, memberRefs.issues);
     const methods = parseMethods({
@@ -216,6 +230,7 @@ export const inspectManagedMembersBytes = (
       layout,
       pe,
       ranges,
+      signatureTypeName,
       memberLists,
       selected,
       methodOffset,
@@ -275,6 +290,7 @@ export const inspectManagedMembersBytes = (
             selected === null
               ? parsedTypes.types
               : parsedTypes.types.filter((type) => selected.has(type.token)),
+          signature_resolution: "type-names-v1",
           exported_types: exportedTypes.exportedTypes,
           fields: fields.fields,
           methods: methods.methods,

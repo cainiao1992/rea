@@ -6,6 +6,7 @@ import {
   compareManagedMembers,
   managedMemberComparisonResultSchema,
 } from "../../../../src/domain/managed/managedMemberComparison.js";
+import { managedMemberInspectionSchema } from "../../../../src/domain/managed/managedArtifact.js";
 import { inspectManagedMembersBytes } from "../../../../src/dotnet/ManagedMemberInspector.js";
 import {
   buildManagedPeFixture,
@@ -1131,7 +1132,12 @@ describe("managed member comparison of consumed ownerless ambiguity", () => {
       declaring_type: owner,
       declaring_type_token: owner === null ? null : method.declaring_type_token,
       name,
-      signature: { ...method.signature, raw_sha256: raw.repeat(64) },
+      // An operand-free signature: its resolved digest is the raw one.
+      signature: {
+        ...method.signature,
+        raw_sha256: raw.repeat(64),
+        resolved_sha256: raw.repeat(64),
+      },
       body: {
         ...method.body,
         normalized_il_sha256: raw.repeat(64),
@@ -1583,6 +1589,561 @@ describe("managed member comparison of unresolved owners", () => {
     ])
       for (const item of result.methods)
         expect(item.match.status).not.toBe("matched");
+  });
+});
+
+// Signatures name types by TypeDef/TypeRef row. The right build inserts a
+// TypeDef and a TypeRef ahead of the ones its members use, so the same
+// types sit at different rows and the raw signature bytes differ.
+const LIST_REFERENCE = {
+  namespace: "System.Collections.Generic",
+  name: "List`1",
+};
+const leftBuild = {
+  typeReferences: [LIST_REFERENCE],
+};
+const rightBuild = {
+  additionalEmptyTypes: 1,
+  typeReferences: [{ namespace: "System", name: "Uri" }, LIST_REFERENCE],
+};
+// List`1 is TypeRef row 2 on the left and row 3 on the right; Program is
+// TypeDef row 1 on the left and row 2 on the right.
+const leftTypes = { list: (2 << 2) | 1, program: 1 << 2 };
+const rightTypes = { list: (3 << 2) | 1, program: 2 << 2 };
+// List`1<Program> counter
+const fieldSignature = (types: typeof leftTypes) =>
+  Buffer.from([0x06, 0x15, 0x12, types.list, 0x01, 0x12, types.program]);
+// List`1<Program> Main(Program)
+const methodSignature = (types: typeof leftTypes) =>
+  Buffer.from([
+    0x00,
+    0x01,
+    0x15,
+    0x12,
+    types.list,
+    0x01,
+    0x12,
+    types.program,
+    0x12,
+    types.program,
+  ]);
+const changedIl = Buffer.from([
+  0x32, 0x02, 0x7b, 0x02, 0x00, 0x00, 0x04, 0x28, 0x02, 0x00, 0x00, 0x0a, 0x2a,
+]);
+
+const compareBuilds = (
+  left: Parameters<typeof buildManagedPeFixture>[0],
+  right: Parameters<typeof buildManagedPeFixture>[0],
+) => {
+  const leftInspection = inspect(
+    buildManagedPeFixture(left),
+    "/tmp/left-build.dll",
+  );
+  const rightInspection = inspect(
+    buildManagedPeFixture(right),
+    "/tmp/right-build.dll",
+  );
+  return compareManagedMembers(
+    { evidenceId: leftInspection.evidenceId, result: leftInspection.result },
+    {
+      evidenceId: rightInspection.evidenceId,
+      result: rightInspection.result,
+    },
+  );
+};
+
+describe("managed member comparison across builds", () => {
+  it("pairs members whose signatures name the same types at different metadata rows", () => {
+    const result = compareBuilds(
+      {
+        ...leftBuild,
+        fieldSignature: fieldSignature(leftTypes),
+        methodSignature: methodSignature(leftTypes),
+      },
+      {
+        ...rightBuild,
+        fieldSignature: fieldSignature(rightTypes),
+        methodSignature: methodSignature(rightTypes),
+      },
+    );
+
+    expect(result.methods).toEqual([
+      expect.objectContaining({
+        status: "unchanged",
+        dimensions: [],
+        match: expect.objectContaining({ basis: "exact-il-signature" }),
+      }),
+    ]);
+    expect(result.fields).toEqual([
+      expect.objectContaining({
+        status: "unchanged",
+        match: expect.objectContaining({ basis: "field-signature" }),
+      }),
+    ]);
+  });
+
+  it("pairs a method by declared type, name, and resolved signature when its CIL changed", () => {
+    const result = compareBuilds(
+      { ...leftBuild, methodSignature: methodSignature(leftTypes) },
+      {
+        ...rightBuild,
+        methodSignature: methodSignature(rightTypes),
+        ilBody: changedIl,
+      },
+    );
+
+    expect(result.methods).toEqual([
+      expect.objectContaining({
+        status: "changed",
+        dimensions: ["cil"],
+        match: expect.objectContaining({ basis: "exact-signature" }),
+      }),
+    ]);
+  });
+
+  it("pairs a renamed method by structural shape when its signature names the same types", () => {
+    const result = compareBuilds(
+      { ...leftBuild, methodSignature: methodSignature(leftTypes) },
+      {
+        ...rightBuild,
+        methodName: "Renamed",
+        methodSignature: methodSignature(rightTypes),
+        ilBody: changedIl,
+      },
+    );
+
+    expect(result.methods).toEqual([
+      expect.objectContaining({
+        status: "changed",
+        match: expect.objectContaining({
+          basis: "structural-method-shape",
+          confidence: "high",
+        }),
+      }),
+    ]);
+  });
+
+  it("does not pair members whose identical signature bytes name different types", () => {
+    // TypeDef row 1 is Program on the left and Empty0 on the right.
+    const result = compareBuilds(
+      {
+        fieldSignature: Buffer.from([0x06, 0x12, leftTypes.program]),
+        methodSignature: Buffer.from([0x00, 0x00, 0x12, leftTypes.program]),
+      },
+      {
+        additionalEmptyTypes: 1,
+        fieldSignature: Buffer.from([0x06, 0x12, leftTypes.program]),
+        methodSignature: Buffer.from([0x00, 0x00, 0x12, leftTypes.program]),
+      },
+    );
+
+    expect(result.methods.map(({ status }) => status).sort()).toEqual([
+      "added",
+      "removed",
+    ]);
+    expect(result.fields.map(({ status }) => status).sort()).toEqual([
+      "added",
+      "removed",
+    ]);
+  });
+});
+
+describe("managed member comparison of resolved signatures", () => {
+  it("pairs a partially decoded field by declared type, name, and resolved signature", () => {
+    // Trailing data after the field type leaves the signature partial.
+    const result = compareBuilds(
+      { fieldSignature: Buffer.from([0x06, 0x12, leftTypes.program, 0x00]) },
+      {
+        additionalEmptyTypes: 1,
+        fieldSignature: Buffer.from([0x06, 0x12, rightTypes.program, 0x00]),
+      },
+    );
+
+    expect(result.fields).toEqual([
+      expect.objectContaining({
+        status: "unchanged",
+        match: expect.objectContaining({ basis: "exact-signature" }),
+      }),
+    ]);
+  });
+
+  it("does not pair a raw digest with an equal resolved digest", () => {
+    // class Fixture.Program on the left; on the right, the bytes of its
+    // resolved preimage, which do not decode and so compare by raw digest.
+    const programDigest = createHash("sha256")
+      .update(Buffer.from([0]))
+      .update("Fixture")
+      .update(Buffer.from([0]))
+      .update("Program")
+      .digest();
+    const left = inspect(
+      buildManagedPeFixture({
+        methodSignature: Buffer.from([0x00, 0x00, 0x12, leftTypes.program]),
+      }),
+      "/tmp/left-collision.dll",
+    );
+    const right = inspect(
+      buildManagedPeFixture({
+        methodSignature: Buffer.concat([
+          Buffer.from([0x00, 0x00, 0x12, 0xff]),
+          programDigest,
+        ]),
+      }),
+      "/tmp/right-collision.dll",
+    );
+    // The collision this guards against must exist: the right blob does not
+    // decode, and its raw digest is the left signature's resolved digest.
+    const [leftMethod] = left.result.methods;
+    const [rightMethod] = right.result.methods;
+    expect(rightMethod?.signature.resolved_sha256).toBeNull();
+    expect(rightMethod?.signature.raw_sha256).toBe(
+      leftMethod?.signature.resolved_sha256,
+    );
+
+    const result = compareManagedMembers(
+      { evidenceId: left.evidenceId, result: left.result },
+      { evidenceId: right.evidenceId, result: right.result },
+    );
+
+    expect(
+      result.methods.filter(({ match }) => match.status === "matched"),
+    ).toEqual([]);
+  });
+
+  it("compares raw signatures against Evidence recorded before resolution", () => {
+    // Both signatures name Program, TypeDef row 1, in the same build.
+    const build = () =>
+      buildManagedPeFixture({
+        fieldSignature: Buffer.from([0x06, 0x12, leftTypes.program]),
+        methodSignature: Buffer.from([
+          0x00,
+          0x01,
+          0x01,
+          0x12,
+          leftTypes.program,
+        ]),
+      });
+    const left = inspect(build(), "/tmp/left-recorded.dll");
+    const right = inspect(build(), "/tmp/right-current.dll");
+    const withoutResolution = <Member extends { signature: object }>(
+      members: readonly Member[],
+    ) =>
+      members.map((member) => {
+        const { resolved_sha256: _omitted, ...recorded } = member.signature as {
+          resolved_sha256: unknown;
+        };
+        return { ...member, signature: recorded };
+      });
+    const recorded = managedMemberInspectionSchema.parse({
+      ...left.result,
+      signature_resolution: undefined,
+      methods: withoutResolution(left.result.methods),
+      fields: withoutResolution(left.result.fields),
+      member_refs: withoutResolution(left.result.member_refs),
+    });
+    expect(recorded.methods[0]?.signature.resolved_sha256).toBeNull();
+
+    const result = compareManagedMembers(
+      { evidenceId: left.evidenceId, result: recorded },
+      { evidenceId: right.evidenceId, result: right.result },
+    );
+
+    expect(result.methods).toEqual([
+      expect.objectContaining({ status: "unchanged" }),
+    ]);
+    expect(result.fields).toEqual([
+      expect.objectContaining({ status: "unchanged" }),
+    ]);
+    expect(result.limitations).toContain(
+      "At least one managed member observation does not attest signature type-name resolution, so signatures compare by raw bytes, which name types by build-local metadata row.",
+    );
+  });
+});
+
+describe("managed member comparison of nested signature types", () => {
+  const fieldOfType = (codedIndex: number) =>
+    Buffer.from([0x06, 0x12, codedIndex]);
+  const statuses = (result: ReturnType<typeof compareBuilds>) =>
+    result.fields.map(({ status }) => status).sort();
+
+  it("pairs a nested TypeDef by its enclosing type at different rows", () => {
+    // Fixture.Empty0/Fixture.Program is TypeDef row 2, then row 3.
+    const result = compareBuilds(
+      {
+        additionalEmptyTypes: 1,
+        nestedTypes: [[2, 1]],
+        fieldSignature: fieldOfType(2 << 2),
+      },
+      {
+        additionalEmptyTypes: 2,
+        nestedTypes: [[3, 1]],
+        fieldSignature: fieldOfType(3 << 2),
+      },
+    );
+
+    expect(statuses(result)).toEqual(["unchanged"]);
+  });
+
+  it("tells same-named TypeDefs apart by their enclosing types", () => {
+    // TypeDef row 2 is nested in Empty0 on the left only.
+    const result = compareBuilds(
+      {
+        additionalEmptyTypes: 2,
+        nestedTypes: [[2, 1]],
+        fieldSignature: fieldOfType(2 << 2),
+      },
+      { additionalEmptyTypes: 2, fieldSignature: fieldOfType(2 << 2) },
+    );
+
+    expect(statuses(result)).toEqual(["added", "removed"]);
+  });
+
+  it("does not name a TypeDef whose nesting is cyclic", () => {
+    const bytes = buildManagedPeFixture({
+      additionalEmptyTypes: 2,
+      nestedTypes: [
+        [1, 2],
+        [2, 1],
+      ],
+      fieldSignature: fieldOfType(1 << 2),
+    });
+    const field = inspect(bytes, "/tmp/cyclic.dll").result.fields[0];
+
+    expect(field?.signature.parse_status).toBe("decoded");
+    expect(field?.signature.resolved_sha256).toBeNull();
+  });
+
+  const enumerator = (enclosingRow: number) => ({
+    namespace: "",
+    name: "Enumerator",
+    enclosingRow,
+  });
+  const list = { namespace: "System.Collections.Generic", name: "List`1" };
+  const dictionary = {
+    namespace: "System.Collections.Generic",
+    name: "Dictionary`2",
+  };
+
+  it("pairs a nested TypeRef by its enclosing TypeRef at different rows", () => {
+    // List`1/Enumerator is TypeRef row 3, then row 4.
+    const result = compareBuilds(
+      {
+        typeReferences: [list, enumerator(2)],
+        fieldSignature: fieldOfType((3 << 2) | 1),
+      },
+      {
+        typeReferences: [dictionary, list, enumerator(3)],
+        fieldSignature: fieldOfType((4 << 2) | 1),
+      },
+    );
+
+    expect(statuses(result)).toEqual(["unchanged"]);
+  });
+
+  it("tells same-named TypeRefs apart by their enclosing TypeRefs", () => {
+    // List`1/Enumerator on the left, Dictionary`2/Enumerator on the right.
+    const result = compareBuilds(
+      {
+        typeReferences: [list, enumerator(2)],
+        fieldSignature: fieldOfType((3 << 2) | 1),
+      },
+      {
+        typeReferences: [dictionary, enumerator(2)],
+        fieldSignature: fieldOfType((3 << 2) | 1),
+      },
+    );
+
+    expect(statuses(result)).toEqual(["added", "removed"]);
+  });
+});
+
+describe("managed member comparison of unresolved signatures", () => {
+  // A TypeSpec operand has no name, so the method compares by raw bytes,
+  // while the default field resolves.
+  const typeSpecs = [Buffer.from([0x1d, 0x08]), Buffer.from([0x1d, 0x0e])];
+  const unresolvedAt = (row: number) => ({
+    typeSpecSignatures: typeSpecs,
+    methodSignature: Buffer.from([0x00, 0x00, 0x12, (row << 2) | 2]),
+  });
+  const resolved = {
+    methodSignature: Buffer.from([0x00, 0x00, 0x12, leftTypes.program]),
+  };
+  const methodLimitations = (result: ReturnType<typeof compareBuilds>) =>
+    result.methods.map(({ status, limitations }) => [status, limitations]);
+
+  it("does not establish unchanged signatures from identical unresolved row bytes", () => {
+    const result = compareBuilds(unresolvedAt(1), {
+      ...unresolvedAt(1),
+      typeSpecSignatures: [...typeSpecs].reverse(),
+    });
+    expect(methodLimitations(result)).toEqual([
+      ["unknown", [expect.stringMatching(/^signature-not-resolved:/u)]],
+    ]);
+  });
+
+  it("retains a known CIL change beside an unresolved signature", () => {
+    const result = compareBuilds(unresolvedAt(1), {
+      ...unresolvedAt(1),
+      ilBody: Buffer.from([0x0a, 0x17, 0x2a]),
+    });
+    expect(methodLimitations(result)).toEqual([
+      ["changed", [expect.stringMatching(/^signature-not-resolved:/u)]],
+    ]);
+    expect(result.methods[0]?.dimensions).toContain("cil");
+  });
+
+  it("keeps a partially decoded field's unresolved type unknown after pairing", () => {
+    const fieldSignature = Buffer.from([0x06, 0x12, (1 << 2) | 2, 0xff]);
+    const result = compareBuilds(
+      { typeSpecSignatures: typeSpecs, fieldSignature },
+      { typeSpecSignatures: [...typeSpecs].reverse(), fieldSignature },
+    );
+    expect(result.fields).toEqual([
+      expect.objectContaining({
+        status: "unknown",
+        limitations: [expect.stringMatching(/^signature-not-resolved:/u)],
+      }),
+    ]);
+  });
+
+  it("retains unknown signatures when every member has an unresolved operand", () => {
+    const at = (row: number) => ({
+      ...unresolvedAt(row),
+      fieldSignature: Buffer.from([0x06, 0x12, (row << 2) | 2]),
+    });
+    const result = compareBuilds(at(1), at(2));
+    expect(
+      [...result.methods, ...result.fields].map(({ status }) => status),
+    ).toEqual(["unknown", "unknown", "unknown", "unknown"]);
+    expect(result.limitations).not.toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(
+          "does not attest signature type-name resolution",
+        ),
+      ]),
+    );
+  });
+
+  it("keeps an unmatched unresolved method unknown in a resolved comparison", () => {
+    for (const result of [
+      compareBuilds(unresolvedAt(1), unresolvedAt(2)),
+      compareBuilds(unresolvedAt(2), unresolvedAt(1)),
+    ])
+      expect(methodLimitations(result)).toEqual([
+        ["unknown", [expect.stringMatching(/^signature-not-resolved:/u)]],
+        ["unknown", [expect.stringMatching(/^signature-not-resolved:/u)]],
+      ]);
+  });
+
+  it("keeps a resolved method unknown beside an unresolved same-named counterpart", () => {
+    for (const [left, right] of [
+      [unresolvedAt(1), resolved],
+      [resolved, unresolvedAt(1)],
+    ] as const) {
+      const result = compareBuilds(left, right);
+      const unresolvedSide = left === resolved ? "right" : "left";
+      expect(
+        result.methods.map(({ status, left: leftItem, limitations }) => [
+          status,
+          (leftItem === null) === (unresolvedSide === "left")
+            ? "resolved"
+            : "unresolved",
+          limitations,
+        ]),
+      ).toEqual(
+        expect.arrayContaining([
+          [
+            "unknown",
+            "unresolved",
+            [expect.stringMatching(/^signature-not-resolved:/u)],
+          ],
+          [
+            "unknown",
+            "resolved",
+            [
+              expect.stringMatching(
+                new RegExp(
+                  `^counterpart-signature-not-resolved: The ${unresolvedSide} method inventory`,
+                  "u",
+                ),
+              ),
+            ],
+          ],
+        ]),
+      );
+    }
+  });
+});
+
+describe("managed member comparison limitations for resolved signatures", () => {
+  it("does not report missing resolved digests for observations without signatures", () => {
+    const base = inspect(buildManagedPeFixture(), "/tmp/no-members.dll");
+    const empty = {
+      ...base,
+      result: { ...base.result, methods: [], fields: [] },
+    };
+    const result = compareManagedMembers(empty, empty);
+
+    expect(result.limitations).not.toContain(
+      "At least one managed member observation does not attest signature type-name resolution, so signatures compare by raw bytes, which name types by build-local metadata row.",
+    );
+  });
+});
+
+describe("managed member comparison of resolved-signature contention", () => {
+  it("contests an ownerless method across builds whose raw signature bytes differ", () => {
+    const base = inspect(buildManagedPeFixture(), "/tmp/ownerless-builds.dll");
+    const [method] = base.result.methods;
+    if (method === undefined) throw new Error("Expected a fixture method");
+    // The same signature names a type at another row in the right build.
+    const member = (raw: string, body: string, stack: number) => ({
+      ...method,
+      signature: {
+        ...method.signature,
+        raw_sha256: raw.repeat(64),
+        resolved_sha256: "e".repeat(64),
+      },
+      body: {
+        ...method.body,
+        normalized_il_sha256: body.repeat(64),
+        max_stack: stack,
+      },
+    });
+    const withOwnerless = {
+      ...base,
+      result: {
+        ...base.result,
+        fields: [],
+        methods: [
+          member("a", "a", 1),
+          {
+            ...member("a", "b", 2),
+            token: "0x06000002",
+            declaring_type: null,
+            declaring_type_token: null,
+          },
+        ],
+      },
+    };
+    const resolvedOnly = {
+      ...base,
+      result: { ...base.result, fields: [], methods: [member("f", "c", 3)] },
+    };
+    for (const result of [
+      compareManagedMembers(withOwnerless, resolvedOnly),
+      compareManagedMembers(resolvedOnly, withOwnerless),
+    ]) {
+      expect(result.methods).toEqual([
+        expect.objectContaining({
+          status: "unknown",
+          match: expect.objectContaining({
+            status: "ambiguous",
+            basis: "exact-signature",
+          }),
+        }),
+      ]);
+      expect(result.summary).toMatchObject({ added: 0, removed: 0 });
+    }
   });
 });
 

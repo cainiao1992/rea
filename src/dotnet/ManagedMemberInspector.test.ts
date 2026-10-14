@@ -1526,11 +1526,15 @@ it("decodes generic instantiation member signatures as complete coverage", () =>
   // shape, with TypeRef/TypeSpec coded tokens kept as encoded.
   const bytes = buildManagedPeFixture({
     methodSignature: Buffer.from([
-      0x00, 0x01, 0x01, 0x15, 0x12, 0x71, 0x01, 0x0e,
+      0x00, 0x01, 0x01, 0x15, 0x12, 0x09, 0x01, 0x0e,
     ]),
     fieldSignature: Buffer.from([
-      0x06, 0x15, 0x11, 0x0a, 0x02, 0x13, 0x00, 0x1e, 0x01,
+      0x06, 0x15, 0x11, 0x0d, 0x02, 0x13, 0x00, 0x1e, 0x01,
     ]),
+    typeReferences: [
+      { namespace: "System", name: "Func`1" },
+      { namespace: "System", name: "ValueTuple`2" },
+    ],
   });
   const result = inspectManagedMembersBytes(
     bytes,
@@ -1540,12 +1544,12 @@ it("decodes generic instantiation member signatures as complete coverage", () =>
   expect(result.methods[0]?.signature).toMatchObject({
     parse_status: "decoded",
     return_type: "void",
-    parameter_types: ["class:113<string>"],
+    parameter_types: ["class:9<string>"],
     issue: null,
   });
   expect(result.fields[0]?.signature).toMatchObject({
     parse_status: "decoded",
-    field_type: "valuetype:10<var:0,mvar:1>",
+    field_type: "valuetype:13<var:0,mvar:1>",
   });
   expect(result.coverage).toMatchObject({ state: "complete", issues: [] });
 });

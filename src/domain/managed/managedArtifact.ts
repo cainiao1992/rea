@@ -79,6 +79,13 @@ const customAttributeSchema = z.object({
 const managedSignatureSchema = z.object({
   raw_length: z.number().int().min(0),
   raw_sha256: digestSchema,
+  // Evidence recorded before this field existed reads back as null.
+  resolved_sha256: digestSchema
+    .nullable()
+    .default(null)
+    .describe(
+      "SHA-256 of the raw signature with each TypeDef or TypeRef operand replaced by that type's namespace-qualified name; equals raw_sha256 when the signature names no types. Unlike raw_sha256 it does not depend on build-local metadata rows. Null when the signature could not be decoded or names a type REA could not resolve, such as a TypeSpec.",
+    ),
   kind: z.enum(["method", "field", "unknown"]),
   parse_status: z.enum(["decoded", "partial", "unsupported", "malformed"]),
   calling_convention: z.string().nullable(),
@@ -438,6 +445,13 @@ export const managedArtifactInspectionSchema = z.object({
 
 /** Provider-neutral, execution-free metadata/signature/IL member inspection. */
 export const managedMemberInspectionSchema = z.object({
+  signature_resolution: z
+    .literal("type-names-v1")
+    .nullable()
+    .default(null)
+    .describe(
+      "Signature type-name resolution was examined, including unresolved operands; null means historical Evidence without this attestation.",
+    ),
   artifact: z.object({
     path: z.string().min(1),
     sha256: digestSchema,

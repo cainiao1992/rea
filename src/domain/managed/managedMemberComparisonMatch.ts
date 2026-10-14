@@ -11,6 +11,10 @@ import type {
   ManagedMemberComparisonResult,
   ManagedMemberComparisonSide,
 } from "./managedMemberComparison.js";
+import {
+  comparableSides,
+  signatureIdentity,
+} from "./managedMemberSignatureIdentity.js";
 import type { JsonValue } from "../jsonValue.js";
 
 export const sha256 = (value: JsonValue): string => {
@@ -22,6 +26,7 @@ export const sha256 = (value: JsonValue): string => {
 
 type Method = ManagedMemberInspection["methods"][number];
 type Field = ManagedMemberInspection["fields"][number];
+
 type MatchBasis =
   ManagedMemberComparisonResult["methods"][number]["match"]["basis"];
 type ConcreteMatchBasis = Exclude<MatchBasis, "none">;
@@ -32,7 +37,8 @@ interface Keyed<Item> {
   readonly identity: string;
   readonly exactKey: string | null;
   readonly signatureKey: string | null;
-  readonly rawSignatureKey: string;
+  /** The name-free exact signature, resolved where both sides resolve it. */
+  readonly signatureId: string;
   readonly structuralKey: string | null;
 }
 
@@ -52,35 +58,32 @@ interface Ambiguous<Item> {
 const keyMethod = (item: Method): Keyed<Method> => ({
   item,
   identity: identityOf(item),
-  rawSignatureKey: item.signature.raw_sha256,
+  signatureId: signatureIdentity(item.signature),
   exactKey:
     item.body.status === "present" &&
     item.body.il_sha256 !== null &&
     item.body.normalized_il_sha256 !== null
       ? sha256([
           "method-exact",
-          item.signature.raw_sha256,
+          signatureIdentity(item.signature),
           item.body.il_sha256,
           item.body.normalized_il_sha256,
         ])
       : null,
-  // The raw blob is the exact signature; decoding only feeds shape keys.
+  // The blob, with type operands named, is the exact signature; decoding
+  // only gates the shape keys.
   signatureKey: sha256([
     "method-signature",
     item.declaring_type,
     item.name,
-    item.signature.raw_sha256,
+    signatureIdentity(item.signature),
   ]),
   structuralKey:
     item.signature.parse_status === "decoded" && item.body.status === "present"
       ? sha256([
           "method-structural",
-          item.signature.kind,
-          item.signature.calling_convention,
-          item.signature.generic_parameter_count,
-          item.signature.parameter_count,
-          item.signature.return_type,
-          item.signature.parameter_types,
+          // Decoded type strings carry build-local rows; the identity names them.
+          signatureIdentity(item.signature),
           item.body.status,
           item.body.header_format,
           item.body.il_size,
@@ -106,18 +109,18 @@ const keyMethod = (item: Method): Keyed<Method> => ({
 const keyField = (item: Field): Keyed<Field> => ({
   item,
   identity: identityOf(item),
-  rawSignatureKey: item.signature.raw_sha256,
+  signatureId: signatureIdentity(item.signature),
   exactKey:
     item.signature.parse_status === "decoded"
-      ? sha256(["field-exact", item.signature.raw_sha256])
+      ? sha256(["field-exact", signatureIdentity(item.signature)])
       : null,
   // Only an undecoded field reaches this round: a decoded field with the
-  // same raw signature already met its counterpart in the exact round.
+  // same signature already met its counterpart in the exact round.
   signatureKey: sha256([
     "field-signature",
     item.declaring_type,
     item.name,
-    item.signature.raw_sha256,
+    signatureIdentity(item.signature),
   ]),
   structuralKey: sha256([
     "field-structural",
@@ -142,7 +145,7 @@ const matchMethods = (
       {
         basis: "exact-signature",
         key: ({ signatureKey }) => signatureKey,
-        competitionKey: ({ rawSignatureKey }) => rawSignatureKey,
+        competitionKey: ({ signatureId }) => signatureId,
       },
       {
         basis: "structural-method-shape",
@@ -181,7 +184,7 @@ const matchFields = (
       {
         basis: "exact-signature",
         key: ({ signatureKey }) => signatureKey,
-        competitionKey: ({ rawSignatureKey }) => rawSignatureKey,
+        competitionKey: ({ signatureId }) => signatureId,
       },
       {
         basis: "field-signature",
@@ -326,7 +329,7 @@ const matchByKeys = <Item extends Declared>({
     right.filter((item) => !usedRight.has(item)),
     ownerlessContested(
       [unpairedOf(left, pairedLeft), unpairedOf(right, pairedRight)],
-      (member) => member.rawSignatureKey,
+      (member) => member.signatureId,
     ),
   )) {
     for (const item of group.left) usedLeft.add(item);
@@ -348,7 +351,7 @@ const unresolvedSignatureAmbiguities = <Item extends Declared>(
   contested: ReadonlySet<string>,
 ): Ambiguous<Item>[] => {
   const key = (member: Keyed<Item>): string =>
-    competitionIdentityKey(member, member.rawSignatureKey) ?? "";
+    competitionIdentityKey(member, member.signatureId) ?? "";
   const leftGroups = groupBy(left, key);
   const rightGroups = groupBy(right, key);
   const groups: Ambiguous<Item>[] = [];
@@ -526,12 +529,13 @@ const matchObserved = <Item extends Declared>(
 };
 
 export const keyMembers = (
-  left: ManagedMemberComparisonSide,
-  right: ManagedMemberComparisonSide,
+  observedLeft: ManagedMemberComparisonSide,
+  observedRight: ManagedMemberComparisonSide,
 ): {
   readonly methodMatches: ReturnType<typeof matchMethods>;
   readonly fieldMatches: ReturnType<typeof matchFields>;
 } => {
+  const [left, right] = comparableSides(observedLeft, observedRight);
   const sides = { inLeft: observedBy(left), inRight: observedBy(right) };
   return {
     methodMatches: matchObserved(

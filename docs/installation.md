@@ -288,11 +288,12 @@ hosted connector; see [its configuration](client-configuration.md#other-client-s
 | Qoder              | `qoder`          |
 | Factory Droid      | `droid`          |
 | Trae               | `trae`           |
+| WorkBuddy          | `workbuddy`      |
 | ZCode              | `zcode`          |
 | DeepSeek Harness   | `dsh`            |
 
-`dsh` and `kimi` require a release containing them. The registry check above does
-not cover them.
+`dsh`, `kimi`, and `workbuddy` require a release containing them. The registry
+check above does not cover them.
 
 See [client configuration and troubleshooting](client-configuration.md) for
 configuration paths, profiles, trust policies, and schema-limit workarounds.

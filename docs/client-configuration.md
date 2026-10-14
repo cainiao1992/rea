@@ -265,6 +265,21 @@ The user-level MCP paths follow the editor's VS Code layout. Trae's official
 documentation describes the raw JSON editor without specifying those paths;
 loading this registration in Trae remains unverified.
 
+## WorkBuddy
+
+For [WorkBuddy](https://www.workbuddy.cn/docs/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/MCP-Guide), setup writes `mcpServers.rea` into the
+global `~/.workbuddy/mcp.json` (a standard `mcpServers` JSON file at the user
+home root on every platform). Entries carry `command`, `args`, and `env`;
+stdio is the default transport. WorkBuddy discovers personal skills from
+`~/.workbuddy/skills` (`%userprofile%\.workbuddy\skills` on Windows), so
+setup installs its skill copy there.
+
+The global MCP path is a plain JSON file; setup preserves every other server
+and top-level key when it upserts `rea`. WorkBuddy also reads a project-level
+`<project>/.workbuddy/mcp.json`, which setup does not touch: it registers the
+user-level file only. Loading this registration and real REA tool calls
+through WorkBuddy are verified.
+
 ## ZCode
 
 For [ZCode](https://zcode.z.ai/en/docs/mcp-services), setup registers `rea` in the nested `mcp.servers` table of the

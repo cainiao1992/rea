@@ -433,7 +433,7 @@ jobs:
           --outputFile.junit=test-results.xml
           --outputFile.json=test-results.json
       - name: Summarize slowest test files
-        if: needs.changes.outputs.code == 'true' && !cancelled() && hashFiles('test-timings.json') != ''
+        if: needs.changes.outputs.code == 'true' && !cancelled()
         env:
           SHARD_RESULT: ${{ needs.test-shard.result }}
           SOURCE_REQUIRED: ${{ needs.changes.outputs.tier == 'fast' }}

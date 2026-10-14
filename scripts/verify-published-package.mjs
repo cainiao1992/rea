@@ -1,5 +1,3 @@
-import { Client } from "@modelcontextprotocol/client";
-import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -7,20 +5,23 @@ import { delimiter, join } from "node:path";
 import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
 
-import { lt, rcompare } from "semver";
+import { lt, prerelease, rcompare, valid } from "semver";
+import { readNpmRelease, stableUpdateVersion } from "./ci/npm-release.mjs";
 
-import { CATALOG_IDENTITY } from "../dist/catalogIdentity.js";
-import { TOOL_CONTRACTS } from "../dist/contracts/toolContracts.js";
 import {
-  requireMcpLifecycleResult,
-  sortVerifierNames,
-} from "./lib/mcp-verifier-results.mjs";
+  installCanaryPackage,
+  verifyInstalledCanaryPackage,
+} from "./lib/release-package-canary.mjs";
 import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
 
 const verifierRun = createVerifierRun();
 const execFileAsync = promisify(execFile);
 const version = process.argv[2];
-if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(version ?? ""))
+if (
+  typeof version !== "string" ||
+  valid(version) !== version ||
+  process.argv.length !== 3
+)
   throw new Error("Usage: node scripts/verify-published-package.mjs <version>");
 
 const canaryRoot = await mkdtemp(join(tmpdir(), "rea-published-canary-"));
@@ -29,114 +30,30 @@ const serverEnvironment = {
   npm_config_cache: join(canaryRoot, "npm-cache"),
 };
 delete serverEnvironment.HOPPER_TARGET_PATH;
-const client = new Client({
-  name: "published-package-canary",
-  version: "1",
-});
-let stderr = "";
-let transport;
-
-let publishedToolCount = 0;
+let surface;
 let update;
-
 try {
-  // Registry installation has its own lifetime; it must finish before the
-  // MCP handshake deadline starts. Reuse this exact installation for update.
-  const publishedPrefix = join(canaryRoot, "published");
-  await execFileAsync(
-    "npm",
-    [
-      "install",
-      "--ignore-scripts",
-      "--no-save",
-      "--no-package-lock",
-      "--prefix",
-      publishedPrefix,
-      `rea-agents@${version}`,
-    ],
-    { cwd: canaryRoot, env: serverEnvironment, maxBuffer: 16 * 1024 * 1024 },
+  const publishedRoot = await installCanaryPackage(
+    `rea-agents@${version}`,
+    canaryRoot,
+    serverEnvironment,
   );
-  const publishedRoot = join(publishedPrefix, "node_modules", "rea-agents");
-  const installed = JSON.parse(
-    await readFile(join(publishedRoot, "package.json"), "utf8"),
+  surface = await verifyInstalledCanaryPackage(
+    publishedRoot,
+    version,
+    canaryRoot,
+    serverEnvironment,
   );
-  if (installed.version !== version)
-    throw new Error(
-      `Published installation is ${installed.version}, expected ${version}`,
-    );
-  const launcher = join(publishedRoot, "scripts", "rea.mjs");
-  for (const option of ["--help", "--llms"])
-    await execFileAsync(process.execPath, [launcher, option], {
-      cwd: canaryRoot,
-      env: serverEnvironment,
-      maxBuffer: 16 * 1024 * 1024,
-    });
-  transport = new StdioClientTransport({
-    command: process.execPath,
-    args: [launcher, "mcp"],
-    cwd: canaryRoot,
-    env: serverEnvironment,
-    stderr: "pipe",
-  });
-  transport.stderr?.on("data", (chunk) => {
-    if (stderr.length < 16_384) stderr += chunk.toString("utf8");
-  });
-  await client.connect(transport);
-  const tools = await client.listTools();
-  const toolNames = tools.tools.map(({ name }) => name);
-  const canonicalToolNames = new Set(TOOL_CONTRACTS.map(({ name }) => name));
-  const unknownToolNames = toolNames.filter(
-    (name) => !canonicalToolNames.has(name),
-  );
-  const publishedToolNames = new Set(toolNames);
-  const missingToolNames = [...canonicalToolNames].filter(
-    (name) => !publishedToolNames.has(name),
-  );
-  publishedToolCount = toolNames.length;
-  if (
-    publishedToolCount === 0 ||
-    publishedToolNames.size !== publishedToolCount ||
-    unknownToolNames.length > 0 ||
-    missingToolNames.length > 0
-  )
-    throw new Error(
-      `Published MCP exposed an invalid canonical tool catalog (${String(publishedToolCount)} tools, unknown: ${unknownToolNames.join(", ") || "none"}, missing: ${missingToolNames.join(", ") || "none"})`,
-    );
-  const statusReply = await client.callTool({
-    name: "binary_session",
-    arguments: {},
-  });
-  const status = requireMcpLifecycleResult(statusReply, "binary_session");
-  const availabilityNames = sortVerifierNames(
-    status.tool_availability.map(({ name }) => name),
-  );
-  if (
-    JSON.stringify(availabilityNames) !==
-    JSON.stringify(sortVerifierNames(canonicalToolNames))
-  )
-    throw new Error(
-      "Published binary_session omitted canonical tool availability",
-    );
   update = await verifyPublishedUpdate({
     version,
     canaryRoot,
     updaterRoot: publishedRoot,
   });
-} catch (cause) {
-  throw new Error(`Published package verification failed: ${stderr}`, {
-    cause,
-  });
 } finally {
-  try {
-    await client.close();
-    await transport?.close();
-  } finally {
-    await rm(canaryRoot, { recursive: true, force: true });
-  }
+  await rm(canaryRoot, { recursive: true, force: true });
 }
-
 process.stdout.write(
-  `${JSON.stringify({ verifier_run: await completeVerifierRun(verifierRun), package: "rea-agents", version, mcpTools: publishedToolCount, canonicalMcpTools: CATALOG_IDENTITY.counts.mcp_tools, update })}\n`,
+  `${JSON.stringify({ verifier_run: await completeVerifierRun(verifierRun), package: "rea-agents", version, ...surface, update })}\n`,
 );
 
 async function verifyPublishedUpdate({
@@ -144,6 +61,10 @@ async function verifyPublishedUpdate({
   canaryRoot,
   updaterRoot,
 }) {
+  const updateVersion = stableUpdateVersion(
+    targetVersion,
+    await readNpmRelease(targetVersion),
+  );
   const prefix = join(canaryRoot, "update-prefix");
   const home = join(canaryRoot, "update-home");
   const environment = {
@@ -168,7 +89,7 @@ async function verifyPublishedUpdate({
     PATH: `${join(prefix, "bin")}${delimiter}${process.env.PATH ?? ""}`,
   };
   const previousVersion = await findPreviousPublishedVersion(
-    targetVersion,
+    updateVersion,
     canaryRoot,
     environment,
   );
@@ -214,20 +135,20 @@ if (result.status === "failed") process.exitCode = 1;
   if (
     result.status !== "updated" ||
     result.previousVersion !== previousVersion ||
-    result.latestVersion !== targetVersion ||
-    result.installedVersion !== targetVersion ||
-    result.command.at(-1) !== `rea-agents@${targetVersion}`
+    result.latestVersion !== updateVersion ||
+    result.installedVersion !== updateVersion ||
+    result.command.at(-1) !== `rea-agents@${updateVersion}`
   )
     throw new Error(
-      `Published REA updater did not update ${previousVersion} to ${targetVersion}: ${stdout}`,
+      `Published REA updater did not update ${previousVersion} to stable ${updateVersion}: ${stdout}`,
     );
 
   const installed = JSON.parse(
     await readFile(join(npmRoot, "rea-agents", "package.json"), "utf8"),
   );
-  if (installed.version !== targetVersion)
+  if (installed.version !== updateVersion)
     throw new Error(
-      `REA update installed ${installed.version}, expected ${targetVersion}`,
+      `REA update installed ${installed.version}, expected stable ${updateVersion}`,
     );
 
   const help = (
@@ -259,7 +180,10 @@ async function findPreviousPublishedVersion(targetVersion, cwd, environment) {
   const previous = versions
     .filter(
       (candidate) =>
-        typeof candidate === "string" && lt(candidate, targetVersion),
+        typeof candidate === "string" &&
+        valid(candidate) === candidate &&
+        prerelease(candidate) === null &&
+        lt(candidate, targetVersion),
     )
     .sort(rcompare)[0];
   if (previous === undefined)

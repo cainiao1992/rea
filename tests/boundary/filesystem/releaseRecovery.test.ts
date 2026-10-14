@@ -55,6 +55,19 @@ it("recovers a failed post-publication run using its successful original qualifi
   });
 });
 
+it("recovers a byte-verified existing version when the npm write was skipped", () => {
+  const input = selection();
+  input.jobs[2]!.steps[0]!.conclusion = "skipped";
+  input.jobs[2]!.steps.push({
+    name: "Verify published npm bytes and dist-tag",
+    conclusion: "success",
+  });
+  expect(selectRecoveryRelease(input)).toMatchObject({
+    version: "6.5.0",
+    run_id: 123,
+  });
+});
+
 it.each(["failure", "skipped", "cancelled"])(
   "refuses recovery when original qualification was %s",
   (conclusion) => {
@@ -184,8 +197,12 @@ it("limits recovery to verification and dependent MCP publication from the relea
   const canary = steps.findIndex((candidate) =>
     candidate.run?.includes("verify-published-package.mjs"),
   );
+  const rehearsal = steps.findIndex((candidate) =>
+    candidate.run?.includes("verify-release-artifact.mjs"),
+  );
   expect(digest).toBeGreaterThanOrEqual(0);
-  expect(canary).toBeGreaterThan(digest);
+  expect(rehearsal).toBeGreaterThan(digest);
+  expect(canary).toBeGreaterThan(rehearsal);
   const publisher = workflow.jobs["publish-mcp"];
   expect(publisher.needs).toBe("verify");
   expect(

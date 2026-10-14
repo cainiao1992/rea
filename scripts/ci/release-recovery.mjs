@@ -1,6 +1,4 @@
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
 import { appendFile, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,7 +6,10 @@ import { promisify } from "node:util";
 import { valid } from "semver";
 import { z } from "zod";
 
-import { validateVerifiedPackage } from "./verified-package.mjs";
+import {
+  validateVerifiedPackage,
+  verifyPublishedPackageIntegrity,
+} from "./verified-package.mjs";
 
 const execute = promisify(execFile);
 const sha = z.string().regex(/^[a-f0-9]{40}$/u);
@@ -81,8 +82,18 @@ export function selectRecoveryRelease({
       throw new Error(`Original release did not pass ${name}`);
   const publish = requireJob("Publish to npm");
   const writes = publish.steps.filter((step) => step.name === "Publish");
-  if (writes.length !== 1 || writes[0].conclusion !== "success")
-    throw new Error("Original npm publication did not succeed");
+  const verified = publish.steps.filter(
+    (step) => step.name === "Verify published npm bytes and dist-tag",
+  );
+  if (
+    !(
+      (writes.length === 1 && writes[0].conclusion === "success") ||
+      (verified.length === 1 && verified[0].conclusion === "success")
+    )
+  )
+    throw new Error(
+      "Original npm publication did not succeed or verify existing bytes",
+    );
   return {
     version,
     source_sha: tagSha,
@@ -108,12 +119,7 @@ export async function verifyRecoveryPackage({
     packageVersion: version,
     nodeVersion: process.version,
   });
-  const hash = createHash("sha512");
-  for await (const chunk of createReadStream(tarball)) hash.update(chunk);
-  if (integrity !== `sha512-${hash.digest("base64")}`)
-    throw new Error(
-      "Published npm integrity differs from the original qualified package",
-    );
+  await verifyPublishedPackageIntegrity(tarball, integrity);
   return { version, sourceSha, runId, runAttempt, integrity };
 }
 

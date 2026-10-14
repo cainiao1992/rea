@@ -304,11 +304,40 @@ jobs:
     with:
       source_sha: ${{ needs.merged-release.outputs.sha || needs.release-please.outputs.sha }}
 
-  publish:
-    name: Publish to npm
+  rehearsal:
+    name: Rehearse qualified release on a clean runner
     needs: [merged-release, release-please, qualification]
     if: >-
       always() && !cancelled() && needs.qualification.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ needs.merged-release.outputs.sha || needs.release-please.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - run: npm ci
+      - uses: ./.github/actions/prepare-release-package
+        id: package
+      - name: Exercise the exact qualified tarball
+        env:
+          VERIFIED_PACKAGE_TARBALL: ${{ steps.package.outputs.tarball }}
+          VERIFIED_PACKAGE_VERSION: ${{ steps.package.outputs.version }}
+        run: node scripts/verify-release-artifact.mjs "$VERIFIED_PACKAGE_TARBALL" "$VERIFIED_PACKAGE_VERSION"
+
+  publish:
+    name: Publish to npm
+    needs: [merged-release, release-please, qualification, rehearsal]
+    if: >-
+      always() && !cancelled() &&
+      needs.qualification.result == 'success' && needs.rehearsal.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -327,62 +356,36 @@ jobs:
 
       - run: npm ci
 
-      - name: Download the exact qualified package
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: verified-release-package
-          path: .cache/verified-package/
-
-      - name: Verify qualified package provenance and digest
+      - uses: ./.github/actions/prepare-release-package
         id: package
-        run: node scripts/ci/verified-package.mjs validate .cache/verified-package
 
-      - name: Restore qualified verifier runtime
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: rea-test-runtime
-          path: .
+      - name: Inspect existing npm version
+        id: registry
+        env:
+          VERIFIED_PACKAGE_TARBALL: ${{ steps.package.outputs.tarball }}
+          VERIFIED_PACKAGE_VERSION: ${{ steps.package.outputs.version }}
+        run: node scripts/ci/npm-release.mjs inspect "$VERIFIED_PACKAGE_TARBALL" "$VERIFIED_PACKAGE_VERSION"
 
       - name: Publish
+        if: steps.registry.outputs.published == 'false'
         shell: bash
         env:
           VERIFIED_PACKAGE_TARBALL: ${{ steps.package.outputs.tarball }}
+          VERIFIED_PACKAGE_VERSION: ${{ steps.package.outputs.version }}
         run: |
-          version="$(node --input-type=module -e 'import packageJson from "./package.json" with { type: "json" }; process.stdout.write(packageJson.version)')"
-          published_version="$(npm view "rea-agents@${version}" version --json 2>/dev/null || true)"
-          if [ "${published_version}" = "\"${version}\"" ]; then
-            echo "rea-agents@${version} is already published; verifying the existing package."
-          else
-            tag="$(node scripts/release-npm-tag.mjs "${version}")"
-            npm publish "${VERIFIED_PACKAGE_TARBALL}" --access public --tag "${tag}"
-          fi
+          tag="$(node scripts/release-npm-tag.mjs "$VERIFIED_PACKAGE_VERSION")"
+          npm publish "${VERIFIED_PACKAGE_TARBALL}" --access public --tag "${tag}"
+
+      - name: Verify published npm bytes and dist-tag
+        env:
+          VERIFIED_PACKAGE_TARBALL: ${{ steps.package.outputs.tarball }}
+          VERIFIED_PACKAGE_VERSION: ${{ steps.package.outputs.version }}
+        run: node scripts/ci/npm-release.mjs verify "$VERIFIED_PACKAGE_TARBALL" "$VERIFIED_PACKAGE_VERSION"
 
       - name: Verify published CLI from npm
-        shell: bash
-        run: |
-          version="$(node --input-type=module -e 'import packageJson from "./package.json" with { type: "json" }; process.stdout.write(packageJson.version)')"
-          verification_root="$(mktemp -d)"
-          trap 'rm -rf -- "${verification_root}"' EXIT
-          cd "${verification_root}"
-          max_attempts=120
-          sleep_seconds=15
-          total_window_minutes=$((max_attempts * sleep_seconds / 60))
-          for attempt in $(seq 1 "${max_attempts}"); do
-            published_version="$(npm view --prefer-online "rea-agents@${version}" version --json 2>/dev/null || true)"
-            if [ "${published_version}" = "\"${version}\"" ]; then
-              echo "rea-agents@${version} is visible on npm after attempt ${attempt}/${max_attempts}; verifying the published CLI."
-              node "${GITHUB_WORKSPACE}/scripts/verify-published-package.mjs" "${version}"
-              exit 0
-            else
-              echo "rea-agents@${version} is not visible on npm yet (attempt ${attempt}/${max_attempts}; up to ${total_window_minutes} minutes)" >&2
-            fi
-            if [ "${attempt}" -lt "${max_attempts}" ]; then
-              sleep "${sleep_seconds}"
-            fi
-          done
-          echo "rea-agents@${version} did not become visible on npm within ${total_window_minutes} minutes (${max_attempts} attempts × ${sleep_seconds}s)" >&2
-          echo "This indicates npm registry propagation delay, not a CLI verification failure." >&2
-          exit 1
+        env:
+          VERIFIED_PACKAGE_VERSION: ${{ steps.package.outputs.version }}
+        run: node scripts/verify-published-package.mjs "$VERIFIED_PACKAGE_VERSION"
 
   publish-mcp:
     name: Publish to MCP Registry

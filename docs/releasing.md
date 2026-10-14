@@ -10,6 +10,26 @@ SHA returned by Release Please. Before either registry is published, the release
 run calls full CI qualification at that exact revision, including coverage,
 portable providers, and every native package host. Later main commits cannot
 change or cancel that proof.
+After qualification, a separate runner with read-only repository/actions
+permissions restores the retained tarball and verifier runtime. It installs
+that exact archive into an empty prefix, then exercises CLI help/discovery and
+the real stdio MCP catalog/session contract. Installation finishes before the
+protocol deadline begins, with dependency lifecycle scripts disabled. Only a
+successful rehearsal enables the job with npm publishing authority. Both jobs
+use the same release-input action; neither rebuilds or repacks the archive.
+This rehearsal checks package consumption on the Linux release runner;
+qualification retains its broader native-host and real-provider checks.
+
+Before publishing, npm lookup failures and malformed metadata stop the job.
+An existing version must match the qualified tarball's SHA-512 and intended
+`latest`/`next` dist-tag before it can be reused. Publication never overwrites
+an existing version or silently changes a dist-tag. After publication, only
+confirmed registry absence is retried within the propagation window. Content
+or tag mismatches fail immediately. The post-publication verifier installs
+from npm and repeats the same CLI/MCP checks; it also exercises a real update
+from an older stable release. For a prerelease on `next`, that updater still
+targets stable `latest`, as the public update command does.
+
 The required reverse-tools lane runs fresh coverage and both mutation
 preflights. Complete mutation sweeps run separately on a schedule or manual
 dispatch and do not block publication; see [the testing guide](testing.md).

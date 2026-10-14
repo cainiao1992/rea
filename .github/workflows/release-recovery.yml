@@ -74,6 +74,10 @@ jobs:
           RECOVERY_SOURCE_DIRECTORY: .cache/release-source
           RECOVERY_ARTIFACT_DIRECTORY: .cache/verified-package
         run: node scripts/ci/release-recovery.mjs verify
+      - name: Rehearse the original qualified tarball
+        env:
+          RECOVERY_VERSION: ${{ steps.release.outputs.version }}
+        run: node scripts/verify-release-artifact.mjs .cache/verified-package/package.tgz "$RECOVERY_VERSION"
       - name: Verify published CLI, MCP and update
         env:
           RECOVERY_VERSION: ${{ steps.release.outputs.version }}

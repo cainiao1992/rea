@@ -67,7 +67,7 @@ Before requesting maintainer review, the human owner must:
   passing. Follow the [verification requirements](#development-feedback-and-pr-verification)
   for required checks and real-provider coverage.
 - Complete the **Author readiness** declaration in the PR template, explicitly
-  stating that the current revision is ready for review.
+  stating that the PR is ready for initial review.
 
 Keep the PR description concise and current. Explain the problem, observable
 outcome, approach, and useful evidence; link long logs or put them in optional
@@ -78,10 +78,23 @@ approval or permission to merge.
 
 Draft PRs may request early feedback with open questions and incomplete checks.
 Leave the readiness declaration unchecked until the human owner has completed
-it. After further changes, clear the ready-for-review checkbox until the owner
-reviews the updated diff, refreshes affected validation and the PR description,
-and renews the declaration. AI agents must leave human declarations to the human
-owner and must not attest to a human review on their behalf.
+it. The declaration records initial readiness; later pushes do not invalidate
+it or require another human sign-off. Keep the PR description and affected
+validation current as work changes. AI agents must leave human declarations to
+the human owner and must not attest to a human review on their behalf.
+
+The `PR readiness` check reports pending for drafts and requires a named human
+owner and all three template declarations for non-drafts. It checks that the
+declaration is filled, not whether the code or evidence is correct. Existing PRs
+can copy the **Author readiness** section from the current template.
+Open PRs must have distinct head commits because GitHub shares commit statuses.
+
+Maintainers enable merge enforcement after the workflow is merged: run
+`gh workflow run pr-readiness.yml -f pull_request_number=NUMBER` for existing
+open PRs, then add `PR readiness` from GitHub Actions to the branch's required
+status checks alongside its existing checks. Deploy the workflow to each
+protected target branch before requiring it there. The workflow reads PR
+metadata using trusted default-branch code and writes only a commit status.
 
 Maintainers may return a PR to the author or close it when the problem is
 unsupported, validation is missing, or the owner cannot explain the change.

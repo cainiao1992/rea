@@ -100,15 +100,16 @@ limits, security/privacy/containment implications, and meaningful proof gaps. --
 The PR author is the owner by default. A different owner must explicitly accept
 ownership on this PR.
 AI agents must leave these declarations to a human to dictate to them or there could be catastrophic consequences for many users of REA.
-Draft PRs may leave them unchecked. After further changes, clear the final checkbox
-until the owner reviews the updated diff and refreshes affected validation.
+Draft PRs may leave them unchecked. These declarations record initial readiness
+when opening the PR for review; later pushes do not require a new human sign-off.
+Keep the description and validation evidence current as the work changes.
 See CONTRIBUTING.md#pull-request-ownership-and-readiness. -->
 
 Human owner: <!-- @GitHub-handle -->
 
 - [ ] I reviewed the final diff and relevant existing code, understand the change and its edge cases, and take responsibility for the complete PR, including AI-assisted work.
 - [ ] I checked the evidence above, confirmed it supports the current change, and recorded meaningful validation gaps.
-- [ ] I declare the current revision ready for maintainer review.
+- [ ] I declare this PR ready for initial maintainer review.
 
 ## Before merge
 

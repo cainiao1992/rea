@@ -1,6 +1,11 @@
 import type { DoctorReport, DoctorScope, runDoctor } from "./Doctor.js";
 import type { LinuxDistribution } from "./LinuxHopper.js";
-import type { SkillDestination, SkillInstallResult } from "./SetupSkill.js";
+import type {
+  SkillDestination,
+  SkillInstallResult,
+  SetupSkillInstallError,
+} from "./SetupSkill.js";
+import type { Result } from "../domain/result.js";
 import type { SetupClient } from "./SupportedClients.js";
 import type {
   SetupFailureCode,
@@ -89,6 +94,9 @@ export interface SetupHost {
     command: readonly string[],
   ): Promise<ClientConfigurationInspection>;
   skillNeedsInstall(clientIds: readonly string[]): Promise<boolean>;
+  validateSkillDirectories(
+    clientIds: readonly string[],
+  ): Promise<Result<void, SetupSkillInstallError>>;
   installSkill(clientIds: readonly string[]): Promise<SkillInstallResult>;
   doctor(scope?: DoctorScope): Promise<Awaited<ReturnType<typeof runDoctor>>>;
 }

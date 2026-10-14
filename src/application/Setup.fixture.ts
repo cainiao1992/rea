@@ -8,7 +8,7 @@ import type {
 } from "./SetupTypes.js";
 import type { SetupClient } from "./SupportedClients.js";
 import type { SetupHopperInstallResult } from "./SetupInstallFailure.js";
-import { err, ok } from "../domain/result.js";
+import { err, ok, type Result } from "../domain/result.js";
 import { SetupSkillInstallError } from "./SetupSkill.js";
 import type { DoctorCheck, DoctorReport, DoctorScope } from "./Doctor.js";
 import type { LinuxDistribution } from "./LinuxHopper.js";
@@ -43,6 +43,7 @@ export class FakeSetupHost implements SetupHost {
   hopperReplaceRequests: boolean[] = [];
   configurations = 0;
   skillInstalls = 0;
+  skillDirectoryValidations: Array<readonly string[]> = [];
   doctorCalls = 0;
   doctorScopes: Array<DoctorScope | undefined> = [];
   checkedHopperPaths: Array<string | undefined> = [];
@@ -129,6 +130,12 @@ export class FakeSetupHost implements SetupHost {
     );
   skillNeedsInstall = (): Promise<boolean> =>
     Promise.resolve(this.skill !== "unchanged");
+  validateSkillDirectories = (
+    clientIds: readonly string[],
+  ): Promise<Result<void, SetupSkillInstallError>> => {
+    this.skillDirectoryValidations.push(clientIds);
+    return Promise.resolve(ok(undefined));
+  };
   installSkill = () => {
     this.skillInstalls += 1;
     return Promise.resolve(

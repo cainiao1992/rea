@@ -768,6 +768,12 @@ const removeManagedSkill = async (
   const failed = results.find(({ status }) => status === "failed");
   if (failed !== undefined)
     return item(name, "failed", results.map(({ detail }) => detail).join(" "));
+  if (results.some(({ status }) => status === "retained"))
+    return item(
+      name,
+      "retained",
+      [...new Set(results.map(({ detail }) => detail))].join(" "),
+    );
   const removed = results.some(({ status }) => status === "removed");
   return item(
     name,

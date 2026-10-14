@@ -31,6 +31,7 @@ import {
   skillDestinations,
   canonicalSkillNeedsInstall,
   installCanonicalSkill,
+  validateCanonicalSkillDirectories,
 } from "./SetupSkill.js";
 import {
   clientConfigurationAligned,
@@ -223,6 +224,13 @@ export const systemSetupHost = (
         environment,
         platform,
         resources,
+      ),
+    validateSkillDirectories: (clientIds) =>
+      validateCanonicalSkillDirectories(
+        homeDirectory,
+        clientIds,
+        environment,
+        platform,
       ),
     installSkill: (clientIds) =>
       installCanonicalSkill(

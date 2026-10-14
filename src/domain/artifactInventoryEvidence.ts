@@ -17,7 +17,10 @@ import {
   occurrenceIdForLocation,
 } from "./artifactIdentity.js";
 import { parseEvidence, type Evidence } from "./evidence.js";
-import { artifactInspectionResultSchema } from "./artifactInspection.js";
+import {
+  artifactInspectionResultSchema,
+  type ArtifactInspectionResult,
+} from "./artifactInspection.js";
 
 /** Complete or partially assembled inventory used by comparison workflows. */
 export interface InventorySet {
@@ -52,36 +55,28 @@ export const parseArtifactInventoryEvidence = (
 ): ParsedInventorySet => {
   const evidence = (Array.isArray(input) ? input : [input]).map(parseEvidence);
   const pages = evidence.flatMap((carrier) => {
-    let inventoryEvidence: readonly Evidence[] | undefined;
-    if (carrier.operation === "inventory_artifact") {
-      inventoryEvidence = [carrier];
-    } else if (carrier.operation === "inspect_artifact") {
-      const inspection = artifactInspectionResultSchema.parse(
-        carrier.normalized_result,
-      );
-      if (inspection.coverage.substeps_completed !== inspection.substeps.length)
-        throw new TypeError(
-          "Artifact inspection substep count does not match its coverage declaration",
-        );
-      inventoryEvidence = inspection.substeps.map((substep) =>
-        parseEvidence(substep.evidence),
-      );
-    }
-    if (inventoryEvidence === undefined)
+    if (carrier.operation === "inventory_artifact")
+      return [parseInventoryEvidencePage(carrier)];
+    if (carrier.operation !== "inspect_artifact")
       throw new TypeError(
         "Artifact comparison requires inspect_artifact Evidence",
       );
-    return inventoryEvidence.map((pageEvidence) => {
-      const inventory = artifactInventoryResultSchema.parse(
-        pageEvidence.normalized_result,
+
+    const inspection = artifactInspectionResultSchema.parse(
+      carrier.normalized_result,
+    );
+    if (inspection.coverage.substeps_completed !== inspection.substeps.length)
+      throw new TypeError(
+        "Artifact inspection substep count does not match its coverage declaration",
       );
-      validateArtifactInventorySubject(
-        pageEvidence.subject,
-        inventory.manifest,
-      );
-      validateInventoryPage(inventory);
-      return inventory;
-    });
+    const inventoryPages = inspection.substeps.map(
+      parseInspectionInventoryPage,
+    );
+    const firstPage = inventoryPages[0];
+    if (firstPage === undefined)
+      throw new TypeError("Artifact inspection requires inventory substeps");
+    validateInspectionIdentity(carrier, inspection, firstPage.manifest);
+    return inventoryPages;
   });
   return {
     evidence,
@@ -89,15 +84,70 @@ export const parseArtifactInventoryEvidence = (
   };
 };
 
+/** Ensure both inspection declarations identify the inventory facts it carries. */
+const validateInspectionIdentity = (
+  carrier: Evidence,
+  inspection: ArtifactInspectionResult,
+  manifest: ArtifactInventoryResult["manifest"],
+): void => {
+  if (
+    inspection.subject.manifest_id !== manifest.manifest_id ||
+    inspection.subject.root_artifact_id !== manifest.root_artifact_id ||
+    inspection.subject.root_sha256 !== manifest.root_sha256 ||
+    inspection.subject.root_format !== manifest.root_format
+  )
+    throw new TypeError(
+      "Artifact inspection subject does not match its inventory manifest",
+    );
+  if (
+    carrier.subject === null ||
+    carrier.subject.digest.sha256 !== manifest.root_sha256 ||
+    carrier.subject.format !== manifest.root_format
+  )
+    throw new TypeError(
+      "Artifact inspection Evidence subject does not match its root manifest",
+    );
+};
+
 /** Validate one already authenticated parent payload with the same graph proofs. */
 export const parseArtifactInventoryResult = (
   input: unknown,
   subject: Evidence["subject"],
-): InventorySet => {
+): InventorySet =>
+  assembleInventoryResults([parseInventoryPage(input, subject)]);
+
+/** Parse one already authenticated inventory result into its validated facts. */
+const parseInventoryPage = (
+  input: unknown,
+  subject: Evidence["subject"],
+): ArtifactInventoryResult => {
   const inventory = artifactInventoryResultSchema.parse(input);
   validateArtifactInventorySubject(subject, inventory.manifest);
   validateInventoryPage(inventory);
-  return assembleInventoryResults([inventory]);
+  return inventory;
+};
+
+/** Parse one authenticated inventory carrier into its validated owner facts. */
+const parseInventoryEvidencePage = (
+  evidence: Evidence,
+): ArtifactInventoryResult => {
+  if (evidence.operation !== "inventory_artifact")
+    throw new TypeError(
+      "Artifact inventory page must be inventory_artifact Evidence",
+    );
+  return parseInventoryPage(evidence.normalized_result, evidence.subject);
+};
+
+/** Authenticate one inspection substep and parse its inventory exactly once. */
+const parseInspectionInventoryPage = (
+  substep: ArtifactInspectionResult["substeps"][number],
+): ArtifactInventoryResult => {
+  const evidence = parseEvidence(substep.evidence);
+  if (substep.evidence_id !== evidence.evidence_id)
+    throw new TypeError(
+      "Artifact inspection substep evidence ID does not match nested Evidence",
+    );
+  return parseInventoryEvidencePage(evidence);
 };
 
 /** Both inventory carriers require the same authenticated root identity. */

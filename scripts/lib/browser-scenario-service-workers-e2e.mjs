@@ -245,7 +245,7 @@ export async function verifyScenarioServiceWorkers(endpoint, targetId) {
           wait_until: "load",
         },
       ]),
-      "target_not_allowed",
+      "service_worker_blocked",
     );
     await page.goto("about:blank");
     await assertRejected(
@@ -257,12 +257,12 @@ export async function verifyScenarioServiceWorkers(endpoint, targetId) {
         },
         { step_id: "loaded", action: "wait_for_timeout", duration_ms: 100 },
       ]),
-      "target_not_allowed",
+      "service_worker_blocked",
     );
     await page.goto("about:blank");
     await assertRejected(
       scenarioFor(`${first.origin}/frame`),
-      "target_not_allowed",
+      "service_worker_blocked",
     );
 
     const allowed = await provider.captureScenario(

@@ -1,5 +1,8 @@
 import { digestCanonicalValue } from "./canonicalDigest.js";
-import { compareUnicodeCodePoints } from "./unicodeCodePointOrder.js";
+import {
+  compareUnicodeCodePoints,
+  compositeKey,
+} from "./unicodeCodePointOrder.js";
 import type { WebPageInspection } from "./browserObservationSchemas.js";
 import {
   webCaptureDiffSchema,
@@ -258,13 +261,33 @@ const sharedNetworkResponseFields = (
   for (const inspection of [before, after])
     for (const request of inspection.network.requests) {
       const identity = networkIdentity(request);
-      const fields = shared.get(identity) ?? new Set(networkResponseFields);
-      for (const field of networkResponseFields)
-        if (request[field] === null) fields.delete(field);
-      shared.set(identity, fields);
+      retainSharedResponseFields(shared, identity, request);
+      for (const [index, redirect] of (request.redirects ?? []).entries())
+        retainSharedResponseFields(
+          shared,
+          redirectNetworkIdentity(identity, index),
+          redirect,
+        );
     }
   return shared;
 };
+
+const retainSharedResponseFields = (
+  shared: Map<string, Set<NetworkResponseField>>,
+  identity: string,
+  response: Pick<
+    WebPageInspection["network"]["requests"][number],
+    NetworkResponseField
+  >,
+): void => {
+  const fields = shared.get(identity) ?? new Set(networkResponseFields);
+  for (const field of networkResponseFields)
+    if (response[field] === null) fields.delete(field);
+  shared.set(identity, fields);
+};
+
+const redirectNetworkIdentity = (identity: string, index: number): string =>
+  compositeKey([identity, "redirect", index]);
 
 const networkDimension = (
   before: WebPageInspection,
@@ -359,14 +382,19 @@ const networkDimension = (
     "Network capture or selected HTTP/WebSocket payload-shape coverage is attach-window limited, unavailable, or incomplete.",
     inventoryComplete,
   );
-  return compared.status === "unchanged" && !responseFieldsComplete
-    ? {
-        ...compared,
-        status: "unknown",
-        reason:
-          "HTTP response status, MIME type, or byte-count evidence is incomplete.",
-      }
-    : compared;
+  if (responseFieldsComplete) return compared;
+  const responseEvidenceReason =
+    "HTTP response or redirect status, MIME type, or byte-count evidence is incomplete.";
+  if (compared.status === "changed") return compared;
+  return {
+    status: "unknown",
+    total_changes: 0,
+    changes: [],
+    reason:
+      compared.reason === null
+        ? responseEvidenceReason
+        : `${responseEvidenceReason} ${compared.reason}`,
+  };
 };
 
 const networkMap = (
@@ -385,11 +413,29 @@ const networkMap = (
     values.push({
       ...response,
       redirects: (request.redirects ?? []).map(
-        ({
-          request_timestamp: _requestTimestamp,
-          redirect_event_timestamp: _redirectEventTimestamp,
-          ...redirect
-        }) => redirect,
+        (
+          {
+            request_timestamp: _requestTimestamp,
+            redirect_event_timestamp: _redirectEventTimestamp,
+            ...redirect
+          },
+          index,
+        ) => {
+          const response: Partial<
+            Record<NetworkResponseField, number | string>
+          > = {};
+          for (const field of responseFields.get(
+            redirectNetworkIdentity(identity, index),
+          ) ?? [])
+            if (redirect[field] !== null) response[field] = redirect[field];
+          return {
+            url: redirect.url,
+            response_url: redirect.response_url,
+            method: redirect.method,
+            resource_type: redirect.resource_type,
+            ...response,
+          };
+        },
       ),
       initiator: request.initiator,
       ...(shapes?.request === true

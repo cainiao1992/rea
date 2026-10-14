@@ -13,6 +13,50 @@ const rpcEndpoints = (source: string) =>
       mechanism.startsWith("trpc:") || mechanism.startsWith("graphql:"),
   );
 
+describe("RPC object property ownership", () => {
+  it.each([
+    ['url: "/trpc/old", url: "/trpc/live"', "/trpc/live"],
+    ['url: "/trpc/old", url: runtimeUrl', null],
+    ['url: "/trpc/old", ...options', null],
+    ['url: "/trpc/old", [key]: runtimeUrl', null],
+    ['url: "/trpc/old", get url() { return runtimeUrl; }', null],
+    ['url: "/trpc/old", url() {}', null],
+    ['...options, url: "/trpc/live", headers: {}', "/trpc/live"],
+    ['[key]: runtimeUrl, url: "/trpc/live"', "/trpc/live"],
+    ['url: "/trpc/old", ["url"]: "/trpc/live"', "/trpc/live"],
+  ] as const)(
+    "reads only the final known link URL from {%s}",
+    (options, value) => {
+      expect(rpcEndpoints(`httpBatchLink({ ${options} });`)).toEqual(
+        value === null
+          ? []
+          : [{ kind: "network", value, mechanism: "trpc:link:httpBatchLink" }],
+      );
+    },
+  );
+
+  it.each([
+    ['operation: "mutation"', "Old", "graphql:mutation"],
+    ['name: { kind: "Name", value: "Current" }', "Current", "graphql:query"],
+    ['kind: "FragmentDefinition"', null, null],
+    ["name: runtimeName", null, null],
+    ["get name() { return runtimeName; }", null, null],
+    ["...options", null, null],
+    ["[key]: runtimeValue", null, null],
+  ] as const)(
+    "honors final GraphQL document properties: %s",
+    (override, value, mechanism) => {
+      const source = `const doc = {
+      kind: "OperationDefinition", operation: "query",
+      name: { kind: "Name", value: "Old" }, ${override}
+    };`;
+      expect(rpcEndpoints(source)).toEqual(
+        value === null ? [] : [{ kind: "network", value, mechanism }],
+      );
+    },
+  );
+});
+
 describe("tRPC procedure recognition", () => {
   it("recognizes React hook procedures on a renamed proxy root", () => {
     expect(

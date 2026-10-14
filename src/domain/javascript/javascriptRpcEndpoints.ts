@@ -122,31 +122,28 @@ const objectKeys = (node: t.Node | undefined): readonly string[] =>
       })
     : [];
 
-const objectStringProperty = (
-  node: t.ObjectExpression,
-  key: string,
-): string | undefined => {
-  for (const property of node.properties)
-    if (
-      t.isObjectProperty(property) &&
-      semanticStaticPropertyKey(property.key, property.computed) === key &&
-      t.isStringLiteral(property.value)
-    )
-      return property.value.value;
-  return undefined;
-};
-
+/** Later properties own a key; an intervening dynamic write leaves it unknown. */
 const objectProperty = (
   node: t.ObjectExpression,
   key: string,
 ): t.Node | undefined => {
-  for (const property of node.properties)
-    if (
-      t.isObjectProperty(property) &&
-      semanticStaticPropertyKey(property.key, property.computed) === key
-    )
-      return property.value;
+  for (let index = node.properties.length - 1; index >= 0; index -= 1) {
+    const property = node.properties[index];
+    if (property === undefined || t.isSpreadElement(property)) return undefined;
+    const name = semanticStaticPropertyKey(property.key, property.computed);
+    if (name === null) return undefined;
+    if (name === key)
+      return t.isObjectProperty(property) ? property.value : undefined;
+  }
   return undefined;
+};
+
+const objectStringProperty = (
+  node: t.ObjectExpression,
+  key: string,
+): string | undefined => {
+  const value = objectProperty(node, key);
+  return t.isStringLiteral(value) ? value.value : undefined;
 };
 
 const GRAPHQL_OPERATION_TYPES: ReadonlySet<string> = new Set([

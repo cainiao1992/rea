@@ -78,7 +78,7 @@ export async function retainVerifiedPackage({
 }
 
 /** Validate a retained package against the current checkout and workflow attempt. */
-async function validateVerifiedPackage({
+export async function validateVerifiedPackage({
   directory,
   sourceSha,
   runId,

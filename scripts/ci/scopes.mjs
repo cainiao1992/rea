@@ -90,6 +90,13 @@ export const SCOPES = {
   ],
   // Four-host installed-package matrix and the Windows curated lane.
   package: [
+    ".github/actions/publish-mcp/**",
+    ".github/workflows/release-recovery.yml",
+    "scripts/ci/release-recovery.mjs",
+    "scripts/ci/verified-package.mjs",
+    "scripts/verify-published-package.mjs",
+    "tests/boundary/filesystem/releaseRecovery.test.ts",
+    "tests/boundary/filesystem/mcpRegistryPublication.test.ts",
     "src/windows/**",
     "native/windows/**",
     "src/process/capture/FilesystemSnapshot.ts",

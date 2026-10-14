@@ -13,6 +13,7 @@ import {
   runProductionMcpDoctorCli,
 } from "../../../src/mcpDoctor.js";
 import { CATALOG_IDENTITY } from "../../../src/catalogIdentity.js";
+import { MCP_STARTUP_POLICY } from "../../../src/mcpStartupPolicy.js";
 
 afterEach(() => vi.useRealTimers());
 
@@ -170,6 +171,66 @@ describe("production MCP doctor child lifecycle", () => {
     });
   });
 
+  it("retains only the stderr prefix while draining and counting the full child stream", async () => {
+    const result = await runNoisyDoctorChild(`
+      for (let index = 0; index < 64; index += 1) {
+        await new Promise((resolve, reject) => {
+          process.stderr.write(Buffer.alloc(65_536, 0x78), (error) =>
+            error ? reject(error) : resolve(),
+          );
+        });
+      }
+      process.exitCode = 1;
+    `);
+
+    expect(result.healthy).toBe(false);
+    expect(result.diagnostics).toEqual({
+      stderr: "x".repeat(MCP_STARTUP_POLICY.doctorStderrBytes),
+      stderr_bytes: 4 * 1024 * 1024,
+      stderr_truncated: true,
+    });
+  }, 10_000);
+
+  it("does not manufacture a replacement character when the retained prefix ends inside UTF-8", async () => {
+    const prefixBytes = MCP_STARTUP_POLICY.doctorStderrBytes - 1;
+    const result = await runNoisyDoctorChild(`
+      for (const chunk of [
+        Buffer.alloc(${prefixBytes}, 0x78),
+        Buffer.from([0xe2, 0x82, 0xac]),
+      ]) {
+        await new Promise((resolve, reject) => {
+          process.stderr.write(chunk, (error) =>
+            error ? reject(error) : resolve(),
+          );
+        });
+      }
+      process.exitCode = 1;
+    `);
+
+    expect(result.diagnostics).toEqual({
+      stderr: "x".repeat(prefixBytes),
+      stderr_bytes: prefixBytes + 3,
+      stderr_truncated: true,
+    });
+  });
+
+  it("preserves replacement decoding for malformed UTF-8 within an untruncated stream", async () => {
+    const result = await runNoisyDoctorChild(`
+      await new Promise((resolve, reject) => {
+        process.stderr.write(Buffer.from([0xff]), (error) =>
+          error ? reject(error) : resolve(),
+        );
+      });
+      process.exitCode = 1;
+    `);
+
+    expect(result.diagnostics).toEqual({
+      stderr: "�",
+      stderr_bytes: 1,
+      stderr_truncated: false,
+    });
+  });
+
   it("kills a child that misses the absolute startup deadline", async () => {
     const root = await createTestTempDirectory("rea-mcp-doctor-");
     const pidPath = join(root, "pid");
@@ -199,6 +260,19 @@ describe("production MCP doctor child lifecycle", () => {
     await expect(waitForExit(pid)).resolves.toBeUndefined();
   }, 10_000);
 });
+
+const runNoisyDoctorChild = async (body: string) => {
+  const root = await createTestTempDirectory("rea-mcp-doctor-stderr-");
+  const scriptPath = join(root, "noisy.mjs");
+  await writeFile(scriptPath, body);
+  return runProductionMcpDoctor({
+    command: process.execPath,
+    args: [scriptPath],
+    cwd: root,
+    environment: process.env,
+    deadlineMs: 5_000,
+  });
+};
 
 const waitForExit = async (pid: number): Promise<void> => {
   for (let attempt = 0; attempt < 50; attempt += 1) {

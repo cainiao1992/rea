@@ -3,6 +3,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { Formatter, Help, z } from "incur";
 import { performance } from "node:perf_hooks";
 import { resolve } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 
 import { CATALOG_IDENTITY } from "./catalogIdentity.js";
 import { PROMPT_CONTRACTS } from "./contracts/promptContracts.js";
@@ -483,19 +484,30 @@ const targetFreeEnvironment = (
 };
 
 const captureStderr = () => {
-  const chunks: Buffer[] = [];
+  const retained = Buffer.allocUnsafe(MCP_STARTUP_POLICY.doctorStderrBytes);
+  let retainedBytes = 0;
   let bytes = 0;
+  let truncated = false;
   return {
     append(chunk: unknown) {
       const buffer = Buffer.isBuffer(chunk)
         ? chunk
         : Buffer.from(String(chunk), "utf8");
       bytes += buffer.byteLength;
-      chunks.push(Buffer.from(buffer));
+      const remaining = retained.byteLength - retainedBytes;
+      const copied = Math.min(remaining, buffer.byteLength);
+      if (copied > 0) {
+        buffer.copy(retained, retainedBytes, 0, copied);
+        retainedBytes += copied;
+      }
+      if (copied < buffer.byteLength) truncated = true;
     },
     value: () => ({
-      stderr: Buffer.concat(chunks, bytes).toString("utf8"),
+      stderr: truncated
+        ? new StringDecoder("utf8").write(retained.subarray(0, retainedBytes))
+        : retained.toString("utf8", 0, retainedBytes),
       stderr_bytes: bytes,
+      stderr_truncated: truncated,
     }),
   };
 };

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { browserNetworkContentSelectionValuesSchema } from "./browserNetworkEvidence.js";
-import { browserScenarioCaptureLimitsSchema } from "./browserScenarioCaptureLimits.js";
+import { browserScenarioCaptureLimitsValuesSchema } from "./browserScenarioCaptureLimits.js";
 
 import {
   browserScenarioCompletenessSchema,
@@ -26,7 +26,7 @@ export const browserScenarioCaptureSchema = z
       secret_references: z.array(z.string().min(1)),
       network_content: browserNetworkContentSelectionValuesSchema,
       event_families: z.array(browserScenarioEventFamilySchema),
-      limits: browserScenarioCaptureLimitsSchema,
+      limits: browserScenarioCaptureLimitsValuesSchema,
     }),
     duration_ms: z.number().int().min(0),
     steps: z.array(browserScenarioStepSchema).min(1),

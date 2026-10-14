@@ -73,6 +73,7 @@ const inventory = (digit: string) => {
     occurrences,
     edges,
     provenance: [],
+    integrity_contradictions: integrityContradictions,
     coverage: { scope: "root", status: "complete" },
     limitations: [],
   });

@@ -292,6 +292,7 @@ it("validates reported event limits and omission accounting", () => {
       },
       event_families: ["network"],
       limits: {
+        ...DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS,
         max_total_event_allocation_bytes: 32 * 1024 * 1024,
       },
     },
@@ -348,6 +349,22 @@ it("validates reported event limits and omission accounting", () => {
         ...capture.data.events,
         dropped: 3,
       },
+    }).success,
+  ).toBe(false);
+  for (const limits of [
+    {},
+    { max_events: DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS.max_events },
+  ])
+    expect(
+      browserScenarioCaptureSchema.safeParse({
+        ...capture.data,
+        scenario: { ...capture.data.scenario, limits },
+      }).success,
+    ).toBe(false);
+  expect(
+    browserScenarioCaptureSchema.safeParse({
+      ...capture.data,
+      scenario: { ...capture.data.scenario, limits: undefined },
     }).success,
   ).toBe(false);
 });

@@ -14,33 +14,54 @@ export const DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS = {
 } as const;
 
 /** Caller-selected retained-output budgets; byte values are allocation-cost estimates. */
-export const browserScenarioCaptureLimitsSchema = z.strictObject({
-  max_events: positiveSafeInteger.default(
-    DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS.max_events,
-  ),
-  max_event_allocation_bytes: positiveSafeInteger.default(
-    DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS.max_event_allocation_bytes,
-  ),
-  max_total_event_allocation_bytes: positiveSafeInteger.default(
-    DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS.max_total_event_allocation_bytes,
-  ),
-  max_network_transactions: positiveSafeInteger.default(
-    DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS.max_network_transactions,
-  ),
-  max_network_body_bytes: positiveSafeInteger.default(
-    DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS.max_network_body_bytes,
-  ),
-  max_network_body_allocation_bytes: positiveSafeInteger.default(
-    DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS.max_network_body_allocation_bytes,
-  ),
-  max_network_header_allocation_bytes: positiveSafeInteger.default(
-    DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS.max_network_header_allocation_bytes,
-  ),
-  max_network_metadata_allocation_bytes: positiveSafeInteger.default(
-    DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS.max_network_metadata_allocation_bytes,
-  ),
+export const browserScenarioCaptureLimitsValuesSchema = z.strictObject({
+  max_events: positiveSafeInteger,
+  max_event_allocation_bytes: positiveSafeInteger,
+  max_total_event_allocation_bytes: positiveSafeInteger,
+  max_network_transactions: positiveSafeInteger,
+  max_network_body_bytes: positiveSafeInteger,
+  max_network_body_allocation_bytes: positiveSafeInteger,
+  max_network_header_allocation_bytes: positiveSafeInteger,
+  max_network_metadata_allocation_bytes: positiveSafeInteger,
 });
 
+/** Input budgets default omitted values; output evidence uses the values schema above. */
+export const browserScenarioCaptureLimitsSchema =
+  browserScenarioCaptureLimitsValuesSchema.extend({
+    max_events:
+      browserScenarioCaptureLimitsValuesSchema.shape.max_events.default(
+        DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS.max_events,
+      ),
+    max_event_allocation_bytes:
+      browserScenarioCaptureLimitsValuesSchema.shape.max_event_allocation_bytes.default(
+        DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS.max_event_allocation_bytes,
+      ),
+    max_total_event_allocation_bytes:
+      browserScenarioCaptureLimitsValuesSchema.shape.max_total_event_allocation_bytes.default(
+        DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS.max_total_event_allocation_bytes,
+      ),
+    max_network_transactions:
+      browserScenarioCaptureLimitsValuesSchema.shape.max_network_transactions.default(
+        DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS.max_network_transactions,
+      ),
+    max_network_body_bytes:
+      browserScenarioCaptureLimitsValuesSchema.shape.max_network_body_bytes.default(
+        DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS.max_network_body_bytes,
+      ),
+    max_network_body_allocation_bytes:
+      browserScenarioCaptureLimitsValuesSchema.shape.max_network_body_allocation_bytes.default(
+        DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS.max_network_body_allocation_bytes,
+      ),
+    max_network_header_allocation_bytes:
+      browserScenarioCaptureLimitsValuesSchema.shape.max_network_header_allocation_bytes.default(
+        DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS.max_network_header_allocation_bytes,
+      ),
+    max_network_metadata_allocation_bytes:
+      browserScenarioCaptureLimitsValuesSchema.shape.max_network_metadata_allocation_bytes.default(
+        DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS.max_network_metadata_allocation_bytes,
+      ),
+  });
+
 export type BrowserScenarioCaptureLimits = z.infer<
-  typeof browserScenarioCaptureLimitsSchema
+  typeof browserScenarioCaptureLimitsValuesSchema
 >;

@@ -203,7 +203,7 @@ export const artifactInventoryResultSchema = z.strictObject({
   occurrences: z.array(artifactOccurrenceSchema),
   edges: z.array(artifactEdgeSchema),
   provenance: z.array(artifactCommandSchema),
-  integrity_contradictions: z.array(integrityContradictionSchema).default([]),
+  integrity_contradictions: z.array(integrityContradictionSchema),
   coverage: artifactInventoryCoverageSchema,
   limitations: z.array(z.string()),
 });

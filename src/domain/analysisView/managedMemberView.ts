@@ -1,3 +1,4 @@
+import { analysisViewInputError } from "./analysisViewErrors.js";
 import { z } from "zod";
 import type { AnalysisError } from "../analysisErrorBase.js";
 import { uniqueSorted } from "../canonicalOrdering.js";
@@ -6,11 +7,10 @@ import {
   type ManagedMemberInspection,
 } from "../managed/managedArtifact.js";
 import { err, ok, type Result } from "../result.js";
-import {
-  analysisViewInputError,
-  type AnalysisViewParent,
-  type AnalysisViewRequest,
-  type UnsignedAnalysisView,
+import type {
+  AnalysisViewParent,
+  AnalysisViewRequest,
+  UnsignedAnalysisView,
 } from "./analysisView.js";
 import {
   completeWithinViewCoverage,

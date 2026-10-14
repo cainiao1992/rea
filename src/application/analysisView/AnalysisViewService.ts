@@ -1,3 +1,4 @@
+import { INSPECT_ANALYSIS_VIEW_OPERATION } from "../../domain/analysisView/analysisViewErrors.js";
 import { z } from "zod";
 
 import { ANALYSIS_VIEW_PROVIDER } from "../InvestigationProviders.js";
@@ -17,7 +18,6 @@ import {
   type Evidence,
 } from "../../domain/evidence.js";
 import {
-  INSPECT_ANALYSIS_VIEW_OPERATION,
   inspectAnalysisViewInputSchema,
   projectAnalysisView,
   type AnalysisViewResult,

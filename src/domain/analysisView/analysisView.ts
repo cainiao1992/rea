@@ -3,9 +3,12 @@ import { javaScriptSourceSelectionSchema } from "../javascript/javascriptSourceS
 
 import {
   AnalysisInputError,
-  type AnalysisInputIssue,
   AnalysisUnsupportedTargetError,
 } from "../analysisErrorCore.js";
+import {
+  INSPECT_ANALYSIS_VIEW_OPERATION,
+  analysisViewInputError,
+} from "./analysisViewErrors.js";
 import { digestCanonicalValue } from "../canonicalDigest.js";
 import { digestSchema, prefixedDigestSchema } from "../digests.js";
 import { evidenceSchema, type Evidence } from "../evidence.js";
@@ -106,9 +109,6 @@ import {
   dartAotViewRequestSchema,
   dartAotViewContextSchema,
 } from "./dartAotView.js";
-
-/** Public name of the selected-view workflow. */
-export const INSPECT_ANALYSIS_VIEW_OPERATION = "inspect_analysis_view" as const;
 
 const summaryViewSchema = z.strictObject({ kind: z.literal("summary") });
 const facetViewSchema = z.strictObject({
@@ -633,12 +633,6 @@ export interface AnalysisViewParent {
   /** Parent Evidence parameters, when the parent operation records them. */
   readonly parameters?: unknown;
 }
-
-/** Construct a typed input failure for one selected-view constraint. */
-export const analysisViewInputError = (
-  issues: readonly AnalysisInputIssue[],
-): AnalysisInputError =>
-  new AnalysisInputError(INSPECT_ANALYSIS_VIEW_OPERATION, undefined, issues);
 
 /** View payload before the content digest is attached. */
 export type UnsignedAnalysisView =

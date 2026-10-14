@@ -639,12 +639,18 @@ memory has no original file offset. For FAT Mach-O, offsets refer to the origina
 container file. Results retain Hopper's image-relative offset, the observed slice
 base, and the source executable path.
 Loader selection reads the Mach-O container header, including FAT files with a
-single architecture. For FAT64, REA validates the architecture table and selected
-Mach-O header, prepares a private thin image, and loads it with Hopper's native
-Mach-O loader. It checks the entire source's SHA-256 while copying the slice;
-source identity and reported offsets still refer to the original container.
-An ambiguous architecture subtype requires an explicitly extracted thin image;
-REA does not guess. Configured loader arguments remain explicit overrides.
+single architecture. For FAT32 and FAT64 containers, REA validates the
+architecture table and selected Mach-O header, prepares a private thin image,
+and loads it with Hopper's native Mach-O loader instead of Hopper's implicit
+FAT slice choice. For arm64 targets, REA ranks subtype bases 0 (plain arm64) and
+2 (arm64e), ignoring capability bits for ranking while retaining the raw subtype
+for slice identity. These slices' function-entry encodings decode under
+`--aarch64`, ahead of Apple's arm64e.x1 variant (base subtype 12), which is
+selected only when it is the arm64 family's only candidate. REA checks the
+entire source's SHA-256 while copying the slice; source identity and reported
+offsets still refer to the original container. Any other ambiguous architecture
+subtype requires an explicitly extracted thin image; REA does not guess.
+Configured loader arguments remain explicit overrides.
 FAT64 is distinct from the CPU architecture: FAT32 containers can contain 64-bit
 executable images. This preparation avoids the Raw Binary loader dialog observed
 with native FAT64 loading on Hopper 6.1.0-demo.

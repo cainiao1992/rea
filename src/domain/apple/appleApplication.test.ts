@@ -600,6 +600,35 @@ describe("Apple application bridge candidates", () => {
       status: "complete",
     });
   });
+
+  it("keeps an extensionless Mach-O without an application root as a native component", () => {
+    const result = project(
+      inventoryEvidence("ipa", "Fixture.ipa", [
+        { path: "Payload/Fixture.app/Info.plist" },
+        macho("Payload/Fixture.app/Fixture"),
+        { path: "SwiftSupport/outside.js", format: "javascript-bundle" },
+        macho("SwiftSupport/HelperTool"),
+        macho("SwiftSupport/iphoneos/libswiftCore.dylib"),
+      ]),
+    );
+
+    expect(result.components.executables.map(({ path }) => path)).toEqual([
+      "Payload/Fixture.app/Fixture",
+      "SwiftSupport/HelperTool",
+    ]);
+    expect(result.bridge_candidates).toEqual([
+      {
+        source_path: "SwiftSupport/outside.js",
+        native_path: "SwiftSupport/HelperTool",
+        basis: "javascript-and-native-content",
+      },
+      {
+        source_path: "SwiftSupport/outside.js",
+        native_path: "SwiftSupport/iphoneos/libswiftCore.dylib",
+        basis: "javascript-and-native-content",
+      },
+    ]);
+  });
 });
 
 describe("Apple path conventions", () => {

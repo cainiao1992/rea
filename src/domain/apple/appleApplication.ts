@@ -249,6 +249,9 @@ const appleRootFormat = (format: string): RootFormat => {
   return root;
 };
 
+const isNativeLibrary = (path: string): boolean =>
+  /\.(?:dylib|so)$/iu.test(path);
+
 const classifyComponents = (
   entries: readonly AppleInventoryEntry[],
   all: readonly Component[],
@@ -271,11 +274,13 @@ const classifyComponents = (
     bundle_metadata: all.filter(({ path }) =>
       anatomyNameIs(lastSegment(path), "Info.plist"),
     ),
+    // An unrooted IPA library is listed only under native_libraries.
     executables: all.filter(
-      ({ path, format }) => withinApp(path) && isMachOFormat(format),
+      ({ path, format }) =>
+        isMachOFormat(format) && (withinApp(path) || !isNativeLibrary(path)),
     ),
     frameworks: all.filter(({ path }) => /\.framework\//u.test(path)),
-    native_libraries: all.filter(({ path }) => /\.(?:dylib|so)$/iu.test(path)),
+    native_libraries: all.filter(({ path }) => isNativeLibrary(path)),
     javascript: all.filter(({ format }) => format === "javascript-bundle"),
     signing: all.filter(
       ({ path }) =>

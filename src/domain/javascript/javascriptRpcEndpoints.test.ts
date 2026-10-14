@@ -24,6 +24,12 @@ describe("RPC object property ownership", () => {
     ['...options, url: "/trpc/live", headers: {}', "/trpc/live"],
     ['[key]: runtimeUrl, url: "/trpc/live"', "/trpc/live"],
     ['url: "/trpc/old", ["url"]: "/trpc/live"', "/trpc/live"],
+    ['url: "/trpc/old", [`url`]: "/trpc/live"', "/trpc/live"],
+    ['url: "/trpc/live", [`headers`]: {}', "/trpc/live"],
+    ['url: "/trpc/live", [1n]: {}', "/trpc/live"],
+    ['url: "/trpc/live", [0x1n]: {}', "/trpc/live"],
+    ['url: "/trpc/live", [0b1n]: {}', "/trpc/live"],
+    ['url: "/trpc/live", [-1n]: {}', "/trpc/live"],
   ] as const)(
     "reads only the final known link URL from {%s}",
     (options, value) => {
@@ -392,7 +398,9 @@ describe("GraphQL operation recognition", () => {
       { kind: "network", value: name, mechanism: "graphql:query" },
     ]);
   });
+});
 
+describe("GraphQL document ownership", () => {
   it("recognizes precompiled GraphQL document objects", () => {
     expect(
       rpcEndpoints(`
@@ -438,6 +446,36 @@ describe("GraphQL operation recognition", () => {
       `),
     ).toEqual([
       { kind: "network", value: "GetUser", mechanism: "graphql:query" },
+    ]);
+  });
+
+  it.each([
+    `body: "query Old { user }", body: "query Current { user }", locationOffset: { line: 1, column: 1 }`,
+    `body: "query Old { user }", locationOffset: { line: 1, column: 1 }, ...sourceOptions`,
+    `body: "query Old { user }", locationOffset: { line: 1, column: 1 }, ...{ body: "query Current { user }" }`,
+    `...{ body: "query Old { user }" }, ...runtimeOptions, locationOffset: { line: 1, column: 1 }`,
+  ])(
+    "does not report overwritten or uncertain GraphQL source bodies: %s",
+    (sourceFields) => {
+      expect(
+        rpcEndpoints(`
+          const source = { ${sourceFields} };
+          const operation = {
+            kind: "OperationDefinition",
+            operation: "query",
+            name: { kind: "Name", value: "Current" },
+            loc: { source },
+          };
+        `),
+      ).toEqual([
+        { kind: "network", value: "Current", mechanism: "graphql:query" },
+      ]);
+    },
+  );
+
+  it("keeps ordinary GraphQL string scans outside Source-shaped objects", () => {
+    expect(rpcEndpoints('const text = "query Standalone { user }";')).toEqual([
+      { kind: "network", value: "Standalone", mechanism: "graphql:query" },
     ]);
   });
 });

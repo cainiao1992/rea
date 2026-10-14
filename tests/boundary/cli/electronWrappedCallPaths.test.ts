@@ -309,6 +309,47 @@ cliTest(
 
 for (const surface of ["CLI", "stdio MCP"] as const) {
   cliTest(
+    `retains explicit nested contextBridge members after an unknown spread through ${surface}`,
+    async ({ cli }) => {
+      const analyzeBridge = async (api: string) => {
+        const root = await createTestTempDirectory(
+          "rea-electron-spread-bridge-members-",
+        );
+        await writeFixtureFiles(root, {
+          "preload.js": `const { contextBridge } = require("electron");
+            const extra = getExtra();
+            contextBridge.exposeInMainWorld("api", ${api});`,
+        });
+        return analyzeJavaScriptDirectory(surface, cli, root);
+      };
+      const withSpread = await analyzeBridge("{ ...extra, a: { b: 1 }, c: 2 }");
+      const control = await analyzeBridge("{ a: { b: 1 }, c: 2 }");
+
+      const bridgeObservation = (application: typeof withSpread) =>
+        application.graph.nodes
+          .filter((node) => node.kind === "context-bridge-api")
+          .flatMap((node) => node.observations)
+          .find((observation) => observation.properties.api_key === "api");
+      expect(bridgeObservation(withSpread)).toMatchObject({
+        properties: {
+          api_status: "dynamic",
+          members: ["a", "a.b", "c"],
+          unknown_members: 1,
+        },
+      });
+      expect(bridgeObservation(control)).toMatchObject({
+        properties: {
+          api_status: "object-literal",
+          members: ["a", "a.b", "c"],
+          unknown_members: 0,
+        },
+      });
+      expect(withSpread.summary.exposed_api_members).toBe(3);
+      expect(control.summary.exposed_api_members).toBe(3);
+    },
+  );
+
+  cliTest(
     `preserves handler ambiguity and short-circuit factory paths through ${surface}`,
     async ({ cli }) => {
       const root = await createTestTempDirectory("rea-electron-branch-paths-");

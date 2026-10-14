@@ -36,6 +36,7 @@ import {
   symbolicDefiniteExit,
   symbolicLogicalRight,
 } from "./javascriptSymbolicControlFlow.js";
+import { compareUnicodeCodePoints } from "../unicodeCodePointOrder.js";
 
 const callLabel = (node: t.Node): string =>
   t.isSequenceExpression(node)
@@ -410,7 +411,12 @@ export const collectElectronWrappedCallPaths = (
       api_key_expression: null,
       api_status: "dynamic" as const,
       resolution_basis: "wrapper-substitution" as const,
-      members,
+      // The direct syntax pass recursively retains literal dotted paths. The
+      // symbolic resolver enumerates only immediate object keys, so its
+      // replacement must not erase paths already established at this call.
+      members: [
+        ...new Set([...(existing?.value.members ?? []), ...members]),
+      ].sort(compareUnicodeCodePoints),
       unknown_members: resolver.unknownMembers(object),
       module_key: null,
       location,

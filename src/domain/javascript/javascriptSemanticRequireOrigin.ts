@@ -1,4 +1,5 @@
 import * as t from "@babel/types";
+import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
 
 import { BUILTIN_RESOURCE_METHODS } from "./javascriptBuiltinResourceMethods.js";
 import type { JavaScriptModuleOrigin } from "./javascriptSemanticIr.js";
@@ -61,109 +62,105 @@ const writesModuleRequire = (
       binding.initializers.every(({ node: init }) => isModuleObject(init, next))
     );
   };
-  const pending: t.Node[] = [state.program];
-  while (pending.length > 0) {
-    const node = pending.pop();
-    if (node === undefined) break;
-    const target = t.isAssignmentExpression(node)
-      ? node.left
-      : t.isUpdateExpression(node) ||
-          t.isUnaryExpression(node, { operator: "delete" })
-        ? node.argument
-        : undefined;
-    if (target !== undefined) {
-      const members: string[] = [];
-      let root: t.Node = target;
-      while (t.isMemberExpression(root) || t.isOptionalMemberExpression(root)) {
-        const key = semanticStaticPropertyKey(root.property, root.computed);
-        if (key === null) break;
-        members.unshift(key);
-        root = root.object;
-      }
-      if (
-        members.length === 1 &&
-        members[0] === "require" &&
-        isModuleObject(root)
-      )
-        writes.push(node);
-      else if (
-        members.length === 0 &&
-        (t.isMemberExpression(target) ||
-          t.isOptionalMemberExpression(target)) &&
-        target.computed &&
-        semanticStaticPropertyKey(target.property, true) === null &&
-        isModuleObject(target.object)
-      )
-        // An unknown computed key may be "require"; retain uncertainty rather
-        // than treating this direct delegate write as a proven unrelated slot.
-        writes.push(node);
-    }
-    if (t.isCallExpression(node) || t.isOptionalCallExpression(node)) {
-      const invocation = interop.intrinsicInvocation(node);
-      const owner =
-        invocation?.path?.length === 3 ? invocation.path[1] : undefined;
-      const method = invocation?.path?.at(-1);
-      const args = invocation?.arguments;
-      if (
-        (owner === "Object" || owner === "Reflect") &&
-        method === "defineProperty" &&
-        isModuleObject(args?.[0] ?? t.nullLiteral())
-      ) {
-        const key = interop.staticString(args?.[1]);
-        if (key === "require" || key === undefined) writes.push(node);
-      } else if (
-        owner === "Object" &&
-        method === "defineProperties" &&
-        isModuleObject(args?.[0] ?? t.nullLiteral())
-      ) {
-        const descriptors = args?.[1];
+  traverseJavaScriptAst(state.program, {
+    enter: (node) => {
+      const target = t.isAssignmentExpression(node)
+        ? node.left
+        : t.isUpdateExpression(node) ||
+            t.isUnaryExpression(node, { operator: "delete" })
+          ? node.argument
+          : undefined;
+      if (target !== undefined) {
+        const members: string[] = [];
+        let root: t.Node = target;
+        while (
+          t.isMemberExpression(root) ||
+          t.isOptionalMemberExpression(root)
+        ) {
+          const key = semanticStaticPropertyKey(root.property, root.computed);
+          if (key === null) break;
+          members.unshift(key);
+          root = root.object;
+        }
         if (
-          !t.isObjectExpression(descriptors) ||
-          descriptors.properties.some(
-            (property) =>
-              t.isSpreadElement(property) ||
-              (t.isObjectProperty(property) &&
-                semanticStaticPropertyKey(property.key, property.computed) ===
-                  "require"),
-          )
+          members.length === 1 &&
+          members[0] === "require" &&
+          isModuleObject(root)
         )
           writes.push(node);
-      } else if (
-        owner === "Object" &&
-        method === "assign" &&
-        args?.some((arg) => isModuleObject(arg))
-      ) {
-        const target = args?.[0];
-        if (target !== undefined && isModuleObject(target)) {
-          const sourceHasRequire = args
-            ?.slice(1)
-            .some(
-              (arg) =>
-                t.isObjectExpression(arg) &&
-                arg.properties.some(
-                  (property) =>
-                    t.isObjectProperty(property) &&
-                    semanticStaticPropertyKey(
-                      property.key,
-                      property.computed,
-                    ) === "require",
-                ),
-            );
+        else if (
+          members.length === 0 &&
+          (t.isMemberExpression(target) ||
+            t.isOptionalMemberExpression(target)) &&
+          target.computed &&
+          semanticStaticPropertyKey(target.property, true) === null &&
+          isModuleObject(target.object)
+        )
+          // An unknown computed key may be "require"; retain uncertainty rather
+          // than treating this direct delegate write as a proven unrelated slot.
+          writes.push(node);
+      }
+      if (t.isCallExpression(node) || t.isOptionalCallExpression(node)) {
+        const invocation = interop.intrinsicInvocation(node);
+        const owner =
+          invocation?.path?.length === 3 ? invocation.path[1] : undefined;
+        const method = invocation?.path?.at(-1);
+        const args = invocation?.arguments;
+        if (
+          (owner === "Object" || owner === "Reflect") &&
+          method === "defineProperty" &&
+          isModuleObject(args?.[0] ?? t.nullLiteral())
+        ) {
+          const key = interop.staticString(args?.[1]);
+          if (key === "require" || key === undefined) writes.push(node);
+        } else if (
+          owner === "Object" &&
+          method === "defineProperties" &&
+          isModuleObject(args?.[0] ?? t.nullLiteral())
+        ) {
+          const descriptors = args?.[1];
           if (
-            sourceHasRequire ||
-            args?.slice(1).some((arg) => !t.isObjectExpression(arg))
+            !t.isObjectExpression(descriptors) ||
+            descriptors.properties.some(
+              (property) =>
+                t.isSpreadElement(property) ||
+                (t.isObjectProperty(property) &&
+                  semanticStaticPropertyKey(property.key, property.computed) ===
+                    "require"),
+            )
           )
             writes.push(node);
+        } else if (
+          owner === "Object" &&
+          method === "assign" &&
+          args?.some((arg) => isModuleObject(arg))
+        ) {
+          const target = args?.[0];
+          if (target !== undefined && isModuleObject(target)) {
+            const sourceHasRequire = args
+              ?.slice(1)
+              .some(
+                (arg) =>
+                  t.isObjectExpression(arg) &&
+                  arg.properties.some(
+                    (property) =>
+                      t.isObjectProperty(property) &&
+                      semanticStaticPropertyKey(
+                        property.key,
+                        property.computed,
+                      ) === "require",
+                  ),
+              );
+            if (
+              sourceHasRequire ||
+              args?.slice(1).some((arg) => !t.isObjectExpression(arg))
+            )
+              writes.push(node);
+          }
         }
       }
-    }
-    for (const key of t.VISITOR_KEYS[node.type] ?? []) {
-      const value = (node as unknown as Record<string, unknown>)[key];
-      if (Array.isArray(value)) {
-        for (const child of value) if (t.isNode(child)) pending.push(child);
-      } else if (t.isNode(value)) pending.push(value);
-    }
-  }
+    },
+  });
   moduleRequireWrites.set(state, writes);
   return writes;
 };

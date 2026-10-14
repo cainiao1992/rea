@@ -1,4 +1,5 @@
 import * as t from "@babel/types";
+import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
 
 import { htmlUrlText, stripQueryAndFragment } from "../artifactPathSyntax.js";
 import { sanitizeEndpointCandidate } from "../browserObservation.js";
@@ -302,17 +303,19 @@ export const indexVitePreloadDependencyTable = (
   program: t.Program,
 ): readonly (string | undefined)[] | null => {
   const helpers: ViteMapDepsFunction[] = [];
-  visitJavaScriptNodes(program, (node) => {
-    if (t.isFunctionDeclaration(node) && node.id?.name === "__vite__mapDeps")
-      helpers.push(node);
-    else if (
-      t.isVariableDeclarator(node) &&
-      t.isIdentifier(node.id, { name: "__vite__mapDeps" })
-    ) {
-      const init = node.init;
-      if (t.isFunctionExpression(init) || t.isArrowFunctionExpression(init))
-        helpers.push(init);
-    }
+  traverseJavaScriptAst(program, {
+    enter: (node) => {
+      if (t.isFunctionDeclaration(node) && node.id?.name === "__vite__mapDeps")
+        helpers.push(node);
+      else if (
+        t.isVariableDeclarator(node) &&
+        t.isIdentifier(node.id, { name: "__vite__mapDeps" })
+      ) {
+        const init = node.init;
+        if (t.isFunctionExpression(init) || t.isArrowFunctionExpression(init))
+          helpers.push(init);
+      }
+    },
   });
   if (helpers.length !== 1) return null;
   const helper = helpers[0];
@@ -323,9 +326,9 @@ export const indexVitePreloadDependencyTable = (
     : mapParameter;
   if (!t.isIdentifier(mapIdentifier)) return [];
   const tables: t.ArrayExpression[] = [];
-  visitJavaScriptNodes(
-    helper,
-    (node) => {
+  traverseJavaScriptAst(helper, {
+    skip: (node) => t.isFunction(node),
+    enter: (node) => {
       if (
         t.isAssignmentExpression(node) &&
         node.operator === "=" &&
@@ -338,9 +341,7 @@ export const indexVitePreloadDependencyTable = (
       )
         tables.push(node.right);
     },
-    undefined,
-    true,
-  );
+  });
   if (tables.length !== 1) return [];
   const table = tables[0];
   if (table === undefined) return [];
@@ -350,9 +351,9 @@ export const indexVitePreloadDependencyTable = (
       : stringValue(element),
   );
   let escapedOrMutated = false;
-  visitJavaScriptNodes(
-    program,
-    (node, parent) => {
+  traverseJavaScriptAst(program, {
+    skip: (node) => node === helper,
+    enter: (node, parent) => {
       if (!t.isIdentifier(node, { name: "__vite__mapDeps" })) return;
       if (
         (parent === helper &&
@@ -370,38 +371,8 @@ export const indexVitePreloadDependencyTable = (
         return;
       escapedOrMutated = true;
     },
-    helper,
-  );
+  });
   return escapedOrMutated ? dependencies.map(() => undefined) : dependencies;
-};
-
-const visitJavaScriptNodes = (
-  root: t.Node,
-  visit: (node: t.Node, parent: t.Node | undefined) => void,
-  skip?: t.Node,
-  skipNestedFunctions = false,
-): void => {
-  const pending: { readonly node: t.Node; readonly parent?: t.Node }[] = [
-    { node: root },
-  ];
-  while (pending.length > 0) {
-    const current = pending.pop();
-    if (current === undefined) continue;
-    const { node, parent } = current;
-    if (node === skip) continue;
-    visit(node, parent);
-    if (skipNestedFunctions && node !== root && t.isFunction(node)) continue;
-    const keys = t.VISITOR_KEYS[node.type] ?? [];
-    for (const key of keys) {
-      const child = (node as unknown as Record<string, unknown>)[key];
-      if (Array.isArray(child)) {
-        for (let index = child.length - 1; index >= 0; index -= 1) {
-          const item = child[index];
-          if (t.isNode(item)) pending.push({ node: item, parent: node });
-        }
-      } else if (t.isNode(child)) pending.push({ node: child, parent: node });
-    }
-  }
 };
 
 const inspectEndpointCall = (

@@ -278,11 +278,11 @@ export class CutterBridgeClient {
                 ),
           }
         : undefined);
-    this.#directory =
-      configured ??
-      (this.#platform === "win32" && localAppData
-        ? join(localAppData, "REA", "CutterBridge")
-        : join(homedir(), ".cache", "rea", "cutter-bridge"));
+    this.#directory = resolveBridgeDirectory(
+      configured,
+      this.#platform,
+      localAppData,
+    );
   }
 
   async listSessions(): Promise<CutterBridgeDiscovery> {
@@ -889,3 +889,21 @@ export class CutterBridgeClient {
     });
   }
 }
+
+const resolveBridgeDirectory = (
+  configured: string | undefined,
+  platform: NodeJS.Platform,
+  localAppData: string | undefined,
+): string => {
+  if (configured !== undefined && configured !== "") {
+    if (configured === "~") return homedir();
+    if (configured.startsWith("~/"))
+      return join(homedir(), configured.slice(2));
+    if (platform === "win32" && configured.startsWith("~\\"))
+      return join(homedir(), configured.slice(2));
+    return configured;
+  }
+  return platform === "win32" && localAppData
+    ? join(localAppData, "REA", "CutterBridge")
+    : join(homedir(), ".cache", "rea", "cutter-bridge");
+};

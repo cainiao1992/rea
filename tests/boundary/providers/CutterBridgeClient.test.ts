@@ -10,7 +10,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -1124,16 +1124,12 @@ describe("CutterBridgeClient: scenario group 7", () => {
   });
 });
 
-describe("CutterBridgeClient: scenario group 8", () => {
+describe("CutterBridgeClient: conservative platform checks", () => {
   let directory: string | undefined;
-  let server: ReturnType<typeof createServer> | undefined;
 
   afterEach(async () => {
-    if (server !== undefined)
-      await new Promise<void>((resolve) => server?.close(() => resolve()));
     if (directory !== undefined)
       await rm(directory, { recursive: true, force: true });
-    server = undefined;
     directory = undefined;
   });
 
@@ -1195,6 +1191,66 @@ describe("CutterBridgeClient: scenario group 8", () => {
       new CutterBridgeClient({}, { platform: "darwin" }).listSessions(),
     ).resolves.toMatchObject({
       bridge_directory: join(homedir(), ".cache", "rea", "cutter-bridge"),
+    });
+    await expect(
+      new CutterBridgeClient(
+        { REA_CUTTER_BRIDGE_DIR: "" },
+        { platform: "darwin" },
+      ).listSessions(),
+    ).resolves.toMatchObject({
+      bridge_directory: join(homedir(), ".cache", "rea", "cutter-bridge"),
+    });
+  });
+});
+
+describe("CutterBridgeClient: bridge paths and native descriptor reads", () => {
+  let directory: string | undefined;
+  let server: ReturnType<typeof createServer> | undefined;
+
+  afterEach(async () => {
+    if (server !== undefined)
+      await new Promise<void>((resolve) => server?.close(() => resolve()));
+    if (directory !== undefined)
+      await rm(directory, { recursive: true, force: true });
+    server = undefined;
+    directory = undefined;
+  });
+
+  it("expands a tilde bridge directory before discovering its live producer", async () => {
+    directory = await mkdtemp(join(homedir(), ".rea-cutter-tilde-"));
+    const sessionId = "27d3e3f1-f1e5-49ae-91ec-95af1f343a5a";
+    const token = "synthetic-cutter-bridge-token-for-tilde-test";
+    server = authenticatedServer(token, sessionId, (request, respond) => {
+      respond({
+        ok: true,
+        session_id: request.session_id,
+        current_file: "/fixture/sample",
+        document_generation: 3,
+        cutter_version: "Cutter fixture version",
+        identity_status: "partial",
+      });
+    });
+    const port = await listen(server);
+    await writeDescriptor(directory, sessionId, port, token, {
+      currentFile: "/fixture/sample",
+      documentGeneration: 3,
+    });
+
+    const configured = `~/${relative(homedir(), directory)}`;
+    const result = await createClient({
+      REA_CUTTER_BRIDGE_DIR: configured,
+    }).listSessions();
+
+    expect(result).toMatchObject({
+      bridge_directory: directory,
+      discovery_status: "sessions_found",
+      sessions: [
+        {
+          session_id: sessionId,
+          document_generation: 3,
+          current_file: "/fixture/sample",
+        },
+      ],
     });
   });
 

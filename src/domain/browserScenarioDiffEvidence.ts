@@ -5,7 +5,6 @@ import type {
   BrowserStepArtifacts,
 } from "./browserScenarioCaptureValues.js";
 import type { BrowserScenarioCapture } from "./browserScenarioCapture.js";
-import { z } from "zod";
 import {
   fingerprintScenarioNetworkTransactions,
   scenarioNetworkTransactions,
@@ -142,20 +141,6 @@ export const prepareScenarioEvents = (
       events: eventsByStep.get(stepIndex) ?? [],
       network_transactions: networkByStep.get(stepIndex) ?? [],
     }),
-  };
-};
-
-const scenarioStepEventsSchema = z.strictObject({
-  events: z.array(z.unknown()),
-  network_transactions: z.array(z.string()),
-});
-
-/** Network ancestry is already fingerprinted per capture; keep the collection unordered. */
-export const orderNetworkTransactions = (value: unknown): unknown => {
-  const events = scenarioStepEventsSchema.parse(value);
-  return {
-    events: events.events,
-    network_transactions: events.network_transactions,
   };
 };
 

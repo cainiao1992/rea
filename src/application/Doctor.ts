@@ -15,6 +15,10 @@ import {
 } from "../domain/runtimeVersion.js";
 import { installedCaskAppdir, probeHomebrew } from "./homebrew.js";
 import {
+  macHopperApplicationRoots,
+  macHopperRenamedLauncherCandidates,
+} from "./MacHopperPaths.js";
+import {
   linuxHopperBinarySupported,
   linuxSharedLibrariesAvailable,
   readLinuxDistribution,
@@ -622,19 +626,22 @@ const uncomposedLinuxDemoRuntimeCheck = (): Promise<DoctorCheck> =>
   });
 
 const manualHopperPaths = async (home: string): Promise<readonly string[]> => {
-  const paths: string[] = [];
-  for (const root of ["/Applications", join(home, "Applications")]) {
+  const roots = macHopperApplicationRoots(home);
+  const bundleNamesByRoot = new Map<string, readonly string[]>();
+  for (const root of roots) {
     try {
-      for (const entry of await readdir(root, { withFileTypes: true })) {
-        if (entry.isDirectory() && /^Hopper.*\.app$/i.test(entry.name))
-          paths.push(join(root, entry.name, "Contents/MacOS/hopper"));
-      }
+      bundleNamesByRoot.set(
+        root,
+        (await readdir(root, { withFileTypes: true }))
+          .filter((entry) => entry.isDirectory())
+          .map(({ name }) => name),
+      );
     } catch (cause: unknown) {
       // A missing or unreadable optional application directory is not fatal.
       void cause;
     }
   }
-  return paths;
+  return macHopperRenamedLauncherCandidates(home, bundleNamesByRoot);
 };
 
 const uniqueLines = (value: string): string[] => [

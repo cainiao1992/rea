@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { classifyClientRegistrationCommand } from "./ClientRegistrationIdentity.js";
 import {
   linuxHopperInstallDisclosure,
@@ -7,6 +5,7 @@ import {
 } from "./LinuxHopper.js";
 import type { SkillDestination } from "./SetupSkill.js";
 import { macHopperInstallDisclosure } from "./MacHopper.js";
+import { macHopperUserApplicationPath } from "./MacHopperPaths.js";
 import type {
   ClientConfigurationInspection,
   SetupAction,
@@ -287,10 +286,7 @@ const setupPlan = (input: {
           label: "Hopper deep-analysis provider",
           target:
             input.platform === "darwin"
-              ? join(
-                  input.homeDirectory,
-                  "Applications/Hopper Disassembler.app",
-                )
+              ? macHopperUserApplicationPath(input.homeDirectory)
               : "system package manager",
           detail:
             input.platform === "linux"

@@ -11,7 +11,7 @@ msgstr ""
 #: website/public/blog/index.html:105
 msgctxt "page:blog/index.html"
 msgid "Skip to content"
-msgstr "개인정보보호정책"
+msgstr "본문으로 건너뛰기"
 
 #. {ph0}: <a href="../">
 #. {ph1}: </a>
@@ -245,7 +245,7 @@ msgstr "맨 위로"
 #: website/public/blog/touhou-reconstruction/index.html:105
 msgctxt "page:blog/touhou-reconstruction/index.html"
 msgid "Skip to content"
-msgstr "개인정보보호정책"
+msgstr "본문으로 건너뛰기"
 
 #. {ph0}: <a href="../../">
 #. {ph1}: </a>
@@ -1703,7 +1703,7 @@ msgstr "맨 위로"
 #: website/public/examples/dino-lab/index.html:106
 msgctxt "page:examples/dino-lab/index.html"
 msgid "Skip to content"
-msgstr "개인정보보호정책"
+msgstr "본문으로 건너뛰기"
 
 #. {ph0}: <a href="../../">
 #. {ph1}: </a>
@@ -2673,7 +2673,7 @@ msgstr "맨 위로"
 #: website/public/first-investigation/index.html:105
 msgctxt "page:first-investigation/index.html"
 msgid "Skip to content"
-msgstr "개인정보보호정책"
+msgstr "본문으로 건너뛰기"
 
 #. {ph0}: <a href="../">
 #. {ph1}: </a>
@@ -3029,7 +3029,7 @@ msgstr "맨 위로"
 #: website/public/get-started/index.html:105
 msgctxt "page:get-started/index.html"
 msgid "Skip to content"
-msgstr "개인정보보호정책"
+msgstr "본문으로 건너뛰기"
 
 #. {ph0}: <a href="../">
 #. {ph1}: </a>
@@ -3987,7 +3987,7 @@ msgstr "맨 위로"
 #: website/public/guides/browser/index.html:105
 msgctxt "page:guides/browser/index.html"
 msgid "Skip to content"
-msgstr "개인정보보호정책"
+msgstr "본문으로 건너뛰기"
 
 #. {ph0}: <a href="../../">
 #. {ph1}: </a>
@@ -4438,7 +4438,7 @@ msgstr "맨 위로"
 #: website/public/guides/index.html:105
 msgctxt "page:guides/index.html"
 msgid "Skip to content"
-msgstr "개인정보보호정책"
+msgstr "본문으로 건너뛰기"
 
 #. {ph0}: <a href="../">
 #. {ph1}: </a>
@@ -4576,7 +4576,7 @@ msgstr "맨 위로"
 #: website/public/guides/javascript/index.html:105
 msgctxt "page:guides/javascript/index.html"
 msgid "Skip to content"
-msgstr "개인정보보호정책"
+msgstr "본문으로 건너뛰기"
 
 #. {ph0}: <a href="../../">
 #. {ph1}: </a>
@@ -5003,7 +5003,7 @@ msgstr "맨 위로"
 #: website/public/guides/native/index.html:105
 msgctxt "page:guides/native/index.html"
 msgid "Skip to content"
-msgstr "개인정보보호정책"
+msgstr "본문으로 건너뛰기"
 
 #. {ph0}: <a href="../../">
 #. {ph1}: </a>
@@ -5549,7 +5549,7 @@ msgstr "맨 위로"
 #: website/public/index.html:107
 msgctxt "page:index.html"
 msgid "Skip to content"
-msgstr "개인정보보호정책"
+msgstr "본문으로 건너뛰기"
 
 #: website/public/index.html:198 website/public/index.html:208
 #: website/public/index.html:206
@@ -6703,7 +6703,7 @@ msgstr "맨 위로"
 #: website/public/showcase/aegis/index.html:106
 msgctxt "page:showcase/aegis/index.html"
 msgid "Skip to content"
-msgstr "개인정보보호정책"
+msgstr "본문으로 건너뛰기"
 
 #. {ph0}: <a href="../../">
 #. {ph1}: </a>
@@ -7420,7 +7420,7 @@ msgstr "맨 위로"
 #: website/public/showcase/ctf/index.html:105
 msgctxt "page:showcase/ctf/index.html"
 msgid "Skip to content"
-msgstr "개인정보보호정책"
+msgstr "본문으로 건너뛰기"
 
 #. {ph0}: <a href="../../">
 #. {ph1}: </a>
@@ -8110,7 +8110,7 @@ msgstr "맨 위로"
 #: website/public/showcase/dx-ball/index.html:105
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "Skip to content"
-msgstr "개인정보보호정책"
+msgstr "본문으로 건너뛰기"
 
 #. {ph0}: <a href="../../">
 #. {ph1}: </a>
@@ -8847,7 +8847,7 @@ msgstr "맨 위로"
 #: website/public/showcase/index.html:105
 msgctxt "page:showcase/index.html"
 msgid "Skip to content"
-msgstr "개인정보보호정책"
+msgstr "본문으로 건너뛰기"
 
 #. {ph0}: <a href="../">
 #. {ph1}: </a>
@@ -9032,7 +9032,7 @@ msgstr "맨 위로"
 #: website/public/showcase/notion/index.html:105
 msgctxt "page:showcase/notion/index.html"
 msgid "Skip to content"
-msgstr "개인정보보호정책"
+msgstr "본문으로 건너뛰기"
 
 #. {ph0}: <a href="../../">
 #. {ph1}: </a>
@@ -9615,7 +9615,7 @@ msgstr "맨 위로"
 #: website/public/showcase/th04/index.html:105
 msgctxt "page:showcase/th04/index.html"
 msgid "Skip to content"
-msgstr "개인정보보호정책"
+msgstr "본문으로 건너뛰기"
 
 #. {ph0}: <a href="../../">
 #. {ph1}: </a>
@@ -11970,7 +11970,7 @@ msgstr "작성자: N0zoM1z0 · 2026년 10월 13일"
 #: website/public/blog/reverse-engineering-models/index.html:105
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid "Skip to content"
-msgstr "개인정보보호정책"
+msgstr "본문으로 건너뛰기"
 
 #. {ph0}: <a href="../../">
 #. {ph1}: </a>

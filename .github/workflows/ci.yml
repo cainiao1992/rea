@@ -250,7 +250,7 @@ jobs:
           retention-days: 7
 
   reverse-tools-quality:
-    name: Reverse tools coverage and mutation
+    name: Reverse tools quality
     needs: [changes, static]
     if: needs.changes.outputs.reverse_tools == 'true'
     runs-on: ubuntu-latest
@@ -266,8 +266,25 @@ jobs:
       - run: npm ci
       - name: Run reverse tools tests with coverage
         run: npm run test:coverage:reverse-tools
-      - name: Report reverse tools mutation results
+      - name: Preflight both reverse tools mutation configurations
+        if: needs.changes.outputs.tier == 'fast'
+        run: |
+          node scripts/prepare-reverse-tools-mutation.mjs
+          npx --no-install stryker run stryker.config.mjs --dryRunOnly
+          npx --no-install stryker run stryker.semantics.config.mjs --dryRunOnly
+      - name: Report complete reverse tools mutation results
+        if: needs.changes.outputs.tier == 'full'
         run: npm run test:mutation:reverse-tools
+      - name: Retain available reverse tools diagnostics
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: reverse-tools-quality-${{ needs.changes.outputs.tier }}-${{ github.run_attempt }}
+          path: |
+            coverage/reverse-tools/
+            reports/mutation/
+          if-no-files-found: warn
+          retention-days: 7
 
   build:
     name: Build package

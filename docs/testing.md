@@ -280,6 +280,25 @@ focused suite also exercises affected MCP routes and the Python Cutter bridge.
 Contract, integration, and real-provider lanes complement these focused tests;
 simulated providers do not establish real-provider behavior.
 
+Fast CI retains fresh reverse-tools coverage and preflights both canonical
+Stryker configurations with `--dryRunOnly`. These preflights resolve the owned
+targets, instrument the source, and execute the real initial tests. Invalid
+configuration, target resolution, and initial test failures still fail the job.
+Preflights execute no mutants and produce no mutation-outcome report. Mutant
+outcome feedback therefore arrives during full-tier qualification, which keeps
+both complete passes and their configured targets, checkers and execution
+limits. The standalone mutation command also retains both complete passes;
+use `ci:full` to request full qualification before merging a PR.
+
+The two passes write separate JSON and HTML reports under `reports/mutation/`:
+`reverse-tools` and `reverse-tools-semantics`. CI retains available coverage and
+mutation diagnostics for seven days, including after failure, with tier and run
+attempt in the artifact name. Canceled runs skip the upload. Fast artifacts
+contain focused coverage; full artifacts additionally contain mutation reports
+from completed passes. Partial diagnostics do not establish qualification, and
+a failed, canceled, skipped or missing selected quality job fails the required
+gate in either tier.
+
 Fast CI starts the source-only projects after classification, independently of
 build and static checks, and runs five built-dependent shards after the build.
 The six test jobs still select every portable test. Full qualification keeps six

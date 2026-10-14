@@ -155,7 +155,7 @@ const callableIdsForBinding = (
   if (
     initializer === undefined ||
     initializer.projection.length > 0 ||
-    state.conditionalInitializers.has(initializer.node)
+    state.conditionallySkippedExpressions.has(initializer.node)
   )
     return [];
   return callableIdsForNode(

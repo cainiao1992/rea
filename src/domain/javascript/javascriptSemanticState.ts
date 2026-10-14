@@ -92,7 +92,8 @@ export interface JavaScriptSemanticAnalysisState {
     JavaScriptSemanticModuleLink,
     JavaScriptSemanticBindingState
   >;
-  readonly conditionalInitializers: WeakSet<t.Node>;
+  /** Initializer expressions whose write can be skipped by enclosing control flow. */
+  readonly conditionallySkippedExpressions: WeakSet<t.Node>;
   /** Unbound identifier writes retain their source sites for capture ordering. */
   readonly ambientBindingWrites: Map<string, t.Node[]>;
   /** Source-local writes, tagged by global object or import.meta identity. */
@@ -120,7 +121,7 @@ export const semanticStableInitializer = (
         (definition?.kind === "function" || definition?.kind === "class"))) &&
     binding.initializers.length === 1 &&
     initializer !== undefined &&
-    !state.conditionalInitializers.has(initializer.node)
+    !state.conditionallySkippedExpressions.has(initializer.node)
     ? initializer
     : undefined;
 };

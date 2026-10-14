@@ -1222,15 +1222,21 @@ exit 1`,
   const apk = join(root, "app.apk");
   await writeFile(apk, "apk");
   const digest = createHash("sha256").update("apk").digest("hex");
-  const installed = await evidenceResult(providerOver(binary), {
+  const execution = await providerOver(binary).execute({
     operation: "install_adb_package",
     input: { serial: "emulator-5554", apk_path: apk, replace: false },
   });
-  expect(installed).toMatchObject({
+  expect(execution.ok).toBe(true);
+  if (!execution.ok) throw execution.error;
+  expect(execution.value.result).toMatchObject({
     bytes: 3,
     sha256: digest,
-    replaced: false,
+    replace_requested: false,
+    replaced: null,
   });
+  expect(execution.value.limitations).toContain(
+    "Whether an existing package was replaced is unknown; replace_requested records only the adb install mode",
+  );
 
   const { binary: failing } = await writeAdbStub(
     () => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi

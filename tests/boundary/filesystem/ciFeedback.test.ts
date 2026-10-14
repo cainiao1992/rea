@@ -74,9 +74,13 @@ const evaluateCondition = (
     );
 
 it.each(["fast", "full"] as const)(
-  "runs actual mutation preflights only in fast feedback and requires quality in %s",
+  "requires coverage and both actual mutation preflights in %s qualification",
   async (tier) => {
     const jobs = await workflow();
+    expect(jobs["reverse-tools-quality"]?.if).toBe(
+      "needs.changes.outputs.reverse_tools == 'true'",
+    );
+    expect(jobs.required?.needs).toContain("reverse-tools-quality");
     const steps = jobs["reverse-tools-quality"]?.steps ?? [];
     const commands = steps
       .filter(
@@ -95,37 +99,14 @@ it.each(["fast", "full"] as const)(
     const mutationCommands = commands.filter(
       (command) => command.includes("mutation") || command.includes("stryker"),
     );
-    expect(mutationCommands).toEqual(
-      tier === "fast"
-        ? [
-            "node scripts/prepare-reverse-tools-mutation.mjs",
-            "npx --no-install stryker run stryker.config.mjs --dryRunOnly",
-            "npx --no-install stryker run stryker.semantics.config.mjs --dryRunOnly",
-          ]
-        : ["npm run test:mutation:reverse-tools"],
-    );
+    expect(mutationCommands).toEqual([
+      "node scripts/prepare-reverse-tools-mutation.mjs",
+      "npx --no-install stryker run stryker.config.mjs --dryRunOnly",
+      "npx --no-install stryker run stryker.semantics.config.mjs --dryRunOnly",
+    ]);
     const coverage = commands.indexOf("npm run test:coverage:reverse-tools");
     expect(coverage).toBeGreaterThanOrEqual(0);
     expect(coverage).toBeLessThan(commands.indexOf(mutationCommands[0]!));
-
-    const packageJson = z
-      .object({ scripts: z.record(z.string(), z.string()) })
-      .parse(
-        JSON.parse(
-          await readFile(
-            new URL("../../../package.json", import.meta.url),
-            "utf8",
-          ),
-        ),
-      );
-    const fullCommand = z
-      .string()
-      .parse(packageJson.scripts["test:mutation:reverse-tools"]);
-    expect(fullCommand.split("&&").map((part) => part.trim())).toEqual([
-      "node scripts/prepare-reverse-tools-mutation.mjs",
-      "stryker run stryker.config.mjs",
-      "stryker run stryker.semantics.config.mjs",
-    ]);
 
     const flags = await scopeFlags();
     const context: Record<

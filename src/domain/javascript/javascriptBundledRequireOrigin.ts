@@ -18,11 +18,14 @@ import {
   moduleFactory,
   modulePropertyName,
 } from "./javascriptStaticAnalysisHelpers.js";
+import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
 
 /** Loader bindings and literal externals proven for one standalone bootstrap. */
 interface BootstrapExternals {
   /** The runtime loader and every factory parameter it is passed as. */
   readonly loaderBindingIds: ReadonlySet<string>;
+  /** Loader bindings with the canonical n.n getter installed before dispatch. */
+  readonly interopGetterBindingIds: ReadonlySet<string>;
   /** Table keys whose factory only re-exports one unshadowed literal require; null when a key repeats. */
   readonly externals: ReadonlyMap<string, string | null>;
 }
@@ -47,6 +50,50 @@ export const semanticBundledRequireOrigin = (
 ): JavaScriptRequireOrigin | undefined => {
   const chain = semanticMemberChain(node);
   const current = chain?.root;
+  if (
+    chain?.members.length === 0 &&
+    t.isCallExpression(current) &&
+    t.isMemberExpression(current.callee) &&
+    semanticStaticPropertyKey(
+      current.callee.property,
+      current.callee.computed,
+    ) === "n" &&
+    t.isIdentifier(current.callee.object) &&
+    current.arguments.length === 1
+  ) {
+    // Webpack's `n.n(module)` returns its default-export getter. For a
+    // CommonJS external, invoking that getter yields the exact exports object;
+    // bind its identity to the proven registry result while retaining the
+    // nested loader call as the source of provenance.
+    const nested = semanticBundledRequireOrigin(current.arguments[0], state);
+    const loaderBinding = resolveSemanticBindingState(
+      state,
+      current.callee.object,
+      current.callee.object.name,
+    );
+    const proof =
+      nested === undefined || loaderBinding === undefined
+        ? undefined
+        : bootstrapProofForLoaderCall(
+            nested.call,
+            loaderBinding.bindingId,
+            state,
+          );
+    const nestedCallee = nested?.call.callee;
+    const loaderBindingId = loaderBinding?.bindingId;
+    if (
+      nested !== undefined &&
+      nested.origin.importedPath.length === 0 &&
+      t.isIdentifier(nestedCallee) &&
+      loaderBindingId !== undefined &&
+      loaderBindingId ===
+        resolveSemanticBindingState(state, nestedCallee, nestedCallee.name)
+          ?.bindingId &&
+      proof?.loaderBindingIds.has(loaderBindingId) === true &&
+      proof.interopGetterBindingIds.has(loaderBindingId)
+    )
+      return nested;
+  }
   if (
     chain === undefined ||
     !t.isCallExpression(current) ||
@@ -88,6 +135,191 @@ export const semanticBundledRequireOrigin = (
   }
   return undefined;
 };
+
+/** Prove the source-local n.n getter and reject visible replacements. */
+const canonicalWebpackInteropBindings = (
+  loaderBindingIds: ReadonlySet<string>,
+  bootstrapBody: t.BlockStatement,
+  state: JavaScriptSemanticAnalysisState,
+): ReadonlySet<string> => {
+  const writes = new Map<string, t.AssignmentExpression[]>();
+  let reflectiveWrite = false;
+  traverseJavaScriptAst(state.program, {
+    enter: (node) => {
+      if (t.isAssignmentExpression(node) && t.isMemberExpression(node.left)) {
+        const target = node.left;
+        const bindingId = t.isIdentifier(target.object)
+          ? resolveSemanticBindingState(
+              state,
+              target.object,
+              target.object.name,
+            )?.bindingId
+          : undefined;
+        if (
+          semanticStaticPropertyKey(target.property, target.computed) === "n" &&
+          bindingId !== undefined &&
+          loaderBindingIds.has(bindingId)
+        )
+          writes.set(bindingId, [...(writes.get(bindingId) ?? []), node]);
+      }
+      if (
+        !t.isCallExpression(node) ||
+        !t.isMemberExpression(node.callee) ||
+        !t.isIdentifier(node.callee.object, { name: "Object" }) ||
+        ![
+          "defineProperty",
+          "defineProperties",
+          "assign",
+          "setPrototypeOf",
+        ].includes(
+          semanticStaticPropertyKey(
+            node.callee.property,
+            node.callee.computed,
+          ) ?? "",
+        ) ||
+        !t.isIdentifier(node.arguments[0])
+      )
+        return;
+      reflectiveWrite ||= loaderBindingIds.has(
+        resolveSemanticBindingState(
+          state,
+          node.arguments[0],
+          node.arguments[0].name,
+        )?.bindingId ?? "",
+      );
+    },
+  });
+  const proven = new Set<string>();
+  if (reflectiveWrite) return proven;
+  const allWrites = [...writes.values()].flat();
+  const [write] = allWrites;
+  if (
+    allWrites.length === 1 &&
+    write !== undefined &&
+    isInstalledBeforeEntryDispatch(
+      write,
+      bootstrapBody,
+      loaderBindingIds,
+      state,
+    ) &&
+    isCanonicalGetter(write, state)
+  )
+    for (const bindingId of loaderBindingIds) proven.add(bindingId);
+  return proven;
+};
+
+const isCanonicalGetter = (
+  write: t.AssignmentExpression,
+  state: JavaScriptSemanticAnalysisState,
+): boolean => {
+  if (
+    !t.isArrowFunctionExpression(write.right) ||
+    write.right.params.length !== 1 ||
+    !t.isIdentifier(write.right.params[0])
+  )
+    return false;
+  const parameter = write.right.params[0];
+  const parameterBinding = resolveSemanticBindingState(
+    state,
+    parameter,
+    parameter.name,
+  );
+  const body = write.right.body;
+  return (
+    parameterBinding !== undefined &&
+    t.isConditionalExpression(body) &&
+    t.isLogicalExpression(body.test, { operator: "&&" }) &&
+    sameBinding(body.test.left, parameterBinding.bindingId, state) &&
+    t.isMemberExpression(body.test.right) &&
+    semanticStaticPropertyKey(
+      body.test.right.property,
+      body.test.right.computed,
+    ) === "__esModule" &&
+    sameBinding(body.test.right.object, parameterBinding.bindingId, state) &&
+    getterReturnsDefault(body.consequent, parameterBinding.bindingId, state) &&
+    getterReturnsModule(body.alternate, parameterBinding.bindingId, state)
+  );
+};
+
+const isInstalledBeforeEntryDispatch = (
+  write: t.AssignmentExpression,
+  body: t.BlockStatement,
+  loaderBindingIds: ReadonlySet<string>,
+  state: JavaScriptSemanticAnalysisState,
+): boolean => {
+  const statement = state.parentsByNode.get(write);
+  if (!t.isExpressionStatement(statement)) return false;
+  const writeIndex = body.body.indexOf(statement);
+  if (writeIndex < 0) return false;
+  let entryIndex = -1;
+  for (let index = 0; index < body.body.length; index += 1) {
+    const topLevel = body.body[index];
+    if (topLevel === undefined) continue;
+    traverseJavaScriptAst(topLevel, {
+      enter: (node, _parent, ancestors) => {
+        if (
+          entryIndex < 0 &&
+          t.isCallExpression(node) &&
+          t.isIdentifier(node.callee) &&
+          ancestors().every((ancestor) => !t.isFunction(ancestor)) &&
+          loaderBindingIds.has(
+            resolveSemanticBindingState(state, node.callee, node.callee.name)
+              ?.bindingId ?? "",
+          )
+        )
+          entryIndex = index;
+      },
+    });
+    if (entryIndex >= 0) break;
+  }
+  return entryIndex > writeIndex;
+};
+
+const bootstrapProofForLoaderCall = (
+  call: t.CallExpression,
+  loaderBindingId: string,
+  state: JavaScriptSemanticAnalysisState,
+): BootstrapExternals | undefined => {
+  for (
+    let ancestor = state.parentsByNode.get(call);
+    ancestor !== undefined;
+    ancestor = state.parentsByNode.get(ancestor)
+  ) {
+    if (!t.isCallExpression(ancestor)) continue;
+    const proof = bootstrapExternals(ancestor, state);
+    if (proof?.loaderBindingIds.has(loaderBindingId)) return proof;
+  }
+  return undefined;
+};
+
+const sameBinding = (
+  node: t.Node,
+  bindingId: string,
+  state: JavaScriptSemanticAnalysisState,
+): boolean =>
+  t.isIdentifier(node) &&
+  resolveSemanticBindingState(state, node, node.name)?.bindingId === bindingId;
+
+const getterReturnsDefault = (
+  node: t.Node,
+  bindingId: string,
+  state: JavaScriptSemanticAnalysisState,
+): boolean =>
+  t.isArrowFunctionExpression(node) &&
+  node.params.length === 0 &&
+  t.isMemberExpression(node.body) &&
+  semanticStaticPropertyKey(node.body.property, node.body.computed) ===
+    "default" &&
+  sameBinding(node.body.object, bindingId, state);
+
+const getterReturnsModule = (
+  node: t.Node,
+  bindingId: string,
+  state: JavaScriptSemanticAnalysisState,
+): boolean =>
+  t.isArrowFunctionExpression(node) &&
+  node.params.length === 0 &&
+  sameBinding(node.body, bindingId, state);
 
 const bootstrapExternals = (
   call: t.CallExpression,
@@ -153,7 +385,15 @@ const proveBootstrapExternals = (
     if (externals.has(key)) externals.set(key, null);
     else externals.set(key, specifier ?? null);
   }
-  return { loaderBindingIds, externals };
+  return {
+    loaderBindingIds,
+    interopGetterBindingIds: canonicalWebpackInteropBindings(
+      loaderBindingIds,
+      bootstrap.body,
+      state,
+    ),
+    externals,
+  };
 };
 
 /**

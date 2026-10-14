@@ -212,3 +212,12 @@ it.each([
     });
   },
 );
+
+it("prioritizes overridden package runner environment variables over ambient keys with differing case on Windows", () => {
+  const environment = {
+    NPM_COMMAND: "run",
+    npm_command: "exec",
+    NPM_CONFIG_USER_AGENT: "npm/10.9.0 node/v24.11.0 win32 x64",
+  };
+  expect(invokingPackageRunner(environment, "win32")).toBe("npx");
+});

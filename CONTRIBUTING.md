@@ -24,6 +24,48 @@ costs change.
 
 When adding or changing an MCP tool, follow the [tool design guide](docs/tool-design.md) and preserve the canonical contracts and generated catalog.
 
+## Pull request ownership and readiness
+
+AI-assisted contributions are welcome. Every PR must have a human owner who
+takes responsibility for the complete change, including code, tests,
+documentation, and claims produced with AI assistance. The PR author is the
+owner unless another human is named in the PR and explicitly accepts ownership.
+These requirements also apply to maintainer-authored PRs.
+
+Before requesting maintainer review, the human owner must:
+
+- Review the final diff and relevant existing code. Be able to explain the
+  problem, the chosen approach, how it fits REA, and meaningful edge cases.
+- Provide evidence that the change works. Summarize what was checked, the
+  observed results, and meaningful gaps in the PR body. Use focused tests,
+  representative CLI/MCP output, CI artifacts, screenshots, or other checks
+  appropriate to the change. For fixes, show the original failure and why the
+  regression coverage catches it when practical. Documentation-only changes
+  can use source, link, or rendered-document checks. Label source-derived
+  conclusions and proposed checks accurately; never report an unrun check as
+  passing. Follow the [verification requirements](#development-feedback-and-pr-verification)
+  for required checks and real-provider coverage.
+- Complete the **Author readiness** declaration in the PR template, explicitly
+  stating that the current revision is ready for review.
+
+Keep the PR description concise and current. Explain the problem, observable
+outcome, approach, and useful evidence; link long logs or put them in optional
+details. Address actionable automated review findings and explain disagreements.
+Human ownership and review remain required when CI or an automated reviewer
+reports success. Readiness requests maintainer review; it does not grant scope
+approval or permission to merge.
+
+Draft PRs may request early feedback with open questions and incomplete checks.
+Leave the readiness declaration unchecked until the human owner has completed
+it. After further changes, clear the ready-for-review checkbox until the owner
+reviews the updated diff, refreshes affected validation and the PR description,
+and renews the declaration. AI agents must leave human declarations to the human
+owner and must not attest to a human review on their behalf.
+
+Maintainers may return a PR to the author or close it when the problem is
+unsupported, validation is missing, or the owner cannot explain the change.
+Contributors are responsible for completing this work before requesting review.
+
 ## Contribution scope
 
 REA focuses on software structure, runtime behavior, and evidence through

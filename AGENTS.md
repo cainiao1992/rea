@@ -78,6 +78,26 @@ For test changes or provider claims, use [docs/testing.md](docs/testing.md). Pre
 
 Use Conventional Commit subjects and PR titles. Mark breaking changes with `!` or a `BREAKING CHANGE:` footer. Describe behavior changes, relevant validation, and real-provider verification scope.
 
+## Pull Request Readiness
+
+Follow [human ownership and readiness](CONTRIBUTING.md#pull-request-ownership-and-readiness)
+when preparing a PR. AI-assisted contributions are welcome; a human must review
+and own the final diff, check the validation evidence and its limitations, and
+explicitly declare the current revision ready for maintainer review.
+
+Keep the PR body concise and current, with the concrete problem, observable
+outcome, approach, and evidence. Report only checks that actually ran as executed;
+distinguish source-derived conclusions, proposed checks, and unavailable coverage.
+Address actionable automated review findings and explain disagreements.
+
+Leave the template's **Author readiness** declarations unchecked for the human
+owner to complete. Never attest to human review on their behalf. Keep the PR in
+draft until the human declares the current diff ready. After further changes,
+clear the ready-for-review checkbox and refresh affected evidence so the human
+can review and renew the declaration. CI and automated review results support
+review; they do not establish human readiness, maintainer scope approval, or
+merge permission.
+
 <!-- BEGIN:turborepo-agent-rules -->
 
 # This is NOT the Turborepo you know

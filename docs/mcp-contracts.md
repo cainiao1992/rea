@@ -690,7 +690,10 @@ reported by strict-depth MCP clients in [#2813](https://github.com/morluto/rea/i
 WorkBuddy/CodeBuddy gateways have also rejected full REA catalogs with an
 opaque `11133` error while accepting the compact profile
 ([#2999](https://github.com/morluto/rea/issues/2999)); compatibility depends on
-the selected gateway and model.
+the selected gateway and model. That report used ZCode through a gateway to a
+Kimi-K3 backend, not the WorkBuddy MCP client. Set the profile on REA's
+registration in the actual MCP host; the host's name alone does not identify
+the downstream model or its schema constraints.
 
 The compact profile renders the same tool set, output schemas, annotations,
 and canonical server-side validation. It changes only the advertised input

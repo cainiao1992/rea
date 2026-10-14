@@ -357,6 +357,15 @@ for (const invalidSetting of [
         environment,
       });
       expect(result.exitCode).toBe(1);
+      expect(result.json).toMatchObject({
+        code: "configuration_invalid",
+        category: "invalid_input",
+        details: {
+          settings: [
+            expect.objectContaining({ setting: invalidSetting.setting }),
+          ],
+        },
+      });
       expect(`${result.stdout}\n${result.stderr}`).toContain(
         invalidSetting.setting,
       );

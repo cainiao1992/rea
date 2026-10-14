@@ -60,6 +60,7 @@ import type {
 } from "./SetupTypes.js";
 import type { DoctorScope } from "./Doctor.js";
 import { CURRENT_ENTRYPOINT_PATH } from "../process/CurrentEntrypointPath.js";
+import { analysisProviderSelectorSchema } from "../contracts/providerSelection.js";
 
 /** Resolve the executable and arguments used in a managed MCP registration. */
 export const setupRegistrationCommand = (
@@ -169,6 +170,17 @@ export const systemSetupHost = (
       scope?: DoctorScope,
     ): Promise<SetupInitialState> => {
       const diagnosis = await runDoctor(undefined, doctorHost, scope);
+      const providerEnvironment: SetupProviderEnvironment = {
+        ...providerRegistrationEnvironment(diagnosis.providerInspections ?? []),
+        ...doctorHost.providerRegistrationEnvironment?.(),
+        ...explicitSetupRegistrationEnvironment(environment),
+        ...(diagnosis.hopperPath === undefined
+          ? {}
+          : { HOPPER_LAUNCHER_PATH: diagnosis.hopperPath }),
+      };
+      const requestedProvider = analysisProviderSelectorSchema.safeParse(
+        environment.REA_ANALYSIS_PROVIDER,
+      );
       return {
         ...(diagnosis.hopperPath === undefined
           ? {}
@@ -178,16 +190,14 @@ export const systemSetupHost = (
         diagnosis.hopperPath === environment.HOPPER_LAUNCHER_PATH
           ? { hopperLauncherConfigured: true }
           : {}),
-        providerEnvironment: {
-          ...providerRegistrationEnvironment(
-            diagnosis.providerInspections ?? [],
-          ),
-          ...doctorHost.providerRegistrationEnvironment?.(),
-          ...explicitSetupRegistrationEnvironment(environment),
-          ...(diagnosis.hopperPath === undefined
-            ? {}
-            : { HOPPER_LAUNCHER_PATH: diagnosis.hopperPath }),
-        },
+        providerConfigured:
+          diagnosis.hopperPath !== undefined ||
+          diagnosis.providerInspections?.some(
+            ({ configured }) => configured,
+          ) === true ||
+          providerEnvironment.REA_JEB_MCP_URL !== undefined ||
+          (requestedProvider.success && requestedProvider.data !== "auto"),
+        providerEnvironment,
         doctor: diagnosis,
       };
     },

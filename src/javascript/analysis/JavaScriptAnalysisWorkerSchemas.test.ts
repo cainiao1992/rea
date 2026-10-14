@@ -31,3 +31,19 @@ it("versions fingerprints through the worker schema and rejects v1", () => {
     false,
   );
 });
+
+it("accepts candidate endpoint interpretations from static analysis", () => {
+  const facts = analyzeJavaScriptStaticSource(`http.request("POST", target);`);
+  expect(facts.endpoints).toContainEqual(
+    expect.objectContaining({
+      kind: "network",
+      value: "POST",
+      interpretation: "candidate",
+    }),
+  );
+  expect(
+    javaScriptWorkerStaticAnalysisSchema.safeParse(
+      JSON.parse(JSON.stringify(facts)) as unknown,
+    ).success,
+  ).toBe(true);
+});

@@ -278,6 +278,25 @@ describe("GraphQL operation recognition", () => {
     ]);
   });
 
+  it("recognizes operations after leading fragment interpolations only when prior quasis are ignored", () => {
+    expect(
+      rpcEndpoints(`
+        const one = gql\`  \${CORE_FIELDS}
+          query CommentsForPost($postId: ID!) { comments { id } }\`;
+        const two = gql\`\${CORE_FIELDS}
+          # another fragment
+          ,\${MORE_FIELDS}
+          mutation UpdatePost($id: ID!) { updatePost(id: $id) { id } }\`;
+        const prose = gql\`fragment prose before interpolation
+          \${CORE_FIELDS}
+          query NotAnOperation { viewer { id } }\`;
+      `),
+    ).toEqual([
+      { kind: "network", value: "CommentsForPost", mechanism: "graphql:query" },
+      { kind: "network", value: "UpdatePost", mechanism: "graphql:mutation" },
+    ]);
+  });
+
   it("retains operations after long ignored prefixes and long headers", () => {
     const name = "Operation" + "x".repeat(512);
     const text =

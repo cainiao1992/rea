@@ -44,7 +44,7 @@ interface FindingInput<Value> {
 interface ResolvedReference {
   readonly path: string | null;
   readonly file: JavaScriptArtifactFile | null;
-  readonly node: ApplicationNode;
+  readonly node: ApplicationNode | null;
   readonly limitations: readonly string[];
   readonly resolutionStatus?: string;
   readonly resolution?: ArtifactPathResolution;
@@ -110,6 +110,8 @@ const addReference = (
             declared_specifier: input.value.specifier,
             expression: input.value.expression,
             resolved_path: resolved?.path ?? null,
+            resolution_status: resolved?.resolutionStatus ?? null,
+            ...artifactPathResolutionProperties(resolved?.resolution),
           },
           evidence: staticInferenceEvidence({
             sha256: input.file.sha256,
@@ -117,6 +119,7 @@ const addReference = (
             range: input.value.location,
             operation: "discover-worker",
             coverage: input.coverage,
+            limitations: resolved?.limitations ?? [],
           }),
         },
       ],
@@ -128,9 +131,14 @@ const addReference = (
       range: input.value.location,
       coverage: input.coverage,
       relation: "loads",
-      properties: { kind: input.value.kind },
+      properties: {
+        kind: input.value.kind,
+        resolution_status: resolved?.resolutionStatus ?? null,
+        ...artifactPathResolutionProperties(resolved?.resolution),
+      },
+      limitations: resolved?.limitations ?? [],
     });
-    if (resolved !== null && resolved.path !== null)
+    if (resolved !== null && resolved.path !== null && resolved.node !== null)
       addStaticInferenceEdge(context, {
         source: worker,
         target: resolved.node,
@@ -146,7 +154,7 @@ const addReference = (
   // A reference that resolves to its own source, such as a bundled module
   // requiring its own key, cannot become an edge: the application graph
   // forbids self-referential edges and one would fail the whole analysis.
-  if (resolved?.node.node_id === source.node_id) {
+  if (resolved?.node?.node_id === source.node_id) {
     omissions.selfReferences += 1;
     return;
   }
@@ -283,6 +291,8 @@ const addDiscoveredRole = (
     sourcePath: input.file.path,
     context: input.value.resolution_context,
     files: context.filesByPath,
+    directoryPaths: context.directoryPaths,
+    unanalyzedFiles: context.unanalyzedFiles,
     ...(input.value.role === "preload" ||
     (input.value.role === "renderer" &&
       input.value.resolution_context === "filesystem-expression")
@@ -333,18 +343,27 @@ const addSourceMapEdge = (
   const declaredUrlSha256 = createHash("sha256")
     .update(input.value.declared_url)
     .digest("hex");
-  const resolvedPath = resolveArtifactPathByContext({
+  const resolution = resolveArtifactPathByContext({
     declaredPath: input.value.declared_url,
     sourcePath: input.file.path,
     context: "url-reference",
     files: context.filesByPath,
-  }).resolved_path;
+    directoryPaths: context.directoryPaths,
+    unanalyzedFiles: context.unanalyzedFiles,
+  });
+  const resolvedPath = resolution.resolved_path;
   const resolvedFile =
     resolvedPath === null ? undefined : context.filesByPath.get(resolvedPath);
   const resolvedNode =
     resolvedPath === null ? undefined : context.fileNodes.get(resolvedPath);
   const isAvailable =
     resolvedFile?.kind === "source-map" && resolvedNode !== undefined;
+  const limitations =
+    isAvailable || resolution.limitations.length > 0
+      ? resolution.limitations
+      : [
+          "The declared reference does not identify an available source-map projection.",
+        ];
   const target = context.accumulator.addNode({
     kind: "source-map",
     identity:
@@ -362,6 +381,8 @@ const addSourceMapEdge = (
           declared_url: input.value.declared_url,
           declared_url_sha256: declaredUrlSha256,
           resolved_path: resolvedPath,
+          resolution_status: resolution.resolution_status,
+          ...artifactPathResolutionProperties(resolution),
           available: isAvailable,
         },
         evidence: staticInferenceEvidence({
@@ -371,11 +392,7 @@ const addSourceMapEdge = (
           operation: "discover-source-map",
           coverage: input.coverage,
           confidence: "medium",
-          limitations: isAvailable
-            ? []
-            : [
-                "The declared source map was not present in the inventoried artifact.",
-              ],
+          limitations,
         }),
       },
     ],
@@ -387,9 +404,12 @@ const addSourceMapEdge = (
     range: input.value.location,
     coverage: input.coverage,
     relation: "maps_to",
+    limitations,
     properties: {
       declared_url_sha256: declaredUrlSha256,
       resolved_path: resolvedPath,
+      resolution_status: resolution.resolution_status,
+      ...artifactPathResolutionProperties(resolution),
     },
   });
 };
@@ -432,12 +452,16 @@ const resolveReference = (
         sourcePath,
         context: "url-reference",
         files: context.filesByPath,
+        directoryPaths: context.directoryPaths,
+        unanalyzedFiles: context.unanalyzedFiles,
       })
     : resolveArtifactPathByContext({
         declaredPath: specifier,
         sourcePath,
         context: "module-specifier",
         files: context.filesByPath,
+        directoryPaths: context.directoryPaths,
+        unanalyzedFiles: context.unanalyzedFiles,
         ...("require" === reference.kind ||
         "static-import" === reference.kind ||
         "dynamic-import" === reference.kind
@@ -451,20 +475,21 @@ const resolveReference = (
       });
   const path = resolution.resolved_path;
   if (path === null) {
-    if (isWorker) return null;
     const source = context.filesByPath.get(sourcePath);
     return source === undefined
       ? null
       : {
           path: null,
           file: null,
-          node: unresolvedReferenceNode(
-            context,
-            source,
-            reference,
-            coverage,
-            resolution,
-          ),
+          node: isWorker
+            ? null
+            : unresolvedReferenceNode(
+                context,
+                source,
+                reference,
+                coverage,
+                resolution,
+              ),
           limitations: resolution.limitations,
           resolutionStatus: resolution.resolution_status,
           resolution,

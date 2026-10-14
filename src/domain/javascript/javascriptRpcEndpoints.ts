@@ -163,11 +163,8 @@ const GRAPHQL_OPERATION_HEADER =
 const isGraphqlIgnoredCharacter = (character: string): boolean =>
   character === "," || character === "﻿" || /\s/u.test(character);
 
-/** Recover a named operation from GraphQL document text. */
-export const graphqlOperationFromText = (
-  text: string,
-): JavaScriptRpcEndpoint | undefined => {
-  // Skip GraphQL ignored tokens: whitespace, commas, BOM and # comments.
+/** Return the first offset after GraphQL ignored tokens. */
+const skipGraphqlIgnored = (text: string): number => {
   const limit = text.length;
   let index = 0;
   while (index < limit) {
@@ -177,7 +174,15 @@ export const graphqlOperationFromText = (
       while (index < limit && !/[\n\r]/u.test(text.charAt(index))) index += 1;
     } else break;
   }
-  if (index >= limit) return undefined;
+  return index;
+};
+
+/** Recover a named operation from GraphQL document text. */
+export const graphqlOperationFromText = (
+  text: string,
+): JavaScriptRpcEndpoint | undefined => {
+  const index = skipGraphqlIgnored(text);
+  if (index >= text.length) return undefined;
   const header = GRAPHQL_OPERATION_HEADER.exec(text.slice(index));
   const type = header?.[1];
   const name = header?.[2];
@@ -310,11 +315,17 @@ export const createJavaScriptRpcScan = (
           ? undefined
           : graphqlOperationFromText(node.value);
       if (t.isTemplateLiteral(node)) {
-        // A template recovered without a cooked value stays dynamic.
-        const cooked = node.quasis[0]?.value.cooked;
-        return cooked === undefined || cooked === null
-          ? undefined
-          : graphqlOperationFromText(cooked);
+        // Interpolations may contain fragment definitions. Continue only
+        // across quasis that contain ignored tokens; prose or dynamic text
+        // before an operation prevents claiming a later operation belongs to
+        // this document prefix.
+        for (const quasi of node.quasis) {
+          const cooked = quasi.value.cooked;
+          if (cooked === undefined || cooked === null) return undefined;
+          if (skipGraphqlIgnored(cooked) === cooked.length) continue;
+          return graphqlOperationFromText(cooked);
+        }
+        return undefined;
       }
       return undefined;
     },

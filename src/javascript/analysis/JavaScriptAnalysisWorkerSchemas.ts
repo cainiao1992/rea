@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { digestSchema } from "../../domain/digests.js";
 import type { JavaScriptStaticAnalysis } from "../../domain/javascript/javascriptStaticAnalysisTypes.js";
+import { JAVASCRIPT_AST_FINGERPRINT_ALGORITHM } from "../../domain/javascript/javascriptStaticAnalysisTypes.js";
 import type {
   JavaScriptSemanticProperty,
   JavaScriptSemanticValue,
@@ -363,7 +364,9 @@ export const javaScriptWorkerStaticAnalysisSchema = z
             exports: strings,
             location: range,
             structural_fingerprint_sha256: digestSchema,
-            structural_fingerprint_algorithm: z.literal("babel-ast-v1"),
+            structural_fingerprint_algorithm: z.literal(
+              JAVASCRIPT_AST_FINGERPRINT_ALGORITHM,
+            ),
           }),
         ),
         location: range,

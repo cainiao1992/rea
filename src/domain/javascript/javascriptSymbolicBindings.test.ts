@@ -389,6 +389,62 @@ it("composes fallthrough guards across successive conditional returns", () => {
   ]);
 });
 
+it.each([
+  ["while", 'inspect((() => { while (flag) { return "loop"; } })());'],
+  ["for", 'inspect((() => { for (;;) { return "forever"; } })());'],
+  ["try", 'inspect((() => { try { return "try"; } finally {} })());'],
+  [
+    "switch",
+    'inspect((() => { switch (x) { default: return "switch"; } })());',
+  ],
+])(
+  "keeps unsupported %s return control flow explicitly unknown",
+  (_name, source) => {
+    const value = inspectOne(source);
+    expect(
+      symbolicVariants(value).some((variant) => variant.kind === "unknown"),
+    ).toBe(true);
+    expect(value).not.toEqual({ kind: "literal", value: undefined });
+  },
+);
+
+it("preserves later returns with unresolved conditions after unsupported return flow", () => {
+  const variants = symbolicVariants(
+    inspectOne(`inspect((() => {
+      while (flag) { return "inside"; }
+      return "after";
+    })());`),
+  );
+
+  expect(variants.some((variant) => variant.kind === "unknown")).toBe(true);
+  expect(variants).toContainEqual(
+    expect.objectContaining({
+      kind: "literal",
+      value: "after",
+      conditionUnresolved: true,
+    }),
+  );
+});
+
+it("does not treat loops without owned returns as unknown return flow", () => {
+  expect(
+    inspectOne(`inspect((() => {
+      while (flag) { work(); }
+      return "after";
+    })());`),
+  ).toEqual({ kind: "literal", value: "after" });
+});
+
+it("does not treat nested-function returns as wrapper return flow", () => {
+  expect(
+    inspectOne(`inspect((() => {
+      try { function nested() { return "inner"; } }
+      catch {}
+      return "outer";
+    })());`),
+  ).toEqual({ kind: "literal", value: "outer" });
+});
+
 it("marks return guards unresolved when a nested join cannot be represented", () => {
   const value = inspectOne(`
     function choose() {

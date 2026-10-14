@@ -860,13 +860,18 @@ const hasConditionalInitializer = (ancestors: readonly t.Node[]): boolean => {
     const node = ancestors[index];
     if (t.isFunction(node) || t.isProgram(node) || t.isStaticBlock(node))
       return false;
-    if (
-      t.isIfStatement(node) ||
-      t.isLoop(node) ||
-      t.isSwitchCase(node) ||
-      t.isTryStatement(node)
-    )
+    if (t.isIfStatement(node) || t.isSwitchCase(node) || t.isTryStatement(node))
       return true;
+    if (t.isLoop(node)) {
+      const bodyOrTest = ancestors[index + 1];
+      if (
+        (t.isForStatement(node) && bodyOrTest === node.init) ||
+        (t.isDoWhileStatement(node) &&
+          (bodyOrTest === node.body || bodyOrTest === node.test))
+      )
+        continue;
+      return true;
+    }
   }
   return false;
 };

@@ -58,6 +58,17 @@ const isObjectPrototypeSetter = (
   !property.shorthand &&
   name === "__proto__";
 
+const containsOwnedReturn = (root: t.Node): boolean => {
+  let found = false;
+  traverseJavaScriptAst(root, {
+    skip: (node) => found || t.isFunction(node) || t.isClass(node),
+    enter: (node) => {
+      if (t.isReturnStatement(node)) found = true;
+    },
+  });
+  return found;
+};
+
 /** Demand-driven substitutions for local bindings, closures and literal module tables. */
 export class JavaScriptSymbolicBindings {
   readonly #writes = new Map<string, PropertyWrite[]>();
@@ -830,6 +841,24 @@ export class JavaScriptSymbolicBindings {
               fallthrough.some(({ flow }) => flow.values.length > 0))
           )
             unresolvedFallthrough = true;
+        }
+      }
+      if (
+        t.isWhileStatement(statement) ||
+        t.isDoWhileStatement(statement) ||
+        t.isForStatement(statement) ||
+        t.isForInStatement(statement) ||
+        t.isForOfStatement(statement) ||
+        t.isSwitchStatement(statement) ||
+        t.isTryStatement(statement)
+      ) {
+        if (containsOwnedReturn(statement)) {
+          possible.push(
+            symbolicUnknown(
+              `unsupported return control flow: ${statement.type}`,
+            ),
+          );
+          unresolvedFallthrough = true;
         }
       }
     }

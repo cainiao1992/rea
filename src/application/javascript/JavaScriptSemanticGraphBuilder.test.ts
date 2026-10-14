@@ -65,16 +65,40 @@ it("projects closure and direct interprocedural flow without execution", () => {
   );
 });
 
-it("projects a destructuring assignment member target as a property write", () => {
-  const graph = graphFor(`
-    const source = { count: 1 };
-    [source.count] = [2];
-  `);
+it.each([
+  ["direct assignment", "source.count = 2;"],
+  ["destructuring assignment", "[source.count] = [2];"],
+  ["for-of head", "for (source.count of [4]) {}"],
+  ["for-in head", "for (source.count in { key: true }) {}"],
+  ["delete", "delete source.count;"],
+])("projects a %s member target as a property write", (_name, statement) => {
+  const graph = graphFor(`const source = { count: 1 }; ${statement}`);
   const operations = graph.nodes.filter(
     ({ properties }) => properties.operation_kind !== undefined,
   );
   expect(operations.map(({ label }) => label)).toEqual(["write:/count"]);
+  const write = operations[0];
+  if (write === undefined) throw new Error("Expected write operation node");
+  expect(graph.relations).toContainEqual(
+    expect.objectContaining({
+      source_node_id: write.node_id,
+      relation: "writes-property",
+    }),
+  );
   expect(graph.relations).not.toContainEqual(
+    expect.objectContaining({
+      source_node_id: write.node_id,
+      relation: "reads-property",
+    }),
+  );
+});
+
+it("continues to project an ordinary member access as a property read", () => {
+  const graph = graphFor(`
+    const source = { count: 1 };
+    const value = source.count;
+  `);
+  expect(graph.relations).toContainEqual(
     expect.objectContaining({ relation: "reads-property" }),
   );
 });

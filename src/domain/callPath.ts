@@ -1,3 +1,4 @@
+import { relationshipCoverageLimitations } from "./relationshipCoverage.js";
 import {
   callPathInputSchema,
   callPathResultSchema,
@@ -240,15 +241,12 @@ const inspectSearch = ({
       const coverage = snapshot.evidence.relationship_coverage;
       for (const limitation of snapshot.limitations)
         limitations.push(limitation);
-      if (coverage?.status === "partial")
-        for (const limitation of coverage.limitations)
+      if (coverage !== null) {
+        for (const limitation of relationshipCoverageLimitations(coverage))
           limitations.push(limitation);
-      else if (coverage?.status === "unknown")
-        limitations.push(coverage.reason);
-      for (const diagnostic of coverage !== null && "diagnostics" in coverage
-        ? coverage.diagnostics
-        : [])
-        limitations.push(diagnostic);
+        for (const diagnostic of coverage.diagnostics ?? [])
+          limitations.push(diagnostic);
+      }
       // The requested goal is a terminal for this search. Its outgoing edges
       // cannot add a path to the goal, so its dossier limits are contextual
       // but do not make the searched start-to-goal closure incomplete.

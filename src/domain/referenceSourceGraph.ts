@@ -110,6 +110,10 @@ const sourceEntrySchema = z.union([
   sourceFileSchema,
   sourceDirectorySchema,
   sourceSymlinkSchema,
+  z.strictObject({
+    ...entryBaseShape,
+    kind: z.literal("unknown"),
+  }),
 ]);
 
 const sourceRelationshipSchema = z.strictObject({
@@ -130,7 +134,7 @@ const exclusionSchema = z.discriminatedUnion("reason", [
   z.strictObject({
     path: relativePathSchema,
     entry_kind: z
-      .enum(["file", "directory", "symlink", "other"])
+      .enum(["file", "directory", "symlink", "other", "unknown"])
       .exactOptional(),
     reason: z.enum([
       "configured-secret",
@@ -143,7 +147,7 @@ const exclusionSchema = z.discriminatedUnion("reason", [
   z.strictObject({
     path: relativePathSchema,
     entry_kind: z
-      .enum(["file", "directory", "symlink", "other"])
+      .enum(["file", "directory", "symlink", "other", "unknown"])
       .exactOptional(),
     reason: z.enum(["symlink-escape", "unreadable"]),
   }),
@@ -330,7 +334,7 @@ const checkSymlinks = (
   );
   const excludedKinds = new Map<
     string,
-    Set<"file" | "directory" | "symlink" | "other" | undefined>
+    Set<"file" | "directory" | "symlink" | "other" | "unknown" | undefined>
   >();
   for (const { path, entry_kind } of graph.exclusions) {
     const kinds = excludedKinds.get(path) ?? new Set();
@@ -399,7 +403,8 @@ const checkCompleteInventory = (
       entry.limitations.length > 0 ||
       (entry.kind === "file" && entry.content_state !== "hashed") ||
       (entry.kind === "directory" && entry.tree_state !== "enumerated") ||
-      (entry.kind === "symlink" && entry.target_state !== "internal"),
+      (entry.kind === "symlink" && entry.target_state !== "internal") ||
+      entry.kind === "unknown",
   );
   const partialRelationship = graph.relationships.some(
     ({ parse_state, resolution }) =>
@@ -515,6 +520,11 @@ const rootCommitment = (
           path: entry.path,
           target: entry.target,
           target_state: entry.target_state,
+        };
+      case "unknown":
+        return {
+          kind: entry.kind,
+          path: entry.path,
         };
     }
   }),

@@ -15,9 +15,17 @@ import {
   type GhidraFunctionOperation,
 } from "../../../src/ghidra/GhidraFunctionValues.js";
 
-it.each([true, false])(
-  "compares observed empty Ghidra facets while preserving pseudocode availability (%s)",
-  async (pseudocodeAvailable) => {
+it.each([
+  { pseudocodeAvailable: true, reportsCoverage: true },
+  { pseudocodeAvailable: false, reportsCoverage: true },
+  { pseudocodeAvailable: true, reportsCoverage: false },
+  { pseudocodeAvailable: false, reportsCoverage: false },
+])(
+  "compares observed empty Ghidra facets with pseudocode=$pseudocodeAvailable and coverage=$reportsCoverage",
+  async ({ pseudocodeAvailable, reportsCoverage }) => {
+    const coverage = reportsCoverage
+      ? { status: "complete" as const }
+      : undefined;
     const dossier = functionDossierSchema.parse(ghidraFunctionDossier());
     Object.assign(dossier, {
       comments: [],
@@ -47,7 +55,13 @@ it.each([true, false])(
         if (operation !== "analyze_function")
           throw new Error(`Unexpected operation: ${operation}`);
         return Promise.resolve(
-          ok({ value: jsonValueSchema.parse(dossier), limitations: [] }),
+          ok({
+            value: jsonValueSchema.parse(dossier),
+            limitations: [],
+            ...(coverage === undefined
+              ? {}
+              : { relationship_coverage: coverage }),
+          }),
         );
       },
     );
@@ -61,9 +75,7 @@ it.each([true, false])(
         harness.session,
         analyzed.structuredContent,
       );
-      expect(evidence.relationship_coverage).toMatchObject({
-        status: "complete",
-      });
+      expect(evidence.relationship_coverage).toEqual(coverage ?? null);
       expect(evidence.normalized_result).toEqual(dossier);
       const reply = await harness.mcp.callTool({
         name: "compare_functions",
@@ -86,7 +98,7 @@ it.each([true, false])(
         pseudocode: pseudocodeAvailable ? "unchanged" : "unknown",
         assembly: "unchanged",
         comments: "unchanged",
-        calls: "unchanged",
+        calls: reportsCoverage ? "unchanged" : "unknown",
         references: "unchanged",
         strings_names: "unchanged",
         cfg: "unchanged",
@@ -96,9 +108,7 @@ it.each([true, false])(
         evidence.parameters,
       );
       if (!replay.ok) throw replay.error;
-      expect(replay.value.relationshipCoverage).toEqual(
-        evidence.relationship_coverage,
-      );
+      expect(replay.value.relationshipCoverage).toEqual(coverage);
       expect(harness.calls).toEqual(["analyze_function"]);
     } finally {
       await harness.close();

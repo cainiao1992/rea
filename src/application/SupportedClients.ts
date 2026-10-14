@@ -608,6 +608,14 @@ export const SUPPORTED_CLIENT_DEFINITIONS = [
     format: "json",
   },
   {
+    name: "workbuddy",
+    displayName: "WorkBuddy",
+    skillPath: [".workbuddy", "skills"],
+    configPath: [".workbuddy", "mcp.json"],
+    markerPath: [".workbuddy"],
+    format: "json",
+  },
+  {
     name: "grok_build",
     displayName: "Grok Build",
     configPath: (context: ClientPathContext) =>

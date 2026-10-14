@@ -33,3 +33,19 @@ export const relationshipCoverageSchema = z.discriminatedUnion("status", [
 ]);
 
 export type RelationshipCoverage = z.infer<typeof relationshipCoverageSchema>;
+
+/** Reasons the observed relationship inventory cannot establish completeness. */
+export const relationshipCoverageLimitations = (
+  coverage: RelationshipCoverage | null | undefined,
+): readonly string[] => {
+  switch (coverage?.status) {
+    case undefined:
+      return ["Provider did not report relationship coverage."];
+    case "complete":
+      return [];
+    case "partial":
+      return coverage.limitations;
+    case "unknown":
+      return [coverage.reason];
+  }
+};

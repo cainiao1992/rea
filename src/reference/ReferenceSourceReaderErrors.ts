@@ -47,6 +47,8 @@ export const filesystemFailureDetail = (
 ): string | undefined => {
   if (!(cause instanceof Error)) return undefined;
   const code: unknown = Reflect.get(cause, "code");
+  if (code === "ENAMETOOLONG")
+    return `${operation}: ENAMETOOLONG (entry path exceeds the operating system path limit)`;
   return typeof code === "string" && FILESYSTEM_ERROR_CODES.has(code)
     ? `${operation}: ${cause.message}`
     : undefined;

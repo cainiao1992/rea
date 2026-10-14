@@ -136,7 +136,7 @@ export async function verifyGhidraBoundaries(
   assert.deepEqual(externalDossier.callees, []);
   assert.deepEqual(externalDossier.facet_availability.pseudocode, {
     available: false,
-    reason: "Ghidra did not supply pseudocode.",
+    reason: "Ghidra does not decompile external functions.",
   });
   for (const facet of [
     "assembly",

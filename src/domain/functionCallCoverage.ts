@@ -1,4 +1,7 @@
-import type { RelationshipCoverage } from "./relationshipCoverage.js";
+import {
+  relationshipCoverageLimitations,
+  type RelationshipCoverage,
+} from "./relationshipCoverage.js";
 import type { FunctionDossier } from "./hopperValues.js";
 import { uniqueSorted } from "./canonicalOrdering.js";
 
@@ -15,11 +18,7 @@ export const combineFunctionRelationshipCoverage = (
     { direction: "callees" as const, coverage: callees },
   ];
   const diagnostics = uniqueSorted(
-    reads.flatMap(({ coverage }) =>
-      coverage !== undefined && "diagnostics" in coverage
-        ? coverage.diagnostics
-        : [],
-    ),
+    reads.flatMap(({ coverage }) => coverage?.diagnostics ?? []),
   );
   const details = diagnostics.length > 0 ? { diagnostics } : {};
   const callersLimited = callers?.status !== "complete";
@@ -35,15 +34,9 @@ export const combineFunctionRelationshipCoverage = (
   const reasons = reads.flatMap(({ direction, coverage }) => {
     const label =
       direction === "callers" ? callerCoveragePrefix : calleeCoveragePrefix;
-    const limitations =
-      coverage === undefined
-        ? ["Provider did not report relationship coverage."]
-        : coverage.status === "unknown"
-          ? [coverage.reason]
-          : coverage.status === "partial"
-            ? coverage.limitations
-            : [];
-    return limitations.map((reason) => `${label}${reason}`);
+    return relationshipCoverageLimitations(coverage).map(
+      (reason) => `${label}${reason}`,
+    );
   });
   if (
     reads.some(
@@ -90,24 +83,11 @@ export const functionCallCoverageLimitations = (
   coverage: RelationshipCoverage | null,
   dossier: Pick<FunctionDossier, "unresolved_calls">,
 ): string[] => {
-  const limitations =
-    coverage === null
-      ? ["Provider did not report relationship coverage."]
-      : coverage.status === "unknown"
-        ? [
-            coverage.reason,
-            ...("diagnostics" in coverage ? coverage.diagnostics : []),
-          ]
-        : coverage.status === "partial"
-          ? [
-              ...coverage.limitations,
-              ...("diagnostics" in coverage ? coverage.diagnostics : []),
-            ]
-          : [];
-  limitations.push(
+  return uniqueSorted([
+    ...relationshipCoverageLimitations(coverage),
+    ...(coverage?.status === "complete" ? [] : (coverage?.diagnostics ?? [])),
     ...(dossier.unresolved_calls ?? []).map(
       ({ address, reason }) => `Unresolved call at ${address}: ${reason}`,
     ),
-  );
-  return uniqueSorted(limitations);
+  ]);
 };

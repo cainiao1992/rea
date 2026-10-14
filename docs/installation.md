@@ -28,6 +28,11 @@ For the latest published release, use `npx rea-agents@latest setup`.
 [Package-runner and global-installation options](#package-runners-and-global-installation)
 cover explicit versions, Bun, runtime requirements, and the curl wrapper.
 
+On Linux, supervised analysis requires a procps-compatible `ps` on REA's
+`PATH` so REA can inspect process ownership before launching a child. Install
+the `procps` or `procps-ng` package provided by your distribution. This
+prerequisite also applies to JavaScript and Electron workflows.
+
 ## Review setup changes
 
 `rea setup` first offers the supported agents in a multi-select. Existing REA

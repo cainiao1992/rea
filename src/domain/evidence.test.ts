@@ -466,6 +466,62 @@ describe("DOS analysis evidence identity", () => {
   });
 });
 
+describe("evidence JSON admission before authentication", () => {
+  it.each(["parameters", "raw_result", "normalized_result"] as const)(
+    "keeps rejected accessors and proxies inert in %s",
+    (field) => {
+      const evidence = createEvidence(TARGET, PROVIDER, {
+        operation: "health",
+        parameters: {},
+        result: true,
+      });
+      for (const kind of ["accessor", "proxy"] as const) {
+        let reads = 0;
+        const value =
+          kind === "accessor"
+            ? {
+                get attack() {
+                  reads += 1;
+                  return "observed";
+                },
+              }
+            : new Proxy(
+                { attack: "observed" },
+                {
+                  ownKeys(target) {
+                    reads += 1;
+                    return Reflect.ownKeys(target);
+                  },
+                  get(target, key, receiver) {
+                    reads += 1;
+                    return Reflect.get(target, key, receiver);
+                  },
+                },
+              );
+        let failure: unknown;
+        try {
+          parseEvidence({ ...evidence, [field]: value });
+        } catch (cause: unknown) {
+          failure = cause;
+        }
+        expect(reads, `${kind} reached Evidence authentication`).toBe(0);
+        expect(failure).toMatchObject({
+          name: "ZodError",
+          issues: [
+            {
+              code: "custom",
+              path: [field],
+              message: expect.stringContaining(
+                kind === "accessor" ? "accessors" : "proxies",
+              ),
+            },
+          ],
+        });
+      }
+    },
+  );
+});
+
 describe("evidence parameter depth bound", () => {
   it("rejects evidence whose parameters nest past the JSON depth limit", () => {
     const evidence = createEvidence(TARGET, PROVIDER, {

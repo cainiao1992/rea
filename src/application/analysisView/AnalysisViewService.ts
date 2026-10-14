@@ -24,6 +24,7 @@ import {
   type InspectAnalysisViewInput,
 } from "../../domain/analysisView/analysisView.js";
 import { jsonValueSchema } from "../../domain/jsonValue.js";
+import { isImmutableJsonSnapshot } from "../../domain/immutableJson.js";
 import { err, ok, type Result } from "../../domain/result.js";
 import { WebNetworkApiSurfaceAccumulator } from "../../domain/analysisView/WebNetworkApiSurfaceAccumulator.js";
 
@@ -69,6 +70,8 @@ export const inspectAnalysisViewValidated = (
       evidenceId: parent.evidence_id,
       operation: parent.operation,
       normalizedResult: parent.normalized_result,
+      // Sealing an Evidence root deep-freezes it; only the root is registered.
+      sealedResult: isImmutableJsonSnapshot(parent),
       subject: parent.subject,
       limitations: parent.limitations,
       parameters: parent.parameters,

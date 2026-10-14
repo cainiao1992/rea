@@ -81,6 +81,40 @@ including the existing `inspect-analysis-view` CLI. Session record lifetime and
 export/import semantics remain unchanged. A server without Evidence retention
 rejects selected summary before analysis; complete delivery remains available.
 
+### Member summary and retained member rows
+
+Complete `inspect_managed_members` delivery always includes the assembly-wide
+`member_refs` and `exported_types`, which `type_names` does not narrow, so even
+one selected or unmatched type can return megabytes. Select
+`{"path":"/absolute/path/Assembly.dll","type_names":["Namespace.Type"],"detail":"summary"}`
+to keep the complete source in the session and receive identity, metadata
+status, the selection with its unmatched names, coverage/issues, the separate
+user-string coverage, limitations and per-collection counts. Then page original
+rows with view kind `managed-members`:
+
+```json
+{
+  "source": {
+    "kind": "retained-evidence",
+    "evidence_id": "<parent_evidence_id>"
+  },
+  "view": {
+    "kind": "managed-members",
+    "collection": "call_edges",
+    "offset": 0,
+    "limit": 64
+  }
+}
+```
+
+Collections are `types`, `exported_types`, `fields`, `methods`, `member_refs`,
+`call_edges`, `field_accesses` and `user_strings` (the literals). Each page names
+its collection, retains original rows, order, tokens, signatures and body facts,
+and carries the source selection and coverage; `user_strings` pages carry the
+literal pool's own coverage. Older Evidence that never examined exported types
+or user strings reports a null count and refuses those pages rather than
+returning an empty one.
+
 ## Shipped scope
 
 The canonical parser admits PE/CLI bytes and their metadata/CIL without loading

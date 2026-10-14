@@ -51,6 +51,24 @@ export const managedViewContextSchema = z.strictObject({
   source_coverage: managedArtifactInspectionSchema.shape.coverage,
 });
 
+/** Token scope and identity limits shared by every managed metadata view. */
+export const managedViewIdentityUnknowns = (
+  parent: AnalysisViewParent,
+  mvid: string | null,
+): string[] => [
+  "Metadata tokens are build-local coordinates bound to the recorded artifact SHA-256 and module MVID; this view does not load or execute the assembly.",
+  ...(parent.subject == null
+    ? [
+        "The parent has no recorded subject; its normalized artifact identity cannot be cross-checked against a subject digest.",
+      ]
+    : []),
+  ...(mvid === null
+    ? [
+        "The module MVID is unknown; tokens cannot establish a cross-observation module match.",
+      ]
+    : []),
+];
+
 /** Project authenticated metadata without reading a path or invoking a provider. */
 export const projectManagedArtifactView = (
   parent: AnalysisViewParent,
@@ -86,17 +104,7 @@ export const projectManagedArtifactView = (
     limitations: uniqueSorted([...parent.limitations, ...report.limitations]),
     unknowns: [
       "Collection counts and pages cover producer-returned rows; metadata completeness remains the original metadata status and coverage, not an absence claim about unreturned rows.",
-      "Metadata tokens are build-local coordinates bound to the recorded artifact SHA-256 and module MVID; this view does not load or execute the assembly.",
-      ...(parent.subject == null
-        ? [
-            "The parent has no recorded subject; its normalized artifact identity cannot be cross-checked against a subject digest.",
-          ]
-        : []),
-      ...(identity_scope.requires_mvid === null
-        ? [
-            "The module MVID is unknown; tokens cannot establish a cross-observation module match.",
-          ]
-        : []),
+      ...managedViewIdentityUnknowns(parent, identity_scope.requires_mvid),
     ],
   };
   if (view.kind === "summary") {

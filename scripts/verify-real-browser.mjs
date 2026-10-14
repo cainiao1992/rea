@@ -39,6 +39,8 @@ import {
   verifyScenarioFailureEvidence,
 } from "./lib/browser-scenario-verifier.mjs";
 import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
+import { closeRuntimeFixtureResources } from "./lib/browser-runtime-fixture-lifecycle.mjs";
+import { requireOrdinaryWindowsVerifierCaller } from "./lib/windows-ordinary-user-verifier.mjs";
 import { verifyLargeScreenshotE2e } from "./lib/browser-screenshot-e2e.mjs";
 import { verifyPopupEventCoverage } from "./lib/browser-popup-e2e.mjs";
 import { verifyBrowserNetworkEvidence } from "./lib/browser-network-e2e.mjs";
@@ -58,13 +60,17 @@ process.env.REA_BROWSER_VERIFIER_SECRET = SCENARIO_SECRET_VALUE;
 process.env.REA_BROWSER_VERIFIER_URL = SCENARIO_URL_SECRET_VALUE;
 const verifierRun = createVerifierRun();
 
+await requireOrdinaryWindowsVerifierCaller();
 const executable = await browserExecutable();
-const profile = await mkdtemp(join(tmpdir(), "rea-real-browser-"));
-const site = await startBrowserVerifierSite();
+let profile;
+let site;
 let browser;
 let pageProxy;
 let report;
+let verificationError;
 try {
+  profile = await mkdtemp(join(tmpdir(), "rea-real-browser-"));
+  site = await startBrowserVerifierSite();
   browser = spawn(
     executable,
     [
@@ -409,19 +415,39 @@ try {
     scenarioServiceWorkers,
     verified: true,
   };
+} catch (cause) {
+  verificationError = cause;
+  throw cause;
 } finally {
-  process.stderr.write("Browser verifier cleanup: closing page proxy\n");
-  if (pageProxy !== undefined) await pageProxy.close();
-  process.stderr.write("Browser verifier cleanup: stopping owned Chrome\n");
-  if (browser !== undefined) await stopProcess(browser);
-  process.stderr.write("Browser verifier cleanup: closing fixture site\n");
-  await site.close();
-  await rm(profile, {
-    recursive: true,
-    force: true,
-    maxRetries: 10,
-    retryDelay: 100,
-  });
+  const cleanup = [];
+  if (pageProxy !== undefined) {
+    cleanup.push(async () => {
+      process.stderr.write("Browser verifier cleanup: closing page proxy\n");
+      await pageProxy.close();
+    });
+  }
+  if (browser !== undefined) {
+    cleanup.push(async () => {
+      process.stderr.write("Browser verifier cleanup: stopping owned Chrome\n");
+      await stopProcess(browser);
+    });
+  }
+  if (site !== undefined) {
+    cleanup.push(async () => {
+      process.stderr.write("Browser verifier cleanup: closing fixture site\n");
+      await site.close();
+    });
+  }
+  if (profile !== undefined)
+    cleanup.push(() =>
+      rm(profile, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+      }),
+    );
+  await closeRuntimeFixtureResources(cleanup, verificationError);
 }
 process.stdout.write(
   `${JSON.stringify({

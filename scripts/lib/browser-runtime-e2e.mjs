@@ -14,6 +14,7 @@ import { parseEvidence } from "../../dist/domain/evidence.js";
 import { webExecutionSchema } from "../../dist/domain/webExecution.js";
 import { webEventListenersSchema } from "../../dist/domain/webEventListeners.js";
 import { startBrowserRuntimeSite } from "../fixtures/browser-runtime-site.mjs";
+import { requireOrdinaryWindowsVerifierCaller } from "./windows-ordinary-user-verifier.mjs";
 import { mcpTextValue } from "./mcp-verifier-results.mjs";
 import {
   startRuntimeFixtureBrowser,
@@ -37,6 +38,7 @@ export async function verifyBrowserRuntime(
   executable,
   entrypoint = fileURLToPath(new URL("../rea.mjs", import.meta.url)),
 ) {
+  await requireOrdinaryWindowsVerifierCaller();
   await access(executable);
   const site = await startBrowserRuntimeSite();
   let fixture;

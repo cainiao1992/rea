@@ -4,3 +4,6 @@ export function assertClientConfig(
   configPath: string,
   original: Uint8Array,
 ): Promise<void>;
+
+/** Return true only when stty output positively reports canonical input and echo. */
+export function terminalModesRestored(termios: unknown): boolean;

@@ -12,9 +12,11 @@ import {
   BROWSER_DEVTOOLS_STARTUP_TIMEOUT_MS,
   waitForBrowserDevtoolsPort,
 } from "../../dist/browser/BrowserProcessStartup.js";
+import { requireOrdinaryWindowsVerifierCaller } from "./windows-ordinary-user-verifier.mjs";
 
 /** Launch the synthetic fixture browser and await CDP in its own verified process group. */
 export async function startRuntimeFixtureBrowser(executable, origin) {
+  await requireOrdinaryWindowsVerifierCaller();
   const profile = await mkdtemp(join(tmpdir(), "rea-real-web-runtime-"));
   let owned;
   try {

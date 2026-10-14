@@ -2,8 +2,26 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 
-import { assertClientConfig } from "../../../scripts/verify-package-setup.mjs";
+import {
+  assertClientConfig,
+  terminalModesRestored,
+} from "../../../scripts/verify-package-setup.mjs";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+
+it("requires positive canonical-input and echo terminal mode tokens", () => {
+  expect(terminalModesRestored("speed 38400 baud; icanon echo isig")).toBe(
+    true,
+  );
+  expect(terminalModesRestored("speed 38400 baud; -icanon -echo isig")).toBe(
+    false,
+  );
+  expect(terminalModesRestored("speed 38400 baud; -icanon echo isig")).toBe(
+    false,
+  );
+  expect(terminalModesRestored("speed 38400 baud; icanon -echo isig")).toBe(
+    false,
+  );
+});
 
 it("rejects a backup replaced with the post-setup client configuration", async () => {
   const directory = await createTestTempDirectory("rea-client-backup-");

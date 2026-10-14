@@ -22,6 +22,12 @@ import {
 import { parse as parseJsonc } from "jsonc-parser";
 import { skillReferenceIssues } from "./lib/docs-facts.mjs";
 
+export const terminalModesRestored = (termios) => {
+  if (typeof termios !== "string") return false;
+  const modes = new Set(termios.trim().split(/\s+/u));
+  return modes.has("icanon") && modes.has("echo");
+};
+
 const OPENCODE_ORIGINAL = `{
   // OpenCode preferences must survive setup.
   "model": "provider/model",
@@ -131,8 +137,7 @@ const verifyInteractiveSetup = async ({
         childResult?.status !== 0 ||
         !output.includes("\u001b[?25h") ||
         (process.platform !== "win32" &&
-          (!childResult.termios?.includes("icanon") ||
-            !childResult.termios?.includes("echo"))) ||
+          !terminalModesRestored(childResult.termios)) ||
         !output.includes("No changes were made.")
       ) {
         finish(

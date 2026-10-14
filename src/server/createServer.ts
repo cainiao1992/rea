@@ -39,6 +39,7 @@ import {
   type ToolResultDelivery,
 } from "./toolResult.js";
 import { parseMcpResponseBudget } from "../config/mcpResponseBudget.js";
+import { parseMcpOutputSchemaProfile } from "../config/mcpOutputSchemaProfile.js";
 import {
   COMPACT_INPUT_SCHEMA_BUDGET_BYTES,
   parseMcpInputSchemaProfile,
@@ -250,6 +251,7 @@ const createMcpServer = (
   session: BinarySessionPort | undefined,
   delivery: ToolResultDelivery,
   compactPresentation: CompactInputSchemaPresentation | undefined,
+  omitOutputSchemas: boolean,
 ): EvidenceMcpServer =>
   new EvidenceMcpServer(
     {
@@ -269,6 +271,7 @@ const createMcpServer = (
       : (evidence) => session.recordEvidence(evidence),
     delivery,
     compactPresentation,
+    omitOutputSchemas,
   );
 
 /**
@@ -283,6 +286,7 @@ export const createServer = (
   const session = source.kind === "session" ? source.session : undefined;
   const analysis = source.kind === "session" ? source.session : source.analysis;
   const environment = snapshotEnvironment(options.environment ?? process.env);
+  const omitOutputSchemas = outputSchemasOmitted(environment);
   const providerEnvironment = captureProviderEnvironment(
     options.providerEnvironment,
     environment,
@@ -330,6 +334,7 @@ export const createServer = (
     session,
     delivery,
     selectCompactInputSchemaPresentation(environment),
+    omitOutputSchemas,
   );
   const gdbSessions = new GdbSessionManager({
     environment: providerEnvironment,
@@ -585,6 +590,16 @@ const selectToolResultDelivery = (
   );
   if (!configured.ok) throw configured.error;
   return createToolResultDelivery(configured.value);
+};
+
+const outputSchemasOmitted = (
+  environment: Readonly<NodeJS.ProcessEnv>,
+): boolean => {
+  const configured = parseMcpOutputSchemaProfile(
+    environment.REA_MCP_OUTPUT_SCHEMA_PROFILE,
+  );
+  if (!configured.ok) throw configured.error;
+  return configured.value === "off";
 };
 
 const selectCompactInputSchemaPresentation = (

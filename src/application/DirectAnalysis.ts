@@ -42,6 +42,7 @@ import {
   workflowAnalysisProfile,
 } from "./InvestigationProviders.js";
 import {
+  executeComposedWorkflow,
   createWorkflowEvidence,
   workflowSnapshotRecord,
   recordWorkflowUnknowns,
@@ -401,18 +402,17 @@ const executeAnalysisTool = async (input: {
     tool === "trace_native_ui_action"
   ) {
     const { EnhancedTools } = await import("./EnhancedTools.js");
-    const result = await new EnhancedTools(session).execute(
-      tool,
-      input.arguments,
-      signal,
+    const result = await executeComposedWorkflow(session, (observed) =>
+      new EnhancedTools(observed).execute(tool, input.arguments, signal),
     );
     if (!result.ok) return { output: cliError(result.error) };
     const evidence = createWorkflowEvidence({
       target: input.openedTarget,
       operation: tool,
       parameters: input.arguments,
-      result: result.value,
+      result: result.value.result,
       upstreamProfile: evidenceProfile,
+      upstreamLimitations: result.value.limitations,
     });
     return { output: evidence, evidence };
   }

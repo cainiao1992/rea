@@ -677,7 +677,7 @@ export const TOOL_EFFECTS: Readonly<Record<string, ToolEffects>> = {
     mayDiscardData: true,
     idempotent: false,
   }),
-  binary_session: effects(),
+  binary_session: effects({ launchesProcess: true }),
   export_evidence_bundle: effects({
     writesFilesystem: true,
     mayDiscardData: true,

@@ -10,12 +10,35 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import {
   compareInventory,
   runProductionMcpDoctor,
+  runProductionMcpDoctorCli,
 } from "../../../src/mcpDoctor.js";
 import { CATALOG_IDENTITY } from "../../../src/catalogIdentity.js";
 
 afterEach(() => vi.useRealTimers());
 
 describe("production MCP doctor", () => {
+  it("preserves the full-output envelope for startup failures", async () => {
+    const result = await runProductionMcpDoctorCli(
+      ["--json", "--full-output"],
+      {
+        dispatcherPath: resolve("tests/fixtures/mcpDoctorExit.mjs"),
+        packageRoot: process.cwd(),
+      },
+    );
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.output)).toMatchObject({
+      ok: false,
+      error: {
+        healthy: false,
+        checks: [{ name: "transport", ok: false }],
+      },
+      meta: {
+        command: "rea mcp doctor",
+        duration: expect.stringMatching(/^\d+ms$/u),
+      },
+    });
+  });
+
   it("connects to the production stdio child and verifies the canonical catalog", async () => {
     const result = await runProductionMcpDoctor({
       command: process.execPath,
@@ -44,7 +67,9 @@ describe("production MCP doctor", () => {
       CATALOG_IDENTITY.counts.mcp_tools,
     );
   }, 30_000);
+});
 
+describe("production MCP doctor probe validation", () => {
   it("rejects a schema-invalid probe while retaining the discovered inventory", async () => {
     const root = await createTestTempDirectory("rea-mcp-doctor-reply-");
     const snapshotPath = join(root, "reply.json");
@@ -127,7 +152,9 @@ describe("production MCP doctor", () => {
       duplicates: ["c"],
     });
   });
+});
 
+describe("production MCP doctor child lifecycle", () => {
   it("captures startup exit diagnostics", async () => {
     const result = await runProductionMcpDoctor({
       command: process.execPath,

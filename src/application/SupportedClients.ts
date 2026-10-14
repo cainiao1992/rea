@@ -47,6 +47,7 @@ export interface SetupClient {
     | "pi"
     | "kimi"
     | "hermes"
+    | "zcode_fallback"
     | "zcode"
     | "dsh"
     | "unsupported";

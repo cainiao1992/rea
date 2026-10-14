@@ -62,6 +62,23 @@ describe("TypeScript import-equals links", () => {
 });
 
 describe("CommonJS wrapper parameter redeclarations", () => {
+  it("does not infer a CommonJS wrapper from resolution mode in an explicit module", () => {
+    const path = "app/main.mjs";
+    const parsed = parseJavaScriptSource(
+      'var require; require("./dependency.cjs");',
+      path,
+    );
+    expect(parsed).not.toBeNull();
+    expect(parsed?.program.sourceType).toBe("module");
+    const ir = analyzeParsedJavaScriptSemantics(
+      parsed!,
+      moduleResolutionModeForJavaScriptReference(path, "static-import"),
+    );
+    expect(ir.moduleLinks).not.toContainEqual(
+      expect.objectContaining({ specifier: "./dependency.cjs" }),
+    );
+  });
+
   it("retains ambient exports and require through uninitialized top-level vars", () => {
     const path = "app/main.cjs";
     const parsed = parseJavaScriptSource(

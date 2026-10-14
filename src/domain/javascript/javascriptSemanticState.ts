@@ -94,6 +94,11 @@ export interface JavaScriptSemanticAnalysisState {
     JavaScriptSemanticModuleLink,
     JavaScriptSemanticBindingState
   >;
+  /** Default expressions capture their value at the export statement. */
+  readonly defaultExportExpressions: WeakMap<
+    JavaScriptSemanticModuleLink,
+    t.Node
+  >;
   /** Initializer expressions whose write can be skipped by enclosing control flow. */
   readonly conditionallySkippedExpressions: WeakSet<t.Node>;
   /** Unbound identifier writes retain their source sites for capture ordering. */
@@ -263,8 +268,10 @@ export const isUnmodifiedCommonJsWrapperBinding = (
   name: string,
   state: JavaScriptSemanticAnalysisState,
 ): boolean => {
+  // Parser sourceType separates explicit modules from script/CommonJS source;
+  // specifier resolution mode does not establish that distinction.
   if (
-    state.staticImportResolutionMode !== "require" ||
+    state.program.sourceType !== "script" ||
     !["module", "exports", "require"].includes(name) ||
     !t.isIdentifier(node, { name })
   )

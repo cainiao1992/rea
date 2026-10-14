@@ -687,6 +687,7 @@ const createState = (
     moduleLinks: [],
     linkedRequireCalls: new WeakSet(),
     moduleLinkBindings: new WeakMap(),
+    defaultExportExpressions: new WeakMap(),
     conditionallySkippedExpressions: new WeakSet(),
     requiredModuleEffects: new Map(),
     ambientBindingWrites: new Map(),

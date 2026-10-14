@@ -28,10 +28,8 @@ import {
   bridgeCandidateCoverageSchema,
   projectCartesianCandidates,
 } from "../bridgeCandidateProjection.js";
-import {
-  compareProjectionStrings,
-  projectionDigest,
-} from "../mobileApplicationGraphProjection.js";
+import { projectionDigest } from "../mobileApplicationGraphProjection.js";
+import { compareUnicodeCodePoints as compare } from "../unicodeCodePointOrder.js";
 
 const evidenceIdSchema = prefixedDigestSchema("ev");
 const pathSchema = z.string().min(1);
@@ -450,6 +448,5 @@ const projectionLimitations = (facts: {
   "A bridge basis is inferred from the native path and is repeated for every managed component.",
 ];
 
-const compare = compareProjectionStrings;
 const digest = (value: unknown): string =>
   projectionDigest(value, "Apple application projection");
